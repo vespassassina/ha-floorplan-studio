@@ -254,9 +254,16 @@ export class FloorplanStudioEditor extends LitElement {
     return best ? (best as { hit: Hit }).hit : null;
   }
 
-  /** `align`: extra points the result lines up with (the points of a shape being drawn). */
-  private snapCorner(base: Floor, p: Pt, from: Pt, ref: PtRef, alt: boolean, align: Pt[] = []): Pt {
+  /** `align`: extra points the result lines up with (the points of a shape being drawn).
+   *  `zone`: the point belongs to a zone. One rule for draw and drag: it snaps to the grid and lines up with the other
+   *  corners of its own zone, and to nothing else. A room, outline or stairs corner never attracts it. */
+  private snapCorner(base: Floor, p: Pt, from: Pt, ref: PtRef, alt: boolean, align: Pt[] = [], zone = false): Pt {
     if (alt) return round(p);
+    if (zone) {
+      const own = "poly" in ref ? (polyPts(base, ref.poly) ?? []).filter((q) => q !== from && !(q[0] === from[0] && q[1] === from[1])) : [];
+      const none: Floor = { ...base, outline: [], rooms: [], stairs: [], walls: [], openings: [], extras: [] };
+      return round(snapPoint(none, p, { threshold: 14 / this.scale, grid: this.st.snapGrid ? 5 : 0, exclude: [], neighbours: [...own, ...align] }));
+    }
     const th = 14 / this.scale, grp = pointsNear(base, from);
     // The two neighbours of the dragged corner are never snap targets: landing on one would leave an edge of zero length.
     let neighbours: Pt[] = [];
@@ -267,7 +274,7 @@ export class FloorplanStudioEditor extends LitElement {
     const isNeighbour = (q: Pt) => neighbours.some((m) => m[0] === q[0] && m[1] === q[1]);
     // loose ends and polygon corners compete in one list: the nearest wins
     const cands: Pt[] = looseEnds(base).map((r) => base[r.k][r.i][r.end]);
-    for (const P of polys(base)) if (P.room?.kind !== "zone") cands.push(...P.pts);
+    for (const P of polys(base)) if (P.room?.kind !== "zone") cands.push(...P.pts); // a zone corner is never a target
     let best: Pt | null = null;
     for (const q of cands)
       if (!grp.includes(q) && !isNeighbour(q) && dist(q, p) < th && (!best || dist(q, p) < dist(best, p))) best = q;
@@ -385,7 +392,7 @@ export class FloorplanStudioEditor extends LitElement {
     let g: Floor | null = null;
     switch (d.type) {
       case "corner": {
-        const to = this.snapCorner(d.base, p, d.from, d.ref, alt);
+        const to = this.snapCorner(d.base, p, d.from, d.ref, alt, [], "poly" in d.ref && d.ref.poly[0] === "r" && d.base.rooms[+d.ref.poly.slice(1)]?.kind === "zone");
         if (!d.moved && dist(to, d.from) === 0) return;
         this.begin(d); d.to = to;
         // Shift: only the grabbed corner moves and leaves the others behind
@@ -574,9 +581,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   /** A snapped point for draw mode. A zone snaps to the grid only: its corners never join other shapes (S1.8). */
   private snapDraw(d: Draw, p: Pt, alt: boolean): Pt {
-    const f = this.st.f;
-    const base: Floor = d.kind === "zone" ? { ...f, outline: [], rooms: [], stairs: [], walls: [], openings: [], extras: [] } : f;
-    return this.snapCorner(base, p, NOWHERE, NO_REF, alt, d.points);
+    return this.snapCorner(this.st.f, p, NOWHERE, NO_REF, alt, d.points, d.kind === "zone");
   }
   /** Where and when a pointer press finished a shape: its dblclick, if the browser sends one, must not edit the plan. */
   private finished: { t: number; x: number; y: number } | null = null;

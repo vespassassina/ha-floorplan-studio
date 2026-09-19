@@ -175,9 +175,6 @@ describe("zones do not take part in snapping, stitching or merging", () => {
     // 3 cm above the zone edge y=53 between x=37 and x=77
     expect(snapPoint(withZone(), [60, 50], opts())).toEqual([60, 50]);
   });
-  it("a zone corner still snaps to a room corner", () => {
-    expect(snapPoint(withZone(), [103, 4], opts({ exclude: [[37, 53]] }))).toEqual([100, 0]);
-  });
   it("stitch does not insert a room corner into a zone edge", () => {
     const g = stitch(withZone(), [50, 53]);
     expect(g.rooms[2].pts).toHaveLength(4);

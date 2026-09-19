@@ -1779,3 +1779,21 @@ test("a floor property named like an Object.prototype key does not cancel a draw
   }
   expect(await page.evaluate(() => (document.querySelector("floorplan-studio-editor") as any).st.floor)).toBe(floor);
 });
+
+test("a dragged zone corner dropped 4 cm from a room corner lands on the grid, not on the room corner", async ({ page }) => {
+  const g0 = await groundOf(page), zi = g0.rooms.findIndex((r) => r.kind === "zone"), z = g0.rooms[zi];
+  const j = 1; // (460, 40); the living room corner (500, 0) is 40 cm away, the drop is 4 cm from it
+  await dragCm(page, z.pts[j] as [number, number], [496, 4]);
+  const g1 = await groundOf(page);
+  expect(g1.rooms[zi].pts[j]).toEqual([495, 5]); // the 5 cm grid; a snap would give [500, 0]
+  expect(g1.rooms[0].pts).toEqual(g0.rooms[0].pts);
+  expect(g1.rooms[1].pts).toEqual(g0.rooms[1].pts);
+  await savedValid(page);
+});
+
+test("a dragged zone corner lines up with another corner of the same zone, and with nothing else", async ({ page }) => {
+  const g0 = await groundOf(page), zi = g0.rooms.findIndex((r) => r.kind === "zone"), z = g0.rooms[zi];
+  // (460, 140) is corner 2; drop it 3 cm from x = 340, the x of corners 0 and 3: it lines up with them
+  await dragCm(page, z.pts[2] as [number, number], [343, 160]);
+  expect((await groundOf(page)).rooms[zi].pts[2]).toEqual([340, 160]);
+});
