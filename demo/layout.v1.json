@@ -109,6 +109,70 @@
       true,
       true
      ]
+    },
+    {
+     "name": "Reading corner",
+     "area": "reading",
+     "label": "",
+     "kind": "zone",
+     "pts": [
+      [
+       340,
+       40
+      ],
+      [
+       460,
+       40
+      ],
+      [
+       460,
+       140
+      ],
+      [
+       340,
+       140
+      ]
+     ],
+     "w": [
+      false,
+      false,
+      false,
+      false
+     ]
+    },
+    {
+     "name": "Garden pond",
+     "label": "",
+     "kind": "water",
+     "pts": [
+      [
+       815,
+       430
+      ],
+      [
+       855,
+       430
+      ],
+      [
+       860,
+       470
+      ],
+      [
+       840,
+       500
+      ],
+      [
+       815,
+       490
+      ]
+     ],
+     "w": [
+      false,
+      false,
+      false,
+      false,
+      false
+     ]
     }
    ],
    "walls": [],

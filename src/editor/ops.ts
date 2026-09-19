@@ -69,3 +69,9 @@ export function stairsAt(c: Pt): { name: string; pts: Pt[] } {
   const g = (n: number) => Math.round(n / 5) * 5, x = g(c[0] - 50), y = g(c[1] - 150);
   return { name: "Stairs", pts: [[x, y], [x + 100, y], [x + 100, y + 300], [x, y + 300]] };
 }
+
+/** A 200 x 200 cm square centred on c, corners on the 5 cm grid: the default zone or water polygon. */
+export function squareAt(c: Pt): Pt[] {
+  const g = (n: number) => Math.round(n / 5) * 5, x = g(c[0] - 100), y = g(c[1] - 100);
+  return [[x, y], [x + 200, y], [x + 200, y + 200], [x, y + 200]];
+}

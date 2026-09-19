@@ -20,7 +20,7 @@ describe("renderFloor", () => {
     const html = renderFloor(f, base);
     expect(html).toMatch(/<text class="lbl"[^>]*>&lt;i&gt;3 x 4&lt;\/i&gt; &amp; &quot;co&quot;<\/text>/);
     expect(html).not.toContain("<i>");
-    expect(renderFloor(ground, base).match(/<text class="lbl"/g)).toHaveLength(3);
+    expect(renderFloor(ground, base).match(/<text class="lbl"/g)).toHaveLength(4); // 3 rooms and the pond; the zone label has its own class
   });
 
   it("draws openings as erase lines and extras as dashed shapes with escaped names", () => {
@@ -162,6 +162,55 @@ describe("renderFloor", () => {
   it("uses no literal hex colours", () => {
     const html = renderFloor(ground, { ...base, editor: true, showNames: true, state: { "light.demo_living": st("on") } });
     expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+  });
+});
+
+describe("zones and water", () => {
+  const html = renderFloor(ground, { scale: 0.5 }); // no editor: the card draws the same
+  const zi = ground.rooms.findIndex((r) => r.kind === "zone"), wi = ground.rooms.findIndex((r) => r.kind === "water");
+
+  it("the demo has a Reading corner zone (area reading) inside the living room and a water pond", () => {
+    expect(zi).toBeGreaterThan(-1);
+    expect(wi).toBeGreaterThan(-1);
+    expect(ground.rooms[zi]).toMatchObject({ name: "Reading corner", area: "reading" });
+    expect(ground.rooms[wi].kind).toBe("water");
+    for (const p of ground.rooms[zi].pts) expect(p[0] >= 0 && p[0] <= 500 && p[1] >= 0 && p[1] <= 400).toBe(true);
+  });
+  it("draws every zone edge dotted (class nw), never solid, with no editor handles", () => {
+    const edges = html.match(new RegExp(`<line class="[^"]*" data-e="r${zi}:\\d+"`, "g")) ?? [];
+    expect(edges).toHaveLength(ground.rooms[zi].pts.length);
+    for (const e of edges) expect(e).toContain('class="e nw"');
+    expect(html).not.toContain("data-h=");
+  });
+  it("draws a zone edge dotted even if its w flag says wall", () => {
+    const f = structuredClone(ground);
+    f.rooms[zi].w = f.rooms[zi].w.map(() => true);
+    expect(renderFloor(f, { scale: 0.5 })).toContain(`<line class="e nw" data-e="r${zi}:0"`);
+  });
+  it("the zone has no fill and a small name label; the water has class water and the --fp-water fill", () => {
+    expect(html).toMatch(new RegExp(`<polygon data-r="${zi}" class="room room-zone"`));
+    expect(FLOORPLAN_CSS).toMatch(/\.room-zone\{fill:none\}/);
+    expect(html).toMatch(new RegExp(`<polygon data-r="${wi}" class="[^"]*\\bwater\\b[^"]*"`));
+    expect(FLOORPLAN_CSS).toMatch(/--fp-water:#[0-9a-f]{3,8}/i);
+    expect(FLOORPLAN_CSS).toMatch(/\.water\{[^}]*fill:var\(--fp-water\)/);
+    expect(html).toMatch(/<text class="lbl zone"[^>]*font-size="20"[^>]*>Reading corner<\/text>/);
+  });
+  it("puts no literal colour in the zone and water markup", () => {
+    const mine = html.split("\n").filter((l) => new RegExp(`data-(r="(${zi}|${wi})"|e="r(${zi}|${wi}):)`).test(l)).join("\n");
+    expect(mine).not.toMatch(/#[0-9a-f]{3,8}|rgb\(|fill="|stroke="/i);
+  });
+  it("escapes the name, area-free label and kind of zone and water", () => {
+    const f = structuredClone(ground);
+    f.rooms[zi].name = '"><script>x</script>';
+    f.rooms[wi].name = '"><script>y</script>';
+    f.rooms[wi].kind = '"><script>z</script>' as never;
+    const out = renderFloor(f, { scale: 1, editor: true });
+    expect(out).not.toContain("<script>");
+    expect(out).toContain("&quot;&gt;&lt;script&gt;x");
+  });
+  it("the editor adds handles for zone corners", () => {
+    const out = renderFloor(ground, { scale: 1, editor: true });
+    expect(out).toContain(`data-h="r${zi}:0"`);
   });
 });
 

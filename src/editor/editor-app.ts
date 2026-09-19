@@ -2,7 +2,7 @@ import { LitElement, css, html, nothing } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, FURNITURE, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, snapPoint, stitch, validate } from "../core";
 import type { DeviceType, Floor, Layout, Pt } from "../core";
-import { looseEnds, movePointAll, pointsNear, segmentAt, stairsAt } from "./ops";
+import { looseEnds, movePointAll, pointsNear, segmentAt, squareAt, stairsAt } from "./ops";
 import { TYPE_LABELS, selectionPanel, type PanelCtx } from "./panels";
 import { EditorState, loadLayout, newId, polyPts, ptOf, type LooseRef, type PtRef, type Sel, type View } from "./state";
 
@@ -236,7 +236,7 @@ export class FloorplanStudioEditor extends LitElement {
     const isNeighbour = (q: Pt) => neighbours.some((m) => m[0] === q[0] && m[1] === q[1]);
     // loose ends and polygon corners compete in one list: the nearest wins
     const cands: Pt[] = looseEnds(base).map((r) => base[r.k][r.i][r.end]);
-    for (const P of polys(base)) cands.push(...P.pts);
+    for (const P of polys(base)) if (P.room?.kind !== "zone") cands.push(...P.pts);
     let best: Pt | null = null;
     for (const q of cands)
       if (!grp.includes(q) && !isNeighbour(q) && dist(q, p) < th && (!best || dist(q, p) < dist(best, p))) best = q;
@@ -522,6 +522,12 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
     this.requestUpdate();
   }
+  private addArea(kind: "zone" | "water") {
+    const pts = squareAt(this.centre()), floor = this.st.floor, name = kind === "zone" ? "New zone" : "New water";
+    this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name, area: kind === "zone" ? slug(name) : "", label: "", kind, pts, w: pts.map(() => false) }); });
+    this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
+    this.requestUpdate();
+  }
   private addStairs() {
     const floor = this.st.floor, t = stairsAt(this.centre());
     this.commit((f) => { f.stairs.push({ id: newId(f, floor, "stairs"), ...t }); });
@@ -664,6 +670,8 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn" id="addWin" @click=${() => this.addOpening("window", 120)}>Window</button>
           <button class="btn" id="addWall" @click=${() => this.addWall()}>Wall</button>
           <button class="btn" id="addStr" @click=${() => this.addStructure()}>Structure</button>
+          <button class="btn" id="addZone" @click=${() => this.addArea("zone")}>Zone</button>
+          <button class="btn" id="addWater" @click=${() => this.addArea("water")}>Water</button>
           <button class="btn" id="addStairs" @click=${() => this.addStairs()}>Stairs</button>
           <div class="sep"></div>
           <select id="addFurn" aria-label="Add furniture" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addFurniture(el.value); el.value = ""; this.closeMenus(); }}>

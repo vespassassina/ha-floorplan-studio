@@ -1,5 +1,5 @@
 export type Pt = [number, number];
-export type RoomKind = "room" | "outdoor" | "fill" | "terrace" | "structure";
+export type RoomKind = "room" | "outdoor" | "fill" | "terrace" | "structure" | "zone" | "water";
 export type DoorKind = "door" | "glass" | "window" | "sealed";
 export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
@@ -28,7 +28,7 @@ const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" &&
 const isEntity = (x: unknown) => typeof x === "string" && x.includes(".");
 const isPt = (p: unknown) => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === "number" && Number.isFinite(n));
 
-export const ROOM_KINDS: readonly RoomKind[] = ["room", "outdoor", "fill", "terrace", "structure"];
+export const ROOM_KINDS: readonly RoomKind[] = ["room", "outdoor", "fill", "terrace", "structure", "zone", "water"];
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed"];
 export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "media", "cover", "other"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"];
@@ -75,6 +75,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       oneOf(`${r.id} kind`, r.kind, ROOM_KINDS);
       if (Array.isArray(r.pts) && r.pts.length >= 3 && (!Array.isArray(r.w) || r.w.length !== r.pts.length))
         errors.push(`${at} ${r.id} w must have ${r.pts.length} entries`);
+      else if (r.kind === "zone" && Array.isArray(r.w) && r.w.some((v: unknown) => v !== false))
+        errors.push(`${at} ${r.id} is a zone and cannot have a wall edge: every w entry must be false`);
     });
     each("walls", (w) => {
       oneOf(`${w.id} kind`, w.kind, ["wall", "boundary"]);

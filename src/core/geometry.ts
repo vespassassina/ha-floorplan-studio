@@ -17,6 +17,9 @@ export function polys(f: Floor): { id: string; pts: Pt[]; room?: Room }[] {
   ];
 }
 
+/** A zone is a dotted subdivision: it never snaps, stitches or merges with the rest of the plan. */
+const isZone = (P: { room?: Room }) => P.room?.kind === "zone";
+
 function edges(pts: Pt[]): { a: Pt; b: Pt; i: number }[] {
   return pts.map((a, i) => ({ a, b: pts[(i + 1) % pts.length], i }));
 }
@@ -55,13 +58,14 @@ export function snapPoint(f: Floor, p: Pt, o: SnapOpts): Pt {
   const skip = (q: Pt) => o.exclude.some((e) => same(e, q));
 
   let corner: Pt | null = null;
-  for (const P of polys(f))
+  for (const P of polys(f).filter((x) => !isZone(x)))
     for (const q of P.pts)
       if (!skip(q) && dist(q, p) < th && (!corner || dist(q, p) < dist(corner, p))) corner = q;
   if (corner) return [corner[0], corner[1]];
 
   let tee: { d: number; pt: Pt } | null = null;
   for (const P of polys(f)) {
+    if (isZone(P)) continue;
     if (P.pts.some(skip)) continue;
     for (const { a, b } of edges(P.pts)) {
       const { t, q } = project(p, a, b);
@@ -87,7 +91,10 @@ export function snapPoint(f: Floor, p: Pt, o: SnapOpts): Pt {
 /** Puts `pt` into every polygon edge it lies on (one point per polygon), keeping room wall flags. */
 export function stitch(f: Floor, pt: Pt): Floor {
   const g = structuredClone(f);
+  const at = polys(g).filter((P) => P.pts.some((q) => dist(q, pt) <= TOUCH));
+  if (at.length && at.every(isZone)) return g; // a zone corner never becomes a point of a wall
   for (const P of polys(g)) {
+    if (isZone(P)) continue;
     if (P.pts.some((q) => dist(q, pt) <= TOUCH)) continue;
     for (const { a, b, i } of edges(P.pts)) {
       const { t, q } = project(pt, a, b);
@@ -123,14 +130,17 @@ export function removePoint(f: Floor, poly: string, j: number): Floor {
 
 /**
  * Moves every point within 2 cm of `from` to `to`. With `detach` only one point moves:
- * `only` names it, else the first match.
+ * `only` names it, else the first match. A zone corner and a room corner never move together:
+ * with `only` set, a zone's corners move only when `only` is a zone corner, and only then.
  */
 export function movePoints(f: Floor, from: Pt, to: Pt, detach: boolean, only?: { poly: string; i: number }): Floor {
   const g = structuredClone(f);
   let moved = false;
+  const zoneMove = only ? isZone(polys(g).find((P) => P.id === only.poly) ?? {}) : undefined;
   for (const P of polys(g))
     P.pts.forEach((q, i) => {
       if (dist(q, from) > TOUCH) return;
+      if (zoneMove !== undefined && isZone(P) !== zoneMove) return;
       if (detach) {
         if (moved || (only && !(only.poly === P.id && only.i === i))) return;
         moved = true;
@@ -164,13 +174,13 @@ export function toggleWall(f: Floor, poly: string, i: number): Floor {
 
 /**
  * Corners within `tol` cm become one point: the outline's if the group has one, else the average.
- * Consecutive equal corners are dropped with their wall flags. Outdoor rooms are left alone.
+ * Consecutive equal corners are dropped with their wall flags. Outdoor rooms and zones are left alone.
  */
 export function mergeCorners(f: Floor, tol: number): Floor {
   const g = structuredClone(f);
   const list = [
     { pts: g.outline, outline: true, room: undefined as Room | undefined },
-    ...g.rooms.filter((r) => r.kind !== "outdoor").map((r) => ({ pts: r.pts, outline: false, room: r })),
+    ...g.rooms.filter((r) => r.kind !== "outdoor" && r.kind !== "zone").map((r) => ({ pts: r.pts, outline: false, room: r })),
     ...g.stairs.map((s) => ({ pts: s.pts, outline: false, room: undefined })),
   ];
   const all = list.flatMap((P) => P.pts.map((q) => ({ q, outline: P.outline })));

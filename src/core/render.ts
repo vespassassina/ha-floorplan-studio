@@ -10,8 +10,8 @@ export interface RenderOpts {
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
 export const FLOORPLAN_CSS = `
 :host,.fp{--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-outdoor:#dce6d6;--fp-wall:#2b2a27;--fp-idle:#8b8578;
---fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80}
-.room{fill:var(--fp-room)} .room-outdoor,.room-terrace{fill:var(--fp-outdoor)} .room-fill{fill:none}
+--fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3}
+.room{fill:var(--fp-room)} .room-outdoor,.room-terrace{fill:var(--fp-outdoor)} .room-fill,.room-zone{fill:none} .water{fill:var(--fp-water)}
 .e{stroke:var(--fp-wall);stroke-width:3;stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5}
 .e.se{stroke-width:1.5} .opening{stroke:var(--fp-room);stroke-width:9;pointer-events:none}
 .extra{fill:none;stroke:var(--fp-idle);stroke-dasharray:6 4;stroke-width:1.2;vector-effect:non-scaling-stroke;pointer-events:none}
@@ -65,14 +65,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   f.rooms.forEach((r, i) => {
     if (r.kind === "fill" && !r.name) return;
-    out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}" points="${pts(r.pts)}"/>`);
+    out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}" points="${pts(r.pts)}"/>`);
   });
   f.stairs.forEach((s, i) => out.push(`<polygon data-s="${i}" class="stairs room" points="${pts(s.pts)}"/>`));
 
-  const polys: { id: string; pts: Pt[]; w?: boolean[] }[] = [{ id: "o", pts: f.outline }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, w: r.w }))];
+  const polys: { id: string; pts: Pt[]; w?: boolean[]; zone?: boolean }[] = [{ id: "o", pts: f.outline }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, w: r.w, zone: r.kind === "zone" }))];
   for (const P of polys)
     P.pts.forEach((a, i) => {
-      const b = P.pts[(i + 1) % P.pts.length], wall = P.w ? P.w[i] : true;
+      const b = P.pts[(i + 1) % P.pts.length], wall = P.zone ? false : P.w ? P.w[i] : true;
       out.push(`<line class="e${wall ? "" : " nw"}" data-e="${P.id}:${i}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"/>`);
     });
   f.walls.forEach((w, i) =>
@@ -137,6 +137,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.rooms.forEach((r) => {
     if (!r.name || r.kind === "fill") return;
     const cx = r.pts.reduce((s, p) => s + p[0], 0) / r.pts.length, cy = r.pts.reduce((s, p) => s + p[1], 0) / r.pts.length;
+    if (r.kind === "zone") { out.push(`<text class="lbl zone" x="${num(cx)}" y="${num(cy)}" text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
     out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy)}" text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
     if (r.label) out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy + 16 * k)}" text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`);
   });

@@ -140,4 +140,37 @@ describe("validate bound", () => {
     l.floors.first.devices.push({ id: "light-x", type: "light", entity: "light.x", bound: light(l).bound, x: 1, y: 1 });
     expect(has(l, /more than one device/)).toBe(true);
   });
+
+  describe("zone and water rooms", () => {
+    it("accepts a zone with no wall edge and a water polygon", () => {
+      const l = clone();
+      l.floors.ground.rooms.push(
+        { id: "z1", name: "Nook", area: "nook", label: "", kind: "zone", pts: [[10, 10], [60, 10], [60, 60]], w: [false, false, false] },
+        { id: "w1", name: "Pond", area: "", label: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60]], w: [false, false, false] },
+      );
+      expect(errorsOf(l)).toEqual([]);
+    });
+    it("accepts water with wall flags, like a room", () => {
+      const l = clone();
+      l.floors.ground.rooms.push({ id: "w1", name: "Pool", area: "", label: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60]], w: [true, true, true] });
+      expect(errorsOf(l)).toEqual([]);
+    });
+    it("rejects a zone with a wall edge", () => {
+      const l = clone();
+      l.floors.ground.rooms.push({ id: "z1", name: "Nook", area: "nook", label: "", kind: "zone", pts: [[10, 10], [60, 10], [60, 60]], w: [false, true, false] });
+      expect(errorsOf(l).join("\n")).toMatch(/z1.*zone.*wall/);
+    });
+    it("rejects a zone or water polygon with fewer than 3 points", () => {
+      for (const kind of ["zone", "water"]) {
+        const l = clone();
+        l.floors.ground.rooms.push({ id: "q1", name: "Q", area: "", label: "", kind, pts: [[0, 0], [1, 1]], w: [false, false] });
+        expect(errorsOf(l).join("\n")).toMatch(/q1.*at least 3 points/);
+      }
+    });
+    it("still rejects an unknown kind", () => {
+      const l = clone();
+      l.floors.ground.rooms[0].kind = "lake";
+      expect(errorsOf(l).join("\n")).toMatch(/room-ground-1 kind/);
+    });
+  });
 });

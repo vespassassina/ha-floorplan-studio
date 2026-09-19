@@ -120,8 +120,14 @@ function roomPanel(c: PanelCtx, i: number) {
     ${text("name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
     ${text("area id", "ra", r.area, (v) => c.commit((f) => { f.rooms[i].area = v; }))}
     ${text("plan label", "rl", r.label, (v) => c.commit((f) => { f.rooms[i].label = v; }))}
-    ${select("kind", "rk", r.kind, ROOM_KINDS, (v) => c.commit((f) => { f.rooms[i].kind = v as typeof r.kind; }))}
+    ${select("kind", "rk", r.kind, ROOM_KINDS, (v) => c.commit((f) => {
+      const room = f.rooms[i];
+      if (room.kind === v) return;
+      room.kind = v as typeof r.kind;
+      if (v === "zone") room.w = room.pts.map(() => false); // a zone has no wall edge
+    }))}
     <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); })}</p>
+    ${r.kind === "zone" ? hint("A zone is a dotted area inside a room. Give it an area id to map it to a Home Assistant area. Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag the body to move it. Drag corners to reshape. Click an edge to switch it between wall and dotted.") : nothing}`;
 }
 

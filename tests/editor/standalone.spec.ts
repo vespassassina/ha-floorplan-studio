@@ -45,14 +45,14 @@ test("opens from file://, draws the demo, opens a v1 file, saves v2, and makes n
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   await open(page);
-  await expect(page.locator("svg polygon[data-r]")).toHaveCount(3);
+  await expect(page.locator("svg polygon[data-r]")).toHaveCount(5);
   expect((await layoutOf(page)).version).toBe(2);
 
   await page.locator("#file").setInputFiles("demo/layout.v1.json");
   await expect(page.locator("#errors")).toHaveCount(0);
   const migrated = await layoutOf(page);
   expect(migrated.version).toBe(2);
-  await expect(page.locator("svg polygon[data-r]")).toHaveCount(3);
+  await expect(page.locator("svg polygon[data-r]")).toHaveCount(5);
 
   await page.locator("details.menu > summary", { hasText: "File" }).click();
   const dl = page.waitForEvent("download");
@@ -90,7 +90,7 @@ test("break it: offline still loads", async ({ browser }) => {
   const page = await context.newPage();
   const remote = watchNetwork(page);
   await open(page);
-  await expect(page.locator("svg polygon[data-r]")).toHaveCount(3);
+  await expect(page.locator("svg polygon[data-r]")).toHaveCount(5);
   expect(remote).toEqual([]);
   await context.close();
 });
@@ -103,7 +103,7 @@ test("break it: localStorage that throws does not stop the editor", async ({ pag
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   await open(page);
-  await expect(page.locator("svg polygon[data-r]")).toHaveCount(3);
+  await expect(page.locator("svg polygon[data-r]")).toHaveCount(5);
   // edits and Save still work without storage
   await page.locator("#file").setInputFiles("demo/layout.v1.json");
   await expect(page.locator("#errors")).toHaveCount(0);
@@ -123,5 +123,5 @@ test("break it: a file with rooms:5 shows errors and keeps the layout", async ({
   await expect(page.locator("#errors")).toBeVisible();
   await expect(page.locator("#errors li").first()).toContainText("rooms");
   expect(await layoutOf(page)).toEqual(before);
-  await expect(page.locator("svg polygon[data-r]")).toHaveCount(3);
+  await expect(page.locator("svg polygon[data-r]")).toHaveCount(5);
 });

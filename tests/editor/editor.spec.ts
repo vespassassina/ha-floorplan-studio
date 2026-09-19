@@ -36,8 +36,8 @@ test.beforeEach(async ({ page }) => {
 
 test("loads the demo and draws the ground floor", async ({ page }) => {
   const l = await layoutOf(page);
-  expect(l.floors.ground.rooms).toHaveLength(3);
-  await expect(page.locator("svg polygon[data-r]")).toHaveCount(3);
+  expect(l.floors.ground.rooms).toHaveLength(5); // three rooms, the Reading corner zone and the pond
+  await expect(page.locator("svg polygon[data-r]")).toHaveCount(5);
   await expect(page.locator(".chip[data-f]")).toHaveCount(2);
 });
 
@@ -548,4 +548,110 @@ test("a selection made from the Add menu survives the menu closing, then Delete 
   const n = (await groundOf(page)).devices.length;
   await page.keyboard.press("Delete");
   expect((await groundOf(page)).devices.length).toBe(n - 1);
+});
+
+// ---- S1.8 zones and water ----------------------------------------------------
+const addKind = async (page: Page, id: "#addZone" | "#addWater") => { await menu(page, "Add"); await page.locator(id).click(); };
+const roomPolys = (page: Page) => page.locator("svg polygon[data-r]");
+
+test("Add, Zone places a 200 x 200 cm zone on the grid, centred, selected, dotted, with all w false; one undo step removes it", async ({ page }) => {
+  const before = await groundOf(page);
+  await addKind(page, "#addZone");
+  await expect(roomPolys(page)).toHaveCount(before.rooms.length + 1);
+  const g = await groundOf(page), z = g.rooms[g.rooms.length - 1], n = g.rooms.length - 1;
+  expect(z.kind).toBe("zone");
+  expect(z.w).toEqual([false, false, false, false]);
+  expect(new Set(g.rooms.map((r) => r.id)).size).toBe(g.rooms.length);
+  const xs = z.pts.map((p) => p[0]), ys = z.pts.map((p) => p[1]);
+  expect(Math.max(...xs) - Math.min(...xs)).toBe(200);
+  expect(Math.max(...ys) - Math.min(...ys)).toBe(200);
+  for (const v of [...xs, ...ys]) expect(v % 5).toBe(0);
+  const view = await page.evaluate((tag) => ({ ...(document.querySelector(tag) as any).st.view }), EDITOR);
+  expect(Math.abs((Math.min(...xs) + 100) - (view.x + view.w / 2))).toBeLessThanOrEqual(5);
+  expect(Math.abs((Math.min(...ys) + 100) - (view.y + view.h / 2))).toBeLessThanOrEqual(5);
+  // selected: the panel shows kind zone
+  await expect(page.locator("#rk")).toHaveValue("zone");
+  // its four edges are dotted for real: the browser resolves the dash array from the shared CSS
+  const edges = page.locator(`svg line[data-e^="r${n}:"]`);
+  await expect(edges).toHaveCount(4);
+  for (let i = 0; i < 4; i++) {
+    await expect(edges.nth(i)).toHaveClass(/\bnw\b/);
+    expect(await edges.nth(i).evaluate((el) => getComputedStyle(el).strokeDasharray)).not.toBe("none");
+  }
+  expect(await page.locator(`svg polygon[data-r="${n}"]`).evaluate((el) => getComputedStyle(el).fill)).toBe("none");
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  await expect(roomPolys(page)).toHaveCount(before.rooms.length);
+  await savedValid(page);
+});
+
+test("Add, Water places a 200 x 200 cm water polygon filled from --fp-water, selected", async ({ page }) => {
+  await addKind(page, "#addWater");
+  const g = await groundOf(page), w = g.rooms[g.rooms.length - 1], n = g.rooms.length - 1;
+  expect(w.kind).toBe("water");
+  const xs = w.pts.map((p) => p[0]);
+  expect(Math.max(...xs) - Math.min(...xs)).toBe(200);
+  await expect(page.locator("#rk")).toHaveValue("water");
+  const fill = (sel: string) => page.locator(sel).evaluate((el) => getComputedStyle(el).fill);
+  const water = await fill(`svg polygon[data-r="${n}"]`);
+  expect(water).not.toBe("none");
+  expect(water).not.toBe(await fill('svg polygon[data-r="0"]'));
+  await savedValid(page);
+});
+
+test("the room panel kind select lists zone and water; picking zone clears every wall flag, and it undoes in one step", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator("#rk")).toHaveValue("room");
+  const options = await page.locator("#rk option").allTextContents();
+  expect(options).toEqual(expect.arrayContaining(["zone", "water"]));
+  expect((await groundOf(page)).rooms[0].w).toEqual([true, true, true, true]);
+  await page.locator("#rk").selectOption("zone");
+  const z = (await groundOf(page)).rooms[0];
+  expect(z.kind).toBe("zone");
+  expect(z.w).toEqual([false, false, false, false]);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  const back = (await groundOf(page)).rooms[0];
+  expect(back.kind).toBe("room");
+  expect(back.w).toEqual([true, true, true, true]);
+});
+
+test("dragging a zone corner onto a wall does not insert a point into the wall or the rooms", async ({ page }) => {
+  await addKind(page, "#addZone");
+  const g0 = await groundOf(page), zi = g0.rooms.length - 1, z = g0.rooms[zi];
+  const counts = (g: Floor) => ({ o: g.outline.length, rooms: g.rooms.slice(0, 3).map((r) => r.pts.length), w: g.rooms.slice(0, 3).map((r) => r.w.length), walls: g.walls.length });
+  const before = counts(g0);
+  // the corner that has no neighbour on the target; the target lies on the living / kitchen wall x = 500
+  const corner = z.pts.reduce((a, p) => (p[0] < a[0] ? p : a)); // a left corner of the zone
+  const j = z.pts.indexOf(corner);
+  const target: [number, number] = [500, 250];
+  expect(z.pts.some((p) => p[0] === 500 && p[1] === 250)).toBe(false);
+  await dragCm(page, corner as [number, number], target);
+  const g1 = await groundOf(page);
+  expect(g1.rooms[zi].pts[j]).toEqual(target); // it did land on the wall
+  expect(counts(g1)).toEqual(before);
+  expect(g1.rooms[0].pts).toEqual(g0.rooms[0].pts);
+  expect(g1.rooms[1].pts).toEqual(g0.rooms[1].pts);
+});
+
+test("dragging a room corner onto a zone edge does not insert a point into the zone", async ({ page }) => {
+  const g0 = await groundOf(page), zi = g0.rooms.findIndex((r) => r.kind === "zone"), z = g0.rooms[zi];
+  const top = z.pts.filter((p) => p[1] === Math.min(...z.pts.map((q) => q[1])));
+  const mx = Math.round((top[0][0] + top[1][0]) / 2 / 5) * 5;
+  // hall corner (0, 600) is far; drag the kitchen's free corner (800, 0)?  Use the living room corner (0, 400) onto the zone's top edge
+  const target: [number, number] = [mx, top[0][1]];
+  await dragCm(page, [0, 400], target);
+  const g1 = await groundOf(page);
+  expect(g1.rooms[0].pts.some((p) => p[0] === target[0] && p[1] === target[1])).toBe(true);
+  expect(g1.rooms[zi].pts).toHaveLength(z.pts.length);
+});
+
+test("a room corner dropped 8 cm from a zone corner does not snap onto it", async ({ page }) => {
+  const g0 = await groundOf(page), z = g0.rooms.find((r) => r.kind === "zone")!;
+  const c = z.pts[2]; // (460, 140)
+  await dragCm(page, [0, 400], [c[0] + 8, c[1] + 6]);
+  const p = (await groundOf(page)).rooms[0].pts[3];
+  expect(p).not.toEqual(c);
+  expect(p).toEqual([c[0] + 10, c[1] + 5]); // the 5 cm grid, not the zone corner
 });

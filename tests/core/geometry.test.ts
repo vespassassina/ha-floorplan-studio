@@ -152,3 +152,66 @@ describe("mergeCorners", () => {
     expect(g.rooms[0].pts.length).toBeLessThan(5);
   });
 });
+
+describe("zones do not take part in snapping, stitching or merging", () => {
+  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, w: pts.map(() => false) });
+  // an off-grid zone inside room a, so a corner snap onto it would be visible
+  const withZone = (): Floor => {
+    const f = floor();
+    f.rooms.push(zone("z", [[37, 53], [77, 53], [77, 83], [37, 83]]));
+    return f;
+  };
+
+  it("polys still lists a zone, id r<i>, so its corners drag", () => {
+    const f = withZone();
+    expect(polys(f).map((p) => p.id)).toEqual(["o", "r0", "r1", "r2"]);
+    expect(polys(f)[3].room?.kind).toBe("zone");
+  });
+  it("snapPoint does not snap another polygon's point to a zone corner", () => {
+    // 3 cm from the zone corner (37, 53): without the rule it returns the corner, with it the grid point
+    expect(snapPoint(withZone(), [40, 50], opts())).toEqual([40, 50]);
+  });
+  it("snapPoint does not put a point as a T on a zone edge", () => {
+    // 3 cm above the zone edge y=53 between x=37 and x=77
+    expect(snapPoint(withZone(), [60, 50], opts())).toEqual([60, 50]);
+  });
+  it("a zone corner still snaps to a room corner", () => {
+    expect(snapPoint(withZone(), [103, 4], opts({ exclude: [[37, 53]] }))).toEqual([100, 0]);
+  });
+  it("stitch does not insert a room corner into a zone edge", () => {
+    const g = stitch(withZone(), [50, 53]);
+    expect(g.rooms[2].pts).toHaveLength(4);
+  });
+  it("stitch does not insert a zone corner into a room edge or the outline", () => {
+    const f = withZone();
+    f.rooms[2].pts = [[50, 100], [70, 100], [70, 90], [50, 90]]; // corner (50, 100) lies on the edge of room a and the outline? (a: y=100)
+    const g = stitch(f, [50, 100]);
+    expect(g.rooms[0].pts).toHaveLength(4);
+    expect(g.rooms[0].w).toHaveLength(4);
+    expect(g.rooms[2].pts).toHaveLength(4);
+  });
+  it("stitch still stitches a room corner that is not a zone corner", () => {
+    const f = withZone();
+    f.rooms.push(room("c", [[50, 100], [60, 130], [40, 130]]));
+    expect(stitch(f, [50, 100]).rooms[0].pts).toHaveLength(5);
+  });
+  it("mergeCorners leaves a zone corner 10 cm from a room corner where it is", () => {
+    const f = floor();
+    f.rooms.push(zone("z", [[110, 10], [150, 10], [150, 50], [110, 50]]));
+    const g = mergeCorners(f, 25);
+    expect(g.rooms[2].pts).toEqual([[110, 10], [150, 10], [150, 50], [110, 50]]);
+    expect(g.rooms[1].pts[0]).toEqual([100, 0]);
+  });
+  it("movePoints with a zone corner named moves only the zone corner; a room corner never drags a zone corner", () => {
+    const f = floor();
+    f.rooms.push(zone("z", [[100, 0], [150, 0], [150, 50], [100, 50]]));
+    const a = movePoints(f, [100, 0], [110, 5], false, { poly: "r2", i: 0 });
+    expect(a.rooms[2].pts[0]).toEqual([110, 5]);
+    expect(a.rooms[0].pts[1]).toEqual([100, 0]);
+    expect(a.rooms[1].pts[0]).toEqual([100, 0]);
+    const b = movePoints(f, [100, 0], [110, 5], false, { poly: "r0", i: 1 });
+    expect(b.rooms[0].pts[1]).toEqual([110, 5]);
+    expect(b.rooms[1].pts[0]).toEqual([110, 5]);
+    expect(b.rooms[2].pts[0]).toEqual([100, 0]);
+  });
+});

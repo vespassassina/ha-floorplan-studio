@@ -25,7 +25,7 @@ describe("migrate", () => {
 
   it("assigns ids as <kind>-<floor>-<n>", () => {
     const m = migrate(v1);
-    expect(m.floors.ground.rooms.map((r) => r.id)).toEqual(["room-ground-1", "room-ground-2", "room-ground-3"]);
+    expect(m.floors.ground.rooms.map((r) => r.id)).toEqual(["room-ground-1", "room-ground-2", "room-ground-3", "room-ground-4", "room-ground-5"]);
     expect(m.floors.first.doors[0].id).toBe("door-first-1");
   });
 
@@ -96,5 +96,18 @@ describe("migrate", () => {
     expect(m1.floors.ground.devices.find((d) => d.id === "light-living")).toMatchObject({ bound: "switch.keep_me" });
     l.version = 2;
     expect(migrate(l).floors.ground.devices.find((d) => d.id === "light-living")).toMatchObject({ bound: "switch.keep_me" });
+  });
+
+  it("passes zone and water rooms through unchanged", () => {
+    const l: any = structuredClone(demo);
+    const pts = [[10, 10], [60, 10], [60, 60]];
+    l.floors.ground.rooms.push(
+      { id: "z1", name: "Nook", area: "nook", label: "", kind: "zone", pts, w: [false, false, false] },
+      { id: "w1", name: "Pond", area: "", label: "", kind: "water", pts, w: [false, false, false] },
+    );
+    const m = migrate(l);
+    const kinds = m.floors.ground.rooms.map((r) => r.kind);
+    expect(kinds.slice(-2)).toEqual(["zone", "water"]);
+    expect(m.floors.ground.rooms.at(-2)).toEqual(l.floors.ground.rooms.at(-2));
   });
 });
