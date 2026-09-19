@@ -57,7 +57,7 @@ export function ptOf(f: Floor, ref: PtRef): Pt | null {
 const MAX_HISTORY = 100;
 
 const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
-const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+export const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 /** A floors object with no prototype, so a floor called `__proto__` or `constructor` is just a key. */
 function floorsOf(entries: [string, Floor][]): Record<string, Floor> {
   const o: Record<string, Floor> = Object.create(null);

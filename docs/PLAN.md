@@ -193,7 +193,7 @@ field, and `migrate` fills defaults.
 - Done when: tests pass.
 - Break it: a title that slugs to an existing key gets a `-2` key, not a silent overwrite.
 
-### S1.11 Draw mode
+### S1.11 Draw mode (done)
 - Outcome: draw a polyline or polygon by clicking points, after choosing what it is.
 - Files: `src/editor/editor-app.ts`, `src/editor/state.ts`, `tests/editor/editor.spec.ts`.
 - Interface: Add menu gains a "Draw" group: Room, Zone, Water, Outline (replaces the current outline), Wall (each of the five kinds), Opening, Structure line. Choosing one enters draw mode: status shows "Click to add points, double-click or Enter to finish, Esc to cancel"; the cursor is a crosshair; each click adds a point snapped with `snapPoint` (Alt disables); a rubber-band line follows the pointer from the last point; polygons close on the first point or on finish; for line kinds every click after the first commits one wall segment and continues from it (chain), so a fence is many walls. Finish with fewer than 3 points (polygon) or 2 (line) cancels. One undo step for the whole shape, none on cancel. Existing single-shape Add items stay.

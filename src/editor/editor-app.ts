@@ -1,10 +1,11 @@
 import { LitElement, css, html, nothing } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { FLOORPLAN_CSS, FURNITURE, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, snapPoint, stitch, validate } from "../core";
-import type { DeviceType, Floor, Layout, Pt } from "../core";
+import { FLOORPLAN_CSS, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, snapPoint, stitch, validate } from "../core";
+import type { DeviceType, Floor, Layout, Pt, WallKind } from "../core";
 import { looseEnds, movePointAll, pointsNear, segmentAt, squareAt, stairsAt } from "./ops";
-import { TYPE_LABELS, selectionPanel, type PanelCtx } from "./panels";
-import { EditorState, loadLayout, newId, polyPts, ptOf, type LooseRef, type PtRef, type Sel, type View } from "./state";
+import { Draw, applyShape, type DrawKind } from "./draw";
+import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
+import { EditorState, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
 
 /**
  * <floorplan-studio-editor>: draws and edits a layout.
@@ -35,9 +36,12 @@ type Drag =
   | { type: "furn"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "room"; base: Floor; i: number; start: Pt; moved: boolean };
 
-const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 const num = (n: number) => String(Math.round(n * 100) / 100);
+const DRAW_HINT = "Click to add points, double-click or Enter to finish, Esc to cancel";
+/** A stand-in for "no dragged point": nothing is within reach of it. */
+const NOWHERE: Pt = [-1e9, -1e9];
+const NO_REF: PtRef = { k: "walls", i: -1, end: "a" };
 
 function segDist(p: Pt, a: Pt, b: Pt): number {
   const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
@@ -88,6 +92,9 @@ export class FloorplanStudioEditor extends LitElement {
 
   private st = new EditorState();
   private drag: Drag | null = null;
+  /** Draw mode: the shape being drawn, and where the pointer is (snapped) for the rubber band. */
+  private draw: Draw | null = null;
+  private hover: Pt | null = null;
   private rect = { w: 800, h: 600 };
   private ro?: ResizeObserver;
 
@@ -103,6 +110,7 @@ export class FloorplanStudioEditor extends LitElement {
   set layout(v: Layout | undefined) {
     if (!v) return;
     const old = this.st.layout;
+    this.stopDraw();
     const r = loadLayout(v);
     if (!r.ok) { this.errors = r.errors; return; }
     this.errors = [];
@@ -125,12 +133,17 @@ export class FloorplanStudioEditor extends LitElement {
     .menu>summary{list-style:none;display:inline-block}
     .menu>summary::-webkit-details-marker{display:none}
     .menu>summary::after{content:" \\25BE"}
-    .box{position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:210px;display:flex;flex-direction:column;gap:6px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px}
+    .box{max-height:75vh;overflow:auto;position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:210px;display:flex;flex-direction:column;gap:6px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px}
     .box .btn,.box .chip,.box select{width:100%;text-align:left}
     .sep{border-top:1px solid var(--fp-idle)}
     .ed{display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:start}
     .canvas{border:1px solid var(--fp-idle);height:var(--fp-editor-height,calc(100vh - 150px));min-height:420px;touch-action:none;background:var(--fp-bg)}
     .canvas svg{width:100%;height:100%;display:block;cursor:grab;user-select:none}
+    .canvas svg.drawing,.canvas svg.drawing *{cursor:crosshair}
+    .dr{fill:none;stroke:var(--fp-window);stroke-width:2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke;pointer-events:none}
+    .dp{fill:var(--fp-bg);stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
+    .dp.first{fill:var(--fp-window)}
+    .grp{font-size:.8em;opacity:.7}
     aside{display:flex;flex-direction:column;gap:12px}
     aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}
     aside input:not([type=checkbox]),aside select{width:100%;box-sizing:border-box}
@@ -168,7 +181,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   protected willUpdate(changed: Map<string, unknown>) {
-    if (changed.has("floor") && this.floor && this.floor !== this.st.floor && this.st.layout.floors[this.floor]) this.st.setFloor(this.floor);
+    if (changed.has("floor") && this.floor && this.floor !== this.st.floor && this.st.layout.floors[this.floor]) { this.stopDraw(); this.st.setFloor(this.floor); }
   }
 
   protected firstUpdated() {
@@ -229,7 +242,8 @@ export class FloorplanStudioEditor extends LitElement {
     return best ? (best as { hit: Hit }).hit : null;
   }
 
-  private snapCorner(base: Floor, p: Pt, from: Pt, ref: PtRef, alt: boolean): Pt {
+  /** `align`: extra points the result lines up with (the points of a shape being drawn). */
+  private snapCorner(base: Floor, p: Pt, from: Pt, ref: PtRef, alt: boolean, align: Pt[] = []): Pt {
     if (alt) return round(p);
     const th = 14 / this.scale, grp = pointsNear(base, from);
     // The two neighbours of the dragged corner are never snap targets: landing on one would leave an edge of zero length.
@@ -246,7 +260,7 @@ export class FloorplanStudioEditor extends LitElement {
     for (const q of cands)
       if (!grp.includes(q) && !isNeighbour(q) && dist(q, p) < th && (!best || dist(q, p) < dist(best, p))) best = q;
     if (best) return [best[0], best[1]];
-    const snapped = round(snapPoint(base, p, { threshold: th, grid: this.st.snapGrid ? 5 : 0, exclude: grp, neighbours }));
+    const snapped = round(snapPoint(base, p, { threshold: th, grid: this.st.snapGrid ? 5 : 0, exclude: grp, neighbours: [...neighbours, ...align] }));
     if (!isNeighbour(snapped)) return snapped;
     // snapPoint pulled it onto a neighbour (corner snap, or both axes lined up): keep it where the pointer is, on the grid if on
     const g = this.st.snapGrid ? 5 : 1;
@@ -269,6 +283,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.button !== 0) return;
     this.focus({ preventScroll: true });
     const p = this.toSvg(ev);
+    if (this.draw) { this.drawClick(p, ev.altKey); return; }
     let hit = hitOf(ev.target as Element);
     if (hit.k === "bg" || hit.k === "room" || hit.k === "stairs") hit = this.edgeNear(p) ?? hit;
     const base = structuredClone(f);
@@ -343,6 +358,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   private onMove = (ev: PointerEvent) => {
     const d = this.drag, st = this.st;
+    if (!d && this.draw) { this.hover = this.snapDraw(this.draw, this.toSvg(ev), ev.altKey); this.requestUpdate(); return; }
     if (!d) return;
     if (d.type === "pan") {
       const s = this.scale;
@@ -441,6 +457,7 @@ export class FloorplanStudioEditor extends LitElement {
   };
 
   private onDblClick = (ev: MouseEvent) => {
+    if (this.draw) { this.finishDraw(); return; }
     const p = this.toSvg(ev);
     let hit = hitOf(ev.target as Element);
     if (hit.k !== "edge") hit = this.edgeNear(p) ?? hit;
@@ -467,6 +484,13 @@ export class FloorplanStudioEditor extends LitElement {
     const t = ev.composedPath()[0] as HTMLElement | undefined;
     if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); this.undo(!ev.shiftKey); return; }
+    if (this.draw) {
+      // Draw mode owns these keys: Delete must not remove the item that was selected before.
+      if (ev.key === "Enter") { ev.preventDefault(); this.finishDraw(); }
+      else if (ev.key === "Escape") { ev.preventDefault(); this.stopDraw("Drawing cancelled"); }
+      else if (ev.key === "Backspace") { ev.preventDefault(); this.draw.backspace(); this.requestUpdate(); }
+      return;
+    }
     if (ev.key !== "Delete" && ev.key !== "Backspace") return;
     const s = this.st.sel;
     if (!s) return;
@@ -507,35 +531,87 @@ export class FloorplanStudioEditor extends LitElement {
   // ---- actions -------------------------------------------------------------
 
   private undo(back: boolean) {
+    this.stopDraw();
     if (back ? this.st.undo() : this.st.redo()) { this.floor = this.st.floor; this.changed(back ? "Undone" : "Redone"); }
   }
   private centre(): Pt { const v = this.st.view; return [Math.round(v.x + v.w / 2), Math.round(v.y + v.h / 2)]; }
 
+  // ---- draw mode ----
+
+  /** Enters draw mode. Whatever was being drawn is dropped; the selection is cleared so no shape looks selected while drawing. */
+  private startDraw(kind: DrawKind, wall: WallKind = "wall") {
+    this.draw = new Draw(kind, wall);
+    this.hover = null;
+    this.st.sel = null;
+    this.st.confirmDelete = false;
+    this.status = DRAW_HINT;
+    this.closeMenus();
+    this.requestUpdate();
+  }
+  /** Leaves draw mode and forgets the points and the rubber band. Nothing is written. */
+  private stopDraw(status = "Drawing cancelled") {
+    if (!this.draw) return;
+    this.draw = null; this.hover = null;
+    this.status = status;
+    this.requestUpdate();
+  }
+  /** A snapped point for draw mode. A zone snaps to the grid only: its corners never join other shapes (S1.8). */
+  private snapDraw(d: Draw, p: Pt, alt: boolean): Pt {
+    const f = this.st.f;
+    const base: Floor = d.kind === "zone" ? { ...f, outline: [], rooms: [], stairs: [], walls: [], openings: [], extras: [] } : f;
+    return this.snapCorner(base, p, NOWHERE, NO_REF, alt, d.points);
+  }
+  private drawClick(raw: Pt, alt: boolean) {
+    const d = this.draw;
+    if (!d) return;
+    const r = d.click(this.snapDraw(d, raw, alt), 14 / this.scale, raw);
+    this.hover = null;
+    if (r === "finish") this.finishDraw(); else this.requestUpdate();
+  }
+  /** Writes the shape as one undo step, or drops it when it has too few points. */
+  private finishDraw() {
+    const d = this.draw;
+    if (!d) return;
+    const shape = d.finish(), floor = this.st.floor;
+    this.draw = null; this.hover = null;
+    if (!shape) { this.status = "Drawing cancelled: too few points"; this.requestUpdate(); return; }
+    let sel: Sel = null;
+    if (this.st.edit((f) => { const r = applyShape(f, floor, shape); sel = r.sel; return r.floor; })) {
+      this.st.sel = sel;
+      this.changed("Added the shape");
+    } else this.requestUpdate();
+  }
+
   private addOpening(kind: "door" | "window", len: number) {
+    this.stopDraw();
     const c = this.centre(), e = nearestEdge(this.st.f, c, 1e9), floor = this.st.floor;
     this.commit((f) => { f.doors.push({ id: newId(f, floor, "door"), name: `new ${kind}`, kind, ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
     this.st.sel = { t: "door", i: this.st.f.doors.length - 1 };
     this.requestUpdate();
   }
   private addWall() {
+    this.stopDraw();
     const [x, y] = this.centre(), floor = this.st.floor;
     this.commit((f) => { f.walls.push({ id: newId(f, floor, "wall"), a: [x - 100, y], b: [x + 100, y], kind: "wall" }); });
     this.st.sel = { t: "wall", i: this.st.f.walls.length - 1 };
     this.requestUpdate();
   }
   private addStructure() {
+    this.stopDraw();
     const [cx, cy] = this.centre(), x = cx - 200, y = cy - 150, floor = this.st.floor;
     this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name: "New structure", area: slug("New structure"), label: "", kind: "structure", pts: [[x, y], [x + 400, y], [x + 400, y + 300], [x, y + 300]], w: [true, true, true, true] }); });
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
     this.requestUpdate();
   }
   private addArea(kind: "zone" | "water") {
+    this.stopDraw();
     const pts = squareAt(this.centre()), floor = this.st.floor, name = kind === "zone" ? "New zone" : "New water";
     this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name, area: kind === "zone" ? slug(name) : "", label: "", kind, pts, w: pts.map(() => false) }); });
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
     this.requestUpdate();
   }
   private addStairs() {
+    this.stopDraw();
     const floor = this.st.floor, t = stairsAt(this.centre());
     this.commit((f) => { f.stairs.push({ id: newId(f, floor, "stairs"), ...t }); });
     this.st.sel = { t: "stairs", i: this.st.f.stairs.length - 1 };
@@ -543,6 +619,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private addFurniture(symbol: string) {
     if (!(FURNITURE_SYMBOLS as readonly string[]).includes(symbol)) return;
+    this.stopDraw();
     const sym = symbol as keyof typeof FURNITURE, [x, y] = this.centre(), floor = this.st.floor;
     this.commit((f) => { f.furniture.push({ id: newId(f, floor, "furniture"), symbol: sym, x, y, rot: 0, w: FURNITURE[sym].w, h: FURNITURE[sym].h }); });
     this.st.sel = { t: "furn", i: this.st.f.furniture.length - 1 };
@@ -551,6 +628,7 @@ export class FloorplanStudioEditor extends LitElement {
   private placeDevice(id: string) {
     const st = this.st, c = st.layout.catalog.find((x) => x.id === id);
     if (!c) return;
+    this.stopDraw();
     const target = st.layout.floors[c.floor] ? c.floor : st.floor;
     st.snapshot();
     st.setFloor(target);
@@ -570,7 +648,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   /** A floor operation of the state is one undo step; the host hears about it like any other edit. */
-  private floorDone(status: string) { this.floor = this.st.floor; this.changed(status); }
+  private floorDone(status: string) { this.stopDraw(); this.floor = this.st.floor; this.changed(status); }
   private renameFloor(key: string, title: string) {
     if (this.st.renameFloor(key, title)) this.floorDone(`Renamed floor to ${title.trim()}`);
     else this.requestUpdate();
@@ -597,7 +675,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.addFloor(title)) { this.floorDone(`Added floor ${title}`); this.focus({ preventScroll: true }); }
   };
 
-  private setFloor(name: string) { this.st.setFloor(name); this.floor = name; this.requestUpdate(); }
+  private setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.requestUpdate(); }
 
   private save() {
     const v = validate(this.st.layout);
@@ -639,6 +717,7 @@ export class FloorplanStudioEditor extends LitElement {
   private applyLayout(x: unknown, status: string) {
     const r = loadLayout(x);
     if (!r.ok) { this.errors = r.errors; this.status = "Could not use that layout"; return; }
+    this.stopDraw();
     this.errors = [];
     this.st.setLayout(structuredClone(r.layout), undefined, true);
     this.floor = this.st.floor;
@@ -678,6 +757,14 @@ export class FloorplanStudioEditor extends LitElement {
     for (const r of looseEnds(f)) { const p = f[r.k][r.i][r.end]; o.push(`<circle class="h" data-hp="${r.k}:${r.i}:${r.end}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(4.5 * k)}"/>`); }
     if (s?.t === "door" && f.doors[s.i]) for (const end of ["a", "b"] as const) { const p = f.doors[s.i][end]; o.push(`<circle class="h" data-dh="${s.i}:${end}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`); }
     if (s?.t === "v") { const p = ptOf(f, s.ref); if (p) o.push(`<circle class="h on" pointer-events="none" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`); }
+    // Draw mode: the placed points and a dashed rubber band. Only the editor draws these; the card never sees them.
+    const dr = this.draw;
+    if (dr?.points.length) {
+      const pt = (p: Pt) => `${num(p[0])},${num(p[1])}`, path = dr.rubber(this.hover ?? dr.points[dr.points.length - 1]) ?? [];
+      o.push(`<polyline class="dr" data-draw="path" points="${path.map(pt).join(" ")}"/>`);
+      if (dr.polygon && dr.points.length >= 2 && this.hover) o.push(`<line class="dr" data-draw="close" x1="${num(this.hover[0])}" y1="${num(this.hover[1])}" x2="${num(dr.points[0][0])}" y2="${num(dr.points[0][1])}"/>`);
+      dr.points.forEach((p, i) => o.push(`<circle class="dp${i === 0 ? " first" : ""}" data-dp="${i}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num((i === 0 ? 6 : 4) * k)}"/>`));
+    }
     return o.join("");
   }
 
@@ -712,6 +799,15 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn" id="addWater" @click=${() => this.addArea("water")}>Water</button>
           <button class="btn" id="addStairs" @click=${() => this.addStairs()}>Stairs</button>
           <div class="sep"></div>
+          <span class="grp">Draw: click points on the plan</span>
+          <button class="btn" id="drawRoom" @click=${() => this.startDraw("room")}>Draw room</button>
+          <button class="btn" id="drawZone" @click=${() => this.startDraw("zone")}>Draw zone</button>
+          <button class="btn" id="drawWater" @click=${() => this.startDraw("water")}>Draw water</button>
+          <button class="btn" id="drawOutline" title="Replaces the outline of this floor" @click=${() => this.startDraw("outline")}>Draw outline</button>
+          ${WALL_KINDS.map((k) => html`<button class="btn" id=${`drawWall-${k}`} @click=${() => this.startDraw("wall", k)}>Draw wall: ${WALL_LABELS[k]}</button>`)}
+          <button class="btn" id="drawOpening" @click=${() => this.startDraw("opening")}>Draw opening</button>
+          <button class="btn" id="drawExtra" @click=${() => this.startDraw("extra")}>Draw structure line</button>
+          <div class="sep"></div>
           <select id="addFurn" aria-label="Add furniture" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addFurniture(el.value); el.value = ""; this.closeMenus(); }}>
             <option value="">Furniture…</option>
             ${FURNITURE_SYMBOLS.map((y) => html`<option value=${y}>${y}</option>`)}
@@ -739,7 +835,7 @@ export class FloorplanStudioEditor extends LitElement {
       ${this.errors.length ? html`<div class="errors" id="errors" role="alert"><strong>That layout was not used.</strong><ul>${this.errors.map((e) => html`<li>${e}</li>`)}</ul><button class="btn" id="errclose" @click=${() => { this.errors = []; }}>Dismiss</button></div>` : nothing}
       <div class="ed">
         <div class="canvas">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
+          <svg xmlns="http://www.w3.org/2000/svg" class=${this.draw ? "drawing" : ""} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
         </div>
         <aside>
           <div id="panel">${selectionPanel(this.ctx())}</div>

@@ -939,3 +939,312 @@ test("a floor added, renamed, moved and deleted is four undo steps, one per acti
   await page.keyboard.press("Control+z");
   expect(await floorKeys(page)).toEqual(["ground", "first"]);
 });
+
+// ---- S1.11 draw mode ----
+const DRAW_STATUS = "Click to add points, double-click or Enter to finish, Esc to cancel";
+
+/** Add, then one Draw item, through the real menu. */
+async function startDraw(page: Page, id: string) {
+  await menu(page, "Add");
+  await page.locator(`#${id}`).click(); // scrolls the menu to the item; the menu is taller than a short window
+}
+/** Real clicks at plan points (cm). */
+async function clicksCm(page: Page, ...pts: [number, number][]) {
+  for (const [x, y] of pts) await clickCm(page, x, y);
+}
+const svgCursor = (page: Page) => page.locator("svg").first().evaluate((s) => getComputedStyle(s).cursor);
+const drawnPoints = (page: Page) => page.locator("svg [data-dp]");
+// Free ground below the house (outline ends at y 600), away from every corner. Off-grid on purpose:
+// the snapped points differ from the pointer, so a click that skipped snapping is caught.
+const FREE: [number, number][] = [[103, 632], [297, 633], [298, 668], [102, 667]];
+const FREE_SNAPPED = [[105, 630], [295, 630], [295, 670], [105, 670]];
+
+test("Draw, Room: four clicks and Enter give a room of four points at the snapped coordinates, selected, one undo step", async ({ page }) => {
+  const before = await groundOf(page);
+  await startDraw(page, "drawRoom");
+  await expect(page.locator("#status")).toHaveText(DRAW_STATUS);
+  expect(await svgCursor(page)).toBe("crosshair");
+  await clicksCm(page, ...FREE);
+  await expect(drawnPoints(page)).toHaveCount(4);
+  expect(await groundOf(page)).toEqual(before); // nothing is written before the shape is finished
+  await page.keyboard.press("Enter");
+  const g = await groundOf(page);
+  expect(g.rooms).toHaveLength(before.rooms.length + 1);
+  const room = g.rooms.at(-1)!;
+  expect(room.pts).toEqual(FREE_SNAPPED);
+  expect([room.kind, room.name, room.area, room.w]).toEqual(["room", "New room", "new-room", [true, true, true, true]]);
+  await expect(page.locator("#rn")).toHaveValue("New room"); // selected: the room panel
+  await expect(drawnPoints(page)).toHaveCount(0);
+  expect(await svgCursor(page)).not.toBe("crosshair");
+  expect(validate(await layoutOf(page)).ok).toBe(true);
+  await page.keyboard.press("Control+z");
+  expect(await groundOf(page)).toEqual(before);
+  await expect(page.locator("#undo")).toBeDisabled();
+});
+
+test("Draw, Wall (fence): three clicks and Enter give two fence walls sharing a point, one undo step", async ({ page }) => {
+  const before = await groundOf(page);
+  await startDraw(page, "drawWall-fence");
+  await clicksCm(page, FREE[0], FREE[1], FREE[2]);
+  await page.keyboard.press("Enter");
+  const g = await groundOf(page);
+  expect(g.walls).toHaveLength(2);
+  expect(g.walls.map((w) => w.kind)).toEqual(["fence", "fence"]);
+  expect(g.walls[0].a).toEqual([105, 630]);
+  expect(g.walls[0].b).toEqual([295, 630]);
+  expect(g.walls[1].a).toEqual(g.walls[0].b);
+  expect(g.walls[1].b).toEqual([295, 670]);
+  await expect(page.locator("#wk")).toHaveValue("fence"); // the last wall is selected
+  await page.keyboard.press("Control+z");
+  expect(await groundOf(page)).toEqual(before);
+});
+
+test("each of the five wall kinds is drawn with its own kind", async ({ page }) => {
+  for (const kind of WALL_KINDS) {
+    await startDraw(page, `drawWall-${kind}`);
+    await clicksCm(page, [103, 632], [297, 633]);
+    await page.keyboard.press("Enter");
+    const walls = (await groundOf(page)).walls;
+    expect(walls.at(-1)!.kind).toBe(kind);
+  }
+  expect((await groundOf(page)).walls).toHaveLength(5);
+});
+
+test("Esc after two clicks leaves the floor unchanged and the undo stack as long as before", async ({ page }) => {
+  await drag(page, 'circle[data-h="r0:1"]', 0, 50); // one real undo step to count against
+  const before = await groundOf(page);
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, FREE[0], FREE[1]);
+  await expect(drawnPoints(page)).toHaveCount(2);
+  await page.keyboard.press("Escape");
+  expect(await groundOf(page)).toEqual(before);
+  await expect(drawnPoints(page)).toHaveCount(0);
+  await expect(page.locator("[data-draw]")).toHaveCount(0);
+  expect(await svgCursor(page)).not.toBe("crosshair");
+  await page.keyboard.press("Control+z"); // exactly one step: the drag, not a phantom draw step
+  await expect(page.locator("#undo")).toBeDisabled();
+  expect((await groundOf(page)).rooms[0].pts[1]).toEqual([500, 0]);
+});
+
+test("after Esc a click on the plan selects again instead of adding points", async ({ page }) => {
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, FREE[0]);
+  await page.keyboard.press("Escape");
+  await clickCm(page, 60, 200); // inside the living room
+  await expect(page.locator("#rn")).toHaveValue("Living");
+  await expect(drawnPoints(page)).toHaveCount(0);
+});
+
+test("Backspace removes the last point; the shape then uses the remaining ones", async ({ page }) => {
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, [103, 632], [297, 633], [298, 668]);
+  await page.keyboard.press("Backspace");
+  await expect(drawnPoints(page)).toHaveCount(2);
+  await clicksCm(page, [200, 668]);
+  await page.keyboard.press("Enter");
+  expect((await groundOf(page)).rooms.at(-1)!.pts).toEqual([[105, 630], [295, 630], [200, 670]]);
+});
+
+test("entering draw mode clears the selection, so Delete and Backspace cannot remove it", async ({ page }) => {
+  await clickCm(page, 60, 200); // select the living room
+  await expect(page.locator("#rn")).toHaveValue("Living");
+  const n = (await groundOf(page)).rooms.length;
+  await startDraw(page, "drawRoom");
+  await expect(page.locator("#rn")).toHaveCount(0);
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("Delete");
+  expect((await groundOf(page)).rooms).toHaveLength(n);
+  await expect(page.locator("#status")).toHaveText(DRAW_STATUS);
+});
+
+test("finishing with fewer than three points leaves the floor and the undo stack unchanged", async ({ page }) => {
+  const before = await groundOf(page);
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, FREE[0], FREE[1]);
+  await page.keyboard.press("Enter");
+  expect(await groundOf(page)).toEqual(before);
+  await expect(page.locator("#undo")).toBeDisabled();
+  await expect(drawnPoints(page)).toHaveCount(0);
+  // a wall needs two points
+  await startDraw(page, "drawWall-wall");
+  await clicksCm(page, FREE[0]);
+  await page.keyboard.press("Enter");
+  expect(await groundOf(page)).toEqual(before);
+  await expect(page.locator("#undo")).toBeDisabled();
+});
+
+test("Draw, Zone on top of a room's corner does not snap to it", async ({ page }) => {
+  const g0 = await groundOf(page);
+  expect(g0.rooms[0].pts[2]).toEqual([500, 400]); // Living's corner, also Kitchen's and the Hall's edge
+  await startDraw(page, "drawZone");
+  await clicksCm(page, [503, 398], [603, 398], [603, 460]);
+  await page.keyboard.press("Enter");
+  const z = (await groundOf(page)).rooms.at(-1)!;
+  expect(z.kind).toBe("zone");
+  expect(z.pts[0]).toEqual([505, 400]); // the grid, not the corner (500, 400)
+  expect(z.w).toEqual([false, false, false]);
+  expect((await groundOf(page)).rooms[0].pts).toEqual(g0.rooms[0].pts); // nothing stitched into the room
+});
+
+test("Draw, Room next to an existing corner snaps to it", async ({ page }) => {
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, [503, 398], [560, 470], [420, 470]); // first point within reach of the corner (500, 400)
+  await page.keyboard.press("Enter");
+  const g = await groundOf(page);
+  expect(g.rooms.at(-1)!.pts[0]).toEqual([500, 400]);
+});
+
+test("a double-click finishes the shape without a duplicate point", async ({ page }) => {
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, FREE[0], FREE[1], FREE[2]);
+  const c = await screenOf(page, FREE[3][0], FREE[3][1]);
+  await page.mouse.dblclick(c.x, c.y);
+  const room = (await groundOf(page)).rooms.at(-1)!;
+  expect(room.pts).toEqual(FREE_SNAPPED);
+  await expect(drawnPoints(page)).toHaveCount(0);
+});
+
+test("a click on the first point closes a polygon of three or more points and adds no point", async ({ page }) => {
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, [103, 632], [297, 633], [298, 668]);
+  await clickCm(page, 107, 628); // on the first point
+  const g = await groundOf(page);
+  expect(g.rooms.at(-1)!.pts).toEqual([[105, 630], [295, 630], [295, 670]]);
+  await expect(drawnPoints(page)).toHaveCount(0);
+});
+
+test("break it: a click on the first point of a 2-point polygon does not close it", async ({ page }) => {
+  const before = await groundOf(page);
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, [103, 632], [297, 633]);
+  await clickCm(page, 107, 628);
+  await expect(drawnPoints(page)).toHaveCount(2);
+  await expect(page.locator("#status")).toHaveText(DRAW_STATUS);
+  expect(await groundOf(page)).toEqual(before);
+  await clickCm(page, 200, 668); // still drawing: a third point
+  await expect(drawnPoints(page)).toHaveCount(3);
+});
+
+test("Alt while clicking disables snapping", async ({ page }) => {
+  await startDraw(page, "drawRoom");
+  await page.keyboard.down("Alt");
+  await clicksCm(page, [103, 632], [297, 633], [298, 668]);
+  await page.keyboard.up("Alt");
+  await page.keyboard.press("Enter");
+  const pts = (await groundOf(page)).rooms.at(-1)!.pts;
+  for (const [i, p] of [[103, 632], [297, 633], [298, 668]].entries()) {
+    expect(Math.abs(pts[i][0] - p[0])).toBeLessThanOrEqual(1);
+    expect(Math.abs(pts[i][1] - p[1])).toBeLessThanOrEqual(1);
+  }
+  expect(pts[0]).not.toEqual([105, 630]);
+});
+
+test("Draw, Outline replaces the floor outline in one undo step", async ({ page }) => {
+  const before = await groundOf(page);
+  await startDraw(page, "drawOutline");
+  await clicksCm(page, ...FREE);
+  await page.keyboard.press("Enter");
+  expect((await groundOf(page)).outline).toEqual(FREE_SNAPPED);
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).outline).toEqual(before.outline);
+});
+
+test("Draw, Water and Draw, Opening and Draw, Structure line add their shapes", async ({ page }) => {
+  await startDraw(page, "drawWater");
+  await clicksCm(page, [850, 300], [900, 300], [900, 350]);
+  await page.keyboard.press("Enter");
+  const w = (await groundOf(page)).rooms.at(-1)!;
+  expect([w.kind, w.name, w.area, w.w]).toEqual(["water", "New water", "", [false, false, false]]);
+  await startDraw(page, "drawOpening");
+  await clicksCm(page, [103, 632], [297, 633]); // the second click finishes a single segment
+  await expect(drawnPoints(page)).toHaveCount(0);
+  expect((await groundOf(page)).openings.map((o) => [o.a, o.b])).toEqual([[[105, 630], [295, 630]]]);
+  await startDraw(page, "drawExtra");
+  await clicksCm(page, [103, 662], [297, 663]);
+  const g = await groundOf(page);
+  expect(g.extras).toHaveLength(1);
+  expect(g.extras[0].name).toBe("New line");
+  expect(validate(await layoutOf(page)).ok).toBe(true);
+});
+
+test("switching floor mid-draw cancels: no points left, no change, later clicks select", async ({ page }) => {
+  const before = await layoutOf(page);
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, FREE[0], FREE[1]);
+  await page.locator('.chip[data-f]:not([aria-pressed="true"])').first().click();
+  await page.locator('.chip[data-f="ground"]').click();
+  await expect(drawnPoints(page)).toHaveCount(0);
+  expect(await svgCursor(page)).not.toBe("crosshair");
+  expect(await layoutOf(page)).toEqual(before);
+  await clicksCm(page, FREE[2]);
+  await expect(drawnPoints(page)).toHaveCount(0);
+  await expect(page.locator("#undo")).toBeDisabled();
+});
+
+test("choosing another Add item or Undo mid-draw leaves draw mode and its rubber band", async ({ page }) => {
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, FREE[0], FREE[1]);
+  await startDraw(page, "drawZone"); // another Draw item starts afresh
+  await expect(drawnPoints(page)).toHaveCount(0);
+  await clickCm(page, 200, 668);
+  await expect(drawnPoints(page)).toHaveCount(1);
+  await menu(page, "Add");
+  await page.locator("#addDoor").click(); // a single-shape item ends draw mode
+  await expect(drawnPoints(page)).toHaveCount(0);
+  expect(await svgCursor(page)).not.toBe("crosshair");
+  // Undo
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, FREE[0]);
+  await page.keyboard.press("Control+z"); // undoes the door
+  await expect(drawnPoints(page)).toHaveCount(0);
+  expect(await svgCursor(page)).not.toBe("crosshair");
+  await expect(page.locator("[data-draw]")).toHaveCount(0);
+});
+
+test("the rubber band runs from the last point to the pointer as a dashed line, in editor variables", async ({ page }) => {
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, FREE[0]);
+  const c = await screenOf(page, 250, 660);
+  await page.mouse.move(c.x, c.y);
+  const path = page.locator('svg [data-draw="path"]');
+  await expect(path).toHaveCount(1);
+  const pts = (await path.getAttribute("points"))!.split(" ").map((s) => s.split(",").map(Number));
+  expect(pts[0]).toEqual([105, 630]);
+  expect(Math.abs(pts[1][0] - 250)).toBeLessThanOrEqual(5);
+  expect(await path.evaluate((e) => getComputedStyle(e).strokeDasharray)).not.toBe("none");
+  expect(await path.evaluate((e) => e.outerHTML)).not.toMatch(/#[0-9a-f]{3,6}|rgb\(/i);
+});
+
+test("draw mode still pans with the middle button and zooms with the wheel, and keeps its points", async ({ page }) => {
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, FREE[0]);
+  const vb = () => page.locator("svg").first().getAttribute("viewBox");
+  const v0 = await vb();
+  const c = await screenOf(page, 250, 300);
+  await page.mouse.move(c.x, c.y);
+  await page.mouse.wheel(0, 300);
+  await expect.poll(vb).not.toBe(v0);
+  const v1 = await vb();
+  await page.mouse.move(c.x, c.y);
+  await page.mouse.down({ button: "middle" });
+  await page.mouse.move(c.x + 60, c.y + 40, { steps: 4 });
+  await page.mouse.up({ button: "middle" });
+  expect(await vb()).not.toBe(v1);
+  await expect(drawnPoints(page)).toHaveCount(1); // still drawing, nothing added by the pan
+  await expect(page.locator("#status")).toHaveText(DRAW_STATUS);
+});
+
+test("draw-mode keys stay on the editor: Enter and Esc elsewhere in the page do nothing", async ({ page }) => {
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, FREE[0], FREE[1], FREE[2]);
+  await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape");
+  await expect(drawnPoints(page)).toHaveCount(3);
+});
+
+test("draw items keep the single-shape Add items: Zone still adds a square in one step", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator("#addZone").click();
+  expect((await groundOf(page)).rooms.at(-1)!.kind).toBe("zone");
+});

@@ -13,7 +13,7 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["climate", "Climate"], ["media", "Media players"], ["cover", "Covers"], ["other", "Other"],
 ];
 
-const WALL_LABELS: Record<WallKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge" };
+export const WALL_LABELS: Record<WallKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge" };
 
 export interface PanelCtx {
   st: EditorState;
