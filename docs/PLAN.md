@@ -137,7 +137,7 @@ run with scripted clicks; record the JS used and its output in the report.
 - Done when: snapshot committed; state tests pass; the string contains no `#rrggbb`.
 - Break it: a device whose entity is missing from `state` renders as `off`, not as an error.
 
-### S1.5 Icons
+### S1.5 Icons (done)
 - Outcome: one icon per device type and furniture symbol.
 - Files: `src/core/icons.ts`, `tests/core/icons.test.ts`.
 - Interface: `export const DEVICE_ICONS: Record<DeviceType, string>` (MDI path data, from `@mdi/js`, names as in S0.1) and `export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: string }>` where `svg` is a 100×100 viewBox symbol body drawn by hand (simple outlines). Default sizes in cm: table 160×90, sofa 200×90, bed 160×200, cabinet 100×45, chair 45×45, sink 60×45, toilet 40×65, shower 90×90, bathtub 170×75, tv 120×10, computer 60×40, tree 200×200, patio-wood 300×300, patio-concrete 300×300, car 450×180.
