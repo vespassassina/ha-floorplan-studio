@@ -263,6 +263,18 @@ test("a corner snaps to the nearest of loose ends and corners", async ({ page })
   expect((await groundOf(page)).stairs[0].pts[0]).toEqual([800, 400]);
 });
 
+test("break it: a corner dragged onto its own neighbour never collapses the edge", async ({ page }) => {
+  // stairs are (700,420) (780,420) (780,580) (700,580); drag the first corner onto each neighbour
+  for (const to of [[779, 421], [701, 579]] as [number, number][]) {
+    await dragCm(page, [700, 420], to);
+    const pts = (await groundOf(page)).stairs[0].pts;
+    expect(pts[0], `dropped at ${to}`).not.toEqual([780, 420]);
+    expect(pts[0], `dropped at ${to}`).not.toEqual([700, 580]);
+    for (let j = 0; j < pts.length; j++) expect(Math.hypot(pts[j][0] - pts[(j + 1) % 4][0], pts[j][1] - pts[(j + 1) % 4][1])).toBeGreaterThan(0);
+    await page.keyboard.press("Control+z");
+  }
+});
+
 test("the contact sensor picker follows the selected door", async ({ page }) => {
   const pick = async (i: number) => { const c = await centre(page, `line[data-d="${i}"]`); await page.mouse.click(c.x, c.y); };
   await pick(0);

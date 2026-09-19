@@ -23,6 +23,33 @@ describe("renderFloor", () => {
     expect(renderFloor(ground, base).match(/<text class="lbl"/g)).toHaveLength(3);
   });
 
+  it("draws openings as erase lines and extras as dashed shapes with escaped names", () => {
+    const f = structuredClone(ground);
+    f.openings.push({ id: "o1", a: [100, 400], b: [200, 400] });
+    f.extras.push({ id: "x1", name: "<b>shed</b>", a: [100, 450], b: [200, 520] }, { id: "x2", name: "path", a: [0, 0], b: [50, 0] });
+    const html = renderFloor(f, base);
+    expect(html).toMatch(/<line class="opening" x1="100" y1="400" x2="200" y2="400"\/>/);
+    expect(html).toMatch(/<rect class="extra" x="100" y="450" width="100" height="70"\/>/);
+    expect(html).toMatch(/<line class="extra" x1="0" y1="0" x2="50" y2="0"\/>/);
+    expect(html).toContain("&lt;b&gt;shed&lt;/b&gt;");
+    expect(html).not.toContain("<b>");
+  });
+
+  it("paints stairs, openings and extras under the devices and the room names", () => {
+    const f = structuredClone(ground);
+    f.openings.push({ id: "o1", a: [100, 400], b: [200, 400] });
+    f.extras.push({ id: "x1", name: "shed", a: [100, 450], b: [200, 520] });
+    const html = renderFloor(f, { ...base, showNames: true });
+    const firstDevice = html.indexOf("data-x=");
+    const roomName = html.indexOf("font-weight=\"600\"");
+    for (const under of ['data-s="0"', 'data-e="s0:0"', 'class="opening"', 'class="extra"', ">shed</text>"]) {
+      const at = html.indexOf(under);
+      expect(at, under).toBeGreaterThan(-1);
+      expect(at, under).toBeLessThan(firstDevice);
+      expect(at, under).toBeLessThan(roomName);
+    }
+  });
+
   it("draws one polygon per room, one group per device, one line per door", () => {
     const html = renderFloor(ground, base);
     expect(html.match(/<polygon[^>]*data-r="/g)).toHaveLength(ground.rooms.length);

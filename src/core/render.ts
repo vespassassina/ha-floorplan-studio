@@ -13,6 +13,8 @@ export const FLOORPLAN_CSS = `
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80}
 .room{fill:var(--fp-room)} .room-outdoor,.room-terrace{fill:var(--fp-outdoor)} .room-fill{fill:none}
 .e{stroke:var(--fp-wall);stroke-width:3;stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5}
+.e.se{stroke-width:1.5} .opening{stroke:var(--fp-room);stroke-width:9;pointer-events:none}
+.extra{fill:none;stroke:var(--fp-idle);stroke-dasharray:6 4;stroke-width:1.2;vector-effect:non-scaling-stroke;pointer-events:none}
 .door{stroke:var(--fp-door)} .door-glass{stroke:var(--fp-glass)} .door-window{stroke:var(--fp-window)} .door-sealed{stroke:var(--fp-sealed);stroke-dasharray:10 6}
 .door.open{stroke:var(--fp-open)} .door.cover-open{stroke:var(--fp-open)}
 .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-on)} .dev-contact.on path{fill:var(--fp-open)}
@@ -75,6 +77,20 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     });
   f.walls.forEach((w, i) =>
     out.push(`<line class="e${w.kind === "boundary" ? " nw" : ""}" data-w="${i}" x1="${num(w.a[0])}" y1="${num(w.a[1])}" x2="${num(w.b[0])}" y2="${num(w.b[1])}"/>`));
+
+  f.stairs.forEach((t, i) => t.pts.forEach((a, j) => {
+    const b = t.pts[(j + 1) % t.pts.length];
+    out.push(`<line class="e se" data-e="s${i}:${j}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"/>`);
+  }));
+  // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
+  f.openings.forEach((op) => out.push(`<line class="opening" x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}"/>`));
+  f.extras.forEach((x) => {
+    const mx = Math.min(x.a[0], x.b[0]), my = Math.min(x.a[1], x.b[1]), w = Math.abs(x.a[0] - x.b[0]), h = Math.abs(x.a[1] - x.b[1]);
+    out.push(w && h
+      ? `<rect class="extra" x="${num(mx)}" y="${num(my)}" width="${num(w)}" height="${num(h)}"/>`
+      : `<line class="extra" x1="${num(x.a[0])}" y1="${num(x.a[1])}" x2="${num(x.b[0])}" y2="${num(x.b[1])}"/>`);
+    out.push(`<text class="lbl" x="${num(mx + w / 2)}" y="${num(my + h / 2)}" text-anchor="middle" font-size="${num(11 * k)}" fill="var(--fp-idle)">${esc(x.name)}</text>`);
+  });
 
   f.furniture.forEach((m, i) => {
     const sym = FURNITURE[m.symbol];

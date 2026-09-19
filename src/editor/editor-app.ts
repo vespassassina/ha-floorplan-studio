@@ -36,7 +36,6 @@ type Drag =
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 const num = (n: number) => String(Math.round(n * 100) / 100);
-const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 function segDist(p: Pt, a: Pt, b: Pt): number {
   const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
@@ -139,9 +138,6 @@ export class FloorplanStudioEditor extends LitElement {
     .furn{pointer-events:all}
     .hl{fill:none;stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
     .h{cursor:move} .h.on{fill:var(--fp-ink)}
-    .e.se{stroke-width:1.5}
-    .opening{stroke:var(--fp-room);stroke-width:9;pointer-events:none}
-    .extra{fill:none;stroke:var(--fp-idle);stroke-dasharray:6 4;stroke-width:1.2;vector-effect:non-scaling-stroke;pointer-events:none}
     .len{fill:var(--fp-window);pointer-events:none;user-select:none}
     .lbl{pointer-events:none;user-select:none}
     .dev,.door,.heater{cursor:move}
@@ -225,19 +221,26 @@ export class FloorplanStudioEditor extends LitElement {
   private snapCorner(base: Floor, p: Pt, from: Pt, ref: PtRef, alt: boolean): Pt {
     if (alt) return round(p);
     const th = 14 / this.scale, grp = pointsNear(base, from);
-    // loose ends and polygon corners compete in one list: the nearest wins
-    const cands: Pt[] = looseEnds(base).map((r) => base[r.k][r.i][r.end]);
-    for (const P of polys(base)) cands.push(...P.pts);
-    let best: Pt | null = null;
-    for (const q of cands)
-      if (!grp.includes(q) && dist(q, p) < th && (!best || dist(q, p) < dist(best, p))) best = q;
-    if (best) return [best[0], best[1]];
+    // The two neighbours of the dragged corner are never snap targets: landing on one would leave an edge of zero length.
     let neighbours: Pt[] = [];
     if ("poly" in ref) {
       const pts = polyPts(base, ref.poly) ?? [], n = pts.length;
       neighbours = [pts[(ref.j + 1) % n], pts[(ref.j + n - 1) % n]];
     }
-    return round(snapPoint(base, p, { threshold: th, grid: this.st.snapGrid ? 5 : 0, exclude: grp, neighbours }));
+    const isNeighbour = (q: Pt) => neighbours.some((m) => m[0] === q[0] && m[1] === q[1]);
+    // loose ends and polygon corners compete in one list: the nearest wins
+    const cands: Pt[] = looseEnds(base).map((r) => base[r.k][r.i][r.end]);
+    for (const P of polys(base)) cands.push(...P.pts);
+    let best: Pt | null = null;
+    for (const q of cands)
+      if (!grp.includes(q) && !isNeighbour(q) && dist(q, p) < th && (!best || dist(q, p) < dist(best, p))) best = q;
+    if (best) return [best[0], best[1]];
+    const snapped = round(snapPoint(base, p, { threshold: th, grid: this.st.snapGrid ? 5 : 0, exclude: grp, neighbours }));
+    if (!isNeighbour(snapped)) return snapped;
+    // snapPoint pulled it onto a neighbour (corner snap, or both axes lined up): keep it where the pointer is, on the grid if on
+    const g = this.st.snapGrid ? 5 : 1;
+    const free: Pt = [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g];
+    return isNeighbour(free) ? [from[0], from[1]] : free;
   }
 
   private onDown = (ev: PointerEvent) => {
@@ -588,13 +591,6 @@ export class FloorplanStudioEditor extends LitElement {
       P.forEach((a, i) => o.push(len(a, P[(i + 1) % P.length])));
       f.walls.forEach((w) => o.push(len(w.a, w.b)));
     }
-    f.stairs.forEach((t, i) => t.pts.forEach((a, j) => o.push(line(a, t.pts[(j + 1) % t.pts.length], "e se", `data-e="s${i}:${j}"`))));
-    f.openings.forEach((op) => o.push(line(op.a, op.b, "opening")));
-    f.extras.forEach((x) => {
-      const mx = Math.min(x.a[0], x.b[0]), my = Math.min(x.a[1], x.b[1]), w = Math.abs(x.a[0] - x.b[0]), h = Math.abs(x.a[1] - x.b[1]);
-      o.push(w && h ? `<rect class="extra" x="${num(mx)}" y="${num(my)}" width="${num(w)}" height="${num(h)}"/>` : line(x.a, x.b, "extra"));
-      o.push(`<text class="lbl" x="${num(mx + w / 2)}" y="${num(my + h / 2)}" text-anchor="middle" font-size="${num(11 * k)}" fill="var(--fp-idle)">${esc(x.name)}</text>`);
-    });
     f.stairs.forEach((t, i) => t.pts.forEach((p, j) => o.push(`<circle class="h" data-h="s${i}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`)));
     const open = st.openDoor && f.doors.find((d) => d.id === st.openDoor);
     if (open) o.push(line(open.a, open.b, "door open", 'stroke-width="22" pointer-events="none"'));
