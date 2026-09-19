@@ -209,6 +209,14 @@ field, and `migrate` fills defaults.
 - Done when: tests pass.
 - Break it: a search with no match shows "No device matches", not an empty menu.
 
+### S1.13 Opening tool
+- Outcome: Add, Opening places a gap in a wall, the way Add, Door places a door. The wall under it is not drawn.
+- Files: `src/editor/editor-app.ts`, `src/editor/panels.ts`, `tests/editor/editor.spec.ts`, `tests/core/render.test.ts`.
+- Interface: `addOpening` is renamed `addDoor` (it places doors and windows); a new `addOpeningGap(len = 120)` copies its placement: the edge nearest the view centre, along that edge (`nearestEdge`, `segmentAt`), id from `newId(f, floor, "opening")`, selected. Add menu item "Opening" (`#addGap`). Selected opening: panel "Opening" with length (cm, keeps the midpoint and direction) and Delete; end handles already exist (`data-hp`); Delete and Backspace remove it. When an end is dragged, `snapPoint` applies as for a door end. Core is unchanged: `renderFloor` already draws `.opening` over the wall with the room colour. Paint order stays: openings above walls and edges, below doors, furniture and devices.
+- Test: Playwright: Add, Opening adds one entry to `floor.openings`; the wall line under it is covered (the opening line lies on the wall: `elementFromPoint` on the middle of the segment returns the opening in the editor's hit order, and a render test asserts `.opening` is emitted after the wall line it covers); length field 200 changes `dist(a, b)` to 200; Delete removes it; Undo restores it. One undo step per action.
+- Done when: tests pass; the room's outline edge and a free wall both work as the host wall.
+- Break it: with no wall on the floor, Add, Opening places it at the view centre and does not throw.
+
 ---
 
 ## Sprint 2 — card (E3)
