@@ -10,7 +10,7 @@ Repository layout (fixed here, created in S1.1):
 package.json  vite.config.ts  tsconfig.json  vitest.config.ts  playwright.config.ts  eslint.config.js
 hacs.json  requirements_test.txt  pyproject.toml
 src/core/    schema.ts  migrate.ts  geometry.ts  render.ts  icons.ts  index.ts
-src/editor/  editor-app.ts  state.ts  panel.ts  hass-pickers.ts  standalone.html
+src/editor/  editor-app.ts  state.ts  panels.ts  hass-pickers.ts  standalone.html
 src/card/    floorplan-studio-card.ts
 custom_components/floorplan_studio/  __init__.py  manifest.json  const.py  config_flow.py  storage.py  websocket.py  panel.py
 demo/        layout.json  layout.v1.json
@@ -147,7 +147,7 @@ run with scripted clicks; record the JS used and its output in the report.
 
 ### S1.6 Editor on the core (done)
 - Outcome: the current editor's features as a Lit element using core functions.
-- Files: `src/editor/editor-app.ts` (`<floorplan-studio-editor>`), `src/editor/state.ts` (layout, history, selection, view; `persist()` to `localStorage` key `floorplan-studio:layout`), `src/editor/panel.ts` (selection panels), `tests/editor/editor.spec.ts` (Playwright).
+- Files: `src/editor/editor-app.ts` (`<floorplan-studio-editor>`), `src/editor/state.ts` (layout, history, selection, view; `persist()` to `localStorage` key `floorplan-studio:layout`), `src/editor/panels.ts` (selection panels), `tests/editor/editor.spec.ts` (Playwright).
 - Interface: element properties `layout: Layout`, `floor: string`, events `layout-changed` (detail: Layout) and `save-request`. Same toolbar as SPEC (floor chips, filter, Names, Add / View / File). Same pointer behaviour as the vanilla editor (see HomeFloorplan `editor/editor.src.html` for the reference behaviour, port it; do not redesign). Furniture: Add → Furniture → symbol; drag to move, panel sets w, h, rot. Devices: Add → Device lists `catalog` entries not placed, grouped by type.
 - Test (Playwright, against `npm run dev`): load demo; drag a room corner 50 px, the coordinates change and a coincident corner of the neighbour moves too; Add → Device places one and the list shrinks by one; remove it, the list grows; Add → Furniture → bed places a bed; File → Save downloads a file that validates; reload restores from localStorage; File → Reset returns to the demo.
 - Done when: the Playwright suite passes headless; `npm run lint` clean.
