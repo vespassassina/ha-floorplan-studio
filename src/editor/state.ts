@@ -100,11 +100,14 @@ export class EditorState {
     this.fut = [];
   }
 
-  /** One undoable change to the current floor. `fn` gets a copy and may return a new floor. */
-  edit(fn: (f: Floor) => Floor | void) {
-    this.snapshot();
+  /** One undoable change to the current floor. `fn` gets a copy and may return a new floor. Returns false, and records nothing, when the floor did not change. */
+  edit(fn: (f: Floor) => Floor | void): boolean {
     const g = structuredClone(this.f);
-    this.layout.floors[this.floor] = fn(g) ?? g;
+    const next = fn(g) ?? g;
+    if (JSON.stringify(next) === JSON.stringify(this.f)) return false;
+    this.snapshot();
+    this.layout.floors[this.floor] = next;
+    return true;
   }
 
   /** Swap the current floor without touching history (used while dragging). */

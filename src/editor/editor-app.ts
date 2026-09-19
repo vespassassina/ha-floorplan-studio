@@ -199,7 +199,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.emit("layout-changed");
     this.requestUpdate();
   }
-  private commit = (fn: (f: Floor) => Floor | void) => { this.st.edit(fn); this.changed(); };
+  private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); };
   private select = (s: Sel) => { this.st.sel = s; this.requestUpdate(); };
   private ctx(): PanelCtx { return { st: this.st, commit: this.commit, select: this.select, refresh: () => this.requestUpdate() }; }
 

@@ -20,6 +20,18 @@ describe("EditorState", () => {
     expect(new EditorState(fresh()).undo()).toBe(false);
   });
 
+  it("does not record an undo step when an edit changes nothing", () => {
+    const st = new EditorState(fresh());
+    st.edit((f) => { f.rooms[0].name = "Living"; });
+    st.edit(() => {});
+    expect(st.canUndo).toBe(false);
+    st.edit((f) => { f.rooms[0].name = "Changed"; });
+    expect(st.canUndo).toBe(true);
+    st.undo();
+    expect(st.f.rooms[0].name).toBe("Living");
+    expect(st.canUndo).toBe(false);
+  });
+
   it("lists catalog devices that are not on any floor, and lists one again after removal", () => {
     const st = new EditorState(fresh());
     expect(st.unplaced()).toHaveLength(0);
