@@ -108,6 +108,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!r.name || r.kind === "fill") return;
     const cx = r.pts.reduce((s, p) => s + p[0], 0) / r.pts.length, cy = r.pts.reduce((s, p) => s + p[1], 0) / r.pts.length;
     out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy)}" text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
+    if (r.label) out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy + 16 * k)}" text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`);
   });
 
   if (o.editor)

@@ -14,6 +14,15 @@ describe("renderFloor", () => {
     expect(renderFloor(ground, { scale: 0.5 })).toMatchSnapshot();
   });
 
+  it("draws room.label under the name, escaped, and nothing when it is empty", () => {
+    const f = structuredClone(ground);
+    f.rooms[0].label = '<i>3 x 4</i> & "co"';
+    const html = renderFloor(f, base);
+    expect(html).toMatch(/<text class="lbl"[^>]*>&lt;i&gt;3 x 4&lt;\/i&gt; &amp; &quot;co&quot;<\/text>/);
+    expect(html).not.toContain("<i>");
+    expect(renderFloor(ground, base).match(/<text class="lbl"/g)).toHaveLength(3);
+  });
+
   it("draws one polygon per room, one group per device, one line per door", () => {
     const html = renderFloor(ground, base);
     expect(html.match(/<polygon[^>]*data-r="/g)).toHaveLength(ground.rooms.length);
