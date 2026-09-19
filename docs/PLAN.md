@@ -100,7 +100,7 @@ run with scripted clicks; record the JS used and its output in the report.
 - Done when: all tests pass; `npm run lint` clean; types exported from `src/core/index.ts`.
 - Break it: `migrate(null)` throws, does not return a layout.
 
-### S1.3 Geometry
+### S1.3 Geometry (done)
 - Outcome: the editor's snapping and stitching as pure functions.
 - Files: `src/core/geometry.ts`, `tests/core/geometry.test.ts`.
 - Interface (all pure, return new arrays, never mutate inputs):
