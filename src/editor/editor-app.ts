@@ -152,12 +152,14 @@ export class FloorplanStudioEditor extends LitElement {
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
     this.addEventListener("keydown", this.onKey);
     this.addEventListener("focusout", this.onFocusOut);
+    this.addEventListener("click", this.onButtonClick);
     window.addEventListener("click", this.onWindowClick);
   }
   disconnectedCallback() {
     super.disconnectedCallback();
     this.removeEventListener("keydown", this.onKey);
     this.removeEventListener("focusout", this.onFocusOut);
+    this.removeEventListener("click", this.onButtonClick);
     window.removeEventListener("click", this.onWindowClick);
     this.ro?.disconnect();
   }
@@ -474,9 +476,9 @@ export class FloorplanStudioEditor extends LitElement {
     }
   };
 
-  /** A panel button (Delete...) leaves focus on itself, and the button may vanish: hand focus back so Ctrl+Z and Delete keep working. */
-  private onPanelClick = (ev: Event) => {
-    if ((ev.target as Element).closest?.("button")) this.focus({ preventScroll: true });
+  /** A button (panel Delete, a menu item) keeps focus on itself and may vanish or hide: hand focus back so Ctrl+Z and Delete keep working. */
+  private onButtonClick = (ev: Event) => {
+    if ((ev.composedPath()[0] as Element).closest?.("button")) this.focus({ preventScroll: true });
   };
 
   /** Keys only reach a focused editor, so a highlighted selection must mean Delete works: clear it when focus leaves for good. */
@@ -694,14 +696,18 @@ export class FloorplanStudioEditor extends LitElement {
           <svg xmlns="http://www.w3.org/2000/svg" viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
         </div>
         <aside>
-          <div id="panel" @click=${this.onPanelClick}>${selectionPanel(this.ctx())}</div>
+          <div id="panel">${selectionPanel(this.ctx())}</div>
           <p class="hint">Snapping: corners jump to other corners, snap onto other walls and line up with their neighbours. Hold Alt to move freely. Drag a wall to move it with its neighbours. Hold Shift while dragging a corner or a wall to move it alone. Delete removes the selected corner, wall, door, device, furniture or stairs. Ctrl/Cmd+Z undoes. Scroll to zoom. Pan by dragging the background, or drag anywhere with the middle button, right button or Ctrl/Cmd held.</p>
           <span class="status" id="status" role="status">${this.status}</span>
         </aside>
       </div>`;
   }
 
-  private closeMenus() { this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]").forEach((m) => { m.open = false; }); }
+  private closeMenus() {
+    const open = this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]");
+    open.forEach((m) => { m.open = false; });
+    if (open.length) this.focus({ preventScroll: true }); // the focused item just hid
+  }
 }
 
 if (!customElements.get("floorplan-studio-editor")) customElements.define("floorplan-studio-editor", FloorplanStudioEditor);

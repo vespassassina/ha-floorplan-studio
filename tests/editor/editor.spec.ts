@@ -539,3 +539,13 @@ test("Ctrl+Z works right after the Delete button in the panel", async ({ page })
   await page.keyboard.press("Control+z");
   await expect(stairsCount(page)).toHaveCount(1);
 });
+
+test("a selection made from the Add menu survives the menu closing, then Delete works", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator("#addDev").selectOption({ index: 1 });
+  await expect(page.locator("g.dev.sel")).toHaveCount(1);
+  await expect(page.locator("#panel")).not.toContainText("Nothing selected");
+  const n = (await groundOf(page)).devices.length;
+  await page.keyboard.press("Delete");
+  expect((await groundOf(page)).devices.length).toBe(n - 1);
+});
