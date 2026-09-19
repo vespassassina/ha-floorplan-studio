@@ -1,6 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
+  // Builds dist/ first: the standalone tests open dist/editor.html from file://.
+  globalSetup: "./tests/setup/build.ts",
   testDir: "tests/editor",
   testMatch: "**/*.spec.ts",
   use: { baseURL: "http://localhost:5173" },

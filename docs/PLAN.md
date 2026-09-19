@@ -153,7 +153,7 @@ run with scripted clicks; record the JS used and its output in the report.
 - Done when: the Playwright suite passes headless; `npm run lint` clean.
 - Break it: dragging with Shift moves only the grabbed corner.
 
-### S1.7 Standalone build
+### S1.7 Standalone build (done)
 - Outcome: `dist/editor.html` works from `file://` with no network.
 - Files: `src/editor/standalone.html`, `vite.config.ts` (singlefile plugin for this entry).
 - Test: Playwright opens `file:///.../dist/editor.html`, the demo renders, Open a v1 file migrates it, Save downloads v2. Network requests during the test: zero (assert with `page.on('request')`).

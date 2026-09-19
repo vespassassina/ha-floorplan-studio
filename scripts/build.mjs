@@ -14,5 +14,5 @@ renameSync("dist/standalone.html", "dist/editor.html");
 // The integration serves these files from its www/ folder.
 const www = "custom_components/floorplan_studio/www";
 mkdirSync(www, { recursive: true });
-for (const f of readdirSync("dist").filter((n) => n.endsWith(".js"))) copyFileSync(`dist/${f}`, `${www}/${f}`);
+for (const f of readdirSync("dist").filter((n) => n.endsWith(".js") || n === "editor.html")) copyFileSync(`dist/${f}`, `${www}/${f}`);
 console.log("dist/: floorplan-studio-card.js, floorplan-studio-panel.js, editor.html");
