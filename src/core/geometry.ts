@@ -39,17 +39,20 @@ function project(p: Pt, a: Pt, b: Pt): { t: number; q: Pt } {
  */
 export function nearestEdge(f: Floor, p: Pt, maxd: number, opts: { zones?: boolean; walls?: boolean } = {}): { d: number; q: Pt; u: Pt; poly: string; i: number } | null {
   let best: { d: number; q: Pt; u: Pt; poly: string; i: number } | null = null;
-  const seg = (a: Pt, b: Pt, poly: string, i: number) => {
+  let bestZone = false;
+  const seg = (a: Pt, b: Pt, poly: string, i: number, zone = false) => {
     const { t, q } = project(p, a, b);
     const c: Pt = t <= 0 ? a : t >= 1 ? b : q;
     const d = dist(p, c);
-    if (best && d >= best.d) return;
+    // an exact tie goes to the edge that is not a zone's, so a room edge under a zone edge stays reachable
+    if (best && !(d === best.d && bestZone && !zone) && d >= best.d) return;
+    bestZone = zone;
     const l = dist(a, b) || 1;
     best = { d, q: [c[0], c[1]], u: [(b[0] - a[0]) / l, (b[1] - a[1]) / l], poly, i };
   };
   for (const P of polys(f)) {
     if (P.id[0] === "s" || (isZone(P) && !opts.zones)) continue;
-    for (const { a, b, i } of edges(P.pts)) seg(a, b, P.id, i);
+    for (const { a, b, i } of edges(P.pts)) seg(a, b, P.id, i, isZone(P));
   }
   if (opts.walls) f.walls.forEach((w, i) => { if (dist(w.a, w.b) > 0) seg(w.a, w.b, "w", i); });
   const r = best as { d: number; q: Pt; u: Pt; poly: string; i: number } | null;

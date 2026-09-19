@@ -1822,3 +1822,18 @@ test("placing a device whose catalog floor is named like an Object.prototype key
   await expect(page.locator(`.chip[data-f="${floor}"]`)).toHaveAttribute("aria-pressed", "true");
   expect((await groundOf(page)).devices.some((d) => d.id === "light-living")).toBe(true); // it landed on the current floor
 });
+
+test("a click 3 cm off a zone edge that lies on a room edge picks the room edge, so its wall toggle is reachable, whichever is listed first", async ({ page }) => {
+  for (const first of [true, false]) {
+    await page.evaluate(([tag, zoneFirst]) => {
+      const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+      const rooms = l.floors.ground.rooms, z = rooms.find((r: any) => r.kind === "zone");
+      z.pts = [[500, 100], [560, 100], [560, 200], [500, 200]]; // its left edge lies on the living / kitchen wall x = 500
+      const at = rooms.indexOf(z); rooms.splice(at, 1);
+      if (zoneFirst) rooms.unshift(z); else rooms.push(z);
+      el.layout = l;
+    }, [EDITOR, first] as const);
+    await clickCm(page, 503, 150);
+    await expect(page.locator("#wallt")).toHaveCount(1); // a zone edge has no toggle
+  }
+});

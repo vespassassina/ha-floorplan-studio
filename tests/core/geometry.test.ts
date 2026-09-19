@@ -221,6 +221,16 @@ describe("a zone edge is never a wall (review S1.5, finding 1)", () => {
     expect(toggleWall(f, "r2", 0)).toBe(f);
     expect(edgeRooms(f, "r2", 0)).toEqual([]);
   });
+  it("nearestEdge with zones: true prefers the room edge on an exact tie with a zone edge, whichever is listed first", () => {
+    for (const zoneFirst of [true, false]) {
+      const f = floor();
+      const z = zone("z", rect(100, 10, 140, 50)); // its left edge lies on the a / b edge x = 100
+      if (zoneFirst) f.rooms.unshift(z); else f.rooms.push(z);
+      const hit = nearestEdge(f, [102, 30], 8, { zones: true })!;
+      expect(hit.d).toBe(2);
+      expect(polys(f).find((P) => P.id === hit.poly)!.room?.kind).toBe("room");
+    }
+  });
   it("toggleWall on a room edge that a zone edge lies on leaves the zone dotted", () => {
     const f = floor();
     f.rooms.push(zone("z", rect(0, 0, 100, 40))); // its top edge is the top edge of room a
