@@ -1539,3 +1539,26 @@ test("dragging an opening end snaps like a door end: to a corner", async ({ page
   await page.keyboard.press("Control+z");
   expect((await gaps(page))[0].b).toEqual([200, 640]);
 });
+
+// ---- Sprint 1.5 review fixes ----
+
+test("a zone edge has no wall toggle, and every panel action on it leaves a valid layout", async ({ page }) => {
+  await clickCm(page, 400, 40); // the top edge of the Reading corner zone, on the real screen
+  await expect(page.locator("#elen")).toBeVisible();
+  await expect(page.locator("#wallt")).toHaveCount(0);
+  const zi = (await groundOf(page)).rooms.findIndex((r) => r.kind === "zone");
+  const zoneW = async () => (await groundOf(page)).rooms[zi].w;
+  const ok = async () => { expect(validate(await layoutOf(page)).ok).toBe(true); expect(await zoneW()).toEqual((await zoneW()).map(() => false)); };
+  await page.locator("#elen").fill("1.5");
+  await page.locator("#elen").press("Enter");
+  await ok();
+  await expect(page.locator("#wallt")).toHaveCount(0);
+  await page.locator("#mkh").click();
+  await ok();
+  await page.locator("#mkv").click();
+  await ok();
+  await expect(page.locator("#wallt")).toHaveCount(0);
+  await page.locator("#addpt").click();
+  await ok();
+  await savedValid(page);
+});

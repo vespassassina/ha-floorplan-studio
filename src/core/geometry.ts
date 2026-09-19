@@ -150,19 +150,20 @@ export function movePoints(f: Floor, from: Pt, to: Pt, detach: boolean, only?: {
   return g;
 }
 
+/** Rooms that have this edge, for the wall toggle. A zone edge is always dotted: it is neither the edge asked about nor a match. */
 export function edgeRooms(f: Floor, poly: string, i: number): { room: Room; i: number }[] {
   const P = polys(f).find((x) => x.id === poly);
-  if (!P) return [];
+  if (!P || isZone(P)) return [];
   const a = P.pts[i], b = P.pts[(i + 1) % P.pts.length];
   const out: { room: Room; i: number }[] = [];
-  for (const room of f.rooms)
+  for (const room of f.rooms.filter((r) => r.kind !== "zone"))
     edges(room.pts).forEach(({ a: c, b: d, i: j }) => {
       if ((dist(a, c) <= TOUCH && dist(b, d) <= TOUCH) || (dist(a, d) <= TOUCH && dist(b, c) <= TOUCH)) out.push({ room, i: j });
     });
   return out;
 }
 
-/** Flips the wall flag of an edge on every room that has it, all to the same new value. */
+/** Flips the wall flag of an edge on every room that has it, all to the same new value. A zone is never flipped: `validate` rejects a zone wall. */
 export function toggleWall(f: Floor, poly: string, i: number): Floor {
   const g = structuredClone(f);
   const hits = edgeRooms(g, poly, i);

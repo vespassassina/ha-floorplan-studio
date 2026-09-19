@@ -215,3 +215,22 @@ describe("zones do not take part in snapping, stitching or merging", () => {
     expect(b.rooms[2].pts[0]).toEqual([100, 0]);
   });
 });
+
+describe("a zone edge is never a wall (review S1.5, finding 1)", () => {
+  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, w: pts.map(() => false) });
+  it("toggleWall on a zone polygon returns the floor unchanged", () => {
+    const f = floor();
+    f.rooms.push(zone("z", rect(20, 20, 60, 60)));
+    expect(toggleWall(f, "r2", 0)).toBe(f);
+    expect(edgeRooms(f, "r2", 0)).toEqual([]);
+  });
+  it("toggleWall on a room edge that a zone edge lies on leaves the zone dotted", () => {
+    const f = floor();
+    f.rooms.push(zone("z", rect(0, 0, 100, 40))); // its top edge is the top edge of room a
+    f.rooms[0].w[0] = false; // dotted now, so the toggle sets true: a zone edge would follow
+    const g = toggleWall(f, "r0", 0);
+    expect(g.rooms[0].w[0]).toBe(true);
+    expect(g.rooms[2].w).toEqual([false, false, false, false]);
+    expect(edgeRooms(f, "r0", 0).map((h) => h.room.id)).toEqual(["a"]);
+  });
+});
