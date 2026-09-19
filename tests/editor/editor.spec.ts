@@ -1616,3 +1616,93 @@ test("the length of a room edge does not take a zone corner on its second end al
   expect(g.rooms[0].pts[1]).toEqual([500, 100]);
   expect((await zoneOf(page)).pts[0]).toEqual([500, 0]);
 });
+
+// ---- a double-click whose first click already finished the shape ----
+const dblclickCm = async (page: Page, x: number, y: number) => { const c = await screenOf(page, x, y); await page.mouse.dblclick(c.x, c.y); };
+/**
+ * The dblclick event that Firefox and Safari send after a click that finished a shape. Chromium sends none:
+ * the plan is redrawn between the two clicks, its click count restarts, and page.mouse.dblclick fires nothing.
+ * The clicks before it are real page.mouse clicks; only this event is synthetic.
+ */
+const sendDblclick = async (page: Page, x: number, y: number) => {
+  const c = await screenOf(page, x, y);
+  await page.evaluate(([tag, cx, cy]) => {
+    const root = (document.querySelector(tag as string) as any).shadowRoot as ShadowRoot;
+    root.elementFromPoint(cx as number, cy as number)!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, composed: true, clientX: cx as number, clientY: cy as number, detail: 2 }));
+  }, [EDITOR, c.x, c.y] as const);
+};
+const pointCount = (g: Floor) => g.outline.length + g.rooms.reduce((n, r) => n + r.pts.length, 0) + g.stairs.reduce((n, r) => n + r.pts.length, 0);
+
+test("a double-click on a wall outside draw mode still adds a point to it, in one undo step", async ({ page }) => {
+  const before = await groundOf(page);
+  await dblclickCm(page, 250, 400); // the living room / hall edge
+  expect(pointCount(await groundOf(page))).toBeGreaterThan(pointCount(before));
+  await page.keyboard.press("Control+z");
+  expect(await groundOf(page)).toEqual(before);
+  await expect(page.locator("#undo")).toBeDisabled();
+});
+
+test("Draw, Opening: a click, a real double-click on the second end on a wall: one opening, one undo step, no new corner", async ({ page }) => {
+  const before = await groundOf(page);
+  await startDraw(page, "drawOpening");
+  await clickCm(page, 200, 400);
+  await dblclickCm(page, 300, 400);
+  const g = await groundOf(page);
+  expect(g.openings).toHaveLength(1);
+  expect(g.rooms.map((r) => r.pts)).toEqual(before.rooms.map((r) => r.pts));
+  await page.keyboard.press("Control+z");
+  expect(await groundOf(page)).toEqual(before);
+  await expect(page.locator("#undo")).toBeDisabled();
+});
+
+test("Draw, Opening: the dblclick that follows the finishing click adds no corner to the wall under it", async ({ page }) => {
+  const before = await groundOf(page);
+  await startDraw(page, "drawOpening");
+  await clickCm(page, 200, 400);
+  await clickCm(page, 300, 400); // finishes the opening
+  await sendDblclick(page, 300, 400);
+  const g = await groundOf(page);
+  expect(g.openings).toHaveLength(1);
+  expect(pointCount(g)).toBe(pointCount(before));
+  expect(g.rooms.map((r) => r.pts)).toEqual(before.rooms.map((r) => r.pts));
+  await page.keyboard.press("Control+z"); // one undo step: the opening
+  expect(await groundOf(page)).toEqual(before);
+  await expect(page.locator("#undo")).toBeDisabled();
+});
+
+test("a polygon closed on its first point, then the dblclick there, gets no extra corner", async ({ page }) => {
+  const before = await groundOf(page);
+  // the first point lies on the living room / hall edge (y = 400), so closing stitches it into both rooms
+  const tri: [number, number][] = [[250, 400], [330, 460], [190, 470]];
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, ...tri);
+  await clickCm(page, 250, 400); // the closing click
+  const single = await groundOf(page);
+  await sendDblclick(page, 250, 400);
+  expect(await groundOf(page)).toEqual(single);
+  await page.keyboard.press("Control+z");
+  expect(await groundOf(page)).toEqual(before);
+  await expect(page.locator("#undo")).toBeDisabled();
+  // and a real double-click on the first point closes it just the same
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, ...tri);
+  await dblclickCm(page, 250, 400);
+  expect(await groundOf(page)).toEqual(single);
+});
+
+test("the guard is short-lived and local: a later dblclick, or one after a click elsewhere, adds its point", async ({ page }) => {
+  await startDraw(page, "drawOpening");
+  await clickCm(page, 200, 400);
+  await clickCm(page, 300, 400);
+  const n = pointCount(await groundOf(page));
+  await page.waitForTimeout(700); // past the double-click interval
+  await sendDblclick(page, 650, 400);
+  expect(pointCount(await groundOf(page))).toBeGreaterThan(n);
+  await page.keyboard.press("Control+z");
+  await startDraw(page, "drawOpening");
+  await clickCm(page, 200, 400);
+  await clickCm(page, 300, 400);
+  await clickCm(page, 100, 500); // a press elsewhere is not part of that double-click
+  await sendDblclick(page, 650, 400);
+  expect(pointCount(await groundOf(page))).toBeGreaterThan(n);
+});

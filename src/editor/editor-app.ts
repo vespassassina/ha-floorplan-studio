@@ -293,7 +293,8 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.button !== 0) return;
     this.focus({ preventScroll: true });
     const p = this.toSvg(ev);
-    if (this.draw) { this.drawClick(p, ev.altKey); return; }
+    if (this.draw) { this.drawClick(p, ev.altKey, ev); return; }
+    if (this.finished && !this.sameDouble(ev)) this.finished = null; // a press elsewhere, or late, is not the second click of that pair
     let hit = hitOf(ev.target as Element);
     if (hit.k === "bg" || hit.k === "room" || hit.k === "stairs") hit = this.edgeNear(p) ?? hit;
     const base = structuredClone(f);
@@ -469,6 +470,8 @@ export class FloorplanStudioEditor extends LitElement {
 
   private onDblClick = (ev: MouseEvent) => {
     if (this.draw) { this.finishDraw(); return; }
+    // The click that finished a shape already did its work; Firefox and Safari still send the dblclick for the pair.
+    if (this.finished) { const same = this.sameDouble(ev); this.finished = null; if (same) return; }
     const p = this.toSvg(ev);
     let hit = hitOf(ev.target as Element);
     if (hit.k !== "edge") hit = this.edgeNear(p) ?? hit;
@@ -573,12 +576,19 @@ export class FloorplanStudioEditor extends LitElement {
     const base: Floor = d.kind === "zone" ? { ...f, outline: [], rooms: [], stairs: [], walls: [], openings: [], extras: [] } : f;
     return this.snapCorner(base, p, NOWHERE, NO_REF, alt, d.points);
   }
-  private drawClick(raw: Pt, alt: boolean) {
+  /** Where and when a pointer press finished a shape: its dblclick, if the browser sends one, must not edit the plan. */
+  private finished: { t: number; x: number; y: number } | null = null;
+  /** Is `ev` the second half of a double-click that began at the press that finished a shape? Within 500 ms and 10 px. */
+  private sameDouble(ev: { clientX: number; clientY: number }): boolean {
+    const f = this.finished;
+    return !!f && performance.now() - f.t <= 500 && Math.hypot(ev.clientX - f.x, ev.clientY - f.y) <= 10;
+  }
+  private drawClick(raw: Pt, alt: boolean, ev: { clientX: number; clientY: number }) {
     const d = this.draw;
     if (!d) return;
     const r = d.click(this.snapDraw(d, raw, alt), 14 / this.scale, raw);
     this.hover = null;
-    if (r === "finish") this.finishDraw(); else this.requestUpdate();
+    if (r === "finish") { this.finishDraw(); this.finished = { t: performance.now(), x: ev.clientX, y: ev.clientY }; } else this.requestUpdate();
   }
   /** Writes the shape as one undo step, or drops it when it has too few points. */
   private finishDraw() {
