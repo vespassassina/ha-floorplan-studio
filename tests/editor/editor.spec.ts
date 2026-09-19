@@ -722,13 +722,25 @@ test("clicking each wall with the mouse selects it and the kind select shows its
   }
 });
 
-test("a thin fence stays clickable a few pixels off its line, and the nearest wall wins", async ({ page }) => {
+test("a thin fence stays clickable a few pixels off its line, and of two walls 6 px apart the nearer one wins", async ({ page }) => {
   await withWallRow(page);
   const c = await screenOf(page, 60 + 3 * 150, 650); // the fence
   await page.mouse.click(c.x, c.y + 5);
   await expect(page.locator("#wk")).toHaveValue("fence");
   await page.mouse.click(c.x, c.y - 6);
   await expect(page.locator("#wk")).toHaveValue("fence");
+  // a competing outdoor edge 6 screen px below the fence, both inside the 8 px pick radius of a click between them
+  const perCm = ((await screenOf(page, 60 + 3 * 150, 660)).y - c.y) / 10;
+  await page.evaluate(([tag, dy]) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.walls.push({ id: "wall-ground-6", a: [460, 650 + (dy as number)], b: [560, 650 + (dy as number)], kind: "edge" });
+    el.layout = l;
+  }, [EDITOR, 6 / perCm] as const);
+  await expect(page.locator("svg line[data-w]")).toHaveCount(6);
+  await page.mouse.click(c.x, c.y + 1.5); // 1.5 px from the fence, 4.5 from the edge wall
+  await expect(page.locator("#wk")).toHaveValue("fence");
+  await page.mouse.click(c.x, c.y + 4.5); // 4.5 px from the fence, 1.5 from the edge wall
+  await expect(page.locator("#wk")).toHaveValue("edge");
 });
 
 test("the wall panel has a kind select with five human labels and no toggle button", async ({ page }) => {
@@ -1007,6 +1019,8 @@ test("each of the five wall kinds is drawn with its own kind", async ({ page }) 
     await page.keyboard.press("Enter");
     const walls = (await groundOf(page)).walls;
     expect(walls.at(-1)!.kind).toBe(kind);
+    // and the plan shows it: the class the core gives that kind, on the line just drawn
+    await expect(page.locator(`svg line[data-w="${walls.length - 1}"]`)).toHaveClass(new RegExp(`^${WALL_CLASS[kind]}$`));
   }
   expect((await groundOf(page)).walls).toHaveLength(5);
 });
