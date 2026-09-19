@@ -2,7 +2,7 @@ import { LitElement, css, html, nothing } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, FURNITURE, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, snapPoint, stitch, validate } from "../core";
 import type { DeviceType, Floor, Layout, Pt } from "../core";
-import { looseEnds, movePointAll, pointsNear, segmentAt } from "./ops";
+import { looseEnds, movePointAll, pointsNear, segmentAt, stairsAt } from "./ops";
 import { TYPE_LABELS, selectionPanel, type PanelCtx } from "./panels";
 import { EditorState, loadLayout, newId, polyPts, ptOf, type LooseRef, type PtRef, type Sel, type View } from "./state";
 
@@ -312,6 +312,7 @@ export class FloorplanStudioEditor extends LitElement {
         if (f.rooms[hit.i]?.kind === "structure") this.drag = { type: "room", base, i: hit.i, start: p, moved: false };
         break;
       }
+      case "stairs": st.sel = { t: "stairs", i: hit.i }; break;
       default:
         st.sel = null;
         this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view } };
@@ -459,6 +460,7 @@ export class FloorplanStudioEditor extends LitElement {
     else if (s.t === "dev") del((f) => { f.devices.splice(s.i, 1); });
     else if (s.t === "wall") del((f) => { f.walls.splice(s.i, 1); });
     else if (s.t === "furn") del((f) => { f.furniture.splice(s.i, 1); });
+    else if (s.t === "stairs") del((f) => { f.stairs.splice(s.i, 1); });
     else if (s.t === "v" && "poly" in s.ref && (polyPts(this.st.f, s.ref.poly)?.length ?? 0) > 3) {
       const { poly, j } = s.ref;
       del((f) => { const P = polys(f).find((x) => x.id === poly); if (P) { P.pts.splice(j, 1); P.room?.w.splice(j, 1); } });
@@ -496,6 +498,12 @@ export class FloorplanStudioEditor extends LitElement {
     const [cx, cy] = this.centre(), x = cx - 200, y = cy - 150, floor = this.st.floor;
     this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name: "New structure", area: slug("New structure"), label: "", kind: "structure", pts: [[x, y], [x + 400, y], [x + 400, y + 300], [x, y + 300]], w: [true, true, true, true] }); });
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
+    this.requestUpdate();
+  }
+  private addStairs() {
+    const floor = this.st.floor, t = stairsAt(this.centre());
+    this.commit((f) => { f.stairs.push({ id: newId(f, floor, "stairs"), ...t }); });
+    this.st.sel = { t: "stairs", i: this.st.f.stairs.length - 1 };
     this.requestUpdate();
   }
   private addFurniture(symbol: string) {
@@ -573,6 +581,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (s?.t === "edge") { const pts = polyPts(f, s.poly); if (pts) { const a = pts[s.i], b = pts[(s.i + 1) % pts.length]; o.push(line(a, b, "hl", 'stroke-width="4"'), len(a, b)); } }
     if (s?.t === "wall" && f.walls[s.i]) o.push(line(f.walls[s.i].a, f.walls[s.i].b, "hl", 'stroke-width="4"'));
     if (s?.t === "room" && f.rooms[s.i]) o.push(`<polygon class="hl" points="${f.rooms[s.i].pts.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
+    if (s?.t === "stairs" && f.stairs[s.i]) o.push(`<polygon class="hl" points="${f.stairs[s.i].pts.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
     if (s?.t === "furn" && f.furniture[s.i]) { const m = f.furniture[s.i]; o.push(`<rect class="hl" x="-50" y="-50" width="100" height="100" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)})"/>`); }
     if (st.showLen) {
       const P = f.outline;
@@ -619,6 +628,7 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn" id="addWin" @click=${() => this.addOpening("window", 120)}>Window</button>
           <button class="btn" id="addWall" @click=${() => this.addWall()}>Wall</button>
           <button class="btn" id="addStr" @click=${() => this.addStructure()}>Structure</button>
+          <button class="btn" id="addStairs" @click=${() => this.addStairs()}>Stairs</button>
           <div class="sep"></div>
           <select id="addFurn" aria-label="Add furniture" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addFurniture(el.value); el.value = ""; this.closeMenus(); }}>
             <option value="">Furniture…</option>
@@ -651,7 +661,7 @@ export class FloorplanStudioEditor extends LitElement {
         </div>
         <aside>
           <div id="panel">${selectionPanel(this.ctx())}</div>
-          <p class="hint">Snapping: corners jump to other corners, snap onto other walls and line up with their neighbours. Hold Alt to move freely. Drag a wall to move it with its neighbours. Hold Shift while dragging a corner or a wall to move it alone. Delete removes the selected corner, wall, door, device or furniture. Ctrl/Cmd+Z undoes. Scroll to zoom. Pan by dragging the background, or drag anywhere with the middle button, right button or Ctrl/Cmd held.</p>
+          <p class="hint">Snapping: corners jump to other corners, snap onto other walls and line up with their neighbours. Hold Alt to move freely. Drag a wall to move it with its neighbours. Hold Shift while dragging a corner or a wall to move it alone. Delete removes the selected corner, wall, door, device, furniture or stairs. Ctrl/Cmd+Z undoes. Scroll to zoom. Pan by dragging the background, or drag anywhere with the middle button, right button or Ctrl/Cmd held.</p>
           <span class="status" id="status" role="status">${this.status}</span>
         </aside>
       </div>`;

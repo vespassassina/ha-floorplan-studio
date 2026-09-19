@@ -298,3 +298,95 @@ test("File, Save ends at Saved, and the host may say otherwise", async ({ page }
   await dl2;
   await expect(page.locator("#status")).toHaveText("Written to Home Assistant");
 });
+
+// ---- add and remove stairs --------------------------------------------------
+
+const stairsCount = (page: Page) => page.locator("svg polygon[data-s]");
+const savedValid = async (page: Page) => {
+  await menu(page, "File");
+  const dl = page.waitForEvent("download");
+  await page.locator("#save").click();
+  const res = validate(JSON.parse(readFileSync(await (await dl).path(), "utf8")));
+  expect(res.ok).toBe(true);
+  return res.ok ? res.layout : null;
+};
+const addStairs = async (page: Page) => { await menu(page, "Add"); await page.locator("#addStairs").click(); };
+
+test("Add, Stairs places a 100 x 300 cm stairs on the grid, selected, with a fresh id", async ({ page }) => {
+  await expect(stairsCount(page)).toHaveCount(1);
+  await addStairs(page);
+  await expect(stairsCount(page)).toHaveCount(2);
+  const g = await groundOf(page);
+  expect(g.stairs).toHaveLength(2);
+  const t = g.stairs[1];
+  expect(t.id).toBe("stairs-ground-2");
+  expect(t.name).toBe("Stairs");
+  const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
+  expect(Math.max(...xs) - Math.min(...xs)).toBe(100);
+  expect(Math.max(...ys) - Math.min(...ys)).toBe(300);
+  for (const n of [...xs, ...ys]) expect(n % 5).toBe(0);
+  await expect(page.locator("#sn")).toHaveValue("Stairs");
+  await savedValid(page);
+});
+
+test("a stairs corner can be dragged, renamed in the panel, deleted with the button, and undo restores it", async ({ page }) => {
+  await addStairs(page);
+  await page.locator("#sn").fill("Cellar <b>stairs</b>");
+  await page.locator("#sn").press("Enter");
+  expect((await groundOf(page)).stairs[1].name).toBe("Cellar <b>stairs</b>");
+  const before = (await groundOf(page)).stairs[1];
+  await dragCm(page, before.pts[2] as [number, number], [before.pts[2][0] + 40, before.pts[2][1] + 40]);
+  const moved = (await groundOf(page)).stairs[1];
+  expect(moved.pts[2]).not.toEqual(before.pts[2]);
+  // a click on the body selects it again (the drag left the corner selected)
+  const c = await screenOf(page, moved.pts[0][0] + 50, moved.pts[0][1] + 60);
+  await page.mouse.click(c.x, c.y);
+  await page.locator("#sdel").click();
+  await expect(stairsCount(page)).toHaveCount(1);
+  expect((await groundOf(page)).stairs.map((s) => s.id)).toEqual(["stairs-ground-1"]);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  await expect(stairsCount(page)).toHaveCount(2);
+  const back = (await groundOf(page)).stairs;
+  expect(back[1].id).toBe("stairs-ground-2");
+  expect(back[1].name).toBe("Cellar <b>stairs</b>");
+  expect(back[1].pts).toEqual(moved.pts);
+});
+
+test("Delete removes selected stairs; nothing selected is a no-op with no undo step; a saved file validates and a reload restores", async ({ page }) => {
+  // nothing selected: Delete does nothing and Undo has nothing to undo
+  await page.mouse.click(...Object.values(await screenOf(page, 300, 900)) as [number, number]);
+  await page.keyboard.press("Delete");
+  expect(await layoutOf(page)).toEqual(demo);
+  await menu(page, "File");
+  await expect(page.locator("#undo")).toBeDisabled();
+  await menu(page, "File"); // closes it again
+  // select the demo stairs by a real click, delete with the key
+  const c = await screenOf(page, 740, 500);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#sn")).toHaveValue("Stairs");
+  await page.keyboard.press("Backspace");
+  await expect(stairsCount(page)).toHaveCount(0);
+  const l = await savedValid(page);
+  expect(l?.floors.ground.stairs).toHaveLength(0);
+  await page.reload();
+  await expect(page.locator("svg polygon[data-r]").first()).toBeVisible();
+  await expect(stairsCount(page)).toHaveCount(0);
+});
+
+test("two stairs get distinct ids after one is deleted and another added; a floor with none takes the first id", async ({ page }) => {
+  await addStairs(page);
+  await addStairs(page);
+  expect((await groundOf(page)).stairs.map((s) => s.id)).toEqual(["stairs-ground-1", "stairs-ground-2", "stairs-ground-3"]);
+  await page.locator("#sdel").click();
+  await addStairs(page);
+  const ids = (await groundOf(page)).stairs.map((s) => s.id);
+  expect(new Set(ids).size).toBe(ids.length);
+  // the upper floor has an empty stairs array
+  await page.locator('.chip[data-f="first"]').click();
+  await expect(stairsCount(page)).toHaveCount(0);
+  await addStairs(page);
+  await expect(stairsCount(page)).toHaveCount(1);
+  expect((await layoutOf(page)).floors.first.stairs[0].id).toBe("stairs-first-1");
+  await savedValid(page);
+});

@@ -12,7 +12,7 @@ export type Sel =
   | null
   | { t: "v"; ref: PtRef }
   | { t: "edge"; poly: string; i: number }
-  | { t: "wall" | "door" | "dev" | "room" | "furn"; i: number };
+  | { t: "wall" | "door" | "dev" | "room" | "furn" | "stairs"; i: number };
 
 export function emptyLayout(): Layout {
   const floor: Floor = { title: "Ground", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };

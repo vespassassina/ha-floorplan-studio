@@ -63,3 +63,9 @@ export function segmentAt(q: Pt, u: Pt, len: number): { a: Pt; b: Pt } {
   const n = len / 2;
   return { a: round([q[0] - u[0] * n, q[1] - u[1] * n]), b: round([q[0] + u[0] * n, q[1] + u[1] * n]) };
 }
+
+/** A stairs polygon of 100 x 300 cm centred on c, corners on the 5 cm grid. */
+export function stairsAt(c: Pt): { name: string; pts: Pt[] } {
+  const g = (n: number) => Math.round(n / 5) * 5, x = g(c[0] - 50), y = g(c[1] - 150);
+  return { name: "Stairs", pts: [[x, y], [x + 100, y], [x + 100, y + 300], [x, y + 300]] };
+}

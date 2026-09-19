@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import demo from "../../demo/layout.json";
 import v1 from "../../demo/layout.v1.json";
 import type { Layout } from "../../src/core/schema";
+import { stairsAt } from "../../src/editor/ops";
 import { EditorState, STORAGE_KEY, loadLayout, newId, restoreLayout } from "../../src/editor/state";
 
 const fresh = () => structuredClone(demo) as unknown as Layout;
@@ -83,5 +84,49 @@ describe("loadLayout", () => {
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.errors.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("stairs add and remove", () => {
+  const add = (st: EditorState) => st.edit((f) => { f.stairs.push({ id: newId(f, st.floor, "stairs"), ...stairsAt([500, 400]) }); });
+
+  it("makes a 100 x 300 cm rectangle on the 5 cm grid, centred", () => {
+    const t = stairsAt([503, 397]);
+    expect(t.name).toBe("Stairs");
+    expect(t.pts).toEqual([[455, 245], [555, 245], [555, 545], [455, 545]]);
+  });
+
+  it("adds on a floor with no stairs, and undo removes it", () => {
+    const st = new EditorState(fresh(), "first");
+    expect(st.f.stairs).toEqual([]);
+    expect(add(st)).toBe(true);
+    expect(st.f.stairs.map((s) => s.id)).toEqual(["stairs-first-1"]);
+    st.undo();
+    expect(st.f.stairs).toEqual([]);
+  });
+
+  it("removes and undoes to the same index and id", () => {
+    const st = new EditorState(fresh());
+    add(st); add(st);
+    const all = structuredClone(st.f.stairs);
+    st.edit((f) => { f.stairs.splice(1, 1); });
+    expect(st.f.stairs.map((s) => s.id)).toEqual(["stairs-ground-1", "stairs-ground-3"]);
+    st.undo();
+    expect(st.f.stairs).toEqual(all);
+  });
+
+  it("gives distinct ids after a delete and another add", () => {
+    const st = new EditorState(fresh());
+    add(st);
+    st.edit((f) => { f.stairs.splice(0, 1); });
+    add(st);
+    const ids = st.f.stairs.map((s) => s.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("removing nothing records no undo step", () => {
+    const st = new EditorState(fresh());
+    expect(st.edit((f) => { f.stairs.splice(5, 1); })).toBe(false);
+    expect(st.canUndo).toBe(false);
   });
 });

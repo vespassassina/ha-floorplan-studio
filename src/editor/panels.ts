@@ -52,6 +52,7 @@ export function selectionPanel(c: PanelCtx): TemplateResult {
     case "room": return f.rooms[s.i] ? roomPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "dev": return f.devices[s.i] ? devicePanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "furn": return f.furniture[s.i] ? furniturePanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
+    case "stairs": return f.stairs[s.i] ? stairsPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
   }
 }
 
@@ -145,4 +146,12 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${number("rotation (deg)", "fr", m.rot, (n) => c.commit((f) => { f.furniture[i].rot = ((n % 360) + 360) % 360; }))}
     <p>${button("fdel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); })}</p>
     ${hint("Drag it to move it. Alt disables the grid.")}`;
+}
+
+function stairsPanel(c: PanelCtx, i: number) {
+  const t = c.st.f.stairs[i];
+  return html`<strong>Stairs</strong>
+    ${text("name", "sn", t.name, (v) => c.commit((f) => { f.stairs[i].name = v; }))}
+    <p>${button("sdel", "Delete", () => { c.commit((f) => { f.stairs.splice(i, 1); }); c.select(null); })}</p>
+    ${hint("Drag a corner to reshape. Click an edge to add a point in the middle.")}`;
 }
