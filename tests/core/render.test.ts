@@ -42,14 +42,14 @@ describe("renderFloor", () => {
   });
 
   it("gives a light that is on the on class", () => {
-    const html = renderFloor(ground, { ...base, state: { "light.demo_living": st("on") } });
-    expect(html).toMatch(/<g[^>]*data-x="0"[^>]*class="dev dev-light on"/);
-    expect(html).toMatch(/<g[^>]*data-x="1"[^>]*class="dev dev-light off"/);
+    const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
+    expect(html).toMatch(/<g[^>]*data-x="1"[^>]*class="dev dev-light on"/);
+    expect(html).toMatch(/<g[^>]*data-x="2"[^>]*class="dev dev-switch off"/);
   });
 
   it("marks unavailable and unknown entities", () => {
     const html = renderFloor(ground, { ...base, state: { "light.demo_living": st("unavailable"), "light.demo_kitchen": st("unknown") } });
-    expect(html).toMatch(/data-x="0"[^>]*class="dev dev-light unavailable"/);
+    expect(html).toMatch(/data-x="0"[^>]*class="dev dev-light bound unavailable"/);
     expect(html).toMatch(/data-x="1"[^>]*class="dev dev-light unavailable"/);
   });
 
@@ -112,7 +112,8 @@ describe("renderFloor", () => {
 
   it("renders a device whose entity is missing from state as off, without error", () => {
     const html = renderFloor(ground, { ...base, state: {} });
-    expect(html).toMatch(/data-x="0"[^>]*class="dev dev-light off"/);
+    expect(html).toMatch(/data-x="0"[^>]*class="dev dev-light bound off"/);
+    expect(html).toMatch(/data-x="1"[^>]*class="dev dev-light off"/);
   });
 
   it("draws editor handles only in editor mode", () => {
@@ -143,5 +144,58 @@ describe("viewBoxFor", () => {
   });
   it("defaults to 60 cm of padding", () => {
     expect(viewBoxFor(ground).x).toBe(-60);
+  });
+});
+
+describe("bound light", () => {
+  const f = structuredClone(ground);
+  const L1 = "light.demo_living", S1 = "switch.demo_living_relay";
+  const g = (state: StateOverlay | undefined, floor = f) =>
+    renderFloor(floor, { ...base, state }).match(/<g[^>]*data-x="\d+"[^>]*class="dev dev-light[^"]*"[^>]*>[^]*?<\/g>/g)!.find((s) => s.includes("Living"))!;
+  const cls = (s: string) => /class="([^"]*)"/.exec(s)![1];
+
+  it("uses the class token bound and shows both names in the title", () => {
+    const html = g({});
+    expect(cls(html)).toBe("dev dev-light bound off");
+    expect(html).toContain("<title>light: Living light + switch.demo_living_relay</title>");
+  });
+  it("is on when the light is on and the switch is off", () => {
+    expect(cls(g({ [L1]: st("on"), [S1]: st("off") }))).toBe("dev dev-light bound on");
+  });
+  it("is on when the light is off and the switch is on", () => {
+    expect(cls(g({ [L1]: st("off"), [S1]: st("on") }))).toBe("dev dev-light bound on");
+  });
+  it("is off when both are off", () => {
+    expect(cls(g({ [L1]: st("off"), [S1]: st("off") }))).toBe("dev dev-light bound off");
+  });
+  it("is unavailable only when every present state is unavailable or unknown", () => {
+    expect(cls(g({ [L1]: st("unavailable"), [S1]: st("unknown") }))).toBe("dev dev-light bound unavailable");
+    expect(cls(g({ [L1]: st("unavailable") }))).toBe("dev dev-light bound unavailable");
+    expect(cls(g({ [L1]: st("unavailable"), [S1]: st("on") }))).toBe("dev dev-light bound on");
+    expect(cls(g({ [L1]: st("unavailable"), [S1]: st("off") }))).toBe("dev dev-light bound off");
+  });
+  it("uses the one state that is present", () => {
+    expect(cls(g({ [S1]: st("on") }))).toBe("dev dev-light bound on");
+    expect(cls(g({ [L1]: st("on") }))).toBe("dev dev-light bound on");
+  });
+  it("escapes a hostile bound value", () => {
+    const h = structuredClone(f);
+    const d = h.devices.find((x) => x.id === "light-living") as any;
+    d.bound = '<img src=x onerror=alert(1)>."';
+    d.name = '"><b>';
+    const html = renderFloor(h, { ...base, state: {} });
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<b>");
+  });
+  it("leaves an unbound light unchanged", () => {
+    const u = structuredClone(f);
+    delete (u.devices.find((x) => x.id === "light-living") as any).bound;
+    const html = renderFloor(u, { ...base, state: { [L1]: st("on") } });
+    expect(html).toContain('class="dev dev-light on"');
+    expect(html).toContain("<title>light: Living light</title>");
+    expect(html).not.toContain("bound");
+  });
+  it("names the bound entity by friendly_name when known, else by its id", () => {
+    expect(g({ [S1]: st("off", { attributes: { friendly_name: "Relay <1>" } }) })).toContain("<title>light: Living light + Relay &lt;1&gt;</title>");
   });
 });

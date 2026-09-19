@@ -36,7 +36,18 @@ export function viewBoxFor(f: Floor, pad = 60): { x: number; y: number; w: numbe
 const at = (p: Pt) => `${num(p[0])} ${num(p[1])}`;
 type Cls = "on" | "off" | "unavailable";
 
+const dead = (s: string) => s === "unavailable" || s === "unknown";
+
+/** A bound light is one lamp: on if either entity is on, unavailable only if every known state is dead. */
+function boundClassOf(d: Device, o: RenderOpts): Cls {
+  const seen = [o.state?.[d.entity], d.bound ? o.state?.[d.bound] : undefined].filter((s) => s !== undefined);
+  if (seen.some((s) => s.state === "on")) return "on";
+  if (seen.length && seen.every((s) => dead(s.state))) return "unavailable";
+  return "off";
+}
+
 function classOf(d: Device, o: RenderOpts): Cls {
+  if (d.type === "light" && d.bound) return boundClassOf(d, o);
   const s = o.state?.[d.entity];
   if (!s) return "off";
   if (s.state === "unavailable" || s.state === "unknown") return "unavailable";
@@ -94,7 +105,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       style = ` style="--fp-fade:${num(v)}"`;
     }
     const label = d.name ?? d.id;
-    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))} ${cls}${sel ? " sel" : ""}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})"><title>${esc(d.type)}: ${esc(label)}</title><circle cx="12" cy="12" r="13" fill="var(--fp-bg)" fill-opacity=".85"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/></g>`);
+    const bound = d.type === "light" && d.bound ? d.bound : "";
+    const bname = bound ? o.state?.[bound]?.attributes.friendly_name : undefined;
+    const title = `${esc(d.type)}: ${esc(label)}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
+    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${bound ? " bound" : ""} ${cls}${sel ? " sel" : ""}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})"><title>${title}</title><circle cx="12" cy="12" r="13" fill="var(--fp-bg)" fill-opacity=".85"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/></g>`);
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
     if ((d.type === "temp" || d.type === "humidity") && s) {
       const bad = s.state === "unknown" || s.state === "unavailable";

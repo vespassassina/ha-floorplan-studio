@@ -88,4 +88,13 @@ describe("migrate", () => {
     const m = migrate({ floors: { g: { rooms: [], devices: [{ type: "light", entity: "light.a" }] } } });
     expect(m.catalog).toEqual([]);
   });
+
+  it("passes bound through unchanged, v1 and v2", () => {
+    const l: any = structuredClone(v1);
+    l.floors.ground.devices.find((d: any) => d.id === "light-living").bound = "switch.keep_me";
+    const m1 = migrate(l);
+    expect(m1.floors.ground.devices.find((d) => d.id === "light-living")).toMatchObject({ bound: "switch.keep_me" });
+    l.version = 2;
+    expect(migrate(l).floors.ground.devices.find((d) => d.id === "light-living")).toMatchObject({ bound: "switch.keep_me" });
+  });
 });

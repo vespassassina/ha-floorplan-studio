@@ -100,3 +100,44 @@ describe("validate", () => {
     expect(errorsOf(l).join("\n")).toMatch(/needs a name/);
   });
 });
+
+describe("validate bound", () => {
+  const light = (l: any) => l.floors.ground.devices.find((d: any) => d.id === "light-living");
+  const has = (l: any, re: RegExp) => errorsOf(l).some((e) => re.test(e));
+
+  it("accepts the demo with its bound light", () => {
+    expect(light(clone()).bound).toBe("switch.demo_living_relay");
+    expect(errorsOf(clone())).toEqual([]);
+  });
+  it("rejects bound that is not an entity id", () => {
+    const l = clone(); light(l).bound = "nodot";
+    expect(has(l, /bound must be an entity id/)).toBe(true);
+    light(l).bound = 5;
+    expect(has(l, /bound must be an entity id/)).toBe(true);
+  });
+  it("rejects bound on a device that is not a light", () => {
+    const l = clone();
+    const sw = l.floors.ground.devices.find((d: any) => d.type === "switch");
+    sw.bound = "switch.other";
+    expect(has(l, /bound is only allowed on a light/)).toBe(true);
+  });
+  it("rejects bound equal to entity", () => {
+    const l = clone(); light(l).bound = light(l).entity;
+    expect(has(l, /bound must differ from entity/)).toBe(true);
+  });
+  it("rejects two devices sharing a bound", () => {
+    const l = clone();
+    const k = l.floors.ground.devices.find((d: any) => d.id === "light-kitchen");
+    k.bound = light(l).bound;
+    expect(has(l, /bound .* is used by more than one device/)).toBe(true);
+  });
+  it("rejects bound that is another device's entity", () => {
+    const l = clone(); light(l).bound = "switch.demo_hall";
+    expect(has(l, /bound switch.demo_hall is also the entity of another device/)).toBe(true);
+  });
+  it("rejects a shared bound across floors and never throws", () => {
+    const l = clone();
+    l.floors.first.devices.push({ id: "light-x", type: "light", entity: "light.x", bound: light(l).bound, x: 1, y: 1 });
+    expect(has(l, /more than one device/)).toBe(true);
+  });
+});

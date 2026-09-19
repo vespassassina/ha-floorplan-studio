@@ -72,15 +72,16 @@ test("clicking a device icon selects that device, not what lies under it", async
 });
 
 test("Add, Device places one and the list shrinks; removing it makes the list grow", async ({ page }) => {
-  // the demo catalog holds one contact sensor that is not on the plan
-  await expect(unplaced(page)).toHaveCount(1);
+  // the demo catalog holds one contact sensor not on the plan, plus the relay bound to the living light.
+  // TODO(editor task): with unplacedCatalog the relay leaves the list with its light, so counts drop by 1.
+  await expect(unplaced(page)).toHaveCount(2);
   await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
   await page.locator("#vdel").click();
-  await expect(unplaced(page)).toHaveCount(2);
+  await expect(unplaced(page)).toHaveCount(3);
   expect((await groundOf(page)).devices).toHaveLength(7);
   await menu(page, "Add");
   await page.locator("#addDev").selectOption({ label: "Living light — Living" });
-  await expect(unplaced(page)).toHaveCount(1);
+  await expect(unplaced(page)).toHaveCount(2);
   expect((await groundOf(page)).devices).toHaveLength(8);
 });
 
