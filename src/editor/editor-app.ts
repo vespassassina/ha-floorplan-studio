@@ -193,7 +193,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   protected willUpdate(changed: Map<string, unknown>) {
-    if (changed.has("floor") && this.floor && this.floor !== this.st.floor && this.st.layout.floors[this.floor]) { this.stopDraw(); this.st.setFloor(this.floor); }
+    if (changed.has("floor") && this.floor && this.floor !== this.st.floor && Object.prototype.hasOwnProperty.call(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
   }
 
   protected firstUpdated() {

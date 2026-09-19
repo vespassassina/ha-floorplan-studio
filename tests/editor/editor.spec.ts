@@ -1763,3 +1763,19 @@ test("a zone's plan label is drawn muted: its class has a rule, unlike a room la
   expect(zone).not.toEqual(room);
   expect(await page.locator("svg text.lbl.zone").first().evaluate((el) => el.getAttribute("font-size"))).not.toBe(await page.locator("svg text.lbl:not(.zone)").first().evaluate((el) => el.getAttribute("font-size")));
 });
+
+test("a floor property named like an Object.prototype key does not cancel a draw or change the floor", async ({ page }) => {
+  await startDraw(page, "drawRoom");
+  await clicksCm(page, ...FREE.slice(0, 2));
+  await expect(drawnPoints(page)).toHaveCount(2);
+  // The editor's own layout has null-prototype floors, so a prototype key is unreachable there. Give it a plain
+  // object, as any host that hands in one would, to reach the lookup.
+  await page.evaluate(() => { const st = (document.querySelector("floorplan-studio-editor") as any).st; st.layout.floors = { ...st.layout.floors }; });
+  const floor = await page.evaluate(() => (document.querySelector("floorplan-studio-editor") as any).st.floor);
+  for (const k of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
+    await page.evaluate((v) => { (document.querySelector("floorplan-studio-editor") as any).floor = v; }, k);
+    await page.evaluate(() => (document.querySelector("floorplan-studio-editor") as any).updateComplete);
+    expect(await page.evaluate(() => !!(document.querySelector("floorplan-studio-editor") as any).draw)).toBe(true); // the draw was not stopped
+  }
+  expect(await page.evaluate(() => (document.querySelector("floorplan-studio-editor") as any).st.floor)).toBe(floor);
+});
