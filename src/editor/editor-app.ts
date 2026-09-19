@@ -246,7 +246,7 @@ export class FloorplanStudioEditor extends LitElement {
   private edgeNear(p: Pt): Hit | null {
     const th = 8 / this.scale, f = this.st.f;
     let best: { d: number; hit: Hit } | null = null;
-    const ne = nearestEdge(f, p, th);
+    const ne = nearestEdge(f, p, th, { zones: true });
     if (ne) best = { d: ne.d, hit: { k: "edge", poly: ne.poly, i: ne.i } };
     f.walls.forEach((w, i) => { const d = segDist(p, w.a, w.b); if (d <= th && (!best || d < best.d)) best = { d, hit: { k: "wall", i } }; });
     return best ? (best as { hit: Hit }).hit : null;

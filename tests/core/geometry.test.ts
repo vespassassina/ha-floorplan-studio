@@ -247,3 +247,24 @@ describe("movePoints without an owner never drags a zone corner (review S1.5, fi
     expect(g.outline).toEqual(f.outline);
   });
 });
+
+describe("nearestEdge and zones (review S1.5, finding 4)", () => {
+  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, w: pts.map(() => false) });
+  const withZone = () => { const f = floor(); f.rooms.push(zone("z", rect(20, 20, 60, 60))); return f; };
+  it("skips a zone edge by default, so a door never attaches to it", () => {
+    // 2 cm from the zone edge y=20, 20 cm from the room edge y=0
+    const e = nearestEdge(withZone(), [40, 22], 1e9)!;
+    expect(e.poly).not.toBe("r2");
+    expect(e.q).toEqual([40, 0]);
+  });
+  it("finds a zone edge when asked, as edge selection does", () => {
+    const e = nearestEdge(withZone(), [40, 22], 1e9, { zones: true })!;
+    expect([e.poly, e.i, e.q]).toEqual(["r2", 0, [40, 20]]);
+  });
+  it("a floor with only a zone has no host edge", () => {
+    const f = floor();
+    f.outline = []; f.rooms = [zone("z", rect(20, 20, 60, 60))];
+    expect(nearestEdge(f, [40, 22], 1e9)).toBeNull();
+    expect(nearestEdge(f, [40, 22], 1e9, { zones: true })).not.toBeNull();
+  });
+});

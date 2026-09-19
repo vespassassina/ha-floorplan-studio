@@ -1706,3 +1706,26 @@ test("the guard is short-lived and local: a later dblclick, or one after a click
   await sendDblclick(page, 650, 400);
   expect(pointCount(await groundOf(page))).toBeGreaterThan(n);
 });
+
+test("Add, Door and Add, Opening skip a zone edge: they land on the nearest wall, not on the zone edge next to the view centre", async ({ page }) => {
+  const v = await page.evaluate((tag) => ({ ...(document.querySelector(tag as string) as any).st.view }), EDITOR);
+  const cx = Math.round(v.x + v.w / 2), cy = Math.round(v.y + v.h / 2);
+  await page.evaluate(([tag, x, y]) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    const z = l.floors.ground.rooms.find((r: any) => r.kind === "zone");
+    z.pts = [[x - 60, y - 20], [x + 60, y - 20], [x + 60, y + 40], [x - 60, y + 40]]; // its top edge is 20 cm above the view centre
+    el.layout = l;
+  }, [EDITOR, cx, cy] as const);
+  const zoneYs = [cy - 20, cy + 40];
+  await menu(page, "Add");
+  await page.locator("#addDoor").click();
+  const d = (await groundOf(page)).doors.at(-1)!;
+  expect(zoneYs).not.toContain(d.a[1]);
+  expect(zoneYs).not.toContain(d.b[1]);
+  await menu(page, "Add");
+  await page.locator("#addGap").click();
+  const o = (await groundOf(page)).openings.at(-1)!;
+  expect(zoneYs).not.toContain(o.a[1]);
+  expect(zoneYs).not.toContain(o.b[1]);
+  expect(validate(await layoutOf(page)).ok).toBe(true);
+});

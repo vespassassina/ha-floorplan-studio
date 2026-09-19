@@ -31,10 +31,15 @@ function project(p: Pt, a: Pt, b: Pt): { t: number; q: Pt } {
   return { t, q: [a[0] + t * dx, a[1] + t * dy] };
 }
 
-export function nearestEdge(f: Floor, p: Pt, maxd: number): { d: number; q: Pt; u: Pt; poly: string; i: number } | null {
+/**
+ * The polygon edge nearest to `p` within `maxd`, with the foot point and the unit direction. This is the host of a
+ * door, window, opening or heater, so stairs and, by default, zones are skipped: a zone is only a dotted overlay.
+ * `zones: true` includes them, for picking an edge with the pointer.
+ */
+export function nearestEdge(f: Floor, p: Pt, maxd: number, opts: { zones?: boolean } = {}): { d: number; q: Pt; u: Pt; poly: string; i: number } | null {
   let best: { d: number; q: Pt; u: Pt; poly: string; i: number } | null = null;
   for (const P of polys(f)) {
-    if (P.id[0] === "s") continue;
+    if (P.id[0] === "s" || (isZone(P) && !opts.zones)) continue;
     for (const { a, b, i } of edges(P.pts)) {
       const { t, q } = project(p, a, b);
       const c: Pt = t <= 0 ? a : t >= 1 ? b : q;
