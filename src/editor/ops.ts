@@ -1,4 +1,4 @@
-import { dist, movePoints, polys } from "../core";
+import { dist, movePoints, nearestEdge, polys } from "../core";
 import type { Floor, Pt } from "../core";
 import type { LooseRef, PtRef } from "./state";
 
@@ -74,4 +74,21 @@ export function stairsAt(c: Pt): { name: string; pts: Pt[] } {
 export function squareAt(c: Pt): Pt[] {
   const g = (n: number) => Math.round(n / 5) * 5, x = g(c[0] - 100), y = g(c[1] - 100);
   return [[x, y], [x + 200, y], [x + 200, y + 200], [x, y + 200]];
+}
+
+/**
+ * The edge a door-like item is placed on: the nearest polygon edge (outline, room, water) or free wall to `p`,
+ * with the point on it and its unit direction. Null when the floor has neither.
+ */
+export function hostEdge(f: Floor, p: Pt): { q: Pt; u: Pt } | null {
+  const e = nearestEdge(f, p, Infinity);
+  let best: { d: number; q: Pt; u: Pt } | null = e ? { d: e.d, q: e.q, u: e.u } : null;
+  for (const w of f.walls) {
+    const dx = w.b[0] - w.a[0], dy = w.b[1] - w.a[1], l = Math.hypot(dx, dy);
+    if (!l) continue;
+    const t = Math.max(0, Math.min(1, ((p[0] - w.a[0]) * dx + (p[1] - w.a[1]) * dy) / (l * l)));
+    const q: Pt = [w.a[0] + t * dx, w.a[1] + t * dy], d = dist(p, q);
+    if (!best || d < best.d) best = { d, q, u: [dx / l, dy / l] };
+  }
+  return best ? { q: best.q, u: best.u } : null;
 }

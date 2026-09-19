@@ -53,6 +53,7 @@ export function selectionPanel(c: PanelCtx): TemplateResult {
     case "v": return cornerPanel(c, s);
     case "edge": return edgePanel(c, s);
     case "wall": return wallPanel(c, s.i);
+    case "opening": return f.openings[s.i] ? openingPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "door": return f.doors[s.i] ? doorPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "room": return f.rooms[s.i] ? roomPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "dev": return f.devices[s.i] ? devicePanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
@@ -135,6 +136,14 @@ function doorPanel(c: PanelCtx, i: number) {
     <label><input type="checkbox" id="dopen" .checked=${c.st.openDoor === d.id} @change=${(e: Event) => { c.st.openDoor = (e.target as HTMLInputElement).checked ? d.id : null; c.refresh(); }}> preview open</label>
     <p>${button("deld", "Delete", () => { c.commit((f) => { f.doors.splice(i, 1); }); c.select(null); })}</p>
     ${hint("Drag it along a wall. Drag an end to resize.")}`;
+}
+
+function openingPanel(c: PanelCtx, i: number) {
+  const o = c.st.f.openings[i];
+  return html`<strong>Opening</strong>
+    ${number("length (cm)", "ol", Math.round(dist(o.a, o.b)), (n) => c.commit((f) => { Object.assign(f.openings[i], resizeSegment(o.a, o.b, Math.max(20, n))); }))}
+    <p>${button("odel", "Delete", () => { c.commit((f) => { f.openings.splice(i, 1); }); c.select(null); })}</p>
+    ${hint("Drag an end to resize or move it. A gap hides the wall under it.")}`;
 }
 
 function roomPanel(c: PanelCtx, i: number) {

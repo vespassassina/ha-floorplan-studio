@@ -66,6 +66,7 @@ export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; s
     sel = { t: "wall", i: g.walls.length - 1 };
   } else if (s.kind === "opening") {
     g.openings.push({ id: newId(g, floor, "opening"), a: pts[0], b: pts[1] });
+    sel = { t: "opening", i: g.openings.length - 1 };
   } else {
     g.extras.push({ id: newId(g, floor, "extra"), name: "New line", a: pts[0], b: pts[1] });
   }

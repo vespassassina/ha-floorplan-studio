@@ -50,6 +50,20 @@ describe("renderFloor", () => {
     }
   });
 
+  it("paints an opening after the wall line and the room edge it covers, so the wall under it is not visible", () => {
+    const f = structuredClone(ground);
+    f.walls.push({ id: "w1", a: [100, 700], b: [300, 700], kind: "wall" });
+    f.openings.push({ id: "o1", a: [150, 700], b: [250, 700] }, { id: "o2", a: [200, 400], b: [300, 400] });
+    const html = renderFloor(f, base);
+    const wall = html.indexOf('data-w="0"'), edge = html.indexOf('data-e="r0:2"'), o = [...html.matchAll(/<line class="opening"/g)].map((m) => m.index!);
+    expect(wall).toBeGreaterThan(-1);
+    expect(edge).toBeGreaterThan(-1);
+    expect(o).toHaveLength(2);
+    for (const at of o) { expect(at).toBeGreaterThan(wall); expect(at).toBeGreaterThan(edge); }
+    expect(html.lastIndexOf('data-e="')).toBeLessThan(o[0]); // after every edge line
+    expect(html.indexOf('data-d="0"')).toBeGreaterThan(o[1]); // and under the doors
+  });
+
   it("draws one polygon per room, one group per device, one line per door", () => {
     const html = renderFloor(ground, base);
     expect(html.match(/<polygon[^>]*data-r="/g)).toHaveLength(ground.rooms.length);

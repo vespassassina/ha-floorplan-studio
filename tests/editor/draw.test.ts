@@ -127,9 +127,11 @@ describe("applyShape", () => {
   });
 
   it("opening and structure line", () => {
-    const o = applyShape(ground(), "ground", { kind: "opening", wall: "wall", pts: [[0, 0], [120, 0]] }).floor.openings;
-    expect(o).toEqual([{ id: "opening-ground-1", a: [0, 0], b: [120, 0] }]);
-    const x = applyShape(ground(), "ground", { kind: "extra", wall: "wall", pts: [[0, 0], [120, 0]] }).floor.extras;
-    expect(x).toEqual([{ id: "extra-ground-1", name: "New line", a: [0, 0], b: [120, 0] }]);
+    const r = applyShape(ground(), "ground", { kind: "opening", wall: "wall", pts: [[0, 0], [120, 0]] });
+    expect(r.floor.openings).toEqual([{ id: "opening-ground-1", a: [0, 0], b: [120, 0] }]);
+    expect(r.sel).toEqual({ t: "opening", i: 0 });
+    const x = applyShape(ground(), "ground", { kind: "extra", wall: "wall", pts: [[0, 0], [120, 0]] });
+    expect(x.floor.extras).toEqual([{ id: "extra-ground-1", name: "New line", a: [0, 0], b: [120, 0] }]);
+    expect(x.sel).toBeNull(); // extras have no selection type
   });
 });

@@ -209,7 +209,7 @@ field, and `migrate` fills defaults.
 - Done when: tests pass.
 - Break it: a search with no match shows "No device matches", not an empty menu.
 
-### S1.13 Opening tool
+### S1.13 Opening tool (done)
 - Outcome: Add, Opening places a gap in a wall, the way Add, Door places a door. The wall under it is not drawn.
 - Files: `src/editor/editor-app.ts`, `src/editor/panels.ts`, `tests/editor/editor.spec.ts`, `tests/core/render.test.ts`.
 - Interface: `addOpening` is renamed `addDoor` (it places doors and windows); a new `addOpeningGap(len = 120)` copies its placement: the edge nearest the view centre, along that edge (`nearestEdge`, `segmentAt`), id from `newId(f, floor, "opening")`, selected. Add menu item "Opening" (`#addGap`). Selected opening: panel "Opening" with length (cm, keeps the midpoint and direction) and Delete; end handles already exist (`data-hp`); Delete and Backspace remove it. When an end is dragged, `snapPoint` applies as for a door end. Core is unchanged: `renderFloor` already draws `.opening` over the wall with the room colour. Paint order stays: openings above walls and edges, below doors, furniture and devices.

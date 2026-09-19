@@ -3,7 +3,7 @@ import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, snapPoint, stitch, validate } from "../core";
 import type { DeviceType, Floor, Layout, Pt, WallKind } from "../core";
-import { looseEnds, movePointAll, pointsNear, segmentAt, squareAt, stairsAt } from "./ops";
+import { hostEdge, looseEnds, movePointAll, pointsNear, segmentAt, squareAt, stairsAt } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
 import { EditorState, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
@@ -23,7 +23,7 @@ type Hit =
   | { k: "corner"; poly: string; j: number }
   | { k: "loose"; ref: LooseRef }
   | { k: "dend"; i: number; end: "a" | "b" }
-  | { k: "door" | "dev" | "furn" | "wall" | "room" | "stairs"; i: number }
+  | { k: "door" | "opening" | "dev" | "furn" | "wall" | "room" | "stairs"; i: number }
   | { k: "edge"; poly: string; i: number }
   | { k: "bg" };
 
@@ -64,6 +64,9 @@ function hitOf(el: Element | null): Hit {
   if (dh) { const [i, end] = (dh.getAttribute("data-dh") ?? "").split(":"); return { k: "dend", i: +i, end: end as "a" | "b" }; }
   const d = el.closest("[data-d]");
   if (d) return { k: "door", i: +(d.getAttribute("data-d") ?? -1) };
+  // An opening line has no data attribute (core draws it, the card must not change): it is the n-th `line.opening` of the plan.
+  const op = el.closest("line.opening");
+  if (op) return { k: "opening", i: Array.from(op.parentNode?.children ?? []).filter((c) => c.matches("line.opening")).indexOf(op) };
   const fu = el.closest("g[data-f]");
   if (fu) return { k: "furn", i: +(fu.getAttribute("data-f") ?? -1) };
   const e = el.closest("[data-e]");
@@ -159,6 +162,7 @@ export class FloorplanStudioEditor extends LitElement {
     .errors ul{margin:4px 0;padding-left:18px}
     .status{font-size:.85em;opacity:.75}
     .room{pointer-events:all}
+    .opening{pointer-events:stroke}
     .furn{pointer-events:all}
     .hl{fill:none;stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
     .h{cursor:move} .h.on{fill:var(--fp-ink)}
@@ -349,6 +353,7 @@ export class FloorplanStudioEditor extends LitElement {
         break;
       }
       case "stairs": st.sel = { t: "stairs", i: hit.i }; break;
+      case "opening": st.sel = { t: "opening", i: hit.i }; break;
       default:
         st.sel = null;
         this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view } };
@@ -502,6 +507,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (!s) return;
     const del = (fn: (f: Floor) => void) => { this.commit(fn); this.st.sel = null; this.requestUpdate(); };
     if (s.t === "door") del((f) => { f.doors.splice(s.i, 1); });
+    else if (s.t === "opening") del((f) => { f.openings.splice(s.i, 1); });
     else if (s.t === "dev") del((f) => { f.devices.splice(s.i, 1); });
     else if (s.t === "wall") del((f) => { f.walls.splice(s.i, 1); });
     else if (s.t === "furn") del((f) => { f.furniture.splice(s.i, 1); });
@@ -588,11 +594,19 @@ export class FloorplanStudioEditor extends LitElement {
     } else this.requestUpdate();
   }
 
-  private addOpening(kind: "door" | "window", len: number) {
+  private addDoor(kind: "door" | "window", len: number) {
     this.stopDraw();
     const c = this.centre(), e = nearestEdge(this.st.f, c, 1e9), floor = this.st.floor;
     this.commit((f) => { f.doors.push({ id: newId(f, floor, "door"), name: `new ${kind}`, kind, ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
     this.st.sel = { t: "door", i: this.st.f.doors.length - 1 };
+    this.requestUpdate();
+  }
+  /** An opening: a gap in a wall. Placed like a door on the edge nearest the view centre (a free wall counts), else at the centre. */
+  private addOpeningGap(len = 120) {
+    this.stopDraw();
+    const c = this.centre(), e = hostEdge(this.st.f, c), floor = this.st.floor;
+    this.commit((f) => { f.openings.push({ id: newId(f, floor, "opening"), ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
+    this.st.sel = { t: "opening", i: this.st.f.openings.length - 1 };
     this.requestUpdate();
   }
   private addWall() {
@@ -750,6 +764,7 @@ export class FloorplanStudioEditor extends LitElement {
     const line = (a: Pt, b: Pt, cls: string, extra = "") => `<line class="${cls}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}" ${extra}/>`;
     const len = (a: Pt, b: Pt) => `<text class="len" x="${num((a[0] + b[0]) / 2)}" y="${num((a[1] + b[1]) / 2)}" text-anchor="middle" font-size="${num(10 * k)}" paint-order="stroke" stroke="var(--fp-bg)" stroke-width="${num(3 * k)}">${(dist(a, b) / 100).toFixed(2)} m</text>`;
     if (s?.t === "edge") { const pts = polyPts(f, s.poly); if (pts) { const a = pts[s.i], b = pts[(s.i + 1) % pts.length]; o.push(line(a, b, "hl", 'stroke-width="4"'), len(a, b)); } }
+    if (s?.t === "opening" && f.openings[s.i]) o.push(line(f.openings[s.i].a, f.openings[s.i].b, "hl", 'stroke-width="4"'));
     if (s?.t === "wall" && f.walls[s.i]) o.push(line(f.walls[s.i].a, f.walls[s.i].b, "hl", 'stroke-width="4"'));
     if (s?.t === "room" && f.rooms[s.i]) o.push(`<polygon class="hl" points="${f.rooms[s.i].pts.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
     if (s?.t === "stairs" && f.stairs[s.i]) o.push(`<polygon class="hl" points="${f.stairs[s.i].pts.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
@@ -800,8 +815,9 @@ export class FloorplanStudioEditor extends LitElement {
         </select>
         <button class="chip" id="names" aria-pressed=${pressed(st.showNames)} title="Show every visible device's name on the plan" @click=${() => { st.showNames = !st.showNames; this.requestUpdate(); }}>Names</button>
         <details class="menu" id="mAdd"><summary class="btn">Add</summary><div class="box">
-          <button class="btn" id="addDoor" @click=${() => this.addOpening("door", 90)}>Door</button>
-          <button class="btn" id="addWin" @click=${() => this.addOpening("window", 120)}>Window</button>
+          <button class="btn" id="addDoor" @click=${() => this.addDoor("door", 90)}>Door</button>
+          <button class="btn" id="addWin" @click=${() => this.addDoor("window", 120)}>Window</button>
+          <button class="btn" id="addGap" title="A gap in a wall: the wall is not drawn there" @click=${() => this.addOpeningGap()}>Opening</button>
           <button class="btn" id="addWall" @click=${() => this.addWall()}>Wall</button>
           <button class="btn" id="addStr" @click=${() => this.addStructure()}>Structure</button>
           <button class="btn" id="addZone" @click=${() => this.addArea("zone")}>Zone</button>
@@ -850,7 +866,7 @@ export class FloorplanStudioEditor extends LitElement {
         </div>
         <aside>
           <div id="panel">${selectionPanel(this.ctx())}</div>
-          <p class="hint">Snapping: corners jump to other corners, snap onto other walls and line up with their neighbours. Hold Alt to move freely. Drag a wall to move it with its neighbours. Hold Shift while dragging a corner or a wall to move it alone. Delete removes the selected corner, wall, door, device, furniture or stairs. Ctrl/Cmd+Z undoes. Scroll to zoom. Pan by dragging the background, or drag anywhere with the middle button, right button or Ctrl/Cmd held.</p>
+          <p class="hint">Snapping: corners jump to other corners, snap onto other walls and line up with their neighbours. Hold Alt to move freely. Drag a wall to move it with its neighbours. Hold Shift while dragging a corner or a wall to move it alone. Delete removes the selected corner, wall, door, opening, device, furniture or stairs. Ctrl/Cmd+Z undoes. Scroll to zoom. Pan by dragging the background, or drag anywhere with the middle button, right button or Ctrl/Cmd held.</p>
           <span class="status" id="status" role="status">${this.status}</span>
         </aside>
       </div>`;

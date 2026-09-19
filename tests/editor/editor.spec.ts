@@ -1160,8 +1160,11 @@ test("Draw, Water and Draw, Opening and Draw, Structure line add their shapes", 
   await clicksCm(page, [103, 632], [297, 633]); // the second click finishes a single segment
   await expect(drawnPoints(page)).toHaveCount(0);
   expect((await groundOf(page)).openings.map((o) => [o.a, o.b])).toEqual([[[105, 630], [295, 630]]]);
+  await expect(page.locator("#ol")).toHaveValue("190"); // the opening is selected on finish (S1.13)
+  await expect(page.locator("svg line.hl")).toHaveCount(1);
   await startDraw(page, "drawExtra");
   await clicksCm(page, [103, 662], [297, 663]);
+  await expect(page.locator("#panel")).toContainText("Nothing selected"); // extras stay unselected
   const g = await groundOf(page);
   expect(g.extras).toHaveLength(1);
   expect(g.extras[0].name).toBe("New line");
@@ -1356,4 +1359,183 @@ test("a device name with markup is text in the Device menu, and a click on it pl
   await shown(page).first().click();
   expect((await groundOf(page)).devices.some((d) => d.id === "evil")).toBe(true);
   expect(await page.evaluate(() => (window as any).__pwn)).toBeUndefined();
+});
+
+// ---- S1.13 opening tool ------------------------------------------------------
+const addGap = async (page: Page) => { await menu(page, "Add"); await page.locator("#addGap").click(); };
+const gaps = async (page: Page) => (await groundOf(page)).openings;
+const len = (o: { a: number[]; b: number[] }) => Math.hypot(o.b[0] - o.a[0], o.b[1] - o.a[1]);
+/** The real top element at a plan point (the editor's hit order), as a short description. */
+const topAt = (page: Page, x: number, y: number) =>
+  page.evaluate(([tag, px, py]) => {
+    const root = (document.querySelector(tag as string) as any).shadowRoot as ShadowRoot;
+    const svg = root.querySelector("svg") as SVGSVGElement;
+    const q = new DOMPoint(px as number, py as number).matrixTransform(svg.getScreenCTM()!);
+    const el = root.elementFromPoint(q.x, q.y);
+    return el ? `${el.tagName.toLowerCase()}.${el.getAttribute("class") ?? ""}` : "";
+  }, [EDITOR, x, y] as const);
+const mid = (o: { a: number[]; b: number[] }): [number, number] => [(o.a[0] + o.b[0]) / 2, (o.a[1] + o.b[1]) / 2];
+
+test("Add, Opening adds one 120 cm opening on the room edge nearest the view centre, selected, in one undo step", async ({ page }) => {
+  const before = await gaps(page);
+  expect(before).toHaveLength(0);
+  await addGap(page);
+  const o = await gaps(page);
+  expect(o).toHaveLength(1);
+  expect(o[0].id).toBe("opening-ground-1");
+  expect(len(o[0])).toBe(120);
+  expect(o[0].a[0]).toBe(500); // the edge between the Living room and the Kitchen is the nearest to the view centre
+  expect(o[0].b[0]).toBe(500);
+  await expect(page.locator("#panel")).toContainText("Opening");
+  await expect(page.locator("svg line.hl")).toHaveCount(1);
+  expect(validate(await layoutOf(page)).ok).toBe(true);
+  await page.keyboard.press("Control+z"); // one step removes it
+  expect(await gaps(page)).toEqual([]);
+  await page.keyboard.press("Control+Shift+z");
+  expect(await gaps(page)).toEqual(o);
+});
+
+test("the wall under an opening is not the element you hit: the opening is on top of the room edge, in the editor's hit order", async ({ page }) => {
+  await addGap(page);
+  const o = (await gaps(page))[0], m = mid(o);
+  expect(o.a[0]).toBe(500); // the edge between the Living room and the Kitchen: a wall line is drawn there
+  await page.mouse.click(...Object.values(await screenOf(page, 300, 900)) as [number, number]); // deselect
+  await expect(page.locator("#panel")).toContainText("Nothing selected");
+  expect(await topAt(page, m[0], m[1])).toBe("line.opening"); // not line.e (the wall) and not the room polygon
+  // and a real click there selects it
+  const c = await screenOf(page, m[0], m[1]);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#ol")).toHaveValue("120");
+  await expect(page.locator("svg line.hl")).toHaveCount(1);
+});
+
+test("a real click picks the opening you point at when there are several", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.openings.push({ id: "opening-ground-1", a: [100, 640], b: [200, 640] }, { id: "opening-ground-2", a: [300, 660], b: [460, 660] });
+    el.layout = l;
+  }, EDITOR);
+  const c = await screenOf(page, 380, 660);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#ol")).toHaveValue("160");
+  const d = await screenOf(page, 150, 640);
+  await page.mouse.click(d.x, d.y);
+  await expect(page.locator("#ol")).toHaveValue("100");
+});
+
+test("the length field sets the length and keeps the midpoint and the direction", async ({ page }) => {
+  await addGap(page);
+  const before = (await gaps(page))[0];
+  await page.locator("#ol").fill("200");
+  await page.locator("#ol").press("Enter");
+  const o = (await gaps(page))[0];
+  expect(len(o)).toBe(200);
+  expect(mid(o)).toEqual(mid(before));
+  expect(o.a[0]).toBe(before.a[0]);
+  expect(Math.sign(o.b[1] - o.a[1])).toBe(Math.sign(before.b[1] - before.a[1]));
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect(len((await gaps(page))[0])).toBe(120); // one step
+  await expect(page.locator("#undo")).toBeEnabled();
+});
+
+test("the length field ignores an unchanged value and rubbish", async ({ page }) => {
+  await addGap(page);
+  const o = await gaps(page);
+  await page.locator("#ol").fill("120");
+  await page.locator("#ol").press("Enter");
+  await page.locator("#ol").fill("");
+  await page.locator("#ol").press("Enter");
+  expect(await gaps(page)).toEqual(o);
+  await menu(page, "File");
+  await page.locator("#undo").click(); // undoes the add itself: the unchanged 120 and the empty field left no step of their own
+  expect(await gaps(page)).toEqual([]);
+});
+
+test("Delete in the panel, and the Delete and Backspace keys, remove the opening; Undo restores it", async ({ page }) => {
+  await addGap(page);
+  const o = await gaps(page);
+  await page.locator("#odel").click();
+  expect(await gaps(page)).toEqual([]);
+  await page.keyboard.press("Control+z");
+  expect(await gaps(page)).toEqual(o);
+  const pick = async () => { const c = await screenOf(page, ...mid(o[0])); await page.mouse.click(c.x, c.y); await expect(page.locator("#odel")).toBeVisible(); };
+  await pick(); // undo clears the selection; a real click selects it again
+  await page.keyboard.press("Delete");
+  expect(await gaps(page)).toEqual([]);
+  await page.keyboard.press("Control+z");
+  expect(await gaps(page)).toEqual(o);
+  await pick();
+  await page.keyboard.press("Backspace");
+  expect(await gaps(page)).toEqual([]);
+  await page.keyboard.press("Control+z");
+  expect(await gaps(page)).toEqual(o);
+});
+
+test("an opening lands on a free wall when that is the nearest edge", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator("#addWall").click(); // a wall through the view centre
+  const w = (await groundOf(page)).walls[0];
+  await addGap(page);
+  const o = (await gaps(page))[0];
+  expect(o.a[1]).toBe(w.a[1]);
+  expect(o.b[1]).toBe(w.a[1]);
+  expect(mid(o)[0]).toBe((w.a[0] + w.b[0]) / 2);
+  expect(len(o)).toBe(120);
+});
+
+test("an opening lands on the outline edge when there are no rooms", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    const g = l.floors.ground;
+    g.rooms = []; g.doors = []; g.devices = []; g.stairs = []; g.furniture = []; g.outline = [[0, 0], [600, 0], [600, 200], [0, 200]];
+    l.catalog = [];
+    el.layout = l;
+  }, EDITOR);
+  await addGap(page);
+  const o = (await gaps(page))[0];
+  expect(o.a[1]).toBe(o.b[1]);
+  expect([0, 200]).toContain(o.a[1]);
+  expect(mid(o)[0]).toBeGreaterThan(0);
+  expect(mid(o)[0]).toBeLessThan(600);
+  expect(len(o)).toBe(120);
+});
+
+test("break it: with no wall on the floor, Add, Opening places a horizontal opening at the view centre and does not throw", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.locator("#addFloor").click();
+  await page.locator("#newFloor").fill("Attic");
+  await page.locator("#newFloor").press("Enter");
+  expect(await page.evaluate((tag) => Object.keys((document.querySelector(tag as string) as any).layout.floors.attic).length > 0, EDITOR)).toBe(true);
+  await addGap(page);
+  const o = (await layoutOf(page)).floors.attic.openings;
+  expect(o).toHaveLength(1);
+  expect(o[0].a[1]).toBe(o[0].b[1]);
+  expect(len(o[0])).toBe(120);
+  const vb = (await page.locator("svg").first().getAttribute("viewBox"))!.split(" ").map(Number);
+  expect(Math.abs(mid(o[0])[0] - (vb[0] + vb[2] / 2))).toBeLessThanOrEqual(1);
+  expect(Math.abs(mid(o[0])[1] - (vb[1] + vb[3] / 2))).toBeLessThanOrEqual(1);
+  expect(errors).toEqual([]);
+});
+
+test("Add, Door and Add, Window still place a door and a window", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator("#addDoor").click();
+  await menu(page, "Add");
+  await page.locator("#addWin").click();
+  const d = (await groundOf(page)).doors;
+  expect(d.slice(-2).map((x) => [x.kind, len(x)])).toEqual([["door", 90], ["window", 120]]);
+});
+
+test("dragging an opening end snaps like a door end: to a corner", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.openings.push({ id: "opening-ground-1", a: [100, 640], b: [200, 640] });
+    el.layout = l;
+  }, EDITOR);
+  await dragCm(page, [200, 640], [497, 402]); // near the corner (500, 400)
+  expect((await gaps(page))[0].b).toEqual([500, 400]);
+  await page.keyboard.press("Control+z");
+  expect((await gaps(page))[0].b).toEqual([200, 640]);
 });
