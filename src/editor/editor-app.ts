@@ -3,7 +3,7 @@ import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, FURNITURE, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, snapPoint, stitch, validate } from "../core";
 import type { DeviceType, Floor, Layout, Pt } from "../core";
 import { looseEnds, movePointAll, pointsNear, segmentAt } from "./ops";
-import { TYPE_LABELS, selectionPanel, type PanelCtx } from "./panel";
+import { TYPE_LABELS, selectionPanel, type PanelCtx } from "./panels";
 import { EditorState, loadLayout, newId, polyPts, ptOf, type LooseRef, type PtRef, type Sel, type View } from "./state";
 
 /**
