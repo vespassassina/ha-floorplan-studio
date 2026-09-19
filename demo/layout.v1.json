@@ -1,0 +1,516 @@
+{
+ "unit": "cm",
+ "north": 0,
+ "floors": {
+  "ground": {
+   "title": "Ground",
+   "outline": [
+    [
+     0,
+     0
+    ],
+    [
+     800,
+     0
+    ],
+    [
+     800,
+     600
+    ],
+    [
+     0,
+     600
+    ]
+   ],
+   "rooms": [
+    {
+     "name": "Living",
+     "label": "",
+     "kind": "room",
+     "pts": [
+      [
+       0,
+       0
+      ],
+      [
+       500,
+       0
+      ],
+      [
+       500,
+       400
+      ],
+      [
+       0,
+       400
+      ]
+     ],
+     "w": [
+      true,
+      true,
+      true,
+      true
+     ]
+    },
+    {
+     "name": "Kitchen",
+     "label": "",
+     "kind": "room",
+     "pts": [
+      [
+       500,
+       0
+      ],
+      [
+       800,
+       0
+      ],
+      [
+       800,
+       400
+      ],
+      [
+       500,
+       400
+      ]
+     ],
+     "w": [
+      true,
+      true,
+      true,
+      true
+     ]
+    },
+    {
+     "name": "Hall",
+     "label": "",
+     "kind": "room",
+     "pts": [
+      [
+       0,
+       400
+      ],
+      [
+       800,
+       400
+      ],
+      [
+       800,
+       600
+      ],
+      [
+       0,
+       600
+      ]
+     ],
+     "w": [
+      true,
+      true,
+      true,
+      true
+     ]
+    }
+   ],
+   "walls": [],
+   "stairs": [
+    {
+     "name": "Stairs",
+     "pts": [
+      [
+       700,
+       420
+      ],
+      [
+       780,
+       420
+      ],
+      [
+       780,
+       580
+      ],
+      [
+       700,
+       580
+      ]
+     ]
+    }
+   ],
+   "doors": [
+    {
+     "name": "Front door",
+     "kind": "door",
+     "a": [
+      300,
+      600
+     ],
+     "b": [
+      390,
+      600
+     ],
+     "sensor": "binary_sensor.demo_front_door"
+    },
+    {
+     "name": "Patio door",
+     "kind": "glass",
+     "a": [
+      0,
+      120
+     ],
+     "b": [
+      0,
+      280
+     ],
+     "sensor": "binary_sensor.demo_patio_door"
+    },
+    {
+     "name": "Garage door",
+     "kind": "door",
+     "a": [
+      800,
+      450
+     ],
+     "b": [
+      800,
+      550
+     ],
+     "cover": "cover.demo_garage_door"
+    }
+   ],
+   "openings": [],
+   "extras": [],
+   "devices": [
+    {
+     "id": "light-living",
+     "type": "light",
+     "entity": "light.demo_living",
+     "name": "Living light",
+     "x": 250,
+     "y": 200
+    },
+    {
+     "id": "light-kitchen",
+     "type": "light",
+     "entity": "light.demo_kitchen",
+     "name": "Kitchen light",
+     "x": 650,
+     "y": 200
+    },
+    {
+     "id": "switch-hall",
+     "type": "switch",
+     "entity": "switch.demo_hall",
+     "name": "Hall switch",
+     "x": 100,
+     "y": 500
+    },
+    {
+     "id": "plug-living",
+     "type": "plug",
+     "entity": "switch.demo_tv_plug",
+     "name": "TV plug",
+     "x": 60,
+     "y": 340
+    },
+    {
+     "id": "temp-living",
+     "type": "sensor",
+     "entity": "sensor.demo_living_temperature",
+     "name": "Living temperature",
+     "x": 380,
+     "y": 120
+    },
+    {
+     "id": "motion-hall",
+     "type": "motion",
+     "entity": "binary_sensor.demo_hall_motion",
+     "name": "Hall motion",
+     "x": 400,
+     "y": 500
+    },
+    {
+     "id": "camera-hall",
+     "type": "camera",
+     "entity": "camera.demo_hall",
+     "name": "Hall camera",
+     "x": 20,
+     "y": 580
+    },
+    {
+     "id": "heater-living",
+     "type": "heater",
+     "entity": "climate.demo_living",
+     "name": "Living radiator",
+     "a": [
+      100,
+      8
+     ],
+     "b": [
+      260,
+      8
+     ]
+    }
+   ]
+  },
+  "first": {
+   "title": "First",
+   "outline": [
+    [
+     0,
+     0
+    ],
+    [
+     800,
+     0
+    ],
+    [
+     800,
+     600
+    ],
+    [
+     0,
+     600
+    ]
+   ],
+   "rooms": [
+    {
+     "name": "Bedroom",
+     "label": "",
+     "kind": "room",
+     "pts": [
+      [
+       0,
+       0
+      ],
+      [
+       400,
+       0
+      ],
+      [
+       400,
+       300
+      ],
+      [
+       0,
+       300
+      ]
+     ],
+     "w": [
+      true,
+      true,
+      true,
+      true
+     ]
+    },
+    {
+     "name": "Bathroom",
+     "label": "",
+     "kind": "room",
+     "pts": [
+      [
+       400,
+       0
+      ],
+      [
+       800,
+       0
+      ],
+      [
+       800,
+       300
+      ],
+      [
+       400,
+       300
+      ]
+     ],
+     "w": [
+      true,
+      true,
+      true,
+      true
+     ]
+    },
+    {
+     "name": "Office",
+     "label": "",
+     "kind": "room",
+     "pts": [
+      [
+       0,
+       300
+      ],
+      [
+       800,
+       300
+      ],
+      [
+       800,
+       600
+      ],
+      [
+       0,
+       600
+      ]
+     ],
+     "w": [
+      true,
+      true,
+      true,
+      true
+     ]
+    }
+   ],
+   "walls": [],
+   "stairs": [],
+   "doors": [
+    {
+     "name": "Bedroom window",
+     "kind": "window",
+     "a": [
+      100,
+      0
+     ],
+     "b": [
+      300,
+      0
+     ],
+     "sensor": "binary_sensor.demo_bedroom_window"
+    }
+   ],
+   "openings": [],
+   "extras": [],
+   "devices": [
+    {
+     "id": "light-bedroom",
+     "type": "light",
+     "entity": "light.demo_bedroom",
+     "name": "Bedroom light",
+     "x": 200,
+     "y": 150
+    },
+    {
+     "id": "temp-bedroom",
+     "type": "sensor",
+     "entity": "sensor.demo_bedroom_temperature",
+     "name": "Bedroom temperature",
+     "x": 340,
+     "y": 60
+    },
+    {
+     "id": "humidity-bathroom",
+     "type": "humidity",
+     "entity": "sensor.demo_bathroom_humidity",
+     "name": "Bathroom humidity",
+     "x": 600,
+     "y": 150
+    },
+    {
+     "id": "media-office",
+     "type": "media",
+     "entity": "media_player.demo_office",
+     "name": "Office speaker",
+     "x": 400,
+     "y": 450
+    }
+   ]
+  }
+ },
+ "catalog": [
+  {
+   "id": "light-living",
+   "floor": "ground",
+   "room": "Living",
+   "type": "light",
+   "name": "Living light",
+   "entity": "light.demo_living"
+  },
+  {
+   "id": "light-kitchen",
+   "floor": "ground",
+   "room": "Kitchen",
+   "type": "light",
+   "name": "Kitchen light",
+   "entity": "light.demo_kitchen"
+  },
+  {
+   "id": "switch-hall",
+   "floor": "ground",
+   "room": "Hall",
+   "type": "switch",
+   "name": "Hall switch",
+   "entity": "switch.demo_hall"
+  },
+  {
+   "id": "plug-living",
+   "floor": "ground",
+   "room": "Living",
+   "type": "plug",
+   "name": "TV plug",
+   "entity": "switch.demo_tv_plug"
+  },
+  {
+   "id": "temp-living",
+   "floor": "ground",
+   "room": "Living",
+   "type": "sensor",
+   "name": "Living temperature",
+   "entity": "sensor.demo_living_temperature"
+  },
+  {
+   "id": "motion-hall",
+   "floor": "ground",
+   "room": "Hall",
+   "type": "motion",
+   "name": "Hall motion",
+   "entity": "binary_sensor.demo_hall_motion"
+  },
+  {
+   "id": "camera-hall",
+   "floor": "ground",
+   "room": "Hall",
+   "type": "camera",
+   "name": "Hall camera",
+   "entity": "camera.demo_hall"
+  },
+  {
+   "id": "heater-living",
+   "floor": "ground",
+   "room": "Living",
+   "type": "heater",
+   "name": "Living radiator",
+   "entity": "climate.demo_living"
+  },
+  {
+   "id": "light-bedroom",
+   "floor": "first",
+   "room": "Bedroom",
+   "type": "light",
+   "name": "Bedroom light",
+   "entity": "light.demo_bedroom"
+  },
+  {
+   "id": "temp-bedroom",
+   "floor": "first",
+   "room": "Bedroom",
+   "type": "sensor",
+   "name": "Bedroom temperature",
+   "entity": "sensor.demo_bedroom_temperature"
+  },
+  {
+   "id": "humidity-bathroom",
+   "floor": "first",
+   "room": "Bathroom",
+   "type": "humidity",
+   "name": "Bathroom humidity",
+   "entity": "sensor.demo_bathroom_humidity"
+  },
+  {
+   "id": "media-office",
+   "floor": "first",
+   "room": "Office",
+   "type": "media",
+   "name": "Office speaker",
+   "entity": "media_player.demo_office"
+  }
+ ]
+}

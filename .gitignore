@@ -1,4 +1,7 @@
-node_modules/
-dist/
-.DS_Store
 *.local.json
+.DS_Store
+custom_components/floorplan_studio/www/
+dist/
+node_modules/
+playwright-report/
+test-results/
