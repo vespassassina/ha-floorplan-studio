@@ -122,7 +122,7 @@ run with scripted clicks; record the JS used and its output in the report.
 - Done when: tests pass; no function touches `document` or `window`.
 - Break it: `snapPoint` with `threshold: 0` returns the grid-rounded input.
 
-### S1.4 Renderer
+### S1.4 Renderer (done)
 - Outcome: layout to SVG, with an optional live state overlay, used by editor and card.
 - Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/core/__snapshots__/`.
 - Interface:
