@@ -15,12 +15,28 @@ Status: in design. See `docs/SPEC.md` and `docs/PLAN.md`.
 
 ## Install (planned)
 
+[![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=vespassassina&repository=ha-floorplan-studio&category=integration)
+
+The button opens HACS on your Home Assistant with this repository ready to add. Or by hand:
+
 1. HACS → Integrations → add this repository → install.
 2. Settings → Devices & services → add **Floorplan Studio**.
 3. Open **Floorplan Studio** in the sidebar and draw, or load a draft (below).
 4. Add the card: `type: custom:floorplan-studio-card`.
 
 ## Start from photos
+
+Open your assistant with the prompt already filled in, then attach your photos:
+
+<a href="https://claude.ai/new?q=Read%20the%20instructions%20at%20https%3A%2F%2Fraw.githubusercontent.com%2Fvespassassina%2Fha-floorplan-studio%2Fmain%2Fprompts%2Ftrace-from-photos.md%20and%20follow%20them%20exactly.%20I%20will%20attach%20photos%20of%20my%20floor%20plans."><img alt="Open in Claude" src="https://img.shields.io/badge/Open%20in-Claude-D97757?style=for-the-badge"></a> <a href="https://chatgpt.com/?q=Read%20the%20instructions%20at%20https%3A%2F%2Fraw.githubusercontent.com%2Fvespassassina%2Fha-floorplan-studio%2Fmain%2Fprompts%2Ftrace-from-photos.md%20and%20follow%20them%20exactly.%20I%20will%20attach%20photos%20of%20my%20floor%20plans."><img alt="Open in ChatGPT" src="https://img.shields.io/badge/Open%20in-ChatGPT-10A37F?style=for-the-badge"></a> <a href="https://grok.com/?q=Read%20the%20instructions%20at%20https%3A%2F%2Fraw.githubusercontent.com%2Fvespassassina%2Fha-floorplan-studio%2Fmain%2Fprompts%2Ftrace-from-photos.md%20and%20follow%20them%20exactly.%20I%20will%20attach%20photos%20of%20my%20floor%20plans."><img alt="Open in Grok" src="https://img.shields.io/badge/Open%20in-Grok-000000?style=for-the-badge"></a> <a href="https://gemini.google.com/app"><img alt="Open in Gemini" src="https://img.shields.io/badge/Open%20in-Gemini-4285F4?style=for-the-badge"></a>
+
+The buttons send a short message that tells the assistant to read the full
+prompt from this repository, so the assistant needs web access. Gemini has no
+way to pre-fill a message: open it, then paste that message yourself:
+
+> Read the instructions at https://raw.githubusercontent.com/vespassassina/ha-floorplan-studio/main/prompts/trace-from-photos.md and follow them exactly. I will attach photos of my floor plans.
+
+If your assistant cannot open links, copy `prompts/trace-from-photos.md` and paste it instead.
 
 1. Photograph or scan each floor plan.
 2. Open `prompts/trace-from-photos.md`, paste it into Claude, ChatGPT, Gemini
