@@ -72,11 +72,11 @@ test("clicking a device icon selects that device, not what lies under it", async
 });
 
 test("Add, Device places one and the list shrinks; removing it makes the list grow", async ({ page }) => {
-  // the demo catalog holds one contact sensor not on the plan, plus the relay bound to the living light.
-  // TODO(editor task): with unplacedCatalog the relay leaves the list with its light, so counts drop by 1.
-  await expect(unplaced(page)).toHaveCount(2);
+  // the demo catalog holds one contact sensor not on the plan; the relay leaves the list with its light.
+  await expect(unplaced(page)).toHaveCount(1);
   await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
   await page.locator("#vdel").click();
+  // the light and its relay come back together
   await expect(unplaced(page)).toHaveCount(3);
   expect((await groundOf(page)).devices).toHaveLength(7);
   await menu(page, "Add");
@@ -390,4 +390,82 @@ test("two stairs get distinct ids after one is deleted and another added; a floo
   await expect(stairsCount(page)).toHaveCount(1);
   expect((await layoutOf(page)).floors.first.stairs[0].id).toBe("stairs-first-1");
   await savedValid(page);
+});
+
+// ---- Controlled by (bound light) -------------------------------------------
+const selectDev = async (page: Page, i: number) =>
+  page.mouse.click(...Object.values(await centre(page, `g[data-x="${i}"]`)) as [number, number]);
+const RELAY = "switch.demo_living_relay";
+/** Adds catalog entries and optionally runs `code` (a statement using `l`, the layout) before handing the layout to the editor. */
+const setCatalog = (page: Page, extra: object[], code = "") =>
+  page.evaluate(([tag, more, c]) => {
+    const el = document.querySelector(tag as string) as any;
+    const l = JSON.parse(JSON.stringify(el.layout));
+    l.catalog.push(...(more as object[]));
+    new Function("l", c as string)(l);
+    el.layout = l;
+  }, [EDITOR, extra, code] as const);
+const bound = async (page: Page, i: number) => (await groundOf(page)).devices[i].bound;
+
+test("the living light shows its relay; clearing it frees the relay, undo restores it", async ({ page }) => {
+  await selectDev(page, 0);
+  await expect(page.locator("#vbound")).toHaveValue(RELAY);
+  await expect(page.locator("#panel")).toContainText("Living light + Living lamp relay");
+  await expect(unplaced(page)).toHaveCount(1);
+  await page.locator("#vbound").selectOption("");
+  expect(await bound(page, 0)).toBeUndefined();
+  expect("bound" in (await groundOf(page)).devices[0]).toBe(false);
+  await expect(unplaced(page)).toHaveCount(2);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect(await bound(page, 0)).toBe(RELAY);
+  await expect(unplaced(page)).toHaveCount(1);
+  // choosing the same value again records no step
+  await selectDev(page, 0);
+  await page.locator("#vbound").selectOption(RELAY);
+  await menu(page, "File");
+  await expect(page.locator("#undo")).toBeDisabled();
+});
+
+test("choosing another free switch updates the list and the saved layout validates", async ({ page }) => {
+  await setCatalog(page, [{ id: "plug-free", floor: "ground", room: "Living", type: "plug", name: "Free plug", entity: "switch.free_plug" }]);
+  await selectDev(page, 0);
+  await expect(page.locator("#vbound option")).toHaveText(["(none)", "Living - Living lamp relay", "Living - Free plug"]);
+  await page.locator("#vbound").selectOption("switch.free_plug");
+  expect(await bound(page, 0)).toBe("switch.free_plug");
+  // the relay is free again, the plug is not
+  await expect(page.locator('#addDev option[value="switch-living-relay"]')).toHaveCount(1);
+  await expect(page.locator('#addDev option[value="plug-free"]')).toHaveCount(0);
+  expect(validate(await layoutOf(page)).ok).toBe(true);
+  await savedValid(page);
+});
+
+test("a switch already bound elsewhere or placed is not offered", async ({ page }) => {
+  await setCatalog(page, [], "l.floors.ground.devices[1].bound = l.floors.ground.devices[0].bound; delete l.floors.ground.devices[0].bound;");
+  await selectDev(page, 0);
+  const opts = page.locator("#vbound option");
+  await expect(opts).toHaveText(["(none)"]); // relay is the kitchen light's; hall switch and TV plug are placed
+});
+
+test("a device that is not a light has no Controlled by field", async ({ page }) => {
+  await selectDev(page, 2);
+  await expect(page.locator("#panel")).toContainText("Hall switch");
+  await expect(page.locator("#vbound")).toHaveCount(0);
+});
+
+test("deleting the light returns its switch to the Add list", async ({ page }) => {
+  await selectDev(page, 0);
+  await page.locator("#vdel").click();
+  await expect(page.locator(`#addDev option[value="switch-living-relay"]`)).toHaveCount(1);
+  expect((await groundOf(page)).devices.some((d) => d.bound)).toBe(false);
+});
+
+test("a catalog name with markup is shown as text in Controlled by", async ({ page }) => {
+  await setCatalog(page, [{ id: "plug-evil", floor: "ground", room: "Living", type: "plug", name: '<img src=x onerror="window.__pwn=1">', entity: "switch.evil" }]);
+  await selectDev(page, 0);
+  await expect(page.locator("#vbound option", { hasText: "<img" })).toHaveCount(1);
+  await expect(page.locator("#vbound img")).toHaveCount(0);
+  await page.locator("#vbound").selectOption("switch.evil");
+  await expect(page.locator("#panel")).toContainText("+ <img");
+  expect(await page.evaluate(() => (window as any).__pwn)).toBeUndefined();
 });

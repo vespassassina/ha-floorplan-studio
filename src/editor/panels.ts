@@ -131,9 +131,25 @@ function devicePanel(c: PanelCtx, i: number) {
   return html`<strong>${d.name ?? d.id}</strong>
     ${hint(`${label.toLowerCase()}. Its name comes from Home Assistant.`)}
     ${text("Home Assistant entity", "ve", d.entity, (v) => c.commit((f) => { f.devices[i].entity = v.trim(); }))}
+    ${d.type === "light" ? boundField(c, i) : nothing}
     ${"a" in d ? number("length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
     <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); })}</p>
     ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it. Alt disables the grid.") + " Removed devices go back to Add, Device.")}`;
+}
+
+/** "Controlled by": the switch or plug that powers a light. Written as `bound`, the key is deleted for none. */
+function boundField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  const choices = c.st.bindChoices(i);
+  const nameOf = (entity: string) => c.st.layout.catalog.find((x) => x.entity === entity)?.name ?? entity;
+  const set = (e: Event) => c.commit((f) => { const v = val(e); if (v) f.devices[i].bound = v; else delete f.devices[i].bound; });
+  return html`<label for="vbound">Controlled by</label>
+    <select id="vbound" .value=${d.bound ?? ""} @change=${set}>
+      <option value="" ?selected=${!d.bound}>(none)</option>
+      ${choices.map((s) => html`<option value=${s.entity} ?selected=${s.entity === d.bound}>${s.room ? `${s.room} - ` : ""}${s.name}</option>`)}
+      ${d.bound && !choices.some((s) => s.entity === d.bound) ? html`<option value=${d.bound} selected>${d.bound}</option>` : nothing}
+    </select>
+    ${d.bound ? hint(`${d.name ?? nameOf(d.entity)} + ${nameOf(d.bound)}`) : nothing}`;
 }
 
 function furniturePanel(c: PanelCtx, i: number) {

@@ -36,10 +36,24 @@ describe("EditorState", () => {
   it("lists catalog devices that are not on any floor, and lists one again after removal", () => {
     const st = new EditorState(fresh());
     // the demo catalog keeps one contact sensor off the plan, for the door picker.
-    // TODO(editor task): unplaced() should use unplacedCatalog (core/bind.ts) so the bound relay leaves the list with its light.
-    expect(st.unplaced().map((c) => c.id)).toEqual(["contact-garage", "switch-living-relay"]);
+    // the bound relay leaves the list together with its light.
+    expect(st.unplaced().map((c) => c.id)).toEqual(["contact-garage"]);
+    // removing the light frees its relay too.
     st.edit((f) => { f.devices.shift(); });
     expect(st.unplaced().map((c) => c.id)).toEqual(["light-living", "contact-garage", "switch-living-relay"]);
+  });
+
+  it("offers a light only free switches and plugs, plus the one it has", () => {
+    const l = fresh();
+    l.catalog.push({ id: "plug-free", floor: "ground", room: "Living", type: "plug", name: "Free plug", entity: "switch.free_plug" });
+    l.catalog.push({ id: "plug-taken", floor: "ground", room: "Hall", type: "plug", name: "Taken plug", entity: "switch.taken" });
+    l.floors.ground.devices[1].bound = "switch.taken"; // kitchen light
+    const st = new EditorState(l);
+    // switch-hall and plug-living are placed devices, so they are not offered
+    expect(st.bindChoices(0).map((c) => c.entity)).toEqual(["switch.demo_living_relay", "switch.free_plug"]);
+    // the kitchen light is offered its own switch, not the living light's relay
+    expect(st.bindChoices(1).map((c) => c.entity)).toEqual(["switch.free_plug", "switch.taken"]);
+    expect(st.bindChoices(2)).toEqual([]); // not a light
   });
 
   it("offers only contact sensors no other door uses", () => {
