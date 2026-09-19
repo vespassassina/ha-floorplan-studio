@@ -275,3 +275,17 @@ describe("bound light", () => {
     expect(g({ [S1]: st("off", { attributes: { friendly_name: "Relay <1>" } }) })).toContain("<title>light: Living light + Relay &lt;1&gt;</title>");
   });
 });
+
+describe("zone paint order", () => {
+  it("draws a zone polygon after the rooms even when it comes first in the array", () => {
+    const f = structuredClone(ground);
+    const zi = f.rooms.findIndex((r) => r.kind === "zone");
+    f.rooms.unshift(...f.rooms.splice(zi, 1));
+    const html = renderFloor(f, { scale: 0.5 });
+    const at = (i: number) => html.indexOf(`<polygon data-r="${i}"`);
+    expect(at(0)).toBeGreaterThan(at(1));
+    expect(at(0)).toBeGreaterThan(at(2));
+    expect(at(0)).toBeGreaterThan(at(3));
+    expect(at(0)).toBeGreaterThan(-1);
+  });
+});

@@ -8,6 +8,7 @@ Newest first. A change supersedes; nothing is edited.
 - A zone's corners are never a snap, T or stitch target, and a zone corner dropped on a wall is not stitched into it. Zone and room corners at one spot do not drag together: `movePoints` with `only` moves zone corners only when `only` is a zone corner, and room corners only when it is not. A zone corner still snaps to room corners, so a zone can be aligned to a room.
 - Water is an ordinary polygon: it snaps, stitches and merges like a room. Its `w` flags are free; the editor and demo use all `false` (dotted edge). Fill is `--fp-water`, default `#a9cfe3`.
 - `viewBoxFor` still fits the outline only, so the demo pond sits within the 60 cm pad right of the house.
+- `renderFloor` paints zone polygons after all other rooms, whatever the array order, so a zone is always the top polygon and a click inside it selects the zone (room panel: kind, area, name). The editor already gives `.room` `pointer-events:all`, so the zone's `fill:none` needs no transparent fill and the card's markup is unchanged. Devices, furniture and edges are drawn after the polygons and keep priority.
 - A zone has a plan label of its own class (`lbl zone`, 10 cm text) and no second line.
 
 ## 2026-09-19 Drawing before the card; organising the home is a goal

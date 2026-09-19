@@ -655,3 +655,44 @@ test("a room corner dropped 8 cm from a zone corner does not snap onto it", asyn
   expect(p).not.toEqual(c);
   expect(p).toEqual([c[0] + 10, c[1] + 5]); // the 5 cm grid, not the zone corner
 });
+
+// ---- S1.8 zone selection ----
+async function clickCm(page: Page, x: number, y: number) {
+  const c = await screenOf(page, x, y);
+  await page.mouse.click(c.x, c.y);
+}
+
+test("a click inside the Reading corner selects the zone: room panel with kind zone and area reading", async ({ page }) => {
+  await clickCm(page, 440, 60);
+  await expect(page.locator("#rk")).toHaveValue("zone");
+  await expect(page.locator("#ra")).toHaveValue("reading");
+  await expect(page.locator("#rn")).toHaveValue("Reading corner");
+});
+
+test("a click in the living room outside the zone selects the living room", async ({ page }) => {
+  await clickCm(page, 200, 150);
+  await expect(page.locator("#rk")).toHaveValue("room");
+  await expect(page.locator("#ra")).toHaveValue("living");
+});
+
+test("a device icon inside a zone still selects the device, not the zone", async ({ page }) => {
+  const g = await groundOf(page);
+  const zone = g.rooms.find((r) => r.kind === "zone")!;
+  const d = g.devices.find((x) => "x" in x && x.x > 340 && x.x < 460 && x.y > 40 && x.y < 140)!;
+  expect(d).toBeTruthy();
+  expect(zone).toBeTruthy();
+  await clickCm(page, (d as any).x, (d as any).y);
+  await expect(page.locator("#ve")).toHaveValue(d.entity);
+  await expect(page.locator("#rk")).toHaveCount(0);
+});
+
+test("a zone listed before the room under it is still on top: a click inside it selects the zone", async ({ page }) => {
+  const l = await layoutOf(page);
+  const rooms = l.floors.ground.rooms, zi = rooms.findIndex((r) => r.kind === "zone");
+  rooms.unshift(...rooms.splice(zi, 1)); // the zone is now rooms[0], drawn before the living room
+  await page.evaluate(([tag, lay]) => { (document.querySelector(tag as string) as any).layout = lay; }, [EDITOR, l] as const);
+  await expect(page.locator('svg polygon[data-r="0"]')).toHaveClass(/room-zone/);
+  await clickCm(page, 440, 60);
+  await expect(page.locator("#rk")).toHaveValue("zone");
+  await expect(page.locator("#ra")).toHaveValue("reading");
+});

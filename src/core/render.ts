@@ -63,7 +63,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const out: string[] = [];
   const now = o.now ?? Date.now();
 
-  f.rooms.forEach((r, i) => {
+  // Zones are painted after every other room so they sit on top whatever the array order (the editor picks the top polygon).
+  [...f.rooms.keys()].sort((a, b) => +(f.rooms[a].kind === "zone") - +(f.rooms[b].kind === "zone")).forEach((i) => {
+    const r = f.rooms[i];
     if (r.kind === "fill" && !r.name) return;
     out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}" points="${pts(r.pts)}"/>`);
   });
