@@ -298,18 +298,49 @@ test("the contact sensor picker follows the selected door", async ({ page }) => 
   await expect(page.locator("#dsens")).toHaveValue("");
 });
 
-test("File, Save ends at Saved, and the host may say otherwise", async ({ page }) => {
+test("File, Save waits for the host: Saving until saveDone, Saved after the download", async ({ page }) => {
   await menu(page, "File");
   const dl = page.waitForEvent("download");
   await page.locator("#save").click();
   await dl;
+  // the standalone page calls saveDone(true) once its download started
   await expect(page.locator("#status")).toHaveText("Saved");
-  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; el.addEventListener("save-request", () => { el.status = "Written to Home Assistant"; }); }, EDITOR);
+});
+
+test("saveDone(true) says Saved, saveDone(false, msg) shows the error, and a slow host stays at Saving", async ({ page }) => {
+  // a fresh element with one listener that never answers by itself
+  await page.evaluate(([tag, l]) => {
+    document.querySelector(tag)!.remove();
+    const el = document.createElement(tag) as any;
+    el.id = "e2";
+    el.layout = l;
+    el.addEventListener("save-request", () => { (window as any).__asked = ((window as any).__asked ?? 0) + 1; });
+    document.body.append(el);
+  }, [EDITOR, demo] as const);
   await menu(page, "File");
-  const dl2 = page.waitForEvent("download");
   await page.locator("#save").click();
-  await dl2;
-  await expect(page.locator("#status")).toHaveText("Written to Home Assistant");
+  await expect(page.locator("#status")).toHaveText("Saving…");
+  await page.waitForTimeout(300);
+  await expect(page.locator("#status")).toHaveText("Saving…");
+  await page.evaluate(() => (document.getElementById("e2") as any).saveDone(false, "Disk full"));
+  await expect(page.locator("#status")).toHaveText("Disk full");
+  await menu(page, "File");
+  await page.locator("#save").click();
+  await page.evaluate(() => (document.getElementById("e2") as any).saveDone(true));
+  await expect(page.locator("#status")).toHaveText("Saved");
+  expect(await page.evaluate(() => (window as any).__asked)).toBe(2);
+});
+
+test("with no save-request listener at all, Save falls back to Saved", async ({ page }) => {
+  await page.evaluate(([tag, l]) => {
+    document.querySelector(tag)!.remove();
+    const el = document.createElement(tag) as any;
+    el.layout = l;
+    document.body.append(el);
+  }, [EDITOR, demo] as const);
+  await menu(page, "File");
+  await page.locator("#save").click();
+  await expect(page.locator("#status")).toHaveText("Saved");
 });
 
 // ---- add and remove stairs --------------------------------------------------

@@ -13,6 +13,8 @@ import { EditorState, loadLayout, newId, polyPts, ptOf, type LooseRef, type PtRe
  *   property `seed`    what File, Reset returns to (default: the first layout set)
  *   event `layout-changed`  detail: the Layout, after every edit
  *   event `save-request`    detail: the Layout, File, Save (host writes it somewhere)
+ *   method saveDone(ok, message?)  the host calls it when the write is over; status stays "Saving…" until then.
+ *                           With no save-request listener the editor says "Saved" itself. Listen on the element.
  */
 
 type Hit =
@@ -544,10 +546,31 @@ export class FloorplanStudioEditor extends LitElement {
     if (!v.ok) { this.errors = v.errors; return; }
     this.errors = [];
     this.st.persist();
-    this.status = "Saving";
-    this.emit("save-request");
-    // the host's handler runs inside emit and may have set its own status; keep that
-    if (this.status === "Saving") this.status = "Saved";
+    this.status = "Saving…";
+    const ev = new CustomEvent("save-request", { detail: this.st.layout, bubbles: true, composed: true, cancelable: true });
+    this.dispatchEvent(ev);
+    // A host that listens owns the outcome and answers with saveDone(). Nobody listening: nothing else will write it.
+    if (this.saveListeners === 0 && !ev.defaultPrevented) this.saveDone(true);
+    else this.requestUpdate();
+  }
+  /** The host calls this when it has written (or failed to write) the layout it got in `save-request`. */
+  saveDone(ok: boolean, message?: string) {
+    this.status = ok ? message || "Saved" : message || "Save failed";
+    this.requestUpdate();
+  }
+  private saveListeners = 0;
+  // Counted so save() can tell whether a host is listening. A listener on an ancestor is not counted; it can preventDefault() instead.
+  addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | AddEventListenerOptions): void;
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) {
+    if (type === "save-request") this.saveListeners++;
+    super.addEventListener(type, listener, options);
+  }
+  removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
+  removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
+  removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions) {
+    if (type === "save-request" && this.saveListeners > 0) this.saveListeners--;
+    super.removeEventListener(type, listener, options);
   }
   private reset() {
     if (!this.seed) return;
