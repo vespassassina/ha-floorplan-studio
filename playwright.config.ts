@@ -4,6 +4,7 @@ import { defineConfig } from "@playwright/test";
 const port = Number(process.env.PW_PORT ?? 5173);
 
 export default defineConfig({
+  // Side effect: globalSetup rebuilds dist/ and custom_components/floorplan_studio/www/ (see tests/setup/build.ts).
   // Builds dist/ first: the standalone tests open dist/editor.html from file://.
   globalSetup: "./tests/setup/build.ts",
   testDir: "tests/editor",

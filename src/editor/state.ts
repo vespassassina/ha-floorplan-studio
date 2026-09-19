@@ -104,6 +104,7 @@ export class EditorState {
   edit(fn: (f: Floor) => Floor | void): boolean {
     const g = structuredClone(this.f);
     const next = fn(g) ?? g;
+    // Deep compare by serialising: cheap at this size, and it makes a no-op edit leave no undo step.
     if (JSON.stringify(next) === JSON.stringify(this.f)) return false;
     this.snapshot();
     this.layout.floors[this.floor] = next;

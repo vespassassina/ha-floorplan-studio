@@ -535,7 +535,7 @@
    "id": "contact-garage",
    "floor": "ground",
    "room": "Hall",
-   "type": "contact",
+   "type": "window",
    "name": "Garage door contact",
    "entity": "binary_sensor.demo_garage_door"
   },
