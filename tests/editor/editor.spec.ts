@@ -72,14 +72,15 @@ test("clicking a device icon selects that device, not what lies under it", async
 });
 
 test("Add, Device places one and the list shrinks; removing it makes the list grow", async ({ page }) => {
-  await expect(unplaced(page)).toHaveCount(0);
+  // the demo catalog holds one contact sensor that is not on the plan
+  await expect(unplaced(page)).toHaveCount(1);
   await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
   await page.locator("#vdel").click();
-  await expect(unplaced(page)).toHaveCount(1);
+  await expect(unplaced(page)).toHaveCount(2);
   expect((await groundOf(page)).devices).toHaveLength(7);
   await menu(page, "Add");
-  await page.locator("#addDev").selectOption({ index: 1 });
-  await expect(unplaced(page)).toHaveCount(0);
+  await page.locator("#addDev").selectOption({ label: "Living light — Living" });
+  await expect(unplaced(page)).toHaveCount(1);
   expect((await groundOf(page)).devices).toHaveLength(8);
 });
 
@@ -151,4 +152,137 @@ test("a device name with markup is shown as text", async ({ page }) => {
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => (window as any).__pwn)).toBeUndefined();
   await expect(page.locator("svg text.lbl", { hasText: "<img" })).toHaveCount(1);
+});
+
+// ---- S1.6 review fixes ------------------------------------------------------
+
+/** Screen position of a plan point (cm), read through the svg's own matrix. */
+const screenOf = (page: Page, x: number, y: number) =>
+  page.evaluate(([tag, px, py]) => {
+    const svg = (document.querySelector(tag as string) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const q = new DOMPoint(px as number, py as number).matrixTransform(svg.getScreenCTM()!);
+    return { x: q.x, y: q.y };
+  }, [EDITOR, x, y] as const);
+async function dragCm(page: Page, from: [number, number], to: [number, number], mods: string[] = []) {
+  const a = await screenOf(page, ...from), b = await screenOf(page, ...to);
+  for (const m of mods) await page.keyboard.down(m);
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 4 });
+  await page.mouse.move(b.x, b.y, { steps: 4 });
+  await page.mouse.up();
+  for (const m of mods) await page.keyboard.up(m);
+}
+
+test("stairs draw edges and corner handles, and a corner can be dragged", async ({ page }) => {
+  await expect(page.locator('svg circle[data-h="s0:0"]')).toHaveCount(1);
+  await expect(page.locator('svg line[data-e^="s0:"]')).toHaveCount(4);
+  const before = (await groundOf(page)).stairs[0].pts;
+  await dragCm(page, [700, 420], [660, 450]);
+  const after = (await groundOf(page)).stairs[0].pts;
+  expect(after[0]).not.toEqual(before[0]);
+  expect(after.slice(1)).toEqual(before.slice(1));
+});
+
+test("Shift while dragging a stairs corner moves only that corner", async ({ page }) => {
+  // put another polygon's corner on the stairs corner, so Shift has something to leave behind
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.rooms[2].pts[2] = [780, 580];
+    el.layout = l;
+  }, EDITOR);
+  const before = await groundOf(page);
+  await dragCm(page, [780, 580], [760, 560], ["Shift"]);
+  const after = await groundOf(page);
+  expect(after.stairs[0].pts[2]).not.toEqual([780, 580]);
+  expect(after.rooms[2].pts[2]).toEqual(before.rooms[2].pts[2]);
+});
+
+test("openings and extras have a body, and their names are text", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.openings.push({ id: "opening-ground-1", a: [100, 400], b: [200, 400] });
+    l.floors.ground.extras.push({ id: "extra-ground-1", name: "<b>shed</b>", a: [100, 450], b: [200, 520] });
+    el.layout = l;
+  }, EDITOR);
+  await expect(page.locator("svg line.opening")).toHaveCount(1);
+  await expect(page.locator("svg rect.extra")).toHaveCount(1);
+  await expect(page.locator("svg text.lbl", { hasText: "<b>shed</b>" })).toHaveCount(1);
+  await expect(page.locator("svg b")).toHaveCount(0);
+  await expect(page.locator('svg circle[data-hp="openings:0:a"]')).toHaveCount(1);
+});
+
+test("keys act only inside the editor", async ({ page }) => {
+  await page.evaluate(() => { for (const [tag, id] of [["input", "outside"], ["button", "outsideBtn"]]) { const e = document.createElement(tag); e.id = id; document.body.append(e); } });
+  const c = await centre(page, 'g[data-x="0"]');
+  await page.mouse.click(c.x, c.y);
+  const before = await layoutOf(page);
+  for (const id of ["#outside", "#outsideBtn"]) {
+    await page.locator(id).focus();
+    await page.keyboard.press("Delete");
+    await page.keyboard.press("Backspace");
+    expect(await layoutOf(page)).toEqual(before);
+  }
+  await page.mouse.click(c.x, c.y);
+  await page.keyboard.press("Delete");
+  expect((await groundOf(page)).devices).toHaveLength(before.floors.ground.devices.length - 1);
+  await page.locator("#outsideBtn").focus();
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).devices).toHaveLength(before.floors.ground.devices.length - 1);
+  await page.mouse.click(c.x + 400, c.y + 300);
+  await page.keyboard.press("Control+z");
+  expect(await layoutOf(page)).toEqual(before);
+});
+
+test("a device snaps to the 5 cm grid, and Alt places it freely", async ({ page }) => {
+  await dragCm(page, [250, 200], [263, 207]);
+  let d = (await groundOf(page)).devices[0] as any;
+  expect([d.x, d.y]).toEqual([265, 205]);
+  expect(d.x % 5).toBe(0);
+  await dragCm(page, [265, 205], [263, 207], ["Alt"]);
+  d = (await groundOf(page)).devices[0] as any;
+  expect([d.x, d.y]).toEqual([263, 207]);
+});
+
+test("Alt turns snapping off for a corner", async ({ page }) => {
+  await dragCm(page, [700, 420], [697, 433], ["Alt"]);
+  expect((await groundOf(page)).stairs[0].pts[0]).toEqual([697, 433]);
+  await dragCm(page, [697, 433], [663, 447]);
+  expect((await groundOf(page)).stairs[0].pts[0]).toEqual([665, 445]);
+});
+
+test("a corner snaps to the nearest of loose ends and corners", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.walls.push({ id: "wall-ground-1", a: [790, 410], b: [790, 480], kind: "wall" });
+    el.layout = l;
+  }, EDITOR);
+  await dragCm(page, [700, 420], [797, 404]);
+  // the room corner (800, 400) is 5 cm away, the wall end (790, 410) is 9 cm away
+  expect((await groundOf(page)).stairs[0].pts[0]).toEqual([800, 400]);
+});
+
+test("the contact sensor picker follows the selected door", async ({ page }) => {
+  const pick = async (i: number) => { const c = await centre(page, `line[data-d="${i}"]`); await page.mouse.click(c.x, c.y); };
+  await pick(0);
+  await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_front_door");
+  await pick(2);
+  await expect(page.locator("#dsens")).toHaveValue("");
+  await expect(page.locator('#dsens option[value="binary_sensor.demo_garage_door"]')).toHaveCount(1);
+  await pick(1);
+  await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_patio_door");
+});
+
+test("File, Save ends at Saved, and the host may say otherwise", async ({ page }) => {
+  await menu(page, "File");
+  const dl = page.waitForEvent("download");
+  await page.locator("#save").click();
+  await dl;
+  await expect(page.locator("#status")).toHaveText("Saved");
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; el.addEventListener("save-request", () => { el.status = "Written to Home Assistant"; }); }, EDITOR);
+  await menu(page, "File");
+  const dl2 = page.waitForEvent("download");
+  await page.locator("#save").click();
+  await dl2;
+  await expect(page.locator("#status")).toHaveText("Written to Home Assistant");
 });

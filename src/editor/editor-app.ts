@@ -19,7 +19,7 @@ type Hit =
   | { k: "corner"; poly: string; j: number }
   | { k: "loose"; ref: LooseRef }
   | { k: "dend"; i: number; end: "a" | "b" }
-  | { k: "door" | "dev" | "furn" | "wall" | "room"; i: number }
+  | { k: "door" | "dev" | "furn" | "wall" | "room" | "stairs"; i: number }
   | { k: "edge"; poly: string; i: number }
   | { k: "bg" };
 
@@ -36,6 +36,7 @@ type Drag =
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 const num = (n: number) => String(Math.round(n * 100) / 100);
+const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 function segDist(p: Pt, a: Pt, b: Pt): number {
   const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
@@ -65,6 +66,8 @@ function hitOf(el: Element | null): Hit {
   if (w) return { k: "wall", i: +(w.getAttribute("data-w") ?? -1) };
   const r = el.closest("[data-r]");
   if (r) return { k: "room", i: +(r.getAttribute("data-r") ?? -1) };
+  const st = el.closest("[data-s]");
+  if (st) return { k: "stairs", i: +(st.getAttribute("data-s") ?? -1) };
   return { k: "bg" };
 }
 
@@ -107,7 +110,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   static styles = css`
     ${css([FLOORPLAN_CSS] as unknown as TemplateStringsArray)}
-    :host{display:block;background:var(--fp-bg);color:var(--fp-ink);font:14px/1.4 system-ui,sans-serif}
+    :host{display:block;outline:none;background:var(--fp-bg);color:var(--fp-ink);font:14px/1.4 system-ui,sans-serif}
     .bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 0}
     .grow{flex:1}
     .btn,.chip,select,input{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:4px;padding:4px 8px}
@@ -136,6 +139,9 @@ export class FloorplanStudioEditor extends LitElement {
     .furn{pointer-events:all}
     .hl{fill:none;stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
     .h{cursor:move} .h.on{fill:var(--fp-ink)}
+    .e.se{stroke-width:1.5}
+    .opening{stroke:var(--fp-room);stroke-width:9;pointer-events:none}
+    .extra{fill:none;stroke:var(--fp-idle);stroke-dasharray:6 4;stroke-width:1.2;vector-effect:non-scaling-stroke;pointer-events:none}
     .len{fill:var(--fp-window);pointer-events:none;user-select:none}
     .lbl{pointer-events:none;user-select:none}
     .dev,.door,.heater{cursor:move}
@@ -144,12 +150,14 @@ export class FloorplanStudioEditor extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    window.addEventListener("keydown", this.onKey);
+    // Keys are heard on the element only, so Delete or Ctrl+Z elsewhere in a page does nothing here.
+    if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
+    this.addEventListener("keydown", this.onKey);
     window.addEventListener("click", this.onWindowClick);
   }
   disconnectedCallback() {
     super.disconnectedCallback();
-    window.removeEventListener("keydown", this.onKey);
+    this.removeEventListener("keydown", this.onKey);
     window.removeEventListener("click", this.onWindowClick);
     this.ro?.disconnect();
   }
@@ -217,11 +225,12 @@ export class FloorplanStudioEditor extends LitElement {
   private snapCorner(base: Floor, p: Pt, from: Pt, ref: PtRef, alt: boolean): Pt {
     if (alt) return round(p);
     const th = 14 / this.scale, grp = pointsNear(base, from);
+    // loose ends and polygon corners compete in one list: the nearest wins
+    const cands: Pt[] = looseEnds(base).map((r) => base[r.k][r.i][r.end]);
+    for (const P of polys(base)) cands.push(...P.pts);
     let best: Pt | null = null;
-    for (const r of looseEnds(base)) {
-      const q = base[r.k][r.i][r.end];
+    for (const q of cands)
       if (!grp.includes(q) && dist(q, p) < th && (!best || dist(q, p) < dist(best, p))) best = q;
-    }
     if (best) return [best[0], best[1]];
     let neighbours: Pt[] = [];
     if ("poly" in ref) {
@@ -243,9 +252,10 @@ export class FloorplanStudioEditor extends LitElement {
       return;
     }
     if (ev.button !== 0) return;
+    this.focus({ preventScroll: true });
     const p = this.toSvg(ev);
     let hit = hitOf(ev.target as Element);
-    if (hit.k === "bg" || hit.k === "room") hit = this.edgeNear(p) ?? hit;
+    if (hit.k === "bg" || hit.k === "room" || hit.k === "stairs") hit = this.edgeNear(p) ?? hit;
     const base = structuredClone(f);
     this.drag = null;
     switch (hit.k) {
@@ -525,6 +535,8 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.persist();
     this.status = "Saving";
     this.emit("save-request");
+    // the host's handler runs inside emit and may have set its own status; keep that
+    if (this.status === "Saving") this.status = "Saved";
   }
   private reset() {
     if (!this.seed) return;
@@ -567,6 +579,14 @@ export class FloorplanStudioEditor extends LitElement {
       P.forEach((a, i) => o.push(len(a, P[(i + 1) % P.length])));
       f.walls.forEach((w) => o.push(len(w.a, w.b)));
     }
+    f.stairs.forEach((t, i) => t.pts.forEach((a, j) => o.push(line(a, t.pts[(j + 1) % t.pts.length], "e se", `data-e="s${i}:${j}"`))));
+    f.openings.forEach((op) => o.push(line(op.a, op.b, "opening")));
+    f.extras.forEach((x) => {
+      const mx = Math.min(x.a[0], x.b[0]), my = Math.min(x.a[1], x.b[1]), w = Math.abs(x.a[0] - x.b[0]), h = Math.abs(x.a[1] - x.b[1]);
+      o.push(w && h ? `<rect class="extra" x="${num(mx)}" y="${num(my)}" width="${num(w)}" height="${num(h)}"/>` : line(x.a, x.b, "extra"));
+      o.push(`<text class="lbl" x="${num(mx + w / 2)}" y="${num(my + h / 2)}" text-anchor="middle" font-size="${num(11 * k)}" fill="var(--fp-idle)">${esc(x.name)}</text>`);
+    });
+    f.stairs.forEach((t, i) => t.pts.forEach((p, j) => o.push(`<circle class="h" data-h="s${i}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`)));
     const open = st.openDoor && f.doors.find((d) => d.id === st.openDoor);
     if (open) o.push(line(open.a, open.b, "door open", 'stroke-width="22" pointer-events="none"'));
     for (const r of looseEnds(f)) { const p = f[r.k][r.i][r.end]; o.push(`<circle class="h" data-hp="${r.k}:${r.i}:${r.end}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(4.5 * k)}"/>`); }
