@@ -151,11 +151,13 @@ export class FloorplanStudioEditor extends LitElement {
     // Keys are heard on the element only, so Delete or Ctrl+Z elsewhere in a page does nothing here.
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
     this.addEventListener("keydown", this.onKey);
+    this.addEventListener("focusout", this.onFocusOut);
     window.addEventListener("click", this.onWindowClick);
   }
   disconnectedCallback() {
     super.disconnectedCallback();
     this.removeEventListener("keydown", this.onKey);
+    this.removeEventListener("focusout", this.onFocusOut);
     window.removeEventListener("click", this.onWindowClick);
     this.ro?.disconnect();
   }
@@ -472,6 +474,19 @@ export class FloorplanStudioEditor extends LitElement {
     }
   };
 
+  /** A panel button (Delete...) leaves focus on itself, and the button may vanish: hand focus back so Ctrl+Z and Delete keep working. */
+  private onPanelClick = (ev: Event) => {
+    if ((ev.target as Element).closest?.("button")) this.focus({ preventScroll: true });
+  };
+
+  /** Keys only reach a focused editor, so a highlighted selection must mean Delete works: clear it when focus leaves for good. */
+  private onFocusOut = (ev: FocusEvent) => {
+    const next = ev.relatedTarget as Node | null;
+    if (next && (next === this || this.contains(next))) return; // into the panel or a menu (retargeted to this host)
+    if (!document.hasFocus()) return; // the window lost focus; the user comes back to the same selection
+    if (this.st.sel) { this.st.sel = null; this.requestUpdate(); }
+  };
+
   private onWindowClick = (ev: MouseEvent) => {
     const path = ev.composedPath();
     this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]").forEach((m) => {
@@ -679,7 +694,7 @@ export class FloorplanStudioEditor extends LitElement {
           <svg xmlns="http://www.w3.org/2000/svg" viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
         </div>
         <aside>
-          <div id="panel">${selectionPanel(this.ctx())}</div>
+          <div id="panel" @click=${this.onPanelClick}>${selectionPanel(this.ctx())}</div>
           <p class="hint">Snapping: corners jump to other corners, snap onto other walls and line up with their neighbours. Hold Alt to move freely. Drag a wall to move it with its neighbours. Hold Shift while dragging a corner or a wall to move it alone. Delete removes the selected corner, wall, door, device, furniture or stairs. Ctrl/Cmd+Z undoes. Scroll to zoom. Pan by dragging the background, or drag anywhere with the middle button, right button or Ctrl/Cmd held.</p>
           <span class="status" id="status" role="status">${this.status}</span>
         </aside>

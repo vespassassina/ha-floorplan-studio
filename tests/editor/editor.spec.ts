@@ -276,6 +276,7 @@ test("break it: a corner dragged onto its own neighbour never collapses the edge
 });
 
 test("the contact sensor picker follows the selected door", async ({ page }) => {
+  // A behaviour check only: in Chromium it also passes with the .value binding removed (tried, incl. changing one door before selecting another), because every change re-renders the option attributes.
   const pick = async (i: number) => { const c = await centre(page, `line[data-d="${i}"]`); await page.mouse.click(c.x, c.y); };
   await pick(0);
   await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_front_door");
@@ -511,4 +512,30 @@ test("a catalog name with markup is shown as text in Controlled by", async ({ pa
   await page.locator("#vbound").selectOption("switch.evil");
   await expect(page.locator("#panel")).toContainText("+ <img");
   expect(await page.evaluate(() => (window as any).__pwn)).toBeUndefined();
+});
+
+// ---- selection and focus -------------------------------------------------------
+
+test("clicking outside the editor clears the selection, so a highlight always means Delete works", async ({ page }) => {
+  const c = await screenOf(page, 740, 500);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("svg polygon.hl")).toHaveCount(1);
+  // into the side panel: the selection stays
+  await page.locator("#sn").click();
+  await expect(page.locator("svg polygon.hl")).toHaveCount(1);
+  // onto the page outside the editor: it goes, and Delete then removes nothing
+  await page.mouse.click(2, 2);
+  await expect(page.locator("svg polygon.hl")).toHaveCount(0);
+  await expect(page.locator("#panel")).toContainText("Nothing selected");
+  await page.keyboard.press("Delete");
+  await expect(stairsCount(page)).toHaveCount(1);
+});
+
+test("Ctrl+Z works right after the Delete button in the panel", async ({ page }) => {
+  const c = await screenOf(page, 740, 500);
+  await page.mouse.click(c.x, c.y);
+  await page.locator("#sdel").click();
+  await expect(stairsCount(page)).toHaveCount(0);
+  await page.keyboard.press("Control+z");
+  await expect(stairsCount(page)).toHaveCount(1);
 });
