@@ -25,8 +25,9 @@ export function pointsNear(f: Floor, p: Pt): Pt[] {
 }
 
 /**
- * Moves every corner and loose end at `from` to `to`. With `detach` only `only` moves
- * (or the first polygon corner when `only` is missing): Shift while dragging.
+ * Moves every corner and loose end at `from` to `to`. `only` is the corner or end being held: a zone
+ * corner moves with zone corners only, anything else with non-zone corners only. With `detach` only `only`
+ * moves (or the first polygon corner when `only` is missing): Shift while dragging.
  */
 export function movePointAll(f: Floor, from: Pt, to: Pt, detach = false, only?: PtRef): Floor {
   const t = round(to);
@@ -41,14 +42,14 @@ export function movePointAll(f: Floor, from: Pt, to: Pt, detach = false, only?: 
   return g;
 }
 
-/** Second end of an edge to a new length (m) or axis; shared corners follow. */
-export function setSecondEnd(f: Floor, a: Pt, b: Pt, how: { length: number } | { axis: "h" | "v" }): Floor {
+/** Second end of an edge to a new length (m) or axis; shared corners follow. `end` is the reference of that second end: it says whether a zone corner or a room corner is held. */
+export function setSecondEnd(f: Floor, a: Pt, b: Pt, how: { length: number } | { axis: "h" | "v" }, end: PtRef): Floor {
   let q: Pt;
   if ("length" in how) {
     const l = dist(a, b) || 1, n = how.length * 100;
     q = [a[0] + ((b[0] - a[0]) / l) * n, a[1] + ((b[1] - a[1]) / l) * n];
   } else q = how.axis === "h" ? [b[0], a[1]] : [a[0], b[1]];
-  return movePointAll(f, b, q);
+  return movePointAll(f, b, q, false, end);
 }
 
 /** A segment a-b resized around its centre to `len` cm. */

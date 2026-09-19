@@ -83,7 +83,7 @@ function floorPanel(c: PanelCtx) {
 function cornerPanel(c: PanelCtx, s: Extract<Sel, { t: "v" }>) {
   const p = ptOf(c.st.f, s.ref);
   if (!p) return html`<p class="hint">Nothing selected.</p>`;
-  const move = (to: [number, number]) => c.commit((f) => movePointAll(f, p, to));
+  const move = (to: [number, number]) => c.commit((f) => movePointAll(f, p, to, false, s.ref));
   const canDelete = "poly" in s.ref && (polyPts(c.st.f, s.ref.poly)?.length ?? 0) > 3;
   return html`<strong>Corner</strong>
     ${number("x (cm)", "px", p[0], (x) => move([x, p[1]]))}
@@ -97,7 +97,8 @@ function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
   const a = pts[s.i], b = pts[(s.i + 1) % pts.length];
   const ang = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
   const rooms = edgeRooms(c.st.f, s.poly, s.i);
-  const set = (how: Parameters<typeof setSecondEnd>[3]) => c.commit((f) => setSecondEnd(f, a, b, how));
+  const end = { poly: s.poly, j: (s.i + 1) % pts.length };
+  const set = (how: Parameters<typeof setSecondEnd>[3]) => c.commit((f) => setSecondEnd(f, a, b, how, end));
   return html`<strong>Wall</strong>
     ${number("length (m)", "elen", (dist(a, b) / 100).toFixed(2), (m) => set({ length: m }))}
     ${hint(`angle ${ang.toFixed(1)}°`)}
@@ -110,7 +111,7 @@ function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
 function wallPanel(c: PanelCtx, i: number) {
   const w = c.st.f.walls[i];
   if (!w) return html`<p class="hint">Nothing selected.</p>`;
-  const set = (how: Parameters<typeof setSecondEnd>[3]) => c.commit((f) => setSecondEnd(f, w.a, w.b, how));
+  const set = (how: Parameters<typeof setSecondEnd>[3]) => c.commit((f) => setSecondEnd(f, w.a, w.b, how, { k: "walls", i, end: "b" }));
   return html`<strong>${WALL_LABELS[w.kind] ?? "Wall"}</strong>
     ${number("length (m)", "wlen", (dist(w.a, w.b) / 100).toFixed(2), (m) => set({ length: m }))}
     <div class="row">${button("wh", "Make horizontal", () => set({ axis: "h" }))}${button("wv", "Make vertical", () => set({ axis: "v" }))}</div>

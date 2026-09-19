@@ -131,16 +131,17 @@ export function removePoint(f: Floor, poly: string, j: number): Floor {
 /**
  * Moves every point within 2 cm of `from` to `to`. With `detach` only one point moves:
  * `only` names it, else the first match. A zone corner and a room corner never move together:
- * with `only` set, a zone's corners move only when `only` is a zone corner, and only then.
+ * `only` is the corner the user holds. A zone's corners move only when `only` is a zone corner, and only
+ * then; with no `only` (a loose wall end has no polygon) zone corners stay where they are.
  */
 export function movePoints(f: Floor, from: Pt, to: Pt, detach: boolean, only?: { poly: string; i: number }): Floor {
   const g = structuredClone(f);
   let moved = false;
-  const zoneMove = only ? isZone(polys(g).find((P) => P.id === only.poly) ?? {}) : undefined;
+  const zoneMove = only ? isZone(polys(g).find((P) => P.id === only.poly) ?? {}) : false;
   for (const P of polys(g))
     P.pts.forEach((q, i) => {
       if (dist(q, from) > TOUCH) return;
-      if (zoneMove !== undefined && isZone(P) !== zoneMove) return;
+      if (isZone(P) !== zoneMove) return;
       if (detach) {
         if (moved || (only && !(only.poly === P.id && only.i === i))) return;
         moved = true;

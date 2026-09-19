@@ -1562,3 +1562,57 @@ test("a zone edge has no wall toggle, and every panel action on it leaves a vali
   await ok();
   await savedValid(page);
 });
+
+/** The demo with a zone corner on the living / kitchen corner (500, 0), and another on (500, 400). */
+async function withZoneOnRoomCorners(page: Page, zoneFirst: boolean) {
+  await page.evaluate(([tag, first]) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    const rooms = l.floors.ground.rooms, z = rooms.find((r: any) => r.kind === "zone");
+    z.pts = [[500, 0], [560, 0], [560, 60], [500, 60]];
+    if (first) rooms.unshift(...rooms.splice(rooms.indexOf(z), 1));
+    el.layout = l;
+  }, [EDITOR, zoneFirst] as const);
+}
+const zoneOf = async (page: Page) => (await groundOf(page)).rooms.find((r) => r.kind === "zone")!;
+
+test("a room corner typed into the corner panel does not take a zone corner on it along", async ({ page }) => {
+  await withZoneOnRoomCorners(page, true); // the zone is drawn first, so the room's handle is on top at (500, 0)
+  await clickCm(page, 500, 0);
+  await expect(page.locator("#px")).toHaveValue("500");
+  await page.locator("#px").fill("530");
+  await page.locator("#px").press("Enter");
+  const g = await groundOf(page);
+  expect(g.rooms.find((r) => r.name === "Living")!.pts[1]).toEqual([530, 0]);
+  expect(g.rooms.find((r) => r.name === "Kitchen")!.pts[0]).toEqual([530, 0]);
+  expect((await zoneOf(page)).pts[0]).toEqual([500, 0]);
+  expect(validate(await layoutOf(page)).ok).toBe(true);
+});
+
+test("a zone corner typed into the corner panel does not take the room corners on it along", async ({ page }) => {
+  await withZoneOnRoomCorners(page, false); // the zone handle is on top at (500, 0)
+  await clickCm(page, 500, 0);
+  await page.locator("#px").fill("470");
+  await page.locator("#px").press("Enter");
+  const g = await groundOf(page);
+  expect((await zoneOf(page)).pts[0]).toEqual([470, 0]);
+  expect(g.rooms.find((r) => r.name === "Living")!.pts[1]).toEqual([500, 0]);
+  expect(g.rooms.find((r) => r.name === "Kitchen")!.pts[0]).toEqual([500, 0]);
+});
+
+test("the length of a room edge does not take a zone corner on its second end along", async ({ page }) => {
+  // a triangle with one corner on the shared living / kitchen corner (500, 0), away from the edge being selected
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    const z = l.floors.ground.rooms.find((r: any) => r.kind === "zone");
+    z.pts = [[500, 0], [560, 0], [520, 60]]; z.w = [false, false, false];
+    el.layout = l;
+  }, EDITOR);
+  await clickCm(page, 500, 200); // the shared edge; the top polygon's line (the kitchen's) is the one hit, its second end is (500, 0)
+  await expect(page.locator("#elen")).toHaveValue("4.00");
+  await page.locator("#elen").fill("3");
+  await page.locator("#elen").press("Enter");
+  const g = await groundOf(page);
+  expect(g.rooms[1].pts[0]).toEqual([500, 100]); // the edge got shorter: the room corners moved
+  expect(g.rooms[0].pts[1]).toEqual([500, 100]);
+  expect((await zoneOf(page)).pts[0]).toEqual([500, 0]);
+});

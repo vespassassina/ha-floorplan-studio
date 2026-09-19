@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import demo from "../../demo/layout.json";
 import v1 from "../../demo/layout.v1.json";
 import type { Layout } from "../../src/core/schema";
-import { stairsAt } from "../../src/editor/ops";
+import { movePointAll, setSecondEnd, stairsAt } from "../../src/editor/ops";
 import { EditorState, STORAGE_KEY, loadLayout, newId, restoreLayout } from "../../src/editor/state";
 
 const fresh = () => structuredClone(demo) as unknown as Layout;
@@ -367,5 +367,47 @@ describe("floors", () => {
       expect(st.layout.floors["__proto__"].title).toBe("Roof");
       expect(({} as any).title).toBeUndefined();
     });
+  });
+});
+
+describe("a zone corner and a room corner at one spot move apart (review S1.5, finding 2)", () => {
+  // zone z has its corner on the shared corner (100, 0) of rooms a and b; the corner is (100, 0) in the demo-free floor below
+  const rect = (x0: number, y0: number, x1: number, y1: number): [number, number][] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  const mk = (id: string, pts: [number, number][], kind: "room" | "zone") => ({ id, name: id, area: id, label: "", kind, pts, w: pts.map(() => kind === "room") });
+  const floor = () => {
+    const f = structuredClone(demo.floors.ground) as any;
+    f.outline = rect(0, 0, 200, 100);
+    f.rooms = [mk("a", rect(0, 0, 100, 100), "room"), mk("b", rect(100, 0, 200, 100), "room"), mk("z", rect(100, 0, 150, 50), "zone")];
+    f.stairs = []; f.doors = []; f.walls = []; f.openings = []; f.extras = []; f.devices = []; f.furniture = [];
+    return f;
+  };
+  it("setSecondEnd on a room edge (length, then axis) leaves the zone corner where it is", () => {
+    const f = floor();
+    for (const how of [{ length: 0.8 }, { axis: "v" as const }]) {
+      // edge 0 of room a: (0,0)-(100,0); its second end (100,0) is shared with b and the zone corner
+      const g = setSecondEnd(f, [0, 0], [100, 0], how, { poly: "r0", j: 1 });
+      expect(g.rooms[0].pts[1]).not.toEqual([100, 0]);
+      expect(g.rooms[1].pts[0]).toEqual(g.rooms[0].pts[1]);
+      expect(g.rooms[2].pts[0]).toEqual([100, 0]);
+    }
+  });
+  it("setSecondEnd on a zone edge moves the zone corner and no room corner", () => {
+    const f = floor();
+    const g = setSecondEnd(f, [150, 50], [100, 0], { length: 0.3 }, { poly: "r2", j: 0 });
+    expect(g.rooms[2].pts[0]).not.toEqual([100, 0]);
+    expect(g.rooms[0].pts[1]).toEqual([100, 0]);
+    expect(g.rooms[1].pts[0]).toEqual([100, 0]);
+  });
+  it("a free wall end on that spot moves the room corners and not the zone corner", () => {
+    const f = floor();
+    f.walls = [{ id: "w", a: [100, 0], b: [100, -50], kind: "wall" }];
+    const g = setSecondEnd(f, [100, -50], [100, 0], { length: 0.3 }, { k: "walls", i: 0, end: "b" });
+    expect(g.rooms[2].pts[0]).toEqual([100, 0]);
+    expect(g.rooms[0].pts[1]).toEqual(g.walls[0].a);
+  });
+  it("movePointAll with a zone corner as owner leaves the room corners", () => {
+    const g = movePointAll(floor(), [100, 0], [90, 10], false, { poly: "r2", j: 0 });
+    expect(g.rooms[2].pts[0]).toEqual([90, 10]);
+    expect(g.rooms[0].pts[1]).toEqual([100, 0]);
   });
 });

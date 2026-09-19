@@ -234,3 +234,16 @@ describe("a zone edge is never a wall (review S1.5, finding 1)", () => {
     expect(edgeRooms(f, "r0", 0).map((h) => h.room.id)).toEqual(["a"]);
   });
 });
+
+describe("movePoints without an owner never drags a zone corner (review S1.5, finding 2)", () => {
+  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, w: pts.map(() => false) });
+  it("a zone corner on a room corner stays when the point is moved with no `only`", () => {
+    const f = floor();
+    f.rooms.push(zone("z", [[100, 0], [150, 0], [150, 50], [100, 50]]));
+    const g = movePoints(f, [100, 0], [110, 5], false);
+    expect(g.rooms[0].pts[1]).toEqual([110, 5]);
+    expect(g.rooms[1].pts[0]).toEqual([110, 5]);
+    expect(g.rooms[2].pts[0]).toEqual([100, 0]);
+    expect(g.outline).toEqual(f.outline);
+  });
+});
