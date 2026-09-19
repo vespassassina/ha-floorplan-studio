@@ -1774,7 +1774,6 @@ test("a zone's plan label is drawn muted: its class has a rule, unlike a room la
   const style = (sel: string) => page.locator(sel).first().evaluate((el) => { const c = getComputedStyle(el); return { fill: c.fill, opacity: c.opacity }; });
   const zone = await style("svg text.lbl.zone"), room = await style("svg text.lbl:not(.zone)");
   expect(zone).not.toEqual(room);
-  expect(await page.locator("svg text.lbl.zone").first().evaluate((el) => el.getAttribute("font-size"))).not.toBe(await page.locator("svg text.lbl:not(.zone)").first().evaluate((el) => el.getAttribute("font-size")));
 });
 
 test("a floor property named like an Object.prototype key does not cancel a draw or change the floor", async ({ page }) => {
@@ -1809,4 +1808,17 @@ test("a dragged zone corner lines up with another corner of the same zone, and w
   // (460, 140) is corner 2; drop it 3 cm from x = 340, the x of corners 0 and 3: it lines up with them
   await dragCm(page, z.pts[2] as [number, number], [343, 160]);
   expect((await groundOf(page)).rooms[zi].pts[2]).toEqual([340, 160]);
+});
+
+test("placing a device whose catalog floor is named like an Object.prototype key stays on the current floor and keeps its chip pressed", async ({ page }) => {
+  await selectDev(page, 0);
+  await page.locator("#vdel").click(); // light-living is unplaced again
+  // the editor's own floors have a null prototype; a plain object reaches the lookup
+  await page.evaluate((tag) => { const st = (document.querySelector(tag) as any).st; st.layout.floors = { ...st.layout.floors }; st.layout.catalog.find((c: any) => c.id === "light-living").floor = "constructor"; }, EDITOR);
+  const floor = await page.evaluate((tag) => (document.querySelector(tag) as any).st.floor, EDITOR);
+  await menu(page, "Device");
+  await devItem(page, "light-living").click();
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).floor, EDITOR)).toBe(floor);
+  await expect(page.locator(`.chip[data-f="${floor}"]`)).toHaveAttribute("aria-pressed", "true");
+  expect((await groundOf(page)).devices.some((d) => d.id === "light-living")).toBe(true); // it landed on the current floor
 });

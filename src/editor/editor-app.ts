@@ -41,6 +41,7 @@ const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 const num = (n: number) => String(Math.round(n * 100) / 100);
 const DRAW_HINT = "Click to add points, double-click or Enter to finish, Esc to cancel";
 /** A stand-in for "no dragged point": nothing is within reach of it. */
+const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 const NOWHERE: Pt = [-1e9, -1e9];
 /** Where a door, window, opening or heater sits: a room, outline or water edge, or a free wall. Never a zone or stairs. */
 const HOST = { walls: true } as const;
@@ -193,7 +194,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   protected willUpdate(changed: Map<string, unknown>) {
-    if (changed.has("floor") && this.floor && this.floor !== this.st.floor && Object.prototype.hasOwnProperty.call(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
+    if (changed.has("floor") && this.floor && this.floor !== this.st.floor && hasOwn(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
   }
 
   protected firstUpdated() {
@@ -670,7 +671,7 @@ export class FloorplanStudioEditor extends LitElement {
     // The clicked item leaves the list on the next render; take focus first or the focus-out clears the new selection.
     this.focus({ preventScroll: true });
     this.stopDraw();
-    const target = st.layout.floors[c.floor] ? c.floor : st.floor;
+    const target = hasOwn(st.layout.floors, c.floor) ? c.floor : st.floor;
     st.snapshot();
     st.setFloor(target);
     this.floor = target;
@@ -696,7 +697,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private moveFloor(key: string, delta: number) { if (this.st.moveFloor(key, delta)) this.floorDone(delta < 0 ? "Moved floor up" : "Moved floor down"); }
   private deleteFloor(key: string) {
-    const title = this.st.layout.floors[key]?.title || key;
+    const title = (hasOwn(this.st.layout.floors, key) ? this.st.layout.floors[key].title : "") || key;
     if (this.st.deleteFloor(key)) { this.floorDone(`Deleted floor ${title}`); this.focus({ preventScroll: true }); }
     else this.requestUpdate();
   }
