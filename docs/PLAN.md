@@ -71,7 +71,7 @@ run with scripted clicks; record the JS used and its output in the report.
 - Done when: `npm ci && npm run lint && npm test && npm run build` all exit 0 and `dist/` contains the three files; `pytest` collects 0 tests without error.
 - Break it: `npm run build` fails loudly if `src/editor/standalone.html` is missing.
 
-### S1.2 Schema and migration
+### S1.2 Schema and migration (done)
 - Outcome: typed layout, validation, v1 to v2 migration.
 - Files: `src/core/schema.ts`, `src/core/migrate.ts`, `tests/core/schema.test.ts`, `tests/core/migrate.test.ts`.
 - Interface:

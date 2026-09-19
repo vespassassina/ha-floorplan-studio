@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-19 Untrusted JSON is typed `any` at the boundary
+
+- ESLint `no-explicit-any` is off. `validate` and `migrate` read files nobody typed; they inspect them as `any` and return the typed `Layout`.
+- `validate` requires every object to have an `id` (the spec says so) and reports all errors, not the first.
+
 ## 2026-09-19 Founding decisions
 
 - Render the layout natively in a custom card. No picture-elements export: it cannot do motion fade, door geometry highlights or per-type behaviour without YAML per element.
