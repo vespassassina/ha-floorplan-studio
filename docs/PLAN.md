@@ -201,7 +201,7 @@ field, and `migrate` fills defaults.
 - Done when: tests pass; the Playwright hit-testing uses `page.mouse` on the real canvas.
 - Break it: a click on the first point of a 2-point polygon does not close it (needs 3).
 
-### S1.12 Device menu
+### S1.12 Device menu (done)
 - Outcome: Device is its own toolbar menu, not an item of Add.
 - Files: `src/editor/editor-app.ts`, `tests/editor/editor.spec.ts`.
 - Interface: toolbar order: floor chips, filter, Names, Add, Device, View, File. The Device menu lists unplaced catalog entries grouped by type (S3.3 adds area grouping), with a search field at the top that filters by name and entity id. Add loses its Device item.

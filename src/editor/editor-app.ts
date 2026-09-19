@@ -1,4 +1,5 @@
 import { LitElement, css, html, nothing } from "lit";
+import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, snapPoint, stitch, validate } from "../core";
 import type { DeviceType, Floor, Layout, Pt, WallKind } from "../core";
@@ -83,12 +84,15 @@ export class FloorplanStudioEditor extends LitElement {
     errors: { state: true },
     status: { state: true },
     addingFloor: { state: true },
+    devQuery: { state: true },
   };
   declare floor: string;
   declare seed: Layout | undefined;
   declare errors: string[];
   declare status: string;
   declare addingFloor: boolean;
+  /** The text in the Device menu search field. Cleared when the menu closes. */
+  declare devQuery: string;
 
   private st = new EditorState();
   private drag: Drag | null = null;
@@ -104,6 +108,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.errors = [];
     this.status = "Ready";
     this.addingFloor = false;
+    this.devQuery = "";
   }
 
   get layout(): Layout { return this.st.layout; }
@@ -144,6 +149,7 @@ export class FloorplanStudioEditor extends LitElement {
     .dp{fill:var(--fp-bg);stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
     .dp.first{fill:var(--fp-window)}
     .grp{font-size:.8em;opacity:.7}
+    .box input[type=search]{width:100%;box-sizing:border-box}
     aside{display:flex;flex-direction:column;gap:12px}
     aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}
     aside input:not([type=checkbox]),aside select{width:100%;box-sizing:border-box}
@@ -628,6 +634,8 @@ export class FloorplanStudioEditor extends LitElement {
   private placeDevice(id: string) {
     const st = this.st, c = st.layout.catalog.find((x) => x.id === id);
     if (!c) return;
+    // The clicked item leaves the list on the next render; take focus first or the focus-out clears the new selection.
+    this.focus({ preventScroll: true });
     this.stopDraw();
     const target = st.layout.floors[c.floor] ? c.floor : st.floor;
     st.snapshot();
@@ -776,7 +784,8 @@ export class FloorplanStudioEditor extends LitElement {
     const body = renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true }) + this.overlay(k);
     const counts: Record<string, number> = {};
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
-    const unplaced = st.unplaced();
+    const unplaced = st.unplaced(), q = this.devQuery.trim().toLowerCase();
+    const matches = q ? unplaced.filter((c) => c.name.toLowerCase().includes(q) || c.entity.toLowerCase().includes(q)) : unplaced;
     const pressed = (b: boolean) => (b ? "true" : "false");
     return html`
       <div class="bar">
@@ -812,10 +821,12 @@ export class FloorplanStudioEditor extends LitElement {
             <option value="">Furniture…</option>
             ${FURNITURE_SYMBOLS.map((y) => html`<option value=${y}>${y}</option>`)}
           </select>
-          <select id="addDev" aria-label="Place a device that is not on the plan yet" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.placeDevice(el.value); el.value = ""; this.closeMenus(); }}>
-            <option value="">Device… (${unplaced.length} not placed)</option>
-            ${TYPE_LABELS.map(([t, label]) => { const g = unplaced.filter((c) => c.type === t); return g.length ? html`<optgroup label=${label}>${g.map((c) => html`<option value=${c.id}>${c.name}${c.room ? ` — ${c.room}` : ""}</option>`)}</optgroup>` : nothing; })}
-          </select>
+        </div></details>
+        <details class="menu" id="mDev" @toggle=${this.onDevToggle}><summary class="btn">Device</summary><div class="box">
+          <input id="devSearch" type="search" autocomplete="off" aria-label="Search devices by name or entity id" placeholder="Search name or entity" .value=${live(this.devQuery)} @input=${(e: Event) => { this.devQuery = (e.target as HTMLInputElement).value; }} @keydown=${this.onDevSearchKey}>
+          ${unplaced.length === 0 ? html`<span class="grp" id="devNone">Every device in the catalog is on the plan</span>` : nothing}
+          ${unplaced.length > 0 && matches.length === 0 ? html`<span class="grp" id="devNone">No device matches</span>` : nothing}
+          ${TYPE_LABELS.map(([t, label]) => { const g = matches.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-dev=${c.id} @click=${() => this.placeDevice(c.id)}>${c.name}${c.room ? ` — ${c.room}` : ""}</button>`)}` : nothing; })}
         </div></details>
         <details class="menu" id="mOpt"><summary class="btn">View</summary><div class="box">
           <button class="chip" id="grid" aria-pressed=${pressed(st.snapGrid)} @click=${() => { st.snapGrid = !st.snapGrid; this.requestUpdate(); }}>Snap 5 cm</button>
@@ -844,6 +855,17 @@ export class FloorplanStudioEditor extends LitElement {
         </aside>
       </div>`;
   }
+
+  /** Opening the Device menu focuses the search; closing it, by any route, forgets the text. */
+  private onDevToggle = (ev: Event) => {
+    const m = ev.currentTarget as HTMLDetailsElement;
+    if (m.open) this.renderRoot.querySelector<HTMLInputElement>("#devSearch")?.focus({ preventScroll: true });
+    else if (this.devQuery) this.devQuery = "";
+  };
+  /** Keys typed in the search field belong to the field (onKey ignores inputs); only Escape is ours: close the menu. */
+  private onDevSearchKey = (ev: KeyboardEvent) => {
+    if (ev.key === "Escape") { ev.preventDefault(); this.closeMenus(); }
+  };
 
   private closeMenus() {
     const open = this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]");

@@ -9,7 +9,8 @@ const demo = JSON.parse(readFileSync("demo/layout.json", "utf8")) as Layout;
 const EDITOR = "floorplan-studio-editor";
 const layoutOf = (page: Page) => page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
 const groundOf = async (page: Page): Promise<Floor> => (await layoutOf(page)).floors.ground;
-const unplaced = (page: Page) => page.locator('#addDev option:not([value=""])');
+const unplaced = (page: Page) => page.locator("#mDev button[data-dev]");
+const devItem = (page: Page, id: string) => page.locator(`#mDev button[data-dev="${id}"]`);
 
 async function centre(page: Page, selector: string) {
   const box = await page.locator(selector).first().boundingBox();
@@ -71,7 +72,7 @@ test("clicking a device icon selects that device, not what lies under it", async
   await expect(page.locator("#panel")).not.toContainText("Room");
 });
 
-test("Add, Device places one and the list shrinks; removing it makes the list grow", async ({ page }) => {
+test("Device places one and the list shrinks; removing it makes the list grow", async ({ page }) => {
   // the demo catalog holds one contact sensor not on the plan; the relay leaves the list with its light.
   await expect(unplaced(page)).toHaveCount(1);
   await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
@@ -79,8 +80,8 @@ test("Add, Device places one and the list shrinks; removing it makes the list gr
   // the light and its relay come back together
   await expect(unplaced(page)).toHaveCount(3);
   expect((await groundOf(page)).devices).toHaveLength(7);
-  await menu(page, "Add");
-  await page.locator("#addDev").selectOption({ label: "Living light — Living" });
+  await menu(page, "Device");
+  await devItem(page, "light-living").click(); // a real click on the visible item
   await expect(unplaced(page)).toHaveCount(2);
   expect((await groundOf(page)).devices).toHaveLength(8);
 });
@@ -478,8 +479,8 @@ test("choosing another free switch updates the list and the saved layout validat
   await page.locator("#vbound").selectOption("switch.free_plug");
   expect(await bound(page, 0)).toBe("switch.free_plug");
   // the relay is free again, the plug is not
-  await expect(page.locator('#addDev option[value="switch-living-relay"]')).toHaveCount(1);
-  await expect(page.locator('#addDev option[value="plug-free"]')).toHaveCount(0);
+  await expect(devItem(page, "switch-living-relay")).toHaveCount(1);
+  await expect(devItem(page, "plug-free")).toHaveCount(0);
   expect(validate(await layoutOf(page)).ok).toBe(true);
   await savedValid(page);
 });
@@ -500,7 +501,7 @@ test("a device that is not a light has no Controlled by field", async ({ page })
 test("deleting the light returns its switch to the Add list", async ({ page }) => {
   await selectDev(page, 0);
   await page.locator("#vdel").click();
-  await expect(page.locator(`#addDev option[value="switch-living-relay"]`)).toHaveCount(1);
+  await expect(devItem(page, "switch-living-relay")).toHaveCount(1);
   expect((await groundOf(page)).devices.some((d) => d.bound)).toBe(false);
 });
 
@@ -540,9 +541,9 @@ test("Ctrl+Z works right after the Delete button in the panel", async ({ page })
   await expect(stairsCount(page)).toHaveCount(1);
 });
 
-test("a selection made from the Add menu survives the menu closing, then Delete works", async ({ page }) => {
-  await menu(page, "Add");
-  await page.locator("#addDev").selectOption({ index: 1 });
+test("a selection made from the Device menu survives the menu closing, then Delete works", async ({ page }) => {
+  await menu(page, "Device");
+  await unplaced(page).first().click();
   await expect(page.locator("g.dev.sel")).toHaveCount(1);
   await expect(page.locator("#panel")).not.toContainText("Nothing selected");
   const n = (await groundOf(page)).devices.length;
@@ -906,8 +907,8 @@ test("deleting the ground floor with content, then Undo, brings it back in place
   await expect(page.locator("svg polygon[data-r]")).toHaveCount(5);
 });
 
-test("devices of a deleted floor go back to Add, Device and the catalog is unchanged", async ({ page }) => {
-  await menu(page, "Add");
+test("devices of a deleted floor go back to the Device menu and the catalog is unchanged", async ({ page }) => {
+  await menu(page, "Device");
   const n = await unplaced(page).count();
   await page.keyboard.press("Escape");
   const cat = (await layoutOf(page)).catalog;
@@ -915,7 +916,7 @@ test("devices of a deleted floor go back to Add, Device and the catalog is uncha
   await page.locator("#fdel").click();
   await page.locator("#fdelyes").click();
   expect((await layoutOf(page)).catalog).toEqual(cat);
-  await menu(page, "Add");
+  await menu(page, "Device");
   expect(await unplaced(page).count()).toBeGreaterThan(n);
 });
 
@@ -1247,4 +1248,112 @@ test("draw items keep the single-shape Add items: Zone still adds a square in on
   await menu(page, "Add");
   await page.locator("#addZone").click();
   expect((await groundOf(page)).rooms.at(-1)!.kind).toBe("zone");
+});
+
+// ---- S1.12 Device menu -------------------------------------------------------
+const search = (page: Page) => page.locator("#devSearch");
+const shown = (page: Page) => page.locator("#mDev button[data-dev]:visible");
+
+test("the toolbar order is Add, Device, View, File and Add has no Device item", async ({ page }) => {
+  await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Device", "View", "File"]);
+  await expect(page.locator("#mAdd select")).toHaveCount(1); // only the furniture select is left
+  await expect(page.locator("#mAdd #addDev")).toHaveCount(0);
+  await expect(page.locator("#mAdd")).not.toContainText("Device");
+});
+
+test("Device lists the unplaced entries grouped by type; a deleted light and its relay come back, placing the light takes only the light", async ({ page }) => {
+  await selectDev(page, 0);
+  await page.locator("#vdel").click(); // the light and its relay come back
+  await menu(page, "Device");
+  expect(await page.locator("#mDev .grp").allInnerTexts()).toEqual(["Lights", "Wall switches", "Window / door sensor"]);
+  await devItem(page, "light-living").click();
+  await expect(devItem(page, "light-living")).toHaveCount(0);
+  await expect(devItem(page, "switch-living-relay")).toHaveCount(1); // the placed copy has no bound any more
+});
+
+test("the search filters by name and by entity id, ignoring case", async ({ page }) => {
+  await setCatalog(page, [{ id: "plug-free", floor: "ground", room: "Living", type: "plug", name: "Free plug", entity: "switch.Garden_Pump" }]);
+  await menu(page, "Device");
+  await expect(shown(page)).toHaveCount(2);
+  await search(page).fill("FREE PL");
+  await expect(shown(page)).toHaveCount(1);
+  await expect(shown(page)).toContainText("Free plug");
+  await search(page).fill("garden_pump"); // entity id, other case
+  await expect(shown(page)).toHaveCount(1);
+  await expect(shown(page)).toContainText("Free plug");
+  await search(page).fill("contact");
+  await expect(shown(page)).toHaveCount(1);
+  await expect(page.locator("#mDev .grp:visible")).toHaveText(["Window / door sensor"]);
+  await search(page).fill("");
+  await expect(shown(page)).toHaveCount(2);
+});
+
+test("a search with no match says so, and the search is cleared when the menu closes", async ({ page }) => {
+  await menu(page, "Device");
+  await search(page).fill("zzz-no-such-thing");
+  await expect(shown(page)).toHaveCount(0);
+  await expect(page.locator("#mDev")).toContainText("No device matches");
+  await page.mouse.click(2, 2); // closes the menu
+  await expect(page.locator("#mDev")).not.toHaveAttribute("open", "");
+  await menu(page, "Device");
+  await expect(search(page)).toHaveValue("");
+  await expect(shown(page)).toHaveCount(1);
+  await expect(page.locator("#mDev")).not.toContainText("No device matches");
+});
+
+test("the search is cleared when the menu closes by choosing an item, and by opening another menu", async ({ page }) => {
+  await menu(page, "Device");
+  await search(page).fill("contact");
+  await shown(page).first().click();
+  await menu(page, "Device");
+  await expect(search(page)).toHaveValue("");
+  await search(page).fill("x");
+  await menu(page, "View");
+  await menu(page, "Device");
+  await expect(search(page)).toHaveValue("");
+});
+
+test("typing in the search field does not trigger editor shortcuts", async ({ page }) => {
+  await selectDev(page, 0); // a selected light: Delete or Backspace outside an input would remove it
+  const before = await layoutOf(page);
+  await menu(page, "Device");
+  await search(page).click();
+  await page.keyboard.type("Delete abcz");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("Delete");
+  await expect(search(page)).toHaveValue("Delete abc"); // typed, edited by the field itself, not swallowed
+  expect(await layoutOf(page)).toEqual(before);
+  await expect(page.locator("g.dev.sel")).toHaveCount(1);
+});
+
+test("Ctrl+Z in the search field does not undo the plan", async ({ page }) => {
+  await selectDev(page, 0);
+  await page.locator("#vdel").click();
+  const after = await layoutOf(page);
+  await menu(page, "Device");
+  await search(page).click();
+  await page.keyboard.press("Control+z");
+  expect(await layoutOf(page)).toEqual(after);
+});
+
+test("Escape in the search field closes the menu and gives the keys back to the editor", async ({ page }) => {
+  await menu(page, "Device");
+  await search(page).fill("abc");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#mDev")).not.toHaveAttribute("open", "");
+  await selectDev(page, 0);
+  await page.keyboard.press("Delete");
+  expect((await groundOf(page)).devices).toHaveLength(7);
+});
+
+test("a device name with markup is text in the Device menu, and a click on it places that device", async ({ page }) => {
+  await setCatalog(page, [{ id: "evil", floor: "ground", room: "Living", type: "plug", name: '<img src=x onerror="window.__pwn=1">', entity: "switch.evil" }]);
+  await menu(page, "Device");
+  await expect(page.locator("#mDev img")).toHaveCount(0);
+  await expect(devItem(page, "evil")).toContainText("<img");
+  await search(page).fill("<img");
+  await expect(shown(page)).toHaveCount(1);
+  await shown(page).first().click();
+  expect((await groundOf(page)).devices.some((d) => d.id === "evil")).toBe(true);
+  expect(await page.evaluate(() => (window as any).__pwn)).toBeUndefined();
 });

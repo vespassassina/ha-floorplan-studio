@@ -76,7 +76,7 @@ function floorPanel(c: PanelCtx) {
       ? html`<p id="fconfirm" role="alert">Delete floor ${title} and everything on it?</p>
         <div class="row">${button("fdelyes", "Delete", () => c.floors.remove(key))}${button("fdelno", "Cancel", () => { st.confirmDelete = false; c.refresh(); })}</div>`
       : html`<p><button class="btn" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
-    ${hint("Devices on a deleted floor stay in the catalog and go back to Add, Device.")}`;
+    ${hint("Devices on a deleted floor stay in the catalog and go back to the Device menu.")}`;
 }
 
 function cornerPanel(c: PanelCtx, s: Extract<Sel, { t: "v" }>) {
@@ -163,7 +163,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${d.type === "light" ? boundField(c, i) : nothing}
     ${"a" in d ? number("length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
     <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); })}</p>
-    ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it. Alt disables the grid.") + " Removed devices go back to Add, Device.")}`;
+    ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it. Alt disables the grid.") + " Removed devices go back to the Device menu.")}`;
 }
 
 /** "Controlled by": the switch or plug that powers a light. Written as `bound`, the key is deleted for none. */
