@@ -187,7 +187,7 @@ describe("zones and water", () => {
     expect(zi).toBeGreaterThan(-1);
     expect(wi).toBeGreaterThan(-1);
     expect(ground.rooms[zi]).toMatchObject({ name: "Reading corner", area: "reading" });
-    expect(ground.rooms[wi].kind).toBe("water");
+    expect(ground.rooms[wi]).toMatchObject({ kind: "water", area: "" }); // water is scenery, not an HA area
     for (const p of ground.rooms[zi].pts) expect(p[0] >= 0 && p[0] <= 500 && p[1] >= 0 && p[1] <= 400).toBe(true);
   });
   it("draws every zone edge dotted (class nw), never solid, with no editor handles", () => {

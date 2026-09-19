@@ -105,10 +105,12 @@ describe("migrate", () => {
       { id: "z1", name: "Nook", area: "nook", label: "", kind: "zone", pts, w: [false, false, false] },
       { id: "w1", name: "Pond", area: "", label: "", kind: "water", pts, w: [false, false, false] },
       { id: "r9", name: "Cellar Store", kind: "room", pts, w: [true, true, true] }, // no area: this one is filled
+      { id: "w2", name: "Koi Pond", kind: "water", pts, w: [false, false, false] }, // no area: water gets none
     );
-    const rooms = migrate(l).floors.ground.rooms.slice(-3);
+    const rooms = migrate(l).floors.ground.rooms.slice(-4);
+    expect(rooms[3].area).toBe(""); // one rule with the editor's Add and Draw: water is not an HA area
     expect(rooms[1].area).toBe(""); // "" is a value, not a gap: a fill that used || would turn it into "pond"
-    expect(rooms[0]).toEqual(l.floors.ground.rooms.at(-3));
+    expect(rooms[0]).toEqual(l.floors.ground.rooms.at(-4));
     expect(rooms[1].w).toEqual([false, false, false]);
     expect(rooms[2].area).toBe("cellar-store");
   });
