@@ -145,3 +145,227 @@ describe("stairs add and remove", () => {
     expect(st.canUndo).toBe(false);
   });
 });
+
+describe("floors", () => {
+  const keys = (st: EditorState) => Object.keys(st.layout.floors);
+  const empty = { outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };
+
+  describe("addFloor", () => {
+    it("adds an empty floor last, keyed by the slug of its title, and selects it", () => {
+      const st = new EditorState(fresh());
+      expect(st.addFloor("Attic")).toBe("attic");
+      expect(keys(st)).toEqual(["ground", "first", "attic"]);
+      expect(st.floor).toBe("attic");
+      expect(st.f).toEqual({ title: "Attic", ...empty });
+      expect(st.sel).toBeNull();
+    });
+    it("is one undo step: undo removes it and the selection falls back to a floor that exists", () => {
+      const st = new EditorState(fresh());
+      const before = JSON.stringify(st.layout);
+      st.addFloor("Attic");
+      expect(st.undo()).toBe(true);
+      expect(JSON.stringify(st.layout)).toBe(before);
+      expect(st.floor).toBe("ground");
+      expect(st.undo()).toBe(false);
+      expect(st.redo()).toBe(true);
+      expect(keys(st)).toEqual(["ground", "first", "attic"]);
+    });
+    it("break it: a title that slugs to an existing key gets -2, then -3, and the old floor is untouched", () => {
+      const st = new EditorState(fresh());
+      const ground = JSON.stringify(st.layout.floors.ground);
+      expect(st.addFloor("Ground")).toBe("ground-2");
+      expect(st.addFloor("  GROUND!  ")).toBe("ground-3");
+      expect(st.addFloor("Ground 2")).toBe("ground-2-2"); // slug "ground-2" is taken too
+      expect(JSON.stringify(st.layout.floors.ground)).toBe(ground);
+      expect(st.layout.floors["ground-2"].title).toBe("Ground");
+      expect(keys(st)).toEqual(["ground", "first", "ground-2", "ground-3", "ground-2-2"]);
+    });
+    it("trims the title and gives a title with no letters or digits the key floor", () => {
+      const st = new EditorState(fresh());
+      expect(st.addFloor("  Cellar  ")).toBe("cellar");
+      expect(st.f.title).toBe("Cellar");
+      expect(st.addFloor("???")).toBe("floor");
+      expect(st.addFloor("---")).toBe("floor-2");
+    });
+    it("rejects an empty or whitespace title: returns \"\", changes nothing, records no step", () => {
+      const st = new EditorState(fresh());
+      for (const t of ["", "   ", "\t\n"]) expect(st.addFloor(t)).toBe("");
+      expect(keys(st)).toEqual(["ground", "first"]);
+      expect(st.canUndo).toBe(false);
+    });
+    it("is safe with keys that exist on every object: constructor, toString, __proto__", () => {
+      const st = new EditorState(fresh());
+      expect(st.addFloor("constructor")).toBe("constructor"); // not a clash: it is not an own key
+      expect(st.addFloor("toString")).toBe("tostring");
+      expect(Object.hasOwn(st.layout.floors, "constructor")).toBe(true);
+      expect(st.f.title).toBe("toString");
+      st.setFloor("constructor");
+      expect(st.floor).toBe("constructor");
+      expect(st.addFloor("__proto__")).toBe("proto");
+      expect(Object.getPrototypeOf(st.layout.floors)).not.toBe(st.layout.floors.proto);
+    });
+    it("keeps the selection state honest: the new floor has no selection or view left from the old one", () => {
+      const st = new EditorState(fresh());
+      st.sel = { t: "room", i: 0 };
+      st.addFloor("Attic");
+      expect(st.sel).toBeNull();
+      expect(st.view.w).toBeGreaterThan(0);
+    });
+  });
+
+  describe("renameFloor", () => {
+    it("changes the title only: the key, the order and the content stay", () => {
+      const st = new EditorState(fresh());
+      const rooms = JSON.stringify(st.layout.floors.ground.rooms);
+      expect(st.renameFloor("ground", "  Main level ")).toBe(true);
+      expect(keys(st)).toEqual(["ground", "first"]);
+      expect(st.layout.floors.ground.title).toBe("Main level");
+      expect(JSON.stringify(st.layout.floors.ground.rooms)).toBe(rooms);
+      expect(st.floor).toBe("ground");
+    });
+    it("is one undo step, and undo puts the old title back", () => {
+      const st = new EditorState(fresh());
+      st.renameFloor("first", "Upstairs");
+      st.undo();
+      expect(st.layout.floors.first.title).toBe("First");
+      expect(st.canUndo).toBe(false);
+    });
+    it("returns false and records no step for an empty title, the same title, or an unknown key", () => {
+      const st = new EditorState(fresh());
+      expect(st.renameFloor("ground", "")).toBe(false);
+      expect(st.renameFloor("ground", "   ")).toBe(false);
+      expect(st.renameFloor("ground", "Ground")).toBe(false);
+      expect(st.renameFloor("ground", " Ground ")).toBe(false);
+      expect(st.renameFloor("nope", "X")).toBe(false);
+      expect(st.renameFloor("constructor", "X")).toBe(false);
+      expect(st.canUndo).toBe(false);
+      expect(st.layout.floors.ground.title).toBe("Ground");
+    });
+  });
+
+  describe("deleteFloor", () => {
+    it("refuses the last floor and an unknown key: false, no step", () => {
+      const st = new EditorState(fresh());
+      expect(st.deleteFloor("nope")).toBe(false);
+      expect(st.deleteFloor("constructor")).toBe(false);
+      expect(st.deleteFloor("first")).toBe(true);
+      expect(st.canUndo).toBe(true);
+      st.undo();
+      st.undo(); // nothing left
+      const one = new EditorState(fresh());
+      one.deleteFloor("first");
+      const steps = one.canUndo;
+      expect(one.deleteFloor("ground")).toBe(false);
+      expect(keys(one)).toEqual(["ground"]);
+      expect(steps).toBe(true);
+      one.undo();
+      expect(one.canUndo).toBe(false); // the refusal added no step
+    });
+    it("moves the selection to the next floor, or to the previous one when the last is deleted", () => {
+      const st = new EditorState(fresh());
+      st.addFloor("Attic"); // ground, first, attic; on attic
+      st.setFloor("first");
+      expect(st.deleteFloor("first")).toBe(true);
+      expect(keys(st)).toEqual(["ground", "attic"]);
+      expect(st.floor).toBe("attic");
+      expect(st.deleteFloor("attic")).toBe(true);
+      expect(st.floor).toBe("ground");
+      expect(st.sel).toBeNull();
+      expect(st.f.title).toBe("Ground");
+    });
+    it("keeps the current floor when another one is deleted", () => {
+      const st = new EditorState(fresh());
+      st.addFloor("Attic");
+      st.setFloor("ground");
+      st.sel = { t: "room", i: 1 };
+      st.deleteFloor("attic");
+      expect(st.floor).toBe("ground");
+    });
+    it("undo brings the floor back with its content and its place in the order", () => {
+      const st = new EditorState(fresh());
+      const before = JSON.stringify(st.layout);
+      st.deleteFloor("ground");
+      expect(keys(st)).toEqual(["first"]);
+      expect(st.floor).toBe("first");
+      expect(st.undo()).toBe(true);
+      expect(JSON.stringify(st.layout)).toBe(before);
+      expect(keys(st)).toEqual(["ground", "first"]);
+      expect(st.layout.floors.ground.rooms).toHaveLength(5);
+    });
+    it("leaves the catalog alone: devices that were on the deleted floor become unplaced and stay listed", () => {
+      const st = new EditorState(fresh());
+      const catalog = JSON.stringify(st.layout.catalog);
+      const onFirst = st.layout.floors.first.devices.map((d) => d.id);
+      expect(onFirst.length).toBeGreaterThan(0);
+      const listed = st.unplaced().length;
+      st.deleteFloor("first");
+      expect(JSON.stringify(st.layout.catalog)).toBe(catalog);
+      const ids = st.unplaced().map((c) => c.id);
+      for (const id of onFirst) expect(ids).toContain(id);
+      expect(ids.length).toBeGreaterThan(listed);
+      expect(st.layout.catalog.some((c) => c.floor === "first")).toBe(true);
+    });
+  });
+
+  describe("moveFloor", () => {
+    const three = () => { const st = new EditorState(fresh()); st.addFloor("Attic"); return st; };
+    it("rebuilds the key order: delta -1 up the list, +1 down, content and titles intact", () => {
+      const st = three();
+      const g = JSON.stringify(st.layout.floors.ground);
+      expect(st.moveFloor("attic", -1)).toBe(true);
+      expect(keys(st)).toEqual(["ground", "attic", "first"]);
+      expect(st.moveFloor("attic", -1)).toBe(true);
+      expect(keys(st)).toEqual(["attic", "ground", "first"]);
+      expect(st.moveFloor("ground", 1)).toBe(true);
+      expect(keys(st)).toEqual(["attic", "first", "ground"]);
+      expect(JSON.stringify(st.layout.floors.ground)).toBe(g);
+      expect(st.floor).toBe("attic"); // the selection does not follow a move of another floor
+    });
+    it("the selected floor stays selected when it is the one that moves", () => {
+      const st = three();
+      st.moveFloor("attic", -2);
+      expect(st.floor).toBe("attic");
+      expect(keys(st)).toEqual(["attic", "ground", "first"]);
+    });
+    it("returns false and records no step at either end, for delta 0, and for an unknown key", () => {
+      const st = three();
+      expect(st.moveFloor("ground", -1)).toBe(false);
+      expect(st.moveFloor("attic", 1)).toBe(false);
+      expect(st.moveFloor("first", 0)).toBe(false);
+      expect(st.moveFloor("nope", 1)).toBe(false);
+      expect(st.moveFloor("ground", -5)).toBe(false);
+      st.undo(); // only the addFloor step exists
+      expect(st.canUndo).toBe(false);
+    });
+    it("is one undo step and undo restores the order", () => {
+      const st = three();
+      st.moveFloor("attic", -1);
+      st.undo();
+      expect(keys(st)).toEqual(["ground", "first", "attic"]);
+    });
+    it("a floor named __proto__ survives rename, move, add, delete and undo as an own floor", () => {
+      const l = loadLayout(JSON.parse(JSON.stringify(fresh()).replace('"first":{', '"__proto__":{')));
+      if (!l.ok) throw new Error(l.errors.join());
+      const st = new EditorState(l.layout);
+      expect(keys(st)).toEqual(["ground", "__proto__"]);
+      expect(st.renameFloor("__proto__", "Roof")).toBe(true);
+      expect(st.layout.floors["__proto__"].title).toBe("Roof");
+      expect(st.moveFloor("__proto__", -1)).toBe(true);
+      expect(keys(st)).toEqual(["__proto__", "ground"]);
+      expect(Object.getPrototypeOf(st.layout.floors)).toBeNull();
+      st.setFloor("__proto__");
+      expect(st.floor).toBe("__proto__");
+      expect(st.addFloor("Cellar")).toBe("cellar");
+      expect(keys(st)).toEqual(["__proto__", "ground", "cellar"]);
+      expect(st.deleteFloor("cellar")).toBe(true);
+      expect(st.floor).toBe("ground");
+      st.undo(); // delete
+      st.undo(); // add
+      st.undo(); // move
+      expect(keys(st)).toEqual(["ground", "__proto__"]);
+      expect(Object.hasOwn(st.layout.floors, "__proto__")).toBe(true);
+      expect(st.layout.floors["__proto__"].title).toBe("Roof");
+      expect(({} as any).title).toBeUndefined();
+    });
+  });
+});

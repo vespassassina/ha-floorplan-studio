@@ -56,6 +56,15 @@ export function ptOf(f: Floor, ref: PtRef): Pt | null {
 
 const MAX_HISTORY = 100;
 
+const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
+const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+/** A floors object with no prototype, so a floor called `__proto__` or `constructor` is just a key. */
+function floorsOf(entries: [string, Floor][]): Record<string, Floor> {
+  const o: Record<string, Floor> = Object.create(null);
+  for (const [k, v] of entries) Object.defineProperty(o, k, { value: v, enumerable: true, writable: true, configurable: true });
+  return o;
+}
+
 /** Everything the editor remembers: layout, undo history, selection, view. No DOM. */
 export class EditorState {
   layout: Layout;
@@ -68,12 +77,14 @@ export class EditorState {
   showLen = true;
   /** id of the door drawn open in the preview */
   openDoor: string | null = null;
+  /** The floor panel is asking "Delete floor ...?". Any change of floor, undo or press on the plan cancels it. */
+  confirmDelete = false;
   private hist: string[] = [];
   private fut: string[] = [];
 
   constructor(layout: Layout = emptyLayout(), floor?: string) {
     this.layout = layout;
-    this.floor = floor && layout.floors[floor] ? floor : Object.keys(layout.floors)[0];
+    this.floor = floor && hasOwn(layout.floors, floor) ? floor : Object.keys(layout.floors)[0];
   }
 
   get f(): Floor { return this.layout.floors[this.floor]; }
@@ -84,14 +95,64 @@ export class EditorState {
   setLayout(layout: Layout, floor?: string, keepHistory = false) {
     if (keepHistory) this.snapshot();
     this.layout = layout;
-    this.floor = floor && layout.floors[floor] ? floor : layout.floors[this.floor] ? this.floor : Object.keys(layout.floors)[0];
-    this.sel = null; this.views = {}; this.openDoor = null;
+    this.floor = floor && hasOwn(layout.floors, floor) ? floor : hasOwn(layout.floors, this.floor) ? this.floor : Object.keys(layout.floors)[0];
+    this.sel = null; this.views = {}; this.openDoor = null; this.confirmDelete = false;
     if (!keepHistory) { this.hist = []; this.fut = []; }
   }
 
   setFloor(name: string) {
-    if (!this.layout.floors[name]) return;
-    this.floor = name; this.sel = null;
+    if (!hasOwn(this.layout.floors, name)) return;
+    this.floor = name; this.sel = null; this.confirmDelete = false;
+  }
+
+  // ---- floors: whole-layout snapshots, one undo step each, nothing recorded when refused ----
+
+  /** Adds an empty floor last and selects it. The key is the slug of the title, with -2, -3 on a clash. Returns the key, or "" for an empty title. */
+  addFloor(title: string): string {
+    const t = title.trim();
+    if (!t) return "";
+    const base = slug(t) || "floor";
+    let key = base;
+    for (let n = 2; hasOwn(this.layout.floors, key); n++) key = `${base}-${n}`;
+    this.snapshot();
+    Object.defineProperty(this.layout.floors, key, {
+      value: { title: t, outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] } satisfies Floor,
+      enumerable: true, writable: true, configurable: true,
+    });
+    this.floor = key; this.sel = null; this.openDoor = null; this.confirmDelete = false;
+    return key;
+  }
+
+  /** Changes the title only; the key stays. False for an empty title, the same title or an unknown key. */
+  renameFloor(key: string, title: string): boolean {
+    const t = title.trim();
+    if (!t || !hasOwn(this.layout.floors, key) || this.layout.floors[key].title === t) return false;
+    this.snapshot();
+    this.layout.floors[key].title = t;
+    return true;
+  }
+
+  /** Removes a floor and its content. False for the last floor or an unknown key. The catalog is left alone. The selection moves to the next floor, else the previous. */
+  deleteFloor(key: string): boolean {
+    const ks = Object.keys(this.layout.floors), i = ks.indexOf(key);
+    if (i < 0 || ks.length < 2) return false;
+    this.snapshot();
+    this.layout.floors = floorsOf(ks.filter((k) => k !== key).map((k) => [k, this.layout.floors[k]]));
+    delete this.views[key];
+    this.confirmDelete = false;
+    if (this.floor === key) { this.floor = ks[i + 1] ?? ks[i - 1]; this.sel = null; this.openDoor = null; }
+    return true;
+  }
+
+  /** Moves a floor `delta` places in the key order (-1 earlier, +1 later). False when that would leave the list or nothing moves. */
+  moveFloor(key: string, delta: number): boolean {
+    const ks = Object.keys(this.layout.floors), i = ks.indexOf(key), j = i + delta;
+    if (i < 0 || !Number.isInteger(delta) || delta === 0 || j < 0 || j >= ks.length) return false;
+    this.snapshot();
+    ks.splice(i, 1);
+    ks.splice(j, 0, key);
+    this.layout.floors = floorsOf(ks.map((k) => [k, this.layout.floors[k]]));
+    return true;
   }
 
   snapshot() {
@@ -121,8 +182,8 @@ export class EditorState {
     if (s === undefined) return false;
     to.push(JSON.stringify(this.layout));
     this.layout = JSON.parse(s) as Layout;
-    if (!this.layout.floors[this.floor]) this.floor = Object.keys(this.layout.floors)[0];
-    this.sel = null;
+    if (!hasOwn(this.layout.floors, this.floor)) this.floor = Object.keys(this.layout.floors)[0];
+    this.sel = null; this.confirmDelete = false;
     return true;
   }
 

@@ -1,4 +1,5 @@
 import { html, nothing, type TemplateResult } from "lit";
+import { live } from "lit/directives/live.js";
 import { DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, toggleWall } from "../core";
 import type { DeviceType, Floor, WallKind } from "../core";
 import { movePointAll, resizeSegment, setSecondEnd } from "./ops";
@@ -21,6 +22,8 @@ export interface PanelCtx {
   select(s: Sel): void;
   /** Redraw without an edit. */
   refresh(): void;
+  /** Floor operations of the editor: each is one undo step and reports in the status line. */
+  floors: { rename(key: string, title: string): void; move(key: string, delta: number): void; remove(key: string): void };
 }
 
 type Input = HTMLInputElement | HTMLSelectElement;
@@ -45,7 +48,7 @@ const hint = (t: string) => html`<p class="hint">${t}</p>`;
 
 export function selectionPanel(c: PanelCtx): TemplateResult {
   const { st } = c, f = st.f, s = st.sel;
-  if (!s) return html`<p class="hint">Nothing selected.</p>`;
+  if (!s) return floorPanel(c);
   switch (s.t) {
     case "v": return cornerPanel(c, s);
     case "edge": return edgePanel(c, s);
@@ -56,6 +59,24 @@ export function selectionPanel(c: PanelCtx): TemplateResult {
     case "furn": return f.furniture[s.i] ? furniturePanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "stairs": return f.stairs[s.i] ? stairsPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
   }
+}
+
+/** Shown when nothing is selected: the current floor. */
+function floorPanel(c: PanelCtx) {
+  const { st } = c, key = st.floor, keys = Object.keys(st.layout.floors), i = keys.indexOf(key), title = st.f.title || key;
+  return html`<strong>Floor</strong>
+    ${hint("Nothing selected. Click something on the plan to edit it.")}
+    <label for="ft">floor title</label>
+    <input id="ft" type="text" .value=${live(st.f.title)} @change=${(e: Event) => { c.floors.rename(key, val(e)); c.refresh(); }}>
+    <div class="row">
+      <button class="btn" id="fup" title="Earlier in the list of floors" ?disabled=${i <= 0} @click=${() => c.floors.move(key, -1)}>Move up</button>
+      <button class="btn" id="fdown" title="Later in the list of floors" ?disabled=${i < 0 || i >= keys.length - 1} @click=${() => c.floors.move(key, 1)}>Move down</button>
+    </div>
+    ${st.confirmDelete
+      ? html`<p id="fconfirm" role="alert">Delete floor ${title} and everything on it?</p>
+        <div class="row">${button("fdelyes", "Delete", () => c.floors.remove(key))}${button("fdelno", "Cancel", () => { st.confirmDelete = false; c.refresh(); })}</div>`
+      : html`<p><button class="btn" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
+    ${hint("Devices on a deleted floor stay in the catalog and go back to Add, Device.")}`;
 }
 
 function cornerPanel(c: PanelCtx, s: Extract<Sel, { t: "v" }>) {

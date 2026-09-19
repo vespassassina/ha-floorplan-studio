@@ -78,11 +78,13 @@ export class FloorplanStudioEditor extends LitElement {
     seed: { attribute: false },
     errors: { state: true },
     status: { state: true },
+    addingFloor: { state: true },
   };
   declare floor: string;
   declare seed: Layout | undefined;
   declare errors: string[];
   declare status: string;
+  declare addingFloor: boolean;
 
   private st = new EditorState();
   private drag: Drag | null = null;
@@ -94,6 +96,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.floor = "";
     this.errors = [];
     this.status = "Ready";
+    this.addingFloor = false;
   }
 
   get layout(): Layout { return this.st.layout; }
@@ -211,7 +214,9 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); };
   private select = (s: Sel) => { this.st.sel = s; this.requestUpdate(); };
-  private ctx(): PanelCtx { return { st: this.st, commit: this.commit, select: this.select, refresh: () => this.requestUpdate() }; }
+  private ctx(): PanelCtx {
+    return { st: this.st, commit: this.commit, select: this.select, refresh: () => this.requestUpdate(), floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+  }
 
   // ---- pointer -------------------------------------------------------------
 
@@ -253,6 +258,7 @@ export class FloorplanStudioEditor extends LitElement {
     const svg = this.svgEl;
     if (!svg) return;
     const st = this.st, f = st.f;
+    st.confirmDelete = false;
     const capture = () => { try { svg.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ } };
     if (ev.button === 1 || ev.button === 2 || ev.ctrlKey || ev.metaKey) {
       ev.preventDefault();
@@ -478,7 +484,8 @@ export class FloorplanStudioEditor extends LitElement {
 
   /** A button (panel Delete, a menu item) keeps focus on itself and may vanish or hide: hand focus back so Ctrl+Z and Delete keep working. */
   private onButtonClick = (ev: Event) => {
-    if ((ev.composedPath()[0] as Element).closest?.("button")) this.focus({ preventScroll: true });
+    const el = ev.composedPath()[0] as Element;
+    if (el.closest?.("button") && !el.closest("#addFloor")) this.focus({ preventScroll: true }); // "+" hands focus to its own input
   };
 
   /** Keys only reach a focused editor, so a highlighted selection must mean Delete works: clear it when focus leaves for good. */
@@ -561,6 +568,34 @@ export class FloorplanStudioEditor extends LitElement {
     st.views[st.floor] = { ...v, x: ctr[0] - v.w / 2, y: ctr[1] - v.h / 2 };
     this.changed(`Placed ${c.name}${room ? ` in ${room.name}` : ""}. Drag it to its spot.`);
   }
+
+  /** A floor operation of the state is one undo step; the host hears about it like any other edit. */
+  private floorDone(status: string) { this.floor = this.st.floor; this.changed(status); }
+  private renameFloor(key: string, title: string) {
+    if (this.st.renameFloor(key, title)) this.floorDone(`Renamed floor to ${title.trim()}`);
+    else this.requestUpdate();
+  }
+  private moveFloor(key: string, delta: number) { if (this.st.moveFloor(key, delta)) this.floorDone(delta < 0 ? "Moved floor up" : "Moved floor down"); }
+  private deleteFloor(key: string) {
+    const title = this.st.layout.floors[key]?.title || key;
+    if (this.st.deleteFloor(key)) { this.floorDone(`Deleted floor ${title}`); this.focus({ preventScroll: true }); }
+    else this.requestUpdate();
+  }
+  private async startAddFloor() {
+    this.addingFloor = true;
+    await this.updateComplete;
+    this.renderRoot.querySelector<HTMLInputElement>("#newFloor")?.focus();
+  }
+  private cancelAddFloor() { this.addingFloor = false; this.focus({ preventScroll: true }); }
+  private onNewFloorKey = (ev: KeyboardEvent) => {
+    if (ev.key === "Escape") { ev.preventDefault(); this.cancelAddFloor(); return; }
+    if (ev.key !== "Enter") return;
+    ev.preventDefault();
+    const title = (ev.target as HTMLInputElement).value.trim();
+    if (!title) { this.status = "Type a name for the floor, or press Esc"; return; }
+    this.addingFloor = false;
+    if (this.st.addFloor(title)) { this.floorDone(`Added floor ${title}`); this.focus({ preventScroll: true }); }
+  };
 
   private setFloor(name: string) { this.st.setFloor(name); this.floor = name; this.requestUpdate(); }
 
@@ -659,6 +694,9 @@ export class FloorplanStudioEditor extends LitElement {
     return html`
       <div class="bar">
         ${Object.entries(st.layout.floors).map(([name, fl]) => html`<button class="chip" data-f=${name} aria-pressed=${pressed(name === st.floor)} @click=${() => this.setFloor(name)}>${fl.title || name}</button>`)}
+        ${this.addingFloor
+          ? html`<input id="newFloor" type="text" aria-label="Title of the new floor" placeholder="Floor title" @keydown=${this.onNewFloorKey} @blur=${() => { if (document.hasFocus()) this.addingFloor = false; }}>`
+          : html`<button class="chip" id="addFloor" title="Add a floor" aria-label="Add a floor" @click=${() => this.startAddFloor()}>+</button>`}
         <span class="grow"></span>
         <select id="filter" aria-label="Filter devices" .value=${st.filter} @change=${(e: Event) => { st.filter = (e.target as HTMLSelectElement).value as DeviceType | ""; st.sel = null; this.requestUpdate(); }}>
           <option value="" ?selected=${!st.filter}>Devices: all (${f.devices.length})</option>
