@@ -34,9 +34,10 @@ describe("EditorState", () => {
 
   it("lists catalog devices that are not on any floor, and lists one again after removal", () => {
     const st = new EditorState(fresh());
-    expect(st.unplaced()).toHaveLength(0);
+    // the demo catalog keeps one contact sensor off the plan, for the door picker
+    expect(st.unplaced().map((c) => c.id)).toEqual(["contact-garage"]);
     st.edit((f) => { f.devices.shift(); });
-    expect(st.unplaced().map((c) => c.id)).toEqual(["light-living"]);
+    expect(st.unplaced().map((c) => c.id)).toEqual(["light-living", "contact-garage"]);
   });
 
   it("offers only contact sensors no other door uses", () => {
@@ -46,6 +47,8 @@ describe("EditorState", () => {
     // the front door itself may keep its own sensor; another door may not take it
     expect(st.sensorChoices("door-ground-1").map((c) => c.entity)).toContain("binary_sensor.demo_front_door");
     expect(st.sensorChoices("other-door").map((c) => c.entity)).not.toContain("binary_sensor.demo_front_door");
+    // the demo's garage contact is free for any door
+    expect(st.sensorChoices("door-ground-3").map((c) => c.entity)).toContain("binary_sensor.demo_garage_door");
   });
 
   it("autosaves under the documented key and restores it", () => {

@@ -550,6 +550,14 @@
    "type": "media",
    "name": "Office speaker",
    "entity": "media_player.demo_office"
+  },
+  {
+   "id": "contact-garage",
+   "floor": "ground",
+   "room": "Hall",
+   "type": "contact",
+   "name": "Garage door contact",
+   "entity": "binary_sensor.demo_garage_door"
   }
  ]
 }

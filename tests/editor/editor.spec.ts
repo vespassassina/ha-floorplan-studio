@@ -271,6 +271,18 @@ test("the contact sensor picker follows the selected door", async ({ page }) => 
   await expect(page.locator('#dsens option[value="binary_sensor.demo_garage_door"]')).toHaveCount(1);
   await pick(1);
   await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_patio_door");
+  // choose a sensor for the garage door, then go back to a door with another one and to one with none
+  await pick(2);
+  await page.locator("#dsens").selectOption("binary_sensor.demo_garage_door");
+  expect((await groundOf(page)).doors[2].sensor).toBe("binary_sensor.demo_garage_door");
+  await pick(0);
+  await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_front_door");
+  await pick(2);
+  await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_garage_door");
+  await page.locator("#dsens").selectOption("");
+  await pick(1);
+  await pick(2);
+  await expect(page.locator("#dsens")).toHaveValue("");
 });
 
 test("File, Save ends at Saved, and the host may say otherwise", async ({ page }) => {
