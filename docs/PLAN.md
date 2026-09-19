@@ -145,7 +145,7 @@ run with scripted clicks; record the JS used and its output in the report.
 - Done when: test passes; licence note for MDI in README.
 - Break it: none; data only.
 
-### S1.6 Editor on the core
+### S1.6 Editor on the core (done)
 - Outcome: the current editor's features as a Lit element using core functions.
 - Files: `src/editor/editor-app.ts` (`<floorplan-studio-editor>`), `src/editor/state.ts` (layout, history, selection, view; `persist()` to `localStorage` key `floorplan-studio:layout`), `src/editor/panel.ts` (selection panels), `tests/editor/editor.spec.ts` (Playwright).
 - Interface: element properties `layout: Layout`, `floor: string`, events `layout-changed` (detail: Layout) and `save-request`. Same toolbar as SPEC (floor chips, filter, Names, Add / View / File). Same pointer behaviour as the vanilla editor (see HomeFloorplan `editor/editor.src.html` for the reference behaviour, port it; do not redesign). Furniture: Add → Furniture → symbol; drag to move, panel sets w, h, rot. Devices: Add → Device lists `catalog` entries not placed, grouped by type.
