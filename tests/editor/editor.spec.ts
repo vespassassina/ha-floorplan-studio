@@ -1729,3 +1729,16 @@ test("Add, Door and Add, Opening skip a zone edge: they land on the nearest wall
   expect(zoneYs).not.toContain(o.b[1]);
   expect(validate(await layoutOf(page)).ok).toBe(true);
 });
+
+test("Add, Door lands on a free wall when that is the nearest edge, along its direction", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator("#addWall").click(); // a horizontal wall through the view centre
+  const w = (await groundOf(page)).walls[0];
+  await menu(page, "Add");
+  await page.locator("#addDoor").click();
+  const d = (await groundOf(page)).doors.at(-1)!;
+  expect(d.a[1]).toBe(w.a[1]);
+  expect(d.b[1]).toBe(w.a[1]);
+  expect(mid(d)[0]).toBe((w.a[0] + w.b[0]) / 2);
+  expect(len(d)).toBe(90);
+});

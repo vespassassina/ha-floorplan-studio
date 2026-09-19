@@ -268,3 +268,24 @@ describe("nearestEdge and zones (review S1.5, finding 4)", () => {
     expect(nearestEdge(f, [40, 22], 1e9, { zones: true })).not.toBeNull();
   });
 });
+
+describe("nearestEdge with free walls (review S1.5, finding 6)", () => {
+  const withWall = () => { const f = floor(); f.walls = [{ id: "w1", a: [20, 60], b: [80, 60], kind: "fence" }]; return f; };
+  it("ignores free walls by default", () => {
+    expect(nearestEdge(withWall(), [50, 58], 1e9)!.poly).not.toBe("w");
+  });
+  it("finds a free wall when asked: foot point, direction, index", () => {
+    const e = nearestEdge(withWall(), [50, 58], 1e9, { walls: true })!;
+    expect([e.poly, e.i, e.q, e.u, e.d]).toEqual(["w", 0, [50, 60], [1, 0], 2]);
+  });
+  it("a room edge closer than the wall still wins", () => {
+    expect(nearestEdge(withWall(), [50, 3], 1e9, { walls: true })!.poly).not.toBe("w");
+  });
+  it("clamps to the end of a wall and skips one of no length", () => {
+    const f = floor();
+    f.walls = [{ id: "w1", a: [20, 60], b: [30, 60], kind: "wall" }, { id: "w2", a: [45, 60], b: [45, 60], kind: "wall" }];
+    // room edges are 40+ cm away; the wall end (30, 60) is 15, and the zero-length wall sits right on the point
+    const e = nearestEdge(f, [45, 60], 1e9, { walls: true })!;
+    expect([e.poly, e.i, e.q, e.d]).toEqual(["w", 0, [30, 60], 15]);
+  });
+});

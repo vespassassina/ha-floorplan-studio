@@ -32,25 +32,28 @@ function project(p: Pt, a: Pt, b: Pt): { t: number; q: Pt } {
 }
 
 /**
- * The polygon edge nearest to `p` within `maxd`, with the foot point and the unit direction. This is the host of a
- * door, window, opening or heater, so stairs and, by default, zones are skipped: a zone is only a dotted overlay.
- * `zones: true` includes them, for picking an edge with the pointer.
+ * The edge nearest to `p` within `maxd`, with the foot point and the unit direction: the host of a door, window,
+ * opening or heater. Stairs are skipped, and so are zones by default: a zone is only a dotted overlay.
+ * `zones: true` includes them, for picking an edge with the pointer. `walls: true` also offers the free walls
+ * (`poly` is "w", `i` the wall's index; a wall of no length is skipped).
  */
-export function nearestEdge(f: Floor, p: Pt, maxd: number, opts: { zones?: boolean } = {}): { d: number; q: Pt; u: Pt; poly: string; i: number } | null {
+export function nearestEdge(f: Floor, p: Pt, maxd: number, opts: { zones?: boolean; walls?: boolean } = {}): { d: number; q: Pt; u: Pt; poly: string; i: number } | null {
   let best: { d: number; q: Pt; u: Pt; poly: string; i: number } | null = null;
+  const seg = (a: Pt, b: Pt, poly: string, i: number) => {
+    const { t, q } = project(p, a, b);
+    const c: Pt = t <= 0 ? a : t >= 1 ? b : q;
+    const d = dist(p, c);
+    if (best && d >= best.d) return;
+    const l = dist(a, b) || 1;
+    best = { d, q: [c[0], c[1]], u: [(b[0] - a[0]) / l, (b[1] - a[1]) / l], poly, i };
+  };
   for (const P of polys(f)) {
     if (P.id[0] === "s" || (isZone(P) && !opts.zones)) continue;
-    for (const { a, b, i } of edges(P.pts)) {
-      const { t, q } = project(p, a, b);
-      const c: Pt = t <= 0 ? a : t >= 1 ? b : q;
-      const d = dist(p, c);
-      if (!best || d < best.d) {
-        const l = dist(a, b) || 1;
-        best = { d, q: [c[0], c[1]], u: [(b[0] - a[0]) / l, (b[1] - a[1]) / l], poly: P.id, i };
-      }
-    }
+    for (const { a, b, i } of edges(P.pts)) seg(a, b, P.id, i);
   }
-  return best && best.d <= maxd ? best : null;
+  if (opts.walls) f.walls.forEach((w, i) => { if (dist(w.a, w.b) > 0) seg(w.a, w.b, "w", i); });
+  const r = best as { d: number; q: Pt; u: Pt; poly: string; i: number } | null;
+  return r && r.d <= maxd ? r : null;
 }
 
 export interface SnapOpts { threshold: number; grid: number | 0; exclude: Pt[]; neighbours: Pt[] }

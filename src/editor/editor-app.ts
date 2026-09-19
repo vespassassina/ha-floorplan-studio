@@ -3,7 +3,7 @@ import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, snapPoint, stitch, validate } from "../core";
 import type { DeviceType, Floor, Layout, Pt, WallKind } from "../core";
-import { hostEdge, looseEnds, movePointAll, pointsNear, segmentAt, squareAt, stairsAt } from "./ops";
+import { looseEnds, movePointAll, pointsNear, segmentAt, squareAt, stairsAt } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
 import { EditorState, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
@@ -42,6 +42,8 @@ const num = (n: number) => String(Math.round(n * 100) / 100);
 const DRAW_HINT = "Click to add points, double-click or Enter to finish, Esc to cancel";
 /** A stand-in for "no dragged point": nothing is within reach of it. */
 const NOWHERE: Pt = [-1e9, -1e9];
+/** Where a door, window, opening or heater sits: a room, outline or water edge, or a free wall. Never a zone or stairs. */
+const HOST = { walls: true } as const;
 const NO_REF: PtRef = { k: "walls", i: -1, end: "a" };
 
 function segDist(p: Pt, a: Pt, b: Pt): number {
@@ -413,7 +415,7 @@ export class FloorplanStudioEditor extends LitElement {
         break;
       }
       case "door": {
-        const c: Pt = [p[0] - d.off[0], p[1] - d.off[1]], e = nearestEdge(d.base, c, 60);
+        const c: Pt = [p[0] - d.off[0], p[1] - d.off[1]], e = nearestEdge(d.base, c, 60, HOST);
         if (!e) return;
         this.begin(d);
         g = structuredClone(d.base);
@@ -426,7 +428,7 @@ export class FloorplanStudioEditor extends LitElement {
         g = structuredClone(d.base);
         const t = g.devices[d.i];
         if ("a" in dv && "a" in t) {
-          const len = dist(dv.a, dv.b), e = nearestEdge(d.base, c, 80);
+          const len = dist(dv.a, dv.b), e = nearestEdge(d.base, c, 80, HOST);
           if (e) {
             // sit 16 cm beside the nearest wall, parallel to it, on the side of the pointer
             const nx = -e.u[1], ny = e.u[0], sd = (c[0] - e.q[0]) * nx + (c[1] - e.q[1]) * ny >= 0 ? 1 : -1;
@@ -606,15 +608,15 @@ export class FloorplanStudioEditor extends LitElement {
 
   private addDoor(kind: "door" | "window", len: number) {
     this.stopDraw();
-    const c = this.centre(), e = nearestEdge(this.st.f, c, 1e9), floor = this.st.floor;
+    const c = this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
     this.commit((f) => { f.doors.push({ id: newId(f, floor, "door"), name: `new ${kind}`, kind, ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
     this.st.sel = { t: "door", i: this.st.f.doors.length - 1 };
     this.requestUpdate();
   }
-  /** An opening: a gap in a wall. Placed like a door on the edge nearest the view centre (a free wall counts), else at the centre. */
+  /** An opening: a gap in a wall. Placed like a door on the edge nearest the view centre, else at the centre. */
   private addOpeningGap(len = 120) {
     this.stopDraw();
-    const c = this.centre(), e = hostEdge(this.st.f, c), floor = this.st.floor;
+    const c = this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
     this.commit((f) => { f.openings.push({ id: newId(f, floor, "opening"), ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
     this.st.sel = { t: "opening", i: this.st.f.openings.length - 1 };
     this.requestUpdate();
