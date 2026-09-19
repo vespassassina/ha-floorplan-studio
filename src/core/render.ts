@@ -22,7 +22,7 @@ export const FLOORPLAN_CSS = `
 .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-on)} .dev-contact.on path{fill:var(--fp-open)}
 .dev.unavailable{opacity:.45}
 .dev-motion{--fp-fade:0} .dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
-.heater{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-ink);paint-order:stroke;stroke:var(--fp-bg);stroke-width:3}
+.heater{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-ink);paint-order:stroke;stroke:var(--fp-bg);stroke-width:3} .lbl.zone{fill:var(--fp-idle);opacity:.75}
 .sel{stroke:var(--fp-ink)} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}`;
 
 /** Text for markup. A name that is not text (a layout that skipped `validate`) is shown as text, never thrown on. */

@@ -1756,3 +1756,10 @@ test("Add, Door lands on a free wall when that is the nearest edge, along its di
   expect(mid(d)[0]).toBe((w.a[0] + w.b[0]) / 2);
   expect(len(d)).toBe(90);
 });
+
+test("a zone's plan label is drawn muted: its class has a rule, unlike a room label", async ({ page }) => {
+  const style = (sel: string) => page.locator(sel).first().evaluate((el) => { const c = getComputedStyle(el); return { fill: c.fill, opacity: c.opacity }; });
+  const zone = await style("svg text.lbl.zone"), room = await style("svg text.lbl:not(.zone)");
+  expect(zone).not.toEqual(room);
+  expect(await page.locator("svg text.lbl.zone").first().evaluate((el) => el.getAttribute("font-size"))).not.toBe(await page.locator("svg text.lbl:not(.zone)").first().evaluate((el) => el.getAttribute("font-size")));
+});
