@@ -261,7 +261,26 @@
      ]
     }
    ],
-   "furniture": []
+   "furniture": [
+    {
+     "id": "furniture-ground-1",
+     "symbol": "sofa",
+     "x": 250,
+     "y": 320,
+     "rot": 0,
+     "w": 200,
+     "h": 90
+    },
+    {
+     "id": "furniture-ground-2",
+     "symbol": "table",
+     "x": 650,
+     "y": 250,
+     "rot": 0,
+     "w": 160,
+     "h": 90
+    }
+   ]
   },
   "first": {
    "title": "First",

@@ -60,4 +60,32 @@ describe("migrate", () => {
     expect(() => migrate(null)).toThrow();
     expect(() => migrate("x")).toThrow();
   });
+
+  it("fills missing arrays and ids in a v2 layout, and accepts version \"2\"", () => {
+    const m = migrate({ version: "2", north: 0, floors: { g: { title: "G", outline: [], rooms: [{ name: "Hall", kind: "room", pts: [], w: [] }] } } });
+    expect(m.floors.g.walls).toEqual([]);
+    expect(m.floors.g.devices).toEqual([]);
+    expect(m.floors.g.rooms[0].id).toBe("room-g-1");
+    expect(m.version).toBe(2);
+  });
+
+  it("does not turn a v2 sensor into temp", () => {
+    const m = migrate({ version: 2, north: 0, floors: { g: { devices: [{ id: "s", type: "sensor" }] } } });
+    expect(m.floors.g.devices[0].type).toBe("sensor");
+  });
+
+  it("keeps a floor called __proto__ as an own floor", () => {
+    const m = migrate(JSON.parse('{"floors":{"__proto__":{"title":"x"}}}'));
+    expect(Object.keys(m.floors)).toEqual(["__proto__"]);
+    expect(({} as any).title).toBeUndefined();
+  });
+
+  it("throws a plain error when a floor field is not an array", () => {
+    expect(() => migrate({ floors: { g: { rooms: 5 } } })).toThrow(/rooms must be an array/);
+  });
+
+  it("skips devices without a position when it builds the catalogue", () => {
+    const m = migrate({ floors: { g: { rooms: [], devices: [{ type: "light", entity: "light.a" }] } } });
+    expect(m.catalog).toEqual([]);
+  });
 });

@@ -63,4 +63,40 @@ describe("validate", () => {
     expect(errorsOf({ ...clone(), version: 1 }).join("\n")).toMatch(/version/);
     expect(validate(null).ok).toBe(false);
   });
+
+  it("never throws on hostile shapes and reports them", () => {
+    for (const k of ["rooms", "walls", "stairs", "doors", "openings", "extras", "devices", "furniture"]) {
+      const l = clone();
+      l.floors.ground[k] = 5;
+      expect(() => validate(l)).not.toThrow();
+      expect(errorsOf(l).join("\n")).toMatch(new RegExp(k));
+    }
+    expect(validate({ version: 2, north: 0, floors: { g: { rooms: [null] } } }).ok).toBe(false);
+  });
+
+  it("rejects values outside the enums", () => {
+    const l = clone();
+    l.floors.ground.rooms[0].kind = "bogus";
+    l.floors.ground.doors[0].kind = "bogus";
+    l.floors.ground.devices[0].type = "bogus";
+    l.floors.ground.furniture[0].symbol = "bogus";
+    const e = errorsOf(l).join("\n");
+    for (const w of ["room", "door", "type", "symbol"]) expect(e).toMatch(new RegExp(w));
+    expect(e.match(/must be one of/g)!.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("rejects NaN north and devices without finite coordinates", () => {
+    const l = clone();
+    l.north = NaN;
+    l.floors.ground.devices[0].x = NaN;
+    const e = errorsOf(l).join("\n");
+    expect(e).toMatch(/north/);
+    expect(e).toMatch(/needs x and y/);
+  });
+
+  it("rejects a door without a name", () => {
+    const l = clone();
+    delete l.floors.ground.doors[0].name;
+    expect(errorsOf(l).join("\n")).toMatch(/needs a name/);
+  });
 });

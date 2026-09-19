@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Layout } from "../../src/core/schema";
-import { renderFloor, viewBoxFor, type StateOverlay } from "../../src/core/render";
+import { renderFloor, viewBoxFor, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
 
 const L = demo as unknown as Layout;
 const ground = L.floors.ground;
@@ -47,6 +47,48 @@ describe("renderFloor", () => {
   it("fades motion from last_changed over `fade` seconds", () => {
     const html = renderFloor(ground, { ...base, state: { "binary_sensor.demo_hall_motion": st("on") } });
     expect(html).toMatch(/data-x="5"[^>]*style="[^"]*--fp-fade:0\.5/);
+    const early = renderFloor(ground, { ...base, now: NOW - 3000, state: { "binary_sensor.demo_hall_motion": st("on") } });
+    expect(early).toMatch(/data-x="5"[^>]*style="[^"]*--fp-fade:0\.8/);
+    const late = renderFloor(ground, { ...base, now: NOW + 60000, state: { "binary_sensor.demo_hall_motion": st("on") } });
+    expect(late).toMatch(/data-x="5"[^>]*style="[^"]*--fp-fade:0[;"]/);
+  });
+
+  it("does not let a fixed motion colour override the fade while on", () => {
+    expect(FLOORPLAN_CSS).not.toMatch(/\.dev-motion\.on path/);
+  });
+
+  it("survives an unreadable last_changed", () => {
+    const html = renderFloor(ground, { ...base, state: { "binary_sensor.demo_hall_motion": st("on", { last_changed: "not a date" }) } });
+    expect(html).not.toContain("NaN");
+  });
+
+  it("skips a device with non-finite coordinates", () => {
+    const f = structuredClone(ground) as any;
+    f.devices[0].x = NaN;
+    const html = renderFloor(f, base);
+    expect(html).not.toContain("NaN");
+    expect(html.match(/<g[^>]*data-x="/g)).toHaveLength(ground.devices.length - 1);
+  });
+
+  it("escapes kind and type so a hostile layout cannot inject markup", () => {
+    const f = structuredClone(ground) as any;
+    f.rooms[0].kind = '"><script>x</script>';
+    f.doors[0].kind = '"><script>x</script>';
+    f.devices[0].type = '"><script>x</script>';
+    expect(renderFloor(f, base)).not.toContain("<script>");
+  });
+
+  it("draws a door with no name", () => {
+    const f = structuredClone(ground) as any;
+    delete f.doors[0].name;
+    expect(renderFloor(f, base)).not.toContain("undefined");
+  });
+
+  it("gives an empty outline a default view box", () => {
+    const f = structuredClone(ground) as any;
+    f.outline = [];
+    const v = viewBoxFor(f);
+    expect([v.x, v.y, v.w, v.h].every(Number.isFinite)).toBe(true);
   });
 
   it("shows temperature and humidity as labels with units", () => {

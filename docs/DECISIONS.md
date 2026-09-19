@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-19 Review fixes for S1 (Opus review)
+
+- `validate` never throws and checks every array field, the enums (room and door kind, device type, furniture symbol), finite numbers (north, coordinates) and door names. Layout files are untrusted input.
+- `migrate` also normalises v2 files (missing arrays and ids, version "2"). Floors are stored without a prototype so a floor named `__proto__` stays a floor. The v1 renames (sensor, window) apply to v1 only.
+- `render` escapes every interpolated string, including `kind` and `type`, and skips devices without finite coordinates. An unreadable `last_changed` counts as just changed.
+- The heater bar carries `data-xbar`, not a second `data-x`, so `g[data-x]` is one element per device.
+- The `.dev-motion.on` colour rule is gone. It beat the fade while a sensor was on.
+- `@mdi/js` is a dev dependency: the icon paths are inlined in `icons.ts`, nothing imports the package at runtime.
+- `websocket_api` stays in the manifest dependencies. The integration registers websocket commands (S3.1), which need it loaded first.
+- Demo ground floor gained two furniture items so the renderer snapshot covers furniture. The v1 demo carries them too.
+
 ## 2026-09-19 Renderer choices (S1.4)
 
 - Colours come from CSS classes and `--fp-*` variables. `FLOORPLAN_CSS` (exported from `render.ts`) holds the defaults; the host element overrides them. The markup has no literal colours.

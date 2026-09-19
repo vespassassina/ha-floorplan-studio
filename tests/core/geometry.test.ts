@@ -67,8 +67,9 @@ describe("stitch, insertPoint, removePoint", () => {
     expect(g.rooms[2].pts).toHaveLength(3);
     expect(f.rooms[0].pts).toHaveLength(4);
   });
-  it("does not touch edges near their ends", () => {
-    expect(stitch(floor(), [1, 0]).rooms[0].pts).toHaveLength(4);
+  it("does not touch edges within 1% of an end, but does just beyond", () => {
+    expect(stitch(floor(), [0.5, 0]).rooms[0].pts).toHaveLength(4);
+    expect(stitch(floor(), [3, 0]).rooms[0].pts).toHaveLength(5);
   });
   it("insertPoint copies the wall flag of the edge it splits", () => {
     const f = floor();

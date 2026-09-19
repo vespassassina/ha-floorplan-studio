@@ -16,7 +16,7 @@ export const FLOORPLAN_CSS = `
 .door{stroke:var(--fp-door)} .door-glass{stroke:var(--fp-glass)} .door-window{stroke:var(--fp-window)} .door-sealed{stroke:var(--fp-sealed);stroke-dasharray:10 6}
 .door.open{stroke:var(--fp-open)} .door.cover-open{stroke:var(--fp-open)}
 .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-on)} .dev-contact.on path{fill:var(--fp-open)}
-.dev-motion.on path{fill:var(--fp-motion)} .dev.unavailable{opacity:.45}
+.dev.unavailable{opacity:.45}
 .dev-motion{--fp-fade:0} .dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-ink);paint-order:stroke;stroke:var(--fp-bg);stroke-width:3}
 .sel{stroke:var(--fp-ink)} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}`;
@@ -27,6 +27,7 @@ const pts = (p: Pt[]) => p.map((q) => `${num(q[0])},${num(q[1])}`).join(" ");
 const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 
 export function viewBoxFor(f: Floor, pad = 60): { x: number; y: number; w: number; h: number } {
+  if (!f.outline.length) return { x: -pad, y: -pad, w: 1000 + 2 * pad, h: 1000 + 2 * pad };
   const xs = f.outline.map((p) => p[0]), ys = f.outline.map((p) => p[1]);
   const x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad;
   return { x: x0, y: y0, w: Math.max(...xs) + pad - x0, h: Math.max(...ys) + pad - y0 };
@@ -51,7 +52,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   f.rooms.forEach((r, i) => {
     if (r.kind === "fill" && !r.name) return;
-    out.push(`<polygon data-r="${i}" class="room room-${r.kind}" points="${pts(r.pts)}"/>`);
+    out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}" points="${pts(r.pts)}"/>`);
   });
   f.stairs.forEach((s, i) => out.push(`<polygon data-s="${i}" class="stairs room" points="${pts(s.pts)}"/>`));
 
@@ -72,27 +73,29 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   f.doors.forEach((d, i) => {
     const sensor = d.sensor ? o.state?.[d.sensor] : undefined, cover = d.cover ? o.state?.[d.cover] : undefined;
-    const cls = ["door", `door-${d.kind}`, sensor?.state === "on" ? "open" : "", cover?.state === "open" ? "cover-open" : ""].filter(Boolean).join(" ");
+    const cls = ["door", `door-${esc(String(d.kind))}`, sensor?.state === "on" ? "open" : "", cover?.state === "open" ? "cover-open" : ""].filter(Boolean).join(" ");
     const sel = o.selection?.t === "door" && o.selection.i === i;
-    out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 30 : 22}"><title>${esc(d.name)}</title></line>`);
+    out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 30 : 22}"><title>${esc(d.name ?? "")}</title></line>`);
   });
 
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (o.filter && o.filter !== d.type && !sel) return;
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
+    if (!c.every(Number.isFinite)) return;
     const cls = classOf(d, o);
     const s = o.state?.[d.entity];
     let style = "";
     if (d.type === "motion" && s) {
       const fade = o.fade ?? 300;
-      const age = now - Date.parse(s.last_changed);
+      const t = Date.parse(s.last_changed);
+      const age = Number.isNaN(t) ? 0 : now - t; // unreadable time: treat as just changed
       const v = fade > 0 ? Math.max(0, Math.min(1, 1 - age / (fade * 1000))) : cls === "on" ? 1 : 0;
       style = ` style="--fp-fade:${num(v)}"`;
     }
     const label = d.name ?? d.id;
-    out.push(`<g data-x="${i}" class="dev dev-${d.type} ${cls}${sel ? " sel" : ""}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})"><title>${esc(d.type)}: ${esc(label)}</title><circle cx="12" cy="12" r="13" fill="var(--fp-bg)" fill-opacity=".85"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/></g>`);
-    if ("a" in d) out.push(`<line data-x="${i}" class="heater${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
+    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))} ${cls}${sel ? " sel" : ""}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})"><title>${esc(d.type)}: ${esc(label)}</title><circle cx="12" cy="12" r="13" fill="var(--fp-bg)" fill-opacity=".85"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/></g>`);
+    if ("a" in d) out.push(`<line data-xbar="${i}" class="heater${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
     if ((d.type === "temp" || d.type === "humidity") && s) {
       const bad = s.state === "unknown" || s.state === "unavailable";
       const unit = typeof s.attributes.unit_of_measurement === "string" ? ` ${s.attributes.unit_of_measurement}` : "";

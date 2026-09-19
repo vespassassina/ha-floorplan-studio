@@ -13,30 +13,35 @@ function inside(p: Pt, poly: Pt[]): boolean {
   return c;
 }
 
-/** Accepts a v1 or v2 layout and returns a new v2 layout. The input is never changed. */
-export function migrate(x: unknown): Layout {
-  if (typeof x !== "object" || x === null || Array.isArray(x)) throw new Error("Not a layout: expected a JSON object");
-  const src = structuredClone(x) as any;
-  const v = src.version ?? 1;
-  if (v === 2) return src as Layout;
-  if (v !== 1) throw new Error(`Unknown layout version ${v}`);
+const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x);
 
-  const out: any = { version: 2, unit: "cm", north: src.north ?? 0, floors: {}, catalog: src.catalog };
-  for (const [fname, f] of Object.entries<any>(src.floors ?? {})) {
+/** Accepts a v1 or v2 layout and returns a new v2 layout. The input is never changed. Missing arrays and ids are filled in. */
+export function migrate(x: unknown): Layout {
+  if (!isObj(x)) throw new Error("Not a layout: expected a JSON object");
+  const src = structuredClone(x) as any;
+  const v = Number(src.version ?? 1);
+  if (v !== 1 && v !== 2) throw new Error(`Unknown layout version ${String(src.version)}`);
+
+  const floors: Record<string, any> = Object.create(null);
+  for (const [fname, f] of Object.entries<any>(isObj(src.floors) ? src.floors : {})) {
+    if (!isObj(f)) throw new Error(`Floor "${fname}" must be an object`);
     for (const [key, kind] of KINDS) {
-      f[key] = f[key] ?? [];
+      if (f[key] !== undefined && !Array.isArray(f[key])) throw new Error(`Floor "${fname}": ${key} must be an array`);
+      f[key] = (f[key] ?? []).filter(isObj);
       f[key].forEach((o: any, i: number) => { o.id = o.id ?? `${kind}-${fname}-${i + 1}`; });
     }
-    for (const r of f.rooms) r.area = r.area ?? slug(r.name);
-    f.devices = (f.devices ?? []).map((d: any, i: number) => {
-      d.type = RENAME[d.type] ?? d.type;
+    if (f.devices !== undefined && !Array.isArray(f.devices)) throw new Error(`Floor "${fname}": devices must be an array`);
+    for (const r of f.rooms) r.area = r.area ?? slug(String(r.name ?? ""));
+    f.devices = (f.devices ?? []).filter(isObj).map((d: any, i: number) => {
+      if (v === 1) d.type = RENAME[d.type] ?? d.type;
       d.id = d.id ?? `${d.type}-${fname}-${i + 1}`;
       return d;
     });
-    out.floors[fname] = f;
+    Object.defineProperty(floors, fname, { value: f, enumerable: true, writable: true, configurable: true });
   }
-  for (const c of out.catalog ?? []) c.type = RENAME[c.type] ?? c.type;
-  out.catalog = out.catalog ?? buildCatalog(out);
+  const out: any = { version: 2, unit: "cm", north: src.north ?? 0, floors, catalog: src.catalog };
+  if (Array.isArray(out.catalog) && v === 1) for (const c of out.catalog) c.type = RENAME[c.type] ?? c.type;
+  if (!Array.isArray(out.catalog)) out.catalog = buildCatalog(out);
   return out as Layout;
 }
 
@@ -44,6 +49,8 @@ function buildCatalog(l: Layout): CatalogEntry[] {
   const list: CatalogEntry[] = [];
   for (const [fname, f] of Object.entries(l.floors))
     for (const d of f.devices as Device[]) {
+      const hasPos = ("x" in d && Number.isFinite(d.x) && Number.isFinite(d.y)) || ("a" in d && Array.isArray(d.a) && Array.isArray(d.b));
+      if (!hasPos) continue;
       const at: Pt = "x" in d ? [d.x, d.y] : [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2];
       const room = f.rooms.find((r) => inside(at, r.pts));
       list.push({ id: d.id, floor: fname, room: room?.name ?? "", type: d.type, name: d.name ?? d.id, entity: d.entity });
