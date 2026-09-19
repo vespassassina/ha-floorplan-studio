@@ -1,0 +1,72 @@
+import { describe, it, expect, beforeEach } from "vitest";
+import demo from "../../demo/layout.json";
+import v1 from "../../demo/layout.v1.json";
+import type { Layout } from "../../src/core/schema";
+import { EditorState, STORAGE_KEY, loadLayout, newId, restoreLayout } from "../../src/editor/state";
+
+const fresh = () => structuredClone(demo) as unknown as Layout;
+
+describe("EditorState", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("undoes and redoes an edit", () => {
+    const st = new EditorState(fresh());
+    st.edit((f) => { f.rooms[0].name = "Changed"; });
+    expect(st.f.rooms[0].name).toBe("Changed");
+    expect(st.undo()).toBe(true);
+    expect(st.f.rooms[0].name).toBe("Living");
+    expect(st.redo()).toBe(true);
+    expect(st.f.rooms[0].name).toBe("Changed");
+    expect(new EditorState(fresh()).undo()).toBe(false);
+  });
+
+  it("lists catalog devices that are not on any floor, and lists one again after removal", () => {
+    const st = new EditorState(fresh());
+    expect(st.unplaced()).toHaveLength(0);
+    st.edit((f) => { f.devices.shift(); });
+    expect(st.unplaced().map((c) => c.id)).toEqual(["light-living"]);
+  });
+
+  it("offers only contact sensors no other door uses", () => {
+    const l = fresh();
+    l.catalog.push({ id: "contact-front", floor: "ground", room: "Hall", type: "contact", name: "Front door", entity: "binary_sensor.demo_front_door" });
+    const st = new EditorState(l);
+    // the front door itself may keep its own sensor; another door may not take it
+    expect(st.sensorChoices("door-ground-1").map((c) => c.entity)).toContain("binary_sensor.demo_front_door");
+    expect(st.sensorChoices("other-door").map((c) => c.entity)).not.toContain("binary_sensor.demo_front_door");
+  });
+
+  it("autosaves under the documented key and restores it", () => {
+    const st = new EditorState(fresh());
+    st.edit((f) => { f.rooms[0].name = "Saved"; });
+    st.persist();
+    expect(localStorage.getItem(STORAGE_KEY)).toContain("Saved");
+    expect(restoreLayout()?.floors.ground.rooms[0].name).toBe("Saved");
+  });
+
+  it("ignores an autosave that is not a valid layout", () => {
+    localStorage.setItem(STORAGE_KEY, '{"version":2}');
+    expect(restoreLayout()).toBeNull();
+    localStorage.setItem(STORAGE_KEY, "not json");
+    expect(restoreLayout()).toBeNull();
+  });
+
+  it("gives ids that are free on the floor", () => {
+    const l = fresh();
+    expect(newId(l.floors.ground, "ground", "furniture")).toBe("furniture-ground-3");
+  });
+});
+
+describe("loadLayout", () => {
+  it("migrates a v1 file", () => {
+    const r = loadLayout(v1);
+    expect(r.ok).toBe(true);
+  });
+  it("never throws and lists the errors", () => {
+    for (const bad of [null, 5, "x", [], { version: 3 }, { version: 2, floors: {} }]) {
+      const r = loadLayout(bad);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.errors.length).toBeGreaterThan(0);
+    }
+  });
+});
