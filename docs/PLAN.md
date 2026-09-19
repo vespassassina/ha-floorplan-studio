@@ -26,6 +26,7 @@ docs/
 - E3 Card: live rendering and behaviours.
 - E4 Integration and panel: load/save, HA-hosted editor, HACS release.
 - E5 Content: furniture symbols, prompt, docs.
+- E6 Organise: create and link HA areas, helpers, groups and automations from the plan.
 
 ---
 
@@ -162,6 +163,54 @@ run with scripted clicks; record the JS used and its output in the report.
 
 ---
 
+## Sprint 1.5 — drawing (E1, E2)
+
+Runs before the card so the renderer settles first. Core plus editor, no HA.
+Schema stays version 2: every change is an added enum value or an optional
+field, and `migrate` fills defaults.
+
+### S1.8 Zones and water
+- Outcome: a room can be a zone (a dotted subdivision inside a room, no walls) or water (pool, pond, lake). A zone can carry its own HA area.
+- Files: `src/core/schema.ts`, `src/core/render.ts`, `src/editor/panels.ts`, `src/editor/editor-app.ts`, `tests/core/schema.test.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`, `demo/layout.json`, `demo/layout.v1.json`.
+- Interface: `RoomKind` gains `"zone" | "water"`. A zone's `w` flags are all `false` (`validate` reports a zone with a wall edge); `renderFloor` draws its edges dotted (existing class `nw`) with no fill and its name in a smaller label. Water gets class `water` and fills with `--fp-water`. Room panel: the kind select lists both; picking `zone` clears `w`. Add menu gains Zone and Water: a 200 x 200 cm square on the grid, centred in the view, selected. Zones do not take part in `stitch`, `snapPoint` corner snapping or `mergeCorners`: `polys(f)` still lists them (id `r<i>`) so corners drag, but a zone's corners are excluded from the snap targets of other polygons and from `stitch`, so drawing a zone never cuts a wall.
+- Test: schema fixtures for both kinds and for a zone with a wall edge; render snapshot for a demo zone (the demo living room gains a "Reading corner" zone with area `reading`) and a demo garden pond; Playwright: Add, Zone places one, its edges are dotted, dragging its corner onto a wall does not insert a point in the wall.
+- Done when: tests pass; snapshot updated; the card needs no change to draw both (assert `renderFloor` output contains them without `editor: true`).
+- Break it: a zone with fewer than 3 points fails `validate`, like a room.
+
+### S1.9 Wall kinds
+- Outcome: free walls come in five kinds: internal wall, dotted boundary, external wall, fence, outdoor edge.
+- Files: `src/core/schema.ts`, `src/core/render.ts`, `src/editor/panels.ts`, `tests/core/schema.test.ts`, `tests/core/render.test.ts`.
+- Interface: `Wall.kind` is `"wall" | "boundary" | "external" | "fence" | "edge"`. `renderFloor` gives `line[data-w]` the class of its kind (`wall` keeps class `e`, `boundary` keeps `nw`, the new ones get `external`, `fence`, `edge`); stroke and dash per kind through `--fp-wall-*` variables in `FLOORPLAN_CSS`: external thick, fence thin dash-dot, edge thin solid grey. Wall panel: a kind select replaces the wall/boundary toggle button. No migration: existing values keep their meaning.
+- Test: `validate` accepts the five and rejects `"garden"`; render test asserts the class per kind; Playwright: change a wall's kind in the panel and the class changes.
+- Done when: tests pass; `docs/SPEC.md` lists the five.
+- Break it: a v1 file with `kind` missing on a wall migrates to `wall`.
+
+### S1.10 Floors
+- Outcome: add, rename, delete and reorder floors in the editor.
+- Files: `src/editor/state.ts`, `src/editor/editor-app.ts`, `src/editor/panels.ts`, `tests/editor/state.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface: `EditorState.addFloor(title): string` (key = slug of title, `-2` suffix on clash; empty outline, all arrays empty; selects it), `renameFloor(key, title)`, `deleteFloor(key)` (refuses the last floor; returns false), `moveFloor(key, delta)`. Floor order is the object key order of `layout.floors`; `moveFloor` rebuilds the object. Toolbar: a "+" chip after the floor chips opens a title prompt (inline input, Enter adds, Esc cancels). Floor panel (shown when nothing is selected): title field, Move up, Move down, Delete with a confirm ("Delete floor <title> and everything on it?"). Catalog entries whose `floor` is the deleted key keep it: they stay unplaced and still show in Add, Device. All through `commit`, one undo step each.
+- Test: state tests for each function including the last-floor refusal and key clash; Playwright: add a floor "Attic", it appears as a chip and is empty, rename it, move it first, delete it, undo brings it back with its content.
+- Done when: tests pass.
+- Break it: a title that slugs to an existing key gets a `-2` key, not a silent overwrite.
+
+### S1.11 Draw mode
+- Outcome: draw a polyline or polygon by clicking points, after choosing what it is.
+- Files: `src/editor/editor-app.ts`, `src/editor/state.ts`, `tests/editor/editor.spec.ts`.
+- Interface: Add menu gains a "Draw" group: Room, Zone, Water, Outline (replaces the current outline), Wall (each of the five kinds), Opening, Structure line. Choosing one enters draw mode: status shows "Click to add points, double-click or Enter to finish, Esc to cancel"; the cursor is a crosshair; each click adds a point snapped with `snapPoint` (Alt disables); a rubber-band line follows the pointer from the last point; polygons close on the first point or on finish; for line kinds every click after the first commits one wall segment and continues from it (chain), so a fence is many walls. Finish with fewer than 3 points (polygon) or 2 (line) cancels. One undo step for the whole shape, none on cancel. Existing single-shape Add items stay.
+- Test: Playwright: Draw, Room, four clicks and Enter give a room with four points at the snapped coordinates; Draw, Wall (fence), three clicks and Enter give two fence walls sharing a point; Esc after two clicks leaves the floor unchanged and the undo stack the same length.
+- Done when: tests pass; the Playwright hit-testing uses `page.mouse` on the real canvas.
+- Break it: a click on the first point of a 2-point polygon does not close it (needs 3).
+
+### S1.12 Device menu
+- Outcome: Device is its own toolbar menu, not an item of Add.
+- Files: `src/editor/editor-app.ts`, `tests/editor/editor.spec.ts`.
+- Interface: toolbar order: floor chips, filter, Names, Add, Device, View, File. The Device menu lists unplaced catalog entries grouped by type (S3.3 adds area grouping), with a search field at the top that filters by name and entity id. Add loses its Device item.
+- Test: Playwright: the Device menu places a device and the list shrinks; typing in the search hides non-matching entries; Add has no Device item.
+- Done when: tests pass.
+- Break it: a search with no match shows "No device matches", not an empty menu.
+
+---
+
 ## Sprint 2 — card (E3)
 
 ### S2.1 Card element
@@ -256,27 +305,114 @@ run with scripted clicks; record the JS used and its output in the report.
 
 ---
 
-## Sprint 4 — content and docs (E5)
+## Sprint 4 — organise the home from the plan (E6)
 
-### S4.1 Furniture in editor and card
+Panel only: every task needs `hass`. The standalone editor hides these
+controls. Rules for the whole sprint: every write to HA is confirmed in a
+dialog that names what will be created; everything the tool creates carries
+the HA label `floorplan-studio` (created once, S4.1) so the user can find and
+remove it; HA registries have no undo, and the dialog says so. Writes go
+through `hass.callWS` (registries, config flows) and `hass.callApi` (automation
+config). No write ever runs on load or on save.
+
+### S4.1 Writes to HA
+- Outcome: one module that does every HA write, with the label and the confirm dialog.
+- Files: `src/editor/hass-write.ts`, `src/editor/confirm.ts`, `tests/editor/hass-write.test.ts`.
+- Interface:
+  ```ts
+  export async function ensureLabel(hass): Promise<string>;                          // label id of "floorplan-studio", created via config/label_registry/create if missing
+  export async function createArea(hass, name: string): Promise<string>;             // config/area_registry/create → area_id
+  export async function setDeviceArea(hass, deviceId: string, areaId: string): Promise<void>;   // config/device_registry/update
+  export async function setEntityArea(hass, entityId: string, areaId: string | null): Promise<void>;  // config/entity_registry/update
+  export async function createHelper(hass, handler: "switch_as_x" | "group", steps: Record<string, unknown>[]): Promise<{ entity_id: string }>;  // config_entries/flow, one POST per step, throws with the flow's error text
+  export async function createAutomation(hass, cfg: AutomationConfig): Promise<string>;  // POST config/automation/config/<id>, id = "fp_" + random; returns the entity id after the registry reports it (poll up to 5 s)
+  export function openAutomation(id: string): void;                                   // history.pushState + "location-changed" event to /config/automation/edit/<id>
+  export function confirm(el, title: string, lines: string[]): Promise<boolean>;      // dialog; the last line is always "Home Assistant cannot undo this."
+  ```
+  Every create sets `labels: [labelId]` on the resulting entity (entity registry update) or device.
+- Test: stub `hass` with recorded `callWS` and `callApi`: each function sends the documented message; `ensureLabel` creates once and reuses; a flow step that returns `errors` throws with the text; `confirm` resolves false on Cancel and Esc.
+- Done when: tests pass; no function is reachable from the standalone build (`grep hass-write dist/editor.html` finds nothing).
+- Break it: `createAutomation` when the registry never reports the entity rejects after 5 s, not forever.
+
+### S4.2 Areas from the plan
+- Outcome: rooms and zones create HA areas; HA areas without a room are listed so the user can draw them.
+- Files: `src/editor/panels.ts`, `src/editor/panel.ts`, `tests/editor/organise.spec.ts` (Playwright with a stub `hass` injected into the panel).
+- Interface: the room panel's area field is `ha-area-picker`. When the room's `area` is not an HA area id, a button "Create area <name> in HA" runs `createArea`, then sets `room.area` to the id. A side box "Areas not on the plan" lists HA areas no room or zone uses; clicking one starts Draw, Room (S1.11) with `area` preset and `name` from the area.
+- Test: Playwright: room with unknown area shows the button; click, confirm, `callWS` recorded, the field shows the new id; an unused area appears in the box and disappears once a room takes it.
+- Done when: tests pass; screenshot in the PR.
+- Break it: Cancel in the dialog writes nothing and keeps `room.area` as typed.
+
+### S4.3 Devices into areas
+- Outcome: placing or moving a device into a room assigns its HA area.
+- Files: `src/editor/editor-app.ts`, `src/editor/panel.ts`, `tests/editor/organise.spec.ts`.
+- Interface: after a device drop (place or drag end) inside a room or zone with an HA area, if the entity's device (or the entity, when it has no device) is in another area or none, ask "Move <name> to area <room>?" (one dialog per drop, with "Don't ask again this session"). Yes → `setDeviceArea` or `setEntityArea`. The Device menu (S1.12, grouped by area since S3.3) marks entities whose HA area differs from the room they sit in with a small dot and a tooltip "HA says: <area>".
+- Test: Playwright: drop a device into a room with an area; dialog; Yes → `config/device_registry/update` recorded with that area; No → nothing; the dot shows for a mismatched device.
+- Done when: tests pass.
+- Break it: a device dropped outside every room asks nothing.
+
+### S4.4 Light from a switch
+- Outcome: a placed switch can become a light helper; the plan gets the light, bound to the switch.
+- Files: `src/editor/panels.ts`, `tests/editor/organise.spec.ts`.
+- Interface: switch or plug device panel gains "Create light from this switch". Confirm → `createHelper(hass, "switch_as_x", [{ entity_id, target_domain: "light" }])`; the new `light.*` entity is added to the catalog and placed 30 cm to the right of the switch, type `light`, `bound` = the switch entity; the switch device is removed from the plan (the light icon now stands for both, per SPEC). One undo step for the plan change; the helper stays in HA on undo, and the status line says so.
+- Test: Playwright: button on a switch; confirm; the flow messages are recorded; a bound light appears and the switch icon is gone; undo restores the switch icon, status says the helper still exists.
+- Done when: tests pass.
+- Break it: a switch that is already some light's `bound` has no button.
+
+### S4.5 Groups
+- Outcome: create light and motion groups from the plan, and filter the plan by group.
+- Files: `src/editor/editor-app.ts`, `src/editor/panels.ts`, `tests/editor/organise.spec.ts`.
+- Interface: Shift+click selects several devices of one type (lights, or motion sensors); the panel shows "Create group" with a name field. Confirm → `createHelper(hass, "group", [{ next_step_id: "light" | "binary_sensor" }, { name, entities, hide_members: false, all: false }])`. The Group menu (new toolbar menu, after Device) lists HA group entities whose members are on the current floor; choosing one dims every device not in it (class `dim`); "All" clears. Group membership comes from `attributes.entity_id` of the group entity in `hass.states`.
+- Test: Playwright: Shift+click two lights, Create group "Hall", the flow messages are recorded; the Group menu lists a stub group and choosing it dims the others.
+- Done when: tests pass.
+- Break it: a mixed selection (light and motion) shows no Create group button.
+
+### S4.6 Links and automations
+- Outcome: a switch turns on several things; a motion group turns on a light group; a device gets a time schedule. Each becomes an HA automation the user finishes in HA's editor.
+- Files: `src/editor/panels.ts`, `src/editor/automations.ts`, `tests/editor/automations.test.ts`, `tests/editor/organise.spec.ts`.
+- Interface: `automations.ts` builds configs (pure): `switchControls(switchEntity, targets: string[])` (trigger: state of the switch, action: `homeassistant.turn_on` / `turn_off` targets, two automations or one with choose), `motionLights(motionGroup, lightGroup, offAfter: number)` (on when the group turns on; off after `offAfter` s with no motion), `schedule(entity, on: "HH:MM", off: "HH:MM")`. Panels: switch panel "Controls..." picks lights, switches, plugs or groups (many); motion group in the Group menu gets "Turns on..." picking a light group and a minutes field; light, switch, plug and media panels get "Schedule" with two time fields. Each: confirm, `createAutomation`, then `openAutomation`, so the user lands in HA's editor with the automation already saved. A single switch to a single light suggests "Create light from this switch" (S4.4) instead of an automation. The plan stores nothing about automations: HA is the source, and the room box (S4.7) shows them.
+- Test: unit: each builder returns the documented config, `schedule` rejects a malformed time; Playwright: switch panel, pick two lights, confirm, `callApi` POST recorded with the built config, then `location-changed` fires with the edit URL.
+- Done when: tests pass.
+- Break it: picking the switch itself as a target is refused with the text "A switch cannot control itself".
+
+### S4.7 Room box
+- Outcome: selecting a room or zone shows everything HA has in its area, not only what is drawn.
+- Files: `src/editor/panels.ts`, `src/editor/panel.ts`, `tests/editor/organise.spec.ts`.
+- Interface: below the room panel, a box "In Home Assistant" lists the area's entities grouped by domain: devices (placed ones marked), helpers (`input_*`, `group`, `switch_as_x` lights), automations, scripts, scenes. A scene row has "Run" (`scene.turn_on`). Each row opens more-info on click. "Add to area..." opens `ha-entity-picker` limited to entities with no area; picking one runs `setEntityArea`. Automations and scripts get "Edit in HA" (navigate to their HA editor).
+- Test: Playwright with stub registries: the box lists the fixture's entities under the right headings; Run calls `scene.turn_on`; Add to area records the registry update.
+- Done when: tests pass.
+- Break it: a room with no HA area shows "No area: set one above" and no list.
+
+### S4.8 Native look
+- Outcome: the panel looks like the rest of HA, light and dark.
+- Files: `src/editor/panel.ts`, `src/editor/theme.ts`, `tests/editor/theme.test.ts`.
+- Interface: `theme.ts` maps every `--fp-*` variable to an HA theme variable (`--primary-color`, `--card-background-color`, `--primary-text-color`, `--divider-color`, `--state-icon-color`, `--error-color`, `--warning-color`, `--success-color`, `--info-color`); the panel sets them on its host and re-applies on `hass.themes` change. Form controls in the panel are HA's own elements when running in HA: `ha-textfield`, `ha-select`, `ha-switch`, `ha-area-picker`, `ha-entity-picker`, `mwc-button`; the standalone build keeps plain HTML controls behind the same panel code (a `pickers` adapter chosen at construction). Panel chrome uses `ha-top-app-bar-fixed` with the sidebar toggle, like HA's own panels.
+- Test: unit: the map covers every `--fp-*` in `FLOORPLAN_CSS` (parsed from the string); Playwright in the dev container: screenshots in the default theme and in a dark theme, attached to the PR, no `#rrggbb` in panel CSS except the theme file.
+- Done when: tests pass; screenshots reviewed.
+- Break it: with `hass.themes` missing (older HA) the map falls back to the `FLOORPLAN_CSS` defaults and the panel still renders.
+
+---
+
+## Sprint 5 — content and docs (E5)
+
+### S5.1 Furniture in editor and card
 - Outcome: every symbol in `FURNITURE` can be placed, sized, rotated; the card draws them under devices.
 - Test: Playwright places each symbol; render snapshot with all symbols.
 - Done when: tests pass.
 - Break it: rotation 450 is stored as 90.
 
-### S4.2 Prompt
+### S5.2 Prompt
 - Outcome: `prompts/trace-from-photos.md` that any of Claude, ChatGPT, Gemini, Grok can follow.
 - Content: role; ask two questions first (one known dimension with the wall it belongs to; where north is on the photo); then per floor list rooms, outline, doors, windows in cm, north up, y down, as a v2 layout with `catalog: []`; output JSON only, no prose; a 20-line example; a checklist the model must satisfy before answering (closed polygons, doors on walls, no room outside the outline).
 - Test: the maintainer runs it on the private photos with Claude; the JSON passes `validate()` and opens in the editor. Record model, date and pass/fail in `prompts/RESULTS.md` (no photos, no layout).
 - Done when: one recorded pass; README section matches the prompt.
 - Break it: the prompt tells the model what to do when it cannot read a dimension: write `null` and list it under `"unknown"`, not guess.
 
-### S4.3 Docs
+### S5.3 Docs
 - Outcome: `docs/schema.md` (generated from `schema.ts` comments), `docs/card.md`, `docs/editor.md` with screenshots, `CONTRIBUTING.md`.
 - Test: `npx markdown-link-check docs/*.md README.md` clean.
 - Done when: link check passes; screenshots are of the demo, not a real house.
 
-### S4.4 Demo and HACS default
+### S5.4 Demo and HACS default
 - Outcome: a GIF in the README; submission PR to the HACS default repository.
 - Done when: GIF under 3 MB; submission opened.
 
