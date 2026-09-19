@@ -342,3 +342,22 @@ describe("wall kinds", () => {
     expect(html).toContain("&quot;&gt;&lt;script&gt;");
   });
 });
+
+describe("renderFloor never throws on a layout that skipped validate (review S1.5, finding 5)", () => {
+  for (const bad of [5, { a: 1 }, ["x", 2], null, undefined, true]) {
+    it(`name, label and title fields = ${JSON.stringify(bad)}`, () => {
+      const f: any = structuredClone(ground);
+      f.rooms[0].name = bad; f.rooms[0].label = bad; f.rooms[3].name = bad; f.rooms[3].label = bad;
+      f.stairs[0].name = bad; f.doors[0].name = bad; f.devices[0].name = bad;
+      f.extras.push({ id: "x1", name: bad, a: [0, 0], b: [50, 50] });
+      expect(() => renderFloor(f, { ...base, showNames: true })).not.toThrow();
+    });
+  }
+  it("shows an object name as text, not markup", () => {
+    const f: any = structuredClone(ground);
+    f.extras.push({ id: "x1", name: ["<b>"], a: [0, 0], b: [50, 50] });
+    const html = renderFloor(f, base);
+    expect(html).toContain("&lt;b&gt;");
+    expect(html).not.toContain("<b>");
+  });
+});

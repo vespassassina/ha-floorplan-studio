@@ -62,7 +62,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     const oneOf = (label: string, v: unknown, allowed: readonly string[]) => {
       if (typeof v !== "string" || !allowed.includes(v)) errors.push(`${at} ${label} must be one of ${allowed.join(", ")}`);
     };
-    const name = (o: any) => { if (typeof o.name !== "string") errors.push(`${at} ${o.id} needs a name`); };
+    const name = (o: any) => { if (typeof o.name !== "string") errors.push(`${at} ${o.id} needs a name (text)`); };
+    const optText = (o: any, k: string) => { if (o[k] !== undefined && typeof o[k] !== "string") errors.push(`${at} ${o.id} ${k} must be text`); };
     const each = (k: string, fn: (o: any) => void) => {
       if (!Array.isArray(f[k])) { errors.push(`${at} ${k} must be an array`); return; }
       for (const o of f[k]) {
@@ -74,6 +75,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     poly("outline", f.outline);
     each("rooms", (r) => {
       poly(`${r.id} pts`, r.pts);
+      name(r); // migrate turns a missing name into "", so a name that is still not text is a bad file
+      if (typeof r.label !== "string") errors.push(`${at} ${r.id} label must be text`);
       oneOf(`${r.id} kind`, r.kind, ROOM_KINDS);
       if (Array.isArray(r.pts) && r.pts.length >= 3 && (!Array.isArray(r.w) || r.w.length !== r.pts.length))
         errors.push(`${at} ${r.id} w must have ${r.pts.length} entries`);
@@ -84,7 +87,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       oneOf(`${w.id} kind`, w.kind, WALL_KINDS);
       if (!isPt(w.a) || !isPt(w.b)) errors.push(`${at} ${w.id} needs points a and b`);
     });
-    each("stairs", (s) => poly(`${s.id} pts`, s.pts));
+    each("stairs", (s) => { name(s); poly(`${s.id} pts`, s.pts); });
     each("doors", (d) => {
       name(d);
       oneOf(`${d.id} kind`, d.kind, DOOR_KINDS);
@@ -93,9 +96,10 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (d.cover !== undefined && !isEntity(d.cover)) errors.push(`${at} ${d.id} cover must be an entity id like cover.name`);
     });
     each("openings", (o) => { if (!isPt(o.a) || !isPt(o.b)) errors.push(`${at} ${o.id} needs points a and b`); });
-    each("extras", (o) => { if (!isPt(o.a) || !isPt(o.b)) errors.push(`${at} ${o.id} needs points a and b`); });
+    each("extras", (o) => { name(o); if (!isPt(o.a) || !isPt(o.b)) errors.push(`${at} ${o.id} needs points a and b`); });
     each("devices", (d) => {
       oneOf(`${d.id} type`, d.type, DEVICE_TYPES);
+      optText(d, "name");
       if (!(typeof d.x === "number" && Number.isFinite(d.x) && typeof d.y === "number" && Number.isFinite(d.y)) && !(isPt(d.a) && isPt(d.b)))
         errors.push(`${at} ${d.id} needs x and y, or a and b`);
       if (typeof d.id === "string") {

@@ -124,3 +124,16 @@ describe("wall kind migration", () => {
     expect(m.floors.g.walls[0].kind).toBe("garden" as any);
   });
 });
+
+describe("room names and labels", () => {
+  it("fills a missing room name and label with empty strings and leaves a bad one for validate", () => {
+    const l: any = structuredClone(demo);
+    delete l.floors.ground.rooms[0].name;
+    delete l.floors.ground.rooms[0].label;
+    l.floors.ground.rooms[1].name = { a: 1 };
+    const m = migrate(l);
+    expect([m.floors.ground.rooms[0].name, m.floors.ground.rooms[0].label]).toEqual(["", ""]);
+    expect(m.floors.ground.rooms[1].name).toEqual({ a: 1 });
+    expect(validate(m).ok).toBe(false);
+  });
+});

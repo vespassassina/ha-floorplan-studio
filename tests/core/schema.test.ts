@@ -188,3 +188,31 @@ describe("wall kinds", () => {
     for (const k of ["garden", "", undefined, 3, null, "Fence"]) expect(errorsOf(withKind(k)).join("\n"), String(k)).toMatch(/w1 kind must be one of wall, boundary, external, fence, edge/);
   });
 });
+
+describe("names and labels are strings (review S1.5, finding 5)", () => {
+  const BAD = [{ a: 1 }, 5, ["x"], null, true];
+  const fixtures: [string, (l: any, v: unknown) => void, RegExp][] = [
+    ["room.name", (l, v) => { l.floors.ground.rooms[0].name = v; }, /room-ground-1.*name/],
+    ["room.label", (l, v) => { l.floors.ground.rooms[0].label = v; }, /room-ground-1.*label/],
+    ["zone.name", (l, v) => { l.floors.ground.rooms[3].name = v; }, /room-ground-4.*name/],
+    ["zone.label", (l, v) => { l.floors.ground.rooms[3].label = v; }, /room-ground-4.*label/],
+    ["water.name", (l, v) => { l.floors.ground.rooms[4].name = v; }, /room-ground-5.*name/],
+    ["stairs.name", (l, v) => { l.floors.ground.stairs[0].name = v; }, /stairs-ground-1.*name/],
+    ["extra.name", (l, v) => { l.floors.ground.extras.push({ id: "x1", name: v, a: [0, 0], b: [10, 10] }); }, /x1.*name/],
+    ["door.name", (l, v) => { l.floors.ground.doors[0].name = v; }, /door-ground-1.*name/],
+    ["device.name", (l, v) => { l.floors.ground.devices[0].name = v; }, /light-living.*name/],
+  ];
+  for (const [what, set, re] of fixtures)
+    for (const bad of BAD)
+      it(`rejects ${what} = ${JSON.stringify(bad)}`, () => {
+        const l = clone();
+        set(l, bad);
+        expect(errorsOf(l).join("\n")).toMatch(re);
+      });
+  it("still accepts a device without a name and a room with an empty label", () => {
+    const l = clone();
+    delete l.floors.ground.devices[0].name;
+    l.floors.ground.rooms[0].label = "";
+    expect(errorsOf(l)).toEqual([]);
+  });
+});
