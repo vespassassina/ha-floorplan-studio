@@ -40,8 +40,10 @@ type Drag =
 const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 const num = (n: number) => String(Math.round(n * 100) / 100);
 const DRAW_HINT = "Click to add points, double-click or Enter to finish, Esc to cancel";
-/** A stand-in for "no dragged point": nothing is within reach of it. */
 const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
+/** Does this point reference a corner of a zone? A zone never joins another polygon. */
+const isZoneRef = (f: Floor, ref: PtRef) => "poly" in ref && ref.poly[0] === "r" && f.rooms[+ref.poly.slice(1)]?.kind === "zone";
+/** A stand-in for "no dragged point": nothing is within reach of it. */
 const NOWHERE: Pt = [-1e9, -1e9];
 /** Where a door, window, opening or heater sits: a room, outline or water edge, or a free wall. Never a zone or stairs. */
 const HOST = { walls: true } as const;
@@ -394,7 +396,7 @@ export class FloorplanStudioEditor extends LitElement {
     let g: Floor | null = null;
     switch (d.type) {
       case "corner": {
-        const to = this.snapCorner(d.base, p, d.from, d.ref, alt, [], "poly" in d.ref && d.ref.poly[0] === "r" && d.base.rooms[+d.ref.poly.slice(1)]?.kind === "zone");
+        const to = this.snapCorner(d.base, p, d.from, d.ref, alt, [], isZoneRef(d.base, d.ref));
         if (!d.moved && dist(to, d.from) === 0) return;
         this.begin(d); d.to = to;
         // Shift: only the grabbed corner moves and leaves the others behind
@@ -472,8 +474,9 @@ export class FloorplanStudioEditor extends LitElement {
     if (d.moved) {
       // a corner dropped on another polygon's edge becomes a point of that polygon
       let f = st.f;
-      if (d.type === "corner") f = stitch(f, d.to);
-      else if (d.type === "edge") for (const q of d.to) f = stitch(f, q);
+      // a zone corner is never stitched into a wall, even where another polygon has a corner at the same spot
+      if (d.type === "corner") { if (!isZoneRef(d.base, d.ref)) f = stitch(f, d.to); }
+      else if (d.type === "edge") { if (!d.ends.some((e) => isZoneRef(d.base, e.ref))) for (const q of d.to) f = stitch(f, q); }
       st.replaceFloor(f);
       this.changed();
     } else this.requestUpdate();

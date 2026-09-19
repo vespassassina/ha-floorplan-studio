@@ -1837,3 +1837,21 @@ test("a click 3 cm off a zone edge that lies on a room edge picks the room edge,
     await expect(page.locator("#wallt")).toHaveCount(1); // a zone edge has no toggle
   }
 });
+
+test("a zone corner dropped on a wall where a third polygon has a corner is not stitched into the rooms either side", async ({ page }) => {
+  // a small structure whose corner (500, 250) lies on the living / kitchen wall x = 500
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.rooms.push({ id: "room-ground-9", name: "Shed", area: "shed", label: "", kind: "structure", pts: [[500, 250], [540, 250], [540, 290]], w: [true, true, true] });
+    el.layout = l;
+  }, EDITOR);
+  const g0 = await groundOf(page), zi = g0.rooms.findIndex((r) => r.kind === "zone"), z = g0.rooms[zi];
+  const counts = (g: Floor) => g.rooms.map((r) => r.pts.length);
+  const before = counts(g0);
+  await dragCm(page, z.pts[0] as [number, number], [500, 250]);
+  const g1 = await groundOf(page);
+  expect(g1.rooms[zi].pts[0]).toEqual([500, 250]); // it landed there
+  expect(counts(g1)).toEqual(before); // no point went into the living room or the kitchen
+  expect(g1.outline).toEqual(g0.outline);
+  await savedValid(page);
+});
