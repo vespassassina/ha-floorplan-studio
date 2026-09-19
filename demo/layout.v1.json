@@ -185,7 +185,8 @@
      "entity": "light.demo_living",
      "name": "Living light",
      "x": 250,
-     "y": 200
+     "y": 200,
+     "bound": "switch.demo_living_relay"
     },
     {
      "id": "light-kitchen",
@@ -529,6 +530,22 @@
    "type": "media",
    "name": "Office speaker",
    "entity": "media_player.demo_office"
+  },
+  {
+   "id": "contact-garage",
+   "floor": "ground",
+   "room": "Hall",
+   "type": "window",
+   "name": "Garage door contact",
+   "entity": "binary_sensor.demo_garage_door"
+  },
+  {
+   "id": "switch-living-relay",
+   "floor": "ground",
+   "room": "Living",
+   "type": "switch",
+   "name": "Living lamp relay",
+   "entity": "switch.demo_living_relay"
   }
  ]
 }

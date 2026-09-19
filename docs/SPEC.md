@@ -50,7 +50,7 @@ in `prompts/`, then fixed in the editor.
       "doors":   [{"id", "name", "kind", "a", "b", "sensor", "cover"}],
       "openings":[{"id", "a", "b"}],
       "extras":  [{"id", "name", "a", "b"}],
-      "devices": [{"id", "type", "entity", "x", "y"} | {"id", "type", "entity", "a", "b"}],
+      "devices": [{"id", "type", "entity", "x", "y", "bound"?} | {"id", "type", "entity", "a", "b"}],
       "furniture":[{"id", "symbol", "x", "y", "rot", "w", "h"}]
     }
   },
@@ -67,6 +67,10 @@ in `prompts/`, then fixed in the editor.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
   camera, climate, media, cover, other. Heaters have `a`/`b` (a bar), the rest
   `x`/`y`.
+- `device.bound` (lights only, optional): the switch or plug entity that powers
+  the same lamp. One icon on the plan, two entities in HA. `entity` stays the
+  primary one. A bound entity may not be another device's `entity`, and no two
+  devices share one.
 - `furniture.symbol`: table, sofa, bed, cabinet, chair, sink, toilet, shower,
   bathtub, tv, computer, tree, patio-wood, patio-concrete, car.
 - v1 files (no `version` or `version: 1`) are migrated on load.
@@ -76,6 +80,7 @@ in `prompts/`, then fixed in the editor.
 | Entity domain / device type | Idle | Active | Click |
 |---|---|---|---|
 | light | grey icon | icon in the light's colour, brightness as opacity | toggle; long press: more-info |
+| light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | toggle the light entity; long press: more-info for it (the switch is reachable from that dialog) |
 | switch, plug | grey | accent colour | toggle |
 | binary_sensor on a door or window | door drawn normally | door drawn orange | more-info |
 | motion (binary_sensor motion/occupancy) | grey | red, fading to grey over `fade` seconds from `last_changed` | more-info |

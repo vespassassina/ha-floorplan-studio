@@ -1,5 +1,31 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Floorplan Studio</title></head>
-<body><p>Floorplan Studio editor: not built yet.</p></body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Floorplan Studio</title>
+<style>html,body{margin:0;padding:8px 12px;background:#f4f0e6}</style>
+</head>
+<body>
+<floorplan-studio-editor id="editor"></floorplan-studio-editor>
+<script type="module">
+  import demo from "../../demo/layout.json";
+  import { restoreLayout } from "./state";
+  import "./editor-app";
+
+  const el = document.getElementById("editor");
+  el.seed = demo;
+  el.layout = restoreLayout() ?? demo;
+  // Standalone: the host of the element writes the file.
+  el.addEventListener("save-request", (e) => {
+    const blob = new Blob([JSON.stringify(e.detail, null, 1)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "layout.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    el.saveDone(true);
+  });
+</script>
+</body>
 </html>

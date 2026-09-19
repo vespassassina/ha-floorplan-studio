@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
     },
   });
   if (mode === "card") return lib("src/card/floorplan-studio-card.ts", "floorplan-studio-card.js");
-  if (mode === "panel") return lib("src/editor/panel.ts", "floorplan-studio-panel.js");
+  if (mode === "panel") return lib("src/editor/panels.ts", "floorplan-studio-panel.js");
   return {
     root: "src/editor",
     plugins: [viteSingleFile()],

@@ -10,7 +10,7 @@ Repository layout (fixed here, created in S1.1):
 package.json  vite.config.ts  tsconfig.json  vitest.config.ts  playwright.config.ts  eslint.config.js
 hacs.json  requirements_test.txt  pyproject.toml
 src/core/    schema.ts  migrate.ts  geometry.ts  render.ts  icons.ts  index.ts
-src/editor/  editor-app.ts  state.ts  panel.ts  hass-pickers.ts  standalone.html
+src/editor/  editor-app.ts  state.ts  panels.ts  hass-pickers.ts  standalone.html
 src/card/    floorplan-studio-card.ts
 custom_components/floorplan_studio/  __init__.py  manifest.json  const.py  config_flow.py  storage.py  websocket.py  panel.py
 demo/        layout.json  layout.v1.json
@@ -145,17 +145,17 @@ run with scripted clicks; record the JS used and its output in the report.
 - Done when: test passes; licence note for MDI in README.
 - Break it: none; data only.
 
-### S1.6 Editor on the core
+### S1.6 Editor on the core (done)
 - Outcome: the current editor's features as a Lit element using core functions.
-- Files: `src/editor/editor-app.ts` (`<floorplan-studio-editor>`), `src/editor/state.ts` (layout, history, selection, view; `persist()` to `localStorage` key `floorplan-studio:layout`), `src/editor/panel.ts` (selection panels), `tests/editor/editor.spec.ts` (Playwright).
+- Files: `src/editor/editor-app.ts` (`<floorplan-studio-editor>`), `src/editor/state.ts` (layout, history, selection, view; `persist()` to `localStorage` key `floorplan-studio:layout`), `src/editor/panels.ts` (selection panels), `tests/editor/editor.spec.ts` (Playwright).
 - Interface: element properties `layout: Layout`, `floor: string`, events `layout-changed` (detail: Layout) and `save-request`. Same toolbar as SPEC (floor chips, filter, Names, Add / View / File). Same pointer behaviour as the vanilla editor (see HomeFloorplan `editor/editor.src.html` for the reference behaviour, port it; do not redesign). Furniture: Add → Furniture → symbol; drag to move, panel sets w, h, rot. Devices: Add → Device lists `catalog` entries not placed, grouped by type.
 - Test (Playwright, against `npm run dev`): load demo; drag a room corner 50 px, the coordinates change and a coincident corner of the neighbour moves too; Add → Device places one and the list shrinks by one; remove it, the list grows; Add → Furniture → bed places a bed; File → Save downloads a file that validates; reload restores from localStorage; File → Reset returns to the demo.
 - Done when: the Playwright suite passes headless; `npm run lint` clean.
 - Break it: dragging with Shift moves only the grabbed corner.
 
-### S1.7 Standalone build
+### S1.7 Standalone build (done)
 - Outcome: `dist/editor.html` works from `file://` with no network.
-- Files: `src/editor/standalone.html`, `vite.config.ts` (singlefile plugin for this entry).
+- Files: `tests/editor/standalone.spec.ts`, `tests/setup/build.ts` (Playwright globalSetup, runs the build), `scripts/build.mjs` (builds the three bundles, names `editor.html`, copies them to `www/`). `src/editor/standalone.html` and the singlefile vite config came earlier.
 - Test: Playwright opens `file:///.../dist/editor.html`, the demo renders, Open a v1 file migrates it, Save downloads v2. Network requests during the test: zero (assert with `page.on('request')`).
 - Done when: test passes; file size under 1 MB.
 - Break it: offline (Playwright `context.setOffline(true)`) still loads.
@@ -167,7 +167,7 @@ run with scripted clicks; record the JS used and its output in the report.
 ### S2.1 Card element
 - Outcome: `custom:floorplan-studio-card` renders a floor from config or the integration.
 - Files: `src/card/floorplan-studio-card.ts`, `tests/card/card.test.ts` (vitest + jsdom).
-- Interface: `class FloorplanStudioCard extends LitElement` with `setConfig(c: { floor?: string | "all"; fade?: number; room_glow?: boolean; layout?: Layout; layout_url?: string })`, `set hass(h)`, `getCardSize()`, `static getStubConfig()`. Layout source order: `config.layout`, then `config.layout_url` (fetched once), then websocket `floorplan_studio/load`. Registers itself on `window.customCards`. Renders `renderFloor(..., { state: hass.states, now: Date.now(), fade, roomGlow })` inside an `<svg>` with `viewBoxFor`. A 1 s timer re-renders only while any motion device is within its fade window.
+- Interface: `class FloorplanStudioCard extends LitElement` with `setConfig(c: { floor?: string | "all"; fade?: number; room_glow?: boolean; layout?: Layout; layout_url?: string })`, `set hass(h)`, `getCardSize()`, `static getStubConfig()`. Layout source order: `config.layout`, then `config.layout_url` (fetched once), then websocket `floorplan_studio/load`. Registers itself on `window.customCards`. Renders `renderFloor(..., { state: hass.states, now: Date.now(), fade, roomGlow })` inside an `<svg>` with `viewBoxFor`. The card must draw openings (erase line) and extras (dashed line plus name): `renderFloor` already does, shared with the editor since the S1.7 review fixes, so the card only has to call it and not redraw them. A 1 s timer re-renders only while any motion device is within its fade window.
 - Test: with a stub `hass` and `config.layout = demo`, the shadow DOM contains one `polygon[data-r]` per room; changing a light state in the stub and setting `hass` again toggles the `on` class.
 - Done when: tests pass; `npm run build` emits `dist/floorplan-studio-card.js` under 300 kB.
 - Break it: `setConfig({})` with no layout shows the text "No layout: install the Floorplan Studio integration or set layout_url".
@@ -227,7 +227,7 @@ run with scripted clicks; record the JS used and its output in the report.
 
 ### S3.2 Panel
 - Outcome: the editor served at `/floorplan-studio` in the sidebar, saving through the websocket.
-- Files: `panel.py`, `src/editor/panel.ts` (`<floorplan-studio-panel>` receives `hass`, wraps the editor, Load/Save buttons call the websocket), `__init__.py` registers static path `/floorplan_studio_static` → the integration's `www/` folder, and the panel with `panel_custom.async_register_panel(frontend_url_path="floorplan-studio", webcomponent_name="floorplan-studio-panel", module_url=..., sidebar_title="Floorplan Studio", sidebar_icon="mdi:floor-plan", require_admin=True)`. `npm run build` copies `dist/*.js` into `custom_components/floorplan_studio/www/`.
+- Files: `panel.py`, `src/editor/panel.ts` (`<floorplan-studio-panel>` receives `hass`, wraps the editor, Load/Save buttons call the websocket), `__init__.py` registers static path `/floorplan_studio_static` → the integration's `www/` folder, and the panel with `panel_custom.async_register_panel(frontend_url_path="floorplan-studio", webcomponent_name="floorplan-studio-panel", module_url=..., sidebar_title="Floorplan Studio", sidebar_icon="mdi:floor-plan", require_admin=True)`. `npm run build` copies `dist/*.js` and `dist/editor.html` into `custom_components/floorplan_studio/www/`.
 - Test: dev container (`.devcontainer` from the HA custom component template): open the panel, File → Load gets the demo saved in S3.1's test fixture, move a light, Save, reload the page, the light stays. Record as a Playwright test against the dev container URL when `HA_URL` and `HA_TOKEN` env vars are set; skipped otherwise.
 - Done when: the manual check is recorded with a screenshot in the PR; Playwright test present and skipping cleanly without env.
 - Break it: a non-admin user does not see the sidebar entry.

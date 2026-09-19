@@ -3,12 +3,24 @@
 Draw your home inside Home Assistant, attach your devices, use it as a live
 dashboard. No external drawing tool, no YAML per element.
 
-Status: in design. See `docs/SPEC.md` and `docs/PLAN.md`.
+Status: early. The core library and the standalone editor work and are
+tested. The card, the HA integration and the photo prompt are not built yet.
+See `docs/SPEC.md` and `docs/PLAN.md`.
+
+| Part | State |
+|---|---|
+| Core: schema v2, v1 migration, geometry, SVG renderer, icons | done |
+| Editor (standalone `dist/editor.html`, works from `file://`, offline) | done |
+| Lovelace card | Sprint 2 |
+| HA integration, panel, HACS release | Sprint 3 |
+| Prompt for LLMs, docs | Sprint 4 |
 
 ## What you get
 
-- An editor panel in HA: draw floors, rooms, walls, doors, windows, furniture.
-  Attach rooms to areas and devices to entities from pickers.
+- An editor panel in HA: draw floors, rooms, walls, doors, windows, stairs,
+  furniture. Attach rooms to areas and devices to entities from pickers.
+- A dumb light on a smart switch is one icon: bind the switch to the light
+  ("Controlled by") and the plan shows both as one lamp.
 - A Lovelace card: lights, switches, sensors, cameras, thermostats and doors
   shown live. Motion fades from red to grey; open doors turn orange.
 - A prompt that turns photos of your architect's plans into a first draft.
@@ -44,6 +56,21 @@ If your assistant cannot open links, copy `prompts/trace-from-photos.md` and pas
    dimension, where north is).
 3. Save the JSON it returns as `layout.json`.
 4. In the editor: File → Open, fix what is off, Save.
+
+## Develop
+
+```bash
+npm ci
+npm run lint        # eslint and tsc
+npm test            # unit tests
+npm run build       # dist/ and custom_components/floorplan_studio/www/
+npx playwright test # editor tests; PW_PORT=5400 to run beside another checkout
+```
+
+Open `dist/editor.html` in a browser to use the editor with no server.
+Work is split in tasks (`docs/PLAN.md`), run with the three-role flow in
+`docs/WORKFLOW.md`. Decisions are in `docs/DECISIONS.md`. Notes for AI
+assistants working on the code are in `CLAUDE.md`.
 
 ## Licence
 
