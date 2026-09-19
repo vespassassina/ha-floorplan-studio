@@ -98,17 +98,19 @@ describe("migrate", () => {
     expect(migrate(l).floors.ground.devices.find((d) => d.id === "light-living")).toMatchObject({ bound: "switch.keep_me" });
   });
 
-  it("passes zone and water rooms through unchanged", () => {
+  it("does not treat a water room's empty area or a zone's dotted flags as missing", () => {
     const l: any = structuredClone(demo);
     const pts = [[10, 10], [60, 10], [60, 60]];
     l.floors.ground.rooms.push(
       { id: "z1", name: "Nook", area: "nook", label: "", kind: "zone", pts, w: [false, false, false] },
       { id: "w1", name: "Pond", area: "", label: "", kind: "water", pts, w: [false, false, false] },
+      { id: "r9", name: "Cellar Store", kind: "room", pts, w: [true, true, true] }, // no area: this one is filled
     );
-    const m = migrate(l);
-    const kinds = m.floors.ground.rooms.map((r) => r.kind);
-    expect(kinds.slice(-2)).toEqual(["zone", "water"]);
-    expect(m.floors.ground.rooms.at(-2)).toEqual(l.floors.ground.rooms.at(-2));
+    const rooms = migrate(l).floors.ground.rooms.slice(-3);
+    expect(rooms[1].area).toBe(""); // "" is a value, not a gap: a fill that used || would turn it into "pond"
+    expect(rooms[0]).toEqual(l.floors.ground.rooms.at(-3));
+    expect(rooms[1].w).toEqual([false, false, false]);
+    expect(rooms[2].area).toBe("cellar-store");
   });
 });
 
