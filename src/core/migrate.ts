@@ -29,6 +29,7 @@ export function migrate(x: unknown): Layout {
       if (f[key] !== undefined && !Array.isArray(f[key])) throw new Error(`Floor "${fname}": ${key} must be an array`);
       f[key] = (f[key] ?? []).filter(isObj);
       f[key].forEach((o: any, i: number) => { o.id = o.id ?? `${kind}-${fname}-${i + 1}`; });
+      if (key === "walls") for (const o of f.walls) o.kind = o.kind ?? "wall";
     }
     if (f.devices !== undefined && !Array.isArray(f.devices)) throw new Error(`Floor "${fname}": devices must be an array`);
     for (const r of f.rooms) r.area = r.area ?? slug(String(r.name ?? ""));

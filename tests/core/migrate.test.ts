@@ -111,3 +111,16 @@ describe("migrate", () => {
     expect(m.floors.ground.rooms.at(-2)).toEqual(l.floors.ground.rooms.at(-2));
   });
 });
+
+describe("wall kind migration", () => {
+  it("defaults a wall with no kind to wall, in v1 and v2, and keeps a kind that is set", () => {
+    for (const version of [1, 2]) {
+      const m = migrate({ version, north: 0, floors: { g: { title: "G", outline: [], walls: [{ id: "a", a: [0, 0], b: [1, 0] }, { id: "b", a: [0, 0], b: [1, 0], kind: "fence" }] } } });
+      expect(m.floors.g.walls.map((w) => w.kind)).toEqual(["wall", "fence"]);
+    }
+  });
+  it("leaves an unknown kind for validate to reject", () => {
+    const m = migrate({ version: 2, north: 0, floors: { g: { walls: [{ id: "a", a: [0, 0], b: [1, 0], kind: "garden" }] } } });
+    expect(m.floors.g.walls[0].kind).toBe("garden" as any);
+  });
+});

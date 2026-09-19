@@ -289,3 +289,42 @@ describe("zone paint order", () => {
     expect(at(0)).toBeGreaterThan(-1);
   });
 });
+
+describe("wall kinds", () => {
+  const kinds = ["wall", "boundary", "external", "fence", "edge"] as const;
+  const withWalls = () => {
+    const f = structuredClone(ground);
+    f.walls = kinds.map((kind, i) => ({ id: `w${i}`, a: [0, 500 + i * 20] as [number, number], b: [100, 500 + i * 20] as [number, number], kind }));
+    return f;
+  };
+  const line = (html: string, i: number) => html.match(new RegExp(`<line class="([^"]*)" data-w="${i}"`))?.[1];
+
+  it("gives each free wall the class of its kind; wall and boundary keep e and e nw", () => {
+    const html = renderFloor(withWalls(), base);
+    expect(kinds.map((_, i) => line(html, i))).toEqual(["e", "e nw", "e external", "e fence", "e edge"]);
+  });
+  it("styles the new kinds through --fp-wall-* variables that have defaults, and the markup holds no colour", () => {
+    for (const k of ["external", "fence", "edge"]) {
+      expect(FLOORPLAN_CSS).toMatch(new RegExp(`--fp-wall-${k}:#[0-9a-f]{3,8}`, "i"));
+      expect(FLOORPLAN_CSS).toMatch(new RegExp(`\\.e\\.${k}\\{[^}]*stroke:var\\(--fp-wall-${k}\\)`));
+    }
+    expect(FLOORPLAN_CSS).toMatch(/\.e\.external\{[^}]*stroke-width:(\d+(\.\d+)?)/);
+    expect(FLOORPLAN_CSS).toMatch(/\.e\.fence\{[^}]*stroke-dasharray:\d+ \d+ \d+ \d+/); // dash-dot
+    const walls = renderFloor(withWalls(), base).split("\n").filter((l) => l.includes("data-w=")).join("\n");
+    expect(walls).not.toMatch(/#[0-9a-f]{3,8}|rgb\(|stroke="|style=/i);
+  });
+  it("the external wall is thicker than a wall, the fence is thinner", () => {
+    const w = (k: string) => +(FLOORPLAN_CSS.match(new RegExp(`\\.e\\.${k}\\{[^}]*stroke-width:([\\d.]+)`))?.[1] ?? NaN);
+    const wall = +(FLOORPLAN_CSS.match(/\.e\{[^}]*stroke-width:([\d.]+)/)?.[1] ?? NaN);
+    expect(w("external")).toBeGreaterThan(wall);
+    expect(w("fence")).toBeLessThan(wall);
+    expect(w("edge")).toBeLessThan(wall);
+  });
+  it("escapes a kind that skipped validation", () => {
+    const f = withWalls();
+    (f.walls[0] as any).kind = '"><script>alert(1)</script>';
+    const html = renderFloor(f, base);
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&quot;&gt;&lt;script&gt;");
+  });
+});

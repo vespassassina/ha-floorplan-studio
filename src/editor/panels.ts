@@ -1,6 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
-import { DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, dist, edgeRooms, insertPoint, removePoint, toggleWall } from "../core";
-import type { DeviceType, Floor } from "../core";
+import { DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, toggleWall } from "../core";
+import type { DeviceType, Floor, WallKind } from "../core";
 import { movePointAll, resizeSegment, setSecondEnd } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 
@@ -11,6 +11,8 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["humidity", "Humidity"], ["motion", "Motion"], ["contact", "Window / door sensor"], ["camera", "Cameras"],
   ["climate", "Climate"], ["media", "Media players"], ["cover", "Covers"], ["other", "Other"],
 ];
+
+const WALL_LABELS: Record<WallKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge" };
 
 export interface PanelCtx {
   st: EditorState;
@@ -87,10 +89,10 @@ function wallPanel(c: PanelCtx, i: number) {
   const w = c.st.f.walls[i];
   if (!w) return html`<p class="hint">Nothing selected.</p>`;
   const set = (how: Parameters<typeof setSecondEnd>[3]) => c.commit((f) => setSecondEnd(f, w.a, w.b, how));
-  return html`<strong>${w.kind === "boundary" ? "Boundary (dotted)" : "Wall"}</strong>
+  return html`<strong>${WALL_LABELS[w.kind] ?? "Wall"}</strong>
     ${number("length (m)", "wlen", (dist(w.a, w.b) / 100).toFixed(2), (m) => set({ length: m }))}
     <div class="row">${button("wh", "Make horizontal", () => set({ axis: "h" }))}${button("wv", "Make vertical", () => set({ axis: "v" }))}</div>
-    <p>${button("wk", w.kind === "boundary" ? "Make this a wall" : "Make this a dotted boundary", () => c.commit((f) => { f.walls[i].kind = w.kind === "boundary" ? "wall" : "boundary"; }))}</p>
+    <label for="wk">kind</label><select id="wk" .value=${w.kind} @change=${(e: Event) => c.commit((f) => { f.walls[i].kind = val(e) as WallKind; })}>${WALL_KINDS.map((k) => html`<option value=${k} ?selected=${k === w.kind}>${WALL_LABELS[k]}</option>`)}</select>
     <p>${button("wdel", "Delete", () => { c.commit((f) => { f.walls.splice(i, 1); }); c.select(null); })}</p>
     ${hint("Drag its ends to place it. Ends snap to corners.")}`;
 }

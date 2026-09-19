@@ -10,9 +10,11 @@ export interface RenderOpts {
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
 export const FLOORPLAN_CSS = `
 :host,.fp{--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-outdoor:#dce6d6;--fp-wall:#2b2a27;--fp-idle:#8b8578;
---fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3}
+--fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;
+--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94}
 .room{fill:var(--fp-room)} .room-outdoor,.room-terrace{fill:var(--fp-outdoor)} .room-fill,.room-zone{fill:none} .water{fill:var(--fp-water)}
 .e{stroke:var(--fp-wall);stroke-width:3;stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5}
+.e.external{stroke:var(--fp-wall-external);stroke-width:6;stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
 .e.se{stroke-width:1.5} .opening{stroke:var(--fp-room);stroke-width:9;pointer-events:none}
 .extra{fill:none;stroke:var(--fp-idle);stroke-dasharray:6 4;stroke-width:1.2;vector-effect:non-scaling-stroke;pointer-events:none}
 .door{stroke:var(--fp-door)} .door-glass{stroke:var(--fp-glass)} .door-window{stroke:var(--fp-window)} .door-sealed{stroke:var(--fp-sealed);stroke-dasharray:10 6}
@@ -78,7 +80,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       out.push(`<line class="e${wall ? "" : " nw"}" data-e="${P.id}:${i}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"/>`);
     });
   f.walls.forEach((w, i) =>
-    out.push(`<line class="e${w.kind === "boundary" ? " nw" : ""}" data-w="${i}" x1="${num(w.a[0])}" y1="${num(w.a[1])}" x2="${num(w.b[0])}" y2="${num(w.b[1])}"/>`));
+    out.push(`<line class="e${w.kind === "boundary" ? " nw" : w.kind === "wall" ? "" : ` ${esc(String(w.kind))}`}" data-w="${i}" x1="${num(w.a[0])}" y1="${num(w.a[1])}" x2="${num(w.b[0])}" y2="${num(w.b[1])}"/>`));
 
   f.stairs.forEach((t, i) => t.pts.forEach((a, j) => {
     const b = t.pts[(j + 1) % t.pts.length];

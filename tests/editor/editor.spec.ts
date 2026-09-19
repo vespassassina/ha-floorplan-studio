@@ -696,3 +696,66 @@ test("a zone listed before the room under it is still on top: a click inside it 
   await expect(page.locator("#rk")).toHaveValue("zone");
   await expect(page.locator("#ra")).toHaveValue("reading");
 });
+
+// ---- S1.9 wall kinds ----
+const WALL_KINDS = ["wall", "boundary", "external", "fence", "edge"] as const;
+const WALL_CLASS: Record<string, string> = { wall: "e", boundary: "e nw", external: "e external", fence: "e fence", edge: "e edge" };
+
+/** Five free walls of one kind each, side by side under the house (outline ends at y 600), clear of every room. */
+async function withWallRow(page: Page) {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    const kinds = ["wall", "boundary", "external", "fence", "edge"];
+    l.floors.ground.walls = kinds.map((kind, i) => ({ id: `wall-ground-${i + 1}`, a: [10 + i * 150, 650], b: [110 + i * 150, 650], kind }));
+    el.layout = l;
+  }, EDITOR);
+  await expect(page.locator("svg line[data-w]")).toHaveCount(5);
+}
+
+test("clicking each wall with the mouse selects it and the kind select shows its kind", async ({ page }) => {
+  await withWallRow(page);
+  for (const [i, kind] of WALL_KINDS.entries()) {
+    await clickCm(page, 60 + i * 150, 650);
+    await expect(page.locator("#wk")).toHaveValue(kind);
+    await expect(page.locator(`svg line[data-w="${i}"]`)).toHaveClass(new RegExp(`^${WALL_CLASS[kind]}$`));
+  }
+});
+
+test("a thin fence stays clickable a few pixels off its line, and the nearest wall wins", async ({ page }) => {
+  await withWallRow(page);
+  const c = await screenOf(page, 60 + 3 * 150, 650); // the fence
+  await page.mouse.click(c.x, c.y + 5);
+  await expect(page.locator("#wk")).toHaveValue("fence");
+  await page.mouse.click(c.x, c.y - 6);
+  await expect(page.locator("#wk")).toHaveValue("fence");
+});
+
+test("the wall panel has a kind select with five human labels and no toggle button", async ({ page }) => {
+  await withWallRow(page);
+  await clickCm(page, 60, 650);
+  await expect(page.locator("#wk")).toHaveJSProperty("tagName", "SELECT");
+  expect(await page.locator("#wk option").evaluateAll((o) => o.map((x) => [(x as HTMLOptionElement).value, x.textContent]))).toEqual([
+    ["wall", "Internal wall"], ["boundary", "Dotted boundary"], ["external", "External wall"], ["fence", "Fence"], ["edge", "Outdoor edge"],
+  ]);
+  await expect(page.locator("button#wk")).toHaveCount(0);
+});
+
+test("changing a wall's kind in the panel changes its class, is one undo step, and undo restores it", async ({ page }) => {
+  await withWallRow(page);
+  await clickCm(page, 60, 650);
+  for (const kind of ["external", "fence", "edge", "boundary"]) {
+    await page.locator("#wk").selectOption(kind);
+    await expect(page.locator('svg line[data-w="0"]')).toHaveClass(new RegExp(`^${WALL_CLASS[kind]}$`));
+    expect((await groundOf(page)).walls[0].kind).toBe(kind);
+  }
+  await page.locator("#wk").selectOption("boundary"); // unchanged: no step
+  await page.locator("#wk").selectOption("wall");
+  await page.locator("#wk").selectOption("fence");
+  await page.locator("#wk").selectOption("wall");
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).walls[0].kind).toBe("fence");
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).walls[0].kind).toBe("wall");
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).walls[0].kind).toBe("boundary");
+});

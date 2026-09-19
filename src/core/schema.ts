@@ -9,7 +9,8 @@ export type FurnitureSymbol =
   | "bathtub" | "tv" | "computer" | "tree" | "patio-wood" | "patio-concrete" | "car";
 
 export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; w: boolean[] }
-export interface Wall { id: string; a: Pt; b: Pt; kind: "wall" | "boundary" }
+export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
+export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind }
 export interface Stairs { id: string; name: string; pts: Pt[] }
 export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensor?: string; cover?: string }
 export interface Opening { id: string; a: Pt; b: Pt }
@@ -29,6 +30,7 @@ const isEntity = (x: unknown) => typeof x === "string" && x.includes(".");
 const isPt = (p: unknown) => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === "number" && Number.isFinite(n));
 
 export const ROOM_KINDS: readonly RoomKind[] = ["room", "outdoor", "fill", "terrace", "structure", "zone", "water"];
+export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", "fence", "edge"];
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed"];
 export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "media", "cover", "other"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"];
@@ -79,7 +81,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         errors.push(`${at} ${r.id} is a zone and cannot have a wall edge: every w entry must be false`);
     });
     each("walls", (w) => {
-      oneOf(`${w.id} kind`, w.kind, ["wall", "boundary"]);
+      oneOf(`${w.id} kind`, w.kind, WALL_KINDS);
       if (!isPt(w.a) || !isPt(w.b)) errors.push(`${at} ${w.id} needs points a and b`);
     });
     each("stairs", (s) => poly(`${s.id} pts`, s.pts));

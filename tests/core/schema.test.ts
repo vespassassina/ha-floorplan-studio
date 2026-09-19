@@ -174,3 +174,17 @@ describe("validate bound", () => {
     });
   });
 });
+
+describe("wall kinds", () => {
+  const withKind = (kind: unknown) => {
+    const l = clone();
+    l.floors.ground.walls.push({ id: "w1", a: [0, 0], b: [10, 0], kind });
+    return l;
+  };
+  it("accepts wall, boundary, external, fence and edge", () => {
+    for (const k of ["wall", "boundary", "external", "fence", "edge"]) expect(errorsOf(withKind(k)), k).toEqual([]);
+  });
+  it("rejects garden, an empty kind, a missing kind and a non-string kind", () => {
+    for (const k of ["garden", "", undefined, 3, null, "Fence"]) expect(errorsOf(withKind(k)).join("\n"), String(k)).toMatch(/w1 kind must be one of wall, boundary, external, fence, edge/);
+  });
+});

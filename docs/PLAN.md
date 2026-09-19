@@ -177,7 +177,7 @@ field, and `migrate` fills defaults.
 - Done when: tests pass; snapshot updated; the card needs no change to draw both (assert `renderFloor` output contains them without `editor: true`).
 - Break it: a zone with fewer than 3 points fails `validate`, like a room.
 
-### S1.9 Wall kinds
+### S1.9 Wall kinds (done)
 - Outcome: free walls come in five kinds: internal wall, dotted boundary, external wall, fence, outdoor edge.
 - Files: `src/core/schema.ts`, `src/core/render.ts`, `src/editor/panels.ts`, `tests/core/schema.test.ts`, `tests/core/render.test.ts`.
 - Interface: `Wall.kind` is `"wall" | "boundary" | "external" | "fence" | "edge"`. `renderFloor` gives `line[data-w]` the class of its kind (`wall` keeps class `e`, `boundary` keeps `nw`, the new ones get `external`, `fence`, `edge`); stroke and dash per kind through `--fp-wall-*` variables in `FLOORPLAN_CSS`: external thick, fence thin dash-dot, edge thin solid grey. Wall panel: a kind select replaces the wall/boundary toggle button. No migration: existing values keep their meaning.
