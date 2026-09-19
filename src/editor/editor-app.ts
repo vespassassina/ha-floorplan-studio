@@ -303,7 +303,8 @@ export class FloorplanStudioEditor extends LitElement {
     this.focus({ preventScroll: true });
     const p = this.toSvg(ev);
     if (this.draw) { this.drawClick(p, ev.altKey, ev); return; }
-    if (this.finished && !this.sameDouble(ev)) this.finished = null; // a press elsewhere, or late, is not the second click of that pair
+    // A press elsewhere, or late, is not the second click of that pair; a third press means the user double-clicked on purpose.
+    if (this.finished) { if (this.sameDouble(ev) && this.finished.presses === 0) this.finished.presses = 1; else this.finished = null; }
     let hit = hitOf(ev.target as Element);
     if (hit.k === "bg" || hit.k === "room" || hit.k === "stairs") hit = this.edgeNear(p) ?? hit;
     const base = structuredClone(f);
@@ -480,7 +481,8 @@ export class FloorplanStudioEditor extends LitElement {
   private onDblClick = (ev: MouseEvent) => {
     if (this.draw) { this.finishDraw(); return; }
     // The click that finished a shape already did its work; Firefox and Safari still send the dblclick for the pair.
-    if (this.finished) { const same = this.sameDouble(ev); this.finished = null; if (same) return; }
+    // The phantom pair is the finishing press plus exactly one more; a deliberate double-click is that press plus two.
+    if (this.finished) { const phantom = this.sameDouble(ev) && this.finished.presses === 1; this.finished = null; if (phantom) return; }
     const p = this.toSvg(ev);
     let hit = hitOf(ev.target as Element);
     if (hit.k !== "edge") hit = this.edgeNear(p) ?? hit;
@@ -584,7 +586,7 @@ export class FloorplanStudioEditor extends LitElement {
     return this.snapCorner(this.st.f, p, NOWHERE, NO_REF, alt, d.points, d.kind === "zone");
   }
   /** Where and when a pointer press finished a shape: its dblclick, if the browser sends one, must not edit the plan. */
-  private finished: { t: number; x: number; y: number } | null = null;
+  private finished: { t: number; x: number; y: number; presses: number } | null = null;
   /** Is `ev` the second half of a double-click that began at the press that finished a shape? Within 500 ms and 10 px. */
   private sameDouble(ev: { clientX: number; clientY: number }): boolean {
     const f = this.finished;
@@ -595,7 +597,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (!d) return;
     const r = d.click(this.snapDraw(d, raw, alt), 14 / this.scale, raw);
     this.hover = null;
-    if (r === "finish") { this.finishDraw(); this.finished = { t: performance.now(), x: ev.clientX, y: ev.clientY }; } else this.requestUpdate();
+    if (r === "finish") { this.finishDraw(); this.finished = { t: performance.now(), x: ev.clientX, y: ev.clientY, presses: 0 }; } else this.requestUpdate();
   }
   /** Writes the shape as one undo step, or drops it when it has too few points. */
   private finishDraw() {

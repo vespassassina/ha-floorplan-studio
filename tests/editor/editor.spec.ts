@@ -1669,11 +1669,23 @@ test("Draw, Opening: a click, a real double-click on the second end on a wall: o
   await expect(page.locator("#undo")).toBeDisabled();
 });
 
+test("Draw, Opening: a deliberate double-click right after finishing on the wall adds a corner (the finishing press and two more)", async ({ page }) => {
+  const before = await groundOf(page);
+  await startDraw(page, "drawOpening");
+  await clickCm(page, 200, 400);
+  await clickCm(page, 300, 400); // finishes the opening
+  await dblclickCm(page, 300, 400); // press 2 and press 3: a real double-click
+  const g = await groundOf(page);
+  expect(g.openings).toHaveLength(1);
+  expect(pointCount(g)).toBeGreaterThan(pointCount(before)); // the corner went into the wall under the pointer
+});
+
 test("Draw, Opening: the dblclick that follows the finishing click adds no corner to the wall under it", async ({ page }) => {
   const before = await groundOf(page);
   await startDraw(page, "drawOpening");
   await clickCm(page, 200, 400);
   await clickCm(page, 300, 400); // finishes the opening
+  await clickCm(page, 300, 400); // the second press of the pair: exactly one press follows the finishing one
   await sendDblclick(page, 300, 400);
   const g = await groundOf(page);
   expect(g.openings).toHaveLength(1);
@@ -1692,6 +1704,7 @@ test("a polygon closed on its first point, then the dblclick there, gets no extr
   await clicksCm(page, ...tri);
   await clickCm(page, 250, 400); // the closing click
   const single = await groundOf(page);
+  await clickCm(page, 250, 400); // the second press of the pair
   await sendDblclick(page, 250, 400);
   expect(await groundOf(page)).toEqual(single);
   await page.keyboard.press("Control+z");
@@ -1704,7 +1717,7 @@ test("a polygon closed on its first point, then the dblclick there, gets no extr
   expect(await groundOf(page)).toEqual(single);
 });
 
-test("the guard is short-lived and local: a later dblclick, or one after a click elsewhere, adds its point", async ({ page }) => {
+test("pinned regression, passes with or without the guard: a late dblclick, or one after a click elsewhere, adds its point", async ({ page }) => {
   await startDraw(page, "drawOpening");
   await clickCm(page, 200, 400);
   await clickCm(page, 300, 400);
