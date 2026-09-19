@@ -141,3 +141,30 @@ describe("room names and labels", () => {
     expect(validate(m).ok).toBe(false);
   });
 });
+
+describe("an older or hand-written layout still loads (review S1.5 round 2, finding 1)", () => {
+  // every optional field missing at once: names, labels, areas, ids, kinds
+  const bare = (version: number): any => ({
+    version,
+    floors: { g: {
+      outline: [[0, 0], [100, 0], [100, 100], [0, 100]],
+      rooms: [{ pts: [[0, 0], [100, 0], [100, 100], [0, 100]], kind: "room", w: [true, true, true, true] }],
+      stairs: [{ pts: [[10, 10], [40, 10], [40, 40], [10, 40]] }],
+      extras: [{ a: [0, 50], b: [50, 50] }],
+      devices: [{ type: "light", x: 50, y: 50, entity: "light.a" }],
+    } },
+  });
+  for (const v of [1, 2])
+    it(`v${v}: stairs and extras with no name migrate to a layout that validates`, () => {
+      const r = validate(migrate(bare(v)));
+      expect(r).toMatchObject({ ok: true });
+      const f = (migrate(bare(v)) as any).floors.g;
+      expect([f.stairs[0].name, f.extras[0].name]).toEqual(["", ""]);
+    });
+  it("keeps a name that is there", () => {
+    const l = bare(2);
+    l.floors.g.stairs[0].name = "Main"; l.floors.g.extras[0].name = "Fence";
+    const f = migrate(l).floors.g as any;
+    expect([f.stairs[0].name, f.extras[0].name]).toEqual(["Main", "Fence"]);
+  });
+});

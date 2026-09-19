@@ -75,6 +75,15 @@ describe("EditorState", () => {
     expect(restoreLayout()?.floors.ground.rooms[0].name).toBe("Saved");
   });
 
+  it("restores an autosave whose stairs and extras have no name", () => {
+    const l: any = structuredClone(demo);
+    const g = l.floors.ground;
+    g.stairs = [{ id: "s1", pts: [[10, 10], [40, 10], [40, 40]] }];
+    g.extras = [{ id: "e1", a: [0, 0], b: [10, 0] }];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(l));
+    expect(restoreLayout()?.floors.ground.stairs[0].name).toBe("");
+  });
+
   it("ignores an autosave that is not a valid layout", () => {
     localStorage.setItem(STORAGE_KEY, '{"version":2}');
     expect(restoreLayout()).toBeNull();
