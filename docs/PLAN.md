@@ -35,7 +35,7 @@ Repo: `~/Documents/Software/HomeFloorplan`, file `editor/editor.src.html`,
 build `bash editor/build.sh` (must print `passed`). Tests are browser checks
 run with scripted clicks; record the JS used and its output in the report.
 
-### S0.1 MDI icons for devices
+### S0.1 MDI icons for devices (done, HomeFloorplan task/S0.1)
 - Outcome: each device type draws a Material Design Icon path instead of a polygon.
 - Files: `editor/icons.js` (new, inlined by build.sh), `editor/editor.src.html`.
 - Interface: `var ICONS = { heater: "<path d>", light: ..., switch: ..., plug: ..., temp: ..., humidity: ..., motion: ..., contact: ..., window: ..., camera: ..., climate: ..., media: ..., cover: ..., other: ... }`. Paths come from the `@mdi/js` npm package, names: radiator, lightbulb, light-switch, power-plug, thermometer, water-percent, motion-sensor, door, window-closed-variant, cctv, thermostat, television, garage, help-circle. Draw as `<g data-x="i" transform="translate(x-12k, y-12k) scale(k)"><path d="..." fill="colour"/></g>`, where `k = 1/scale()` so icons stay 24 px on screen. Heater keeps the bar plus a small icon at its centre.
@@ -43,7 +43,7 @@ run with scripted clicks; record the JS used and its output in the report.
 - Done when: all types have an icon; the selected device still has an ink outline; hit testing on the `<g>` selects it; build passes.
 - Break it: a device with an unknown `type` draws `other`, not nothing.
 
-### S0.2 Contact sensor on doors and windows
+### S0.2 Contact sensor on doors and windows (done, task/S0.2)
 - Outcome: a door or window can carry a `sensor` entity; the editor shows it and can preview the open state in orange.
 - Files: `editor/editor.src.html`, `tools/migrate_catalog.py` (mark `window` catalogue entries as `contact`).
 - Interface: `door.sensor` (string entity id or absent). Door panel gets a `<select id="dsens">` listing `catalog` entries of type `contact` that are not used by another door, plus "none". A `Preview open` checkbox (`#dopen`, not persisted) draws the door with `stroke="var(--ed-open)"` where `--ed-open:#f28c28`.
@@ -51,7 +51,7 @@ run with scripted clicks; record the JS used and its output in the report.
 - Done when: the above holds; a contact device already placed on the plan as a point is still allowed (both forms coexist until S1.2 migration).
 - Break it: deleting a door with a sensor frees the sensor for the list.
 
-### S0.3 Schema v2 fields written by the editor
+### S0.3 Schema v2 fields written by the editor (done, task/S0.3)
 - Outcome: the editor writes `version: 2`, gives every room, wall, door, stairs, opening, extra and device an `id`, rooms an `area` (defaults to the slug of `name`), and loads v1 files.
 - Files: `editor/editor.src.html` (`norm()`), `tools/render_layout.py` (ignore new fields).
 - Interface: ids are `<kind>-<floor>-<n>` for objects without one; device ids stay as they are. `norm()` is the migration; it is idempotent.
@@ -63,7 +63,7 @@ run with scripted clicks; record the JS used and its output in the report.
 
 ## Sprint 1 — core and standalone editor (E1, E2)
 
-### S1.1 Scaffold
+### S1.1 Scaffold (done)
 - Outcome: the repository builds, lints and runs one test.
 - Files: everything in the layout above except `src/*` bodies; `src/core/index.ts` exports nothing yet; `demo/layout.json` is a two-floor, six-room house with 12 devices, three doors with sensors, one cover; `demo/layout.v1.json` is the same in v1 shape (no ids, `type: "sensor"` for temp, `type: "window"` for contacts).
 - Interface: `package.json` scripts exactly as the table in WORKFLOW.md. Dependencies: `lit`, `@mdi/js`; dev: `typescript`, `vite`, `vite-plugin-singlefile`, `vitest`, `@playwright/test`, `eslint`, `typescript-eslint`, `jsdom`. Node 20. `hacs.json`: `{"name": "Floorplan Studio", "render_readme": true, "homeassistant": "2025.6.0"}`. `manifest.json`: domain `floorplan_studio`, `"version": "0.1.0"`, `"iot_class": "local_push"`, `"dependencies": ["http", "frontend", "panel_custom"]`, `"config_flow": true`.
@@ -71,7 +71,7 @@ run with scripted clicks; record the JS used and its output in the report.
 - Done when: `npm ci && npm run lint && npm test && npm run build` all exit 0 and `dist/` contains the three files; `pytest` collects 0 tests without error.
 - Break it: `npm run build` fails loudly if `src/editor/standalone.html` is missing.
 
-### S1.2 Schema and migration
+### S1.2 Schema and migration (done)
 - Outcome: typed layout, validation, v1 to v2 migration.
 - Files: `src/core/schema.ts`, `src/core/migrate.ts`, `tests/core/schema.test.ts`, `tests/core/migrate.test.ts`.
 - Interface:
@@ -100,7 +100,7 @@ run with scripted clicks; record the JS used and its output in the report.
 - Done when: all tests pass; `npm run lint` clean; types exported from `src/core/index.ts`.
 - Break it: `migrate(null)` throws, does not return a layout.
 
-### S1.3 Geometry
+### S1.3 Geometry (done)
 - Outcome: the editor's snapping and stitching as pure functions.
 - Files: `src/core/geometry.ts`, `tests/core/geometry.test.ts`.
 - Interface (all pure, return new arrays, never mutate inputs):
@@ -122,7 +122,7 @@ run with scripted clicks; record the JS used and its output in the report.
 - Done when: tests pass; no function touches `document` or `window`.
 - Break it: `snapPoint` with `threshold: 0` returns the grid-rounded input.
 
-### S1.4 Renderer
+### S1.4 Renderer (done)
 - Outcome: layout to SVG, with an optional live state overlay, used by editor and card.
 - Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/core/__snapshots__/`.
 - Interface:
@@ -137,7 +137,7 @@ run with scripted clicks; record the JS used and its output in the report.
 - Done when: snapshot committed; state tests pass; the string contains no `#rrggbb`.
 - Break it: a device whose entity is missing from `state` renders as `off`, not as an error.
 
-### S1.5 Icons
+### S1.5 Icons (done)
 - Outcome: one icon per device type and furniture symbol.
 - Files: `src/core/icons.ts`, `tests/core/icons.test.ts`.
 - Interface: `export const DEVICE_ICONS: Record<DeviceType, string>` (MDI path data, from `@mdi/js`, names as in S0.1) and `export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: string }>` where `svg` is a 100×100 viewBox symbol body drawn by hand (simple outlines). Default sizes in cm: table 160×90, sofa 200×90, bed 160×200, cabinet 100×45, chair 45×45, sink 60×45, toilet 40×65, shower 90×90, bathtub 170×75, tv 120×10, computer 60×40, tree 200×200, patio-wood 300×300, patio-concrete 300×300, car 450×180.
