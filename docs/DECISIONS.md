@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-19 Sprint 1.5 review fixes, round 2
+
+- Only a zone polygon's own edge hides the wall toggle. The first bullet of the entry below says it also hides on a room edge that a zone edge lies on top of; the code and the geometry test "toggleWall on a room edge that a zone edge lies on" say otherwise: a room edge under a zone edge still toggles, and the zone stays dotted. That parenthetical is wrong. On an exact tie between a zone edge and a room edge, the pointer pick (`nearestEdge` with `zones: true`) now takes the room edge, whichever is listed first, so that toggle stays reachable.
+- The host finder keeps offering free walls (`{ walls: true }`), so Add, Door can put a door on a fence. Kept on purpose: a gate is a door on a fence. No code change.
+- `migrate` fills `name` with "" on stairs and extras. `validate` demands text there since round 1, and an older or hand-written file without them was refused on Open and its autosave dropped. Door names were already required before the branch; no other field `validate` added can be missing from an older file (room label is filled, device name is optional).
+- The dblclick after a finishing press is swallowed only when exactly one press followed it. The phantom pair is the finishing press plus one; a deliberate double-click is that press plus two. This refines the guard entry below.
+- A zone drag never stitches, on the ends of the drag rather than the coordinate: with a third polygon's corner at the drop point the old check (every polygon at that point is a zone) let `stitch` insert a point into the rooms either side.
+
 ## 2026-09-19 Sprint 1.5 review fixes (Opus findings on S1.8 to S1.13)
 
 - A zone edge is never a wall toggle. `edgeRooms` returns nothing for a zone polygon and skips zones as matches, so the panel hides "Make this edge a wall" on a zone edge (and on a room edge that a zone edge lies on top of), and `toggleWall` returns the floor unchanged. Before, the toggle wrote `w[i] = true` into a zone, which `validate` rejects: Save refused and a reload dropped the autosave.
