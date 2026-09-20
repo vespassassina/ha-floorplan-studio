@@ -685,10 +685,12 @@ export class FloorplanStudioEditor extends LitElement {
     const shape = d.finish(), floor = this.st.floor;
     this.draw = null; this.hover = null;
     if (!shape) { this.status = "Drawing cancelled: too few points"; this.requestUpdate(); return; }
-    let sel: Sel = null;
-    if (this.st.edit((f) => { const r = applyShape(f, floor, shape); sel = r.sel; return r.floor; })) {
+    let sel: Sel = null, note = "";
+    if (this.st.edit((f) => { const r = applyShape(f, floor, shape); sel = r.sel; note = r.note ?? ""; return r.floor; })) {
       this.st.sel = sel;
-      this.changed("Added the shape");
+      this.changed(note || "Added the shape");
+      // A room made from walls asks for its name at once. The press that closed it still has its default focus move to come, so wait it out.
+      if (note) void this.updateComplete.then(() => setTimeout(() => this.renderRoot.querySelector<HTMLInputElement>("#rn")?.focus(), 0));
     } else this.requestUpdate();
   }
 

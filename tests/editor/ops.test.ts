@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Layout, Pt } from "../../src/core/schema";
-import { gridRound, roundStairs, rotateSegment, snapRoomTo, spawnPoint, squareAt, stairsAt } from "../../src/editor/ops";
+import { closedLoop, gridRound, roundStairs, rotateSegment, snapRoomTo, spawnPoint, squareAt, stairsAt } from "../../src/editor/ops";
 
 const ground = () => structuredClone((demo as unknown as Layout).floors.ground);
 const FALLBACK: Pt = [123, 457];
@@ -100,5 +100,41 @@ describe("gridRound (S1.34)", () => {
     expect(stairsAt([503, 397], 5).pts[0]).toEqual([455, 245]);
     expect(stairsAt([503, 397], 0).pts[0]).toEqual([453, 247]);
     expect(squareAt([503, 397], 50)[0]).toEqual([400, 300]);
+  });
+});
+
+describe("closedLoop (S1.48)", () => {
+  const wall = (id: string, a: Pt, b: Pt) => ({ id, a, b, kind: "wall" as const });
+  const sq = () => { const f = ground(); f.walls = [wall("w1", [1000, 0], [1200, 0]), wall("w2", [1200, 0], [1200, 100]), wall("w3", [1200, 100], [1000, 100]), wall("w4", [1000, 100], [1000, 0])]; return f; };
+  it("finds the ring through the wall just added, in order", () => {
+    const l = closedLoop(sq(), 3)!;
+    expect(l.walls.sort()).toEqual([0, 1, 2, 3]);
+    expect(l.pts).toHaveLength(4);
+  });
+  it("is null while one side is missing", () => {
+    const f = sq(); f.walls.pop();
+    expect(closedLoop(f, 2)).toBeNull();
+  });
+  it("takes ends a little apart as one point, not ends far apart", () => {
+    const f = sq(); f.walls[3].b = [1001, 1];
+    expect(closedLoop(f, 3, 2)).not.toBeNull();
+    f.walls[3].b = [1010, 10];
+    expect(closedLoop(f, 3, 2)).toBeNull();
+  });
+  it("two squares sharing a wall give the ring through the wall asked for, not both", () => {
+    const f = sq();
+    f.walls.push(wall("w5", [1200, 0], [1400, 0]), wall("w6", [1400, 0], [1400, 100]), wall("w7", [1400, 100], [1200, 100]), wall("w8", [1200, 100], [1200, 0]));
+    const l = closedLoop(f, 7)!;
+    expect(l.walls.length).toBe(4);
+  });
+  it("the same wall drawn three times is no ring", () => {
+    const f = ground(); f.walls = [wall("a", [0, 0], [100, 0]), wall("b", [0, 0], [100, 0]), wall("c", [100, 0], [0, 0])];
+    expect(closedLoop(f, 2)).toBeNull();
+  });
+  it("a triangle counts, two walls do not", () => {
+    const f = ground(); f.walls = [wall("a", [0, 0], [100, 0]), wall("b", [100, 0], [0, 0])];
+    expect(closedLoop(f, 1)).toBeNull();
+    f.walls = [wall("a", [0, 0], [100, 0]), wall("b", [100, 0], [50, 80]), wall("c", [50, 80], [0, 0])];
+    expect(closedLoop(f, 2)!.walls).toHaveLength(3);
   });
 });

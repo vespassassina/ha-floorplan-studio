@@ -609,7 +609,7 @@ S1.42 are three defects the verifiers found.
 - Done when: tests pass; SPEC lists `none`.
 - Break it: deleting all four edges of a room leaves it selectable by its fill; a stored `none` in a zone is an error.
 
-### S1.48 A closed loop of walls becomes a room
+### S1.48 A closed loop of walls becomes a room (done)
 - Outcome: drawing walls until the last point meets the first makes a room, zone or garden out of them, so the user does not draw the same shape twice.
 - Files: `src/editor/ops.ts`, `src/editor/state.ts`, `src/editor/editor-app.ts`, `tests/editor/ops.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
 - Interface: `closedLoop(f, wall): Pt[] | null` in `ops.ts` walks the drawn walls from the one just added and returns the ring of points when the last end is within the snap distance of the first start and the ring has three or more corners. The perimeter Outline is never part of a loop. On close, the editor removes those walls and adds one room in the same commit (undo removes the whole room in one step): kind `room` for wall or external walls, `zone` for dotted, `garden` for fence or edge; `wk` per edge takes the walls' kind (`boundary` for a zone). The new room has an empty `area`, is selected, and its name field is focused; it can be renamed and linked to an HA area like any room. The status line says `Room created from 4 walls`.

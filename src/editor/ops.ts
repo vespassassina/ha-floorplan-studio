@@ -66,6 +66,33 @@ export function segmentAt(q: Pt, u: Pt, len: number): { a: Pt; b: Pt } {
 }
 
 /** `n` on the `grid` cm grid; grid 0 (none) rounds to a whole cm. */
+/**
+ * The shortest ring of 3 to 12 walls through wall `w`, whose ends meet within `tol` cm: the wall
+ * indices and the ring's corners in order. Null when `w` is on no ring. (S1.48)
+ */
+export function closedLoop(f: Floor, w: number, tol = 2): { walls: number[]; pts: Pt[] } | null {
+  const W = f.walls, at = (p: Pt, q: Pt) => dist(p, q) <= tol;
+  const from = (i: number, end: Pt, seen: number[], pts: Pt[], goal: Pt, depth: number): { walls: number[]; pts: Pt[] } | null => {
+    if (seen.length >= 3 && at(end, goal)) return { walls: seen, pts };
+    if (seen.length >= depth) return null;
+    for (let j = 0; j < W.length; j++) {
+      if (seen.includes(j)) continue;
+      const far = at(W[j].a, end) ? W[j].b : at(W[j].b, end) ? W[j].a : null;
+      if (!far) continue;
+      if (pts.slice(1).some((q) => at(q, far))) continue; // a corner visited twice is a retraced wall, not a ring
+      const r = from(j, far, [...seen, j], [...pts, far], goal, depth);
+      if (r) return r;
+    }
+    return null;
+  };
+  if (!W[w]) return null;
+  for (let depth = 3; depth <= 12; depth++) {
+    const r = from(w, W[w].b, [w], [W[w].a, W[w].b], W[w].a, depth);
+    if (r) return { walls: r.walls, pts: r.pts.slice(0, -1).map((p): Pt => [p[0], p[1]]) };
+  }
+  return null;
+}
+
 export const gridRound = (n: number, grid: number) => (grid ? Math.round(n / grid) * grid : Math.round(n));
 
 /** A stairs polygon of 100 x 300 cm centred on c, corners on the grid (10 cm by default). */

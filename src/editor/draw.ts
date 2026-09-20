@@ -1,5 +1,6 @@
 import { dist, stitch } from "../core";
-import type { Floor, Pt, WallKind } from "../core";
+import type { EdgeKind, Floor, Pt, RoomKind, WallKind } from "../core";
+import { closedLoop } from "./ops";
 import { newId, slug, type Sel } from "./state";
 
 // Draw mode without the DOM: a state machine that collects points, and a pure
@@ -31,6 +32,8 @@ export class Draw {
   click(pt: Pt, closeTh = 0, raw: Pt = pt): ClickResult {
     const n = this.points.length;
     if (this.polygon && n && dist(raw, this.points[0]) <= closeTh) return n >= 3 ? "finish" : "ignore";
+    // Walls chain, but a click back on the first corner closes the loop exactly there. (S1.48)
+    if (this.kind === "wall" && n >= 3 && dist(raw, this.points[0]) <= closeTh) { this.points.push([this.points[0][0], this.points[0][1]]); return "finish"; }
     if (n && dist(pt, this.points[n - 1]) < SAME) return "ignore";
     this.points.push([pt[0], pt[1]]);
     return SEGMENTS.includes(this.kind) && this.points.length === 2 ? "finish" : "add";
@@ -51,7 +54,7 @@ export class Draw {
 }
 
 /** The floor with `s` added, and what to select. Does not touch `f`. */
-export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; sel: Sel } {
+export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; sel: Sel; note?: string } {
   const g = structuredClone(f), pts = s.pts.map((p): Pt => [p[0], p[1]]);
   let sel: Sel = null;
   if (s.kind === "outline") {
@@ -64,6 +67,19 @@ export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; s
   } else if (s.kind === "wall") {
     for (let i = 1; i < pts.length; i++) g.walls.push({ id: newId(g, floor, "wall"), a: pts[i - 1], b: [pts[i][0], pts[i][1]], kind: s.wall });
     sel = { t: "wall", i: g.walls.length - 1 };
+    // A loop the last wall closes becomes a room, a zone or a garden, and its walls go. (S1.48)
+    const loop = closedLoop(g, g.walls.length - 1);
+    if (loop) {
+      const kinds = loop.walls.map((i) => g.walls[i].kind), last = g.walls[g.walls.length - 1].kind;
+      const kind: RoomKind = last === "boundary" ? "zone" : last === "fence" || last === "edge" ? "garden" : "room";
+      // Walls come in walking order, so wall k is the edge from corner k to corner k+1.
+      g.walls = g.walls.filter((_, i) => !loop.walls.includes(i));
+      g.rooms.push({ id: newId(g, floor, "room"), name: `New ${kind}`, area: "", label: "", kind, pts: loop.pts, wk: kinds as EdgeKind[] });
+      sel = { t: "room", i: g.rooms.length - 1 };
+      const note = `${kind === "room" ? "Room" : kind === "zone" ? "Zone" : "Garden"} created from ${kinds.length} walls`;
+      const h = kind === "zone" ? g : loop.pts.reduce((x, p) => stitch(x, p), g);
+      return { floor: h, sel, note };
+    }
   } else if (s.kind === "opening") {
     g.openings.push({ id: newId(g, floor, "opening"), a: pts[0], b: pts[1] });
     sel = { t: "opening", i: g.openings.length - 1 };

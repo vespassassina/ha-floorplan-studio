@@ -3589,3 +3589,65 @@ test("S1.47: an edge that belongs to no room has no Delete", async ({ page }) =>
   await expect(page.locator("#addpt")).toBeVisible(); // the edge panel is up
   await expect(page.locator("#edel")).toHaveCount(0);
 });
+
+// ---- S1.48 a closed loop of walls becomes a room ----
+const LOOP: [number, number][] = [[103, 632], [297, 633], [298, 668], [102, 667]];
+
+for (const [wall, kind, label] of [["wall", "room", "Room"], ["external", "room", "Room"], ["boundary", "zone", "Zone"], ["fence", "garden", "Garden"], ["edge", "garden", "Garden"]] as const) {
+  test(`walls (${wall}) closed on the first point become a ${kind}, selected and named, one undo step`, async ({ page }) => {
+    await setGrid(page, 5);
+    const before = await groundOf(page);
+    await startDraw(page, `drawWall-${wall}`);
+    await clicksCm(page, ...LOOP, LOOP[0]);
+    const g = await groundOf(page);
+    expect(g.walls).toEqual(before.walls); // the four walls are gone
+    expect(g.rooms).toHaveLength(before.rooms.length + 1);
+    const room = g.rooms.at(-1)!;
+    expect([room.kind, room.area, room.wk]).toEqual([kind, "", [wall, wall, wall, wall]]);
+    expect(room.pts.map((p) => p.join()).sort()).toEqual(FREE_SNAPPED.map((p) => p.join()).sort());
+    await expect(page.locator("#status")).toHaveText(`${label} created from 4 walls`);
+    await expect(page.locator("#rn")).toBeFocused();
+    await expect(page.locator("#rn")).toHaveValue(`New ${kind}`);
+    await expect(page.locator("[data-draw]")).toHaveCount(0);
+    expect(validate(await layoutOf(page)).ok).toBe(true);
+    await menu(page, "File"); // the name field has focus, so Ctrl+Z would undo typing
+    await page.locator("#undo").click();
+    expect(await groundOf(page)).toEqual(before); // the walls are only drawn on commit, so one undo removes the room and leaves no walls
+    await expect(page.locator("#undo")).toBeDisabled();
+  });
+}
+
+test("walls closed on the first point: one undo leaves nothing behind, redo brings the room again", async ({ page }) => {
+  await setGrid(page, 5);
+  await startDraw(page, "drawWall-wall");
+  await clicksCm(page, ...LOOP, LOOP[0]);
+  const after = await groundOf(page);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  await menu(page, "File");
+  await page.locator("#redo").click();
+  expect(await groundOf(page)).toEqual(after);
+});
+
+test("a last click 30 cm from the first point is outside the snap: four walls, no room", async ({ page }) => {
+  await setGrid(page, 5);
+  const before = await groundOf(page);
+  await startDraw(page, "drawWall-wall");
+  await clicksCm(page, ...LOOP, [133, 632]);
+  await page.keyboard.press("Enter");
+  const g = await groundOf(page);
+  expect(g.rooms).toHaveLength(before.rooms.length);
+  expect(g.walls).toHaveLength(4);
+});
+
+test("two rings sharing a wall make two rooms", async ({ page }) => {
+  await setGrid(page, 5);
+  const before = await groundOf(page);
+  await startDraw(page, "drawWall-wall");
+  await clicksCm(page, [105, 630], [295, 630], [295, 670], [105, 670], [105, 630]);
+  await startDraw(page, "drawWall-wall");
+  await clicksCm(page, [295, 630], [395, 630], [395, 670], [295, 670], [295, 630]);
+  const g = await groundOf(page);
+  expect(g.rooms).toHaveLength(before.rooms.length + 2);
+  expect(g.walls).toEqual(before.walls);
+});

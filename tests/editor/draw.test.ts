@@ -50,11 +50,18 @@ describe("Draw state machine", () => {
     expect(d.points).toHaveLength(3);
   });
 
-  it("walls chain and do not close on the first point", () => {
+  it("walls chain; a click on the first point after three corners closes the loop (S1.48)", () => {
     const d = new Draw("wall", "fence");
     click(d, [0, 0], [100, 0], [100, 100]);
-    expect(d.click([0, 0], TH)).toBe("add");
-    expect(d.points).toHaveLength(4);
+    expect(d.click([5, 3], TH, [5, 3])).toBe("finish");
+    expect(d.finish()!.pts).toEqual([[0, 0], [100, 0], [100, 100], [0, 0]]); // closed exactly, not at the click
+  });
+
+  it("two corners cannot close a loop, and a click far from the first point just chains", () => {
+    const a = new Draw("wall"); click(a, [0, 0], [100, 0]);
+    expect(a.click([0, 0], TH)).toBe("add");
+    const b = new Draw("wall"); click(b, [0, 0], [100, 0], [100, 100]);
+    expect(b.click([30, 0], TH)).toBe("add");
   });
 
   it("opening and structure line finish by themselves at the second point", () => {
@@ -83,6 +90,39 @@ describe("Draw state machine", () => {
     d.cancel();
     expect(d.points).toEqual([]);
     expect(d.rubber([5, 5])).toBeNull();
+  });
+});
+
+describe("applyShape, closed walls (S1.48)", () => {
+  const ring: Pt[] = [[1000, 0], [1200, 0], [1200, 100], [1000, 100], [1000, 0]];
+  const made = (wall: "wall" | "external" | "boundary" | "fence" | "edge", pts: Pt[] = ring) => applyShape(ground(), "ground", { kind: "wall", wall, pts });
+  it("a closed loop of walls becomes a room and leaves no wall behind", () => {
+    const r = made("wall");
+    expect(r.floor.walls).toEqual([]);
+    const room = r.floor.rooms.at(-1)!;
+    expect(room).toMatchObject({ name: "New room", area: "", kind: "room", wk: ["wall", "wall", "wall", "wall"] });
+    expect(room.pts).toHaveLength(4);
+    expect(room.pts.map((p) => p.join()).sort()).toEqual(ring.slice(0, 4).map((p) => p.join()).sort()); // the ring starts at the closing wall
+    expect(r.sel).toEqual({ t: "room", i: r.floor.rooms.length - 1 });
+    expect(r.note).toBe("Room created from 4 walls");
+  });
+  it("wall and external give a room, dotted a zone, fence and edge a garden", () => {
+    expect(made("external").floor.rooms.at(-1)).toMatchObject({ kind: "room", wk: ["external", "external", "external", "external"] });
+    expect(made("boundary").floor.rooms.at(-1)).toMatchObject({ kind: "zone", wk: ["boundary", "boundary", "boundary", "boundary"] });
+    expect(made("fence").floor.rooms.at(-1)).toMatchObject({ kind: "garden", wk: ["fence", "fence", "fence", "fence"] });
+    expect(made("edge").floor.rooms.at(-1)).toMatchObject({ kind: "garden" });
+  });
+  it("an open chain stays walls", () => {
+    const r = made("wall", ring.slice(0, 4));
+    expect(r.floor.walls).toHaveLength(3);
+    expect(r.floor.rooms).toHaveLength(ground().rooms.length);
+  });
+  it("the outline is not converted", () => {
+    const f = ground();
+    const o = f.outline;
+    const r = applyShape(f, "ground", { kind: "wall", wall: "wall", pts: [...o, o[0]] });
+    expect(r.floor.outline).toEqual(f.outline);
+    expect(r.floor.rooms.at(-1)!.kind).toBe("room"); // a ring drawn over the outline is a ring of walls: a room
   });
 });
 

@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Closed walls become a room
+
+A wall chain closes when a click lands within snap distance of its first corner, with three or more corners. The last click is replaced by an exact copy of the first point. `closedLoop(f, w, tol=2)` in `ops.ts` finds the shortest ring of 3 to 12 walls through the last wall, and returns wall indices and corners, not only points, so the walls can be removed. Room kind follows the last wall: dotted a zone, fence or edge a garden, else a room. The room keeps the wall kinds as `wk`, has an empty area, and the name field takes focus. Conversion happens in the draw flow only. Walls dragged or added one by one stay walls. Because a draw commits at its end, one undo removes the room and no walls come back. This supersedes the S1.11 rule that walls do not close.
+
 ## 2026-09-20 S1.47: a room edge can be not drawn
 
 New EdgeKind = WallKind | none, valid on room wk only; walls and zones still reject it. Deviation from the plan: the editor draws a faint dotted guide (.e.none) with data-e, so a deleted edge can be picked again; the card draws nothing. Delete sets none on all rooms that share the edge; a door or window on it asks first (onEdge).

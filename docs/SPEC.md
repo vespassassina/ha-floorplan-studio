@@ -194,6 +194,10 @@ room_glow: true
   kind, not an Add item: draw it, or change a room's kind.
 - Draw is its own menu: room, zone, water, outline, wall of any kind, opening,
   structure line, by clicking points (double-click or Enter ends, Esc cancels).
+  Walls that close, a click back on the first corner after three or more,
+  become a room (wall, external), a zone (dotted) or a garden (fence, edge)
+  and the walls go. It has no HA area yet, is selected, and its name field
+  has focus. One undo removes it. The perimeter outline is not converted.
 - A new item lands top right, outside the house, so it never hides what is
   already drawn; the view scrolls to it. A door, window or opening still lands
   on the wall nearest the middle of the view: it is of no use off the house.
