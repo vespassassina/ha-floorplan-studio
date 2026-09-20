@@ -11,7 +11,9 @@ export type FurnitureSymbol =
 export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: WallKind[]; color?: string; free?: boolean }
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
 export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind }
-export interface Stairs { id: string; name: string; pts: Pt[] }
+export type StairShape = "straight" | "round";
+/** `dia` (outer) and `inner` (the empty well) exist on a round stair only; `pts` is its outer circle as a polygon. `rot` turns it about the centre of its box. */
+export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape; steps: number; rot: number; dia?: number; inner?: number }
 export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensor?: string; cover?: string }
 export interface Opening { id: string; a: Pt; b: Pt }
 export interface Extra { id: string; name: string; a: Pt; b: Pt }
@@ -31,6 +33,7 @@ const isPt = (p: unknown) => Array.isArray(p) && p.length === 2 && p.every((n) =
 
 export const ROOM_KINDS: readonly RoomKind[] = ["room", "garden", "pavement", "fill", "terrace", "structure", "zone", "water"];
 export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", "fence", "edge"];
+export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed"];
 export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "media", "cover", "other"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"];
@@ -94,7 +97,20 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       oneOf(`${w.id} kind`, w.kind, WALL_KINDS);
       if (!isPt(w.a) || !isPt(w.b)) errors.push(`${at} ${w.id} needs points a and b`);
     });
-    each("stairs", (s) => { name(s); poly(`${s.id} pts`, s.pts); });
+    each("stairs", (s) => {
+      name(s); poly(`${s.id} pts`, s.pts);
+      oneOf(`${s.id} shape`, s.shape, STAIR_SHAPES);
+      if (!Number.isInteger(s.steps) || s.steps < 2 || s.steps > 40) errors.push(`${at} ${s.id} steps must be a whole number from 2 to 40`);
+      if (!(typeof s.rot === "number" && Number.isFinite(s.rot) && s.rot >= 0 && s.rot < 360)) errors.push(`${at} ${s.id} rot must be a number in [0, 360)`);
+      const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+      if (s.shape === "round") {
+        if (!fin(s.dia) || s.dia < 40) errors.push(`${at} ${s.id} dia must be a number of at least 40`);
+        else if (!fin(s.inner) || s.inner < 0 || s.inner > s.dia - 40) errors.push(`${at} ${s.id} inner must be a number from 0 to dia - 40`);
+      } else if (s.shape === "straight") {
+        if (s.dia !== undefined) errors.push(`${at} ${s.id} dia is only for a round stair`);
+        if (s.inner !== undefined) errors.push(`${at} ${s.id} inner is only for a round stair`);
+      }
+    });
     each("doors", (d) => {
       name(d);
       oneOf(`${d.id} kind`, d.kind, DOOR_KINDS);

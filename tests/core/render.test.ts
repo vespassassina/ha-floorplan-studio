@@ -472,3 +472,55 @@ describe("device rotation (S1.23)", () => {
     expect(b.match(/<g data-x="[1-9]"[^>]*>/g)).toEqual(a.match(/<g data-x="[1-9]"[^>]*>/g));
   });
 });
+
+describe("stairs treads (S1.25)", () => {
+  const withStairs = (t: object) => { const f = structuredClone(ground); Object.assign(f.stairs[0], t); return renderFloor(f, base); };
+  const group = (html: string) => html.match(/<g data-s="0"[^>]*>[\s\S]*?<\/g>/)![0];
+  const round = { shape: "round", dia: 200, inner: 60, steps: 12, pts: Array.from({ length: 24 }, (_, i): [number, number] => [Math.round(500 + 100 * Math.cos((i * Math.PI) / 12)), Math.round(400 + 100 * Math.sin((i * Math.PI) / 12))]) };
+
+  it("wraps a straight flight in a group with its rotation about the box centre and draws steps - 1 treads across it", () => {
+    const g = group(withStairs({ shape: "straight", steps: 12, rot: 30 }));
+    expect(g).toContain('transform="rotate(30 740 500)"');
+    const treads = [...g.matchAll(/<line class="tread" x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"\/>/g)];
+    expect(treads).toHaveLength(11);
+    // the demo flight is 80 x 160: treads run across the 80 cm side, every 160 / 12 cm
+    for (const [i, m] of treads.entries()) {
+      expect([m[1], m[3]]).toEqual(["700", "780"]);
+      expect(+m[2]).toBeCloseTo(420 + ((i + 1) * 160) / 12, 1);
+      expect(m[4]).toBe(m[2]);
+    }
+    expect(g).toContain('class="stairs room"');
+  });
+  it("draws the treads of a flight that is wider than long across its short side", () => {
+    const g = group(withStairs({ steps: 4, pts: [[0, 0], [200, 0], [200, 50], [0, 50]] }));
+    const treads = [...g.matchAll(/<line class="tread" x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"/g)];
+    expect(treads.map((m) => [m[1], m[2], m[3], m[4]])).toEqual([["50", "0", "50", "50"], ["100", "0", "100", "50"], ["150", "0", "150", "50"]]);
+  });
+  it("draws a round stair as one even-odd path with a hole, and 11 spokes from the inner to the outer rim", () => {
+    const g = group(withStairs(round));
+    expect(g).toMatch(/<path class="stairs room" fill-rule="evenodd" d="M/);
+    expect(g).not.toContain("<polygon");
+    const spokes = [...g.matchAll(/<line class="tread" x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)"\/>/g)];
+    expect(spokes).toHaveLength(11);
+    for (const m of spokes) {
+      expect(Math.hypot(+m[1] - 500, +m[2] - 400)).toBeCloseTo(30, 0);
+      expect(Math.hypot(+m[3] - 500, +m[4] - 400)).toBeCloseTo(100, 0);
+    }
+  });
+  it("a round stair with no inner draws no hole and its spokes start at the centre", () => {
+    const g = group(withStairs({ ...round, inner: 0 }));
+    expect(g).toMatch(/<path class="stairs room" fill-rule="evenodd" d="[^M]*M[^M]*Z"/);
+    expect(g).toMatch(/class="tread" x1="500" y1="400"/);
+  });
+  it("draws edges with data-e only for an unrotated straight stair", () => {
+    expect(withStairs({})).toContain('data-e="s0:0"');
+    expect(withStairs({ rot: 30 })).not.toContain('data-e="s0:');
+    expect(withStairs(round)).not.toContain('data-e="s0:');
+  });
+  it("the tread style exists", () => expect(FLOORPLAN_CSS).toMatch(/--fp-tread:#8b8578/));
+  it("a stair that skipped migrate still draws (no shape, no steps)", () => {
+    const f = structuredClone(ground) as any;
+    delete f.stairs[0].shape; delete f.stairs[0].steps; delete f.stairs[0].rot;
+    expect(group(renderFloor(f, base)).match(/class="tread"/g)).toHaveLength(11);
+  });
+});

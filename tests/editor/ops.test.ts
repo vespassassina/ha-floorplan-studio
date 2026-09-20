@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Layout, Pt } from "../../src/core/schema";
-import { rotateSegment, snapRoomTo, spawnPoint } from "../../src/editor/ops";
+import { roundStairs, rotateSegment, snapRoomTo, spawnPoint, stairsAt } from "../../src/editor/ops";
 
 const ground = () => structuredClone((demo as unknown as Layout).floors.ground);
 const FALLBACK: Pt = [123, 457];
@@ -73,4 +73,17 @@ describe("rotateSegment", () => {
   it("a segment of zero length stays a point", () => {
     expect(rotateSegment([5, 5], [5, 5], 77)).toEqual({ a: [5, 5], b: [5, 5] });
   });
+});
+
+describe("stairs constructors (S1.25)", () => {
+  it("stairsAt keeps its 100 x 300 flight and adds the straight defaults", () => {
+    expect(stairsAt([500, 400])).toEqual({ name: "Stairs", pts: [[450, 250], [550, 250], [550, 550], [450, 550]], shape: "straight", steps: 12, rot: 0 });
+  });
+  it("roundStairs is a 24-gon on the outer circle with a default inner of 0.3 of dia", () => {
+    const t = roundStairs([500, 400], 200);
+    expect(t).toMatchObject({ shape: "round", dia: 200, inner: 60, steps: 12, rot: 0 });
+    expect(t.pts).toHaveLength(24);
+    for (const p of t.pts) expect(Math.abs(Math.hypot(p[0] - 500, p[1] - 400) - 100)).toBeLessThan(1);
+  });
+  it("takes an inner of its own", () => expect(roundStairs([0, 0], 200, 80).inner).toBe(80));
 });

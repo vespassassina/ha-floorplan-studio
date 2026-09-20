@@ -18,7 +18,7 @@ describe("dist and polys", () => {
   it("measures distance", () => expect(dist([0, 0], [3, 4])).toBe(5));
   it("lists outline, rooms and stairs with stable ids", () => {
     const f = floor();
-    f.stairs = [{ id: "st", name: "S", pts: rect(10, 10, 20, 20) }];
+    f.stairs = [{ id: "st", name: "S", pts: rect(10, 10, 20, 20), shape: "straight", steps: 12, rot: 0 }];
     expect(polys(f).map((p) => p.id)).toEqual(["o", "r0", "r1", "s0"]);
     expect(polys(f)[1].room).toBe(f.rooms[0]);
   });

@@ -2,7 +2,7 @@ import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, snapPoint, stitch, validate } from "../core";
-import type { DeviceType, Floor, Layout, Pt, WallKind } from "../core";
+import type { DeviceType, Floor, Layout, Pt, Stairs, WallKind } from "../core";
 import { looseEnds, movePointAll, pointsNear, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
@@ -48,6 +48,12 @@ const NOWHERE: Pt = [-1e9, -1e9];
 /** Where a door, window, opening or heater sits: a room, outline or water edge, or a free wall. Never a zone or stairs. */
 const HOST = { walls: true } as const;
 const NO_REF: PtRef = { k: "walls", i: -1, end: "a" };
+
+/** The transform attribute that turns a stairs highlight like renderFloor turns the stairs: `rot` about the centre of the box. */
+function stairsTurn(t: Stairs): string {
+  const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
+  return `transform="rotate(${num(t.rot)} ${num((Math.min(...xs) + Math.max(...xs)) / 2)} ${num((Math.min(...ys) + Math.max(...ys)) / 2)})"`;
+}
 
 function segDist(p: Pt, a: Pt, b: Pt): number {
   const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
@@ -825,14 +831,14 @@ export class FloorplanStudioEditor extends LitElement {
     if (s?.t === "opening" && f.openings[s.i]) o.push(line(f.openings[s.i].a, f.openings[s.i].b, "hl", 'stroke-width="4"'));
     if (s?.t === "wall" && f.walls[s.i]) o.push(line(f.walls[s.i].a, f.walls[s.i].b, "hl", 'stroke-width="4"'));
     if (s?.t === "room" && f.rooms[s.i]) o.push(`<polygon class="hl" points="${f.rooms[s.i].pts.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
-    if (s?.t === "stairs" && f.stairs[s.i]) o.push(`<polygon class="hl" points="${f.stairs[s.i].pts.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
+    if (s?.t === "stairs" && f.stairs[s.i]) o.push(`<polygon class="hl" ${stairsTurn(f.stairs[s.i])} points="${f.stairs[s.i].pts.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
     if (s?.t === "furn" && f.furniture[s.i]) { const m = f.furniture[s.i]; o.push(`<rect class="hl" x="-50" y="-50" width="100" height="100" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)})"/>`); }
     if (st.showLen) {
       const P = f.outline;
       P.forEach((a, i) => o.push(len(a, P[(i + 1) % P.length])));
       f.walls.forEach((w) => o.push(len(w.a, w.b)));
     }
-    f.stairs.forEach((t, i) => t.pts.forEach((p, j) => o.push(`<circle class="h" data-h="s${i}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`)));
+    f.stairs.forEach((t, i) => { if (t.shape === "straight" && !t.rot) t.pts.forEach((p, j) => o.push(`<circle class="h" data-h="s${i}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`)); });
     const open = st.openDoor && f.doors.find((d) => d.id === st.openDoor);
     if (open) o.push(line(open.a, open.b, "door open", 'stroke-width="22" pointer-events="none"'));
     for (const r of looseEnds(f)) { const p = f[r.k][r.i][r.end]; o.push(`<circle class="h" data-hp="${r.k}:${r.i}:${r.end}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(4.5 * k)}"/>`); }

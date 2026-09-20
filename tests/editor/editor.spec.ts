@@ -347,7 +347,7 @@ test("with no save-request listener at all, Save falls back to Saved", async ({ 
 
 // ---- add and remove stairs --------------------------------------------------
 
-const stairsCount = (page: Page) => page.locator("svg polygon[data-s]");
+const stairsCount = (page: Page) => page.locator("svg g[data-s]");
 const savedValid = async (page: Page) => {
   await menu(page, "File");
   const dl = page.waitForEvent("download");
@@ -2220,9 +2220,9 @@ test("dragging the pond by its middle moves every point by the same amount, adds
 
 test("dragging the stairs by their middle moves every point by the same amount", async ({ page }) => {
   const before = await groundOf(page), t0 = before.stairs[0];
-  const b0 = await bbox(page, 'svg polygon[data-s="0"]');
-  await drag(page, 'svg polygon[data-s="0"]', -50, -30);
-  const b1 = await bbox(page, 'svg polygon[data-s="0"]');
+  const b0 = await bbox(page, 'svg g[data-s="0"]');
+  await drag(page, 'svg g[data-s="0"]', -50, -30);
+  const b1 = await bbox(page, 'svg g[data-s="0"]');
   expect(Math.round(b1.x - b0.x)).toBe(-50);
   expect(Math.round(b1.y - b0.y)).toBe(-30);
   const after = await groundOf(page), t1 = after.stairs[0];
@@ -2439,4 +2439,87 @@ test("break it: rubbish and a full turn in the rotation field change nothing", a
   }
   expect(await groundOf(page)).toEqual(before);
   await expect(page.locator("#undo")).toBeDisabled();
+});
+
+// ---- stairs shape, steps, rotation (S1.25) -----------------------------------
+
+async function setField(page: Page, id: string, v: string) {
+  await page.locator(id).fill(v);
+  await page.locator(id).press("Enter");
+}
+
+test("stairs: switching to round and setting the diameters gives a 24-gon, the inner diameter and no corner handles", async ({ page }) => {
+  await addStairs(page);
+  await expect(page.locator('svg circle[data-h^="s1:"]')).toHaveCount(4);
+  await page.locator("#ss").selectOption("round");
+  await expect(page.locator("#sdia")).toBeVisible();
+  await setField(page, "#sdia", "200");
+  await setField(page, "#sinner", "80");
+  const t = (await groundOf(page)).stairs[1];
+  expect(t).toMatchObject({ shape: "round", dia: 200, inner: 80, steps: 12, rot: 0 });
+  expect(t.pts).toHaveLength(24);
+  const cx = t.pts.reduce((s, p) => s + p[0], 0) / 24, cy = t.pts.reduce((s, p) => s + p[1], 0) / 24;
+  for (const p of t.pts) expect(Math.abs(Math.hypot(p[0] - cx, p[1] - cy) - 100)).toBeLessThan(1);
+  await expect(page.locator('svg circle[data-h^="s1:"]')).toHaveCount(0);
+  await expect(page.locator('svg g[data-s="1"] line.tread')).toHaveCount(11);
+  await expect(page.locator('svg g[data-s="1"] path[fill-rule="evenodd"]')).toHaveCount(1);
+  // the inner diameter cannot leave less than 40 cm of tread; the outer keeps the centre
+  await setField(page, "#sinner", "500");
+  expect((await groundOf(page)).stairs[1].inner).toBe(160);
+  await setField(page, "#sdia", "100");
+  const s = (await groundOf(page)).stairs[1];
+  expect([s.dia, s.inner]).toEqual([100, 60]);
+  expect(Math.round(s.pts.reduce((a, p) => a + p[0], 0) / 24)).toBe(Math.round(cx));
+  await savedValid(page);
+  // back to straight: the diameters go, the flight is 100 x 300 again
+  await page.locator("#ss").selectOption("straight");
+  const b = (await groundOf(page)).stairs[1];
+  expect(b).toMatchObject({ shape: "straight", steps: 12 });
+  expect("dia" in b || "inner" in b).toBe(false);
+  expect(b.pts).toHaveLength(4);
+});
+
+test("stairs: a real click on a rotated flight, where the unrotated one is not, selects it", async ({ page }) => {
+  const c = await screenOf(page, 740, 500);
+  await page.mouse.click(c.x, c.y);
+  await setField(page, "#srot", "90");
+  expect((await groundOf(page)).stairs[0].rot).toBe(90);
+  // deselect on empty ground, then click at (670, 500): inside the turned flight (x 660 to 820), outside the stored one (x 700 to 780)
+  await page.mouse.click(...Object.values(await screenOf(page, 300, 900)) as [number, number]);
+  await expect(page.locator("#sn")).toHaveCount(0);
+  const at = await screenOf(page, 670, 500);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator("#sn")).toHaveValue("Stairs");
+  // ... and where the stored flight is but the turned one is not, it selects no stairs
+  await page.mouse.click(...Object.values(await screenOf(page, 300, 900)) as [number, number]);
+  const off = await screenOf(page, 740, 430);
+  await page.mouse.click(off.x, off.y);
+  await expect(page.locator("#sn")).toHaveCount(0);
+});
+
+test("stairs: a turned flight has no corner handles, and rotation 0 brings them back on the drawn corners", async ({ page }) => {
+  const c = await screenOf(page, 740, 500);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator('svg circle[data-h^="s0:"]')).toHaveCount(4);
+  await setField(page, "#srot", "30");
+  await expect(page.locator('svg circle[data-h^="s0:"]')).toHaveCount(0);
+  await expect(page.locator('svg line[data-e^="s0:"]')).toHaveCount(0);
+  await setField(page, "#srot", "0");
+  await expect(page.locator('svg circle[data-h^="s0:"]')).toHaveCount(4);
+  await expect(page.locator('svg line[data-e^="s0:"]')).toHaveCount(4);
+  const pts = (await groundOf(page)).stairs[0].pts;
+  for (const [j, p] of pts.entries()) {
+    await expect(page.locator(`svg circle[data-h="s0:${j}"]`)).toHaveAttribute("cx", String(p[0]));
+    await expect(page.locator(`svg circle[data-h="s0:${j}"]`)).toHaveAttribute("cy", String(p[1]));
+  }
+});
+
+test("stairs: steps take a whole number from 2 to 40 and rubbish changes nothing", async ({ page }) => {
+  const c = await screenOf(page, 740, 500);
+  await page.mouse.click(c.x, c.y);
+  await setField(page, "#sst", "6");
+  await expect(page.locator('svg g[data-s="0"] line.tread')).toHaveCount(5);
+  const before = await groundOf(page);
+  for (const v of ["1", "41", "3.5", ""]) await setField(page, "#sst", v);
+  expect(await groundOf(page)).toEqual(before);
 });

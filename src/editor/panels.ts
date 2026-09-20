@@ -1,8 +1,8 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped } from "../core";
+import { DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped } from "../core";
 import type { DeviceType, Floor, RoomKind, WallKind } from "../core";
-import { movePointAll, openingToWall, resizeSegment, rotateSegment, setSecondEnd, wallToOpening } from "./ops";
+import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 
 /** Selection panels: one function per kind of selection, all pure views over the state. */
@@ -256,9 +256,30 @@ function furniturePanel(c: PanelCtx, i: number) {
 }
 
 function stairsPanel(c: PanelCtx, i: number) {
-  const t = c.st.f.stairs[i];
+  const t = c.st.f.stairs[i], round = t.shape === "round";
+  const centre = (): [number, number] => {
+    const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
+    return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+  };
+  // Shape and diameter regenerate the polygon about the centre it has now; name, steps and rotation stay.
+  const replace = (n: Pick<typeof t, "pts" | "shape" | "dia" | "inner">) => c.commit((f) => { const o = f.stairs[i]; for (const k of ["dia", "inner"] as const) delete o[k]; Object.assign(o, n); });
+  const setShape = (v: string) => {
+    if (v === t.shape || !(STAIR_SHAPES as readonly string[]).includes(v)) return;
+    const { pts, shape, dia, inner } = v === "round" ? roundStairs(centre(), 200) : stairsAt(centre());
+    replace({ pts, shape, dia, inner });
+  };
+  const setDia = (n: number) => {
+    const d = Math.max(40, Math.round(n));
+    const { pts, shape, inner } = roundStairs(centre(), d, Math.min(t.inner ?? 0, d - 40));
+    replace({ pts, shape, dia: d, inner });
+  };
+  const setInner = (n: number) => c.commit((f) => { const o = f.stairs[i]; if (o.shape === "round") o.inner = Math.max(0, Math.min(Math.round(n), (o.dia ?? 40) - 40)); });
   return html`<strong>Stairs</strong>
     ${text("name", "sn", t.name, (v) => c.commit((f) => { f.stairs[i].name = v; }))}
+    ${select("shape", "ss", t.shape, STAIR_SHAPES, setShape)}
+    ${number("steps", "sst", t.steps, (n) => { if (Number.isInteger(n) && n >= 2 && n <= 40) c.commit((f) => { f.stairs[i].steps = n; }); })}
+    ${number("rotation (deg)", "srot", t.rot, (n) => c.commit((f) => { f.stairs[i].rot = ((n % 360) + 360) % 360; }))}
+    ${round ? html`${number("outer diameter (cm)", "sdia", t.dia ?? 0, setDia)}${number("inner diameter (cm)", "sinner", t.inner ?? 0, setInner)}` : nothing}
     <p>${button("sdel", "Delete", () => { c.commit((f) => { f.stairs.splice(i, 1); }); c.select(null); })}</p>
-    ${hint("Drag a corner to reshape. Click an edge to add a point in the middle.")}`;
+    ${hint(round ? "Drag it to move it. Set the diameters and the rotation here." : "Drag a corner to reshape. Click an edge to add a point in the middle. A rotated flight has no corner handles: set the rotation to 0 to reshape it.")}`;
 }

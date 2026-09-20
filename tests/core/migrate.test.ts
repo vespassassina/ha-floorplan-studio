@@ -230,3 +230,26 @@ describe("room free (S1.24)", () => {
     expect(m.floors.ground.rooms[1]).not.toHaveProperty("free");
   });
 });
+
+describe("stairs get a shape, steps and rot (S1.25)", () => {
+  const bare = (t: any) => ({ version: 2, floors: { g: { outline: [[0, 0], [100, 0], [100, 100], [0, 100]], stairs: [{ pts: [[10, 10], [40, 10], [40, 40], [10, 40]], ...t }] } } });
+  const stairsOf = (x: any) => (migrate(x).floors.g as any).stairs[0];
+  it("fills straight, 12 and 0 on stairs that have none", () => {
+    const t = stairsOf(bare({}));
+    expect([t.shape, t.steps, t.rot]).toEqual(["straight", 12, 0]);
+    expect("dia" in t || "inner" in t).toBe(false);
+  });
+  it("keeps what is there and gives a round stair without inner an inner of 0", () => {
+    expect(stairsOf(bare({ shape: "round", dia: 200, steps: 9, rot: 30 }))).toMatchObject({ shape: "round", dia: 200, inner: 0, steps: 9, rot: 30 });
+    expect(stairsOf(bare({ shape: "round", dia: 200, inner: 50 })).inner).toBe(50);
+  });
+  it("is idempotent and the result validates", () => {
+    const once = migrate(bare({ shape: "round", dia: 200 }));
+    expect(migrate(once)).toEqual(once);
+    expect(validate(once).ok).toBe(true);
+  });
+  it("leaves rubbish for validate to report", () => {
+    expect(validate(migrate(bare({ shape: "curved" }))).ok).toBe(false);
+    expect(validate(migrate(bare({ steps: 3.5 }))).ok).toBe(false);
+  });
+});

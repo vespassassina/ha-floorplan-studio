@@ -269,7 +269,10 @@
        700,
        580
       ]
-     ]
+     ],
+     "shape": "straight",
+     "steps": 12,
+     "rot": 0
     }
    ],
    "doors": [

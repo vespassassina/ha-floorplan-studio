@@ -1,5 +1,5 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
-import type { Device, DeviceType, Floor, Pt, WallKind } from "./schema";
+import type { Device, DeviceType, Floor, Pt, Stairs, WallKind } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
 export interface RenderOpts {
@@ -11,13 +11,13 @@ export interface RenderOpts {
 export const FLOORPLAN_CSS = `
 :host,.fp{--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94}
+--fp-tread:#8b8578;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch. */
 .room:not([fill]){fill:var(--fp-room)} .room-garden:not([fill]){fill:var(--fp-garden)} .room-terrace:not([fill]){fill:var(--fp-terrace)} .room-pavement:not([fill]){fill:var(--fp-pavement)}
 .room.room-fill{fill:url(#fp-hatch)} .room-zone:not([fill]){fill:none} .room-water:not([fill]){fill:var(--fp-water)}
 .e{stroke:var(--fp-wall);stroke-width:3;stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5}
 .e.external{stroke:var(--fp-wall-external);stroke-width:6;stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
-.e.se{stroke-width:1.5} .opening{stroke:var(--fp-room);stroke-width:9;pointer-events:none}
+.e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none} .opening{stroke:var(--fp-room);stroke-width:9;pointer-events:none}
 .extra{fill:none;stroke:var(--fp-idle);stroke-dasharray:6 4;stroke-width:1.2;vector-effect:non-scaling-stroke;pointer-events:none}
 .door{stroke:var(--fp-door)} .door-glass{stroke:var(--fp-glass)} .door-window{stroke:var(--fp-window)} .door-sealed{stroke:var(--fp-sealed);stroke-dasharray:10 6}
 .door.open{stroke:var(--fp-open)} .door.cover-open{stroke:var(--fp-open)}
@@ -66,6 +66,45 @@ function classOf(d: Device, o: RenderOpts): Cls {
   return s.state === "on" || s.state === "open" ? "on" : "off";
 }
 
+/**
+ * One stairs object: the polygon (or, round, an even-odd path with the well cut out), its treads and its edges, turned
+ * together by `rot` about the centre of the polygon's box. Only an unturned straight flight has edge lines a click can
+ * pick (`data-e`): the stored corners are those of the unturned polygon, so for any other stairs they are not where the
+ * lines are drawn. The whole group is `data-s`.
+ */
+function stairsGroup(t: Stairs, i: number): string {
+  const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const rot = typeof t.rot === "number" && Number.isFinite(t.rot) ? t.rot : 0;
+  const steps = Number.isInteger(t.steps) && t.steps >= 2 ? t.steps : 12;
+  const round = t.shape === "round" && typeof t.dia === "number" && t.dia > 0;
+  const inner = round && typeof t.inner === "number" && t.inner > 0 ? t.inner / 2 : 0;
+  const g: string[] = [];
+  if (round) {
+    const R = t.dia! / 2;
+    const hole = inner ? ` M${num(cx + inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx - inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx + inner)} ${num(cy)}Z` : "";
+    g.push(`<path class="stairs room" fill-rule="evenodd" d="M${t.pts.map((p) => `${num(p[0])} ${num(p[1])}`).join("L")}Z${hole}"/>`);
+    for (let n = 1; n < steps; n++) {
+      const a = (n * 2 * Math.PI) / steps;
+      g.push(`<line class="tread" x1="${num(cx + inner * Math.cos(a))}" y1="${num(cy + inner * Math.sin(a))}" x2="${num(cx + R * Math.cos(a))}" y2="${num(cy + R * Math.sin(a))}"/>`);
+    }
+  } else {
+    g.push(`<polygon class="stairs room" points="${pts(t.pts)}"/>`);
+    // Treads run across the short side of the box, one every (long side / steps).
+    const along = x1 - x0 > y1 - y0;
+    for (let n = 1; n < steps; n++) {
+      if (along) { const x = x0 + ((x1 - x0) * n) / steps; g.push(`<line class="tread" x1="${num(x)}" y1="${num(y0)}" x2="${num(x)}" y2="${num(y1)}"/>`); }
+      else { const y = y0 + ((y1 - y0) * n) / steps; g.push(`<line class="tread" x1="${num(x0)}" y1="${num(y)}" x2="${num(x1)}" y2="${num(y)}"/>`); }
+    }
+  }
+  t.pts.forEach((a, j) => {
+    const b = t.pts[(j + 1) % t.pts.length], e = !round && !rot ? ` data-e="s${i}:${j}"` : "";
+    g.push(`<line class="e se"${e} x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"/>`);
+  });
+  return `<g data-s="${i}" transform="rotate(${num(rot)} ${num(cx)} ${num(cy)})">${g.join("")}</g>`;
+}
+
 export function renderFloor(f: Floor, o: RenderOpts): string {
   const k = 1 / (o.scale || 1);
   const out: string[] = [];
@@ -81,7 +120,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const own = typeof r.color === "string" && COLOR.test(r.color) ? ` fill="${r.color}"` : ""; // strict pattern: the value goes into an attribute
     out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}"${own} points="${pts(r.pts)}"/>`);
   });
-  f.stairs.forEach((s, i) => out.push(`<polygon data-s="${i}" class="stairs room" points="${pts(s.pts)}"/>`));
+
+  f.stairs.forEach((t, i) => out.push(stairsGroup(t, i)));
 
   const polys: { id: string; pts: Pt[]; wk?: WallKind[]; zone?: boolean }[] = [{ id: "o", pts: f.outline }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, wk: r.wk, zone: r.kind === "zone" }))];
   for (const P of polys)
@@ -92,10 +132,6 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.walls.forEach((w, i) =>
     out.push(`<line class="${edgeClass(w.kind)}" data-w="${i}" x1="${num(w.a[0])}" y1="${num(w.a[1])}" x2="${num(w.b[0])}" y2="${num(w.b[1])}"/>`));
 
-  f.stairs.forEach((t, i) => t.pts.forEach((a, j) => {
-    const b = t.pts[(j + 1) % t.pts.length];
-    out.push(`<line class="e se" data-e="s${i}:${j}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"/>`);
-  }));
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
   f.openings.forEach((op) => out.push(`<line class="opening" x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}"/>`));
   f.extras.forEach((x) => {

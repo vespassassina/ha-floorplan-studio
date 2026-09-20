@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { ROOM_KINDS, validate } from "../../src/core/schema";
+import { ROOM_KINDS, STAIR_SHAPES, validate } from "../../src/core/schema";
 
 const clone = () => structuredClone(demo) as any;
 const errorsOf = (l: unknown) => {
@@ -280,5 +280,40 @@ describe("room free (S1.24)", () => {
   });
   it("rejects anything else", () => {
     for (const bad of ["yes", 1, null]) expect(withFree(bad)).toMatch(/room-ground-1 free must be true or false/);
+  });
+});
+
+describe("stairs shape, steps, rotation and diameters (S1.25)", () => {
+  const withStairs = (patch: (t: any) => void) => { const l = clone(); patch(l.floors.ground.stairs[0]); return errorsOf(l).join("\n"); };
+  const round = (t: any) => { t.shape = "round"; t.dia = 200; t.inner = 60; };
+  it("lists the shapes", () => expect([...STAIR_SHAPES]).toEqual(["straight", "round"]));
+  it("accepts the demo stairs, a round stair, and an inner of 0 or dia - 40", () => {
+    expect(withStairs(() => {})).toBe("");
+    expect(withStairs(round)).toBe("");
+    expect(withStairs((t) => { round(t); t.inner = 0; })).toBe("");
+    expect(withStairs((t) => { round(t); t.inner = 160; })).toBe("");
+  });
+  it("rejects a shape outside the list", () => {
+    for (const v of ["curved", "", undefined, 3]) expect(withStairs((t) => { t.shape = v; }), String(v)).toMatch(/stairs-ground-1.*shape/);
+  });
+  it("rejects steps that are not an integer in [2, 40]", () => {
+    for (const v of [1, 41, 3.5, "12", NaN, undefined]) expect(withStairs((t) => { t.steps = v; }), String(v)).toMatch(/stairs-ground-1.*steps/);
+    for (const v of [2, 40]) expect(withStairs((t) => { t.steps = v; }), String(v)).toBe("");
+  });
+  it("rejects a rot outside [0, 360)", () => {
+    for (const v of [-1, 360, Infinity, "0", undefined]) expect(withStairs((t) => { t.rot = v; }), String(v)).toMatch(/stairs-ground-1.*rot/);
+    expect(withStairs((t) => { t.rot = 359.5; })).toBe("");
+  });
+  it("rejects dia or inner on a straight stair", () => {
+    expect(withStairs((t) => { t.dia = 200; })).toMatch(/stairs-ground-1.*dia/);
+    expect(withStairs((t) => { t.inner = 0; })).toMatch(/stairs-ground-1.*inner/);
+  });
+  it("rejects a round stair with no dia, or a dia under 40", () => {
+    expect(withStairs((t) => { round(t); delete t.dia; })).toMatch(/stairs-ground-1.*dia/);
+    expect(withStairs((t) => { round(t); t.dia = 39; t.inner = 0; })).toMatch(/stairs-ground-1.*dia/);
+    expect(withStairs((t) => { round(t); t.dia = NaN; })).toMatch(/stairs-ground-1.*dia/);
+  });
+  it("rejects an inner outside [0, dia - 40]", () => {
+    for (const v of [-1, 161, NaN, "5"]) expect(withStairs((t) => { round(t); t.inner = v; }), String(v)).toMatch(/stairs-ground-1.*inner/);
   });
 });

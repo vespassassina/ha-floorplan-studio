@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.25: a stairs object is one group; only a plain flight keeps its edge lines
+
+`renderFloor` draws each stairs as `<g data-s="i" transform="rotate(rot cx cy)">` holding the polygon (round: one even-odd path with the well cut out), the treads and the edge lines, painted where the polygon was (under the walls). The stored `pts` are the unturned shape, so only a straight flight with `rot` 0 gets `data-e` on its edge lines; for a turned or round one the lines are drawn but not pickable, and a click on any part of the group selects the stairs (tested with a real click at a point inside the turned flight and outside the stored one). The block said renderFloor skips corner handles; it never drew any, so the rule lives in the editor overlay alone. Round stairs: `steps - 1` spokes at `360 / steps` degrees from the east, from the inner to the outer rim. Straight: treads across the short side of the box. The shape select goes straight to round with `dia` 200 (well 60), and back to a 100 x 300 flight, about the centre the stairs had; name, steps and rotation are kept. Known gap, not widened: snapping still sees the unturned corners of a turned stairs.
+
 ## 2026-09-20 S1.20: a new item comes into view whole
 
 `ensureVisible` takes the points of the whole new shape (wall ends, structure, zone and stairs corners, the furniture box), not the spawn point alone. It pans by the least amount that puts them 100 cm inside the visible area, and zooms out, about the view centre, only if they do not fit. Where the item is placed does not change. Found by the verifier: stairs at `[[900,-150]..[1000,150]]` lost their top at the default view, and a structure had two corners out after zooming in. Water and rooms are not in the Add menu (S1.21), so they are not covered; a zone changed to water is the same polygon. Device placement is unchanged (it centres the view on the device).
