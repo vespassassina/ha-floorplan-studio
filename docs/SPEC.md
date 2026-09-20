@@ -162,31 +162,56 @@ Every device icon sits on a white disc at 75 % alpha with a 1 px grey border,
 three units wider than the icon, and is drawn
 above everything else on the plan, room names included. A room name that would
 sit under a device moves down, or up, by 32 units; if both spots are taken it
-stays where it is. When a device is active the icon takes the colour of its
-type; the disc stays white. The camera cone stays at 25 % alpha. A custom shape with an
-`entity` (a pond, a structure, a piece of furniture) is tinted while that
-entity is on.
+stays where it is. When a device is active, the icon and its halo (the disc)
+take the colour of its type (S2.9): one `--fp-dev-<type>` variable per type,
+set on the device group as `--fp-dev` when it carries the `on` class and read
+by both the icon fill and the halo fill (the halo keeps its 25 % alpha). A
+switch or a humidity sensor falls back to idle grey, so those two look the
+same on and off. A contact device draws red whether it is a device icon or a
+door sensor. An unavailable device keeps its struck-through, 45 % opacity
+styling regardless of the colour rule. The camera cone stays at 25 % alpha,
+its own grey. A room with an `entity` (never a room with an `area`) draws an
+outline in `--fp-active` while that entity is on, open or playing; the fill
+never moves. An earlier version tinted the fill instead, mixing 25 %
+`--fp-glow` into the room's own kind colour, but a fill has to compete with
+a colour that already carries meaning: mixing a pale warm yellow into a pale
+cool blue desaturates rather than brightens, so an "on" pond read as a
+duller, greyer blue than an "off" one — confidently wrong, not obviously
+wrong. An outline never fights the fill, shows on every kind including
+`zone` (whose fill is `none`, so a fill tint there was a silent no-op), and
+reuses `--fp-active`, the same token furniture already wears when on, so
+"on" is one colour across the whole plan. Because a room's own boundary is
+almost always also a wall, and a wall's white halo paints on top of the room
+along that same line, the outline is drawn a second time after every wall
+line, so it is actually on top and visible rather than hidden under the
+wall's own stroke. A piece of furniture with an `entity` takes `--fp-active`
+(an amber tuned per theme for contrast) so it reads as more present, not
+fainter, when it is on. `room_glow` (below) keeps the fill-mix mechanism: it
+is a distinct signal, light spilling into a room, and a warm tint is the
+honest metaphor there.
 
-| Entity domain / device type | Idle | Active | Click |
-|---|---|---|---|
-| light | grey icon | yellow icon, brightness as opacity, plus a round aura 200 cm across in the same colour at 25 % alpha | toggle; long press: more-info |
-| smart light (`rgb_color`) | grey icon | icon and aura in the light's own colour from HA, yellow when it reports none | toggle; long press: more-info |
-| light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | toggle the light entity; long press: more-info for it (the switch is reachable from that dialog) |
-| switch (wall switch) | grey | grey | toggle |
-| plug | grey | blue | toggle |
-| binary_sensor on a door or window | door drawn normally | door drawn orange | more-info |
-| contact (device icon) | grey | red | more-info |
-| motion (binary_sensor motion/occupancy) | grey | red, fading to grey over `fade` seconds from `last_changed` | more-info |
-| temp, humidity (sensor) | grey icon, value as a label next to it | — | more-info |
-| temp or humidity sensor inside a room of kind garden | green icon (class `outdoor`, from the centre of the icon) | as its type | more-info |
-| heater, climate (TRV, thermostat) | heater bar grey with target | orange when heating | more-info |
-| ac (air conditioner, heat pump, fan, air cleaner) | grey | blue while `hvac_action` is cooling, orange while heating, grey otherwise | more-info |
-| tv | grey | blue when the player is on or playing | more-info |
-| computer | grey | blue | more-info |
-| camera | dark grey icon with a 120° cone of view in dark grey at 25 % alpha, turned by `rot` | — | more-info (live view) |
-| cover on a door | door normal | door open state shown | confirm dialog naming the action, then `cover.open_cover`, or `close_cover` when it is already open |
-| media_player | icon | accent when playing | more-info |
-| unavailable / unknown | icon struck through | — | more-info |
+| Entity domain / device type | Idle | Active | Colour | Click |
+|---|---|---|---|---|
+| light | grey icon | yellow icon and halo, brightness as opacity, plus a round aura 200 cm across in the same colour at 25 % alpha | `--fp-dev-light` (#e0a800) | toggle; long press: more-info |
+| smart light (`rgb_color`) | grey icon | icon, halo and aura in the light's own colour from HA, yellow when it reports none | the light's own `rgb_color`, or `--fp-dev-light` | toggle; long press: more-info |
+| light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | as light | toggle the light entity; long press: more-info for it (the switch is reachable from that dialog) |
+| switch (wall switch) | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | toggle |
+| plug | grey | blue icon and halo | `--fp-dev-plug` (#2c7fb8) | toggle |
+| binary_sensor on a door or window | door drawn normally | door drawn red | `--fp-dev-contact` (#d64545) | more-info |
+| contact (device icon) | grey | red icon and halo | `--fp-dev-contact` (#d64545) | more-info |
+| motion (binary_sensor motion/occupancy) | grey | icon red, fading to grey over `fade` seconds from `last_changed`; halo red at once | `--fp-dev-motion` (#d64545) | more-info |
+| temp, humidity (sensor) | grey icon, value as a label next to it | humidity: grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
+| temp or humidity sensor inside a room of kind garden | green icon (class `outdoor`, from the centre of the icon) | as its type | `--fp-dev-garden` (#3f8f4f) idle, as its type when on | more-info |
+| heater, climate (TRV, thermostat) | heater bar grey with target; icon and halo grey | orange icon and halo when heating | `--fp-dev-heater` / `--fp-dev-climate` (#e8801a) | more-info |
+| ac (air conditioner, heat pump, fan, air cleaner) | grey | blue while `hvac_action` is cooling, orange while heating, grey otherwise | `--fp-dev-ac-cool` (#2c7fb8) / `--fp-dev-ac-heat` (#e8801a) | more-info |
+| tv | grey | blue icon and halo when the player is on or playing | `--fp-dev-tv` (#2c7fb8) | more-info |
+| computer | grey | blue icon and halo | `--fp-dev-computer` (#2c7fb8) | more-info |
+| camera | dark grey icon with a 120° cone of view in dark grey at 25 % alpha, turned by `rot` | — | `--fp-dev-camera` (#4a4a48) | more-info (live view) |
+| cover on a door | door normal | door open state shown, orange | `--fp-open` (#f28c28) | confirm dialog naming the action, then `cover.open_cover`, or `close_cover` when it is already open |
+| media_player | icon | accent when playing | as its type | more-info |
+| room with `entity` | own kind colour, no outline | own kind colour, unmoved, plus an outline when the entity is on, open or playing | `--fp-active` stroke (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
+| furniture with `entity` | idle grey (`currentColor`) | `--fp-active`, chosen per theme for at least 3:1 contrast against both `--fp-room` and `--fp-bg` | `--fp-active` (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
+| unavailable / unknown | icon struck through, 45 % opacity | — | — | more-info |
 
 Rooms tint when any light in them is on (`room_glow: true`). Card config:
 

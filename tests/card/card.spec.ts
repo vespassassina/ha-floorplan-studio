@@ -147,7 +147,11 @@ test("S2.6 CSS pair: a room's fill is the glow tint only while room_glow is on a
   expect(await livingFill()).toBe("rgb(233, 227, 211)"); // --fp-room, the light is off
 
   await configure(page, { layout: structuredClone(demo), room_glow: true }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
-  expect(await livingFill()).toBe("rgb(245, 226, 160)"); // --fp-glow
+  // --fp-glow mixed 25% into the room's own --fp-room, not read outright (S2.9 Opus review: the old rule read
+  // --fp-glow directly and so replaced the room's colour instead of tinting it; fixed for room_glow and the
+  // S1.37 "on" tint in the same pass). Chromium serialises a color-mix() computed value as color(srgb ...), not
+  // rgb(...); 0.92549/0.889216/0.777451 * 255 = 236/227/198, the 25%-glow/75%-room mix.
+  expect(await livingFill()).toBe("color(srgb 0.92549 0.889216 0.777451)");
 
   // room_glow: false (or absent): the same lit light gives no glow at all, even though the light itself is on.
   await configure(page, { layout: structuredClone(demo) }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
@@ -161,6 +165,39 @@ test("S2.6 CSS pair: a room's own colour (a [fill] attribute) is kept, glow or n
   await configure(page, { layout: coloured, room_glow: true }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
   const fill = await page.locator("floorplan-studio-card").evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('svg polygon[data-r="0"]')!).fill);
   expect(fill).toBe("rgb(18, 52, 86)");
+});
+
+// S2.9 round 3: a room's own boundary is almost always also a wall, and the wall's white halo paints on top of the
+// room, right along the same line — a same-width outline drawn on the room polygon itself is nearly invisible
+// underneath it (Opus review: rendered the demo pond and looked, a 4x crop showed only slivers of the ring in the
+// wall's dash gaps). render.ts now draws the ring a second time, after every wall line, so it is genuinely on top.
+test("Opus review CSS pair: S2.9 round 3 an on room's outline paints after the walls (on top of them), and does not block clicks on the room underneath it", async ({ page }) => {
+  await open(page);
+  const layout = structuredClone(demo);
+  const pond = layout.floors.ground.rooms[6]; // "Garden pond", kind water, boundary walls all round it
+  pond.entity = "switch.demo_pump";
+  await configure(page, { layout }, { states: { "switch.demo_pump": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+
+  const info = await page.locator("floorplan-studio-card").evaluate(() => {
+    const svg = document.getElementById("card")!.shadowRoot!.querySelector("svg")!;
+    const kids = [...svg.querySelectorAll("*")];
+    const base = svg.querySelector('polygon[data-r="6"]')!;
+    const lastWall = kids.filter((n) => n.tagName === "line" && n.classList.contains("e")).pop()!; // the wall lines only, not a door or heater bar drawn later
+    const ring = kids.find((n) => n.tagName === "polygon" && n.getAttribute("class") === "room on")!;
+    const rs = getComputedStyle(ring);
+    return {
+      baseFill: getComputedStyle(base).fill, // the room's own water colour: untouched, the ring is a stroke only
+      ringStroke: rs.stroke,
+      ringFillAttr: ring.getAttribute("fill"),
+      ringPointerEvents: rs.pointerEvents,
+      ringAfterWalls: kids.indexOf(ring) > kids.indexOf(lastWall), // DOM order: later siblings paint on top in SVG
+    };
+  });
+  expect(info.baseFill).toBe("rgb(169, 207, 227)"); // --fp-water, unmoved by the "on" state
+  expect(info.ringStroke).toBe("rgb(138, 81, 23)"); // --fp-active, light theme
+  expect(info.ringFillAttr).toBe("none");
+  expect(info.ringPointerEvents).toBe("none"); // a click on the pond still reaches the room polygon underneath
+  expect(info.ringAfterWalls).toBe(true);
 });
 
 // S2.6: the floor switcher chip's readability, same check S1.40/S1.53 already run on the editor's own chips

@@ -735,7 +735,7 @@ pressed state.
 - Done when: tests pass; the markup still has no `#rrggbb` literal outside `FLOORPLAN_CSS`.
 - Break it: twenty lights on at once still render in one pass and the icons stay readable (the auras are behind every icon, not behind only the next one).
 
-### S2.9 A device wears its colour when it is on
+### S2.9 A device wears its colour when it is on (done)
 - Outcome: an active icon and its halo take the colour of the device, so the plan reads at a glance.
 - Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/card/card.test.ts`, `docs/SPEC.md`.
 - Interface: `renderFloor` already puts `on` on a device group that is active. One CSS rule per type sets `--fp-dev` on `.dev-<type>.on`, and two shared rules use it: `.dev.on path{fill:var(--fp-dev)}` and `.dev.on .halo{fill:var(--fp-dev)}` (the halo keeps its `--fp-alpha` opacity, 25 %, from S1.29, so the circle lightens in the device's colour). The palette of S1.30 supplies the values: light yellow, motion and contact red, heater and climate orange, tv, plug and computer blue when on (grey when off), switch and humidity grey — grey being `--fp-idle`, so those two look the same on and off, which is what Diego's list says. A contact device draws red whether it is a device icon or a door sensor. No new state reading: `on` is the class the card already computes. Amended by S1.37: a room or a piece of furniture with an `entity` gets the same `on` class when that entity's state is `on`, `open` or `playing`, and the CSS gives the shape a light tint (`.room.on`, `.furn.on`), so a pond pump or a gate reads on the plan. A room with an `area` has no `entity` and is never tinted this way.

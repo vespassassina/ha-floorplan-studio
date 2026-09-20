@@ -341,7 +341,7 @@ describe("zones and water", () => {
   });
   it("the zone has no fill and a small name label; the water has class water and the --fp-water fill", () => {
     expect(html).toMatch(new RegExp(`<polygon data-r="${zi}" class="room room-zone"`));
-    expect(FLOORPLAN_CSS).toMatch(/\.room-zone:not\(\[fill\]\)\{fill:none\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-zone:not\(\[fill\]\)\{[^}]*fill:none\}/);
     expect(html).toMatch(new RegExp(`<polygon data-r="${wi}" class="[^"]*\\bwater\\b[^"]*"`));
     expect(FLOORPLAN_CSS).toMatch(/--fp-water:#[0-9a-f]{3,8}/i);
     expect(FLOORPLAN_CSS).toMatch(/\.room-water:not\(\[fill\]\)\{[^}]*fill:var\(--fp-water\)/);
@@ -505,9 +505,9 @@ describe("garden and pavement (S1.14)", () => {
     const html = renderFloor(ground, base);
     expect(html).toContain('class="room room-garden"');
     expect(html).toContain('class="room room-pavement"');
-    expect(FLOORPLAN_CSS).toMatch(/\.room-garden:not\(\[fill\]\)\{fill:var\(--fp-garden\)\}/);
-    expect(FLOORPLAN_CSS).toMatch(/\.room-terrace:not\(\[fill\]\)\{fill:var\(--fp-terrace\)\}/);
-    expect(FLOORPLAN_CSS).toMatch(/\.room-pavement:not\(\[fill\]\)\{fill:var\(--fp-pavement\)\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-garden:not\(\[fill\]\)\{[^}]*--fp-room-fill:var\(--fp-garden\)[^}]*\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-terrace:not\(\[fill\]\)\{[^}]*--fp-room-fill:var\(--fp-terrace\)[^}]*\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-pavement:not\(\[fill\]\)\{[^}]*--fp-room-fill:var\(--fp-pavement\)[^}]*\}/);
     expect(FLOORPLAN_CSS).not.toContain("--fp-outdoor");
     for (const [v, c] of [["garden", "#9db98a"], ["terrace", "#cdb094"], ["pavement", "#c9c6bf"]]) expect(FLOORPLAN_CSS).toContain(`--fp-${v}:${c}`);
   });
@@ -526,7 +526,7 @@ describe("fill is hatched (S1.15)", () => {
     expect(html).toContain('<rect width="12" height="12" fill="var(--fp-fill)"/>');
     expect(html).toContain('stroke="var(--fp-fill-line)"');
     expect(html).not.toMatch(/#[0-9a-fA-F]{6}/);
-    expect(FLOORPLAN_CSS).toMatch(/\.room-fill\{fill:url\(#fp-hatch\)\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-fill\{[^}]*fill:url\(#fp-hatch\)\}/);
     expect(FLOORPLAN_CSS).toContain("--fp-fill:#c4c0b8");
     expect(FLOORPLAN_CSS).toContain("--fp-fill-line:#9a958b");
   });
@@ -550,8 +550,8 @@ describe("room colour (S1.16)", () => {
   it("wins over the class colour rules, except that fill keeps its hatch", () => {
     for (const k of ["garden", "pavement", "terrace", "water", "zone"])
       expect(FLOORPLAN_CSS).toMatch(new RegExp(`\\.room-${k}:not\\(\\[fill\\]\\)`));
-    expect(FLOORPLAN_CSS).toContain(".room:not([fill]){fill:var(--fp-room)}");
-    expect(FLOORPLAN_CSS).toMatch(/\.room-fill\{fill:url\(#fp-hatch\)\}/);
+    expect(FLOORPLAN_CSS).toContain(".room:not([fill]){--fp-room-fill:var(--fp-room);fill:var(--fp-room-fill)}");
+    expect(FLOORPLAN_CSS).toMatch(/\.room-fill\{[^}]*fill:url\(#fp-hatch\)\}/);
   });
   it("a hostile colour that skipped validate is not written into the markup", () => {
     const f = structuredClone(ground);
@@ -808,6 +808,101 @@ describe("outdoor sensors and the palette (S1.30)", () => {
     for (const [k, v] of Object.entries(want)) expect(FLOORPLAN_CSS).toContain(`--fp-dev-${k}:${v}`);
     expect(FLOORPLAN_CSS).toContain(".dev-camera path{fill:var(--fp-dev-camera)}");
     expect(FLOORPLAN_CSS).toContain(".dev.outdoor path{fill:var(--fp-dev-garden)}");
+  });
+});
+
+describe("S2.9: a device wears its colour when it is on", () => {
+  const dev = (type: string, entity: string, extra: Record<string, unknown> = {}) => ({ id: `${type}-x`, type, entity, x: 50, y: 50, ...extra });
+  const draw = (devices: unknown[], state: StateOverlay) =>
+    renderFloor({ ...ground, rooms: [], devices, doors: [], walls: [], openings: [], furniture: [], stairs: [], extras: [] } as unknown as typeof ground, { ...base, state });
+  const classOfDev = (html: string, i = 0) => html.match(new RegExp(`<g data-x="${i}" class="([^"]*)"`))![1].split(" ");
+
+  it("one CSS rule per type sets --fp-dev on .dev-<type>.on; switch and humidity fall back to --fp-idle", () => {
+    const want: Record<string, string> = {
+      light: "var(--fp-dev-light)", motion: "var(--fp-dev-motion)", contact: "var(--fp-dev-contact)", heater: "var(--fp-dev-heater)",
+      climate: "var(--fp-dev-climate)", tv: "var(--fp-dev-tv)", plug: "var(--fp-dev-plug)", computer: "var(--fp-dev-computer)",
+      switch: "var(--fp-idle)", humidity: "var(--fp-idle)",
+    };
+    for (const [type, value] of Object.entries(want))
+      expect(FLOORPLAN_CSS, type).toContain(`.dev-${type}.on{--fp-dev:${value}}`);
+  });
+
+  it("the two shared rules read --fp-dev on the icon and the halo, and the halo keeps --fp-alpha (25%) while on", () => {
+    expect(FLOORPLAN_CSS).toContain(".dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}");
+    expect(FLOORPLAN_CSS).toContain(".dev.on .halo{fill:var(--fp-dev);fill-opacity:var(--fp-alpha)}");
+  });
+
+  it("a contact device carries the on class, and the old --fp-open override on .dev-contact.on path is gone (a second source of the same colour)", () => {
+    expect(FLOORPLAN_CSS).not.toContain(".dev-contact.on path{fill:var(--fp-open)}");
+    const html = draw([dev("contact", "binary_sensor.x")], { "binary_sensor.x": st("on") });
+    expect(classOfDev(html)).toEqual(["dev", "dev-contact", "on"]);
+  });
+
+  it("a door contact sensor (not a device icon) also draws red now, not the old orange --fp-open", () => {
+    expect(FLOORPLAN_CSS).toContain(".door.open{stroke:var(--fp-dev-contact)}");
+    expect(FLOORPLAN_CSS).toContain(".door.cover-open{stroke:var(--fp-open)}"); // a cover's own open state is unrelated to contact and stays orange
+  });
+
+  it("a motion device that is on carries the on class (its icon colour is still the fade rule, checked by its own CSS pair)", () => {
+    const html = draw([dev("motion", "binary_sensor.m")], { "binary_sensor.m": st("on") });
+    expect(classOfDev(html)).toEqual(["dev", "dev-motion", "on"]);
+  });
+
+  it("a tv, a plug and a computer that are on carry the on class; off does not", () => {
+    for (const type of ["tv", "plug", "computer"]) {
+      const on = draw([dev(type, `switch.${type}`)], { [`switch.${type}`]: st("on") });
+      expect(classOfDev(on), type).toContain("on");
+      const off = draw([dev(type, `switch.${type}`)], { [`switch.${type}`]: st("off") });
+      expect(classOfDev(off), type).not.toContain("on");
+    }
+  });
+
+  it("a wall switch that is on carries the on class, but its --fp-dev is --fp-idle, same as off", () => {
+    const html = draw([dev("switch", "switch.hall")], { "switch.hall": st("on") });
+    expect(classOfDev(html)).toContain("on");
+    expect(FLOORPLAN_CSS).toContain(".dev-switch.on{--fp-dev:var(--fp-idle)}");
+  });
+
+  it("Break it: an unavailable light keeps the unavailable class, never on, whatever the colour rule says", () => {
+    const html = draw([dev("light", "light.x")], { "light.x": st("unavailable") });
+    expect(classOfDev(html)).toContain("unavailable");
+    expect(classOfDev(html)).not.toContain("on");
+  });
+});
+
+describe("S2.9: a room or a piece of furniture with an entity carries the on class", () => {
+  const room = (kind: string, extra: Record<string, unknown> = {}) => ({ id: "r", name: "pond", area: "", label: "", kind, pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: Array(4).fill("wall"), ...extra });
+  const furn = (extra: Record<string, unknown> = {}) => ({ id: "f", symbol: "patio-wood", x: 50, y: 50, rot: 0, w: 100, h: 100, ...extra });
+  const draw = (rooms: unknown[], furniture: unknown[], state: StateOverlay) =>
+    renderFloor({ ...ground, rooms, devices: [], furniture, doors: [], walls: [], openings: [], stairs: [], extras: [] } as unknown as typeof ground, { ...base, state });
+  const roomClass = (html: string) => html.match(/<polygon data-r="0" class="([^"]*)"/)![1].split(" ");
+  const furnClass = (html: string) => html.match(/<g data-f="0" class="([^"]*)"/)![1].split(" ");
+
+  it("a water room with entity on carries on; the same room without the entity does not", () => {
+    const withEntity = draw([room("water", { entity: "switch.pond_pump" })], [], { "switch.pond_pump": st("on") });
+    expect(roomClass(withEntity)).toEqual(["room", "room-water", "water", "on"]);
+    const withoutEntity = draw([room("water")], [], { "switch.pond_pump": st("on") });
+    expect(roomClass(withoutEntity)).toEqual(["room", "room-water", "water"]);
+  });
+
+  it("a room with an area is never tinted this way, even with an entity", () => {
+    const withArea = draw([room("water", { entity: "switch.pond_pump", area: "garden" })], [], { "switch.pond_pump": st("on") });
+    expect(roomClass(withArea)).not.toContain("on");
+  });
+
+  it("open and playing also count as on; off does not", () => {
+    expect(roomClass(draw([room("zone", { entity: "cover.gate" })], [], { "cover.gate": st("open") }))).toContain("on");
+    expect(roomClass(draw([room("zone", { entity: "media_player.x" })], [], { "media_player.x": st("playing") }))).toContain("on");
+    expect(roomClass(draw([room("zone", { entity: "cover.gate" })], [], { "cover.gate": st("closed") }))).not.toContain("on");
+  });
+
+  it("a piece of furniture with an entity carries the on class when its state is on; off, or no entity, does not", () => {
+    const on = draw([], [furn({ entity: "switch.gate" })], { "switch.gate": st("on") });
+    expect(furnClass(on)).toEqual(["furn", "on"]);
+    const off = draw([], [furn({ entity: "switch.gate" })], { "switch.gate": st("off") });
+    expect(furnClass(off)).toEqual(["furn"]);
+    const noEntity = draw([], [furn()], { "switch.gate": st("on") });
+    expect(furnClass(noEntity)).toEqual(["furn"]);
   });
 });
 

@@ -792,6 +792,105 @@ describe("FloorplanStudioCard", () => {
     });
   });
 
+  describe("S2.9: a device wears its colour when it is on", () => {
+    const classOf = (el: FloorplanStudioCard, entity: string, l: Layout) => {
+      const i = l.floors.ground.devices.findIndex((d) => d.entity === entity);
+      return el.shadowRoot!.querySelector(`svg [data-x="${i}"]`)!.getAttribute("class") ?? "";
+    };
+    const withExtraDevices = () => {
+      const l = structuredClone(L);
+      l.floors.ground.devices.push(
+        { id: "contact-x", type: "contact", entity: "binary_sensor.demo_contact", x: 700, y: 550 },
+        { id: "tv-x", type: "tv", entity: "media_player.demo_tv", x: 720, y: 550 },
+        { id: "computer-x", type: "computer", entity: "switch.demo_computer", x: 740, y: 550 },
+      );
+      return l;
+    };
+
+    it("a motion device that is on carries the on class (its colour comes from --fp-dev, pinned in editor.spec.ts)", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on") }) as never;
+      await el.updateComplete;
+      expect(classOf(el, "binary_sensor.demo_hall_motion", L)).toMatch(/\bon\b/);
+    });
+
+    it("a wall switch that is on carries the on class (its CSS colour stays idle grey, pinned in editor.spec.ts)", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "switch.demo_hall": st("on") }) as never;
+      await el.updateComplete;
+      expect(classOf(el, "switch.demo_hall", L)).toMatch(/\bon\b/);
+    });
+
+    it("a tv, a plug and a computer that are on carry the on class; off does not", async () => {
+      const l = withExtraDevices();
+      const el = await mount();
+      el.setConfig({ layout: l });
+      el.hass = stubHass({ "media_player.demo_tv": st("on"), "switch.demo_tv_plug": st("on"), "switch.demo_computer": st("on") }) as never;
+      await el.updateComplete;
+      expect(classOf(el, "media_player.demo_tv", l)).toMatch(/\bon\b/);
+      expect(classOf(el, "switch.demo_tv_plug", l)).toMatch(/\bon\b/);
+      expect(classOf(el, "switch.demo_computer", l)).toMatch(/\bon\b/);
+
+      el.hass = stubHass({ "media_player.demo_tv": st("off"), "switch.demo_tv_plug": st("off"), "switch.demo_computer": st("off") }) as never;
+      await el.updateComplete;
+      expect(classOf(el, "media_player.demo_tv", l)).not.toMatch(/\bon\b/);
+      expect(classOf(el, "switch.demo_tv_plug", l)).not.toMatch(/\bon\b/);
+      expect(classOf(el, "switch.demo_computer", l)).not.toMatch(/\bon\b/);
+    });
+
+    it("Break it: a light that is on and unavailable keeps the unavailable class, never the on class", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "first" });
+      el.hass = stubHass({ "light.demo_bedroom": st("unavailable") }) as never;
+      await el.updateComplete;
+      const bedroomIndex = L.floors.first.devices.findIndex((d) => d.entity === "light.demo_bedroom");
+      const g = el.shadowRoot!.querySelector(`svg [data-x="${bedroomIndex}"]`)!;
+      expect(g.getAttribute("class")).toMatch(/\bunavailable\b/);
+      expect(g.getAttribute("class")).not.toMatch(/\bon\b/);
+    });
+  });
+
+  describe("S2.9: a custom room or piece of furniture with an entity carries the on class", () => {
+    it("a room with an entity carries on when that entity is on, open or playing; off does not", async () => {
+      const l = structuredClone(L);
+      l.floors.ground.rooms.push({ id: "pond", name: "Pond", area: "", label: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60], [10, 60]], wk: ["wall", "wall", "wall", "wall"], entity: "switch.pond_pump" });
+      const idx = l.floors.ground.rooms.length - 1;
+      const el = await mount();
+      el.setConfig({ layout: l });
+      el.hass = stubHass({ "switch.pond_pump": st("on") }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(`svg polygon[data-r="${idx}"]`)!.getAttribute("class")).toMatch(/\bon\b/);
+
+      el.hass = stubHass({ "switch.pond_pump": st("off") }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(`svg polygon[data-r="${idx}"]`)!.getAttribute("class")).not.toMatch(/\bon\b/);
+    });
+
+    it("the same room with no entity never carries on, even with the same entity's state on", async () => {
+      const l = structuredClone(L);
+      l.floors.ground.rooms.push({ id: "pond2", name: "Pond2", area: "", label: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60], [10, 60]], wk: ["wall", "wall", "wall", "wall"] });
+      const idx = l.floors.ground.rooms.length - 1;
+      const el = await mount();
+      el.setConfig({ layout: l });
+      el.hass = stubHass({ "switch.pond_pump": st("on") }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(`svg polygon[data-r="${idx}"]`)!.getAttribute("class")).not.toMatch(/\bon\b/);
+    });
+
+    it("a piece of furniture with an entity carries the on class when its state is on", async () => {
+      const l = structuredClone(L);
+      l.floors.ground.furniture.push({ id: "gate", symbol: "patio-wood", x: 700, y: 500, rot: 0, w: 100, h: 100, entity: "cover.gate" });
+      const idx = l.floors.ground.furniture.length - 1;
+      const el = await mount();
+      el.setConfig({ layout: l });
+      el.hass = stubHass({ "cover.gate": st("open") }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(`svg g[data-f="${idx}"]`)!.getAttribute("class")).toMatch(/\bon\b/);
+    });
+  });
+
   it("getStubConfig returns a usable default config", () => {
     const stub = FloorplanStudioCard.getStubConfig();
     expect(stub).toEqual({ type: "custom:floorplan-studio-card" });

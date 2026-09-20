@@ -3887,6 +3887,10 @@ async function addCssFixtures(page: Page) {
     g.rooms.push({ id: "css-none", name: "none", area: "", label: "", kind: "room", pts: [[1700, 0], [1780, 0], [1780, 80], [1700, 80]], wk: ["wall", "none", "wall", "wall"] });
     ["wall", "external", "fence", "edge"].forEach((k, i) => g.walls.push({ id: `css-w-${k}`, a: [1000, 200 + i * 40], b: [1200, 200 + i * 40], kind: k }));
     g.devices.push({ id: "css-out", type: "temp", entity: "sensor.css_out", x: 1040, y: 40 }); // inside css-garden
+    // S2.9: types with no fixture elsewhere in the demo, so the colour-pair tests below have something to toggle .on.
+    ["contact", "climate", "tv", "computer", "humidity"].forEach((t, i) => g.devices.push({ id: `css-${t}`, type: t, entity: `sensor.css_${t}`, x: 1900 + i * 40, y: 40 }));
+    g.rooms.push({ id: "css-pond", name: "pond", area: "", label: "", kind: "water", pts: [[1800, 200], [1880, 200], [1880, 280], [1800, 280]], wk: Array(4).fill("wall"), entity: "switch.css_pond" });
+    g.furniture.push({ id: "css-gate", symbol: "patio-wood", x: 1940, y: 240, rot: 0, w: 100, h: 100, entity: "cover.css_gate" });
     el.layout = l;
   }, EDITOR);
 }
@@ -3969,6 +3973,149 @@ test("Opus review CSS pair: a motion sensor that is on still fades: the fill fol
   const half = chan(await fillAt("0.5", true));
   expect(half).not.toEqual(idle);
   expect(half).not.toEqual([214, 69, 69]);
+});
+
+test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-dev per type, icon and halo)", async ({ page }) => {
+  await addCssFixtures(page);
+  // The editor has no live hass state, so .on is never set by renderFloor here; toggling it by hand pins the CSS
+  // rule itself in a real browser, the same technique as the motion-fade pair test above.
+  const read = (type: string) => page.locator(`svg g.dev-${type}`).first().evaluate((e) => {
+    e.classList.add("on");
+    const s = getComputedStyle(e);
+    const path = e.querySelector("path:not(.halo)")!;
+    const halo = e.querySelector(".halo")!;
+    const r = { devVar: s.getPropertyValue("--fp-dev").trim(), pathFill: getComputedStyle(path).fill, haloFill: getComputedStyle(halo).fill, haloOp: getComputedStyle(halo).fillOpacity };
+    e.classList.remove("on");
+    return r;
+  });
+  const light = await read("light");
+  expect(light.devVar).toBe("#e0a800");
+  expect(light.pathFill).toBe(rgb("#e0a800"));
+  expect(light.haloFill).toBe(rgb("#e0a800"));
+  expect(light.haloOp).toBe("0.25");
+
+  const heater = await read("heater");
+  expect(heater.pathFill).toBe(rgb("#e8801a"));
+  expect(heater.haloFill).toBe(rgb("#e8801a"));
+
+  const climate = await read("climate");
+  expect(climate.pathFill).toBe(rgb("#e8801a"));
+  expect(climate.haloFill).toBe(rgb("#e8801a"));
+
+  const tv = await read("tv");
+  expect(tv.pathFill).toBe(rgb("#2c7fb8"));
+  expect(tv.haloFill).toBe(rgb("#2c7fb8"));
+
+  const plug = await read("plug");
+  expect(plug.pathFill).toBe(rgb("#2c7fb8"));
+  expect(plug.haloFill).toBe(rgb("#2c7fb8"));
+
+  const computer = await read("computer");
+  expect(computer.pathFill).toBe(rgb("#2c7fb8"));
+  expect(computer.haloFill).toBe(rgb("#2c7fb8"));
+
+  const contact = await read("contact");
+  expect(contact.pathFill).toBe(rgb("#d64545"));
+  expect(contact.haloFill).toBe(rgb("#d64545"));
+
+  // switch and humidity draw no brighter on than off: --fp-dev falls back to idle grey.
+  const sw = await read("switch");
+  expect(sw.devVar).toBe("#8b8578");
+  expect(sw.pathFill).toBe(rgb("#8b8578"));
+  expect(sw.haloFill).toBe(rgb("#8b8578"));
+  const hum = await read("humidity");
+  expect(hum.devVar).toBe("#8b8578");
+  expect(hum.pathFill).toBe(rgb("#8b8578"));
+
+  // motion: the icon path keeps following --fp-fade (the S1.6 fix), but the halo reads --fp-dev normally, red.
+  const motion = await page.locator("svg g.dev-motion").first().evaluate((e) => {
+    e.classList.add("on");
+    (e as SVGElement).style.setProperty("--fp-fade", "1");
+    const halo = e.querySelector(".halo")!;
+    const r = { devVar: getComputedStyle(e).getPropertyValue("--fp-dev").trim(), haloFill: getComputedStyle(halo).fill };
+    e.classList.remove("on");
+    (e as SVGElement).style.removeProperty("--fp-fade");
+    return r;
+  });
+  expect(motion.devVar).toBe("#d64545");
+  expect(motion.haloFill).toBe(rgb("#d64545"));
+});
+
+test("Opus review CSS pair: S2.9 break-it, a light that is on and unavailable keeps the unavailable opacity (render.test.ts:S2.9)", async ({ page }) => {
+  const g = page.locator("svg g.dev-light").first();
+  const opacityWith = (on: boolean, unavailable: boolean) => g.evaluate((e, [o, u]) => {
+    e.classList.toggle("on", o as boolean);
+    e.classList.toggle("unavailable", u as boolean);
+    return getComputedStyle(e).opacity;
+  }, [on, unavailable] as const);
+  expect(await opacityWith(false, false)).toBe("1");
+  expect(await opacityWith(true, false)).toBe("1");
+  expect(await opacityWith(true, true)).toBe("0.45"); // the colour rule never overrides unavailable
+  await opacityWith(false, false); // leave the fixture clean
+});
+
+// parses "rgb(r, g, b)" (or the "color(srgb r g b)" form color-mix can produce) into 0..255 channels
+const channels = (c: string) => (c.startsWith("color(") ? c.match(/[\d.]+/g)!.slice(-3).map((n) => Math.round(+n * 255)) : c.match(/\d+/g)!.map(Number));
+
+test("Opus review CSS pair: S2.9 a water room with an entity outlines, but its fill never moves, when it is on (Opus review: a fill tint desaturated the water and read as switched off)", async ({ page }) => {
+  await addCssFixtures(page);
+  const read = (on: boolean) => page.locator("svg polygon.room-water").last().evaluate((e, o) => {
+    e.classList.toggle("on", o as boolean);
+    const s = getComputedStyle(e);
+    return { fill: s.fill, stroke: s.stroke, width: parseFloat(s.strokeWidth) };
+  }, on);
+  const off = await read(false), on = await read(true);
+  await read(false); // leave the fixture clean
+  expect(on.fill).toBe(off.fill); // "on" is a stroke now: the fill never moves, so it can't desaturate the kind colour.
+  expect(on.stroke).toBe(rgb("#8a5117")); // --fp-active, the same token furniture wears: one colour for "on" across the plan.
+  expect(on.width).toBeGreaterThan(0);
+});
+
+test("Opus review CSS pair: S2.9 a zone room (fill:none) still shows the on outline (Opus review: a fill tint there was a silent no-op)", async ({ page }) => {
+  await addCssFixtures(page);
+  const stroke = await page.locator("svg polygon.room-zone").first().evaluate((e) => {
+    e.classList.add("on");
+    const s = getComputedStyle(e).stroke;
+    e.classList.remove("on");
+    return s;
+  });
+  expect(stroke).toBe(rgb("#8a5117"));
+});
+
+test("Opus review CSS pair: S2.9 a room that is both on and selected strokes with the selection colour, not the on colour (Opus review: .room.on's two classes would otherwise outrank .sel's one)", async ({ page }) => {
+  await addCssFixtures(page);
+  const stroke = await page.locator("svg polygon.room-water").last().evaluate((e) => {
+    e.classList.add("on", "sel");
+    const s = getComputedStyle(e).stroke;
+    e.classList.remove("on", "sel");
+    return s;
+  });
+  expect(stroke).toBe(rgb("#2b2a27")); // --fp-ink, light theme: selection still wins.
+});
+
+test("Opus review CSS pair: S2.9 room_glow has the same fix (Opus review: a pre-existing bug, same cause)", async ({ page }) => {
+  await addCssFixtures(page);
+  const off = channels(await page.locator("svg polygon.room-water").last().evaluate((e) => getComputedStyle(e).fill));
+  const glowing = channels(await page.locator("svg polygon.room-water").last().evaluate((e) => {
+    e.classList.add("glow");
+    const fill = getComputedStyle(e).fill;
+    e.classList.remove("glow");
+    return fill;
+  }));
+  expect(glowing).not.toEqual(off);
+  expect(glowing[2]).toBeGreaterThanOrEqual(glowing[0]);
+  expect(glowing[1]).toBeGreaterThanOrEqual(glowing[0]);
+});
+
+test("Opus review CSS pair: S2.9 furniture with an entity turns present, not paler, when it is on (Opus review: --fp-glow nearly vanished it)", async ({ page }) => {
+  await addCssFixtures(page);
+  const furnColor = await page.locator("svg g.furn").last().evaluate((e) => {
+    e.classList.add("on");
+    const color = getComputedStyle(e).color;
+    e.classList.remove("on");
+    return color;
+  });
+  expect(furnColor).toBe(rgb("#8a5117")); // --fp-active, light theme
 });
 
 // ---- S1.50 a measure grid with metre markers ----

@@ -2,6 +2,126 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 task/S2.9: a device wears its colour when it is on
+
+One `--fp-dev` custom property, set per type (`.dev-<type>.on{--fp-dev:...}`)
+and read by two shared rules, `.dev.on path{fill:var(--fp-dev-fill,var(--fp-dev))}`
+and the new `.dev.on .halo{fill:var(--fp-dev);fill-opacity:var(--fp-alpha)}`.
+This reuses S2.2's `--fp-dev-fill` fallback chain (a smart light's own colour
+still wins) instead of adding a second source of truth, and reuses S2.8's
+`--fp-alpha` (25 %) for the halo tint rather than the disc's own 75 %
+(`--fp-disc-alpha`) — that one stays untouched so an inactive device keeps its
+plain white disc. `.dev-switch.on` and `.dev-humidity.on` set `--fp-dev` to
+`--fp-idle`, matching Diego's list: those two read the same on and off. The
+motion fade rule (`.dev.dev-motion path{fill:color-mix(...)}`) is unchanged
+and still wins on the icon `path` (same specificity, later in source, the
+S1.6 fix); only the halo reads `--fp-dev` for motion, so a fading-out motion
+sensor's disc is red at once while its icon fades.
+
+Changed the task text's literal reading of "a contact device draws red
+whether it is a device icon or a door sensor": a door's `sensor` field
+(`.door.open`) used to draw orange (`--fp-open`, the same colour as a plain
+open cover). It now draws `--fp-dev-contact` (red), matching the SPEC table
+row for "binary_sensor on a door or window". `.door.cover-open` (driven by a
+`cover` entity, not a contact sensor) keeps `--fp-open`; the two were never
+the same kind of open and now read differently on the plan.
+
+`.room.on` and `.furn.on` (S1.37, wired here for the first time) tint when
+that entity is on, open or playing. `.room.on` keeps the established
+`:not([fill])` guard (S2.6's pattern) so a room's own `color` still wins.
+`renderFloor` never puts `on` on a room that has an `area` (only `entity`
+rooms tint), even if both fields happen to be set — the schema allows it,
+the render guards it.
+
+Coordinator block, after looking at a real render: the first version of
+`.room.on`/`.room.glow` read `fill:var(--fp-glow)` outright. `:not([fill])`
+gives that rule (0,3,0) specificity, which outranks every room-kind rule
+(`.room-water` etc., (0,2,0)), so it did not tint the room's own colour, it
+replaced it — a water room with its pump on went plain pale yellow, and the
+same bug already existed in `room_glow` (S2.6), untouched until now because
+nobody had looked at a lit water room next to an idle one. Fix: every kind
+rule now names its own fill as `--fp-room-fill` (`.room-water:not([fill])
+{--fp-room-fill:var(--fp-water);fill:var(--fp-room-fill)}`, and so on for
+room, garden, terrace, pavement and the hatch); `.room.glow` and `.room.on`
+read `fill:color-mix(in srgb,var(--fp-glow) 25%,var(--fp-room-fill))` —
+a tint of the room's own colour, never a value with no idea what was under
+it. 25 %, not 50 %: at 50 % a water room's own blue was already outweighed
+by the warm glow and read closer to yellow than blue; 25 % (the same
+fraction as `--fp-alpha` elsewhere) keeps the kind colour recognisable.
+Both the pre-existing `room_glow` bug and the new `.room.on` rule are fixed
+in this same change, not two rules carrying one flaw forward.
+
+Same block, second finding: `.furn.on{color:var(--fp-glow)}` painted the
+symbol's `currentColor` stroke with a token built to be a room *fill* sitting
+close to the room's own colour — against a room, a lit sofa nearly vanished
+in both themes (measured: 1.01:1 in light, 1.65:1 in dark; WCAG's floor for
+a graphical object is 3:1). Fix: a new token, `--fp-active`, amber like
+`--fp-on` but chosen per theme for contrast — `#8a5117` in light (5.0:1
+against `--fp-room`, 5.6:1 against `--fp-bg`), `#e0a800` in dark (6.8:1 /
+8.0:1, the same hex as `--fp-on` there, which already read well on a dark
+floor). `.furn.on{color:var(--fp-active)}`. Turning something on now makes
+it more present in both themes, not less.
+
+Every rule above has a `getComputedStyle` pair in `tests/editor/editor.spec.ts`
+("Opus review CSS pair"), read in real Chromium, including the break-it case
+(a light that is `on` and `unavailable` keeps `opacity: 0.45`), the water
+room staying blue-ish on (not the raw glow value, not the plain kind colour),
+the same fix applied to `room_glow`, and the furniture accent's exact value.
+A rendered screenshot (demo ground floor, a water room and a piece of
+furniture carrying an `entity`, on/off, light/dark) was the check that found
+both bugs — the string and computed-style tests passed the whole time.
+
+Second coordinator block, after cropping the same render at 4x: the fix above
+closed the "went plain yellow" bug but opened a subtler one. `--fp-glow` is a
+pale warm yellow and `--fp-water` is a pale cool blue at nearly the same
+lightness, so mixing them desaturates rather than brightens — on screen a
+pond that was ON read as a *duller, greyer* blue than the same pond OFF. A
+pump that starts running made its pond look switched off: confidently wrong,
+not obviously wrong, and worse than the first bug for it. A fill tint is the
+wrong mechanism for an "on" signal on a room: it has to compete with a fill
+that already carries meaning (the room's own kind colour), and it will lose
+or muddy that meaning for some kind every time — `zone`'s fill is `none`, so
+even a correct tint there is a silent no-op, invisible regardless.
+
+Fix: `.room.on` no longer touches `fill`. It strokes the polygon in
+`--fp-active` instead — the same token furniture already wears when on, so
+"on" reads as one colour across the whole plan, and an outline never fights
+whatever is underneath it. `.room.glow` is untouched, still the `color-mix`
+fill: glow is light spilling into a room, an honestly warm tint, a different
+signal from "on" and kept as one.
+
+Two things fell out of moving to a stroke. First, `.sel{stroke:var(--fp-ink)}`
+is one class (0,1,0); `.room.on{stroke:...}` is two (0,2,0), which always
+outranks it regardless of source order (CLAUDE.md finding 10 again) — a
+selected room that was also on would stop showing its ink selection outline.
+`.room.on.sel{stroke:var(--fp-ink)}` (0,3,0) wins over both, defensively,
+whether or not the current code ever actually puts `.sel` on a room polygon
+today (it doesn't — the editor draws room selection as a separate `.hl`
+overlay in `editor-app.ts`, not a class on the room itself). Second, and not
+anticipated by the coordinator's suggested rule: a room's own boundary is
+almost always also a wall, and every wall gets a white halo drawn on top of
+the room, right along that same line, after the room in DOM order. A
+same-width stroke on the room polygon itself sat *under* that halo and was
+nearly invisible — only slivers showed through a dashed wall's gaps, found by
+re-rendering and cropping the pond again after the first fix, the same way
+the coordinator found the original two bugs. `renderFloor` now draws the
+ring a second time, as an undecorated `fill="none" pointer-events="none"`
+polygon, after every wall line — genuinely on top, and taking no clicks of
+its own (the original polygon underneath still does).
+
+Every rule has a `getComputedStyle` pair in `tests/editor/editor.spec.ts`:
+the water room's `fill` is now unchanged by `.on` while its `stroke` becomes
+`--fp-active`; a `zone` room (fill:none) still strokes on `.on`, closing the
+silent-no-op case; a room that is both `on` and `sel` (constructed by hand,
+the same technique the motion-fade pair uses) strokes with `--fp-ink`, not
+`--fp-active`. `tests/card/card.spec.ts` adds one more, against the real
+card with a live entity, not hand-toggled classes: the ring polygon exists,
+its DOM index is after the last wall line, its `pointer-events` is `none`,
+and the room's own fill never moved. A rendered screenshot (same ground
+floor, pond and sofa, on/off, light/dark) was looked at again: the ON pond
+now shows a solid amber ring around a plain water-blue fill; the OFF pond
+shows only its ordinary dashed boundary and no ring, in both themes.
+
 ## 2026-09-20 task/S2.7: the confirm dialog's text follows the action, not the PLAN block's literal wording
 
 Opus review found the bug the entry below missed: the PLAN block fixed the dialog's words ("Open

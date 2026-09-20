@@ -27,7 +27,7 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
 // duplicated verbatim between the explicit selector and the prefers-color-scheme query, 47 tokens byte-identical).
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.75;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.75;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;
 --fp-on-dark:#fff;--fp-on-light:#2b2a27`;
 /* Home Assistant's own dark night-blue. Every accent that carries meaning (device colours, the warn/danger/primary
    buttons) keeps the same hex as light: each already clears 4.5:1 against its fixed on-dark/on-light text token, so
@@ -35,7 +35,7 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ga
    wall-external/-fence) change, because those are the tokens a dark background actually breaks. */
 const DARK_TOKENS = `--fp-ink:#e8e6e0;--fp-bg:#111c2b;--fp-room:#1c2a3a;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#e8e6e0;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#a9a49a;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-halo:#8a97a8;--fp-alpha:.25;--fp-disc:#1c2a3a;--fp-disc-alpha:.75;--fp-outline:#111c2b;--fp-text:#e8e6e0;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#c9c6bf;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#e8e6e0;--fp-glow:#4a3f22;--fp-aura:#f0c419;
+--fp-tread:#a9a49a;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-halo:#8a97a8;--fp-alpha:.25;--fp-disc:#1c2a3a;--fp-disc-alpha:.75;--fp-outline:#111c2b;--fp-text:#e8e6e0;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#c9c6bf;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#e8e6e0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;
 --fp-on-dark:#fff;--fp-on-light:#2b2a27`;
 
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
@@ -52,23 +52,51 @@ export const FLOORPLAN_CSS = `
    is the nested override, so one plan can be dark while its host is not. */
 :host([data-theme="dark"]),[data-theme="dark"]{${DARK_TOKENS}}
 @media (prefers-color-scheme:dark){:host(:not([data-theme="light"]):not([data-theme="dark"])),.fp:not([data-theme="light"]):not([data-theme="dark"]){${DARK_TOKENS}}}
-/* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch. */
-.room:not([fill]){fill:var(--fp-room)} .room-garden:not([fill]){fill:var(--fp-garden)} .room-terrace:not([fill]){fill:var(--fp-terrace)} .room-pavement:not([fill]){fill:var(--fp-pavement)}
-.room.room-fill{fill:url(#fp-hatch)} .room-zone:not([fill]){fill:none} .room-water:not([fill]){fill:var(--fp-water)}
+/* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
+   Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
+   or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,
+   which outranks every rule here on specificity and so blanked out the kind colour entirely — a glowing water room
+   went plain yellow, not a tinted blue). */
+.room:not([fill]){--fp-room-fill:var(--fp-room);fill:var(--fp-room-fill)} .room-garden:not([fill]){--fp-room-fill:var(--fp-garden);fill:var(--fp-room-fill)} .room-terrace:not([fill]){--fp-room-fill:var(--fp-terrace);fill:var(--fp-room-fill)} .room-pavement:not([fill]){--fp-room-fill:var(--fp-pavement);fill:var(--fp-room-fill)}
+.room.room-fill{--fp-room-fill:var(--fp-fill);fill:url(#fp-hatch)} .room-zone:not([fill]){--fp-room-fill:transparent;fill:none} .room-water:not([fill]){--fp-room-fill:var(--fp-water);fill:var(--fp-room-fill)}
 /* S2.6: room_glow. Three classes (.room.glow:not([fill])) outrank every rule above (two classes each), so which
    wins is settled by specificity, not source order (CLAUDE.md finding 10: a [fill] attribute beat a class once
-   before). A room with its own colour (own[fill] attribute) is the user's choice and keeps it, glowing or not. */
-.room.glow:not([fill]){fill:var(--fp-glow)}
+   before). A room with its own colour (own[fill] attribute) is the user's choice and keeps it, glowing or not.
+   The fill mixes into --fp-room-fill (the kind's own colour) instead of overwriting it, so a glowing water room
+   stays blue, just brighter. 25%, the same fraction as --fp-alpha elsewhere, keeps the kind colour recognisable
+   (a lit water room reads pale teal, not pale yellow); 50% washed it out almost to the glow colour alone. */
+.room.glow:not([fill]){fill:color-mix(in srgb,var(--fp-glow) 25%,var(--fp-room-fill))}
+/* S1.37: a room with an entity (never one with an area) gets an outline when that entity is on, open or playing.
+   This used to be the same fill tint as room_glow above, but a fill has to compete with a colour that already
+   carries meaning: --fp-glow is a pale warm yellow, --fp-water is a pale cool blue at nearly the same lightness,
+   so mixing them desaturated instead of brightened — an ON pond read as a duller, greyer blue than an OFF one,
+   confidently wrong rather than obviously wrong (Opus review, rendered and looked at). A stroke never fights the
+   fill, reads on every kind including zone (fill:none, so a fill tint there was a silent no-op), and reuses
+   --fp-active, the same token furniture already wears when on, so "on" is one colour across the whole plan.
+   No :not([fill]) guard: a stroke doesn't touch fill, so a room's own colour is untouched either way. */
+.room.on{stroke:var(--fp-active);stroke-width:3;vector-effect:non-scaling-stroke}
+/* .sel is one class (0,1,0); .room.on is two (0,2,0) and would always outrank it on specificity, so a selected
+   room that is also on would stop showing its ink selection outline. This three-class override (0,3,0) wins
+   regardless of source order and keeps selection on top (Opus review). */
+.room.on.sel{stroke:var(--fp-ink)}
+/* S2.9: furniture with an entity turns present, not paler, when it is on. --fp-glow is a fill tint built to sit
+   close to a room's own colour, so reusing it as a stroke colour here made a sofa nearly vanish against the room
+   under it in either theme (Opus review). --fp-active is its own token, amber like --fp-on, chosen per theme for
+   at least 3:1 contrast against both --fp-room and --fp-bg (measured: light 5.0:1 / 5.6:1, dark 6.8:1 / 8.0:1). */
+.furn.on{color:var(--fp-active)}
 .e{stroke:var(--fp-wall);stroke-width:3;stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5}
 .e.external{stroke:var(--fp-wall-external);stroke-width:6;stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
 .eh{stroke:var(--fp-outline);stroke-width:5;stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.external{stroke-width:8;stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
 .e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none} .opening{stroke:var(--fp-room);stroke-width:9;pointer-events:none}
 .extra{fill:none;stroke:var(--fp-idle);stroke-dasharray:6 4;stroke-width:1.2;vector-effect:non-scaling-stroke;pointer-events:none}
 .door{stroke:var(--fp-door)} .door-glass{stroke:var(--fp-glass)} .door-window{stroke:var(--fp-window)} .door-sealed{stroke:var(--fp-sealed);stroke-dasharray:10 6}
-.door.open{stroke:var(--fp-open)} .door.cover-open{stroke:var(--fp-open)}
-.dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-on));opacity:var(--fp-dev-opacity,1)} .dev-contact.on path{fill:var(--fp-open)}
+.door.open{stroke:var(--fp-dev-contact)} .door.cover-open{stroke:var(--fp-open)}
+.dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
+/* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
+.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)}
 .dev .halo{fill:var(--fp-disc);fill-opacity:var(--fp-disc-alpha);stroke:var(--fp-halo);stroke-width:1;vector-effect:non-scaling-stroke}
+.dev.on .halo{fill:var(--fp-dev);fill-opacity:var(--fp-alpha)}
 .aura{fill:var(--fp-aura);fill-opacity:var(--fp-alpha);pointer-events:none}
 .dev.unavailable{opacity:.45}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
@@ -165,6 +193,14 @@ function classOf(d: Device, o: RenderOpts): Cls {
   return s.state === "on" || s.state === "open" ? "on" : "off";
 }
 
+/** S1.37: a room or a piece of furniture with an entity carries "on" when that entity is on, open or playing. */
+const ON_STATES = new Set(["on", "open", "playing"]);
+function entityOn(o: RenderOpts, entity: string | undefined): boolean {
+  if (!entity) return false;
+  const s = o.state?.[entity];
+  return !!s && ON_STATES.has(s.state);
+}
+
 /**
  * One stairs object: the polygon (or, round, an even-odd path with the well cut out), its treads and its edges, turned
  * together by `rot` about the centre of the polygon's box. Only an unturned straight flight has edge lines a click can
@@ -232,7 +268,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (r.kind === "fill" && !r.name) return;
     const own = typeof r.color === "string" && COLOR.test(r.color) ? ` fill="${r.color}"` : ""; // strict pattern: the value goes into an attribute
     const glow = glowRooms.has(i) ? " glow" : "";
-    out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}"${own} points="${pts(r.pts)}"/>`);
+    const on = !r.area && entityOn(o, r.entity) ? " on" : "";
+    out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}${on}"${own} points="${pts(r.pts)}"/>`);
   });
 
   f.stairs.forEach((t, i) => out.push(stairsGroup(t, i)));
@@ -252,6 +289,19 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   for (const l of edgeLines) out.push(`<line class="eh${l.cls.slice(1)}" ${seg(l.a, l.b)}/>`);
   for (const l of [...guides, ...edgeLines]) out.push(`<line class="${l.cls}"${l.attr} ${seg(l.a, l.b)}/>`);
 
+  // S2.9 round 3: a room's own boundary is almost always also a wall, and a wall's white halo (3.5-5px) is drawn
+  // right on top of the room polygon and fully covers a same-width stroke on it — the .room.on rule above proves
+  // correct in a computed-style pair, but on screen the "on" ring all but vanished behind the wall it traces
+  // (Opus review: rendered and looked at). A second, undecorated pass draws the ring again after every wall line,
+  // on top of them, so it actually reads. fill="none" makes the :not([fill]) room rules leave it alone; it takes
+  // no clicks of its own, the polygon underneath still does.
+  [...f.rooms.keys()].forEach((i) => {
+    const r = f.rooms[i];
+    if (r.kind === "fill" && !r.name) return;
+    if (r.area || !entityOn(o, r.entity)) return;
+    out.push(`<polygon class="room on" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
+  });
+
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
   f.openings.forEach((op) => out.push(`<line class="opening" x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}"/>`));
   f.extras.forEach((x) => {
@@ -265,7 +315,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.furniture.forEach((m, i) => {
     const sym = FURNITURE[m.symbol];
     if (!sym) return;
-    out.push(`<g data-f="${i}" class="furn" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-idle)">${sym.svg}</g>`);
+    const on = entityOn(o, m.entity) ? " on" : "";
+    out.push(`<g data-f="${i}" class="furn${on}" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-idle)">${sym.svg}</g>`);
   });
 
   f.doors.forEach((d, i) => {
