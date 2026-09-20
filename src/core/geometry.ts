@@ -187,6 +187,39 @@ export function setEdgeKind(f: Floor, poly: string, i: number, kind: EdgeKind): 
   return g;
 }
 
+/**
+ * Delete for a room edge: no room draws any part of segment a-b afterwards. A room edge that lies on the segment
+ * but reaches past it is first cut at the segment's ends (like `stitch`, kinds copied), then every piece on the
+ * segment becomes "none". Zones are skipped. Returns `f` itself when the edge is a zone's, has no length, or no room edge lies on it.
+ */
+export function deleteEdge(f: Floor, poly: string, i: number): Floor {
+  const P = polys(f).find((x) => x.id === poly);
+  if (!P || isZone(P)) return f;
+  const a = P.pts[i], b = P.pts[(i + 1) % P.pts.length], L = dist(a, b);
+  if (!L) return f;
+  const along = (p: Pt) => ((p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])) / L;
+  const off = (p: Pt) => Math.abs((p[0] - a[0]) * (b[1] - a[1]) - (p[1] - a[1]) * (b[0] - a[0])) / L;
+  const g = structuredClone(f);
+  let hit = false;
+  for (const room of g.rooms) {
+    if (room.kind === "zone") continue;
+    for (let j = 0; j < room.pts.length; ) {
+      const c = room.pts[j], d = room.pts[(j + 1) % room.pts.length];
+      const ac = along(c), ad = along(d), lo = Math.min(ac, ad), hi = Math.max(ac, ad);
+      if (off(c) > TOUCH || off(d) > TOUCH || Math.min(hi, L) - Math.max(lo, 0) <= TOUCH) { j++; continue; }
+      const cuts = [a, b].filter((p) => along(p) > lo + TOUCH && along(p) < hi - TOUCH).sort((p, q) => (ac <= ad ? along(p) - along(q) : along(q) - along(p)));
+      room.pts.splice(j + 1, 0, ...cuts.map((p): Pt => [p[0], p[1]]));
+      room.wk.splice(j + 1, 0, ...cuts.map(() => room.wk[j]));
+      for (let k = 0; k <= cuts.length; k++) {
+        const m = (along(room.pts[j + k]) + along(room.pts[(j + k + 1) % room.pts.length])) / 2;
+        if (m > 0 && m < L) { room.wk[j + k] = "none"; hit = true; }
+      }
+      j += cuts.length + 1;
+    }
+  }
+  return hit ? g : f;
+}
+
 /** Indexes of the doors and openings that lie on segment a-b: within TOUCH of its line and overlapping it. */
 export function onEdge(f: Floor, a: Pt, b: Pt): { doors: number[]; openings: number[] } {
   const L = dist(a, b) || 1;

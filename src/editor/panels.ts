@@ -1,6 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { DOOR_KINDS, FLOOR_COLOURS, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
+import { DOOR_KINDS, FLOOR_COLOURS, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { DeviceType, EdgeKind, Floor, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
@@ -153,7 +153,7 @@ function cornerPanel(c: PanelCtx, s: Extract<Sel, { t: "v" }>) {
 /** Delete for a room edge: it stops being drawn, on every room that shares it. A door or window on it asks first. */
 function edgeDelete(c: PanelCtx, s: Extract<Sel, { t: "edge" }>, a: [number, number], b: [number, number]) {
   const key = `${s.poly}:${s.i}`, on = onEdge(c.st.f, a, b), n = on.doors.length + on.openings.length;
-  const remove = () => { c.st.confirmEdge = null; c.commit((f) => setEdgeKind(f, s.poly, s.i, "none")); };
+  const remove = () => { c.st.confirmEdge = null; c.commit((f) => deleteEdge(f, s.poly, s.i)); };
   if (c.st.confirmEdge === key && n)
     return html`<p class="hint">${n === 1 ? "A door or window is on this edge." : `${n} doors and windows are on this edge.`} They stay. Stop drawing the edge?</p>
       <div class="row">${button("edelyes", "Delete", remove, "warn")}${button("edelno", "Cancel", () => { c.st.confirmEdge = null; c.refresh(); })}</div>`;

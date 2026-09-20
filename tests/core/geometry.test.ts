@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Floor, Pt, WallKind } from "../../src/core/schema";
-import { dist, polys, nearestEdge, snapPoint, stitch, insertPoint, removePoint, movePoints, edgeRooms, setEdgeKind, mergeCorners, snapped, rotatePoly, onEdge } from "../../src/core/geometry";
+import { dist, polys, nearestEdge, snapPoint, stitch, insertPoint, removePoint, movePoints, edgeRooms, setEdgeKind, deleteEdge, mergeCorners, snapped, rotatePoly, onEdge } from "../../src/core/geometry";
 
 // Two rooms side by side sharing the edge x=100, inside a 200x100 outline.
 const rect = (x0: number, y0: number, x1: number, y1: number): Pt[] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -378,5 +378,48 @@ describe("deleting an edge (S1.47)", () => {
   it("the area of the room does not depend on a deleted edge", () => {
     const f = setEdgeKind(floor(), "r0", 1, "none");
     expect(polys(f)[1].pts).toEqual(floor().rooms[0].pts);
+  });
+});
+
+describe("deleteEdge (S1.47 fix)", () => {
+  // a and b sit on a long room c: c's top edge (0,100)-(200,100) is shared in halves.
+  const three = () => { const f = floor(); f.outline = rect(0, 0, 200, 200); f.rooms.push(room("c", rect(0, 100, 200, 200))); return f; };
+  const drawn = (f: Floor) => f.rooms.flatMap((r) => r.pts.map((p, i) => ({ r: r.id, a: p, b: r.pts[(i + 1) % r.pts.length], k: r.wk[i] }))).filter((e) => e.k !== "none");
+  const covers = (f: Floor, x: number) => drawn(f).filter((e) => e.a[1] === 100 && e.b[1] === 100 && Math.min(e.a[0], e.b[0]) <= x && Math.max(e.a[0], e.b[0]) >= x);
+
+  it("from the long edge: every half that lies on it stops being drawn, and the long edge stays one edge", () => {
+    const f = three(), g = deleteEdge(f, "r2", 0);
+    expect(covers(g, 50)).toEqual([]);
+    expect(covers(g, 150)).toEqual([]);
+    expect(g.rooms[2].pts).toHaveLength(4);
+    expect(g.rooms[2].wk).toEqual(["none", "wall", "wall", "wall"]);
+    expect(g.rooms[0].wk[2]).toBe("none");
+    expect(g.rooms[1].wk[2]).toBe("none");
+    expect(f.rooms[2].wk[0]).toBe("wall"); // input untouched
+  });
+  it("from a half: the long edge is split and only the covered part goes", () => {
+    const g = deleteEdge(three(), "r0", 2);
+    expect(g.rooms[0].wk[2]).toBe("none");
+    expect(g.rooms[2].pts).toEqual([[0, 100], [100, 100], [200, 100], [200, 200], [0, 200]]);
+    expect(g.rooms[2].wk).toEqual(["none", "wall", "wall", "wall", "wall"]);
+    expect(g.rooms[1].wk[2]).toBe("wall"); // b's own bottom edge is not on it
+    expect(covers(g, 150).map((e) => e.r)).toEqual(["b", "c"]);
+  });
+  it("an edge that only touches at a corner is left alone, a zone stays boundary, no room returns the same floor", () => {
+    const f = three();
+    expect(deleteEdge(f, "r9", 0)).toBe(f);
+    const g = deleteEdge(f, "r0", 1); // a|b seam
+    expect(g.rooms[2].pts).toHaveLength(4);
+    expect(g.rooms[0].wk[1]).toBe("none");
+    expect(g.rooms[1].wk[3]).toBe("none");
+    const z = three();
+    z.rooms.push({ ...room("z", [[10, 110], [60, 110], [60, 160], [10, 160]]), kind: "zone" as const, wk: ["boundary", "boundary", "boundary", "boundary"] });
+    expect(deleteEdge(z, "r3", 0)).toBe(z);
+  });
+  it("the demo Hall edge takes Living and Kitchen halves with it", () => {
+    const d = structuredClone(demo.floors.ground) as unknown as Floor, g = deleteEdge(d, "r2", 0);
+    expect(g.rooms[2].wk[0]).toBe("none");
+    expect(g.rooms[0].wk[2]).toBe("none");
+    expect(g.rooms[1].wk[2]).toBe("none");
   });
 });

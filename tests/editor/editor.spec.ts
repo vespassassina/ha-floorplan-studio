@@ -3583,6 +3583,21 @@ test("S1.47: a door on the edge asks first; Cancel changes nothing", async ({ pa
   expect(g.doors.some((d) => d.id === "door-x")).toBe(true); // the door stays
 });
 
+test("S1.47: Delete on the edge Hall shares in halves leaves no line drawn; one undo restores exactly", async ({ page }) => {
+  const before = await groundOf(page), lines = await twins(page);
+  await clickCm(page, 250, 400); // Hall's edge (0,400)-(800,400); Living and Kitchen own half each
+  await page.locator("#edel").click();
+  const g = await groundOf(page);
+  const onSeam = g.rooms.flatMap((r) => r.pts.map((p, i) => ({ a: p, b: r.pts[(i + 1) % r.pts.length], k: r.wk[i], name: r.name })).filter((e) => e.a[1] === 400 && e.b[1] === 400));
+  expect(onSeam.length).toBe(3); // Living's, Kitchen's and Hall's edge
+  expect(onSeam.map((e) => e.k)).toEqual(onSeam.map(() => "none"));
+  expect(await twins(page)).toBe(lines - 3);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect(await groundOf(page)).toEqual(before);
+  await expect(page.locator("#undo")).toBeDisabled();
+});
+
 test("S1.47: an edge that belongs to no room has no Delete", async ({ page }) => {
   await addFloorVia(page, "Attic"); // the outline only
   await clickCm(page, 400, 0);
