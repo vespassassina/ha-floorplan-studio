@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.53 review: `addFloor` clones the source floor's `owk` along with its `outline`
+
+An Opus review of the S1.53 stack found: `addFloor` (`src/editor/state.ts`) cloned the source
+floor's `outline` for the new floor's perimeter, but not its `owk`, so a new floor dropped the
+perimeter wall kinds it should have inherited. Cloned `owk` too, when the source has one. Test
+updated to assert the new floor's `owk` matches the ground floor's.
+
 ## 2026-09-20 S1.53 review: `migrate` clamps furniture w/h into 5-2000 cm instead of leaving `validate` to reject the file
 
 An Opus review of the S1.53 stack found: every other out-of-range value in `migrate.ts` is

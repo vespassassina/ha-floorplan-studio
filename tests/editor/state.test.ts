@@ -164,7 +164,7 @@ describe("floors", () => {
       expect(st.addFloor("Attic")).toBe("attic");
       expect(keys(st)).toEqual(["ground", "first", "attic"]);
       expect(st.floor).toBe("attic");
-      expect(st.f).toEqual({ title: "Attic", ...empty, outline: st.layout.floors.ground.outline, stairs: [{ ...st.layout.floors.ground.stairs[0], id: "stairs-attic-1" }] }); // S1.27
+      expect(st.f).toEqual({ title: "Attic", ...empty, outline: st.layout.floors.ground.outline, owk: st.layout.floors.ground.owk, stairs: [{ ...st.layout.floors.ground.stairs[0], id: "stairs-attic-1" }] }); // S1.27, owk added Opus review
       expect(st.sel).toBeNull();
     });
     it("is one undo step: undo removes it and the selection falls back to a floor that exists", () => {

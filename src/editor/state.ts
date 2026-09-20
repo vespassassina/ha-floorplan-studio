@@ -152,7 +152,7 @@ export class EditorState {
 
   // ---- floors: whole-layout snapshots, one undo step each, nothing recorded when refused ----
 
-  /** Adds a floor last and selects it, with the outline and the stairs of the first floor (the lowest) and nothing else, so a house is not traced twice. Deep copies; the stairs get ids of the new floor. The key is the slug of the title, with -2, -3 on a clash. Returns the key, or "" for an empty title. */
+  /** Adds a floor last and selects it, with the outline (and its wall kinds), and the stairs, of the first floor (the lowest) and nothing else, so a house is not traced twice. Deep copies; the stairs get ids of the new floor. The key is the slug of the title, with -2, -3 on a clash. Returns the key, or "" for an empty title. */
   addFloor(title: string): string {
     const t = title.trim();
     if (!t) return "";
@@ -162,6 +162,7 @@ export class EditorState {
     this.snapshot();
     const first = Object.values(this.layout.floors)[0];
     const nf: Floor = { title: t, outline: structuredClone(first?.outline ?? []), rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };
+    if (first?.owk) nf.owk = structuredClone(first.owk); // Opus review: the outline's kinds must follow its points, or a new floor's perimeter drops back to the wk-less default
     for (const s of first?.stairs ?? []) nf.stairs.push({ ...structuredClone(s), id: newId(nf, key, "stairs") });
     Object.defineProperty(this.layout.floors, key, { value: nf, enumerable: true, writable: true, configurable: true });
     this.floor = key; this.sel = null; this.openDoor = null; this.confirmDelete = false;
