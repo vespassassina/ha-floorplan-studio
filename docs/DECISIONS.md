@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.53 review: Delete on a perimeter edge clears the outline's collinear edge too, whichever poly was clicked
+
+`deleteEdge` cleared `owk[i]` only when the selected poly was the outline itself. In the shipped
+demo a room edge and the outline edge lie on the same segment, and the room's line paints after
+the outline's, so a click on a perimeter wall selects the room's edge (`r0:0`), not the outline's
+(`o:0`); Delete then left the outline's line drawn underneath, looking broken on exactly the walls
+that matter. Generalized `deleteEdge` in `src/core/geometry.ts`: the cut/clear logic that already
+handled two rooms sharing a segment (the F1 fix) now runs against `g.outline` unconditionally,
+alongside every non-zone room, regardless of which poly was originally clicked. Undo restores
+both kinds in one step, since this returns a single new floor.
+
+Playwright test on the unmodified demo (no `rooms = []` first, which is what hid the bug): click
+a perimeter wall, Delete, assert neither `r0:0` nor `o:0` draws a line, then Undo restores both.
+All 61 pre-existing geometry.test.ts cases still pass unchanged after the refactor.
+
 ## 2026-09-20 S1.53 review: Draw > Outline rebuilds `owk` to the new point count
 
 `applyShape`'s outline branch replaced `g.outline` without touching `g.owk`. Any redraw that

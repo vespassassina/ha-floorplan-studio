@@ -2073,6 +2073,28 @@ test("S1.52: Delete on a perimeter edge stops drawing it, and one undo brings it
   await expect(page.locator('svg line[data-e="o:0"]')).toHaveClass("e external");
 });
 
+test("Opus review: Delete on the unmodified demo clears the room edge AND the outline's collinear edge together (S1.53)", async ({ page }) => {
+  // No `rooms = []` here on purpose: that isolation is what hid the bug. The Living room's top edge
+  // (r0:0) and the outline's top edge (o:0) share the segment x 0-500, y 0; the room's line is painted
+  // after the outline's, so a real click lands on r0:0.
+  await clickCm(page, 400, 0);
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.sel, EDITOR)).toEqual({ t: "edge", poly: "r0", i: 0 });
+  await expectWarn(page, "#edel");
+  await page.locator("#edel").click();
+  const g = await groundOf(page);
+  expect(g.rooms[0].wk[0]).toBe("none");
+  expect(g.owk?.[0]).toBe("none");
+  await expect(page.locator('svg line.e:not(.none)[data-e="r0:0"]')).toHaveCount(0); // no colored line remains on the segment
+  await expect(page.locator('svg line.e:not(.none)[data-e="o:0"]')).toHaveCount(0);
+  await expect(page.locator('svg line.e.none[data-e="r0:0"]')).toHaveCount(1); // a faint guide only, as usual
+  await expect(page.locator('svg line.e.none[data-e="o:0"]')).toHaveCount(1);
+  await menu(page, "File");
+  await page.locator("#undo").click(); // one undo step restores both kinds together
+  const u = await groundOf(page);
+  expect(u.rooms[0].wk[0]).toBe("external");
+  expect(u.owk?.[0]).toBe("external");
+});
+
 test("S1.52: a door on the perimeter edge asks first; Cancel changes nothing, the door stays either way", async ({ page }) => {
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));

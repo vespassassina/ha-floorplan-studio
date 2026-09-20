@@ -207,8 +207,11 @@ export function setEdgeKind(f: Floor, poly: string, i: number, kind: EdgeKind): 
 /**
  * Delete for a room edge: no room draws any part of segment a-b afterwards. A room edge that lies on the segment
  * but reaches past it is first cut at the segment's ends (like `stitch`, kinds copied), then every piece on the
- * segment becomes "none". When `poly` is "o" the outline's own edge becomes "none" too (S1.52). Zones are skipped.
- * Returns `f` itself when the edge is a zone's, has no length, or nothing (outline or room) lies on it.
+ * segment becomes "none". The outline's own collinear edge(s) are cut and cleared the same way, whichever poly
+ * was clicked (S1.53 Opus review): the demo's perimeter walls are drawn twice, a room edge on top of the outline's,
+ * so a click on one must clear both or Delete looks broken on exactly the walls that are external. Zones are
+ * skipped. Undo restores everything in one step, since this returns a single new floor. Returns `f` itself when
+ * the edge is a zone's, has no length, or nothing (outline or room) lies on it.
  */
 export function deleteEdge(f: Floor, poly: string, i: number): Floor {
   const P = polys(f).find((x) => x.id === poly);
@@ -219,23 +222,24 @@ export function deleteEdge(f: Floor, poly: string, i: number): Floor {
   const off = (p: Pt) => Math.abs((p[0] - a[0]) * (b[1] - a[1]) - (p[1] - a[1]) * (b[0] - a[0])) / L;
   const g = structuredClone(f);
   let hit = false;
-  if (poly === "o") { const owk = ensureOwk(g); if (owk[i] !== "none") { owk[i] = "none"; hit = true; } }
-  for (const room of g.rooms) {
-    if (room.kind === "zone") continue;
-    for (let j = 0; j < room.pts.length; ) {
-      const c = room.pts[j], d = room.pts[(j + 1) % room.pts.length];
+  // Cuts `pts`/`wk` at the segment's ends (like `stitch`) and marks every piece that lies on it "none".
+  const clear = (pts: Pt[], wk: EdgeKind[]) => {
+    for (let j = 0; j < pts.length; ) {
+      const c = pts[j], d = pts[(j + 1) % pts.length];
       const ac = along(c), ad = along(d), lo = Math.min(ac, ad), hi = Math.max(ac, ad);
       if (off(c) > TOUCH || off(d) > TOUCH || Math.min(hi, L) - Math.max(lo, 0) <= TOUCH) { j++; continue; }
       const cuts = [a, b].filter((p) => along(p) > lo + TOUCH && along(p) < hi - TOUCH).sort((p, q) => (ac <= ad ? along(p) - along(q) : along(q) - along(p)));
-      room.pts.splice(j + 1, 0, ...cuts.map((p): Pt => [p[0], p[1]]));
-      room.wk.splice(j + 1, 0, ...cuts.map(() => room.wk[j]));
+      pts.splice(j + 1, 0, ...cuts.map((p): Pt => [p[0], p[1]]));
+      wk.splice(j + 1, 0, ...cuts.map(() => wk[j]));
       for (let k = 0; k <= cuts.length; k++) {
-        const m = (along(room.pts[j + k]) + along(room.pts[(j + k + 1) % room.pts.length])) / 2;
-        if (m > 0 && m < L) { room.wk[j + k] = "none"; hit = true; }
+        const m = (along(pts[j + k]) + along(pts[(j + k + 1) % pts.length])) / 2;
+        if (m > 0 && m < L) { wk[j + k] = "none"; hit = true; }
       }
       j += cuts.length + 1;
     }
-  }
+  };
+  clear(g.outline, ensureOwk(g));
+  for (const room of g.rooms) if (room.kind !== "zone") clear(room.pts, room.wk);
   return hit ? g : f;
 }
 
