@@ -638,6 +638,16 @@ light-fill check that S1.36 could not make yet. Left open on purpose: the demo
 and the turn-direction toggle states its direction in both its name and its
 pressed state.
 
+## Sprint 1.7 — measuring (E2)
+
+### S1.50 A measure grid with metre markers
+- Outcome: the editor shows how big things are without measuring them one by one: a faint 50 cm grid behind the plan, with the metres numbered along the X and Y axes.
+- Files: `src/editor/editor-app.ts`, `src/editor/state.ts`, `src/core/render.ts` (CSS only), `tests/editor/state.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: a private `measure(k: number): string` in `editor-app.ts` returns the grid as SVG and is placed **before** the `renderFloor` output, so the plan draws over it; when the plan is turned it goes inside the same `plan-turn` group, so the grid stays square with the walls and with the snap grid. Lines are at multiples of 50 cm of the layout's own coordinates (…, -50, 0, 50, …), covering `viewBoxFor(f)` plus its padding. Two classes in `FLOORPLAN_CSS`: `.mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke}` and `.mg.m{stroke-width:1}` for the whole-metre lines, with `--fp-measure:#3a3a3a` at `stroke-opacity:.12` for 50 cm and `.22` for a metre. Numbers are drawn at every whole metre along the top edge and the left edge of that area, as `<text class="lbl mg-n" font-size="${10 * k}">`, the value in metres with no decimals (`-2`, `0`, `3`), kept upright under plan rotation with the same `upright()` helper the length labels use, and the origin label reads `0 m` so the unit is stated once. Step up when the plan is huge: if either axis would need more than 400 lines, use 100 cm, then 500 cm; the numbers follow the step. A `measure` boolean on `EditorState`, default true, is kept in `localStorage` under `floorplan-studio:measure` next to `GRID_KEY` (a viewer preference, never in the layout, never an undo step, and a blocked storage must not throw). The View menu gets a chip `#mgrid` with `aria-pressed`, next to the Grid group.
+- Test: unit: the stored preference reads back, a missing or junk value gives true, and a throwing `localStorage` is survived. Playwright: with the demo, `.mg` lines are 50 cm apart in plan units and sit before the first room in DOM order; computed `stroke-opacity` is .12 for a 50 cm line and .22 for a metre line, and `stroke-width` is the non-scaling half pixel; the number at x = 0 reads `0 m`, the one a metre right reads `1`; toggling `#mgrid` off removes every `.mg` and the choice survives a reload; at plan rotation 45 the grid lines turn with the walls while the numbers stay upright (computed screen angle 0); a floor 600 m wide draws the 5 m step and no more than 400 lines per axis.
+- Done when: the tests pass, the toggle is in the View menu, and SPEC's editor section describes the measure grid. The card is untouched: `renderFloor` never emits `.mg`.
+- Break it: with the grid off, Undo is still disabled by it; an empty floor (no rooms) still draws a grid around the origin and does not divide by zero; a layout whose coordinates are all negative numbers its axes with negative metres.
+
 ## Sprint 2 — card (E3)
 
 ### S2.1 Card element
