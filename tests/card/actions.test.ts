@@ -5,6 +5,8 @@ import type { Hass } from "../../src/card/floorplan-studio-card";
 
 const LIGHT: Device = { id: "l1", type: "light", entity: "light.demo_living", x: 100, y: 100 };
 const SWITCH: Device = { id: "s1", type: "switch", entity: "switch.demo_hall", x: 200, y: 100 };
+const CAMERA: Device = { id: "c1", type: "camera", entity: "camera.demo_hall", x: 300, y: 100 };
+const MEDIA: Device = { id: "m1", type: "media", entity: "media_player.demo_office", x: 400, y: 100 };
 const SENSOR_DOOR: Door = { id: "d1", name: "Front door", kind: "door", a: [0, 0], b: [100, 0], sensor: "binary_sensor.demo_front_door" };
 const COVER_DOOR: Door = { id: "d2", name: "Garage door", kind: "door", a: [0, 100], b: [100, 100], cover: "cover.demo_garage_door" };
 
@@ -168,6 +170,62 @@ describe("actions: bindDeviceActions", () => {
     pointer(g, "pointerup");
     expect(callService).not.toHaveBeenCalled();
     unbind = () => {}; // afterEach calls unbind() again; make it a no-op since we already unbound
+  });
+});
+
+describe("actions: bindDeviceActions on camera and media (S2.5)", () => {
+  let callService: ReturnType<typeof vi.fn>;
+  let host: { hass: Hass } & EventTarget;
+  let svg: SVGSVGElement;
+  let unbind: () => void;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    callService = vi.fn();
+    svg = svgFixture([CAMERA, MEDIA]);
+    host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    unbind = bindDeviceActions(svg, host, (i) => [CAMERA, MEDIA][i]);
+  });
+
+  afterEach(() => {
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("a tap on a camera fires hass-more-info with its own entity, not a toggle", () => {
+    const g = svg.querySelector('[data-x="0"]')!;
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50); // well under HOLD_MS: a camera opens more-info on the plain tap, not only on a hold
+    pointer(g, "pointerup");
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "camera.demo_hall" });
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it("a tap on a media player fires hass-more-info with its own entity, not a toggle", () => {
+    const g = svg.querySelector('[data-x="1"]')!;
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "media_player.demo_office" });
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it("pointercancel abandons a camera tap: no more-info", () => {
+    const g = svg.querySelector('[data-x="0"]')!;
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointercancel");
+    pointer(g, "pointerup");
+    expect(moreInfo).not.toHaveBeenCalled();
   });
 });
 

@@ -396,6 +396,85 @@ describe("FloorplanStudioCard", () => {
     });
   });
 
+  describe("S2.5 Sensors, climate, camera, media", () => {
+    const heaterIndex = L.floors.ground.devices.findIndex((d) => d.entity === "climate.demo_living");
+    const cameraIndex = L.floors.ground.devices.findIndex((d) => d.entity === "camera.demo_hall");
+    const mediaIndex = L.floors.first.devices.findIndex((d) => d.entity === "media_player.demo_office");
+    const humidityIndex = L.floors.first.devices.findIndex((d) => d.entity === "sensor.demo_bathroom_humidity");
+
+    it("shows temperature and humidity labels with their unit", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "sensor.demo_living_temperature": st("21.5", { attributes: { unit_of_measurement: "°C" } }) }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector("svg")!.textContent).toContain("21.5 °C");
+
+      el.setConfig({ layout: structuredClone(L), floor: "first" });
+      el.hass = stubHass({ "sensor.demo_bathroom_humidity": st("48", { attributes: { unit_of_measurement: "%" } }) }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector("svg")!.textContent).toContain("48 %");
+      expect(el.shadowRoot!.querySelector(`svg [data-x="${humidityIndex}"]`)).not.toBeNull(); // the humidity device itself is on this floor
+    });
+
+    it("a climate entity heating gives its bar the on class; not heating leaves it off", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "climate.demo_living": st("heat", { attributes: { hvac_action: "heating" } }) }) as never;
+      await el.updateComplete;
+      const bar = el.shadowRoot!.querySelector(`svg [data-xbar="${heaterIndex}"]`)!;
+      expect(bar.getAttribute("class")).toMatch(/\bon\b/);
+
+      el.hass = stubHass({ "climate.demo_living": st("heat", { attributes: { hvac_action: "idle" } }) }) as never;
+      await el.updateComplete;
+      const bar2 = el.shadowRoot!.querySelector(`svg [data-xbar="${heaterIndex}"]`)!;
+      expect(bar2.getAttribute("class")).not.toMatch(/\bon\b/);
+    });
+
+    it("a tap on the camera fires hass-more-info with its entity, not a toggle", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      const callService = vi.fn();
+      el.hass = { ...stubHass(), callService } as never;
+      await el.updateComplete;
+      const g = el.shadowRoot!.querySelector(`svg [data-x="${cameraIndex}"]`)!;
+      const moreInfo = vi.fn();
+      el.addEventListener("hass-more-info", moreInfo);
+      g.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      g.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      expect(moreInfo).toHaveBeenCalledTimes(1);
+      expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "camera.demo_hall" });
+      expect(callService).not.toHaveBeenCalled();
+    });
+
+    it("a tap on the media player fires hass-more-info with its entity, not a toggle, and it takes the on class while playing", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "first" });
+      const callService = vi.fn();
+      el.hass = { ...stubHass({ "media_player.demo_office": st("playing") }), callService } as never;
+      await el.updateComplete;
+      const g = el.shadowRoot!.querySelector(`svg [data-x="${mediaIndex}"]`)!;
+      expect(g.getAttribute("class")).toMatch(/\bon\b/);
+
+      const moreInfo = vi.fn();
+      el.addEventListener("hass-more-info", moreInfo);
+      g.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      g.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      expect(moreInfo).toHaveBeenCalledTimes(1);
+      expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "media_player.demo_office" });
+      expect(callService).not.toHaveBeenCalled();
+    });
+
+    it("Break it: a humidity sensor whose state is unknown shows a dash, not the word unknown", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "first" });
+      el.hass = stubHass({ "sensor.demo_bathroom_humidity": st("unknown") }) as never;
+      await el.updateComplete;
+      const text = el.shadowRoot!.querySelector("svg")!.textContent ?? "";
+      expect(text).toContain("–");
+      expect(text).not.toContain("unknown");
+    });
+  });
+
   it("getStubConfig returns a usable default config", () => {
     const stub = FloorplanStudioCard.getStubConfig();
     expect(stub).toEqual({ type: "custom:floorplan-studio-card" });

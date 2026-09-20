@@ -186,9 +186,22 @@ describe("renderFloor", () => {
     expect(html).toContain("21.5 °C");
   });
 
+  it("S2.5: shows a humidity label with its unit", () => {
+    const f = { ...ground, devices: [{ id: "h", type: "humidity", entity: "sensor.demo_bathroom_humidity", x: 100, y: 100 }] } as unknown as typeof ground;
+    const html = renderFloor(f, { ...base, state: { "sensor.demo_bathroom_humidity": st("48", { attributes: { unit_of_measurement: "%" } }) } });
+    expect(html).toContain("48 %");
+  });
+
   it("shows a dash for an unknown sensor value", () => {
     const html = renderFloor(ground, { ...base, state: { "sensor.demo_living_temperature": st("unknown") } });
     expect(html).toMatch(/class="val"[^>]*>–</);
+  });
+
+  it("S2.5 Break it: an unavailable humidity sensor also shows a dash, not the raw word", () => {
+    const f = { ...ground, devices: [{ id: "h", type: "humidity", entity: "sensor.demo_bathroom_humidity", x: 100, y: 100 }] } as unknown as typeof ground;
+    const html = renderFloor(f, { ...base, state: { "sensor.demo_bathroom_humidity": st("unavailable") } });
+    expect(html).toMatch(/class="val"[^>]*>–</);
+    expect(html).not.toContain("unavailable<");
   });
 
   it("renders a device whose entity is missing from state as off, without error", () => {
@@ -667,6 +680,16 @@ describe("devices sit on top (S1.29)", () => {
     expect(bar).toBeGreaterThan(-1);
     expect(icon).toBeGreaterThan(-1);
     expect(bar).toBeLessThan(icon);
+  });
+
+  it("S2.5: the heater bar carries the on class only when hvac_action is heating", () => {
+    const f = { ...ground, devices: [{ id: "bar", type: "heater", entity: "climate.bar", a: [3000, 10], b: [3100, 10] }] } as unknown as typeof ground;
+    const heating = renderFloor(f, { ...base, state: { "climate.bar": st("heat", { attributes: { hvac_action: "heating" } }) } });
+    expect(heating).toMatch(/<line data-xbar="0" class="heater on"/);
+    const idle = renderFloor(f, { ...base, state: { "climate.bar": st("heat", { attributes: { hvac_action: "idle" } }) } });
+    expect(idle).toMatch(/<line data-xbar="0" class="heater off"/);
+    const noState = renderFloor(f, base);
+    expect(noState).toMatch(/<line data-xbar="0" class="heater off"/);
   });
 });
 

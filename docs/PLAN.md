@@ -706,7 +706,7 @@ pressed state.
 - Done when: tests pass; no timer runs when nothing is fading (assert `setInterval` count).
 - Break it: `fade: 0` shows red only while `on`.
 
-### S2.5 Sensors, climate, camera, media
+### S2.5 Sensors, climate, camera, media (done)
 - Outcome: temp and humidity labels; heater bar orange when `hvac_action === "heating"`; camera and media open more-info on tap; media accent when `playing`.
 - Test: stub states → label text `21.5 °C`, `48 %`; climate heating → `line.heater.on`; tap camera fires more-info with its entity.
 - Done when: tests pass.

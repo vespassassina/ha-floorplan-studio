@@ -31,7 +31,8 @@ export interface DeviceActionsHost extends EventTarget {
  * `closest("g[data-x], line[data-d]")` (CLAUDE.md finding 3) rather than trusting `e.target` itself. One gesture
  * implementation serves both, so devices and doors never drift apart.
  *
- * A door with a `cover` but no `sensor` fires nothing yet: S2.7 adds the confirm dialog for it.
+ * A door with a `cover` but no `sensor` fires nothing yet: S2.7 adds the confirm dialog for it. A camera or a
+ * media player has no toggle: a tap on either opens more-info at once, the same as a sensor door (S2.5).
  *
  * No debounce: each pointerdown/pointerup pair is independent, so two quick taps toggle twice, not once
  * (S2.2 "Break it").
@@ -79,6 +80,16 @@ export function bindDeviceActions(
     const i = Number(target.getAttribute("data-x"));
     const d = Number.isFinite(i) ? getDevice(i) : undefined;
     if (!d) return;
+
+    if (d.type === "camera" || d.type === "media") {
+      // Neither has a toggle: a tap opens more-info right away, the same as a sensor door above (S2.5).
+      held = false;
+      entityId = d.entity;
+      action = "more-info";
+      clearTimer();
+      return;
+    }
+
     held = false;
     entityId = d.entity;
     action = "toggle";

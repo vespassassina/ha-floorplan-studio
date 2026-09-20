@@ -99,6 +99,28 @@ test("S2.2 review: with no rgb_color the icon's computed fill falls back to --fp
   expect(fill).not.toBe("rgb(255, 0, 0)");
 });
 
+// Opus review CSS pair (CLAUDE.md finding 10): `.heater` and `.heater.on` have the same specificity (one class vs
+// two), so which one wins is never in doubt from the source alone — read the built card's actual computed stroke.
+test("S2.5 CSS pair: the heater bar's stroke is idle grey off and the heater colour only while heating", async ({ page }) => {
+  await open(page);
+  const heaterStroke = () =>
+    page.locator("floorplan-studio-card").evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('line[data-xbar="7"]')!).stroke);
+
+  await configure(
+    page,
+    { layout: structuredClone(demo) },
+    { states: { "climate.demo_living": { state: "heat", attributes: { hvac_action: "idle" }, last_changed: new Date().toISOString() } } },
+  );
+  expect(await heaterStroke()).toBe("rgb(139, 133, 120)"); // --fp-idle
+
+  await configure(
+    page,
+    { layout: structuredClone(demo) },
+    { states: { "climate.demo_living": { state: "heat", attributes: { hvac_action: "heating" }, last_changed: new Date().toISOString() } } },
+  );
+  expect(await heaterStroke()).toBe("rgb(232, 128, 26)"); // --fp-heater
+});
+
 test("S2.1 review: getCardSize accounts for layout.rotate in a real browser too", async ({ page }) => {
   await open(page);
   const unturned = structuredClone(demo);
