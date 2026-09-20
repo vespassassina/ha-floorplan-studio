@@ -1,4 +1,4 @@
-import { dist, movePoints, polys } from "../core";
+import { dist, movePoints, polys, stitch } from "../core";
 import type { Floor, Pt, WallKind } from "../core";
 import { newId, type LooseRef, type PtRef } from "./state";
 
@@ -103,4 +103,28 @@ export function spawnPoint(f: Floor, fallback: Pt): Pt {
   const xs = f.outline.map((p) => p[0]), ys = f.outline.map((p) => p[1]);
   const g = (n: number) => Math.round(n / 5) * 5;
   return [g(Math.max(...xs) + 150), g(Math.min(...ys))];
+}
+
+/**
+ * After a room was dragged by its body: translate the whole room so the corner pair (one of its own, one of another
+ * room's, the outline's or a stairs') that lies closest, within `radius` cm, lands point on point. Then stitch its
+ * corners into any edge they touch, so shared walls are shared again. Zones neither snap nor are snapped to.
+ * Returns `f` itself when no pair is in range.
+ */
+export function snapRoomTo(f: Floor, i: number, radius: number): Floor {
+  const room = f.rooms[i];
+  if (!room || room.kind === "zone") return f;
+  const own = room.pts, others = polys(f).filter((P) => P.id !== `r${i}` && P.room?.kind !== "zone");
+  let best: { d: number; dx: number; dy: number } | null = null;
+  for (const P of others)
+    for (const q of P.pts)
+      for (const p of own) {
+        const d = dist(p, q);
+        if (d <= radius && (!best || d < best.d)) best = { d, dx: q[0] - p[0], dy: q[1] - p[1] };
+      }
+  if (!best) return f;
+  let g = structuredClone(f);
+  g.rooms[i].pts = g.rooms[i].pts.map((p): Pt => [p[0] + best!.dx, p[1] + best!.dy]);
+  for (const p of g.rooms[i].pts) g = stitch(g, p);
+  return g;
 }

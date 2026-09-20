@@ -2146,10 +2146,10 @@ test("dragging the pond by its middle moves every point by the same amount, adds
   const before = await groundOf(page), pond = before.rooms[6];
   expect(pond.kind).toBe("water");
   const b0 = await bbox(page, 'svg polygon[data-r="6"]');
-  await drag(page, 'svg polygon[data-r="6"]', 60, 40);
+  await drag(page, 'svg polygon[data-r="6"]', 20, 60); // far from any corner, so the drop does not snap
   const b1 = await bbox(page, 'svg polygon[data-r="6"]');
-  expect(Math.round(b1.x - b0.x)).toBe(60); // it followed the pointer on screen
-  expect(Math.round(b1.y - b0.y)).toBe(40);
+  expect(Math.round(b1.x - b0.x)).toBe(20); // it followed the pointer on screen
+  expect(Math.round(b1.y - b0.y)).toBe(60);
   const after = await groundOf(page), moved = after.rooms[6];
   const d = [moved.pts[0][0] - pond.pts[0][0], moved.pts[0][1] - pond.pts[0][1]];
   expect(d[0]).toBeGreaterThan(0); expect(d[1]).toBeGreaterThan(0);
@@ -2201,6 +2201,31 @@ test("break it: dragging a room by its body leaves the neighbour's corner and th
   expect(after.rooms[2]).toEqual(before.rooms[2]);
   expect(after.outline).toEqual(before.outline);
   expect(after.rooms[0].pts.length).toBe(4);
+});
+
+test("a room dragged 300 cm away and back to within a few cm snaps corner on corner and shares its edges again", async ({ page }) => {
+  const before = await groundOf(page);
+  await dragCm(page, [50, 200], [350, 200]); // the living room, by its body, 300 cm to the right
+  const away = await groundOf(page);
+  expect(away.rooms[0].pts[0]).toEqual([before.rooms[0].pts[0][0] + 300, before.rooms[0].pts[0][1]]);
+  await dragCm(page, [350, 200], [47, 203]); // back to 3 cm left and 3 cm low of its place
+  const after = await groundOf(page);
+  expect(after.rooms[0].pts).toEqual(before.rooms[0].pts); // exactly the original points
+  expect(after.rooms[0].pts[1]).toEqual(after.rooms[1].pts[0]); // living and kitchen share (500, 0) again
+  expect(after.rooms[0].wk).toEqual(before.rooms[0].wk);
+  expect(after.rooms[1].pts).toContainEqual(after.rooms[0].pts[1]); // the neighbour has that corner too
+  for (const q of before.outline) expect(after.outline).toContainEqual(q); // the outline kept its corners (it may have gained points where the room's corners touched it)
+  await savedValid(page);
+});
+
+test("holding Alt while dropping a room near its place leaves it exactly where it was dropped", async ({ page }) => {
+  const before = await groundOf(page);
+  await dragCm(page, [50, 200], [350, 200]);
+  await dragCm(page, [350, 200], [47, 203], ["Alt"]);
+  const after = await groundOf(page);
+  expect(after.rooms[0].pts).not.toEqual(before.rooms[0].pts);
+  expect(Math.abs(after.rooms[0].pts[0][0] - before.rooms[0].pts[0][0])).toBeLessThan(8);
+  expect(Math.abs(after.rooms[0].pts[0][0] - before.rooms[0].pts[0][0])).toBeGreaterThan(0);
 });
 
 test("a device sitting on a room is still dragged as a device, not as the room", async ({ page }) => {

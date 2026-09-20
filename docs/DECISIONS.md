@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.22: a dropped room snaps corner on corner, then stitches
+
+Diego's addition: a connected room dragged away and put back near its place must reconnect. `snapRoomTo(f, i, radius)` (ops.ts) picks the closest pair of one own corner and one corner of another room, the outline or stairs, within 14 px worth of cm, translates the whole room by that one offset, then stitches each corner. Zones neither snap nor are snapped to; stairs are not snapped; Alt skips the snap (the stitch still runs). Side effect, kept: dropping a room with a corner or edge touching a neighbour or the outline adds a point to that edge, as a corner drag does, so a round trip leaves the room exact but can leave extra collinear points on the outline or a neighbour. This supersedes the plan's "never stitches" for the drop.
+
 ## 2026-09-20 S1.21: Add loses Water, one wall button per kind
 
 The Add menu has no Water item: water is a room kind, drawn (Draw, Draw water) or picked in the room panel. The Add wall item becomes five, `#addWall-<kind>`, each a 200 cm wall of that kind at the spawn point. The Draw menu keeps the old ids. SPEC already listed both menus (S1.20 wrote them), so it is unchanged.

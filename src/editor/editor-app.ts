@@ -3,7 +3,7 @@ import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, snapPoint, stitch, validate } from "../core";
 import type { DeviceType, Floor, Layout, Pt, WallKind } from "../core";
-import { looseEnds, movePointAll, pointsNear, segmentAt, spawnPoint, squareAt, stairsAt } from "./ops";
+import { looseEnds, movePointAll, pointsNear, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
 import { EditorState, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
@@ -35,7 +35,7 @@ type Drag =
   | { type: "door"; base: Floor; i: number; off: Pt; len: number; moved: boolean }
   | { type: "dev"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "furn"; base: Floor; i: number; off: Pt; moved: boolean }
-  | { type: "room"; base: Floor; list: "rooms" | "stairs"; i: number; start: Pt; moved: boolean };
+  | { type: "room"; base: Floor; list: "rooms" | "stairs"; i: number; start: Pt; moved: boolean; alt?: boolean };
 
 const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 const num = (n: number) => String(Math.round(n * 100) / 100);
@@ -462,6 +462,7 @@ export class FloorplanStudioEditor extends LitElement {
         const dx = Math.round(p[0] - d.start[0]), dy = Math.round(p[1] - d.start[1]);
         if (!d.moved && Math.hypot(dx, dy) * this.scale < 4) return;
         this.begin(d);
+        d.alt = alt;
         g = structuredClone(d.base);
         g[d.list][d.i].pts = d.base[d.list][d.i].pts.map((q): Pt => [q[0] + dx, q[1] + dy]);
         break;
@@ -480,6 +481,8 @@ export class FloorplanStudioEditor extends LitElement {
       // a zone corner is never stitched into a wall, even where another polygon has a corner at the same spot
       if (d.type === "corner") { if (!isZoneRef(d.base, d.ref)) f = stitch(f, d.to); }
       else if (d.type === "edge") { if (!d.ends.some((e) => isZoneRef(d.base, e.ref))) for (const q of d.to) f = stitch(f, q); }
+      // a room dropped near where it belongs lands corner on corner and joins its neighbours again; Alt drops it as it is
+      if (d.type === "room" && d.list === "rooms" && !d.alt) f = snapRoomTo(f, d.i, 14 / this.scale);
       st.replaceFloor(f);
       this.changed();
     } else this.requestUpdate();

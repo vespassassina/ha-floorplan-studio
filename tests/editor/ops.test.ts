@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Layout, Pt } from "../../src/core/schema";
-import { spawnPoint } from "../../src/editor/ops";
+import { snapRoomTo, spawnPoint } from "../../src/editor/ops";
 
 const ground = () => structuredClone((demo as unknown as Layout).floors.ground);
 const FALLBACK: Pt = [123, 457];
@@ -29,5 +29,28 @@ describe("spawnPoint", () => {
     const f = ground(), copy = structuredClone(f);
     spawnPoint(f, FALLBACK);
     expect(f).toEqual(copy);
+  });
+});
+
+describe("snapRoomTo", () => {
+  it("moves a room 3 cm off its place back onto the neighbour's corner, and shares the edge", () => {
+    const f = ground(), orig = structuredClone(f);
+    f.rooms[0].pts = f.rooms[0].pts.map((p): Pt => [p[0] + 3, p[1] - 2]);
+    const g = snapRoomTo(f, 0, 14);
+    expect(g.rooms[0].pts).toEqual(orig.rooms[0].pts);
+    expect(g.rooms[0].pts[1]).toEqual(g.rooms[1].pts[0]);
+  });
+  it("uses the closest corner pair, not the first in range", () => {
+    const f = ground(), orig = structuredClone(f);
+    f.rooms[0].pts = f.rooms[0].pts.map((p): Pt => [p[0] + 4, p[1]]);
+    expect(snapRoomTo(f, 0, 14).rooms[0].pts).toEqual(orig.rooms[0].pts);
+  });
+  it("changes nothing when no corner is in range, or for a zone", () => {
+    const f = ground();
+    f.rooms[0].pts = f.rooms[0].pts.map((p): Pt => [p[0] + 300, p[1] + 300]);
+    expect(snapRoomTo(f, 0, 14)).toBe(f);
+    const z = ground(), zi = z.rooms.findIndex((r) => r.kind === "zone");
+    z.rooms[zi].pts = z.rooms[zi].pts.map((p): Pt => [p[0] + 3, p[1]]);
+    expect(snapRoomTo(z, zi, 14)).toBe(z);
   });
 });
