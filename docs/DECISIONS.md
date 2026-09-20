@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.41 test: the clamped-width test kept, and made stricter
+
+The verifier said the S1.41 test "a clamped furniture width shows the clamped value" passes without the fix. Checked: with `live()` removed, with `c.refresh()` removed, and with both removed it fails on the second `#fw` entry (the state is already 5, so only `refresh` plus `live` reset the field). It stays, not deleted. It now also covers an accepted 137, an empty entry that is refused and goes back to 137, and the depth field clamped from 2 to 5, so it fails on each of those paths too. The stairs test in the same block still passes without the fix (its value changes the state, so lit redraws anyway); it is left as the "accepted value stays" case.
+
 ## 2026-09-20 S1.48 fix: the ring cap is 12, and a bigger ring says so
 
 A ring of 13 or more walls stayed walls and the status said "Added the shape", which hid why nothing became a room. The cap stays at 12 (`MAX_RING` in `ops.ts`); a chain that closes on its first corner with more walls than that now reports "N walls, too many to make a room (max 12)". The walls stay. Supersedes the silent cap in "Closed walls become a room".

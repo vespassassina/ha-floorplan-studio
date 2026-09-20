@@ -3431,6 +3431,14 @@ test("S1.41: a clamped furniture width shows the clamped value", async ({ page }
   expect((await groundOf(page)).furniture.at(-1)!.w).toBe(5);
   await setField(page, "#fw", "1");
   await expect(page.locator("#fw")).toHaveValue("5"); // already 5: the state does not change, the field still resets
+  await setField(page, "#fw", "137");
+  await expect(page.locator("#fw")).toHaveValue("137");
+  await setField(page, "#fw", ""); // refused: no number, so the state stays 137 and the field goes back to it
+  await expect(page.locator("#fw")).toHaveValue("137");
+  await setField(page, "#fh", "2");
+  await expect(page.locator("#fh")).toHaveValue("5");
+  const m = (await groundOf(page)).furniture.at(-1)!;
+  expect([m.w, m.h]).toEqual([137, 5]);
 });
 
 // ---- a device never hides a room name (S1.42) ------------------------------------------
