@@ -693,7 +693,7 @@ pressed state.
 - Done when: tests pass.
 - Break it: two taps within 300 ms toggle twice, not once (no debounce that eats input).
 
-### S2.3 Contact sensors on doors
+### S2.3 Contact sensors on doors (done)
 - Outcome: a door or window with `sensor` on draws orange.
 - Test: covered by render tests; card test: state on → `line[data-d].open` exists; tap on the door fires more-info for the sensor.
 - Done when: the demo's three sensor doors respond in the jsdom test.

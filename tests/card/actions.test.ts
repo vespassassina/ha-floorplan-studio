@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HOLD_MS, bindDeviceActions, fireEvent, toggleEntity } from "../../src/card/actions";
-import type { Device } from "../../src/core";
+import type { Device, Door } from "../../src/core";
 import type { Hass } from "../../src/card/floorplan-studio-card";
 
 const LIGHT: Device = { id: "l1", type: "light", entity: "light.demo_living", x: 100, y: 100 };
 const SWITCH: Device = { id: "s1", type: "switch", entity: "switch.demo_hall", x: 200, y: 100 };
+const SENSOR_DOOR: Door = { id: "d1", name: "Front door", kind: "door", a: [0, 0], b: [100, 0], sensor: "binary_sensor.demo_front_door" };
+const COVER_DOOR: Door = { id: "d2", name: "Garage door", kind: "door", a: [0, 100], b: [100, 100], cover: "cover.demo_garage_door" };
 
 /** A minimal `<svg><g data-x="0">...</g></svg>` with the icon's inner `<circle class="halo">` and `<path>`, matching what `renderFloor` emits. */
 function svgFixture(devices: Device[]): SVGSVGElement {
@@ -17,6 +19,21 @@ function svgFixture(devices: Device[]): SVGSVGElement {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     g.append(halo, path);
     svg.appendChild(g);
+  });
+  document.body.appendChild(svg);
+  return svg;
+}
+
+/** A minimal `<svg><line data-d="0">...</line></svg>` with the `<title>` child `renderFloor` emits on every door. */
+function doorSvgFixture(doors: Door[]): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  doors.forEach((d, i) => {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("data-d", String(i));
+    const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    title.textContent = d.name;
+    line.appendChild(title);
+    svg.appendChild(line);
   });
   document.body.appendChild(svg);
   return svg;
@@ -151,5 +168,71 @@ describe("actions: bindDeviceActions", () => {
     pointer(g, "pointerup");
     expect(callService).not.toHaveBeenCalled();
     unbind = () => {}; // afterEach calls unbind() again; make it a no-op since we already unbound
+  });
+});
+
+describe("actions: bindDeviceActions on doors (S2.3)", () => {
+  let callService: ReturnType<typeof vi.fn>;
+  let host: { hass: Hass } & EventTarget;
+  let svg: SVGSVGElement;
+  let unbind: () => void;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    callService = vi.fn();
+    svg = doorSvgFixture([SENSOR_DOOR, COVER_DOOR]);
+    host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    unbind = bindDeviceActions(svg, host, () => undefined, (i) => [SENSOR_DOOR, COVER_DOOR][i]);
+  });
+
+  afterEach(() => {
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("a tap on a door with a sensor fires hass-more-info for that sensor, not a toggle (CLAUDE.md finding 3: line[data-d], not g[data-x])", () => {
+    const line = svg.querySelector('[data-d="0"]')!;
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    pointer(line, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(line, "pointerup");
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "binary_sensor.demo_front_door" });
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it("a tap on the door's inner <title> still resolves via closest(\"line[data-d]\")", () => {
+    const line = svg.querySelector('[data-d="0"]')!;
+    const title = line.querySelector("title")!;
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    pointer(title, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(title, "pointerup");
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it("a door with a cover but no sensor fires nothing yet (S2.7 will add the confirm dialog)", () => {
+    const line = svg.querySelector('[data-d="1"]')!;
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    pointer(line, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(line, "pointerup");
+    expect(moreInfo).not.toHaveBeenCalled();
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it("pointercancel abandons a door tap: no more-info", () => {
+    const line = svg.querySelector('[data-d="0"]')!;
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    pointer(line, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(line, "pointercancel");
+    pointer(line, "pointerup");
+    expect(moreInfo).not.toHaveBeenCalled();
   });
 });

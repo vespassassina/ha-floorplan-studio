@@ -208,7 +208,7 @@ export class FloorplanStudioCard extends LitElement {
       // once per element, not once per render, avoids piling up duplicate listeners (S2.2 "Break it": no
       // debounce, but also no double-firing from a stale second listener).
       this._unbindActions?.();
-      this._unbindActions = svg ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i]) : null;
+      this._unbindActions = svg ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i]) : null;
       this._actionsSvg = svg;
     }
   }
