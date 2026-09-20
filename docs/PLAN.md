@@ -462,6 +462,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Files: card, `src/card/actions.ts`, `tests/card/actions.test.ts`.
 - Interface: `tap` → `hass.callService(domain, "toggle", { entity_id })`; hold (≥ 500 ms) → `fireEvent(this, "hass-more-info", { entityId })`. Light on: icon `fill` from `attributes.rgb_color` if present else `--fp-on`, opacity `brightness/255` floor 0.35.
 - Test: pointerdown+up within 500 ms calls `callService` once with `light.toggle`; 600 ms fires `hass-more-info`; rgb `[255,0,0]` gives `fill="rgb(255,0,0)"`.
+- Note: the aura around a lit lamp is S2.8, the halo colour is S2.9. This task is the tap, the hold and the icon colour.
 - Done when: tests pass.
 - Break it: two taps within 300 ms toggle twice, not once (no debounce that eats input).
 
@@ -497,6 +498,30 @@ S2.10. Everything drawn from the layout alone is here.
 - Test: tap → dialog text; Open → `callService("cover", "open_cover", { entity_id })`; Cancel → no call.
 - Done when: tests pass.
 - Break it: a second tap while the dialog is open does not open a second dialog.
+
+### S2.8 A lit lamp casts an aura
+- Outcome: a light that is on draws a soft round aura, 2 m across, in its own colour.
+- Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/card/card.test.ts`.
+- Interface: for a device of type `light` that is on, `renderFloor` draws `<circle class="aura" r="100"/>` at the device's centre, in plan units, before every device group and after the rooms, so one lamp's aura never hides another's icon. `.aura{fill:var(--fp-aura);fill-opacity:.5;pointer-events:none}` with `--fp-aura` (#f0c419). A light whose state carries `rgb_color` sets `--fp-aura` on its own circle through the inline `style` that the device group already uses, so the aura is the colour the lamp actually shows; a lamp bound to a switch takes the switch's state and the default colour. Off, unavailable and unknown draw no aura.
+- Test: a card test with one light on has one `circle.aura` of radius 100 at the lamp's coordinates and none when it is off; a light with `rgb_color: [255,0,0]` has `--fp-aura:rgb(255,0,0)` in its style; the aura does not catch the pointer (a tap at the aura's edge over a room selects nothing).
+- Done when: tests pass; the markup still has no `#rrggbb` literal outside `FLOORPLAN_CSS`.
+- Break it: twenty lights on at once still render in one pass and the icons stay readable (the auras are behind every icon, not behind only the next one).
+
+### S2.9 A device wears its colour when it is on
+- Outcome: an active icon and its halo take the colour of the device, so the plan reads at a glance.
+- Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/card/card.test.ts`, `docs/SPEC.md`.
+- Interface: `renderFloor` already puts `on` on a device group that is active. One CSS rule per type sets `--fp-dev` on `.dev-<type>.on`, and two shared rules use it: `.dev.on path{fill:var(--fp-dev)}` and `.dev.on .halo{fill:var(--fp-dev)}` (the halo keeps its .5 opacity from S1.29, so the circle lightens in the device's colour). The palette of S1.30 supplies the values: light yellow, motion and contact red, heater and climate orange, tv blue, switch, plug, computer and humidity grey — grey being `--fp-idle`, so those four look the same on and off, which is what Diego's list says. A contact device draws red whether it is a device icon or a door sensor. No new state reading: `on` is the class the card already computes.
+- Test: render fixtures with the state stub: a motion device that is on has `--fp-dev` resolving to the red variable and its halo the same; a wall switch that is on draws no brighter than off; a tv that is on is blue and off is grey.
+- Done when: tests pass; the behaviours table lists one row per type with its colour.
+- Break it: a light that is on *and* unavailable keeps the unavailable styling; the colour rule does not override it.
+
+### S2.10 An air conditioner shows what it is doing
+- Outcome: an `ac` device is blue when it cools, orange when it heats and grey otherwise.
+- Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/card/card.test.ts`.
+- Interface: the mode is read at render time from the entity, never stored. A `state` of `off`, `unavailable` or `unknown` is grey and nothing else is looked at. Otherwise `hvac_action` decides (`cooling` → blue, `heating` → orange, anything else grey), falling back to `state` when the attribute is missing (`cool` → blue, `heat` → orange, `off`, `fan_only`, `dry` and the rest grey). `renderFloor` adds the class `cool` or `heat` to the device group, and `.dev-ac.cool` and `.dev-ac.heat` set `--fp-dev` to `--fp-dev-ac-cool` and `--fp-dev-ac-heat`; with neither class the device stays `--fp-idle`, so a fan or a filter is grey with no extra rule. The same two classes work for a heat pump, which is the same entity domain.
+- Test: state stubs for `hvac_action: "cooling"`, `"heating"`, `"idle"`, a missing attribute with `state: "cool"`, and `state: "fan_only"` give blue, orange, grey, blue, grey; an `ac` entity missing from `hass.states` draws grey and throws nothing.
+- Done when: tests pass.
+- Break it: an entity that reports `hvac_action: "cooling"` while its state is `off` draws grey, because the state wins when it says the unit is off.
 
 ---
 
