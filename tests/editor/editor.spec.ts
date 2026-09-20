@@ -1559,19 +1559,19 @@ test("dragging an opening end snaps like a door end: to a corner", async ({ page
 test("a zone edge has no wall toggle, and every panel action on it leaves a valid layout", async ({ page }) => {
   await clickCm(page, 400, 40); // the top edge of the Reading corner zone, on the real screen
   await expect(page.locator("#elen")).toBeVisible();
-  await expect(page.locator("#wallt")).toHaveCount(0);
+  await expect(page.locator("#ek")).toHaveCount(0);
   const zi = (await groundOf(page)).rooms.findIndex((r) => r.kind === "zone");
   const zoneW = async () => (await groundOf(page)).rooms[zi].wk;
   const ok = async () => { expect(validate(await layoutOf(page)).ok).toBe(true); expect(await zoneW()).toEqual((await zoneW()).map((): WallKind => "boundary")); };
   await page.locator("#elen").fill("1.5");
   await page.locator("#elen").press("Enter");
   await ok();
-  await expect(page.locator("#wallt")).toHaveCount(0);
+  await expect(page.locator("#ek")).toHaveCount(0);
   await page.locator("#mkh").click();
   await ok();
   await page.locator("#mkv").click();
   await ok();
-  await expect(page.locator("#wallt")).toHaveCount(0);
+  await expect(page.locator("#ek")).toHaveCount(0);
   await page.locator("#addpt").click();
   await ok();
   await savedValid(page);
@@ -1834,7 +1834,7 @@ test("a click 3 cm off a zone edge that lies on a room edge picks the room edge,
       el.layout = l;
     }, [EDITOR, first] as const);
     await clickCm(page, 503, 150);
-    await expect(page.locator("#wallt")).toHaveCount(1); // a zone edge has no toggle
+    await expect(page.locator("#ek")).toHaveCount(1); // the room edge under the zone edge has a kind select
   }
 });
 
@@ -1878,4 +1878,43 @@ test("the room colour input sets the polygon fill, one undo step, and the defaul
   await page.keyboard.press("Control+z");
   await expect(poly).not.toHaveAttribute("fill", /.*/);
   expect(await poly.evaluate((el) => getComputedStyle(el).fill)).toBe(plain);
+});
+
+// ---- S1.18 the kind of a room edge ----
+test("the kind select of a shared edge writes both rooms, redraws the line, is one undo step, and none when unchanged", async ({ page }) => {
+  await clickCm(page, 500, 300); // the living / kitchen edge
+  await expect(page.locator("#ek")).toHaveValue("wall");
+  await expect(page.locator("#wallt")).toHaveCount(0);
+  await expect(page.locator("#panel strong").first()).toHaveText("Internal wall");
+  const options = await page.locator("#ek option").allTextContents();
+  expect(options).toEqual(["Internal wall", "Dotted boundary", "External wall", "Fence", "Outdoor edge"]);
+  await page.locator("#ek").selectOption("external");
+  const g = await groundOf(page);
+  expect([g.rooms[0].wk[1], g.rooms[1].wk[3]]).toEqual(["external", "external"]);
+  expect(g.rooms[0].wk.filter((k) => k === "external")).toHaveLength(1);
+  await expect(page.locator('svg line[data-e="r0:1"]')).toHaveClass("e external");
+  await expect(page.locator('svg line[data-e="r1:3"]')).toHaveClass("e external");
+  await expect(page.locator("#panel strong").first()).toHaveText("External wall");
+  await page.locator("#ek").selectOption("external"); // same kind: no step
+  await page.locator("#ek").selectOption("fence");
+  expect((await groundOf(page)).rooms[1].wk[3]).toBe("fence");
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).rooms[1].wk[3]).toBe("external"); // one step back, not two
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).rooms[1].wk[3]).toBe("wall");
+  await savedValid(page);
+});
+
+test("break it: an outline edge of a floor with no rooms has no kind select and nothing throws", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.rooms = [];
+    el.layout = l;
+  }, EDITOR);
+  await clickCm(page, 400, 0); // the top outline edge
+  await expect(page.locator("#elen")).toBeVisible(); // an edge is selected
+  await expect(page.locator("#ek")).toHaveCount(0);
+  expect(errors).toEqual([]);
 });

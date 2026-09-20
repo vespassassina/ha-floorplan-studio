@@ -317,7 +317,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass; the demo layouts and the snapshot are updated; `grep -rn "\.w\b" src/core src/editor` finds no room wall flag left; SPEC describes `wk`.
 - Break it: a room whose `w` is `[true, true]` on a three-point polygon migrates to three `wk` entries, the third `"wall"`, and `validate` then accepts it.
 
-### S1.18 Change the kind of an edge or a wall
+### S1.18 Change the kind of an edge or a wall (done)
 - Outcome: the panel of a selected room edge sets its kind, the way the free wall panel already does.
 - Files: `src/editor/panels.ts`, `tests/editor/editor.spec.ts`.
 - Interface: `edgePanel` loses the "Make this edge a wall / a dotted boundary" button and gains `<select id="ek">` with the five `WALL_LABELS`, shown only when `edgeRooms` returns something (an outline edge that no room shares still has no kind to set, as today). Choosing one calls `setEdgeKind` through `commit`: one undo step, none when unchanged. The panel title shows the label of the current kind, as the wall panel does.
