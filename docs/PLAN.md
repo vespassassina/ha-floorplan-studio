@@ -712,12 +712,13 @@ pressed state.
 - Done when: tests pass.
 - Break it: a sensor with state `unknown` shows `–`, not `unknown`.
 
-### S2.6 Room glow, floor switcher, unavailable
+### S2.6 Room glow, floor switcher, unavailable (done)
 - Outcome: room fill tints when any light in it is on (`room_glow`); `floor: "all"` shows chips to switch floors; unavailable entities are struck through.
 - Interface: a device is "in" a room by point-in-polygon of its `x,y` (heaters: midpoint). Chips are inside the card, top-left, class `fp-floors`.
 - Test: light on in room A → `polygon[data-r].glow` for A only; chips count equals floors; unavailable → class `unavailable`.
 - Done when: tests pass.
 - Break it: a device outside every room glows nothing and throws nothing.
+- Note: unavailable was already built by S2.2/S2.3/S2.5's `classOf` (the `unavailable` class on `.dev`); this task added coverage but no new code for it. `renderFloor` still uses `opacity:.45`, not a literal strike-through, for that class — an undocumented choice already in place before this task, out of scope to change here.
 
 ### S2.7 Covers on doors
 - Outcome: a door with `cover` opens after a confirm dialog.

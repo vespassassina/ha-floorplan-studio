@@ -33,9 +33,17 @@ declare global {
 /** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
 export class FloorplanStudioCard extends LitElement {
   static styles = [unsafeCSS(FLOORPLAN_CSS), css`
-    :host { display: block; }
+    :host { display: block; position: relative; }
     svg { width: 100%; height: auto; display: block; }
     p.msg { padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
+    /* S2.6: the floor switcher is card chrome (like p.msg above), not plan content, so it sits outside the <svg>
+       renderFloor draws and is positioned over it instead. */
+    .fp-floors { position: absolute; top: 8px; left: 8px; z-index: 1; display: flex; gap: 6px; }
+    .fp-floors button { font: 12px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+    /* Same combination the editor's floor chips already proved at 4.5:1 (S1.40); the current floor is carried by
+       aria-pressed, not by this colour alone (CLAUDE.md finding: a toggle must not state its direction twice —
+       one attribute serves both the visual state and the accessible one, no added "(current)" text). */
+    .fp-floors button[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); }
   `];
 
   private _config: FloorplanStudioCardConfig = {};
@@ -56,6 +64,10 @@ export class FloorplanStudioCard extends LitElement {
    * changes. `hass` can carry hundreds to thousands of entities and is set on every state change anywhere in the
    * house, so `_recordLastOn`/`_stateForRender` walk this small, bounded set instead of every entity `hass` has. */
   private _motionEntities: Set<string> = new Set();
+  /** S2.6: which floor `floor: "all"` currently shows. Only read/written through `_floorKey`/`_selectFloor`, which
+   * fall back to the layout's first floor when this is unset, stale (the layout changed) or names a floor that
+   * no longer exists. */
+  private _shownFloor: string | null = null;
 
   static getStubConfig(): FloorplanStudioCardConfig {
     return { type: "custom:floorplan-studio-card" };
@@ -67,6 +79,7 @@ export class FloorplanStudioCard extends LitElement {
     this._error = null;
     this._urlRequested = false;
     this._wsRequested = false;
+    this._shownFloor = null;
     this._loadLayout();
     this.requestUpdate();
   }
@@ -189,13 +202,32 @@ export class FloorplanStudioCard extends LitElement {
     return this._hass.themes.darkMode ? "dark" : "light";
   }
 
-  private _floor(): Floor | null {
+  /** The floor key `_floor()` shows right now: `config.floor` when it names a real floor, `_shownFloor` (defaulting
+   * to the first floor) while `config.floor === "all"`, the first floor for everything else (missing, unknown key).
+   * Untrusted config: an unknown floor key or `floor: "all"` on a single-floor layout never throws, it just falls
+   * back (CLAUDE.md finding 1). */
+  private _floorKey(): string | null {
     if (!this._layout) return null;
     const keys = Object.keys(this._layout.floors);
     if (!keys.length) return null;
     const want = this._config.floor;
-    const key = want && want !== "all" && this._layout.floors[want] ? want : keys[0];
-    return this._layout.floors[key];
+    if (want === "all") return this._shownFloor && this._layout.floors[this._shownFloor] ? this._shownFloor : keys[0];
+    return want && this._layout.floors[want] ? want : keys[0];
+  }
+
+  private _floor(): Floor | null {
+    const key = this._floorKey();
+    return key && this._layout ? this._layout.floors[key] : null;
+  }
+
+  /** S2.6: switches which floor `floor: "all"` shows. Ordinary card chrome, not a plan gesture, so it is wired with
+   * a plain button click, not `bindDeviceActions` (CLAUDE.md finding 3: that gesture implementation is for hits on
+   * the plan itself). The motion-fade timer state (`_lastOn`) is untouched: it is keyed by entity across every
+   * floor already, not by which one is on screen (S2.4 review). */
+  private _selectFloor(key: string): void {
+    if (this._shownFloor === key) return;
+    this._shownFloor = key;
+    this.requestUpdate();
   }
 
   /** True while any motion device on the shown floor is within its fade window (S2.4 computes the fade itself; this only decides whether the timer runs). */
@@ -260,6 +292,19 @@ export class FloorplanStudioCard extends LitElement {
     }
   }
 
+  /** S2.6: `floor: "all"`'s chips, one per floor, or `null` for anything else. Card chrome (like the no-layout
+   * message): drawn outside the `<svg>` renderFloor returns, never inside the plan it draws (CLAUDE.md finding 8,
+   * one draw path — the plan is drawn only by `renderFloor`, this is the card's own DOM around it). */
+  private _floorChips() {
+    if (this._config.floor !== "all" || !this._layout) return null;
+    const current = this._floorKey();
+    return html`<div class="fp-floors">
+      ${Object.entries(this._layout.floors).map(
+        ([key, fl]) => html`<button type="button" aria-pressed=${key === current ? "true" : "false"} @click=${() => this._selectFloor(key)}>${fl.title || key}</button>`,
+      )}
+    </div>`;
+  }
+
   protected render() {
     const f = this._floor();
     if (!f) return html`<p class="msg">${this._error ?? NO_LAYOUT}</p>`;
@@ -274,7 +319,7 @@ export class FloorplanStudioCard extends LitElement {
       theme: this._theme(),
       rotate,
     });
-    return html`<svg viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>`;
+    return html`${this._floorChips()}<svg viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>`;
   }
 }
 

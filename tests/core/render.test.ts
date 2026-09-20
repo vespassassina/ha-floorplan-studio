@@ -134,6 +134,36 @@ describe("renderFloor", () => {
     expect(html).toMatch(/data-x="1"[^>]*class="dev dev-light unavailable"/);
   });
 
+  it("S2.6: room_glow tints only the room a lit light sits in, by point-in-polygon of its x,y", () => {
+    // light-living (device 0) sits at 250,200, inside room 0 (Living); light-kitchen (device 1) is off.
+    const html = renderFloor(ground, { ...base, roomGlow: true, state: { "light.demo_living": st("on") } });
+    expect(html).toMatch(/<polygon data-r="0" class="[^"]*\bglow\b[^"]*"/);
+    for (let i = 1; i < ground.rooms.length; i++) expect(html).not.toMatch(new RegExp(`<polygon data-r="${i}" class="[^"]*\\bglow\\b`));
+  });
+
+  it("S2.6: with room_glow off (the default), a lit light gives no room the glow class", () => {
+    const html = renderFloor(ground, { ...base, state: { "light.demo_living": st("on") } });
+    expect(html).not.toMatch(/\bglow\b/);
+  });
+
+  it("S2.6: a bound light counts by its own boundClassOf result, on through the switch alone still glows its room", () => {
+    // light-living (device 0, in room 0) is already bound to switch.demo_living_relay in the demo layout; the
+    // light's own entity is missing from state entirely, only the switch is on.
+    const html = renderFloor(ground, { ...base, roomGlow: true, state: { "switch.demo_living_relay": st("on") } });
+    expect(html).toMatch(/<polygon data-r="0" class="[^"]*\bglow\b[^"]*"/);
+  });
+
+  it("S2.6 Break it: a light outside every room glows nothing and throws nothing, same for a non-finite coordinate", () => {
+    const f = structuredClone(ground);
+    f.devices.push({ id: "stray", type: "light", entity: "light.stray", x: 5000, y: 5000 });
+    f.devices.push({ id: "nan", type: "light", entity: "light.nan", x: NaN, y: 10 });
+    expect(() =>
+      renderFloor(f, { ...base, roomGlow: true, state: { "light.stray": st("on"), "light.nan": st("on") } }),
+    ).not.toThrow();
+    const html = renderFloor(f, { ...base, roomGlow: true, state: { "light.stray": st("on"), "light.nan": st("on") } });
+    expect(html).not.toMatch(/\bglow\b/);
+  });
+
   it("fades motion from last_changed over `fade` seconds", () => {
     const html = renderFloor(ground, { ...base, state: { "binary_sensor.demo_hall_motion": st("on") } });
     expect(html).toMatch(/data-x="5"[^>]*style="[^"]*--fp-fade:0\.5/);

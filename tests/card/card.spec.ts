@@ -135,3 +135,53 @@ test("S2.1 review: getCardSize accounts for layout.rotate in a real browser too"
 
   expect(sizeAt90).not.toBe(sizeAt0);
 });
+
+// S2.6 CSS pair (CLAUDE.md finding 10): `.room:not([fill])` and `.room.glow:not([fill])` both set `fill`, and a
+// `[fill]` attribute has beaten a class rule here once before. Read the actual computed fill in Chromium, not the
+// class list, so a specificity mistake (equal specificity, source order the wrong way) would be caught here.
+test("S2.6 CSS pair: a room's fill is the glow tint only while room_glow is on and a light inside it is on", async ({ page }) => {
+  await open(page);
+  const livingFill = () => page.locator("floorplan-studio-card").evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('svg polygon[data-r="0"]')!).fill);
+
+  await configure(page, { layout: structuredClone(demo), room_glow: true }, { states: { "light.demo_living": { state: "off", attributes: {}, last_changed: new Date().toISOString() } } });
+  expect(await livingFill()).toBe("rgb(233, 227, 211)"); // --fp-room, the light is off
+
+  await configure(page, { layout: structuredClone(demo), room_glow: true }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+  expect(await livingFill()).toBe("rgb(245, 226, 160)"); // --fp-glow
+
+  // room_glow: false (or absent): the same lit light gives no glow at all, even though the light itself is on.
+  await configure(page, { layout: structuredClone(demo) }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+  expect(await livingFill()).toBe("rgb(233, 227, 211)");
+});
+
+test("S2.6 CSS pair: a room's own colour (a [fill] attribute) is kept, glow or not — the user's choice wins", async ({ page }) => {
+  await open(page);
+  const coloured = structuredClone(demo);
+  coloured.floors.ground.rooms[0].color = "#123456";
+  await configure(page, { layout: coloured, room_glow: true }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+  const fill = await page.locator("floorplan-studio-card").evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('svg polygon[data-r="0"]')!).fill);
+  expect(fill).toBe("rgb(18, 52, 86)");
+});
+
+// S2.6: the floor switcher chip's readability, same check S1.40/S1.53 already run on the editor's own chips
+// (CLAUDE.md finding: never assert a colour from CSS text, read the real cascade).
+const lum = (rgb: number[]) => { const [r, g, b] = rgb.map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const ratio = (a: number[], b: number[]) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+const rgbOf = (css: string) => (css.match(/\d+/g) ?? []).slice(0, 3).map(Number);
+
+test("S2.6: floor chips are real, keyboard-reachable buttons outside the <svg>, at least 4.5:1 in both states", async ({ page }) => {
+  await open(page);
+  await configure(page, { layout: structuredClone(demo), floor: "all" }, { states: {} });
+
+  const chips = page.locator("floorplan-studio-card").locator("css=.fp-floors button");
+  await expect(chips).toHaveCount(2);
+  for (const tag of await chips.evaluateAll((els) => els.map((e) => e.tagName))) expect(tag).toBe("BUTTON");
+
+  const pairs = await chips.evaluateAll((els) => els.map((el) => { const s = getComputedStyle(el); return { pressed: el.getAttribute("aria-pressed"), bg: s.backgroundColor, fg: s.color }; }));
+  for (const { pressed, bg, fg } of pairs) expect(ratio(rgbOf(bg), rgbOf(fg)), `aria-pressed=${pressed}`).toBeGreaterThanOrEqual(4.5);
+
+  // Tab reaches a chip and Enter activates it, like any other button (no custom keyboard handling needed).
+  await chips.nth(1).focus();
+  await page.keyboard.press("Enter");
+  await expect(chips.nth(1)).toHaveAttribute("aria-pressed", "true");
+});

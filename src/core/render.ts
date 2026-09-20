@@ -27,7 +27,7 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
 // duplicated verbatim between the explicit selector and the prefers-color-scheme query, 47 tokens byte-identical).
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.75;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.75;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;
 --fp-on-dark:#fff;--fp-on-light:#2b2a27`;
 /* Home Assistant's own dark night-blue. Every accent that carries meaning (device colours, the warn/danger/primary
    buttons) keeps the same hex as light: each already clears 4.5:1 against its fixed on-dark/on-light text token, so
@@ -35,7 +35,7 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ga
    wall-external/-fence) change, because those are the tokens a dark background actually breaks. */
 const DARK_TOKENS = `--fp-ink:#e8e6e0;--fp-bg:#111c2b;--fp-room:#1c2a3a;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#e8e6e0;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#a9a49a;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-halo:#8a97a8;--fp-alpha:.25;--fp-disc:#1c2a3a;--fp-disc-alpha:.75;--fp-outline:#111c2b;--fp-text:#e8e6e0;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#c9c6bf;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#e8e6e0;
+--fp-tread:#a9a49a;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-halo:#8a97a8;--fp-alpha:.25;--fp-disc:#1c2a3a;--fp-disc-alpha:.75;--fp-outline:#111c2b;--fp-text:#e8e6e0;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#c9c6bf;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#e8e6e0;--fp-glow:#4a3f22;
 --fp-on-dark:#fff;--fp-on-light:#2b2a27`;
 
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
@@ -55,6 +55,10 @@ export const FLOORPLAN_CSS = `
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch. */
 .room:not([fill]){fill:var(--fp-room)} .room-garden:not([fill]){fill:var(--fp-garden)} .room-terrace:not([fill]){fill:var(--fp-terrace)} .room-pavement:not([fill]){fill:var(--fp-pavement)}
 .room.room-fill{fill:url(#fp-hatch)} .room-zone:not([fill]){fill:none} .room-water:not([fill]){fill:var(--fp-water)}
+/* S2.6: room_glow. Three classes (.room.glow:not([fill])) outrank every rule above (two classes each), so which
+   wins is settled by specificity, not source order (CLAUDE.md finding 10: a [fill] attribute beat a class once
+   before). A room with its own colour (own[fill] attribute) is the user's choice and keeps it, glowing or not. */
+.room.glow:not([fill]){fill:var(--fp-glow)}
 .e{stroke:var(--fp-wall);stroke-width:3;stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5}
 .e.external{stroke:var(--fp-wall-external);stroke-width:6;stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
 .eh{stroke:var(--fp-outline);stroke-width:5;stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.external{stroke-width:8;stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
@@ -210,12 +214,24 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // One fixed id: two cards on a page declare the same pattern twice, and both are identical (see DECISIONS).
   if (f.rooms.some((r) => r.kind === "fill"))
     out.push('<defs><pattern id="fp-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="var(--fp-fill)"/><line x1="0" y1="0" x2="0" y2="12" stroke="var(--fp-fill-line)" stroke-width="2"/></pattern></defs>');
+  // S2.6: room_glow. A room glows when any light "in" it (point-in-polygon of the device's x,y; a light never has
+  // a/b, only a heater does, but the same "a" in d guard the rest of the file uses is kept here too) is on. Untrusted
+  // layout/state: a non-finite coordinate or a light outside every room's polygon is simply not counted, never thrown.
+  const glowRooms = new Set<number>();
+  if (o.roomGlow)
+    for (const d of f.devices) {
+      if (d.type !== "light" || classOf(d, o) !== "on") continue;
+      const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
+      if (!c.every(Number.isFinite)) continue;
+      f.rooms.forEach((r, i) => { if (inside(c, r.pts)) glowRooms.add(i); });
+    }
   // Zones are painted after every other room so they sit on top whatever the array order (the editor picks the top polygon).
   [...f.rooms.keys()].sort((a, b) => +(f.rooms[a].kind === "zone") - +(f.rooms[b].kind === "zone")).forEach((i) => {
     const r = f.rooms[i];
     if (r.kind === "fill" && !r.name) return;
     const own = typeof r.color === "string" && COLOR.test(r.color) ? ` fill="${r.color}"` : ""; // strict pattern: the value goes into an attribute
-    out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}"${own} points="${pts(r.pts)}"/>`);
+    const glow = glowRooms.has(i) ? " glow" : "";
+    out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}"${own} points="${pts(r.pts)}"/>`);
   });
 
   f.stairs.forEach((t, i) => out.push(stairsGroup(t, i)));

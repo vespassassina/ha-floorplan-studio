@@ -475,6 +475,77 @@ describe("FloorplanStudioCard", () => {
     });
   });
 
+  describe("S2.6: floor switcher (floor: \"all\")", () => {
+    it("shows one chip per floor, outside the <svg>, and the chip count equals the number of floors", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "all" });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      const chips = el.shadowRoot!.querySelectorAll(".fp-floors button");
+      expect(chips).toHaveLength(Object.keys(L.floors).length);
+      for (const chip of chips) expect(chip.closest("svg")).toBeNull(); // card chrome, not plan content
+    });
+
+    it("clicking a chip switches the shown floor, and marks the current one for a screen reader by more than colour", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "all" });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.ground.rooms.length);
+
+      const chips = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-floors button")];
+      const groundChip = chips.find((b) => b.textContent === L.floors.ground.title)!;
+      const firstChip = chips.find((b) => b.textContent === L.floors.first.title)!;
+      expect(groundChip.getAttribute("aria-pressed")).toBe("true");
+      expect(firstChip.getAttribute("aria-pressed")).toBe("false");
+
+      firstChip.click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.first.rooms.length);
+      const chips2 = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-floors button")];
+      expect(chips2.find((b) => b.textContent === L.floors.first.title)!.getAttribute("aria-pressed")).toBe("true");
+      expect(chips2.find((b) => b.textContent === L.floors.ground.title)!.getAttribute("aria-pressed")).toBe("false");
+    });
+
+    it("no chips at all with an explicit floor (not \"all\")", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "ground" });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
+    });
+
+    it("Break it: a layout with one floor and floor: \"all\" shows one chip and throws nothing", async () => {
+      const oneFloor = structuredClone(L);
+      delete (oneFloor.floors as Record<string, unknown>).first;
+      const el = await mount();
+      expect(() => el.setConfig({ layout: oneFloor, floor: "all" })).not.toThrow();
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelectorAll(".fp-floors button")).toHaveLength(1);
+    });
+
+    it("Break it: a floor key that does not exist falls back to the first floor and throws nothing", async () => {
+      const el = await mount();
+      expect(() => el.setConfig({ layout: structuredClone(L), floor: "attic" })).not.toThrow();
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.ground.rooms.length);
+    });
+  });
+
+  describe("S2.6: unavailable entities carry the unavailable class (already built by S2.2/S2.5's classOf)", () => {
+    it("an unavailable light's device group gets the unavailable class", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "first" });
+      el.hass = stubHass({ "light.demo_bedroom": st("unavailable") }) as never;
+      await el.updateComplete;
+      const bedroomIndex = L.floors.first.devices.findIndex((d) => d.entity === "light.demo_bedroom");
+      const g = el.shadowRoot!.querySelector(`svg [data-x="${bedroomIndex}"]`)!;
+      expect(g.getAttribute("class")).toMatch(/\bunavailable\b/);
+    });
+  });
+
   it("getStubConfig returns a usable default config", () => {
     const stub = FloorplanStudioCard.getStubConfig();
     expect(stub).toEqual({ type: "custom:floorplan-studio-card" });
