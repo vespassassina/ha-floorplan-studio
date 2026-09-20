@@ -11,7 +11,8 @@ See `docs/SPEC.md` and `docs/PLAN.md`.
 |---|---|
 | Core: schema v2, v1 migration, geometry, SVG renderer, icons | done |
 | Editor (standalone `dist/editor.html`, works from `file://`, offline) | done |
-| Zones, water, wall kinds, floors, draw mode | Sprint 1.5 |
+| Zones, water, wall kinds, floors, draw mode | done |
+| Stairs, gardens, plan rotation, colours, HA names, closed walls to rooms | done |
 | Lovelace card | Sprint 2 |
 | HA integration, panel, HACS release | Sprint 3 |
 | Organise: areas, helpers, groups, automations from the plan | Sprint 4 |

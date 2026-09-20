@@ -617,6 +617,27 @@ S1.42 are three defects the verifiers found.
 - Done when: tests pass; SPEC's drawing section describes it.
 - Break it: closing at 30 cm from the first point (outside the snap) does not convert; two rings sharing a wall make two rooms, not one.
 
+### Sprint 1.6 closed, 2026-09-20
+
+S1.14 to S1.49, 60 commits, merged into `main` and pushed. On `main` after the
+merge: lint clean, 457 unit tests, 284 Playwright tests, build green.
+
+Verify (Sonnet) and review (Opus) found seven defects the suites had missed:
+the hatch lost to a `:not([fill])` rule, a rotation test flaked because
+`onFocusOut` cleared a newer selection, a partly shared edge survived Delete,
+a wall chain closing on an intermediate corner made a broken room, a ring of
+more than twelve walls failed silently, a motion sensor that was on never
+faded, and a drawn ring that swallowed a wall of another kind produced a
+layout `validate` refuses. Each is now a test. The lessons are in
+`docs/WORKFLOW.md` and `CLAUDE.md`.
+
+Carried into Sprint 2: `layout.colors.ac` is stored but drives no state colour
+yet (S2.10 decides), the S2.8 aura reads `--fp-alpha`, and S2.9 must add the
+light-fill check that S1.36 could not make yet. Left open on purpose: the demo
+"Garden" and "Garden pond" names overlap, furniture width has no upper bound,
+and the turn-direction toggle states its direction in both its name and its
+pressed state.
+
 ## Sprint 2 — card (E3)
 
 ### S2.1 Card element

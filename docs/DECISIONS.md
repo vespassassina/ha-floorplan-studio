@@ -2,6 +2,29 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Sprint 1.6 closed and merged; the lessons become rules
+
+S1.14 to S1.49 merged into `main` and pushed, 60 commits. Measured on `main`
+after the merge: lint clean, 457 unit tests, 284 Playwright tests, build green.
+The sprint ran with Sonnet executing and verifying and Opus deciding, and the
+split paid: the suites were green at every hand-off and verify and review
+still found seven real defects (the lost hatch, a flaky rotation test whose
+cause was a product race, a partly shared edge surviving Delete, a wall chain
+closing on an intermediate corner, a silent cap on long rings, a motion sensor
+that never faded, and a drawn ring that produced a layout `validate` refuses).
+
+Four of the seven were invisible to the tests as written, so the lessons are
+written down rather than remembered: CSS is read with `getComputedStyle` and
+never as text (`CLAUDE.md` 10), the Playwright server is ours and never a
+stranger's (11), code that builds schema objects is tested over every input
+combination because `edit()` does not validate (12), a flaky test is a product
+bug (13), and every command's exit code is read (14). `docs/WORKFLOW.md` gains
+the same points in the Verify role, plus a closing step for a sprint.
+
+Left open on purpose: the demo "Garden" and "Garden pond" names overlap (it
+predates the sprint), furniture width has no upper bound, and the turn
+direction is stated both in the button name and in its pressed state.
+
 ## 2026-09-20 Opus review: browser pairs for the CSS string tests; motion fade was overridden
 
 `tests/core/render.test.ts` checks many CSS rules only as text. Each now has a computed-style test in `editor.spec.ts` ("Opus review CSS pair"). Already paired: zone and water fill, room colour override, halo and cone, text outline, twin colour. Missing and added: wall kind colour, width and dash; garden, terrace, pavement and fill (hatch) fills; the `.e.none` guide; tread colour; the `--fp-dev-*` palette against `DEVICE_COLOURS`; camera and garden-sensor fill; motion fade. The motion pair found a real bug: a motion sensor that is on carries `.dev.on`, whose specificity beat `.dev-motion path`, so the fade never showed and the icon stayed the "on" yellow. The rule is now `.dev.dev-motion path` (same specificity, later in the sheet). The string test was blind to this.

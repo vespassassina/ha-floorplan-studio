@@ -53,6 +53,33 @@ Each of these was a real defect. Do not repeat them.
    runtime (paths are inlined in `icons.ts`), colours only through `--fp-*`
    variables.
 
+## Findings from the Sprint 1.6 reviews (Opus)
+
+10. **A CSS rule asserted as a string proves nothing.** The `FLOORPLAN_CSS`
+    tests match text, so they are blind to specificity. Twice a correct rule
+    never reached the pixel: `.room:not([fill])` outranked `.room-fill` and
+    the hatch vanished; `.dev.on path` beat `.dev-motion path` and a motion
+    sensor that was on never faded. Every rule that matters now has a
+    `getComputedStyle` test in `editor.spec.ts` ("Opus review CSS pair"). Add
+    the pair when you add a rule.
+11. **The test server must be ours.** `npm run dev` bound localhost (IPv6)
+    while Chromium resolved 127.0.0.1, and `reuseExistingServer` handed the
+    suite a stranger's vite on 5173. The suite was then green or red for
+    reasons that had nothing to do with this code. The config binds
+    127.0.0.1, never reuses, and defaults to port 5273. Do not loosen it.
+12. **A writer can commit an invalid layout.** `EditorState.edit` does not
+    call `validate`, on purpose. So new code that builds schema objects (the
+    ring conversion, for one) needs a test over every combination of its
+    inputs, not one happy path: the first version made a zone with a wall
+    edge, autosaved it, and Save refused it later, where the user cannot
+    connect the error to what they did.
+13. **A flaky test is a product bug.** A rotation test failed three runs in
+    five because `onFocusOut` queued a clear that wiped a newer selection.
+    Never add a wait or a retry; find the race. Run a new Playwright test
+    with `--repeat-each=10` before you commit it.
+14. **Check the exit code.** `tail` and `grep` on a log hide a failure. One
+    task was committed with lint and two Playwright tests red that way.
+
 ## Domain notes
 
 - Schema v2 is in `docs/SPEC.md`. A `light` device may have `bound`, the

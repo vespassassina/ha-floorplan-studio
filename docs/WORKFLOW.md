@@ -65,7 +65,16 @@ Steps:
    an existing test does not count. A script must reach the state it claims to
    test (draw mode entered, file loaded); say how you know. Report what
    happened.
-5. Verdict: PASS only if every "Done when" line is true and all suites are
+5. Read anything visual with `getComputedStyle` in Chromium, never from the
+   CSS text or the markup. Two Sprint 1.6 bugs (the hatch that vanished, the
+   motion sensor that never faded) were CSS specificity: the rule was in the
+   sheet, the string test passed, the pixel was wrong.
+6. To prove a test fails without its feature, revert the source file in a
+   throwaway worktree (`git worktree add /tmp/wt`), not by reverting the
+   commit: in a stack of branches the commits conflict. Remove it after.
+7. Check the exit code of every command. `tail` and `grep` hide a failure; an
+   agent once committed with lint and two tests red because of that.
+8. Verdict: PASS only if every "Done when" line is true and all suites are
    green. Otherwise FAIL with the first failing line quoted.
 
 ## Role: Review (Opus)
@@ -94,6 +103,14 @@ nit), and the fix in one sentence. End with APPROVE or CHANGES.
 
 Diego merges `task/<id>` into `main` (squash or merge, his call), pushes, and
 deletes the branch. CHANGES go back to Execute with the findings pasted in.
+
+## At the end of a sprint
+
+Review the sprint as a whole (Opus) before the merge, then close it: README
+state table, a closing block at the end of the sprint in `docs/PLAN.md` (what
+landed, real test counts, what the reviews found, what is carried over), a
+`docs/DECISIONS.md` entry, and every lesson written into this file or
+`CLAUDE.md` so the next agent does not repeat it.
 
 ## Commands (fixed in S1.1)
 
