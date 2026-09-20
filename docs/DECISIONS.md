@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.41: number fields re-render after every change
+
+number() takes the panel context, binds with live() and calls refresh after each change. A refused or clamped value snaps back to the state.
+
 ## 2026-09-20 S1.40: buttons get their own colours
 
 Warn, danger and primary buttons stop borrowing the plan's colours. New variables --fp-warn, --fp-danger, --fp-primary. Warn takes dark text. All three reach 4.5:1, measured in Chromium. Supersedes the colours chosen in S1.28.

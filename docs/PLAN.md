@@ -545,7 +545,7 @@ S1.42 are three defects the verifiers found.
 - Done when: tests pass; `npm run lint` clean; SPEC's editor line on coloured buttons says they meet AA.
 - Break it: putting the old `--fp-open` value back as the danger background makes the test fail, not pass by rounding.
 
-### S1.41 A rejected number goes back to what the state holds
+### S1.41 A rejected number goes back to what the state holds (done)
 - Outcome: a numeric field that the editor refuses or clamps shows the value the layout actually has, not what was typed.
 - Files: `src/editor/panels.ts`, `tests/editor/editor.spec.ts`.
 - Interface: the verifier typed 1 and then 3.5 into the stairs `#sst` while the state held 12; the field kept the refused text. `number()` in `panels.ts` takes the panel context as its first argument, binds its value with lit's `live()` directive, and calls `c.refresh()` after every change, so the field is re-rendered from the state whether the handler committed or not. Every caller is updated; the fields that already use `live` by hand (`#rrot`) are left as they are.

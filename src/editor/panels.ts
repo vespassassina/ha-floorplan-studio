@@ -40,8 +40,9 @@ const numVal = (e: Event): number | null => {
 function text(label: string, id: string, value: string, on: (v: string) => void) {
   return html`<label for=${id}>${label}</label><input id=${id} type="text" .value=${value} @change=${(e: Event) => on(val(e))}>`;
 }
-function number(label: string, id: string, value: number | string, on: (v: number) => void) {
-  return html`<label for=${id}>${label}</label><input id=${id} type="number" .value=${String(value)} @change=${(e: Event) => { const n = numVal(e); if (n !== null) on(n); }}>`;
+/** A number field. It always shows what the state holds: `refresh` re-renders it after every change, so a refused or clamped value snaps back. */
+function number(c: PanelCtx, label: string, id: string, value: number | string, on: (v: number) => void) {
+  return html`<label for=${id}>${label}</label><input id=${id} type="number" .value=${live(String(value))} @change=${(e: Event) => { const n = numVal(e); if (n !== null) on(n); c.refresh(); }}>`;
 }
 function select(label: string, id: string, value: string, options: readonly string[], on: (v: string) => void) {
   return html`<label for=${id}>${label}</label><select id=${id} .value=${value} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${o}</option>`)}</select>`;
@@ -136,8 +137,8 @@ function cornerPanel(c: PanelCtx, s: Extract<Sel, { t: "v" }>) {
   const move = (to: [number, number]) => c.commit((f) => movePointAll(f, p, to, false, s.ref));
   const canDelete = "poly" in s.ref && (polyPts(c.st.f, s.ref.poly)?.length ?? 0) > 3;
   return html`<strong>Corner</strong>
-    ${number("x (cm)", "px", p[0], (x) => move([x, p[1]]))}
-    ${number("y (cm)", "py", p[1], (y) => move([p[0], y]))}
+    ${number(c, "x (cm)", "px", p[0], (x) => move([x, p[1]]))}
+    ${number(c, "y (cm)", "py", p[1], (y) => move([p[0], y]))}
     ${"poly" in s.ref && canDelete ? html`<p>${button("delv", "Delete corner", () => { const ref = s.ref as { poly: string; j: number }; c.commit((f) => removePoint(f, ref.poly, ref.j)); c.select(null); }, "warn")}</p>` : nothing}`;
 }
 
@@ -151,7 +152,7 @@ function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
   const set = (how: Parameters<typeof setSecondEnd>[3]) => c.commit((f) => setSecondEnd(f, a, b, how, end));
   const kind = rooms[0]?.room.wk[rooms[0].i] ?? "wall"; // rooms that disagree show the first one's kind
   return html`<strong>${WALL_LABELS[kind] ?? "Wall"}</strong>
-    ${number("length (m)", "elen", (dist(a, b) / 100).toFixed(2), (m) => set({ length: m }))}
+    ${number(c, "length (m)", "elen", (dist(a, b) / 100).toFixed(2), (m) => set({ length: m }))}
     ${hint(`angle ${ang.toFixed(1)}°`)}
     <div class="row">${button("mkh", "Make horizontal", () => set({ axis: "h" }))}${button("mkv", "Make vertical", () => set({ axis: "v" }))}</div>
     <p>${button("addpt", "Add a point in the middle", () => { c.commit((f) => insertPoint(f, s.poly, s.i, [Math.round((a[0] + b[0]) / 2), Math.round((a[1] + b[1]) / 2)])); c.select(null); })}</p>
@@ -164,7 +165,7 @@ function wallPanel(c: PanelCtx, i: number) {
   if (!w) return html`<p class="hint">Nothing selected.</p>`;
   const set = (how: Parameters<typeof setSecondEnd>[3]) => c.commit((f) => setSecondEnd(f, w.a, w.b, how, { k: "walls", i, end: "b" }));
   return html`<strong>${WALL_LABELS[w.kind] ?? "Wall"}</strong>
-    ${number("length (m)", "wlen", (dist(w.a, w.b) / 100).toFixed(2), (m) => set({ length: m }))}
+    ${number(c, "length (m)", "wlen", (dist(w.a, w.b) / 100).toFixed(2), (m) => set({ length: m }))}
     <div class="row">${button("wh", "Make horizontal", () => set({ axis: "h" }))}${button("wv", "Make vertical", () => set({ axis: "v" }))}</div>
     ${angleField(c, "wrot", "walls", i)}
     <label for="wk">kind</label><select id="wk" .value=${live(w.kind)} @change=${(e: Event) => {
@@ -181,7 +182,7 @@ function wallPanel(c: PanelCtx, i: number) {
 /** "angle (deg)": turns wall, door or opening `i` about its midpoint to the typed angle. Same angle, or rubbish: nothing. */
 function angleField(c: PanelCtx, id: string, list: "walls" | "doors" | "openings", i: number) {
   const o = c.st.f[list][i], cur = angleOf(o.a, o.b);
-  return number("angle (deg)", id, cur, (n) => {
+  return number(c, "angle (deg)", id, cur, (n) => {
     const delta = n - cur;
     if (Math.abs(delta) < 0.05) return;
     c.commit((f) => { Object.assign(f[list][i], rotateSegment(o.a, o.b, delta)); });
@@ -194,7 +195,7 @@ function doorPanel(c: PanelCtx, i: number) {
   return html`<strong>Door / window</strong>
     ${text("name", "dn", d.name, (v) => c.commit((f) => { f.doors[i].name = v; }))}
     ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }))}
-    ${number("length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); }))}
+    ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); }))}
     ${angleField(c, "drot", "doors", i)}
     <label for="dsens">contact sensor</label>
     <select id="dsens" .value=${d.sensor ?? ""} @change=${(e: Event) => c.commit((f) => { const v = val(e); if (v) f.doors[i].sensor = v; else delete f.doors[i].sensor; })}>
@@ -219,7 +220,7 @@ function openingPanel(c: PanelCtx, i: number) {
   };
   return html`<strong>Opening</strong>
     <label for="ok">kind</label><select id="ok" .value=${live("opening")} @change=${toWall}><option value="opening" selected>Opening</option>${WALL_KINDS.map((k) => html`<option value=${k}>${WALL_LABELS[k]}</option>`)}</select>
-    ${number("length (cm)", "ol", Math.round(dist(o.a, o.b)), (n) => c.commit((f) => { Object.assign(f.openings[i], resizeSegment(o.a, o.b, Math.max(20, n))); }))}
+    ${number(c, "length (cm)", "ol", Math.round(dist(o.a, o.b)), (n) => c.commit((f) => { Object.assign(f.openings[i], resizeSegment(o.a, o.b, Math.max(20, n))); }))}
     ${angleField(c, "orot", "openings", i)}
     <p>${button("odel", "Delete", () => { c.commit((f) => { f.openings.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag an end to resize or move it. A gap hides the wall under it.")}`;
@@ -297,10 +298,10 @@ function devicePanel(c: PanelCtx, i: number) {
   return html`<strong>${d.name ?? d.id}</strong>
     ${hint(`${label.toLowerCase()}. Its name comes from Home Assistant.`)}
     ${text("Home Assistant entity", "ve", d.entity, (v) => c.commit((f) => { f.devices[i].entity = v.trim(); }))}
-    ${number("rotation (deg)", "vrot", d.rot ?? 0, (n) => c.commit((f) => { const r = ((n % 360) + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }))}
+    ${number(c, "rotation (deg)", "vrot", d.rot ?? 0, (n) => c.commit((f) => { const r = ((n % 360) + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }))}
     ${d.type === "camera" ? hint("The cone shows a 120 degree field of view, 1 m deep.") : nothing}
     ${d.type === "light" ? boundField(c, i) : nothing}
-    ${"a" in d ? number("length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
+    ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
     <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it. Alt disables the grid.") + " Removed devices go back to the Device menu.")}`;
 }
@@ -327,9 +328,9 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${text("plan name", "fun", m.name ?? "", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "name", v.trim()); }))}
     ${entityField(c, "fuent", "shows the state of", m.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "entity", v); }))}
     ${select("symbol", "fs", m.symbol, FURNITURE_SYMBOLS, (v) => c.commit((f) => { f.furniture[i].symbol = v as typeof m.symbol; }))}
-    ${number("width (cm)", "fw", m.w, set("w", 5))}
-    ${number("depth (cm)", "fh", m.h, set("h", 5))}
-    ${number("rotation (deg)", "fr", m.rot, (n) => c.commit((f) => { f.furniture[i].rot = ((n % 360) + 360) % 360; }))}
+    ${number(c, "width (cm)", "fw", m.w, set("w", 5))}
+    ${number(c, "depth (cm)", "fh", m.h, set("h", 5))}
+    ${number(c, "rotation (deg)", "fr", m.rot, (n) => c.commit((f) => { f.furniture[i].rot = ((n % 360) + 360) % 360; }))}
     <p>${button("fudel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag it to move it. Alt disables the grid.")}`;
 }
@@ -356,9 +357,9 @@ function stairsPanel(c: PanelCtx, i: number) {
   return html`<strong>Stairs</strong>
     ${text("name", "sn", t.name, (v) => c.commit((f) => { f.stairs[i].name = v; }))}
     ${select("shape", "ss", t.shape, STAIR_SHAPES, setShape)}
-    ${number("steps", "sst", t.steps, (n) => { if (Number.isInteger(n) && n >= 2 && n <= 40) c.commit((f) => { f.stairs[i].steps = n; }); })}
-    ${number("rotation (deg)", "srot", t.rot, (n) => c.commit((f) => { f.stairs[i].rot = ((n % 360) + 360) % 360; }))}
-    ${round ? html`${number("outer diameter (cm)", "sdia", t.dia ?? 0, setDia)}${number("inner diameter (cm)", "sinner", t.inner ?? 0, setInner)}` : nothing}
+    ${number(c, "steps", "sst", t.steps, (n) => { if (Number.isInteger(n) && n >= 2 && n <= 40) c.commit((f) => { f.stairs[i].steps = n; }); })}
+    ${number(c, "rotation (deg)", "srot", t.rot, (n) => c.commit((f) => { f.stairs[i].rot = ((n % 360) + 360) % 360; }))}
+    ${round ? html`${number(c, "outer diameter (cm)", "sdia", t.dia ?? 0, setDia)}${number(c, "inner diameter (cm)", "sinner", t.inner ?? 0, setInner)}` : nothing}
     <p>${button("sdel", "Delete", () => { c.commit((f) => { f.stairs.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Stairs are added to every floor and deleted from one.")}
     ${hint(round ? "Drag it to move it. Set the diameters and the rotation here." : "Drag a corner to reshape. Click an edge to add a point in the middle. A rotated flight has no corner handles: set the rotation to 0 to reshape it.")}`;

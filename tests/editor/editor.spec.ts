@@ -3416,3 +3416,31 @@ test("S1.40: Reset, item Delete and Save reach 4.5:1 in Chromium", async ({ page
   const [bg, fg] = await paint(page, "#rdel");
   expect(ratio(rgbOf(bg), rgbOf(fg)), "#rdel").toBeGreaterThanOrEqual(4.5);
 });
+
+// ---- a rejected number goes back (S1.41) ---------------------------------------------
+
+test("S1.41: a refused steps value snaps back, an accepted one stays", async ({ page }) => {
+  await addStairs(page);
+  await setField(page, "#sst", "12");
+  const steps = async () => (await groundOf(page)).stairs[1].steps;
+  expect(await steps()).toBe(12);
+  await setField(page, "#sst", "3.5");
+  await expect(page.locator("#sst")).toHaveValue("12");
+  expect(await steps()).toBe(12);
+  await setField(page, "#sst", "1");
+  await expect(page.locator("#sst")).toHaveValue("12");
+  await setField(page, "#sst", "60");
+  await expect(page.locator("#sst")).toHaveValue("12");
+  await setField(page, "#sst", "20");
+  await expect(page.locator("#sst")).toHaveValue("20");
+  expect(await steps()).toBe(20);
+});
+
+test("S1.41: a clamped furniture width shows the clamped value", async ({ page }) => {
+  await menu(page, "Add"); await page.locator("#addFurn").selectOption("bed");
+  await setField(page, "#fw", "1");
+  await expect(page.locator("#fw")).toHaveValue("5");
+  expect((await groundOf(page)).furniture.at(-1)!.w).toBe(5);
+  await setField(page, "#fw", "1");
+  await expect(page.locator("#fw")).toHaveValue("5"); // already 5: the state does not change, the field still resets
+});
