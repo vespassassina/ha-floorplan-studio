@@ -317,3 +317,15 @@ describe("stairs shape, steps, rotation and diameters (S1.25)", () => {
     for (const v of [-1, 161, NaN, "5"]) expect(withStairs((t) => { round(t); t.inner = v; }), String(v)).toMatch(/stairs-ground-1.*inner/);
   });
 });
+
+describe("device types ac, tv, computer (S1.30)", () => {
+  const withType = (type: string) => { const l = clone(); l.floors.ground.devices.push({ id: "new-1", type, entity: "x.new", x: 10, y: 10 }); return validate(l); };
+  it("accepts the three new types", () => {
+    for (const t of ["ac", "tv", "computer"]) expect(withType(t).ok).toBe(true);
+  });
+  it("still rejects an unknown type", () => {
+    const r = withType("fridge");
+    expect(r.ok).toBe(false);
+    expect(r.ok ? [] : r.errors.join()).toMatch(/type/);
+  });
+});

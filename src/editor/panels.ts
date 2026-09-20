@@ -10,7 +10,8 @@ import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 export const TYPE_LABELS: [DeviceType, string][] = [
   ["heater", "Heaters"], ["light", "Lights"], ["switch", "Wall switches"], ["plug", "Plugs"], ["temp", "Temperature"],
   ["humidity", "Humidity"], ["motion", "Motion"], ["contact", "Window / door sensor"], ["camera", "Cameras"],
-  ["climate", "Climate"], ["media", "Media players"], ["cover", "Covers"], ["other", "Other"],
+  ["climate", "Climate"], ["ac", "Air conditioning / heat pump"], ["tv", "TV"], ["computer", "Computers"],
+  ["media", "Media players"], ["cover", "Covers"], ["other", "Other"],
 ];
 
 export const WALL_LABELS: Record<WallKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge" };

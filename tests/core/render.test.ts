@@ -547,3 +547,36 @@ describe("devices sit on top (S1.29)", () => {
     expect(h.indexOf("<g data-x=")).toBeGreaterThan(h.indexOf(`>${room.name}</text>`));
   });
 });
+
+describe("outdoor sensors and the palette (S1.30)", () => {
+  const room = (kind: string, pts: [number, number][]) => ({ id: kind, name: "", area: "", label: "", kind, pts, wk: pts.map(() => "boundary") });
+  const dev = (type: string, x: number, y: number) => ({ id: `${type}-${x}`, type, entity: "sensor.x", x, y });
+  const draw = (rooms: unknown[], devices: unknown[]) =>
+    renderFloor({ ...ground, rooms, devices, doors: [], walls: [], openings: [], furniture: [], stairs: [], extras: [] } as unknown as typeof ground, base);
+  const box = (x: number, y: number): [number, number][] => [[x, y], [x + 100, y], [x + 100, y + 100], [x, y + 100]];
+  const classOfDev = (html: string, i: number) => html.match(new RegExp(`<g data-x="${i}" class="([^"]*)"`))![1].split(" ");
+
+  it("a temp sensor inside a garden room gets outdoor; one in a normal room does not", () => {
+    const html = draw([room("garden", box(0, 0)), room("room", box(300, 0))], [dev("temp", 50, 50), dev("temp", 350, 50)]);
+    expect(classOfDev(html, 0)).toContain("outdoor");
+    expect(classOfDev(html, 1)).not.toContain("outdoor");
+  });
+  it("a zone on top of the garden does not stop the sensor being outdoor", () => {
+    const html = draw([room("garden", box(0, 0)), room("zone", box(20, 20))], [dev("humidity", 50, 50)]);
+    expect(classOfDev(html, 0)).toContain("outdoor");
+  });
+  it("a device in no room gets no class and nothing throws", () => {
+    const html = draw([room("garden", box(0, 0))], [dev("temp", 900, 900)]);
+    expect(classOfDev(html, 0)).not.toContain("outdoor");
+    expect(() => draw([], [dev("temp", 1, 1)])).not.toThrow();
+  });
+  it("a motion sensor keeps its own colour rule in the garden", () => {
+    expect(classOfDev(draw([room("garden", box(0, 0))], [dev("motion", 50, 50)]), 0)).not.toContain("outdoor");
+  });
+  it("carries the palette", () => {
+    const want: Record<string, string> = { light: "#e0a800", motion: "#d64545", contact: "#d64545", heater: "#e8801a", climate: "#e8801a", "ac-cool": "#2c7fb8", "ac-heat": "#e8801a", tv: "#2c7fb8", plug: "#2c7fb8", computer: "#2c7fb8", camera: "#4a4a48", garden: "#3f8f4f" };
+    for (const [k, v] of Object.entries(want)) expect(FLOORPLAN_CSS).toContain(`--fp-dev-${k}:${v}`);
+    expect(FLOORPLAN_CSS).toContain(".dev-camera path{fill:var(--fp-dev-camera)}");
+    expect(FLOORPLAN_CSS).toContain(".dev.outdoor path{fill:var(--fp-dev-garden)}");
+  });
+});

@@ -126,16 +126,17 @@ colour at 50 % alpha.
 | light | grey icon | yellow icon, brightness as opacity, plus a round aura 200 cm across in the same colour at 50 % alpha | toggle; long press: more-info |
 | smart light (`rgb_color`) | grey icon | icon and aura in the light's own colour from HA, yellow when it reports none | toggle; long press: more-info |
 | light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | toggle the light entity; long press: more-info for it (the switch is reachable from that dialog) |
-| switch (wall switch), plug | grey | grey, icon lightened | toggle |
+| switch (wall switch) | grey | grey | toggle |
+| plug | grey | blue | toggle |
 | binary_sensor on a door or window | door drawn normally | door drawn orange | more-info |
 | contact (device icon) | grey | red | more-info |
 | motion (binary_sensor motion/occupancy) | grey | red, fading to grey over `fade` seconds from `last_changed` | more-info |
 | temp, humidity (sensor) | grey icon, value as a label next to it | — | more-info |
-| any sensor inside a room of kind garden | green icon | as its type | more-info |
+| temp or humidity sensor inside a room of kind garden | green icon (class `outdoor`, from the centre of the icon) | as its type | more-info |
 | heater, climate (TRV, thermostat) | heater bar grey with target | orange when heating | more-info |
 | ac (air conditioner, heat pump, fan, air cleaner) | grey | blue while `hvac_action` is cooling, orange while heating, grey otherwise | more-info |
 | tv | grey | blue when the player is on or playing | more-info |
-| computer | grey | grey, icon lightened | more-info |
+| computer | grey | blue | more-info |
 | camera | dark grey icon with a 120° cone of view in dark grey at 33 % alpha, turned by `rot` | — | more-info (live view) |
 | cover on a door | door normal | door open state shown | confirm dialog, then `cover.open_cover` |
 | media_player | icon | accent when playing | more-info |

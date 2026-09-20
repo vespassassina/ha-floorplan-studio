@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.30: palette variables; outdoor means temp or humidity in a garden room
+
+The `--fp-dev-*` variables are in `FLOORPLAN_CSS`; S1.30 uses only `--fp-dev-camera` and `--fp-dev-garden`, the rest wait for S2.9 and S2.10. `outdoor` is set for `temp` and `humidity` only, not for every sensor: motion and contact have a state colour of their own, and `.dev.outdoor path` would out-rank it and turn them green for good. Any garden room counts, whatever its place in the array, and a zone on top does not matter. SPEC's behaviours table now says blue when on for plug and computer (Diego's amendment) and names the two types. `TYPE_LABELS` stays in `src/editor/panels.ts`, where it already lived.
+
 ## 2026-09-20 S1.29: devices paint after room names; the halo is a class
 
 Room names moved ahead of the device loop in `renderFloor`, so a device is the last thing drawn (only the editor's corner handles follow). The halo circle carries `class="halo"` and takes fill and opacity from CSS (`--fp-halo`), so Sprint 2 can recolour it with one rule. Room names are click-through in the editor, so `elementFromPoint` cannot prove the order alone; the e2e test also compares DOM order, and fails without the change. A device's own name label (shown with "names") still follows its device, as before.

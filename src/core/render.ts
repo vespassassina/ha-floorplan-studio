@@ -11,7 +11,7 @@ export interface RenderOpts {
 export const FLOORPLAN_CSS = `
 :host,.fp{--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-halo:#8b8578;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94}
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-halo:#8b8578;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch. */
 .room:not([fill]){fill:var(--fp-room)} .room-garden:not([fill]){fill:var(--fp-garden)} .room-terrace:not([fill]){fill:var(--fp-terrace)} .room-pavement:not([fill]){fill:var(--fp-pavement)}
 .room.room-fill{fill:url(#fp-hatch)} .room-zone:not([fill]){fill:none} .room-water:not([fill]){fill:var(--fp-water)}
@@ -22,6 +22,7 @@ export const FLOORPLAN_CSS = `
 .door{stroke:var(--fp-door)} .door-glass{stroke:var(--fp-glass)} .door-window{stroke:var(--fp-window)} .door-sealed{stroke:var(--fp-sealed);stroke-dasharray:10 6}
 .door.open{stroke:var(--fp-open)} .door.cover-open{stroke:var(--fp-open)}
 .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-on)} .dev-contact.on path{fill:var(--fp-open)}
+.dev-camera path{fill:var(--fp-dev-camera)} .dev.outdoor path{fill:var(--fp-dev-garden)}
 .dev .halo{fill:var(--fp-halo);fill-opacity:.5}
 .dev.unavailable{opacity:.45}
 .dev-motion{--fp-fade:0} .dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
@@ -55,6 +56,13 @@ function boundClassOf(d: Device, o: RenderOpts): Cls {
   if (seen.some((s) => s.state === "on")) return "on";
   if (seen.length && seen.every((s) => dead(s.state))) return "unavailable";
   return "off";
+}
+
+function inside(p: Pt, poly: Pt[]): boolean {
+  let in_ = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)
+    if ((poly[i][1] > p[1]) !== (poly[j][1] > p[1]) && p[0] < ((poly[j][0] - poly[i][0]) * (p[1] - poly[i][1])) / (poly[j][1] - poly[i][1]) + poly[i][0]) in_ = !in_;
+  return in_;
 }
 
 function classOf(d: Device, o: RenderOpts): Cls {
@@ -170,7 +178,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (o.filter && o.filter !== d.type && !sel) return;
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (!c.every(Number.isFinite)) return;
-    const cls = classOf(d, o);
+    // Value sensors in a garden room are outdoor sensors. Motion and contact keep their own state colours.
+    const outdoor = (d.type === "temp" || d.type === "humidity") && f.rooms.some((r) => r.kind === "garden" && inside(c, r.pts));
+    const cls = classOf(d, o) + (outdoor ? " outdoor" : "");
     const s = o.state?.[d.entity];
     let style = "";
     if (d.type === "motion" && s) {
