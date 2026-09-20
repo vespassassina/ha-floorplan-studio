@@ -2,6 +2,45 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.53: `:host,.fp` not `:root` for theme selectors; two fixed on-accent tokens; `data-th` not `data-theme` on the chip
+
+The block's CSS was written in `:root` terms; Shadow DOM does not match `:root`, so every
+selector became `:host,.fp` (the base FLOORPLAN_CSS pattern already in use). Dark uses two
+selectors at once: `:host([data-theme="dark"])` for a whole-editor override (attribute on the
+custom element itself, cascades through the shadow tree to chrome and plan together) and the
+plain `[data-theme="dark"]` (no `:host()`) for a nested override (a `<g data-theme="dark">` a
+plan can carry on its own root, so one plan can be dark while its host is not, per the block).
+Auto is the same pair under `@media (prefers-color-scheme:dark)`, guarded with
+`:not([data-theme="light"]):not([data-theme="dark"])` so an explicit choice always wins.
+
+`renderFloor` gained `RenderOpts.theme?: "light"|"dark"`; when set it wraps the whole plan in
+`<g data-theme="...">`, omitted writes nothing (inherits, i.e. Auto). Nothing else in core reads it.
+
+Found while pairing dark values to CSS: `.btn.primary`/`.btn.danger` used `color:var(--fp-bg)`
+and `.btn.warn` used `color:var(--fp-ink)` as a light-mode-only trick (bg was cream, ink was dark
+grey, so a light-fill accent button got dark text and vice versa). That trick breaks the moment
+those tokens flip for dark mode. Added two theme-invariant tokens, `--fp-on-dark:#fff` and
+`--fp-on-light:#2b2a27`, same value in both the light and dark CSS blocks, and repointed those
+three button classes at them. Hand-checked WCAG contrast (relative luminance) for the three
+accent hexes against these fixed tokens: primary `#1f6699` vs white ≈6.15:1, danger `#b02a2a` vs
+white ≈6.53:1, warn `#f28c28` vs `#2b2a27` ≈5.84:1 — all already clear 4.5:1, so no accent or
+device colour needed a dark-mode variant; only the structural neutrals (bg, room, wall, ink,
+disc, outline, measure, wall-external/-fence, halo, tread) got real dark values.
+
+The View-menu chip buttons that choose the theme use `data-th="auto|light|dark"`, not
+`data-theme`, on purpose: `data-theme` is also the CSS trigger attribute, so a `data-theme="dark"`
+chip button would match `[data-theme="dark"]` and paint itself with dark-theme tokens.
+
+Consequence: the `.btn.danger` colour change (from cream `--fp-bg` to white `--fp-on-dark`) broke
+3 pre-existing S1.28 Playwright assertions that hard-coded the old cream RGB as `LIGHT`. Updated
+the `LIGHT` test constant in `tests/editor/editor.spec.ts` to `rgb(255, 255, 255)`, with a comment
+explaining why; no behaviour outside the intended theme work changed.
+
+Added a `readTheme`/`setTheme` pair in `state.ts` mirroring the existing grid/measure
+localStorage pattern exactly (try/catch, safe default on any failure) rather than inventing a new
+shape, and a unit test for the blocked-storage case (S1.53's own "break it" requirement) alongside
+the existing grid/measure ones in `state.test.ts`.
+
 ## 2026-09-20 S1.52: the outline gets its own `owk`, touched wherever `Room.wk` already was
 
 Treated the perimeter as "just another poly with a wk-like array": a new `ensureOwk(g)` helper

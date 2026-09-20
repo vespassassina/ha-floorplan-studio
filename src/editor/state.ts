@@ -25,6 +25,19 @@ function readMeasure(): boolean {
   try { return localStorage.getItem(MEASURE_KEY) !== "false"; } catch { return true; }
 }
 
+/** localStorage key for the light/dark theme choice (S1.53). A viewer preference, not part of the layout, never an undo step. */
+export const THEME_KEY = "floorplan-studio:theme";
+export const THEME_VALUES = ["auto", "light", "dark"] as const;
+export type ThemeChoice = (typeof THEME_VALUES)[number];
+export const DEFAULT_THEME: ThemeChoice = "auto";
+/** The stored choice, or Auto when there is none, it is not one of the three, or storage is blocked. */
+function readTheme(): ThemeChoice {
+  try {
+    const raw = localStorage.getItem(THEME_KEY);
+    return (THEME_VALUES as readonly string[]).includes(raw ?? "") ? (raw as ThemeChoice) : DEFAULT_THEME;
+  } catch { return DEFAULT_THEME; }
+}
+
 export interface View { x: number; y: number; w: number; h: number }
 /** A point that is not a polygon corner: the end of a wall, an opening or an extra. */
 export type LooseRef = { k: "walls" | "openings" | "extras"; i: number; end: "a" | "b" };
@@ -101,6 +114,8 @@ export class EditorState {
   showLen = true;
   /** Whether the measure grid is drawn. Kept in localStorage, not in the layout, never an undo step. */
   measure: boolean = readMeasure();
+  /** Light, dark or auto (follows the OS/browser). Kept in localStorage, not in the layout, never an undo step. */
+  theme: ThemeChoice = readTheme();
   /** id of the door drawn open in the preview */
   openDoor: string | null = null;
   /** The floor panel is asking "Delete floor ...?". Any change of floor, undo or press on the plan cancels it. */
@@ -308,6 +323,12 @@ export class EditorState {
   setMeasure(v: boolean) {
     this.measure = v;
     try { localStorage.setItem(MEASURE_KEY, String(v)); } catch { /* private mode: the choice lasts until reload */ }
+  }
+  /** Sets the theme choice (S1.53). A viewer preference: no undo step, never written to the layout. */
+  setTheme(t: ThemeChoice) {
+    if (!(THEME_VALUES as readonly string[]).includes(t)) return;
+    this.theme = t;
+    try { localStorage.setItem(THEME_KEY, t); } catch { /* private mode: the choice lasts until reload */ }
   }
   persist() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.layout)); } catch { /* private mode, quota */ }

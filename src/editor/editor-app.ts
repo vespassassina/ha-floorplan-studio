@@ -6,7 +6,7 @@ import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "..
 import { gridRound, looseEnds, movePointAll, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
-import { EditorState, GRID_VALUES, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
+import { EditorState, GRID_VALUES, THEME_VALUES, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
 
 /**
  * <floorplan-studio-editor>: draws and edits a layout.
@@ -171,9 +171,9 @@ export class FloorplanStudioEditor extends LitElement {
     .btn,.chip,select,input{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:4px;padding:4px 8px}
     .btn,.chip,summary{cursor:pointer}
     .chip[aria-pressed="true"]{background:var(--fp-ink);color:var(--fp-bg)}
-    .btn.primary{background:var(--fp-primary);color:var(--fp-bg);border-color:var(--fp-primary)}
-    .btn.danger{background:var(--fp-danger);color:var(--fp-bg);border-color:var(--fp-danger)}
-    .btn.warn{background:var(--fp-warn);color:var(--fp-ink);border-color:var(--fp-warn)}
+    .btn.primary{background:var(--fp-primary);color:var(--fp-on-dark);border-color:var(--fp-primary)}
+    .btn.danger{background:var(--fp-danger);color:var(--fp-on-dark);border-color:var(--fp-danger)}
+    .btn.warn{background:var(--fp-warn);color:var(--fp-on-light);border-color:var(--fp-warn)}
     .menu{position:relative}
     .menu>summary{list-style:none;display:inline-block}
     .menu>summary::-webkit-details-marker{display:none}
@@ -232,6 +232,10 @@ export class FloorplanStudioEditor extends LitElement {
 
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has("floor") && this.floor && this.floor !== this.st.floor && hasOwn(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
+    // S1.53: Auto removes the attribute so the CSS prefers-color-scheme block decides; Light/Dark override it explicitly.
+    // Reflected on the host itself, not just the svg, so the editor's own chrome (menus, panels, buttons) themes with the plan.
+    if (this.st.theme === "auto") this.removeAttribute("data-theme");
+    else this.setAttribute("data-theme", this.st.theme);
   }
 
   protected firstUpdated() {
@@ -978,7 +982,8 @@ export class FloorplanStudioEditor extends LitElement {
     const overlay = this.overlay(k), grid = this.measureGrid(k);
     const turnG = (svg: string) => (rot ? `<g class="plan-turn" transform="rotate(${num(rot.deg)} ${num(rot.pivot[0])} ${num(rot.pivot[1])})">${svg}</g>` : svg);
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, rotate: rot, colors: st.layout.colors }) + turnG(overlay);
+    const theme = st.theme === "auto" ? undefined : st.theme;
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, rotate: rot, colors: st.layout.colors, theme }) + turnG(overlay);
     const counts: Record<string, number> = {};
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const unplaced = st.unplaced(), q = this.devQuery.trim().toLowerCase();
@@ -1030,6 +1035,8 @@ export class FloorplanStudioEditor extends LitElement {
             ${GRID_VALUES.map((g) => html`<button class="chip keep" data-grid=${g} aria-pressed=${pressed(st.snapGrid === g)} @click=${() => { st.setGrid(g); this.requestUpdate(); }}>${g ? `${g} cm` : "None"}</button>`)}</div>
           <button class="chip" id="mgrid" aria-pressed=${pressed(st.measure)} title="A faint 50 cm grid with metre markers, behind the plan" @click=${() => { st.setMeasure(!st.measure); this.requestUpdate(); }}>Measure grid</button>
           <button class="chip" id="lens" aria-pressed=${pressed(st.showLen)} @click=${() => { st.showLen = !st.showLen; this.requestUpdate(); }}>Lengths</button>
+          <div class="rotrow" id="th" role="group" aria-label="Theme"><span>Theme</span>
+            ${THEME_VALUES.map((t) => html`<button class="chip keep" data-th=${t} aria-pressed=${pressed(st.theme === t)} @click=${() => { st.setTheme(t); this.requestUpdate(); }}>${t[0].toUpperCase()}${t.slice(1)}</button>`)}</div>
           <button class="btn" id="recenter" @click=${() => { st.recenter(); this.requestUpdate(); }}>Re-center</button>
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
           <details id="devcols"><summary class="btn">Device colours</summary>

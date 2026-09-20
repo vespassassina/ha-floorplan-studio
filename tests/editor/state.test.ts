@@ -4,7 +4,7 @@ import v1 from "../../demo/layout.v1.json";
 import type { Layout, WallKind } from "../../src/core/schema";
 import { movePointAll, setSecondEnd, stairsAt } from "../../src/editor/ops";
 import { contentPoints, rotateAbout } from "../../src/core";
-import { EditorState, GRID_KEY, MEASURE_KEY, STORAGE_KEY, loadLayout, newId, restoreLayout } from "../../src/editor/state";
+import { EditorState, GRID_KEY, MEASURE_KEY, STORAGE_KEY, THEME_KEY, loadLayout, newId, restoreLayout } from "../../src/editor/state";
 
 const fresh = () => structuredClone(demo) as unknown as Layout;
 
@@ -631,6 +631,44 @@ describe("the measure grid preference (S1.50)", () => {
     expect(st.measure).toBe(true);
     st.setMeasure(false);
     expect(st.measure).toBe(false); // the in-memory choice still changes; only the write is lost
+    get.mockRestore(); set.mockRestore();
+  });
+});
+
+describe("the theme choice (S1.53)", () => {
+  beforeEach(() => localStorage.clear());
+  it("is auto by default and not part of the layout", () => {
+    const st = new EditorState(fresh());
+    expect(st.theme).toBe("auto");
+    st.setTheme("dark");
+    expect(JSON.stringify(st.layout)).not.toContain("theme");
+  });
+  it.each(["auto", "light", "dark"] as const)("keeps %s under its own key and the next state reads it", (t) => {
+    new EditorState(fresh()).setTheme(t);
+    expect(localStorage.getItem(THEME_KEY)).toBe(t);
+    expect(new EditorState(fresh()).theme).toBe(t);
+  });
+  it.each(["", "x", "null", "Dark", "system"])("a stored %j falls back to auto", (v) => {
+    localStorage.setItem(THEME_KEY, v);
+    expect(new EditorState(fresh()).theme).toBe("auto");
+  });
+  it("setTheme refuses a value that is not one of the three", () => {
+    const st = new EditorState(fresh());
+    st.setTheme("Dark" as never);
+    expect(st.theme).toBe("auto");
+  });
+  it("toggling it is not an undo step", () => {
+    const st = new EditorState(fresh());
+    st.setTheme("dark");
+    expect(st.canUndo).toBe(false);
+  });
+  it("a blocked storage falls back to auto: the in-memory choice still changes, only the write is lost", () => {
+    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    const st = new EditorState(fresh());
+    expect(st.theme).toBe("auto");
+    st.setTheme("dark");
+    expect(st.theme).toBe("dark");
     get.mockRestore(); set.mockRestore();
   });
 });

@@ -2732,7 +2732,8 @@ test("a new floor has the outline and the stairs of the ground floor, no rooms, 
 // ---- red and orange buttons (S1.28) ---------------------------------------------
 
 // Computed style, not class names: a rule that loses on specificity would pass a class check.
-const RED = "rgb(176, 42, 42)", ORANGE = "rgb(242, 140, 40)", LIGHT = "rgb(244, 240, 230)", DARK = "rgb(43, 42, 39)";
+// LIGHT is the fixed on-dark button text (S1.53): white, not --fp-bg, so a danger/primary button stays readable in both themes.
+const RED = "rgb(176, 42, 42)", ORANGE = "rgb(242, 140, 40)", LIGHT = "rgb(255, 255, 255)", DARK = "rgb(43, 42, 39)";
 const paint = (page: Page, sel: string) => page.locator(sel).evaluate((el) => { const s = getComputedStyle(el); return [s.backgroundColor, s.color]; });
 const expectWarn = async (page: Page, sel: string) => expect(await paint(page, sel), sel).toEqual([ORANGE, DARK]);
 const expectDanger = async (page: Page, sel: string) => expect(await paint(page, sel), sel).toEqual([RED, LIGHT]);
@@ -4097,4 +4098,114 @@ test("S1.51 break it: a corner dragged past its opposite one clamps at 5 cm inst
   const cam = await screenOf(page, CAM.x, CAM.y);
   await page.mouse.click(cam.x, cam.y);
   await expect(page.locator("svg circle[data-fh]")).toHaveCount(0);
+});
+
+// ---- S1.53 a light and a dark theme ---------------------------------------------------------
+
+const DARK_TH = { bg: "rgb(17, 28, 43)", room: "rgb(28, 42, 58)", wall: "rgb(232, 230, 224)", text: "rgb(232, 230, 224)", outline: "rgb(17, 28, 43)", disc: "rgb(28, 42, 58)", measure: "rgb(232, 230, 224)" };
+const LIGHT_TH = { bg: "rgb(244, 240, 230)", room: "rgb(233, 227, 211)", wall: "rgb(43, 42, 39)", text: "rgb(58, 58, 58)", outline: "rgb(255, 255, 255)" };
+
+async function setTheme(page: Page, t: "auto" | "light" | "dark") {
+  await menu(page, "View");
+  await page.locator(`[data-th="${t}"]`).click();
+  await menu(page, "View");
+}
+
+test("S1.53: dark theme takes the page background, room fill, wall stroke, room name colours, device disc and measure grid to their dark values", async ({ page }) => {
+  await setTheme(page, "dark");
+  const got = await page.evaluate((tag) => {
+    const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
+    const host = document.querySelector(tag) as HTMLElement;
+    const room = root.querySelector('svg polygon[data-r="0"]')!, wall = root.querySelector("svg line.e")!;
+    const lbl = root.querySelector("svg text.lbl")!, halo = root.querySelector("svg .dev .halo")!, mg = root.querySelector("svg line.mg")!;
+    const s = (el: Element) => getComputedStyle(el);
+    return {
+      bg: s(host).backgroundColor, room: s(room).fill, wall: s(wall).stroke,
+      lblFill: s(lbl).fill, lblStroke: s(lbl).stroke, disc: s(halo).fill, mg: s(mg).stroke,
+    };
+  }, EDITOR);
+  expect(got.bg).toBe(DARK_TH.bg);
+  expect(got.room).toBe(DARK_TH.room);
+  expect(got.wall).toBe(DARK_TH.wall);
+  expect(got.lblFill).toBe(DARK_TH.text); // a room name on a dark room: light fill...
+  expect(got.lblStroke).toBe(DARK_TH.outline); // ...with a dark outline, the S1.46 trick inverted
+  expect(got.disc).toBe(DARK_TH.disc);
+  expect(got.mg).toBe(DARK_TH.measure);
+});
+
+test("S1.53: light theme (the default) keeps today's values", async ({ page }) => {
+  const got = await page.evaluate((tag) => {
+    const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
+    const host = document.querySelector(tag) as HTMLElement;
+    const room = root.querySelector('svg polygon[data-r="0"]')!, wall = root.querySelector("svg line.e")!;
+    const lbl = root.querySelector("svg text.lbl")!;
+    const s = (el: Element) => getComputedStyle(el);
+    return { bg: s(host).backgroundColor, room: s(room).fill, wall: s(wall).stroke, lblFill: s(lbl).fill, lblStroke: s(lbl).stroke };
+  }, EDITOR);
+  expect(got.bg).toBe(LIGHT_TH.bg);
+  expect(got.room).toBe(LIGHT_TH.room);
+  expect(got.wall).toBe(LIGHT_TH.wall);
+  expect(got.lblFill).toBe(LIGHT_TH.text);
+  expect(got.lblStroke).toBe(LIGHT_TH.outline);
+});
+
+test("S1.53: every .btn keeps at least 4.5:1 contrast against its own background, in light and in dark", async ({ page }) => {
+  const checkAll = async () => {
+    const pairs = await page.evaluate((tag) => {
+      const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
+      return Array.from(root.querySelectorAll(".btn")).map((el) => {
+        const s = getComputedStyle(el);
+        return { label: el.id || (el.textContent ?? "").trim(), bg: s.backgroundColor, fg: s.color };
+      });
+    }, EDITOR);
+    expect(pairs.length).toBeGreaterThan(5);
+    for (const { label, bg, fg } of pairs) expect(ratio(rgbOf(bg), rgbOf(fg)), label).toBeGreaterThanOrEqual(4.5);
+  };
+  await checkAll(); // light, the default
+  await setTheme(page, "dark");
+  await checkAll();
+});
+
+test("S1.53: the theme chip switches Light, Dark and Auto, and the choice survives a reload", async ({ page }) => {
+  await menu(page, "View");
+  await expect(page.locator('[data-th="auto"]')).toHaveAttribute("aria-pressed", "true"); // Auto is the default
+  await page.locator('[data-th="dark"]').click();
+  expect(await page.evaluate(() => localStorage.getItem("floorplan-studio:theme"))).toBe("dark");
+  await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "dark");
+  await page.reload();
+  await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+  await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "dark");
+  await menu(page, "View");
+  await expect(page.locator('[data-th="dark"]')).toHaveAttribute("aria-pressed", "true");
+  await page.locator('[data-th="light"]').click();
+  expect(await page.evaluate(() => localStorage.getItem("floorplan-studio:theme"))).toBe("light");
+  await page.locator('[data-th="auto"]').click(); // the menu is still open from the earlier menu(page, "View")
+  await expect(page.locator(EDITOR)).not.toHaveAttribute("data-theme", /.*/);
+});
+
+test("S1.53: Auto follows the emulated prefers-color-scheme, both ways", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.reload();
+  await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+  const host = () => page.evaluate((tag) => getComputedStyle(document.querySelector(tag) as HTMLElement).backgroundColor, EDITOR);
+  expect(await host()).toBe(DARK_TH.bg); // OS dark, no explicit choice stored: Auto follows it
+  await page.emulateMedia({ colorScheme: "light" });
+  expect(await host()).toBe(LIGHT_TH.bg);
+  await page.emulateMedia({ colorScheme: null }); // reset for the tests that follow
+});
+
+test("S1.53 break it: a per-room colour stays the same colour in both themes, and its name stays readable", async ({ page }) => {
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.rooms[0].color = "#aabbcc"; el.layout = l; }, EDITOR);
+  const fillOf = () => page.evaluate((tag) => {
+    const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
+    const poly = root.querySelector('svg polygon[data-r="0"]')!, lbl = root.querySelector("svg text.lbl")!;
+    return { fill: getComputedStyle(poly).fill, lblFill: getComputedStyle(lbl).fill, lblStroke: getComputedStyle(lbl).stroke };
+  }, EDITOR);
+  const light = await fillOf();
+  expect(light.fill).toBe("rgb(170, 187, 204)"); // #aabbcc, the user's own choice
+  await setTheme(page, "dark");
+  const dark = await fillOf();
+  expect(dark.fill).toBe(light.fill); // unchanged by theme
+  expect(dark.lblFill).toBe(DARK_TH.text); // the name still reads: light fill, dark outline
+  expect(dark.lblStroke).toBe(DARK_TH.outline);
 });

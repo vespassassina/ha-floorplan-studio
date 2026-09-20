@@ -282,6 +282,24 @@ room_glow: true
   On a huge floor the step grows to 100 or 500 cm so no axis needs more than
   400 lines. A chip in the View menu, next to Grid; kept in the browser, not
   in the layout, and never an undo step.
+- Theme (S1.53): every colour in `FLOORPLAN_CSS` is a `--fp-*` custom
+  property. Light values sit on the base selector; a `data-theme="dark"`
+  attribute, on the editor's own host or on one plan's root, switches to dark
+  values (page `#111c2b`, room fill `#1c2a3a`, ink/walls `#e8e6e0`, disc
+  `#1c2a3a`, measure grid `#e8e6e0`); no attribute anywhere follows the
+  browser's `prefers-color-scheme` (Auto). Device colours (motion, heater,
+  light, ...) and the accent buttons (primary, warn, danger) keep the same
+  hex in both themes: each already clears 4.5:1 against the theme-invariant
+  text tokens `--fp-on-dark`/`--fp-on-light` it is paired with, so only the
+  structural neutrals differ per theme. A three-way chip (Auto/Light/Dark) in
+  the View menu, default Auto, kept in the browser under
+  `floorplan-studio:theme`, never in the layout and never an undo step; a
+  blocked store falls back to Auto. The editor's own chrome (menus, panels,
+  buttons) follows the same theme as the plan, and every button keeps its
+  4.5:1 contrast (S1.40) in both. A per-room colour keeps its own hue in
+  either theme; only the room's name ink/outline flips to stay readable. The
+  card will set `theme` from Home Assistant itself in Sprint 2 (S2.1) and
+  never hard-code it.
 - Undo/redo, autosave in the browser, Open/Save file, Reset to stored layout.
 - In HA: Load and Save go through the integration. Standalone: file only.
 

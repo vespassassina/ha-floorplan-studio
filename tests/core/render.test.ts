@@ -479,6 +479,22 @@ describe("outline edge kinds (S1.52)", () => {
   });
 });
 
+describe("theme (S1.53)", () => {
+  it("writes a data-theme attribute when given one, and nothing when not", () => {
+    expect(renderFloor(ground, { ...base, theme: "dark" })).toContain('<g data-theme="dark">');
+    expect(renderFloor(ground, { ...base, theme: "light" })).toContain('<g data-theme="light">');
+    expect(renderFloor(ground, base)).not.toContain("data-theme");
+  });
+  it("the dark block defines every token the light block defines, so a new token cannot be forgotten", () => {
+    const tokensOf = (css: string) => new Set(css.match(/--fp-[a-z-]+(?=:)/g));
+    const [light] = FLOORPLAN_CSS.match(/:host,\.fp\{[^}]*\}/s) ?? [""];
+    const [dark] = FLOORPLAN_CSS.match(/:host\(\[data-theme="dark"\]\)[^{]*\{[^}]*\}/s) ?? [""];
+    const [auto] = FLOORPLAN_CSS.match(/@media[^{]*\{[^{]*\{[^}]*\}/s) ?? [""];
+    expect(tokensOf(dark)).toEqual(tokensOf(light));
+    expect(tokensOf(auto)).toEqual(tokensOf(light));
+  });
+});
+
 describe("device rotation (S1.23)", () => {
   const withRot = (rot?: number) => { const f = structuredClone(ground); if (rot !== undefined) (f.devices[0] as { rot?: number }).rot = rot; return renderFloor(f, base); };
   const group = (html: string) => html.match(/<g data-x="0"[^>]*>/)![0];
