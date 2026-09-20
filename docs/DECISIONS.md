@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Sonnet verifies, Opus decides
+
+- The Test role moves from Haiku to Sonnet and is renamed Verify. Haiku's break-it runs in Sprint 1.5 cited existing tests instead of running its own, and one script never reached the state it claimed to test. Verification is where a weak model costs most.
+- Opus owns every decision and judgement call: review, design choices, spec ambiguities, author-versus-verifier disputes. Sonnet executes and verifies.
+- Break-it scripts must be the verifier's own and must show they reached the state under test. `docs/WORKFLOW.md` updated. Supersedes the Haiku test role in the Sprint 1 to 1.5 entries.
+
 ## 2026-09-19 Sprint 1.5 review fixes, round 2
 
 - Only a zone polygon's own edge hides the wall toggle. The first bullet of the entry below says it also hides on a room edge that a zone edge lies on top of; the code and the geometry test "toggleWall on a room edge that a zone edge lies on" say otherwise: a room edge under a zone edge still toggles, and the zone stays dotted. That parenthetical is wrong. On an exact tie between a zone edge and a room edge, the pointer pick (`nearestEdge` with `zones: true`) now takes the room edge, whichever is listed first, so that toggle stays reachable.

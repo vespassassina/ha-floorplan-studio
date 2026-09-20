@@ -1,7 +1,13 @@
-# Workflow: execute with Sonnet, test with Haiku, review with Opus
+# Workflow: execute with Sonnet, verify with Sonnet, decide with Opus
 
-One task at a time, from `docs/PLAN.md`. Three sessions, three roles. Each role
-gets the task block from PLAN.md plus this file. Nobody skips a step.
+One task at a time, from `docs/PLAN.md`. Three roles. Each role gets the task
+block from PLAN.md plus this file. Nobody skips a step.
+
+Models: Sonnet executes and verifies (two separate sessions; the verifier never
+sees the author's reasoning). Opus decides: it reviews, settles any design
+choice, picks between two readings of the spec, and judges every disagreement
+between author and verifier. Anything that needs judgement goes to Opus, not
+to a cheaper model.
 
 ## Rules for every role
 
@@ -37,11 +43,11 @@ Steps:
 5. Commit. Tick the task in `docs/PLAN.md` in the same commit.
 6. Report as above. No summary of how great it went; facts only.
 
-## Role: Test (Haiku)
+## Role: Verify (Sonnet)
 
 Prompt to paste:
 
-> Test task `<id>` on branch `task/<id>`. Follow docs/WORKFLOW.md, role Test.
+> Verify task `<id>` on branch `task/<id>`. Follow docs/WORKFLOW.md, role Verify.
 > Do not change source code. Run every command listed and paste the output.
 > Go through the task's "Done when" list and mark each line true or false with
 > the evidence. End with PASS or FAIL.
@@ -55,7 +61,10 @@ Steps:
 3. Open the task block. For each "Done when" line, state true/false and the
    command or file that proves it.
 4. Try to break it: one wrong input, one wrong order, one empty case, from the
-   "Break it" line of the task. Report what happened.
+   "Break it" line of the task. Write and run your own script for each; citing
+   an existing test does not count. A script must reach the state it claims to
+   test (draw mode entered, file loaded); say how you know. Report what
+   happened.
 5. Verdict: PASS only if every "Done when" line is true and all suites are
    green. Otherwise FAIL with the first failing line quoted.
 
