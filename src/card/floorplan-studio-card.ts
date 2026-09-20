@@ -47,6 +47,10 @@ export class FloorplanStudioCard extends LitElement {
   private _timer: ReturnType<typeof setInterval> | null = null;
   private _actionsSvg: SVGSVGElement | null = null;
   private _unbindActions: (() => void) | null = null;
+  /** S2.4: the last time each entity was seen `on`, in ms. `last_changed` moves to the moment a motion sensor goes
+   * `off`, which is no use for a fade that must keep counting from when it was last `on` — so the card remembers
+   * that moment itself and hands it to `renderFloor` in place of the entity's own `last_changed`. */
+  private _lastOn: Record<string, number> = {};
 
   static getStubConfig(): FloorplanStudioCardConfig {
     return { type: "custom:floorplan-studio-card" };
@@ -68,9 +72,32 @@ export class FloorplanStudioCard extends LitElement {
 
   set hass(h: Hass) {
     this._hass = h;
+    this._recordLastOn(h);
     if (!this._layout) this._loadLayout();
     this._syncTimer();
     this.requestUpdate();
+  }
+
+  /** S2.4: updates `_lastOn` for every entity now `on`, so an entity that later goes `off` keeps its last `on` moment on record. */
+  private _recordLastOn(h: Hass): void {
+    for (const [id, s] of Object.entries(h.states)) {
+      if (s.state !== "on") continue;
+      const t = Date.parse(s.last_changed);
+      if (!Number.isNaN(t)) this._lastOn[id] = t;
+    }
+  }
+
+  /** `hass.states`, with each entity's `last_changed` that has a recorded `_lastOn` swapped for it. `renderFloor` reads only `last_changed`
+   * for its fade math (S2.4's interface, no new option on `RenderOpts`), so this is how the card hands over the remembered on time. */
+  private _stateForRender(): Hass["states"] | undefined {
+    const states = this._hass?.states;
+    if (!states) return states;
+    const out: typeof states = { ...states };
+    for (const [id, t] of Object.entries(this._lastOn)) {
+      const s = out[id];
+      if (s) out[id] = { ...s, last_changed: new Date(t).toISOString() };
+    }
+    return out;
   }
 
   getCardSize(): number {
@@ -164,7 +191,7 @@ export class FloorplanStudioCard extends LitElement {
       if (d.type !== "motion") return false;
       const s = this._hass!.states[d.entity];
       if (!s) return false;
-      const t = Date.parse(s.last_changed);
+      const t = this._lastOn[d.entity] ?? Date.parse(s.last_changed);
       return !Number.isNaN(t) && now - t < fadeMs;
     });
   }
@@ -220,7 +247,7 @@ export class FloorplanStudioCard extends LitElement {
     const box = viewBoxFor(f, 60, rotate);
     const body = renderFloor(f, {
       scale: 1,
-      state: this._hass?.states,
+      state: this._stateForRender(),
       now: Date.now(),
       fade: this._config.fade,
       roomGlow: this._config.room_glow,

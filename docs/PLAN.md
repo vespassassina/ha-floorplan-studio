@@ -699,7 +699,7 @@ pressed state.
 - Done when: the demo's three sensor doors respond in the jsdom test.
 - Break it: a door whose `sensor` entity is missing from `hass.states` draws normally.
 
-### S2.4 Motion fade
+### S2.4 Motion fade (done)
 - Outcome: motion goes red on `on` and fades to grey over `fade` seconds from `last_changed`, even after the sensor returns to `off`.
 - Interface: fade uses `last_changed` of the most recent `on`; the card keeps `lastOn: Record<entity, number>` updated on each `hass` set; render passes it as `now`/`last_changed` so a sensor that already went `off` keeps fading from its last `on`.
 - Test: fake timers; state on at t0 → `--fp-fade:1`; at t0+5 s with `fade: 10` → `0.5`; sensor off at t0+2 s does not reset the fade; at t0+10 s → `0` and the timer stops.

@@ -239,6 +239,50 @@ describe("FloorplanStudioCard", () => {
     });
   });
 
+  describe("S2.4 motion fade: the card remembers the last on time so an off sensor keeps fading", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    const motionIndex = L.floors.ground.devices.findIndex((d) => d.entity === "binary_sensor.demo_hall_motion");
+
+    it("fades from the entity's last on time, not from a later off event, and stops the timer once the fade is over", async () => {
+      const setSpy = vi.spyOn(globalThis, "setInterval");
+      const clearSpy = vi.spyOn(globalThis, "clearInterval");
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), fade: 10 });
+      const t0 = Date.parse("2026-09-19T10:00:00Z");
+      vi.setSystemTime(t0);
+      const styleOf = () => el.shadowRoot!.querySelector(`svg [data-x="${motionIndex}"]`)!.getAttribute("style");
+
+      // on at t0: fully red.
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }) }) as never;
+      await el.updateComplete;
+      expect(styleOf()).toContain("--fp-fade:1");
+      expect(setSpy).toHaveBeenCalledTimes(1);
+
+      // t0+2s: the sensor returns to off. This must not reset the fade window.
+      vi.setSystemTime(t0 + 2000);
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 2000).toISOString() }) }) as never;
+      await el.updateComplete;
+      // still one interval: a later hass set while already fading must not start a second timer.
+      expect(setSpy).toHaveBeenCalledTimes(1);
+
+      // t0+5s, fade: 10 -> half faded, counted from the original on time (t0), not the t0+2s off event.
+      // advanceTimersByTimeAsync itself moves the fake clock forward by its argument, on top of setSystemTime,
+      // so the target instant is set 1000ms early and reached exactly when the interval's own tick fires.
+      vi.setSystemTime(t0 + 4000);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(styleOf()).toContain("--fp-fade:0.5");
+
+      // t0+10s -> fully faded, and the timer stops itself.
+      vi.setSystemTime(t0 + 9000);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(styleOf()).toContain("--fp-fade:0");
+      expect(clearSpy).toHaveBeenCalled();
+      expect(setSpy).toHaveBeenCalledTimes(1); // never restarted a second timer along the way
+    });
+  });
+
   it("getStubConfig returns a usable default config", () => {
     const stub = FloorplanStudioCard.getStubConfig();
     expect(stub).toEqual({ type: "custom:floorplan-studio-card" });
