@@ -166,4 +166,44 @@ describe("FloorplanStudioCard", () => {
     await el.updateComplete;
     expect(el.getCardSize()).toBeGreaterThan(0);
   });
+
+  it("getCardSize accounts for layout.rotate, same as render()'s own viewBoxFor call (Opus review)", async () => {
+    const el = await mount();
+    const unturned = structuredClone(L);
+    el.setConfig({ layout: unturned });
+    el.hass = stubHass() as never;
+    await el.updateComplete;
+    const sizeAt0 = el.getCardSize();
+
+    const el2 = await mount();
+    const turned = structuredClone(L);
+    turned.rotate = 90; // the demo outline is 800x600: 90 degrees swaps the aspect ratio getCardSize reads
+    el2.setConfig({ layout: turned });
+    el2.hass = stubHass() as never;
+    await el2.updateComplete;
+    const sizeAt90 = el2.getCardSize();
+
+    expect(sizeAt90).not.toBe(sizeAt0);
+  });
+
+  it("sets data-theme on the host itself, matching the theme passed into renderFloor, and clears it when hass.themes is absent (Opus review)", async () => {
+    const el = await mount();
+    el.setConfig({ layout: structuredClone(L) });
+    el.hass = stubHass({}, true) as never;
+    await el.updateComplete;
+    expect(el.getAttribute("data-theme")).toBe("dark");
+
+    el.hass = stubHass({}, false) as never;
+    await el.updateComplete;
+    expect(el.getAttribute("data-theme")).toBe("light");
+
+    el.hass = { states: {} } as never; // no themes field at all: never hard-coded, so no attribute
+    await el.updateComplete;
+    expect(el.hasAttribute("data-theme")).toBe(false);
+  });
+
+  it("the message colour has no hard-coded hex fallback outside FLOORPLAN_CSS (Opus review, CLAUDE.md finding 9)", () => {
+    const cssText = (FloorplanStudioCard.styles as unknown as { toString(): string }[]).map((s) => String(s)).join("\n");
+    expect(cssText).not.toMatch(/--fp-text\s*,\s*#[0-9a-fA-F]{3,6}/);
+  });
 });

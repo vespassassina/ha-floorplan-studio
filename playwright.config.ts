@@ -10,7 +10,9 @@ export default defineConfig({
   // Side effect: globalSetup rebuilds dist/ and custom_components/floorplan_studio/www/ (see tests/setup/build.ts).
   // Builds dist/ first: the standalone tests open dist/editor.html from file://.
   globalSetup: "./tests/setup/build.ts",
-  testDir: "tests/editor",
+  // "tests", not "tests/editor": tests/card/card.spec.ts (S2.1 review) opens dist/floorplan-studio-card.js from
+  // file://, the same way the standalone editor tests do, and needs to be discovered alongside them.
+  testDir: "tests",
   testMatch: "**/*.spec.ts",
   use: { baseURL: `http://${host}:${port}` },
   // The dev root has no index.html, so wait on the editor page itself.

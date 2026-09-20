@@ -1,0 +1,14 @@
+<!doctype html>
+<!-- Opus review of S2.1: hosts <floorplan-studio-card> so getComputedStyle sees a real Chromium cascade
+     (FLOORPLAN_CSS, :host, prefers-color-scheme), not jsdom's, which does not compute CSS custom properties
+     at all. Unlike dist/editor.html (built with vite:singlefile, so it is one inlined file), this card build
+     is a separate dist/floorplan-studio-card.js; a plain <script src="..."> to it fails under file:// because
+     Chromium refuses a cross-origin module fetch between two file:// URLs. tests/card/card.spec.ts injects the
+     built module's own source into the page instead (page.addScriptTag({content, type:"module"})), which runs
+     without a fetch. dist/ is rebuilt by tests/setup/build.ts. -->
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<floorplan-studio-card id="card"></floorplan-studio-card>
+</body>
+</html>

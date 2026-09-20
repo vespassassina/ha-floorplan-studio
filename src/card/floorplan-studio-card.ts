@@ -1,4 +1,4 @@
-import { LitElement, css, html, unsafeCSS } from "lit";
+import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, migrate, planPivot, renderFloor, validate, viewBoxFor } from "../core";
 import type { Floor, Layout } from "../core";
@@ -33,7 +33,7 @@ export class FloorplanStudioCard extends LitElement {
   static styles = [unsafeCSS(FLOORPLAN_CSS), css`
     :host { display: block; }
     svg { width: 100%; height: auto; display: block; }
-    p.msg { padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text, #3a3a3a); }
+    p.msg { padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
   `];
 
   private _config: FloorplanStudioCardConfig = {};
@@ -72,7 +72,7 @@ export class FloorplanStudioCard extends LitElement {
   getCardSize(): number {
     const f = this._floor();
     if (!f || !f.outline.length) return 6;
-    const box = viewBoxFor(f);
+    const box = viewBoxFor(f, 60, this._rotate());
     return Math.max(3, Math.round((box.h / box.w) * 8));
   }
 
@@ -126,6 +126,18 @@ export class FloorplanStudioCard extends LitElement {
     this._error = NO_LAYOUT;
   }
 
+  /** The layout's own rotate, if any, turned into the `{ deg, pivot }` renderFloor and viewBoxFor take. Shared so getCardSize sees the same box render() draws. */
+  private _rotate(): { deg: number; pivot: [number, number] } | undefined {
+    if (!this._layout?.rotate) return undefined;
+    return { deg: this._layout.rotate, pivot: planPivot(this._layout) };
+  }
+
+  /** Dark when the Home Assistant dashboard is dark, light when it is explicitly not; undefined (never hard-coded) with no `hass.themes` at all. */
+  private _theme(): "light" | "dark" | undefined {
+    if (!this._hass?.themes) return undefined;
+    return this._hass.themes.darkMode ? "dark" : "light";
+  }
+
   private _floor(): Floor | null {
     if (!this._layout) return null;
     const keys = Object.keys(this._layout.floors);
@@ -171,11 +183,23 @@ export class FloorplanStudioCard extends LitElement {
     }
   }
 
+  /**
+   * The host's own chrome (this `p.msg`, anything outside the `<svg>`) is styled by `FLOORPLAN_CSS`'s `:host` rules,
+   * which read `data-theme` off the host element itself, not off `renderFloor`'s output. Without this the chrome
+   * would follow the OS's `prefers-color-scheme` instead of Home Assistant's own theme (Opus review). Kept in sync
+   * with the same value passed into `renderFloor`, and cleared, never hard-coded, when there is no `hass.themes`.
+   */
+  protected updated(changed: PropertyValues): void {
+    super.updated(changed);
+    const t = this._theme();
+    if (t) this.setAttribute("data-theme", t);
+    else this.removeAttribute("data-theme");
+  }
+
   protected render() {
     const f = this._floor();
     if (!f) return html`<p class="msg">${this._error ?? NO_LAYOUT}</p>`;
-    const layout = this._layout as Layout;
-    const rotate = layout.rotate ? { deg: layout.rotate, pivot: planPivot(layout) } : undefined;
+    const rotate = this._rotate();
     const box = viewBoxFor(f, 60, rotate);
     const body = renderFloor(f, {
       scale: 1,
@@ -183,7 +207,7 @@ export class FloorplanStudioCard extends LitElement {
       now: Date.now(),
       fade: this._config.fade,
       roomGlow: this._config.room_glow,
-      theme: this._hass?.themes ? (this._hass.themes.darkMode ? "dark" : "light") : undefined,
+      theme: this._theme(),
       rotate,
     });
     return html`<svg viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>`;
