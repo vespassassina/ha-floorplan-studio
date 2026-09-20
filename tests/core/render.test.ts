@@ -571,6 +571,14 @@ describe("devices sit on top (S1.29)", () => {
     const h = renderFloor(f, base);
     expect(h.indexOf("<g data-x=")).toBeGreaterThan(h.indexOf(`>${room.name}</text>`));
   });
+  it("fix/heater-bar-under-icon: a heater's bar draws before its icon group, so the icon paints on top", () => {
+    const f = { ...ground, devices: [{ id: "bar", type: "heater", entity: "climate.bar", a: [3000, 10], b: [3100, 10] }] } as unknown as typeof ground;
+    const h = renderFloor(f, base);
+    const bar = h.indexOf('data-xbar="0"'), icon = h.indexOf('data-x="0"');
+    expect(bar).toBeGreaterThan(-1);
+    expect(icon).toBeGreaterThan(-1);
+    expect(bar).toBeLessThan(icon);
+  });
 });
 
 describe("outdoor sensors and the palette (S1.30)", () => {

@@ -2,6 +2,26 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 fix/heater-bar-under-icon: the heater bar has no per-end drag, only a whole-device drag
+
+The bug report asked to verify "dragging a bar end still works" after the reorder. It does not exist as
+a feature: `LooseRef` (the per-end drag handles drawn by `looseEnds()`) only covers `walls`, `openings`
+and `extras`, never `devices`; a heater's `a`/`b` line is dragged as one piece, via the `"dev"` hit case,
+which moves the whole bar (magnetised to the nearest wall within 80 cm, else keeping its length and
+heading). So the regression test drags a point on the bar body instead, chosen far enough from every
+wall and room edge (over 80 cm) that the wall-magnet does not fire, and checks both ends move by the
+same offset. No code changed for this; it is a test-scope note, not a behaviour change.
+
+## 2026-09-20 fix/heater-bar-under-icon: the bar now draws before the icon group
+
+`renderFloor()` pushed the icon group (`<g data-x>`) before the heater bar (`<line data-xbar>`), so the
+8/12 px bar painted over the icon's white disc and halo. Swapped the two pushes: the bar now draws
+first, the icon group last, so it always sits on top. `data-xbar`, its width (8 idle / 12 selected) and
+every other attribute are unchanged. Clicking the bar's middle now resolves to the icon group and
+selects the same device — correct per finding 3 (`closest("g[data-x]")` is the real top element). A
+pre-existing Vitest snapshot of the demo ground floor changed order and was regenerated (`vitest -u`);
+no other snapshot changed.
+
 ## 2026-09-20 S1.50: the measure grid method is named `measureGrid`; only the x-axis origin reads "0 m"
 
 Two deviations from the S1.50 block. First, `editor-app.ts` already has a private `measure()` (the `ResizeObserver` callback that reads the SVG's screen rect); the block's own `measure(k: number): string` would have been a duplicate implementation, which `tsc` refuses. The new method is `measureGrid(k)`. Second, the block says "the origin label reads `0 m` so the unit is stated once", but the grid numbers both axes independently, so a layout whose box crosses (0,0) — the demo does — gets one "0" label on the top edge and one on the left edge; giving both the " m" suffix states the unit twice, and a Playwright test matching the text "0 m" then finds two elements. Only the x-axis's zero (the one the block's own test line names) carries " m"; the y-axis's zero, like every other number, is bare. `FLOORPLAN_CSS` gains `.mg`/`.mg.m` and `--fp-measure:#3a3a3a`, paired with a `getComputedStyle` test in `editor.spec.ts` per finding 10; `stroke-opacity` is set inline per line (0.12 / 0.22), not in CSS, since it depends on the line's own value, not its class alone.

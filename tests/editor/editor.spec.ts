@@ -3913,3 +3913,36 @@ test("S1.50 break it: an empty floor draws a grid around the origin with no erro
   await menu(page, "File");
   await expect(page.locator("#undo")).toBeDisabled(); // the toggle is a viewer preference, not an undo step
 });
+
+// ---- fix/heater-bar-under-icon ------------------------------------------------------
+
+test("fix/heater-bar-under-icon: the heater icon sits on top of its bar, idle, selected, and with the plan turned 45", async ({ page }) => {
+  const HEATER: [number, number] = [180, 8]; // demo's "Living radiator": a=[100,8] b=[260,8], midpoint 180,8
+  const topOf = async () =>
+    page.evaluate(([tag, x, y]) => {
+      const root = (document.querySelector(tag as string) as any).shadowRoot as ShadowRoot;
+      const el = root.elementFromPoint(x, y) as Element | null;
+      return el?.closest("g[data-x]") ? "icon" : el?.closest("[data-xbar]") ? "bar" : (el?.tagName ?? "none");
+    }, [EDITOR, x, y] as const);
+  let p = await screenOf(page, ...HEATER);
+  let x = p.x, y = p.y;
+  expect(await topOf()).toBe("icon"); // idle
+  await page.mouse.click(p.x, p.y);
+  await expect(page.locator("#vrot90")).toBeVisible(); // a device is selected
+  p = await screenOf(page, ...HEATER); x = p.x; y = p.y;
+  expect(await topOf()).toBe("icon"); // selected
+  await rotateBy(page, 1); // 45 degrees
+  p = await screenOf(page, ...HEATER); x = p.x; y = p.y;
+  expect(await topOf()).toBe("icon"); // plan turned 45
+});
+
+test("fix/heater-bar-under-icon: the bar itself, away from the icon, still drags the whole device", async ({ page }) => {
+  // 250,8 sits on the visible bar (a=[100,8] b=[260,8]) but well clear of the icon halo at its midpoint 180,8.
+  // The drop point (470,500) is far from every wall and room edge (over 80 cm), so the drag isn't pulled to sit beside one.
+  await dragCm(page, [250, 8], [470, 500]);
+  const f = await groundOf(page);
+  const heater = f.devices.find((d: any) => d.id === "heater-living") as any;
+  // The pointer grabbed the bar 70 cm right of its centre (180,8); the whole 160 cm bar keeps its length and heading.
+  expect(heater.a).toEqual([320, 500]);
+  expect(heater.b).toEqual([480, 500]);
+});
