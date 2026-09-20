@@ -578,18 +578,22 @@ export class FloorplanStudioEditor extends LitElement {
   private centre(): Pt { const v = this.st.view; return [Math.round(v.x + v.w / 2), Math.round(v.y + v.h / 2)]; }
   /** Where a new item goes: outside the house, top right. */
   private spawn(): Pt { return spawnPoint(this.st.f, this.centre()); }
-  /** Pans, without zooming, until `p` is inside what the svg shows with a 100 cm margin. */
-  private ensureVisible(p: Pt) {
-    const st = this.st, v = st.view, s = this.scale, hw = this.rect.w / s / 2, hh = this.rect.h / s / 2, M = 100;
+  /** Brings all of `pts` into what the svg shows, with a 100 cm margin: pans by the least amount, and zooms out only when they do not fit. */
+  private ensureVisible(...pts: Pt[]) {
+    const st = this.st, v = st.view, s = this.scale, M = 100;
+    const x0 = Math.min(...pts.map((q) => q[0])), x1 = Math.max(...pts.map((q) => q[0]));
+    const y0 = Math.min(...pts.map((q) => q[1])), y1 = Math.max(...pts.map((q) => q[1]));
+    const k = Math.max(1, (x1 - x0 + 2 * M) / (this.rect.w / s), (y1 - y0 + 2 * M) / (this.rect.h / s)); // >1: does not fit
+    const w = v.w * k, h = v.h * k, hw = this.rect.w / s * k / 2, hh = this.rect.h / s * k / 2;
     const cx = v.x + v.w / 2, cy = v.y + v.h / 2;
-    const shift = (c: number, half: number, q: number) => {
-      if (half <= M) return q - c; // the view is smaller than the margin: centre on it
-      if (q - M < c - half) return q - M - (c - half);
-      if (q + M > c + half) return q + M - (c + half);
+    const shift = (c: number, half: number, lo: number, hi: number) => {
+      if (hi - lo + 2 * M >= 2 * half) return (lo + hi) / 2 - c; // fills the view: centre on it
+      if (lo - M < c - half) return lo - M - (c - half);
+      if (hi + M > c + half) return hi + M - (c + half);
       return 0;
     };
-    const dx = shift(cx, hw, p[0]), dy = shift(cy, hh, p[1]);
-    if (dx || dy) st.views[st.floor] = { ...v, x: v.x + dx, y: v.y + dy };
+    const dx = shift(cx, hw, x0, x1), dy = shift(cy, hh, y0, y1);
+    if (dx || dy || k > 1) st.views[st.floor] = { x: cx + dx - w / 2, y: cy + dy - h / 2, w, h };
   }
 
   // ---- draw mode ----
@@ -662,7 +666,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.stopDraw();
     const p = this.spawn(), [x, y] = p, floor = this.st.floor;
     this.commit((f) => { f.walls.push({ id: newId(f, floor, "wall"), a: [x - 100, y], b: [x + 100, y], kind }); });
-    this.ensureVisible(p);
+    this.ensureVisible([x - 100, y], [x + 100, y]);
     this.st.sel = { t: "wall", i: this.st.f.walls.length - 1 };
     this.requestUpdate();
   }
@@ -670,8 +674,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.stopDraw();
     const p = this.spawn(), [x, y] = p, floor = this.st.floor; // top-left corner: 400 cm centred on the spawn point would reach into the house
     this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name: "New structure", area: slug("New structure"), label: "", kind: "structure", pts: [[x, y], [x + 400, y], [x + 400, y + 300], [x, y + 300]], wk: ["wall", "wall", "wall", "wall"] }); });
-    this.ensureVisible([x + 400, y + 300]); // the whole structure, not only its corner
-    this.ensureVisible(p);
+    this.ensureVisible([x, y], [x + 400, y + 300]);
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
     this.requestUpdate();
   }
@@ -679,7 +682,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.stopDraw();
     const p = this.spawn(), pts = squareAt(p), floor = this.st.floor, name = "New zone";
     this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name, area: slug(name), label: "", kind, pts, wk: pts.map((): WallKind => "boundary") }); });
-    this.ensureVisible(p);
+    this.ensureVisible(...pts);
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
     this.requestUpdate();
   }
@@ -687,7 +690,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.stopDraw();
     const p = this.spawn(), floor = this.st.floor, t = stairsAt(p);
     this.commit((f) => { f.stairs.push({ id: newId(f, floor, "stairs"), ...t }); });
-    this.ensureVisible(p);
+    this.ensureVisible(...t.pts);
     this.st.sel = { t: "stairs", i: this.st.f.stairs.length - 1 };
     this.requestUpdate();
   }
@@ -696,7 +699,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.stopDraw();
     const sym = symbol as keyof typeof FURNITURE, p = this.spawn(), [x, y] = p, floor = this.st.floor;
     this.commit((f) => { f.furniture.push({ id: newId(f, floor, "furniture"), symbol: sym, x, y, rot: 0, w: FURNITURE[sym].w, h: FURNITURE[sym].h }); });
-    this.ensureVisible(p);
+    this.ensureVisible([x - FURNITURE[sym].w / 2, y - FURNITURE[sym].h / 2], [x + FURNITURE[sym].w / 2, y + FURNITURE[sym].h / 2]);
     this.st.sel = { t: "furn", i: this.st.f.furniture.length - 1 };
     this.requestUpdate();
   }

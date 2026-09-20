@@ -2066,6 +2066,45 @@ test("break it: with the view panned far from the house, an added item is still 
   expect(Math.round((v[2] - v[0]) * 10)).toBe(Math.round((far[2] - far[0]) * 10));
 });
 
+/** True when the shape's screen box lies wholly inside the svg's own box. */
+const inCanvas = (page: Page, shape: string) =>
+  page.evaluate(([tag, sel]) => {
+    const root = (document.querySelector(tag as string) as any).shadowRoot as ShadowRoot;
+    const c = root.querySelector("svg")!.getBoundingClientRect(), r = root.querySelector(sel as string)!.getBoundingClientRect();
+    return r.left >= c.left - 0.5 && r.right <= c.right + 0.5 && r.top >= c.top - 0.5 && r.bottom <= c.bottom + 0.5;
+  }, [EDITOR, shape] as const);
+const NEW_SHAPES: [string, (page: Page) => Promise<void>, string][] = [
+  ["wall", (p) => addMenuItem(p, "#addWall-wall"), 'line[data-w="0"]'],
+  ["structure", (p) => addMenuItem(p, "#addStr"), 'polygon[data-r="7"]'],
+  ["zone", (p) => addMenuItem(p, "#addZone"), 'polygon[data-r="7"]'],
+  ["stairs", (p) => addMenuItem(p, "#addStairs"), '[data-s="1"]'],
+  ["furniture", async (p) => { await menu(p, "Add"); await p.locator("#addFurn").selectOption("bed"); }, 'g[data-f="2"]'],
+];
+async function zoomIn(page: Page, ticks: number) {
+  const c = await screenOf(page, 400, 300);
+  await page.mouse.move(c.x, c.y);
+  for (let n = 0; n < ticks; n++) await page.mouse.wheel(0, -300);
+}
+for (const [name, add, shape] of NEW_SHAPES) {
+  for (const zoom of [0, 6]) {
+    test(`a new ${name} is wholly in view, ${zoom ? "after zooming in" : "at the default view"}`, async ({ page }) => {
+      if (zoom) await zoomIn(page, zoom);
+      await add(page);
+      await expect(page.locator(shape)).toHaveCount(1);
+      expect(await inCanvas(page, shape)).toBe(true);
+    });
+  }
+}
+
+test("a new structure that does not fit at this zoom brings the view out until it does", async ({ page }) => {
+  await zoomIn(page, 14); // a window a few metres wide
+  const before = (await visible(page));
+  await addMenuItem(page, "#addStr");
+  expect(await inCanvas(page, 'polygon[data-r="7"]')).toBe(true);
+  const after = await visible(page);
+  expect(after[2] - after[0]).toBeGreaterThan(before[2] - before[0]); // it zoomed out, and only because it had to
+});
+
 test("a new floor has no outline: an added zone lands at the view centre, as before", async ({ page }) => {
   await addFloorVia(page, "Attic");
   await expect(page.locator(".chip[data-f]")).toHaveCount(3);
