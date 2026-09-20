@@ -647,10 +647,10 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.sel = { t: "opening", i: this.st.f.openings.length - 1 };
     this.requestUpdate();
   }
-  private addWall() {
+  private addWall(kind: WallKind) {
     this.stopDraw();
     const p = this.spawn(), [x, y] = p, floor = this.st.floor;
-    this.commit((f) => { f.walls.push({ id: newId(f, floor, "wall"), a: [x - 100, y], b: [x + 100, y], kind: "wall" }); });
+    this.commit((f) => { f.walls.push({ id: newId(f, floor, "wall"), a: [x - 100, y], b: [x + 100, y], kind }); });
     this.ensureVisible(p);
     this.st.sel = { t: "wall", i: this.st.f.walls.length - 1 };
     this.requestUpdate();
@@ -664,10 +664,10 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
     this.requestUpdate();
   }
-  private addArea(kind: "zone" | "water") {
+  private addArea(kind: "zone") {
     this.stopDraw();
-    const p = this.spawn(), pts = squareAt(p), floor = this.st.floor, name = kind === "zone" ? "New zone" : "New water";
-    this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name, area: kind === "zone" ? slug(name) : "", label: "", kind, pts, wk: pts.map((): WallKind => "boundary") }); });
+    const p = this.spawn(), pts = squareAt(p), floor = this.st.floor, name = "New zone";
+    this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name, area: slug(name), label: "", kind, pts, wk: pts.map((): WallKind => "boundary") }); });
     this.ensureVisible(p);
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
     this.requestUpdate();
@@ -862,13 +862,17 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn" id="addDoor" @click=${() => this.addDoor("door", 90)}>Door</button>
           <button class="btn" id="addWin" @click=${() => this.addDoor("window", 120)}>Window</button>
           <button class="btn" id="addGap" title="A gap in a wall: the wall is not drawn there" @click=${() => this.addOpeningGap()}>Opening</button>
-          <button class="btn" id="addWall" @click=${() => this.addWall()}>Wall</button>
+          ${WALL_KINDS.map((k) => html`<button class="btn" id=${`addWall-${k}`} @click=${() => this.addWall(k)}>Wall: ${WALL_LABELS[k]}</button>`)}
           <button class="btn" id="addStr" @click=${() => this.addStructure()}>Structure</button>
           <button class="btn" id="addZone" @click=${() => this.addArea("zone")}>Zone</button>
-          <button class="btn" id="addWater" @click=${() => this.addArea("water")}>Water</button>
           <button class="btn" id="addStairs" @click=${() => this.addStairs()}>Stairs</button>
           <div class="sep"></div>
-          <span class="grp">Draw: click points on the plan</span>
+          <select id="addFurn" aria-label="Add furniture" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addFurniture(el.value); el.value = ""; this.closeMenus(); }}>
+            <option value="">Furniture…</option>
+            ${FURNITURE_SYMBOLS.map((y) => html`<option value=${y}>${y}</option>`)}
+          </select>
+        </div></details>
+        <details class="menu" id="mDraw"><summary class="btn">Draw</summary><div class="box">
           <button class="btn" id="drawRoom" @click=${() => this.startDraw("room")}>Draw room</button>
           <button class="btn" id="drawZone" @click=${() => this.startDraw("zone")}>Draw zone</button>
           <button class="btn" id="drawWater" @click=${() => this.startDraw("water")}>Draw water</button>
@@ -876,11 +880,6 @@ export class FloorplanStudioEditor extends LitElement {
           ${WALL_KINDS.map((k) => html`<button class="btn" id=${`drawWall-${k}`} @click=${() => this.startDraw("wall", k)}>Draw wall: ${WALL_LABELS[k]}</button>`)}
           <button class="btn" id="drawOpening" @click=${() => this.startDraw("opening")}>Draw opening</button>
           <button class="btn" id="drawExtra" @click=${() => this.startDraw("extra")}>Draw structure line</button>
-          <div class="sep"></div>
-          <select id="addFurn" aria-label="Add furniture" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addFurniture(el.value); el.value = ""; this.closeMenus(); }}>
-            <option value="">Furniture…</option>
-            ${FURNITURE_SYMBOLS.map((y) => html`<option value=${y}>${y}</option>`)}
-          </select>
         </div></details>
         <details class="menu" id="mDev" @toggle=${this.onDevToggle}><summary class="btn">Device</summary><div class="box">
           <input id="devSearch" type="search" autocomplete="off" aria-label="Search devices by name or entity id" placeholder="Search name or entity" .value=${live(this.devQuery)} @input=${(e: Event) => { this.devQuery = (e.target as HTMLInputElement).value; }} @keydown=${this.onDevSearchKey}>

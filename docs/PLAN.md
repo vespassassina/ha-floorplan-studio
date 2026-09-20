@@ -341,7 +341,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass.
 - Break it: with the view scrolled far from the house, the added item is still outside the house and still comes into view.
 
-### S1.21 Draw is its own menu
+### S1.21 Draw is its own menu (done)
 - Outcome: the toolbar has Add and Draw side by side; Add places finished items, Draw takes clicks.
 - Files: `src/editor/editor-app.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
 - Interface: toolbar order: floor chips, "+", filter, Names, Add, Draw, Device, View, File. `<details class="menu" id="mDraw">` holds the eleven Draw items that Add held (`#drawRoom`, `#drawZone`, `#drawWater`, `#drawOutline`, `#drawWall-<kind>` for the five, `#drawOpening`, `#drawExtra`), with the same ids and the same handlers; Add keeps Door, Window, Opening, Structure, Zone, Stairs and the furniture select, loses Water (a room kind: draw it or change a room's kind) and replaces the single `#addWall` with one button per kind, `#addWall-<kind>`, each placing a 200 cm wall of that kind at the spawn point. The Draw group heading and separator leave Add.

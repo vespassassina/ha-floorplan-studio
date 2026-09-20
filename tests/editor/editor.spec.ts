@@ -552,7 +552,7 @@ test("a selection made from the Device menu survives the menu closing, then Dele
 });
 
 // ---- S1.8 zones and water ----------------------------------------------------
-const addKind = async (page: Page, id: "#addZone" | "#addWater") => { await menu(page, "Add"); await page.locator(id).click(); };
+const addKind = async (page: Page, id: "#addZone") => { await menu(page, "Add"); await page.locator(id).click(); };
 const roomPolys = (page: Page) => page.locator("svg polygon[data-r]");
 
 test("Add, Zone places a 200 x 200 cm zone on the grid, centred on the spawn point, selected, dotted, with all wk boundary; one undo step removes it", async ({ page }) => {
@@ -584,12 +584,12 @@ test("Add, Zone places a 200 x 200 cm zone on the grid, centred on the spawn poi
   await savedValid(page);
 });
 
-test("Add, Water places a 200 x 200 cm water polygon filled from --fp-water, selected", async ({ page }) => {
-  await addKind(page, "#addWater");
+test("a drawn water polygon is filled from --fp-water and selected", async ({ page }) => {
+  await startDraw(page, "drawWater");
+  await clicksCm(page, [830, 100], [890, 100], [890, 200], [830, 200]);
+  await page.keyboard.press("Enter");
   const g = await groundOf(page), w = g.rooms[g.rooms.length - 1], n = g.rooms.length - 1;
   expect(w.kind).toBe("water");
-  const xs = w.pts.map((p) => p[0]);
-  expect(Math.max(...xs) - Math.min(...xs)).toBe(200);
   await expect(page.locator("#rk")).toHaveValue("water");
   const fill = (sel: string) => page.locator(sel).evaluate((el) => getComputedStyle(el).fill);
   const water = await fill(`svg polygon[data-r="${n}"]`);
@@ -954,9 +954,9 @@ test("a floor added, renamed, moved and deleted is four undo steps, one per acti
 // ---- S1.11 draw mode ----
 const DRAW_STATUS = "Click to add points, double-click or Enter to finish, Esc to cancel";
 
-/** Add, then one Draw item, through the real menu. */
+/** Draw, then one Draw item, through the real menu. */
 async function startDraw(page: Page, id: string) {
-  await menu(page, "Add");
+  await menu(page, "Draw");
   await page.locator(`#${id}`).click(); // scrolls the menu to the item; the menu is taller than a short window
 }
 /** Real clicks at plan points (cm). */
@@ -1269,8 +1269,8 @@ test("draw items keep the single-shape Add items: Zone still adds a square in on
 const search = (page: Page) => page.locator("#devSearch");
 const shown = (page: Page) => page.locator("#mDev button[data-dev]:visible");
 
-test("the toolbar order is Add, Device, View, File and Add has no Device item", async ({ page }) => {
-  await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Device", "View", "File"]);
+test("the toolbar order is Add, Draw, Device, View, File and Add has no Device item", async ({ page }) => {
+  await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Draw", "Device", "View", "File"]);
   await expect(page.locator("#mAdd select")).toHaveCount(1); // only the furniture select is left
   await expect(page.locator("#mAdd #addDev")).toHaveCount(0);
   await expect(page.locator("#mAdd")).not.toContainText("Device");
@@ -1493,7 +1493,7 @@ test("Delete in the panel, and the Delete and Backspace keys, remove the opening
 
 test("an opening lands on a free wall when that is the nearest edge", async ({ page }) => {
   await menu(page, "Add");
-  await page.locator("#addWall").click();
+  await page.locator("#addWall-wall").click();
   const w = (await groundOf(page)).walls[0];
   await centreViewOn(page, mid(w)); // the wall is now the edge nearest the view centre
   await addGap(page);
@@ -1765,7 +1765,7 @@ test("Add, Door and Add, Opening skip a zone edge: they land on the nearest wall
 
 test("Add, Door lands on a free wall when that is the nearest edge, along its direction", async ({ page }) => {
   await menu(page, "Add");
-  await page.locator("#addWall").click(); // a horizontal wall
+  await page.locator("#addWall-wall").click(); // a horizontal wall
   const w = (await groundOf(page)).walls[0];
   await centreViewOn(page, mid(w)); // the wall is now the edge nearest the view centre
   await menu(page, "Add");
@@ -2016,16 +2016,15 @@ test("Add, Structure puts every point outside the outline's box, and the structu
   for (const [x, y] of s.pts) { expect(x).toBeGreaterThanOrEqual(v[0]); expect(x).toBeLessThanOrEqual(v[2]); expect(y).toBeGreaterThanOrEqual(v[1]); expect(y).toBeLessThanOrEqual(v[3]); }
 });
 
-test("Add, Wall, Zone, Water, Stairs and Furniture all land right of the house, top aligned with it", async ({ page }) => {
-  await addMenuItem(page, "#addWall");
+test("Add, Wall, Zone, Stairs and Furniture all land right of the house, top aligned with it", async ({ page }) => {
+  await addMenuItem(page, "#addWall-wall");
   await addMenuItem(page, "#addZone");
-  await addMenuItem(page, "#addWater");
   await addMenuItem(page, "#addStairs");
   await menu(page, "Add");
   await page.locator("#addFurn").selectOption("bed");
   const g = await groundOf(page);
   const pts: number[][] = [...g.walls.flatMap((w) => [w.a, w.b]), ...g.rooms.slice(7).flatMap((r) => r.pts), ...g.stairs.slice(1).flatMap((t) => t.pts)];
-  expect(pts.length).toBe(2 + 4 + 4 + 4);
+  expect(pts.length).toBe(2 + 4 + 4);
   for (const [x] of pts) expect(x).toBeGreaterThan(OUTLINE_MAX_X);
   const bed = g.furniture[g.furniture.length - 1];
   expect(bed.x - bed.w / 2).toBeGreaterThan(OUTLINE_MAX_X);
@@ -2075,4 +2074,67 @@ test("a device whose catalog room is not on the floor lands right of the house a
   expect(d.x).toBeGreaterThan(OUTLINE_MAX_X);
   const v = await visible(page);
   expect(d.x).toBeGreaterThanOrEqual(v[0]); expect(d.x).toBeLessThanOrEqual(v[2]);
+});
+
+// ---- S1.21 Draw is its own menu ----
+const DRAW_IDS = ["drawRoom", "drawZone", "drawWater", "drawOutline", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawOpening", "drawExtra"];
+
+test("the Add menu holds no Draw item and no Water; the Draw menu holds all eleven", async ({ page }) => {
+  for (const id of [...DRAW_IDS, "addWater", "addWall"]) await expect(page.locator(`#mAdd #${id}`)).toHaveCount(0);
+  await expect(page.locator("#mAdd .grp, #mAdd .sep").filter({ hasText: /Draw/ })).toHaveCount(0);
+  const ids = await page.locator("#mAdd button").evaluateAll((b) => b.map((x) => x.id));
+  expect(ids).toEqual(["addDoor", "addWin", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addStr", "addZone", "addStairs"]);
+  await expect(page.locator("#mAdd select#addFurn")).toHaveCount(1);
+  expect(await page.locator("#mDraw button").evaluateAll((b) => b.map((x) => x.id))).toEqual(DRAW_IDS);
+  // and they are really there to click: open, visible, inside the window
+  await menu(page, "Draw");
+  const box = await page.locator("#drawRoom").boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(1280);
+  await expect(page.locator("#drawRoom")).toBeVisible();
+});
+
+test("each Add, Wall item places a 200 cm wall of its kind at the spawn point, selected, in one undo step", async ({ page }) => {
+  for (const kind of WALL_KINDS) {
+    const before = await groundOf(page);
+    await menu(page, "Add");
+    await page.locator(`#addWall-${kind}`).click();
+    const g = await groundOf(page), w = g.walls[g.walls.length - 1];
+    expect(g.walls).toHaveLength(before.walls.length + 1);
+    expect([w.kind, dist2(w.a, w.b)]).toEqual([kind, 200]);
+    expect(w.a[0]).toBeGreaterThan(OUTLINE_MAX_X);
+    await expect(page.locator("#wk")).toHaveValue(kind);
+    await expect(page.locator(`svg line[data-w="${g.walls.length - 1}"]`)).toHaveClass(new RegExp(`^${WALL_CLASS[kind]}$`));
+  }
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).walls).toHaveLength(4);
+});
+const dist2 = (a: number[], b: number[]) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+test("opening Draw closes Add, and a Draw item starts drawing with the Draw menu closed", async ({ page }) => {
+  await menu(page, "Add");
+  await expect(page.locator("#mAdd")).toHaveJSProperty("open", true);
+  await menu(page, "Draw");
+  await expect(page.locator("#mAdd")).toHaveJSProperty("open", false);
+  await expect(page.locator("#mDraw")).toHaveJSProperty("open", true);
+  await page.locator("#drawWall-fence").click();
+  await expect(page.locator("#mDraw")).toHaveJSProperty("open", false);
+  expect(await svgCursor(page)).toBe("crosshair");
+  await expect(page.locator("#status")).toHaveText(DRAW_STATUS);
+});
+
+test("break it: a second Draw item chosen mid-draw starts afresh and writes nothing from the first", async ({ page }) => {
+  const before = await groundOf(page);
+  await startDraw(page, "drawWall-fence");
+  await clicksCm(page, FREE[0], FREE[1]);
+  await expect(drawnPoints(page)).toHaveCount(2);
+  await startDraw(page, "drawWall-edge");
+  await expect(drawnPoints(page)).toHaveCount(0);
+  await clicksCm(page, FREE[2], FREE[3]);
+  await page.keyboard.press("Enter");
+  const g = await groundOf(page);
+  expect(g.walls).toHaveLength(before.walls.length + 1);
+  expect(g.walls[g.walls.length - 1].kind).toBe("edge");
+  expect(g.walls.some((w) => w.kind === "fence")).toBe(false);
 });

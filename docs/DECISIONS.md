@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.21: Add loses Water, one wall button per kind
+
+The Add menu has no Water item: water is a room kind, drawn (Draw, Draw water) or picked in the room panel. The Add wall item becomes five, `#addWall-<kind>`, each a 200 cm wall of that kind at the spawn point. The Draw menu keeps the old ids. SPEC already listed both menus (S1.20 wrote them), so it is unchanged.
+
 ## 2026-09-20 S1.20: the spawn point is a centre, except for a structure
 
 `spawnPoint` gives `[maxX + 150, minY]` of the outline. Wall, zone, water, stairs and furniture are centred there, as they were centred on the view. A structure is 400 cm wide, so centred there its west half would sit inside the house (the block's own test wants every point outside the box): its top-left corner goes on the spawn point instead. `ensureVisible` keeps the zoom and pans by the least amount that puts the point 100 cm inside the visible area; for a structure it is called for the far corner too, so the whole box shows. A floor with no outline (a new floor) falls back to the view centre.
