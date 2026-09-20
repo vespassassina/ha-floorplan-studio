@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { FLOORPLAN_CSS, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, snapPoint, stitch, validate } from "../core";
+import { FLOORPLAN_CSS, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, rotateAbout, snapPoint, stitch, validate } from "../core";
 import type { DeviceType, Floor, Layout, Pt, Stairs, WallKind } from "../core";
 import { looseEnds, movePointAll, pointsNear, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
@@ -157,6 +157,7 @@ export class FloorplanStudioEditor extends LitElement {
     .box{max-height:75vh;overflow:auto;position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:210px;display:flex;flex-direction:column;gap:6px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px}
     .box .btn,.box .chip,.box select{width:100%;text-align:left}
     .sep{border-top:1px solid var(--fp-idle)}
+    .rotrow{display:flex;flex-wrap:wrap;gap:6px} .rotrow #rotv{width:100%} .box .rotrow .btn{width:auto;flex:1;text-align:center}
     .ed{display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:start}
     .canvas{border:1px solid var(--fp-idle);height:var(--fp-editor-height,calc(100vh - 150px));min-height:420px;touch-action:none;background:var(--fp-bg)}
     .canvas svg{width:100%;height:100%;display:block;cursor:grab;user-select:none}
@@ -227,13 +228,14 @@ export class FloorplanStudioEditor extends LitElement {
     const v = this.st.view;
     return Math.min(this.rect.w / v.w, this.rect.h / v.h) || 1;
   }
+  /** Plan coordinates of a pointer: the point in the svg's own space, turned back by the plan's rotation. The one place plan points are made from the screen. */
   private toSvg(ev: { clientX: number; clientY: number }): Pt {
     const s = this.svgEl, m = s?.getScreenCTM();
     if (!s || !m) return [0, 0];
     const p = s.createSVGPoint();
     p.x = ev.clientX; p.y = ev.clientY;
-    const q = p.matrixTransform(m.inverse());
-    return [q.x, q.y];
+    const q = p.matrixTransform(m.inverse()), r = this.st.rotation;
+    return r ? rotateAbout([q.x, q.y], -r.deg, r.pivot) : [q.x, q.y];
   }
 
   // ---- changes -------------------------------------------------------------
@@ -397,8 +399,10 @@ export class FloorplanStudioEditor extends LitElement {
     if (!d && this.draw) { this.hover = this.snapDraw(this.draw, this.toSvg(ev), ev.altKey); this.requestUpdate(); return; }
     if (!d) return;
     if (d.type === "pan") {
-      const s = this.scale;
-      st.views[st.floor] = { x: d.v.x - (ev.clientX - d.sx) / s, y: d.v.y - (ev.clientY - d.sy) / s, w: d.v.w, h: d.v.h };
+      // The drag is on the screen; the view is in plan coordinates, so turn the shift back by the plan's rotation.
+      const s = this.scale, r = st.rotation, shift: Pt = [(ev.clientX - d.sx) / s, (ev.clientY - d.sy) / s];
+      const [dx, dy] = r ? rotateAbout(shift, -r.deg, [0, 0]) : shift;
+      st.views[st.floor] = { x: d.v.x - dx, y: d.v.y - dy, w: d.v.w, h: d.v.h };
       this.requestUpdate();
       return;
     }
@@ -573,7 +577,7 @@ export class FloorplanStudioEditor extends LitElement {
     const path = ev.composedPath();
     this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]").forEach((m) => {
       if (!path.includes(m)) m.open = false;
-      else if ((path[0] as Element).closest?.("button")) m.open = false;
+      else if ((path[0] as Element).closest?.("button:not(.keep)")) m.open = false; // .keep: a stepper, several clicks in a row
     });
   };
 
@@ -583,17 +587,23 @@ export class FloorplanStudioEditor extends LitElement {
     this.stopDraw();
     if (back ? this.st.undo() : this.st.redo()) { this.floor = this.st.floor; this.changed(back ? "Undone" : "Redone"); }
   }
+  /** View, Rotate the plan: one undo step. The stored coordinates are not touched; only `layout.rotate` changes. */
+  private rotatePlan(step: number) {
+    if (this.st.setRotate((this.st.layout.rotate ?? 0) + step)) this.changed(`Plan rotated to ${this.st.layout.rotate}°`);
+  }
   private centre(): Pt { const v = this.st.view; return [Math.round(v.x + v.w / 2), Math.round(v.y + v.h / 2)]; }
   /** Where a new item goes: outside the house, top right. */
   private spawn(): Pt { return spawnPoint(this.st.f, this.centre()); }
   /** Brings all of `pts` into what the svg shows, with a 100 cm margin: pans by the least amount, and zooms out only when they do not fit. */
-  private ensureVisible(...pts: Pt[]) {
-    const st = this.st, v = st.view, s = this.scale, M = 100;
+  private ensureVisible(...plan: Pt[]) {
+    const st = this.st, v = st.view, s = this.scale, M = 100, r = st.rotation;
+    // Work in what the screen shows: turn the points and the view centre by the plan's rotation, and the result back.
+    const pts = r ? plan.map((q) => rotateAbout(q, r.deg, r.pivot)) : plan;
     const x0 = Math.min(...pts.map((q) => q[0])), x1 = Math.max(...pts.map((q) => q[0]));
     const y0 = Math.min(...pts.map((q) => q[1])), y1 = Math.max(...pts.map((q) => q[1]));
     const k = Math.max(1, (x1 - x0 + 2 * M) / (this.rect.w / s), (y1 - y0 + 2 * M) / (this.rect.h / s)); // >1: does not fit
     const w = v.w * k, h = v.h * k, hw = this.rect.w / s * k / 2, hh = this.rect.h / s * k / 2;
-    const cx = v.x + v.w / 2, cy = v.y + v.h / 2;
+    const c0: Pt = [v.x + v.w / 2, v.y + v.h / 2], [cx, cy] = r ? rotateAbout(c0, r.deg, r.pivot) : c0;
     const shift = (c: number, half: number, lo: number, hi: number) => {
       if (hi - lo + 2 * M >= 2 * half) return (lo + hi) / 2 - c; // fills the view: centre on it
       if (lo - M < c - half) return lo - M - (c - half);
@@ -601,7 +611,9 @@ export class FloorplanStudioEditor extends LitElement {
       return 0;
     };
     const dx = shift(cx, hw, x0, x1), dy = shift(cy, hh, y0, y1);
-    if (dx || dy || k > 1) st.views[st.floor] = { x: cx + dx - w / 2, y: cy + dy - h / 2, w, h };
+    if (!(dx || dy || k > 1)) return;
+    const c1: Pt = r ? rotateAbout([cx + dx, cy + dy], -r.deg, r.pivot) : [cx + dx, cy + dy];
+    st.views[st.floor] = { x: c1[0] - w / 2, y: c1[1] - h / 2, w, h };
   }
 
   // ---- draw mode ----
@@ -827,7 +839,8 @@ export class FloorplanStudioEditor extends LitElement {
   private overlay(k: number): string {
     const st = this.st, f = st.f, s = st.sel, o: string[] = [];
     const line = (a: Pt, b: Pt, cls: string, extra = "") => `<line class="${cls}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}" ${extra}/>`;
-    const len = (a: Pt, b: Pt) => `<text class="len" x="${num((a[0] + b[0]) / 2)}" y="${num((a[1] + b[1]) / 2)}" text-anchor="middle" font-size="${num(10 * k)}" paint-order="stroke" stroke="var(--fp-bg)" stroke-width="${num(3 * k)}">${(dist(a, b) / 100).toFixed(2)} m</text>`;
+    const deg = st.layout.rotate ?? 0, upright = (x: number, y: number) => (deg % 360 ? ` transform="rotate(${num(-deg)} ${num(x)} ${num(y)})"` : "");
+    const len = (a: Pt, b: Pt) => `<text class="len" x="${num((a[0] + b[0]) / 2)}" y="${num((a[1] + b[1]) / 2)}"${upright((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)} text-anchor="middle" font-size="${num(10 * k)}" paint-order="stroke" stroke="var(--fp-bg)" stroke-width="${num(3 * k)}">${(dist(a, b) / 100).toFixed(2)} m</text>`;
     if (s?.t === "edge") { const pts = polyPts(f, s.poly); if (pts) { const a = pts[s.i], b = pts[(s.i + 1) % pts.length]; o.push(line(a, b, "hl", 'stroke-width="4"'), len(a, b)); } }
     if (s?.t === "opening" && f.openings[s.i]) o.push(line(f.openings[s.i].a, f.openings[s.i].b, "hl", 'stroke-width="4"'));
     if (s?.t === "wall" && f.walls[s.i]) o.push(line(f.walls[s.i].a, f.walls[s.i].b, "hl", 'stroke-width="4"'));
@@ -859,9 +872,11 @@ export class FloorplanStudioEditor extends LitElement {
   render() {
     const st = this.st, f = st.f, s = this.scale, k = 1 / s, v = st.view;
     const w = this.rect.w / s, h = this.rect.h / s;
-    const viewBox = `${num(v.x + v.w / 2 - w / 2)} ${num(v.y + v.h / 2 - h / 2)} ${num(w)} ${num(h)}`;
+    const rot = st.rotation, vc: Pt = rot ? rotateAbout([v.x + v.w / 2, v.y + v.h / 2], rot.deg, rot.pivot) : [v.x + v.w / 2, v.y + v.h / 2];
+    const viewBox = `${num(vc[0] - w / 2)} ${num(vc[1] - h / 2)} ${num(w)} ${num(h)}`;
     const sel = st.sel && (st.sel.t === "door" || st.sel.t === "dev") ? { t: st.sel.t, i: st.sel.i } : null;
-    const body = renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true }) + this.overlay(k);
+    const overlay = this.overlay(k);
+    const body = renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, rotate: rot }) + (rot ? `<g class="plan-turn" transform="rotate(${num(rot.deg)} ${num(rot.pivot[0])} ${num(rot.pivot[1])})">${overlay}</g>` : overlay);
     const counts: Record<string, number> = {};
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const unplaced = st.unplaced(), q = this.devQuery.trim().toLowerCase();
@@ -912,6 +927,9 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="chip" id="grid" aria-pressed=${pressed(st.snapGrid)} @click=${() => { st.snapGrid = !st.snapGrid; this.requestUpdate(); }}>Snap 5 cm</button>
           <button class="chip" id="lens" aria-pressed=${pressed(st.showLen)} @click=${() => { st.showLen = !st.showLen; this.requestUpdate(); }}>Lengths</button>
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
+          <div class="rotrow"><span id="rotv">Rotate the plan: ${st.layout.rotate ?? 0}°</span>
+            <button class="btn keep" id="rotl" aria-label="Rotate the plan 45 degrees left" @click=${() => this.rotatePlan(-45)}>&#8630; 45°</button>
+            <button class="btn keep" id="rotr" aria-label="Rotate the plan 45 degrees right" @click=${() => this.rotatePlan(45)}>45° &#8631;</button></div>
         </div></details>
         <details class="menu" id="mFile"><summary class="btn">File</summary><div class="box">
           <button class="btn" id="undo" ?disabled=${!st.canUndo} @click=${() => this.undo(true)}>Undo</button>

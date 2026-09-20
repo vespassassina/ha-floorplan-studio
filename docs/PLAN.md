@@ -437,7 +437,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass; the SPEC bullet on `bound` matches; the CLAUDE.md domain note on `bound` is updated in the same commit.
 - Break it: a light bound to its own entity is still refused by `validate`.
 
-### S1.33 Rotate the whole plan
+### S1.33 Rotate the whole plan (done)
 - Outcome: View, Rotate turns every floor in 45 degree steps so the plan lines up with north, and the card shows the same.
 - Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/render.ts`, `src/editor/editor-app.ts`, `src/editor/state.ts`, `tests/core/{schema,migrate,render}.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
 - Interface: `Layout` gains `rotate?: number`; `validate` requires a multiple of 45 in `[0, 360)`; `migrate` fills 0. New `planPivot(l: Layout): Pt` in `render.ts`: the centre of the bounding box of every floor's outline together, so all floors turn about one point; with no outline anywhere, `[0, 0]`. `RenderOpts` gains `rotate?: { deg: number; pivot: Pt }`; when `deg` is not 0, `renderFloor` wraps its whole output in `<g transform="rotate(<deg> <px> <py>)">` and gives every `text` and every device group an extra `rotate(<-deg> <x> <y>)` about its own anchor, so names, values and icons stay upright while the drawing turns. `viewBoxFor(f, pad, rotate?)` fits the rotated outline. The editor: `View` gains "Rotate the plan" with two buttons, `#rotl` and `#rotr`, stepping `layout.rotate` by ∓45 as one undo step, and a reading of the current angle; `toSvg` un-rotates the pointer about the pivot, which is the one place plan coordinates are made, so hit testing, snapping and drag need no other change. The card passes the same `rotate` in S2.1 and needs nothing else.

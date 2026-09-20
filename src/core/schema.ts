@@ -25,7 +25,8 @@ export interface Floor {
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[];
 }
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
-export interface Layout { version: 2; unit: "cm"; north: number; floors: Record<string, Floor>; catalog: CatalogEntry[] }
+/** `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned. */
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; floors: Record<string, Floor>; catalog: CatalogEntry[] }
 
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x);
 const isEntity = (x: unknown) => typeof x === "string" && x.includes(".");
@@ -44,6 +45,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
   if (!isObj(x)) return { ok: false, errors: ["layout must be an object"] };
   if (x.version !== 2) errors.push(`version must be 2, got ${String(x.version)}`);
   if (typeof x.north !== "number" || !Number.isFinite(x.north) || x.north < 0 || x.north >= 360) errors.push("north must be a number in [0, 360)");
+  if (x.rotate !== undefined && !(typeof x.rotate === "number" && Number.isInteger(x.rotate) && x.rotate >= 0 && x.rotate < 360 && x.rotate % 45 === 0))
+    errors.push("rotate must be a multiple of 45 in [0, 360)");
   if (!isObj(x.floors)) errors.push("floors must be an object");
   const deviceIds = new Set<string>();
   for (const [fname, f] of Object.entries<any>(isObj(x.floors) ? x.floors : {})) {

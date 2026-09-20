@@ -59,6 +59,11 @@ describe("validate", () => {
     }
   });
 
+  it("rotate: accepts 0 and every multiple of 45 below 360, or none; rejects 30, 360, -45, 45.5 and text", () => {
+    for (const r of [0, 45, 90, 315, undefined]) { const l = clone() as any; l.rotate = r; expect(errorsOf(l), String(r)).toEqual([]); }
+    for (const r of [30, 360, -45, 45.5, "45", null, NaN]) { const l = clone() as any; l.rotate = r; expect(errorsOf(l).join("\n"), String(r)).toMatch(/rotate must be a multiple of 45/); }
+  });
+
   it("rejects a wrong version and a non-object", () => {
     expect(errorsOf({ ...clone(), version: 1 }).join("\n")).toMatch(/version/);
     expect(validate(null).ok).toBe(false);

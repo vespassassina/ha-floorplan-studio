@@ -44,6 +44,16 @@ describe("migrate", () => {
     expect(m.catalog).toEqual([{ id: "l1", floor: "g", room: "Hall Way", type: "light", name: "A", entity: "light.a" }]);
   });
 
+  it("fills rotate with 0, v1 and v2, and keeps a stored one", () => {
+    expect(migrate(v1).rotate).toBe(0);
+    const l = structuredClone(demo) as any;
+    delete l.rotate;
+    expect(migrate(l).rotate).toBe(0);
+    l.rotate = 135;
+    expect(migrate(l).rotate).toBe(135);
+    expect(migrate({ ...v1, rotate: 90 }).rotate).toBe(90);
+  });
+
   it("is idempotent on v2", () => {
     expect(migrate(demo)).toEqual(demo);
     expect(migrate(migrate(v1))).toEqual(migrate(v1));

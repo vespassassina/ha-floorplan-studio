@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Layout, WallKind } from "../../src/core/schema";
-import { renderFloor, viewBoxFor, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
+import { renderFloor, viewBoxFor, planPivot, rotateAbout, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
 
 const L = demo as unknown as Layout;
 const ground = L.floors.ground;
@@ -626,5 +626,80 @@ describe("camera cone (S1.31)", () => {
     f.devices = f.devices.filter((d) => d.type !== "camera");
     expect(renderFloor(f, base)).not.toContain("cone");
     expect(FLOORPLAN_CSS).toMatch(/path\.cone\{[^}]*fill:var\(--fp-dev-camera\)[^}]*fill-opacity:\.33[^}]*pointer-events:none/);
+  });
+});
+
+describe("plan rotation (S1.33)", () => {
+  const pivot = planPivot(L);
+  const turned = (deg: number, f = ground, o: object = {}) => renderFloor(f, { ...base, rotate: { deg, pivot }, ...o });
+
+  it("planPivot is the centre of the box round every outline, and the origin with none", () => {
+    expect(pivot).toEqual([400, 300]);
+    const l = structuredClone(L);
+    l.floors.first.outline = [[0, 0], [1600, 0], [1600, 200]]; // wider than the ground floor: the pivot follows both
+    expect(planPivot(l)).toEqual([800, 300]);
+    for (const f of Object.values(l.floors)) f.outline = [];
+    expect(planPivot(l)).toEqual([0, 0]);
+  });
+
+  it("wraps everything in one group turned about the pivot, and rotate 0 or none changes nothing", () => {
+    const html = turned(90);
+    expect(html.startsWith('<g class="plan-turn" transform="rotate(90 400 300)">')).toBe(true);
+    expect(html.endsWith("</g>")).toBe(true);
+    expect(turned(0)).toBe(renderFloor(ground, base));
+    expect(turned(360)).toBe(renderFloor(ground, base));
+    expect(renderFloor(ground, { ...base, rotate: undefined })).toBe(renderFloor(ground, base));
+  });
+
+  it("turns every text back about its own anchor, by the opposite angle", () => {
+    const html = turned(90, ground, { showNames: true, state: { "sensor.demo_living_temperature": st("21.5", { attributes: { unit_of_measurement: "°C" } }) } });
+    const texts = html.match(/<text [^>]*>/g)!;
+    expect(texts.length).toBeGreaterThan(8);
+    for (const t of texts) {
+      const x = t.match(/ x="([^"]+)"/)![1], y = t.match(/ y="([^"]+)"/)![1];
+      expect(t, t).toContain(`transform="rotate(-90 ${x} ${y})"`);
+    }
+    expect(renderFloor(ground, base).match(/<text [^>]*transform=/)).toBeNull(); // not at rotate 0
+    expect(turned(45).match(/<text [^>]*>/g)!.every((t) => t.includes("rotate(-45 "))).toBe(true);
+  });
+
+  it("keeps every icon upright: the group turns by rot, the icon back by rot plus the plan angle; the cone is not turned back", () => {
+    const f = structuredClone(ground);
+    const ci = f.devices.findIndex((d) => d.type === "camera");
+    (f.devices[ci] as { rot?: number }).rot = 30;
+    const html = turned(90, f);
+    expect(html).toMatch(/rotate\(30 12 12\)"><title>[^<]*<\/title><path class="cone"[^>]*\/><g transform="rotate\(-120 12 12\)"><circle/);
+    // a device with no rot of its own: the icon alone takes the plan angle back
+    expect(html).toMatch(/<g data-x="0"[^>]*><title>[^<]*<\/title><g transform="rotate\(-90 12 12\)"><circle/);
+    // a full turn in total needs no wrapper
+    (f.devices[ci] as { rot?: number }).rot = 270;
+    expect(turned(90, f)).toMatch(new RegExp(`<g data-x="${ci}"[^>]*><title>[^<]*</title><path class="cone"[^>]*/><circle`));
+  });
+
+  it("draws the same shapes: every stored coordinate in the markup is the one it is without a turn", () => {
+    const coords = (h: string) => h.match(/ (?:points|x1|y1|x2|y2|cx|cy)="[^"]*"/g);
+    expect(coords(turned(90))).toEqual(coords(renderFloor(ground, base)));
+    expect(coords(turned(90))!.length).toBeGreaterThan(50);
+  });
+
+  it("viewBoxFor at 90 on a wide outline is tall, at 45 it is the box of the turned corners, at 0 or none unchanged", () => {
+    const f = structuredClone(ground);
+    f.outline = [[0, 0], [1000, 0], [1000, 200], [0, 200]];
+    const flat = viewBoxFor(f, 0);
+    expect(flat).toEqual({ x: 0, y: 0, w: 1000, h: 200 });
+    const piv: [number, number] = [500, 100];
+    const tall = viewBoxFor(f, 0, { deg: 90, pivot: piv });
+    expect(tall.w).toBeCloseTo(200); expect(tall.h).toBeCloseTo(1000);
+    expect(tall.x + tall.w / 2).toBeCloseTo(500); expect(tall.y + tall.h / 2).toBeCloseTo(100); // turned about its own centre: the centre stays
+    const d = viewBoxFor(f, 0, { deg: 45, pivot: piv });
+    expect(d.w).toBeCloseTo((1000 + 200) / Math.SQRT2);
+    expect(viewBoxFor(f, 0, { deg: 0, pivot: piv })).toEqual(flat);
+    expect(viewBoxFor(f, 60)).toEqual(viewBoxFor(f, 60, undefined));
+  });
+
+  it("rotateAbout: a quarter turn clockwise on screen takes the top of a plan to the right", () => {
+    const p = rotateAbout([0, -10], 90, [0, 0]);
+    expect(p[0]).toBeCloseTo(10); expect(p[1]).toBeCloseTo(0);
+    expect(rotateAbout([5, 5], 360, [1, 1])[0]).toBeCloseTo(5);
   });
 });

@@ -2,6 +2,7 @@
  "version": 2,
  "unit": "cm",
  "north": 0,
+ "rotate": 0,
  "floors": {
   "ground": {
    "title": "Ground",

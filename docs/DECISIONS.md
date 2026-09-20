@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.33: the view is kept in plan coordinates; only the icon is counter-turned
+
+`layout.rotate` (0 to 315, steps of 45) turns the drawing in one group about the centre of the box round every floor's outline. The editor view stays in plan coordinates: `x,y,w,h` is the box the screen shows once un-turned about the pivot, so rotating needs no view conversion; `toSvg`, pan, wheel zoom, `ensureVisible` and `fit` turn points into screen space first. Rotating drops the stored per-floor views so each floor refits. The overlay (handles, highlights, rubber band, `len` texts) sits in the same turned group; texts and icons are counter-turned so they stay upright. Deviation from the block: a device group is not counter-turned as a whole, only its icon, because the camera cone must turn with the plan. The wrappers carry `class="plan-turn"` so tests find the turned group and not a stairs group (also a `rotate()` child of the svg). The View menu stepper buttons carry `.keep`, so the menu stays open for repeated steps. `demo/layout.json` gets `"rotate": 0` (migrate writes it, so the idempotence tests need it). Tests use real mouse events at 45 and 90 degrees.
+
 ## 2026-09-20 S1.32: `bound` is a link, not a claim
 
 A light's `bound` no longer reserves its switch. `validate` lost both uniqueness rules (one switch for many lights; a switch that is also a device); `placedEntities` counts only `entity`, so a bound switch stays in the Device menu until someone places it. `bindChoices` offers every switch and plug except the light's own entity, and the light's current one, even if it is not in the catalog, is still added by the panel. Nothing else changed: `renderFloor` already read each entity's own state. A light bound to its own entity is still refused. Older tests assumed the old rule (the relay leaving the menu with its light, the picker hiding taken switches, the Device search counts); they now say the new one.

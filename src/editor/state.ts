@@ -1,4 +1,4 @@
-import { migrate, unplacedCatalog, validate, viewBoxFor } from "../core";
+import { migrate, planPivot, rotateAbout, unplacedCatalog, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, Layout, Pt, Stairs } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -16,7 +16,7 @@ export type Sel =
 
 export function emptyLayout(): Layout {
   const floor: Floor = { title: "Ground", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };
-  return { version: 2, unit: "cm", north: 0, floors: { ground: floor }, catalog: [] };
+  return { version: 2, unit: "cm", north: 0, rotate: 0, floors: { ground: floor }, catalog: [] };
 }
 
 /** Migrates, then validates. Never throws: a bad file gives the list of what is wrong. */
@@ -195,7 +195,28 @@ export class EditorState {
     return true;
   }
 
-  fit() { this.views[this.floor] = viewBoxFor(this.f, 80); }
+  /** The plan's rotation as renderFloor takes it: none at 0. */
+  get rotation(): { deg: number; pivot: Pt } | undefined {
+    const deg = this.layout.rotate ?? 0;
+    return deg % 360 ? { deg, pivot: planPivot(this.layout) } : undefined;
+  }
+
+  /** A view is stored in plan coordinates: its centre is the plan point in the middle of the screen, w and h are what the screen shows. Rotating the plan therefore needs no change to it. */
+  fit() {
+    const b = viewBoxFor(this.f, 80, this.rotation), r = this.rotation;
+    const c = r ? rotateAbout([b.x + b.w / 2, b.y + b.h / 2], -r.deg, r.pivot) : ([b.x + b.w / 2, b.y + b.h / 2] as Pt);
+    this.views[this.floor] = { x: c[0] - b.w / 2, y: c[1] - b.h / 2, w: b.w, h: b.h };
+  }
+
+  /** Turns the whole plan to `deg` (a multiple of 45, taken modulo 360): one undo step, no step when it is already there. The views are dropped so each floor is fitted again. */
+  setRotate(deg: number): boolean {
+    const n = ((Math.round(deg / 45) * 45) % 360 + 360) % 360;
+    if (n === (this.layout.rotate ?? 0)) return false;
+    this.snapshot();
+    this.layout.rotate = n;
+    this.views = {};
+    return true;
+  }
   get view(): View {
     if (!this.views[this.floor]) this.fit();
     return this.views[this.floor];

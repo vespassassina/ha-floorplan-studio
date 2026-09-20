@@ -524,4 +524,40 @@ describe("addFloor inherits the outline and the stairs of the first floor (S1.27
     expect(st.f.outline).toEqual([]);
     expect(st.f.stairs).toEqual([]);
   });
+
+  describe("plan rotation (S1.33)", () => {
+    it("setRotate steps in 45s, wraps, takes one undo step each and none when nothing changes", () => {
+      const st = new EditorState(fresh());
+      expect(st.setRotate(0)).toBe(false);
+      expect(st.canUndo).toBe(false);
+      expect(st.setRotate(45)).toBe(true);
+      expect(st.setRotate(-45 + 0)).toBe(true); // to 315
+      expect(st.layout.rotate).toBe(315);
+      expect(st.setRotate(360 + 315)).toBe(false); // the same angle
+      st.undo();
+      expect(st.layout.rotate).toBe(45);
+      st.undo();
+      expect(st.layout.rotate).toBe(0);
+      expect(st.canUndo).toBe(false);
+    });
+
+    it("rotating right and back leaves every coordinate byte-identical and rotate at 0", () => {
+      const st = new EditorState(fresh()), before = JSON.stringify(st.layout);
+      st.setRotate(90); st.setRotate(0);
+      expect(st.layout.rotate).toBe(0);
+      expect(JSON.stringify(st.layout).replace(/"rotate":0,?/, "")).toBe(before.replace(/"rotate":0,?/, ""));
+      expect(st.rotation).toBeUndefined();
+    });
+
+    it("fit at 90 gives a view of the turned outline, kept in plan coordinates: its centre is the outline's centre", () => {
+      const st = new EditorState(fresh());
+      st.fit();
+      const flat = st.view;
+      st.setRotate(90);
+      const v = st.view; // dropped and fitted again
+      expect(v.w).toBeCloseTo(flat.h); expect(v.h).toBeCloseTo(flat.w);
+      expect(v.x + v.w / 2).toBeCloseTo(flat.x + flat.w / 2); expect(v.y + v.h / 2).toBeCloseTo(flat.y + flat.h / 2); // turned about the outline's own centre
+      expect(st.rotation).toEqual({ deg: 90, pivot: [400, 300] });
+    });
+  });
 });

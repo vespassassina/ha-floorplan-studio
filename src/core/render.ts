@@ -1,10 +1,12 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
-import type { Device, DeviceType, Floor, Pt, Stairs, WallKind } from "./schema";
+import type { Device, DeviceType, Floor, Layout, Pt, Stairs, WallKind } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
 export interface RenderOpts {
   scale: number; selection?: { t: string; i: number } | null; showNames?: boolean; filter?: DeviceType | "";
   state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
+  /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
+  rotate?: { deg: number; pivot: Pt };
 }
 
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
@@ -36,9 +38,25 @@ const num = (n: number) => String(Math.round(n * 100) / 100);
 const pts = (p: Pt[]) => p.map((q) => `${num(q[0])},${num(q[1])}`).join(" ");
 const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 
-export function viewBoxFor(f: Floor, pad = 60): { x: number; y: number; w: number; h: number } {
+/** `p` turned clockwise by `deg` degrees about `pivot` (y points down, so this is the direction SVG's rotate() turns). */
+export function rotateAbout(p: Pt, deg: number, pivot: Pt): Pt {
+  const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a), dx = p[0] - pivot[0], dy = p[1] - pivot[1];
+  return [pivot[0] + dx * c - dy * s, pivot[1] + dx * s + dy * c];
+}
+
+/** The one point every floor turns about: the centre of the box round all outlines together. With no outline anywhere, the origin. */
+export function planPivot(l: Layout): Pt {
+  const all = Object.values(l.floors).flatMap((f) => f.outline);
+  if (!all.length) return [0, 0];
+  const xs = all.map((p) => p[0]), ys = all.map((p) => p[1]);
+  return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+}
+
+/** The box that fits the outline, in what the screen shows: turned by `rotate` when there is one. */
+export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt }): { x: number; y: number; w: number; h: number } {
   if (!f.outline.length) return { x: -pad, y: -pad, w: 1000 + 2 * pad, h: 1000 + 2 * pad };
-  const xs = f.outline.map((p) => p[0]), ys = f.outline.map((p) => p[1]);
+  const shown = rotate && rotate.deg % 360 ? f.outline.map((p) => rotateAbout(p, rotate.deg, rotate.pivot)) : f.outline;
+  const xs = shown.map((p) => p[0]), ys = shown.map((p) => p[1]);
   const x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad;
   return { x: x0, y: y0, w: Math.max(...xs) + pad - x0, h: Math.max(...ys) + pad - y0 };
 }
@@ -116,6 +134,9 @@ function stairsGroup(t: Stairs, i: number): string {
 
 export function renderFloor(f: Floor, o: RenderOpts): string {
   const k = 1 / (o.scale || 1);
+  const turn = o.rotate && o.rotate.deg % 360 ? o.rotate : null, planDeg = turn ? turn.deg : 0;
+  /** Attribute that keeps a text upright in a turned plan: turns it back about its own anchor. */
+  const up = (x: number, y: number) => (turn ? ` transform="rotate(${num(-planDeg)} ${num(x)} ${num(y)})"` : "");
   const out: string[] = [];
   const now = o.now ?? Date.now();
 
@@ -148,7 +169,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(w && h
       ? `<rect class="extra" x="${num(mx)}" y="${num(my)}" width="${num(w)}" height="${num(h)}"/>`
       : `<line class="extra" x1="${num(x.a[0])}" y1="${num(x.a[1])}" x2="${num(x.b[0])}" y2="${num(x.b[1])}"/>`);
-    out.push(`<text class="lbl" x="${num(mx + w / 2)}" y="${num(my + h / 2)}" text-anchor="middle" font-size="${num(11 * k)}" fill="var(--fp-idle)">${esc(x.name)}</text>`);
+    out.push(`<text class="lbl" x="${num(mx + w / 2)}" y="${num(my + h / 2)}"${up(mx + w / 2, my + h / 2)} text-anchor="middle" font-size="${num(11 * k)}" fill="var(--fp-idle)">${esc(x.name)}</text>`);
   });
 
   f.furniture.forEach((m, i) => {
@@ -168,9 +189,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.rooms.forEach((r) => {
     if (!r.name || r.kind === "fill") return;
     const cx = r.pts.reduce((s, p) => s + p[0], 0) / r.pts.length, cy = r.pts.reduce((s, p) => s + p[1], 0) / r.pts.length;
-    if (r.kind === "zone") { out.push(`<text class="lbl zone" x="${num(cx)}" y="${num(cy)}" text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
-    out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy)}" text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
-    if (r.label) out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy + 16 * k)}" text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`);
+    if (r.kind === "zone") { out.push(`<text class="lbl zone" x="${num(cx)}" y="${num(cy)}"${up(cx, cy)} text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
+    out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy)}"${up(cx, cy)} text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
+    if (r.label) out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy + 16 * k)}"${up(cx, cy + 16 * k)} text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`);
   });
 
   f.devices.forEach((d, i) => {
@@ -196,6 +217,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const title = `${esc(d.type)}: ${esc(label)}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
     // The group turns by `rot` about the icon's centre; the icon turns back so the glyph stays upright (only what else is drawn in the group turns).
     const rot = typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot !== 0 ? d.rot : 0;
+    // A turned plan turns the group again from outside; the icon takes that back too, the cone (in the group's frame) does not.
+    const back = (rot + planDeg) % 360 ? rot + planDeg : 0;
     // Camera: a 120 degree, 300 cm cone about "up" (-90 degrees), in plan units (the group is scaled by k). It comes first, so the icon covers its tip.
     let cone = "";
     if (d.type === "camera") {
@@ -203,17 +226,18 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       cone = `<path class="cone" d="M12 12L${p(-150)}A${num(R)} ${num(R)} 0 0 1 ${p(-30)}Z"/>`;
     }
     const icon = `<circle class="halo" cx="12" cy="12" r="13"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>`;
-    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${bound ? " bound" : ""} ${cls}${sel ? " sel" : ""}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${title}</title>${cone}${rot ? `<g transform="rotate(${num(-rot)} 12 12)">${icon}</g>` : icon}</g>`);
+    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${bound ? " bound" : ""} ${cls}${sel ? " sel" : ""}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}</g>`);
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
     if ((d.type === "temp" || d.type === "humidity") && s) {
       const bad = s.state === "unknown" || s.state === "unavailable";
       const unit = typeof s.attributes.unit_of_measurement === "string" ? ` ${s.attributes.unit_of_measurement}` : "";
-      out.push(`<text class="val" x="${num(c[0])}" y="${num(c[1] + 24 * k)}" text-anchor="middle" font-size="${num(11 * k)}">${bad ? "–" : esc(s.state + unit)}</text>`);
+      out.push(`<text class="val" x="${num(c[0])}" y="${num(c[1] + 24 * k)}"${up(c[0], c[1] + 24 * k)} text-anchor="middle" font-size="${num(11 * k)}">${bad ? "–" : esc(s.state + unit)}</text>`);
     }
-    if (o.showNames || sel) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}" text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
+    if (o.showNames || sel) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
   });
 
   if (o.editor)
     for (const P of polys) P.pts.forEach((p, j) => out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
-  return out.join("\n");
+  const body = out.join("\n");
+  return turn ? `<g class="plan-turn" transform="rotate(${num(turn.deg)} ${num(turn.pivot[0])} ${num(turn.pivot[1])})">${body}</g>` : body;
 }

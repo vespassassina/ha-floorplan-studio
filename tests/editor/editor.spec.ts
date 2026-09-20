@@ -162,7 +162,9 @@ test("a device name with markup is shown as text", async ({ page }) => {
 const screenOf = (page: Page, x: number, y: number) =>
   page.evaluate(([tag, px, py]) => {
     const svg = (document.querySelector(tag as string) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
-    const q = new DOMPoint(px as number, py as number).matrixTransform(svg.getScreenCTM()!);
+    // A turned plan (S1.33) is drawn inside a group that carries the rotation: plan points are read through that group's own matrix.
+    const g = svg.querySelector(':scope > g.plan-turn') as SVGGraphicsElement | null;
+    const q = new DOMPoint(px as number, py as number).matrixTransform((g ?? svg).getScreenCTM()!);
     return { x: q.x, y: q.y };
   }, [EDITOR, x, y] as const);
 async function dragCm(page: Page, from: [number, number], to: [number, number], mods: string[] = []) {
@@ -2757,4 +2759,201 @@ test("S1.31: the rotation field turns the cone; the panel carries the hint; rot 
 test("S1.31: only a camera has a cone", async ({ page }) => {
   await expect(page.locator("svg path.cone")).toHaveCount(1);
   await expect(page.locator("svg g.dev:not(.dev-camera) path.cone")).toHaveCount(0);
+});
+
+// ---- S1.33 rotate the whole plan ----
+const rotateBy = async (page: Page, steps: number) => {
+  await menu(page, "View");
+  for (let n = 0; n < Math.abs(steps); n++) await page.locator(steps > 0 ? "#rotr" : "#rotl").click();
+  await menu(page, "View"); // close it: it would cover the plan
+};
+const rotOf = async (page: Page) => (await layoutOf(page)).rotate;
+const withoutRotate = (l: Layout) => { const c = structuredClone(l); delete c.rotate; return c; };
+const rpt = (page: Page) => page.locator(EDITOR);
+
+test("S1.33: View has Rotate the plan; right steps +45, left steps -45, wrapping; one undo step each; the reading follows", async ({ page }) => {
+  await menu(page, "View");
+  await expect(page.locator("#rotv")).toContainText("0°");
+  await page.locator("#rotr").click();
+  await expect(page.locator("#rotv")).toContainText("45°");
+  await page.locator("#rotl").click();
+  await page.locator("#rotl").click();
+  await expect(page.locator("#rotv")).toContainText("315°");
+  expect(await rotOf(page)).toBe(315);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect(await rotOf(page)).toBe(0);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect(await rotOf(page)).toBe(45);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect(await rotOf(page)).toBe(0);
+  await expect(page.locator("#undo")).toBeDisabled(); // exactly three steps
+});
+
+test("S1.33 break it: right, right, left, left leaves rotate at 0 and the layout byte-identical", async ({ page }) => {
+  const before = JSON.stringify(await layoutOf(page));
+  await rotateBy(page, 2);
+  expect(await rotOf(page)).toBe(90);
+  await rotateBy(page, -2);
+  expect(await rotOf(page)).toBe(0);
+  expect(JSON.stringify(await layoutOf(page))).toBe(before);
+});
+
+test("S1.33: a turned plan changes only rotate in the data, and Save then Open keeps it", async ({ page }) => {
+  const l0 = await layoutOf(page);
+  await rotateBy(page, 3);
+  const l1 = await layoutOf(page);
+  expect(l1.rotate).toBe(135);
+  expect(withoutRotate(l1)).toEqual(withoutRotate(l0));
+  const saved = (await savedValid(page))!;
+  expect(saved.rotate).toBe(135);
+  await page.evaluate(([tag, l]) => { (document.querySelector(tag as string) as any).layout = l; }, [EDITOR, { ...l0, rotate: 0 }] as const);
+  expect(await rotOf(page)).toBe(0);
+  await page.evaluate(([tag, l]) => { (document.querySelector(tag as string) as any).layout = l; }, [EDITOR, saved] as const);
+  expect(await rotOf(page)).toBe(135);
+  await expect(page.locator(`${EDITOR} svg > g.plan-turn[transform^="rotate(135 "]`)).toHaveCount(2); // the drawing and the overlay
+});
+
+for (const deg of [45, 90]) {
+  test.describe(`plan turned ${deg}`, () => {
+    test.beforeEach(async ({ page }) => { await rotateBy(page, deg / 45); });
+
+    test("the drawing is turned on screen and fits the window: the outline's corners are all in view", async ({ page }) => {
+      const svg = (await page.locator("svg").first().boundingBox())!;
+      for (const [x, y] of [[0, 0], [800, 0], [800, 600], [0, 600]]) {
+        const c = await screenOf(page, x, y);
+        expect(c.x, `${x},${y}`).toBeGreaterThan(svg.x); expect(c.x).toBeLessThan(svg.x + svg.width);
+        expect(c.y).toBeGreaterThan(svg.y); expect(c.y).toBeLessThan(svg.y + svg.height);
+      }
+      // the top wall of the Living room (0,0)-(500,0) runs along x on the plan; on screen it runs at `deg`
+      const a = await screenOf(page, 0, 0), b = await screenOf(page, 500, 0);
+      expect(Math.round(((Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI + 360) % 360)).toBe(deg);
+    });
+
+    test("real clicks select the room, the device and the stairs under the pointer", async ({ page }) => {
+      const click = async (x: number, y: number) => { const c = await screenOf(page, x, y); await page.mouse.click(c.x, c.y); };
+      await click(100, 300); // Living, clear of the plug at (60, 340)
+      await expect(page.locator("#rn")).toHaveValue("Living");
+      await click(700, 100);
+      await expect(page.locator("#rn")).toHaveValue("Kitchen");
+      await click(250, 200); // the living light
+      await expect(page.locator("#ve")).toHaveValue("light.demo_living");
+      const st = (await groundOf(page)).stairs[0], xs = st.pts.map((p) => p[0]), ys = st.pts.map((p) => p[1]);
+      await click((Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2);
+      await expect(page.locator("#panel strong")).toHaveText(/Stairs/i);
+    });
+
+    test("dragging a corner handle lands the corner where the pointer is", async ({ page }) => {
+      await dragCm(page, [500, 0], [500, 40]); // the shared Living / Kitchen corner
+      const g = await groundOf(page);
+      expect(g.rooms[0].pts[1]).toEqual([500, 40]);
+      expect(g.rooms[1].pts[0]).toEqual([500, 40]);
+      await dragCm(page, [500, 40], [450, 90]);
+      expect((await groundOf(page)).rooms[0].pts[1]).toEqual([450, 90]);
+    });
+
+    test("dragging a device lands it where the pointer is, on the grid", async ({ page }) => {
+      await dragCm(page, [650, 200], [615, 270]);
+      const d = (await groundOf(page)).devices[1] as { x: number; y: number };
+      expect([d.x, d.y]).toEqual([615, 270]);
+    });
+
+    test("drawing a room clicks its corners at the plan points under the pointer, snapped to the grid", async ({ page }) => {
+      const n0 = (await groundOf(page)).rooms.length;
+      await startDraw(page, "drawRoom");
+      await clicksCm(page, ...FREE);
+      await page.keyboard.press("Enter");
+      const g = await groundOf(page);
+      expect(g.rooms).toHaveLength(n0 + 1);
+      expect(g.rooms.at(-1)!.pts).toEqual(FREE_SNAPPED);
+    });
+
+    test("snapping still pulls a drawn wall's ends onto the corners they are near, in plan space", async ({ page }) => {
+      const n0 = (await groundOf(page)).walls.length;
+      await startDraw(page, "drawWall-wall");
+      await clicksCm(page, [497, 3], [803, -3]); // off the grid on purpose: only the corner snap gives 500,0 and 800,0
+      await page.keyboard.press("Enter");
+      const w = (await groundOf(page)).walls;
+      expect(w).toHaveLength(n0 + 1);
+      expect([w.at(-1)!.a, w.at(-1)!.b]).toEqual([[500, 0], [800, 0]]);
+    });
+
+    test("wheel zoom keeps the plan point under the pointer where it is, and zooms", async ({ page }) => {
+      const P: [number, number] = [650, 100];
+      const a = await screenOf(page, ...P), q = await screenOf(page, 800, 100);
+      const w0 = Math.hypot(q.x - a.x, q.y - a.y);
+      await page.mouse.move(a.x, a.y);
+      await page.mouse.wheel(0, -300);
+      await expect.poll(async () => { const b = await screenOf(page, 800, 100), c = await screenOf(page, ...P); return Math.hypot(b.x - c.x, b.y - c.y) > w0 * 1.1; }).toBe(true);
+      const after = await screenOf(page, ...P);
+      expect(Math.abs(after.x - a.x)).toBeLessThan(1.5);
+      expect(Math.abs(after.y - a.y)).toBeLessThan(1.5);
+    });
+
+    test("dragging the background pans: every plan point follows the pointer by the same screen shift", async ({ page }) => {
+      const a = await screenOf(page, 300, 500), o0 = await screenOf(page, 700, 100);
+      const before = JSON.stringify(withoutRotate(await layoutOf(page)));
+      const s = await screenOf(page, 100, 650); // empty ground, below the Hall
+      await page.mouse.move(s.x, s.y);
+      await page.mouse.down();
+      await page.mouse.move(s.x + 40, s.y + 25, { steps: 4 });
+      await page.mouse.move(s.x + 80, s.y + 50, { steps: 4 });
+      await page.mouse.up();
+      const b = await screenOf(page, 300, 500), o1 = await screenOf(page, 700, 100);
+      expect(b.x - a.x).toBeCloseTo(80, 0); expect(b.y - a.y).toBeCloseTo(50, 0);
+      expect(o1.x - o0.x).toBeCloseTo(80, 0); expect(o1.y - o0.y).toBeCloseTo(50, 0);
+      expect(JSON.stringify(withoutRotate(await layoutOf(page)))).toBe(before); // a pan writes nothing
+    });
+
+    test("names, values and icons stay upright: their screen matrix has no turn", async ({ page }) => {
+      await page.locator("#names").click();
+      const turns = await rpt(page).evaluate((host) => {
+        const svg = (host as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+        const off = (el: Element) => { const m = (el as SVGGraphicsElement).getScreenCTM()!; return Math.max(Math.abs(m.b), Math.abs(m.c)) / Math.abs(m.a); };
+        const texts = [...svg.querySelectorAll("text.lbl, text.val")], icons = [...svg.querySelectorAll("g[data-x] > g > path, g[data-x] > path:not(.cone)")];
+        return { nt: texts.length, ni: icons.length, t: Math.max(...texts.map(off)), i: Math.max(...icons.map(off)) };
+      });
+      expect(turns.nt).toBeGreaterThan(5);
+      expect(turns.ni).toBeGreaterThan(5);
+      expect(turns.t).toBeLessThan(0.001);
+      expect(turns.i).toBeLessThan(0.001);
+    });
+
+    test("a camera's cone turns with the plan while its icon stays upright", async ({ page }) => {
+      const m = await rpt(page).evaluate((host) => {
+        const svg = (host as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+        const c = (svg.querySelector("path.cone") as SVGGraphicsElement).getScreenCTM()!;
+        return { a: c.a, b: c.b };
+      });
+      expect(Math.round((Math.atan2(m.b, m.a) * 180) / Math.PI)).toBe(deg);
+    });
+
+    test("the length labels of the overlay stay upright too", async ({ page }) => {
+      await menu(page, "View");
+      if ((await page.locator("#lens").getAttribute("aria-pressed")) !== "true") await page.locator("#lens").click();
+      await menu(page, "View");
+      const off = await rpt(page).evaluate((host) => {
+        const svg = (host as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+        const ts = [...svg.querySelectorAll("text.len")];
+        return { n: ts.length, off: Math.max(...ts.map((t) => { const m = (t as SVGGraphicsElement).getScreenCTM()!; return Math.abs(m.b) / Math.abs(m.a); })) };
+      });
+      expect(off.n).toBeGreaterThan(0);
+      expect(off.off).toBeLessThan(0.001);
+    });
+  });
+}
+
+test("S1.33: adding an item at 90 puts it in view and the panel value survives", async ({ page }) => {
+  await rotateBy(page, 2);
+  await menu(page, "Add");
+  await page.locator("#addStairs").click();
+  const svg = (await page.locator("svg").first().boundingBox())!;
+  const t = (await groundOf(page)).stairs.at(-1)!;
+  for (const p of t.pts) {
+    const c = await screenOf(page, p[0], p[1]);
+    expect(c.x).toBeGreaterThan(svg.x); expect(c.x).toBeLessThan(svg.x + svg.width);
+    expect(c.y).toBeGreaterThan(svg.y); expect(c.y).toBeLessThan(svg.y + svg.height);
+  }
 });
