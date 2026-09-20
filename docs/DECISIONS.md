@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.24: a free room is "apart", like a zone
+
+`geometry.ts` gets `apart(P)` = zone or `room.free`, used wherever a zone was excluded (snap corner and T targets, `stitch`, `movePoints` grouping, `mergeCorners`). `snapped(f, poly)` counts the outline and stairs as neighbours, so a room on an outline corner is snapped; only a free polygon is ignored. Zones count as neighbours too, as the block says. `snapRoomTo` (S1.22) skips a free room, dragged or as a target, and the editor's no-stitch-on-drop check for zone corners covers free rooms. `rotatePoly` normalises -0 to 0. The rotation field is a turn that resets to 0 after use; a multiple of 360 or rubbish records nothing. Added one hint beyond the block: "This room shares a corner with a neighbour. Unsnap it to rotate." shown while the field is disabled. Snap back only clears `free`; it moves nothing.
+
 ## 2026-09-20 S1.23: angles are typed as a target, applied as a turn about the midpoint
 
 The wall, door and opening panels show `#wrot`, `#drot`, `#orot`: the segment's angle in degrees, clockwise on screen, 0 to 360. Typing a value turns the segment by the difference about its midpoint (`rotateSegment`, ends rounded to 1 cm, length kept within 1 cm). The same value, or rubbish, records nothing. A device has `rot` (degrees, stored modulo 360, key deleted at 0), shown as `#vrot` for every device including heaters. `renderFloor` turns the device group and turns the icon back, so the glyph stays upright and the click target turns with the device. Also fixed: `onFocusOut` no longer clears the selection when the focused control was removed by a panel swap (choosing "Opening" in the wall kind select did that); the check waits one task so the removal is visible.

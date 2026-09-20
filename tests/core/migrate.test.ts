@@ -220,3 +220,13 @@ describe("room edge kinds wk (S1.17)", () => {
     expect(JSON.stringify(validate(migrate(rooms(2, { wk: ["fence", "bogus", "wall"] }))))).toContain("wk entries");
   });
 });
+
+describe("room free (S1.24)", () => {
+  it("passes free through and adds none", () => {
+    const l = structuredClone(demo) as any;
+    l.floors.ground.rooms[0].free = true;
+    const m = migrate(l) as any;
+    expect(m.floors.ground.rooms[0].free).toBe(true);
+    expect(m.floors.ground.rooms[1]).not.toHaveProperty("free");
+  });
+});

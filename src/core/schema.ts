@@ -8,7 +8,7 @@ export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "tv" | "computer" | "tree" | "patio-wood" | "patio-concrete" | "car";
 
-export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: WallKind[]; color?: string }
+export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: WallKind[]; color?: string; free?: boolean }
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
 export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind }
 export interface Stairs { id: string; name: string; pts: Pt[] }
@@ -80,6 +80,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       oneOf(`${r.id} kind`, r.kind, ROOM_KINDS);
       if (r.color !== undefined && !(typeof r.color === "string" && /^#[0-9a-fA-F]{6}$/.test(r.color)))
         errors.push(`${at} ${r.id} color must be a colour like #aabbcc`);
+      if (r.free !== undefined && typeof r.free !== "boolean") errors.push(`${at} ${r.id} free must be true or false`);
       if (Array.isArray(r.pts) && r.pts.length >= 3 && (!Array.isArray(r.wk) || r.wk.length !== r.pts.length))
         errors.push(`${at} ${r.id} wk must have ${r.pts.length} entries`);
       else if (Array.isArray(r.wk)) {

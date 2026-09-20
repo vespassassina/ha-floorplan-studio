@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Floor, Pt, WallKind } from "../../src/core/schema";
-import { dist, polys, nearestEdge, snapPoint, stitch, insertPoint, removePoint, movePoints, edgeRooms, setEdgeKind, mergeCorners } from "../../src/core/geometry";
+import { dist, polys, nearestEdge, snapPoint, stitch, insertPoint, removePoint, movePoints, edgeRooms, setEdgeKind, mergeCorners, snapped, rotatePoly } from "../../src/core/geometry";
 
 // Two rooms side by side sharing the edge x=100, inside a 200x100 outline.
 const rect = (x0: number, y0: number, x1: number, y1: number): Pt[] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -302,5 +302,61 @@ describe("setEdgeKind (S1.17)", () => {
     z.rooms.push({ ...room("z", [[10, 10], [60, 10], [60, 60], [10, 60]]), kind: "zone" as const, wk: ["boundary", "boundary", "boundary", "boundary"] });
     expect(setEdgeKind(z, "r2", 0, "fence")).toBe(z);
     expect(z.rooms[2].wk).toEqual(["boundary", "boundary", "boundary", "boundary"]);
+  });
+});
+
+describe("free rooms (S1.24)", () => {
+  const freed = () => { const f = floor(); f.rooms[1].free = true; return f; };
+  it("snapped: true for rooms that share a wall, false for a room clear of everything", () => {
+    const f = floor();
+    expect(snapped(f, "r0")).toBe(true);
+    expect(snapped(f, "r1")).toBe(true);
+    f.rooms.push(room("c", rect(300, 300, 350, 350)));
+    expect(snapped(f, "r2")).toBe(false);
+  });
+  it("snapped ignores a neighbour that is free, and a free room itself has no live neighbours", () => {
+    const f = freed();
+    expect(snapped(f, "r0")).toBe(true); // still on the outline's corners
+    f.outline = rect(-50, -50, 250, 150);
+    expect(snapped(f, "r0")).toBe(false); // its only neighbour is free
+  });
+  it("the demo pond is not snapped, and the living room is", () => {
+    const d = structuredClone(demo.floors.ground) as unknown as Floor;
+    expect(snapped(d, "r6")).toBe(false);
+    expect(snapped(d, "r0")).toBe(true);
+  });
+  it("a free room is no snapPoint corner or T target", () => {
+    const g = floor();
+    g.outline = rect(-50, -50, 250, 150);
+    g.rooms[0].free = true; g.rooms[1].free = true;
+    expect(snapPoint(g, [102, 2], opts({ grid: 0 }))).toEqual([102, 2]); // no corner (100,0) or edge to jump to
+    expect(snapPoint(floor(), [102, 2], opts({ grid: 0 }))).toEqual([100, 0]); // with the rooms joined it does jump
+  });
+  it("stitch adds no point to a free room, and movePoints leaves a free room's corner where it was", () => {
+    const f = freed();
+    const s = stitch(f, [100, 50]);
+    expect(s.rooms[1].pts).toEqual(f.rooms[1].pts);
+    expect(s.rooms[0].pts).toContainEqual([100, 50]);
+    const m = movePoints(f, [100, 0], [90, 0], false);
+    expect(m.rooms[1].pts).toEqual(f.rooms[1].pts);
+    expect(m.rooms[0].pts[1]).toEqual([90, 0]);
+  });
+  it("mergeCorners leaves a free room alone", () => {
+    const f = freed();
+    f.rooms[1].pts = rect(101, 0, 200, 100);
+    expect(mergeCorners(f, 3).rooms[1].pts).toEqual(rect(101, 0, 200, 100));
+  });
+  it("rotatePoly by 90 on a square gives the square back, corners in the new order", () => {
+    const f = floor();
+    f.rooms[0].pts = rect(0, 0, 100, 100);
+    expect(rotatePoly(f, "r0", 90).rooms[0].pts).toEqual([[100, 0], [100, 100], [0, 100], [0, 0]]);
+  });
+  it("rotatePoly by 30 turns about the bounding-box centre and rounds to 1 cm; 360 is the identity", () => {
+    const f = floor();
+    f.rooms[0].pts = rect(0, 0, 100, 100);
+    const g = rotatePoly(f, "r0", 30);
+    expect(g.rooms[0].pts).toEqual([[32, -18], [118, 32], [68, 118], [-18, 68]]);
+    expect(rotatePoly(f, "r0", 360).rooms[0].pts).toEqual(f.rooms[0].pts);
+    expect(rotatePoly(f, "zz", 30)).toBe(f);
   });
 });

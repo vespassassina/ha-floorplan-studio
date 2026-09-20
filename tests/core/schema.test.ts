@@ -270,3 +270,15 @@ describe("device rot (S1.23)", () => {
       expect(withRot(bad)).toMatch(/light-living rot must be a number in \[0, 360\)/);
   });
 });
+
+describe("room free (S1.24)", () => {
+  const withFree = (v: unknown) => { const l = clone(); (l.floors.ground.rooms[0] as unknown as Record<string, unknown>).free = v; return errorsOf(l).join("\n"); };
+  it("accepts a boolean, or none", () => {
+    expect(withFree(true)).toBe("");
+    expect(withFree(false)).toBe("");
+    expect(errorsOf(clone())).toEqual([]);
+  });
+  it("rejects anything else", () => {
+    for (const bad of ["yes", 1, null]) expect(withFree(bad)).toMatch(/room-ground-1 free must be true or false/);
+  });
+});

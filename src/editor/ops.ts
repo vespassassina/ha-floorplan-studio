@@ -108,13 +108,13 @@ export function spawnPoint(f: Floor, fallback: Pt): Pt {
 /**
  * After a room was dragged by its body: translate the whole room so the corner pair (one of its own, one of another
  * room's, the outline's or a stairs') that lies closest, within `radius` cm, lands point on point. Then stitch its
- * corners into any edge they touch, so shared walls are shared again. Zones neither snap nor are snapped to.
+ * corners into any edge they touch, so shared walls are shared again. Zones and free rooms neither snap nor are snapped to.
  * Returns `f` itself when no pair is in range.
  */
 export function snapRoomTo(f: Floor, i: number, radius: number): Floor {
   const room = f.rooms[i];
-  if (!room || room.kind === "zone") return f;
-  const own = room.pts, others = polys(f).filter((P) => P.id !== `r${i}` && P.room?.kind !== "zone");
+  if (!room || room.kind === "zone" || room.free) return f;
+  const own = room.pts, others = polys(f).filter((P) => P.id !== `r${i}` && P.room?.kind !== "zone" && !P.room?.free);
   let best: { d: number; dx: number; dy: number } | null = null;
   for (const P of others)
     for (const q of P.pts)

@@ -19,6 +19,9 @@ export function polys(f: Floor): { id: string; pts: Pt[]; room?: Room }[] {
 
 /** A zone is a dotted subdivision: it never snaps, stitches or merges with the rest of the plan. */
 const isZone = (P: { room?: Room }) => P.room?.kind === "zone";
+/** A free room was unsnapped on purpose: like a zone it neither attracts nor follows. */
+const isFree = (P: { room?: Room }) => P.room?.free === true;
+const apart = (P: { room?: Room }) => isZone(P) || isFree(P);
 
 function edges(pts: Pt[]): { a: Pt; b: Pt; i: number }[] {
   return pts.map((a, i) => ({ a, b: pts[(i + 1) % pts.length], i }));
@@ -69,14 +72,14 @@ export function snapPoint(f: Floor, p: Pt, o: SnapOpts): Pt {
   const skip = (q: Pt) => o.exclude.some((e) => same(e, q));
 
   let corner: Pt | null = null;
-  for (const P of polys(f).filter((x) => !isZone(x)))
+  for (const P of polys(f).filter((x) => !apart(x)))
     for (const q of P.pts)
       if (!skip(q) && dist(q, p) < th && (!corner || dist(q, p) < dist(corner, p))) corner = q;
   if (corner) return [corner[0], corner[1]];
 
   let tee: { d: number; pt: Pt } | null = null;
   for (const P of polys(f)) {
-    if (isZone(P)) continue;
+    if (apart(P)) continue;
     if (P.pts.some(skip)) continue;
     for (const { a, b } of edges(P.pts)) {
       const { t, q } = project(p, a, b);
@@ -103,9 +106,9 @@ export function snapPoint(f: Floor, p: Pt, o: SnapOpts): Pt {
 export function stitch(f: Floor, pt: Pt): Floor {
   const g = structuredClone(f);
   const at = polys(g).filter((P) => P.pts.some((q) => dist(q, pt) <= TOUCH));
-  if (at.length && at.every(isZone)) return g; // a zone corner never becomes a point of a wall
+  if (at.length && at.every(apart)) return g; // a zone corner never becomes a point of a wall
   for (const P of polys(g)) {
-    if (isZone(P)) continue;
+    if (apart(P)) continue;
     if (P.pts.some((q) => dist(q, pt) <= TOUCH)) continue;
     for (const { a, b, i } of edges(P.pts)) {
       const { t, q } = project(pt, a, b);
@@ -148,11 +151,11 @@ export function removePoint(f: Floor, poly: string, j: number): Floor {
 export function movePoints(f: Floor, from: Pt, to: Pt, detach: boolean, only?: { poly: string; i: number }): Floor {
   const g = structuredClone(f);
   let moved = false;
-  const zoneMove = only ? isZone(polys(g).find((P) => P.id === only.poly) ?? {}) : false;
+  const zoneMove = only ? apart(polys(g).find((P) => P.id === only.poly) ?? {}) : false;
   for (const P of polys(g))
     P.pts.forEach((q, i) => {
       if (dist(q, from) > TOUCH) return;
-      if (isZone(P) !== zoneMove) return;
+      if (apart(P) !== zoneMove) return;
       if (detach) {
         if (moved || (only && !(only.poly === P.id && only.i === i))) return;
         moved = true;
@@ -192,7 +195,7 @@ export function mergeCorners(f: Floor, tol: number): Floor {
   const g = structuredClone(f);
   const list = [
     { pts: g.outline, outline: true, room: undefined as Room | undefined },
-    ...g.rooms.filter((r) => r.kind !== "garden" && r.kind !== "zone").map((r) => ({ pts: r.pts, outline: false, room: r })),
+    ...g.rooms.filter((r) => r.kind !== "garden" && r.kind !== "zone" && !r.free).map((r) => ({ pts: r.pts, outline: false, room: r })),
     ...g.stairs.map((s) => ({ pts: s.pts, outline: false, room: undefined })),
   ];
   const all = list.flatMap((P) => P.pts.map((q) => ({ q, outline: P.outline })));
@@ -215,5 +218,23 @@ export function mergeCorners(f: Floor, tol: number): Floor {
       } else i++;
     }
   }
+  return g;
+}
+
+/** True when a corner of polygon `poly` lies within 2 cm of a corner of another polygon that is not free. */
+export function snapped(f: Floor, poly: string): boolean {
+  const all = polys(f), P = all.find((x) => x.id === poly);
+  if (!P) return false;
+  return all.some((O) => O.id !== poly && !isFree(O) && O.pts.some((q) => P.pts.some((p) => dist(p, q) <= TOUCH)));
+}
+
+/** Polygon `poly` turned by `deg` (clockwise on screen) about the centre of its bounding box, corners rounded to 1 cm. Unknown id: `f` itself. */
+export function rotatePoly(f: Floor, poly: string, deg: number): Floor {
+  const g = structuredClone(f), P = polys(g).find((x) => x.id === poly);
+  if (!P) return f;
+  const xs = P.pts.map((p) => p[0]), ys = P.pts.map((p) => p[1]);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const r = (deg * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);
+  P.pts.forEach((p, i) => { P.pts[i] = [Math.round(cx + (p[0] - cx) * cos - (p[1] - cy) * sin) + 0, Math.round(cy + (p[0] - cx) * sin + (p[1] - cy) * cos) + 0]; }); // + 0 turns -0 into 0
   return g;
 }

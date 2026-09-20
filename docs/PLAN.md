@@ -365,7 +365,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass.
 - Break it: a device with `rot: 0` renders byte-identical to one with no `rot` at all, so the demo snapshot does not change.
 
-### S1.24 Unsnap a room, then rotate it
+### S1.24 Unsnap a room, then rotate it (done)
 - Outcome: a room or zone that shares no corner can be rotated; one that does must be unsnapped first.
 - Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/geometry.ts`, `src/editor/panels.ts`, `tests/core/{schema,geometry}.test.ts`, `tests/editor/editor.spec.ts`.
 - Interface: `Room` gains `free?: boolean`; `validate` requires a boolean when present; `migrate` passes it through. `geometry.ts`: `isFree(P)` joins `isZone(P)` everywhere a zone is excluded — `snapPoint` corner and T targets, `stitch`, `mergeCorners` and the `movePoints` grouping — so a free room neither attracts nor follows. New `snapped(f, poly): boolean`: true when any corner of that polygon is within 2 cm of a corner of another polygon that is not itself free. New `rotatePoly(f, poly, deg): Floor`, which turns the polygon about the centre of its own bounding box and rounds to 1 cm. The room panel shows, for a room or zone: a rotation field `#rrot` (degrees, applied as a delta through `rotatePoly`, one undo step) enabled when `free` or when `snapped` is false, and a button `#runsnap` "Unsnap" / "Snap back" that toggles `free`, with the hint "Unsnapped: this room no longer joins its neighbours."

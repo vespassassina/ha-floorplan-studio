@@ -1,6 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, setEdgeKind } from "../core";
+import { DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped } from "../core";
 import type { DeviceType, Floor, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, rotateSegment, setSecondEnd, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
@@ -194,11 +194,25 @@ function roomPanel(c: PanelCtx, i: number) {
       room.kind = v as typeof r.kind;
       if (v === "zone") room.wk = room.pts.map((): WallKind => "boundary"); // a zone has no wall edge
     }))}
+    ${roomTurn(c, i)}
     <label for="rcol">colour</label><input id="rcol" type="color" .value=${r.color ?? "#ffffff"} @change=${(e: Event) => c.commit((f) => { f.rooms[i].color = val(e); })}>
     <p>${button("rcolx", "Use the default colour", () => c.commit((f) => { delete f.rooms[i].color; }))}</p>
     <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); })}</p>
     ${r.kind === "zone" ? hint("A zone is a dotted area inside a room. Give it an area id to map it to a Home Assistant area. Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag the body to move it. Drag corners to reshape. Select an edge and choose its kind.") : nothing}`;
+}
+
+/** Rotation of a room or zone (a turn, in degrees, about its middle) and the Unsnap toggle. A room that still shares a corner cannot turn. */
+function roomTurn(c: PanelCtx, i: number) {
+  const r = c.st.f.rooms[i], id = `r${i}`;
+  const free = r.free === true, locked = !free && snapped(c.st.f, id);
+  return html`<label for="rrot">rotate by (deg)</label><input id="rrot" type="number" .value=${live("0")} ?disabled=${locked} @change=${(e: Event) => {
+      const n = numVal(e);
+      if (n !== null && n % 360 !== 0) c.commit((f) => rotatePoly(f, id, n));
+      else c.refresh();
+    }}>
+    <p>${button("runsnap", free ? "Snap back" : "Unsnap", () => c.commit((f) => { if (free) delete f.rooms[i].free; else f.rooms[i].free = true; }))}</p>
+    ${free ? hint("Unsnapped: this room no longer joins its neighbours.") : locked ? hint("This room shares a corner with a neighbour. Unsnap it to rotate.") : nothing}`;
 }
 
 function devicePanel(c: PanelCtx, i: number) {

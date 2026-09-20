@@ -2318,3 +2318,71 @@ test("break it: an angle field with rubbish changes nothing", async ({ page }) =
   await page.locator("#drot").press("Enter");
   expect(await groundOf(page)).toEqual(before);
 });
+
+// ---- S1.24 unsnap a room, then rotate it ----
+test("a room that shares corners cannot be rotated until it is unsnapped; unsnapping moves nothing; rotating is one undo step", async ({ page }) => {
+  const before = await groundOf(page);
+  await clickCm(page, 50, 200); // the living room
+  await expect(page.locator("#rn")).toHaveValue("Living");
+  await expect(page.locator("#rrot")).toBeDisabled();
+  await expect(page.locator("#runsnap")).toHaveText("Unsnap");
+  await page.locator("#runsnap").click();
+  await expect(page.locator("#rrot")).toBeEnabled();
+  await expect(page.locator("#runsnap")).toHaveText("Snap back");
+  await expect(page.locator(".hint", { hasText: "Unsnapped: this room no longer joins its neighbours." })).toBeVisible();
+  const free = await groundOf(page);
+  expect(free.rooms[0].free).toBe(true);
+  expect(free.rooms[0].pts).toEqual(before.rooms[0].pts); // not one centimetre
+  expect(free.rooms.slice(1)).toEqual(before.rooms.slice(1)); // and the neighbours' corners stay
+  expect(free.outline).toEqual(before.outline);
+  await page.locator("#rrot").fill("30");
+  await page.locator("#rrot").press("Enter");
+  const turned = await groundOf(page);
+  expect(turned.rooms[0].pts).not.toEqual(free.rooms[0].pts);
+  expect(turned.rooms[0].pts.length).toBe(4);
+  // still 500 x 400 apart corner to corner: a turn keeps lengths (within rounding)
+  const d = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  expect(Math.abs(d(turned.rooms[0].pts[0], turned.rooms[0].pts[1]) - 500)).toBeLessThanOrEqual(1);
+  expect(Math.abs(d(turned.rooms[0].pts[1], turned.rooms[0].pts[2]) - 400)).toBeLessThanOrEqual(1);
+  await expect(page.locator("#rrot")).toHaveValue("0"); // the field is a turn, so it resets
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect((await groundOf(page)).rooms[0].pts).toEqual(free.rooms[0].pts); // one step back
+  await savedValid(page);
+});
+
+test("an unsnapped room is not pulled onto a neighbour's corner when it is dropped near it", async ({ page }) => {
+  await clickCm(page, 50, 200);
+  await page.locator("#runsnap").click();
+  const before = await groundOf(page);
+  await dragCm(page, [50, 200], [350, 200]);
+  await dragCm(page, [350, 200], [47, 203]); // back, 3 cm short and 3 cm low
+  const after = await groundOf(page);
+  expect(after.rooms[0].pts).not.toEqual(before.rooms[0].pts); // a snapped room would have landed exactly
+  expect(Math.abs(after.rooms[0].pts[0][0] - before.rooms[0].pts[0][0])).toBeLessThan(8);
+  expect(after.rooms[1].pts).toEqual(before.rooms[1].pts); // nothing was stitched into the kitchen
+});
+
+test("a room clear of every corner rotates at once and touches no other room", async ({ page }) => {
+  await page.mouse.click(...Object.values(await centre(page, 'svg polygon[data-r="6"]')) as [number, number]); // the pond
+  await expect(page.locator("#rk")).toHaveValue("water");
+  await expect(page.locator("#rrot")).toBeEnabled();
+  await expect(page.locator("#runsnap")).toHaveText("Unsnap");
+  const before = await groundOf(page);
+  await page.locator("#rrot").fill("90");
+  await page.locator("#rrot").press("Enter");
+  const after = await groundOf(page);
+  expect(after.rooms[6].pts).not.toEqual(before.rooms[6].pts);
+  expect(after.rooms.filter((_, i) => i !== 6)).toEqual(before.rooms.filter((_, i) => i !== 6));
+});
+
+test("break it: rubbish and a full turn in the rotation field change nothing", async ({ page }) => {
+  await page.mouse.click(...Object.values(await centre(page, 'svg polygon[data-r="6"]')) as [number, number]);
+  const before = await groundOf(page);
+  for (const v of ["", "360", "0"]) {
+    await page.locator("#rrot").fill(v);
+    await page.locator("#rrot").press("Enter");
+  }
+  expect(await groundOf(page)).toEqual(before);
+  await expect(page.locator("#undo")).toBeDisabled();
+});

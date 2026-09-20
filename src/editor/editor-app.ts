@@ -42,7 +42,7 @@ const num = (n: number) => String(Math.round(n * 100) / 100);
 const DRAW_HINT = "Click to add points, double-click or Enter to finish, Esc to cancel";
 const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 /** Does this point reference a corner of a zone? A zone never joins another polygon. */
-const isZoneRef = (f: Floor, ref: PtRef) => "poly" in ref && ref.poly[0] === "r" && f.rooms[+ref.poly.slice(1)]?.kind === "zone";
+const isZoneRef = (f: Floor, ref: PtRef) => "poly" in ref && ref.poly[0] === "r" && (f.rooms[+ref.poly.slice(1)]?.kind === "zone" || f.rooms[+ref.poly.slice(1)]?.free === true); // a zone or a free room is never stitched
 /** A stand-in for "no dragged point": nothing is within reach of it. */
 const NOWHERE: Pt = [-1e9, -1e9];
 /** Where a door, window, opening or heater sits: a room, outline or water edge, or a free wall. Never a zone or stairs. */
