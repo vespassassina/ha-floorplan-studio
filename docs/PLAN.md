@@ -333,7 +333,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass.
 - Break it: converting a wall of zero length is refused with a status line, not written.
 
-### S1.20 A new item lands outside the house
+### S1.20 A new item lands outside the house (done)
 - Outcome: anything added lands top right of the plan, clear of what is drawn, and the view scrolls to it.
 - Files: `src/editor/ops.ts`, `src/editor/editor-app.ts`, `tests/editor/ops.test.ts` (new), `tests/editor/editor.spec.ts`.
 - Interface: `ops.ts` gains `spawnPoint(f: Floor, fallback: Pt): Pt` — with an outline of three points or more, `[maxX + 150, minY]` of its bounding box, rounded to the 5 cm grid; otherwise `fallback`. `editor-app.ts` replaces `this.centre()` with `spawnPoint(this.st.f, this.centre())` in `addWall`, `addStructure`, `addArea`, `addStairs` and `addFurniture`, and in `placeDevice` when the catalog entry's room is not on the floor. `addDoor` and `addOpeningGap` keep `centre()` and the nearest-edge rule. After any of these, `ensureVisible(p: Pt)` pans the view so `p` is inside it with a 100 cm margin, keeping the zoom.

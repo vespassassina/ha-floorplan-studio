@@ -370,7 +370,7 @@ test("Add, Stairs places a 100 x 300 cm stairs on the grid, selected, with a fre
   const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
   expect(Math.max(...xs) - Math.min(...xs)).toBe(100);
   expect(Math.max(...ys) - Math.min(...ys)).toBe(300);
-  for (const n of [...xs, ...ys]) expect(n % 5).toBe(0);
+  for (const n of [...xs, ...ys]) expect(Math.abs(n % 5)).toBe(0);
   await expect(page.locator("#sn")).toHaveValue("Stairs");
   await savedValid(page);
 });
@@ -555,7 +555,7 @@ test("a selection made from the Device menu survives the menu closing, then Dele
 const addKind = async (page: Page, id: "#addZone" | "#addWater") => { await menu(page, "Add"); await page.locator(id).click(); };
 const roomPolys = (page: Page) => page.locator("svg polygon[data-r]");
 
-test("Add, Zone places a 200 x 200 cm zone on the grid, centred, selected, dotted, with all wk boundary; one undo step removes it", async ({ page }) => {
+test("Add, Zone places a 200 x 200 cm zone on the grid, centred on the spawn point, selected, dotted, with all wk boundary; one undo step removes it", async ({ page }) => {
   const before = await groundOf(page);
   await addKind(page, "#addZone");
   await expect(roomPolys(page)).toHaveCount(before.rooms.length + 1);
@@ -566,10 +566,8 @@ test("Add, Zone places a 200 x 200 cm zone on the grid, centred, selected, dotte
   const xs = z.pts.map((p) => p[0]), ys = z.pts.map((p) => p[1]);
   expect(Math.max(...xs) - Math.min(...xs)).toBe(200);
   expect(Math.max(...ys) - Math.min(...ys)).toBe(200);
-  for (const v of [...xs, ...ys]) expect(v % 5).toBe(0);
-  const view = await page.evaluate((tag) => ({ ...(document.querySelector(tag) as any).st.view }), EDITOR);
-  expect(Math.abs((Math.min(...xs) + 100) - (view.x + view.w / 2))).toBeLessThanOrEqual(5);
-  expect(Math.abs((Math.min(...ys) + 100) - (view.y + view.h / 2))).toBeLessThanOrEqual(5);
+  for (const v of [...xs, ...ys]) expect(Math.abs(v % 5)).toBe(0);
+  expect([Math.min(...xs) + 100, Math.min(...ys) + 100]).toEqual([950, 0]); // centred on the spawn point, right of the house (S1.20)
   // selected: the panel shows kind zone
   await expect(page.locator("#rk")).toHaveValue("zone");
   // its four edges are dotted for real: the browser resolves the dash array from the shared CSS
@@ -1389,6 +1387,13 @@ const topAt = (page: Page, x: number, y: number) =>
     return el ? `${el.tagName.toLowerCase()}.${el.getAttribute("class") ?? ""}` : "";
   }, [EDITOR, x, y] as const);
 const mid = (o: { a: number[]; b: number[] }): [number, number] => [(o.a[0] + o.b[0]) / 2, (o.a[1] + o.b[1]) / 2];
+/** Pans the editor's view so that (x, y) is its centre; zoom is kept. */
+const centreViewOn = (page: Page, c: [number, number]) =>
+  page.evaluate(([tag, x, y]) => {
+    const el = document.querySelector(tag as string) as any, v = el.st.view;
+    el.st.views[el.st.floor] = { ...v, x: (x as number) - v.w / 2, y: (y as number) - v.h / 2 };
+    el.requestUpdate();
+  }, [EDITOR, c[0], c[1]] as const);
 
 test("Add, Opening adds one 120 cm opening on the room edge nearest the view centre, selected, in one undo step", async ({ page }) => {
   const before = await gaps(page);
@@ -1488,8 +1493,9 @@ test("Delete in the panel, and the Delete and Backspace keys, remove the opening
 
 test("an opening lands on a free wall when that is the nearest edge", async ({ page }) => {
   await menu(page, "Add");
-  await page.locator("#addWall").click(); // a wall through the view centre
+  await page.locator("#addWall").click();
   const w = (await groundOf(page)).walls[0];
+  await centreViewOn(page, mid(w)); // the wall is now the edge nearest the view centre
   await addGap(page);
   const o = (await gaps(page))[0];
   expect(o.a[1]).toBe(w.a[1]);
@@ -1759,8 +1765,9 @@ test("Add, Door and Add, Opening skip a zone edge: they land on the nearest wall
 
 test("Add, Door lands on a free wall when that is the nearest edge, along its direction", async ({ page }) => {
   await menu(page, "Add");
-  await page.locator("#addWall").click(); // a horizontal wall through the view centre
+  await page.locator("#addWall").click(); // a horizontal wall
   const w = (await groundOf(page)).walls[0];
+  await centreViewOn(page, mid(w)); // the wall is now the edge nearest the view centre
   await menu(page, "Add");
   await page.locator("#addDoor").click();
   const d = (await groundOf(page)).doors.at(-1)!;
@@ -1988,4 +1995,84 @@ test("break it: a wall of zero length is not turned into an opening; the status 
   await expect(page.locator("#wk")).toHaveValue("wall"); // the select snaps back to the kind
   await page.keyboard.press("Control+z"); // nothing was recorded: undo does nothing
   expect(await layoutOf(page)).toEqual(before);
+});
+
+// ---- S1.20 a new item lands outside the house ----
+/** The part of the plan the svg shows now: [x0, y0, x1, y1] in cm. */
+const visible = (page: Page) =>
+  page.evaluate((tag) => {
+    const svg = (document.querySelector(tag as string) as any).shadowRoot.querySelector("svg") as SVGSVGElement, v = svg.viewBox.baseVal;
+    return [v.x, v.y, v.x + v.width, v.y + v.height] as [number, number, number, number];
+  }, EDITOR);
+const addMenuItem = async (page: Page, id: string) => { await menu(page, "Add"); await page.locator(id).click(); };
+const OUTLINE_MAX_X = 800;
+
+test("Add, Structure puts every point outside the outline's box, and the structure is inside the view afterwards", async ({ page }) => {
+  await addMenuItem(page, "#addStr");
+  const g = await groundOf(page), s = g.rooms[g.rooms.length - 1];
+  expect(s.kind).toBe("structure");
+  for (const [x, y] of s.pts) { expect(x).toBeGreaterThan(OUTLINE_MAX_X); expect(x % 5).toBe(0); expect(y % 5).toBe(0); }
+  const v = await visible(page);
+  for (const [x, y] of s.pts) { expect(x).toBeGreaterThanOrEqual(v[0]); expect(x).toBeLessThanOrEqual(v[2]); expect(y).toBeGreaterThanOrEqual(v[1]); expect(y).toBeLessThanOrEqual(v[3]); }
+});
+
+test("Add, Wall, Zone, Water, Stairs and Furniture all land right of the house, top aligned with it", async ({ page }) => {
+  await addMenuItem(page, "#addWall");
+  await addMenuItem(page, "#addZone");
+  await addMenuItem(page, "#addWater");
+  await addMenuItem(page, "#addStairs");
+  await menu(page, "Add");
+  await page.locator("#addFurn").selectOption("bed");
+  const g = await groundOf(page);
+  const pts: number[][] = [...g.walls.flatMap((w) => [w.a, w.b]), ...g.rooms.slice(7).flatMap((r) => r.pts), ...g.stairs.slice(1).flatMap((t) => t.pts)];
+  expect(pts.length).toBe(2 + 4 + 4 + 4);
+  for (const [x] of pts) expect(x).toBeGreaterThan(OUTLINE_MAX_X);
+  const bed = g.furniture[g.furniture.length - 1];
+  expect(bed.x - bed.w / 2).toBeGreaterThan(OUTLINE_MAX_X);
+  expect(bed.y).toBe(0); // the top of the outline
+});
+
+test("break it: with the view panned far from the house, an added item is still outside the house and comes into view", async ({ page }) => {
+  // pan with real drags on the background, far to the south-west of the house
+  for (let n = 0; n < 4; n++) {
+    await page.mouse.move(900, 300);
+    await page.mouse.down();
+    await page.mouse.move(600, 500, { steps: 5 });
+    await page.mouse.move(350, 700, { steps: 5 });
+    await page.mouse.up();
+  }
+  const far = await visible(page);
+  expect(far[0]).toBeGreaterThan(OUTLINE_MAX_X + 1500); // the house is nowhere near the view
+  await addMenuItem(page, "#addStr");
+  const g = await groundOf(page), s = g.rooms[g.rooms.length - 1];
+  for (const [x] of s.pts) expect(x).toBeGreaterThan(OUTLINE_MAX_X);
+  const v = await visible(page);
+  for (const [x, y] of s.pts) { expect(x).toBeGreaterThanOrEqual(v[0]); expect(x).toBeLessThanOrEqual(v[2]); expect(y).toBeGreaterThanOrEqual(v[1]); expect(y).toBeLessThanOrEqual(v[3]); }
+  // the zoom did not change
+  expect(Math.round((v[2] - v[0]) * 10)).toBe(Math.round((far[2] - far[0]) * 10));
+});
+
+test("a new floor has no outline: an added zone lands at the view centre, as before", async ({ page }) => {
+  await addFloorVia(page, "Attic");
+  await expect(page.locator(".chip[data-f]")).toHaveCount(3);
+  const v = await visible(page);
+  await addMenuItem(page, "#addZone");
+  const l = await layoutOf(page), z = l.floors.attic.rooms[0], cx = (z.pts[0][0] + z.pts[2][0]) / 2, cy = (z.pts[0][1] + z.pts[2][1]) / 2;
+  expect(Math.abs(cx - (v[0] + v[2]) / 2)).toBeLessThan(10);
+  expect(Math.abs(cy - (v[1] + v[3]) / 2)).toBeLessThan(10);
+});
+
+test("a device whose catalog room is not on the floor lands right of the house and is in view", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.catalog.find((c: any) => c.id === "contact-garage").room = "Nowhere";
+    el.layout = l;
+  }, EDITOR);
+  await menu(page, "Device");
+  await devItem(page, "contact-garage").click();
+  const g = await groundOf(page), d = g.devices[g.devices.length - 1] as { id: string; x: number; y: number };
+  expect(d.id).toBe("contact-garage");
+  expect(d.x).toBeGreaterThan(OUTLINE_MAX_X);
+  const v = await visible(page);
+  expect(d.x).toBeGreaterThanOrEqual(v[0]); expect(d.x).toBeLessThanOrEqual(v[2]);
 });

@@ -96,3 +96,11 @@ export function openingToWall(f: Floor, i: number, kind: WallKind, floor: string
   g.walls.push({ id: newId(g, floor, "wall"), a: [...o.a], b: [...o.b], kind });
   return g;
 }
+
+/** Where a new item goes: right of the outline's bounding box, at its top, on the 5 cm grid. With no outline (fewer than three points) `fallback`. */
+export function spawnPoint(f: Floor, fallback: Pt): Pt {
+  if (f.outline.length < 3) return fallback;
+  const xs = f.outline.map((p) => p[0]), ys = f.outline.map((p) => p[1]);
+  const g = (n: number) => Math.round(n / 5) * 5;
+  return [g(Math.max(...xs) + 150), g(Math.min(...ys))];
+}
