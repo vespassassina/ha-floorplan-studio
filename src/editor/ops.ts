@@ -65,15 +65,15 @@ export function segmentAt(q: Pt, u: Pt, len: number): { a: Pt; b: Pt } {
   return { a: round([q[0] - u[0] * n, q[1] - u[1] * n]), b: round([q[0] + u[0] * n, q[1] + u[1] * n]) };
 }
 
-/** `n` on the `grid` cm grid; grid 0 (none) rounds to a whole cm. */
 /**
  * The shortest ring of 3 to 12 walls through wall `w`, whose ends meet within `tol` cm: the wall
- * indices and the ring's corners in order. Null when `w` is on no ring. (S1.48)
+ * indices and the ring's corners in order. Null when `w` is on no ring. With `through`, only a ring that
+ * passes that point counts: a chain converts only when it closes on its own first corner. (S1.48)
  */
-export function closedLoop(f: Floor, w: number, tol = 2): { walls: number[]; pts: Pt[] } | null {
+export function closedLoop(f: Floor, w: number, tol = 2, through?: Pt): { walls: number[]; pts: Pt[] } | null {
   const W = f.walls, at = (p: Pt, q: Pt) => dist(p, q) <= tol;
   const from = (i: number, end: Pt, seen: number[], pts: Pt[], goal: Pt, depth: number): { walls: number[]; pts: Pt[] } | null => {
-    if (seen.length >= 3 && at(end, goal)) return { walls: seen, pts };
+    if (seen.length >= 3 && at(end, goal) && (!through || pts.some((q) => at(q, through)))) return { walls: seen, pts };
     if (seen.length >= depth) return null;
     for (let j = 0; j < W.length; j++) {
       if (seen.includes(j)) continue;
@@ -93,6 +93,7 @@ export function closedLoop(f: Floor, w: number, tol = 2): { walls: number[]; pts
   return null;
 }
 
+/** `n` on the `grid` cm grid; grid 0 (none) rounds to a whole cm. */
 export const gridRound = (n: number, grid: number) => (grid ? Math.round(n / grid) * grid : Math.round(n));
 
 /** A stairs polygon of 100 x 300 cm centred on c, corners on the grid (10 cm by default). */

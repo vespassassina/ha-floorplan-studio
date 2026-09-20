@@ -3655,6 +3655,18 @@ test("a last click 30 cm from the first point is outside the snap: four walls, n
   expect(g.walls).toHaveLength(4);
 });
 
+test("walls that return to an intermediate corner stay walls: no room, no wall taken", async ({ page }) => {
+  await setGrid(page, 5);
+  const before = await groundOf(page);
+  await startDraw(page, "drawWall-wall");
+  await clicksCm(page, [105, 630], [295, 630], [295, 670], [200, 670], [295, 630]);
+  await page.keyboard.press("Enter");
+  const g = await groundOf(page);
+  expect(g.rooms).toHaveLength(before.rooms.length);
+  expect(g.walls).toHaveLength(4);
+  await expect(page.locator("#status")).toHaveText("Added the shape");
+});
+
 test("two rings sharing a wall make two rooms", async ({ page }) => {
   await setGrid(page, 5);
   const before = await groundOf(page);

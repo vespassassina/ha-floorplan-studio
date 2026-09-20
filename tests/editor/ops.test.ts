@@ -131,6 +131,12 @@ describe("closedLoop (S1.48)", () => {
     const f = ground(); f.walls = [wall("a", [0, 0], [100, 0]), wall("b", [0, 0], [100, 0]), wall("c", [100, 0], [0, 0])];
     expect(closedLoop(f, 2)).toBeNull();
   });
+  it("with `through`, only a ring that passes that point counts", () => {
+    const f = sq(); f.walls.push(wall("w5", [1200, 100], [1300, 100]), wall("w6", [1300, 100], [1200, 0])); // a triangle (1200,0),(1200,100),(1300,100) on the square's side
+    expect(closedLoop(f, 5)!.walls).toHaveLength(3);
+    expect(closedLoop(f, 5, 2, [5000, 5000])).toBeNull();
+    expect(closedLoop(f, 5, 2, [1300, 100])!.walls).toHaveLength(3);
+  });
   it("a triangle counts, two walls do not", () => {
     const f = ground(); f.walls = [wall("a", [0, 0], [100, 0]), wall("b", [100, 0], [0, 0])];
     expect(closedLoop(f, 1)).toBeNull();

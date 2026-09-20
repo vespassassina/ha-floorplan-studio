@@ -68,7 +68,7 @@ export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; s
     for (let i = 1; i < pts.length; i++) g.walls.push({ id: newId(g, floor, "wall"), a: pts[i - 1], b: [pts[i][0], pts[i][1]], kind: s.wall });
     sel = { t: "wall", i: g.walls.length - 1 };
     // A loop the last wall closes becomes a room, a zone or a garden, and its walls go. (S1.48)
-    const loop = closedLoop(g, g.walls.length - 1);
+    const loop = closedLoop(g, g.walls.length - 1, 2, pts[0]);
     if (loop) {
       const kinds = loop.walls.map((i) => g.walls[i].kind), last = g.walls[g.walls.length - 1].kind;
       const kind: RoomKind = last === "boundary" ? "zone" : last === "fence" || last === "edge" ? "garden" : "room";

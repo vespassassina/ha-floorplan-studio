@@ -117,6 +117,19 @@ describe("applyShape, closed walls (S1.48)", () => {
     expect(r.floor.walls).toHaveLength(3);
     expect(r.floor.rooms).toHaveLength(ground().rooms.length);
   });
+  it("a chain that comes back to an intermediate corner stays walls, with no stray wall taken", () => {
+    const tail: Pt[] = [[1000, 0], [1200, 0], [1200, 100], [1100, 100], [1200, 0]]; // the ring is (1200,0),(1200,100),(1100,100); the chain starts elsewhere
+    const r = made("wall", tail);
+    expect(r.floor.walls).toHaveLength(4);
+    expect(r.floor.rooms).toHaveLength(ground().rooms.length);
+    expect(r.note).toBeUndefined();
+  });
+  it("a figure-eight closed on an intermediate corner stays walls", () => {
+    const eight: Pt[] = [[900, 50], [1100, 50], [1200, 0], [1200, 100], [1100, 50], [1000, 0], [1000, 100], [1100, 50]];
+    const r = made("wall", eight);
+    expect(r.floor.walls).toHaveLength(7);
+    expect(r.floor.rooms).toHaveLength(ground().rooms.length);
+  });
   it("the outline is not converted", () => {
     const f = ground();
     const o = f.outline;
