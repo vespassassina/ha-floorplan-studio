@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.38: HA things are picked, not typed
+
+Floors, room areas, room entities and furniture entities are dropdowns when Home Assistant data is present. Picking an area writes id and name together; the entity link is dropped. Free text stays only for custom things and for standalone use. Unknown ids stay as an extra option, so a stale link is visible and never erased. The S1.39 name refresh landed in this commit too, since it shares the ha setter.
+
 ## 2026-09-20 S1.37: HA links are optional fields; applyHaNames returns a copy
 
 `Floor.ha`, `Room.entity`, `Furniture.name` and `Furniture.entity` are validated for shape only (`ha` non-empty text, `entity` an id with a dot, the name text); `migrate` already clones, so it passes them through and adds none. `src/core/ha.ts` holds `HaData` and `applyHaNames`. The function always returns a fresh clone, even when nothing changed, and counts only names that differ. It ignores an HA entry whose name is not non-empty text, so hostile host data cannot blank a title. A floor with no `ha` and a room with an empty or unknown `area` are never touched.

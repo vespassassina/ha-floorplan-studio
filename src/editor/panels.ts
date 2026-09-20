@@ -1,7 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { DOOR_KINDS, FLOOR_COLOURS, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped } from "../core";
-import type { DeviceType, Floor, RoomKind, WallKind } from "../core";
+import type { DeviceType, Floor, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 
@@ -55,6 +55,31 @@ const button = (id: string, label: string, on: () => void, cls = "") => html`<bu
 const angleOf = (a: [number, number], b: [number, number]) => Math.round((((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI + 360) % 360) * 10) / 10 % 360;
 const hint = (t: string) => html`<p class="hint">${t}</p>`;
 
+// ---- Home Assistant pickers (S1.38): with HA data a name is chosen, not typed ----
+const byName = <T extends { name: string }>(l: readonly T[]) => [...l].sort((a, b) => a.name.localeCompare(b.name));
+const NOT_IN_HA = "Home Assistant does not have this one. Pick another, or leave it.";
+/** The id the layout holds but HA does not know: kept as the selected option, never cleared. */
+const missingOpt = (id: string) => html`<option value=${id} selected>${id} (not in Home Assistant)</option>`;
+/** A select of "(none)" plus every HA entity, grouped by domain; without HA data, a text field that takes an entity id or nothing. */
+function entityField(c: PanelCtx, id: string, label: string, cur: string | undefined, none: string, on: (v: string | undefined) => void) {
+  const ha = c.st.ha;
+  if (!ha) {
+    return text(label, id, cur ?? "", (v) => {
+      const t = v.trim();
+      if (!t) on(undefined);
+      else if (t.includes(".")) on(t);
+      else { c.say("An entity id looks like sensor.pond"); c.refresh(); }
+    });
+  }
+  const domains = [...new Set(ha.entities.map((e) => e.domain))].sort();
+  const unknown = !!cur && !ha.entities.some((e) => e.id === cur);
+  return html`<label for=${id}>${label}</label><select id=${id} .value=${live(cur ?? "")} @change=${(e: Event) => on(val(e) || undefined)}>
+      <option value="" ?selected=${!cur}>${none}</option>
+      ${domains.map((d) => html`<optgroup label=${d}>${byName(ha.entities.filter((e) => e.domain === d)).map((e) => html`<option value=${e.id} title=${e.id} ?selected=${e.id === cur}>${e.name}</option>`)}</optgroup>`)}
+      ${unknown ? missingOpt(cur!) : nothing}
+    </select>${unknown ? hint(NOT_IN_HA) : nothing}`;
+}
+
 export function selectionPanel(c: PanelCtx): TemplateResult {
   const { st } = c, f = st.f, s = st.sel;
   if (!s) return floorPanel(c);
@@ -76,8 +101,9 @@ function floorPanel(c: PanelCtx) {
   const { st } = c, key = st.floor, keys = Object.keys(st.layout.floors), i = keys.indexOf(key), title = st.f.title || key;
   return html`<strong>Floor</strong>
     ${hint("Nothing selected. Click something on the plan to edit it.")}
-    <label for="ft">floor title</label>
-    <input id="ft" type="text" .value=${live(st.f.title)} @change=${(e: Event) => { c.floors.rename(key, val(e)); c.refresh(); }}>
+    ${st.ha ? floorLink(c, st.ha) : nothing}
+    ${!st.ha || !st.f.ha ? html`<label for="ft">floor title</label>
+    <input id="ft" type="text" .value=${live(st.f.title)} @change=${(e: Event) => { c.floors.rename(key, val(e)); c.refresh(); }}>` : nothing}
     <div class="row">
       <button class="btn" id="fup" title="Higher floor: later in the chips" ?disabled=${i < 0 || i >= keys.length - 1} @click=${() => c.floors.move(key, 1)}>Move up</button>
       <button class="btn" id="fdown" title="Lower floor: earlier in the chips" ?disabled=${i <= 0} @click=${() => c.floors.move(key, -1)}>Move down</button>
@@ -88,6 +114,20 @@ function floorPanel(c: PanelCtx) {
       : html`<p><button class="btn danger" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
     ${hint("A new floor starts with the outline and the stairs of the first floor. Delete a floor to start again with a clean one.")}
     ${hint("Devices on a deleted floor stay in the catalog and go back to the Device menu.")}`;
+}
+
+/** The HA floor this floor is. Choosing one writes the id and the name HA gave it; "(not linked)" keeps the title and brings the text field back. */
+function floorLink(c: PanelCtx, ha: HaData) {
+  const cur = c.st.f.ha ?? "", unknown = !!cur && !ha.floors.some((x) => x.id === cur);
+  const pick = (id: string) => c.commit((f) => {
+    const hit = ha.floors.find((x) => x.id === id);
+    if (hit) { f.ha = hit.id; f.title = hit.name; } else delete f.ha;
+  });
+  return html`<label for="fha">Home Assistant floor</label><select id="fha" .value=${live(cur)} @change=${(e: Event) => pick(val(e))}>
+      <option value="" ?selected=${!cur}>(not linked)</option>
+      ${byName(ha.floors).map((x) => html`<option value=${x.id} ?selected=${x.id === cur}>${x.name}</option>`)}
+      ${unknown ? missingOpt(cur) : nothing}
+    </select>${unknown ? hint(NOT_IN_HA) : nothing}`;
 }
 
 function cornerPanel(c: PanelCtx, s: Extract<Sel, { t: "v" }>) {
@@ -188,8 +228,9 @@ function openingPanel(c: PanelCtx, i: number) {
 function roomPanel(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
   return html`<strong>Room</strong>
-    ${text("name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
+    ${c.st.ha ? roomLink(c, c.st.ha, i) : html`${text("name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
     ${text("area id", "ra", r.area, (v) => c.commit((f) => { f.rooms[i].area = v; }))}
+    ${r.area ? nothing : entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}
     ${text("plan label", "rl", r.label, (v) => c.commit((f) => { f.rooms[i].label = v; }))}
     ${kindSelect(r.kind, (v) => c.commit((f) => {
       const room = f.rooms[i];
@@ -204,6 +245,37 @@ function roomPanel(c: PanelCtx, i: number) {
     <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${r.kind === "zone" ? hint("A zone is a dotted area inside a room. Give it an area id to map it to a Home Assistant area. Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag the body to move it. Drag corners to reshape. Select an edge and choose its kind.") : nothing}`;
+}
+
+const setOrDelete = <T extends object, K extends keyof T>(o: T, k: K, v: T[K] | undefined) => { if (v === undefined || v === "") delete o[k]; else o[k] = v; };
+
+/** Room, zone or water name: an HA area (id and name written together), or a custom shape with a plan name and maybe one entity. */
+function roomLink(c: PanelCtx, ha: HaData, i: number) {
+  const r = c.st.f.rooms[i], key = c.st.floor;
+  const used = new Set<string>();
+  for (const [fk, fl] of Object.entries(c.st.layout.floors)) fl.rooms.forEach((o: Room, j: number) => { if (o.area && !(fk === key && j === i)) used.add(o.area); });
+  const areas = byName(ha.areas), free = areas.filter((a) => !used.has(a.id)), taken = areas.filter((a) => used.has(a.id));
+  const unknown = !!r.area && !areas.some((a) => a.id === r.area);
+  const norm = (t: string) => t.trim().toLowerCase();
+  const hits = !r.area || unknown ? areas.filter((a) => r.name.trim() && norm(a.name) === norm(r.name)) : [];
+  const pick = (id: string) => {
+    const hit = ha.areas.find((a) => a.id === id);
+    c.commit((f) => {
+      const room = f.rooms[i];
+      if (hit) { room.area = hit.id; room.name = hit.name; delete room.entity; } else room.area = "";
+    });
+    if (hit && used.has(hit.id)) c.say(`${hit.name} is already on the plan`);
+  };
+  const opt = (a: { id: string; name: string }) => html`<option value=${a.id} ?selected=${a.id === r.area}>${a.name}</option>`;
+  return html`${hits.length === 1 ? html`<p><button class="btn" id="rmatch" @click=${() => pick(hits[0].id)}>Link to the Home Assistant area ${hits[0].name}</button></p>` : nothing}
+    <label for="ra">area</label><select id="ra" .value=${live(r.area)} @change=${(e: Event) => pick(val(e))}>
+      <option value="" ?selected=${!r.area}>(no area — custom)</option>
+      ${free.map(opt)}
+      ${taken.length ? html`<optgroup label="Already on the plan">${taken.map(opt)}</optgroup>` : nothing}
+      ${unknown ? missingOpt(r.area) : nothing}
+    </select>${unknown ? hint(NOT_IN_HA) : nothing}
+    ${r.area ? nothing : html`${text("plan name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
+    ${entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}`;
 }
 
 /** Rotation of a room or zone (a turn, in degrees, about its middle) and the Unsnap toggle. A room that still shares a corner cannot turn. */
@@ -252,6 +324,8 @@ function furniturePanel(c: PanelCtx, i: number) {
   const m = c.st.f.furniture[i];
   const set = (k: "w" | "h" | "rot", min: number) => (n: number) => c.commit((f) => { f.furniture[i][k] = Math.max(min, n); });
   return html`<strong>Furniture</strong>
+    ${text("plan name", "fun", m.name ?? "", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "name", v.trim()); }))}
+    ${entityField(c, "fuent", "shows the state of", m.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "entity", v); }))}
     ${select("symbol", "fs", m.symbol, FURNITURE_SYMBOLS, (v) => c.commit((f) => { f.furniture[i].symbol = v as typeof m.symbol; }))}
     ${number("width (cm)", "fw", m.w, set("w", 5))}
     ${number("depth (cm)", "fh", m.h, set("h", 5))}

@@ -515,7 +515,7 @@ S1.42 are three defects the verifiers found.
 - Done when: tests pass; `npm run lint` clean; SPEC's schema block lists `ha`, `room.entity`, `furniture.name` and `furniture.entity`.
 - Break it: `applyHaNames` on a layout whose room names are already the HA names reports `changed: 0` and returns a layout deep-equal to the input, so opening a plan twice writes nothing.
 
-### S1.38 The editor picks names from Home Assistant
+### S1.38 The editor picks names from Home Assistant (done)
 - Outcome: with HA data present the floor title, the room name and the zone name are dropdowns of what HA has; a shape with no area keeps a free plan name and may point at one entity.
 - Files: `src/editor/editor-app.ts`, `src/editor/panels.ts`, `src/editor/state.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
 - Interface: `<floorplan-studio-editor>` gains the property `ha: HaData | undefined` (from `src/core/ha.ts`), set by the host — the HA panel in S3.3, nothing standalone — and passed on through `EditorState.ha` and so to every panel. With `ha` undefined every field stays the text input it is today. With `ha` set:

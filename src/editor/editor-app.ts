@@ -1,8 +1,8 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, rotateAbout, snapPoint, stitch, validate } from "../core";
-import type { DeviceType, Floor, Layout, Pt, Stairs, WallKind } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, rotateAbout, snapPoint, stitch, validate } from "../core";
+import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
 import { gridRound, looseEnds, movePointAll, pointsNear, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
@@ -125,6 +125,25 @@ export class FloorplanStudioEditor extends LitElement {
     this.devQuery = "";
   }
 
+  /** What Home Assistant has (floors, areas, entities), set by the host. With it the name fields are dropdowns and linked names are refreshed once, without an undo step. */
+  get ha(): HaData | undefined { return this.st.ha; }
+  set ha(v: HaData | undefined) {
+    const old = this.st.ha;
+    this.st.ha = v;
+    this.refreshNames();
+    this.requestUpdate("ha", old);
+  }
+  /** Copies HA's names into the linked floors and rooms. Not an edit: no undo step. Tells the host and the status line when something changed. */
+  private refreshNames() {
+    if (!this.st.ha) return;
+    const r = applyHaNames(this.st.layout, this.st.ha);
+    if (!r.changed) return;
+    this.st.layout = r.layout;
+    this.st.persist();
+    this.status = `${r.changed} names updated from Home Assistant`;
+    this.emit("layout-changed");
+  }
+
   get layout(): Layout { return this.st.layout; }
   set layout(v: Layout | undefined) {
     if (!v) return;
@@ -136,6 +155,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.setLayout(r.layout, this.floor);
     this.seed ??= structuredClone(r.layout);
     this.floor = this.st.floor;
+    this.refreshNames();
     this.requestUpdate("layout", old);
   }
 
@@ -587,7 +607,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   private undo(back: boolean) {
     this.stopDraw();
-    if (back ? this.st.undo() : this.st.redo()) { this.floor = this.st.floor; this.changed(back ? "Undone" : "Redone"); }
+    if (back ? this.st.undo() : this.st.redo()) { this.floor = this.st.floor; this.refreshNames(); this.changed(back ? "Undone" : "Redone"); }
   }
   /** View, Rotate the plan: one undo step. The stored coordinates are not touched; only `layout.rotate` changes. */
   private setColour(t: DeviceType, hex: string | null) {
@@ -825,6 +845,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.errors = [];
     this.st.setLayout(structuredClone(r.layout), undefined, true);
     this.floor = this.st.floor;
+    this.refreshNames();
     this.changed(status);
   }
   private async openFile(ev: Event) {

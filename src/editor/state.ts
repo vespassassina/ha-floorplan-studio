@@ -1,5 +1,5 @@
 import { DEVICE_TYPES, contentPoints, migrate, planPivot, rotateAbout, unplacedCatalog, validate, viewBoxFor } from "../core";
-import type { CatalogEntry, DeviceType, Floor, Layout, Pt, Stairs } from "../core";
+import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs } from "../core";
 
 /** localStorage key for the autosaved edit. */
 export const STORAGE_KEY = "floorplan-studio:layout";
@@ -82,6 +82,8 @@ function floorsOf(entries: [string, Floor][]): Record<string, Floor> {
 /** Everything the editor remembers: layout, undo history, selection, view. No DOM. */
 export class EditorState {
   layout: Layout;
+  /** What Home Assistant has, when the host gives it. Undefined standalone: every name is then free text. */
+  ha: HaData | undefined = undefined;
   floor: string;
   sel: Sel = null;
   views: Record<string, View> = {};

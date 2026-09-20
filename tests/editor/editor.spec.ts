@@ -3273,3 +3273,95 @@ test("S1.35b: on a Lava floor the wall has a white twin, wider than the wall, th
   await page.mouse.click(c.x, c.y);
   await expect(page.locator("#panel")).toContainText("wall");
 });
+
+// ---- HA pickers and name refresh (S1.38, S1.39) ------------------------------------
+
+const HA = { floors: [{ id: "gf", name: "Ground" }, { id: "up", name: "Upstairs" }],
+  areas: [{ id: "living", name: "Living" }, { id: "kitchen", name: "Kitchen" }, { id: "study", name: "Study" }],
+  entities: [{ id: "sensor.pond", name: "Pond level", domain: "sensor" }, { id: "light.lamp", name: "Lamp", domain: "light" }] };
+const setHa = (page: Page, ha: unknown) => page.evaluate(([tag, h]) => { (document.querySelector(tag as string) as any).ha = h; }, [EDITOR, ha]);
+const opts = (page: Page, sel: string) => page.locator(`${sel} option`).evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+
+test("S1.38: without Home Assistant the area is a text field, with it a select", async ({ page }) => {
+  await clickCm(page, 200, 150);
+  await expect(page.locator("#ra")).toHaveJSProperty("tagName", "INPUT");
+  await setHa(page, HA);
+  await expect(page.locator("#ra")).toHaveJSProperty("tagName", "SELECT");
+  expect(await opts(page, "#ra")).toEqual(["", "living", "study", "kitchen"]);
+});
+
+test("S1.38: picking an area writes its id and its name, one undo restores both", async ({ page }) => {
+  await setHa(page, HA);
+  await clickCm(page, 200, 150);
+  await page.locator("#ra").selectOption("study");
+  let r = (await groundOf(page)).rooms[0];
+  expect(r).toMatchObject({ area: "study", name: "Study" });
+  await expect(page.locator("#rn")).toHaveCount(0);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  r = (await groundOf(page)).rooms[0];
+  expect(r).toMatchObject({ area: "living", name: "Living" });
+});
+
+test("S1.38: an area already on the plan sits under its own group and says so", async ({ page }) => {
+  await setHa(page, HA);
+  await clickCm(page, 200, 150);
+  await expect(page.locator('#ra optgroup[label="Already on the plan"] option')).toHaveText(["Kitchen"]);
+  await page.locator("#ra").selectOption("kitchen");
+  await expect(page.locator("#status")).toContainText("already on the plan");
+});
+
+test("S1.38: custom brings back the name and entity fields, an area removes the entity", async ({ page }) => {
+  await setHa(page, HA);
+  await page.locator('svg polygon[data-r="6"]').click({ force: true });
+  const pond = (await groundOf(page)).rooms[6];
+  expect(pond.area).toBe("");
+  await expect(page.locator("#rn")).toBeVisible();
+  await expect(page.locator("#rent")).toHaveJSProperty("tagName", "SELECT");
+  await page.locator("#rent").selectOption("sensor.pond");
+  expect((await groundOf(page)).rooms[6].entity).toBe("sensor.pond");
+  await page.locator("#ra").selectOption("study");
+  const r = (await groundOf(page)).rooms[6];
+  expect(r.entity).toBeUndefined();
+  expect(r).toMatchObject({ area: "study", name: "Study" });
+  await expect(page.locator("#rent")).toHaveCount(0);
+});
+
+test("S1.38: an id Home Assistant does not know stays as an extra option", async ({ page }) => {
+  await clickCm(page, 200, 150);
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.rooms[0].area = "bogus"; el.layout = l; }, EDITOR);
+  await setHa(page, HA);
+  await clickCm(page, 200, 150);
+  await expect(page.locator("#ra")).toHaveValue("bogus");
+  await expect(page.locator('#ra option[value="bogus"]')).toContainText("not in Home Assistant");
+  expect((await groundOf(page)).rooms[0].area).toBe("bogus");
+});
+
+test("S1.38: the floor links to an HA floor and unlinking brings the title field back", async ({ page }) => {
+  await setHa(page, HA);
+  await expect(page.locator("#ft")).toBeVisible();
+  await page.locator("#fha").selectOption("up");
+  expect((await layoutOf(page)).floors.ground).toMatchObject({ ha: "up", title: "Upstairs" });
+  await expect(page.locator("#ft")).toHaveCount(0);
+  await page.locator("#fha").selectOption("");
+  expect((await groundOf(page)).ha).toBeUndefined();
+  await expect(page.locator("#ft")).toBeVisible();
+});
+
+test("S1.38: furniture has a plan name and an entity picker", async ({ page }) => {
+  await setHa(page, HA);
+  await menu(page, "Add"); await page.locator("#addFurn").selectOption("bed");
+  await page.locator("#fun").fill("Guest bed");
+  await page.locator("#fun").press("Enter");
+  await page.locator("#fuent").selectOption("light.lamp");
+  const f = (await groundOf(page)).furniture.at(-1)!;
+  expect(f).toMatchObject({ name: "Guest bed", entity: "light.lamp" });
+});
+
+test("S1.38: an empty Home Assistant changes no name and does not throw", async ({ page }) => {
+  const before = await layoutOf(page);
+  await setHa(page, { floors: [], areas: [], entities: [] });
+  expect(await layoutOf(page)).toEqual(before);
+  await clickCm(page, 200, 150);
+  await expect(page.locator("#ra")).toHaveJSProperty("tagName", "SELECT");
+});
