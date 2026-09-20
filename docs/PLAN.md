@@ -447,6 +447,30 @@ S2.10. Everything drawn from the layout alone is here.
 
 ---
 
+### S1.34 The grid is a setting
+- Outcome: the snap grid is none, 5, 10 or 50 cm, default 10, chosen in the View menu.
+- Files: `src/editor/state.ts`, `src/editor/editor-app.ts`, `src/editor/ops.ts`, `tests/editor/editor.spec.ts`, `tests/editor/state.test.ts`.
+- Interface: `EditorState.snapGrid: 0 | 5 | 10 | 50` replaces the boolean (0 = none), default 10. Every place that reads the boolean or the literal 5 (`snapCorner`, the drag rounding `g5` and the device, door and room drags, the `ops.ts` helpers that place new items on the grid) reads the one number. The chip "Snap 5 cm" becomes a View menu group "Grid" with four items, the current one pressed. The choice is kept in `localStorage` under its own key, wrapped in try/catch, and is not part of the layout. Alt still disables the grid for one gesture.
+- Test: state test that each of the four values rounds a drag to its multiple and 0 leaves the point free; Playwright: with 10 selected a corner dragged by a few pixels lands on a multiple of 10, with 50 on a multiple of 50, with none anywhere; reload keeps the choice. Existing tests that assumed 5 are updated and say why.
+- Done when: tests pass; SPEC editor section names the four values and the default.
+- Break it: a stored value of 7 or "x" falls back to 10 without throwing; storage blocked still works.
+
+### S1.35 Floor colours for rooms
+- Outcome: the room panel offers twelve floor colours as swatches, and a dark floor keeps its label and outline readable.
+- Files: `src/editor/panels.ts`, `src/core/render.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface: `FLOOR_COLOURS: { name: string; hex: string }[]` exported from `src/core/schema.ts`, in this order: White ceramic #f4f4f0, Marble #e2dfda, Sand #e6d5b8, Terracotta #c98a63, Light oak #d8bd94, Warm wood #b98b5c, Dark oak #86643f, Walnut #5b4130, Light grey #b4b6b8, Grey floor #8b8e91, Belgian stone #4d4e50, Lava #38393b. The room panel shows them as twelve buttons `.sw` next to the free colour input `#rcol` from S1.16 (the input stays). `renderFloor` gives the room's label and its edge lines the class `dark` when the room's `color` has a relative luminance below 0.35, and the CSS turns those light (`--fp-label-on-dark`, `--fp-wall-on-dark`). A room with no colour is unchanged.
+- Test: render fixture: `color: "#38393b"` gives `dark` on the label, `#f4f4f0` does not; Playwright: click the Belgian stone swatch, the polygon's computed fill is `rgb(77, 78, 80)` and the label's computed colour is light; click the default button and it is back.
+- Done when: tests pass; the twelve are in SPEC.
+- Break it: a colour that is not in the list (typed in the free input) still works and still gets the right `dark` decision.
+
+### S1.36 Device colours by type
+- Outcome: one colour per device type, changeable for the whole group at once, stored with the layout so the editor and the card agree.
+- Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/render.ts`, `src/editor/editor-app.ts`, `src/editor/panels.ts`, `tests/core/{schema,render}.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: `Layout` gains `colors?: Partial<Record<DeviceType, string>>`. `validate`: keys must be device types, values `#rrggbb`. `migrate` passes it through, never invents it. `renderFloor` sets `--fp-dev-<type>` on the root svg style from `layout.colors` (else the defaults of S1.30), so the palette CSS and the card's on-colour of S2.9 both follow it. View menu, "Device colours": a panel with one row per type (label, `<input type="color">`, reset) and "Reset all". One undo step per change, in the layout so it is saved.
+- Test: `validate` rejects `{ light: "red" }` and `{ fridge: "#aabbcc" }`; a render fixture with `colors.light` puts that value in the svg style; Playwright: change the light colour, every light icon's computed fill changes, undo restores, Save then Open keeps it.
+- Done when: tests pass; SPEC schema and editor sections list `colors`.
+- Break it: a layout with no `colors` renders exactly as before (snapshot unchanged).
+
 ## Sprint 2 — card (E3)
 
 ### S2.1 Card element

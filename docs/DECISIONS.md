@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 More Sprint 1.6 tasks: grid, floor colours, device colours
+
+- S1.34 grid setting (none, 5, 10, 50; default 10), kept in the browser, not the layout: it is an editing habit, not part of the house.
+- S1.35 twelve floor-material swatches (ceramic, marble, sand, terracotta, oaks, walnut, greys, Belgian stone, lava) replace the pastel set proposed earlier; dark floors switch label and outline to light.
+- S1.36 device colours per type, stored in `layout.colors`, so the card follows the editor. No per-device override: it costs a lot of UI for little gain.
+- The snap-back of a dropped room is already in S1.22 (13fb9b8).
+
 ## 2026-09-20 S1.24: a free room is "apart", like a zone
 
 `geometry.ts` gets `apart(P)` = zone or `room.free`, used wherever a zone was excluded (snap corner and T targets, `stitch`, `movePoints` grouping, `mergeCorners`). `snapped(f, poly)` counts the outline and stairs as neighbours, so a room on an outline corner is snapped; only a free polygon is ignored. Zones count as neighbours too, as the block says. `snapRoomTo` (S1.22) skips a free room, dragged or as a target, and the editor's no-stitch-on-drop check for zone corners covers free rooms. `rotatePoly` normalises -0 to 0. The rotation field is a turn that resets to 0 after use; a multiple of 360 or rubbish records nothing. Added one hint beyond the block: "This room shares a corner with a neighbour. Unsnap it to rotate." shown while the field is disabled. Snap back only clears `free`; it moves nothing.
