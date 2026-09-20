@@ -921,6 +921,14 @@ config). No write ever runs on load or on save.
 - Test: `getComputedStyle` in Chromium on an unavailable device in both themes.
 - Done when: the spec and the pixel agree, whichever way it is settled.
 
+### S5.7 The viewBox leaves room for what a device paints around itself
+- Outcome: a lamp or a camera near an outer wall shows all of what it draws, not a circle cut off by the edge of the plan.
+- Note: found by the S2.8 verifier. `viewBoxFor` pads the walls' bounding box by a fixed 60 cm, but a lit lamp's aura reaches 100 cm from its centre and a camera's cone the same, so a wall-mounted sconce 20 cm inside the wall has its aura clipped (right edge at x=880 against a viewBox edge at x=860). Not new to S2.8 — the camera cone has carried the same exposure since Sprint 1 — and neither task's done-when covers it.
+- Files: `src/core/render.ts`, `tests/core/render.test.ts`.
+- Interface: the padding is the greater of 60 cm and the reach of anything a device paints around its own centre. Decide one way: a constant next to the aura and cone radii that all three read, so the three cannot drift apart again.
+- Test: a fixture with a light 20 cm inside the right wall gives a viewBox whose right edge is at or beyond the aura's right edge; the same for a camera at the top wall; a plan with no devices keeps the 60 cm padding exactly, so no existing snapshot moves.
+- Break it: a light exactly on a wall, and a plan whose only device is a light, still give a finite viewBox with the whole circle inside it.
+
 ## Later, not planned
 
 - Per-room presence heat map over a day.
