@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Opus review: Playwright never meets a stranger's server
+
+`webServer` now binds 127.0.0.1 (`--host` in `npm run dev` and in the config), `baseURL` is `http://127.0.0.1:<port>`, and `reuseExistingServer` is always false. Before, another vite on 5173 (a different project) answered on 127.0.0.1 while ours listened on localhost, and the suite ran against the wrong code. The default port is now 5273, not 5173: with `--strictPort` and 127.0.0.1, a foreign server on 5173 would make ours fail to start. `PW_PORT` still overrides. Deviation from the brief, which kept 5173.
+
 ## 2026-09-20 S1.46 and S1.48 docs: equal text outline, and what undo does
 
 The edge length label had a stroke width of 3 x zoom while every other text has 3, so at the default zoom it read 3.51. It is now 3 in the `.len` rule, the same as `.lbl`. This supersedes "its stroke width keeps scaling with the zoom" in S1.46. The PLAN S1.48 test line said one undo brings the four walls back; the walls never exist as separate steps, since a draw commits once, so one undo removes the room and no wall returns (the DECISIONS entry "Closed walls become a room" already said so).
