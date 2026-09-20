@@ -2658,3 +2658,34 @@ test("S1.28: the floor panel and the furniture panel each own their id", async (
   await expect(page.locator("#fudel")).toHaveCount(0);
   await expectDanger(page, "#fdel");
 });
+
+test("S1.29: a device standing on a room name is the top element there", async ({ page }) => {
+  const hit = await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any;
+    const lay = JSON.parse(JSON.stringify(el.layout));
+    const lbl = [...el.shadowRoot.querySelectorAll("svg text.lbl")].find((t: Element) => !t.classList.contains("zone") && t.textContent) as SVGTextElement;
+    const b = lbl.getBBox();
+    // Label centre in plan units: the svg root maps them through the viewBox, so ask the svg for the inverse.
+    const svg = lbl.ownerSVGElement!;
+    const p = svg.createSVGPoint(); p.x = b.x + b.width / 2; p.y = b.y + b.height / 2;
+    lay.floors.ground.devices[0].x = p.x; lay.floors.ground.devices[0].y = p.y;
+    lay.floors.ground.devices[0].type = "light";
+    el.layout = lay;
+    return { x: p.x, y: p.y };
+  }, EDITOR);
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+  const r = await screenOf(page, hit.x, hit.y);
+  const top = await page.evaluate(([x, y]) => {
+    const t = document.querySelector("floorplan-studio-editor")!.shadowRoot!.elementFromPoint(x, y) as Element;
+    return t.closest("[data-x]")?.getAttribute("data-x") ?? t.tagName;
+  }, [r.x, r.y]);
+  expect(top).toBe("0");
+  // Names may be click-through in the editor, so also assert the paint order in the live DOM.
+  const after = await page.evaluate(() => {
+    const root = document.querySelector("floorplan-studio-editor")!.shadowRoot!;
+    const names = [...root.querySelectorAll("svg text.lbl")].filter((t) => !t.closest("[data-x]"));
+    const dev = root.querySelector('svg g[data-x="0"]')!;
+    return names.every((n) => !!(n.compareDocumentPosition(dev) & Node.DOCUMENT_POSITION_FOLLOWING));
+  });
+  expect(after).toBe(true);
+});

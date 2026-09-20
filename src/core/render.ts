@@ -11,7 +11,7 @@ export interface RenderOpts {
 export const FLOORPLAN_CSS = `
 :host,.fp{--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94}
+--fp-tread:#8b8578;--fp-halo:#8b8578;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch. */
 .room:not([fill]){fill:var(--fp-room)} .room-garden:not([fill]){fill:var(--fp-garden)} .room-terrace:not([fill]){fill:var(--fp-terrace)} .room-pavement:not([fill]){fill:var(--fp-pavement)}
 .room.room-fill{fill:url(#fp-hatch)} .room-zone:not([fill]){fill:none} .room-water:not([fill]){fill:var(--fp-water)}
@@ -22,6 +22,7 @@ export const FLOORPLAN_CSS = `
 .door{stroke:var(--fp-door)} .door-glass{stroke:var(--fp-glass)} .door-window{stroke:var(--fp-window)} .door-sealed{stroke:var(--fp-sealed);stroke-dasharray:10 6}
 .door.open{stroke:var(--fp-open)} .door.cover-open{stroke:var(--fp-open)}
 .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-on)} .dev-contact.on path{fill:var(--fp-open)}
+.dev .halo{fill:var(--fp-halo);fill-opacity:.5}
 .dev.unavailable{opacity:.45}
 .dev-motion{--fp-fade:0} .dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-ink);paint-order:stroke;stroke:var(--fp-bg);stroke-width:3} .lbl.zone{fill:var(--fp-idle);opacity:.75}
@@ -155,6 +156,15 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 30 : 22}"><title>${esc(d.name ?? "")}</title></line>`);
   });
 
+  // Room names first, then devices: nothing may hide a device icon.
+  f.rooms.forEach((r) => {
+    if (!r.name || r.kind === "fill") return;
+    const cx = r.pts.reduce((s, p) => s + p[0], 0) / r.pts.length, cy = r.pts.reduce((s, p) => s + p[1], 0) / r.pts.length;
+    if (r.kind === "zone") { out.push(`<text class="lbl zone" x="${num(cx)}" y="${num(cy)}" text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
+    out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy)}" text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
+    if (r.label) out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy + 16 * k)}" text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`);
+  });
+
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (o.filter && o.filter !== d.type && !sel) return;
@@ -176,7 +186,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const title = `${esc(d.type)}: ${esc(label)}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
     // The group turns by `rot` about the icon's centre; the icon turns back so the glyph stays upright (only what else is drawn in the group turns).
     const rot = typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot !== 0 ? d.rot : 0;
-    const icon = `<circle cx="12" cy="12" r="13" fill="var(--fp-bg)" fill-opacity=".85"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>`;
+    const icon = `<circle class="halo" cx="12" cy="12" r="13"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>`;
     out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${bound ? " bound" : ""} ${cls}${sel ? " sel" : ""}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${title}</title>${rot ? `<g transform="rotate(${num(-rot)} 12 12)">${icon}</g>` : icon}</g>`);
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
     if ((d.type === "temp" || d.type === "humidity") && s) {
@@ -185,14 +195,6 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       out.push(`<text class="val" x="${num(c[0])}" y="${num(c[1] + 24 * k)}" text-anchor="middle" font-size="${num(11 * k)}">${bad ? "–" : esc(s.state + unit)}</text>`);
     }
     if (o.showNames || sel) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}" text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
-  });
-
-  f.rooms.forEach((r) => {
-    if (!r.name || r.kind === "fill") return;
-    const cx = r.pts.reduce((s, p) => s + p[0], 0) / r.pts.length, cy = r.pts.reduce((s, p) => s + p[1], 0) / r.pts.length;
-    if (r.kind === "zone") { out.push(`<text class="lbl zone" x="${num(cx)}" y="${num(cy)}" text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
-    out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy)}" text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
-    if (r.label) out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy + 16 * k)}" text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`);
   });
 
   if (o.editor)

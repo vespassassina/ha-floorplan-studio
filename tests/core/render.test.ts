@@ -524,3 +524,26 @@ describe("stairs treads (S1.25)", () => {
     expect(group(renderFloor(f, base)).match(/class="tread"/g)).toHaveLength(11);
   });
 });
+
+describe("devices sit on top (S1.29)", () => {
+  const html = renderFloor(ground, base);
+  it("every device group comes after the last room name", () => {
+    const lastName = html.lastIndexOf('<text class="lbl"');
+    const firstDev = html.indexOf("<g data-x=");
+    expect(lastName).toBeGreaterThan(-1);
+    expect(firstDev).toBeGreaterThan(lastName);
+  });
+  it("the halo is a class, with no inline fill", () => {
+    expect(html).toContain('<circle class="halo" cx="12" cy="12" r="13"/>');
+    expect(html).not.toContain("fill-opacity");
+    expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{fill:var\(--fp-halo\);fill-opacity:\.5\}/);
+    expect(FLOORPLAN_CSS).toContain("--fp-halo:#8b8578");
+  });
+  it("a device on a room-name spot draws after that name", () => {
+    const room = ground.rooms.find((r) => r.name && r.kind !== "fill" && r.kind !== "zone")!;
+    const cx = room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length, cy = room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length;
+    const f = { ...ground, devices: [{ id: "d", type: "light", entity: "light.x", x: cx, y: cy }] } as unknown as typeof ground;
+    const h = renderFloor(f, base);
+    expect(h.indexOf("<g data-x=")).toBeGreaterThan(h.indexOf(`>${room.name}</text>`));
+  });
+});

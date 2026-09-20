@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.29: devices paint after room names; the halo is a class
+
+Room names moved ahead of the device loop in `renderFloor`, so a device is the last thing drawn (only the editor's corner handles follow). The halo circle carries `class="halo"` and takes fill and opacity from CSS (`--fp-halo`), so Sprint 2 can recolour it with one rule. Room names are click-through in the editor, so `elementFromPoint` cannot prove the order alone; the e2e test also compares DOM order, and fails without the change. A device's own name label (shown with "names") still follows its device, as before.
+
 ## 2026-09-20 S1.28: red for what destroys the floor or the layout, orange for one item
 
 `.btn.danger` (`--fp-motion`) is on Reset, Delete floor and its confirmation; `.btn.warn` (`--fp-open`) on every Delete of a selected item, including "Delete corner" and "Remove from plan". Both also set the border to the same colour, as `.btn.primary` does. The furniture delete is `#fudel`; `#fdel` is the floor panel's alone. The tests read the computed background and text colour in Chromium, not the class name.

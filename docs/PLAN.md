@@ -405,7 +405,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass; no other test still selects `#fdel` for furniture.
 - Break it: the two `#fdel` ids no longer collide: the floor panel and the furniture panel can be open in turn without either button changing meaning.
 
-### S1.29 The device icon sits on top, in a grey circle
+### S1.29 The device icon sits on top, in a grey circle (done)
 - Outcome: no name, wall or furniture hides a device icon, and every icon has the same backing circle.
 - Files: `src/core/render.ts`, `tests/core/render.test.ts`.
 - Interface: the paint order of `renderFloor` ends with room names and *then* devices, so a device group is the last element of the plan. The circle behind each icon becomes `<circle class="halo" cx="12" cy="12" r="13"/>` with `.dev .halo{fill:var(--fp-halo);fill-opacity:.5}` and `--fp-halo` (#8b8578, grey) in `FLOORPLAN_CSS`; the `fill` and `fill-opacity` attributes leave the markup, so Sprint 2 can colour the halo from state with one CSS rule. Nothing else about the group changes: the class list, the title and the hit target `g[data-x]` stay.
