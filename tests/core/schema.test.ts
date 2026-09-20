@@ -52,6 +52,19 @@ describe("validate", () => {
     expect(errorsOf(l).join("\n")).toMatch(/duplicate device id light-living/);
   });
 
+  it("rejects a room area that is not text, and a device entity that is missing or not an entity id (Opus review)", () => {
+    for (const bad of [5, {}, [], null, true]) {
+      const l = clone(); l.floors.ground.rooms[0].area = bad;
+      expect(errorsOf(l).join("\n"), String(bad)).toMatch(/room-ground-1 area must be text/);
+    }
+    const ok = clone(); ok.floors.ground.rooms[0].area = ""; // empty is a custom shape: drawn rooms have no area
+    expect(validate(ok).ok).toBe(true);
+    for (const bad of [5, {}, "", "nodot", null, undefined]) {
+      const l = clone(); l.floors.ground.devices[0].entity = bad;
+      expect(errorsOf(l).join("\n"), String(bad)).toMatch(/entity must be an entity id/);
+    }
+  });
+
   it("rejects a door sensor that is not an entity id", () => {
     const l = clone();
     l.floors.ground.doors[0].sensor = "nodot";

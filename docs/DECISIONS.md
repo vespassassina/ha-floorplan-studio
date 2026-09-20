@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Opus review: validate checks room area and device entity; migrate rejects odd versions
+
+`validate` now requires `room.area` to be text and `device.entity` to be an entity id like the other entity fields. Deviation from the brief: an empty `area` stays valid, because the schema says empty means a custom shape and the editor makes such rooms (drawn rings, water); rejecting it would break Open and restore of the editor's own output. `migrate` reads `version` only as a number or a string of digits (as before, `"2"` passes); `true`, `null`, arrays, `""`, `"two"`, `1.5` and the like throw "Layout version must be a number". A missing version is still v1.
+
 ## 2026-09-20 Opus review: a drawn ring's kind follows its wall kinds
 
 `closedLoop` may take older walls of another kind into the ring. The room kind came from the last drawn wall while `wk` came from each wall, so a dotted chain closing over an old wall made a zone with a `wall` edge, which `validate` rejects, and `EditorState.edit` committed it. Now `roomKindFor(kinds)` in `draw.ts` derives the kind from the ring: all boundary is a zone, all fence or edge a garden, anything else a room. `wk` stays the truth. A room and a garden accept every wall kind in `wk`; only a zone is limited to boundary, so no edge needs mapping. No validate-and-rollback in `edit()`. Supersedes "Room kind follows the last wall" in "Closed walls become a room".

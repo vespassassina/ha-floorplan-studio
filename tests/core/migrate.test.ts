@@ -71,6 +71,13 @@ describe("migrate", () => {
     expect(() => migrate("x")).toThrow();
   });
 
+  it("rejects a version that is not a number or a numeric string, not reading true as 1 (Opus review)", () => {
+    for (const version of [true, false, null, [], [2], {}, "", " ", "two", "2x", "1e0", NaN, 1.5, -1])
+      expect(() => migrate({ version, floors: {} }), String(version)).toThrow(/version/i);
+    expect(() => migrate({ floors: {} })).not.toThrow(); // no version at all is v1, as before
+    expect(migrate({ version: "1", floors: {} }).version).toBe(2);
+  });
+
   it("fills missing arrays and ids in a v2 layout, and accepts version \"2\"", () => {
     const m = migrate({ version: "2", north: 0, floors: { g: { title: "G", outline: [], rooms: [{ name: "Hall", kind: "room", pts: [], w: [] }] } } });
     expect(m.floors.g.walls).toEqual([]);

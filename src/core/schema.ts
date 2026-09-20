@@ -105,6 +105,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       oneOf(`${r.id} kind`, r.kind, ROOM_KINDS);
       if (r.color !== undefined && !(typeof r.color === "string" && /^#[0-9a-fA-F]{6}$/.test(r.color)))
         errors.push(`${at} ${r.id} color must be a colour like #aabbcc`);
+      if (typeof r.area !== "string") errors.push(`${at} ${r.id} area must be text (empty for a custom shape)`);
       if (r.entity !== undefined && !isEntity(r.entity)) errors.push(`${at} ${r.id} entity must be an entity id like sensor.name`);
       if (r.free !== undefined && typeof r.free !== "boolean") errors.push(`${at} ${r.id} free must be true or false`);
       if (Array.isArray(r.pts) && r.pts.length >= 3 && (!Array.isArray(r.wk) || r.wk.length !== r.pts.length))
@@ -146,6 +147,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     each("devices", (d) => {
       oneOf(`${d.id} type`, d.type, DEVICE_TYPES);
       optText(d, "name");
+      if (!isEntity(d.entity)) errors.push(`${at} ${d.id} entity must be an entity id like light.name`);
       if (!(typeof d.x === "number" && Number.isFinite(d.x) && typeof d.y === "number" && Number.isFinite(d.y)) && !(isPt(d.a) && isPt(d.b)))
         errors.push(`${at} ${d.id} needs x and y, or a and b`);
       if (d.rot !== undefined && !(typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot >= 0 && d.rot < 360))

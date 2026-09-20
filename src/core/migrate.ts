@@ -28,7 +28,10 @@ const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" &&
 export function migrate(x: unknown): Layout {
   if (!isObj(x)) throw new Error("Not a layout: expected a JSON object");
   const src = structuredClone(x) as any;
-  const v = Number(src.version ?? 1);
+  // No version is v1. Otherwise a number, or digits in a string: Number(true) is 1 and must not pass.
+  const raw = src.version, isNum = typeof raw === "number" || (typeof raw === "string" && /^\s*\d+\s*$/.test(raw));
+  if (raw !== undefined && !isNum) throw new Error(`Layout version must be a number, got ${JSON.stringify(raw) ?? String(raw)}`);
+  const v = raw === undefined ? 1 : Number(raw);
   if (v !== 1 && v !== 2) throw new Error(`Unknown layout version ${String(src.version)}`);
 
   const floors: Record<string, any> = Object.create(null);
