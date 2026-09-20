@@ -694,11 +694,10 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private addStairs() {
     this.stopDraw();
-    const p = this.spawn(), floor = this.st.floor, t = stairsAt(p);
-    this.commit((f) => { f.stairs.push({ id: newId(f, floor, "stairs"), ...t }); });
+    const t = stairsAt(this.spawn());
+    this.st.addStairsEverywhere(t);
+    this.changed("Added stairs to every floor");
     this.ensureVisible(...t.pts);
-    this.st.sel = { t: "stairs", i: this.st.f.stairs.length - 1 };
-    this.requestUpdate();
   }
   private addFurniture(symbol: string) {
     if (!(FURNITURE_SYMBOLS as readonly string[]).includes(symbol)) return;

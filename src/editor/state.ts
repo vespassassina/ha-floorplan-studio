@@ -1,5 +1,5 @@
 import { migrate, placedEntities, unplacedCatalog, validate, viewBoxFor } from "../core";
-import type { CatalogEntry, DeviceType, Floor, Layout, Pt } from "../core";
+import type { CatalogEntry, DeviceType, Floor, Layout, Pt, Stairs } from "../core";
 
 /** localStorage key for the autosaved edit. */
 export const STORAGE_KEY = "floorplan-studio:layout";
@@ -121,6 +121,14 @@ export class EditorState {
     });
     this.floor = key; this.sel = null; this.openDoor = null; this.confirmDelete = false;
     return key;
+  }
+
+  /** Adds the same stairs to every floor, each with an id of its own, as one undo step; selects the one on the current floor. A floor that has stairs gets another: two flights are legitimate. */
+  addStairsEverywhere(t: Omit<Stairs, "id">): void {
+    this.snapshot();
+    for (const [key, fl] of Object.entries(this.layout.floors)) fl.stairs.push({ ...structuredClone(t), id: newId(fl, key, "stairs") });
+    this.sel = { t: "stairs", i: this.f.stairs.length - 1 };
+    this.confirmDelete = false;
   }
 
   /** Changes the title only; the key stays. False for an empty title, the same title or an unknown key. */

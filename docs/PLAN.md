@@ -381,7 +381,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass; the demo snapshot is updated with the tread lines; SPEC lists the fields.
 - Break it: setting the rotation of a straight stair back to 0 brings the corner handles back and they sit on the drawn corners.
 
-### S1.26 Stairs go on every floor
+### S1.26 Stairs go on every floor (done)
 - Outcome: stairs added once stand in the same place on every floor.
 - Files: `src/editor/state.ts`, `src/editor/editor-app.ts`, `tests/editor/state.test.ts`, `tests/editor/editor.spec.ts`.
 - Interface: `EditorState.addStairsEverywhere(t: { name; pts; shape; steps; rot; dia?; inner? }): void` snapshots the whole layout once, then pushes a copy into every floor with an id from `newId(floor, key, "stairs")` per floor, and selects the one on the current floor. `editor-app.ts` `addStairs` calls it instead of `commit`. Delete stays per floor: removing stairs removes them from the current floor only, and the stairs panel says so ("Stairs are added to every floor and deleted from one.").

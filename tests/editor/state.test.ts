@@ -420,3 +420,58 @@ describe("a zone corner and a room corner at one spot move apart (review S1.5, f
     expect(g.rooms[0].pts[1]).toEqual([100, 0]);
   });
 });
+
+describe("addStairsEverywhere (S1.26)", () => {
+  const three = () => {
+    const l = fresh();
+    l.floors.attic = structuredClone(l.floors.first);
+    l.floors.attic.title = "Attic";
+    return l;
+  };
+  const t = () => ({ name: "Stairs", pts: [[10, 20], [110, 20], [110, 320], [10, 320]] as [number, number][], shape: "straight" as const, steps: 12, rot: 0 });
+
+  it("puts one copy on every floor, same pts, ids of their own, in one undo step", () => {
+    const st = new EditorState(three());
+    const before = Object.values(st.layout.floors).map((f) => f.stairs.length);
+    st.addStairsEverywhere(t());
+    const floors = Object.entries(st.layout.floors);
+    expect(floors).toHaveLength(3);
+    floors.forEach(([k, f], i) => {
+      expect(f.stairs).toHaveLength(before[i] + 1);
+      const added = f.stairs[f.stairs.length - 1];
+      expect(added.pts).toEqual(t().pts);
+      expect(added.id).toBe(`stairs-${k}-${before[i] + 1}`);
+    });
+    // deep copies: moving one floor's corner moves no other floor's
+    st.layout.floors.ground.stairs[st.layout.floors.ground.stairs.length - 1].pts[0][0] = 999;
+    expect(st.layout.floors.first.stairs[0].pts[0][0]).toBe(10);
+    st.layout.floors.ground.stairs[st.layout.floors.ground.stairs.length - 1].pts[0][0] = 10;
+    expect(st.undo()).toBe(true);
+    expect(Object.values(st.layout.floors).map((f) => f.stairs.length)).toEqual(before);
+    expect(st.canUndo).toBe(false);
+  });
+
+  it("selects the new stairs on the current floor", () => {
+    const st = new EditorState(three(), "first");
+    st.addStairsEverywhere(t());
+    expect(st.sel).toEqual({ t: "stairs", i: 0 });
+    const g = new EditorState(three(), "ground");
+    g.addStairsEverywhere(t());
+    expect(g.sel).toEqual({ t: "stairs", i: 1 });
+  });
+
+  it("break it: a floor that already has stairs gets the new ones too", () => {
+    const st = new EditorState(three());
+    expect(st.layout.floors.ground.stairs).toHaveLength(1);
+    st.addStairsEverywhere(t());
+    expect(st.layout.floors.ground.stairs.map((s) => s.id)).toEqual(["stairs-ground-1", "stairs-ground-2"]);
+  });
+
+  it("keeps a round stair's diameters, and redo puts them back", () => {
+    const st = new EditorState(three());
+    st.addStairsEverywhere({ name: "Stairs", pts: t().pts, shape: "round", steps: 9, rot: 30, dia: 200, inner: 60 });
+    for (const f of Object.values(st.layout.floors)) expect(f.stairs[f.stairs.length - 1]).toMatchObject({ shape: "round", steps: 9, rot: 30, dia: 200, inner: 60 });
+    st.undo(); st.redo();
+    expect(st.layout.floors.first.stairs).toHaveLength(1);
+  });
+});

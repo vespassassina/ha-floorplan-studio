@@ -281,5 +281,6 @@ function stairsPanel(c: PanelCtx, i: number) {
     ${number("rotation (deg)", "srot", t.rot, (n) => c.commit((f) => { f.stairs[i].rot = ((n % 360) + 360) % 360; }))}
     ${round ? html`${number("outer diameter (cm)", "sdia", t.dia ?? 0, setDia)}${number("inner diameter (cm)", "sinner", t.inner ?? 0, setInner)}` : nothing}
     <p>${button("sdel", "Delete", () => { c.commit((f) => { f.stairs.splice(i, 1); }); c.select(null); })}</p>
+    ${hint("Stairs are added to every floor and deleted from one.")}
     ${hint(round ? "Drag it to move it. Set the diameters and the rotation here." : "Drag a corner to reshape. Click an edge to add a point in the middle. A rotated flight has no corner handles: set the rotation to 0 to reshape it.")}`;
 }

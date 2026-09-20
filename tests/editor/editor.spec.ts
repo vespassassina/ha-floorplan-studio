@@ -420,7 +420,7 @@ test("Delete removes selected stairs; nothing selected is a no-op with no undo s
   await expect(stairsCount(page)).toHaveCount(0);
 });
 
-test("two stairs get distinct ids after one is deleted and another added; a floor with none takes the first id", async ({ page }) => {
+test("two stairs get distinct ids after one is deleted and another added; every floor got its own ids (S1.26)", async ({ page }) => {
   await addStairs(page);
   await addStairs(page);
   expect((await groundOf(page)).stairs.map((s) => s.id)).toEqual(["stairs-ground-1", "stairs-ground-2", "stairs-ground-3"]);
@@ -428,12 +428,12 @@ test("two stairs get distinct ids after one is deleted and another added; a floo
   await addStairs(page);
   const ids = (await groundOf(page)).stairs.map((s) => s.id);
   expect(new Set(ids).size).toBe(ids.length);
-  // the upper floor has an empty stairs array
+  // the upper floor had none: it got the three adds, and the delete touched the ground floor only
   await page.locator('.chip[data-f="first"]').click();
-  await expect(stairsCount(page)).toHaveCount(0);
+  await expect(stairsCount(page)).toHaveCount(3);
   await addStairs(page);
-  await expect(stairsCount(page)).toHaveCount(1);
-  expect((await layoutOf(page)).floors.first.stairs[0].id).toBe("stairs-first-1");
+  await expect(stairsCount(page)).toHaveCount(4);
+  expect((await layoutOf(page)).floors.first.stairs.map((t) => t.id)).toEqual(["stairs-first-1", "stairs-first-2", "stairs-first-3", "stairs-first-4"]);
   await savedValid(page);
 });
 
@@ -2522,4 +2522,48 @@ test("stairs: steps take a whole number from 2 to 40 and rubbish changes nothing
   const before = await groundOf(page);
   for (const v of ["1", "41", "3.5", ""]) await setField(page, "#sst", v);
   expect(await groundOf(page)).toEqual(before);
+});
+
+// ---- stairs go on every floor (S1.26) ----------------------------------------
+
+test("Add, Stairs puts the same stairs on every floor; Delete removes them from one floor only", async ({ page }) => {
+  const before = await layoutOf(page);
+  expect(before.floors.first.stairs).toHaveLength(0);
+  await addStairs(page);
+  const l = await layoutOf(page);
+  const g = l.floors.ground.stairs[1], u = l.floors.first.stairs;
+  expect(u).toHaveLength(1);
+  expect(u[0].pts).toEqual(g.pts);
+  expect(u[0].id).toBe("stairs-first-1");
+  await expect(page.locator("#status")).toHaveText("Added stairs to every floor");
+  await expect(page.locator("#sn")).toBeVisible();
+  await expect(page.locator("#sdel").locator("xpath=following::p[contains(@class,'hint')][1]")).toContainText("added to every floor and deleted from one");
+  // one undo step for all floors
+  await menu(page, "File");
+  await expect(page.locator("#undo")).toBeEnabled();
+  await menu(page, "File");
+  // on the first floor by a real click on the stairs' body, then delete: the ground floor keeps its own
+  await page.locator('.chip[data-f="first"]').click();
+  await expect(stairsCount(page)).toHaveCount(1);
+  // this floor's view was fitted to its outline, so the stairs beside the house are off screen: zoom out until they show
+  const mid = await screenOf(page, 400, 300);
+  await page.mouse.move(mid.x, mid.y);
+  for (let n = 0; n < 3; n++) await page.mouse.wheel(0, 300);
+  expect(await inCanvas(page, 'g[data-s="0"]')).toBe(true);
+  const c = await screenOf(page, g.pts[0][0] + 50, g.pts[0][1] + 60);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#sn")).toBeVisible();
+  await page.locator("#sdel").click();
+  await expect(stairsCount(page)).toHaveCount(0);
+  await page.locator('.chip[data-f="ground"]').click();
+  await expect(stairsCount(page)).toHaveCount(2);
+  const after = await layoutOf(page);
+  expect(after.floors.first.stairs).toHaveLength(0);
+  expect(after.floors.ground.stairs).toHaveLength(2);
+  // Undo the delete, then Undo the add: every floor is back to what it was
+  await menu(page, "File"); await page.locator("#undo").click();
+  await menu(page, "File"); await page.locator("#undo").click();
+  const back = await layoutOf(page);
+  expect(back.floors.ground.stairs).toEqual(before.floors.ground.stairs);
+  expect(back.floors.first.stairs).toEqual([]);
 });
