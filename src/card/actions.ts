@@ -31,22 +31,29 @@ export interface DeviceActionsHost extends EventTarget {
  * `closest("g[data-x], line[data-d]")` (CLAUDE.md finding 3) rather than trusting `e.target` itself. One gesture
  * implementation serves both, so devices and doors never drift apart.
  *
- * A door with a `cover` but no `sensor` fires nothing yet: S2.7 adds the confirm dialog for it. A camera or a
- * media player has no toggle: a tap on either opens more-info at once, the same as a sensor door (S2.5).
+ * A door with a `cover` opens the confirm dialog through `openCoverDialog` (S2.7) instead of firing more-info,
+ * even when the same door also carries a `sensor` — the dialog is the one behaviour a door with both resolves
+ * to, since it is the only gesture here that acts on the real home, and the sensor's own state is still visible
+ * on the door line itself (the `open`/`cover-open` classes render.ts already draws) without also needing
+ * more-info. A camera or a media player has no toggle: a tap on either opens more-info at once, the same as a
+ * sensor door (S2.5).
  *
  * No debounce: each pointerdown/pointerup pair is independent, so two quick taps toggle twice, not once
- * (S2.2 "Break it").
+ * (S2.2 "Break it"). `openCoverDialog` itself is responsible for ignoring a second call while its dialog is
+ * still open (S2.7 "Break it") — this function fires it on every completed tap regardless.
  */
 export function bindDeviceActions(
   svg: SVGSVGElement,
   host: DeviceActionsHost,
   getDevice: (index: number) => Device | undefined,
   getDoor?: (index: number) => Door | undefined,
+  openCoverDialog?: (door: Door) => void,
 ): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let held = false;
   let entityId: string | null = null;
-  let action: "toggle" | "more-info" | null = null;
+  let action: "toggle" | "more-info" | "cover-dialog" | null = null;
+  let coverDoor: Door | null = null;
 
   const clearTimer = () => {
     if (timer !== null) {
@@ -60,6 +67,7 @@ export function bindDeviceActions(
     held = false;
     entityId = null;
     action = null;
+    coverDoor = null;
   };
 
   const onDown = (e: Event) => {
@@ -69,7 +77,15 @@ export function bindDeviceActions(
     if (target.tagName === "line") {
       const i = Number(target.getAttribute("data-d"));
       const door = Number.isFinite(i) ? getDoor?.(i) : undefined;
-      if (!door?.sensor) return; // no sensor: nothing to open more-info for yet (a cover-only door is S2.7)
+      if (door?.cover) {
+        // Dialog wins on tap: see the function doc above for why a door with both sensor and cover goes here.
+        held = false;
+        coverDoor = door;
+        action = "cover-dialog";
+        clearTimer();
+        return;
+      }
+      if (!door?.sensor) return; // neither sensor nor cover: nothing to do
       held = false;
       entityId = door.sensor;
       action = "more-info";
@@ -102,15 +118,17 @@ export function bindDeviceActions(
   };
 
   const onUp = () => {
-    const wasHeld = held, id = entityId, act = action;
+    const wasHeld = held, id = entityId, act = action, door = coverDoor;
     clearTimer();
-    if (!wasHeld && id) {
-      if (act === "toggle") toggleEntity(host.hass, id);
-      else if (act === "more-info") fireEvent(host, "hass-more-info", { entityId: id });
+    if (!wasHeld) {
+      if (act === "toggle" && id) toggleEntity(host.hass, id);
+      else if (act === "more-info" && id) fireEvent(host, "hass-more-info", { entityId: id });
+      else if (act === "cover-dialog" && door) openCoverDialog?.(door);
     }
     held = false;
     entityId = null;
     action = null;
+    coverDoor = null;
   };
 
   svg.addEventListener("pointerdown", onDown);

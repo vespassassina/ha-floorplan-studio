@@ -229,18 +229,26 @@ describe("actions: bindDeviceActions on camera and media (S2.5)", () => {
   });
 });
 
+const SENSOR_AND_COVER_DOOR: Door = {
+  id: "d3", name: "Back door", kind: "door", a: [0, 200], b: [100, 200],
+  sensor: "binary_sensor.demo_back_door", cover: "cover.demo_back_door",
+};
+
 describe("actions: bindDeviceActions on doors (S2.3)", () => {
   let callService: ReturnType<typeof vi.fn>;
   let host: { hass: Hass } & EventTarget;
   let svg: SVGSVGElement;
   let unbind: () => void;
+  let openCoverDialog: ReturnType<typeof vi.fn>;
+  const DOORS = [SENSOR_DOOR, COVER_DOOR, SENSOR_AND_COVER_DOOR];
 
   beforeEach(() => {
     vi.useFakeTimers();
     callService = vi.fn();
-    svg = doorSvgFixture([SENSOR_DOOR, COVER_DOOR]);
+    openCoverDialog = vi.fn();
+    svg = doorSvgFixture(DOORS);
     host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    unbind = bindDeviceActions(svg, host, () => undefined, (i) => [SENSOR_DOOR, COVER_DOOR][i]);
+    unbind = bindDeviceActions(svg, host, () => undefined, (i) => DOORS[i], openCoverDialog);
   });
 
   afterEach(() => {
@@ -272,15 +280,38 @@ describe("actions: bindDeviceActions on doors (S2.3)", () => {
     expect(moreInfo).toHaveBeenCalledTimes(1);
   });
 
-  it("a door with a cover but no sensor fires nothing yet (S2.7 will add the confirm dialog)", () => {
+  it("S2.7: a tap on a door with a cover calls openCoverDialog with that door, not more-info or a toggle", () => {
     const line = svg.querySelector('[data-d="1"]')!;
     const moreInfo = vi.fn();
     host.addEventListener("hass-more-info", moreInfo);
     pointer(line, "pointerdown");
     vi.advanceTimersByTime(50);
     pointer(line, "pointerup");
+    expect(openCoverDialog).toHaveBeenCalledTimes(1);
+    expect(openCoverDialog).toHaveBeenCalledWith(COVER_DOOR);
     expect(moreInfo).not.toHaveBeenCalled();
     expect(callService).not.toHaveBeenCalled();
+  });
+
+  it("S2.7: a door with both a sensor and a cover resolves to the dialog, not more-info (dialog wins on tap)", () => {
+    const line = svg.querySelector('[data-d="2"]')!;
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    pointer(line, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(line, "pointerup");
+    expect(openCoverDialog).toHaveBeenCalledTimes(1);
+    expect(openCoverDialog).toHaveBeenCalledWith(SENSOR_AND_COVER_DOOR);
+    expect(moreInfo).not.toHaveBeenCalled();
+  });
+
+  it("S2.7: pointercancel abandons a cover door tap: openCoverDialog is not called", () => {
+    const line = svg.querySelector('[data-d="1"]')!;
+    pointer(line, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(line, "pointercancel");
+    pointer(line, "pointerup");
+    expect(openCoverDialog).not.toHaveBeenCalled();
   });
 
   it("pointercancel abandons a door tap: no more-info", () => {

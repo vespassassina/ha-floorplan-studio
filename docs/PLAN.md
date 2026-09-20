@@ -720,7 +720,7 @@ pressed state.
 - Break it: a device outside every room glows nothing and throws nothing.
 - Note: unavailable was already built by S2.2/S2.3/S2.5's `classOf` (the `unavailable` class on `.dev`); this task added coverage but no new code for it. `renderFloor` still uses `opacity:.45`, not a literal strike-through, for that class — an undocumented choice already in place before this task, out of scope to change here.
 
-### S2.7 Covers on doors
+### S2.7 Covers on doors (done)
 - Outcome: a door with `cover` opens after a confirm dialog.
 - Interface: tap on such a door → in-card dialog "Open <name>?" with Cancel / Open; Open calls `cover.open_cover` (or `close_cover` if `state === "open"`). Door line class `cover-open` when the cover is open.
 - Test: tap → dialog text; Open → `callService("cover", "open_cover", { entity_id })`; Cancel → no call.

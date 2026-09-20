@@ -546,6 +546,155 @@ describe("FloorplanStudioCard", () => {
     });
   });
 
+  describe("S2.7: covers on doors", () => {
+    const garageIndex = L.floors.ground.doors.findIndex((d) => d.id === "door-ground-3");
+    const garageEntity = "cover.demo_garage_door";
+    const garageName = L.floors.ground.doors.find((d) => d.id === "door-ground-3")!.name;
+
+    function tap(el: FloorplanStudioCard, index: number) {
+      const line = el.shadowRoot!.querySelector(`svg line[data-d="${index}"]`)!;
+      line.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      line.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    }
+
+    function dialogText(el: FloorplanStudioCard): string | null {
+      return el.shadowRoot!.querySelector(".fp-dialog p")?.textContent ?? null;
+    }
+
+    it("a tap on a door with a cover opens an in-card dialog reading \"Open <name>?\"", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ [garageEntity]: st("closed") }) as never;
+      await el.updateComplete;
+      expect(dialogText(el)).toBeNull(); // nothing shown before the tap
+
+      tap(el, garageIndex);
+      await el.updateComplete;
+      expect(dialogText(el)).toBe(`Open ${garageName}?`);
+      expect(el.shadowRoot!.querySelector(".fp-dialog")!.closest("svg")).toBeNull(); // card chrome, not plan content
+    });
+
+    it("Open calls callService(\"cover\", \"open_cover\", { entity_id }) when the cover is not open", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      const callService = vi.fn();
+      el.hass = { ...stubHass({ [garageEntity]: st("closed") }), callService } as never;
+      await el.updateComplete;
+
+      tap(el, garageIndex);
+      await el.updateComplete;
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.confirm")!.click();
+      await el.updateComplete;
+      expect(callService).toHaveBeenCalledTimes(1);
+      expect(callService).toHaveBeenCalledWith("cover", "open_cover", { entity_id: garageEntity });
+      expect(dialogText(el)).toBeNull(); // dialog closes after acting
+    });
+
+    it("Open calls close_cover instead when the cover's state is already \"open\"", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      const callService = vi.fn();
+      el.hass = { ...stubHass({ [garageEntity]: st("open") }), callService } as never;
+      await el.updateComplete;
+
+      tap(el, garageIndex);
+      await el.updateComplete;
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.confirm")!.click();
+      expect(callService).toHaveBeenCalledTimes(1);
+      expect(callService).toHaveBeenCalledWith("cover", "close_cover", { entity_id: garageEntity });
+    });
+
+    it("Cancel calls no service and closes the dialog", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      const callService = vi.fn();
+      el.hass = { ...stubHass({ [garageEntity]: st("closed") }), callService } as never;
+      await el.updateComplete;
+
+      tap(el, garageIndex);
+      await el.updateComplete;
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.cancel")!.click();
+      await el.updateComplete;
+      expect(callService).not.toHaveBeenCalled();
+      expect(dialogText(el)).toBeNull();
+    });
+
+    it("Break it: a second tap while the dialog is open does not open a second dialog", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ [garageEntity]: st("closed") }) as never;
+      await el.updateComplete;
+
+      tap(el, garageIndex);
+      await el.updateComplete;
+      tap(el, garageIndex);
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelectorAll(".fp-dialog")).toHaveLength(1);
+    });
+
+    it("Escape cancels: closes the dialog and calls no service", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      const callService = vi.fn();
+      el.hass = { ...stubHass({ [garageEntity]: st("closed") }), callService } as never;
+      await el.updateComplete;
+
+      tap(el, garageIndex);
+      await el.updateComplete;
+      el.shadowRoot!.querySelector(".fp-dialog-backdrop")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true }));
+      await el.updateComplete;
+      expect(callService).not.toHaveBeenCalled();
+      expect(dialogText(el)).toBeNull();
+    });
+
+    it("Cancel is the default focused action, not Open, and focus is trapped inside the dialog while it is open", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ [garageEntity]: st("closed") }) as never;
+      await el.updateComplete;
+
+      tap(el, garageIndex);
+      await el.updateComplete;
+      const cancelBtn = el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.cancel")!;
+      const confirmBtn = el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.confirm")!;
+      expect(el.shadowRoot!.activeElement).toBe(cancelBtn);
+
+      // Tab from the last control (Open) wraps back to the first (Cancel), not out of the dialog.
+      confirmBtn.focus();
+      el.shadowRoot!.querySelector(".fp-dialog-backdrop")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, composed: true }));
+      expect(el.shadowRoot!.activeElement).toBe(cancelBtn);
+    });
+
+    it("focus returns to the card after the dialog closes", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ [garageEntity]: st("closed") }) as never;
+      await el.updateComplete;
+
+      tap(el, garageIndex);
+      await el.updateComplete;
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.cancel")!.click();
+      await el.updateComplete;
+      // the svg (the plan itself) or the card is focused again; focus does not fall back to <body>.
+      expect(document.activeElement).toBe(el);
+    });
+
+    it("a cover entity missing from hass.states still opens the dialog and Open calls open_cover, throwing nothing", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      const callService = vi.fn();
+      el.hass = { ...stubHass(), callService } as never; // no cover.demo_garage_door entry at all
+      await el.updateComplete;
+
+      expect(() => tap(el, garageIndex)).not.toThrow();
+      await el.updateComplete;
+      expect(dialogText(el)).toBe(`Open ${garageName}?`);
+
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.confirm")!.click();
+      expect(callService).toHaveBeenCalledWith("cover", "open_cover", { entity_id: garageEntity });
+    });
+  });
+
   it("getStubConfig returns a usable default config", () => {
     const stub = FloorplanStudioCard.getStubConfig();
     expect(stub).toEqual({ type: "custom:floorplan-studio-card" });

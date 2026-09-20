@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 task/S2.7: a cover that is `opening`, `closing`, `unknown`, `unavailable` or missing from `hass.states` still opens the dialog, and Open still calls `open_cover`
+
+The PLAN block's interface line is literal: "Open calls `cover.open_cover` (or `close_cover` if
+`state === "open"`)". It names one state, `open`, that flips the service; it says nothing about a
+cover mid-motion. Two readings were possible: gate the tap so a moving cover cannot be tapped at
+all, or leave the tap open and let the one comparison already in the interface decide the service
+for every other state. The second is what got built, for three reasons: it needs no new state
+machine (KISS, CLAUDE.md finding 8's spirit applied to logic, not only markup); it matches finding
+1 (untrusted `hass`, never throw) without a special case for `opening`/`closing`; and pressing Open
+on a door that is already opening or closing calling `open_cover` again is a same-direction repeat
+call to Home Assistant, not a wrong one — a cover mid-open told to open again does not reverse.
+`state === "open"` is the only state that must flip to `close_cover`, so it is the only one checked.
+The dialog's own text stays literally "Open `<name>`?" in every case, as the block says, even when
+the door line does not carry `cover-open` because the cover has not finished opening yet.
+
 ## 2026-09-20 task/S2.4: the suite was red and undetected; two agents' exit codes were `tail`'s, not vitest's
 
 `npm test` on `task/S2.4` exited 1: 559 tests passed, then two unhandled

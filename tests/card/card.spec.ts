@@ -169,6 +169,85 @@ const lum = (rgb: number[]) => { const [r, g, b] = rgb.map((v) => { const c = v 
 const ratio = (a: number[], b: number[]) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
 const rgbOf = (css: string) => (css.match(/\d+/g) ?? []).slice(0, 3).map(Number);
 
+// S2.7: a tap on a door with a cover must hit the real `<line data-d>` at its actual screen coordinates
+// (CLAUDE.md finding 3: a Playwright test that dispatches events on the wrong element passed while the real
+// click was broken), and the dialog's presence, focus and cascade are read for real in Chromium (finding 10),
+// never asserted from markup or CSS text alone.
+const GARAGE_DOOR_INDEX = 2; // demo/layout.json: floors.ground.doors[2], "Garage door", cover only, no sensor
+
+/** Configures the card with a `callService` that records every call onto `window.__calls` in the page, since a
+ * function cannot cross `page.evaluate`'s own serialization boundary — the calls are read back afterwards. */
+async function configureWithCallServiceSpy(page: Page, config: Record<string, unknown>, states: Record<string, unknown>) {
+  await page.evaluate(
+    ([config, states]) => {
+      (window as unknown as { __calls: unknown[] }).__calls = [];
+      const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+      el.setConfig(config);
+      el.hass = {
+        states,
+        callService: (...args: unknown[]) => (window as unknown as { __calls: unknown[] }).__calls.push(args),
+      };
+      return el.updateComplete;
+    },
+    [config, states] as const,
+  );
+}
+
+async function tapDoor(page: Page, index: number) {
+  const line = page.locator("floorplan-studio-card").locator(`css=line[data-d="${index}"]`);
+  await line.scrollIntoViewIfNeeded(); // the demo's garage door sits below the fold at the default viewport size
+  const box = (await line.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+}
+
+test("S2.7: a tap on the garage door's cover opens a real, visible dialog with Cancel focused by default", async ({ page }) => {
+  await open(page);
+  await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+
+  await tapDoor(page, GARAGE_DOOR_INDEX);
+
+  const card = page.locator("floorplan-studio-card");
+  await expect(card.locator("css=.fp-dialog p")).toHaveText("Open Garage door?");
+  const display = await card.evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector(".fp-dialog-backdrop")!).display);
+  expect(display).toBe("flex"); // really laid out and visible, not just present in the DOM
+
+  const activeIsCancel = await card.evaluate((el) => el.shadowRoot!.activeElement === el.shadowRoot!.querySelector(".fp-dialog button.cancel"));
+  expect(activeIsCancel).toBe(true); // Cancel is the default focused action, not Open
+});
+
+test("S2.7: Open calls cover.open_cover with the door's entity_id, and the dialog closes", async ({ page }) => {
+  await open(page);
+  await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+
+  await tapDoor(page, GARAGE_DOOR_INDEX);
+  await page.locator("floorplan-studio-card").locator("css=.fp-dialog button.confirm").click();
+
+  const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+  expect(calls).toEqual([["cover", "open_cover", { entity_id: "cover.demo_garage_door" }]]);
+  await expect(page.locator("floorplan-studio-card").locator("css=.fp-dialog")).toHaveCount(0);
+});
+
+test("S2.7: Cancel calls no service", async ({ page }) => {
+  await open(page);
+  await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+
+  await tapDoor(page, GARAGE_DOOR_INDEX);
+  await page.locator("floorplan-studio-card").locator("css=.fp-dialog button.cancel").click();
+
+  const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+  expect(calls).toEqual([]);
+});
+
+test("S2.7 Break it: a second tap on the door while the dialog is open does not open a second dialog", async ({ page }) => {
+  await open(page);
+  await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+
+  await tapDoor(page, GARAGE_DOOR_INDEX);
+  await tapDoor(page, GARAGE_DOOR_INDEX);
+
+  await expect(page.locator("floorplan-studio-card").locator("css=.fp-dialog")).toHaveCount(1);
+});
+
 test("S2.6: floor chips are real, keyboard-reachable buttons outside the <svg>, at least 4.5:1 in both states", async ({ page }) => {
   await open(page);
   await configure(page, { layout: structuredClone(demo), floor: "all" }, { states: {} });

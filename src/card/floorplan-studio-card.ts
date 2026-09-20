@@ -1,7 +1,7 @@
 import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, migrate, planPivot, renderFloor, validate, viewBoxFor } from "../core";
-import type { Floor, Layout } from "../core";
+import type { Door, Floor, Layout } from "../core";
 import { bindDeviceActions } from "./actions";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
@@ -44,6 +44,14 @@ export class FloorplanStudioCard extends LitElement {
        aria-pressed, not by this colour alone (CLAUDE.md finding: a toggle must not state its direction twice —
        one attribute serves both the visual state and the accessible one, no added "(current)" text). */
     .fp-floors button[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); }
+    /* S2.7: the cover confirm dialog is card chrome too (same reasoning as .fp-floors above) — it acts on the
+       real home, so it sits over the whole card, not only the plan. */
+    .fp-dialog-backdrop { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.35); }
+    .fp-dialog { background: var(--fp-room); color: var(--fp-ink); border-radius: 8px; padding: 16px 20px; min-width: 200px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); }
+    .fp-dialog p { margin: 0 0 14px; font: 14px/1.3 system-ui, sans-serif; }
+    .fp-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .fp-dialog-actions button { font: 13px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 6px 14px; cursor: pointer; }
+    .fp-dialog-actions button.confirm { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); }
   `];
 
   private _config: FloorplanStudioCardConfig = {};
@@ -68,9 +76,25 @@ export class FloorplanStudioCard extends LitElement {
    * fall back to the layout's first floor when this is unset, stale (the layout changed) or names a floor that
    * no longer exists. */
   private _shownFloor: string | null = null;
+  /** S2.7: the door whose cover confirm dialog is open, or `null` for none. Only `_openCoverDialog` sets it, and
+   * only when it is already `null` — a second tap while the dialog is open (CLAUDE.md-style "Break it") must not
+   * replace it with a different door or stack a second dialog. */
+  private _coverDialog: Door | null = null;
+  /** Tracks whether the dialog was open on the *previous* render, so `updated()` moves focus into it exactly once
+   * per open (not on every unrelated re-render while it stays open) and back out exactly once per close. */
+  private _coverDialogWasOpen = false;
 
   static getStubConfig(): FloorplanStudioCardConfig {
     return { type: "custom:floorplan-studio-card" };
+  }
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    // S2.7: programmatically focusable (not in the tab order) so the card itself can take focus back after the
+    // cover dialog closes, without adding a stop no keyboard user would otherwise want. Set here, not in the
+    // constructor: the custom element spec forbids gaining attributes during construction (jsdom enforces this
+    // and throws NotSupportedError; a real browser is more forgiving, but this is the correct place regardless).
+    if (!this.hasAttribute("tabindex")) this.tabIndex = -1;
   }
 
   setConfig(config: FloorplanStudioCardConfig): void {
@@ -287,10 +311,73 @@ export class FloorplanStudioCard extends LitElement {
       // once per element, not once per render, avoids piling up duplicate listeners (S2.2 "Break it": no
       // debounce, but also no double-firing from a stale second listener).
       this._unbindActions?.();
-      this._unbindActions = svg ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i]) : null;
+      this._unbindActions = svg
+        ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], (door) => this._openCoverDialog(door))
+        : null;
       this._actionsSvg = svg;
     }
+
+    // S2.7: move focus into the dialog the moment it appears (Cancel, the default action, not Open) and back to
+    // the card itself the moment it is gone, at most once per open/close — a later re-render while it stays open
+    // (a hass update arriving mid-dialog) must not steal focus back from wherever the person has since tabbed to.
+    // A door line is not a focusable element (no tabindex, no keyboard trigger of its own — the dialog only ever
+    // opens from a pointer tap), so the card itself, not the door, is what focus returns to.
+    const dialogOpen = this._coverDialog !== null;
+    if (dialogOpen && !this._coverDialogWasOpen) {
+      this.shadowRoot?.querySelector<HTMLButtonElement>(".fp-dialog button.cancel")?.focus();
+    } else if (!dialogOpen && this._coverDialogWasOpen) {
+      this.focus();
+    }
+    this._coverDialogWasOpen = dialogOpen;
   }
+
+  /**
+   * S2.7: opens the cover confirm dialog for `door`, unless one is already open — a second tap while the dialog
+   * is shown (a door re-tapped, or another cover door tapped through the dialog's own backdrop) does not open a
+   * second one or swap which door it acts on ("Break it" in the PLAN block).
+   */
+  private _openCoverDialog(door: Door): void {
+    if (this._coverDialog) return;
+    this._coverDialog = door;
+    this.requestUpdate();
+  }
+
+  private _closeCoverDialog(): void {
+    this._coverDialog = null;
+    this.requestUpdate();
+  }
+
+  /** Reads the cover's live state at the moment Open is pressed, not a snapshot taken when the dialog opened, so a
+   * cover that changed state while the dialog was up (another user, an automation) still gets the right service. A
+   * cover missing from `hass.states`, or `unknown`/`unavailable`/`opening`/`closing`, is anything other than
+   * `"open"`, so it opens rather than closes — see docs/DECISIONS.md for why that is the sane default here. */
+  private _confirmCoverDialog(): void {
+    const door = this._coverDialog;
+    if (door?.cover) {
+      const state = this._hass?.states[door.cover]?.state;
+      const service = state === "open" ? "close_cover" : "open_cover";
+      this._hass?.callService?.("cover", service, { entity_id: door.cover });
+    }
+    this._closeCoverDialog();
+  }
+
+  /** Escape cancels; Tab/Shift+Tab cycle only between the dialog's own two buttons, so focus never escapes it into
+   * the rest of the card while it is open. */
+  private _onDialogKeydown = (e: KeyboardEvent): void => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      this._closeCoverDialog();
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const root = this.shadowRoot;
+    const buttons = root ? [...root.querySelectorAll<HTMLButtonElement>(".fp-dialog-actions button")] : [];
+    if (buttons.length < 2) return;
+    const first = buttons[0]!, last = buttons[buttons.length - 1]!;
+    const active = root?.activeElement;
+    if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+  };
 
   /** S2.6: `floor: "all"`'s chips, one per floor, or `null` for anything else. Card chrome (like the no-layout
    * message): drawn outside the `<svg>` renderFloor returns, never inside the plan it draws (CLAUDE.md finding 8,
@@ -319,7 +406,26 @@ export class FloorplanStudioCard extends LitElement {
       theme: this._theme(),
       rotate,
     });
-    return html`${this._floorChips()}<svg viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>`;
+    return html`${this._floorChips()}<svg viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._coverDialogTemplate()}`;
+  }
+
+  /** S2.7: the cover confirm dialog, or `null` when none is open. Card chrome (like `_floorChips` above): outside
+   * the `<svg>` renderFloor draws, never inside it (CLAUDE.md finding 8). `lit-html`'s own text-node escaping
+   * handles the door's `name` safely, the same guarantee `esc()` gives core's hand-built SVG strings (finding 2). */
+  private _coverDialogTemplate() {
+    const door = this._coverDialog;
+    if (!door) return null;
+    return html`
+      <div class="fp-dialog-backdrop" @keydown=${this._onDialogKeydown}>
+        <div class="fp-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-dialog-title">
+          <p id="fp-dialog-title">Open ${door.name}?</p>
+          <div class="fp-dialog-actions">
+            <button type="button" class="cancel" @click=${() => this._closeCoverDialog()}>Cancel</button>
+            <button type="button" class="confirm" @click=${() => this._confirmCoverDialog()}>Open</button>
+          </div>
+        </div>
+      </div>
+    `;
   }
 }
 
