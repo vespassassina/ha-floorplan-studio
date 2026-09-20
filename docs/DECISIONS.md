@@ -2,6 +2,45 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 task/S2.4: the suite was red and undetected; two agents' exit codes were `tail`'s, not vitest's
+
+`npm test` on `task/S2.4` exited 1: 559 tests passed, then two unhandled
+`ReferenceError: clearInterval is not defined`, raised inside jsdom's
+custom-element `disconnectedCallback` reaction when `afterEach` clears
+`document.body.innerHTML` while a card's motion-fade timer is still live.
+Two separate agents reported this suite green anyway, because both ran
+`npm test | tail; echo $?` — `$?` after a pipeline is the last command's exit
+code, `tail`'s, always 0, never vitest's.
+
+Two real bugs, not one:
+
+1. `src/card/floorplan-studio-card.ts` used the bare `setInterval`/
+   `clearInterval` identifiers, which can fail to resolve depending on the
+   realm jsdom runs a custom-element reaction in. Fixed by calling
+   `globalThis.setInterval`/`globalThis.clearInterval` explicitly.
+2. That alone turned the crash into `TypeError: globalThis.clearInterval is
+   not a function`, still red. `tests/card/card.test.ts` spies on
+   `globalThis.setInterval`/`clearInterval` inside `vi.useFakeTimers()`
+   blocks and never restored the spies before `vi.useRealTimers()`.
+   `@sinonjs/fake-timers`' `uninstall()` only restores the real timers when
+   it finds its own fake function still in place; wrapped by a leaked spy,
+   it silently `delete`s the global instead, leaving `clearInterval`
+   undefined for the rest of the file. Fixed by calling
+   `vi.restoreAllMocks()` before `vi.useRealTimers()` in both `afterEach`
+   hooks.
+
+A review also showed the suite gives no signal at all if `_stopTimer()` is
+deleted from `disconnectedCallback` — a real leaked timer was invisible,
+since no test removed a card from the DOM while its fade timer was running.
+Added one (`tests/card/card.test.ts`, "Break it: stops the interval and
+renders no more when the card is removed from the DOM mid-fade"), confirmed
+to fail with the call removed, in a throwaway worktree.
+
+What changed so this can't repeat the same way: CLAUDE.md finding 14 and
+`docs/WORKFLOW.md` Verify step 7 now say to run every command bare and read
+`$?` on its own line, never `cmd | tail; echo $?`, and to use
+`${PIPESTATUS[0]}` or a log file when the output must be paged.
+
 ## 2026-09-20 S2.2 review: a light's colour and brightness are drawn by `renderFloor`, not painted onto the DOM by the card
 
 S2.2's PLAN block names only the card, `actions.ts` and `actions.test.ts` as files. An Opus

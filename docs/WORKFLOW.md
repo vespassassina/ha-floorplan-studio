@@ -72,8 +72,9 @@ Steps:
 6. To prove a test fails without its feature, revert the source file in a
    throwaway worktree (`git worktree add /tmp/wt`), not by reverting the
    commit: in a stack of branches the commits conflict. Remove it after.
-7. Check the exit code of every command. `tail` and `grep` hide a failure; an
-   agent once committed with lint and two tests red because of that.
+7. Check the exit code of every command: run it bare and read `$?` on its own
+   line, never `cmd | tail; echo $?` (that reports `tail`'s exit code, not
+   the command's — see CLAUDE.md finding 14).
 8. Verdict: PASS only if every "Done when" line is true and all suites are
    green. Otherwise FAIL with the first failing line quoted.
 

@@ -77,8 +77,14 @@ Each of these was a real defect. Do not repeat them.
     five because `onFocusOut` queued a clear that wiped a newer selection.
     Never add a wait or a retry; find the race. Run a new Playwright test
     with `--repeat-each=10` before you commit it.
-14. **Check the exit code.** `tail` and `grep` on a log hide a failure. One
-    task was committed with lint and two Playwright tests red that way.
+14. **Run the command bare; read `$?` on its own line.** Never
+    `cmd | tail; echo $?` or `cmd | grep ...; echo $?` — that `$?` is `tail`'s
+    or `grep`'s exit code, not the command's, and it is almost always 0. If
+    you must page the output, read `${PIPESTATUS[0]}` instead, or write the
+    log to a file and check the status separately. On 2026-09-20 two agents
+    reported `npm test` green on `task/S2.4` this way while it exited 1 with
+    two unhandled errors; a verifier reproduced the same mistake on itself
+    before catching it.
 
 ## Domain notes
 
