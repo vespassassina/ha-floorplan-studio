@@ -2,6 +2,38 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 task/S2.9: media and cover get an active colour, and every type must have one
+
+The S2.9 verifier found that `media`, `cover` and `other` had no
+`.dev-<type>.on` rule, so they fell through the catch-all and read idle grey
+when active, while the behaviours table promised a media player an accent when
+playing. Grey by omission and grey on purpose look identical on screen, which
+is how three types went undecided through a task whose done-when is "one row
+per type with its colour".
+
+`media` takes `--fp-dev-media` (#2c7fb8), the same blue as `tv` — it is the
+same thing to a reader glancing at the plan, and a separate token means the
+two can part company later without a second edit. `cover` takes
+`--fp-dev-cover` (#f28c28), the orange a door's cover already shows when it is
+open, so an open blind and an open garage door read the same. `other` stays
+`--fp-idle` and now says so in the table. `ac` is still idle: S2.10 gives it
+cool and heat.
+
+`DEVICE_COLOURS` moved with them (#8b8578 to the new values). That map is what
+the editor's colour picker offers as each type's default, so a value that
+disagrees with the palette variable shows the user a swatch the plan will not
+draw.
+
+Two tests hold this shut: every member of `DEVICE_TYPES` must either name its
+own `--fp-dev` variable or appear in a written list of types that are idle on
+purpose, and every type whose palette variable exists must equal its
+`DEVICE_COLOURS` entry.
+
+Side effect, recorded rather than changed: the editor's "preview open"
+checkbox reuses the class string `"door open"`, so it moved from orange to red
+with the contact rule. That is correct — it previews what an open door looks
+like — but nobody chose it, and it has no test.
+
 ## 2026-09-20 task/S2.9: a device wears its colour when it is on
 
 One `--fp-dev` custom property, set per type (`.dev-<type>.on{--fp-dev:...}`)

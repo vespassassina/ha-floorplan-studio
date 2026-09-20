@@ -208,7 +208,9 @@ honest metaphor there.
 | computer | grey | blue icon and halo | `--fp-dev-computer` (#2c7fb8) | more-info |
 | camera | dark grey icon with a 120° cone of view in dark grey at 25 % alpha, turned by `rot` | — | `--fp-dev-camera` (#4a4a48) | more-info (live view) |
 | cover on a door | door normal | door open state shown, orange | `--fp-open` (#f28c28) | confirm dialog naming the action, then `cover.open_cover`, or `close_cover` when it is already open |
-| media_player | icon | accent when playing | as its type | more-info |
+| media (media_player) | grey | blue icon and halo while the player is playing (any other state, including paused, is idle) | `--fp-dev-media` (#2c7fb8) | more-info |
+| cover (device icon, not a door) | grey | orange icon and halo while the cover is open | `--fp-dev-cover` (#f28c28) | more-info |
+| other | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
 | room with `entity` | own kind colour, no outline | own kind colour, unmoved, plus an outline when the entity is on, open or playing | `--fp-active` stroke (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | furniture with `entity` | idle grey (`currentColor`) | `--fp-active`, chosen per theme for at least 3:1 contrast against both `--fp-room` and `--fp-bg` | `--fp-active` (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | unavailable / unknown | icon struck through, 45 % opacity | — | — | more-info |

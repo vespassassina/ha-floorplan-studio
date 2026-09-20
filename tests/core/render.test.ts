@@ -870,6 +870,21 @@ describe("S2.9: a device wears its colour when it is on", () => {
   });
 });
 
+// The done-when says one row per type with its colour, and "grey on purpose" is a colour like any other. A type
+// that nobody decided about falls through the catch-all and reads idle grey, which is indistinguishable on screen
+// from a deliberate grey — the S2.9 verifier found media, cover and other sitting there while SPEC promised media
+// an accent. This test makes every member of DEVICE_TYPES a decision someone had to write down.
+describe("S2.9: every device type has a decided active colour", () => {
+  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "ac"]; // ac until S2.10 gives it cool/heat
+  it.each(DEVICE_TYPES)("%s either names its own --fp-dev or is idle on purpose", (t) => {
+    const rule = new RegExp(`\\.dev-${t}\\.on\\{--fp-dev:var\\((--fp-[a-z-]+)\\)\\}`);
+    const m = FLOORPLAN_CSS.match(rule);
+    if (IDLE_ON_PURPOSE.includes(t)) return; // the catch-all .dev.on{--fp-dev:var(--fp-idle)} covers these
+    expect(m, `no .dev-${t}.on rule: it would read idle grey with no one having chosen that`).not.toBeNull();
+    expect(FLOORPLAN_CSS).toContain(`${m![1]}:#`); // the variable it names is a real token, not a typo
+  });
+});
+
 describe("S2.9: a room or a piece of furniture with an entity carries the on class", () => {
   const room = (kind: string, extra: Record<string, unknown> = {}) => ({ id: "r", name: "pond", area: "", label: "", kind, pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: Array(4).fill("wall"), ...extra });
   const furn = (extra: Record<string, unknown> = {}) => ({ id: "f", symbol: "patio-wood", x: 50, y: 50, rot: 0, w: 100, h: 100, ...extra });
@@ -1073,6 +1088,13 @@ describe("device colours (S1.36)", () => {
     for (const t of DEVICE_TYPES) expect(DEVICE_COLOURS[t], t).toMatch(/^#[0-9a-f]{6}$/);
     expect(DEVICE_COLOURS.light).toBe("#e0a800");
     expect(FLOORPLAN_CSS).toContain(`--fp-dev-camera:${DEVICE_COLOURS.camera}`);
+    // The editor's colour picker offers DEVICE_COLOURS[t] as the default, so a type whose palette variable says
+    // one thing while this map says another shows the user a swatch the plan will not draw. Check every type that
+    // has a variable of its own, not just the two that were spot-checked here before.
+    for (const t of DEVICE_TYPES) {
+      const v = FLOORPLAN_CSS.match(new RegExp(`--fp-dev-${t}:(#[0-9a-f]{6})`));
+      if (v) expect(DEVICE_COLOURS[t], t).toBe(v[1]);
+    }
   });
 });
 
