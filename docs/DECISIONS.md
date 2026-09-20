@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.53 review: Draw > Outline rebuilds `owk` to the new point count
+
+`applyShape`'s outline branch replaced `g.outline` without touching `g.owk`. Any redraw that
+changed the point count left `owk` the old length; `validate` then refused the file and File >
+Save died with "owk must have 5 entries" (found by an Opus review of the S1.53 stack, findings
+numbered against that review). Fixed by rebuilding `owk` in `applyShape` (`src/editor/draw.ts`):
+kept unchanged when the new outline has the same point count as before (the old kinds still line
+up corner for corner), filled `external` otherwise, since a reshaped outline has no way to know
+which old edge a new one corresponds to. Unit test on the redraw (5-point outline over the demo's
+4-point one) and a Playwright test that draws with real clicks and Saves without an error dialog,
+both confirmed failing before the fix.
+
 ## 2026-09-20 S1.53: `:host,.fp` not `:root` for theme selectors; two fixed on-accent tokens; `data-th` not `data-theme` on the chip
 
 The block's CSS was written in `:root` terms; Shadow DOM does not match `:root`, so every

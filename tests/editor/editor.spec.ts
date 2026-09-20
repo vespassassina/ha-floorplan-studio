@@ -1237,6 +1237,23 @@ test("Draw, Outline replaces the floor outline in one undo step", async ({ page 
   expect((await groundOf(page)).outline).toEqual(before.outline);
 });
 
+test("Opus review: drawing an outline with a different point count still Saves without an error dialog (draw.ts:71-76)", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; these numbers are on the 5 cm grid
+  await startDraw(page, "drawOutline");
+  await clicksCm(page, [100, 630], [200, 600], [300, 630], [300, 670], [100, 670]); // 5 points; the demo's outline has 4
+  await page.keyboard.press("Enter");
+  const g = await groundOf(page);
+  expect(g.outline).toHaveLength(5);
+  expect(g.owk).toHaveLength(5); // owk must track the outline's new point count, or Save below refuses the layout
+  await menu(page, "File");
+  const dl = page.waitForEvent("download");
+  await page.locator("#save").click();
+  await expect(page.locator("#errors")).toHaveCount(0);
+  await expect(page.locator("#status")).not.toContainText("owk");
+  const file = await (await dl).path();
+  expect(validate(JSON.parse(readFileSync(file, "utf8"))).ok).toBe(true);
+});
+
 test("Draw, Water and Draw, Opening and Draw, Structure line add their shapes", async ({ page }) => {
   await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   await startDraw(page, "drawWater");

@@ -69,6 +69,10 @@ export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; s
   const g = structuredClone(f), pts = s.pts.map((p): Pt => [p[0], p[1]]);
   let sel: Sel = null;
   if (s.kind === "outline") {
+    // owk must track the outline point for point (Opus review): kept when the redraw has the same
+    // point count as before (the old kinds still line up corner for corner), external otherwise, since
+    // a reshaped outline has no way to know which old edge a new one corresponds to.
+    g.owk = g.owk && g.owk.length === pts.length ? g.owk : pts.map((): EdgeKind => "external");
     g.outline = pts;
     sel = { t: "edge", poly: "o", i: 0 };
   } else if (s.kind === "room" || s.kind === "zone" || s.kind === "water") {

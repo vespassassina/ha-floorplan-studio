@@ -182,6 +182,26 @@ describe("applyShape", () => {
     expect(f.outline).toEqual(sq);
   });
 
+  it("Opus review: redrawing the outline with a different point count rebuilds owk to the new length, and validate passes", () => {
+    const before = ground();
+    expect(before.outline).toHaveLength(4);
+    expect(before.owk).toEqual(["external", "external", "external", "external"]);
+    const fivePts: Pt[] = [[0, 0], [900, 0], [900, 400], [900, 700], [0, 700]];
+    const f = applyShape(before, "ground", { kind: "outline", wall: "wall", pts: fivePts }).floor;
+    expect(f.owk).toHaveLength(f.outline.length); // must have owk.length === outline.length
+    expect(f.owk).toEqual(["external", "external", "external", "external", "external"]);
+    const l = structuredClone(demo as unknown as Layout); l.floors.ground = f;
+    expect(validate(l).ok).toBe(true);
+  });
+
+  it("redrawing the outline with the same point count keeps the old kinds", () => {
+    const before = ground();
+    before.owk = ["none", "external", "fence", "edge"];
+    const same: Pt[] = [[0, 0], [900, 0], [900, 700], [0, 700]];
+    const f = applyShape(before, "ground", { kind: "outline", wall: "wall", pts: same }).floor;
+    expect(f.owk).toEqual(["none", "external", "fence", "edge"]);
+  });
+
   it("a wall chain makes one wall per segment, sharing points, with the chosen kind and distinct ids", () => {
     const r = applyShape(ground(), "ground", { kind: "wall", wall: "fence", pts: [[0, 700], [100, 700], [100, 800]] });
     expect(r.floor.walls).toEqual([
