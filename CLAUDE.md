@@ -85,6 +85,14 @@ Each of these was a real defect. Do not repeat them.
     reported `npm test` green on `task/S2.4` this way while it exited 1 with
     two unhandled errors; a verifier reproduced the same mistake on itself
     before catching it.
+15. **Restore spies before you restore the clock.** `vi.restoreAllMocks()`
+    comes before `vi.useRealTimers()`, always. A spy left on `setInterval` or
+    `clearInterval` wraps the fake clock's own function, so `uninstall()` no
+    longer recognises what it installed and deletes the global instead of
+    putting the real one back. Every later test in that file then runs with
+    no `clearInterval` at all, and the failure surfaces far from its cause —
+    here as an unhandled error inside a `disconnectedCallback` during
+    teardown, which read as a bug in the card and was not one.
 
 ## Domain notes
 
