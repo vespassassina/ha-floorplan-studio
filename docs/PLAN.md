@@ -585,7 +585,7 @@ S1.42 are three defects the verifiers found.
 - Done when: tests pass; SPEC states the 40 cm tread.
 - Break it: a run of 10 cm gives 2, not 0 or 1; a stored `steps: 99` never reaches the renderer.
 
-### S1.45 The icon circle is white and readable
+### S1.45 The icon circle is white and readable (done)
 - Outcome: a device icon sits on a white disc, so a coloured glyph is readable on any floor colour.
 - Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
 - Interface: the `.halo` circle is white at 75 % alpha with a 1 px grey border (`--fp-halo`), radius 3 px larger than the icon (r=13 in the 24-unit icon box today, so the circle grows to r=16 in that box and the 1 px border is drawn in screen pixels with `vector-effect:non-scaling-stroke`). The camera cone and the active-colour tint keep `--fp-alpha` at .25; only the disc uses the new `--fp-disc-alpha:.75` and `--fp-disc:#fff`. Both are variables in `FLOORPLAN_CSS`. The S1.42 collision uses the new radius.

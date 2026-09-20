@@ -139,11 +139,12 @@ in `prompts/`, then fixed in the editor.
 ## Card behaviours
 
 Every wall and edge line has a white twin under it, so a dark line stays visible on a dark floor.
-Every device icon sits on a small circle, grey at 25 % alpha, and is drawn
+Every device icon sits on a white disc at 75 % alpha with a 1 px grey border,
+three units wider than the icon, and is drawn
 above everything else on the plan, room names included. A room name that would
-sit under a device moves down, or up, by one line; if both spots are taken it
+sit under a device moves down, or up, by 32 units; if both spots are taken it
 stays where it is. When a device is active the icon takes the colour of its
-type and the circle takes the same colour at 25 % alpha. A custom shape with an
+type; the disc stays white. The camera cone stays at 25 % alpha. A custom shape with an
 `entity` (a pond, a structure, a piece of furniture) is tinted while that
 entity is on.
 

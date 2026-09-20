@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.45: the icon disc is white, 75 percent
+
+The disc is r=16 (icon 12, plus 3 and the border), white at 75 %, 1 px grey non-scaling border. The camera cone keeps --fp-alpha .25. New variables --fp-disc and --fp-disc-alpha. The S1.42 collision uses 16k and steps 32k; this supersedes the 28k of that entry. The SPEC line about an active circle taking the type colour was dropped: the code never did it.
+
 ## 2026-09-20 S1.44: stair steps are derived
 
 steps = round(run / 40), 2 to 40; round stairs use the mean circumference. Kept in the file so old readers load it, but migrate, every edit and the renderer recompute it. The panel shows it read only (#sstn). The demo stairs went from 12 to 4 steps (160 cm).

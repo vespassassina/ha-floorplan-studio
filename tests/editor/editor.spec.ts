@@ -2736,13 +2736,14 @@ test("S1.29: a device standing on a room name is the top element there", async (
 // ---- S1.31 camera cone ----
 const CAM = { x: 20, y: 580 }; // the demo hall camera
 
-test("S1.31: the cone is dark grey at 25 % alpha in the browser, the halo has the same alpha and lets the pointer through to the room", async ({ page }) => {
+test("S1.31: the cone is dark grey at 25 % alpha in the browser, the disc is 75 % white and lets the pointer through to the room", async ({ page }) => {
   const cone = page.locator("svg g.dev-camera path.cone");
   await expect(cone).toHaveCount(1);
   const st = await cone.evaluate((el) => { const s = getComputedStyle(el); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents }; });
   expect(st).toEqual({ fill: "rgb(74, 74, 72)", op: "0.25", pe: "none" });
-  // the halo behind every icon shares the alpha (one variable, --fp-alpha)
-  expect(await page.locator("svg .dev .halo").evaluateAll((els) => [...new Set(els.map((e) => getComputedStyle(e).fillOpacity))])).toEqual(["0.25"]);
+  // the disc behind every icon is its own: white at 75 %, a 1 px grey border (S1.45)
+  const disc = await page.locator("svg .dev .halo").evaluateAll((els) => [...new Set(els.map((e) => { const s = getComputedStyle(e); return [s.fill, s.fillOpacity, s.stroke, s.strokeWidth].join("|"); }))]);
+  expect(disc).toEqual(["rgb(255, 255, 255)|0.75|rgb(139, 133, 120)|1px"]);
   // the cone is 100 cm deep: its box is 100 cm tall on screen (rot 0 points up)
   const box = await cone.evaluate((el) => el.getBoundingClientRect().height);
   const one = Math.abs((await screenOf(page, CAM.x, CAM.y - 100)).y - (await screenOf(page, CAM.x, CAM.y)).y);
@@ -3500,4 +3501,16 @@ test("S1.43: an unsnapped room turns a quarter, and has no Reset", async ({ page
   expect(after).not.toEqual(before);
   const w = (p: number[][]) => Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]);
   expect(Math.abs(w(after) - w(before))).toBeLessThanOrEqual(1);
+});
+
+// ---- the icon disc (S1.45) ----------------------------------------------------------------
+
+test("S1.45: the disc is 3 units wider than the icon and stays white on a dark floor", async ({ page }) => {
+  const r = await page.locator("svg g.dev .halo").first().evaluate((el) => Number(el.getAttribute("r")));
+  expect(r).toBe(16); // the icon glyph is 12 out from the centre, the border adds one, the gap three
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(el.layout)); for (const rm of l.floors.ground.rooms) rm.color = "#222222"; el.layout = l; }, EDITOR);
+  const fill = await page.locator("svg g.dev .halo").first().evaluate((el) => getComputedStyle(el).fill);
+  expect(fill).toBe("rgb(255, 255, 255)");
+  const cone = await page.locator("svg path.cone").evaluate((el) => getComputedStyle(el).fillOpacity);
+  expect(cone).toBe("0.25");
 });

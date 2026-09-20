@@ -552,10 +552,12 @@ describe("devices sit on top (S1.29)", () => {
     expect(firstDev).toBeGreaterThan(lastName);
   });
   it("the halo is a class, with no inline fill", () => {
-    expect(html).toContain('<circle class="halo" cx="12" cy="12" r="13"/>');
+    expect(html).toContain('<circle class="halo" cx="12" cy="12" r="16"/>'); // the icon is 12 out, the disc 3 more plus one
     expect(html).not.toContain("fill-opacity");
-    expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{fill:var\(--fp-halo\);fill-opacity:var\(--fp-alpha\)\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{fill:var\(--fp-disc\);fill-opacity:var\(--fp-disc-alpha\);stroke:var\(--fp-halo\);stroke-width:1;vector-effect:non-scaling-stroke\}/);
     expect(FLOORPLAN_CSS).toContain("--fp-halo:#8b8578");
+    expect(FLOORPLAN_CSS).toContain("--fp-disc:#fff");
+    expect(FLOORPLAN_CSS).toContain("--fp-disc-alpha:.75");
   });
   it("a device on a room-name spot draws after that name", () => {
     const room = ground.rooms.find((r) => r.name && r.kind !== "fill" && r.kind !== "zone")!;
@@ -647,10 +649,10 @@ describe("camera cone (S1.31)", () => {
   });
 });
 
-describe("one alpha for the cone and the halo (fix/cone-length)", () => {
-  it("--fp-alpha is 25 % and both the cone and the halo read it; no other opacity literal is left on them", () => {
+describe("the cone has its own alpha, the disc another (fix/cone-length, S1.45)", () => {
+  it("--fp-alpha is 25 % and the cone reads it; the disc reads --fp-disc-alpha; no other opacity literal is left", () => {
     expect(FLOORPLAN_CSS).toContain("--fp-alpha:.25");
-    expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{[^}]*fill-opacity:var\(--fp-alpha\)/);
+    expect(FLOORPLAN_CSS).not.toMatch(/\.dev \.halo\{[^}]*--fp-alpha/);
     expect(FLOORPLAN_CSS).toMatch(/path\.cone\{[^}]*fill-opacity:var\(--fp-alpha\)/);
     expect(FLOORPLAN_CSS).not.toMatch(/fill-opacity:\.(33|5)\b/);
   });
@@ -810,12 +812,12 @@ describe("S1.42: a device never hides a room name", () => {
   const cy = 100;
 
   it("stays put with no device near", () => { expect(nameY(floor("room", []))).toBe(cy); expect(nameY(floor("room", [[20, 20]]))).toBe(cy); });
-  it("moves down 28k when a device sits on the centroid", () => { expect(nameY(floor("room", [[200, 100]]))).toBe(cy + 28 * k); });
-  it("moves up when the spot below is taken too", () => { expect(nameY(floor("room", [[200, 100], [200, 100 + 28 * k]]))).toBe(cy - 28 * k); });
-  it("stays when all three spots are taken", () => { expect(nameY(floor("room", [[200, 100], [200, 100 + 28 * k], [200, 100 - 28 * k]]))).toBe(cy); });
+  it("moves down 32k when a device sits on the centroid", () => { expect(nameY(floor("room", [[200, 100]]))).toBe(cy + 32 * k); });
+  it("moves up when the spot below is taken too", () => { expect(nameY(floor("room", [[200, 100], [200, 100 + 32 * k]]))).toBe(cy - 32 * k); });
+  it("stays when all three spots are taken", () => { expect(nameY(floor("room", [[200, 100], [200, 100 + 32 * k], [200, 100 - 32 * k]]))).toBe(cy); });
   it("a zone follows the same steps with its smaller size", () => {
-    expect(nameY(floor("zone", [[200, 100]]))).toBe(cy + 28 * k);
-    expect(nameY(floor("zone", [[200, 100], [200, 100 + 28 * k]]))).toBe(cy - 28 * k);
+    expect(nameY(floor("zone", [[200, 100]]))).toBe(cy + 32 * k);
+    expect(nameY(floor("zone", [[200, 100], [200, 100 + 32 * k]]))).toBe(cy - 32 * k);
   });
   it("counts only devices the filter draws", () => { expect(nameY(floor("room", [[200, 100]], "heater"))).toBe(cy); });
   it("a device far to the side does not move the name", () => { expect(nameY(floor("room", [[380, 100]]))).toBe(cy); });
@@ -824,6 +826,6 @@ describe("S1.42: a device never hides a room name", () => {
     f.rooms = [{ id: "r", name: "Lounge", label: "3 x 4", kind: "room", area: "", pts: [[0, 0], [400, 0], [400, 200], [0, 200]] } as never];
     f.devices = [{ id: "d", type: "light", entity: "light.d", x: 200, y: 100 } as never];
     const html = renderFloor(f, { scale: 0.5 });
-    expect(html).toMatch(new RegExp(`y="${100 + 28 * k + 16 * k}"[^>]*>3 x 4<`));
+    expect(html).toMatch(new RegExp(`y="${100 + 32 * k + 16 * k}"[^>]*>3 x 4<`));
   });
 });

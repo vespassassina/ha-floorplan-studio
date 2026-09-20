@@ -24,7 +24,7 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
 export const FLOORPLAN_CSS = `
 :host,.fp{--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-halo:#8b8578;--fp-alpha:.25;--fp-outline:#fff;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94}
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.75;--fp-outline:#fff;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch. */
 .room:not([fill]){fill:var(--fp-room)} .room-garden:not([fill]){fill:var(--fp-garden)} .room-terrace:not([fill]){fill:var(--fp-terrace)} .room-pavement:not([fill]){fill:var(--fp-pavement)}
 .room.room-fill{fill:url(#fp-hatch)} .room-zone:not([fill]){fill:none} .room-water:not([fill]){fill:var(--fp-water)}
@@ -37,7 +37,7 @@ export const FLOORPLAN_CSS = `
 .door.open{stroke:var(--fp-open)} .door.cover-open{stroke:var(--fp-open)}
 .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-on)} .dev-contact.on path{fill:var(--fp-open)}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
-.dev .halo{fill:var(--fp-halo);fill-opacity:var(--fp-alpha)}
+.dev .halo{fill:var(--fp-disc);fill-opacity:var(--fp-disc-alpha);stroke:var(--fp-halo);stroke-width:1;vector-effect:non-scaling-stroke}
 .dev.unavailable{opacity:.45}
 .dev-motion{--fp-fade:0} .dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-ink);paint-order:stroke;stroke:var(--fp-bg);stroke-width:3} .lbl.zone{fill:var(--fp-idle);opacity:.75}
@@ -222,9 +222,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (c.every(Number.isFinite)) spots.push(c);
   });
-  // The text y is the baseline: the box runs about 0.95 of the size above it and 0.25 below. 28k clears a 13k halo either way.
-  const hit = (x: number, y: number, size: number, len: number) => spots.some((p) => Math.abs(p[1] - (y - 0.35 * size)) < 13 * k + 0.6 * size && Math.abs(p[0] - x) < 13 * k + 0.3 * size * len);
-  const nameY = (x: number, y: number, size: number, len: number) => [y, y + 28 * k, y - 28 * k].find((v) => !hit(x, v, size, len)) ?? y;
+  // The text y is the baseline: the box runs about 0.95 of the size above it and 0.25 below. 32k clears a 16k disc either way.
+  const hit = (x: number, y: number, size: number, len: number) => spots.some((p) => Math.abs(p[1] - (y - 0.35 * size)) < 16 * k + 0.6 * size && Math.abs(p[0] - x) < 16 * k + 0.3 * size * len);
+  const nameY = (x: number, y: number, size: number, len: number) => [y, y + 32 * k, y - 32 * k].find((v) => !hit(x, v, size, len)) ?? y;
   f.rooms.forEach((r) => {
     if (!r.name || r.kind === "fill") return;
     const cx = r.pts.reduce((s, p) => s + p[0], 0) / r.pts.length, cy = r.pts.reduce((s, p) => s + p[1], 0) / r.pts.length;
@@ -265,7 +265,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const R = 100 / k, p = (deg: number) => at([12 + R * Math.cos((deg * Math.PI) / 180), 12 + R * Math.sin((deg * Math.PI) / 180)]);
       cone = `<path class="cone" d="M12 12L${p(-150)}A${num(R)} ${num(R)} 0 0 1 ${p(-30)}Z"/>`;
     }
-    const icon = `<circle class="halo" cx="12" cy="12" r="13"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>`;
+    const icon = `<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>`;
     out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${bound ? " bound" : ""} ${cls}${sel ? " sel" : ""}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}</g>`);
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
     if ((d.type === "temp" || d.type === "humidity") && s) {
