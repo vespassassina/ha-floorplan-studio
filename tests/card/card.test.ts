@@ -62,37 +62,76 @@ describe("FloorplanStudioCard", () => {
     expect(lightGroup2.getAttribute("class")).toMatch(/\bon\b/);
   });
 
-  it("S2.3: a door's contact sensor being on gives its line[data-d] the open class", async () => {
-    const el = await mount();
-    el.setConfig({ layout: structuredClone(L) });
-    el.hass = stubHass() as never; // binary_sensor.demo_front_door: off
-    await el.updateComplete;
-    const svg = el.shadowRoot!.querySelector("svg")!;
-    const doorIndex = L.floors.ground.doors.findIndex((d) => d.sensor === "binary_sensor.demo_front_door");
-    const line = svg.querySelector(`line[data-d="${doorIndex}"]`)!;
-    expect(line.getAttribute("class")).not.toMatch(/\bopen\b/);
+  // The demo's three sensor doors (Opus review: "respond in the jsdom test" means all three, not one
+  // driven three times, and the third one — on the "first" floor, which the card does not show by
+  // default — is the case that catches floor-scoped door indexing bugs the other two cannot).
+  const SENSOR_DOORS = [
+    { floor: "ground", doorId: "door-ground-1", entity: "binary_sensor.demo_front_door" },
+    { floor: "ground", doorId: "door-ground-2", entity: "binary_sensor.demo_patio_door" },
+    { floor: "first", doorId: "door-first-1", entity: "binary_sensor.demo_bedroom_window" },
+  ] as const;
 
-    el.hass = stubHass({ "binary_sensor.demo_front_door": st("on") }) as never;
-    await el.updateComplete;
-    const svg2 = el.shadowRoot!.querySelector("svg")!;
-    const line2 = svg2.querySelector(`line[data-d="${doorIndex}"]`)!;
-    expect(line2.getAttribute("class")).toMatch(/\bopen\b/);
+  describe.each(SENSOR_DOORS)("S2.3: sensor door $doorId on floor $floor", ({ floor, doorId, entity }) => {
+    /** `line[data-d]` indices are per floor, so the index must come from that floor's own `doors` array, not `ground`'s. */
+    function doorIndex(): number {
+      const i = L.floors[floor as keyof typeof L.floors].doors.findIndex((d) => d.id === doorId);
+      expect(i).toBeGreaterThanOrEqual(0); // the demo must still have this door, or the test proves nothing
+      return i;
+    }
+
+    it("sensor off draws no open class on its own line[data-d], on on the sensor's own entity gives it the open class", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor });
+      el.hass = stubHass({ [entity]: st("off") }) as never;
+      await el.updateComplete;
+      const svg = el.shadowRoot!.querySelector("svg")!;
+      const line = svg.querySelector(`line[data-d="${doorIndex()}"]`)!;
+      expect(line.getAttribute("class")).not.toMatch(/\bopen\b/);
+      // its title identifies which door this is, so an index mix-up across floors is caught here, not silently passed
+      expect(line.querySelector("title")!.textContent).toBe(
+        L.floors[floor as keyof typeof L.floors].doors.find((d) => d.id === doorId)!.name,
+      );
+
+      el.hass = stubHass({ [entity]: st("on") }) as never;
+      await el.updateComplete;
+      const svg2 = el.shadowRoot!.querySelector("svg")!;
+      const line2 = svg2.querySelector(`line[data-d="${doorIndex()}"]`)!;
+      expect(line2.getAttribute("class")).toMatch(/\bopen\b/);
+      // and no other door on the same floor lit up as a side effect
+      const openDoors = [...svg2.querySelectorAll("line[data-d]")].filter((l) => l.getAttribute("class")?.match(/\bopen\b/));
+      expect(openDoors).toHaveLength(1);
+      expect(openDoors[0]).toBe(line2);
+    });
+
+    it("a tap on it fires hass-more-info with its own entity id, not another door's", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      const svg = el.shadowRoot!.querySelector("svg")!;
+      const line = svg.querySelector(`line[data-d="${doorIndex()}"]`)!;
+      const moreInfo = vi.fn();
+      el.addEventListener("hass-more-info", moreInfo);
+      line.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      line.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      expect(moreInfo).toHaveBeenCalledTimes(1);
+      expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: entity });
+    });
   });
 
-  it("S2.3: a tap on a sensor door fires hass-more-info for that sensor entity", async () => {
+  it("S2.3 Opus review: with all three sensors on and config.floor: \"first\", only the first floor's window is .open — a wrong floor index would light a ground door instead", async () => {
     const el = await mount();
-    el.setConfig({ layout: structuredClone(L) });
-    el.hass = stubHass() as never;
+    el.setConfig({ layout: structuredClone(L), floor: "first" });
+    el.hass = stubHass({
+      "binary_sensor.demo_front_door": st("on"),
+      "binary_sensor.demo_patio_door": st("on"),
+      "binary_sensor.demo_bedroom_window": st("on"),
+    }) as never;
     await el.updateComplete;
     const svg = el.shadowRoot!.querySelector("svg")!;
-    const doorIndex = L.floors.ground.doors.findIndex((d) => d.sensor === "binary_sensor.demo_front_door");
-    const line = svg.querySelector(`line[data-d="${doorIndex}"]`)!;
-    const moreInfo = vi.fn();
-    el.addEventListener("hass-more-info", moreInfo);
-    line.dispatchEvent(new Event("pointerdown", { bubbles: true }));
-    line.dispatchEvent(new Event("pointerup", { bubbles: true }));
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "binary_sensor.demo_front_door" });
+    const openDoors = [...svg.querySelectorAll("line[data-d]")].filter((l) => l.getAttribute("class")?.match(/\bopen\b/));
+    expect(openDoors).toHaveLength(1);
+    expect(openDoors[0].querySelector("title")!.textContent).toBe("Bedroom window");
   });
 
   it("S2.3 Break it: a door whose sensor entity is missing from hass.states draws normally", async () => {
