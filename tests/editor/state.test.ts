@@ -165,7 +165,7 @@ describe("floors", () => {
       expect(st.addFloor("Attic")).toBe("attic");
       expect(keys(st)).toEqual(["ground", "first", "attic"]);
       expect(st.floor).toBe("attic");
-      expect(st.f).toEqual({ title: "Attic", ...empty });
+      expect(st.f).toEqual({ title: "Attic", ...empty, outline: st.layout.floors.ground.outline, stairs: [{ ...st.layout.floors.ground.stairs[0], id: "stairs-attic-1" }] }); // S1.27
       expect(st.sel).toBeNull();
     });
     it("is one undo step: undo removes it and the selection falls back to a floor that exists", () => {
@@ -473,5 +473,57 @@ describe("addStairsEverywhere (S1.26)", () => {
     for (const f of Object.values(st.layout.floors)) expect(f.stairs[f.stairs.length - 1]).toMatchObject({ shape: "round", steps: 9, rot: 30, dia: 200, inner: 60 });
     st.undo(); st.redo();
     expect(st.layout.floors.first.stairs).toHaveLength(1);
+  });
+});
+
+describe("addFloor inherits the outline and the stairs of the first floor (S1.27)", () => {
+  const sq = (n: number): [number, number][] => [[0, 0], [n, 0], [n, n], [0, n]];
+  const stair = (id: string, dia?: number) => ({ id, name: "Stairs", pts: sq(50), shape: "straight" as const, steps: 12, rot: 0, ...(dia ? { shape: "round" as const, dia, inner: 20 } : {}) });
+  const layout = () => {
+    const l = structuredClone(demo) as unknown as Layout;
+    const g = l.floors.ground;
+    g.outline = sq(400); g.stairs = [stair("stairs-ground-1"), stair("stairs-ground-2", 120)];
+    l.floors.first.outline = sq(999); l.floors.first.stairs = [];
+    return l;
+  };
+
+  it("copies the outline and the stairs, with new ids, and leaves every other array empty", () => {
+    const st = new EditorState(layout());
+    st.addFloor("Attic");
+    const f = st.f;
+    expect(f.outline).toEqual(sq(400));
+    expect(f.stairs.map((s) => s.id)).toEqual(["stairs-attic-1", "stairs-attic-2"]);
+    expect(f.stairs[1]).toMatchObject({ shape: "round", dia: 120, inner: 20 });
+    for (const k of ["rooms", "walls", "doors", "openings", "extras", "devices", "furniture"] as const) expect(f[k], k).toEqual([]);
+  });
+  it("copies from the first floor in the key order, not from the floor before it", () => {
+    const st = new EditorState(layout());
+    st.addFloor("Attic");
+    st.addFloor("Roof");
+    expect(st.layout.floors.roof.outline).toEqual(sq(400)); // ground's, not first's 999 and not the attic's
+    expect(st.layout.floors.roof.stairs).toHaveLength(2);
+  });
+  it("copies deeply: editing the attic leaves the ground floor alone", () => {
+    const st = new EditorState(layout());
+    st.addFloor("Attic");
+    st.f.outline[0][0] = 77; st.f.stairs[0].pts[0][0] = 77;
+    expect(st.layout.floors.ground.outline[0][0]).toBe(0);
+    expect(st.layout.floors.ground.stairs[0].pts[0][0]).toBe(0);
+  });
+  it("is one undo step", () => {
+    const st = new EditorState(layout());
+    const before = JSON.stringify(st.layout);
+    st.addFloor("Attic");
+    st.undo();
+    expect(JSON.stringify(st.layout)).toBe(before);
+    expect(st.canUndo).toBe(false);
+  });
+  it("break it: an empty first floor gives an empty floor and nothing throws", () => {
+    const l = layout();
+    l.floors = { only: { ...structuredClone(l.floors.ground), outline: [], stairs: [], rooms: [] } };
+    const st = new EditorState(l);
+    expect(() => st.addFloor("Attic")).not.toThrow();
+    expect(st.f.outline).toEqual([]);
+    expect(st.f.stairs).toEqual([]);
   });
 });

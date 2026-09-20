@@ -84,6 +84,7 @@ function floorPanel(c: PanelCtx) {
       ? html`<p id="fconfirm" role="alert">Delete floor ${title} and everything on it?</p>
         <div class="row">${button("fdelyes", "Delete", () => c.floors.remove(key))}${button("fdelno", "Cancel", () => { st.confirmDelete = false; c.refresh(); })}</div>`
       : html`<p><button class="btn" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
+    ${hint("A new floor starts with the outline and the stairs of the first floor. Delete a floor to start again with a clean one.")}
     ${hint("Devices on a deleted floor stay in the catalog and go back to the Device menu.")}`;
 }
 

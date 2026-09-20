@@ -389,7 +389,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass.
 - Break it: a floor that already has stairs gets the new ones too, rather than being skipped: two flights are legitimate.
 
-### S1.27 A new floor inherits the outline and the stairs
+### S1.27 A new floor inherits the outline and the stairs (done)
 - Outcome: adding a floor does not mean tracing the perimeter again.
 - Files: `src/editor/state.ts`, `src/editor/panels.ts`, `tests/editor/state.test.ts`, `tests/editor/editor.spec.ts`.
 - Interface: `EditorState.addFloor(title)` copies `outline` and `stairs` (deep copies, ids from `newId` against the new floor) from the *first* floor in the key order, which is the lowest; every other array stays empty. When the first floor has no outline, the new floor has none. The floor panel's hint says where the outline came from, and Delete floor is how the user starts a clean one.

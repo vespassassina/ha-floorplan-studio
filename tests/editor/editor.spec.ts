@@ -794,6 +794,20 @@ const floorKeys = async (page: Page) => Object.keys((await layoutOf(page)).floor
 const undoBtn = (page: Page) => page.locator("#undo");
 
 /** Types a title into the "+" chip's input with the real keyboard and presses Enter. */
+/**
+ * A new floor with the inherited outline and stairs taken away again: what a floor looked like before S1.27.
+ * The layout setter refuses an outline of fewer than three points (validate), so this reaches into the editor's state.
+ */
+async function addBareFloor(page: Page, title: string) {
+  await addFloorVia(page, title);
+  await page.evaluate(([tag, key]) => {
+    const el = document.querySelector(tag as string) as any, f = el.st.layout.floors[key as string];
+    f.outline = []; f.stairs = [];
+    el.st.views = {};
+    el.requestUpdate();
+  }, [EDITOR, title.toLowerCase()]);
+  await expect(page.locator("svg g[data-s]")).toHaveCount(0);
+}
 async function addFloorVia(page: Page, title: string) {
   const c = await centre(page, "#addFloor");
   await page.mouse.click(c.x, c.y);
@@ -802,7 +816,7 @@ async function addFloorVia(page: Page, title: string) {
   await page.keyboard.press("Enter");
 }
 
-test("the + chip sits after the floor chips, opens an input, and Enter adds an empty floor that is selected", async ({ page }) => {
+test("the + chip sits after the floor chips, opens an input, and Enter adds a floor that is selected and has no rooms", async ({ page }) => {
   const add = await page.locator("#addFloor").boundingBox(), last = await chips(page).last().boundingBox();
   expect(add!.x).toBeGreaterThan(last!.x + last!.width - 1);
   await expect(page.locator("#newFloor")).toHaveCount(0);
@@ -811,9 +825,9 @@ test("the + chip sits after the floor chips, opens an input, and Enter adds an e
   expect(await chipTitles(page)).toEqual(["Ground", "First", "Attic"]);
   await expect(page.locator('.chip[data-f="attic"]')).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#newFloor")).toHaveCount(0);
-  await expect(page.locator("svg polygon[data-r]")).toHaveCount(0); // empty
+  await expect(page.locator("svg polygon[data-r]")).toHaveCount(0); // no rooms
   const l = await layoutOf(page);
-  expect(l.floors.attic).toMatchObject({ title: "Attic", outline: [], rooms: [], walls: [], devices: [], furniture: [] });
+  expect(l.floors.attic).toMatchObject({ title: "Attic", outline: l.floors.ground.outline, rooms: [], walls: [], devices: [], furniture: [] }); // S1.27: the outline is inherited
   expect(l.floors.ground.rooms).toHaveLength(7); // untouched
 });
 
@@ -1539,9 +1553,7 @@ test("an opening lands on the outline edge when there are no rooms", async ({ pa
 test("break it: with no wall on the floor, Add, Opening places a horizontal opening at the view centre and does not throw", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.locator("#addFloor").click();
-  await page.locator("#newFloor").fill("Attic");
-  await page.locator("#newFloor").press("Enter");
+  await addBareFloor(page, "Attic");
   expect(await page.evaluate((tag) => Object.keys((document.querySelector(tag as string) as any).layout.floors.attic).length > 0, EDITOR)).toBe(true);
   await addGap(page);
   const o = (await layoutOf(page)).floors.attic.openings;
@@ -2105,8 +2117,8 @@ test("a new structure that does not fit at this zoom brings the view out until i
   expect(after[2] - after[0]).toBeGreaterThan(before[2] - before[0]); // it zoomed out, and only because it had to
 });
 
-test("a new floor has no outline: an added zone lands at the view centre, as before", async ({ page }) => {
-  await addFloorVia(page, "Attic");
+test("a floor with no outline: an added zone lands at the view centre, as before", async ({ page }) => {
+  await addBareFloor(page, "Attic");
   await expect(page.locator(".chip[data-f]")).toHaveCount(3);
   const v = await visible(page);
   await addMenuItem(page, "#addZone");
@@ -2566,4 +2578,23 @@ test("Add, Stairs puts the same stairs on every floor; Delete removes them from 
   const back = await layoutOf(page);
   expect(back.floors.ground.stairs).toEqual(before.floors.ground.stairs);
   expect(back.floors.first.stairs).toEqual([]);
+});
+
+// ---- a new floor inherits the outline and the stairs (S1.27) -------------------
+
+test("a new floor has the outline and the stairs of the ground floor, no rooms, and Delete floor starts it clean", async ({ page }) => {
+  await addFloorVia(page, "Attic");
+  const l = await layoutOf(page);
+  expect(l.floors.attic.outline).toEqual(l.floors.ground.outline);
+  expect(l.floors.attic.stairs.map((t) => ({ ...t, id: "" }))).toEqual(l.floors.ground.stairs.map((t) => ({ ...t, id: "" })));
+  expect(l.floors.attic.stairs[0].id).toBe("stairs-attic-1");
+  expect(l.floors.attic.rooms).toEqual([]);
+  await expect(page.locator("svg g[data-s]")).toHaveCount(1);
+  await expect(page.locator('svg line[data-e^="o:"]')).toHaveCount(4);
+  await expect(page.locator("#status")).toContainText("Added floor Attic");
+  await expect(page.locator("p.hint").filter({ hasText: "outline and the stairs" })).toBeVisible();
+  // the inherited outline can be clicked like any other: a real click on an outline edge selects it
+  const c = await screenOf(page, 400, 0);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#ft")).toHaveCount(0); // not the floor panel any more
 });

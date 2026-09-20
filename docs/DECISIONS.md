@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.27: a new floor copies the first floor's outline and stairs; the floor panel says so
+
+`addFloor` copies `outline` and `stairs` from the first floor in the key order, deep, with stairs ids from `newId` against the new floor; a first floor without them gives none. The floor panel gains one hint that says this and points to Delete floor for a clean start. Three older Playwright tests assumed an empty new floor (no host edge, no outline, view centre): they now make one bare with `addBareFloor`, which clears the outline in the editor's state, because the public `layout` setter refuses a floor with fewer than three outline points. That refusal is old and unchanged: a layout with a bare floor cannot be loaded or saved until it has an outline; that is a gap in Sprint 1, not made by this task.
+
 ## 2026-09-20 S1.26: Add, Stairs is one undo step across all floors; the view follows the current floor only
 
 `EditorState.addStairsEverywhere` snapshots the whole layout once and pushes a deep copy into every floor, even one that already has stairs. The stairs sit beside the house, outside the outline each floor's view is fitted to, so on another floor they may be off screen until the user zooms out; `ensureVisible` still works on the current floor only. Delete is per floor, as the block says.
