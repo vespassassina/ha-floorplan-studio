@@ -561,7 +561,11 @@ describe("FloorplanStudioCard", () => {
       return el.shadowRoot!.querySelector(".fp-dialog p")?.textContent ?? null;
     }
 
-    it("a tap on a door with a cover opens an in-card dialog reading \"Open <name>?\"", async () => {
+    function confirmButtonText(el: FloorplanStudioCard): string | null {
+      return el.shadowRoot!.querySelector(".fp-dialog button.confirm")?.textContent?.trim() ?? null;
+    }
+
+    it("a tap on a door with a closed cover opens an in-card dialog reading \"Open <name>?\" with an Open button", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass({ [garageEntity]: st("closed") }) as never;
@@ -571,10 +575,11 @@ describe("FloorplanStudioCard", () => {
       tap(el, garageIndex);
       await el.updateComplete;
       expect(dialogText(el)).toBe(`Open ${garageName}?`);
+      expect(confirmButtonText(el)).toBe("Open");
       expect(el.shadowRoot!.querySelector(".fp-dialog")!.closest("svg")).toBeNull(); // card chrome, not plan content
     });
 
-    it("Open calls callService(\"cover\", \"open_cover\", { entity_id }) when the cover is not open", async () => {
+    it("Open calls callService(\"cover\", \"open_cover\", { entity_id }) when the cover is closed", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
       const callService = vi.fn();
@@ -590,7 +595,7 @@ describe("FloorplanStudioCard", () => {
       expect(dialogText(el)).toBeNull(); // dialog closes after acting
     });
 
-    it("Open calls close_cover instead when the cover's state is already \"open\"", async () => {
+    it("a tap on a door with an open cover opens a dialog reading \"Close <name>?\" with a Close button, and it calls close_cover (Opus review: text must match the action)", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
       const callService = vi.fn();
@@ -599,9 +604,54 @@ describe("FloorplanStudioCard", () => {
 
       tap(el, garageIndex);
       await el.updateComplete;
+      expect(dialogText(el)).toBe(`Close ${garageName}?`);
+      expect(confirmButtonText(el)).toBe("Close");
+
       el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.confirm")!.click();
       expect(callService).toHaveBeenCalledTimes(1);
       expect(callService).toHaveBeenCalledWith("cover", "close_cover", { entity_id: garageEntity });
+    });
+
+    it("a cover that changes state while the dialog is open re-renders the label, and the button then acts on the new state, not the one shown when the dialog opened (Opus review)", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      const callService = vi.fn();
+      el.hass = { ...stubHass({ [garageEntity]: st("closed") }), callService } as never;
+      await el.updateComplete;
+
+      tap(el, garageIndex);
+      await el.updateComplete;
+      expect(dialogText(el)).toBe(`Open ${garageName}?`);
+      expect(confirmButtonText(el)).toBe("Open");
+
+      // the cover finishes an automation-driven open while the dialog is still up; hass's setter
+      // triggers a re-render, so the label must flip before anyone can press anything.
+      el.hass = { ...stubHass({ [garageEntity]: st("open") }), callService } as never;
+      await el.updateComplete;
+      expect(dialogText(el)).toBe(`Close ${garageName}?`);
+      expect(confirmButtonText(el)).toBe("Close");
+
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.confirm")!.click();
+      expect(callService).toHaveBeenCalledTimes(1);
+      expect(callService).toHaveBeenCalledWith("cover", "close_cover", { entity_id: garageEntity }); // matches the label shown at press time, not the one at open time
+    });
+
+    it("the dialog is a labelled, modal region to assistive tech: role=\"dialog\", aria-modal=\"true\", and aria-labelledby pointing at the question text (Opus review)", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ [garageEntity]: st("closed") }) as never;
+      await el.updateComplete;
+
+      tap(el, garageIndex);
+      await el.updateComplete;
+      const dialog = el.shadowRoot!.querySelector(".fp-dialog")!;
+      expect(dialog.getAttribute("role")).toBe("dialog");
+      expect(dialog.getAttribute("aria-modal")).toBe("true");
+      const labelledBy = dialog.getAttribute("aria-labelledby");
+      expect(labelledBy).toBeTruthy();
+      const label = el.shadowRoot!.getElementById(labelledBy!);
+      expect(label).not.toBeNull();
+      expect(label!.textContent).toBe(dialogText(el)); // the accessible name is the question itself, kept in sync with the verb
     });
 
     it("Cancel calls no service and closes the dialog", async () => {

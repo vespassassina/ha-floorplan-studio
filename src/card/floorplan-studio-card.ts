@@ -347,17 +347,22 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
-  /** Reads the cover's live state at the moment Open is pressed, not a snapshot taken when the dialog opened, so a
-   * cover that changed state while the dialog was up (another user, an automation) still gets the right service. A
-   * cover missing from `hass.states`, or `unknown`/`unavailable`/`opening`/`closing`, is anything other than
-   * `"open"`, so it opens rather than closes — see docs/DECISIONS.md for why that is the sane default here. */
+  /** The one place that reads a cover's live state and decides what pressing the button does — the dialog's text
+   * (`_coverDialogTemplate`) and the actual service call (`_confirmCoverDialog`) both call this, so they can never
+   * disagree (Opus review of S2.7: a dialog that says "Open" while its button closes is worse than no dialog, since
+   * the person has been trained to trust the words). Read fresh every time, not cached when the dialog opened, so a
+   * cover that changes state while the dialog is up (another user, an automation) re-renders with the matching
+   * label before anyone can press anything stale — `hass`'s setter already calls `requestUpdate()` on every change,
+   * and `_confirmCoverDialog` reads this same expression again at the moment of the click, so label and action are
+   * always the same read, never two. A cover missing from `hass.states`, or `unknown`/`unavailable`/`opening`/
+   * `closing`, is anything other than `"open"`, so it opens rather than closes — docs/DECISIONS.md has why. */
+  private _coverService(door: Door): "open_cover" | "close_cover" {
+    return this._hass?.states[door.cover ?? ""]?.state === "open" ? "close_cover" : "open_cover";
+  }
+
   private _confirmCoverDialog(): void {
     const door = this._coverDialog;
-    if (door?.cover) {
-      const state = this._hass?.states[door.cover]?.state;
-      const service = state === "open" ? "close_cover" : "open_cover";
-      this._hass?.callService?.("cover", service, { entity_id: door.cover });
-    }
+    if (door?.cover) this._hass?.callService?.("cover", this._coverService(door), { entity_id: door.cover });
     this._closeCoverDialog();
   }
 
@@ -411,17 +416,22 @@ export class FloorplanStudioCard extends LitElement {
 
   /** S2.7: the cover confirm dialog, or `null` when none is open. Card chrome (like `_floorChips` above): outside
    * the `<svg>` renderFloor draws, never inside it (CLAUDE.md finding 8). `lit-html`'s own text-node escaping
-   * handles the door's `name` safely, the same guarantee `esc()` gives core's hand-built SVG strings (finding 2). */
+   * handles the door's `name` safely, the same guarantee `esc()` gives core's hand-built SVG strings (finding 2).
+   * The verb (both the question and the button's own label) comes from `_coverService`, the same call
+   * `_confirmCoverDialog` makes, so the text can never promise one thing and do another (Opus review). `role`,
+   * `aria-modal` and `aria-labelledby` name this to assistive tech as the modal it is, pointed at the question
+   * itself so its name changes along with the verb. */
   private _coverDialogTemplate() {
     const door = this._coverDialog;
-    if (!door) return null;
+    if (!door?.cover) return null;
+    const verb = this._coverService(door) === "close_cover" ? "Close" : "Open";
     return html`
       <div class="fp-dialog-backdrop" @keydown=${this._onDialogKeydown}>
         <div class="fp-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-dialog-title">
-          <p id="fp-dialog-title">Open ${door.name}?</p>
+          <p id="fp-dialog-title">${verb} ${door.name}?</p>
           <div class="fp-dialog-actions">
             <button type="button" class="cancel" @click=${() => this._closeCoverDialog()}>Cancel</button>
-            <button type="button" class="confirm" @click=${() => this._confirmCoverDialog()}>Open</button>
+            <button type="button" class="confirm" @click=${() => this._confirmCoverDialog()}>${verb}</button>
           </div>
         </div>
       </div>

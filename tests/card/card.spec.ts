@@ -238,6 +238,32 @@ test("S2.7: Cancel calls no service", async ({ page }) => {
   expect(calls).toEqual([]);
 });
 
+test("S2.7: a tap on an open cover opens a dialog reading \"Close Garage door?\" with a Close button, role=dialog, aria-modal=true, and aria-labelledby naming the question (Opus review)", async ({ page }) => {
+  await open(page);
+  await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "open", attributes: {}, last_changed: new Date().toISOString() } });
+
+  await tapDoor(page, GARAGE_DOOR_INDEX);
+
+  const card = page.locator("floorplan-studio-card");
+  await expect(card.locator("css=.fp-dialog p")).toHaveText("Close Garage door?");
+  await expect(card.locator("css=.fp-dialog button.confirm")).toHaveText("Close");
+
+  const a11y = await card.evaluate((el) => {
+    const dialog = el.shadowRoot!.querySelector(".fp-dialog")!;
+    const labelledBy = dialog.getAttribute("aria-labelledby")!;
+    return {
+      role: dialog.getAttribute("role"),
+      ariaModal: dialog.getAttribute("aria-modal"),
+      labelText: el.shadowRoot!.getElementById(labelledBy)?.textContent,
+    };
+  });
+  expect(a11y).toEqual({ role: "dialog", ariaModal: "true", labelText: "Close Garage door?" });
+
+  await card.locator("css=.fp-dialog button.confirm").click();
+  const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+  expect(calls).toEqual([["cover", "close_cover", { entity_id: "cover.demo_garage_door" }]]);
+});
+
 test("S2.7 Break it: a second tap on the door while the dialog is open does not open a second dialog", async ({ page }) => {
   await open(page);
   await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });

@@ -721,9 +721,9 @@ pressed state.
 - Note: unavailable was already built by S2.2/S2.3/S2.5's `classOf` (the `unavailable` class on `.dev`); this task added coverage but no new code for it. `renderFloor` still uses `opacity:.45`, not a literal strike-through, for that class — an undocumented choice already in place before this task, out of scope to change here.
 
 ### S2.7 Covers on doors (done)
-- Outcome: a door with `cover` opens after a confirm dialog.
-- Interface: tap on such a door → in-card dialog "Open <name>?" with Cancel / Open; Open calls `cover.open_cover` (or `close_cover` if `state === "open"`). Door line class `cover-open` when the cover is open.
-- Test: tap → dialog text; Open → `callService("cover", "open_cover", { entity_id })`; Cancel → no call.
+- Outcome: a door with `cover` acts after a confirm dialog whose text matches the action it takes.
+- Interface: tap on such a door → in-card dialog and Cancel / action button, both derived from the same live read of `hass.states[cover].state`: not `"open"` (closed, opening, unknown, unavailable, or missing) → "Open <name>?" with an Open button that calls `cover.open_cover`; `"open"` → "Close <name>?" with a Close button that calls `cover.close_cover`. The read happens again at press time, so a cover that changes state while the dialog is open re-renders the label and the eventual press acts on the state shown then, never against its own label. Door line class `cover-open` when the cover is open. The dialog carries `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` pointing at the question text.
+- Test: tap on a closed cover → "Open …" dialog, Open → `callService("cover", "open_cover", { entity_id })`; tap on an open cover → "Close …" dialog, Close → `callService("cover", "close_cover", { entity_id })`; a state change while the dialog is open flips the label and the eventual call matches it; Cancel → no call; the dialog's `role`/`aria-modal`/`aria-labelledby` read back correctly.
 - Done when: tests pass.
 - Break it: a second tap while the dialog is open does not open a second dialog.
 

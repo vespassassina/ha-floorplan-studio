@@ -2,6 +2,38 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 task/S2.7: the confirm dialog's text follows the action, not the PLAN block's literal wording
+
+Opus review found the bug the entry below missed: the PLAN block fixed the dialog's words ("Open
+`<name>`?") before anyone thought about the closing case, so a cover already `open` got a dialog
+that said "Open" while its button called `close_cover`. The text lied about what pressing it would
+do, on the one control in this card that moves something in the real house. A confirmation that
+misstates the action is worse than no confirmation at all, because the person has been trained to
+read and trust it — a dialog that lies is worse than silence.
+
+Fix: one method, `_coverService(door)`, reads `hass.states[door.cover].state` and returns which
+service a press would call. The dialog's question, its button's own label, and the actual
+`callService` call all derive from that one method, never from three separate reads that could
+drift apart. Not `"open"` (closed, `opening`, `closing`, `unknown`, `unavailable`, or missing from
+`hass.states`) reads "Open"; `"open"` reads "Close" — the same split the service call always made,
+now driving the words too.
+
+The reviewer asked directly whether a cover that flips state while the dialog is open can both (a)
+act on the state at press time and (b) never act against its own label, and told me to say which I
+chose if I could not have both. I can have both, and did: `hass`'s setter calls `requestUpdate()`
+on every assignment, Lit's re-render for that change completes (a microtask) before the browser can
+deliver the next user click (a later macrotask/event), and `_coverService` is read fresh at render
+time and again, separately, at the moment `_confirmCoverDialog` runs. A click can only land after
+the label the person is looking at reflects the state that produced it, so the two hold together;
+there is no path where a stale render is still on screen with a click already in flight. This is a
+property of the browser's event loop plus Lit's synchronous-relative-to-input update scheduling, not
+a coincidence to keep re-checking by hand — the new mid-dialog-state-change test in
+`tests/card/card.test.ts` pins it so a later change that broke the ordering would fail loudly.
+
+`role="dialog"`, `aria-modal="true"` and `aria-labelledby` (pointing at the question paragraph) were
+already in the markup from the first S2.7 commit; they were just never mentioned in the report or
+covered by a test, both now fixed.
+
 ## 2026-09-20 task/S2.7: a cover that is `opening`, `closing`, `unknown`, `unavailable` or missing from `hass.states` still opens the dialog, and Open still calls `open_cover`
 
 The PLAN block's interface line is literal: "Open calls `cover.open_cover` (or `close_cover` if
