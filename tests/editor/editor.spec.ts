@@ -3514,3 +3514,20 @@ test("S1.45: the disc is 3 units wider than the icon and stays white on a dark f
   const cone = await page.locator("svg path.cone").evaluate((el) => getComputedStyle(el).fillOpacity);
   expect(cone).toBe("0.25");
 });
+
+// ---- every text has a white outline (S1.46) ----------------------------------------------
+
+test("S1.46: room, zone, device and extra names and the edge length are dark grey with a white outline", async ({ page }) => {
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.extras.push({ id: "x1", name: "Shed", a: [100, 700], b: [200, 760] }); l.floors.ground.rooms[0].color = "#222222"; el.layout = l; }, EDITOR);
+  await page.locator("#names").click();
+  await page.mouse.click(...Object.values(await screenOf(page, 500, 200)) as [number, number]); // a click on the shared edge shows its length
+  const kinds = ["svg text.lbl:not(.zone)", "svg text.lbl.zone", "svg text.len"];
+  for (const sel of kinds) {
+    const st = await page.locator(sel).first().evaluate((el) => { const s = getComputedStyle(el); return [s.fill, s.stroke, s.paintOrder.split(" ")[0]]; });
+    expect(st, sel).toEqual(["rgb(58, 58, 58)", "rgb(255, 255, 255)", "stroke"]);
+  }
+  const names = await page.locator("svg text.lbl").evaluateAll((els) => els.map((el) => { const s = getComputedStyle(el); return [el.textContent, s.fill, s.stroke]; }));
+  expect(names.length).toBeGreaterThan(8); // rooms, the zone, device names, the extra
+  for (const [t, fill, stroke] of names) { expect(fill, String(t)).toBe("rgb(58, 58, 58)"); expect(stroke, String(t)).toBe("rgb(255, 255, 255)"); }
+  expect(names.some(([t]) => t === "Shed")).toBe(true);
+});

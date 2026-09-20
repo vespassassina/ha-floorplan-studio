@@ -829,3 +829,17 @@ describe("S1.42: a device never hides a room name", () => {
     expect(html).toMatch(new RegExp(`y="${100 + 32 * k + 16 * k}"[^>]*>3 x 4<`));
   });
 });
+
+describe("S1.46: one text style", () => {
+  it("every text class is dark grey with the white outline; no black, no dark-only rule", () => {
+    expect(FLOORPLAN_CSS).toContain("--fp-text:#3a3a3a");
+    expect(FLOORPLAN_CSS).toMatch(/\.val,\.lbl\{fill:var\(--fp-text\);paint-order:stroke;stroke:var\(--fp-outline\);stroke-width:3;stroke-linejoin:round\}/);
+    expect(FLOORPLAN_CSS).not.toMatch(/\.(val|lbl)[^{]*\{[^}]*fill:var\(--fp-ink\)/);
+    expect(FLOORPLAN_CSS).not.toMatch(/\.lbl[^{]*\{[^}]*stroke:var\(--fp-bg\)/);
+  });
+  it("no text carries its own fill", () => {
+    const f = structuredClone(ground);
+    f.extras.push({ id: "x", name: "Shed", a: [0, 0], b: [10, 10] } as never);
+    for (const m of renderFloor(f, base).matchAll(/<text [^>]*>/g)) expect(m[0]).not.toMatch(/ fill=/);
+  });
+});

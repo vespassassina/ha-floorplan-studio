@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.46: one text style
+
+All SVG text is --fp-text (#3a3a3a) with a white --fp-outline stroke, painted under the fill. It replaces the cream --fp-bg outline and the black-ish --fp-ink fill. The zone name stays muted by opacity only. The edge length label in the editor follows the same style; its stroke width keeps scaling with the zoom.
+
 ## 2026-09-20 S1.45: the icon disc is white, 75 percent
 
 The disc is r=16 (icon 12, plus 3 and the border), white at 75 %, 1 px grey non-scaling border. The camera cone keeps --fp-alpha .25. New variables --fp-disc and --fp-disc-alpha. The S1.42 collision uses 16k and steps 32k; this supersedes the 28k of that entry. The SPEC line about an active circle taking the type colour was dropped: the code never did it.

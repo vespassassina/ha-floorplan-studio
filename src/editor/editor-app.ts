@@ -202,7 +202,7 @@ export class FloorplanStudioEditor extends LitElement {
     .furn{pointer-events:all}
     .hl{fill:none;stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
     .h{cursor:move} .h.on{fill:var(--fp-ink)}
-    .len{fill:var(--fp-window);pointer-events:none;user-select:none}
+    .len{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-linejoin:round;pointer-events:none;user-select:none}
     .lbl{pointer-events:none;user-select:none}
     .dev,.door,.heater{cursor:move}
     @media (max-width:900px){.ed{grid-template-columns:1fr}}
@@ -866,7 +866,7 @@ export class FloorplanStudioEditor extends LitElement {
     const st = this.st, f = st.f, s = st.sel, o: string[] = [];
     const line = (a: Pt, b: Pt, cls: string, extra = "") => `<line class="${cls}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}" ${extra}/>`;
     const deg = st.layout.rotate ?? 0, upright = (x: number, y: number) => (deg % 360 ? ` transform="rotate(${num(-deg)} ${num(x)} ${num(y)})"` : "");
-    const len = (a: Pt, b: Pt) => `<text class="len" x="${num((a[0] + b[0]) / 2)}" y="${num((a[1] + b[1]) / 2)}"${upright((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)} text-anchor="middle" font-size="${num(10 * k)}" paint-order="stroke" stroke="var(--fp-bg)" stroke-width="${num(3 * k)}">${(dist(a, b) / 100).toFixed(2)} m</text>`;
+    const len = (a: Pt, b: Pt) => `<text class="len" x="${num((a[0] + b[0]) / 2)}" y="${num((a[1] + b[1]) / 2)}"${upright((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)} text-anchor="middle" font-size="${num(10 * k)}" stroke-width="${num(3 * k)}">${(dist(a, b) / 100).toFixed(2)} m</text>`;
     if (s?.t === "edge") { const pts = polyPts(f, s.poly); if (pts) { const a = pts[s.i], b = pts[(s.i + 1) % pts.length]; o.push(line(a, b, "hl", 'stroke-width="4"'), len(a, b)); } }
     if (s?.t === "opening" && f.openings[s.i]) o.push(line(f.openings[s.i].a, f.openings[s.i].b, "hl", 'stroke-width="4"'));
     if (s?.t === "wall" && f.walls[s.i]) o.push(line(f.walls[s.i].a, f.walls[s.i].b, "hl", 'stroke-width="4"'));

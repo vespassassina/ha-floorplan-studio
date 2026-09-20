@@ -593,7 +593,7 @@ S1.42 are three defects the verifiers found.
 - Done when: tests pass; the S1.42 test still passes with the new radius.
 - Break it: a device on a dark room colour still shows a white disc; setting `--fp-alpha` does not change the disc.
 
-### S1.46 All text has a white outline
+### S1.46 All text has a white outline (done)
 - Outcome: every label is readable on any background: dark grey text with a white outline, never black, never a dark-background-only rule.
 - Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
 - Interface: one rule for `.lbl` and `.val` and every other SVG text: `fill:var(--fp-text)` with `--fp-text:#3a3a3a`, `paint-order:stroke`, `stroke:var(--fp-outline)`, `stroke-width:3`, `stroke-linejoin:round`. `--fp-outline` is the S1.35b variable, white. Any rule that adds the outline only on a dark floor, and any `fill` that is black or `--fp-ink` on a text element, is removed. Extras and stairs names use the same class.

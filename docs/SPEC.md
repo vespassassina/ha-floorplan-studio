@@ -139,6 +139,7 @@ in `prompts/`, then fixed in the editor.
 ## Card behaviours
 
 Every wall and edge line has a white twin under it, so a dark line stays visible on a dark floor.
+Every text on the plan (room, zone, device and extra names, values, edge lengths) is dark grey (`--fp-text`, #3a3a3a) with a white outline (`--fp-outline`), on any background.
 Every device icon sits on a white disc at 75 % alpha with a 1 px grey border,
 three units wider than the icon, and is drawn
 above everything else on the plan, room names included. A room name that would
