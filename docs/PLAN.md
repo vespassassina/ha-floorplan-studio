@@ -219,6 +219,234 @@ field, and `migrate` fills defaults.
 
 ---
 
+## Sprint 1.6 — editor rework (E2)
+
+Diego used the editor and wrote a change list. It runs before the card for the
+same reason Sprint 1.5 did: every item changes what `renderFloor` draws or
+what the layout holds, and the card should meet all of it once. What was
+decided, and what was refused, is in the top entry of `docs/DECISIONS.md`.
+Schema stays version 2; `migrate` fills every new field and renames `outdoor`
+to `garden`, at v1 and at v2.
+
+Diego's list, in his words:
+
+> - zones, stairs, water, terrace, outdoor cannot be dragged.
+> - outdoor rename to garden
+> - fill make it grey and with diagonal lines showing it's not usable.
+> - garden make it darker green, terrace light brown
+> - add a pavement style for outdoor make it grey.
+> - delete button make it orange
+> - when adding a new item put it top right, outside the house.
+> - device icon must be on top of everything to be seen, put icons inside a
+>   circle, make the circle semitransparent grey (alpha 50%)
+> - the draw menu, extract from add and put next to add menu.
+> - water is a type of room, so remove from the add menu
+> - can stairs be a type of zone? color is good, but can we make it look
+>   striped like a stair? also must be possible to make curved and round
+>   stairs. so perhaps stairs needs its own type and a submenu for
+>   round/straight and allow to rotate them. if round diameter can be changed.
+>   and it can be dragged.
+> - every placeable item should be rotatable, rooms/zones once connected/
+>   snapped to other zones or rooms cannot rotate anymore. if i UNSNAP a room
+>   (they must be unsnappable) then i can rotate.
+> - when adding stairs they get added in all floors in the same exact position.
+> - when building floors every new floor inherits the perimeter and the stair
+>   position of the first floor designed. it is possible to delete a floor (red
+>   button) so i can start again with a clean floor.
+> - and the whole planimetry should be rotatable, the option in the view menu.
+>   it rotates all floors. it is made to align to north. just do 45 degrees
+>   increment
+> - possibility of changing wall type, dotted, internal, external, opening,
+>   fence, edge etc. now i can only draw it, i need to be able to change it and
+>   as a submenu of add wall selecting the type.
+> - allow to change ground color of the rooms and of the various zones. so it
+>   can be customized. in the room menu.
+> - make the reset button Red.
+> - one wall switch can control multiple dumb lights (placed manually)
+> - dumb lights when on are yellow and have a round aura (yellow, alpha 50%)
+>   not too big, say 2 meter in diameter.
+> - smart lights show the same aura and their color with the actual smart light
+>   color. it must be attachable to the color of the light in HA
+> - when devices are on their icon is lightened with the color that represents
+>   them and since all icons are inside a small semi transparent circle, the
+>   circle too can change color with the same color of the icon (50% alpha).
+> - motion sensors, contact sensors are red.
+> - lights are yellow, smart lights have their color or yellow
+> - heaters/trv are orange
+> - AC/heatpumps are blue if they do cold, orange if they warm, grey if they
+>   are just fans/scrubbers/filters.
+> - wallswitches are grey.
+> - computers grey, tv grey when it's on blue.
+> - garden sensors are green
+> - cameras are dark grey and show a 120 degree cone of view (dark grey, 33%
+>   alpha), that can be rotated to show what they see
+> - humidity sensors are grey
+
+Everything on that list that needs an entity state is a card task: S2.8 to
+S2.10. Everything drawn from the layout alone is here.
+
+### S1.14 Garden and pavement
+- Outcome: the room kind `outdoor` is called `garden`, and `pavement` joins it. Each outdoor kind has its own colour.
+- Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/render.ts`, `src/editor/panels.ts`, `tests/core/schema.test.ts`, `tests/core/migrate.test.ts`, `tests/core/render.test.ts`, `demo/layout.json`, `demo/layout.v1.json`, `docs/SPEC.md`.
+- Interface: `RoomKind` is `"room" | "garden" | "pavement" | "fill" | "terrace" | "structure" | "zone" | "water"`; `ROOM_KINDS` in that order. `validate` rejects `"outdoor"` with the list of the eight. `migrate` maps `kind: "outdoor"` to `"garden"` on every room at v1 and at v2, before ids and areas are filled, and leaves any other kind alone. `renderFloor` keeps emitting `room room-<kind>`; `FLOORPLAN_CSS` drops `--fp-outdoor` for `--fp-garden` (#9db98a, a darker green than the old #dce6d6), `--fp-terrace` (#cdb094, light brown) and `--fp-pavement` (#c9c6bf, grey), each used by its own class. The room panel's kind select shows the eight through a new `ROOM_LABELS: Record<RoomKind, string>` in `panels.ts` (Room, Garden, Pavement, Fill, Terrace, Structure, Zone, Water) instead of the raw ids. The demo ground floor gains a garden around the pond and a pavement strip in front of the house, both in `layout.json` and `layout.v1.json` (the v1 one written as `outdoor` for the garden, so migration is exercised).
+- Test: `migrate` on a fixture with `kind: "outdoor"` at version 1 and at version 2 gives `"garden"` both times and a second `migrate` changes nothing; `validate` refuses `"outdoor"` and accepts `"pavement"`; the render snapshot shows `room-garden` and `room-pavement`; `migrate(demo v1)` still deep-equals `demo/layout.json`.
+- Done when: tests pass; the snapshot is updated; `npm run lint` clean; SPEC lists the eight kinds.
+- Break it: a room with `kind: "garden"` already set survives `migrate` unchanged, and a room with no `kind` at all is still reported by `validate`, not silently turned into a garden.
+
+### S1.15 Fill is hatched
+- Outcome: a `fill` room is grey with diagonal lines, so it reads as floor that is not a usable room.
+- Files: `src/core/render.ts`, `tests/core/render.test.ts`.
+- Interface: `renderFloor` emits, as its first element and only when the floor has a room of kind `fill`, `<defs><pattern id="fp-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="var(--fp-fill)"/><line x1="0" y1="0" x2="0" y2="12" stroke="var(--fp-fill-line)" stroke-width="2"/></pattern></defs>`. `.room-fill` becomes `fill:url(#fp-hatch)`; new variables `--fp-fill` (#c4c0b8) and `--fp-fill-line` (#9a958b). The markup keeps no colour literal. The id is fixed on purpose (see DECISIONS).
+- Test: a render fixture with one `fill` room contains the `<defs>` exactly once and `.room-fill` resolves to the pattern; a floor with no `fill` room emits no `<defs>`; the string still has no `#rrggbb`.
+- Done when: tests pass; the demo snapshot is unchanged (the demo has no fill room).
+- Break it: two `fill` rooms on one floor still emit one `<defs>`, not two.
+
+### S1.16 A room or zone can have its own colour
+- Outcome: the user picks the ground colour of a room, a zone or any other polygon, and can clear it again.
+- Files: `src/core/schema.ts`, `src/core/render.ts`, `src/editor/panels.ts`, `tests/core/schema.test.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface: `Room` gains `color?: string`. `validate` accepts it only when it matches `/^#[0-9a-fA-F]{6}$/` and reports `"<id> color must be a colour like #aabbcc"` otherwise. `migrate` passes it through and never invents one. `renderFloor` adds `fill="<color>"` to that room's `<polygon>` when it is present and the layout passed `validate`; the class stays, so the hatch, water and zone rules still apply to a room without one. The room panel gains `<input type="color" id="rcol">` bound to `color` (`#ffffff` when absent) and a button `#rcolx` "Use the default colour" that deletes the key; both are one undo step and none when unchanged.
+- Test: `validate` rejects `"red"`, `"#abc"` and `"#aabbcc; x"` and accepts `"#AABBCC"`; a render fixture with a colour has `fill="#aabbcc"` on that polygon and no other; Playwright: set the colour of the demo living room, the polygon's `fill` attribute changes, press the default button and the attribute is gone.
+- Done when: tests pass.
+- Break it: a colour on a room whose kind is `fill` still draws the hatch pattern over it, and neither throws.
+
+### S1.17 Every room edge has a kind
+- Outcome: a room edge is one of the five wall kinds, not a boolean, so it can be external, a fence or an outdoor edge like a free wall.
+- Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/geometry.ts`, `src/core/render.ts`, `src/editor/draw.ts`, `src/editor/editor-app.ts`, `src/editor/panels.ts`, `tests/core/{schema,migrate,geometry,render}.test.ts`, `tests/editor/draw.test.ts`, `demo/layout.json`, `demo/layout.v1.json`, `docs/SPEC.md`.
+- Interface: `Room.w: boolean[]` becomes `Room.wk: WallKind[]`, one entry per point, the edge from `pts[i]` to `pts[i+1]` being `wk[i]`. `migrate` writes `wk` from `w` (`true` → `"wall"`, `false` → `"boundary"`), deletes `w`, and fills a missing or short `wk` with `"wall"` up to `pts.length`; a room that already has a valid `wk` is left alone. `validate` requires `wk.length === pts.length` and each entry in `WALL_KINDS`, and requires every entry of a zone to be `"boundary"` (the old "every w false" rule). `geometry.ts`: `insertPoint`, `removePoint`, `stitch` and `mergeCorners` splice `wk` where they spliced `w`; `toggleWall(f, poly, i)` is replaced by `setEdgeKind(f, poly, i, kind: WallKind): Floor`, which writes `kind` into every room that has that edge (`edgeRooms` is unchanged) and returns `f` itself when nothing matches; `edgeRooms` keeps skipping zones. `renderFloor` gives a room edge the class of its kind, exactly as it already does for a free wall (`wall` → `e`, `boundary` → `e nw`, the rest `e <kind>`, escaped); a zone edge stays dotted whatever `wk` says. `draw.ts` `applyShape` writes `wk: pts.map(() => "wall")` for a room and `"boundary"` for a zone, water and outline-less shapes.
+- Test: `migrate` on a v1 and a v2 fixture whose `w` is `[true, false, true]` gives `wk` `["wall", "boundary", "wall"]` and no `w`; a second `migrate` changes nothing; `validate` rejects a `wk` of the wrong length, an unknown kind and a zone with a `"wall"` entry; `setEdgeKind` writes `"external"` into both rooms that share an edge and leaves a zone edge alone; the render test asserts the class per kind on a room edge; `migrate(demo v1)` deep-equals `demo/layout.json`.
+- Done when: tests pass; the demo layouts and the snapshot are updated; `grep -rn "\.w\b" src/core src/editor` finds no room wall flag left; SPEC describes `wk`.
+- Break it: a room whose `w` is `[true, true]` on a three-point polygon migrates to three `wk` entries, the third `"wall"`, and `validate` then accepts it.
+
+### S1.18 Change the kind of an edge or a wall
+- Outcome: the panel of a selected room edge sets its kind, the way the free wall panel already does.
+- Files: `src/editor/panels.ts`, `tests/editor/editor.spec.ts`.
+- Interface: `edgePanel` loses the "Make this edge a wall / a dotted boundary" button and gains `<select id="ek">` with the five `WALL_LABELS`, shown only when `edgeRooms` returns something (an outline edge that no room shares still has no kind to set, as today). Choosing one calls `setEdgeKind` through `commit`: one undo step, none when unchanged. The panel title shows the label of the current kind, as the wall panel does.
+- Test: Playwright: select a shared edge of the demo, choose "External wall", both rooms' `wk` entries read `external` and the drawn line has class `external`; choosing the same kind again adds no undo step.
+- Done when: tests pass.
+- Break it: the select does not appear on a zone edge (`edgeRooms` returns nothing there), and choosing a kind on the outline edge of a room-less floor changes nothing and does not throw.
+
+### S1.19 A free wall becomes an opening, and back
+- Outcome: a wall can be turned into a gap and a gap back into a wall, without deleting and redrawing.
+- Files: `src/editor/panels.ts`, `src/editor/ops.ts`, `tests/editor/editor.spec.ts`.
+- Interface: `ops.ts` gains `wallToOpening(f, i)` and `openingToWall(f, i, kind: WallKind)`, both pure, both keeping `a` and `b` and taking a fresh id from `newId`. The free wall panel's kind select gains a sixth entry "Opening (a gap in the wall)" with the value `opening`; choosing it runs `wallToOpening` and selects the new opening. The opening panel gains the same select, showing "Opening" plus the five wall kinds; choosing a wall kind runs `openingToWall` and selects the new wall. Each is one undo step. A room edge's select (S1.18) does not offer it: a gap in a room edge is an `openings` entry laid over it.
+- Test: Playwright: select a free wall, choose Opening, `floor.walls` shrinks by one and `floor.openings` grows by one with the same ends; the opening panel then shows; choose "External wall" and it is a wall again with kind `external`; Undo twice returns to the first wall with its first kind.
+- Done when: tests pass.
+- Break it: converting a wall of zero length is refused with a status line, not written.
+
+### S1.20 A new item lands outside the house
+- Outcome: anything added lands top right of the plan, clear of what is drawn, and the view scrolls to it.
+- Files: `src/editor/ops.ts`, `src/editor/editor-app.ts`, `tests/editor/ops.test.ts` (new), `tests/editor/editor.spec.ts`.
+- Interface: `ops.ts` gains `spawnPoint(f: Floor, fallback: Pt): Pt` — with an outline of three points or more, `[maxX + 150, minY]` of its bounding box, rounded to the 5 cm grid; otherwise `fallback`. `editor-app.ts` replaces `this.centre()` with `spawnPoint(this.st.f, this.centre())` in `addWall`, `addStructure`, `addArea`, `addStairs` and `addFurniture`, and in `placeDevice` when the catalog entry's room is not on the floor. `addDoor` and `addOpeningGap` keep `centre()` and the nearest-edge rule. After any of these, `ensureVisible(p: Pt)` pans the view so `p` is inside it with a 100 cm margin, keeping the zoom.
+- Test: unit: `spawnPoint` on a fixture outline returns the point right of its bounding box and on the grid, and returns the fallback for an empty outline; Playwright: Add, Structure on the demo ground floor puts every point of the new structure outside the outline's bounding box, and the structure is inside the view box afterwards.
+- Done when: tests pass.
+- Break it: with the view scrolled far from the house, the added item is still outside the house and still comes into view.
+
+### S1.21 Draw is its own menu
+- Outcome: the toolbar has Add and Draw side by side; Add places finished items, Draw takes clicks.
+- Files: `src/editor/editor-app.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: toolbar order: floor chips, "+", filter, Names, Add, Draw, Device, View, File. `<details class="menu" id="mDraw">` holds the eleven Draw items that Add held (`#drawRoom`, `#drawZone`, `#drawWater`, `#drawOutline`, `#drawWall-<kind>` for the five, `#drawOpening`, `#drawExtra`), with the same ids and the same handlers; Add keeps Door, Window, Opening, Structure, Zone, Stairs and the furniture select, loses Water (a room kind: draw it or change a room's kind) and replaces the single `#addWall` with one button per kind, `#addWall-<kind>`, each placing a 200 cm wall of that kind at the spawn point. The Draw group heading and separator leave Add.
+- Test: Playwright: the Add menu has no `#drawRoom` and no `#addWater`; the Draw menu has all eleven; `#addWall-fence` adds a wall with kind `fence`; opening Draw closes Add.
+- Done when: tests pass; SPEC's editor section lists both menus.
+- Break it: a Draw item chosen while another Draw is already running starts the new one and writes nothing from the old, as it did in Add.
+
+### S1.22 Everything drags by its body
+- Outcome: any room, zone, water, structure or stairs moves when dragged by its middle, not only a structure.
+- Files: `src/editor/editor-app.ts`, `tests/editor/editor.spec.ts`.
+- Interface: in `onDown`, `case "room"` starts the existing `room` drag for every kind, not only `structure`; `case "stairs"` starts the same drag against `f.stairs[i].pts`. The `Drag` type's `room` case gains `list: "rooms" | "stairs"`. Dragging by the body never stitches and never drags a neighbour's corner along (it is the whole polygon that moves), as the zone drag already does. A press on a body still selects it first, so a drag that does not move leaves the selection and no undo step. Panning by pressing a room body is gone; the hint already names the three ways to pan, and it gains "Drag a room, zone or stairs by the middle to move it."
+- Test: Playwright: drag the demo's water pond 60 px, every point moves by the same amount and no wall gains a point; drag the demo's stairs the same way; press a room and release without moving, no undo step is recorded.
+- Done when: tests pass.
+- Break it: dragging a room whose corner sits on another room's corner moves only the dragged room, and the other room keeps its corner where it was.
+
+### S1.23 Rotate a device, a wall, a door or an opening
+- Outcome: the things that are not polygons can be turned from their panel.
+- Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/render.ts`, `src/editor/ops.ts`, `src/editor/panels.ts`, `tests/core/{schema,render}.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface: `Device` gains `rot?: number`; `validate` requires a finite number in `[0, 360)` when present; `migrate` passes it through. `renderFloor` turns a device's group by `rot` about its centre, and then turns the icon back so the glyph stays upright: only the cone of S1.31 and anything else drawn in the group's frame turns. `ops.ts` gains `rotateSegment(a, b, deg): { a, b }`, which turns a segment about its midpoint and rounds to 1 cm. The device panel gains a rotation field (`#vrot`, degrees, stored as `((n % 360) + 360) % 360`, the key deleted at 0); the wall, door and opening panels gain an angle field (`#wrot`, `#drot`, `#orot`) that sets the segment's angle through `rotateSegment`. Furniture already has one and is not touched.
+- Test: `validate` rejects `rot: 400` and `rot: "90"`; a render fixture with `rot: 90` has that rotation on the device group and the reverse on the icon; Playwright: set a door's angle to 90 and its ends swap axis around the same midpoint.
+- Done when: tests pass.
+- Break it: a device with `rot: 0` renders byte-identical to one with no `rot` at all, so the demo snapshot does not change.
+
+### S1.24 Unsnap a room, then rotate it
+- Outcome: a room or zone that shares no corner can be rotated; one that does must be unsnapped first.
+- Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/geometry.ts`, `src/editor/panels.ts`, `tests/core/{schema,geometry}.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface: `Room` gains `free?: boolean`; `validate` requires a boolean when present; `migrate` passes it through. `geometry.ts`: `isFree(P)` joins `isZone(P)` everywhere a zone is excluded — `snapPoint` corner and T targets, `stitch`, `mergeCorners` and the `movePoints` grouping — so a free room neither attracts nor follows. New `snapped(f, poly): boolean`: true when any corner of that polygon is within 2 cm of a corner of another polygon that is not itself free. New `rotatePoly(f, poly, deg): Floor`, which turns the polygon about the centre of its own bounding box and rounds to 1 cm. The room panel shows, for a room or zone: a rotation field `#rrot` (degrees, applied as a delta through `rotatePoly`, one undo step) enabled when `free` or when `snapped` is false, and a button `#runsnap` "Unsnap" / "Snap back" that toggles `free`, with the hint "Unsnapped: this room no longer joins its neighbours."
+- Test: `snapped` is true for two demo rooms that share a wall and false for the pond; `rotatePoly` by 90 on a square gives the square back with its corners in the new order; a free room is no longer a `snapPoint` corner target; Playwright: the rotation field of a shared room is disabled, Unsnap enables it, rotating by 30 changes the points, Undo restores them.
+- Done when: tests pass.
+- Break it: unsnapping a room does not move it by one centimetre, and its neighbour's corners stay where they are.
+
+### S1.25 Stairs are straight or round, and striped
+- Outcome: stairs look like stairs: treads across a straight flight, spokes in a round one, with a rotation.
+- Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/render.ts`, `src/editor/ops.ts`, `src/editor/panels.ts`, `tests/core/{schema,migrate,render}.test.ts`, `tests/editor/editor.spec.ts`, `demo/layout.json`, `demo/layout.v1.json`, `docs/SPEC.md`.
+- Interface: `Stairs` gains `shape: "straight" | "round"`, `steps: number` and `rot: number`, plus `dia?: number` for a round one. `STAIR_SHAPES` is exported next to the other enum lists. `validate`: `shape` in the list, `steps` an integer in `[2, 40]`, `rot` a finite number in `[0, 360)`, `dia` a finite number of at least 40 when `shape` is `round` and absent otherwise. `migrate` fills `shape: "straight"`, `steps: 12`, `rot: 0` on stairs that have none. `renderFloor` wraps each stairs polygon and its new treads in `<g data-s="<i>" transform="rotate(<rot> cx cy)">` about the polygon's bounding-box centre, and draws `steps - 1` tread lines with class `tread`: for `straight`, parallel lines across the shorter axis of the bounding box; for `round`, spokes from the centre to the rim. New variable `--fp-tread` (#8b8578, 1.5 wide). `ops.ts` `stairsAt` keeps its 100 × 300 cm flight and adds the new fields; a new `roundStairs(c, dia)` returns the 24-gon of that circle with `shape: "round"`. The stairs panel gains: shape select `#ss`, steps `#sst`, rotation `#srot`, and diameter `#sdia` shown only for a round one (changing it regenerates `pts`). A round stair, and any stair with `rot` other than 0, draws no corner handles: `renderFloor` skips them and the editor's overlay does too. The demo keeps its straight stairs and gains nothing.
+- Test: `validate` rejects `steps: 1`, `steps: 3.5`, a `dia` on a straight stair and a missing `dia` on a round one; `migrate` fills the three defaults and a second run changes nothing; a render fixture of a 12-step straight stair has 11 `line.tread` inside the stairs group and a round one has 11 spokes; Playwright: Add, Stairs, switch the shape to round, set the diameter to 200, `pts` has 24 points on that circle, and no corner handle is drawn.
+- Done when: tests pass; the demo snapshot is updated with the tread lines; SPEC lists the fields.
+- Break it: setting the rotation of a straight stair back to 0 brings the corner handles back and they sit on the drawn corners.
+
+### S1.26 Stairs go on every floor
+- Outcome: stairs added once stand in the same place on every floor.
+- Files: `src/editor/state.ts`, `src/editor/editor-app.ts`, `tests/editor/state.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface: `EditorState.addStairsEverywhere(t: { name; pts; shape; steps; rot; dia? }): void` snapshots the whole layout once, then pushes a copy into every floor with an id from `newId(floor, key, "stairs")` per floor, and selects the one on the current floor. `editor-app.ts` `addStairs` calls it instead of `commit`. Delete stays per floor: removing stairs removes them from the current floor only, and the stairs panel says so ("Stairs are added to every floor and deleted from one.").
+- Test: state test: three floors, `addStairsEverywhere` leaves one stairs on each with the same `pts` and different ids, one undo step, and Undo removes all three; Playwright: Add, Stairs on the demo, switch to the first floor, the stairs are there at the same coordinates; delete them there and the ground floor still has its own.
+- Done when: tests pass.
+- Break it: a floor that already has stairs gets the new ones too, rather than being skipped: two flights are legitimate.
+
+### S1.27 A new floor inherits the outline and the stairs
+- Outcome: adding a floor does not mean tracing the perimeter again.
+- Files: `src/editor/state.ts`, `src/editor/panels.ts`, `tests/editor/state.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface: `EditorState.addFloor(title)` copies `outline` and `stairs` (deep copies, ids from `newId` against the new floor) from the *first* floor in the key order, which is the lowest; every other array stays empty. When the first floor has no outline, the new floor has none. The floor panel's hint says where the outline came from, and Delete floor is how the user starts a clean one.
+- Test: state test: a layout whose ground floor has an outline of four points and one stairs; `addFloor("Attic")` gives the attic the same four points and one stairs with a different id and no rooms; adding a second floor still copies from the ground floor, not from the attic; one undo step.
+- Done when: tests pass.
+- Break it: a floor added when the only floor is empty is empty too, and nothing throws.
+
+### S1.28 Red and orange buttons
+- Outcome: what a button destroys is visible before it is pressed.
+- Files: `src/editor/editor-app.ts`, `src/editor/panels.ts`, `tests/editor/editor.spec.ts`.
+- Interface: two classes in the editor's own styles: `.btn.danger` (background `--fp-motion`, text `--fp-bg`) and `.btn.warn` (background `--fp-open`, text `--fp-bg`). `danger` goes on `#reset`, `#fdel` and `#fdelyes` only. `warn` goes on every other delete: `#delv`, `#wdel`, `#deld`, `#odel`, `#rdel`, `#vdel`, `#fdel` of the furniture panel (renamed `#fudel`, because the floor panel already owns `#fdel`) and `#sdel`. No colour literal: both classes use the existing variables.
+- Test: Playwright: `#reset` and `#fdel` carry class `danger`, the selection panels' delete buttons carry `warn`, and the furniture delete button answers to `#fudel`.
+- Done when: tests pass; no other test still selects `#fdel` for furniture.
+- Break it: the two `#fdel` ids no longer collide: the floor panel and the furniture panel can be open in turn without either button changing meaning.
+
+### S1.29 The device icon sits on top, in a grey circle
+- Outcome: no name, wall or furniture hides a device icon, and every icon has the same backing circle.
+- Files: `src/core/render.ts`, `tests/core/render.test.ts`.
+- Interface: the paint order of `renderFloor` ends with room names and *then* devices, so a device group is the last element of the plan. The circle behind each icon becomes `<circle class="halo" cx="12" cy="12" r="13"/>` with `.dev .halo{fill:var(--fp-halo);fill-opacity:.5}` and `--fp-halo` (#8b8578, grey) in `FLOORPLAN_CSS`; the `fill` and `fill-opacity` attributes leave the markup, so Sprint 2 can colour the halo from state with one CSS rule. Nothing else about the group changes: the class list, the title and the hit target `g[data-x]` stay.
+- Test: the render snapshot shows every `g[data-x]` after the last `text.lbl` of a room; a fixture with a device inside a named room asserts the order by index; the markup has no `fill-opacity` literal on the halo.
+- Done when: tests pass; the demo snapshot is updated; the editor's hit testing is unchanged (`tests/editor/editor.spec.ts` still green).
+- Break it: a device whose centre is exactly the centre of a room label is still the top element at that point (`elementFromPoint` returns the device group).
+
+### S1.30 A colour for every device type
+- Outcome: the palette every device colour comes from, and the types `tv`, `computer` and `ac`.
+- Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/icons.ts`, `src/core/render.ts`, `src/editor/panels.ts`, `tests/core/{schema,icons,render}.test.ts`, `docs/SPEC.md`.
+- Interface: `DeviceType` gains `"ac" | "tv" | "computer"`, in `DEVICE_TYPES` after `climate`. `DEVICE_ICONS` gains their MDI paths (`air-conditioner`, `television-classic`, `desktop-tower-monitor`) and `TYPE_LABELS` their labels (Air conditioning / heat pump, TV, Computers). `FLOORPLAN_CSS` gains one variable per type that has a colour of its own: `--fp-dev-light` (#e0a800), `--fp-dev-motion` and `--fp-dev-contact` (#d64545), `--fp-dev-heater` and `--fp-dev-climate` (#e8801a), `--fp-dev-ac-cool` (#2c7fb8), `--fp-dev-ac-heat` (#e8801a), `--fp-dev-tv` (#2c7fb8), `--fp-dev-camera` (#4a4a48), `--fp-dev-garden` (#3f8f4f); switch, plug, computer, humidity and anything else keep `--fp-idle`. Sprint 1.6 uses only the ones that do not need a state: `.dev-camera path{fill:var(--fp-dev-camera)}` and a sensor inside a room of kind `garden` gets the class `outdoor` from `renderFloor` (point in polygon of its centre, the rooms it already walks) with `.dev.outdoor path{fill:var(--fp-dev-garden)}`. The card applies the rest in S2.9. `migrate` needs no rule: the three types are new names, and an unknown type is already left alone for `validate` to report.
+- Test: `validate` accepts the three and still rejects `"fridge"`; `DEVICE_ICONS` has a path starting with `M` for every member of `DEVICE_TYPES` (the existing icons test enumerates them, so it must be extended); a render fixture with a temp sensor inside a garden room has class `outdoor` on it and one inside a normal room does not.
+- Done when: tests pass; SPEC's device type list and behaviours table match.
+- Break it: a device standing in a garden room *and* a zone on top of it is still `outdoor`, and a device in no room at all gets no class and does not throw.
+
+### S1.31 A camera shows what it sees
+- Outcome: a camera draws a 120 degree cone in dark grey at 33 % alpha, turned by its `rot`.
+- Files: `src/core/render.ts`, `src/editor/panels.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface: for a device of type `camera`, `renderFloor` draws, before the icon and inside the device's group so it turns with `rot`, `<path class="cone" d="M0 0 L… A…"/>`: a 120 degree sector of radius 300 cm, centred on the device, pointing along `rot` (0 is up, degrees clockwise, as everywhere else). `.cone{fill:var(--fp-dev-camera);fill-opacity:.33;pointer-events:none}`. The cone is drawn in plan units, not in the icon's screen-size frame, so it keeps its size in centimetres as the user zooms. The device panel shows the rotation field of S1.23 for every device and adds, for a camera, the hint "The cone shows a 120 degree field of view, 3 m deep."
+- Test: a render fixture with a camera at `rot: 90` has one `path.cone` whose first point is the camera's centre and whose sector spans 120 degrees about the +x axis; a camera with no `rot` points up; no other device type emits a cone.
+- Done when: tests pass; the demo snapshot gains the cone of the demo hall camera.
+- Break it: the cone does not catch the pointer: a click in the middle of a cone that lies over a room selects the room, not the camera.
+
+### S1.32 One wall switch, several lamps
+- Outcome: two or more lights can name the same wall switch, and that switch can still be an icon of its own.
+- Files: `src/core/schema.ts`, `src/core/bind.ts`, `src/editor/state.ts`, `tests/core/{schema,bind}.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: `validate` drops two rules — "bound is used by more than one device" and "bound is also the entity of another device" — and keeps the rest: `bound` is an entity id, only on a light, different from that light's `entity`. `bind.ts` `placedEntities` no longer adds `bound`, so a switch that some light names is still offered in the Device menu and can be placed as its own grey icon; `unplacedCatalog` follows. `EditorState.bindChoices` offers every switch and plug in the catalog except the light's own entity, whether or not it is placed or already bound elsewhere; the current one always shows. `renderFloor` is unchanged: a light is on when its own entity or its `bound` is on, and the switch's own icon reads its own state.
+- Test: `validate` accepts a fixture where two lights share `switch.hall` and that switch is also a placed device; `unplacedCatalog` lists a bound switch that is not placed; Playwright: bind two demo lights to the hall switch, then place the hall switch from the Device menu and both lights and the switch are on the plan.
+- Done when: tests pass; the SPEC bullet on `bound` matches; the CLAUDE.md domain note on `bound` is updated in the same commit.
+- Break it: a light bound to its own entity is still refused by `validate`.
+
+### S1.33 Rotate the whole plan
+- Outcome: View, Rotate turns every floor in 45 degree steps so the plan lines up with north, and the card shows the same.
+- Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/render.ts`, `src/editor/editor-app.ts`, `src/editor/state.ts`, `tests/core/{schema,migrate,render}.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: `Layout` gains `rotate?: number`; `validate` requires a multiple of 45 in `[0, 360)`; `migrate` fills 0. New `planPivot(l: Layout): Pt` in `render.ts`: the centre of the bounding box of every floor's outline together, so all floors turn about one point; with no outline anywhere, `[0, 0]`. `RenderOpts` gains `rotate?: { deg: number; pivot: Pt }`; when `deg` is not 0, `renderFloor` wraps its whole output in `<g transform="rotate(<deg> <px> <py>)">` and gives every `text` and every device group an extra `rotate(<-deg> <x> <y>)` about its own anchor, so names, values and icons stay upright while the drawing turns. `viewBoxFor(f, pad, rotate?)` fits the rotated outline. The editor: `View` gains "Rotate the plan" with two buttons, `#rotl` and `#rotr`, stepping `layout.rotate` by ∓45 as one undo step, and a reading of the current angle; `toSvg` un-rotates the pointer about the pivot, which is the one place plan coordinates are made, so hit testing, snapping and drag need no other change. The card passes the same `rotate` in S2.1 and needs nothing else.
+- Test: `validate` rejects 30 and 360 and accepts 0 and 315; a render fixture at 90 has the group transform and the counter-rotation on a room name; `viewBoxFor` at 90 on a wide outline returns a tall box; Playwright: rotate the demo right twice, a corner that was top left is dragged by its handle and lands where the pointer is (the un-rotation is exercised), and the stored coordinates are unchanged after a rotate right and a rotate left.
+- Done when: tests pass; the demo snapshot at rotate 0 is unchanged.
+- Break it: rotating twice and back leaves `layout.rotate` at 0 and every coordinate byte-identical, so the rotation is never written into the data.
+
+---
+
 ## Sprint 2 — card (E3)
 
 ### S2.1 Card element
