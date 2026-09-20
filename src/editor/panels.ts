@@ -338,13 +338,14 @@ function boundField(c: PanelCtx, i: number) {
 
 function furniturePanel(c: PanelCtx, i: number) {
   const m = c.st.f.furniture[i];
-  const set = (k: "w" | "h" | "rot", min: number) => (n: number) => c.commit((f) => { f.furniture[i][k] = Math.max(min, n); });
+  // S1.51: width and depth are clamped to the same 5..2000 cm bounds the corner drag and validate() hold.
+  const setSize = (k: "w" | "h") => (n: number) => c.commit((f) => { f.furniture[i][k] = Math.min(2000, Math.max(5, n)); });
   return html`<strong>Furniture</strong>
     ${text("plan name", "fun", m.name ?? "", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "name", v.trim()); }))}
     ${entityField(c, "fuent", "shows the state of", m.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "entity", v); }))}
     ${select("symbol", "fs", m.symbol, FURNITURE_SYMBOLS, (v) => c.commit((f) => { f.furniture[i].symbol = v as typeof m.symbol; }))}
-    ${number(c, "width (cm)", "fw", m.w, set("w", 5))}
-    ${number(c, "depth (cm)", "fh", m.h, set("h", 5))}
+    ${number(c, "width (cm)", "fw", m.w, setSize("w"))}
+    ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
     ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}
     <p>${button("fudel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag it to move it. Alt disables the grid.")}`;

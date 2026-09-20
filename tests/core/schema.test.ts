@@ -415,3 +415,20 @@ describe("HA links (S1.37)", () => {
     const m = clone(); m.floors.ground.furniture[0].name = 7; expect(errorsOf(m).join()).toMatch(/name must be text/);
   });
 });
+
+describe("furniture size bounds (S1.51)", () => {
+  it("rejects w or h of 0 or of 5000 as out of range", () => {
+    for (const bad of [0, 5000]) {
+      const l = clone(); l.floors.ground.furniture[0].w = bad; expect(errorsOf(l).join(), String(bad)).toMatch(/w must be between 5 and 2000/);
+      const m = clone(); m.floors.ground.furniture[0].h = bad; expect(errorsOf(m).join(), String(bad)).toMatch(/h must be between 5 and 2000/);
+    }
+  });
+  it("rejects w or h of NaN (as not a number)", () => {
+    const l = clone(); l.floors.ground.furniture[0].w = NaN; expect(errorsOf(l).join()).toMatch(/w must be a number/);
+    const m = clone(); m.floors.ground.furniture[0].h = NaN; expect(errorsOf(m).join()).toMatch(/h must be a number/);
+  });
+  it("accepts 5 and 2000, the ends of the range", () => {
+    const l = clone(); l.floors.ground.furniture[0].w = 5; l.floors.ground.furniture[0].h = 2000;
+    expect(errorsOf(l)).toEqual([]);
+  });
+});

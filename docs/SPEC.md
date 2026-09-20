@@ -211,7 +211,9 @@ room_glow: true
   a time.
 - Everything on the plan can be dragged by its body: rooms of every kind,
   zones, water, stairs, structures, furniture, devices. Doors and openings
-  slide along their wall.
+  slide along their wall. A wall, an opening and an extra (the dashed named
+  shape) also resize by dragging either end; a furniture piece (S1.51) has no
+  such loose ends, so it is sized by its four corner handles instead (below).
 - Everything can be rotated. A room or a zone that shares a corner with
   another shape cannot: unsnap it first (a button in its panel), which frees
   its corners from snapping. Rotating a room rewrites its points; a device,
@@ -234,6 +236,13 @@ room_glow: true
   Belgian stone or Lava, or any colour typed in), stairs
   (name, shape, steps shown read only, diameter, rotation), device (entity, rotation, length
   for heaters), furniture (name, symbol, size, rotation, entity).
+- A selected piece of furniture (a table, a bed, a tree, a patio — never a
+  device, a door, a window or stairs) also draws a small handle at each of its
+  four corners. Dragging one resizes it: the opposite corner stays put, Shift
+  keeps the width/depth ratio the piece had when the drag started, the grid
+  snap applies as elsewhere and Alt disables it. Width and depth are clamped
+  to 5 to 2000 cm, in the drag and in the panel fields alike; a stored value
+  outside that range is refused. (S1.51)
 - Names come from Home Assistant when the host gives the editor HA data (the
   panel does, the standalone build does not). The floor title, the room name
   and the zone name are then dropdowns: HA floors for the floor, HA areas for

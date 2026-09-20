@@ -3946,3 +3946,69 @@ test("fix/heater-bar-under-icon: the bar itself, away from the icon, still drags
   expect(heater.a).toEqual([320, 500]);
   expect(heater.b).toEqual([480, 500]);
 });
+
+// ---- S1.51 scale furniture by its corners ------------------------------------------------------
+
+const SOFA = { x: 250, y: 320, w: 200, h: 90 }; // demo's furniture-ground-1, rot 0
+
+test("S1.51: dragging the se handle grows the sofa while nw stays put; the panel follows live; one Undo restores it exactly", async ({ page }) => {
+  const c = await screenOf(page, SOFA.x, SOFA.y);
+  await page.mouse.click(c.x, c.y); // select the sofa
+  await expect(page.locator("#fw")).toHaveValue(String(SOFA.w));
+  await expect(page.locator("svg circle[data-fh]")).toHaveCount(4);
+  await dragCm(page, [SOFA.x + SOFA.w / 2, SOFA.y + SOFA.h / 2], [SOFA.x + SOFA.w / 2 + 100, SOFA.y + SOFA.h / 2 + 60]);
+  const m = (await groundOf(page)).furniture[0];
+  expect(m.w).toBeGreaterThan(SOFA.w);
+  expect(m.h).toBeGreaterThan(SOFA.h);
+  await expect(page.locator("#fw")).toHaveValue(String(m.w));
+  await expect(page.locator("#fh")).toHaveValue(String(m.h));
+  const nwBefore: [number, number] = [SOFA.x - SOFA.w / 2, SOFA.y - SOFA.h / 2];
+  const nwAfter: [number, number] = [m.x - m.w / 2, m.y - m.h / 2];
+  expect(Math.hypot(nwAfter[0] - nwBefore[0], nwAfter[1] - nwBefore[1])).toBeLessThan(1);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  const undone = (await groundOf(page)).furniture[0];
+  expect(undone).toEqual({ id: "furniture-ground-1", symbol: "sofa", x: SOFA.x, y: SOFA.y, rot: 0, w: SOFA.w, h: SOFA.h });
+});
+
+test("S1.51: at plan rotation 45 a corner still drags along the sofa's own axes, not the screen's", async ({ page }) => {
+  await rotateBy(page, 1);
+  const c = await screenOf(page, SOFA.x, SOFA.y);
+  await page.mouse.click(c.x, c.y);
+  const nwBefore: [number, number] = [SOFA.x - SOFA.w / 2, SOFA.y - SOFA.h / 2];
+  await dragCm(page, [SOFA.x + SOFA.w / 2, SOFA.y + SOFA.h / 2], [SOFA.x + SOFA.w / 2 + 80, SOFA.y + SOFA.h / 2 + 40]);
+  const m = (await groundOf(page)).furniture[0];
+  const nwAfter: [number, number] = [m.x - m.w / 2, m.y - m.h / 2];
+  expect(Math.hypot(nwAfter[0] - nwBefore[0], nwAfter[1] - nwBefore[1])).toBeLessThan(1);
+  expect(m.w).toBeGreaterThan(SOFA.w);
+});
+
+test("S1.51: Shift while dragging a corner keeps the width/depth ratio the sofa had when the drag started", async ({ page }) => {
+  const c = await screenOf(page, SOFA.x, SOFA.y);
+  await page.mouse.click(c.x, c.y);
+  await dragCm(page, [SOFA.x + SOFA.w / 2, SOFA.y + SOFA.h / 2], [SOFA.x + SOFA.w / 2 + 300, SOFA.y + SOFA.h / 2 + 10], ["Shift"]);
+  const m = (await groundOf(page)).furniture[0];
+  expect(m.h / m.w).toBeCloseTo(SOFA.h / SOFA.w, 2);
+});
+
+test("S1.51: a corner drag that ends where it started adds no undo step", async ({ page }) => {
+  const c = await screenOf(page, SOFA.x, SOFA.y);
+  await page.mouse.click(c.x, c.y);
+  // Alt disables the grid, like every other handle, so a true no-op drag lands on the exact same corner.
+  await dragCm(page, [SOFA.x + SOFA.w / 2, SOFA.y + SOFA.h / 2], [SOFA.x + SOFA.w / 2, SOFA.y + SOFA.h / 2], ["Alt"]);
+  await menu(page, "File");
+  await expect(page.locator("#undo")).toBeDisabled();
+});
+
+test("S1.51 break it: a corner dragged past its opposite one clamps at 5 cm instead of flipping; handles are furniture-only", async ({ page }) => {
+  const c = await screenOf(page, SOFA.x, SOFA.y);
+  await page.mouse.click(c.x, c.y);
+  await dragCm(page, [SOFA.x + SOFA.w / 2, SOFA.y + SOFA.h / 2], [SOFA.x - SOFA.w, SOFA.y - SOFA.h]); // well past the nw corner
+  const m = (await groundOf(page)).furniture[0];
+  expect(m.w).toBe(5);
+  expect(m.h).toBe(5);
+  // a device (the demo's hall camera) is never given corner handles
+  const cam = await screenOf(page, CAM.x, CAM.y);
+  await page.mouse.click(cam.x, cam.y);
+  await expect(page.locator("svg circle[data-fh]")).toHaveCount(0);
+});

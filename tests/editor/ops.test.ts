@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import type { Layout, Pt } from "../../src/core/schema";
-import { closedLoop, gridRound, roundStairs, rotateSegment, snapRoomTo, spawnPoint, squareAt, stairsAt } from "../../src/editor/ops";
+import type { Furniture, Layout, Pt } from "../../src/core/schema";
+import { closedLoop, gridRound, roundStairs, rotateSegment, scaleFurniture, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "../../src/editor/ops";
 
 const ground = () => structuredClone((demo as unknown as Layout).floors.ground);
 const FALLBACK: Pt = [123, 457];
@@ -142,5 +142,57 @@ describe("closedLoop (S1.48)", () => {
     expect(closedLoop(f, 1)).toBeNull();
     f.walls = [wall("a", [0, 0], [100, 0]), wall("b", [100, 0], [50, 80]), wall("c", [50, 80], [0, 0])];
     expect(closedLoop(f, 2)!.walls).toHaveLength(3);
+  });
+});
+
+describe("scaleFurniture (S1.51)", () => {
+  const CORNERS: Corner[] = ["nw", "ne", "se", "sw"];
+  const opposite: Record<Corner, Corner> = { nw: "se", ne: "sw", se: "nw", sw: "ne" };
+  const piece = (rot = 0): Furniture => ({ id: "f", symbol: "sofa", x: 500, y: 500, rot, w: 200, h: 100 });
+  /** The world position of one corner of `m`'s box (its own frame, turned by `rot`). */
+  const worldCorner = (m: Furniture, c: Corner): Pt => {
+    const sx = c === "ne" || c === "se" ? 1 : -1, sy = c === "se" || c === "sw" ? 1 : -1;
+    const lx = (sx * m.w) / 2, ly = (sy * m.h) / 2, r = (m.rot * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);
+    return [m.x + lx * cos - ly * sin, m.y + lx * sin + ly * cos];
+  };
+  const d = (p: Pt, q: Pt) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+
+  it.each([0, 30, 90] as const)("at rot %d: each corner moves the centre by half the change and leaves the opposite corner within 0.01 cm", (rot) => {
+    const m = piece(rot);
+    for (const c of CORNERS) {
+      const before = worldCorner(m, c), opp = worldCorner(m, opposite[c]);
+      const to: Pt = [before[0] + 30, before[1] + 20]; // drag outward: well inside the 5..2000 cm bounds
+      const next = scaleFurniture(m, c, to);
+      expect(d(worldCorner(next, opposite[c]), opp)).toBeLessThan(0.01);
+      const wantCentre: Pt = [m.x + (to[0] - before[0]) / 2, m.y + (to[1] - before[1]) / 2];
+      expect(d([next.x, next.y], wantCentre)).toBeLessThan(0.05);
+    }
+  });
+
+  it("Shift keeps the width/height ratio the piece had when the drag started", () => {
+    const m = piece(0); // 200 x 100, ratio 0.5
+    const next = scaleFurniture(m, "se", [900, 560], { shift: true }); // a very wide, barely taller target
+    expect(next.h / next.w).toBeCloseTo(m.h / m.w, 2);
+  });
+
+  it("clamps hold at both ends: too small stops at 5 cm, too big stops at 2000 cm", () => {
+    const m = piece(0);
+    const shrunk = scaleFurniture(m, "se", [601, 501]); // 1 cm past the centre on each axis: would be near 0
+    expect(shrunk.w).toBeGreaterThanOrEqual(5);
+    expect(shrunk.h).toBeGreaterThanOrEqual(5);
+    const past = scaleFurniture(m, "se", [-100, 500]); // dragged well past the opposite corner: must clamp, never flip negative
+    expect(past.w).toBe(5);
+    const grown = scaleFurniture(m, "se", [50000, 50000]);
+    expect(grown.w).toBe(2000);
+    expect(grown.h).toBe(2000);
+  });
+
+  it("a tree at rot 45 scales along its own axes, not the screen's", () => {
+    const m = piece(45);
+    const before = worldCorner(m, "se"), opp = worldCorner(m, "nw");
+    const to: Pt = [before[0] + 10, before[1] + 10]; // moved along the screen diagonal, not the piece's local axes
+    const next = scaleFurniture(m, "se", to);
+    expect(d(worldCorner(next, "nw"), opp)).toBeLessThan(0.01); // the opposite corner still doesn't move
+    expect(next.w).not.toBe(m.w); // yet the box did resize: the drag was decomposed onto the piece's own frame
   });
 });

@@ -3,7 +3,7 @@ import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, rotateAbout, snapPoint, stitch, validate, viewBoxFor } from "../core";
 import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
-import { gridRound, looseEnds, movePointAll, pointsNear, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt } from "./ops";
+import { gridRound, looseEnds, movePointAll, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
 import { EditorState, GRID_VALUES, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
@@ -23,6 +23,7 @@ type Hit =
   | { k: "corner"; poly: string; j: number }
   | { k: "loose"; ref: LooseRef }
   | { k: "dend"; i: number; end: "a" | "b" }
+  | { k: "fscale"; i: number; corner: Corner }
   | { k: "door" | "opening" | "dev" | "furn" | "wall" | "room" | "stairs"; i: number }
   | { k: "edge"; poly: string; i: number }
   | { k: "bg" };
@@ -35,6 +36,7 @@ type Drag =
   | { type: "door"; base: Floor; i: number; off: Pt; len: number; moved: boolean }
   | { type: "dev"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "furn"; base: Floor; i: number; off: Pt; moved: boolean }
+  | { type: "fscale"; base: Floor; i: number; corner: Corner; moved: boolean }
   | { type: "room"; base: Floor; list: "rooms" | "stairs"; i: number; start: Pt; moved: boolean; alt?: boolean };
 
 const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
@@ -73,6 +75,8 @@ function hitOf(el: Element | null): Hit {
   if (hp) { const [k, i, end] = (hp.getAttribute("data-hp") ?? "").split(":"); return { k: "loose", ref: { k: k as LooseRef["k"], i: +i, end: end as "a" | "b" } }; }
   const dh = el.closest("[data-dh]");
   if (dh) { const [i, end] = (dh.getAttribute("data-dh") ?? "").split(":"); return { k: "dend", i: +i, end: end as "a" | "b" }; }
+  const fh = el.closest("[data-fh]");
+  if (fh) { const [i, corner] = (fh.getAttribute("data-fh") ?? "").split(":"); return { k: "fscale", i: +i, corner: corner as Corner }; }
   const d = el.closest("[data-d]");
   if (d) return { k: "door", i: +(d.getAttribute("data-d") ?? -1) };
   // An opening line has no data attribute (core draws it, the card must not change): it is the n-th `line.opening` of the plan.
@@ -376,6 +380,12 @@ export class FloorplanStudioEditor extends LitElement {
         this.drag = { type: "furn", base, i: hit.i, off: [p[0] - m.x, p[1] - m.y], moved: false };
         break;
       }
+      case "fscale": {
+        if (!f.furniture[hit.i]) break;
+        st.sel = { t: "furn", i: hit.i };
+        this.drag = { type: "fscale", base, i: hit.i, corner: hit.corner, moved: false };
+        break;
+      }
       case "edge": case "wall": {
         let ends: { from: Pt; ref: PtRef }[];
         if (hit.k === "edge") {
@@ -492,6 +502,17 @@ export class FloorplanStudioEditor extends LitElement {
         g.furniture[d.i].y = g5(p[1] - d.off[1]);
         break;
       }
+      case "fscale": {
+        const m0 = d.base.furniture[d.i];
+        if (!m0) break;
+        const to: Pt = [g5(p[0]), g5(p[1])]; // the snap grid applies to the moving corner, like every other handle
+        const next = scaleFurniture(m0, d.corner, to, { shift: ev.shiftKey });
+        if (!d.moved && next.w === m0.w && next.h === m0.h && next.x === m0.x && next.y === m0.y) return;
+        this.begin(d);
+        g = structuredClone(d.base);
+        g.furniture[d.i] = next;
+        break;
+      }
       case "room": {
         const dx = Math.round(p[0] - d.start[0]), dy = Math.round(p[1] - d.start[1]);
         if (!d.moved && Math.hypot(dx, dy) * this.scale < 4) return;
@@ -518,7 +539,8 @@ export class FloorplanStudioEditor extends LitElement {
       // a room dropped near where it belongs lands corner on corner and joins its neighbours again; Alt drops it as it is
       if (d.type === "room" && d.list === "rooms" && !d.alt) f = snapRoomTo(f, d.i, 14 / this.scale);
       st.replaceFloor(f);
-      this.changed();
+      if (d.type === "fscale") { const m = f.furniture[d.i]; this.changed(`Scaled the ${m?.name || m?.symbol || "furniture"}`); }
+      else this.changed();
     } else this.requestUpdate();
   };
 
@@ -912,7 +934,19 @@ export class FloorplanStudioEditor extends LitElement {
     if (s?.t === "wall" && f.walls[s.i]) o.push(line(f.walls[s.i].a, f.walls[s.i].b, "hl", 'stroke-width="4"'));
     if (s?.t === "room" && f.rooms[s.i]) o.push(`<polygon class="hl" points="${f.rooms[s.i].pts.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
     if (s?.t === "stairs" && f.stairs[s.i]) o.push(`<polygon class="hl" ${stairsTurn(f.stairs[s.i])} points="${f.stairs[s.i].pts.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
-    if (s?.t === "furn" && f.furniture[s.i]) { const m = f.furniture[s.i]; o.push(`<rect class="hl" x="-50" y="-50" width="100" height="100" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)})"/>`); }
+    if (s?.t === "furn" && f.furniture[s.i]) {
+      const m = f.furniture[s.i];
+      o.push(`<rect class="hl" x="-50" y="-50" width="100" height="100" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)})"/>`);
+      // S1.51: a corner handle at each of the box's four corners, turned by the piece's own rot like the highlight rect.
+      const hw = m.w / 2, hh = m.h / 2, rad = (m.rot * Math.PI) / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+      const CORNERS: { c: Corner; lx: number; ly: number }[] = [
+        { c: "nw", lx: -hw, ly: -hh }, { c: "ne", lx: hw, ly: -hh }, { c: "se", lx: hw, ly: hh }, { c: "sw", lx: -hw, ly: hh },
+      ];
+      for (const { c, lx, ly } of CORNERS) {
+        const wx = m.x + lx * cos - ly * sin, wy = m.y + lx * sin + ly * cos;
+        o.push(`<circle class="h" data-fh="${s.i}:${c}" cx="${num(wx)}" cy="${num(wy)}" r="${num(5 * k)}"/>`);
+      }
+    }
     if (st.showLen) {
       const P = f.outline;
       P.forEach((a, i) => o.push(len(a, P[(i + 1) % P.length])));

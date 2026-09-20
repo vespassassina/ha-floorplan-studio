@@ -1,5 +1,5 @@
 import { dist, movePoints, polys, stairSteps, stitch } from "../core";
-import type { Floor, Pt, Stairs, WallKind } from "../core";
+import type { Floor, Furniture, Pt, Stairs, WallKind } from "../core";
 import { newId, type LooseRef, type PtRef } from "./state";
 
 // Floor edits that geometry.ts does not cover: loose wall, opening and extra ends.
@@ -178,4 +178,39 @@ export function rotateSegment(a: Pt, b: Pt, deg: number): { a: Pt; b: Pt } {
   const c: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], r = (deg * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);
   const turn = (p: Pt): Pt => round([c[0] + (p[0] - c[0]) * cos - (p[1] - c[1]) * sin, c[1] + (p[0] - c[0]) * sin + (p[1] - c[1]) * cos]);
   return { a: turn(a), b: turn(b) };
+}
+
+export type Corner = "nw" | "ne" | "se" | "sw";
+/** Furniture bounds (S1.51): a piece of furniture is never smaller than 5 cm or bigger than 2000 cm on a side. */
+export const FURNITURE_MIN = 5, FURNITURE_MAX = 2000;
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Resizes a piece of furniture (`m`, unchanged) from one of its corners, dragged to `to` (plan coordinates).
+ * The opposite corner stays put; `w`, `h`, `x` and `y` are recomputed from the two corners, worked out in the
+ * piece's own (unrotated) frame so a turned piece scales along its own axes. `opts.shift` keeps the width/height
+ * ratio `m` had when the drag started. Clamped to `FURNITURE_MIN`..`FURNITURE_MAX`: a corner dragged past its
+ * opposite one stops there, it never flips or goes negative.
+ */
+export function scaleFurniture(m: Furniture, corner: Corner, to: Pt, opts: { shift?: boolean } = {}): Furniture {
+  const sx = corner === "ne" || corner === "se" ? 1 : -1; // the dragged corner's side of the centre, in the piece's own frame
+  const sy = corner === "se" || corner === "sw" ? 1 : -1;
+  const rad = (-m.rot * Math.PI) / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+  const rel: Pt = [to[0] - m.x, to[1] - m.y];
+  const local: Pt = [rel[0] * cos - rel[1] * sin, rel[0] * sin + rel[1] * cos]; // the pointer, in that frame
+  const oppLocal: Pt = [-sx * (m.w / 2), -sy * (m.h / 2)]; // the held corner: fixed for the whole drag
+  let w = clamp(sx * (local[0] - oppLocal[0]), FURNITURE_MIN, FURNITURE_MAX);
+  let h = clamp(sy * (local[1] - oppLocal[1]), FURNITURE_MIN, FURNITURE_MAX);
+  if (opts.shift) {
+    const ratio = m.h / (m.w || 1);
+    if (Math.abs(w - m.w) >= Math.abs(h - m.h)) h = clamp(w * ratio, FURNITURE_MIN, FURNITURE_MAX);
+    else w = clamp(h / ratio, FURNITURE_MIN, FURNITURE_MAX);
+  }
+  // the dragged corner, clamped, still relative to the OLD centre: the new centre is the midpoint of the two corners
+  const newCornerLocal: Pt = [oppLocal[0] + sx * w, oppLocal[1] + sy * h];
+  const midLocal: Pt = [(oppLocal[0] + newCornerLocal[0]) / 2, (oppLocal[1] + newCornerLocal[1]) / 2];
+  const rad2 = (m.rot * Math.PI) / 180, cos2 = Math.cos(rad2), sin2 = Math.sin(rad2);
+  const dWorld: Pt = [midLocal[0] * cos2 - midLocal[1] * sin2, midLocal[0] * sin2 + midLocal[1] * cos2];
+  return { ...m, x: round2(m.x + dWorld[0]), y: round2(m.y + dWorld[1]), w: round2(w), h: round2(h) };
 }

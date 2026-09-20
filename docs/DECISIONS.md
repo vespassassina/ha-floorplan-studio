@@ -2,6 +2,26 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.51: scaleFurniture works in the piece's own local frame, and three small gaps closed along the way
+
+`scaleFurniture(m, corner, to, opts)` holds the opposite corner fixed and recomputes `w`, `h`, `x`, `y`
+from the two corners, all worked out in the piece's own (unrotated) frame relative to its OLD centre —
+the dragged corner is un-rotated into that frame, the new centre is the midpoint of the two corners in
+that same frame, then rotated back to world space. A first draft computed the new (post-clamp) corner as
+an independent half-extent from an unknown new centre, which double-counted the centre shift; caught by
+hand with concrete numbers (a `se` drag from `(500,500,w=200,h=100)` to `(650,600)` should centre at
+`(525,525)`, the buggy formula gave `(512.5,512.5)`) before any test ran, then fixed by deriving the new
+corner from `oppLocal + sx*w`/`sy*h` instead.
+
+Three small deviations from the S1.51 block, all in scope of "Bounds... in the drag and in the panel":
+- The panel's `#fw`/`#fh` fields had no upper clamp before this task (only a 5 cm floor). Closed it
+  alongside the new 2000 cm ceiling, since the block requires both bounds "in the drag and in the panel".
+- `validate`'s "refuses a stored w or h... of NaN" is met by the pre-existing "must be a number" check,
+  not the new S1.51 "must be between 5 and 2000" message — NaN fails the type check first, so the new
+  bounds message never fires for it. The unit test asserts the message it actually gets.
+- `render.ts` needed no change: the block lists it as "CSS only" and the corner handles reuse the
+  existing `.h` circle class the other drag handles already use, so no new rule was required.
+
 ## 2026-09-20 fix/heater-bar-under-icon: the heater bar has no per-end drag, only a whole-device drag
 
 The bug report asked to verify "dragging a bar end still works" after the reorder. It does not exist as
