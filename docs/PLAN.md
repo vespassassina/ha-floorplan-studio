@@ -456,12 +456,20 @@ S2.10. Everything drawn from the layout alone is here.
 - Break it: a stored value of 7 or "x" falls back to 10 without throwing; storage blocked still works.
 
 ### S1.35 Floor colours for rooms (done)
-- Outcome: the room panel offers twelve floor colours as swatches, and a dark floor keeps its label and outline readable.
-- Files: `src/editor/panels.ts`, `src/core/render.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`.
-- Interface: `FLOOR_COLOURS: { name: string; hex: string }[]` exported from `src/core/schema.ts`, in this order: White ceramic #f4f4f0, Marble #e2dfda, Sand #e6d5b8, Terracotta #c98a63, Light oak #d8bd94, Warm wood #b98b5c, Dark oak #86643f, Walnut #5b4130, Light grey #b4b6b8, Grey floor #8b8e91, Belgian stone #4d4e50, Lava #38393b. The room panel shows them as twelve buttons `.sw` next to the free colour input `#rcol` from S1.16 (the input stays). `renderFloor` gives the room's label and its edge lines the class `dark` when the room's `color` has a relative luminance below 0.35, and the CSS turns those light (`--fp-label-on-dark`, `--fp-wall-on-dark`). A room with no colour is unchanged.
-- Test: render fixture: `color: "#38393b"` gives `dark` on the label, `#f4f4f0` does not; Playwright: click the Belgian stone swatch, the polygon's computed fill is `rgb(77, 78, 80)` and the label's computed colour is light; click the default button and it is back.
+- Outcome: the room panel offers twelve floor colours as swatches.
+- Files: `src/core/schema.ts`, `src/editor/panels.ts`, `tests/editor/editor.spec.ts`.
+- Interface: `FLOOR_COLOURS: { name: string; hex: string }[]` exported from `src/core/schema.ts`, in this order: White ceramic #f4f4f0, Marble #e2dfda, Sand #e6d5b8, Terracotta #c98a63, Light oak #d8bd94, Warm wood #b98b5c, Dark oak #86643f, Walnut #5b4130, Light grey #b4b6b8, Grey floor #8b8e91, Belgian stone #4d4e50, Lava #38393b. The room panel shows them as twelve buttons `.sw` (title and aria-label are the name, the pressed one is marked) next to the free colour input `#rcol` from S1.16 (the input stays). There is no `dark` class and no light label colour: a dark floor keeps its label readable through the white text outline of S1.46, and its walls through the white edge outline of S1.35b (see DECISIONS, 2026-09-20 "S1.35: swatches only").
+- Test: Playwright: click the Belgian stone swatch, the polygon's computed fill is `rgb(77, 78, 80)` and the swatch is marked pressed; click the default button and the fill is back.
 - Done when: tests pass; the twelve are in SPEC.
-- Break it: a colour that is not in the list (typed in the free input) still works and still gets the right `dark` decision.
+- Break it: a colour that is not in the list (typed in the free input) still works and no swatch is pressed.
+
+### S1.35b Walls and edges keep a white outline (done)
+- Outcome: a dark wall or edge line stays visible on a dark floor (Lava, Belgian stone).
+- Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface: `--fp-outline` (#ffffff) in `FLOORPLAN_CSS`. `renderFloor` writes, before every room edge and free wall, a twin `<line class="eh <kind classes>">` with the same ends and no `data-e`; all twins come first, then the edges, so a twin never covers a neighbour's edge. `.eh{stroke:var(--fp-outline);stroke-linecap:round;pointer-events:none}` is 2 user units wider than the edge it backs (each kind has its own rule). It is the line version of the text outline: same colour, drawn behind. The stairs edges have none.
+- Test: render fixture: one `line.eh` per room edge and free wall, each before every `line.e`; Chromium: on a Lava room the twin's computed stroke is `rgb(255, 255, 255)` and its stroke-width is greater than that of its edge, and a click on the edge still selects the edge, not the twin.
+- Done when: tests pass; the demo snapshot is updated.
+- Break it: the twin never catches the pointer (a click on the wall selects the wall).
 
 ### S1.36 Device colours by type (done)
 - Outcome: one colour per device type, changeable for the whole group at once, stored with the layout so the editor and the card agree.

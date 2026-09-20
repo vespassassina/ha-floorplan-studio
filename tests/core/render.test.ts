@@ -757,3 +757,24 @@ describe("contentPoints (S1.49)", () => {
     expect(contentPoints(f).every((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))).toBe(true);
   });
 });
+
+describe("S1.35b: a white twin under every edge", () => {
+  it("draws one line.eh per room edge and free wall, all before every line.e, without data attributes", () => {
+    const f = structuredClone(ground);
+    f.walls.push({ id: "w1", a: [100, 700], b: [300, 700], kind: "fence" });
+    const html = renderFloor(f, base);
+    const twins = [...html.matchAll(/<line class="eh[^"]*"[^>]*>/g)];
+    const edges = [...html.matchAll(/<line class="e(?: nw| external| fence| edge)?" data-[ew]=[^>]*>/g)];
+    const n = f.outline.length + f.rooms.reduce((s, r) => s + r.pts.length, 0) + f.walls.length;
+    expect(twins).toHaveLength(n);
+    expect(edges).toHaveLength(n);
+    expect(twins.every((m) => !m[0].includes("data-"))).toBe(true);
+    expect(Math.max(...twins.map((m) => m.index!))).toBeLessThan(Math.min(...edges.map((m) => m.index!)));
+    expect(html).toContain('class="eh fence"');
+  });
+  it("gives the twin the colour --fp-outline and the stairs edges none", () => {
+    expect(FLOORPLAN_CSS).toContain("--fp-outline:#fff");
+    expect(renderFloor(ground, base).match(/class="e se"/g)?.length).toBeGreaterThan(0);
+    expect(renderFloor(ground, base)).not.toMatch(/class="eh se"/);
+  });
+});

@@ -3249,3 +3249,27 @@ test("S1.49: Re-center shows a device parked far outside the outline, which Fit 
   expect(inFit.bad.length).toBeGreaterThan(0); // fit follows the outline only
   expect(inRe.bad).toEqual([]);
 });
+
+// ---- S1.35b white twin under walls and edges ----
+test("S1.35b: on a Lava floor the wall has a white twin, wider than the wall, that never takes the click", async ({ page }) => {
+  await page.evaluate(([tag, l]) => {
+    const c = JSON.parse(JSON.stringify(l));
+    c.floors.ground.rooms[0].color = "#38393b";
+    (document.querySelector(tag as string) as any).layout = c;
+  }, [EDITOR, await layoutOf(page)] as const);
+  const got = await page.evaluate((tag) => {
+    const root = (document.querySelector(tag as string) as any).shadowRoot as ShadowRoot;
+    const e = root.querySelector('line[data-e="r0:2"]')!, twin = root.querySelector("line.eh")!;
+    const ce = getComputedStyle(e), ct = getComputedStyle(twin);
+    return { fill: getComputedStyle(root.querySelector('polygon[data-r="0"]')!).fill, twinStroke: ct.stroke, twinW: parseFloat(ct.strokeWidth), edgeW: parseFloat(ce.strokeWidth), edgeStroke: ce.stroke, pe: ct.pointerEvents };
+  }, EDITOR);
+  expect(got.fill).toBe("rgb(56, 57, 59)");
+  expect(got.twinStroke).toBe("rgb(255, 255, 255)");
+  expect(got.twinW).toBeGreaterThan(got.edgeW);
+  expect(got.edgeStroke).not.toBe(got.twinStroke);
+  expect(got.pe).toBe("none");
+  // a real click on the wall selects the edge, not the twin
+  const c = await centre(page, 'line[data-e="r0:2"]');
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#panel")).toContainText("wall");
+});

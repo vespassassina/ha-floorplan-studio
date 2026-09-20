@@ -136,6 +136,7 @@ in `prompts/`, then fixed in the editor.
 
 ## Card behaviours
 
+Every wall and edge line has a white twin under it, so a dark line stays visible on a dark floor.
 Every device icon sits on a small circle, grey at 25 % alpha, and is drawn
 above everything else on the plan, room names included. A room name that would
 sit under a device moves down, or up, by one line; if both spots are taken it

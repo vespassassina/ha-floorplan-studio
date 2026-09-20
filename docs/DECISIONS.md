@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.35 docs corrected; walls and edges get a white twin
+
+Supersedes the bullet "dark floors switch label and outline to light" in "More Sprint 1.6 tasks" and the `dark` class text of the PLAN S1.35 block; DECISIONS "S1.35: swatches only" is what was built, and the PLAN block now says so. New (S1.35b): on a dark floor (Lava, Belgian stone) a dark wall or edge nearly vanished. Every room edge and free wall now has a white twin line under it (`line.eh`, colour `--fp-outline`, 2 units wider, same dashes), all twins first so one never covers a neighbour's edge. It is the line version of the text outline, and S1.46 uses the same `--fp-outline`. A CSS `filter: drop-shadow` was rejected: on a horizontal SVG line the filter box has no height in some engines and the line disappears. The twin has no `data-e` and `pointer-events:none`, so hit testing is unchanged. Stairs edges get none. The demo snapshot changed by the twins only.
+
 ## 2026-09-20 S1.49: Re-center fits everything, Fit to window keeps the outline
 
 After a zoom and a pan there was no way back to the whole floor when parts of it (a pond, a sensor in the garden, stairs beside the house) lie outside the outline: "Fit to window" fits the outline only, so it left them off screen. Re-center is a second button in View, not a change to Fit, because Fit is what the editor shows on first load and the tests depend on that box. `contentPoints(floor)` in `render.ts` lists every point; `EditorState.recenter()` fits them with an 80 cm margin in the turned frame, like `fit()`. It is a view change: no layout write, no undo step. The block asked for View menu and/or toolbar next to zoom; the editor has no zoom buttons, so it is the View menu only.
