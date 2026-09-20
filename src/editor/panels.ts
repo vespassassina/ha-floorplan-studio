@@ -226,7 +226,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${hint(`${label.toLowerCase()}. Its name comes from Home Assistant.`)}
     ${text("Home Assistant entity", "ve", d.entity, (v) => c.commit((f) => { f.devices[i].entity = v.trim(); }))}
     ${number("rotation (deg)", "vrot", d.rot ?? 0, (n) => c.commit((f) => { const r = ((n % 360) + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }))}
-    ${d.type === "camera" ? hint("The cone shows a 120 degree field of view, 3 m deep.") : nothing}
+    ${d.type === "camera" ? hint("The cone shows a 120 degree field of view, 1 m deep.") : nothing}
     ${d.type === "light" ? boundField(c, i) : nothing}
     ${"a" in d ? number("length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
     <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); }, "warn")}</p>

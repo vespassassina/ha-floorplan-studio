@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Camera cone is 100 cm deep
+
+Supersedes S1.31's 300 cm. Diego: 3 m runs through the whole flat and hides the plan; 1 m is the reach worth showing. `renderFloor` uses `R = 100 / k`; the panel hint says "1 m deep"; the S1.31 PLAN text, the render and Chromium tests and the snapshot follow. The Chromium test now measures the cone's box against 100 cm on screen.
+
 ## 2026-09-20 S1.36: device colours ride on a group, and only camera and garden sensors show them yet
 
 `layout.colors` is validated (device-type keys, `#rrggbb`), passed through by `migrate` and never invented. `renderFloor` takes it as `opts.colors` (it never saw the layout) and wraps its output in `<g class="dev-colours" style="--fp-dev-<type>:...">` when there is at least one valid entry; no colours, no wrapper, the snapshot is unchanged. Custom properties inherit, so this reaches every device. This is a group, not "the root svg" as the block said: the svg belongs to the host, and one place serves editor and card. Only known types and strict colours reach the attribute. `DEVICE_COLOURS` (render.ts) holds the default per type for the colour inputs; types with no colour of their own default to the idle grey, and `ac` shows the cool colour, since the palette has `ac-cool` and `ac-heat` and the key is `ac`. Deviation from the block's test: it wants every light icon's computed fill to change, but a light's fill still comes from `--fp-idle` and `--fp-on` until S2.9 wires `--fp-dev-<type>` into the on-colour. The Playwright test therefore reads the computed `--fp-dev-light` on every light icon, and the computed fill on the camera, which does use its variable. Whoever does S2.9 should add the light fill check.

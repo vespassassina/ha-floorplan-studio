@@ -2747,8 +2747,12 @@ test("S1.31: the cone is dark grey at 33 % alpha in the browser and lets the poi
   await expect(cone).toHaveCount(1);
   const st = await cone.evaluate((el) => { const s = getComputedStyle(el); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents }; });
   expect(st).toEqual({ fill: "rgb(74, 74, 72)", op: "0.33", pe: "none" });
-  // 150 cm up the cone (rot 0 points up), over the Hall: the top element is the room, not the cone or the camera
-  const p = await screenOf(page, CAM.x, CAM.y - 100);
+  // the cone is 100 cm deep: its box is 100 cm tall on screen (rot 0 points up)
+  const box = await cone.evaluate((el) => el.getBoundingClientRect().height);
+  const one = Math.abs((await screenOf(page, CAM.x, CAM.y - 100)).y - (await screenOf(page, CAM.x, CAM.y)).y);
+  expect(Math.abs(box - one)).toBeLessThan(1.5);
+  // 60 cm up the cone (rot 0 points up), over the Hall: the top element is the room, not the cone or the camera
+  const p = await screenOf(page, CAM.x, CAM.y - 60);
   const top = await page.evaluate(([tag, x, y]) => (document.querySelector(tag as string) as any).shadowRoot.elementFromPoint(x, y)?.outerHTML.slice(0, 40), [EDITOR, p.x, p.y] as const);
   expect(top).toContain('data-r="2"');
   await page.mouse.click(p.x, p.y);
@@ -2760,7 +2764,7 @@ test("S1.31: the rotation field turns the cone; the panel carries the hint; rot 
   const c = await screenOf(page, CAM.x, CAM.y);
   await page.mouse.click(c.x, c.y);
   await expect(page.locator("#vrot")).toBeVisible();
-  await expect(page.locator(".hint", { hasText: "The cone shows a 120 degree field of view, 3 m deep." })).toHaveCount(1);
+  await expect(page.locator(".hint", { hasText: "The cone shows a 120 degree field of view, 1 m deep." })).toHaveCount(1);
   const centreOf = () => page.locator("svg path.cone").evaluate((el) => { const b = el.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
   const up = await centreOf();
   expect(up.y).toBeLessThan(c.y - 20); // above the camera
@@ -2770,7 +2774,7 @@ test("S1.31: the rotation field turns the cone; the panel carries the hint; rot 
   const right = await centreOf();
   expect(right.x).toBeGreaterThan(c.x + 20);
   expect(Math.abs(right.y - c.y)).toBeLessThan(5);
-  const p = await screenOf(page, CAM.x + 100, CAM.y); // inside the turned cone, over the Hall
+  const p = await screenOf(page, CAM.x + 60, CAM.y); // inside the turned cone, over the Hall
   await page.mouse.click(p.x, p.y);
   await expect(page.locator("#rn")).toHaveValue("Hall");
 });

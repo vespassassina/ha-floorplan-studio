@@ -229,10 +229,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const rot = typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot !== 0 ? d.rot : 0;
     // A turned plan turns the group again from outside; the icon takes that back too, the cone (in the group's frame) does not.
     const back = (rot + planDeg) % 360 ? rot + planDeg : 0;
-    // Camera: a 120 degree, 300 cm cone about "up" (-90 degrees), in plan units (the group is scaled by k). It comes first, so the icon covers its tip.
+    // Camera: a 120 degree, 100 cm cone about "up" (-90 degrees), in plan units (the group is scaled by k). It comes first, so the icon covers its tip.
     let cone = "";
     if (d.type === "camera") {
-      const R = 300 / k, p = (deg: number) => at([12 + R * Math.cos((deg * Math.PI) / 180), 12 + R * Math.sin((deg * Math.PI) / 180)]);
+      const R = 100 / k, p = (deg: number) => at([12 + R * Math.cos((deg * Math.PI) / 180), 12 + R * Math.sin((deg * Math.PI) / 180)]);
       cone = `<path class="cone" d="M12 12L${p(-150)}A${num(R)} ${num(R)} 0 0 1 ${p(-30)}Z"/>`;
     }
     const icon = `<circle class="halo" cx="12" cy="12" r="13"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>`;

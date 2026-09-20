@@ -615,9 +615,9 @@ describe("camera cone (S1.31)", () => {
     expect([bearing(b.c, b.p1, 0), bearing(b.c, b.p2, 0)]).toEqual([-150, -30]); // up is -90
   });
 
-  it("is 300 cm deep whatever the zoom: the radius in the scaled frame is 300 x scale", () => {
-    expect(cone(withRot(undefined, 0.5)).r).toBe(150);
-    expect(cone(withRot(undefined, 2)).r).toBe(600);
+  it("is 100 cm deep whatever the zoom: the radius in the scaled frame is 100 x scale", () => {
+    expect(cone(withRot(undefined, 0.5)).r).toBe(50);
+    expect(cone(withRot(undefined, 2)).r).toBe(200);
   });
 
   it("no other device type emits a cone, and the cone lets the pointer through", () => {
