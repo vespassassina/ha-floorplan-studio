@@ -384,7 +384,7 @@ S2.10. Everything drawn from the layout alone is here.
 ### S1.26 Stairs go on every floor
 - Outcome: stairs added once stand in the same place on every floor.
 - Files: `src/editor/state.ts`, `src/editor/editor-app.ts`, `tests/editor/state.test.ts`, `tests/editor/editor.spec.ts`.
-- Interface: `EditorState.addStairsEverywhere(t: { name; pts; shape; steps; rot; dia? }): void` snapshots the whole layout once, then pushes a copy into every floor with an id from `newId(floor, key, "stairs")` per floor, and selects the one on the current floor. `editor-app.ts` `addStairs` calls it instead of `commit`. Delete stays per floor: removing stairs removes them from the current floor only, and the stairs panel says so ("Stairs are added to every floor and deleted from one.").
+- Interface: `EditorState.addStairsEverywhere(t: { name; pts; shape; steps; rot; dia?; inner? }): void` snapshots the whole layout once, then pushes a copy into every floor with an id from `newId(floor, key, "stairs")` per floor, and selects the one on the current floor. `editor-app.ts` `addStairs` calls it instead of `commit`. Delete stays per floor: removing stairs removes them from the current floor only, and the stairs panel says so ("Stairs are added to every floor and deleted from one.").
 - Test: state test: three floors, `addStairsEverywhere` leaves one stairs on each with the same `pts` and different ids, one undo step, and Undo removes all three; Playwright: Add, Stairs on the demo, switch to the first floor, the stairs are there at the same coordinates; delete them there and the ground floor still has its own.
 - Done when: tests pass.
 - Break it: a floor that already has stairs gets the new ones too, rather than being skipped: two flights are legitimate.
