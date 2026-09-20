@@ -2,6 +2,23 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.53 review: a real `removePoint` kind assertion, and two missing "Break it" tests
+
+Three small findings from an Opus review of the S1.53 stack:
+
+`removePoint`'s `owk`/`wk` test only asserted the surviving array's *length*, which would pass
+even if the kinds came back shuffled or wrong. Strengthened it (`tests/core/geometry.test.ts`)
+with an asymmetric `wk` (`["fence","wall","boundary","edge"]`, so a uniform array could not hide a
+shuffle) and an exact `toEqual` on the survivors.
+
+Added the two "Break it" Playwright tests PLAN called for and this review flagged as missing:
+a theme switch mid-drag does not lose the drag (drives `st.setTheme()` + `requestUpdate()` via
+`page.evaluate` while the mouse button is still down from a real `page.mouse.down()`, since a
+real menu click would release the button before the drag could be interrupted; asserts the
+dragged corner and its coincident neighbour both commit, not reset), and a measure grid on an
+all-negative layout numbers its axes with negative metres (shifts the whole demo floor to negative
+coordinates via `page.evaluate`, asserts at least one `.mg-n` label matches `/^-\d/`).
+
 ## 2026-09-20 S1.53 review: `addFloor` clones the source floor's `owk` along with its `outline`
 
 An Opus review of the S1.53 stack found: `addFloor` (`src/editor/state.ts`) cloned the source

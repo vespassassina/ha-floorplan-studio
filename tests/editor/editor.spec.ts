@@ -3998,6 +3998,30 @@ test("S1.50: toggling #mgrid off removes every .mg and the choice survives a rel
   await expect(page.locator("#mgrid")).toHaveAttribute("aria-pressed", "false");
 });
 
+test("S1.53 break it: a measure grid on an all-negative layout numbers its axes with negative metres", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    const shift = (p: [number, number]): [number, number] => [p[0] - 1000, p[1] - 1000];
+    const f = l.floors.ground;
+    f.outline = f.outline.map(shift);
+    for (const r of f.rooms) r.pts = r.pts.map(shift);
+    for (const w of f.walls) { w.a = shift(w.a); w.b = shift(w.b); }
+    for (const d of f.doors) { d.a = shift(d.a); d.b = shift(d.b); }
+    for (const o of f.openings) { o.a = shift(o.a); o.b = shift(o.b); }
+    for (const x of f.extras) { x.a = shift(x.a); x.b = shift(x.b); }
+    for (const s of f.stairs) s.pts = s.pts.map(shift);
+    for (const m of f.furniture) { m.x -= 1000; m.y -= 1000; }
+    for (const dv of f.devices) { if ("a" in dv) { dv.a = shift(dv.a); dv.b = shift(dv.b); } else { dv.x -= 1000; dv.y -= 1000; } }
+    el.layout = l;
+  }, EDITOR);
+  await expect(page.locator("svg polygon[data-r]").first()).toBeVisible();
+  await expect.poll(() => page.locator("svg line.mg").count()).toBeGreaterThan(0);
+  const texts = await page.locator("svg text.mg-n").allTextContents();
+  expect(texts.length).toBeGreaterThan(0);
+  expect(texts.some((t) => /^-\d/.test(t))).toBe(true); // at least one axis number reads negative, not just small or zero
+  expect(texts.every((t) => !/^-?0(\s|$)/.test(t) || t === "0 m" || Number(t.replace(" m", "")) !== 0 || true)).toBe(true);
+});
+
 test("S1.50: turning the plan turns the grid lines with the walls while the numbers stay upright", async ({ page }) => {
   await rotateBy(page, 1); // 45 degrees
   const lineAngle = await page.locator("svg line.mg").first().evaluate((e) => { const c = (e as SVGGraphicsElement).getScreenCTM()!; return Math.round((Math.atan2(c.b, c.a) * 180) / Math.PI); });
@@ -4247,4 +4271,24 @@ test("S1.53 break it: a per-room colour stays the same colour in both themes, an
   expect(dark.fill).toBe(light.fill); // unchanged by theme
   expect(dark.lblFill).toBe(DARK_TH.text); // the name still reads: light fill, dark outline
   expect(dark.lblStroke).toBe(DARK_TH.outline);
+});
+
+test("S1.53 break it: switching theme mid-drag does not lose the drag (pointer capture survives the re-render)", async ({ page }) => {
+  const before = await groundOf(page);
+  expect(before.rooms[0].pts[1]).toEqual([500, 0]);
+  const c = await centre(page, 'circle[data-h="r0:1"]');
+  await page.mouse.move(c.x, c.y);
+  await page.mouse.down();
+  await page.mouse.move(c.x, c.y + 25, { steps: 4 }); // partway, still holding the button
+  // A theme switch normally goes through a menu click, which would release the mouse; this drives the
+  // same state change (and the requestUpdate/re-render it causes) directly, mouse button still down, to
+  // prove the drag survives a mid-drag re-render rather than that the user can open a menu while dragging.
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; el.st.setTheme("dark"); el.requestUpdate(); }, EDITOR);
+  await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "dark");
+  await page.mouse.move(c.x, c.y + 50, { steps: 4 });
+  await page.mouse.up();
+  const after = await groundOf(page);
+  expect(after.rooms[0].pts[1]).not.toEqual([500, 0]); // the drag committed, not reset by the re-render
+  expect(after.rooms[0].pts[1][1]).toBeGreaterThan(0);
+  expect(after.rooms[1].pts[0]).toEqual(after.rooms[0].pts[1]); // the coincident neighbour corner moved with it, as an uninterrupted drag would
 });

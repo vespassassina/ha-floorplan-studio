@@ -77,10 +77,12 @@ describe("stitch, insertPoint, removePoint", () => {
     const g = insertPoint(f, "r0", 0, [50, 0]);
     expect(g.rooms[0].wk).toEqual(["fence", "fence", "wall", "wall", "wall"]);
   });
-  it("removePoint drops the point and its kind", () => {
-    const g = removePoint(floor(), "r0", 1);
+  it("removePoint drops the point and its kind, keeping the right kind on every surviving edge", () => {
+    const f = floor();
+    f.rooms[0].wk = ["fence", "wall", "boundary", "edge"]; // asymmetric: a uniform wk could not catch a shuffle
+    const g = removePoint(f, "r0", 1);
     expect(g.rooms[0].pts).toEqual([[0, 0], [100, 100], [0, 100]]);
-    expect(g.rooms[0].wk).toHaveLength(3);
+    expect(g.rooms[0].wk).toEqual(["fence", "boundary", "edge"]); // the removed point's own "wall" edge is gone, the rest keep their order
   });
   it("removePoint refuses to go below 3 points", () => {
     const f = floor();
