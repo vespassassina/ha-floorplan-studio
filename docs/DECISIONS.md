@@ -2,6 +2,20 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.53 review: `migrate` clamps furniture w/h into 5-2000 cm instead of leaving `validate` to reject the file
+
+An Opus review of the S1.53 stack found: every other out-of-range value in `migrate.ts` is
+normalised on open, but a piece of furniture outside the 5-2000 cm bound (an old file with, say, a
+25 m patio table) had no repair path — it just failed later in `validate` with no way to open the
+file at all. Added a clamp in `migrate` (`src/core/migrate.ts`) alongside the existing per-field
+repairs, `Math.max(5, Math.min(2000, m[k]))` for `w` and `h`. `validate`'s own check is unchanged
+and still refuses a *stored* out-of-range value — `migrate` is the repair path on open, not a
+relaxed validator.
+
+Tests: a file with `w: 2500` opens and comes back clamped to 2000 and validates; a value below 5
+clamps to 5; an in-range value is untouched; `validate` on a layout with a stored 2500 (not run
+through migrate) still fails.
+
 ## 2026-09-20 S1.53 review: a `[data-theme="light"]` block for a nested light plan under a dark host; dark tokens built from one shared constant; a browser test for the nested path
 
 Three related findings from an Opus review of the S1.53 stack, all in `src/core/render.ts`

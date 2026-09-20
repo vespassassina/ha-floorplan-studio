@@ -304,3 +304,30 @@ describe("layout.colors (S1.36)", () => {
     expect("colors" in migrate(structuredClone(v1))).toBe(false);
   });
 });
+
+describe("furniture w/h are clamped to 5-2000 cm (Opus review)", () => {
+  const withFurniture = (w: number, h: number) => {
+    const l: any = structuredClone(demo);
+    l.floors.ground.furniture = [{ id: "f1", symbol: "table", x: 100, y: 100, rot: 0, w, h }];
+    return l;
+  };
+  it("a stored w/h above 2000 (an old file with a 25 m patio) opens, clamped to 2000", () => {
+    const m = migrate(withFurniture(2500, 2500));
+    expect(m.floors.ground.furniture[0]).toMatchObject({ w: 2000, h: 2000 });
+    expect(validate(m).ok).toBe(true);
+  });
+  it("a stored w/h below 5 opens, clamped to 5", () => {
+    const m = migrate(withFurniture(1, 0));
+    expect(m.floors.ground.furniture[0]).toMatchObject({ w: 5, h: 5 });
+    expect(validate(m).ok).toBe(true);
+  });
+  it("a value already in range is left untouched", () => {
+    const m = migrate(withFurniture(120, 60));
+    expect(m.floors.ground.furniture[0]).toMatchObject({ w: 120, h: 60 });
+  });
+  it("validate itself still refuses a stored 2500 (migrate is the repair path, not a relaxed check)", () => {
+    const l: any = structuredClone(demo);
+    l.floors.ground.furniture = [{ id: "f1", symbol: "table", x: 100, y: 100, rot: 0, w: 2500, h: 100 }];
+    expect(validate(l).ok).toBe(false);
+  });
+});

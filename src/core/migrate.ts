@@ -51,6 +51,10 @@ export function migrate(x: unknown): Layout {
       f[key].forEach((o: any, i: number) => { o.id = o.id ?? `${kind}-${fname}-${i + 1}`; });
       if (key === "walls") for (const o of f.walls) o.kind = o.kind ?? "wall";
     }
+    // Opus review: every other out-of-range value in this file is normalised, not just rejected later by
+    // `validate`. A piece of furniture outside 5-2000 cm (an old file with a 25 m patio, say) gets the same
+    // treatment, so it opens instead of failing with no repair path. `validate`'s own check is unchanged.
+    for (const m of f.furniture) for (const k of ["w", "h"] as const) if (typeof m[k] === "number" && Number.isFinite(m[k])) m[k] = Math.max(5, Math.min(2000, m[k]));
     for (const o of [...f.stairs, ...f.extras]) o.name = o.name ?? ""; // validate wants text; an older file has none
     for (const t of f.stairs) { t.shape = t.shape ?? "straight"; t.rot = t.rot ?? 0; if (t.shape === "round") t.inner = t.inner ?? 0; t.steps = stairSteps(t); } // steps are derived: a stored value that disagrees is dropped
     if (f.devices !== undefined && !Array.isArray(f.devices)) throw new Error(`Floor "${fname}": devices must be an array`);
