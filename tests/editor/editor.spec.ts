@@ -3444,3 +3444,18 @@ test("S1.41: a clamped furniture width shows the clamped value", async ({ page }
   await setField(page, "#fw", "1");
   await expect(page.locator("#fw")).toHaveValue("5"); // already 5: the state does not change, the field still resets
 });
+
+// ---- a device never hides a room name (S1.42) ------------------------------------------
+
+test("S1.42: on the demo no room name box overlaps a device halo", async ({ page }) => {
+  const boxes = await page.evaluate((tag) => {
+    const root = document.querySelector(tag)!.shadowRoot!;
+    const r = (e: Element) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
+    return { names: [...root.querySelectorAll("text.lbl")].filter((t) => t.textContent && ["Living", "Kitchen", "Hall", "Reading corner"].includes(t.textContent)).map((t) => [t.textContent, ...r(t)]),
+      halos: [...root.querySelectorAll("circle.halo")].map(r) };
+  }, EDITOR);
+  expect(boxes.names).toHaveLength(4);
+  expect(boxes.halos.length).toBeGreaterThan(3);
+  for (const [name, l, t, rr, b] of boxes.names as [string, number, number, number, number][])
+    for (const h of boxes.halos) expect(l < h[2] && rr > h[0] && t < h[3] && b > h[1], `${name} ${[l,t,rr,b]} under a halo ${h}`).toBe(false);
+});

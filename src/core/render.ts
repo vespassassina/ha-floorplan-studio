@@ -213,13 +213,24 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 30 : 22}"><title>${esc(d.name ?? "")}</title></line>`);
   });
 
-  // Room names first, then devices: nothing may hide a device icon.
+  // Room names first, then devices: nothing may hide a device icon, so a name that would sit under one moves down, then up.
+  const spots: Pt[] = [];
+  f.devices.forEach((d, i) => {
+    const sel = o.selection?.t === "dev" && o.selection.i === i;
+    if (o.filter && o.filter !== d.type && !sel) return;
+    const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
+    if (c.every(Number.isFinite)) spots.push(c);
+  });
+  // The text y is the baseline: the box runs about 0.95 of the size above it and 0.25 below. 28k clears a 13k halo either way.
+  const hit = (x: number, y: number, size: number, len: number) => spots.some((p) => Math.abs(p[1] - (y - 0.35 * size)) < 13 * k + 0.6 * size && Math.abs(p[0] - x) < 13 * k + 0.3 * size * len);
+  const nameY = (x: number, y: number, size: number, len: number) => [y, y + 28 * k, y - 28 * k].find((v) => !hit(x, v, size, len)) ?? y;
   f.rooms.forEach((r) => {
     if (!r.name || r.kind === "fill") return;
     const cx = r.pts.reduce((s, p) => s + p[0], 0) / r.pts.length, cy = r.pts.reduce((s, p) => s + p[1], 0) / r.pts.length;
-    if (r.kind === "zone") { out.push(`<text class="lbl zone" x="${num(cx)}" y="${num(cy)}"${up(cx, cy)} text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
-    out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy)}"${up(cx, cy)} text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
-    if (r.label) out.push(`<text class="lbl" x="${num(cx)}" y="${num(cy + 16 * k)}"${up(cx, cy + 16 * k)} text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`);
+    if (r.kind === "zone") { const y = nameY(cx, cy, 10 * k, r.name.length); out.push(`<text class="lbl zone" x="${num(cx)}" y="${num(y)}"${up(cx, y)} text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
+    const y = nameY(cx, cy, 14 * k, r.name.length);
+    out.push(`<text class="lbl" x="${num(cx)}" y="${num(y)}"${up(cx, y)} text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
+    if (r.label) out.push(`<text class="lbl" x="${num(cx)}" y="${num(y + 16 * k)}"${up(cx, y + 16 * k)} text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`);
   });
 
   f.devices.forEach((d, i) => {

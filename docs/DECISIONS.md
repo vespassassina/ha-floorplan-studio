@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.42: names step 28k, not 24k, clear of a device
+
+The plan's box was centred on the SVG y, which is the baseline. The real text box sits above it, and the demo Living name still touched a halo by 3 px in Chromium. The box is now 1.2 x size, centred 0.35 x size above the baseline, and the step is 28k. Supersedes the 24k in the S1.42 plan block.
+
 ## 2026-09-20 S1.41: number fields re-render after every change
 
 number() takes the panel context, binds with live() and calls refresh after each change. A refused or clamped value snaps back to the state.

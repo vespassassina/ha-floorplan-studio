@@ -778,3 +778,34 @@ describe("S1.35b: a white twin under every edge", () => {
     expect(renderFloor(ground, base)).not.toMatch(/class="eh se"/);
   });
 });
+
+describe("S1.42: a device never hides a room name", () => {
+  const k = 2; // scale 0.5
+  const floor = (kind: "room" | "zone", devs: [number, number][], filter?: string) => {
+    const f = structuredClone(ground);
+    f.rooms = [{ id: "r", name: "Lounge", kind, area: "", pts: [[0, 0], [400, 0], [400, 200], [0, 200]] } as never];
+    f.devices = devs.map(([x, y], i) => ({ id: `d${i}`, type: "light", entity: `light.d${i}`, x, y }) as never);
+    f.doors = []; f.stairs = []; f.walls = []; f.furniture = [];
+    return renderFloor(f, { scale: 0.5, ...(filter ? { filter: filter as never } : {}) });
+  };
+  const nameY = (html: string) => Number(html.match(/<text class="lbl(?: zone)?"[^>]* y="([\d.-]+)"[^>]*>Lounge</)![1]);
+  const cy = 100;
+
+  it("stays put with no device near", () => { expect(nameY(floor("room", []))).toBe(cy); expect(nameY(floor("room", [[20, 20]]))).toBe(cy); });
+  it("moves down 28k when a device sits on the centroid", () => { expect(nameY(floor("room", [[200, 100]]))).toBe(cy + 28 * k); });
+  it("moves up when the spot below is taken too", () => { expect(nameY(floor("room", [[200, 100], [200, 100 + 28 * k]]))).toBe(cy - 28 * k); });
+  it("stays when all three spots are taken", () => { expect(nameY(floor("room", [[200, 100], [200, 100 + 28 * k], [200, 100 - 28 * k]]))).toBe(cy); });
+  it("a zone follows the same steps with its smaller size", () => {
+    expect(nameY(floor("zone", [[200, 100]]))).toBe(cy + 28 * k);
+    expect(nameY(floor("zone", [[200, 100], [200, 100 + 28 * k]]))).toBe(cy - 28 * k);
+  });
+  it("counts only devices the filter draws", () => { expect(nameY(floor("room", [[200, 100]], "heater"))).toBe(cy); });
+  it("a device far to the side does not move the name", () => { expect(nameY(floor("room", [[380, 100]]))).toBe(cy); });
+  it("the label follows the name", () => {
+    const f = structuredClone(ground);
+    f.rooms = [{ id: "r", name: "Lounge", label: "3 x 4", kind: "room", area: "", pts: [[0, 0], [400, 0], [400, 200], [0, 200]] } as never];
+    f.devices = [{ id: "d", type: "light", entity: "light.d", x: 200, y: 100 } as never];
+    const html = renderFloor(f, { scale: 0.5 });
+    expect(html).toMatch(new RegExp(`y="${100 + 28 * k + 16 * k}"[^>]*>3 x 4<`));
+  });
+});
