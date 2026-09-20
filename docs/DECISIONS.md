@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Opus review: browser pairs for the CSS string tests; motion fade was overridden
+
+`tests/core/render.test.ts` checks many CSS rules only as text. Each now has a computed-style test in `editor.spec.ts` ("Opus review CSS pair"). Already paired: zone and water fill, room colour override, halo and cone, text outline, twin colour. Missing and added: wall kind colour, width and dash; garden, terrace, pavement and fill (hatch) fills; the `.e.none` guide; tread colour; the `--fp-dev-*` palette against `DEVICE_COLOURS`; camera and garden-sensor fill; motion fade. The motion pair found a real bug: a motion sensor that is on carries `.dev.on`, whose specificity beat `.dev-motion path`, so the fade never showed and the icon stayed the "on" yellow. The rule is now `.dev.dev-motion path` (same specificity, later in the sheet). The string test was blind to this.
+
 ## 2026-09-20 Opus review: colors.ac is stored, its state colours come in Sprint 2
 
 `layout.colors.ac` passes `validate` and is written as `--fp-dev-ac`, but the air conditioner draws with `--fp-dev-ac-cool` and `--fp-dev-ac-heat`, which the knob does not set. Chosen: document it in SPEC, no behaviour change. Sprint 2, which adds the state colours, decides what `ac` drives.

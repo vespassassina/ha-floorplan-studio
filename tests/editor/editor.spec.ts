@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { DEVICE_COLOURS } from "../../src/core/render";
 import { validate, type Layout, type Floor, type WallKind } from "../../src/core/schema";
 
 // Every pointer action goes through page.mouse at real screen coordinates, so the
@@ -3746,4 +3747,77 @@ test("Opus review a11y: the turn buttons are a labelled group and their names ca
   await expect(page.locator("#sstn")).toBeVisible();
   const orphans = await page.locator("label").evaluateAll((ls) => ls.filter((l) => !(l as HTMLLabelElement).control).map((l) => l.textContent));
   expect(orphans).toEqual([]);
+});
+
+// ---- Opus review: every CSS rule that render.test.ts only matches as a string is checked here in the browser ----
+
+const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `rgb(${n >> 16}, ${(n >> 8) & 255}, ${n & 255})`; };
+const sq = (x: number, y: number): [number, number][] => [[x, y], [x + 80, y], [x + 80, y + 80], [x, y + 80]];
+/** Adds shapes below the house: one room per kind, one wall per kind, a room with a "none" edge, a temp sensor in a garden. */
+async function addCssFixtures(page: Page) {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), g = l.floors.ground;
+    const kinds = ["garden", "terrace", "pavement", "fill", "zone", "water"];
+    kinds.forEach((k, i) => g.rooms.push({ id: `css-${k}`, name: k, area: "", label: "", kind: k, pts: [[1000 + i * 100, 0], [1080 + i * 100, 0], [1080 + i * 100, 80], [1000 + i * 100, 80]], wk: Array(4).fill(k === "zone" ? "boundary" : "wall") }));
+    g.rooms.push({ id: "css-none", name: "none", area: "", label: "", kind: "room", pts: [[1700, 0], [1780, 0], [1780, 80], [1700, 80]], wk: ["wall", "none", "wall", "wall"] });
+    ["wall", "external", "fence", "edge"].forEach((k, i) => g.walls.push({ id: `css-w-${k}`, a: [1000, 200 + i * 40], b: [1200, 200 + i * 40], kind: k }));
+    g.devices.push({ id: "css-out", type: "temp", entity: "sensor.css_out", x: 1040, y: 40 }); // inside css-garden
+    el.layout = l;
+  }, EDITOR);
+}
+
+test("Opus review CSS pair: wall kinds have their colour, thickness and dash (render.test.ts:323-333)", async ({ page }) => {
+  await addCssFixtures(page);
+  const st = (k: string) => page.locator(`svg line.e.${k}`).first().evaluate((e) => { const s = getComputedStyle(e); return { stroke: s.stroke, w: parseFloat(s.strokeWidth), dash: s.strokeDasharray }; });
+  const wall = await page.locator("svg line.e:not(.external):not(.fence):not(.edge):not(.none):not(.se):not(.nw)").first().evaluate((e) => parseFloat(getComputedStyle(e).strokeWidth));
+  const ext = await st("external"), fence = await st("fence"), edge = await st("edge");
+  expect([ext.stroke, fence.stroke, edge.stroke]).toEqual([rgb("#1a1917"), rgb("#7a5c3a"), rgb("#a29e94")]);
+  expect(ext.w).toBeGreaterThan(wall);
+  expect(fence.w).toBeLessThan(wall);
+  expect(fence.dash.split(",").length).toBe(4); // dash-dot
+  expect(edge.dash).toBe("none");
+});
+
+test("Opus review CSS pair: each room kind has its own fill; fill is hatched; zone is unfilled (render.test.ts:207-210, 371-394)", async ({ page }) => {
+  await addCssFixtures(page);
+  const fill = (k: string) => page.locator(`svg polygon.room-${k}`).first().evaluate((e) => getComputedStyle(e).fill);
+  expect(await fill("garden")).toBe(rgb("#9db98a"));
+  expect(await fill("terrace")).toBe(rgb("#cdb094"));
+  expect(await fill("pavement")).toBe(rgb("#c9c6bf"));
+  expect(await fill("water")).toBe(rgb("#a9cfe3"));
+  expect(await fill("zone")).toBe("none");
+  expect(await fill("fill")).toContain("#fp-hatch");
+  // the hatch pattern paints with the two fill variables
+  const pat = await page.locator("svg pattern#fp-hatch").evaluate((p) => { const r = p.querySelector("rect")!, l = p.querySelector("line, path")!; return [getComputedStyle(r).fill, getComputedStyle(l).stroke]; });
+  expect(pat).toEqual([rgb("#c4c0b8"), rgb("#9a958b")]);
+});
+
+test("Opus review CSS pair: a deleted edge is a faint dotted guide, stair treads have their colour (render.test.ts:521, 859)", async ({ page }) => {
+  await addCssFixtures(page);
+  const none = await page.locator("svg line.e.none").first().evaluate((e) => { const s = getComputedStyle(e); return [s.strokeDasharray, s.strokeWidth, s.opacity]; });
+  expect(none).toEqual(["2px, 5px", "1px", "0.6"]);
+  expect(await page.locator("svg g[data-s] line.tread").first().evaluate((e) => getComputedStyle(e).stroke)).toBe(rgb("#8b8578"));
+});
+
+test("Opus review CSS pair: the palette variables equal DEVICE_COLOURS, camera and garden sensor paint from them (render.test.ts:598-600, 757)", async ({ page }) => {
+  await addCssFixtures(page);
+  const vars = await page.locator("svg g.dev").first().evaluate((e) => { const s = getComputedStyle(e), o: Record<string, string> = {}; for (const k of ["light", "motion", "contact", "heater", "climate", "ac-cool", "ac-heat", "tv", "plug", "computer", "camera", "garden"]) o[k] = s.getPropertyValue(`--fp-dev-${k}`).trim(); return o; });
+  expect(vars).toEqual({ light: "#e0a800", motion: "#d64545", contact: "#d64545", heater: "#e8801a", climate: "#e8801a", "ac-cool": "#2c7fb8", "ac-heat": "#e8801a", tv: "#2c7fb8", plug: "#2c7fb8", computer: "#2c7fb8", camera: "#4a4a48", garden: "#3f8f4f" });
+  for (const k of ["light", "motion", "contact", "heater", "climate", "tv", "plug", "computer", "camera"] as const) expect(vars[k], k).toBe((DEVICE_COLOURS as Record<string, string>)[k]);
+  expect(await camFill(page)).toBe(rgb("#4a4a48"));
+  const out = await page.locator("svg g.dev.outdoor path:not(.halo)").first().evaluate((e) => getComputedStyle(e).fill);
+  expect(out).toBe(rgb("#3f8f4f"));
+});
+
+test("Opus review CSS pair: a motion sensor that is on still fades: the fill follows --fp-fade (render.test.ts:107)", async ({ page }) => {
+  const g = page.locator("svg g.dev-motion").first();
+  const fillAt = (fade: string, on: boolean) => g.evaluate((e, [f, o]) => { e.classList.toggle("on", o as boolean); (e as SVGElement).style.setProperty("--fp-fade", f as string); return getComputedStyle(e.querySelector("path:not(.halo)")!).fill; }, [fade, on] as const);
+  // color-mix computes to color(srgb r g b) in 0..1, a plain colour to rgb(r, g, b) in 0..255: compare in 0..255
+  const chan = (c: string) => (c.startsWith("color(") ? c.match(/[\d.]+/g)!.slice(-3).map((n) => Math.round(+n * 255)) : c.match(/\d+/g)!.map(Number));
+  const idle = chan(await fillAt("0", false));
+  expect(chan(await fillAt("1", true))).toEqual([214, 69, 69]); // fully faded in: the motion colour
+  expect(chan(await fillAt("0", true))).toEqual(idle);          // fully faded out: idle, not the "on" colour
+  const half = chan(await fillAt("0.5", true));
+  expect(half).not.toEqual(idle);
+  expect(half).not.toEqual([214, 69, 69]);
 });
