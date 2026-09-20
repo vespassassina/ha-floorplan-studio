@@ -20,7 +20,7 @@ describe("renderFloor", () => {
     const html = renderFloor(f, base);
     expect(html).toMatch(/<text class="lbl"[^>]*>&lt;i&gt;3 x 4&lt;\/i&gt; &amp; &quot;co&quot;<\/text>/);
     expect(html).not.toContain("<i>");
-    expect(renderFloor(ground, base).match(/<text class="lbl"/g)).toHaveLength(4); // 3 rooms and the pond; the zone label has its own class
+    expect(renderFloor(ground, base).match(/<text class="lbl"/g)).toHaveLength(6); // 3 rooms, garden, pavement and the pond; the zone label has its own class
   });
 
   it("draws openings as erase lines and extras as dashed shapes with escaped names", () => {
@@ -359,5 +359,18 @@ describe("renderFloor never throws on a layout that skipped validate (review S1.
     const html = renderFloor(f, base);
     expect(html).toContain("&lt;b&gt;");
     expect(html).not.toContain("<b>");
+  });
+});
+
+describe("garden and pavement (S1.14)", () => {
+  it("draws room-garden and room-pavement, each with its own colour variable", () => {
+    const html = renderFloor(ground, base);
+    expect(html).toContain('class="room room-garden"');
+    expect(html).toContain('class="room room-pavement"');
+    expect(FLOORPLAN_CSS).toMatch(/\.room-garden\{fill:var\(--fp-garden\)\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-terrace\{fill:var\(--fp-terrace\)\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-pavement\{fill:var\(--fp-pavement\)\}/);
+    expect(FLOORPLAN_CSS).not.toContain("--fp-outdoor");
+    for (const [v, c] of [["garden", "#9db98a"], ["terrace", "#cdb094"], ["pavement", "#c9c6bf"]]) expect(FLOORPLAN_CSS).toContain(`--fp-${v}:${c}`);
   });
 });

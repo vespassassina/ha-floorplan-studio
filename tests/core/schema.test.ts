@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { validate } from "../../src/core/schema";
+import { ROOM_KINDS, validate } from "../../src/core/schema";
 
 const clone = () => structuredClone(demo) as any;
 const errorsOf = (l: unknown) => {
@@ -196,7 +196,7 @@ describe("names and labels are strings (review S1.5, finding 5)", () => {
     ["room.label", (l, v) => { l.floors.ground.rooms[0].label = v; }, /room-ground-1.*label/],
     ["zone.name", (l, v) => { l.floors.ground.rooms[3].name = v; }, /room-ground-4.*name/],
     ["zone.label", (l, v) => { l.floors.ground.rooms[3].label = v; }, /room-ground-4.*label/],
-    ["water.name", (l, v) => { l.floors.ground.rooms[4].name = v; }, /room-ground-5.*name/],
+    ["water.name", (l, v) => { l.floors.ground.rooms[6].name = v; }, /room-ground-7.*name/],
     ["stairs.name", (l, v) => { l.floors.ground.stairs[0].name = v; }, /stairs-ground-1.*name/],
     ["extra.name", (l, v) => { l.floors.ground.extras.push({ id: "x1", name: v, a: [0, 0], b: [10, 10] }); }, /x1.*name/],
     ["door.name", (l, v) => { l.floors.ground.doors[0].name = v; }, /door-ground-1.*name/],
@@ -214,5 +214,17 @@ describe("names and labels are strings (review S1.5, finding 5)", () => {
     delete l.floors.ground.devices[0].name;
     l.floors.ground.rooms[0].label = "";
     expect(errorsOf(l)).toEqual([]);
+  });
+});
+
+describe("room kinds (S1.14)", () => {
+  it("lists the eight kinds in order", () => {
+    expect(ROOM_KINDS).toEqual(["room", "garden", "pavement", "fill", "terrace", "structure", "zone", "water"]);
+  });
+  it("accepts pavement and garden, rejects outdoor and names the eight", () => {
+    const l = clone();
+    for (const k of ["pavement", "garden"]) { l.floors.ground.rooms[0].kind = k; expect(errorsOf(l)).toEqual([]); }
+    l.floors.ground.rooms[0].kind = "outdoor";
+    expect(errorsOf(l).join("\n")).toContain("room, garden, pavement, fill, terrace, structure, zone, water");
   });
 });

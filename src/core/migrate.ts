@@ -33,7 +33,7 @@ export function migrate(x: unknown): Layout {
     }
     for (const o of [...f.stairs, ...f.extras]) o.name = o.name ?? ""; // validate wants text; an older file has none
     if (f.devices !== undefined && !Array.isArray(f.devices)) throw new Error(`Floor "${fname}": devices must be an array`);
-    for (const r of f.rooms) { r.area = r.area ?? (r.kind === "water" ? "" : slug(String(r.name ?? ""))); r.name = r.name ?? ""; r.label = r.label ?? ""; }
+    for (const r of f.rooms) { if (r.kind === "outdoor") r.kind = "garden"; r.area = r.area ?? (r.kind === "water" ? "" : slug(String(r.name ?? ""))); r.name = r.name ?? ""; r.label = r.label ?? ""; }
     f.devices = (f.devices ?? []).filter(isObj).map((d: any, i: number) => {
       if (v === 1) d.type = RENAME[d.type] ?? d.type;
       d.id = d.id ?? `${d.type}-${fname}-${i + 1}`;

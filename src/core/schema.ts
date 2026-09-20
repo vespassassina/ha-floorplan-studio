@@ -1,5 +1,5 @@
 export type Pt = [number, number];
-export type RoomKind = "room" | "outdoor" | "fill" | "terrace" | "structure" | "zone" | "water";
+export type RoomKind = "room" | "garden" | "pavement" | "fill" | "terrace" | "structure" | "zone" | "water";
 export type DoorKind = "door" | "glass" | "window" | "sealed";
 export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
@@ -29,7 +29,7 @@ const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" &&
 const isEntity = (x: unknown) => typeof x === "string" && x.includes(".");
 const isPt = (p: unknown) => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === "number" && Number.isFinite(n));
 
-export const ROOM_KINDS: readonly RoomKind[] = ["room", "outdoor", "fill", "terrace", "structure", "zone", "water"];
+export const ROOM_KINDS: readonly RoomKind[] = ["room", "garden", "pavement", "fill", "terrace", "structure", "zone", "water"];
 export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", "fence", "edge"];
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed"];
 export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "media", "cover", "other"];

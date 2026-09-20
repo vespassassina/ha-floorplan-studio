@@ -285,7 +285,7 @@ Diego's list, in his words:
 Everything on that list that needs an entity state is a card task: S2.8 to
 S2.10. Everything drawn from the layout alone is here.
 
-### S1.14 Garden and pavement
+### S1.14 Garden and pavement (done)
 - Outcome: the room kind `outdoor` is called `garden`, and `pavement` joins it. Each outdoor kind has its own colour.
 - Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/render.ts`, `src/editor/panels.ts`, `tests/core/schema.test.ts`, `tests/core/migrate.test.ts`, `tests/core/render.test.ts`, `demo/layout.json`, `demo/layout.v1.json`, `docs/SPEC.md`.
 - Interface: `RoomKind` is `"room" | "garden" | "pavement" | "fill" | "terrace" | "structure" | "zone" | "water"`; `ROOM_KINDS` in that order. `validate` rejects `"outdoor"` with the list of the eight. `migrate` maps `kind: "outdoor"` to `"garden"` on every room at v1 and at v2, before ids and areas are filled, and leaves any other kind alone. `renderFloor` keeps emitting `room room-<kind>`; `FLOORPLAN_CSS` drops `--fp-outdoor` for `--fp-garden` (#9db98a, a darker green than the old #dce6d6), `--fp-terrace` (#cdb094, light brown) and `--fp-pavement` (#c9c6bf, grey), each used by its own class. The room panel's kind select shows the eight through a new `ROOM_LABELS: Record<RoomKind, string>` in `panels.ts` (Room, Garden, Pavement, Fill, Terrace, Structure, Zone, Water) instead of the raw ids. The demo ground floor gains a garden around the pond and a pavement strip in front of the house, both in `layout.json` and `layout.v1.json` (the v1 one written as `outdoor` for the garden, so migration is exercised).

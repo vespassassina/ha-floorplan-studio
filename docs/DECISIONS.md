@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.14: where the demo garden and pavement sit
+
+The demo garden is 100 by 160 cm at the east wall, around the pond. The pavement is a 30 cm strip along the south of the house, from x 400 to 800. It stops short of x 400 on purpose: the editor tests draw and snap in the free space south-west of the house, and a full-width strip took their snap points. `mergeCorners` skips `garden` (the old `outdoor` rule); `pavement` is not skipped, because its corners may sit on the house corner and must then merge like a room's.
+
 ## 2026-09-20 Answers to the Sprint 1.6 questions
 
 - Room colour overrides the kind colour; aura 2 m across, to try; plan rotation is kept beside `north`; Delete floor keeps its confirm; the demo gains a garden and a pavement. All as planned.

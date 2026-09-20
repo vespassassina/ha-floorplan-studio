@@ -1,7 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, toggleWall } from "../core";
-import type { DeviceType, Floor, WallKind } from "../core";
+import type { DeviceType, Floor, RoomKind, WallKind } from "../core";
 import { movePointAll, resizeSegment, setSecondEnd } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 
@@ -43,6 +43,9 @@ function number(label: string, id: string, value: number | string, on: (v: numbe
 function select(label: string, id: string, value: string, options: readonly string[], on: (v: string) => void) {
   return html`<label for=${id}>${label}</label><select id=${id} .value=${value} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${o}</option>`)}</select>`;
 }
+export const ROOM_LABELS: Record<RoomKind, string> = { room: "Room", garden: "Garden", pavement: "Pavement", fill: "Fill", terrace: "Terrace", structure: "Structure", zone: "Zone", water: "Water" };
+const kindSelect = (value: string, on: (v: string) => void) =>
+  html`<label for="rk">kind</label><select id="rk" .value=${value} @change=${(e: Event) => on(val(e))}>${ROOM_KINDS.map((k) => html`<option value=${k} ?selected=${k === value}>${ROOM_LABELS[k]}</option>`)}</select>`;
 const button = (id: string, label: string, on: () => void) => html`<button class="btn" id=${id} @click=${on}>${label}</button>`;
 const hint = (t: string) => html`<p class="hint">${t}</p>`;
 
@@ -153,7 +156,7 @@ function roomPanel(c: PanelCtx, i: number) {
     ${text("name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
     ${text("area id", "ra", r.area, (v) => c.commit((f) => { f.rooms[i].area = v; }))}
     ${text("plan label", "rl", r.label, (v) => c.commit((f) => { f.rooms[i].label = v; }))}
-    ${select("kind", "rk", r.kind, ROOM_KINDS, (v) => c.commit((f) => {
+    ${kindSelect(r.kind, (v) => c.commit((f) => {
       const room = f.rooms[i];
       if (room.kind === v) return;
       room.kind = v as typeof r.kind;

@@ -37,8 +37,8 @@ test.beforeEach(async ({ page }) => {
 
 test("loads the demo and draws the ground floor", async ({ page }) => {
   const l = await layoutOf(page);
-  expect(l.floors.ground.rooms).toHaveLength(5); // three rooms, the Reading corner zone and the pond
-  await expect(page.locator("svg polygon[data-r]")).toHaveCount(5);
+  expect(l.floors.ground.rooms).toHaveLength(7); // three rooms, the Reading corner zone, garden, pavement and the pond
+  await expect(page.locator("svg polygon[data-r]")).toHaveCount(7);
   await expect(page.locator(".chip[data-f]")).toHaveCount(2);
 });
 
@@ -605,7 +605,7 @@ test("the room panel kind select lists zone and water; picking zone clears every
   await page.mouse.click(at.x, at.y);
   await expect(page.locator("#rk")).toHaveValue("room");
   const options = await page.locator("#rk option").allTextContents();
-  expect(options).toEqual(expect.arrayContaining(["zone", "water"]));
+  expect(options).toEqual(expect.arrayContaining(["Zone", "Water"])); // labels, not raw ids
   expect((await groundOf(page)).rooms[0].w).toEqual([true, true, true, true]);
   await page.locator("#rk").selectOption("zone");
   const z = (await groundOf(page)).rooms[0];
@@ -801,7 +801,7 @@ test("the + chip sits after the floor chips, opens an input, and Enter adds an e
   await expect(page.locator("svg polygon[data-r]")).toHaveCount(0); // empty
   const l = await layoutOf(page);
   expect(l.floors.attic).toMatchObject({ title: "Attic", outline: [], rooms: [], walls: [], devices: [], furniture: [] });
-  expect(l.floors.ground.rooms).toHaveLength(5); // untouched
+  expect(l.floors.ground.rooms).toHaveLength(7); // untouched
 });
 
 test("+ then Esc adds nothing and leaves no undo step; Enter on an empty or blank title adds nothing", async ({ page }) => {
@@ -824,7 +824,7 @@ test("break it: adding \"Ground\" gets the key ground-2 and does not overwrite t
   await addFloorVia(page, "Ground");
   const l = await layoutOf(page);
   expect(Object.keys(l.floors)).toEqual(["ground", "first", "ground-2"]);
-  expect(l.floors.ground.rooms).toHaveLength(5);
+  expect(l.floors.ground.rooms).toHaveLength(7);
   expect(l.floors["ground-2"].rooms).toHaveLength(0);
 });
 
@@ -916,7 +916,7 @@ test("deleting the ground floor with content, then Undo, brings it back in place
   expect(await chipKeys(page)).toEqual(["ground", "first"]);
   expect(await layoutOf(page)).toEqual(before);
   await page.locator('.chip[data-f="ground"]').click();
-  await expect(page.locator("svg polygon[data-r]")).toHaveCount(5);
+  await expect(page.locator("svg polygon[data-r]")).toHaveCount(7);
 });
 
 test("devices of a deleted floor go back to the Device menu and the catalog is unchanged", async ({ page }) => {

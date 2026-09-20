@@ -141,6 +141,64 @@
      ]
     },
     {
+     "name": "Garden",
+     "label": "",
+     "kind": "outdoor",
+     "pts": [
+      [
+       800,
+       380
+      ],
+      [
+       900,
+       380
+      ],
+      [
+       900,
+       540
+      ],
+      [
+       800,
+       540
+      ]
+     ],
+     "w": [
+      false,
+      false,
+      false,
+      false
+     ]
+    },
+    {
+     "name": "Pavement",
+     "label": "",
+     "kind": "pavement",
+     "pts": [
+      [
+       400,
+       600
+      ],
+      [
+       800,
+       600
+      ],
+      [
+       800,
+       630
+      ],
+      [
+       400,
+       630
+      ]
+     ],
+     "w": [
+      false,
+      false,
+      false,
+      false
+     ]
+    },
+    {
      "name": "Garden pond",
      "label": "",
      "kind": "water",

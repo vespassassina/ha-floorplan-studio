@@ -25,7 +25,7 @@ describe("migrate", () => {
 
   it("assigns ids as <kind>-<floor>-<n>", () => {
     const m = migrate(v1);
-    expect(m.floors.ground.rooms.map((r) => r.id)).toEqual(["room-ground-1", "room-ground-2", "room-ground-3", "room-ground-4", "room-ground-5"]);
+    expect(m.floors.ground.rooms.map((r) => r.id)).toEqual(["room-ground-1", "room-ground-2", "room-ground-3", "room-ground-4", "room-ground-5", "room-ground-6", "room-ground-7"]);
     expect(m.floors.first.doors[0].id).toBe("door-first-1");
   });
 
@@ -166,5 +166,25 @@ describe("an older or hand-written layout still loads (review S1.5 round 2, find
     l.floors.g.stairs[0].name = "Main"; l.floors.g.extras[0].name = "Fence";
     const f = migrate(l).floors.g as any;
     expect([f.stairs[0].name, f.extras[0].name]).toEqual(["Main", "Fence"]);
+  });
+});
+
+describe("outdoor is renamed garden (S1.14)", () => {
+  const withKinds = (version: number, kinds: string[]) => ({
+    version, north: 0,
+    floors: { g: { title: "G", outline: [], rooms: kinds.map((kind, i) => ({ id: `r${i}`, name: "R", area: "r", label: "", kind, pts: [[0, 0], [1, 0], [1, 1]], w: [true, true, true] })) } },
+  });
+  for (const v of [1, 2])
+    it(`v${v}: outdoor becomes garden, other kinds stay, and a second migrate changes nothing`, () => {
+      const once = migrate(withKinds(v, ["outdoor", "room", "terrace", "garden"]));
+      expect(once.floors.g.rooms.map((r) => r.kind)).toEqual(["garden", "room", "terrace", "garden"]);
+      expect(migrate(once)).toEqual(once);
+    });
+  it("a room with no kind is left without one, so validate reports it", () => {
+    const l: any = withKinds(2, ["room"]);
+    delete l.floors.g.rooms[0].kind;
+    const m = migrate(l);
+    expect(m.floors.g.rooms[0].kind).toBeUndefined();
+    expect(validate(m).ok).toBe(false);
   });
 });

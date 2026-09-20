@@ -187,13 +187,13 @@ export function toggleWall(f: Floor, poly: string, i: number): Floor {
 
 /**
  * Corners within `tol` cm become one point: the outline's if the group has one, else the average.
- * Consecutive equal corners are dropped with their wall flags. Outdoor rooms and zones are left alone.
+ * Consecutive equal corners are dropped with their wall flags. Gardens and zones are left alone.
  */
 export function mergeCorners(f: Floor, tol: number): Floor {
   const g = structuredClone(f);
   const list = [
     { pts: g.outline, outline: true, room: undefined as Room | undefined },
-    ...g.rooms.filter((r) => r.kind !== "outdoor" && r.kind !== "zone").map((r) => ({ pts: r.pts, outline: false, room: r })),
+    ...g.rooms.filter((r) => r.kind !== "garden" && r.kind !== "zone").map((r) => ({ pts: r.pts, outline: false, room: r })),
     ...g.stairs.map((s) => ({ pts: s.pts, outline: false, room: undefined })),
   ];
   const all = list.flatMap((P) => P.pts.map((q) => ({ q, outline: P.outline })));

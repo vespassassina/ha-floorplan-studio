@@ -4,7 +4,9 @@ exports[`renderFloor > matches the snapshot for the demo ground floor without st
 "<polygon data-r="0" class="room room-room" points="0,0 500,0 500,400 0,400"/>
 <polygon data-r="1" class="room room-room" points="500,0 800,0 800,400 500,400"/>
 <polygon data-r="2" class="room room-room" points="0,400 800,400 800,600 0,600"/>
-<polygon data-r="4" class="room room-water water" points="815,430 855,430 860,470 840,500 815,490"/>
+<polygon data-r="4" class="room room-garden" points="800,380 900,380 900,540 800,540"/>
+<polygon data-r="5" class="room room-pavement" points="400,600 800,600 800,630 400,630"/>
+<polygon data-r="6" class="room room-water water" points="815,430 855,430 860,470 840,500 815,490"/>
 <polygon data-r="3" class="room room-zone" points="340,40 460,40 460,140 340,140"/>
 <polygon data-s="0" class="stairs room" points="700,420 780,420 780,580 700,580"/>
 <line class="e" data-e="o:0" x1="0" y1="0" x2="800" y2="0"/>
@@ -27,11 +29,19 @@ exports[`renderFloor > matches the snapshot for the demo ground floor without st
 <line class="e nw" data-e="r3:1" x1="460" y1="40" x2="460" y2="140"/>
 <line class="e nw" data-e="r3:2" x1="460" y1="140" x2="340" y2="140"/>
 <line class="e nw" data-e="r3:3" x1="340" y1="140" x2="340" y2="40"/>
-<line class="e nw" data-e="r4:0" x1="815" y1="430" x2="855" y2="430"/>
-<line class="e nw" data-e="r4:1" x1="855" y1="430" x2="860" y2="470"/>
-<line class="e nw" data-e="r4:2" x1="860" y1="470" x2="840" y2="500"/>
-<line class="e nw" data-e="r4:3" x1="840" y1="500" x2="815" y2="490"/>
-<line class="e nw" data-e="r4:4" x1="815" y1="490" x2="815" y2="430"/>
+<line class="e nw" data-e="r4:0" x1="800" y1="380" x2="900" y2="380"/>
+<line class="e nw" data-e="r4:1" x1="900" y1="380" x2="900" y2="540"/>
+<line class="e nw" data-e="r4:2" x1="900" y1="540" x2="800" y2="540"/>
+<line class="e nw" data-e="r4:3" x1="800" y1="540" x2="800" y2="380"/>
+<line class="e nw" data-e="r5:0" x1="400" y1="600" x2="800" y2="600"/>
+<line class="e nw" data-e="r5:1" x1="800" y1="600" x2="800" y2="630"/>
+<line class="e nw" data-e="r5:2" x1="800" y1="630" x2="400" y2="630"/>
+<line class="e nw" data-e="r5:3" x1="400" y1="630" x2="400" y2="600"/>
+<line class="e nw" data-e="r6:0" x1="815" y1="430" x2="855" y2="430"/>
+<line class="e nw" data-e="r6:1" x1="855" y1="430" x2="860" y2="470"/>
+<line class="e nw" data-e="r6:2" x1="860" y1="470" x2="840" y2="500"/>
+<line class="e nw" data-e="r6:3" x1="840" y1="500" x2="815" y2="490"/>
+<line class="e nw" data-e="r6:4" x1="815" y1="490" x2="815" y2="430"/>
 <line class="e se" data-e="s0:0" x1="700" y1="420" x2="780" y2="420"/>
 <line class="e se" data-e="s0:1" x1="780" y1="420" x2="780" y2="580"/>
 <line class="e se" data-e="s0:2" x1="780" y1="580" x2="700" y2="580"/>
@@ -54,5 +64,7 @@ exports[`renderFloor > matches the snapshot for the demo ground floor without st
 <text class="lbl" x="650" y="200" text-anchor="middle" font-size="28" font-weight="600">Kitchen</text>
 <text class="lbl" x="400" y="500" text-anchor="middle" font-size="28" font-weight="600">Hall</text>
 <text class="lbl zone" x="400" y="90" text-anchor="middle" font-size="20">Reading corner</text>
+<text class="lbl" x="850" y="460" text-anchor="middle" font-size="28" font-weight="600">Garden</text>
+<text class="lbl" x="600" y="615" text-anchor="middle" font-size="28" font-weight="600">Pavement</text>
 <text class="lbl" x="837" y="464" text-anchor="middle" font-size="28" font-weight="600">Garden pond</text>"
 `;

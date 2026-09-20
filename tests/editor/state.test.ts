@@ -299,7 +299,7 @@ describe("floors", () => {
       expect(st.undo()).toBe(true);
       expect(JSON.stringify(st.layout)).toBe(before);
       expect(keys(st)).toEqual(["ground", "first"]);
-      expect(st.layout.floors.ground.rooms).toHaveLength(5);
+      expect(st.layout.floors.ground.rooms).toHaveLength(7);
     });
     it("leaves the catalog alone: devices that were on the deleted floor become unplaced and stay listed", () => {
       const st = new EditorState(fresh());

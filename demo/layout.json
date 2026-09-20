@@ -149,7 +149,69 @@
      ]
     },
     {
-     "id": "room-ground-5",
+     "name": "Garden",
+     "label": "",
+     "kind": "garden",
+     "pts": [
+      [
+       800,
+       380
+      ],
+      [
+       900,
+       380
+      ],
+      [
+       900,
+       540
+      ],
+      [
+       800,
+       540
+      ]
+     ],
+     "w": [
+      false,
+      false,
+      false,
+      false
+     ],
+     "area": "garden",
+     "id": "room-ground-5"
+    },
+    {
+     "name": "Pavement",
+     "label": "",
+     "kind": "pavement",
+     "pts": [
+      [
+       400,
+       600
+      ],
+      [
+       800,
+       600
+      ],
+      [
+       800,
+       630
+      ],
+      [
+       400,
+       630
+      ]
+     ],
+     "w": [
+      false,
+      false,
+      false,
+      false
+     ],
+     "area": "pavement",
+     "id": "room-ground-6"
+    },
+    {
+     "id": "room-ground-7",
      "name": "Garden pond",
      "area": "",
      "label": "",
