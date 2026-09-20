@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.16: a room colour needs `:not([fill])` rules
+
+A `fill` attribute loses to a class rule, so `.room{fill:...}` hid every colour. The block asks for the attribute, and it stays. The class rules for room, garden, terrace, pavement, zone and water now read `:not([fill])`, so an own colour shows. `.room-fill` keeps its hatch and stays unconditional: a fill room with a colour still draws the hatch. `renderFloor` writes the attribute only when the value matches `#rrggbb`, so a layout that skipped `validate` cannot inject markup.
+
 ## 2026-09-20 S1.14: where the demo garden and pavement sit
 
 The demo garden is 100 by 160 cm at the east wall, around the pond. The pavement is a 30 cm strip along the south of the house, from x 400 to 800. It stops short of x 400 on purpose: the editor tests draw and snap in the free space south-west of the house, and a full-width strip took their snap points. `mergeCorners` skips `garden` (the old `outdoor` rule); `pavement` is not skipped, because its corners may sit on the house corner and must then merge like a room's.

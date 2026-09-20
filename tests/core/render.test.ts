@@ -203,10 +203,10 @@ describe("zones and water", () => {
   });
   it("the zone has no fill and a small name label; the water has class water and the --fp-water fill", () => {
     expect(html).toMatch(new RegExp(`<polygon data-r="${zi}" class="room room-zone"`));
-    expect(FLOORPLAN_CSS).toMatch(/\.room-zone\{fill:none\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-zone:not\(\[fill\]\)\{fill:none\}/);
     expect(html).toMatch(new RegExp(`<polygon data-r="${wi}" class="[^"]*\\bwater\\b[^"]*"`));
     expect(FLOORPLAN_CSS).toMatch(/--fp-water:#[0-9a-f]{3,8}/i);
-    expect(FLOORPLAN_CSS).toMatch(/\.water\{[^}]*fill:var\(--fp-water\)/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-water:not\(\[fill\]\)\{[^}]*fill:var\(--fp-water\)/);
     expect(html).toMatch(/<text class="lbl zone"[^>]*font-size="20"[^>]*>Reading corner<\/text>/);
   });
   it("puts no literal colour in the zone and water markup", () => {
@@ -367,9 +367,9 @@ describe("garden and pavement (S1.14)", () => {
     const html = renderFloor(ground, base);
     expect(html).toContain('class="room room-garden"');
     expect(html).toContain('class="room room-pavement"');
-    expect(FLOORPLAN_CSS).toMatch(/\.room-garden\{fill:var\(--fp-garden\)\}/);
-    expect(FLOORPLAN_CSS).toMatch(/\.room-terrace\{fill:var\(--fp-terrace\)\}/);
-    expect(FLOORPLAN_CSS).toMatch(/\.room-pavement\{fill:var\(--fp-pavement\)\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-garden:not\(\[fill\]\)\{fill:var\(--fp-garden\)\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-terrace:not\(\[fill\]\)\{fill:var\(--fp-terrace\)\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-pavement:not\(\[fill\]\)\{fill:var\(--fp-pavement\)\}/);
     expect(FLOORPLAN_CSS).not.toContain("--fp-outdoor");
     for (const [v, c] of [["garden", "#9db98a"], ["terrace", "#cdb094"], ["pavement", "#c9c6bf"]]) expect(FLOORPLAN_CSS).toContain(`--fp-${v}:${c}`);
   });
@@ -397,5 +397,34 @@ describe("fill is hatched (S1.15)", () => {
   });
   it("two fill rooms still emit one defs", () => {
     expect(renderFloor(withFill(2), base).match(/<defs>/g)).toHaveLength(1);
+  });
+});
+
+describe("room colour (S1.16)", () => {
+  it("puts fill on that polygon only, and leaves the class", () => {
+    const f = structuredClone(ground);
+    f.rooms[1].color = "#aabbcc";
+    const html = renderFloor(f, base);
+    expect(html.match(/<polygon data-r="\d+"[^>]* fill="#aabbcc"/g)).toHaveLength(1);
+    expect(html).toContain('<polygon data-r="1" class="room room-room" fill="#aabbcc"');
+    expect(html.match(/ fill="#aabbcc"/g)).toHaveLength(1);
+  });
+  it("wins over the class colour rules, except that fill keeps its hatch", () => {
+    for (const k of ["garden", "pavement", "terrace", "water", "zone"])
+      expect(FLOORPLAN_CSS).toMatch(new RegExp(`\\.room-${k}:not\\(\\[fill\\]\\)`));
+    expect(FLOORPLAN_CSS).toContain(".room:not([fill]){fill:var(--fp-room)}");
+    expect(FLOORPLAN_CSS).toMatch(/\.room-fill\{fill:url\(#fp-hatch\)\}/);
+  });
+  it("a hostile colour that skipped validate is not written into the markup", () => {
+    const f = structuredClone(ground);
+    f.rooms[0].color = '"><script>x</script>';
+    expect(renderFloor(f, base)).not.toContain("script");
+  });
+  it("a fill room with a colour renders and still emits the hatch", () => {
+    const f = structuredClone(ground);
+    f.rooms.push({ id: "f1", name: "F", area: "", label: "", kind: "fill", pts: [[0, 0], [50, 0], [50, 50]], w: [true, true, true], color: "#aabbcc" });
+    const html = renderFloor(f, base);
+    expect(html).toContain("<defs>");
+    expect(html).toContain('class="room room-fill" fill="#aabbcc"');
   });
 });

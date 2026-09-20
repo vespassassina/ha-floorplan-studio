@@ -1855,3 +1855,27 @@ test("a zone corner dropped on a wall where a third polygon has a corner is not 
   expect(g1.outline).toEqual(g0.outline);
   await savedValid(page);
 });
+
+test("the room colour input sets the polygon fill, one undo step, and the default button clears it", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  const poly = page.locator('svg polygon[data-r="0"]');
+  const computed = () => poly.evaluate((el) => getComputedStyle(el).fill);
+  const plain = await computed();
+  await expect(page.locator("#rcol")).toHaveValue("#ffffff");
+  await page.locator("#rcol").fill("#aabbcc");
+  await expect(poly).toHaveAttribute("fill", "#aabbcc");
+  expect(await computed()).toBe("rgb(170, 187, 204)"); // the class rule must not override it
+  expect((await groundOf(page)).rooms[0].color).toBe("#aabbcc");
+  await page.locator("#rcol").fill("#aabbcc"); // unchanged: no step
+  await page.locator("#rcolx").click();
+  await expect(poly).not.toHaveAttribute("fill", /.*/);
+  expect((await groundOf(page)).rooms[0]).not.toHaveProperty("color");
+  expect(await computed()).toBe(plain);
+  await page.locator("#rcolx").click(); // nothing to clear: no step
+  await page.keyboard.press("Control+z");
+  await expect(poly).toHaveAttribute("fill", "#aabbcc");
+  await page.keyboard.press("Control+z");
+  await expect(poly).not.toHaveAttribute("fill", /.*/);
+  expect(await poly.evaluate((el) => getComputedStyle(el).fill)).toBe(plain);
+});

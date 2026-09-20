@@ -301,7 +301,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass; the demo snapshot is unchanged (the demo has no fill room).
 - Break it: two `fill` rooms on one floor still emit one `<defs>`, not two.
 
-### S1.16 A room or zone can have its own colour
+### S1.16 A room or zone can have its own colour (done)
 - Outcome: the user picks the ground colour of a room, a zone or any other polygon, and can clear it again.
 - Files: `src/core/schema.ts`, `src/core/render.ts`, `src/editor/panels.ts`, `tests/core/schema.test.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`.
 - Interface: `Room` gains `color?: string`. `validate` accepts it only when it matches `/^#[0-9a-fA-F]{6}$/` and reports `"<id> color must be a colour like #aabbcc"` otherwise. `migrate` passes it through and never invents one. `renderFloor` adds `fill="<color>"` to that room's `<polygon>` when it is present and the layout passed `validate`; the class stays, so the hatch, water and zone rules still apply to a room without one. The room panel gains `<input type="color" id="rcol">` bound to `color` (`#ffffff` when absent) and a button `#rcolx` "Use the default colour" that deletes the key; both are one undo step and none when unchanged.

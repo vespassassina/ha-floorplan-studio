@@ -8,7 +8,7 @@ export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "tv" | "computer" | "tree" | "patio-wood" | "patio-concrete" | "car";
 
-export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; w: boolean[] }
+export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; w: boolean[]; color?: string }
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
 export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind }
 export interface Stairs { id: string; name: string; pts: Pt[] }
@@ -78,6 +78,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       name(r); // migrate turns a missing name into "", so a name that is still not text is a bad file
       if (typeof r.label !== "string") errors.push(`${at} ${r.id} label must be text`);
       oneOf(`${r.id} kind`, r.kind, ROOM_KINDS);
+      if (r.color !== undefined && !(typeof r.color === "string" && /^#[0-9a-fA-F]{6}$/.test(r.color)))
+        errors.push(`${at} ${r.id} color must be a colour like #aabbcc`);
       if (Array.isArray(r.pts) && r.pts.length >= 3 && (!Array.isArray(r.w) || r.w.length !== r.pts.length))
         errors.push(`${at} ${r.id} w must have ${r.pts.length} entries`);
       else if (r.kind === "zone" && Array.isArray(r.w) && r.w.some((v: unknown) => v !== false))

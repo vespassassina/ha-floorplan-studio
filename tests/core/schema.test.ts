@@ -228,3 +228,13 @@ describe("room kinds (S1.14)", () => {
     expect(errorsOf(l).join("\n")).toContain("room, garden, pavement, fill, terrace, structure, zone, water");
   });
 });
+
+describe("room colour (S1.16)", () => {
+  const withColor = (c: unknown) => { const l = clone(); l.floors.ground.rooms[0].color = c; return errorsOf(l).join("\n"); };
+  it("rejects anything but #rrggbb and accepts upper case", () => {
+    for (const bad of ["red", "#abc", "#aabbcc; x", "#aabbccdd", "aabbcc", 5, null, "\"><script>"])
+      expect(withColor(bad)).toMatch(/room-ground-1 color must be a colour like #aabbcc/);
+    expect(withColor("#AABBCC")).toBe("");
+    expect(withColor("#aabbcc")).toBe("");
+  });
+});
