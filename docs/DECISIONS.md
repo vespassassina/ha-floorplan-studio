@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.37: HA links are optional fields; applyHaNames returns a copy
+
+`Floor.ha`, `Room.entity`, `Furniture.name` and `Furniture.entity` are validated for shape only (`ha` non-empty text, `entity` an id with a dot, the name text); `migrate` already clones, so it passes them through and adds none. `src/core/ha.ts` holds `HaData` and `applyHaNames`. The function always returns a fresh clone, even when nothing changed, and counts only names that differ. It ignores an HA entry whose name is not non-empty text, so hostile host data cannot blank a title. A floor with no `ha` and a room with an empty or unknown `area` are never touched.
+
 ## 2026-09-20 S1.35 docs corrected; walls and edges get a white twin
 
 Supersedes the bullet "dark floors switch label and outline to light" in "More Sprint 1.6 tasks" and the `dark` class text of the PLAN S1.35 block; DECISIONS "S1.35: swatches only" is what was built, and the PLAN block now says so. New (S1.35b): on a dark floor (Lava, Belgian stone) a dark wall or edge nearly vanished. Every room edge and free wall now has a white twin line under it (`line.eh`, colour `--fp-outline`, 2 units wider, same dashes), all twins first so one never covers a neighbour's edge. It is the line version of the text outline, and S1.46 uses the same `--fp-outline`. A CSS `filter: drop-shadow` was rejected: on a horizontal SVG line the filter box has no height in some engines and the line disappears. The twin has no `data-e` and `pointer-events:none`, so hit testing is unchanged. Stairs edges get none. The demo snapshot changed by the twins only.

@@ -16,7 +16,8 @@ export const FLOOR_COLOURS: { name: string; hex: string }[] = [
   { name: "Grey floor", hex: "#8b8e91" }, { name: "Belgian stone", hex: "#4d4e50" }, { name: "Lava", hex: "#38393b" },
 ];
 
-export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: WallKind[]; color?: string; free?: boolean }
+/** `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows. */
+export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: WallKind[]; color?: string; free?: boolean; entity?: string }
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
 export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind }
 export type StairShape = "straight" | "round";
@@ -27,9 +28,11 @@ export interface Opening { id: string; a: Pt; b: Pt }
 export interface Extra { id: string; name: string; a: Pt; b: Pt }
 /** `bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. */
 export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
-export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number }
+/** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. */
+export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string }
+/** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. */
 export interface Floor {
-  title: string; outline: Pt[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
+  ha?: string; title: string; outline: Pt[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[];
 }
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
@@ -90,6 +93,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         fn(o);
       }
     };
+    if (f.ha !== undefined && !(typeof f.ha === "string" && f.ha)) errors.push(`${at} ha must be a non-empty text (the HA floor id)`);
     poly("outline", f.outline);
     each("rooms", (r) => {
       poly(`${r.id} pts`, r.pts);
@@ -98,6 +102,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       oneOf(`${r.id} kind`, r.kind, ROOM_KINDS);
       if (r.color !== undefined && !(typeof r.color === "string" && /^#[0-9a-fA-F]{6}$/.test(r.color)))
         errors.push(`${at} ${r.id} color must be a colour like #aabbcc`);
+      if (r.entity !== undefined && !isEntity(r.entity)) errors.push(`${at} ${r.id} entity must be an entity id like sensor.name`);
       if (r.free !== undefined && typeof r.free !== "boolean") errors.push(`${at} ${r.id} free must be true or false`);
       if (Array.isArray(r.pts) && r.pts.length >= 3 && (!Array.isArray(r.wk) || r.wk.length !== r.pts.length))
         errors.push(`${at} ${r.id} wk must have ${r.pts.length} entries`);
@@ -156,6 +161,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     });
     each("furniture", (m) => {
       oneOf(`${m.id} symbol`, m.symbol, FURNITURE_SYMBOLS);
+      optText(m, "name");
+      if (m.entity !== undefined && !isEntity(m.entity)) errors.push(`${at} ${m.id} entity must be an entity id like sensor.name`);
       for (const k of ["x", "y", "rot", "w", "h"]) if (typeof m[k] !== "number" || !Number.isFinite(m[k])) errors.push(`${at} ${m.id} ${k} must be a number`);
     });
   }

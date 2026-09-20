@@ -372,3 +372,20 @@ describe("layout.colors (S1.36)", () => {
     expect(errorsOf(withColors({ light: "#abc" })).join()).toMatch(/colors\.light/);
   });
 });
+
+describe("HA links (S1.37)", () => {
+  it("accepts floor.ha, room.entity, furniture.name and furniture.entity", () => {
+    const l = clone();
+    l.floors.ground.ha = "downstairs";
+    l.floors.ground.rooms[5].entity = "sensor.pond";
+    l.floors.ground.furniture[0].name = "Sofa";
+    l.floors.ground.furniture[0].entity = "media_player.tv";
+    expect(errorsOf(l)).toEqual([]);
+  });
+  it("rejects an empty or non-text ha, an entity that is not an id, and a numeric furniture name", () => {
+    for (const bad of ["", 5, null]) { const l = clone(); l.floors.ground.ha = bad; expect(errorsOf(l).join(), String(bad)).toMatch(/ha must be/); }
+    for (const bad of ["pond", 5, ""]) { const l = clone(); l.floors.ground.rooms[5].entity = bad; expect(errorsOf(l).join(), String(bad)).toMatch(/entity must be an entity id/); }
+    const l = clone(); l.floors.ground.furniture[0].entity = "sofa"; expect(errorsOf(l).join()).toMatch(/entity must be an entity id/);
+    const m = clone(); m.floors.ground.furniture[0].name = 7; expect(errorsOf(m).join()).toMatch(/name must be text/);
+  });
+});

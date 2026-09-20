@@ -501,7 +501,7 @@ renamed behind the user's back. Schema stays version 2; every new field is
 optional and `migrate` never invents one. S1.37 to S1.39 do this; S1.40 to
 S1.42 are three defects the verifiers found.
 
-### S1.37 A floor, a room and a zone can point at Home Assistant
+### S1.37 A floor, a room and a zone can point at Home Assistant (done)
 - Outcome: the layout can say which HA floor a floor is, which HA area a room or zone is, and which HA entity a custom shape shows; the stored name is the last name HA gave, so a plan never renders blank.
 - Files: `src/core/schema.ts`, `src/core/ha.ts`, `src/core/index.ts`, `src/core/migrate.ts`, `tests/core/{schema,migrate,ha}.test.ts`, `docs/SPEC.md`.
 - Interface: `Floor` gains `ha?: string`, the HA floor id (`room.area` already holds the HA area id, so no new field there). `Room` gains `entity?: string` and `Furniture` gains `name?: string` and `entity?: string`. `validate`: `ha` must be a non-empty string; `entity` must be an entity id like `sensor.pond`; `furniture.name` must be text. No rule looks anything up: `validate` stays offline and knows nothing of HA. `migrate` passes all four through unchanged and adds none of them; a v1 or older v2 file has none and stays valid. New file `src/core/ha.ts`, exported from `src/core/index.ts`, holds the data the host hands the editor and the card, and one pure function:
