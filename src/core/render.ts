@@ -223,16 +223,24 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (c.every(Number.isFinite)) spots.push(c);
   });
+  // A name is drawn upright on the screen, so a collision is tested in the screen frame: the plan turns by planDeg, a plan vector
+  // (anchor to device) turns with it, and "down one line" is screen-down, which in plan units is the vector turned back.
   // The text y is the baseline: the box runs about 0.95 of the size above it and 0.25 below. 32k clears a 16k disc either way.
-  const hit = (x: number, y: number, size: number, len: number) => spots.some((p) => Math.abs(p[1] - (y - 0.35 * size)) < 16 * k + 0.6 * size && Math.abs(p[0] - x) < 16 * k + 0.3 * size * len);
-  const nameY = (x: number, y: number, size: number, len: number) => [y, y + 32 * k, y - 32 * k].find((v) => !hit(x, v, size, len)) ?? y;
+  const cs = Math.cos((planDeg * Math.PI) / 180), sn = Math.sin((planDeg * Math.PI) / 180);
+  const screenDown = (a: Pt, d: number): Pt => (planDeg ? [a[0] + d * sn, a[1] + d * cs] : [a[0], a[1] + d]); // a plan point d units below a, on the screen
+  const hit = (a: Pt, size: number, len: number) => spots.some((p) => {
+    const vx = p[0] - a[0], vy = p[1] - a[1];
+    const sx = planDeg ? vx * cs - vy * sn : vx, sy = planDeg ? vx * sn + vy * cs : vy; // the same vector on the screen
+    return Math.abs(sy + 0.35 * size) < 16 * k + 0.6 * size && Math.abs(sx) < 16 * k + 0.3 * size * len;
+  });
+  const nameAt = (a: Pt, size: number, len: number): Pt => [a, screenDown(a, 32 * k), screenDown(a, -32 * k)].find((v) => !hit(v, size, len)) ?? a;
   f.rooms.forEach((r) => {
     if (!r.name || r.kind === "fill") return;
-    const cx = r.pts.reduce((s, p) => s + p[0], 0) / r.pts.length, cy = r.pts.reduce((s, p) => s + p[1], 0) / r.pts.length;
-    if (r.kind === "zone") { const y = nameY(cx, cy, 10 * k, r.name.length); out.push(`<text class="lbl zone" x="${num(cx)}" y="${num(y)}"${up(cx, y)} text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
-    const y = nameY(cx, cy, 14 * k, r.name.length);
-    out.push(`<text class="lbl" x="${num(cx)}" y="${num(y)}"${up(cx, y)} text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
-    if (r.label) out.push(`<text class="lbl" x="${num(cx)}" y="${num(y + 16 * k)}"${up(cx, y + 16 * k)} text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`);
+    const c: Pt = [r.pts.reduce((s, p) => s + p[0], 0) / r.pts.length, r.pts.reduce((s, p) => s + p[1], 0) / r.pts.length];
+    if (r.kind === "zone") { const [x, y] = nameAt(c, 10 * k, r.name.length); out.push(`<text class="lbl zone" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
+    const [x, y] = nameAt(c, 14 * k, r.name.length);
+    out.push(`<text class="lbl" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
+    if (r.label) { const [lx, ly] = screenDown([x, y], 16 * k); out.push(`<text class="lbl" x="${num(lx)}" y="${num(ly)}"${up(lx, ly)} text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`); }
   });
 
   f.devices.forEach((d, i) => {

@@ -3456,6 +3456,23 @@ test("S1.42: on the demo no room name box overlaps a device halo", async ({ page
     for (const h of boxes.halos) expect(l < h[2] && rr > h[0] && t < h[3] && b > h[1], `${name} ${[l,t,rr,b]} under a halo ${h}`).toBe(false);
 });
 
+test("S1.42: at plan rotations 0, 45, 90 and 135 no name box overlaps a device halo", async ({ page }) => {
+  for (const deg of [0, 45, 90, 135]) {
+    await page.evaluate(([tag, d]) => { const el = document.querySelector(tag as string) as any; const l = JSON.parse(JSON.stringify(el.layout)); l.rotate = d; el.layout = l; }, [EDITOR, deg] as const);
+    await expect(page.locator("svg g.plan-turn, svg polygon[data-r]").first()).toBeVisible();
+    const boxes = await page.evaluate((tag) => {
+      const root = document.querySelector(tag)!.shadowRoot!;
+      const r = (e: Element) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
+      return { names: [...root.querySelectorAll("text.lbl")].filter((t) => t.textContent && ["Living", "Kitchen", "Hall", "Reading corner"].includes(t.textContent)).map((t) => [t.textContent, ...r(t)]),
+        halos: [...root.querySelectorAll("circle.halo")].map(r) };
+    }, EDITOR);
+    expect(boxes.names, `rotation ${deg}`).toHaveLength(4);
+    expect(boxes.halos.length).toBeGreaterThan(3);
+    for (const [name, l, t, rr, b] of boxes.names as [string, number, number, number, number][])
+      for (const h of boxes.halos) expect(l < h[2] && rr > h[0] && t < h[3] && b > h[1], `rotation ${deg}: ${name} ${[l, t, rr, b]} under a halo ${h}`).toBe(false);
+  }
+});
+
 // ---- rotation buttons (S1.43) -----------------------------------------------------------
 
 test("S1.43: stairs turn by the pressed amount, in the chosen direction, and Reset returns to 0", async ({ page }) => {

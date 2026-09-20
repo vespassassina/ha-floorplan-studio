@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.42 fix: name collision is tested in the screen frame
+
+In a turned plan the names are counter-turned to stay upright, but the device test ran in plan coordinates, so at 45 degrees the Living name touched a halo. Now the vector from the name's anchor to each device is turned by the plan angle before the box test, and "down one line" (and "up") is screen-down, moved in plan units as (d sin a, d cos a). The x of the name can change with it. The second line of a room (its label) follows the same screen-down offset. At rotation 0 the numbers are unchanged. The Playwright test runs the demo at 0, 45, 90 and 135. Supersedes the plan-frame test in S1.42.
+
 ## 2026-09-20 S1.41 test: the clamped-width test kept, and made stricter
 
 The verifier said the S1.41 test "a clamped furniture width shows the clamped value" passes without the fix. Checked: with `live()` removed, with `c.refresh()` removed, and with both removed it fails on the second `#fw` entry (the state is already 5, so only `refresh` plus `live` reset the field). It stays, not deleted. It now also covers an accepted 137, an empty entry that is refused and goes back to 137, and the depth field clamped from 2 to 5, so it fails on each of those paths too. The stairs test in the same block still passes without the fix (its value changes the state, so lit redraws anyway); it is left as the "accepted value stays" case.
