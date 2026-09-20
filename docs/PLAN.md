@@ -471,6 +471,88 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass; SPEC schema and editor sections list `colors`.
 - Break it: a layout with no `colors` renders exactly as before (snapshot unchanged).
 
+---
+
+Diego, on names:
+
+> also for the floor name, room name, zone name, pick from a dropdown populated
+> with the values from HA. we are mapping not inventing. then for custom stuff
+> we can add the plan name which matches the planimetry.
+>
+> yes. no custom names for things that are connected to HA. HA is
+> authoritative. custom things can be deployed and named and also have a
+> dropdown to attach them to an HA entity.
+
+A floor links to an HA floor and takes its title from HA. A room or a zone
+links to an HA area through the `area` id it already has, and takes its name
+from HA. A custom thing — a pond, a pavement, a structure, a piece of
+furniture, a zone with no area — keeps a plan name and may name one HA entity,
+so the card can show that entity's state on it. Standalone, with no HA data,
+every field is free text, as today. Old files keep working and nothing is
+renamed behind the user's back. Schema stays version 2; every new field is
+optional and `migrate` never invents one. S1.37 to S1.39 do this; S1.40 to
+S1.42 are three defects the verifiers found.
+
+### S1.37 A floor, a room and a zone can point at Home Assistant
+- Outcome: the layout can say which HA floor a floor is, which HA area a room or zone is, and which HA entity a custom shape shows; the stored name is the last name HA gave, so a plan never renders blank.
+- Files: `src/core/schema.ts`, `src/core/ha.ts`, `src/core/index.ts`, `src/core/migrate.ts`, `tests/core/{schema,migrate,ha}.test.ts`, `docs/SPEC.md`.
+- Interface: `Floor` gains `ha?: string`, the HA floor id (`room.area` already holds the HA area id, so no new field there). `Room` gains `entity?: string` and `Furniture` gains `name?: string` and `entity?: string`. `validate`: `ha` must be a non-empty string; `entity` must be an entity id like `sensor.pond`; `furniture.name` must be text. No rule looks anything up: `validate` stays offline and knows nothing of HA. `migrate` passes all four through unchanged and adds none of them; a v1 or older v2 file has none and stays valid. New file `src/core/ha.ts`, exported from `src/core/index.ts`, holds the data the host hands the editor and the card, and one pure function:
+  ```ts
+  export interface HaData { floors: { id: string; name: string }[]; areas: { id: string; name: string; floor_id?: string }[]; entities: { id: string; name: string; domain: string }[] }
+  /** Copies the layout with every linked name refreshed from HA. Unlinked and unknown links are untouched. */
+  export function applyHaNames(l: Layout, ha: HaData): { layout: Layout; changed: number };
+  ```
+  `applyHaNames` sets `floor.title` to the name of `ha.floors` entry `floor.ha`, and `room.name` to the name of the `ha.areas` entry `room.area`, when the id is there and the name differs; `changed` counts those. A floor with no `ha`, a room with an empty or unknown `area`, and every other field are left exactly as they were. The input is never mutated. `renderFloor` is not touched: it draws `floor.title` and `room.name`, which is why the name is stored and not looked up at draw time. That is what makes the card correct before `hass` has loaded and offline.
+- Test: `validate` accepts a floor with `ha: "downstairs"`, a room with `entity: "sensor.pond"` and furniture with a name, and rejects `ha: ""`, `entity: "pond"` and a numeric furniture name; `migrate` on a v1 file gives no `ha` and no `entity`, and on a v2 file with all four keeps every one byte for byte; `applyHaNames` renames a linked floor and a linked room, counts 2, leaves an unknown area id and its name alone, returns `changed: 0` for a layout with no links, and does not change the object passed in (deep-equal check against a clone).
+- Done when: tests pass; `npm run lint` clean; SPEC's schema block lists `ha`, `room.entity`, `furniture.name` and `furniture.entity`.
+- Break it: `applyHaNames` on a layout whose room names are already the HA names reports `changed: 0` and returns a layout deep-equal to the input, so opening a plan twice writes nothing.
+
+### S1.38 The editor picks names from Home Assistant
+- Outcome: with HA data present the floor title, the room name and the zone name are dropdowns of what HA has; a shape with no area keeps a free plan name and may point at one entity.
+- Files: `src/editor/editor-app.ts`, `src/editor/panels.ts`, `src/editor/state.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: `<floorplan-studio-editor>` gains the property `ha: HaData | undefined` (from `src/core/ha.ts`), set by the host — the HA panel in S3.3, nothing standalone — and passed on through `EditorState.ha` and so to every panel. With `ha` undefined every field stays the text input it is today. With `ha` set:
+  - Floor panel: the title input is replaced by `#fha`, a select of "(not linked)" plus every `ha.floors` name, sorted by name. Choosing a floor sets `f.ha` and `f.title` to that name in one undo step. "(not linked)" deletes `f.ha` and leaves the title as it stands, and the `#ft` text input comes back under it, so a floor HA does not know can still be named.
+  - Room panel, every kind: the `name` and `area id` inputs are replaced by `#ra`, a select of "(no area — custom)" plus every `ha.areas` name, sorted by name, with the areas already used by another room on any floor gathered in an `<optgroup label="Already on the plan">` and still selectable. Choosing an area sets `room.area` to its id, `room.name` to its name, and deletes `room.entity`, in one undo step; if that area is used by another room the status line says "<Name> is already on the plan". "(no area — custom)" deletes `room.area` content (sets it to `""`) and brings back `#rn`, the free "plan name", together with `#rent`.
+  - `#rent`, "shows the state of": shown only for a room with no area. A select of "(none)" plus every `ha.entities` entry, grouped by domain with `<optgroup>`, sorted by name inside each. It writes `room.entity`, deleting the key for "(none)".
+  - The furniture panel gains the same pair: `#fun` (plan name, free text, always) and `#fuent` (the entity select, the same list).
+  - An id stored in the layout that HA does not have keeps its own option at the end of the select, selected, labelled `<id> (not in Home Assistant)`, with the hint "Home Assistant does not have this one. Pick another, or leave it." Nothing is cleared and nothing is renamed.
+  - `plan label` is unchanged for every room: it is the planimetry's own mark, not a name.
+- Test: Playwright, injecting `el.ha = { floors: [...], areas: [...], entities: [...] }` with `page.evaluate` next to the existing `el.layout` injection, one fixture with two floors, four areas and three entities: with `ha` unset `#rn` is a text input and `#ra` is a text input; with `ha` set `#ra` is a `select`, choosing "Kitchen" writes the id into `room.area` and "Kitchen" into `room.name`, one undo restores both; choosing an area another room already has puts it under the optgroup and writes the status line; "(no area — custom)" brings back `#rn`, typing in it writes `room.name` and leaves `area` empty, and `#rent` then appears and writes `room.entity`; picking an area again removes `entity`; a room whose stored `area` is `bogus` shows the extra option and keeps `bogus` after a render.
+- Done when: tests pass; `npm run lint` clean; SPEC's editor section describes the three dropdowns and the free-text fallback.
+- Break it: with `ha` set to `{ floors: [], areas: [], entities: [] }` the selects show only their "(none)" entries, nothing throws, and no name in the layout changes.
+
+### S1.39 An old plan meets Home Assistant without being renamed
+- Outcome: opening an old plan in HA offers the obvious links and refreshes the names of the ones that exist, and says so; it never renames on its own.
+- Files: `src/editor/editor-app.ts`, `src/editor/panels.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: when `ha` is set (and again whenever it is set anew), the editor runs `applyHaNames` (S1.37) on the layout. The result replaces the layout without an undo step — it is part of loading, not an edit — and the status line says "<n> names updated from Home Assistant" when `changed` is not 0, and nothing when it is 0. Only a linked floor or room is touched: a room whose `area` is empty or unknown to HA keeps its name whatever it says. For such a room, the room panel shows, above the area select, `#rmatch`: "Link to the Home Assistant area <Name>", when exactly one `ha.areas` name equals `room.name` ignoring case and outer spaces. One click does what choosing that area in the select does, as one undo step. No match, or more than one, shows no button.
+- Test: Playwright: load a plan whose room `area` is `kitchen` and whose name is "Old kitchen", set `ha` with an area `kitchen` named "Kitchen"; the name becomes "Kitchen", the status line says "1 names updated from Home Assistant", and File, Undo does not bring "Old kitchen" back (it is not an undo step); a room with `area: ""` named "living" and an HA area "Living" shows `#rmatch`, keeps its name until the button is clicked, and after the click has the id, the HA name and one undo step; two HA areas both named "Living" show no button.
+- Done when: tests pass; `npm run lint` clean; SPEC's editor section says the refresh happens on load, is announced, and is not undoable.
+- Break it: with no HA data the same plan opens with every name exactly as stored and no status message.
+
+### S1.40 Every coloured button is readable
+- Outcome: the text on the red, orange and blue buttons passes WCAG AA (4.5:1) in the editor.
+- Files: `src/core/render.ts` (the variables in `FLOORPLAN_CSS`), `src/editor/editor-app.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: the verifier measured 2.16:1 on `.btn.warn` (light text on `--fp-open` #f28c28), 3.85:1 on `.btn.danger` (light text on `--fp-motion` #d64545) and 3.82:1 on `.btn.primary` (light text on `--fp-window` #2c7fb8). The button colours stop borrowing the plan's colours and get three of their own in `FLOORPLAN_CSS`: `--fp-warn:#f28c28`, `--fp-danger:#b02a2a`, `--fp-primary:#1f6699`. `.btn.warn` takes dark text (`--fp-ink`, 5.9:1 on that orange), `.btn.danger` and `.btn.primary` keep light text (`--fp-bg`, 6.6:1 and 5.4:1). Background and border use the new variable, so S4.8's theme map covers them and the door and motion colours on the plan stay free to change.
+- Test: Playwright: for `#reset` (danger), `#rdel` (warn) and `#save` (primary), read the computed `background-color` and `color` in Chromium, compute the WCAG contrast ratio in the test, and assert it is at least 4.5; the helper that computes the ratio is checked against two known pairs (black on white 21, #767676 on white 4.54).
+- Done when: tests pass; `npm run lint` clean; SPEC's editor line on coloured buttons says they meet AA.
+- Break it: putting the old `--fp-open` value back as the danger background makes the test fail, not pass by rounding.
+
+### S1.41 A rejected number goes back to what the state holds
+- Outcome: a numeric field that the editor refuses or clamps shows the value the layout actually has, not what was typed.
+- Files: `src/editor/panels.ts`, `tests/editor/editor.spec.ts`.
+- Interface: the verifier typed 1 and then 3.5 into the stairs `#sst` while the state held 12; the field kept the refused text. `number()` in `panels.ts` takes the panel context as its first argument, binds its value with lit's `live()` directive, and calls `c.refresh()` after every change, so the field is re-rendered from the state whether the handler committed or not. Every caller is updated; the fields that already use `live` by hand (`#rrot`) are left as they are.
+- Test: Playwright: with stairs of 12 steps, type 3.5 into `#sst` and blur — the field reads 12 and `stairs.steps` is 12; type 60 — the field reads 12; type 20 — the field and the state read 20; type 1 into the furniture width `#fw`, which clamps at 5 — the field reads 5.
+- Done when: tests pass; `npm run lint` clean.
+- Break it: a value the editor accepts is not reverted: typing 20 into `#sst` leaves 20 on screen after the re-render, so the fix cannot be a blanket reset.
+
+### S1.42 A device never hides a room name
+- Outcome: a room name pushed under a device icon moves out from under it, so the demo no longer reads "Li·ng" and "Kit·hen".
+- Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface: devices stay on top (S1.29); the name moves instead. In `renderFloor`, before a room's name is written, its box is `width = 0.6 * size * name.length`, `height = size`, centred on the centroid, where `size` is the font size already used (14 k for a room, 10 k for a zone). A device collides when its centre is within `13 * k + height / 2` vertically and `13 * k + width / 2` horizontally of the box centre; only devices the filter draws count. The name is then tried at `cy + 24 * k`, and if that collides too at `cy - 24 * k`, and if both collide it stays at `cy`: three candidates, no search. The `label` line keeps its 16 k gap below whichever the name took. Zone names follow the same rule with their own size.
+- Test: render fixtures: a room with a device on its centroid draws the name at `cy + 24k`; devices on the centroid and 24 cm below it draw it at `cy - 24k`; devices on all three spots leave it at `cy`; a room with no device near the centre is byte-identical to today; a zone follows the same three steps. Playwright on the demo: the "Living" text box and every device halo circle on that floor do not overlap (bounding boxes read from the DOM).
+- Done when: tests pass; `npm run lint` clean; the demo snapshot is updated and the diff shows only the moved names.
+- Break it: a device that the type filter hides does not move a name; the name sits at the centroid again once it is filtered out.
+
 ## Sprint 2 — card (E3)
 
 ### S2.1 Card element
@@ -534,8 +616,8 @@ S2.10. Everything drawn from the layout alone is here.
 ### S2.9 A device wears its colour when it is on
 - Outcome: an active icon and its halo take the colour of the device, so the plan reads at a glance.
 - Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/card/card.test.ts`, `docs/SPEC.md`.
-- Interface: `renderFloor` already puts `on` on a device group that is active. One CSS rule per type sets `--fp-dev` on `.dev-<type>.on`, and two shared rules use it: `.dev.on path{fill:var(--fp-dev)}` and `.dev.on .halo{fill:var(--fp-dev)}` (the halo keeps its .5 opacity from S1.29, so the circle lightens in the device's colour). The palette of S1.30 supplies the values: light yellow, motion and contact red, heater and climate orange, tv, plug and computer blue when on (grey when off), switch and humidity grey — grey being `--fp-idle`, so those two look the same on and off, which is what Diego's list says. A contact device draws red whether it is a device icon or a door sensor. No new state reading: `on` is the class the card already computes.
-- Test: render fixtures with the state stub: a motion device that is on has `--fp-dev` resolving to the red variable and its halo the same; a wall switch that is on draws no brighter than off; a tv, a plug and a computer that are on are blue and off are grey.
+- Interface: `renderFloor` already puts `on` on a device group that is active. One CSS rule per type sets `--fp-dev` on `.dev-<type>.on`, and two shared rules use it: `.dev.on path{fill:var(--fp-dev)}` and `.dev.on .halo{fill:var(--fp-dev)}` (the halo keeps its .5 opacity from S1.29, so the circle lightens in the device's colour). The palette of S1.30 supplies the values: light yellow, motion and contact red, heater and climate orange, tv, plug and computer blue when on (grey when off), switch and humidity grey — grey being `--fp-idle`, so those two look the same on and off, which is what Diego's list says. A contact device draws red whether it is a device icon or a door sensor. No new state reading: `on` is the class the card already computes. Amended by S1.37: a room or a piece of furniture with an `entity` gets the same `on` class when that entity's state is `on`, `open` or `playing`, and the CSS gives the shape a light tint (`.room.on`, `.furn.on`), so a pond pump or a gate reads on the plan. A room with an `area` has no `entity` and is never tinted this way.
+- Test: render fixtures with the state stub: a motion device that is on has `--fp-dev` resolving to the red variable and its halo the same; a wall switch that is on draws no brighter than off; a tv, a plug and a computer that are on are blue and off are grey; a water room with `entity` on carries `on` and the same room without the entity does not.
 - Done when: tests pass; the behaviours table lists one row per type with its colour.
 - Break it: a light that is on *and* unavailable keeps the unavailable styling; the colour rule does not override it.
 
@@ -568,11 +650,11 @@ S2.10. Everything drawn from the layout alone is here.
 
 ### S3.3 Pickers from hass
 - Outcome: rooms pick an area, devices pick an entity, from HA data, grouped.
-- Files: `src/editor/hass-pickers.ts`, `tests/editor/pickers.test.ts`.
-- Interface: `areas(hass)` → `{id, name}[]`; `entitiesByType(hass)` → `Record<DeviceType, { entity: string; name: string; area: string | null }[]>` using domain and `device_class` (light→light; switch with device_class outlet→plug else switch; sensor temperature→temp, humidity→humidity; binary_sensor motion/occupancy→motion, door/window/garage_door/opening→contact; camera; climate; media_player; cover). Fetches `config/area_registry/list`, `config/device_registry/list`, `config/entity_registry/list` once. In the editor, Add → Device shows type → area → entity, hiding entities already placed; door panel's sensor list uses `contact` entities; the `catalog` is rebuilt from this list on Save when running in HA.
-- Test: registry fixtures → grouping as above; a placed entity is absent from the list.
-- Done when: tests pass; the panel in the dev container shows real areas.
-- Break it: an entity with no area lands under "No area".
+- Files: `src/editor/hass-pickers.ts`, `src/editor/panel.ts`, `tests/editor/pickers.test.ts`.
+- Interface: amended by S1.38: the dropdowns themselves are already in the editor and read the `ha: HaData` property; this task only fills that property from `hass`. `haData(hass): HaData` (the type is `src/core/ha.ts`) reads `config/floor_registry/list` for `floors`, `config/area_registry/list` for `areas` with their `floor_id`, and the entity registry plus `hass.states` for `entities` (`id`, friendly name, domain); the panel sets `editor.ha = haData(hass)` after every registry change and on first load, and sets nothing when a registry call fails, so the editor falls back to free text instead of showing an empty list. Also: `areas(hass)` → `{id, name}[]`; `entitiesByType(hass)` → `Record<DeviceType, { entity: string; name: string; area: string | null }[]>` using domain and `device_class` (light→light; switch with device_class outlet→plug else switch; sensor temperature→temp, humidity→humidity; binary_sensor motion/occupancy→motion, door/window/garage_door/opening→contact; camera; climate; media_player; cover). Fetches `config/area_registry/list`, `config/device_registry/list`, `config/entity_registry/list` once. In the editor, Add → Device shows type → area → entity, hiding entities already placed; door panel's sensor list uses `contact` entities; the `catalog` is rebuilt from this list on Save when running in HA.
+- Test: registry fixtures → grouping as above; a placed entity is absent from the list; a `hass` stub whose registries answer gives a `HaData` with the floors, the areas with their `floor_id` and the entities with their domain, and the editor's room panel then shows the area select of S1.38.
+- Done when: tests pass; the panel in the dev container shows real areas and real floors.
+- Break it: an entity with no area lands under "No area"; a `hass` with no floor registry (older HA) gives `floors: []` and the floor title stays free text.
 
 ### S3.4 Card as a resource
 - Outcome: the card JS is available to Lovelace without manual resource setup.
@@ -622,10 +704,10 @@ config). No write ever runs on load or on save.
 ### S4.2 Areas from the plan
 - Outcome: rooms and zones create HA areas; HA areas without a room are listed so the user can draw them.
 - Files: `src/editor/panels.ts`, `src/editor/panel.ts`, `tests/editor/organise.spec.ts` (Playwright with a stub `hass` injected into the panel).
-- Interface: the room panel's area field is `ha-area-picker`. When the room's `area` is not an HA area id, a button "Create area <name> in HA" runs `createArea`, then sets `room.area` to the id. A side box "Areas not on the plan" lists HA areas no room or zone uses; clicking one starts Draw, Room (S1.11) with `area` preset and `name` from the area.
-- Test: Playwright: room with unknown area shows the button; click, confirm, `callWS` recorded, the field shows the new id; an unused area appears in the box and disappears once a room takes it.
+- Interface: amended by S1.38, which already made the area field a dropdown of what HA has; here the plain `select` becomes `ha-area-picker` in the panel build (the adapter of S4.8), and creating an area stays what it always was: an explicit choice, never automatic. A custom room — no `area` — gains a button "Create area <plan name> in HA" that runs `createArea` and then sets `room.area` to the new id and `room.name` to the new name, as choosing an area does. A room whose stored `area` is unknown to HA gets the same button with its plan name. No room is ever created in HA on load, on save, or by picking a name. A side box "Areas not on the plan" lists HA areas no room or zone uses; clicking one starts Draw, Room (S1.11) with `area` preset and `name` from the area.
+- Test: Playwright: a custom room shows the button; click, confirm, `callWS` recorded, the select shows the new area and the room takes its name; a room already linked to a known area shows no button; an unused area appears in the box and disappears once a room takes it.
 - Done when: tests pass; screenshot in the PR.
-- Break it: Cancel in the dialog writes nothing and keeps `room.area` as typed.
+- Break it: Cancel in the dialog writes nothing, the room stays custom and keeps its plan name.
 
 ### S4.3 Devices into areas
 - Outcome: placing or moving a device into a room assigns its HA area.
@@ -663,9 +745,10 @@ config). No write ever runs on load or on save.
 - Outcome: selecting a room or zone shows everything HA has in its area, not only what is drawn.
 - Files: `src/editor/panels.ts`, `src/editor/panel.ts`, `tests/editor/organise.spec.ts`.
 - Interface: below the room panel, a box "In Home Assistant" lists the area's entities grouped by domain: devices (placed ones marked), helpers (`input_*`, `group`, `switch_as_x` lights), automations, scripts, scenes. A scene row has "Run" (`scene.turn_on`). Each row opens more-info on click. "Add to area..." opens `ha-entity-picker` limited to entities with no area; picking one runs `setEntityArea`. Automations and scripts get "Edit in HA" (navigate to their HA editor).
-- Test: Playwright with stub registries: the box lists the fixture's entities under the right headings; Run calls `scene.turn_on`; Add to area records the registry update.
+  Amended by S1.37: a custom room, which has no area and may have an `entity`, shows that one entity's row instead of an area list, with the same more-info click, and the S4.2 button to create an area.
+- Test: Playwright with stub registries: the box lists the fixture's entities under the right headings; Run calls `scene.turn_on`; Add to area records the registry update; a custom room with `entity: "sensor.pond"` shows that row and no headings.
 - Done when: tests pass.
-- Break it: a room with no HA area shows "No area: set one above" and no list.
+- Break it: a custom room with no area and no entity shows "No area: set one above" and no list.
 
 ### S4.8 Native look
 - Outcome: the panel looks like the rest of HA, light and dark.
