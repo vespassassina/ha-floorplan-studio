@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, rotateAbout, snapPoint, stitch, validate } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, rotateAbout, snapPoint, stitch, validate, viewBoxFor } from "../core";
 import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
 import { gridRound, looseEnds, movePointAll, pointsNear, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
@@ -864,6 +864,44 @@ export class FloorplanStudioEditor extends LitElement {
 
   // ---- drawing -------------------------------------------------------------
 
+  /**
+   * The measure grid drawn behind the plan: faint lines every 50 cm of the layout's own coordinates (more on a huge
+   * floor, so no axis ever needs more than 400), numbered at every whole metre along the top and left edges of
+   * `viewBoxFor(f)`. Off, this returns "". A viewer preference, never in the layout, never an undo step.
+   */
+  private measureGrid(k: number): string {
+    const st = this.st;
+    if (!st.measure) return "";
+    const box = viewBoxFor(st.f);
+    const perAxis = (s: number) => Math.max(Math.ceil(box.w / s), Math.ceil(box.h / s));
+    let step = 50;
+    if (perAxis(step) > 400) step = 100;
+    if (perAxis(step) > 400) step = 500;
+    const numStep = step === 50 ? 100 : step; // at 50 cm, number only the whole metres; else every line already is one
+    const deg = st.layout.rotate ?? 0;
+    const upright = (x: number, y: number) => (deg % 360 ? ` transform="rotate(${num(-deg)} ${num(x)} ${num(y)})"` : "");
+    const x1 = box.x + box.w, y1 = box.y + box.h;
+    const o: string[] = [];
+    for (let x = Math.ceil(box.x / step) * step; x <= x1; x += step) {
+      const m = Math.round(x) % 100 === 0;
+      o.push(`<line class="mg${m ? " m" : ""}" stroke-opacity="${m ? "0.22" : "0.12"}" x1="${num(x)}" y1="${num(box.y)}" x2="${num(x)}" y2="${num(y1)}"/>`);
+    }
+    for (let y = Math.ceil(box.y / step) * step; y <= y1; y += step) {
+      const m = Math.round(y) % 100 === 0;
+      o.push(`<line class="mg${m ? " m" : ""}" stroke-opacity="${m ? "0.22" : "0.12"}" x1="${num(box.x)}" y1="${num(y)}" x2="${num(x1)}" y2="${num(y)}"/>`);
+    }
+    // The unit is stated once: only the x-axis origin reads "0 m"; the y-axis one, and every other number, is bare.
+    for (let x = Math.ceil(box.x / numStep) * numStep; x <= x1; x += numStep) {
+      const v = Math.round(x / 100), ly = box.y + 12 * k;
+      o.push(`<text class="lbl mg-n" x="${num(x)}" y="${num(ly)}"${upright(x, ly)} text-anchor="middle" font-size="${num(10 * k)}">${v === 0 ? "0 m" : num(v)}</text>`);
+    }
+    for (let y = Math.ceil(box.y / numStep) * numStep; y <= y1; y += numStep) {
+      const v = Math.round(y / 100), lx = box.x + 2 * k, ly = y + 3 * k;
+      o.push(`<text class="lbl mg-n" x="${num(lx)}" y="${num(ly)}"${upright(lx, ly)} text-anchor="start" font-size="${num(10 * k)}">${num(v)}</text>`);
+    }
+    return o.join("");
+  }
+
   private overlay(k: number): string {
     const st = this.st, f = st.f, s = st.sel, o: string[] = [];
     const line = (a: Pt, b: Pt, cls: string, extra = "") => `<line class="${cls}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}" ${extra}/>`;
@@ -903,8 +941,10 @@ export class FloorplanStudioEditor extends LitElement {
     const rot = st.rotation, vc: Pt = rot ? rotateAbout([v.x + v.w / 2, v.y + v.h / 2], rot.deg, rot.pivot) : [v.x + v.w / 2, v.y + v.h / 2];
     const viewBox = `${num(vc[0] - w / 2)} ${num(vc[1] - h / 2)} ${num(w)} ${num(h)}`;
     const sel = st.sel && (st.sel.t === "door" || st.sel.t === "dev") ? { t: st.sel.t, i: st.sel.i } : null;
-    const overlay = this.overlay(k);
-    const body = renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, rotate: rot, colors: st.layout.colors }) + (rot ? `<g class="plan-turn" transform="rotate(${num(rot.deg)} ${num(rot.pivot[0])} ${num(rot.pivot[1])})">${overlay}</g>` : overlay);
+    const overlay = this.overlay(k), grid = this.measureGrid(k);
+    const turnG = (svg: string) => (rot ? `<g class="plan-turn" transform="rotate(${num(rot.deg)} ${num(rot.pivot[0])} ${num(rot.pivot[1])})">${svg}</g>` : svg);
+    // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, rotate: rot, colors: st.layout.colors }) + turnG(overlay);
     const counts: Record<string, number> = {};
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const unplaced = st.unplaced(), q = this.devQuery.trim().toLowerCase();
@@ -954,6 +994,7 @@ export class FloorplanStudioEditor extends LitElement {
         <details class="menu" id="mOpt"><summary class="btn">View</summary><div class="box">
           <div class="rotrow" id="grid" role="group" aria-label="Grid"><span>Grid</span>
             ${GRID_VALUES.map((g) => html`<button class="chip keep" data-grid=${g} aria-pressed=${pressed(st.snapGrid === g)} @click=${() => { st.setGrid(g); this.requestUpdate(); }}>${g ? `${g} cm` : "None"}</button>`)}</div>
+          <button class="chip" id="mgrid" aria-pressed=${pressed(st.measure)} title="A faint 50 cm grid with metre markers, behind the plan" @click=${() => { st.setMeasure(!st.measure); this.requestUpdate(); }}>Measure grid</button>
           <button class="chip" id="lens" aria-pressed=${pressed(st.showLen)} @click=${() => { st.showLen = !st.showLen; this.requestUpdate(); }}>Lengths</button>
           <button class="btn" id="recenter" @click=${() => { st.recenter(); this.requestUpdate(); }}>Re-center</button>
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>

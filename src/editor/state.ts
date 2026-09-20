@@ -18,6 +18,13 @@ function readGrid(): Grid {
   } catch { return DEFAULT_GRID; }
 }
 
+/** localStorage key for the measure grid toggle. A viewer preference, not part of the layout, never an undo step. */
+export const MEASURE_KEY = "floorplan-studio:measure";
+/** The stored choice, or true when there is none, it is not "false", or storage is blocked. */
+function readMeasure(): boolean {
+  try { return localStorage.getItem(MEASURE_KEY) !== "false"; } catch { return true; }
+}
+
 export interface View { x: number; y: number; w: number; h: number }
 /** A point that is not a polygon corner: the end of a wall, an opening or an extra. */
 export type LooseRef = { k: "walls" | "openings" | "extras"; i: number; end: "a" | "b" };
@@ -92,6 +99,8 @@ export class EditorState {
   /** Snap grid in cm; 0 is none. Kept in localStorage, not in the layout. */
   snapGrid: Grid = readGrid();
   showLen = true;
+  /** Whether the measure grid is drawn. Kept in localStorage, not in the layout, never an undo step. */
+  measure: boolean = readMeasure();
   /** id of the door drawn open in the preview */
   openDoor: string | null = null;
   /** The floor panel is asking "Delete floor ...?". Any change of floor, undo or press on the plan cancels it. */
@@ -294,6 +303,11 @@ export class EditorState {
     if (!(GRID_VALUES as readonly number[]).includes(g)) return;
     this.snapGrid = g;
     try { localStorage.setItem(GRID_KEY, String(g)); } catch { /* private mode: the choice lasts until reload */ }
+  }
+  /** Toggles the measure grid. A viewer preference: no undo step, never written to the layout. */
+  setMeasure(v: boolean) {
+    this.measure = v;
+    try { localStorage.setItem(MEASURE_KEY, String(v)); } catch { /* private mode: the choice lasts until reload */ }
   }
   persist() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.layout)); } catch { /* private mode, quota */ }

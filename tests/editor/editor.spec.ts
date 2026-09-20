@@ -2833,7 +2833,7 @@ test("S1.33: a turned plan changes only rotate in the data, and Save then Open k
   expect(await rotOf(page)).toBe(0);
   await page.evaluate(([tag, l]) => { (document.querySelector(tag as string) as any).layout = l; }, [EDITOR, saved] as const);
   expect(await rotOf(page)).toBe(135);
-  await expect(page.locator(`${EDITOR} svg > g.plan-turn[transform^="rotate(135 "]`)).toHaveCount(2); // the drawing and the overlay
+  await expect(page.locator(`${EDITOR} svg > g.plan-turn[transform^="rotate(135 "]`)).toHaveCount(3); // the measure grid, the drawing and the overlay (S1.50)
 });
 
 for (const deg of [45, 90]) {
@@ -3819,4 +3819,97 @@ test("Opus review CSS pair: a motion sensor that is on still fades: the fill fol
   const half = chan(await fillAt("0.5", true));
   expect(half).not.toEqual(idle);
   expect(half).not.toEqual([214, 69, 69]);
+});
+
+// ---- S1.50 a measure grid with metre markers ----
+
+test("S1.50: .mg lines are 50 cm apart in plan units and sit before the first room in DOM order", async ({ page }) => {
+  const xs = await page.locator("svg line.mg").evaluateAll((els) => {
+    const vertical = els.filter((e) => e.getAttribute("x1") === e.getAttribute("x2"));
+    return [...new Set(vertical.map((e) => Number(e.getAttribute("x1"))))].sort((a, b) => a - b);
+  });
+  expect(xs.length).toBeGreaterThan(1);
+  const diffs = new Set(xs.slice(1).map((x, i) => Math.round(x - xs[i])));
+  expect(diffs).toEqual(new Set([50]));
+  const order = await rpt(page).evaluate((host) => {
+    const svg = (host as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const all = [...svg.querySelectorAll("*")];
+    return { mg: all.findIndex((e) => e.classList.contains("mg")), room: all.findIndex((e) => e.matches("polygon[data-r]")) };
+  });
+  expect(order.mg).toBeGreaterThanOrEqual(0);
+  expect(order.mg).toBeLessThan(order.room);
+});
+
+test("Opus review CSS pair: the measure grid is thin and non-scaling, brighter on the metre (render.test.ts:522)", async ({ page }) => {
+  const half = await page.locator("svg line.mg:not(.m)").first().evaluate((e) => { const s = getComputedStyle(e); return { stroke: s.stroke, w: s.strokeWidth, ve: s.vectorEffect, op: s.strokeOpacity }; });
+  const metre = await page.locator("svg line.mg.m").first().evaluate((e) => { const s = getComputedStyle(e); return { w: s.strokeWidth, op: s.strokeOpacity }; });
+  expect(half.stroke).toBe(rgb("#3a3a3a"));
+  expect(half.ve).toBe("non-scaling-stroke");
+  expect(half.w).toBe("0.5px");
+  expect(half.op).toBe("0.12");
+  expect(metre.w).toBe("1px");
+  expect(metre.op).toBe("0.22");
+});
+
+test("S1.50: the number at x=0 reads 0 m, the one a metre right reads 1", async ({ page }) => {
+  // the top-edge (x-axis) numbers sit at x="<plan x>"; the left-edge ones do not, so this picks the x-axis label
+  await expect(page.locator('svg text.mg-n[x="0"]')).toHaveText("0 m");
+  await expect(page.locator('svg text.mg-n[x="100"]')).toHaveText("1");
+});
+
+test("S1.50: toggling #mgrid off removes every .mg and the choice survives a reload", async ({ page }) => {
+  await expect.poll(() => page.locator("svg line.mg").count()).toBeGreaterThan(0);
+  await menu(page, "View");
+  await expect(page.locator("#mgrid")).toHaveAttribute("aria-pressed", "true");
+  await page.locator("#mgrid").click();
+  await menu(page, "View");
+  await expect(page.locator("svg line.mg")).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("floorplan-studio:measure"))).toBe("false");
+  await page.reload();
+  await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+  await expect(page.locator("svg line.mg")).toHaveCount(0);
+  await menu(page, "View");
+  await expect(page.locator("#mgrid")).toHaveAttribute("aria-pressed", "false");
+});
+
+test("S1.50: turning the plan turns the grid lines with the walls while the numbers stay upright", async ({ page }) => {
+  await rotateBy(page, 1); // 45 degrees
+  const lineAngle = await page.locator("svg line.mg").first().evaluate((e) => { const c = (e as SVGGraphicsElement).getScreenCTM()!; return Math.round((Math.atan2(c.b, c.a) * 180) / Math.PI); });
+  expect(lineAngle).toBe(45);
+  const numOff = await page.locator("svg text.mg-n").first().evaluate((e) => { const m = (e as SVGGraphicsElement).getScreenCTM()!; return Math.abs(m.b) / Math.abs(m.a); });
+  expect(numOff).toBeLessThan(0.001);
+});
+
+test("S1.50: a floor 600 m wide draws the 5 m step and no more than 400 lines per axis", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.outline = [[0, 0], [60000, 0], [60000, 600], [0, 600]];
+    el.layout = l;
+  }, EDITOR);
+  await expect.poll(() => page.locator("svg line.mg").count()).toBeGreaterThan(0);
+  const xs = await page.locator("svg line.mg").evaluateAll((els) => {
+    const vertical = els.filter((e) => e.getAttribute("x1") === e.getAttribute("x2"));
+    return [...new Set(vertical.map((e) => Number(e.getAttribute("x1"))))].sort((a, b) => a - b);
+  });
+  expect(xs.length).toBeLessThanOrEqual(400);
+  const diffs = new Set(xs.slice(1).map((x, i) => Math.round(x - xs[i])));
+  expect(diffs).toEqual(new Set([500]));
+});
+
+test("S1.50 break it: an empty floor draws a grid around the origin with no error, and toggling it is not an undo step", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground = { title: "Empty", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };
+    el.layout = l;
+  }, EDITOR);
+  await expect.poll(() => page.locator("svg line.mg").count()).toBeGreaterThan(0);
+  await expect(page.locator("svg text.mg-n", { hasText: /^0 m$/ })).toHaveCount(1);
+  expect(errors).toEqual([]);
+  await menu(page, "View");
+  await page.locator("#mgrid").click();
+  await menu(page, "View");
+  await menu(page, "File");
+  await expect(page.locator("#undo")).toBeDisabled(); // the toggle is a viewer preference, not an undo step
 });

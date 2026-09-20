@@ -258,6 +258,11 @@ room_glow: true
   in the browser, not in the layout; Alt disables; Shift unsnaps for one drag; a room marked `free` never
   snaps.
 - Pan: drag background, or middle/right/Ctrl drag anywhere. Wheel zooms.
+- Measure grid: a faint 50 cm grid behind the plan, metres numbered along the
+  top and left edges, turning with the plan while its numbers stay upright.
+  On a huge floor the step grows to 100 or 500 cm so no axis needs more than
+  400 lines. A chip in the View menu, next to Grid; kept in the browser, not
+  in the layout, and never an undo step.
 - Undo/redo, autosave in the browser, Open/Save file, Reset to stored layout.
 - In HA: Load and Save go through the integration. Standalone: file only.
 

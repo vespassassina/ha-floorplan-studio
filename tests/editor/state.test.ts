@@ -4,7 +4,7 @@ import v1 from "../../demo/layout.v1.json";
 import type { Layout, WallKind } from "../../src/core/schema";
 import { movePointAll, setSecondEnd, stairsAt } from "../../src/editor/ops";
 import { contentPoints, rotateAbout } from "../../src/core";
-import { EditorState, GRID_KEY, STORAGE_KEY, loadLayout, newId, restoreLayout } from "../../src/editor/state";
+import { EditorState, GRID_KEY, MEASURE_KEY, STORAGE_KEY, loadLayout, newId, restoreLayout } from "../../src/editor/state";
 
 const fresh = () => structuredClone(demo) as unknown as Layout;
 
@@ -592,6 +592,45 @@ describe("the grid setting (S1.34)", () => {
     expect(st.snapGrid).toBe(10);
     st.setGrid(50);
     expect(st.snapGrid).toBe(50);
+    get.mockRestore(); set.mockRestore();
+  });
+});
+
+describe("the measure grid preference (S1.50)", () => {
+  beforeEach(() => localStorage.clear());
+  it("is true by default and not part of the layout", () => {
+    const st = new EditorState(fresh());
+    expect(st.measure).toBe(true);
+    st.setMeasure(false);
+    expect(JSON.stringify(st.layout)).not.toContain("measure");
+  });
+  it("keeps the choice under its own key and the next state reads it", () => {
+    new EditorState(fresh()).setMeasure(false);
+    expect(localStorage.getItem(MEASURE_KEY)).toBe("false");
+    expect(new EditorState(fresh()).measure).toBe(false);
+    new EditorState(fresh()).setMeasure(true);
+    expect(localStorage.getItem(MEASURE_KEY)).toBe("true");
+    expect(new EditorState(fresh()).measure).toBe(true);
+  });
+  it.each(["", "x", "null", "0", "undefined"])("a stored %j falls back to true", (v) => {
+    localStorage.setItem(MEASURE_KEY, v);
+    expect(new EditorState(fresh()).measure).toBe(true);
+  });
+  it("a missing value gives true", () => {
+    expect(new EditorState(fresh()).measure).toBe(true);
+  });
+  it("toggling it is not an undo step", () => {
+    const st = new EditorState(fresh());
+    st.setMeasure(false);
+    expect(st.canUndo).toBe(false);
+  });
+  it("still works when storage throws", () => {
+    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    const st = new EditorState(fresh());
+    expect(st.measure).toBe(true);
+    st.setMeasure(false);
+    expect(st.measure).toBe(false); // the in-memory choice still changes; only the write is lost
     get.mockRestore(); set.mockRestore();
   });
 });

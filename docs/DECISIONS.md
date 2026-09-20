@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.50: the measure grid method is named `measureGrid`; only the x-axis origin reads "0 m"
+
+Two deviations from the S1.50 block. First, `editor-app.ts` already has a private `measure()` (the `ResizeObserver` callback that reads the SVG's screen rect); the block's own `measure(k: number): string` would have been a duplicate implementation, which `tsc` refuses. The new method is `measureGrid(k)`. Second, the block says "the origin label reads `0 m` so the unit is stated once", but the grid numbers both axes independently, so a layout whose box crosses (0,0) — the demo does — gets one "0" label on the top edge and one on the left edge; giving both the " m" suffix states the unit twice, and a Playwright test matching the text "0 m" then finds two elements. Only the x-axis's zero (the one the block's own test line names) carries " m"; the y-axis's zero, like every other number, is bare. `FLOORPLAN_CSS` gains `.mg`/`.mg.m` and `--fp-measure:#3a3a3a`, paired with a `getComputedStyle` test in `editor.spec.ts` per finding 10; `stroke-opacity` is set inline per line (0.12 / 0.22), not in CSS, since it depends on the line's own value, not its class alone.
+
 ## 2026-09-20 Sprint 1.6 closed and merged; the lessons become rules
 
 S1.14 to S1.49 merged into `main` and pushed, 60 commits. Measured on `main`

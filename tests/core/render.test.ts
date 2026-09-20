@@ -519,6 +519,11 @@ describe("stairs treads (S1.25)", () => {
     expect(withStairs(round)).not.toContain('data-e="s0:');
   });
   it("the tread style exists", () => expect(FLOORPLAN_CSS).toMatch(/--fp-tread:#8b8578/));
+  it("S1.50: the measure grid style exists: thin, non-scaling, brighter on the metre", () => {
+    expect(FLOORPLAN_CSS).toContain("--fp-measure:#3a3a3a");
+    expect(FLOORPLAN_CSS).toMatch(/\.mg\{stroke:var\(--fp-measure\);stroke-width:\.5;vector-effect:non-scaling-stroke\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.mg\.m\{stroke-width:1\}/);
+  });
   it("a stair that skipped migrate still draws (no shape, no steps)", () => {
     const f = structuredClone(ground) as any;
     delete f.stairs[0].shape; delete f.stairs[0].steps; delete f.stairs[0].rot;
