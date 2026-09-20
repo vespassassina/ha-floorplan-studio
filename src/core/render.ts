@@ -1,4 +1,5 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
+import { DEVICE_TYPES } from "./schema";
 import type { Device, DeviceType, Floor, Layout, Pt, Stairs, WallKind } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
@@ -7,7 +8,16 @@ export interface RenderOpts {
   state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
+  /** `layout.colors`: a colour per device type, set as `--fp-dev-<type>` on a group round the drawing. */
+  colors?: Layout["colors"];
 }
+
+/** The colour each device type has when `layout.colors` says nothing: the `--fp-dev-*` defaults below; types with none of their own use the idle grey. */
+export const DEVICE_COLOURS: Record<DeviceType, string> = {
+  heater: "#e8801a", light: "#e0a800", switch: "#8b8578", plug: "#2c7fb8", temp: "#8b8578", humidity: "#8b8578", motion: "#d64545",
+  contact: "#d64545", camera: "#4a4a48", climate: "#e8801a", ac: "#2c7fb8", tv: "#2c7fb8", computer: "#2c7fb8", media: "#8b8578",
+  cover: "#8b8578", other: "#8b8578",
+};
 
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
 export const FLOORPLAN_CSS = `
@@ -239,5 +249,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   if (o.editor)
     for (const P of polys) P.pts.forEach((p, j) => out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
   const body = out.join("\n");
-  return turn ? `<g class="plan-turn" transform="rotate(${num(turn.deg)} ${num(turn.pivot[0])} ${num(turn.pivot[1])})">${body}</g>` : body;
+  const turned = turn ? `<g class="plan-turn" transform="rotate(${num(turn.deg)} ${num(turn.pivot[0])} ${num(turn.pivot[1])})">${body}</g>` : body;
+  // Custom properties inherit, so one style on a group reaches every device. Only known types and strict #rrggbb go in: the value ends up in an attribute.
+  const vars = Object.entries(o.colors ?? {}).filter(([t, v]) => (DEVICE_TYPES as readonly string[]).includes(t) && typeof v === "string" && COLOR.test(v)).map(([t, v]) => `--fp-dev-${t}:${v}`);
+  return vars.length ? `<g class="dev-colours" style="${vars.join(";")}">${turned}</g>` : turned;
 }

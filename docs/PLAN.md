@@ -463,7 +463,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass; the twelve are in SPEC.
 - Break it: a colour that is not in the list (typed in the free input) still works and still gets the right `dark` decision.
 
-### S1.36 Device colours by type
+### S1.36 Device colours by type (done)
 - Outcome: one colour per device type, changeable for the whole group at once, stored with the layout so the editor and the card agree.
 - Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/render.ts`, `src/editor/editor-app.ts`, `src/editor/panels.ts`, `tests/core/{schema,render}.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
 - Interface: `Layout` gains `colors?: Partial<Record<DeviceType, string>>`. `validate`: keys must be device types, values `#rrggbb`. `migrate` passes it through, never invents it. `renderFloor` sets `--fp-dev-<type>` on the root svg style from `layout.colors` (else the defaults of S1.30), so the palette CSS and the card's on-colour of S2.9 both follow it. View menu, "Device colours": a panel with one row per type (label, `<input type="color">`, reset) and "Reset all". One undo step per change, in the layout so it is saved.

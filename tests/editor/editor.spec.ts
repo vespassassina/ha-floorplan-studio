@@ -3109,3 +3109,78 @@ test("S1.35 break it: a colour typed in the free input still works, and a swatch
   await page.locator("#panel .sw").nth(0).click();
   expect((await groundOf(page)).rooms[0].color).toBe("#f4f4f0");
 });
+
+// ---- S1.36 device colours by type ----
+const colourRow = (page: Page, type: string) => page.locator(`${EDITOR} #devcols [data-type="${type}"]`);
+const openDevCols = async (page: Page) => {
+  await menu(page, "View");
+  await page.locator(`${EDITOR} #devcols > summary`).click();
+};
+const setColourInput = (page: Page, type: string, hex: string) =>
+  colourRow(page, type).locator("input[type=color]").evaluate((el, v) => { (el as HTMLInputElement).value = v; el.dispatchEvent(new Event("change", { bubbles: true })); }, hex);
+const camFill = (page: Page) => page.locator("svg .dev-camera path:not(.cone):not(.halo)").first().evaluate((el) => getComputedStyle(el).fill);
+const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first().evaluate((el, n) => getComputedStyle(el).getPropertyValue(n).trim(), name);
+
+test("S1.36: View, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
+  await openDevCols(page);
+  await expect(page.locator(`${EDITOR} #devcols [data-type]`)).toHaveCount(16);
+  await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
+  await expect(colourRow(page, "light").locator("button")).toHaveCount(1);
+  await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
+});
+
+test("S1.36: changing the light colour reaches every light icon, camera colour changes the camera fill, undo restores", async ({ page }) => {
+  const l0 = await layoutOf(page);
+  expect(l0.colors).toBeUndefined();
+  const lights = 'svg .dev-light';
+  const n = await page.locator(lights).count();
+  expect(n).toBeGreaterThan(1);
+  const cam0 = await camFill(page);
+  await openDevCols(page);
+  await setColourInput(page, "light", "#123456");
+  expect((await layoutOf(page)).colors).toEqual({ light: "#123456" });
+  const seen = await page.locator(lights).evaluateAll((els) => els.map((e) => getComputedStyle(e).getPropertyValue("--fp-dev-light").trim()));
+  expect(seen).toEqual(Array(n).fill("#123456")); // every light icon sees it
+  await setColourInput(page, "camera", "#0000ff");
+  expect(await camFill(page)).toBe("rgb(0, 0, 255)");
+  expect(await camFill(page)).not.toBe(cam0);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect(await camFill(page)).toBe(cam0);
+  expect((await layoutOf(page)).colors).toEqual({ light: "#123456" });
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect((await layoutOf(page)).colors).toBeUndefined();
+  expect(await varOn(page, lights, "--fp-dev-light")).toBe("#e0a800");
+});
+
+test("S1.36: a row's reset and Reset all remove colours, each one undo step", async ({ page }) => {
+  await openDevCols(page);
+  await setColourInput(page, "light", "#123456");
+  await setColourInput(page, "tv", "#654321");
+  await colourRow(page, "light").locator("button").click();
+  expect((await layoutOf(page)).colors).toEqual({ tv: "#654321" });
+  await page.locator(`${EDITOR} #devcolsx`).click();
+  expect((await layoutOf(page)).colors).toBeUndefined();
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect((await layoutOf(page)).colors).toEqual({ tv: "#654321" });
+});
+
+test("S1.36: Save then Open keeps the colours, and the light icons follow", async ({ page }) => {
+  await openDevCols(page);
+  await setColourInput(page, "light", "#123456");
+  const saved = (await savedValid(page))!;
+  expect(saved.colors).toEqual({ light: "#123456" });
+  await page.evaluate(([tag, l]) => { (document.querySelector(tag as string) as any).layout = l; }, [EDITOR, { ...saved, colors: undefined }] as const);
+  expect((await layoutOf(page)).colors).toBeUndefined();
+  await page.evaluate(([tag, l]) => { (document.querySelector(tag as string) as any).layout = l; }, [EDITOR, saved] as const);
+  expect(await varOn(page, "svg .dev-light", "--fp-dev-light")).toBe("#123456");
+});
+
+test("S1.36 break it: a layout with no colors draws no style group, and a hostile colors value is refused on load", async ({ page }) => {
+  await expect(page.locator("svg .dev-colours")).toHaveCount(0);
+  const errs = await page.evaluate(([tag, l]) => { (document.querySelector(tag as string) as any).layout = { ...l, colors: { light: 'red;" onload="x' } }; return (document.querySelector(tag as string) as any).errors ?? null; }, [EDITOR, await layoutOf(page)] as const);
+  expect(JSON.stringify(errs)).toMatch(/colors/);
+  await expect(page.locator("svg [onload]")).toHaveCount(0);
+});

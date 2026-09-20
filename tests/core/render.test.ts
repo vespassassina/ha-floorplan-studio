@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import type { Layout, WallKind } from "../../src/core/schema";
-import { renderFloor, viewBoxFor, planPivot, rotateAbout, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
+import { DEVICE_TYPES, type Layout, type WallKind } from "../../src/core/schema";
+import { renderFloor, viewBoxFor, planPivot, rotateAbout, DEVICE_COLOURS, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
 
 const L = demo as unknown as Layout;
 const ground = L.floors.ground;
@@ -701,5 +701,30 @@ describe("plan rotation (S1.33)", () => {
     const p = rotateAbout([0, -10], 90, [0, 0]);
     expect(p[0]).toBeCloseTo(10); expect(p[1]).toBeCloseTo(0);
     expect(rotateAbout([5, 5], 360, [1, 1])[0]).toBeCloseTo(5);
+  });
+});
+
+describe("device colours (S1.36)", () => {
+  it("without colors the output is the same as before: no wrapper, no style", () => {
+    expect(renderFloor(ground, { scale: 0.5, colors: undefined })).toBe(renderFloor(ground, { scale: 0.5 }));
+    expect(renderFloor(ground, { scale: 0.5, colors: {} })).toBe(renderFloor(ground, { scale: 0.5 }));
+    expect(renderFloor(ground, { scale: 0.5 })).not.toContain("--fp-dev-");
+  });
+  it("puts each chosen colour in one style as --fp-dev-<type>, around the drawing", () => {
+    const html = renderFloor(ground, { scale: 0.5, colors: { light: "#aabbcc", camera: "#112233" } });
+    expect(html.startsWith('<g class="dev-colours" style="--fp-dev-light:#aabbcc;--fp-dev-camera:#112233">')).toBe(true);
+    expect(html.endsWith("</g>")).toBe(true);
+    expect(renderFloor(ground, { scale: 0.5 })).toBe(html.slice(html.indexOf(">") + 1, -4)); // the rest is unchanged
+  });
+  it("skips what is not a device type or #rrggbb, so nothing untrusted reaches the attribute", () => {
+    const html = renderFloor(ground, { scale: 0.5, colors: { fridge: "#aabbcc", light: 'red;" onload="x', tv: "#abcdef" } as any });
+    expect(html).toContain('style="--fp-dev-tv:#abcdef"');
+    expect(html).not.toContain("fridge"); expect(html).not.toContain("onload");
+    expect(renderFloor(ground, { scale: 0.5, colors: { light: "nope" } as any })).toBe(renderFloor(ground, { scale: 0.5 }));
+  });
+  it("DEVICE_COLOURS gives every device type a #rrggbb default that matches the palette variables", () => {
+    for (const t of DEVICE_TYPES) expect(DEVICE_COLOURS[t], t).toMatch(/^#[0-9a-f]{6}$/);
+    expect(DEVICE_COLOURS.light).toBe("#e0a800");
+    expect(FLOORPLAN_CSS).toContain(`--fp-dev-camera:${DEVICE_COLOURS.camera}`);
   });
 });

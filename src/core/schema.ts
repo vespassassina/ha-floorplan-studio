@@ -34,7 +34,7 @@ export interface Floor {
 }
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
 /** `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned. */
-export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; floors: Record<string, Floor>; catalog: CatalogEntry[] }
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; floors: Record<string, Floor>; catalog: CatalogEntry[] }
 
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x);
 const isEntity = (x: unknown) => typeof x === "string" && x.includes(".");
@@ -55,6 +55,13 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
   if (typeof x.north !== "number" || !Number.isFinite(x.north) || x.north < 0 || x.north >= 360) errors.push("north must be a number in [0, 360)");
   if (x.rotate !== undefined && !(typeof x.rotate === "number" && Number.isInteger(x.rotate) && x.rotate >= 0 && x.rotate < 360 && x.rotate % 45 === 0))
     errors.push("rotate must be a multiple of 45 in [0, 360)");
+  if (x.colors !== undefined) {
+    if (!isObj(x.colors)) errors.push("colors must be an object");
+    else for (const [t, v] of Object.entries(x.colors)) {
+      if (!(DEVICE_TYPES as readonly string[]).includes(t)) errors.push(`colors.${t}: not a device type`);
+      else if (!(typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v))) errors.push(`colors.${t} must be a colour like #aabbcc`);
+    }
+  }
   if (!isObj(x.floors)) errors.push("floors must be an object");
   const deviceIds = new Set<string>();
   for (const [fname, f] of Object.entries<any>(isObj(x.floors) ? x.floors : {})) {

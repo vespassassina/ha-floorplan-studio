@@ -51,6 +51,7 @@ export function migrate(x: unknown): Layout {
     Object.defineProperty(floors, fname, { value: f, enumerable: true, writable: true, configurable: true });
   }
   const out: any = { version: 2, unit: "cm", north: src.north ?? 0, rotate: src.rotate ?? 0, floors, catalog: src.catalog };
+  if (src.colors !== undefined) out.colors = src.colors; // passed through; validate judges it. Never invented.
   if (Array.isArray(out.catalog) && v === 1) for (const c of out.catalog) c.type = RENAME[c.type] ?? c.type;
   if (!Array.isArray(out.catalog)) out.catalog = buildCatalog(out);
   return out as Layout;

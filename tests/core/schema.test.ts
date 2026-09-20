@@ -356,3 +356,19 @@ describe("FLOOR_COLOURS (S1.35)", () => {
     }
   });
 });
+
+describe("layout.colors (S1.36)", () => {
+  const withColors = (c: unknown) => { const l = clone(); l.colors = c; return l; };
+  it("accepts none, an empty object and type keys with #rrggbb values", () => {
+    expect(errorsOf(clone())).toEqual([]);
+    expect(errorsOf(withColors({}))).toEqual([]);
+    expect(errorsOf(withColors({ light: "#aabbcc", ac: "#00FF00" }))).toEqual([]);
+  });
+  it("rejects a colour that is not #rrggbb, a key that is not a device type, and a non-object", () => {
+    expect(errorsOf(withColors({ light: "red" })).join()).toMatch(/colors\.light/);
+    expect(errorsOf(withColors({ fridge: "#aabbcc" })).join()).toMatch(/colors.*fridge/);
+    for (const bad of [null, [], "x", 3]) expect(errorsOf(withColors(bad)).join(), String(bad)).toMatch(/colors/);
+    expect(errorsOf(withColors({ light: 5 })).join()).toMatch(/colors\.light/);
+    expect(errorsOf(withColors({ light: "#abc" })).join()).toMatch(/colors\.light/);
+  });
+});

@@ -263,3 +263,14 @@ describe("stairs get a shape, steps and rot (S1.25)", () => {
     expect(validate(migrate(bare({ steps: 3.5 }))).ok).toBe(false);
   });
 });
+
+describe("layout.colors (S1.36)", () => {
+  it("is passed through untouched and never invented", () => {
+    const l: any = structuredClone(demo);
+    delete l.colors;
+    expect("colors" in migrate(l)).toBe(false);
+    l.colors = { light: "#aabbcc" };
+    expect(migrate(l).colors).toEqual({ light: "#aabbcc" });
+    expect("colors" in migrate(structuredClone(v1))).toBe(false);
+  });
+});

@@ -76,6 +76,10 @@ in `prompts/`, then fixed in the editor.
   315), so the drawing can be lined up with north. It is applied by the
   renderer around one pivot shared by every floor; the stored coordinates never
   change, and names and icons stay upright. Editor and card must show the same.
+- `colors` (optional) is one colour per device type, `{ "light": "#e0a800", ... }`:
+  keys are device types, values `#rrggbb`. The renderer sets each as
+  `--fp-dev-<type>` on a group round the drawing, so the editor and the card
+  use the same palette. Missing means the defaults; it is never invented.
 - `room.kind`: room, garden, pavement, fill, terrace, structure, zone, water.
   `room.area` is the HA area id. A zone is a dotted subdivision inside a room
   (a reading corner, a kitchen in an open living room): every edge is a
@@ -196,6 +200,8 @@ room_glow: true
   its corners from snapping. Rotating a room rewrites its points; a device,
   furniture or stairs keeps an angle in `rot`.
 - View: rotate the whole plan in 45 degree steps, to line it up with north.
+  View, Device colours: one colour input per device type with a reset, and
+  Reset all; each change is one undo step and is saved in `colors`.
   All floors turn together. Names and icons stay upright.
 - Selection panel per kind: corner, edge and wall (length, angle, kind, and on
   a free wall the conversion to an opening), door (name, kind, length, sensor,

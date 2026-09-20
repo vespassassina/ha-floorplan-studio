@@ -594,3 +594,33 @@ describe("the grid setting (S1.34)", () => {
     get.mockRestore(); set.mockRestore();
   });
 });
+
+describe("device colours (S1.36)", () => {
+  beforeEach(() => localStorage.clear());
+  it("setColour writes layout.colors, one undo step; the same colour again is no step", () => {
+    const st = new EditorState(fresh());
+    expect(st.layout.colors).toBeUndefined();
+    expect(st.setColour("light", "#aabbcc")).toBe(true);
+    expect(st.layout.colors).toEqual({ light: "#aabbcc" });
+    expect(st.setColour("light", "#aabbcc")).toBe(false);
+    expect(st.undo()).toBe(true);
+    expect(st.layout.colors).toBeUndefined(); // not {}: an untouched layout stays as it was
+    expect(st.canUndo).toBe(false);
+  });
+  it("a reset removes the key, and the last one removes colors", () => {
+    const st = new EditorState(fresh());
+    st.setColour("light", "#aabbcc"); st.setColour("tv", "#112233");
+    expect(st.setColour("light", null)).toBe(true);
+    expect(st.layout.colors).toEqual({ tv: "#112233" });
+    expect(st.setColour("light", null)).toBe(false); // nothing to reset
+    expect(st.resetColours()).toBe(true);
+    expect(st.layout.colors).toBeUndefined();
+    expect(st.resetColours()).toBe(false);
+  });
+  it("refuses a colour that is not #rrggbb or a type that is not a device type", () => {
+    const st = new EditorState(fresh());
+    expect(st.setColour("light", "red")).toBe(false);
+    expect(st.setColour("fridge" as never, "#aabbcc")).toBe(false);
+    expect(st.layout.colors).toBeUndefined();
+  });
+});

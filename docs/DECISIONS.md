@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.36: device colours ride on a group, and only camera and garden sensors show them yet
+
+`layout.colors` is validated (device-type keys, `#rrggbb`), passed through by `migrate` and never invented. `renderFloor` takes it as `opts.colors` (it never saw the layout) and wraps its output in `<g class="dev-colours" style="--fp-dev-<type>:...">` when there is at least one valid entry; no colours, no wrapper, the snapshot is unchanged. Custom properties inherit, so this reaches every device. This is a group, not "the root svg" as the block said: the svg belongs to the host, and one place serves editor and card. Only known types and strict colours reach the attribute. `DEVICE_COLOURS` (render.ts) holds the default per type for the colour inputs; types with no colour of their own default to the idle grey, and `ac` shows the cool colour, since the palette has `ac-cool` and `ac-heat` and the key is `ac`. Deviation from the block's test: it wants every light icon's computed fill to change, but a light's fill still comes from `--fp-idle` and `--fp-on` until S2.9 wires `--fp-dev-<type>` into the on-colour. The Playwright test therefore reads the computed `--fp-dev-light` on every light icon, and the computed fill on the camera, which does use its variable. Whoever does S2.9 should add the light fill check.
+
 ## 2026-09-20 S1.35: swatches only; no `dark` class
 
 `FLOOR_COLOURS` (twelve, in the PLAN order) lives in `schema.ts`; the room panel shows them as `.sw` buttons (title and aria-label are the name, the pressed one is marked) next to the free colour input, which stays. This supersedes the part of the block that gave a dark floor's label and edge lines a `dark` class and light `--fp-label-on-dark` and `--fp-wall-on-dark` colours: it is not built. Reason: S1.46 gives all text a white outline, which keeps a label readable on any floor. The swatch backgrounds are the data colours of the floors, like the room fill itself, so they are inline style, not `--fp-*` variables.

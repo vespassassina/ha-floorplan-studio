@@ -1,4 +1,4 @@
-import { migrate, planPivot, rotateAbout, unplacedCatalog, validate, viewBoxFor } from "../core";
+import { DEVICE_TYPES, migrate, planPivot, rotateAbout, unplacedCatalog, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, Layout, Pt, Stairs } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -230,6 +230,23 @@ export class EditorState {
     this.snapshot();
     this.layout.rotate = n;
     this.views = {};
+    return true;
+  }
+  /** Sets (`hex`) or removes (null) the colour of one device type in `layout.colors`: one undo step, none when nothing changes. `colors` is removed when it empties, so an untouched layout stays as it was. */
+  setColour(type: DeviceType, hex: string | null): boolean {
+    const cur = this.layout.colors ?? {};
+    if (hex === null ? !(type in cur) : !((DEVICE_TYPES as readonly string[]).includes(type) && /^#[0-9a-fA-F]{6}$/.test(hex) && cur[type] !== hex)) return false;
+    this.snapshot();
+    const next = { ...cur };
+    if (hex === null) delete next[type]; else next[type] = hex;
+    if (Object.keys(next).length) this.layout.colors = next; else delete this.layout.colors;
+    return true;
+  }
+  /** Removes every device colour: one undo step, none when there are none. */
+  resetColours(): boolean {
+    if (!this.layout.colors) return false;
+    this.snapshot();
+    delete this.layout.colors;
     return true;
   }
   get view(): View {
