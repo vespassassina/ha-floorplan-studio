@@ -537,7 +537,7 @@ S1.42 are three defects the verifiers found.
 - Done when: tests pass; `npm run lint` clean; SPEC's editor section says the refresh happens on load, is announced, and is not undoable.
 - Break it: with no HA data the same plan opens with every name exactly as stored and no status message.
 
-### S1.40 Every coloured button is readable
+### S1.40 Every coloured button is readable (done)
 - Outcome: the text on the red, orange and blue buttons passes WCAG AA (4.5:1) in the editor.
 - Files: `src/core/render.ts` (the variables in `FLOORPLAN_CSS`), `src/editor/editor-app.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
 - Interface: the verifier measured 2.16:1 on `.btn.warn` (light text on `--fp-open` #f28c28), 3.85:1 on `.btn.danger` (light text on `--fp-motion` #d64545) and 3.82:1 on `.btn.primary` (light text on `--fp-window` #2c7fb8). The button colours stop borrowing the plan's colours and get three of their own in `FLOORPLAN_CSS`: `--fp-warn:#f28c28`, `--fp-danger:#b02a2a`, `--fp-primary:#1f6699`. `.btn.warn` takes dark text (`--fp-ink`, 5.9:1 on that orange), `.btn.danger` and `.btn.primary` keep light text (`--fp-bg`, 6.6:1 and 5.4:1). Background and border use the new variable, so S4.8's theme map covers them and the door and motion colours on the plan stay free to change.

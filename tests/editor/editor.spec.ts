@@ -2651,10 +2651,10 @@ test("a new floor has the outline and the stairs of the ground floor, no rooms, 
 // ---- red and orange buttons (S1.28) ---------------------------------------------
 
 // Computed style, not class names: a rule that loses on specificity would pass a class check.
-const RED = "rgb(214, 69, 69)", ORANGE = "rgb(242, 140, 40)", TEXT = "rgb(244, 240, 230)";
+const RED = "rgb(176, 42, 42)", ORANGE = "rgb(242, 140, 40)", LIGHT = "rgb(244, 240, 230)", DARK = "rgb(43, 42, 39)";
 const paint = (page: Page, sel: string) => page.locator(sel).evaluate((el) => { const s = getComputedStyle(el); return [s.backgroundColor, s.color]; });
-const expectWarn = async (page: Page, sel: string) => expect(await paint(page, sel), sel).toEqual([ORANGE, TEXT]);
-const expectDanger = async (page: Page, sel: string) => expect(await paint(page, sel), sel).toEqual([RED, TEXT]);
+const expectWarn = async (page: Page, sel: string) => expect(await paint(page, sel), sel).toEqual([ORANGE, DARK]);
+const expectDanger = async (page: Page, sel: string) => expect(await paint(page, sel), sel).toEqual([RED, LIGHT]);
 
 test("S1.28: Reset is red", async ({ page }) => {
   await menu(page, "File");
@@ -3392,4 +3392,27 @@ test("S1.39: two areas with the same name give no match button", async ({ page }
   await page.evaluate((tag) => { const el = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.rooms[6].name = "Study"; el.layout = l; }, EDITOR);
   await page.locator('svg polygon[data-r="6"]').click({ force: true });
   await expect(page.locator("#rmatch")).toHaveCount(0);
+});
+
+// ---- readable buttons (S1.40) ------------------------------------------------------
+
+const lum = (rgb: number[]) => { const [r, g, b] = rgb.map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const ratio = (a: number[], b: number[]) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+const rgbOf = (css: string) => (css.match(/\d+/g) ?? []).slice(0, 3).map(Number);
+
+test("S1.40: the contrast helper is right on two known pairs", () => {
+  expect(ratio([0, 0, 0], [255, 255, 255])).toBeCloseTo(21, 5);
+  expect(ratio([0x76, 0x76, 0x76], [255, 255, 255])).toBeCloseTo(4.54, 2);
+});
+
+test("S1.40: Reset, item Delete and Save reach 4.5:1 in Chromium", async ({ page }) => {
+  await menu(page, "File");
+  for (const id of ["#reset", "#save"]) {
+    const [bg, fg] = await paint(page, id);
+    expect(ratio(rgbOf(bg), rgbOf(fg)), id).toBeGreaterThanOrEqual(4.5);
+  }
+  await expect(page.locator("#save")).toHaveCSS("background-color", "rgb(31, 102, 153)");
+  await clickCm(page, 100, 100);
+  const [bg, fg] = await paint(page, "#rdel");
+  expect(ratio(rgbOf(bg), rgbOf(fg)), "#rdel").toBeGreaterThanOrEqual(4.5);
 });

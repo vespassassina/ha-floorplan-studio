@@ -167,9 +167,9 @@ export class FloorplanStudioEditor extends LitElement {
     .btn,.chip,select,input{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:4px;padding:4px 8px}
     .btn,.chip,summary{cursor:pointer}
     .chip[aria-pressed="true"]{background:var(--fp-ink);color:var(--fp-bg)}
-    .btn.primary{background:var(--fp-window);color:var(--fp-bg);border-color:var(--fp-window)}
-    .btn.danger{background:var(--fp-motion);color:var(--fp-bg);border-color:var(--fp-motion)}
-    .btn.warn{background:var(--fp-open);color:var(--fp-bg);border-color:var(--fp-open)}
+    .btn.primary{background:var(--fp-primary);color:var(--fp-bg);border-color:var(--fp-primary)}
+    .btn.danger{background:var(--fp-danger);color:var(--fp-bg);border-color:var(--fp-danger)}
+    .btn.warn{background:var(--fp-warn);color:var(--fp-ink);border-color:var(--fp-warn)}
     .menu{position:relative}
     .menu>summary{list-style:none;display:inline-block}
     .menu>summary::-webkit-details-marker{display:none}

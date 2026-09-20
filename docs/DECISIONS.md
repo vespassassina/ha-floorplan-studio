@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.40: buttons get their own colours
+
+Warn, danger and primary buttons stop borrowing the plan's colours. New variables --fp-warn, --fp-danger, --fp-primary. Warn takes dark text. All three reach 4.5:1, measured in Chromium. Supersedes the colours chosen in S1.28.
+
 ## 2026-09-20 S1.39: names refresh on load, not an undo step
 
 Names of linked floors, rooms and furniture refresh whenever Home Assistant data arrives, after undo, Open and Reset. It is never a snapshot. Unlinked rooms are never renamed. The match button links a room whose name equals exactly one HA area. Code shipped with S1.38; this commit adds its tests.
