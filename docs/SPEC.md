@@ -199,7 +199,10 @@ room_glow: true
   All floors turn together. Names and icons stay upright.
 - Selection panel per kind: corner, edge and wall (length, angle, kind, and on
   a free wall the conversion to an opening), door (name, kind, length, sensor,
-  cover), room (name or area, label, kind, colour, unsnap, rotation), stairs
+  cover), room (name or area, label, kind, colour, unsnap, rotation; the colour
+  is a swatch of one of twelve floor materials, White ceramic, Marble, Sand,
+  Terracotta, Light oak, Warm wood, Dark oak, Walnut, Light grey, Grey floor,
+  Belgian stone or Lava, or any colour typed in), stairs
   (name, shape, steps, diameter, rotation), device (entity, rotation, length
   for heaters), furniture (name, symbol, size, rotation, entity).
 - Names come from Home Assistant when the host gives the editor HA data (the

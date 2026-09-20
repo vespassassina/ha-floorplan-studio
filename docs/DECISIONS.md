@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.35: swatches only; no `dark` class
+
+`FLOOR_COLOURS` (twelve, in the PLAN order) lives in `schema.ts`; the room panel shows them as `.sw` buttons (title and aria-label are the name, the pressed one is marked) next to the free colour input, which stays. This supersedes the part of the block that gave a dark floor's label and edge lines a `dark` class and light `--fp-label-on-dark` and `--fp-wall-on-dark` colours: it is not built. Reason: S1.46 gives all text a white outline, which keeps a label readable on any floor. The swatch backgrounds are the data colours of the floors, like the room fill itself, so they are inline style, not `--fp-*` variables.
+
 ## 2026-09-20 S1.34: the grid is a viewer setting, default 10 cm
 
 `EditorState.snapGrid` is 0, 5, 10 or 50 (default 10), read from `localStorage` key `floorplan-studio:grid` with try/catch; anything else stored falls back to 10. It is not in the layout: two people opening the same file may want different grids. `gridRound(n, grid)` in `ops.ts` is the one rounding; the editor's snap, drags and the `stairsAt`, `squareAt` and `spawnPoint` helpers take the grid as a parameter (default 10). Alt gives grid 0 for one gesture. The View menu group "Grid" replaces the "Snap 5 cm" chip and stays open, so a choice can be compared. Tests that assumed 5 now choose 5 in View, Grid (the default changed, not their subject); two unit tests (`spawnPoint`, `stairsAt`) now expect the 10 cm result and also check 5.

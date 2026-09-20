@@ -8,6 +8,14 @@ export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "tv" | "computer" | "tree" | "patio-wood" | "patio-concrete" | "car";
 
+/** The twelve floor materials offered as swatches in the room panel (S1.35). Any #rrggbb is still valid on a room. */
+export const FLOOR_COLOURS: { name: string; hex: string }[] = [
+  { name: "White ceramic", hex: "#f4f4f0" }, { name: "Marble", hex: "#e2dfda" }, { name: "Sand", hex: "#e6d5b8" },
+  { name: "Terracotta", hex: "#c98a63" }, { name: "Light oak", hex: "#d8bd94" }, { name: "Warm wood", hex: "#b98b5c" },
+  { name: "Dark oak", hex: "#86643f" }, { name: "Walnut", hex: "#5b4130" }, { name: "Light grey", hex: "#b4b6b8" },
+  { name: "Grey floor", hex: "#8b8e91" }, { name: "Belgian stone", hex: "#4d4e50" }, { name: "Lava", hex: "#38393b" },
+];
+
 export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: WallKind[]; color?: string; free?: boolean }
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
 export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind }

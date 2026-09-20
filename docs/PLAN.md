@@ -455,7 +455,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass; SPEC editor section names the four values and the default.
 - Break it: a stored value of 7 or "x" falls back to 10 without throwing; storage blocked still works.
 
-### S1.35 Floor colours for rooms
+### S1.35 Floor colours for rooms (done)
 - Outcome: the room panel offers twelve floor colours as swatches, and a dark floor keeps its label and outline readable.
 - Files: `src/editor/panels.ts`, `src/core/render.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`.
 - Interface: `FLOOR_COLOURS: { name: string; hex: string }[]` exported from `src/core/schema.ts`, in this order: White ceramic #f4f4f0, Marble #e2dfda, Sand #e6d5b8, Terracotta #c98a63, Light oak #d8bd94, Warm wood #b98b5c, Dark oak #86643f, Walnut #5b4130, Light grey #b4b6b8, Grey floor #8b8e91, Belgian stone #4d4e50, Lava #38393b. The room panel shows them as twelve buttons `.sw` next to the free colour input `#rcol` from S1.16 (the input stays). `renderFloor` gives the room's label and its edge lines the class `dark` when the room's `color` has a relative luminance below 0.35, and the CSS turns those light (`--fp-label-on-dark`, `--fp-wall-on-dark`). A room with no colour is unchanged.

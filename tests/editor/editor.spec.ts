@@ -3066,3 +3066,46 @@ test("S1.34 break it: with storage blocked the editor loads, uses 10 and lets th
   expect(await pressedGrid(page)).toEqual(["50"]);
   expect(errors).toEqual([]);
 });
+
+// ---- S1.35 floor colours for rooms ----
+test("S1.35: the room panel shows twelve floor swatches next to the free colour input", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  const sw = page.locator("#panel .sw");
+  await expect(sw).toHaveCount(12);
+  await expect(sw.nth(10)).toHaveAttribute("title", "Belgian stone");
+  await expect(sw.nth(10)).toHaveAttribute("aria-label", "Belgian stone");
+  await expect(page.locator("#rcol")).toHaveCount(1);
+  // each swatch shows its own colour
+  expect(await sw.evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor))).toContain("rgb(77, 78, 80)");
+});
+
+test("S1.35: the Belgian stone swatch sets the fill, one undo step; the default button brings it back", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  const poly = page.locator('svg polygon[data-r="0"]');
+  const computed = () => poly.evaluate((el) => getComputedStyle(el).fill);
+  const plain = await computed();
+  await page.locator("#panel .sw").nth(10).click();
+  expect(await computed()).toBe("rgb(77, 78, 80)");
+  expect((await groundOf(page)).rooms[0].color).toBe("#4d4e50");
+  await expect(page.locator("#rcol")).toHaveValue("#4d4e50"); // the free input follows
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect(await computed()).toBe(plain);
+  await page.mouse.click(at.x, at.y); // an undo leaves the room selected or not; select it
+  await page.locator("#panel .sw").nth(10).click();
+  await page.locator("#rcolx").click();
+  expect(await computed()).toBe(plain);
+  expect((await groundOf(page)).rooms[0].color).toBeUndefined();
+});
+
+test("S1.35 break it: a colour typed in the free input still works, and a swatch after it replaces it", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  const poly = page.locator('svg polygon[data-r="0"]');
+  await page.locator("#rcol").fill("#123456");
+  expect(await poly.evaluate((el) => getComputedStyle(el).fill)).toBe("rgb(18, 52, 86)");
+  await page.locator("#panel .sw").nth(0).click();
+  expect((await groundOf(page)).rooms[0].color).toBe("#f4f4f0");
+});

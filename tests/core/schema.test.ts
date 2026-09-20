@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { ROOM_KINDS, STAIR_SHAPES, validate } from "../../src/core/schema";
+import { FLOOR_COLOURS, ROOM_KINDS, STAIR_SHAPES, validate } from "../../src/core/schema";
 
 const clone = () => structuredClone(demo) as any;
 const errorsOf = (l: unknown) => {
@@ -342,5 +342,17 @@ describe("device types ac, tv, computer (S1.30)", () => {
     const r = withType("fridge");
     expect(r.ok).toBe(false);
     expect(r.ok ? [] : r.errors.join()).toMatch(/type/);
+  });
+});
+
+describe("FLOOR_COLOURS (S1.35)", () => {
+  it("are the twelve floor materials, in order, each a colour validate accepts", () => {
+    expect(FLOOR_COLOURS.map((c) => c.name)).toEqual(["White ceramic", "Marble", "Sand", "Terracotta", "Light oak", "Warm wood", "Dark oak", "Walnut", "Light grey", "Grey floor", "Belgian stone", "Lava"]);
+    expect(FLOOR_COLOURS.map((c) => c.hex)).toEqual(["#f4f4f0", "#e2dfda", "#e6d5b8", "#c98a63", "#d8bd94", "#b98b5c", "#86643f", "#5b4130", "#b4b6b8", "#8b8e91", "#4d4e50", "#38393b"]);
+    for (const c of FLOOR_COLOURS) {
+      const l = clone();
+      l.floors.ground.rooms[0].color = c.hex;
+      expect(errorsOf(l), c.name).toEqual([]);
+    }
   });
 });
