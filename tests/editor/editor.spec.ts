@@ -2504,12 +2504,12 @@ test("stairs: switching to round and setting the diameters gives a 24-gon, the i
   await setField(page, "#sdia", "200");
   await setField(page, "#sinner", "80");
   const t = (await groundOf(page)).stairs[1];
-  expect(t).toMatchObject({ shape: "round", dia: 200, inner: 80, steps: 12, rot: 0 });
+  expect(t).toMatchObject({ shape: "round", dia: 200, inner: 80, steps: 11, rot: 0 }); // pi * 140 / 40, derived
   expect(t.pts).toHaveLength(24);
   const cx = t.pts.reduce((s, p) => s + p[0], 0) / 24, cy = t.pts.reduce((s, p) => s + p[1], 0) / 24;
   for (const p of t.pts) expect(Math.abs(Math.hypot(p[0] - cx, p[1] - cy) - 100)).toBeLessThan(1);
   await expect(page.locator('svg circle[data-h^="s1:"]')).toHaveCount(0);
-  await expect(page.locator('svg g[data-s="1"] line.tread')).toHaveCount(11);
+  await expect(page.locator('svg g[data-s="1"] line.tread')).toHaveCount(10);
   await expect(page.locator('svg g[data-s="1"] path[fill-rule="evenodd"]')).toHaveCount(1);
   // the inner diameter cannot leave less than 40 cm of tread; the outer keeps the centre
   await setField(page, "#sinner", "500");
@@ -2522,7 +2522,7 @@ test("stairs: switching to round and setting the diameters gives a 24-gon, the i
   // back to straight: the diameters go, the flight is 100 x 300 again
   await page.locator("#ss").selectOption("straight");
   const b = (await groundOf(page)).stairs[1];
-  expect(b).toMatchObject({ shape: "straight", steps: 12 });
+  expect(b).toMatchObject({ shape: "straight", steps: 8 }); // 300 cm / 40, rounded
   expect("dia" in b || "inner" in b).toBe(false);
   expect(b.pts).toHaveLength(4);
 });
@@ -2562,14 +2562,21 @@ test("stairs: a turned flight has no corner handles, and rotation 0 brings them 
   }
 });
 
-test("stairs: steps take a whole number from 2 to 40 and rubbish changes nothing", async ({ page }) => {
+test("S1.44: the steps are read only and follow the run", async ({ page }) => {
   const c = await screenOf(page, 740, 500);
   await page.mouse.click(c.x, c.y);
-  await setField(page, "#sst", "6");
-  await expect(page.locator('svg g[data-s="0"] line.tread')).toHaveCount(5);
-  const before = await groundOf(page);
-  for (const v of ["1", "41", "3.5", ""]) await setField(page, "#sst", v);
-  expect(await groundOf(page)).toEqual(before);
+  await expect(page.locator("#sst")).toHaveCount(0);
+  await expect(page.locator("#sstn")).toHaveText("4"); // 160 cm / 40
+  await expect(page.locator('svg g[data-s="0"] line.tread')).toHaveCount(3);
+  await drag(page, 'circle[data-h="s0:0"]', 0, -60); // the run grows
+  const st = (await groundOf(page)).stairs[0];
+  const run = Math.max(...st.pts.map((p) => p[1])) - Math.min(...st.pts.map((p) => p[1]));
+  expect(run).toBeGreaterThan(160);
+  expect(st.steps).toBe(Math.round(run / 40));
+  const again = await screenOf(page, 740, 500); // the corner drag selected the corner; pick the flight again
+  await page.mouse.click(again.x, again.y);
+  await expect(page.locator("#sstn")).toHaveText(String(st.steps));
+  await expect(page.locator('svg g[data-s="0"] line.tread')).toHaveCount(st.steps - 1);
 });
 
 // ---- stairs go on every floor (S1.26) ----------------------------------------
@@ -3405,21 +3412,15 @@ test("S1.40: Reset, item Delete and Save reach 4.5:1 in Chromium", async ({ page
 
 // ---- a rejected number goes back (S1.41) ---------------------------------------------
 
-test("S1.41: a refused steps value snaps back, an accepted one stays", async ({ page }) => {
+test("S1.41: a refused inner diameter snaps back, an accepted one stays", async ({ page }) => {
   await addStairs(page);
-  await setField(page, "#sst", "12");
-  const steps = async () => (await groundOf(page)).stairs[1].steps;
-  expect(await steps()).toBe(12);
-  await setField(page, "#sst", "3.5");
-  await expect(page.locator("#sst")).toHaveValue("12");
-  expect(await steps()).toBe(12);
-  await setField(page, "#sst", "1");
-  await expect(page.locator("#sst")).toHaveValue("12");
-  await setField(page, "#sst", "60");
-  await expect(page.locator("#sst")).toHaveValue("12");
-  await setField(page, "#sst", "20");
-  await expect(page.locator("#sst")).toHaveValue("20");
-  expect(await steps()).toBe(20);
+  await page.locator("#ss").selectOption("round");
+  await setField(page, "#sdia", "200");
+  await setField(page, "#sinner", "500"); // clamped to 160
+  await expect(page.locator("#sinner")).toHaveValue("160");
+  await setField(page, "#sinner", "80");
+  await expect(page.locator("#sinner")).toHaveValue("80");
+  expect((await groundOf(page)).stairs[1].inner).toBe(80);
 });
 
 test("S1.41: a clamped furniture width shows the clamped value", async ({ page }) => {

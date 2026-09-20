@@ -1,4 +1,5 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
+import { stairSteps } from "./geometry";
 import { DEVICE_TYPES } from "./schema";
 import type { Device, DeviceType, Floor, Layout, Pt, Stairs, WallKind } from "./schema";
 
@@ -128,7 +129,7 @@ function stairsGroup(t: Stairs, i: number): string {
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
   const rot = typeof t.rot === "number" && Number.isFinite(t.rot) ? t.rot : 0;
-  const steps = Number.isInteger(t.steps) && t.steps >= 2 ? t.steps : 12;
+  const steps = stairSteps(t);
   const round = t.shape === "round" && typeof t.dia === "number" && t.dia > 0;
   const inner = round && typeof t.inner === "number" && t.inner > 0 ? t.inner / 2 : 0;
   const g: string[] = [];

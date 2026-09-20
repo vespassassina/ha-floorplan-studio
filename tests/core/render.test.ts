@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import { DEVICE_TYPES, type Layout, type WallKind } from "../../src/core/schema";
+import { stairSteps } from "../../src/core";
 import { renderFloor, viewBoxFor, planPivot, rotateAbout, contentPoints, DEVICE_COLOURS, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
 
 const L = demo as unknown as Layout;
@@ -479,29 +480,29 @@ describe("stairs treads (S1.25)", () => {
   const round = { shape: "round", dia: 200, inner: 60, steps: 12, pts: Array.from({ length: 24 }, (_, i): [number, number] => [Math.round(500 + 100 * Math.cos((i * Math.PI) / 12)), Math.round(400 + 100 * Math.sin((i * Math.PI) / 12))]) };
 
   it("wraps a straight flight in a group with its rotation about the box centre and draws steps - 1 treads across it", () => {
-    const g = group(withStairs({ shape: "straight", steps: 12, rot: 30 }));
+    const g = group(withStairs({ shape: "straight", steps: 99, rot: 30 })); // a stored count is ignored: the run gives 160 / 40 = 4
     expect(g).toContain('transform="rotate(30 740 500)"');
     const treads = [...g.matchAll(/<line class="tread" x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"\/>/g)];
-    expect(treads).toHaveLength(11);
-    // the demo flight is 80 x 160: treads run across the 80 cm side, every 160 / 12 cm
+    expect(treads).toHaveLength(3);
+    // the demo flight is 80 x 160: treads run across the 80 cm side, every 40 cm
     for (const [i, m] of treads.entries()) {
       expect([m[1], m[3]]).toEqual(["700", "780"]);
-      expect(+m[2]).toBeCloseTo(420 + ((i + 1) * 160) / 12, 1);
+      expect(+m[2]).toBeCloseTo(420 + (i + 1) * 40, 1);
       expect(m[4]).toBe(m[2]);
     }
     expect(g).toContain('class="stairs room"');
   });
   it("draws the treads of a flight that is wider than long across its short side", () => {
-    const g = group(withStairs({ steps: 4, pts: [[0, 0], [200, 0], [200, 50], [0, 50]] }));
+    const g = group(withStairs({ pts: [[0, 0], [200, 0], [200, 50], [0, 50]] }));
     const treads = [...g.matchAll(/<line class="tread" x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"/g)];
-    expect(treads.map((m) => [m[1], m[2], m[3], m[4]])).toEqual([["50", "0", "50", "50"], ["100", "0", "100", "50"], ["150", "0", "150", "50"]]);
+    expect(treads.map((m) => [m[1], m[2], m[3], m[4]])).toEqual([["40", "0", "40", "50"], ["80", "0", "80", "50"], ["120", "0", "120", "50"], ["160", "0", "160", "50"]]);
   });
-  it("draws a round stair as one even-odd path with a hole, and 11 spokes from the inner to the outer rim", () => {
+  it("draws a round stair as one even-odd path with a hole, and 9 spokes (pi * 130 / 40 rounds to 10 steps) from the inner to the outer rim", () => {
     const g = group(withStairs(round));
     expect(g).toMatch(/<path class="stairs room" fill-rule="evenodd" d="M/);
     expect(g).not.toContain("<polygon");
     const spokes = [...g.matchAll(/<line class="tread" x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)"\/>/g)];
-    expect(spokes).toHaveLength(11);
+    expect(spokes).toHaveLength(9);
     for (const m of spokes) {
       expect(Math.hypot(+m[1] - 500, +m[2] - 400)).toBeCloseTo(30, 0);
       expect(Math.hypot(+m[3] - 500, +m[4] - 400)).toBeCloseTo(100, 0);
@@ -521,8 +522,25 @@ describe("stairs treads (S1.25)", () => {
   it("a stair that skipped migrate still draws (no shape, no steps)", () => {
     const f = structuredClone(ground) as any;
     delete f.stairs[0].shape; delete f.stairs[0].steps; delete f.stairs[0].rot;
-    expect(group(renderFloor(f, base)).match(/class="tread"/g)).toHaveLength(11);
+    expect(group(renderFloor(f, base)).match(/class="tread"/g)).toHaveLength(3);
   });
+});
+
+describe("stairSteps (S1.44)", () => {
+  const box = (w: number, h: number) => ({ pts: [[0, 0], [w, 0], [w, h], [0, h]] as [number, number][], shape: "straight" as const });
+  it("is one per 40 cm of the long side, rounded, from 2 to 40", () => {
+    expect(stairSteps(box(100, 300))).toBe(8); // 7.5 rounds up
+    expect(stairSteps(box(300, 100))).toBe(8);
+    expect(stairSteps(box(100, 100))).toBe(3); // 2.5 rounds up
+    expect(stairSteps(box(60, 30))).toBe(2);
+    expect(stairSteps(box(10, 10))).toBe(2);
+    expect(stairSteps(box(5000, 100))).toBe(40);
+  });
+  it("uses the mean circumference of a round stair", () => {
+    expect(stairSteps({ ...box(200, 200), shape: "round", dia: 200, inner: 80 })).toBe(11);
+    expect(stairSteps({ ...box(200, 200), shape: "round", dia: 200 })).toBe(8);
+  });
+  it("survives rubbish points", () => { expect(stairSteps({ pts: [] as never, shape: "straight" })).toBe(2); });
 });
 
 describe("devices sit on top (S1.29)", () => {

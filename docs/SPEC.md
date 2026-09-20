@@ -115,7 +115,9 @@ in `prompts/`, then fixed in the editor.
   spiral of outer diameter `dia` around an empty well of diameter `inner`,
   treads drawn as spokes). There is no curved shape: an angled or curved
   flight is several straight sections placed end to end. `steps` is the number of
-  treads, `rot` the rotation in degrees. Stairs are placed on every floor at
+  steps and is derived, never typed: one per 40 cm of the long side (a round
+  stair: of the mean circumference), at least 2, at most 40; `migrate`
+  recomputes it and ignores a stored value that disagrees. `rot` the rotation in degrees. Stairs are placed on every floor at
   the same position.
 - `door.kind`: door, glass, window, sealed. `sensor` is a binary_sensor entity;
   `cover` is a cover entity for doors that HA can open.
@@ -216,7 +218,7 @@ room_glow: true
   is a swatch of one of twelve floor materials, White ceramic, Marble, Sand,
   Terracotta, Light oak, Warm wood, Dark oak, Walnut, Light grey, Grey floor,
   Belgian stone or Lava, or any colour typed in), stairs
-  (name, shape, steps, diameter, rotation), device (entity, rotation, length
+  (name, shape, steps shown read only, diameter, rotation), device (entity, rotation, length
   for heaters), furniture (name, symbol, size, rotation, entity).
 - Names come from Home Assistant when the host gives the editor HA data (the
   panel does, the standalone build does not). The floor title, the room name

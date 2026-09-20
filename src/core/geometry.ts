@@ -1,4 +1,4 @@
-import type { Floor, Pt, Room, WallKind } from "./schema";
+import type { Floor, Pt, Room, Stairs, WallKind } from "./schema";
 
 // Everything here is pure: functions return a new Floor and never touch the DOM.
 
@@ -237,4 +237,17 @@ export function rotatePoly(f: Floor, poly: string, deg: number): Floor {
   const r = (deg * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);
   P.pts.forEach((p, i) => { P.pts[i] = [Math.round(cx + (p[0] - cx) * cos - (p[1] - cy) * sin) + 0, Math.round(cy + (p[0] - cx) * sin + (p[1] - cy) * cos) + 0]; }); // + 0 turns -0 into 0
   return g;
+}
+
+/** Steps of a stair: one every 40 cm of run, at least 2, at most 40. A round stair runs along its mean circumference. */
+export const TREAD = 40;
+export function stairSteps(t: Pick<Stairs, "pts" | "shape" | "dia" | "inner">): number {
+  const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+  let run = 0;
+  if (t.shape === "round" && fin(t.dia) && t.dia > 0) run = (Math.PI * (t.dia + (fin(t.inner) ? t.inner : 0))) / 2;
+  else if (Array.isArray(t.pts) && t.pts.some(Array.isArray)) {
+    const q = t.pts.filter(Array.isArray), xs = q.map((p) => p[0]), ys = q.map((p) => p[1]);
+    run = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  }
+  return Math.max(2, Math.min(40, Math.round((fin(run) ? run : 0) / TREAD)));
 }

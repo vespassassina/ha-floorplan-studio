@@ -577,7 +577,7 @@ S1.42 are three defects the verifiers found.
 - Done when: tests pass; `npm run lint` clean; SPEC's rotation lines describe the buttons.
 - Break it: 360 wraps to a value below 360, and a press on a locked room changes nothing and adds no undo step.
 
-### S1.44 Stair steps are computed from the length
+### S1.44 Stair steps are computed from the length (done)
 - Outcome: the step count is never typed. It is the run length divided by a 40 cm tread, rounded.
 - Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/render.ts`, `src/editor/ops.ts`, `src/editor/panels.ts`, `tests/core/*.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
 - Interface: `stairSteps(t: Stairs): number` in `src/core/geometry.ts` or `ops.ts`, exported from core: for a straight run `max(2, round(length / 40))`, where length is the long side of the box (the direction the treads run along); for a round stair `max(2, round(pi * (outer + inner) / 2 / 40))` on the mean circumference. `steps` stays in the schema, so old files load, but it is derived: `migrate` recomputes it and ignores a stored value that disagrees, and every edit that changes the shape recomputes it. `renderFloor` draws `stairSteps(t)` treads. The editable `#sst` field goes; the panel shows `steps: N` as read only text (`#sstn`). `validate` still requires an integer from 2 to 40 and clamps nothing.

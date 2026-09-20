@@ -1,6 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { DOOR_KINDS, FLOOR_COLOURS, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped } from "../core";
+import { DOOR_KINDS, FLOOR_COLOURS, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { DeviceType, Floor, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
@@ -361,7 +361,7 @@ function stairsPanel(c: PanelCtx, i: number) {
   return html`<strong>Stairs</strong>
     ${text("name", "sn", t.name, (v) => c.commit((f) => { f.stairs[i].name = v; }))}
     ${select("shape", "ss", t.shape, STAIR_SHAPES, setShape)}
-    ${number(c, "steps", "sst", t.steps, (n) => { if (Number.isInteger(n) && n >= 2 && n <= 40) c.commit((f) => { f.stairs[i].steps = n; }); })}
+    <p><label>steps</label> <span id="sstn">${stairSteps(t)}</span> <span class="hint">one every 40 cm</span></p>
     ${rotateButtons(c, "srot", (n) => c.commit((f) => { f.stairs[i].rot = ((t.rot + n) % 360 + 360) % 360; }), { reset: () => { if (t.rot) c.commit((f) => { f.stairs[i].rot = 0; }); } })}
     ${round ? html`${number(c, "outer diameter (cm)", "sdia", t.dia ?? 0, setDia)}${number(c, "inner diameter (cm)", "sinner", t.inner ?? 0, setInner)}` : nothing}
     <p>${button("sdel", "Delete", () => { c.commit((f) => { f.stairs.splice(i, 1); }); c.select(null); }, "warn")}</p>

@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.44: stair steps are derived
+
+steps = round(run / 40), 2 to 40; round stairs use the mean circumference. Kept in the file so old readers load it, but migrate, every edit and the renderer recompute it. The panel shows it read only (#sstn). The demo stairs went from 12 to 4 steps (160 cm).
+
 ## 2026-09-20 S1.43: rotation is buttons
 
 One helper draws 30, 45, 60, 90, a direction toggle and Reset for rooms, stairs, furniture and devices (cameras are devices). Ids are per panel: srot30, frotreset, vrotdir. Deviation from the plan: the toggle id is per panel, not one #rdir. Rooms have no Reset. Walls, doors and openings keep their absolute angle field. Reset at 0 adds no undo step.

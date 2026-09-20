@@ -1,4 +1,4 @@
-import { DEVICE_TYPES, contentPoints, migrate, planPivot, rotateAbout, unplacedCatalog, validate, viewBoxFor } from "../core";
+import { DEVICE_TYPES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, unplacedCatalog, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -192,6 +192,7 @@ export class EditorState {
   edit(fn: (f: Floor) => Floor | void): boolean {
     const g = structuredClone(this.f);
     const next = fn(g) ?? g;
+    for (const t of next.stairs) t.steps = stairSteps(t); // steps follow the run (S1.44)
     // Deep compare by serialising: cheap at this size, and it makes a no-op edit leave no undo step.
     if (JSON.stringify(next) === JSON.stringify(this.f)) return false;
     this.snapshot();
@@ -200,7 +201,7 @@ export class EditorState {
   }
 
   /** Swap the current floor without touching history (used while dragging). */
-  replaceFloor(f: Floor) { this.layout.floors[this.floor] = f; }
+  replaceFloor(f: Floor) { for (const t of f.stairs) t.steps = stairSteps(t); this.layout.floors[this.floor] = f; }
 
   undo() { return this.step(this.hist, this.fut); }
   redo() { return this.step(this.fut, this.hist); }

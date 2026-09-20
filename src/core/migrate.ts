@@ -1,3 +1,4 @@
+import { stairSteps } from "./geometry";
 import type { CatalogEntry, Device, DeviceType, Layout, Pt } from "./schema";
 
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -40,7 +41,7 @@ export function migrate(x: unknown): Layout {
       if (key === "walls") for (const o of f.walls) o.kind = o.kind ?? "wall";
     }
     for (const o of [...f.stairs, ...f.extras]) o.name = o.name ?? ""; // validate wants text; an older file has none
-    for (const t of f.stairs) { t.shape = t.shape ?? "straight"; t.steps = t.steps ?? 12; t.rot = t.rot ?? 0; if (t.shape === "round") t.inner = t.inner ?? 0; }
+    for (const t of f.stairs) { t.shape = t.shape ?? "straight"; t.rot = t.rot ?? 0; if (t.shape === "round") t.inner = t.inner ?? 0; t.steps = stairSteps(t); } // steps are derived: a stored value that disagrees is dropped
     if (f.devices !== undefined && !Array.isArray(f.devices)) throw new Error(`Floor "${fname}": devices must be an array`);
     for (const r of f.rooms) { if (r.kind === "outdoor") r.kind = "garden"; r.area = r.area ?? (r.kind === "water" ? "" : slug(String(r.name ?? ""))); r.name = r.name ?? ""; r.label = r.label ?? ""; edgeKinds(r); }
     f.devices = (f.devices ?? []).filter(isObj).map((d: any, i: number) => {

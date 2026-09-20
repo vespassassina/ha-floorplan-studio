@@ -1,4 +1,4 @@
-import { dist, movePoints, polys, stitch } from "../core";
+import { dist, movePoints, polys, stairSteps, stitch } from "../core";
 import type { Floor, Pt, Stairs, WallKind } from "../core";
 import { newId, type LooseRef, type PtRef } from "./state";
 
@@ -71,7 +71,8 @@ export const gridRound = (n: number, grid: number) => (grid ? Math.round(n / gri
 /** A stairs polygon of 100 x 300 cm centred on c, corners on the grid (10 cm by default). */
 export function stairsAt(c: Pt, grid = 10): Omit<Stairs, "id"> {
   const g = (n: number) => gridRound(n, grid), x = g(c[0] - 50), y = g(c[1] - 150);
-  return { name: "Stairs", pts: [[x, y], [x + 100, y], [x + 100, y + 300], [x, y + 300]], shape: "straight", steps: 12, rot: 0 };
+  const pts: Pt[] = [[x, y], [x + 100, y], [x + 100, y + 300], [x, y + 300]];
+  return { name: "Stairs", pts, shape: "straight", steps: stairSteps({ pts, shape: "straight" }), rot: 0 };
 }
 
 /** Round stairs centred on c: the outer circle of diameter `dia` as a 24-gon, corners to 1 cm. `inner` is the empty well, 0.3 of `dia` by default. */
@@ -80,7 +81,7 @@ export function roundStairs(c: Pt, dia: number, inner = Math.round(dia * 0.3)): 
     const a = (i * Math.PI) / 12;
     return [Math.round(c[0] + (dia / 2) * Math.cos(a)), Math.round(c[1] + (dia / 2) * Math.sin(a))];
   });
-  return { name: "Stairs", pts, shape: "round", steps: 12, rot: 0, dia, inner };
+  return { name: "Stairs", pts, shape: "round", steps: stairSteps({ pts, shape: "round", dia, inner }), rot: 0, dia, inner };
 }
 
 /** A 200 x 200 cm square centred on c, corners on the grid: the default zone or water polygon. */

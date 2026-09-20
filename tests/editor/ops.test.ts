@@ -80,11 +80,11 @@ describe("rotateSegment", () => {
 
 describe("stairs constructors (S1.25)", () => {
   it("stairsAt keeps its 100 x 300 flight and adds the straight defaults", () => {
-    expect(stairsAt([500, 400])).toEqual({ name: "Stairs", pts: [[450, 250], [550, 250], [550, 550], [450, 550]], shape: "straight", steps: 12, rot: 0 });
+    expect(stairsAt([500, 400])).toEqual({ name: "Stairs", pts: [[450, 250], [550, 250], [550, 550], [450, 550]], shape: "straight", steps: 8, rot: 0 });
   });
   it("roundStairs is a 24-gon on the outer circle with a default inner of 0.3 of dia", () => {
     const t = roundStairs([500, 400], 200);
-    expect(t).toMatchObject({ shape: "round", dia: 200, inner: 60, steps: 12, rot: 0 });
+    expect(t).toMatchObject({ shape: "round", dia: 200, inner: 60, steps: 10, rot: 0 });
     expect(t.pts).toHaveLength(24);
     for (const p of t.pts) expect(Math.abs(Math.hypot(p[0] - 500, p[1] - 400) - 100)).toBeLessThan(1);
   });
