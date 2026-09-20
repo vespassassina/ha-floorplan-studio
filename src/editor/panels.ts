@@ -44,6 +44,14 @@ function text(label: string, id: string, value: string, on: (v: string) => void)
 function number(c: PanelCtx, label: string, id: string, value: number | string, on: (v: number) => void) {
   return html`<label for=${id}>${label}</label><input id=${id} type="number" .value=${live(String(value))} @change=${(e: Event) => { const n = numVal(e); if (n !== null) on(n); c.refresh(); }}>`;
 }
+/** Rotation as buttons: 30, 45, 60 or 90 more degrees in the chosen direction, and Reset to 0 when `reset` is given. `turn` gets the signed degrees. */
+function rotateButtons(c: PanelCtx, id: string, turn: (deg: number) => void, opts: { reset?: () => void; disabled?: boolean } = {}) {
+  const cw = c.st.turnDir === 1;
+  return html`<div class="rotrow"><span>rotation</span>
+    <button class="btn" id=${`${id}dir`} aria-pressed=${cw ? "false" : "true"} @click=${() => { c.st.turnDir = cw ? -1 : 1; c.refresh(); }}>${cw ? "clockwise" : "counter-clockwise"}</button>
+    ${[30, 45, 60, 90].map((n) => html`<button class="btn" id=${`${id}${n}`} ?disabled=${opts.disabled} @click=${() => turn(c.st.turnDir * n)}>${n}</button>`)}
+    ${opts.reset ? html`<button class="btn" id=${`${id}reset`} @click=${opts.reset}>Reset</button>` : nothing}</div>`;
+}
 function select(label: string, id: string, value: string, options: readonly string[], on: (v: string) => void) {
   return html`<label for=${id}>${label}</label><select id=${id} .value=${value} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${o}</option>`)}</select>`;
 }
@@ -283,11 +291,7 @@ function roomLink(c: PanelCtx, ha: HaData, i: number) {
 function roomTurn(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i], id = `r${i}`;
   const free = r.free === true, locked = !free && snapped(c.st.f, id);
-  return html`<label for="rrot">rotate by (deg)</label><input id="rrot" type="number" .value=${live("0")} ?disabled=${locked} @change=${(e: Event) => {
-      const n = numVal(e);
-      if (n !== null && n % 360 !== 0) c.commit((f) => rotatePoly(f, id, n));
-      else c.refresh();
-    }}>
+  return html`${rotateButtons(c, "rrot", (n) => c.commit((f) => rotatePoly(f, id, n)), { disabled: locked })}
     <p>${button("runsnap", free ? "Snap back" : "Unsnap", () => c.commit((f) => { if (free) delete f.rooms[i].free; else f.rooms[i].free = true; }))}</p>
     ${free ? hint("Unsnapped: this room no longer joins its neighbours.") : locked ? hint("This room shares a corner with a neighbour. Unsnap it to rotate.") : nothing}`;
 }
@@ -298,7 +302,7 @@ function devicePanel(c: PanelCtx, i: number) {
   return html`<strong>${d.name ?? d.id}</strong>
     ${hint(`${label.toLowerCase()}. Its name comes from Home Assistant.`)}
     ${text("Home Assistant entity", "ve", d.entity, (v) => c.commit((f) => { f.devices[i].entity = v.trim(); }))}
-    ${number(c, "rotation (deg)", "vrot", d.rot ?? 0, (n) => c.commit((f) => { const r = ((n % 360) + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }))}
+    ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}
     ${d.type === "camera" ? hint("The cone shows a 120 degree field of view, 1 m deep.") : nothing}
     ${d.type === "light" ? boundField(c, i) : nothing}
     ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
@@ -330,7 +334,7 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${select("symbol", "fs", m.symbol, FURNITURE_SYMBOLS, (v) => c.commit((f) => { f.furniture[i].symbol = v as typeof m.symbol; }))}
     ${number(c, "width (cm)", "fw", m.w, set("w", 5))}
     ${number(c, "depth (cm)", "fh", m.h, set("h", 5))}
-    ${number(c, "rotation (deg)", "fr", m.rot, (n) => c.commit((f) => { f.furniture[i].rot = ((n % 360) + 360) % 360; }))}
+    ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}
     <p>${button("fudel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag it to move it. Alt disables the grid.")}`;
 }
@@ -358,7 +362,7 @@ function stairsPanel(c: PanelCtx, i: number) {
     ${text("name", "sn", t.name, (v) => c.commit((f) => { f.stairs[i].name = v; }))}
     ${select("shape", "ss", t.shape, STAIR_SHAPES, setShape)}
     ${number(c, "steps", "sst", t.steps, (n) => { if (Number.isInteger(n) && n >= 2 && n <= 40) c.commit((f) => { f.stairs[i].steps = n; }); })}
-    ${number(c, "rotation (deg)", "srot", t.rot, (n) => c.commit((f) => { f.stairs[i].rot = ((n % 360) + 360) % 360; }))}
+    ${rotateButtons(c, "srot", (n) => c.commit((f) => { f.stairs[i].rot = ((t.rot + n) % 360 + 360) % 360; }), { reset: () => { if (t.rot) c.commit((f) => { f.stairs[i].rot = 0; }); } })}
     ${round ? html`${number(c, "outer diameter (cm)", "sdia", t.dia ?? 0, setDia)}${number(c, "inner diameter (cm)", "sinner", t.inner ?? 0, setInner)}` : nothing}
     <p>${button("sdel", "Delete", () => { c.commit((f) => { f.stairs.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Stairs are added to every floor and deleted from one.")}

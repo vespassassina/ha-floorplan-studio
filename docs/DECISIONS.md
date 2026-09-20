@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.43: rotation is buttons
+
+One helper draws 30, 45, 60, 90, a direction toggle and Reset for rooms, stairs, furniture and devices (cameras are devices). Ids are per panel: srot30, frotreset, vrotdir. Deviation from the plan: the toggle id is per panel, not one #rdir. Rooms have no Reset. Walls, doors and openings keep their absolute angle field. Reset at 0 adds no undo step.
+
 ## 2026-09-20 S1.42: names step 28k, not 24k, clear of a device
 
 The plan's box was centred on the SVG y, which is the baseline. The real text box sits above it, and the demo Living name still touched a halo by 3 px in Chromium. The box is now 1.2 x size, centred 0.35 x size above the baseline, and the step is 28k. Supersedes the 24k in the S1.42 plan block.

@@ -569,7 +569,7 @@ S1.42 are three defects the verifiers found.
 - Done when: tests pass; SPEC's View entry names it.
 - Break it: a floor with nothing but an empty outline, or no outline at all, does not throw and shows a sensible box.
 
-### S1.43 Rotation is buttons: 30, 45, 60, 90, reset
+### S1.43 Rotation is buttons: 30, 45, 60, 90, reset (done)
 - Outcome: no rotation textbox is left. Four buttons turn the selected thing by 30, 45, 60 or 90 degrees, in a direction the user picks, and Reset puts it back to 0.
 - Files: `src/editor/panels.ts`, `src/editor/state.ts`, `src/editor/editor-app.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
 - Interface: one helper `rotateButtons(c, id, current, apply)` in `panels.ts`, used by stairs (`srot`), furniture (`fr`), devices and cameras (`vrot`) and rooms (`rrot`). It draws a row: a cw/ccw toggle (`#rdir`, `aria-pressed`, default cw, kept in `EditorState.turnDir` for the session) and the buttons `#rot30`, `#rot45`, `#rot60`, `#rot90` with an id prefix per panel (`srot30`, `frot30`, `vrot30`, `rrot30`). Pressing N sets `rot = (rot + dir * N) mod 360`, one commit. A `Reset` button (`<prefix>reset`) sets `rot` to 0 and, for a device, deletes the field. A room has no stored angle (`rotatePoly` moves its corners), so it gets the four buttons and the toggle but no Reset. Rooms stay rotatable only when unsnapped; the buttons are disabled and the hint stays as it is today. Walls, doors and openings keep their `angle (deg)` field: it is an absolute angle of a line, not a turn.

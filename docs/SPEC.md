@@ -199,7 +199,10 @@ room_glow: true
 - Everything can be rotated. A room or a zone that shares a corner with
   another shape cannot: unsnap it first (a button in its panel), which frees
   its corners from snapping. Rotating a room rewrites its points; a device,
-  furniture or stairs keeps an angle in `rot`.
+  furniture or stairs keeps an angle in `rot`. Rotation is set with buttons,
+  not a text field: 30, 45, 60 or 90 more degrees, clockwise or counter-
+  clockwise (a toggle), and Reset to 0 (not for a room, which has no stored
+  angle). Walls, doors and openings keep their angle field.
 - View: rotate the whole plan in 45 degree steps, to line it up with north.
   View, Re-center: zoom and pan go back to show everything on the floor (rooms,
   stairs, walls, furniture, devices), not only the outline as Fit to window

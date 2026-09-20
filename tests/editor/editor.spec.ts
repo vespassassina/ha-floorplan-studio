@@ -103,8 +103,7 @@ test("Add, Furniture, bed places a bed that can be moved and resized in the pane
   await drag(page, `g[data-f="${n}"]`, 60, 40);
   g = await groundOf(page);
   expect(g.furniture[2].x).not.toBe(bed.x);
-  await page.locator("#fr").fill("90");
-  await page.locator("#fr").press("Enter");
+  await page.locator("#fr90").click();
   expect((await groundOf(page)).furniture[2].rot).toBe(90);
 });
 
@@ -574,7 +573,7 @@ test("a blur that is still waiting to clear the selection does not clear one mad
   // The clear runs one task after focus leaves. A click on a device in that gap must keep its selection.
   // Synthetic pointer here on purpose: a real click cannot land inside a one-task gap.
   await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
-  await page.locator("#vrot").focus();
+  await page.locator("#vrot30").focus();
   await page.evaluate(async (tag) => {
     const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
     (root.activeElement as HTMLElement).blur(); // focus leaves for the page: the clear is queued
@@ -2400,9 +2399,7 @@ test("the wall and opening angle fields turn them; an unchanged value is no undo
 
 test("a device rotation is stored, drawn on the group and undone; the glyph stays upright in the browser; the real pointer still hits it", async ({ page }) => {
   await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
-  await expect(page.locator("#vrot")).toHaveValue("0");
-  await page.locator("#vrot").fill("450"); // stored modulo 360
-  await page.locator("#vrot").press("Enter");
+  await page.locator("#vrot90").click();
   expect(((await groundOf(page)).devices[0] as { rot?: number }).rot).toBe(90);
   const m = await page.locator('g[data-x="0"] > g path').evaluate((p) => { const c = (p as SVGGraphicsElement).getScreenCTM()!; return [c.a, c.b, c.c, c.d]; });
   expect(Math.abs(m[1])).toBeLessThan(1e-6); // the icon has no rotation of its own on screen
@@ -2413,12 +2410,10 @@ test("a device rotation is stored, drawn on the group and undone; the glyph stay
   // click elsewhere, then the rotated device by pointer: it is still the device that is hit
   await clickCm(page, 300, 500); // empty ground inside the view (900 cm is below the 800 px viewport: that click blurs the editor and races)
   await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
-  await expect(page.locator("#vrot")).toHaveValue("90");
-  await page.locator("#vrot").fill("0");
-  await page.locator("#vrot").press("Enter");
+  expect(((await groundOf(page)).devices[0] as { rot?: number }).rot).toBe(90);
+  await page.locator("#vrotreset").click();
   expect("rot" in (await groundOf(page)).devices[0]).toBe(false); // the key is deleted at 0
-  await page.locator("#vrot").fill("0"); // unchanged
-  await page.locator("#vrot").press("Enter");
+  await page.locator("#vrotreset").click(); // already 0: no step
   await menu(page, "File");
   await page.locator("#undo").click();
   expect(((await groundOf(page)).devices[0] as { rot?: number }).rot).toBe(90);
@@ -2439,10 +2434,10 @@ test("a room that shares corners cannot be rotated until it is unsnapped; unsnap
   const before = await groundOf(page);
   await clickCm(page, 50, 200); // the living room
   await expect(page.locator("#rn")).toHaveValue("Living");
-  await expect(page.locator("#rrot")).toBeDisabled();
+  await expect(page.locator("#rrot90")).toBeDisabled();
   await expect(page.locator("#runsnap")).toHaveText("Unsnap");
   await page.locator("#runsnap").click();
-  await expect(page.locator("#rrot")).toBeEnabled();
+  await expect(page.locator("#rrot90")).toBeEnabled();
   await expect(page.locator("#runsnap")).toHaveText("Snap back");
   await expect(page.locator(".hint", { hasText: "Unsnapped: this room no longer joins its neighbours." })).toBeVisible();
   const free = await groundOf(page);
@@ -2450,8 +2445,7 @@ test("a room that shares corners cannot be rotated until it is unsnapped; unsnap
   expect(free.rooms[0].pts).toEqual(before.rooms[0].pts); // not one centimetre
   expect(free.rooms.slice(1)).toEqual(before.rooms.slice(1)); // and the neighbours' corners stay
   expect(free.outline).toEqual(before.outline);
-  await page.locator("#rrot").fill("30");
-  await page.locator("#rrot").press("Enter");
+  await page.locator("#rrot30").click();
   const turned = await groundOf(page);
   expect(turned.rooms[0].pts).not.toEqual(free.rooms[0].pts);
   expect(turned.rooms[0].pts.length).toBe(4);
@@ -2459,7 +2453,6 @@ test("a room that shares corners cannot be rotated until it is unsnapped; unsnap
   const d = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
   expect(Math.abs(d(turned.rooms[0].pts[0], turned.rooms[0].pts[1]) - 500)).toBeLessThanOrEqual(1);
   expect(Math.abs(d(turned.rooms[0].pts[1], turned.rooms[0].pts[2]) - 400)).toBeLessThanOrEqual(1);
-  await expect(page.locator("#rrot")).toHaveValue("0"); // the field is a turn, so it resets
   await menu(page, "File");
   await page.locator("#undo").click();
   expect((await groundOf(page)).rooms[0].pts).toEqual(free.rooms[0].pts); // one step back
@@ -2481,24 +2474,18 @@ test("an unsnapped room is not pulled onto a neighbour's corner when it is dropp
 test("a room clear of every corner rotates at once and touches no other room", async ({ page }) => {
   await page.mouse.click(...Object.values(await centre(page, 'svg polygon[data-r="6"]')) as [number, number]); // the pond
   await expect(page.locator("#rk")).toHaveValue("water");
-  await expect(page.locator("#rrot")).toBeEnabled();
+  await expect(page.locator("#rrot90")).toBeEnabled();
   await expect(page.locator("#runsnap")).toHaveText("Unsnap");
   const before = await groundOf(page);
-  await page.locator("#rrot").fill("90");
-  await page.locator("#rrot").press("Enter");
+  await page.locator("#rrot90").click();
   const after = await groundOf(page);
   expect(after.rooms[6].pts).not.toEqual(before.rooms[6].pts);
   expect(after.rooms.filter((_, i) => i !== 6)).toEqual(before.rooms.filter((_, i) => i !== 6));
 });
 
-test("break it: rubbish and a full turn in the rotation field change nothing", async ({ page }) => {
-  await page.mouse.click(...Object.values(await centre(page, 'svg polygon[data-r="6"]')) as [number, number]);
-  const before = await groundOf(page);
-  for (const v of ["", "360", "0"]) {
-    await page.locator("#rrot").fill(v);
-    await page.locator("#rrot").press("Enter");
-  }
-  expect(await groundOf(page)).toEqual(before);
+test("break it: the turn buttons of a snapped room are disabled and add no undo step", async ({ page }) => {
+  await clickCm(page, 50, 200);
+  for (const n of [30, 45, 60, 90]) await expect(page.locator(`#rrot${n}`)).toBeDisabled();
   await expect(page.locator("#undo")).toBeDisabled();
 });
 
@@ -2543,7 +2530,7 @@ test("stairs: switching to round and setting the diameters gives a 24-gon, the i
 test("stairs: a real click on a rotated flight, where the unrotated one is not, selects it", async ({ page }) => {
   const c = await screenOf(page, 740, 500);
   await page.mouse.click(c.x, c.y);
-  await setField(page, "#srot", "90");
+  await page.locator("#srot90").click();
   expect((await groundOf(page)).stairs[0].rot).toBe(90);
   // deselect on empty ground, then click at (670, 500): inside the turned flight (x 660 to 820), outside the stored one (x 700 to 780)
   await page.mouse.click(...Object.values(await screenOf(page, 300, 900)) as [number, number]);
@@ -2562,10 +2549,10 @@ test("stairs: a turned flight has no corner handles, and rotation 0 brings them 
   const c = await screenOf(page, 740, 500);
   await page.mouse.click(c.x, c.y);
   await expect(page.locator('svg circle[data-h^="s0:"]')).toHaveCount(4);
-  await setField(page, "#srot", "30");
+  await page.locator("#srot30").click();
   await expect(page.locator('svg circle[data-h^="s0:"]')).toHaveCount(0);
   await expect(page.locator('svg line[data-e^="s0:"]')).toHaveCount(0);
-  await setField(page, "#srot", "0");
+  await page.locator("#srotreset").click();
   await expect(page.locator('svg circle[data-h^="s0:"]')).toHaveCount(4);
   await expect(page.locator('svg line[data-e^="s0:"]')).toHaveCount(4);
   const pts = (await groundOf(page)).stairs[0].pts;
@@ -2759,20 +2746,19 @@ test("S1.31: the cone is dark grey at 25 % alpha in the browser, the halo has th
   expect(top).toContain('data-r="2"');
   await page.mouse.click(p.x, p.y);
   await expect(page.locator("#rn")).toHaveValue("Hall");
-  await expect(page.locator("#vrot")).toHaveCount(0);
+  await expect(page.locator("#vrot90")).toHaveCount(0);
 });
 
 test("S1.31: the rotation field turns the cone; the panel carries the hint; rot 90 points it along +x", async ({ page }) => {
   const c = await screenOf(page, CAM.x, CAM.y);
   await page.mouse.click(c.x, c.y);
-  await expect(page.locator("#vrot")).toBeVisible();
+  await expect(page.locator("#vrot90")).toBeVisible();
   await expect(page.locator(".hint", { hasText: "The cone shows a 120 degree field of view, 1 m deep." })).toHaveCount(1);
   const centreOf = () => page.locator("svg path.cone").evaluate((el) => { const b = el.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
   const up = await centreOf();
   expect(up.y).toBeLessThan(c.y - 20); // above the camera
   expect(Math.abs(up.x - c.x)).toBeLessThan(5);
-  await page.locator("#vrot").fill("90");
-  await page.locator("#vrot").press("Enter");
+  await page.locator("#vrot90").click();
   const right = await centreOf();
   expect(right.x).toBeGreaterThan(c.x + 20);
   expect(Math.abs(right.y - c.y)).toBeLessThan(5);
@@ -3458,4 +3444,59 @@ test("S1.42: on the demo no room name box overlaps a device halo", async ({ page
   expect(boxes.halos.length).toBeGreaterThan(3);
   for (const [name, l, t, rr, b] of boxes.names as [string, number, number, number, number][])
     for (const h of boxes.halos) expect(l < h[2] && rr > h[0] && t < h[3] && b > h[1], `${name} ${[l,t,rr,b]} under a halo ${h}`).toBe(false);
+});
+
+// ---- rotation buttons (S1.43) -----------------------------------------------------------
+
+test("S1.43: stairs turn by the pressed amount, in the chosen direction, and Reset returns to 0", async ({ page }) => {
+  await addStairs(page);
+  const rot = async () => (await groundOf(page)).stairs[1].rot;
+  await page.locator("#srot30").click();
+  await page.locator("#srot45").click();
+  expect(await rot()).toBe(75);
+  await page.locator("#srotdir").click();
+  await expect(page.locator("#srotdir")).toHaveText("counter-clockwise");
+  await page.locator("#srot90").click();
+  expect(await rot()).toBe(345);
+  await page.locator("#srot60").click();
+  expect(await rot()).toBe(285);
+  await page.locator("#srotreset").click();
+  expect(await rot()).toBe(0);
+  for (const id of ["#srot", "#fr", "#vrot", "#rrot"]) await expect(page.locator(`input${id}`)).toHaveCount(0);
+});
+
+test("S1.43: one press is one undo step; 360 wraps", async ({ page }) => {
+  await addStairs(page);
+  for (let i = 0; i < 4; i++) await page.locator("#srot90").click();
+  expect((await groundOf(page)).stairs[1].rot).toBe(0);
+  await page.locator("#srot90").click();
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect((await groundOf(page)).stairs[1].rot).toBe(0);
+});
+
+test("S1.43: furniture and devices turn; the device Reset deletes rot", async ({ page }) => {
+  await menu(page, "Add"); await page.locator("#addFurn").selectOption("bed");
+  await page.locator("#fr45").click();
+  await page.locator("#fr45").click();
+  expect((await groundOf(page)).furniture.at(-1)!.rot).toBe(90);
+  await page.locator("#frreset").click();
+  expect((await groundOf(page)).furniture.at(-1)!.rot).toBe(0);
+  await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
+  await page.locator("#vrot60").click();
+  expect(((await groundOf(page)).devices[0] as { rot?: number }).rot).toBe(60);
+  await page.locator("#vrotreset").click();
+  expect("rot" in (await groundOf(page)).devices[0]).toBe(false);
+});
+
+test("S1.43: an unsnapped room turns a quarter, and has no Reset", async ({ page }) => {
+  await clickCm(page, 50, 200);
+  await expect(page.locator("#rrotreset")).toHaveCount(0);
+  await page.locator("#runsnap").click();
+  const before = (await groundOf(page)).rooms[0].pts;
+  await page.locator("#rrot90").click();
+  const after = (await groundOf(page)).rooms[0].pts;
+  expect(after).not.toEqual(before);
+  const w = (p: number[][]) => Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]);
+  expect(Math.abs(w(after) - w(before))).toBeLessThanOrEqual(1);
 });

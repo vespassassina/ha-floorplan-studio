@@ -95,6 +95,8 @@ export class EditorState {
   /** id of the door drawn open in the preview */
   openDoor: string | null = null;
   /** The floor panel is asking "Delete floor ...?". Any change of floor, undo or press on the plan cancels it. */
+  /** The direction the rotation buttons turn: 1 clockwise, -1 counter-clockwise. Kept for the session. */
+  turnDir: 1 | -1 = 1;
   confirmDelete = false;
   private hist: string[] = [];
   private fut: string[] = [];
