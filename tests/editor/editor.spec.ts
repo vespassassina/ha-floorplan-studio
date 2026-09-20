@@ -3365,3 +3365,31 @@ test("S1.38: an empty Home Assistant changes no name and does not throw", async 
   await clickCm(page, 200, 150);
   await expect(page.locator("#ra")).toHaveJSProperty("tagName", "SELECT");
 });
+
+test("S1.39: names refresh when Home Assistant arrives, and it is not an undo step", async ({ page }) => {
+  await setHa(page, { ...HA, areas: [{ id: "living", name: "Lounge" }, { id: "kitchen", name: "Kitchen" }] });
+  expect((await groundOf(page)).rooms[0].name).toBe("Lounge");
+  await expect(page.locator("#status")).toContainText("1 names updated from Home Assistant");
+  await expect(page.locator("#undo")).toBeDisabled();
+});
+
+test("S1.39: without Home Assistant no message shows and nothing is renamed", async ({ page }) => {
+  await expect(page.locator("#status")).not.toContainText("updated from Home Assistant");
+  expect((await groundOf(page)).rooms[0].name).toBe("Living");
+});
+
+test("S1.39: the match button links a room whose name is an HA area", async ({ page }) => {
+  await setHa(page, HA);
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(el.layout)); Object.assign(l.floors.ground.rooms[6], { name: "study" }); el.layout = l; }, EDITOR);
+  await page.locator('svg polygon[data-r="6"]').click({ force: true });
+  await page.locator("#rmatch").click();
+  expect((await groundOf(page)).rooms[6]).toMatchObject({ area: "study", name: "Study" });
+  await expect(page.locator("#rmatch")).toHaveCount(0);
+});
+
+test("S1.39: two areas with the same name give no match button", async ({ page }) => {
+  await setHa(page, { ...HA, areas: [...HA.areas, { id: "study2", name: "study" }] });
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.rooms[6].name = "Study"; el.layout = l; }, EDITOR);
+  await page.locator('svg polygon[data-r="6"]').click({ force: true });
+  await expect(page.locator("#rmatch")).toHaveCount(0);
+});

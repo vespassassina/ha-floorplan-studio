@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.39: names refresh on load, not an undo step
+
+Names of linked floors, rooms and furniture refresh whenever Home Assistant data arrives, after undo, Open and Reset. It is never a snapshot. Unlinked rooms are never renamed. The match button links a room whose name equals exactly one HA area. Code shipped with S1.38; this commit adds its tests.
+
 ## 2026-09-20 S1.38: HA things are picked, not typed
 
 Floors, room areas, room entities and furniture entities are dropdowns when Home Assistant data is present. Picking an area writes id and name together; the entity link is dropped. Free text stays only for custom things and for standalone use. Unknown ids stay as an extra option, so a stale link is visible and never erased. The S1.39 name refresh landed in this commit too, since it shares the ha setter.

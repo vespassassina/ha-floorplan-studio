@@ -529,7 +529,7 @@ S1.42 are three defects the verifiers found.
 - Done when: tests pass; `npm run lint` clean; SPEC's editor section describes the three dropdowns and the free-text fallback.
 - Break it: with `ha` set to `{ floors: [], areas: [], entities: [] }` the selects show only their "(none)" entries, nothing throws, and no name in the layout changes.
 
-### S1.39 An old plan meets Home Assistant without being renamed
+### S1.39 An old plan meets Home Assistant without being renamed (done)
 - Outcome: opening an old plan in HA offers the obvious links and refreshes the names of the ones that exist, and says so; it never renames on its own.
 - Files: `src/editor/editor-app.ts`, `src/editor/panels.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
 - Interface: when `ha` is set (and again whenever it is set anew), the editor runs `applyHaNames` (S1.37) on the layout. The result replaces the layout without an undo step — it is part of loading, not an edit — and the status line says "<n> names updated from Home Assistant" when `changed` is not 0, and nothing when it is 0. Only a linked floor or room is touched: a room whose `area` is empty or unknown to HA keeps its name whatever it says. For such a room, the room panel shows, above the area select, `#rmatch`: "Link to the Home Assistant area <Name>", when exactly one `ha.areas` name equals `room.name` ignoring case and outer spaces. One click does what choosing that area in the select does, as one undo step. No match, or more than one, shows no button.
