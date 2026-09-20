@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.32: `bound` is a link, not a claim
+
+A light's `bound` no longer reserves its switch. `validate` lost both uniqueness rules (one switch for many lights; a switch that is also a device); `placedEntities` counts only `entity`, so a bound switch stays in the Device menu until someone places it. `bindChoices` offers every switch and plug except the light's own entity, and the light's current one, even if it is not in the catalog, is still added by the panel. Nothing else changed: `renderFloor` already read each entity's own state. A light bound to its own entity is still refused. Older tests assumed the old rule (the relay leaving the menu with its light, the picker hiding taken switches, the Device search counts); they now say the new one.
+
 ## 2026-09-20 S1.31: the cone rule is `.dev.dev-camera path.cone`
 
 The cone is a `path` inside the device group, so `.dev path`, `.dev.on path` and `.dev-camera path` all match it and out-rank a plain `.cone` rule (it rendered idle grey until the rule was written with three classes; the Chromium test reads the computed fill, opacity and pointer-events). Its radius is `300 / k` in the group's scaled frame, so it stays 300 cm at any zoom. The device panel's rotation field already existed (S1.23); S1.31 only adds the camera hint.

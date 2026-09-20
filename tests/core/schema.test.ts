@@ -125,20 +125,30 @@ describe("validate bound", () => {
     const l = clone(); light(l).bound = light(l).entity;
     expect(has(l, /bound must differ from entity/)).toBe(true);
   });
-  it("rejects two devices sharing a bound", () => {
+  it("accepts two lights on one switch, and that switch as a device of its own (S1.32)", () => {
+    const l = clone();
+    const k = l.floors.ground.devices.find((d: any) => d.id === "light-kitchen");
+    k.bound = light(l).bound; // one wall switch, two lamps
+    expect(errorsOf(l)).toEqual([]);
+    l.floors.ground.devices.push({ id: "switch-relay", type: "switch", entity: light(l).bound, x: 10, y: 10 });
+    expect(errorsOf(l)).toEqual([]);
+  });
+  it("accepts a shared bound across floors and a bound that is another device's entity", () => {
+    const l = clone();
+    l.floors.first.devices.push({ id: "light-x", type: "light", entity: "light.x", bound: light(l).bound, x: 1, y: 1 });
+    expect(errorsOf(l)).toEqual([]);
+    light(l).bound = "switch.demo_hall"; // the hall switch is a placed device
+    expect(errorsOf(l)).toEqual([]);
+  });
+  it("still refuses a light bound to its own entity, and a bound on a shared switch that is not an id", () => {
     const l = clone();
     const k = l.floors.ground.devices.find((d: any) => d.id === "light-kitchen");
     k.bound = light(l).bound;
-    expect(has(l, /bound .* is used by more than one device/)).toBe(true);
-  });
-  it("rejects bound that is another device's entity", () => {
-    const l = clone(); light(l).bound = "switch.demo_hall";
-    expect(has(l, /bound switch.demo_hall is also the entity of another device/)).toBe(true);
-  });
-  it("rejects a shared bound across floors and never throws", () => {
-    const l = clone();
-    l.floors.first.devices.push({ id: "light-x", type: "light", entity: "light.x", bound: light(l).bound, x: 1, y: 1 });
-    expect(has(l, /more than one device/)).toBe(true);
+    expect(has(l, /bound must differ from entity/)).toBe(false);
+    k.bound = k.entity;
+    expect(has(l, /light-kitchen bound must differ from entity/)).toBe(true);
+    k.bound = "nodot";
+    expect(has(l, /bound must be an entity id/)).toBe(true);
   });
 
   describe("zone and water rooms", () => {

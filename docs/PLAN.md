@@ -429,7 +429,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass; the demo snapshot gains the cone of the demo hall camera.
 - Break it: the cone does not catch the pointer: a click in the middle of a cone that lies over a room selects the room, not the camera.
 
-### S1.32 One wall switch, several lamps
+### S1.32 One wall switch, several lamps (done)
 - Outcome: two or more lights can name the same wall switch, and that switch can still be an icon of its own.
 - Files: `src/core/schema.ts`, `src/core/bind.ts`, `src/editor/state.ts`, `tests/core/{schema,bind}.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
 - Interface: `validate` drops two rules — "bound is used by more than one device" and "bound is also the entity of another device" — and keeps the rest: `bound` is an entity id, only on a light, different from that light's `entity`. `bind.ts` `placedEntities` no longer adds `bound`, so a switch that some light names is still offered in the Device menu and can be placed as its own grey icon; `unplacedCatalog` follows. `EditorState.bindChoices` offers every switch and plug in the catalog except the light's own entity, whether or not it is placed or already bound elsewhere; the current one always shows. `renderFloor` is unchanged: a light is on when its own entity or its `bound` is on, and the switch's own icon reads its own state.

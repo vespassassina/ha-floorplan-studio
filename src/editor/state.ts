@@ -1,4 +1,4 @@
-import { migrate, placedEntities, unplacedCatalog, validate, viewBoxFor } from "../core";
+import { migrate, unplacedCatalog, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, Layout, Pt, Stairs } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -201,16 +201,14 @@ export class EditorState {
     return this.views[this.floor];
   }
 
-  /** Catalog entries not on the plan. A bound pair leaves the list together. */
+  /** Catalog entries not on the plan. A switch that only a light names (`bound`) is still on the list. */
   unplaced(): CatalogEntry[] { return unplacedCatalog(this.layout); }
 
-  /** Switches and plugs the light at `devIndex` of the current floor may be controlled by: not placed, not another device's `bound`, not its own entity. Its current one always stays. */
+  /** Switches and plugs the light at `devIndex` of the current floor may be controlled by: every one in the catalog except the light's own entity, placed or bound elsewhere. Several lights may share one. */
   bindChoices(devIndex: number): CatalogEntry[] {
     const d = this.f.devices[devIndex];
     if (!d || d.type !== "light") return [];
-    const taken = placedEntities(this.layout);
-    if (d.bound) taken.delete(d.bound);
-    return this.layout.catalog.filter((c) => (c.type === "switch" || c.type === "plug") && c.entity !== d.entity && !taken.has(c.entity));
+    return this.layout.catalog.filter((c) => (c.type === "switch" || c.type === "plug") && c.entity !== d.entity);
   }
 
   /** Contact sensors from the catalog that no other door uses. */

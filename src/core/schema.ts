@@ -17,7 +17,7 @@ export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape
 export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensor?: string; cover?: string }
 export interface Opening { id: string; a: Pt; b: Pt }
 export interface Extra { id: string; name: string; a: Pt; b: Pt }
-/** `bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. */
+/** `bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. */
 export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number }
 export interface Floor {
@@ -46,9 +46,6 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
   if (typeof x.north !== "number" || !Number.isFinite(x.north) || x.north < 0 || x.north >= 360) errors.push("north must be a number in [0, 360)");
   if (!isObj(x.floors)) errors.push("floors must be an object");
   const deviceIds = new Set<string>();
-  const boundBy = new Map<string, string>(); // bound entity -> first device id that uses it
-  const entityOf = new Map<string, string>(); // entity -> device id, across floors
-  const bounds: { id: string; bound: string }[] = [];
   for (const [fname, f] of Object.entries<any>(isObj(x.floors) ? x.floors : {})) {
     if (!isObj(f)) { errors.push(`floor ${fname} must be an object`); continue; }
     const at = `floor ${fname}:`;
@@ -131,15 +128,11 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         if (deviceIds.has(d.id)) errors.push(`duplicate device id ${d.id}`);
         deviceIds.add(d.id);
       }
-      if (typeof d.entity === "string") entityOf.set(d.entity, String(d.id));
       if (d.bound !== undefined) {
         if (!isEntity(d.bound)) errors.push(`${at} ${d.id} bound must be an entity id like switch.name`);
         else {
           if (d.type !== "light") errors.push(`${at} ${d.id} bound is only allowed on a light`);
           if (d.bound === d.entity) errors.push(`${at} ${d.id} bound must differ from entity`);
-          if (boundBy.has(d.bound)) errors.push(`bound ${d.bound} is used by more than one device (${boundBy.get(d.bound)}, ${d.id})`);
-          else boundBy.set(d.bound, String(d.id));
-          bounds.push({ id: String(d.id), bound: d.bound });
         }
       }
     });
@@ -147,10 +140,6 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       oneOf(`${m.id} symbol`, m.symbol, FURNITURE_SYMBOLS);
       for (const k of ["x", "y", "rot", "w", "h"]) if (typeof m[k] !== "number" || !Number.isFinite(m[k])) errors.push(`${at} ${m.id} ${k} must be a number`);
     });
-  }
-  for (const b of bounds) {
-    const other = entityOf.get(b.bound);
-    if (other !== undefined && other !== b.id) errors.push(`${b.id} bound ${b.bound} is also the entity of another device (${other})`);
   }
   return errors.length ? { ok: false, errors } : { ok: true, layout: x as unknown as Layout };
 }

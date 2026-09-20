@@ -56,6 +56,7 @@ Each of these was a real defect. Do not repeat them.
 ## Domain notes
 
 - Schema v2 is in `docs/SPEC.md`. A `light` device may have `bound`, the
-  switch or plug that powers it. The card toggles the light entity.
+  switch or plug that powers it. The card toggles the light entity. Several
+  lights may name one switch, and the switch may be an icon of its own.
 - Motion fade is computed from `last_changed`; the card passes the last `on`
   time so a sensor that already went off keeps fading.
