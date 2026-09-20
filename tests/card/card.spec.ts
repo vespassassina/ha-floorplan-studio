@@ -65,6 +65,40 @@ test("S2.1 review: with no hass.themes at all the card is never hard-coded, and 
   await expect.poll(() => msgColor(page)).toBe(DARK_INK);
 });
 
+// Opus review of S2.2: the light's icon fill comes from render.ts's own `--fp-dev-fill` custom property
+// (`.dev.on path{fill:var(--fp-dev-fill,var(--fp-on))}`), never a DOM-manipulation pass in the card. A markup or
+// CSS-text assertion cannot tell a real cascade resolution from a coincidence, so this reads the built card's
+// actual `<path>` in Chromium with getComputedStyle (CLAUDE.md finding 10).
+test("S2.2 review: a lit light's rgb_color resolves through the cascade to the icon's actual computed fill", async ({ page }) => {
+  await open(page);
+  await configure(
+    page,
+    { layout: structuredClone(demo) },
+    { states: { "light.demo_kitchen": { state: "on", attributes: { rgb_color: [255, 0, 0] }, last_changed: new Date().toISOString() } } },
+  );
+  const fill = await page.locator("floorplan-studio-card").evaluate((el) => {
+    const g = el.shadowRoot!.querySelector('g[data-x="1"]')!;
+    const path = g.querySelector("path")!;
+    return getComputedStyle(path).fill;
+  });
+  expect(fill).toBe("rgb(255, 0, 0)");
+});
+
+test("S2.2 review: with no rgb_color the icon's computed fill falls back to --fp-on, not the rgb branch", async ({ page }) => {
+  await open(page);
+  await configure(
+    page,
+    { layout: structuredClone(demo) },
+    { states: { "light.demo_kitchen": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } },
+  );
+  const fill = await page.locator("floorplan-studio-card").evaluate((el) => {
+    const g = el.shadowRoot!.querySelector('g[data-x="1"]')!;
+    const path = g.querySelector("path")!;
+    return getComputedStyle(path).fill;
+  });
+  expect(fill).not.toBe("rgb(255, 0, 0)");
+});
+
 test("S2.1 review: getCardSize accounts for layout.rotate in a real browser too", async ({ page }) => {
   await open(page);
   const unturned = structuredClone(demo);

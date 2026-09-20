@@ -62,7 +62,7 @@ export const FLOORPLAN_CSS = `
 .extra{fill:none;stroke:var(--fp-idle);stroke-dasharray:6 4;stroke-width:1.2;vector-effect:non-scaling-stroke;pointer-events:none}
 .door{stroke:var(--fp-door)} .door-glass{stroke:var(--fp-glass)} .door-window{stroke:var(--fp-window)} .door-sealed{stroke:var(--fp-sealed);stroke-dasharray:10 6}
 .door.open{stroke:var(--fp-open)} .door.cover-open{stroke:var(--fp-open)}
-.dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-on)} .dev-contact.on path{fill:var(--fp-open)}
+.dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-on));opacity:var(--fp-dev-opacity,1)} .dev-contact.on path{fill:var(--fp-open)}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 .dev .halo{fill:var(--fp-disc);fill-opacity:var(--fp-disc-alpha);stroke:var(--fp-halo);stroke-width:1;vector-effect:non-scaling-stroke}
 .dev.unavailable{opacity:.45}
@@ -127,6 +127,20 @@ function boundClassOf(d: Device, o: RenderOpts): Cls {
   if (seen.some((s) => s.state === "on")) return "on";
   if (seen.length && seen.every((s) => dead(s.state))) return "unavailable";
   return "off";
+}
+
+/** A light that is on takes its icon fill from `attributes.rgb_color` when present; unset otherwise, so `.dev.on path`'s `var(--fp-dev-fill,var(--fp-on))` falls through to the flat colour. Untrusted `state`: a malformed value is silently ignored, not thrown on. */
+function lightFill(s: StateOverlay[string] | undefined): string | null {
+  const rgb = s?.attributes.rgb_color;
+  if (Array.isArray(rgb) && rgb.length === 3 && rgb.every((n) => typeof n === "number" && Number.isFinite(n))) return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  return null;
+}
+
+/** `attributes.brightness / 255`, floored at 0.35 so a dimmed lamp's icon never goes near-invisible; unset (full opacity through the cascade) with no `brightness` attribute. */
+function lightOpacity(s: StateOverlay[string] | undefined): number | null {
+  const b = s?.attributes.brightness;
+  if (typeof b !== "number" || !Number.isFinite(b)) return null;
+  return Math.max(0.35, Math.min(1, b / 255));
 }
 
 function inside(p: Pt, poly: Pt[]): boolean {
@@ -281,14 +295,24 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const outdoor = (d.type === "temp" || d.type === "humidity") && f.rooms.some((r) => r.kind === "garden" && inside(c, r.pts));
     const cls = classOf(d, o) + (outdoor ? " outdoor" : "");
     const s = o.state?.[d.entity];
-    let style = "";
+    const styleParts: string[] = [];
     if (d.type === "motion" && s) {
       const fade = o.fade ?? 300;
       const t = Date.parse(s.last_changed);
       const age = Number.isNaN(t) ? 0 : now - t; // unreadable time: treat as just changed
       const v = fade > 0 ? Math.max(0, Math.min(1, 1 - age / (fade * 1000))) : cls === "on" ? 1 : 0;
-      style = ` style="--fp-fade:${num(v)}"`;
+      styleParts.push(`--fp-fade:${num(v)}`);
     }
+    // S2.2: a lit lamp's own colour and brightness, read from its own state (not the bound switch's) and set as
+    // custom properties the stylesheet consumes (`.dev.on path`), not literal fill/opacity attributes — so a
+    // future rule (S2.9's aura) can read the same `--fp-dev-fill` instead of a second, possibly different, source.
+    if (d.type === "light" && cls === "on" && s) {
+      const fill = lightFill(s);
+      if (fill) styleParts.push(`--fp-dev-fill:${fill}`);
+      const opacity = lightOpacity(s);
+      if (opacity !== null) styleParts.push(`--fp-dev-opacity:${num(opacity)}`);
+    }
+    const style = styleParts.length ? ` style="${styleParts.join(";")}"` : "";
     const label = d.name ?? d.id;
     const bound = d.type === "light" && d.bound ? d.bound : "";
     const bname = bound ? o.state?.[bound]?.attributes.friendly_name : undefined;

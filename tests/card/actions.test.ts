@@ -1,9 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HOLD_MS, bindDeviceActions, fireEvent, lightFill, lightOpacity, toggleEntity } from "../../src/card/actions";
+import { HOLD_MS, bindDeviceActions, fireEvent, toggleEntity } from "../../src/card/actions";
 import type { Device } from "../../src/core";
-import type { Hass, HassEntity } from "../../src/card/floorplan-studio-card";
-
-const st = (state: string, attributes: Record<string, unknown> = {}): HassEntity => ({ state, attributes, last_changed: "2026-09-20T10:00:00Z" });
+import type { Hass } from "../../src/card/floorplan-studio-card";
 
 const LIGHT: Device = { id: "l1", type: "light", entity: "light.demo_living", x: 100, y: 100 };
 const SWITCH: Device = { id: "s1", type: "switch", entity: "switch.demo_hall", x: 200, y: 100 };
@@ -27,36 +25,6 @@ function svgFixture(devices: Device[]): SVGSVGElement {
 function pointer(el: Element, type: "pointerdown" | "pointerup" | "pointercancel" | "pointerleave") {
   el.dispatchEvent(new Event(type, { bubbles: true }));
 }
-
-describe("actions: lightFill", () => {
-  it("uses rgb_color when present", () => {
-    expect(lightFill(st("on", { rgb_color: [255, 0, 0] }))).toBe("rgb(255,0,0)");
-  });
-
-  it("falls back to --fp-on with no rgb_color", () => {
-    expect(lightFill(st("on"))).toBe("var(--fp-on)");
-    expect(lightFill(undefined)).toBe("var(--fp-on)");
-  });
-
-  it("falls back to --fp-on on a malformed rgb_color (untrusted state)", () => {
-    expect(lightFill(st("on", { rgb_color: [255, 0] }))).toBe("var(--fp-on)");
-    expect(lightFill(st("on", { rgb_color: "red" }))).toBe("var(--fp-on)");
-  });
-});
-
-describe("actions: lightOpacity", () => {
-  it("is brightness/255, floored at 0.35", () => {
-    expect(lightOpacity(st("on", { brightness: 255 }))).toBe(1);
-    expect(lightOpacity(st("on", { brightness: 128 }))).toBeCloseTo(128 / 255, 5);
-    expect(lightOpacity(st("on", { brightness: 0 }))).toBe(0.35); // would be 0 unfloored
-    expect(lightOpacity(st("on", { brightness: 10 }))).toBe(0.35); // 10/255 ~= 0.039, under the floor
-  });
-
-  it("is full opacity with no brightness attribute", () => {
-    expect(lightOpacity(st("on"))).toBe(1);
-    expect(lightOpacity(undefined)).toBe(1);
-  });
-});
 
 describe("actions: toggleEntity", () => {
   it("calls hass.callService(domain, \"toggle\", { entity_id }) with the entity's own domain", () => {

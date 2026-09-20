@@ -89,6 +89,45 @@ describe("renderFloor", () => {
     expect(html).toMatch(/<g[^>]*data-x="2"[^>]*class="dev dev-switch off"/);
   });
 
+  it("S2.2: a lit light's own rgb_color sets --fp-dev-fill on its device group, none of it comes from the layout's device colours", () => {
+    const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0, 0] } }) } });
+    expect(html).toMatch(/data-x="1"[^>]*style="[^"]*--fp-dev-fill:rgb\(255,0,0\)/);
+  });
+
+  it("S2.2: with no rgb_color the group carries no --fp-dev-fill, so the CSS var(--fp-on) fallback applies", () => {
+    const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
+    const group = html.match(/<g[^>]*data-x="1"[^>]*>/)![0];
+    expect(group).not.toContain("--fp-dev-fill");
+  });
+
+  it("S2.2: a malformed rgb_color (untrusted state) sets no --fp-dev-fill instead of throwing", () => {
+    const bad = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0] } }) } });
+    expect(bad.match(/<g[^>]*data-x="1"[^>]*>/)![0]).not.toContain("--fp-dev-fill");
+    const bad2 = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: "red" } }) } });
+    expect(bad2.match(/<g[^>]*data-x="1"[^>]*>/)![0]).not.toContain("--fp-dev-fill");
+  });
+
+  it("S2.2: brightness sets --fp-dev-opacity as brightness/255, floored at 0.35", () => {
+    const full = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { brightness: 255 } }) } });
+    expect(full).toMatch(/data-x="1"[^>]*style="[^"]*--fp-dev-opacity:1"/);
+    const dim = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { brightness: 0 } }) } }); // 0/255 would be 0, floored to 0.35
+    expect(dim).toMatch(/data-x="1"[^>]*style="[^"]*--fp-dev-opacity:0\.35"/);
+    const low = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { brightness: 10 } }) } }); // 10/255 ~= 0.04, under the floor
+    expect(low).toMatch(/data-x="1"[^>]*style="[^"]*--fp-dev-opacity:0\.35"/);
+  });
+
+  it("S2.2: no brightness attribute sets no --fp-dev-opacity, so full opacity applies through the cascade", () => {
+    const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
+    expect(html.match(/<g[^>]*data-x="1"[^>]*>/)![0]).not.toContain("--fp-dev-opacity");
+  });
+
+  it("S2.2: a light that is off gets neither --fp-dev-fill nor --fp-dev-opacity, even with rgb_color/brightness set", () => {
+    const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("off", { attributes: { rgb_color: [255, 0, 0], brightness: 10 } }) } });
+    const group = html.match(/<g[^>]*data-x="1"[^>]*>/)![0];
+    expect(group).not.toContain("--fp-dev-fill");
+    expect(group).not.toContain("--fp-dev-opacity");
+  });
+
   it("marks unavailable and unknown entities", () => {
     const html = renderFloor(ground, { ...base, state: { "light.demo_living": st("unavailable"), "light.demo_kitchen": st("unknown") } });
     expect(html).toMatch(/data-x="0"[^>]*class="dev dev-light bound unavailable"/);

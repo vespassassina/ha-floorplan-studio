@@ -2,7 +2,7 @@ import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, migrate, planPivot, renderFloor, validate, viewBoxFor } from "../core";
 import type { Floor, Layout } from "../core";
-import { bindDeviceActions, lightFill, lightOpacity } from "./actions";
+import { bindDeviceActions } from "./actions";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
 
@@ -191,27 +191,6 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /**
-   * The light's own colour (S2.2): `renderFloor` draws every icon in its type's flat `--fp-on`, since it never
-   * looks past `state` for a per-entity attribute. Here, on top of that markup, a lit light's `<path>` gets an
-   * inline `fill`/`opacity` from its own `rgb_color`/`brightness` — inline always outranks the CSS class rule.
-   * Runs after every render because `unsafeSVG` replaces the `<svg>`'s content wholesale, taking any inline
-   * style set on a previous render's nodes with it.
-   */
-  private _paintLights(svg: SVGSVGElement): void {
-    const f = this._floor();
-    if (!f) return;
-    f.devices.forEach((d, i) => {
-      if (d.type !== "light") return;
-      const g = svg.querySelector(`[data-x="${i}"]`);
-      const path = g?.querySelector("path");
-      if (!g || !path) return;
-      if (!g.classList.contains("on")) { path.removeAttribute("style"); return; }
-      const state = this._hass?.states[d.entity];
-      path.setAttribute("style", `fill:${lightFill(state)};opacity:${lightOpacity(state)}`);
-    });
-  }
-
-  /**
    * The host's own chrome (this `p.msg`, anything outside the `<svg>`) is styled by `FLOORPLAN_CSS`'s `:host` rules,
    * which read `data-theme` off the host element itself, not off `renderFloor`'s output. Without this the chrome
    * would follow the OS's `prefers-color-scheme` instead of Home Assistant's own theme (Opus review). Kept in sync
@@ -232,7 +211,6 @@ export class FloorplanStudioCard extends LitElement {
       this._unbindActions = svg ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i]) : null;
       this._actionsSvg = svg;
     }
-    if (svg) this._paintLights(svg);
   }
 
   protected render() {

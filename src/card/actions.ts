@@ -1,5 +1,5 @@
 import type { Device } from "../core";
-import type { Hass, HassEntity } from "./floorplan-studio-card";
+import type { Hass } from "./floorplan-studio-card";
 
 /** A pointer held this long or longer is a hold, opening more-info instead of toggling. */
 export const HOLD_MS = 500;
@@ -14,21 +14,6 @@ export function toggleEntity(hass: Hass | undefined, entityId: string): void {
   const domain = entityId.split(".")[0];
   if (!domain || !hass?.callService) return;
   hass.callService(domain, "toggle", { entity_id: entityId });
-}
-
-/** A light that is on takes its icon fill from `attributes.rgb_color` when present, else the theme's `--fp-on`. */
-export function lightFill(state: HassEntity | undefined): string {
-  const rgb = state?.attributes.rgb_color;
-  if (Array.isArray(rgb) && rgb.length === 3 && rgb.every((n) => typeof n === "number" && Number.isFinite(n)))
-    return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-  return "var(--fp-on)";
-}
-
-/** `brightness/255`, floored at 0.35 so a dimmed lamp's icon never goes near-invisible; no `brightness` attribute is full opacity. */
-export function lightOpacity(state: HassEntity | undefined): number {
-  const b = state?.attributes.brightness;
-  if (typeof b !== "number" || !Number.isFinite(b)) return 1;
-  return Math.max(0.35, Math.min(1, b / 255));
 }
 
 export interface DeviceActionsHost extends EventTarget {

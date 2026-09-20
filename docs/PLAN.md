@@ -686,7 +686,7 @@ pressed state.
 
 ### S2.2 Lights, switches, plugs (done)
 - Outcome: tap toggles, hold opens more-info, light colour and brightness shown.
-- Files: card, `src/card/actions.ts`, `tests/card/actions.test.ts`.
+- Files: card, `src/card/actions.ts`, `tests/card/actions.test.ts`, `src/core/render.ts`, `tests/core/render.test.ts` (review: colour/opacity moved into `renderFloor`, see DECISIONS).
 - Interface: `tap` → `hass.callService(domain, "toggle", { entity_id })`; hold (≥ 500 ms) → `fireEvent(this, "hass-more-info", { entityId })`. Light on: icon `fill` from `attributes.rgb_color` if present else `--fp-on`, opacity `brightness/255` floor 0.35.
 - Test: pointerdown+up within 500 ms calls `callService` once with `light.toggle`; 600 ms fires `hass-more-info`; rgb `[255,0,0]` gives `fill="rgb(255,0,0)"`.
 - Note: the aura around a lit lamp is S2.8, the halo colour is S2.9. This task is the tap, the hold and the icon colour.

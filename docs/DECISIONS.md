@@ -2,6 +2,30 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S2.2 review: a light's colour and brightness are drawn by `renderFloor`, not painted onto the DOM by the card
+
+S2.2's PLAN block names only the card, `actions.ts` and `actions.test.ts` as files. An Opus
+review found the first implementation put `lightFill`/`lightOpacity` in the card as a
+post-render DOM-manipulation pass (`_paintLights`, run after every `updated()`), reasoning that
+the editor never passes `state` into `renderFloor` so putting the logic there would be dead code
+for the editor. That reasoning does not hold: `renderFloor` already reads `o.state` and computes
+per-device values from it for the motion fade (`src/core/render.ts`, the `--fp-fade` branch);
+with no `state` the branch simply does not fire, which is the editor correctly drawing an unlit
+plan, not dead code. This also breaks CLAUDE.md finding 8, "One draw path": everything visible on
+the plan is drawn by `renderFloor` in core, so editor and card cannot differ, and S2.8's aura is
+specified to read `rgb_color` through that same `style` mechanism — a fill computed in the card
+and an aura computed in core could disagree, and only in the card.
+
+Moved `lightFill`/`lightOpacity` into `src/core/render.ts`, in the same inline-`style` block the
+motion-fade branch already uses on the device group, emitted as CSS custom properties
+(`--fp-dev-fill`, `--fp-dev-opacity`) rather than literal `fill`/`opacity` attributes, consumed by
+`.dev.on path{fill:var(--fp-dev-fill,var(--fp-on));opacity:var(--fp-dev-opacity,1)}` in
+`FLOORPLAN_CSS`. `rgb_color` present sets `--fp-dev-fill`; absent leaves it unset so `--fp-on`
+applies through the cascade. Brightness becomes `--fp-dev-opacity` as `brightness/255`, floored at
+0.35. Deleted `_paintLights` and its invocation from `floorplan-studio-card.ts`; `lightFill`/
+`lightOpacity` no longer exist in `actions.ts`, which now only wires tap/hold. This changes S2.2's
+file list to include `src/core/render.ts` and `tests/core/render.test.ts`.
+
 ## 2026-09-20 S1.53 review: a real `removePoint` kind assertion, and two missing "Break it" tests
 
 Three small findings from an Opus review of the S1.53 stack:
