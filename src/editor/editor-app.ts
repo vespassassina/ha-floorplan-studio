@@ -552,8 +552,12 @@ export class FloorplanStudioEditor extends LitElement {
   private onFocusOut = (ev: FocusEvent) => {
     const next = ev.relatedTarget as Node | null;
     if (next && (next === this || this.contains(next))) return; // into the panel or a menu (retargeted to this host)
-    if (!document.hasFocus()) return; // the window lost focus; the user comes back to the same selection
-    if (this.st.sel) { this.st.sel = null; this.requestUpdate(); }
+    const src = ev.composedPath()[0];
+    setTimeout(() => {
+      if (src instanceof Node && !src.isConnected) return; // the focused control was replaced by a new panel, not left
+      if (!document.hasFocus()) return; // the window lost focus; the user comes back to the same selection
+      if (this.st.sel) { this.st.sel = null; this.requestUpdate(); }
+    }, 0);
   };
 
   private onWindowClick = (ev: MouseEvent) => {

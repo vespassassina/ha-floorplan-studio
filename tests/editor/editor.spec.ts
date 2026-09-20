@@ -2235,3 +2235,86 @@ test("a device sitting on a room is still dragged as a device, not as the room",
   expect(after.rooms).toEqual(before.rooms);
   expect(after.devices[0]).not.toEqual(before.devices[0]);
 });
+
+// ---- S1.23 rotate a device, a wall, a door or an opening ----
+const angleOf = (o: { a: number[]; b: number[] }) => Math.round(((Math.atan2(o.b[1] - o.a[1], o.b[0] - o.a[0]) * 180) / Math.PI + 360) % 360);
+
+test("a door's angle field turns it about its midpoint: at 90 the ends swap axis, the midpoint stays, the length stays", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator("#addDoor").click();
+  const d0 = (await groundOf(page)).doors.at(-1)!;
+  const turn = (angleOf(d0) + 90) % 360;
+  await expect(page.locator("#drot")).toHaveValue(String(angleOf(d0)));
+  await page.locator("#drot").fill(String(turn));
+  await page.locator("#drot").press("Enter");
+  const d1 = (await groundOf(page)).doors.at(-1)!;
+  expect(angleOf(d1)).toBe(turn); // a quarter turn: the ends swap axis
+  expect(d0.a[0] === d0.b[0]).not.toBe(d1.a[0] === d1.b[0]);
+  expect(mid(d1)).toEqual(mid(d0));
+  expect(Math.abs(len(d1) - len(d0))).toBeLessThanOrEqual(1);
+  await expect(page.locator("#drot")).toHaveValue(String(turn));
+  // the line drawn in the browser follows it
+  const box = await page.locator(`svg line[data-d="${(await groundOf(page)).doors.length - 1}"]`).boundingBox();
+  if (d1.a[0] === d1.b[0]) expect(box!.height).toBeGreaterThan(box!.width * 2);
+  else expect(box!.width).toBeGreaterThan(box!.height * 2);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect((await groundOf(page)).doors.at(-1)).toEqual(d0);
+  await savedValid(page);
+});
+
+test("the wall and opening angle fields turn them; an unchanged value is no undo step", async ({ page }) => {
+  await withWallRow(page);
+  await clickCm(page, 60, 650);
+  await expect(page.locator("#wrot")).toHaveValue("0");
+  await page.locator("#wrot").fill("0");
+  await page.locator("#wrot").press("Enter");
+  await expect(page.locator("#undo")).toBeDisabled();
+  await page.locator("#wrot").fill("90");
+  await page.locator("#wrot").press("Enter");
+  const w = (await groundOf(page)).walls[0];
+  expect([w.a, w.b]).toEqual([[60, 600], [60, 700]]);
+  await page.locator("#wk").focus(); // as a real click does
+  await page.locator("#wk").selectOption("opening");
+  await expect(page.locator("#orot")).toHaveValue("90");
+  await page.locator("#orot").fill("0");
+  await page.locator("#orot").press("Enter");
+  const o = (await groundOf(page)).openings[0];
+  expect([o.a, o.b]).toEqual([[10, 650], [110, 650]]);
+});
+
+test("a device rotation is stored, drawn on the group and undone; the glyph stays upright in the browser; the real pointer still hits it", async ({ page }) => {
+  await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
+  await expect(page.locator("#vrot")).toHaveValue("0");
+  await page.locator("#vrot").fill("450"); // stored modulo 360
+  await page.locator("#vrot").press("Enter");
+  expect(((await groundOf(page)).devices[0] as { rot?: number }).rot).toBe(90);
+  const m = await page.locator('g[data-x="0"] > g path').evaluate((p) => { const c = (p as SVGGraphicsElement).getScreenCTM()!; return [c.a, c.b, c.c, c.d]; });
+  expect(Math.abs(m[1])).toBeLessThan(1e-6); // the icon has no rotation of its own on screen
+  expect(Math.abs(m[2])).toBeLessThan(1e-6);
+  const g = await page.locator('g[data-x="0"]').evaluate((p) => { const c = (p as SVGGraphicsElement).getScreenCTM()!; return [c.a, c.b]; });
+  expect(Math.abs(g[0])).toBeLessThan(1e-6); // the group itself is turned by a quarter
+  expect(Math.abs(g[1])).toBeGreaterThan(0.1);
+  // click elsewhere, then the rotated device by pointer: it is still the device that is hit
+  await clickCm(page, 300, 900);
+  await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
+  await expect(page.locator("#vrot")).toHaveValue("90");
+  await page.locator("#vrot").fill("0");
+  await page.locator("#vrot").press("Enter");
+  expect("rot" in (await groundOf(page)).devices[0]).toBe(false); // the key is deleted at 0
+  await page.locator("#vrot").fill("0"); // unchanged
+  await page.locator("#vrot").press("Enter");
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect(((await groundOf(page)).devices[0] as { rot?: number }).rot).toBe(90);
+  await savedValid(page);
+});
+
+test("break it: an angle field with rubbish changes nothing", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator("#addDoor").click();
+  const before = await groundOf(page);
+  await page.locator("#drot").fill("");
+  await page.locator("#drot").press("Enter");
+  expect(await groundOf(page)).toEqual(before);
+});

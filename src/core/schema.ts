@@ -16,7 +16,7 @@ export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; 
 export interface Opening { id: string; a: Pt; b: Pt }
 export interface Extra { id: string; name: string; a: Pt; b: Pt }
 /** `bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number }
 export interface Floor {
   title: string; outline: Pt[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
@@ -108,6 +108,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       optText(d, "name");
       if (!(typeof d.x === "number" && Number.isFinite(d.x) && typeof d.y === "number" && Number.isFinite(d.y)) && !(isPt(d.a) && isPt(d.b)))
         errors.push(`${at} ${d.id} needs x and y, or a and b`);
+      if (d.rot !== undefined && !(typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot >= 0 && d.rot < 360))
+        errors.push(`${at} ${d.id} rot must be a number in [0, 360)`);
       if (typeof d.id === "string") {
         if (deviceIds.has(d.id)) errors.push(`duplicate device id ${d.id}`);
         deviceIds.add(d.id);

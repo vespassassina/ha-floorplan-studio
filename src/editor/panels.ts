@@ -2,7 +2,7 @@ import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, setEdgeKind } from "../core";
 import type { DeviceType, Floor, RoomKind, WallKind } from "../core";
-import { movePointAll, openingToWall, resizeSegment, setSecondEnd, wallToOpening } from "./ops";
+import { movePointAll, openingToWall, resizeSegment, rotateSegment, setSecondEnd, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 
 /** Selection panels: one function per kind of selection, all pure views over the state. */
@@ -49,6 +49,8 @@ export const ROOM_LABELS: Record<RoomKind, string> = { room: "Room", garden: "Ga
 const kindSelect = (value: string, on: (v: string) => void) =>
   html`<label for="rk">kind</label><select id="rk" .value=${value} @change=${(e: Event) => on(val(e))}>${ROOM_KINDS.map((k) => html`<option value=${k} ?selected=${k === value}>${ROOM_LABELS[k]}</option>`)}</select>`;
 const button = (id: string, label: string, on: () => void) => html`<button class="btn" id=${id} @click=${on}>${label}</button>`;
+/** The angle of a segment a-b in degrees, 0 to 360, clockwise on screen, to 0.1. */
+const angleOf = (a: [number, number], b: [number, number]) => Math.round((((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI + 360) % 360) * 10) / 10 % 360;
 const hint = (t: string) => html`<p class="hint">${t}</p>`;
 
 export function selectionPanel(c: PanelCtx): TemplateResult {
@@ -121,6 +123,7 @@ function wallPanel(c: PanelCtx, i: number) {
   return html`<strong>${WALL_LABELS[w.kind] ?? "Wall"}</strong>
     ${number("length (m)", "wlen", (dist(w.a, w.b) / 100).toFixed(2), (m) => set({ length: m }))}
     <div class="row">${button("wh", "Make horizontal", () => set({ axis: "h" }))}${button("wv", "Make vertical", () => set({ axis: "v" }))}</div>
+    ${angleField(c, "wrot", "walls", i)}
     <label for="wk">kind</label><select id="wk" .value=${live(w.kind)} @change=${(e: Event) => {
       const v = val(e);
       if (v !== "opening") { c.commit((f) => { f.walls[i].kind = v as WallKind; }); return; }
@@ -132,6 +135,16 @@ function wallPanel(c: PanelCtx, i: number) {
     ${hint("Drag its ends to place it. Ends snap to corners.")}`;
 }
 
+/** "angle (deg)": turns wall, door or opening `i` about its midpoint to the typed angle. Same angle, or rubbish: nothing. */
+function angleField(c: PanelCtx, id: string, list: "walls" | "doors" | "openings", i: number) {
+  const o = c.st.f[list][i], cur = angleOf(o.a, o.b);
+  return number("angle (deg)", id, cur, (n) => {
+    const delta = n - cur;
+    if (Math.abs(delta) < 0.05) return;
+    c.commit((f) => { Object.assign(f[list][i], rotateSegment(o.a, o.b, delta)); });
+  });
+}
+
 function doorPanel(c: PanelCtx, i: number) {
   const d = c.st.f.doors[i];
   const sensors = c.st.sensorChoices(d.id);
@@ -139,6 +152,7 @@ function doorPanel(c: PanelCtx, i: number) {
     ${text("name", "dn", d.name, (v) => c.commit((f) => { f.doors[i].name = v; }))}
     ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }))}
     ${number("length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); }))}
+    ${angleField(c, "drot", "doors", i)}
     <label for="dsens">contact sensor</label>
     <select id="dsens" .value=${d.sensor ?? ""} @change=${(e: Event) => c.commit((f) => { const v = val(e); if (v) f.doors[i].sensor = v; else delete f.doors[i].sensor; })}>
       <option value="" ?selected=${!d.sensor}>none</option>
@@ -163,6 +177,7 @@ function openingPanel(c: PanelCtx, i: number) {
   return html`<strong>Opening</strong>
     <label for="ok">kind</label><select id="ok" .value=${live("opening")} @change=${toWall}><option value="opening" selected>Opening</option>${WALL_KINDS.map((k) => html`<option value=${k}>${WALL_LABELS[k]}</option>`)}</select>
     ${number("length (cm)", "ol", Math.round(dist(o.a, o.b)), (n) => c.commit((f) => { Object.assign(f.openings[i], resizeSegment(o.a, o.b, Math.max(20, n))); }))}
+    ${angleField(c, "orot", "openings", i)}
     <p>${button("odel", "Delete", () => { c.commit((f) => { f.openings.splice(i, 1); }); c.select(null); })}</p>
     ${hint("Drag an end to resize or move it. A gap hides the wall under it.")}`;
 }
@@ -192,6 +207,7 @@ function devicePanel(c: PanelCtx, i: number) {
   return html`<strong>${d.name ?? d.id}</strong>
     ${hint(`${label.toLowerCase()}. Its name comes from Home Assistant.`)}
     ${text("Home Assistant entity", "ve", d.entity, (v) => c.commit((f) => { f.devices[i].entity = v.trim(); }))}
+    ${number("rotation (deg)", "vrot", d.rot ?? 0, (n) => c.commit((f) => { const r = ((n % 360) + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }))}
     ${d.type === "light" ? boundField(c, i) : nothing}
     ${"a" in d ? number("length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
     <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); })}</p>

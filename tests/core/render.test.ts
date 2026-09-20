@@ -450,3 +450,25 @@ describe("room edge kinds (S1.17)", () => {
     expect(html).not.toContain("<script>");
   });
 });
+
+describe("device rotation (S1.23)", () => {
+  const withRot = (rot?: number) => { const f = structuredClone(ground); if (rot !== undefined) (f.devices[0] as { rot?: number }).rot = rot; return renderFloor(f, base); };
+  const group = (html: string) => html.match(/<g data-x="0"[^>]*>/)![0];
+
+  it("turns the device group by rot about its centre and the icon back by the same amount", () => {
+    const html = withRot(90);
+    expect(group(html)).toMatch(/transform="translate\([^)]*\) scale\([^)]*\) rotate\(90 12 12\)"/);
+    expect(html).toMatch(/<g data-x="0"[^>]*>(<title>[^<]*<\/title>)<g transform="rotate\(-90 12 12\)"><circle[^>]*\/><path d="[^"]*"\/><\/g><\/g>/);
+  });
+
+  it("a device with rot 0 renders byte-identical to one with no rot", () => {
+    expect(withRot(0)).toBe(withRot());
+    expect(withRot()).toBe(renderFloor(ground, base));
+    expect(group(withRot())).not.toContain("rotate(");
+  });
+
+  it("does not touch the other devices", () => {
+    const a = withRot(), b = withRot(45);
+    expect(b.match(/<g data-x="[1-9]"[^>]*>/g)).toEqual(a.match(/<g data-x="[1-9]"[^>]*>/g));
+  });
+});

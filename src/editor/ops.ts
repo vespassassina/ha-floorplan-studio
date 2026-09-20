@@ -128,3 +128,10 @@ export function snapRoomTo(f: Floor, i: number, radius: number): Floor {
   for (const p of g.rooms[i].pts) g = stitch(g, p);
   return g;
 }
+
+/** A segment turned by `deg` (clockwise on screen) about its midpoint, ends rounded to 1 cm. */
+export function rotateSegment(a: Pt, b: Pt, deg: number): { a: Pt; b: Pt } {
+  const c: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], r = (deg * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);
+  const turn = (p: Pt): Pt => round([c[0] + (p[0] - c[0]) * cos - (p[1] - c[1]) * sin, c[1] + (p[0] - c[0]) * sin + (p[1] - c[1]) * cos]);
+  return { a: turn(a), b: turn(b) };
+}

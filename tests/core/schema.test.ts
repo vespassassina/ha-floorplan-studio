@@ -258,3 +258,15 @@ describe("room wk (S1.17)", () => {
     expect(errs((l) => { l.floors.ground.rooms[3].wk[1] = "fence"; })).toMatch(/room-ground-4.*zone.*wk/);
   });
 });
+
+describe("device rot (S1.23)", () => {
+  const withRot = (v: unknown) => { const l = clone(); l.floors.ground.devices[0].rot = v; return errorsOf(l).join("\n"); };
+  it("accepts a finite number in [0, 360)", () => {
+    for (const ok of [0, 90, 359.5]) expect(withRot(ok)).toBe("");
+    expect(errorsOf(clone())).toEqual([]); // absent is fine
+  });
+  it("rejects 400, -1, 360, a string, NaN and null", () => {
+    for (const bad of [400, -1, 360, "90", NaN, null, Infinity])
+      expect(withRot(bad)).toMatch(/light-living rot must be a number in \[0, 360\)/);
+  });
+});

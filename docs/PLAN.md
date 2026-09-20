@@ -357,7 +357,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass.
 - Break it: dragging a room whose corner sits on another room's corner moves only the dragged room, and the other room keeps its corner where it was.
 
-### S1.23 Rotate a device, a wall, a door or an opening
+### S1.23 Rotate a device, a wall, a door or an opening (done)
 - Outcome: the things that are not polygons can be turned from their panel.
 - Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/render.ts`, `src/editor/ops.ts`, `src/editor/panels.ts`, `tests/core/{schema,render}.test.ts`, `tests/editor/editor.spec.ts`.
 - Interface: `Device` gains `rot?: number`; `validate` requires a finite number in `[0, 360)` when present; `migrate` passes it through. `renderFloor` turns a device's group by `rot` about its centre, and then turns the icon back so the glyph stays upright: only the cone of S1.31 and anything else drawn in the group's frame turns. `ops.ts` gains `rotateSegment(a, b, deg): { a, b }`, which turns a segment about its midpoint and rounds to 1 cm. The device panel gains a rotation field (`#vrot`, degrees, stored as `((n % 360) + 360) % 360`, the key deleted at 0); the wall, door and opening panels gain an angle field (`#wrot`, `#drot`, `#orot`) that sets the segment's angle through `rotateSegment`. Furniture already has one and is not touched.
