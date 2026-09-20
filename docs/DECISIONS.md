@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Names come from Home Assistant; custom shapes keep a plan name (S1.37 to S1.42)
+
+Diego: "we are mapping not inventing... no custom names for things that are connected to HA. HA is authoritative. custom things can be deployed and named and also have a dropdown to attach them to an HA entity."
+
+- A floor links to an HA floor with the new `floor.ha` (the HA floor id). A room or a zone links to an HA area with the `area` id it already has; no second field, because one already points at the right registry. Both keep their name (`floor.title`, `room.name`) as a stored copy of what HA said. It is a cache, not a second source of truth: the editor refreshes it whenever it has HA data.
+- The name is stored, not resolved while drawing. `renderFloor` is untouched and takes no HA data, so the card before `hass` arrives, the standalone editor and the render snapshots all keep working. The alternative, looking the name up in the renderer, would push `hass` into core for nothing.
+- The refresh is one pure function, `applyHaNames(layout, ha)` in the new `src/core/ha.ts`, returning a copy and a count. The editor runs it when `ha` is set and says "<n> names updated from Home Assistant" in the status line. It is not an undo step: it is loading, not editing. It touches a linked floor or room only; an unlinked one is never renamed, and when its name matches one HA area the panel offers a one-click link instead.
+- A custom shape — no `area` — keeps its plan name and gains `room.entity`, one HA entity whose state the card can show on it. `furniture` gains `name` and `entity` for the same reason. Choosing an area clears `entity`, so a shape is either HA's or the plan's, never half of each.
+- Every room kind gets the area picker, not only `room` and `zone`: a garden or a terrace is often a real HA area, and one rule is simpler than a list of exceptions. Custom is the absence of an area, not a kind.
+- Schema stays version 2. All four fields are optional, `validate` only checks their shape and looks nothing up, `migrate` invents none. An old file opens unchanged.
+- An area already used by another room stays selectable, under an "Already on the plan" group, with a warning in the status line. Two shapes for one area is unusual, not wrong, and blocking it would cost more than it saves.
+- The editor takes the HA data as one property, `ha: HaData`, injected by the host (S3.3 fills it from `hass`; standalone leaves it undefined and shows free text). Tests set the same property. So core, editor and panel share one small shape and no editor code talks to `hass`.
+- S4.2 keeps "Create area in HA" as an explicit choice for a custom room, and nothing more: no area is ever created by picking a name, on load or on save.
+- Three defects the verifiers found become their own tasks. S1.40: `.btn.warn` measured 2.16:1, `.btn.danger` 3.85:1 and `.btn.primary` 3.82:1, so the buttons stop borrowing the plan's door, motion and window colours and take `--fp-warn` (#f28c28, dark text, 5.9:1), `--fp-danger` (#b02a2a, light text, 6.6:1) and `--fp-primary` (#1f6699, light text, 5.4:1). S1.41: a refused number stayed on screen because the field was bound by property and the state never changed; `number()` now binds with `live()` and refreshes after every change. S1.42: a device halo hid "Living" and "Kitchen", and devices must stay on top (S1.29), so the name moves instead — down one line, else up one line, else stay: three candidates, no search, and the render test can name the expected y.
+
 ## 2026-09-20 S1.30: palette variables; outdoor means temp or humidity in a garden room
 
 The `--fp-dev-*` variables are in `FLOORPLAN_CSS`; S1.30 uses only `--fp-dev-camera` and `--fp-dev-garden`, the rest wait for S2.9 and S2.10. `outdoor` is set for `temp` and `humidity` only, not for every sensor: motion and contact have a state colour of their own, and `.dev.outdoor path` would out-rank it and turn them green for good. Any garden room counts, whatever its place in the array, and a zone on top does not matter. SPEC's behaviours table now says blue when on for plug and computer (Diego's amendment) and names the two types. `TYPE_LABELS` stays in `src/editor/panels.ts`, where it already lived.

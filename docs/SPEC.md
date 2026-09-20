@@ -42,6 +42,10 @@ in `prompts/`, then fixed in the editor.
 - Silent writes to HA. Every write is confirmed, labelled `floorplan-studio`,
   and never happens on load or save.
 - Mobile-first editing. The card must work on phones; the editor is desktop.
+- Naming what Home Assistant already names. A floor, room or zone linked to HA
+  takes its name from HA; the plan maps, it does not invent. Only a custom
+  shape — a pond, a pavement, a structure, furniture, a zone with no area —
+  carries a plan name of its own.
 
 ## Layout schema v2
 
@@ -50,16 +54,16 @@ in `prompts/`, then fixed in the editor.
   "version": 2, "unit": "cm", "north": 0, "rotate": 0,
   "floors": {
     "ground": {
-      "title": "Ground",
+      "title": "Ground", "ha": "downstairs",
       "outline": [[x, y], ...],
-      "rooms":   [{"id", "name", "area", "label", "kind", "pts", "wk", "color"?, "free"?}],
+      "rooms":   [{"id", "name", "area", "label", "kind", "pts", "wk", "color"?, "free"?, "entity"?}],
       "walls":   [{"id", "a", "b", "kind"}],
       "stairs":  [{"id", "name", "pts", "shape", "steps", "rot", "dia"?, "inner"?}],
       "doors":   [{"id", "name", "kind", "a", "b", "sensor", "cover"}],
       "openings":[{"id", "a", "b"}],
       "extras":  [{"id", "name", "a", "b"}],
       "devices": [{"id", "type", "entity", "x", "y", "rot"?, "bound"?} | {"id", "type", "entity", "a", "b"}],
-      "furniture":[{"id", "symbol", "x", "y", "rot", "w", "h"}]
+      "furniture":[{"id", "symbol", "x", "y", "rot", "w", "h", "name"?, "entity"?}]
     }
   },
   "catalog": [{"id", "floor", "room", "type", "name", "entity"}]
@@ -73,12 +77,24 @@ in `prompts/`, then fixed in the editor.
   renderer around one pivot shared by every floor; the stored coordinates never
   change, and names and icons stay upright. Editor and card must show the same.
 - `room.kind`: room, garden, pavement, fill, terrace, structure, zone, water.
-  `room.area` is the HA area id; `name` is free text. A zone is a dotted
-  subdivision inside a room (a reading corner, a kitchen in an open living
-  room): every edge is a `boundary`, may carry its own HA area. Water is a
-  pool, pond or lake. Fill is drawn grey with diagonal hatching: floor area
-  that is not a usable room. `outdoor` is the old name of `garden`; `migrate`
-  renames it.
+  `room.area` is the HA area id. A zone is a dotted subdivision inside a room
+  (a reading corner, a kitchen in an open living room): every edge is a
+  `boundary`, may carry its own HA area. Water is a pool, pond or lake. Fill is
+  drawn grey with diagonal hatching: floor area that is not a usable room.
+  `outdoor` is the old name of `garden`; `migrate` renames it.
+- Home Assistant is authoritative for names. `floor.ha` (optional) is the HA
+  floor id; when it is set, `floor.title` is the name HA gave that floor.
+  When `room.area` is set and HA knows it, `room.name` is the name HA gave that
+  area. Both names are stored, not looked up while drawing, so the card before
+  `hass` has loaded and the offline editor never render blank. The editor
+  refreshes them from HA when it has HA data (`applyHaNames` in `core/ha.ts`).
+- A custom shape has no `area`: a pond, a pavement, a structure, a piece of
+  furniture, a zone with no area. It keeps a plan name of its own (`room.name`,
+  `furniture.name`) and may name one HA entity in `entity`, so the card can
+  show that entity's state on it. Giving a room an area clears its `entity`.
+  `validate` checks the shape of these fields and looks nothing up: it knows
+  nothing of Home Assistant, and every one of them is optional, so an older
+  file stays valid.
 - `room.wk` is the kind of each edge, one entry per point, same order as `pts`:
   the edge from `pts[i]` to `pts[i+1]` is `wk[i]`. It replaces the booleans
   `w`, which `migrate` reads as `wall` for true and `boundary` for false. A
@@ -117,9 +133,12 @@ in `prompts/`, then fixed in the editor.
 ## Card behaviours
 
 Every device icon sits on a small circle, grey at 50 % alpha, and is drawn
-above everything else on the plan, room names included. When a device is
-active the icon takes the colour of its type and the circle takes the same
-colour at 50 % alpha.
+above everything else on the plan, room names included. A room name that would
+sit under a device moves down, or up, by one line; if both spots are taken it
+stays where it is. When a device is active the icon takes the colour of its
+type and the circle takes the same colour at 50 % alpha. A custom shape with an
+`entity` (a pond, a structure, a piece of furniture) is tinted while that
+entity is on.
 
 | Entity domain / device type | Idle | Active | Click |
 |---|---|---|---|
@@ -180,11 +199,28 @@ room_glow: true
   All floors turn together. Names and icons stay upright.
 - Selection panel per kind: corner, edge and wall (length, angle, kind, and on
   a free wall the conversion to an opening), door (name, kind, length, sensor,
-  cover), room (name, area, label, kind, colour, unsnap, rotation), stairs
+  cover), room (name or area, label, kind, colour, unsnap, rotation), stairs
   (name, shape, steps, diameter, rotation), device (entity, rotation, length
-  for heaters), furniture (symbol, size, rotation).
+  for heaters), furniture (name, symbol, size, rotation, entity).
+- Names come from Home Assistant when the host gives the editor HA data (the
+  panel does, the standalone build does not). The floor title, the room name
+  and the zone name are then dropdowns: HA floors for the floor, HA areas for
+  the room and the zone. Picking one writes the id and the name together. An
+  area another room already uses is shown under "Already on the plan" and can
+  still be picked; the status line says so. "(no area — custom)" makes the
+  shape custom: a free plan name plus a dropdown of HA entities, "shows the
+  state of". Furniture has the same pair. An id the layout holds and HA does
+  not know keeps its place in the list, marked, and is never cleared. With no
+  HA data every field is free text, as before.
+- On load with HA data, the names of linked floors and rooms are refreshed from
+  HA and the status line says how many changed. It is not an undo step. A room
+  that is not linked is never renamed: when its name matches one HA area, the
+  panel offers to link it, one click.
+- A numeric field always shows what the layout holds: a value the editor
+  refuses or clamps snaps back.
 - Buttons that destroy something are coloured: Delete floor and Reset are red,
-  every other Delete is orange.
+  every other Delete is orange. Their text meets WCAG AA (4.5:1) against the
+  button colour.
 - Snapping: corners, T-snap onto edges with stitch, neighbour alignment, 5 cm
   grid; Alt disables; Shift unsnaps for one drag; a room marked `free` never
   snaps.
