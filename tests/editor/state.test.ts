@@ -3,6 +3,7 @@ import demo from "../../demo/layout.json";
 import v1 from "../../demo/layout.v1.json";
 import type { Layout, WallKind } from "../../src/core/schema";
 import { movePointAll, setSecondEnd, stairsAt } from "../../src/editor/ops";
+import { contentPoints, rotateAbout } from "../../src/core";
 import { EditorState, GRID_KEY, STORAGE_KEY, loadLayout, newId, restoreLayout } from "../../src/editor/state";
 
 const fresh = () => structuredClone(demo) as unknown as Layout;
@@ -622,5 +623,47 @@ describe("device colours (S1.36)", () => {
     expect(st.setColour("light", "red")).toBe(false);
     expect(st.setColour("fridge" as never, "#aabbcc")).toBe(false);
     expect(st.layout.colors).toBeUndefined();
+  });
+});
+
+describe("recenter (S1.49)", () => {
+  const boxOf = (st: EditorState) => st.view;
+  const contains = (v: { x: number; y: number; w: number; h: number }, p: [number, number]) => p[0] >= v.x && p[0] <= v.x + v.w && p[1] >= v.y && p[1] <= v.y + v.h;
+  it("shows every point of the floor, also one outside the outline, and after a zoom and a pan", () => {
+    const l = fresh();
+    l.floors.ground.devices.push({ id: "far", type: "temp", entity: "sensor.far", x: 1700, y: -400 } as any);
+    const st = new EditorState(l);
+    st.views[st.floor] = { x: 10, y: 10, w: 50, h: 40 }; // zoomed in, off to a corner
+    st.recenter();
+    const v = boxOf(st);
+    expect(contains(v, [1700, -400])).toBe(true);
+    for (const p of contentPoints(st.f)) expect(contains(v, p), String(p)).toBe(true);
+  });
+  it("writes nothing to the layout and is no undo step", () => {
+    const st = new EditorState(fresh()), before = JSON.stringify(st.layout);
+    st.recenter();
+    expect(JSON.stringify(st.layout)).toBe(before);
+    expect(st.canUndo).toBe(false);
+  });
+  it("with the plan turned 45 degrees the turned points fit", () => {
+    const st = new EditorState(fresh());
+    st.setRotate(45);
+    st.views[st.floor] = { x: 0, y: 0, w: 20, h: 20 };
+    st.recenter();
+    const r = st.rotation!, v = st.view;
+    // in the turned frame: the view's centre is the plan point in the screen middle, so turn each point to screen space about the pivot
+    const c = rotateAbout([v.x + v.w / 2, v.y + v.h / 2], 45, r.pivot);
+    for (const p of contentPoints(st.f)) {
+      const q = rotateAbout(p, 45, r.pivot);
+      expect(Math.abs(q[0] - c[0])).toBeLessThanOrEqual(v.w / 2 + 0.5);
+      expect(Math.abs(q[1] - c[1])).toBeLessThanOrEqual(v.h / 2 + 0.5);
+    }
+  });
+  it("an empty floor does not throw and gets a sensible box", () => {
+    const l = fresh();
+    Object.assign(l.floors.ground, { outline: [], rooms: [], walls: [], doors: [], openings: [], extras: [], stairs: [], furniture: [], devices: [] });
+    const st = new EditorState(l);
+    expect(() => st.recenter()).not.toThrow();
+    expect(st.view.w).toBeGreaterThan(0); expect(st.view.h).toBeGreaterThan(0);
   });
 });

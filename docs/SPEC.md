@@ -200,6 +200,9 @@ room_glow: true
   its corners from snapping. Rotating a room rewrites its points; a device,
   furniture or stairs keeps an angle in `rot`.
 - View: rotate the whole plan in 45 degree steps, to line it up with north.
+  View, Re-center: zoom and pan go back to show everything on the floor (rooms,
+  stairs, walls, furniture, devices), not only the outline as Fit to window
+  does; nothing is written to the layout.
   View, Device colours: one colour input per device type with a reset, and
   Reset all; each change is one undo step and is saved in `colors`.
   All floors turn together. Names and icons stay upright.

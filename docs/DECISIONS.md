@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.49: Re-center fits everything, Fit to window keeps the outline
+
+After a zoom and a pan there was no way back to the whole floor when parts of it (a pond, a sensor in the garden, stairs beside the house) lie outside the outline: "Fit to window" fits the outline only, so it left them off screen. Re-center is a second button in View, not a change to Fit, because Fit is what the editor shows on first load and the tests depend on that box. `contentPoints(floor)` in `render.ts` lists every point; `EditorState.recenter()` fits them with an 80 cm margin in the turned frame, like `fit()`. It is a view change: no layout write, no undo step. The block asked for View menu and/or toolbar next to zoom; the editor has no zoom buttons, so it is the View menu only.
+
 ## 2026-09-20 One alpha, 25 %, for the halo and the camera cone
 
 Supersedes 33 % for the cone (S1.31) and 50 % for the halo (S1.29), and fixes the alpha of the S2.8 aura and the S2.9 halo tint to the same value. Diego: both were too heavy over the plan. One variable, `--fp-alpha: .25` in `FLOORPLAN_CSS`, is read by `.dev .halo` and `.cone`, so the two cannot drift; S2.8's `.aura` is written to read it too. PLAN (S1.29, S1.31, S2.8, S2.9), SPEC and the tests follow. The Chromium test reads the computed fill-opacity of the cone and of every halo.

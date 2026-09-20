@@ -71,6 +71,19 @@ export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt
   return { x: x0, y: y0, w: Math.max(...xs) + pad - x0, h: Math.max(...ys) + pad - y0 };
 }
 
+/** Every point that makes up the floor: outline, rooms, stairs, walls, doors, openings, extras, furniture (its centre) and devices (a heater's two ends, else the centre). Only finite points; the editor's Re-center fits them all. */
+export function contentPoints(f: Floor): Pt[] {
+  const out: Pt[] = [];
+  const add = (p: unknown) => { if (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) out.push([p[0], p[1]]); };
+  for (const p of f.outline ?? []) add(p);
+  for (const r of f.rooms ?? []) for (const p of r.pts ?? []) add(p);
+  for (const t of f.stairs ?? []) for (const p of t.pts ?? []) add(p);
+  for (const k of ["walls", "doors", "openings", "extras"] as const) for (const o of f[k] ?? []) { add(o.a); add(o.b); }
+  for (const m of f.furniture ?? []) add([m.x, m.y]);
+  for (const d of f.devices ?? []) { if ("a" in d) { add(d.a); add(d.b); } else add([d.x, d.y]); }
+  return out;
+}
+
 /** Class of a room edge or free wall: wall is plain, boundary is dotted, the rest carry their kind. */
 const edgeClass = (kind: unknown) => `e${kind === "boundary" ? " nw" : kind === "wall" || kind === undefined ? "" : ` ${esc(String(kind))}`}`;
 const at = (p: Pt) => `${num(p[0])} ${num(p[1])}`;

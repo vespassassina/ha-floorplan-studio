@@ -553,6 +553,14 @@ S1.42 are three defects the verifiers found.
 - Done when: tests pass; `npm run lint` clean; the demo snapshot is updated and the diff shows only the moved names.
 - Break it: a device that the type filter hides does not move a name; the name sits at the centroid again once it is filtered out.
 
+### S1.49 A Re-center button (done)
+- Outcome: one click in the View menu brings the whole floor back into view after zooming and panning: every room, device, stairs, wall and piece of furniture of the current floor, not only the outline that "Fit to window" uses.
+- Files: `src/core/render.ts`, `src/editor/state.ts`, `src/editor/editor-app.ts`, `tests/core/render.test.ts`, `tests/editor/state.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: `contentPoints(f: Floor): Pt[]` exported from `render.ts`: every point of the outline, rooms, stairs, walls, openings, extras, furniture and devices (a heater's two ends, other devices their centre). `EditorState.recenter()` sets the view of the current floor to the box round `contentPoints` with an 80 cm margin, in the turned frame when the plan is rotated, like `fit()`; it writes nothing to the layout and is no undo step. View menu button `#recenter` "Re-center", next to "Fit to window" (the editor has no zoom buttons, so no toolbar). Zoom and pan are lost by design.
+- Test: unit: `contentPoints` includes a device and a room outside the outline, and the stairs corners; `recenter` gives a view that contains all of them, also at rotate 45; Playwright: wheel-zoom in, drag the background so the plan is off screen, click Re-center: the union of the rooms', devices' and stairs' screen boxes lies inside the svg's box, at rotate 0 and at 45; the layout is byte-identical and Undo stays disabled.
+- Done when: tests pass; SPEC's View entry names it.
+- Break it: a floor with nothing but an empty outline, or no outline at all, does not throw and shows a sensible box.
+
 ## Sprint 2 — card (E3)
 
 ### S2.1 Card element

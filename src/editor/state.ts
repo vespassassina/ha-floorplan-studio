@@ -1,4 +1,4 @@
-import { DEVICE_TYPES, migrate, planPivot, rotateAbout, unplacedCatalog, validate, viewBoxFor } from "../core";
+import { DEVICE_TYPES, contentPoints, migrate, planPivot, rotateAbout, unplacedCatalog, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, Layout, Pt, Stairs } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -219,6 +219,17 @@ export class EditorState {
   /** A view is stored in plan coordinates: its centre is the plan point in the middle of the screen, w and h are what the screen shows. Rotating the plan therefore needs no change to it. */
   fit() {
     const b = viewBoxFor(this.f, 80, this.rotation), r = this.rotation;
+    const c = r ? rotateAbout([b.x + b.w / 2, b.y + b.h / 2], -r.deg, r.pivot) : ([b.x + b.w / 2, b.y + b.h / 2] as Pt);
+    this.views[this.floor] = { x: c[0] - b.w / 2, y: c[1] - b.h / 2, w: b.w, h: b.h };
+  }
+
+  /** Zoom and pan back to the whole floor: everything on it (`contentPoints`), not only the outline, with an 80 cm margin. Writes nothing to the layout; no undo step. */
+  recenter() {
+    const r = this.rotation, pts = contentPoints(this.f);
+    if (!pts.length) { this.fit(); return; }
+    const shown = r ? pts.map((p) => rotateAbout(p, r.deg, r.pivot)) : pts;
+    const xs = shown.map((p) => p[0]), ys = shown.map((p) => p[1]), M = 80;
+    const b = { x: Math.min(...xs) - M, y: Math.min(...ys) - M, w: Math.max(...xs) - Math.min(...xs) + 2 * M, h: Math.max(...ys) - Math.min(...ys) + 2 * M };
     const c = r ? rotateAbout([b.x + b.w / 2, b.y + b.h / 2], -r.deg, r.pivot) : ([b.x + b.w / 2, b.y + b.h / 2] as Pt);
     this.views[this.floor] = { x: c[0] - b.w / 2, y: c[1] - b.h / 2, w: b.w, h: b.h };
   }

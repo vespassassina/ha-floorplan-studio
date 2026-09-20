@@ -3190,3 +3190,62 @@ test("S1.36 break it: a layout with no colors draws no style group, and a hostil
   expect(JSON.stringify(errs)).toMatch(/colors/);
   await expect(page.locator("svg [onload]")).toHaveCount(0);
 });
+
+// ---- S1.49 Re-center ----
+/** Every room, stairs, device and piece of furniture on screen lies inside the svg. */
+const wholeFloorInView = (page: Page) =>
+  page.evaluate((tag) => {
+    const root = (document.querySelector(tag as string) as any).shadowRoot as ShadowRoot;
+    const c = root.querySelector("svg")!.getBoundingClientRect();
+    const bad: string[] = [];
+    root.querySelectorAll("svg polygon[data-r], svg g[data-x], svg g[data-s], svg g[data-f]").forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (!(r.left >= c.left - 1 && r.right <= c.right + 1 && r.top >= c.top - 1 && r.bottom <= c.bottom + 1)) bad.push(el.getAttribute("data-r") ?? el.getAttribute("data-x") ?? el.getAttribute("data-s") ?? el.getAttribute("data-f") ?? "?");
+    });
+    return { n: root.querySelectorAll("svg polygon[data-r], svg g[data-x], svg g[data-s], svg g[data-f]").length, bad };
+  }, EDITOR);
+async function zoomAndPanAway(page: Page) {
+  await zoomIn(page, 6);
+  const s = await screenOf(page, 100, 650); // empty ground below the Hall
+  await page.mouse.move(s.x, s.y);
+  await page.mouse.down();
+  await page.mouse.move(s.x + 150, s.y - 200, { steps: 6 });
+  await page.mouse.up();
+}
+
+for (const [floor, deg] of [["ground", 0], ["first", 0], ["ground", 45]] as const) {
+  test(`S1.49: Re-center brings the whole ${floor} floor back into view after a zoom and a pan, plan turned ${deg}`, async ({ page }) => {
+    if (deg) await rotateBy(page, deg / 45);
+    if (floor !== "ground") await page.locator(`.chip[data-f="${floor}"]`).click();
+    const before = JSON.stringify(await layoutOf(page));
+    await zoomAndPanAway(page);
+    const away = await wholeFloorInView(page);
+    expect(away.bad.length, "zoomed in and panned, something must be out of view").toBeGreaterThan(0);
+    await menu(page, "View");
+    await page.locator("#recenter").click();
+    const now = await wholeFloorInView(page);
+    expect(now.bad).toEqual([]);
+    expect(now.n).toBeGreaterThan(3);
+    expect(JSON.stringify(await layoutOf(page))).toBe(before); // a view change writes nothing
+    await menu(page, "File");
+    if (!deg) await expect(page.locator("#undo")).toBeDisabled();
+    else { await page.locator("#undo").click(); expect(await rotOf(page)).toBe(0); await menu(page, "File"); await expect(page.locator("#undo")).toBeDisabled(); } // the one step is the rotation
+  });
+}
+
+test("S1.49: Re-center shows a device parked far outside the outline, which Fit to window does not", async ({ page }) => {
+  await page.evaluate(([tag, l]) => {
+    const el = document.querySelector(tag as string) as any, c = JSON.parse(JSON.stringify(l));
+    c.floors.ground.devices.push({ id: "far-temp", type: "temp", entity: "sensor.far_temp", x: 1900, y: -400 });
+    c.catalog.push({ id: "sensor.far_temp", floor: "ground", room: "", type: "temp", name: "Far", entity: "sensor.far_temp" });
+    el.layout = c;
+  }, [EDITOR, await layoutOf(page)] as const);
+  await menu(page, "View");
+  await page.locator("#fit").click();
+  const inFit = await wholeFloorInView(page);
+  await menu(page, "View");
+  await page.locator("#recenter").click();
+  const inRe = await wholeFloorInView(page);
+  expect(inFit.bad.length).toBeGreaterThan(0); // fit follows the outline only
+  expect(inRe.bad).toEqual([]);
+});

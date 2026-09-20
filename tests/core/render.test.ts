@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import { DEVICE_TYPES, type Layout, type WallKind } from "../../src/core/schema";
-import { renderFloor, viewBoxFor, planPivot, rotateAbout, DEVICE_COLOURS, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
+import { renderFloor, viewBoxFor, planPivot, rotateAbout, contentPoints, DEVICE_COLOURS, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
 
 const L = demo as unknown as Layout;
 const ground = L.floors.ground;
@@ -735,5 +735,25 @@ describe("device colours (S1.36)", () => {
     for (const t of DEVICE_TYPES) expect(DEVICE_COLOURS[t], t).toMatch(/^#[0-9a-f]{6}$/);
     expect(DEVICE_COLOURS.light).toBe("#e0a800");
     expect(FLOORPLAN_CSS).toContain(`--fp-dev-camera:${DEVICE_COLOURS.camera}`);
+  });
+});
+
+describe("contentPoints (S1.49)", () => {
+  it("has the outline, every room, stairs, wall, device and piece of furniture, also those outside the outline", () => {
+    const f = structuredClone(ground);
+    f.devices.push({ id: "far", type: "temp", entity: "sensor.far", x: 2000, y: -300 } as any);
+    f.devices.push({ id: "bar", type: "heater", entity: "climate.bar", a: [3000, 10], b: [3100, 10] } as any);
+    const pts = contentPoints(f), has = (p: [number, number]) => pts.some((q) => q[0] === p[0] && q[1] === p[1]);
+    for (const p of f.outline) expect(has(p)).toBe(true);
+    for (const r of f.rooms) for (const p of r.pts) expect(has(p)).toBe(true);
+    for (const t of f.stairs) for (const p of t.pts) expect(has(p)).toBe(true);
+    expect(has([2000, -300])).toBe(true);
+    expect(has([3000, 10]) && has([3100, 10])).toBe(true);
+  });
+  it("is empty for a floor with nothing on it, and never contains a non-number", () => {
+    expect(contentPoints({ title: "E", outline: [], rooms: [], walls: [], doors: [], openings: [], extras: [], stairs: [], furniture: [], devices: [] } as any)).toEqual([]);
+    const f = structuredClone(ground);
+    (f.devices[0] as any).x = NaN;
+    expect(contentPoints(f).every((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))).toBe(true);
   });
 });
