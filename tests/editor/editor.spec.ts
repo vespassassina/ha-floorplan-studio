@@ -2138,3 +2138,75 @@ test("break it: a second Draw item chosen mid-draw starts afresh and writes noth
   expect(g.walls[g.walls.length - 1].kind).toBe("edge");
   expect(g.walls.some((w) => w.kind === "fence")).toBe(false);
 });
+
+// ---- S1.22 everything drags by its body ----
+const bbox = (page: Page, sel: string) => page.locator(sel).evaluate((el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y }; });
+
+test("dragging the pond by its middle moves every point by the same amount, adds no point to any wall, and is one undo step", async ({ page }) => {
+  const before = await groundOf(page), pond = before.rooms[6];
+  expect(pond.kind).toBe("water");
+  const b0 = await bbox(page, 'svg polygon[data-r="6"]');
+  await drag(page, 'svg polygon[data-r="6"]', 60, 40);
+  const b1 = await bbox(page, 'svg polygon[data-r="6"]');
+  expect(Math.round(b1.x - b0.x)).toBe(60); // it followed the pointer on screen
+  expect(Math.round(b1.y - b0.y)).toBe(40);
+  const after = await groundOf(page), moved = after.rooms[6];
+  const d = [moved.pts[0][0] - pond.pts[0][0], moved.pts[0][1] - pond.pts[0][1]];
+  expect(d[0]).toBeGreaterThan(0); expect(d[1]).toBeGreaterThan(0);
+  moved.pts.forEach((p, i) => expect([p[0] - pond.pts[i][0], p[1] - pond.pts[i][1]]).toEqual(d));
+  expect(moved.wk).toEqual(pond.wk);
+  expect(after.rooms.map((r) => r.pts.length)).toEqual(before.rooms.map((r) => r.pts.length));
+  expect(after.outline).toEqual(before.outline);
+  expect(after.rooms.filter((_, i) => i !== 6)).toEqual(before.rooms.filter((_, i) => i !== 6));
+  await expect(page.locator("#rk")).toHaveValue("water"); // it is selected
+  await page.keyboard.press("Control+z");
+  expect(await groundOf(page)).toEqual(before);
+  await expect(page.locator("#undo")).toBeDisabled();
+});
+
+test("dragging the stairs by their middle moves every point by the same amount", async ({ page }) => {
+  const before = await groundOf(page), t0 = before.stairs[0];
+  const b0 = await bbox(page, 'svg polygon[data-s="0"]');
+  await drag(page, 'svg polygon[data-s="0"]', -50, -30);
+  const b1 = await bbox(page, 'svg polygon[data-s="0"]');
+  expect(Math.round(b1.x - b0.x)).toBe(-50);
+  expect(Math.round(b1.y - b0.y)).toBe(-30);
+  const after = await groundOf(page), t1 = after.stairs[0];
+  const d = [t1.pts[0][0] - t0.pts[0][0], t1.pts[0][1] - t0.pts[0][1]];
+  expect(d[0]).toBeLessThan(0);
+  t1.pts.forEach((p, i) => expect([p[0] - t0.pts[i][0], p[1] - t0.pts[i][1]]).toEqual(d));
+  expect(after.rooms).toEqual(before.rooms); // nothing else moved, and no room gained a point
+  await expect(page.locator("#sn")).toBeVisible();
+});
+
+test("a press on a room body that does not move selects it and records no undo step; the plan does not pan", async ({ page }) => {
+  const v0 = await visible(page);
+  const c = await screenOf(page, 100, 300);
+  await page.mouse.move(c.x, c.y);
+  await page.mouse.down();
+  await page.mouse.move(c.x + 1, c.y + 1); // under the 4 px threshold
+  await page.mouse.up();
+  await expect(page.locator("#rn")).toHaveValue("Living");
+  await expect(page.locator("#undo")).toBeDisabled();
+  expect(await visible(page)).toEqual(v0);
+});
+
+test("break it: dragging a room by its body leaves the neighbour's corner and the outline where they were", async ({ page }) => {
+  const before = await groundOf(page);
+  expect(before.rooms[0].pts[1]).toEqual(before.rooms[1].pts[0]); // living and kitchen share (500, 0)
+  await dragCm(page, [100, 300], [100, 340]); // the living room, by its middle
+  const after = await groundOf(page);
+  expect(after.rooms[0].pts.map((p) => p[1] - before.rooms[0].pts[after.rooms[0].pts.indexOf(p)][1])).toEqual([40, 40, 40, 40]);
+  expect(after.rooms[1]).toEqual(before.rooms[1]); // the kitchen kept its corner
+  expect(after.rooms[2]).toEqual(before.rooms[2]);
+  expect(after.outline).toEqual(before.outline);
+  expect(after.rooms[0].pts.length).toBe(4);
+});
+
+test("a device sitting on a room is still dragged as a device, not as the room", async ({ page }) => {
+  const before = await groundOf(page);
+  await drag(page, 'g[data-x="0"]', 30, 30);
+  const after = await groundOf(page);
+  expect(after.rooms).toEqual(before.rooms);
+  expect(after.devices[0]).not.toEqual(before.devices[0]);
+});

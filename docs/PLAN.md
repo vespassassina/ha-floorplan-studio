@@ -349,7 +349,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass; SPEC's editor section lists both menus.
 - Break it: a Draw item chosen while another Draw is already running starts the new one and writes nothing from the old, as it did in Add.
 
-### S1.22 Everything drags by its body
+### S1.22 Everything drags by its body (done)
 - Outcome: any room, zone, water, structure or stairs moves when dragged by its middle, not only a structure.
 - Files: `src/editor/editor-app.ts`, `tests/editor/editor.spec.ts`.
 - Interface: in `onDown`, `case "room"` starts the existing `room` drag for every kind, not only `structure`; `case "stairs"` starts the same drag against `f.stairs[i].pts`. The `Drag` type's `room` case gains `list: "rooms" | "stairs"`. Dragging by the body never stitches and never drags a neighbour's corner along (it is the whole polygon that moves), as the zone drag already does. A press on a body still selects it first, so a drag that does not move leaves the selection and no undo step. Panning by pressing a room body is gone; the hint already names the three ways to pan, and it gains "Drag a room, zone or stairs by the middle to move it."

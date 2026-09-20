@@ -35,7 +35,7 @@ type Drag =
   | { type: "door"; base: Floor; i: number; off: Pt; len: number; moved: boolean }
   | { type: "dev"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "furn"; base: Floor; i: number; off: Pt; moved: boolean }
-  | { type: "room"; base: Floor; i: number; start: Pt; moved: boolean };
+  | { type: "room"; base: Floor; list: "rooms" | "stairs"; i: number; start: Pt; moved: boolean };
 
 const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 const num = (n: number) => String(Math.round(n * 100) / 100);
@@ -363,10 +363,13 @@ export class FloorplanStudioEditor extends LitElement {
       }
       case "room": {
         st.sel = { t: "room", i: hit.i };
-        if (f.rooms[hit.i]?.kind === "structure") this.drag = { type: "room", base, i: hit.i, start: p, moved: false };
+        if (f.rooms[hit.i]) this.drag = { type: "room", base, list: "rooms", i: hit.i, start: p, moved: false };
         break;
       }
-      case "stairs": st.sel = { t: "stairs", i: hit.i }; break;
+      case "stairs":
+        st.sel = { t: "stairs", i: hit.i };
+        if (f.stairs[hit.i]) this.drag = { type: "room", base, list: "stairs", i: hit.i, start: p, moved: false };
+        break;
       case "opening": st.sel = { t: "opening", i: hit.i }; break;
       default:
         st.sel = null;
@@ -460,7 +463,7 @@ export class FloorplanStudioEditor extends LitElement {
         if (!d.moved && Math.hypot(dx, dy) * this.scale < 4) return;
         this.begin(d);
         g = structuredClone(d.base);
-        g.rooms[d.i].pts = d.base.rooms[d.i].pts.map((q): Pt => [q[0] + dx, q[1] + dy]);
+        g[d.list][d.i].pts = d.base[d.list][d.i].pts.map((q): Pt => [q[0] + dx, q[1] + dy]);
         break;
       }
     }
@@ -909,7 +912,7 @@ export class FloorplanStudioEditor extends LitElement {
         </div>
         <aside>
           <div id="panel">${selectionPanel(this.ctx())}</div>
-          <p class="hint">Snapping: corners jump to other corners, snap onto other walls and line up with their neighbours. Hold Alt to move freely. Drag a wall to move it with its neighbours. Hold Shift while dragging a corner or a wall to move it alone. Delete removes the selected corner, wall, door, opening, device, furniture or stairs. Ctrl/Cmd+Z undoes. Scroll to zoom. Pan by dragging the background, or drag anywhere with the middle button, right button or Ctrl/Cmd held.</p>
+          <p class="hint">Snapping: corners jump to other corners, snap onto other walls and line up with their neighbours. Hold Alt to move freely. Drag a wall to move it with its neighbours. Hold Shift while dragging a corner or a wall to move it alone. Drag a room, zone or stairs by the middle to move it. Delete removes the selected corner, wall, door, opening, device, furniture or stairs. Ctrl/Cmd+Z undoes. Scroll to zoom. Pan by dragging the background, or drag anywhere with the middle button, right button or Ctrl/Cmd held.</p>
           <span class="status" id="status" role="status">${this.status}</span>
         </aside>
       </div>`;
