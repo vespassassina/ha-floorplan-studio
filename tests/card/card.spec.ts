@@ -183,7 +183,7 @@ test("Opus review CSS pair: S2.9 round 3 an on room's outline paints after the w
     const kids = [...svg.querySelectorAll("*")];
     const base = svg.querySelector('polygon[data-r="6"]')!;
     const lastWall = kids.filter((n) => n.tagName === "line" && n.classList.contains("e")).pop()!; // the wall lines only, not a door or heater bar drawn later
-    const ring = kids.find((n) => n.tagName === "polygon" && n.getAttribute("class") === "room on")!;
+    const ring = kids.find((n) => n.tagName === "polygon" && n.getAttribute("class") === "room on ring")!;
     const rs = getComputedStyle(ring);
     return {
       baseFill: getComputedStyle(base).fill, // the room's own water colour: untouched, the ring is a stroke only

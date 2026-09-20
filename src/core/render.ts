@@ -75,6 +75,10 @@ export const FLOORPLAN_CSS = `
    --fp-active, the same token furniture already wears when on, so "on" is one colour across the whole plan.
    No :not([fill]) guard: a stroke doesn't touch fill, so a room's own colour is untouched either way. */
 .room.on{stroke:var(--fp-active);stroke-width:3;vector-effect:non-scaling-stroke}
+/* The ring pass below carries a pointer-events="none" attribute, and the editor overrides rooms with
+   .room{pointer-events:all} — a presentation attribute loses to any author rule, so the attribute alone would
+   make the ring a click target with no data-r the day the editor renders live state. Two classes beat one. */
+.room.ring{pointer-events:none}
 /* .sel is one class (0,1,0); .room.on is two (0,2,0) and would always outrank it on specificity, so a selected
    room that is also on would stop showing its ink selection outline. This three-class override (0,3,0) wins
    regardless of source order and keeps selection on top (Opus review). */
@@ -299,7 +303,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const r = f.rooms[i];
     if (r.kind === "fill" && !r.name) return;
     if (r.area || !entityOn(o, r.entity)) return;
-    out.push(`<polygon class="room on" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
+    out.push(`<polygon class="room on ring" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
   });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.

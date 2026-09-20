@@ -904,6 +904,19 @@ describe("S2.9: a room or a piece of furniture with an entity carries the on cla
     const noEntity = draw([], [furn()], { "switch.gate": st("on") });
     expect(furnClass(noEntity)).toEqual(["furn"]);
   });
+
+  // The ring pass is a second polygon over the walls, and it must never take a click. The pointer-events attribute
+  // on the markup is not enough on its own: the editor sets .room{pointer-events:all}, and any author rule beats a
+  // presentation attribute, so the ring needs a class of its own to outrank it.
+  it("the ring is marked so no rule can make it a click target, and it carries no data-r", () => {
+    const html = draw([room("water", { entity: "switch.pond_pump" })], [], { "switch.pond_pump": st("on") });
+    const ring = html.match(/<polygon class="room on ring"[^>]*\/>/)![0];
+    expect(ring).toContain('pointer-events="none"');
+    expect(ring).not.toContain("data-r");
+    expect(FLOORPLAN_CSS).toContain(".room.ring{pointer-events:none}");
+    const off = draw([room("water", { entity: "switch.pond_pump" })], [], { "switch.pond_pump": st("off") });
+    expect(off).not.toContain("ring");
+  });
 });
 
 describe("camera cone (S1.31)", () => {
