@@ -532,6 +532,21 @@ test("clicking outside the editor clears the selection, so a highlight always me
   await expect(stairsCount(page)).toHaveCount(1);
 });
 
+test("a blur that is still waiting to clear the selection does not clear one made after it", async ({ page }) => {
+  // The clear runs one task after focus leaves. A click on a device in that gap must keep its selection.
+  // Synthetic pointer here on purpose: a real click cannot land inside a one-task gap.
+  await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
+  await page.locator("#vrot").focus();
+  await page.evaluate(async (tag) => {
+    const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
+    (root.activeElement as HTMLElement).blur(); // focus leaves for the page: the clear is queued
+    root.querySelector('g[data-x="1"] path')!.dispatchEvent(new PointerEvent("pointerdown", { button: 0, bubbles: true, composed: true, clientX: 0, clientY: 0 }));
+    await new Promise((r) => setTimeout(r, 50));
+  }, EDITOR);
+  await expect(page.locator("#panel")).not.toContainText("Nothing selected");
+  await expect(page.locator("g.dev.sel")).toHaveCount(1);
+});
+
 test("Ctrl+Z works right after the Delete button in the panel", async ({ page }) => {
   const c = await screenOf(page, 740, 500);
   await page.mouse.click(c.x, c.y);
@@ -2296,7 +2311,7 @@ test("a device rotation is stored, drawn on the group and undone; the glyph stay
   expect(Math.abs(g[0])).toBeLessThan(1e-6); // the group itself is turned by a quarter
   expect(Math.abs(g[1])).toBeGreaterThan(0.1);
   // click elsewhere, then the rotated device by pointer: it is still the device that is hit
-  await clickCm(page, 300, 900);
+  await clickCm(page, 300, 500); // empty ground inside the view (900 cm is below the 800 px viewport: that click blurs the editor and races)
   await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
   await expect(page.locator("#vrot")).toHaveValue("90");
   await page.locator("#vrot").fill("0");

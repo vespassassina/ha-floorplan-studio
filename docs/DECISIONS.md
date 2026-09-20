@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 The focus-out clear only clears the selection that lost focus
+
+`onFocusOut` queues its clear one task later and now remembers `st.sel` at that moment; if the selection is another object when the task runs, it does nothing. Before, a click that blurred the editor (in the S1.23 device test, at 900 cm, below the 800 px viewport) left a queued clear that could run after the next click had selected a device: the panel read "Nothing selected" and `#vrot` was detached (7 of 10 runs). The test now clicks empty ground inside the view; a new test covers the gap with a synthetic pointer, the only way to hit one task.
+
 ## 2026-09-20 More Sprint 1.6 tasks: grid, floor colours, device colours
 
 - S1.34 grid setting (none, 5, 10, 50; default 10), kept in the browser, not the layout: it is an editing habit, not part of the house.
