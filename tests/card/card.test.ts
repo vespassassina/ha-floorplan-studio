@@ -1,9 +1,20 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Layout } from "../../src/core/schema";
+import type { RenderOpts } from "../../src/core/render";
+
+// S2.4 review: renderFloor is wrapped, not replaced, so every existing test above still renders for real; this
+// only lets a couple of new tests inspect the `state` overlay the card actually handed to core, which the
+// rendered SVG cannot reveal for an entity that no CSS rule reads (an unrelated sensor's last_changed).
+vi.mock("../../src/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/core")>();
+  return { ...actual, renderFloor: vi.fn(actual.renderFloor) };
+});
+import { renderFloor } from "../../src/core";
 import { FloorplanStudioCard } from "../../src/card/floorplan-studio-card";
 
 const L = demo as unknown as Layout;
+const lastRenderState = () => (renderFloor as unknown as Mock).mock.calls.at(-1)![1] as RenderOpts;
 
 /** A state map entry, matching what `hass.states` holds. */
 const st = (state: string, extra: Record<string, unknown> = {}) => ({ state, attributes: {}, last_changed: "2026-09-19T10:00:00Z", ...extra });
@@ -280,6 +291,75 @@ describe("FloorplanStudioCard", () => {
       expect(styleOf()).toContain("--fp-fade:0");
       expect(clearSpy).toHaveBeenCalled();
       expect(setSpy).toHaveBeenCalledTimes(1); // never restarted a second timer along the way
+    });
+
+    it("Opus review: remembers and rewrites last_changed only for the layout's own motion entities, not every entity hass carries", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), fade: 10 });
+      const t0 = Date.parse("2026-09-19T10:00:00Z");
+      vi.setSystemTime(t0);
+      // a houseful of unrelated entities, none on the plan: a doorbell, a sun sensor, an energy meter.
+      const crowd: Record<string, ReturnType<typeof st>> = {};
+      for (let i = 0; i < 50; i++) crowd[`sensor.unrelated_${i}`] = st("on", { last_changed: new Date(t0).toISOString() });
+
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }), ...crowd }) as never;
+      await el.updateComplete;
+
+      // the crowd turns off at t0+2s; so does the motion sensor.
+      vi.setSystemTime(t0 + 2000);
+      const crowdOff = Object.fromEntries(Object.keys(crowd).map((id) => [id, st("off", { last_changed: new Date(t0 + 2000).toISOString() })]));
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 2000).toISOString() }), ...crowdOff }) as never;
+      await el.updateComplete;
+
+      const state = lastRenderState().state as Record<string, { last_changed: string }>;
+      // the motion entity's last_changed was rewritten to its last on time (t0), not the t0+2s off event.
+      expect(state["binary_sensor.demo_hall_motion"].last_changed).toBe(new Date(t0).toISOString());
+      // an unrelated entity keeps its own real last_changed: the overlay must not lie about anything the plan
+      // does not draw motion fade for (S2.5 reads last_changed for other device types next).
+      expect(state["sensor.unrelated_0"].last_changed).toBe(new Date(t0 + 2000).toISOString());
+    });
+
+    it("Opus review: a motion sensor keeps fading across a config.floor switch, since the entity set spans every floor, not only the one shown", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), fade: 10, floor: "ground" });
+      const t0 = Date.parse("2026-09-19T10:00:00Z");
+      vi.setSystemTime(t0);
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }) }) as never;
+      await el.updateComplete;
+
+      // switch to a floor that draws no motion device at all, and let the sensor go off while it is not shown.
+      vi.setSystemTime(t0 + 2000);
+      el.setConfig({ layout: structuredClone(L), fade: 10, floor: "first" });
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 2000).toISOString() }) }) as never;
+      await el.updateComplete;
+
+      // back to ground: the fade must still be counted from t0, not reset by the floor switch or restarted from t0+2s.
+      vi.setSystemTime(t0 + 5000);
+      el.setConfig({ layout: structuredClone(L), fade: 10, floor: "ground" });
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(`svg [data-x="${motionIndex}"]`)!.getAttribute("style")).toContain("--fp-fade:0.5");
+    });
+
+    it("Break it: fade 0 shows red only while on, even once the sensor carries a remembered on time from being on a moment ago", async () => {
+      const setSpy = vi.spyOn(globalThis, "setInterval");
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), fade: 0 });
+      const t0 = Date.parse("2026-09-19T10:00:00Z");
+      vi.setSystemTime(t0);
+      const classOf = () => el.shadowRoot!.querySelector(`svg [data-x="${motionIndex}"]`)!.getAttribute("class");
+      const styleOf = () => el.shadowRoot!.querySelector(`svg [data-x="${motionIndex}"]`)!.getAttribute("style");
+
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }) }) as never;
+      await el.updateComplete;
+      expect(classOf()).toMatch(/\bon\b/);
+      expect(styleOf()).toContain("--fp-fade:1");
+
+      vi.setSystemTime(t0 + 1000);
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 1000).toISOString() }) }) as never;
+      await el.updateComplete;
+      expect(classOf()).not.toMatch(/\bon\b/);
+      expect(styleOf()).toContain("--fp-fade:0"); // grey at once, no lingering fade from the remembered on time
+      expect(setSpy).not.toHaveBeenCalled(); // fade: 0 never has anything to fade, so the timer never starts
     });
   });
 

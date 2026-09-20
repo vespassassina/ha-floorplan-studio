@@ -51,6 +51,11 @@ export class FloorplanStudioCard extends LitElement {
    * `off`, which is no use for a fade that must keep counting from when it was last `on` — so the card remembers
    * that moment itself and hands it to `renderFloor` in place of the entity's own `last_changed`. */
   private _lastOn: Record<string, number> = {};
+  /** S2.4 review: the `entity` of every motion device across every floor of the loaded layout (not only the one
+   * shown: S2.6 adds a floor switcher and a sensor must keep fading across it), recomputed only when the layout
+   * changes. `hass` can carry hundreds to thousands of entities and is set on every state change anywhere in the
+   * house, so `_recordLastOn`/`_stateForRender` walk this small, bounded set instead of every entity `hass` has. */
+  private _motionEntities: Set<string> = new Set();
 
   static getStubConfig(): FloorplanStudioCardConfig {
     return { type: "custom:floorplan-studio-card" };
@@ -78,26 +83,36 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
-  /** S2.4: updates `_lastOn` for every entity now `on`, so an entity that later goes `off` keeps its last `on` moment on record. */
+  /** S2.4, scoped by review: updates `_lastOn` for the layout's own motion entities that are now `on`, so one that
+   * later goes `off` keeps its last `on` moment on record. Never walks the rest of `hass.states`. */
   private _recordLastOn(h: Hass): void {
-    for (const [id, s] of Object.entries(h.states)) {
-      if (s.state !== "on") continue;
+    for (const id of this._motionEntities) {
+      const s = h.states[id];
+      if (!s || s.state !== "on") continue;
       const t = Date.parse(s.last_changed);
       if (!Number.isNaN(t)) this._lastOn[id] = t;
     }
   }
 
-  /** `hass.states`, with each entity's `last_changed` that has a recorded `_lastOn` swapped for it. `renderFloor` reads only `last_changed`
-   * for its fade math (S2.4's interface, no new option on `RenderOpts`), so this is how the card hands over the remembered on time. */
+  /** `hass.states`, with a motion entity's `last_changed` swapped for its recorded `_lastOn` when the two differ.
+   * `renderFloor` reads only `last_changed` for its fade math (S2.4's interface, no new option on `RenderOpts`), so
+   * this is how the card hands over the remembered on time. Scoped to `_motionEntities` and copy-on-write: an
+   * unrelated entity's real `last_changed` reaches core untouched, and with nothing to override this returns
+   * `hass.states` itself, no copy, which is most renders on a card with no motion device fading. */
   private _stateForRender(): Hass["states"] | undefined {
     const states = this._hass?.states;
     if (!states) return states;
-    const out: typeof states = { ...states };
-    for (const [id, t] of Object.entries(this._lastOn)) {
-      const s = out[id];
-      if (s) out[id] = { ...s, last_changed: new Date(t).toISOString() };
+    let out: Hass["states"] | undefined;
+    for (const id of this._motionEntities) {
+      const t = this._lastOn[id];
+      const s = states[id];
+      if (t === undefined || !s) continue;
+      const changed = new Date(t).toISOString();
+      if (s.last_changed === changed) continue;
+      out = out ?? { ...states };
+      out[id] = { ...s, last_changed: changed };
     }
-    return out;
+    return out ?? states;
   }
 
   getCardSize(): number {
@@ -121,6 +136,8 @@ export class FloorplanStudioCard extends LitElement {
       const v = validate(migrate(raw));
       if (v.ok && Object.keys(v.layout.floors).length) {
         this._layout = v.layout;
+        // S2.4 review: every floor, not only the one on show, so a sensor keeps fading across a floor switch (S2.6).
+        this._motionEntities = new Set(Object.values(v.layout.floors).flatMap((f) => f.devices.filter((d) => d.type === "motion").map((d) => d.entity)));
         this._error = null;
       } else {
         this._error = NO_LAYOUT;
