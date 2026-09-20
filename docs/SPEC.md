@@ -54,7 +54,7 @@ in `prompts/`, then fixed in the editor.
       "outline": [[x, y], ...],
       "rooms":   [{"id", "name", "area", "label", "kind", "pts", "wk", "color"?, "free"?}],
       "walls":   [{"id", "a", "b", "kind"}],
-      "stairs":  [{"id", "name", "pts", "shape", "steps", "rot", "dia"?}],
+      "stairs":  [{"id", "name", "pts", "shape", "steps", "rot", "dia"?, "inner"?}],
       "doors":   [{"id", "name", "kind", "a", "b", "sensor", "cover"}],
       "openings":[{"id", "a", "b"}],
       "extras":  [{"id", "name", "a", "b"}],
@@ -92,7 +92,9 @@ in `prompts/`, then fixed in the editor.
   (outdoor boundary such as a property line). The same five are the kinds of a
   room edge.
 - `stairs.shape`: straight (a polygon with treads drawn across it) or round (a
-  spiral of diameter `dia`, treads drawn as spokes). `steps` is the number of
+  spiral of outer diameter `dia` around an empty well of diameter `inner`,
+  treads drawn as spokes). There is no curved shape: an angled or curved
+  flight is several straight sections placed end to end. `steps` is the number of
   treads, `rot` the rotation in degrees. Stairs are placed on every floor at
   the same position.
 - `door.kind`: door, glass, window, sealed. `sensor` is a binary_sensor entity;

@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Answers to the Sprint 1.6 questions
+
+- Room colour overrides the kind colour; aura 2 m across, to try; plan rotation is kept beside `north`; Delete floor keeps its confirm; the demo gains a garden and a pavement. All as planned.
+- Plugs and computers turn blue when on, grey when off (supersedes "grey on and off" for those two in S1.30 and S2.9). Wall switches and humidity sensors stay grey.
+- Round stairs have an outer diameter `dia` and an inner diameter `inner` (the empty well); treads run between the two rims. Supersedes the single `dia` in S1.25.
+- Curved stairs stay out, as Opus decided. Diego's reading: "curved" means an angled flight built from several sections. So it is several straight stairs placed end to end, and the trace prompt (S5.2) says so.
+
 ## 2026-09-20 Sprint 1.6, the editor rework (Opus, from Diego's change list)
 
 The list is in Diego's words in the Sprint 1.6 preamble of `docs/PLAN.md`.
