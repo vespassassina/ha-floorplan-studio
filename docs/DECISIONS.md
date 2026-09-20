@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.46 and S1.48 docs: equal text outline, and what undo does
+
+The edge length label had a stroke width of 3 x zoom while every other text has 3, so at the default zoom it read 3.51. It is now 3 in the `.len` rule, the same as `.lbl`. This supersedes "its stroke width keeps scaling with the zoom" in S1.46. The PLAN S1.48 test line said one undo brings the four walls back; the walls never exist as separate steps, since a draw commits once, so one undo removes the room and no wall returns (the DECISIONS entry "Closed walls become a room" already said so).
+
 ## 2026-09-20 S1.42 fix: name collision is tested in the screen frame
 
 In a turned plan the names are counter-turned to stay upright, but the device test ran in plan coordinates, so at 45 degrees the Living name touched a halo. Now the vector from the name's anchor to each device is turned by the plan angle before the box test, and "down one line" (and "up") is screen-down, moved in plan units as (d sin a, d cos a). The x of the name can change with it. The second line of a room (its label) follows the same screen-down offset. At rotation 0 the numbers are unchanged. The Playwright test runs the demo at 0, 45, 90 and 135. Supersedes the plan-frame test in S1.42.

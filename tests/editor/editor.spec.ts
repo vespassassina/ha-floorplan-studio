@@ -3547,10 +3547,13 @@ test("S1.46: room, zone, device and extra names and the edge length are dark gre
   await page.locator("#names").click();
   await page.mouse.click(...Object.values(await screenOf(page, 500, 200)) as [number, number]); // a click on the shared edge shows its length
   const kinds = ["svg text.lbl:not(.zone)", "svg text.lbl.zone", "svg text.len"];
+  const widths: string[] = [];
   for (const sel of kinds) {
-    const st = await page.locator(sel).first().evaluate((el) => { const s = getComputedStyle(el); return [s.fill, s.stroke, s.paintOrder.split(" ")[0]]; });
-    expect(st, sel).toEqual(["rgb(58, 58, 58)", "rgb(255, 255, 255)", "stroke"]);
+    const st = await page.locator(sel).first().evaluate((el) => { const s = getComputedStyle(el); return [s.fill, s.stroke, s.paintOrder.split(" ")[0], s.strokeWidth]; });
+    expect(st.slice(0, 3), sel).toEqual(["rgb(58, 58, 58)", "rgb(255, 255, 255)", "stroke"]);
+    widths.push(st[3]);
   }
+  expect(widths, "the edge length outline is as wide as the names' (3, not 3 x zoom)").toEqual(["3px", "3px", "3px"]);
   const names = await page.locator("svg text.lbl").evaluateAll((els) => els.map((el) => { const s = getComputedStyle(el); return [el.textContent, s.fill, s.stroke]; }));
   expect(names.length).toBeGreaterThan(8); // rooms, the zone, device names, the extra
   for (const [t, fill, stroke] of names) { expect(fill, String(t)).toBe("rgb(58, 58, 58)"); expect(stroke, String(t)).toBe("rgb(255, 255, 255)"); }
