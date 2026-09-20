@@ -14,7 +14,7 @@ export const FLOORPLAN_CSS = `
 --fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch. */
 .room:not([fill]){fill:var(--fp-room)} .room-garden:not([fill]){fill:var(--fp-garden)} .room-terrace:not([fill]){fill:var(--fp-terrace)} .room-pavement:not([fill]){fill:var(--fp-pavement)}
-.room-fill{fill:url(#fp-hatch)} .room-zone:not([fill]){fill:none} .room-water:not([fill]){fill:var(--fp-water)}
+.room.room-fill{fill:url(#fp-hatch)} .room-zone:not([fill]){fill:none} .room-water:not([fill]){fill:var(--fp-water)}
 .e{stroke:var(--fp-wall);stroke-width:3;stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5}
 .e.external{stroke:var(--fp-wall-external);stroke-width:6;stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
 .e.se{stroke-width:1.5} .opening{stroke:var(--fp-room);stroke-width:9;pointer-events:none}

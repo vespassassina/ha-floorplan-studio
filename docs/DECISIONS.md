@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 The hatch beats the kind rules
+
+- S1.16 made the kind fills `:not([fill])`, which raised their specificity above `.room-fill`, so a fill room lost its hatch (found by the Sonnet verifier in Chromium; unit tests only read the CSS string). The rule is now `.room.room-fill`, later in the sheet. A fill room keeps its hatch with or without a colour of its own. Browser test added.
+
 ## 2026-09-20 S1.17: migrate pads wk, and the edge button stays until S1.18
 
 `migrate` builds `wk` from `w` (`false` is boundary, anything else wall), pads a short list with `wall`, and leaves a `wk` that is already there alone, so an unknown entry reaches `validate`. A missing `wk` on a zone becomes all `wall` and `validate` then refuses it, as it refused a missing `w` before. Until S1.18 the edge panel keeps its one button: it sets `boundary` when any matching room edge is `wall`, else `wall`. `toggleWall` is gone; `setEdgeKind` replaces it.

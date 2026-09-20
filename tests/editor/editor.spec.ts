@@ -1880,6 +1880,17 @@ test("the room colour input sets the polygon fill, one undo step, and the defaul
   expect(await poly.evaluate((el) => getComputedStyle(el).fill)).toBe(plain);
 });
 
+test("a fill room is painted with the hatch pattern in the browser, with or without its own colour", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator("#rk").selectOption("fill");
+  const poly = page.locator('svg polygon[data-r="0"]');
+  const computed = () => poly.evaluate((el) => getComputedStyle(el).fill);
+  expect(await computed()).toContain("fp-hatch");
+  await page.locator("#rcol").fill("#aabbcc");
+  expect(await computed()).toContain("fp-hatch");
+});
+
 // ---- S1.18 the kind of a room edge ----
 test("the kind select of a shared edge writes both rooms, redraws the line, is one undo step, and none when unchanged", async ({ page }) => {
   await clickCm(page, 500, 300); // the living / kitchen edge
