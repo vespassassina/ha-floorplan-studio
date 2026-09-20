@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Layout, Pt } from "../../src/core/schema";
-import { Draw, applyShape } from "../../src/editor/draw";
+import { Draw, applyShape, roomKindFor } from "../../src/editor/draw";
+import { validate, WALL_KINDS } from "../../src/core/schema";
+import type { WallKind } from "../../src/core/schema";
 
 const ground = () => structuredClone((demo as unknown as Layout).floors.ground);
 const TH = 14;
@@ -196,5 +198,41 @@ describe("applyShape", () => {
     const x = applyShape(ground(), "ground", { kind: "extra", wall: "wall", pts: [[0, 0], [120, 0]] });
     expect(x.floor.extras).toEqual([{ id: "extra-ground-1", name: "New line", a: [0, 0], b: [120, 0] }]);
     expect(x.sel).toBeNull(); // extras have no selection type
+  });
+});
+
+describe("room kind follows the ring's wall kinds (Opus review)", () => {
+  it("roomKindFor: all boundary is a zone, all fence or edge a garden, anything else a room", () => {
+    expect(roomKindFor(["boundary", "boundary", "boundary"])).toBe("zone");
+    expect(roomKindFor(["fence", "edge", "fence"])).toBe("garden");
+    expect(roomKindFor(["boundary", "wall", "boundary", "boundary"])).toBe("room");
+    expect(roomKindFor(["fence", "boundary", "edge"])).toBe("room");
+    expect(roomKindFor(["external", "external", "external"])).toBe("room");
+  });
+  it("a dotted chain that closes over an older wall makes a room, and the layout validates", () => {
+    const f = ground();
+    f.walls.push({ id: "old", a: [1000, 0], b: [1100, 0], kind: "wall" });
+    const r = applyShape(f, "ground", { kind: "wall", wall: "boundary", pts: [[1100, 0], [1100, 100], [1000, 100], [1000, 0]] });
+    const room = r.floor.rooms.at(-1)!;
+    expect(room.kind).toBe("room");
+    expect(room.wk.filter((k) => k === "wall")).toHaveLength(1);
+    expect(room.wk.filter((k) => k === "boundary")).toHaveLength(3);
+    const l = structuredClone(demo as unknown as Layout); l.floors.ground = r.floor;
+    expect(validate(l).ok).toBe(true);
+  });
+  it("every combination of wall kinds around a 4-ring gives a room that validates", () => {
+    const ring: Pt[] = [[1000, 0], [1100, 0], [1100, 100], [1000, 100]];
+    let n = 0;
+    for (const combo of WALL_KINDS.flatMap((a) => WALL_KINDS.flatMap((b) => WALL_KINDS.flatMap((c) => WALL_KINDS.map((d) => [a, b, c, d] as WallKind[]))))) {
+      const f = ground();
+      ring.forEach((p, i) => f.walls.push({ id: `w${i}`, a: p, b: ring[(i + 1) % 4], kind: combo[i] }));
+      // closing wall last: the chain is the walls drawn now; older ones stay in place
+      const last = f.walls.pop()!;
+      const r = applyShape(f, "ground", { kind: "wall", wall: last.kind, pts: [last.a, last.b] });
+      const l = structuredClone(demo as unknown as Layout); l.floors.ground = r.floor;
+      expect(validate(l).ok, combo.join()).toBe(true);
+      if (r.floor.rooms.length > f.rooms.length) n++;
+    }
+    expect(n).toBe(WALL_KINDS.length ** 4);
   });
 });

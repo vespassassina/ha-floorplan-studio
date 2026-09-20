@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Opus review: a drawn ring's kind follows its wall kinds
+
+`closedLoop` may take older walls of another kind into the ring. The room kind came from the last drawn wall while `wk` came from each wall, so a dotted chain closing over an old wall made a zone with a `wall` edge, which `validate` rejects, and `EditorState.edit` committed it. Now `roomKindFor(kinds)` in `draw.ts` derives the kind from the ring: all boundary is a zone, all fence or edge a garden, anything else a room. `wk` stays the truth. A room and a garden accept every wall kind in `wk`; only a zone is limited to boundary, so no edge needs mapping. No validate-and-rollback in `edit()`. Supersedes "Room kind follows the last wall" in "Closed walls become a room".
+
 ## 2026-09-20 Opus review: Playwright never meets a stranger's server
 
 `webServer` now binds 127.0.0.1 (`--host` in `npm run dev` and in the config), `baseURL` is `http://127.0.0.1:<port>`, and `reuseExistingServer` is always false. Before, another vite on 5173 (a different project) answered on 127.0.0.1 while ours listened on localhost, and the suite ran against the wrong code. The default port is now 5273, not 5173: with `--strictPort` and 127.0.0.1, a foreign server on 5173 would make ours fail to start. `PW_PORT` still overrides. Deviation from the brief, which kept 5173.

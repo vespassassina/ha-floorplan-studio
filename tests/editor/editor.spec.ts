@@ -3718,3 +3718,17 @@ test("two rings sharing a wall make two rooms", async ({ page }) => {
   expect(g.rooms).toHaveLength(before.rooms.length + 2);
   expect(g.walls).toEqual(before.walls);
 });
+
+test("Opus review: a dotted chain that closes over an older wall makes a room whose wk is the truth, and the layout validates", async ({ page }) => {
+  await setGrid(page, 5);
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.walls.push({ id: "wall-old", a: [105, 630], b: [295, 630], kind: "wall" }); el.layout = l; }, EDITOR);
+  await startDraw(page, "drawWall-boundary");
+  await clicksCm(page, [295, 630], [295, 670], [105, 670], [105, 630]);
+  await page.keyboard.press("Enter");
+  const g = await groundOf(page);
+  const room = g.rooms.at(-1)!;
+  expect(room.kind).toBe("room");
+  expect([...room.wk].sort()).toEqual(["boundary", "boundary", "boundary", "wall"]);
+  expect(g.walls.some((w) => w.id === "wall-old")).toBe(false);
+  expect(validate(await layoutOf(page)).ok).toBe(true);
+});

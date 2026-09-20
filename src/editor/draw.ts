@@ -53,6 +53,17 @@ export class Draw {
   rubber(pt: Pt): Pt[] | null { return this.points.length ? [...this.points, pt] : null; }
 }
 
+/**
+ * The room kind a ring of walls becomes. The wall kinds are the truth (they are kept as `wk`), so the kind
+ * follows them: all boundary is a zone, all fence or edge a garden, anything else a room. A zone may hold
+ * boundary edges only; a room and a garden hold any kind. (Opus review)
+ */
+export function roomKindFor(kinds: readonly WallKind[]): RoomKind {
+  if (kinds.every((k) => k === "boundary")) return "zone";
+  if (kinds.every((k) => k === "fence" || k === "edge")) return "garden";
+  return "room";
+}
+
 /** The floor with `s` added, and what to select. Does not touch `f`. */
 export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; sel: Sel; note?: string } {
   const g = structuredClone(f), pts = s.pts.map((p): Pt => [p[0], p[1]]);
@@ -72,8 +83,7 @@ export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; s
     const n = pts.length - 1;
     if (!loop && n > MAX_RING && dist(pts[0], pts[n]) <= 2) return { floor: g, sel, note: `${n} walls, too many to make a room (max ${MAX_RING})` };
     if (loop) {
-      const kinds = loop.walls.map((i) => g.walls[i].kind), last = g.walls[g.walls.length - 1].kind;
-      const kind: RoomKind = last === "boundary" ? "zone" : last === "fence" || last === "edge" ? "garden" : "room";
+      const kinds = loop.walls.map((i) => g.walls[i].kind), kind = roomKindFor(kinds);
       // Walls come in walking order, so wall k is the edge from corner k to corner k+1.
       g.walls = g.walls.filter((_, i) => !loop.walls.includes(i));
       g.rooms.push({ id: newId(g, floor, "room"), name: `New ${kind}`, area: "", label: "", kind, pts: loop.pts, wk: kinds as EdgeKind[] });
