@@ -2742,11 +2742,13 @@ test("S1.29: a device standing on a room name is the top element there", async (
 // ---- S1.31 camera cone ----
 const CAM = { x: 20, y: 580 }; // the demo hall camera
 
-test("S1.31: the cone is dark grey at 33 % alpha in the browser and lets the pointer through to the room", async ({ page }) => {
+test("S1.31: the cone is dark grey at 25 % alpha in the browser, the halo has the same alpha and lets the pointer through to the room", async ({ page }) => {
   const cone = page.locator("svg g.dev-camera path.cone");
   await expect(cone).toHaveCount(1);
   const st = await cone.evaluate((el) => { const s = getComputedStyle(el); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents }; });
-  expect(st).toEqual({ fill: "rgb(74, 74, 72)", op: "0.33", pe: "none" });
+  expect(st).toEqual({ fill: "rgb(74, 74, 72)", op: "0.25", pe: "none" });
+  // the halo behind every icon shares the alpha (one variable, --fp-alpha)
+  expect(await page.locator("svg .dev .halo").evaluateAll((els) => [...new Set(els.map((e) => getComputedStyle(e).fillOpacity))])).toEqual(["0.25"]);
   // the cone is 100 cm deep: its box is 100 cm tall on screen (rot 0 points up)
   const box = await cone.evaluate((el) => el.getBoundingClientRect().height);
   const one = Math.abs((await screenOf(page, CAM.x, CAM.y - 100)).y - (await screenOf(page, CAM.x, CAM.y)).y);

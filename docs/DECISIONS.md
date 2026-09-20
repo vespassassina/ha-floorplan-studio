@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 One alpha, 25 %, for the halo and the camera cone
+
+Supersedes 33 % for the cone (S1.31) and 50 % for the halo (S1.29), and fixes the alpha of the S2.8 aura and the S2.9 halo tint to the same value. Diego: both were too heavy over the plan. One variable, `--fp-alpha: .25` in `FLOORPLAN_CSS`, is read by `.dev .halo` and `.cone`, so the two cannot drift; S2.8's `.aura` is written to read it too. PLAN (S1.29, S1.31, S2.8, S2.9), SPEC and the tests follow. The Chromium test reads the computed fill-opacity of the cone and of every halo.
+
 ## 2026-09-20 Camera cone is 100 cm deep
 
 Supersedes S1.31's 300 cm. Diego: 3 m runs through the whole flat and hides the plan; 1 m is the reach worth showing. `renderFloor` uses `R = 100 / k`; the panel hint says "1 m deep"; the S1.31 PLAN text, the render and Chromium tests and the snapshot follow. The Chromium test now measures the cone's box against 100 cm on screen.

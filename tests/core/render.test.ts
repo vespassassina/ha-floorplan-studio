@@ -536,7 +536,7 @@ describe("devices sit on top (S1.29)", () => {
   it("the halo is a class, with no inline fill", () => {
     expect(html).toContain('<circle class="halo" cx="12" cy="12" r="13"/>');
     expect(html).not.toContain("fill-opacity");
-    expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{fill:var\(--fp-halo\);fill-opacity:\.5\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{fill:var\(--fp-halo\);fill-opacity:var\(--fp-alpha\)\}/);
     expect(FLOORPLAN_CSS).toContain("--fp-halo:#8b8578");
   });
   it("a device on a room-name spot draws after that name", () => {
@@ -625,7 +625,16 @@ describe("camera cone (S1.31)", () => {
     const f = structuredClone(ground);
     f.devices = f.devices.filter((d) => d.type !== "camera");
     expect(renderFloor(f, base)).not.toContain("cone");
-    expect(FLOORPLAN_CSS).toMatch(/path\.cone\{[^}]*fill:var\(--fp-dev-camera\)[^}]*fill-opacity:\.33[^}]*pointer-events:none/);
+    expect(FLOORPLAN_CSS).toMatch(/path\.cone\{[^}]*fill:var\(--fp-dev-camera\)[^}]*fill-opacity:var\(--fp-alpha\)[^}]*pointer-events:none/);
+  });
+});
+
+describe("one alpha for the cone and the halo (fix/cone-length)", () => {
+  it("--fp-alpha is 25 % and both the cone and the halo read it; no other opacity literal is left on them", () => {
+    expect(FLOORPLAN_CSS).toContain("--fp-alpha:.25");
+    expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{[^}]*fill-opacity:var\(--fp-alpha\)/);
+    expect(FLOORPLAN_CSS).toMatch(/path\.cone\{[^}]*fill-opacity:var\(--fp-alpha\)/);
+    expect(FLOORPLAN_CSS).not.toMatch(/fill-opacity:\.(33|5)\b/);
   });
 });
 

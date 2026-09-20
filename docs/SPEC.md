@@ -136,17 +136,17 @@ in `prompts/`, then fixed in the editor.
 
 ## Card behaviours
 
-Every device icon sits on a small circle, grey at 50 % alpha, and is drawn
+Every device icon sits on a small circle, grey at 25 % alpha, and is drawn
 above everything else on the plan, room names included. A room name that would
 sit under a device moves down, or up, by one line; if both spots are taken it
 stays where it is. When a device is active the icon takes the colour of its
-type and the circle takes the same colour at 50 % alpha. A custom shape with an
+type and the circle takes the same colour at 25 % alpha. A custom shape with an
 `entity` (a pond, a structure, a piece of furniture) is tinted while that
 entity is on.
 
 | Entity domain / device type | Idle | Active | Click |
 |---|---|---|---|
-| light | grey icon | yellow icon, brightness as opacity, plus a round aura 200 cm across in the same colour at 50 % alpha | toggle; long press: more-info |
+| light | grey icon | yellow icon, brightness as opacity, plus a round aura 200 cm across in the same colour at 25 % alpha | toggle; long press: more-info |
 | smart light (`rgb_color`) | grey icon | icon and aura in the light's own colour from HA, yellow when it reports none | toggle; long press: more-info |
 | light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | toggle the light entity; long press: more-info for it (the switch is reachable from that dialog) |
 | switch (wall switch) | grey | grey | toggle |
@@ -160,7 +160,7 @@ entity is on.
 | ac (air conditioner, heat pump, fan, air cleaner) | grey | blue while `hvac_action` is cooling, orange while heating, grey otherwise | more-info |
 | tv | grey | blue when the player is on or playing | more-info |
 | computer | grey | blue | more-info |
-| camera | dark grey icon with a 120° cone of view in dark grey at 33 % alpha, turned by `rot` | — | more-info (live view) |
+| camera | dark grey icon with a 120° cone of view in dark grey at 25 % alpha, turned by `rot` | — | more-info (live view) |
 | cover on a door | door normal | door open state shown | confirm dialog, then `cover.open_cover` |
 | media_player | icon | accent when playing | more-info |
 | unavailable / unknown | icon struck through | — | more-info |
