@@ -2,6 +2,140 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Sprint 1.6, the editor rework (Opus, from Diego's change list)
+
+The list is in Diego's words in the Sprint 1.6 preamble of `docs/PLAN.md`.
+What follows is what was decided, and what was refused.
+
+**Schema stays version 2.** Every change here is an added enum value, an
+optional field, a renamed enum value or one array replaced by a richer one,
+and `migrate` fills all of them from an older file. Nothing is released yet
+(no tag, S3.5 is the release), so `migrate` is the only compatibility surface
+there is. A bump to 3 would force `migrate`, `validate`, the integration's
+save check and the prompt to carry two shapes for no reader's benefit. So:
+`migrate` accepts v1 and v2, rewrites `outdoor` to `garden` at either version
+(the rename is not a v1 rule), and is idempotent as before.
+
+**Room kinds.** `outdoor` is renamed `garden` because that is what it is, and
+the palette needed a second outdoor kind: `pavement` (grey). Garden is a
+darker green than the old `outdoor`, terrace is light brown, fill is grey with
+diagonal hatching so it reads as "floor, not a room". The hatch is an SVG
+`<pattern>` in a `<defs>` emitted by `renderFloor` with the fixed id
+`fp-hatch`. Two cards on one page then declare the same id twice; the two
+patterns are identical, so the reference resolves either way. A unique id per
+render would make the snapshot test useless for no gain.
+
+**A room edge has a kind, and `w` goes.** Diego wants to change a wall's type,
+not only draw it, and room edges were booleans while free walls had five
+kinds. `Room.w: boolean[]` becomes `Room.wk: WallKind[]`, one entry per point,
+the same five kinds as a free wall. `migrate` maps `true` to `wall` and
+`false` to `boundary`, which is exactly what the two values meant. Rejected:
+keeping `w` and adding a parallel `wk`. Two arrays that must stay in step
+through `stitch`, `insertPoint`, `removePoint` and `mergeCorners` is the kind
+of duplication the Sprint 1 reviews already caught once.
+
+**Opening is not a wall kind.** An opening is a gap drawn over a wall and it
+is its own list; that is how the card erases the wall under it. So the kind
+select of a *free* wall offers a sixth entry, "Opening", which deletes the
+wall and writes an opening with the same ends, and the opening panel offers
+the five wall kinds, which converts back. A room edge has no such entry: a gap
+in a room edge is an `openings` entry laid over it, as today.
+
+**Room colour is the one colour a layout may hold.** `room.color` is optional
+and must match `#rrggbb` exactly; `validate` rejects anything else. This is a
+stated exception to the rule "colours only through `--fp-*` variables" in
+`CLAUDE.md`: a user's choice is data, not a theme value. The strict pattern is
+the guard, because the value is written into a `fill` attribute.
+
+**Unsnapping is a stored flag, not a guess.** "Snapped" has never been stored;
+it is only shared coordinates. Rotating a room that shares corners would tear
+its neighbour's wall, so rotation is offered when the room shares no corner
+with anything, or when the user has pressed Unsnap, which sets
+`room.free: true`. While `free`, the room's corners are no snap, stitch or
+merge target and do not drag a neighbour's corner along. Rejected: unsnapping
+by moving the room 20 cm away, which is the only way to break coincidence
+without a field, and which moves the drawing without being asked.
+
+**A rotated room rewrites its points; a rotated plan does not.** There is no
+per-room transform and adding one would touch every geometry function, so
+rotating a room, a zone or water rounds its new points to 1 cm in one undo
+step. The user sees the result and can undo it. The whole-plan rotation is the
+opposite case: it is a view of the same data, it happens repeatedly, and
+rounding would drift every time, so it is stored as `layout.rotate` (a
+multiple of 45) and applied by `renderFloor` around one pivot shared by all
+floors (`planPivot(layout)`, the centre of the union of the floor outlines).
+Names and icons counter-rotate about their own anchor so they stay upright.
+The editor un-rotates the pointer in `toSvg`, which is the single place plan
+coordinates are made. This is the lossless option and it is the one chosen.
+
+**Devices carry `rot`, stairs carry `rot`, rooms do not.** One optional number
+on a device serves the camera cone today and anything directional later.
+
+**Stairs stay one element with a shape.** `Stairs` gains `shape`
+(`straight` | `round`), `steps` and `rot`, and `dia` for a round one. `pts`
+stays the footprint, so `polys`, hit testing and `viewBoxFor` are unchanged; a
+round stair's `pts` is the 24-gon of its circle, regenerated when `dia`
+changes. A stair with `rot` other than 0, and any round stair, shows no corner
+handles: the handles are drawn from `pts`, and un-rotating a second set of
+hit targets is not worth it. Set the rotation back to 0 to reshape.
+
+**Curved and quarter-turn stairs are refused for now.** Diego asked for
+curved, round and straight. Round (a spiral) and straight are in. A
+quarter-turn needs a second geometry, its own handles, its own tread maths and
+its own tests, for one shape that two straight stairs at an angle already draw
+well enough now that stairs rotate. If it is still wanted after using the
+rework, it gets its own task.
+
+**Stairs are placed on every floor, and deleted from one.** Add, Stairs writes
+the same footprint into every floor, with an id per floor, as one undo step. A
+house has one stairwell in one place. Delete removes it from the current floor
+only, because stairs often stop below the top floor. A new floor inherits the
+outline and the stairs of the *first floor in the chip order* (the lowest),
+not the most recently edited one, so the result does not depend on what the
+user touched last.
+
+**One wall switch can power several lamps.** `bound` stays on the light and
+loses two rules: two lights may name the same switch, and a bound entity may
+also be a device of its own (the grey wall switch on the wall). It keeps: only
+on a light, different from `entity`. Rejected: `switch.controls: string[]`.
+Every reader (`renderFloor`, `bind.ts`, the panel) already looks the other
+way, from the lamp to its switch, and one direction is enough.
+
+**Three new device types, and no "garden sensor" type.** `DeviceType` gains
+`tv`, `computer` and `ac`. A garden sensor is not a kind of device: it is a
+sensor standing in a room of kind `garden`, which the plan already knows, so
+`renderFloor` colours it green from where it is. An `ac` is an air
+conditioner, heat pump, fan or air cleaner; whether it is cooling, heating or
+only moving air comes from the entity at render time (`hvac_action` cooling →
+blue, heating → orange, anything else, or no such attribute, → grey), not from
+a field in the layout. A layout that claims what a device is doing would go
+stale the first time the user changes the mode.
+
+**Static colour in Sprint 1.6, state colour in Sprint 2.** The circle behind
+every icon (grey, 50 % alpha), the icon drawn above everything including room
+names, the fixed colours (camera dark grey, humidity and computer and switch
+grey, a sensor in a garden green) and the camera's 120° cone are drawn from
+the layout alone, so they belong to the editor sprint. Every colour that needs
+`hass` — on/off colours, the light aura, a smart light's own colour, the AC
+mode, the TV blue — is a card task in Sprint 2 (S2.8 to S2.10). The palette
+itself (`--fp-dev-*`) is defined once in Sprint 1.6 so both sprints use the
+same values.
+
+**Everything drags by its body.** Only a `structure` room did. Now every room,
+zone, water, structure and stairs does. The cost is that a press on a room
+body no longer starts a pan: panning stays on the background, the middle or
+right button, and Ctrl or Cmd held, which the hint already says.
+
+**New items land outside the house.** `spawnPoint(f)` is 150 cm right of the
+outline's bounding box, at its top; with no outline it is the middle of the
+view. Walls, structures, zones, stairs, furniture and a device whose room is
+unknown go there, and the view scrolls to show it. Doors, windows and openings
+keep the nearest-edge rule: one placed off the house is of no use.
+
+**Delete is orange, Delete floor and Reset are red.** Removing one item is
+undoable; throwing away a floor or every edit in the browser is the pair that
+costs most, so those two are the only red buttons.
+
 ## 2026-09-20 Floor Move up goes to a higher floor
 
 - Supersedes "Move up: earlier in the list" in the floors entry. Chips run left to right, lowest floor first, so Move up now moves a floor one place later (a higher floor) and Move down one place earlier. Diego found the buttons inverted. `moveFloor(key, delta)` is unchanged; only the buttons and the undo message swapped.

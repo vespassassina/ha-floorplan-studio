@@ -47,18 +47,18 @@ in `prompts/`, then fixed in the editor.
 
 ```json
 {
-  "version": 2, "unit": "cm", "north": 0,
+  "version": 2, "unit": "cm", "north": 0, "rotate": 0,
   "floors": {
     "ground": {
       "title": "Ground",
       "outline": [[x, y], ...],
-      "rooms":   [{"id", "name", "area", "label", "kind", "pts", "w"}],
+      "rooms":   [{"id", "name", "area", "label", "kind", "pts", "wk", "color"?, "free"?}],
       "walls":   [{"id", "a", "b", "kind"}],
-      "stairs":  [{"id", "name", "pts"}],
+      "stairs":  [{"id", "name", "pts", "shape", "steps", "rot", "dia"?}],
       "doors":   [{"id", "name", "kind", "a", "b", "sensor", "cover"}],
       "openings":[{"id", "a", "b"}],
       "extras":  [{"id", "name", "a", "b"}],
-      "devices": [{"id", "type", "entity", "x", "y", "bound"?} | {"id", "type", "entity", "a", "b"}],
+      "devices": [{"id", "type", "entity", "x", "y", "rot"?, "bound"?} | {"id", "type", "entity", "a", "b"}],
       "furniture":[{"id", "symbol", "x", "y", "rot", "w", "h"}]
     }
   },
@@ -68,37 +68,73 @@ in `prompts/`, then fixed in the editor.
 
 - Units are cm, y grows downwards, north is up (`north` is degrees for the
   compass rose only).
-- `room.kind`: room, outdoor, fill, terrace, structure, zone, water. `room.area`
-  is the HA area id; `name` is free text. A zone is a dotted subdivision inside
-  a room (a reading corner, a kitchen in an open living room): no walls (`w`
-  all false), may carry its own HA area. Water is a pool, pond or lake.
+- `rotate` turns the whole plan on screen, in steps of 45 degrees (0, 45, …,
+  315), so the drawing can be lined up with north. It is applied by the
+  renderer around one pivot shared by every floor; the stored coordinates never
+  change, and names and icons stay upright. Editor and card must show the same.
+- `room.kind`: room, garden, pavement, fill, terrace, structure, zone, water.
+  `room.area` is the HA area id; `name` is free text. A zone is a dotted
+  subdivision inside a room (a reading corner, a kitchen in an open living
+  room): every edge is a `boundary`, may carry its own HA area. Water is a
+  pool, pond or lake. Fill is drawn grey with diagonal hatching: floor area
+  that is not a usable room. `outdoor` is the old name of `garden`; `migrate`
+  renames it.
+- `room.wk` is the kind of each edge, one entry per point, same order as `pts`:
+  the edge from `pts[i]` to `pts[i+1]` is `wk[i]`. It replaces the booleans
+  `w`, which `migrate` reads as `wall` for true and `boundary` for false. A
+  zone is `boundary` on every edge.
+- `room.color` (optional) overrides the fill of that room or zone. It is the
+  one place a colour is stored in a layout, and it must be `#rrggbb`.
+- `room.free` (optional): the user has unsnapped this room, so its corners are
+  no snap, stitch or merge target and it can be rotated even where it still
+  touches a neighbour.
 - `wall.kind`: wall (internal), boundary (dotted), external, fence, edge
-  (outdoor boundary such as a property line).
+  (outdoor boundary such as a property line). The same five are the kinds of a
+  room edge.
+- `stairs.shape`: straight (a polygon with treads drawn across it) or round (a
+  spiral of diameter `dia`, treads drawn as spokes). `steps` is the number of
+  treads, `rot` the rotation in degrees. Stairs are placed on every floor at
+  the same position.
 - `door.kind`: door, glass, window, sealed. `sensor` is a binary_sensor entity;
   `cover` is a cover entity for doors that HA can open.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
-  camera, climate, media, cover, other. Heaters have `a`/`b` (a bar), the rest
-  `x`/`y`.
+  camera, climate, ac, tv, computer, media, cover, other. Heaters have `a`/`b`
+  (a bar), the rest `x`/`y`. `ac` is an air conditioner, heat pump, fan or air
+  cleaner; what it is doing comes from the entity, not from the layout.
+- `device.rot` (optional, degrees): which way the device faces. Only a camera
+  uses it so far, for its cone of view.
 - `device.bound` (lights only, optional): the switch or plug entity that powers
-  the same lamp. One icon on the plan, two entities in HA. `entity` stays the
-  primary one. A bound entity may not be another device's `entity`, and no two
-  devices share one.
+  the same lamp. `entity` stays the primary one. Several lights may name the
+  same switch: one wall switch can power several lamps. The switch may also be
+  a device of its own on the plan.
 - `furniture.symbol`: table, sofa, bed, cabinet, chair, sink, toilet, shower,
   bathtub, tv, computer, tree, patio-wood, patio-concrete, car.
-- v1 files (no `version` or `version: 1`) are migrated on load.
+- v1 files (no `version` or `version: 1`) are migrated on load. So are v2 files
+  written by an earlier build: `outdoor` becomes `garden`, `w` becomes `wk`.
 
 ## Card behaviours
 
+Every device icon sits on a small circle, grey at 50 % alpha, and is drawn
+above everything else on the plan, room names included. When a device is
+active the icon takes the colour of its type and the circle takes the same
+colour at 50 % alpha.
+
 | Entity domain / device type | Idle | Active | Click |
 |---|---|---|---|
-| light | grey icon | icon in the light's colour, brightness as opacity | toggle; long press: more-info |
+| light | grey icon | yellow icon, brightness as opacity, plus a round aura 200 cm across in the same colour at 50 % alpha | toggle; long press: more-info |
+| smart light (`rgb_color`) | grey icon | icon and aura in the light's own colour from HA, yellow when it reports none | toggle; long press: more-info |
 | light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | toggle the light entity; long press: more-info for it (the switch is reachable from that dialog) |
-| switch, plug | grey | accent colour | toggle |
+| switch (wall switch), plug | grey | grey, icon lightened | toggle |
 | binary_sensor on a door or window | door drawn normally | door drawn orange | more-info |
+| contact (device icon) | grey | red | more-info |
 | motion (binary_sensor motion/occupancy) | grey | red, fading to grey over `fade` seconds from `last_changed` | more-info |
-| temp, humidity (sensor) | value as a label next to the icon | — | more-info |
-| climate (TRV, thermostat) | heater bar grey with target | orange when heating | more-info |
-| camera | icon | — | more-info (live view) |
+| temp, humidity (sensor) | grey icon, value as a label next to it | — | more-info |
+| any sensor inside a room of kind garden | green icon | as its type | more-info |
+| heater, climate (TRV, thermostat) | heater bar grey with target | orange when heating | more-info |
+| ac (air conditioner, heat pump, fan, air cleaner) | grey | blue while `hvac_action` is cooling, orange while heating, grey otherwise | more-info |
+| tv | grey | blue when the player is on or playing | more-info |
+| computer | grey | grey, icon lightened | more-info |
+| camera | dark grey icon with a 120° cone of view in dark grey at 33 % alpha, turned by `rot` | — | more-info (live view) |
 | cover on a door | door normal | door open state shown | confirm dialog, then `cover.open_cover` |
 | media_player | icon | accent when playing | more-info |
 | unavailable / unknown | icon struck through | — | more-info |
@@ -115,18 +151,40 @@ room_glow: true
 ## Editor
 
 - Toolbar: floor chips (plus "+" to add a floor), device filter, Names toggle,
-  menus Add / Device / Group / View / File. Group and the organise controls
-  exist only in the HA panel.
-- Add: door, window, wall, structure, furniture (symbol picker), zone, water,
-  stairs; Draw: room, zone, water, outline, wall of any kind, opening,
+  menus Add / Draw / Device / Group / View / File. Group and the organise
+  controls exist only in the HA panel.
+- Add places one finished item: door, window, opening, wall of any of the five
+  kinds, structure, zone, stairs, furniture (symbol picker). Water is a room
+  kind, not an Add item: draw it, or change a room's kind.
+- Draw is its own menu: room, zone, water, outline, wall of any kind, opening,
   structure line, by clicking points (double-click or Enter ends, Esc cancels).
+- A new item lands top right, outside the house, so it never hides what is
+  already drawn; the view scrolls to it. A door, window or opening still lands
+  on the wall nearest the middle of the view: it is of no use off the house.
 - Device: entities not yet placed, grouped by type then area, with a search.
-- Floors: add, rename, reorder, delete (never the last one).
-- Selection panel per kind: corner, wall, door (name, kind, length, sensor,
-  cover), room (name, area, label, kind), device (entity, length for heaters),
-  furniture (symbol, size, rotation).
+- Floors: add, rename, reorder, delete (never the last one). A new floor
+  inherits the outline and the stairs of the first floor in the list. Stairs
+  are added to every floor at the same position, and deleted from one floor at
+  a time.
+- Everything on the plan can be dragged by its body: rooms of every kind,
+  zones, water, stairs, structures, furniture, devices. Doors and openings
+  slide along their wall.
+- Everything can be rotated. A room or a zone that shares a corner with
+  another shape cannot: unsnap it first (a button in its panel), which frees
+  its corners from snapping. Rotating a room rewrites its points; a device,
+  furniture or stairs keeps an angle in `rot`.
+- View: rotate the whole plan in 45 degree steps, to line it up with north.
+  All floors turn together. Names and icons stay upright.
+- Selection panel per kind: corner, edge and wall (length, angle, kind, and on
+  a free wall the conversion to an opening), door (name, kind, length, sensor,
+  cover), room (name, area, label, kind, colour, unsnap, rotation), stairs
+  (name, shape, steps, diameter, rotation), device (entity, rotation, length
+  for heaters), furniture (symbol, size, rotation).
+- Buttons that destroy something are coloured: Delete floor and Reset are red,
+  every other Delete is orange.
 - Snapping: corners, T-snap onto edges with stitch, neighbour alignment, 5 cm
-  grid; Alt disables; Shift unsnaps.
+  grid; Alt disables; Shift unsnaps for one drag; a room marked `free` never
+  snaps.
 - Pan: drag background, or middle/right/Ctrl drag anywhere. Wheel zooms.
 - Undo/redo, autosave in the browser, Open/Save file, Reset to stored layout.
 - In HA: Load and Save go through the integration. Standalone: file only.
