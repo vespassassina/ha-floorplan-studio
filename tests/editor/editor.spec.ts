@@ -2598,3 +2598,63 @@ test("a new floor has the outline and the stairs of the ground floor, no rooms, 
   await page.mouse.click(c.x, c.y);
   await expect(page.locator("#ft")).toHaveCount(0); // not the floor panel any more
 });
+
+// ---- red and orange buttons (S1.28) ---------------------------------------------
+
+// Computed style, not class names: a rule that loses on specificity would pass a class check.
+const RED = "rgb(214, 69, 69)", ORANGE = "rgb(242, 140, 40)", TEXT = "rgb(244, 240, 230)";
+const paint = (page: Page, sel: string) => page.locator(sel).evaluate((el) => { const s = getComputedStyle(el); return [s.backgroundColor, s.color]; });
+const expectWarn = async (page: Page, sel: string) => expect(await paint(page, sel), sel).toEqual([ORANGE, TEXT]);
+const expectDanger = async (page: Page, sel: string) => expect(await paint(page, sel), sel).toEqual([RED, TEXT]);
+
+test("S1.28: Reset is red", async ({ page }) => {
+  await menu(page, "File");
+  await expectDanger(page, "#reset");
+  await expect(page.locator("#save")).not.toHaveCSS("background-color", RED); // an ordinary button stays ordinary
+});
+
+test("S1.28: Delete floor and its confirmation are red, Cancel is not", async ({ page }) => {
+  await expect(page.locator("#fdel")).toBeVisible();
+  await expectDanger(page, "#fdel");
+  await page.locator("#fdel").click();
+  await expectDanger(page, "#fdelyes");
+  await expect(page.locator("#fdelno")).not.toHaveCSS("background-color", RED);
+  await expect(page.locator("#fdelno")).not.toHaveCSS("background-color", ORANGE);
+});
+
+test("S1.28: every item Delete is orange", async ({ page }) => {
+  // corner: a real click on a corner handle
+  const h = await centre(page, 'svg circle[data-h="r0:1"]');
+  await page.mouse.click(h.x, h.y);
+  await expectWarn(page, "#delv");
+  // room: a real click on its body
+  const r = await screenOf(page, 100, 100);
+  await page.mouse.click(r.x, r.y);
+  await expectWarn(page, "#rdel");
+  // device: a real click on an icon
+  await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
+  await expectWarn(page, "#vdel");
+  // furniture, stairs, wall, door, opening: added, so they are selected
+  await menu(page, "Add"); await page.locator("#addFurn").selectOption("bed");
+  await expectWarn(page, "#fudel");
+  await addStairs(page);
+  await expectWarn(page, "#sdel");
+  await addMenuItem(page, "#addWall-wall");
+  await expectWarn(page, "#wdel");
+  await menu(page, "Add"); await page.locator("#addDoor").click();
+  await expectWarn(page, "#deld");
+  await addGap(page);
+  await expectWarn(page, "#odel");
+});
+
+test("S1.28: the floor panel and the furniture panel each own their id", async ({ page }) => {
+  await expect(page.locator("#fdel")).toHaveText("Delete floor");
+  await menu(page, "Add"); await page.locator("#addFurn").selectOption("bed");
+  await expect(page.locator("#fdel")).toHaveCount(0);
+  await expect(page.locator("#fudel")).toHaveText("Delete");
+  await page.locator("#fudel").click();
+  expect((await groundOf(page)).furniture).toHaveLength(2); // the bed went, the demo's two stay
+  await expect(page.locator("#fdel")).toHaveText("Delete floor"); // nothing selected: the floor panel again
+  await expect(page.locator("#fudel")).toHaveCount(0);
+  await expectDanger(page, "#fdel");
+});

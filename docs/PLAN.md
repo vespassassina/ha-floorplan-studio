@@ -397,7 +397,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass.
 - Break it: a floor added when the only floor is empty is empty too, and nothing throws.
 
-### S1.28 Red and orange buttons
+### S1.28 Red and orange buttons (done)
 - Outcome: what a button destroys is visible before it is pressed.
 - Files: `src/editor/editor-app.ts`, `src/editor/panels.ts`, `tests/editor/editor.spec.ts`.
 - Interface: two classes in the editor's own styles: `.btn.danger` (background `--fp-motion`, text `--fp-bg`) and `.btn.warn` (background `--fp-open`, text `--fp-bg`). `danger` goes on `#reset`, `#fdel` and `#fdelyes` only. `warn` goes on every other delete: `#delv`, `#wdel`, `#deld`, `#odel`, `#rdel`, `#vdel`, `#fdel` of the furniture panel (renamed `#fudel`, because the floor panel already owns `#fdel`) and `#sdel`. No colour literal: both classes use the existing variables.

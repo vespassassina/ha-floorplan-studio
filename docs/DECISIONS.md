@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.28: red for what destroys the floor or the layout, orange for one item
+
+`.btn.danger` (`--fp-motion`) is on Reset, Delete floor and its confirmation; `.btn.warn` (`--fp-open`) on every Delete of a selected item, including "Delete corner" and "Remove from plan". Both also set the border to the same colour, as `.btn.primary` does. The furniture delete is `#fudel`; `#fdel` is the floor panel's alone. The tests read the computed background and text colour in Chromium, not the class name.
+
 ## 2026-09-20 S1.27: a new floor copies the first floor's outline and stairs; the floor panel says so
 
 `addFloor` copies `outline` and `stairs` from the first floor in the key order, deep, with stairs ids from `newId` against the new floor; a first floor without them gives none. The floor panel gains one hint that says this and points to Delete floor for a clean start. Three older Playwright tests assumed an empty new floor (no host edge, no outline, view centre): they now make one bare with `addBareFloor`, which clears the outline in the editor's state, because the public `layout` setter refuses a floor with fewer than three outline points. That refusal is old and unchanged: a layout with a bare floor cannot be loaded or saved until it has an outline; that is a gap in Sprint 1, not made by this task.

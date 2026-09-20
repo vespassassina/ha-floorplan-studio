@@ -48,7 +48,8 @@ function select(label: string, id: string, value: string, options: readonly stri
 export const ROOM_LABELS: Record<RoomKind, string> = { room: "Room", garden: "Garden", pavement: "Pavement", fill: "Fill", terrace: "Terrace", structure: "Structure", zone: "Zone", water: "Water" };
 const kindSelect = (value: string, on: (v: string) => void) =>
   html`<label for="rk">kind</label><select id="rk" .value=${value} @change=${(e: Event) => on(val(e))}>${ROOM_KINDS.map((k) => html`<option value=${k} ?selected=${k === value}>${ROOM_LABELS[k]}</option>`)}</select>`;
-const button = (id: string, label: string, on: () => void) => html`<button class="btn" id=${id} @click=${on}>${label}</button>`;
+/** `cls` adds a style: `warn` (orange) for what deletes an item, `danger` (red) for what deletes a floor or resets everything. */
+const button = (id: string, label: string, on: () => void, cls = "") => html`<button class=${cls ? `btn ${cls}` : "btn"} id=${id} @click=${on}>${label}</button>`;
 /** The angle of a segment a-b in degrees, 0 to 360, clockwise on screen, to 0.1. */
 const angleOf = (a: [number, number], b: [number, number]) => Math.round((((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI + 360) % 360) * 10) / 10 % 360;
 const hint = (t: string) => html`<p class="hint">${t}</p>`;
@@ -82,8 +83,8 @@ function floorPanel(c: PanelCtx) {
     </div>
     ${st.confirmDelete
       ? html`<p id="fconfirm" role="alert">Delete floor ${title} and everything on it?</p>
-        <div class="row">${button("fdelyes", "Delete", () => c.floors.remove(key))}${button("fdelno", "Cancel", () => { st.confirmDelete = false; c.refresh(); })}</div>`
-      : html`<p><button class="btn" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
+        <div class="row">${button("fdelyes", "Delete", () => c.floors.remove(key), "danger")}${button("fdelno", "Cancel", () => { st.confirmDelete = false; c.refresh(); })}</div>`
+      : html`<p><button class="btn danger" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
     ${hint("A new floor starts with the outline and the stairs of the first floor. Delete a floor to start again with a clean one.")}
     ${hint("Devices on a deleted floor stay in the catalog and go back to the Device menu.")}`;
 }
@@ -96,7 +97,7 @@ function cornerPanel(c: PanelCtx, s: Extract<Sel, { t: "v" }>) {
   return html`<strong>Corner</strong>
     ${number("x (cm)", "px", p[0], (x) => move([x, p[1]]))}
     ${number("y (cm)", "py", p[1], (y) => move([p[0], y]))}
-    ${"poly" in s.ref && canDelete ? html`<p>${button("delv", "Delete corner", () => { const ref = s.ref as { poly: string; j: number }; c.commit((f) => removePoint(f, ref.poly, ref.j)); c.select(null); })}</p>` : nothing}`;
+    ${"poly" in s.ref && canDelete ? html`<p>${button("delv", "Delete corner", () => { const ref = s.ref as { poly: string; j: number }; c.commit((f) => removePoint(f, ref.poly, ref.j)); c.select(null); }, "warn")}</p>` : nothing}`;
 }
 
 function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
@@ -132,7 +133,7 @@ function wallPanel(c: PanelCtx, i: number) {
       c.commit((f) => wallToOpening(f, i, c.st.floor));
       c.select({ t: "opening", i: c.st.f.openings.length - 1 });
     }}>${WALL_KINDS.map((k) => html`<option value=${k} ?selected=${k === w.kind}>${WALL_LABELS[k]}</option>`)}<option value="opening">Opening (a gap in the wall)</option></select>
-    <p>${button("wdel", "Delete", () => { c.commit((f) => { f.walls.splice(i, 1); }); c.select(null); })}</p>
+    <p>${button("wdel", "Delete", () => { c.commit((f) => { f.walls.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag its ends to place it. Ends snap to corners.")}`;
 }
 
@@ -162,7 +163,7 @@ function doorPanel(c: PanelCtx, i: number) {
     </select>
     ${text("cover entity (optional)", "dcover", d.cover ?? "", (v) => c.commit((f) => { if (v.trim()) f.doors[i].cover = v.trim(); else delete f.doors[i].cover; }))}
     <label><input type="checkbox" id="dopen" .checked=${c.st.openDoor === d.id} @change=${(e: Event) => { c.st.openDoor = (e.target as HTMLInputElement).checked ? d.id : null; c.refresh(); }}> preview open</label>
-    <p>${button("deld", "Delete", () => { c.commit((f) => { f.doors.splice(i, 1); }); c.select(null); })}</p>
+    <p>${button("deld", "Delete", () => { c.commit((f) => { f.doors.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag it along a wall. Drag an end to resize.")}`;
 }
 
@@ -179,7 +180,7 @@ function openingPanel(c: PanelCtx, i: number) {
     <label for="ok">kind</label><select id="ok" .value=${live("opening")} @change=${toWall}><option value="opening" selected>Opening</option>${WALL_KINDS.map((k) => html`<option value=${k}>${WALL_LABELS[k]}</option>`)}</select>
     ${number("length (cm)", "ol", Math.round(dist(o.a, o.b)), (n) => c.commit((f) => { Object.assign(f.openings[i], resizeSegment(o.a, o.b, Math.max(20, n))); }))}
     ${angleField(c, "orot", "openings", i)}
-    <p>${button("odel", "Delete", () => { c.commit((f) => { f.openings.splice(i, 1); }); c.select(null); })}</p>
+    <p>${button("odel", "Delete", () => { c.commit((f) => { f.openings.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag an end to resize or move it. A gap hides the wall under it.")}`;
 }
 
@@ -198,7 +199,7 @@ function roomPanel(c: PanelCtx, i: number) {
     ${roomTurn(c, i)}
     <label for="rcol">colour</label><input id="rcol" type="color" .value=${r.color ?? "#ffffff"} @change=${(e: Event) => c.commit((f) => { f.rooms[i].color = val(e); })}>
     <p>${button("rcolx", "Use the default colour", () => c.commit((f) => { delete f.rooms[i].color; }))}</p>
-    <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); })}</p>
+    <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${r.kind === "zone" ? hint("A zone is a dotted area inside a room. Give it an area id to map it to a Home Assistant area. Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag the body to move it. Drag corners to reshape. Select an edge and choose its kind.") : nothing}`;
 }
@@ -225,7 +226,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${number("rotation (deg)", "vrot", d.rot ?? 0, (n) => c.commit((f) => { const r = ((n % 360) + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }))}
     ${d.type === "light" ? boundField(c, i) : nothing}
     ${"a" in d ? number("length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
-    <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); })}</p>
+    <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it. Alt disables the grid.") + " Removed devices go back to the Device menu.")}`;
 }
 
@@ -252,7 +253,7 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${number("width (cm)", "fw", m.w, set("w", 5))}
     ${number("depth (cm)", "fh", m.h, set("h", 5))}
     ${number("rotation (deg)", "fr", m.rot, (n) => c.commit((f) => { f.furniture[i].rot = ((n % 360) + 360) % 360; }))}
-    <p>${button("fdel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); })}</p>
+    <p>${button("fudel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag it to move it. Alt disables the grid.")}`;
 }
 
@@ -281,7 +282,7 @@ function stairsPanel(c: PanelCtx, i: number) {
     ${number("steps", "sst", t.steps, (n) => { if (Number.isInteger(n) && n >= 2 && n <= 40) c.commit((f) => { f.stairs[i].steps = n; }); })}
     ${number("rotation (deg)", "srot", t.rot, (n) => c.commit((f) => { f.stairs[i].rot = ((n % 360) + 360) % 360; }))}
     ${round ? html`${number("outer diameter (cm)", "sdia", t.dia ?? 0, setDia)}${number("inner diameter (cm)", "sinner", t.inner ?? 0, setInner)}` : nothing}
-    <p>${button("sdel", "Delete", () => { c.commit((f) => { f.stairs.splice(i, 1); }); c.select(null); })}</p>
+    <p>${button("sdel", "Delete", () => { c.commit((f) => { f.stairs.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Stairs are added to every floor and deleted from one.")}
     ${hint(round ? "Drag it to move it. Set the diameters and the rotation here." : "Drag a corner to reshape. Click an edge to add a point in the middle. A rotated flight has no corner handles: set the rotation to 0 to reshape it.")}`;
 }

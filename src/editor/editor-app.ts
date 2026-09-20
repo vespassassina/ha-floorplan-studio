@@ -148,6 +148,8 @@ export class FloorplanStudioEditor extends LitElement {
     .btn,.chip,summary{cursor:pointer}
     .chip[aria-pressed="true"]{background:var(--fp-ink);color:var(--fp-bg)}
     .btn.primary{background:var(--fp-window);color:var(--fp-bg);border-color:var(--fp-window)}
+    .btn.danger{background:var(--fp-motion);color:var(--fp-bg);border-color:var(--fp-motion)}
+    .btn.warn{background:var(--fp-open);color:var(--fp-bg);border-color:var(--fp-open)}
     .menu{position:relative}
     .menu>summary{list-style:none;display:inline-block}
     .menu>summary::-webkit-details-marker{display:none}
@@ -916,7 +918,7 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn" id="redo" ?disabled=${!st.canRedo} @click=${() => this.undo(false)}>Redo</button>
           <div class="sep"></div>
           <button class="btn" id="imp" @click=${() => this.renderRoot.querySelector<HTMLInputElement>("#file")?.click()}>Open…</button>
-          <button class="btn" id="reset" title="Discard the autosaved edit and go back to the starting layout" @click=${() => this.reset()}>Reset</button>
+          <button class="btn danger" id="reset" title="Discard the autosaved edit and go back to the starting layout" @click=${() => this.reset()}>Reset</button>
           <button class="btn primary" id="save" @click=${() => this.save()}>Save</button>
         </div></details>
         <input type="file" id="file" accept=".json,application/json" hidden @change=${(e: Event) => this.openFile(e)}>
