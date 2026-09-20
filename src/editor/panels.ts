@@ -2,7 +2,7 @@ import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, setEdgeKind } from "../core";
 import type { DeviceType, Floor, RoomKind, WallKind } from "../core";
-import { movePointAll, resizeSegment, setSecondEnd } from "./ops";
+import { movePointAll, openingToWall, resizeSegment, setSecondEnd, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 
 /** Selection panels: one function per kind of selection, all pure views over the state. */
@@ -20,6 +20,8 @@ export interface PanelCtx {
   /** One undoable edit of the current floor; autosaves and notifies the host. */
   commit(fn: (f: Floor) => Floor | void): void;
   select(s: Sel): void;
+  /** Say something in the status line. */
+  say(msg: string): void;
   /** Redraw without an edit. */
   refresh(): void;
   /** Floor operations of the editor: each is one undo step and reports in the status line. */
@@ -119,7 +121,13 @@ function wallPanel(c: PanelCtx, i: number) {
   return html`<strong>${WALL_LABELS[w.kind] ?? "Wall"}</strong>
     ${number("length (m)", "wlen", (dist(w.a, w.b) / 100).toFixed(2), (m) => set({ length: m }))}
     <div class="row">${button("wh", "Make horizontal", () => set({ axis: "h" }))}${button("wv", "Make vertical", () => set({ axis: "v" }))}</div>
-    <label for="wk">kind</label><select id="wk" .value=${w.kind} @change=${(e: Event) => c.commit((f) => { f.walls[i].kind = val(e) as WallKind; })}>${WALL_KINDS.map((k) => html`<option value=${k} ?selected=${k === w.kind}>${WALL_LABELS[k]}</option>`)}</select>
+    <label for="wk">kind</label><select id="wk" .value=${live(w.kind)} @change=${(e: Event) => {
+      const v = val(e);
+      if (v !== "opening") { c.commit((f) => { f.walls[i].kind = v as WallKind; }); return; }
+      if (dist(w.a, w.b) === 0) { c.say("A wall of zero length cannot become an opening"); c.refresh(); return; }
+      c.commit((f) => wallToOpening(f, i, c.st.floor));
+      c.select({ t: "opening", i: c.st.f.openings.length - 1 });
+    }}>${WALL_KINDS.map((k) => html`<option value=${k} ?selected=${k === w.kind}>${WALL_LABELS[k]}</option>`)}<option value="opening">Opening (a gap in the wall)</option></select>
     <p>${button("wdel", "Delete", () => { c.commit((f) => { f.walls.splice(i, 1); }); c.select(null); })}</p>
     ${hint("Drag its ends to place it. Ends snap to corners.")}`;
 }
@@ -145,7 +153,15 @@ function doorPanel(c: PanelCtx, i: number) {
 
 function openingPanel(c: PanelCtx, i: number) {
   const o = c.st.f.openings[i];
+  const toWall = (e: Event) => {
+    const v = val(e);
+    if (v === "opening") return;
+    if (dist(o.a, o.b) === 0) { c.say("An opening of zero length cannot become a wall"); c.refresh(); return; }
+    c.commit((f) => openingToWall(f, i, v as WallKind, c.st.floor));
+    c.select({ t: "wall", i: c.st.f.walls.length - 1 });
+  };
   return html`<strong>Opening</strong>
+    <label for="ok">kind</label><select id="ok" .value=${live("opening")} @change=${toWall}><option value="opening" selected>Opening</option>${WALL_KINDS.map((k) => html`<option value=${k}>${WALL_LABELS[k]}</option>`)}</select>
     ${number("length (cm)", "ol", Math.round(dist(o.a, o.b)), (n) => c.commit((f) => { Object.assign(f.openings[i], resizeSegment(o.a, o.b, Math.max(20, n))); }))}
     <p>${button("odel", "Delete", () => { c.commit((f) => { f.openings.splice(i, 1); }); c.select(null); })}</p>
     ${hint("Drag an end to resize or move it. A gap hides the wall under it.")}`;
@@ -167,7 +183,7 @@ function roomPanel(c: PanelCtx, i: number) {
     <p>${button("rcolx", "Use the default colour", () => c.commit((f) => { delete f.rooms[i].color; }))}</p>
     <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); })}</p>
     ${r.kind === "zone" ? hint("A zone is a dotted area inside a room. Give it an area id to map it to a Home Assistant area. Drag corners to reshape.") : nothing}
-    ${r.kind === "structure" ? hint("Drag the body to move it. Drag corners to reshape. Click an edge to switch it between wall and dotted.") : nothing}`;
+    ${r.kind === "structure" ? hint("Drag the body to move it. Drag corners to reshape. Select an edge and choose its kind.") : nothing}`;
 }
 
 function devicePanel(c: PanelCtx, i: number) {

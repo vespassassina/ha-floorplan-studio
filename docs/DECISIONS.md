@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.19: the conversions take the floor key
+
+`wallToOpening(f, i, floor)` and `openingToWall(f, i, kind, floor)` take the floor key as a last argument, because `newId` needs it to build `<prefix>-<floor>-<n>`. Both return `f` itself for a missing index or a zero-length segment; the panel then says so in the status line (`PanelCtx.say`) and writes nothing. The new opening or wall goes last in its list and is selected. The structure hint no longer says "wall and dotted": it points at the edge kind select.
+
 ## 2026-09-20 The hatch beats the kind rules
 
 - S1.16 made the kind fills `:not([fill])`, which raised their specificity above `.room-fill`, so a fill room lost its hatch (found by the Sonnet verifier in Chromium; unit tests only read the CSS string). The rule is now `.room.room-fill`, later in the sheet. A fill room keeps its hatch with or without a colour of its own. Browser test added.

@@ -243,7 +243,7 @@ export class FloorplanStudioEditor extends LitElement {
   private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); };
   private select = (s: Sel) => { this.st.sel = s; this.requestUpdate(); };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, select: this.select, refresh: () => this.requestUpdate(), floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------

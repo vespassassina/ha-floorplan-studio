@@ -325,7 +325,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass.
 - Break it: the select does not appear on a zone edge (`edgeRooms` returns nothing there), and choosing a kind on the outline edge of a room-less floor changes nothing and does not throw.
 
-### S1.19 A free wall becomes an opening, and back
+### S1.19 A free wall becomes an opening, and back (done)
 - Outcome: a wall can be turned into a gap and a gap back into a wall, without deleting and redrawing.
 - Files: `src/editor/panels.ts`, `src/editor/ops.ts`, `tests/editor/editor.spec.ts`.
 - Interface: `ops.ts` gains `wallToOpening(f, i)` and `openingToWall(f, i, kind: WallKind)`, both pure, both keeping `a` and `b` and taking a fresh id from `newId`. The free wall panel's kind select gains a sixth entry "Opening (a gap in the wall)" with the value `opening`; choosing it runs `wallToOpening` and selects the new opening. The opening panel gains the same select, showing "Opening" plus the five wall kinds; choosing a wall kind runs `openingToWall` and selects the new wall. Each is one undo step. A room edge's select (S1.18) does not offer it: a gap in a room edge is an `openings` entry laid over it.

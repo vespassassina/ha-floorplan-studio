@@ -743,12 +743,12 @@ test("a thin fence stays clickable a few pixels off its line, and of two walls 6
   await expect(page.locator("#wk")).toHaveValue("edge");
 });
 
-test("the wall panel has a kind select with five human labels and no toggle button", async ({ page }) => {
+test("the wall panel has a kind select with five human labels, the opening entry and no toggle button", async ({ page }) => {
   await withWallRow(page);
   await clickCm(page, 60, 650);
   await expect(page.locator("#wk")).toHaveJSProperty("tagName", "SELECT");
   expect(await page.locator("#wk option").evaluateAll((o) => o.map((x) => [(x as HTMLOptionElement).value, x.textContent]))).toEqual([
-    ["wall", "Internal wall"], ["boundary", "Dotted boundary"], ["external", "External wall"], ["fence", "Fence"], ["edge", "Outdoor edge"],
+    ["wall", "Internal wall"], ["boundary", "Dotted boundary"], ["external", "External wall"], ["fence", "Fence"], ["edge", "Outdoor edge"], ["opening", "Opening (a gap in the wall)"],
   ]);
   await expect(page.locator("button#wk")).toHaveCount(0);
 });
@@ -1928,4 +1928,64 @@ test("break it: an outline edge of a floor with no rooms has no kind select and 
   await expect(page.locator("#elen")).toBeVisible(); // an edge is selected
   await expect(page.locator("#ek")).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+// ---- S1.19 a free wall becomes an opening, and back ----
+const status = (page: Page) => page.locator("#status");
+
+test("a free wall becomes an opening and back to a wall of a chosen kind; two undos return to the first wall", async ({ page }) => {
+  await withWallRow(page);
+  await clickCm(page, 60 + 3 * 150, 650); // the fence, wall index 3
+  await expect(page.locator("#wk")).toHaveValue("fence");
+  expect(await page.locator("#wk option").evaluateAll((o) => o.map((x) => [(x as HTMLOptionElement).value, x.textContent]).slice(5))).toEqual([["opening", "Opening (a gap in the wall)"]]);
+  const before = await groundOf(page), fence = before.walls[3];
+  await page.locator("#wk").selectOption("opening");
+  const g = await groundOf(page);
+  expect(g.walls).toHaveLength(4);
+  expect(g.openings).toHaveLength(1);
+  expect([g.openings[0].a, g.openings[0].b]).toEqual([fence.a, fence.b]);
+  expect(g.openings[0].id).toBe("opening-ground-1");
+  await expect(page.locator("#panel strong").first()).toHaveText("Opening");
+  await expect(page.locator("svg line.hl")).toHaveCount(1); // the new opening is selected
+  // the real pointer reaches the new opening, not a wall
+  expect(await topAt(page, 60 + 3 * 150, 650)).toBe("line.opening");
+  expect(await page.locator("#ok option").evaluateAll((o) => o.map((x) => [(x as HTMLOptionElement).value, x.textContent]))).toEqual([
+    ["opening", "Opening"], ["wall", "Internal wall"], ["boundary", "Dotted boundary"], ["external", "External wall"], ["fence", "Fence"], ["edge", "Outdoor edge"],
+  ]);
+  await expect(page.locator("#ok")).toHaveValue("opening");
+  await page.locator("#ok").selectOption("external");
+  const h = await groundOf(page);
+  expect(h.openings).toHaveLength(0);
+  expect(h.walls).toHaveLength(5);
+  const back = h.walls[h.walls.length - 1];
+  expect([back.a, back.b, back.kind]).toEqual([fence.a, fence.b, "external"]);
+  await expect(page.locator("#wk")).toHaveValue("external");
+  await expect(page.locator(`svg line[data-w="${h.walls.length - 1}"]`)).toHaveClass("e external");
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
+  expect(await groundOf(page)).toEqual(before);
+  await savedValid(page);
+});
+
+test("choosing the opening entry on a room edge select is not possible: the edge kind select has five kinds", async ({ page }) => {
+  await clickCm(page, 500, 200);
+  expect(await page.locator("#ek option").evaluateAll((o) => o.map((x) => (x as HTMLOptionElement).value))).toEqual(["wall", "boundary", "external", "fence", "edge"]);
+});
+
+test("break it: a wall of zero length is not turned into an opening; the status line says so and nothing is written", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.walls = [{ id: "wall-ground-1", a: [100, 700], b: [100, 700], kind: "wall" }, { id: "wall-ground-2", a: [300, 700], b: [400, 700], kind: "wall" }];
+    el.layout = l;
+  }, EDITOR);
+  // a zero-length wall has no body to click: select it through the editor state
+  await page.evaluate((tag) => { (document.querySelector(tag as string) as any).st.sel = { t: "wall", i: 0 }; (document.querySelector(tag as string) as any).requestUpdate(); }, EDITOR);
+  await expect(page.locator("#wk")).toBeVisible();
+  const before = await layoutOf(page);
+  await page.locator("#wk").selectOption("opening");
+  await expect(status(page)).toContainText("zero length");
+  expect(await layoutOf(page)).toEqual(before);
+  await expect(page.locator("#wk")).toHaveValue("wall"); // the select snaps back to the kind
+  await page.keyboard.press("Control+z"); // nothing was recorded: undo does nothing
+  expect(await layoutOf(page)).toEqual(before);
 });

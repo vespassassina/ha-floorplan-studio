@@ -1,6 +1,6 @@
 import { dist, movePoints, polys } from "../core";
-import type { Floor, Pt } from "../core";
-import type { LooseRef, PtRef } from "./state";
+import type { Floor, Pt, WallKind } from "../core";
+import { newId, type LooseRef, type PtRef } from "./state";
 
 // Floor edits that geometry.ts does not cover: loose wall, opening and extra ends.
 // Pure like the core: each returns a new Floor.
@@ -75,4 +75,24 @@ export function stairsAt(c: Pt): { name: string; pts: Pt[] } {
 export function squareAt(c: Pt): Pt[] {
   const g = (n: number) => Math.round(n / 5) * 5, x = g(c[0] - 100), y = g(c[1] - 100);
   return [[x, y], [x + 200, y], [x + 200, y + 200], [x, y + 200]];
+}
+
+/** Wall `i` becomes an opening with the same ends and a fresh id. `floor` is the floor key, for the id. Returns `f` itself when there is no such wall or it has no length. */
+export function wallToOpening(f: Floor, i: number, floor: string): Floor {
+  const w = f.walls[i];
+  if (!w || dist(w.a, w.b) === 0) return f;
+  const g = structuredClone(f);
+  g.walls.splice(i, 1);
+  g.openings.push({ id: newId(g, floor, "opening"), a: [...w.a], b: [...w.b] });
+  return g;
+}
+
+/** Opening `i` becomes a wall of `kind` with the same ends and a fresh id. Returns `f` itself when there is no such opening or it has no length. */
+export function openingToWall(f: Floor, i: number, kind: WallKind, floor: string): Floor {
+  const o = f.openings[i];
+  if (!o || dist(o.a, o.b) === 0) return f;
+  const g = structuredClone(f);
+  g.openings.splice(i, 1);
+  g.walls.push({ id: newId(g, floor, "wall"), a: [...o.a], b: [...o.b], kind });
+  return g;
 }
