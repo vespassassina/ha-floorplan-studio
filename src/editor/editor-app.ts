@@ -3,10 +3,10 @@ import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, rotateAbout, snapPoint, stitch, validate } from "../core";
 import type { DeviceType, Floor, Layout, Pt, Stairs, WallKind } from "../core";
-import { looseEnds, movePointAll, pointsNear, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt } from "./ops";
+import { gridRound, looseEnds, movePointAll, pointsNear, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
-import { EditorState, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
+import { EditorState, GRID_VALUES, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
 
 /**
  * <floorplan-studio-editor>: draws and edits a layout.
@@ -157,7 +157,7 @@ export class FloorplanStudioEditor extends LitElement {
     .box{max-height:75vh;overflow:auto;position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:210px;display:flex;flex-direction:column;gap:6px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px}
     .box .btn,.box .chip,.box select{width:100%;text-align:left}
     .sep{border-top:1px solid var(--fp-idle)}
-    .rotrow{display:flex;flex-wrap:wrap;gap:6px} .rotrow #rotv{width:100%} .box .rotrow .btn{width:auto;flex:1;text-align:center}
+    .rotrow{display:flex;flex-wrap:wrap;gap:6px} .rotrow>span{width:100%} .box .rotrow .btn{width:auto;flex:1;text-align:center}
     .ed{display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:start}
     .canvas{border:1px solid var(--fp-idle);height:var(--fp-editor-height,calc(100vh - 150px));min-height:420px;touch-action:none;background:var(--fp-bg)}
     .canvas svg{width:100%;height:100%;display:block;cursor:grab;user-select:none}
@@ -275,7 +275,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (zone) {
       const own = "poly" in ref ? (polyPts(base, ref.poly) ?? []).filter((q) => q !== from && !(q[0] === from[0] && q[1] === from[1])) : [];
       const none: Floor = { ...base, outline: [], rooms: [], stairs: [], walls: [], openings: [], extras: [] };
-      return round(snapPoint(none, p, { threshold: 14 / this.scale, grid: this.st.snapGrid ? 5 : 0, exclude: [], neighbours: [...own, ...align] }));
+      return round(snapPoint(none, p, { threshold: 14 / this.scale, grid: this.st.snapGrid, exclude: [], neighbours: [...own, ...align] }));
     }
     const th = 14 / this.scale, grp = pointsNear(base, from);
     // The two neighbours of the dragged corner are never snap targets: landing on one would leave an edge of zero length.
@@ -292,10 +292,10 @@ export class FloorplanStudioEditor extends LitElement {
     for (const q of cands)
       if (!grp.includes(q) && !isNeighbour(q) && dist(q, p) < th && (!best || dist(q, p) < dist(best, p))) best = q;
     if (best) return [best[0], best[1]];
-    const snapped = round(snapPoint(base, p, { threshold: th, grid: this.st.snapGrid ? 5 : 0, exclude: grp, neighbours: [...neighbours, ...align] }));
+    const snapped = round(snapPoint(base, p, { threshold: th, grid: this.st.snapGrid, exclude: grp, neighbours: [...neighbours, ...align] }));
     if (!isNeighbour(snapped)) return snapped;
     // snapPoint pulled it onto a neighbour (corner snap, or both axes lined up): keep it where the pointer is, on the grid if on
-    const g = this.st.snapGrid ? 5 : 1;
+    const g = this.st.snapGrid || 1;
     const free: Pt = [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g];
     return isNeighbour(free) ? [from[0], from[1]] : free;
   }
@@ -406,8 +406,8 @@ export class FloorplanStudioEditor extends LitElement {
       this.requestUpdate();
       return;
     }
-    const p = this.toSvg(ev), alt = ev.altKey, grid = st.snapGrid && !alt;
-    const g5 = (n: number) => (grid ? Math.round(n / 5) * 5 : Math.round(n));
+    const p = this.toSvg(ev), alt = ev.altKey, gs = alt ? 0 : st.snapGrid; // Alt: no grid for this gesture
+    const g5 = (n: number) => gridRound(n, gs);
     let g: Floor | null = null;
     switch (d.type) {
       case "corner": {
@@ -422,7 +422,7 @@ export class FloorplanStudioEditor extends LitElement {
         let dx = p[0] - d.start[0], dy = p[1] - d.start[1];
         if (!d.moved && Math.hypot(dx, dy) * this.scale < 4) return;
         this.begin(d);
-        if (grid) { dx = Math.round(dx / 5) * 5; dy = Math.round(dy / 5) * 5; }
+        if (gs) { dx = gridRound(dx, gs); dy = gridRound(dy, gs); }
         g = d.base; d.to = [];
         for (const e of d.ends) {
           const to = round([e.from[0] + dx, e.from[1] + dy]);
@@ -593,7 +593,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private centre(): Pt { const v = this.st.view; return [Math.round(v.x + v.w / 2), Math.round(v.y + v.h / 2)]; }
   /** Where a new item goes: outside the house, top right. */
-  private spawn(): Pt { return spawnPoint(this.st.f, this.centre()); }
+  private spawn(): Pt { return spawnPoint(this.st.f, this.centre(), this.st.snapGrid); }
   /** Brings all of `pts` into what the svg shows, with a 100 cm margin: pans by the least amount, and zooms out only when they do not fit. */
   private ensureVisible(...plan: Pt[]) {
     const st = this.st, v = st.view, s = this.scale, M = 100, r = st.rotation;
@@ -700,7 +700,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private addArea(kind: "zone") {
     this.stopDraw();
-    const p = this.spawn(), pts = squareAt(p), floor = this.st.floor, name = "New zone";
+    const p = this.spawn(), pts = squareAt(p, this.st.snapGrid), floor = this.st.floor, name = "New zone";
     this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name, area: slug(name), label: "", kind, pts, wk: pts.map((): WallKind => "boundary") }); });
     this.ensureVisible(...pts);
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
@@ -708,7 +708,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private addStairs() {
     this.stopDraw();
-    const t = stairsAt(this.spawn());
+    const t = stairsAt(this.spawn(), this.st.snapGrid);
     this.st.addStairsEverywhere(t);
     this.changed("Added stairs to every floor");
     this.ensureVisible(...t.pts);
@@ -733,7 +733,7 @@ export class FloorplanStudioEditor extends LitElement {
     st.setFloor(target);
     this.floor = target;
     const room = st.f.rooms.find((r) => r.name === c.room);
-    let ctr = spawnPoint(st.f, this.centre());
+    let ctr = spawnPoint(st.f, this.centre(), st.snapGrid);
     if (room) ctr = round([room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length, room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length]);
     const f = structuredClone(st.f);
     f.devices.push(c.type === "heater"
@@ -924,7 +924,8 @@ export class FloorplanStudioEditor extends LitElement {
           ${TYPE_LABELS.map(([t, label]) => { const g = matches.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-dev=${c.id} @click=${() => this.placeDevice(c.id)}>${c.name}${c.room ? ` — ${c.room}` : ""}</button>`)}` : nothing; })}
         </div></details>
         <details class="menu" id="mOpt"><summary class="btn">View</summary><div class="box">
-          <button class="chip" id="grid" aria-pressed=${pressed(st.snapGrid)} @click=${() => { st.snapGrid = !st.snapGrid; this.requestUpdate(); }}>Snap 5 cm</button>
+          <div class="rotrow" id="grid" role="group" aria-label="Grid"><span>Grid</span>
+            ${GRID_VALUES.map((g) => html`<button class="chip keep" data-grid=${g} aria-pressed=${pressed(st.snapGrid === g)} @click=${() => { st.setGrid(g); this.requestUpdate(); }}>${g ? `${g} cm` : "None"}</button>`)}</div>
           <button class="chip" id="lens" aria-pressed=${pressed(st.showLen)} @click=${() => { st.showLen = !st.showLen; this.requestUpdate(); }}>Lengths</button>
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
           <div class="rotrow"><span id="rotv">Rotate the plan: ${st.layout.rotate ?? 0}°</span>

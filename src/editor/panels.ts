@@ -269,7 +269,7 @@ function stairsPanel(c: PanelCtx, i: number) {
   const replace = (n: Pick<typeof t, "pts" | "shape" | "dia" | "inner">) => c.commit((f) => { const o = f.stairs[i]; for (const k of ["dia", "inner"] as const) delete o[k]; Object.assign(o, n); });
   const setShape = (v: string) => {
     if (v === t.shape || !(STAIR_SHAPES as readonly string[]).includes(v)) return;
-    const { pts, shape, dia, inner } = v === "round" ? roundStairs(centre(), 200) : stairsAt(centre());
+    const { pts, shape, dia, inner } = v === "round" ? roundStairs(centre(), 200) : stairsAt(centre(), c.st.snapGrid);
     replace({ pts, shape, dia, inner });
   };
   const setDia = (n: number) => {

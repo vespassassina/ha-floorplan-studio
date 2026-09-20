@@ -1,16 +1,19 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Layout, Pt } from "../../src/core/schema";
-import { roundStairs, rotateSegment, snapRoomTo, spawnPoint, stairsAt } from "../../src/editor/ops";
+import { gridRound, roundStairs, rotateSegment, snapRoomTo, spawnPoint, squareAt, stairsAt } from "../../src/editor/ops";
 
 const ground = () => structuredClone((demo as unknown as Layout).floors.ground);
 const FALLBACK: Pt = [123, 457];
 
 describe("spawnPoint", () => {
-  it("is right of the outline's bounding box, at its top, on the 5 cm grid", () => {
+  it("is right of the outline's bounding box, at its top, on the grid (10 cm by default)", () => {
     const f = ground();
     f.outline = [[10, 20], [803, 20], [803, 604], [10, 604]]; // max x 803, min y 20: asymmetric on purpose
-    expect(spawnPoint(f, FALLBACK)).toEqual([955, 20]); // 803 + 150 = 953 rounds to 955
+    expect(spawnPoint(f, FALLBACK)).toEqual([950, 20]); // 803 + 150 = 953 rounds to 950 (S1.34: it was 955 on the 5 cm grid)
+    expect(spawnPoint(f, FALLBACK, 5)).toEqual([955, 20]);
+    expect(spawnPoint(f, FALLBACK, 50)).toEqual([950, 0]);
+    expect(spawnPoint(f, FALLBACK, 0)).toEqual([953, 20]);
   });
 
   it("uses the demo outline: 800 wide, top at 0", () => {
@@ -86,4 +89,16 @@ describe("stairs constructors (S1.25)", () => {
     for (const p of t.pts) expect(Math.abs(Math.hypot(p[0] - 500, p[1] - 400) - 100)).toBeLessThan(1);
   });
   it("takes an inner of its own", () => expect(roundStairs([0, 0], 200, 80).inner).toBe(80));
+});
+
+describe("gridRound (S1.34)", () => {
+  it.each([[5, 503, 505], [10, 503, 500], [10, 505, 510], [50, 523, 500], [50, 526, 550], [0, 503.4, 503]])(
+    "grid %i rounds %f to %i", (g, n, want) => { expect(gridRound(n, g)).toBe(want); });
+  it("stairsAt and squareAt put their corners on the chosen grid", () => {
+    expect(stairsAt([503, 397], 10).pts[0]).toEqual([450, 250]);
+    expect(stairsAt([503, 397], 50).pts[0]).toEqual([450, 250]);
+    expect(stairsAt([503, 397], 5).pts[0]).toEqual([455, 245]);
+    expect(stairsAt([503, 397], 0).pts[0]).toEqual([453, 247]);
+    expect(squareAt([503, 397], 50)[0]).toEqual([400, 300]);
+  });
 });

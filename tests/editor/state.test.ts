@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import demo from "../../demo/layout.json";
 import v1 from "../../demo/layout.v1.json";
 import type { Layout, WallKind } from "../../src/core/schema";
 import { movePointAll, setSecondEnd, stairsAt } from "../../src/editor/ops";
-import { EditorState, STORAGE_KEY, loadLayout, newId, restoreLayout } from "../../src/editor/state";
+import { EditorState, GRID_KEY, STORAGE_KEY, loadLayout, newId, restoreLayout } from "../../src/editor/state";
 
 const fresh = () => structuredClone(demo) as unknown as Layout;
 
@@ -112,10 +112,10 @@ describe("loadLayout", () => {
 describe("stairs add and remove", () => {
   const add = (st: EditorState) => st.edit((f) => { f.stairs.push({ id: newId(f, st.floor, "stairs"), ...stairsAt([500, 400]) }); });
 
-  it("makes a 100 x 300 cm rectangle on the 5 cm grid, centred", () => {
+  it("makes a 100 x 300 cm rectangle on the grid (10 cm by default; it was 5 before S1.34), centred", () => {
     const t = stairsAt([503, 397]);
     expect(t.name).toBe("Stairs");
-    expect(t.pts).toEqual([[455, 245], [555, 245], [555, 545], [455, 545]]);
+    expect(t.pts).toEqual([[450, 250], [550, 250], [550, 550], [450, 550]]);
   });
 
   it("adds on a floor with no stairs, and undo removes it", () => {
@@ -559,5 +559,38 @@ describe("addFloor inherits the outline and the stairs of the first floor (S1.27
       expect(v.x + v.w / 2).toBeCloseTo(flat.x + flat.w / 2); expect(v.y + v.h / 2).toBeCloseTo(flat.y + flat.h / 2); // turned about the outline's own centre
       expect(st.rotation).toEqual({ deg: 90, pivot: [400, 300] });
     });
+  });
+});
+
+describe("the grid setting (S1.34)", () => {
+  beforeEach(() => localStorage.clear());
+  it("is 10 cm by default and not part of the layout", () => {
+    const st = new EditorState(fresh());
+    expect(st.snapGrid).toBe(10);
+    st.setGrid(50);
+    expect(JSON.stringify(st.layout)).not.toContain("grid");
+  });
+  it.each([0, 5, 10, 50] as const)("keeps %i under its own key and the next state reads it", (g) => {
+    new EditorState(fresh()).setGrid(g);
+    expect(localStorage.getItem(GRID_KEY)).toBe(String(g));
+    expect(new EditorState(fresh()).snapGrid).toBe(g);
+  });
+  it.each(["7", "x", "", "-5", "10.5", "null"])("a stored %j falls back to 10", (v) => {
+    localStorage.setItem(GRID_KEY, v);
+    expect(new EditorState(fresh()).snapGrid).toBe(10);
+  });
+  it("setGrid refuses a value that is not one of the four", () => {
+    const st = new EditorState(fresh());
+    st.setGrid(7 as never);
+    expect(st.snapGrid).toBe(10);
+  });
+  it("still works when storage throws", () => {
+    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    const st = new EditorState(fresh());
+    expect(st.snapGrid).toBe(10);
+    st.setGrid(50);
+    expect(st.snapGrid).toBe(50);
+    get.mockRestore(); set.mockRestore();
   });
 });

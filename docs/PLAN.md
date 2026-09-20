@@ -447,7 +447,7 @@ S2.10. Everything drawn from the layout alone is here.
 
 ---
 
-### S1.34 The grid is a setting
+### S1.34 The grid is a setting (done)
 - Outcome: the snap grid is none, 5, 10 or 50 cm, default 10, chosen in the View menu.
 - Files: `src/editor/state.ts`, `src/editor/editor-app.ts`, `src/editor/ops.ts`, `tests/editor/editor.spec.ts`, `tests/editor/state.test.ts`.
 - Interface: `EditorState.snapGrid: 0 | 5 | 10 | 50` replaces the boolean (0 = none), default 10. Every place that reads the boolean or the literal 5 (`snapCorner`, the drag rounding `g5` and the device, door and room drags, the `ops.ts` helpers that place new items on the grid) reads the one number. The chip "Snap 5 cm" becomes a View menu group "Grid" with four items, the current one pressed. The choice is kept in `localStorage` under its own key, wrapped in try/catch, and is not part of the layout. Alt still disables the grid for one gesture.

@@ -4,6 +4,20 @@ import type { CatalogEntry, DeviceType, Floor, Layout, Pt, Stairs } from "../cor
 /** localStorage key for the autosaved edit. */
 export const STORAGE_KEY = "floorplan-studio:layout";
 
+/** localStorage key for the snap grid. A viewer preference, not part of the layout. */
+export const GRID_KEY = "floorplan-studio:grid";
+export const GRID_VALUES = [0, 5, 10, 50] as const;
+export type Grid = (typeof GRID_VALUES)[number];
+export const DEFAULT_GRID: Grid = 10;
+/** The stored grid, or 10 when there is none, it is not one of the four, or storage is blocked. */
+function readGrid(): Grid {
+  try {
+    const raw = localStorage.getItem(GRID_KEY);
+    const n = raw === null || raw === "" ? NaN : Number(raw);
+    return (GRID_VALUES as readonly number[]).includes(n) ? (n as Grid) : DEFAULT_GRID;
+  } catch { return DEFAULT_GRID; }
+}
+
 export interface View { x: number; y: number; w: number; h: number }
 /** A point that is not a polygon corner: the end of a wall, an opening or an extra. */
 export type LooseRef = { k: "walls" | "openings" | "extras"; i: number; end: "a" | "b" };
@@ -73,7 +87,8 @@ export class EditorState {
   views: Record<string, View> = {};
   filter: DeviceType | "" = "";
   showNames = false;
-  snapGrid = true;
+  /** Snap grid in cm; 0 is none. Kept in localStorage, not in the layout. */
+  snapGrid: Grid = readGrid();
   showLen = true;
   /** id of the door drawn open in the preview */
   openDoor: string | null = null;
@@ -240,6 +255,11 @@ export class EditorState {
   }
 
   /** Writes the autosave. Storage may be blocked or full; the edit then simply is not remembered. */
+  setGrid(g: Grid) {
+    if (!(GRID_VALUES as readonly number[]).includes(g)) return;
+    this.snapGrid = g;
+    try { localStorage.setItem(GRID_KEY, String(g)); } catch { /* private mode: the choice lasts until reload */ }
+  }
   persist() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.layout)); } catch { /* private mode, quota */ }
   }

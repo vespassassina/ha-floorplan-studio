@@ -221,8 +221,9 @@ room_glow: true
 - Buttons that destroy something are coloured: Delete floor and Reset are red,
   every other Delete is orange. Their text meets WCAG AA (4.5:1) against the
   button colour.
-- Snapping: corners, T-snap onto edges with stitch, neighbour alignment, 5 cm
-  grid; Alt disables; Shift unsnaps for one drag; a room marked `free` never
+- Snapping: corners, T-snap onto edges with stitch, neighbour alignment, and a
+  grid of none, 5, 10 (the default) or 50 cm, chosen in the View menu and kept
+  in the browser, not in the layout; Alt disables; Shift unsnaps for one drag; a room marked `free` never
   snaps.
 - Pan: drag background, or middle/right/Ctrl drag anywhere. Wheel zooms.
 - Undo/redo, autosave in the browser, Open/Save file, Reset to stored layout.

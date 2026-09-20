@@ -28,6 +28,12 @@ async function drag(page: Page, selector: string, dx: number, dy: number) {
 async function menu(page: Page, name: string) {
   await page.locator(`details.menu > summary:text-is("${name}")`).click();
 }
+/** Chooses the snap grid in View, Grid (0 = none), and closes the menu. */
+async function setGrid(page: Page, g: number) {
+  await menu(page, "View");
+  await page.locator(`#grid [data-grid="${g}"]`).click();
+  await menu(page, "View");
+}
 
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -238,7 +244,8 @@ test("keys act only inside the editor", async ({ page }) => {
   expect(await layoutOf(page)).toEqual(before);
 });
 
-test("a device snaps to the 5 cm grid, and Alt places it freely", async ({ page }) => {
+test("a device snaps to the 5 cm grid when chosen, and Alt places it freely", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   await dragCm(page, [250, 200], [263, 207]);
   let d = (await groundOf(page)).devices[0] as any;
   expect([d.x, d.y]).toEqual([265, 205]);
@@ -249,6 +256,7 @@ test("a device snaps to the 5 cm grid, and Alt places it freely", async ({ page 
 });
 
 test("Alt turns snapping off for a corner", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   await dragCm(page, [700, 420], [697, 433], ["Alt"]);
   expect((await groundOf(page)).stairs[0].pts[0]).toEqual([697, 433]);
   await dragCm(page, [697, 433], [663, 447]);
@@ -692,6 +700,7 @@ test("dragging a room corner onto a zone edge does not insert a point into the z
 });
 
 test("a room corner dropped 8 cm from a zone corner does not snap onto it", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   const g0 = await groundOf(page), z = g0.rooms.find((r) => r.kind === "zone")!;
   const c = z.pts[2]; // (460, 140)
   await dragCm(page, [0, 400], [c[0] + 8, c[1] + 6]);
@@ -1030,6 +1039,7 @@ const FREE: [number, number][] = [[103, 632], [297, 633], [298, 668], [102, 667]
 const FREE_SNAPPED = [[105, 630], [295, 630], [295, 670], [105, 670]];
 
 test("Draw, Room: four clicks and Enter give a room of four points at the snapped coordinates, selected, one undo step", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   const before = await groundOf(page);
   await startDraw(page, "drawRoom");
   await expect(page.locator("#status")).toHaveText(DRAW_STATUS);
@@ -1053,6 +1063,7 @@ test("Draw, Room: four clicks and Enter give a room of four points at the snappe
 });
 
 test("Draw, Wall (fence): three clicks and Enter give two fence walls sharing a point, one undo step", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   const before = await groundOf(page);
   await startDraw(page, "drawWall-fence");
   await clicksCm(page, FREE[0], FREE[1], FREE[2]);
@@ -1108,6 +1119,7 @@ test("after Esc a click on the plan selects again instead of adding points", asy
 });
 
 test("Backspace removes the last point; the shape then uses the remaining ones", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   await startDraw(page, "drawRoom");
   await clicksCm(page, [103, 632], [297, 633], [298, 668]);
   await page.keyboard.press("Backspace");
@@ -1146,6 +1158,7 @@ test("finishing with fewer than three points leaves the floor and the undo stack
 });
 
 test("Draw, Zone on top of a room's corner does not snap to it", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   const g0 = await groundOf(page);
   expect(g0.rooms[0].pts[2]).toEqual([500, 400]); // Living's corner, also Kitchen's and the Hall's edge
   await startDraw(page, "drawZone");
@@ -1167,6 +1180,7 @@ test("Draw, Room next to an existing corner snaps to it", async ({ page }) => {
 });
 
 test("a double-click finishes the shape without a duplicate point", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   await startDraw(page, "drawRoom");
   await clicksCm(page, FREE[0], FREE[1], FREE[2]);
   const c = await screenOf(page, FREE[3][0], FREE[3][1]);
@@ -1177,6 +1191,7 @@ test("a double-click finishes the shape without a duplicate point", async ({ pag
 });
 
 test("a click on the first point closes a polygon of three or more points and adds no point", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   await startDraw(page, "drawRoom");
   await clicksCm(page, [103, 632], [297, 633], [298, 668]);
   await clickCm(page, 107, 628); // on the first point
@@ -1212,6 +1227,7 @@ test("Alt while clicking disables snapping", async ({ page }) => {
 });
 
 test("Draw, Outline replaces the floor outline in one undo step", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   const before = await groundOf(page);
   await startDraw(page, "drawOutline");
   await clicksCm(page, ...FREE);
@@ -1222,6 +1238,7 @@ test("Draw, Outline replaces the floor outline in one undo step", async ({ page 
 });
 
 test("Draw, Water and Draw, Opening and Draw, Structure line add their shapes", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   await startDraw(page, "drawWater");
   await clicksCm(page, [850, 300], [900, 300], [900, 350]);
   await page.keyboard.press("Enter");
@@ -1277,6 +1294,7 @@ test("choosing another Add item or Undo mid-draw leaves draw mode and its rubber
 });
 
 test("the rubber band runs from the last point to the pointer as a dashed line, in editor variables", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   await startDraw(page, "drawRoom");
   await clicksCm(page, FREE[0]);
   const c = await screenOf(page, 250, 660);
@@ -1857,6 +1875,7 @@ test("a floor property named like an Object.prototype key does not cancel a draw
 });
 
 test("a dragged zone corner dropped 4 cm from a room corner lands on the grid, not on the room corner", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
   const g0 = await groundOf(page), zi = g0.rooms.findIndex((r) => r.kind === "zone"), z = g0.rooms[zi];
   const j = 1; // (460, 40); the living room corner (500, 0) is 40 cm away, the drop is 4 cm from it
   await dragCm(page, z.pts[j] as [number, number], [496, 4]);
@@ -2855,12 +2874,14 @@ for (const deg of [45, 90]) {
     });
 
     test("dragging a device lands it where the pointer is, on the grid", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
       await dragCm(page, [650, 200], [615, 270]);
       const d = (await groundOf(page)).devices[1] as { x: number; y: number };
       expect([d.x, d.y]).toEqual([615, 270]);
     });
 
     test("drawing a room clicks its corners at the plan points under the pointer, snapped to the grid", async ({ page }) => {
+  await setGrid(page, 5); // S1.34: the default grid is 10; this test's numbers are on the 5 cm grid
       const n0 = (await groundOf(page)).rooms.length;
       await startDraw(page, "drawRoom");
       await clicksCm(page, ...FREE);
@@ -2956,4 +2977,92 @@ test("S1.33: adding an item at 90 puts it in view and the panel value survives",
     expect(c.x).toBeGreaterThan(svg.x); expect(c.x).toBeLessThan(svg.x + svg.width);
     expect(c.y).toBeGreaterThan(svg.y); expect(c.y).toBeLessThan(svg.y + svg.height);
   }
+});
+
+// ---- S1.34 the grid is a setting ----
+const gridChoices = (page: Page) => page.locator(`${EDITOR} #grid [data-grid]`);
+const pressedGrid = async (page: Page) => page.locator(`${EDITOR} #grid [data-grid][aria-pressed="true"]`).evaluateAll((els) => els.map((e) => e.getAttribute("data-grid")));
+
+test("S1.34: View has a Grid group of four, 10 cm pressed by default; the old Snap chip is gone", async ({ page }) => {
+  await menu(page, "View");
+  await expect(gridChoices(page)).toHaveText(["None", "5 cm", "10 cm", "50 cm"]);
+  expect(await pressedGrid(page)).toEqual(["10"]);
+  await expect(page.locator(`${EDITOR} button#grid`)).toHaveCount(0);
+  await expect(page.getByText("Snap 5 cm")).toHaveCount(0);
+});
+
+for (const [g, want] of [[10, [660, 450]], [50, [650, 450]], [5, [665, 445]], [0, [663, 447]]] as const) {
+  test(`S1.34: with grid ${g || "none"} a stairs corner dragged to 663,447 lands on ${want}`, async ({ page }) => {
+    if (g !== 10) await setGrid(page, g);
+    else expect(await pressedGrid(page)).toEqual(["10"]); // the default, nothing chosen
+    await dragCm(page, [700, 420], [663, 447]);
+    expect((await groundOf(page)).stairs[0].pts[0]).toEqual(want);
+    await menu(page, "View");
+    expect(await pressedGrid(page)).toEqual([String(g)]);
+  });
+}
+
+test("S1.34: with 10 selected a device lands on a multiple of 10 and Alt still places it freely", async ({ page }) => {
+  await dragCm(page, [250, 200], [263, 207]);
+  let d = (await groundOf(page)).devices[0] as any;
+  expect([d.x, d.y]).toEqual([260, 210]);
+  await dragCm(page, [260, 210], [263, 207], ["Alt"]);
+  d = (await groundOf(page)).devices[0] as any;
+  expect([d.x, d.y]).toEqual([263, 207]);
+});
+
+test("S1.34: with 50 selected a whole room dragged by its edge moves by a multiple of 50", async ({ page }) => {
+  await setGrid(page, 50);
+  const before = (await groundOf(page)).rooms[0].pts;
+  await dragCm(page, [250, 0], [250 + 61, 0 + 37]);
+  const after = (await groundOf(page)).rooms[0].pts;
+  const dx = after[0][0] - before[0][0], dy = after[0][1] - before[0][1];
+  expect(dx % 50).toBe(0); expect(dy % 50).toBe(0);
+});
+
+test("S1.34: new items go on the chosen grid", async ({ page }) => {
+  await setGrid(page, 50);
+  await menu(page, "Add");
+  await page.locator("#addStairs").click();
+  const t = (await groundOf(page)).stairs.at(-1)!;
+  for (const p of t.pts) { expect(Math.abs(p[0] % 50)).toBe(0); expect(Math.abs(p[1] % 50)).toBe(0); }
+});
+
+test("S1.34: the choice survives a reload and is not in the layout", async ({ page }) => {
+  await setGrid(page, 50);
+  expect(await page.evaluate(() => localStorage.getItem("floorplan-studio:grid"))).toBe("50");
+  expect(JSON.stringify(await layoutOf(page))).not.toContain("grid");
+  await page.reload();
+  await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+  await menu(page, "View");
+  expect(await pressedGrid(page)).toEqual(["50"]);
+});
+
+test("S1.34 break it: a stored 7 or x falls back to 10 without an error", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  for (const v of ["7", "x"]) {
+    await page.evaluate((val) => localStorage.setItem("floorplan-studio:grid", val), v);
+    await page.reload();
+    await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+    await menu(page, "View");
+    expect(await pressedGrid(page)).toEqual(["10"]);
+  }
+  expect(errors).toEqual([]);
+});
+
+test("S1.34 break it: with storage blocked the editor loads, uses 10 and lets the grid be changed", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() => {
+    const boom = () => { throw new Error("blocked"); };
+    Storage.prototype.getItem = boom; Storage.prototype.setItem = boom;
+  });
+  await page.reload();
+  await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+  await menu(page, "View");
+  expect(await pressedGrid(page)).toEqual(["10"]);
+  await page.locator(`#grid [data-grid="50"]`).click();
+  expect(await pressedGrid(page)).toEqual(["50"]);
+  expect(errors).toEqual([]);
 });

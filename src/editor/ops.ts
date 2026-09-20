@@ -65,9 +65,12 @@ export function segmentAt(q: Pt, u: Pt, len: number): { a: Pt; b: Pt } {
   return { a: round([q[0] - u[0] * n, q[1] - u[1] * n]), b: round([q[0] + u[0] * n, q[1] + u[1] * n]) };
 }
 
-/** A stairs polygon of 100 x 300 cm centred on c, corners on the 5 cm grid. */
-export function stairsAt(c: Pt): Omit<Stairs, "id"> {
-  const g = (n: number) => Math.round(n / 5) * 5, x = g(c[0] - 50), y = g(c[1] - 150);
+/** `n` on the `grid` cm grid; grid 0 (none) rounds to a whole cm. */
+export const gridRound = (n: number, grid: number) => (grid ? Math.round(n / grid) * grid : Math.round(n));
+
+/** A stairs polygon of 100 x 300 cm centred on c, corners on the grid (10 cm by default). */
+export function stairsAt(c: Pt, grid = 10): Omit<Stairs, "id"> {
+  const g = (n: number) => gridRound(n, grid), x = g(c[0] - 50), y = g(c[1] - 150);
   return { name: "Stairs", pts: [[x, y], [x + 100, y], [x + 100, y + 300], [x, y + 300]], shape: "straight", steps: 12, rot: 0 };
 }
 
@@ -80,9 +83,9 @@ export function roundStairs(c: Pt, dia: number, inner = Math.round(dia * 0.3)): 
   return { name: "Stairs", pts, shape: "round", steps: 12, rot: 0, dia, inner };
 }
 
-/** A 200 x 200 cm square centred on c, corners on the 5 cm grid: the default zone or water polygon. */
-export function squareAt(c: Pt): Pt[] {
-  const g = (n: number) => Math.round(n / 5) * 5, x = g(c[0] - 100), y = g(c[1] - 100);
+/** A 200 x 200 cm square centred on c, corners on the grid: the default zone or water polygon. */
+export function squareAt(c: Pt, grid = 10): Pt[] {
+  const g = (n: number) => gridRound(n, grid), x = g(c[0] - 100), y = g(c[1] - 100);
   return [[x, y], [x + 200, y], [x + 200, y + 200], [x, y + 200]];
 }
 
@@ -106,11 +109,11 @@ export function openingToWall(f: Floor, i: number, kind: WallKind, floor: string
   return g;
 }
 
-/** Where a new item goes: right of the outline's bounding box, at its top, on the 5 cm grid. With no outline (fewer than three points) `fallback`. */
-export function spawnPoint(f: Floor, fallback: Pt): Pt {
+/** Where a new item goes: right of the outline's bounding box, at its top, on the grid. With no outline (fewer than three points) `fallback`. */
+export function spawnPoint(f: Floor, fallback: Pt, grid = 10): Pt {
   if (f.outline.length < 3) return fallback;
   const xs = f.outline.map((p) => p[0]), ys = f.outline.map((p) => p[1]);
-  const g = (n: number) => Math.round(n / 5) * 5;
+  const g = (n: number) => gridRound(n, grid);
   return [g(Math.max(...xs) + 150), g(Math.min(...ys))];
 }
 
