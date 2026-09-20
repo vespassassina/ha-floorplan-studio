@@ -3732,3 +3732,18 @@ test("Opus review: a dotted chain that closes over an older wall makes a room wh
   expect(g.walls.some((w) => w.id === "wall-old")).toBe(false);
   expect(validate(await layoutOf(page)).ok).toBe(true);
 });
+
+test("Opus review a11y: the turn buttons are a labelled group and their names carry the direction; no label points at nothing", async ({ page }) => {
+  await clickCm(page, 200, 200); // a room: has rotation buttons
+  const group = page.getByRole("group", { name: "Turn by degrees" });
+  await expect(group).toHaveCount(1);
+  for (const n of [30, 45, 60, 90]) await expect(group.getByRole("button", { name: `Turn ${n} degrees clockwise`, exact: true })).toBeVisible();
+  await page.locator("#rrotdir").click();
+  for (const n of [30, 45, 60, 90]) await expect(group.getByRole("button", { name: `Turn ${n} degrees counter-clockwise`, exact: true })).toBeVisible();
+  // the stairs panel: every <label> is tied to a control
+  const c = await screenOf(page, 740, 500);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#sstn")).toBeVisible();
+  const orphans = await page.locator("label").evaluateAll((ls) => ls.filter((l) => !(l as HTMLLabelElement).control).map((l) => l.textContent));
+  expect(orphans).toEqual([]);
+});

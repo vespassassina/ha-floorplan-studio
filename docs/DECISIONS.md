@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Opus review: turn buttons are a labelled group; no orphan label
+
+`rotateButtons` is `role="group"` with `aria-label="Turn by degrees"`, and each button's name carries the direction ("Turn 30 degrees clockwise", or counter-clockwise), because the visible "30" says neither. The stairs panel's `<label>steps</label>` pointed at a span, not a control; it is a plain span now.
+
 ## 2026-09-20 Opus review: validate checks room area and device entity; migrate rejects odd versions
 
 `validate` now requires `room.area` to be text and `device.entity` to be an entity id like the other entity fields. Deviation from the brief: an empty `area` stays valid, because the schema says empty means a custom shape and the editor makes such rooms (drawn rings, water); rejecting it would break Open and restore of the editor's own output. `migrate` reads `version` only as a number or a string of digits (as before, `"2"` passes); `true`, `null`, arrays, `""`, `"two"`, `1.5` and the like throw "Layout version must be a number". A missing version is still v1.
