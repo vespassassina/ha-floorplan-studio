@@ -293,7 +293,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass; the snapshot is updated; `npm run lint` clean; SPEC lists the eight kinds.
 - Break it: a room with `kind: "garden"` already set survives `migrate` unchanged, and a room with no `kind` at all is still reported by `validate`, not silently turned into a garden.
 
-### S1.15 Fill is hatched
+### S1.15 Fill is hatched (done)
 - Outcome: a `fill` room is grey with diagonal lines, so it reads as floor that is not a usable room.
 - Files: `src/core/render.ts`, `tests/core/render.test.ts`.
 - Interface: `renderFloor` emits, as its first element and only when the floor has a room of kind `fill`, `<defs><pattern id="fp-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="var(--fp-fill)"/><line x1="0" y1="0" x2="0" y2="12" stroke="var(--fp-fill-line)" stroke-width="2"/></pattern></defs>`. `.room-fill` becomes `fill:url(#fp-hatch)`; new variables `--fp-fill` (#c4c0b8) and `--fp-fill-line` (#9a958b). The markup keeps no colour literal. The id is fixed on purpose (see DECISIONS).

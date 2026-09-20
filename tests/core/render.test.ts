@@ -374,3 +374,28 @@ describe("garden and pavement (S1.14)", () => {
     for (const [v, c] of [["garden", "#9db98a"], ["terrace", "#cdb094"], ["pavement", "#c9c6bf"]]) expect(FLOORPLAN_CSS).toContain(`--fp-${v}:${c}`);
   });
 });
+
+describe("fill is hatched (S1.15)", () => {
+  const withFill = (n: number) => {
+    const f = structuredClone(ground);
+    for (let i = 0; i < n; i++) f.rooms.push({ id: `fill${i}`, name: `F${i}`, area: "", label: "", kind: "fill", pts: [[0, 0], [50, 0], [50, 50]], w: [true, true, true] });
+    return f;
+  };
+  it("emits the hatch pattern first, once, and the class points at it", () => {
+    const html = renderFloor(withFill(1), base);
+    expect(html.startsWith('<defs><pattern id="fp-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">')).toBe(true);
+    expect(html.match(/<defs>/g)).toHaveLength(1);
+    expect(html).toContain('<rect width="12" height="12" fill="var(--fp-fill)"/>');
+    expect(html).toContain('stroke="var(--fp-fill-line)"');
+    expect(html).not.toMatch(/#[0-9a-fA-F]{6}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-fill\{fill:url\(#fp-hatch\)\}/);
+    expect(FLOORPLAN_CSS).toContain("--fp-fill:#c4c0b8");
+    expect(FLOORPLAN_CSS).toContain("--fp-fill-line:#9a958b");
+  });
+  it("emits no defs on a floor without a fill room", () => {
+    expect(renderFloor(ground, base)).not.toContain("<defs>");
+  });
+  it("two fill rooms still emit one defs", () => {
+    expect(renderFloor(withFill(2), base).match(/<defs>/g)).toHaveLength(1);
+  });
+});
