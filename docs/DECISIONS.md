@@ -2,6 +2,33 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.53 review: a `[data-theme="light"]` block for a nested light plan under a dark host; dark tokens built from one shared constant; a browser test for the nested path
+
+Three related findings from an Opus review of the S1.53 stack, all in `src/core/render.ts`
+(`FLOORPLAN_CSS`), fixed together since they touch the same block:
+
+CSS custom properties inherit down the DOM. A nested `<g data-theme="light">` (the
+`RenderOpts.theme` path a plan can set independent of its host) had no matching selector, only
+`[data-theme="dark"]`, so a plan marked light inside a host under OS or explicit dark silently
+inherited the dark tokens from its ancestor. Added a `[data-theme="light"]` block beside the dark
+one with the light values.
+
+The dark token block was duplicated verbatim between the explicit `:host([data-theme="dark"])`
+selector and the `@media (prefers-color-scheme:dark)` query — 47 tokens, byte-identical, two
+places to update and forget. Pulled both the light and dark sets into `LIGHT_TOKENS`/`DARK_TOKENS`
+template-literal constants, interpolated wherever the CSS needs them (now three places: the base
+rule, `[data-theme="light"]`, and both dark selectors share `DARK_TOKENS`).
+
+The nested `<g data-theme>` path had no computed-style test at all — the old test matched
+`FLOORPLAN_CSS` as a string, which cannot see cascade or inheritance. Added
+`tests/editor/theme-css.spec.ts`: a standalone Chromium page (`page.setContent`, `FLOORPLAN_CSS`
+imported directly, no editor) with a nested light `<g>` and a nested dark `<g>` under an emulated
+dark and an emulated light scheme, asserting `getComputedStyle` on each. Also strengthened the
+existing token-parity test in `render.test.ts`, which compared token *names* only (a dark block
+copied from light would have passed): it now compares values too, and asserts the structural
+neutrals (ink, bg, room, wall, disc, outline, measure, wall-external) actually differ between
+light and dark.
+
 ## 2026-09-20 S1.53 review: Delete on a perimeter edge clears the outline's collinear edge too, whichever poly was clicked
 
 `deleteEdge` cleared `owk[i]` only when the selected poly was the outline itself. In the shipped

@@ -485,13 +485,20 @@ describe("theme (S1.53)", () => {
     expect(renderFloor(ground, { ...base, theme: "light" })).toContain('<g data-theme="light">');
     expect(renderFloor(ground, base)).not.toContain("data-theme");
   });
-  it("the dark block defines every token the light block defines, so a new token cannot be forgotten", () => {
-    const tokensOf = (css: string) => new Set(css.match(/--fp-[a-z-]+(?=:)/g));
+  it("the dark block defines every token the light block defines, with the same names AND real dark values, so a dark block copied from light (or a forgotten token) would fail", () => {
+    const tokenPairs = (css: string) => new Map((css.match(/--fp-[a-z-]+:[^;]+/g) ?? []).map((kv) => { const j = kv.indexOf(":"); return [kv.slice(0, j), kv.slice(j + 1)]; }));
     const [light] = FLOORPLAN_CSS.match(/:host,\.fp\{[^}]*\}/s) ?? [""];
+    const [dataLight] = FLOORPLAN_CSS.match(/\[data-theme="light"\]\{[^}]*\}/s) ?? [""];
     const [dark] = FLOORPLAN_CSS.match(/:host\(\[data-theme="dark"\]\)[^{]*\{[^}]*\}/s) ?? [""];
     const [auto] = FLOORPLAN_CSS.match(/@media[^{]*\{[^{]*\{[^}]*\}/s) ?? [""];
-    expect(tokensOf(dark)).toEqual(tokensOf(light));
-    expect(tokensOf(auto)).toEqual(tokensOf(light));
+    const lightTokens = tokenPairs(light), darkTokens = tokenPairs(dark), autoTokens = tokenPairs(auto), dataLightTokens = tokenPairs(dataLight);
+    expect(new Set(darkTokens.keys())).toEqual(new Set(lightTokens.keys())); // same token names...
+    expect(darkTokens).toEqual(autoTokens); // ...and the explicit dark block and the media-query one are the same shared constant
+    expect(dataLightTokens).toEqual(lightTokens); // the nested [data-theme="light"] block matches the base light block exactly
+    // The structural neutrals a dark background actually breaks must differ from light: a dark block that was
+    // a copy-paste of light (same names, same values) would pass the name-only check above but fail here.
+    for (const k of ["--fp-ink", "--fp-bg", "--fp-room", "--fp-wall", "--fp-disc", "--fp-outline", "--fp-measure", "--fp-wall-external"])
+      expect(darkTokens.get(k), k).not.toBe(lightTokens.get(k));
   });
 });
 

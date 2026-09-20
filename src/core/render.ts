@@ -22,25 +22,36 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
   cover: "#8b8578", other: "#8b8578",
 };
 
-/** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
-export const FLOORPLAN_CSS = `
-:host,.fp{--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
+// S1.53: the light and dark token sets, each written once and interpolated wherever CSS needs it, so a new
+// token can never be added to one selector and forgotten in another (Opus review: the dark block used to be
+// duplicated verbatim between the explicit selector and the prefers-color-scheme query, 47 tokens byte-identical).
+const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
 --fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.75;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;
---fp-on-dark:#fff;--fp-on-light:#2b2a27}
-/* S1.53: the dark theme, Home Assistant's own dark night-blue. Explicit choice (data-theme, set on the host or on one plan's own root)
-   wins outright; Auto (no attribute anywhere) follows the OS/browser preference. Every accent that carries meaning (device colours, the
-   warn/danger/primary buttons) keeps the same hex in both blocks: each already clears 4.5:1 against its fixed on-dark/on-light text
-   token, so none needed lightening. Only the neutrals (ink, bg, room, wall, disc, halo, tread, outline, measure, wall-external/-fence)
-   change, because those are the tokens a dark background actually breaks. */
-:host([data-theme="dark"]),[data-theme="dark"]{--fp-ink:#e8e6e0;--fp-bg:#111c2b;--fp-room:#1c2a3a;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#e8e6e0;--fp-idle:#8b8578;
+--fp-on-dark:#fff;--fp-on-light:#2b2a27`;
+/* Home Assistant's own dark night-blue. Every accent that carries meaning (device colours, the warn/danger/primary
+   buttons) keeps the same hex as light: each already clears 4.5:1 against its fixed on-dark/on-light text token, so
+   none needed lightening. Only the neutrals (ink, bg, room, wall, disc, halo, tread, outline, measure,
+   wall-external/-fence) change, because those are the tokens a dark background actually breaks. */
+const DARK_TOKENS = `--fp-ink:#e8e6e0;--fp-bg:#111c2b;--fp-room:#1c2a3a;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#e8e6e0;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
 --fp-tread:#a9a49a;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-halo:#8a97a8;--fp-alpha:.25;--fp-disc:#1c2a3a;--fp-disc-alpha:.75;--fp-outline:#111c2b;--fp-text:#e8e6e0;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#c9c6bf;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#e8e6e0;
---fp-on-dark:#fff;--fp-on-light:#2b2a27}
-@media (prefers-color-scheme:dark){:host(:not([data-theme="light"]):not([data-theme="dark"])),.fp:not([data-theme="light"]):not([data-theme="dark"]){--fp-ink:#e8e6e0;--fp-bg:#111c2b;--fp-room:#1c2a3a;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#e8e6e0;--fp-idle:#8b8578;
---fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#a9a49a;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-halo:#8a97a8;--fp-alpha:.25;--fp-disc:#1c2a3a;--fp-disc-alpha:.75;--fp-outline:#111c2b;--fp-text:#e8e6e0;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#c9c6bf;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#e8e6e0;
---fp-on-dark:#fff;--fp-on-light:#2b2a27}}
+--fp-on-dark:#fff;--fp-on-light:#2b2a27`;
+
+/** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
+export const FLOORPLAN_CSS = `
+:host,.fp{${LIGHT_TOKENS}}
+/* S1.53: a nested plan can carry data-theme on its own root (renderFloor's theme option), independent of the
+   host's. [data-theme="light"] beside the dark block below: without it a plan marked light inside a host under
+   OS or explicit dark inherits the dark custom properties from its ancestor (the base :host,.fp rule above
+   only matches the host itself, never a descendant), and light-in-dark silently stays dark. */
+[data-theme="light"]{${LIGHT_TOKENS}}
+/* Explicit choice (data-theme, set on the host or on one plan's own root) wins outright; Auto (no attribute
+   anywhere) follows the OS/browser preference below. :host([data-theme="dark"]) is a whole-editor override
+   (cascades through the shadow tree to chrome and plan together); the plain [data-theme="dark"] (no :host())
+   is the nested override, so one plan can be dark while its host is not. */
+:host([data-theme="dark"]),[data-theme="dark"]{${DARK_TOKENS}}
+@media (prefers-color-scheme:dark){:host(:not([data-theme="light"]):not([data-theme="dark"])),.fp:not([data-theme="light"]):not([data-theme="dark"]){${DARK_TOKENS}}}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch. */
 .room:not([fill]){fill:var(--fp-room)} .room-garden:not([fill]){fill:var(--fp-garden)} .room-terrace:not([fill]){fill:var(--fp-terrace)} .room-pavement:not([fill]){fill:var(--fp-pavement)}
 .room.room-fill{fill:url(#fp-hatch)} .room-zone:not([fill]){fill:none} .room-water:not([fill]){fill:var(--fp-water)}
