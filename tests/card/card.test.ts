@@ -253,6 +253,33 @@ describe("FloorplanStudioCard", () => {
       await el.updateComplete;
       expect(setSpy).not.toHaveBeenCalled();
     });
+
+    // Coverage gap found in review: deleting the `_stopTimer()` call from `disconnectedCallback` left this suite
+    // fully green with no error at all. A card removed from the DOM while a motion sensor is still fading leaked
+    // its interval forever, invisible to every other test here (none of them exercise removal while a timer runs).
+    it("Break it: stops the interval and renders no more when the card is removed from the DOM mid-fade", async () => {
+      const setSpy = vi.spyOn(globalThis, "setInterval");
+      const clearSpy = vi.spyOn(globalThis, "clearInterval");
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), fade: 10 });
+      const now = Date.parse("2026-09-19T10:00:00Z");
+      vi.setSystemTime(now);
+      // motion just went on: inside the 10 s fade window, so the timer is running.
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(now).toISOString() }) }) as never;
+      await el.updateComplete;
+      expect(setSpy).toHaveBeenCalledTimes(1);
+      const timerId = setSpy.mock.results[0]!.value;
+      const rendersBefore = (renderFloor as unknown as Mock).mock.calls.length;
+
+      el.remove();
+
+      // the same timer id the running interval was given, not just "cleared something".
+      expect(clearSpy).toHaveBeenCalledWith(timerId);
+
+      // the tick that would have re-rendered a fading sensor must produce no further render once the card is gone.
+      await vi.advanceTimersByTimeAsync(1000);
+      expect((renderFloor as unknown as Mock).mock.calls.length).toBe(rendersBefore);
+    });
   });
 
   describe("S2.4 motion fade: the card remembers the last on time so an off sensor keeps fading", () => {
