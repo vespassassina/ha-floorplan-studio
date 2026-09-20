@@ -906,6 +906,21 @@ config). No write ever runs on load or on save.
 - Outcome: a GIF in the README; submission PR to the HACS default repository.
 - Done when: GIF under 3 MB; submission opened.
 
+### S5.5 Help guide in the editor
+- Outcome: a Help button opens a step-by-step guide in a side panel, written so a twelve-year-old can follow it without asking anyone.
+- Files: `src/editor/guide.ts` (the steps, as data), `src/editor/panels.ts`, `src/core/render.ts` only if the panel needs a token, `tests/editor/guide.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface: a `#help` button in the editor's toolbar toggles a side panel, not a dialog, so the reader can follow a step and do it with the guide still open. The steps are one array of `{ title: string; body: string }`, rendered as a list, each entry a short title and one or two sentences. The panel is card chrome: the editor's own DOM, never drawn by `renderFloor`. It ships inside `dist/editor.html`, so it works offline and from `file://`, and the panel is the same one the HA sidebar version shows. Open or closed is remembered in `localStorage` under `floorplan-studio:help`, next to the grid, measure and theme preferences — never in the layout, never an undo step. Escape closes it; the button says whether it is open through `aria-expanded` and nothing else (a Sprint 1.6 finding: do not state the same thing twice to a screen reader).
+- Content: the first draft covers drawing the outside wall, closing it, inside walls, doors and windows, placing a device, attaching an entity, floors, saving and opening. Plain words. No "canvas", no "polygon", no "viewport". A step names what the reader clicks and what they will see happen.
+- Test: the panel opens from the button and closes with Escape; the step count matches the array; every step has a non-empty title and body; the panel is reachable by keyboard from the toolbar and returns focus to the button when it closes; `getComputedStyle` in Chromium confirms it is readable in both themes.
+- Done when: tests pass; someone who has never seen the tool follows the steps unaided and ends with a saved floor, and what they got stuck on is written down.
+- Break it: the guide is open when the plan is rotated, when a floor is added and when a layout is loaded, and none of them closes it or loses the reader's place; the steps do not scroll away under the toolbar on a narrow window.
+
+### S5.6 Unavailable entities are struck through
+- Outcome: the plan matches `docs/SPEC.md`, which says an unavailable entity is struck through; the CSS only dims it with `opacity:.45`.
+- Note: found while building S2.6. The `unavailable` class is applied correctly everywhere; only the styling falls short. Decide whether the spec or the CSS is wrong before writing code — dimming may be the better answer, in which case the spec changes and this task is a one-line edit plus a `docs/DECISIONS.md` entry.
+- Test: `getComputedStyle` in Chromium on an unavailable device in both themes.
+- Done when: the spec and the pixel agree, whichever way it is settled.
+
 ## Later, not planned
 
 - Per-room presence heat map over a day.
