@@ -184,7 +184,7 @@ entity is on.
 | tv | grey | blue when the player is on or playing | more-info |
 | computer | grey | blue | more-info |
 | camera | dark grey icon with a 120° cone of view in dark grey at 25 % alpha, turned by `rot` | — | more-info (live view) |
-| cover on a door | door normal | door open state shown | confirm dialog, then `cover.open_cover` |
+| cover on a door | door normal | door open state shown | confirm dialog naming the action, then `cover.open_cover`, or `close_cover` when it is already open |
 | media_player | icon | accent when playing | more-info |
 | unavailable / unknown | icon struck through | — | more-info |
 
