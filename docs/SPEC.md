@@ -102,7 +102,12 @@ in `prompts/`, then fixed in the editor.
 - `room.wk` is the kind of each edge, one entry per point, same order as `pts`:
   the edge from `pts[i]` to `pts[i+1]` is `wk[i]`. It replaces the booleans
   `w`, which `migrate` reads as `wall` for true and `boundary` for false. A
-  zone is `boundary` on every edge.
+  zone is `boundary` on every edge. An edge can also be `none`: not drawn, and
+  no white twin. The room stays closed, so area, snapping and hit tests do
+  not change. The card draws nothing there; the editor draws a faint dotted
+  guide so the edge can be picked and brought back. Delete in the edge panel
+  sets `none` on every room that shares the edge; a door or window on it asks
+  first and stays.
 - `room.color` (optional) overrides the fill of that room or zone. It is the
   one place a colour is stored in a layout, and it must be `#rrggbb`.
 - `room.free` (optional): the user has unsnapped this room, so its corners are

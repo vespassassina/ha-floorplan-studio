@@ -27,6 +27,19 @@ describe("validate", () => {
     expect(errorsOf(l).join("\n")).toMatch(/room-ground-1.*wk must have 4 entries/);
   });
 
+  it("accepts none on a room edge, not on a wall, not on a zone (S1.47)", () => {
+    const l = clone();
+    (l.floors.ground.rooms[0].wk as string[])[1] = "none";
+    expect(errorsOf(l)).toEqual([]);
+    const w = clone();
+    w.floors.ground.walls.push({ id: "w9", a: [0, 0], b: [10, 0], kind: "none" as never });
+    expect(errorsOf(w).join("\n")).toMatch(/w9 kind/);
+    const z = clone();
+    const zone = z.floors.ground.rooms.find((r: { kind: string }) => r.kind === "zone")!;
+    (zone.wk as string[])[0] = "none";
+    expect(errorsOf(z).join("\n")).toMatch(/zone/);
+  });
+
   it("rejects duplicate ids on one floor", () => {
     const l = clone();
     l.floors.ground.doors[1].id = l.floors.ground.doors[0].id;

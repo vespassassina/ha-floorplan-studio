@@ -1,4 +1,4 @@
-import type { Floor, Pt, Room, Stairs, WallKind } from "./schema";
+import type { EdgeKind, Floor, Pt, Room, Stairs } from "./schema";
 
 // Everything here is pure: functions return a new Floor and never touch the DOM.
 
@@ -179,12 +179,22 @@ export function edgeRooms(f: Floor, poly: string, i: number): { room: Room; i: n
 }
 
 /** Sets the kind of an edge on every room that has it. A zone edge stays a boundary: `validate` rejects anything else. Returns `f` itself when no room matches. */
-export function setEdgeKind(f: Floor, poly: string, i: number, kind: WallKind): Floor {
+export function setEdgeKind(f: Floor, poly: string, i: number, kind: EdgeKind): Floor {
   const g = structuredClone(f);
   const hits = edgeRooms(g, poly, i);
   if (!hits.length) return f;
   for (const h of hits) h.room.wk[h.i] = kind;
   return g;
+}
+
+/** Indexes of the doors and openings that lie on segment a-b: within TOUCH of its line and overlapping it. */
+export function onEdge(f: Floor, a: Pt, b: Pt): { doors: number[]; openings: number[] } {
+  const L = dist(a, b) || 1;
+  const along = (p: Pt) => ((p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])) / L;
+  const off = (p: Pt) => Math.abs((p[0] - a[0]) * (b[1] - a[1]) - (p[1] - a[1]) * (b[0] - a[0])) / L;
+  const on = (o: { a: Pt; b: Pt }) => off(o.a) <= TOUCH && off(o.b) <= TOUCH && Math.max(along(o.a), along(o.b)) > 0 && Math.min(along(o.a), along(o.b)) < L;
+  const pick = (list: { a: Pt; b: Pt }[]) => list.flatMap((o, i) => (on(o) ? [i] : []));
+  return { doors: pick(f.doors), openings: pick(f.openings) };
 }
 
 /**

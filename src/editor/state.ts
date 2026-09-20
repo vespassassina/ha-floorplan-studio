@@ -97,6 +97,8 @@ export class EditorState {
   /** The floor panel is asking "Delete floor ...?". Any change of floor, undo or press on the plan cancels it. */
   /** The direction the rotation buttons turn: 1 clockwise, -1 counter-clockwise. Kept for the session. */
   turnDir: 1 | -1 = 1;
+  /** The edge ("poly:i") whose Delete is waiting for a yes because a door or window is on it. */
+  confirmEdge: string | null = null;
   confirmDelete = false;
   private hist: string[] = [];
   private fut: string[] = [];

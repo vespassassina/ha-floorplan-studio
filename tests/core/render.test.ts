@@ -843,3 +843,19 @@ describe("S1.46: one text style", () => {
     for (const m of renderFloor(f, base).matchAll(/<text [^>]*>/g)) expect(m[0]).not.toMatch(/ fill=/);
   });
 });
+
+describe("S1.47: an edge of kind none", () => {
+  const withNone = () => { const f = structuredClone(ground); f.rooms[0].wk[1] = "none"; return f; };
+  const count = (html: string, re: RegExp) => (html.match(re) ?? []).length;
+  it("draws no line and no twin on the card", () => {
+    const a = renderFloor(ground, base), b = renderFloor(withNone(), base);
+    expect(count(b, /<line class="e[ "][^>]*data-e/g)).toBe(count(a, /<line class="e[ "][^>]*data-e/g) - 1);
+    expect(count(b, /<line class="eh/g)).toBe(count(a, /<line class="eh/g) - 1);
+    expect(b).not.toContain('data-e="r0:1"');
+  });
+  it("the editor keeps a faint guide with data-e, so the edge can be picked again, and no twin", () => {
+    const b = renderFloor(withNone(), { ...base, editor: true });
+    expect(b).toContain('<line class="e none" data-e="r0:1"');
+    expect(FLOORPLAN_CSS).toMatch(/\.e\.none\{[^}]*stroke-dasharray/);
+  });
+});

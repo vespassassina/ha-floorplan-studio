@@ -1980,7 +1980,7 @@ test("the kind select of a shared edge writes both rooms, redraws the line, is o
   await expect(page.locator("#wallt")).toHaveCount(0);
   await expect(page.locator("#panel strong").first()).toHaveText("Internal wall");
   const options = await page.locator("#ek option").allTextContents();
-  expect(options).toEqual(["Internal wall", "Dotted boundary", "External wall", "Fence", "Outdoor edge"]);
+  expect(options).toEqual(["Internal wall", "Dotted boundary", "External wall", "Fence", "Outdoor edge", "Not drawn"]);
   await page.locator("#ek").selectOption("external");
   const g = await groundOf(page);
   expect([g.rooms[0].wk[1], g.rooms[1].wk[3]]).toEqual(["external", "external"]);
@@ -2049,9 +2049,9 @@ test("a free wall becomes an opening and back to a wall of a chosen kind; two un
   await savedValid(page);
 });
 
-test("choosing the opening entry on a room edge select is not possible: the edge kind select has five kinds", async ({ page }) => {
+test("choosing the opening entry on a room edge select is not possible: the edge kind select has the five kinds and Not drawn", async ({ page }) => {
   await clickCm(page, 500, 200);
-  expect(await page.locator("#ek option").evaluateAll((o) => o.map((x) => (x as HTMLOptionElement).value))).toEqual(["wall", "boundary", "external", "fence", "edge"]);
+  expect(await page.locator("#ek option").evaluateAll((o) => o.map((x) => (x as HTMLOptionElement).value))).toEqual(["wall", "boundary", "external", "fence", "edge", "none"]);
 });
 
 test("break it: a wall of zero length is not turned into an opening; the status line says so and nothing is written", async ({ page }) => {
@@ -3530,4 +3530,62 @@ test("S1.46: room, zone, device and extra names and the edge length are dark gre
   expect(names.length).toBeGreaterThan(8); // rooms, the zone, device names, the extra
   for (const [t, fill, stroke] of names) { expect(fill, String(t)).toBe("rgb(58, 58, 58)"); expect(stroke, String(t)).toBe("rgb(255, 255, 255)"); }
   expect(names.some(([t]) => t === "Shed")).toBe(true);
+});
+
+// ---- delete a room edge (S1.47) -------------------------------------------------------------
+
+const twins = (page: Page) => page.locator("svg line.eh").count();
+
+test("S1.47: Delete on a shared edge stops drawing it on both rooms, and one undo brings it back", async ({ page }) => {
+  const before = await twins(page);
+  await clickCm(page, 500, 300); // the edge Living and Kitchen share
+  await expect(page.locator("#ek")).toHaveValue("wall");
+  await expectWarn(page, "#edel");
+  await page.locator("#edel").click();
+  const g = await groundOf(page);
+  expect(g.rooms[0].wk[1]).toBe("none");
+  expect(g.rooms[1].wk[3]).toBe("none");
+  expect(await twins(page)).toBe(before - 2);
+  await expect(page.locator('svg line.e.none[data-e="r0:1"]')).toHaveCount(1);
+  await expect(page.locator("#edel")).toHaveCount(0);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  const u = await groundOf(page);
+  expect(u.rooms[0].wk[1]).toBe("wall");
+  expect(u.rooms[1].wk[3]).toBe("wall");
+  expect(await twins(page)).toBe(before);
+});
+
+test("S1.47: a deleted edge can be picked again and brought back from the kind list", async ({ page }) => {
+  await clickCm(page, 500, 300);
+  await page.locator("#edel").click();
+  await page.mouse.click(...Object.values(await screenOf(page, 200, 100)) as [number, number]); // elsewhere
+  await clickCm(page, 500, 300);
+  await expect(page.locator("#ek")).toHaveValue("none");
+  await page.locator("#ek").selectOption("wall");
+  expect((await groundOf(page)).rooms[1].wk[3]).toBe("wall");
+});
+
+test("S1.47: a door on the edge asks first; Cancel changes nothing", async ({ page }) => {
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.doors.push({ id: "door-x", name: "Between", kind: "door", a: [500, 100], b: [500, 190] }); el.layout = l; }, EDITOR);
+  await clickCm(page, 500, 330);
+  const before = await groundOf(page);
+  await page.locator("#edel").click();
+  await expect(page.locator("#edelyes")).toBeVisible();
+  expect(await groundOf(page)).toEqual(before);
+  await page.locator("#edelno").click();
+  await expect(page.locator("#edelyes")).toHaveCount(0);
+  await expect(page.locator("#edel")).toBeVisible();
+  await page.locator("#edel").click();
+  await page.locator("#edelyes").click();
+  const g = await groundOf(page);
+  expect([g.rooms[0].wk[1], g.rooms[1].wk[3]]).toEqual(["none", "none"]);
+  expect(g.doors.some((d) => d.id === "door-x")).toBe(true); // the door stays
+});
+
+test("S1.47: an edge that belongs to no room has no Delete", async ({ page }) => {
+  await addFloorVia(page, "Attic"); // the outline only
+  await clickCm(page, 400, 0);
+  await expect(page.locator("#addpt")).toBeVisible(); // the edge panel is up
+  await expect(page.locator("#edel")).toHaveCount(0);
 });

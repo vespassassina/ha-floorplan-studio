@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Floor, Pt, WallKind } from "../../src/core/schema";
-import { dist, polys, nearestEdge, snapPoint, stitch, insertPoint, removePoint, movePoints, edgeRooms, setEdgeKind, mergeCorners, snapped, rotatePoly } from "../../src/core/geometry";
+import { dist, polys, nearestEdge, snapPoint, stitch, insertPoint, removePoint, movePoints, edgeRooms, setEdgeKind, mergeCorners, snapped, rotatePoly, onEdge } from "../../src/core/geometry";
 
 // Two rooms side by side sharing the edge x=100, inside a 200x100 outline.
 const rect = (x0: number, y0: number, x1: number, y1: number): Pt[] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -358,5 +358,25 @@ describe("free rooms (S1.24)", () => {
     expect(g.rooms[0].pts).toEqual([[32, -18], [118, 32], [68, 118], [-18, 68]]);
     expect(rotatePoly(f, "r0", 360).rooms[0].pts).toEqual(f.rooms[0].pts);
     expect(rotatePoly(f, "zz", 30)).toBe(f);
+  });
+});
+
+describe("deleting an edge (S1.47)", () => {
+  it("none goes on the edge of both rooms that share it and nothing else", () => {
+    const f = floor();
+    const g = setEdgeKind(f, "r0", 1, "none"); // the shared edge x = 100
+    expect(g.rooms[0].wk).toEqual(["wall", "none", "wall", "wall"]);
+    expect(g.rooms[1].wk).toEqual(["wall", "wall", "wall", "none"]);
+    expect(f.rooms[0].wk).toEqual(["wall", "wall", "wall", "wall"]); // the input is untouched
+  });
+  it("onEdge finds a door and an opening on the line, not one off it or past its end", () => {
+    const f = floor();
+    f.doors = [{ id: "d1", name: "", kind: "door", a: [100, 20], b: [100, 60] }, { id: "d2", name: "", kind: "door", a: [110, 20], b: [110, 60] }, { id: "d3", name: "", kind: "door", a: [100, 120], b: [100, 160] }] as never;
+    f.openings = [{ id: "o1", a: [100, 70], b: [100, 90] }] as never;
+    expect(onEdge(f, [100, 0], [100, 100])).toEqual({ doors: [0], openings: [0] });
+  });
+  it("the area of the room does not depend on a deleted edge", () => {
+    const f = setEdgeKind(floor(), "r0", 1, "none");
+    expect(polys(f)[1].pts).toEqual(floor().rooms[0].pts);
   });
 });

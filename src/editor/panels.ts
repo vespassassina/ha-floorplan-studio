@@ -1,7 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { DOOR_KINDS, FLOOR_COLOURS, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import type { DeviceType, Floor, HaData, Room, RoomKind, WallKind } from "../core";
+import { DOOR_KINDS, FLOOR_COLOURS, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
+import type { DeviceType, EdgeKind, Floor, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 
@@ -14,7 +14,7 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["media", "Media players"], ["cover", "Covers"], ["other", "Other"],
 ];
 
-export const WALL_LABELS: Record<WallKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge" };
+export const WALL_LABELS: Record<EdgeKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge", none: "Not drawn" };
 
 export interface PanelCtx {
   st: EditorState;
@@ -150,6 +150,16 @@ function cornerPanel(c: PanelCtx, s: Extract<Sel, { t: "v" }>) {
     ${"poly" in s.ref && canDelete ? html`<p>${button("delv", "Delete corner", () => { const ref = s.ref as { poly: string; j: number }; c.commit((f) => removePoint(f, ref.poly, ref.j)); c.select(null); }, "warn")}</p>` : nothing}`;
 }
 
+/** Delete for a room edge: it stops being drawn, on every room that shares it. A door or window on it asks first. */
+function edgeDelete(c: PanelCtx, s: Extract<Sel, { t: "edge" }>, a: [number, number], b: [number, number]) {
+  const key = `${s.poly}:${s.i}`, on = onEdge(c.st.f, a, b), n = on.doors.length + on.openings.length;
+  const remove = () => { c.st.confirmEdge = null; c.commit((f) => setEdgeKind(f, s.poly, s.i, "none")); };
+  if (c.st.confirmEdge === key && n)
+    return html`<p class="hint">${n === 1 ? "A door or window is on this edge." : `${n} doors and windows are on this edge.`} They stay. Stop drawing the edge?</p>
+      <div class="row">${button("edelyes", "Delete", remove, "warn")}${button("edelno", "Cancel", () => { c.st.confirmEdge = null; c.refresh(); })}</div>`;
+  return html`<p>${button("edel", "Delete", n ? () => { c.st.confirmEdge = key; c.refresh(); } : remove, "warn")}</p>`;
+}
+
 function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
   const pts = polyPts(c.st.f, s.poly);
   if (!pts) return html`<p class="hint">Nothing selected.</p>`;
@@ -164,7 +174,8 @@ function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
     ${hint(`angle ${ang.toFixed(1)}°`)}
     <div class="row">${button("mkh", "Make horizontal", () => set({ axis: "h" }))}${button("mkv", "Make vertical", () => set({ axis: "v" }))}</div>
     <p>${button("addpt", "Add a point in the middle", () => { c.commit((f) => insertPoint(f, s.poly, s.i, [Math.round((a[0] + b[0]) / 2), Math.round((a[1] + b[1]) / 2)])); c.select(null); })}</p>
-    ${rooms.length ? html`<label for="ek">kind</label><select id="ek" .value=${kind} @change=${(e: Event) => c.commit((f) => setEdgeKind(f, s.poly, s.i, val(e) as WallKind))}>${WALL_KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${WALL_LABELS[k]}</option>`)}</select>` : nothing}
+    ${rooms.length ? html`<label for="ek">kind</label><select id="ek" .value=${kind} @change=${(e: Event) => c.commit((f) => setEdgeKind(f, s.poly, s.i, val(e) as EdgeKind))}>${EDGE_KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${WALL_LABELS[k]}</option>`)}</select>` : nothing}
+    ${rooms.length && kind !== "none" ? edgeDelete(c, s, a, b) : nothing}
     ${hint("The second end moves. Corners shared with other rooms move with it.")}`;
 }
 

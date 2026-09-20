@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.47: a room edge can be not drawn
+
+New EdgeKind = WallKind | none, valid on room wk only; walls and zones still reject it. Deviation from the plan: the editor draws a faint dotted guide (.e.none) with data-e, so a deleted edge can be picked again; the card draws nothing. Delete sets none on all rooms that share the edge; a door or window on it asks first (onEdge).
+
 ## 2026-09-20 S1.46: one text style
 
 All SVG text is --fp-text (#3a3a3a) with a white --fp-outline stroke, painted under the fill. It replaces the cream --fp-bg outline and the black-ish --fp-ink fill. The zone name stays muted by opacity only. The edge length label in the editor follows the same style; its stroke width keeps scaling with the zoom.

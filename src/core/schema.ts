@@ -17,8 +17,10 @@ export const FLOOR_COLOURS: { name: string; hex: string }[] = [
 ];
 
 /** `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows. */
-export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: WallKind[]; color?: string; free?: boolean; entity?: string }
+export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; free?: boolean; entity?: string }
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
+/** A room edge is a wall kind, or "none": not drawn. The room stays closed for area and snapping. */
+export type EdgeKind = WallKind | "none";
 export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind }
 export type StairShape = "straight" | "round";
 /** `dia` (outer) and `inner` (the empty well) exist on a round stair only; `pts` is its outer circle as a polygon. `rot` turns it about the centre of its box. */
@@ -45,6 +47,7 @@ const isPt = (p: unknown) => Array.isArray(p) && p.length === 2 && p.every((n) =
 
 export const ROOM_KINDS: readonly RoomKind[] = ["room", "garden", "pavement", "fill", "terrace", "structure", "zone", "water"];
 export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", "fence", "edge"];
+export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
 export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed"];
 export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "other"];
@@ -107,8 +110,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (Array.isArray(r.pts) && r.pts.length >= 3 && (!Array.isArray(r.wk) || r.wk.length !== r.pts.length))
         errors.push(`${at} ${r.id} wk must have ${r.pts.length} entries`);
       else if (Array.isArray(r.wk)) {
-        if (r.wk.some((k: unknown) => typeof k !== "string" || !WALL_KINDS.includes(k as WallKind)))
-          errors.push(`${at} ${r.id} wk entries must be one of ${WALL_KINDS.join(", ")}`);
+        if (r.wk.some((k: unknown) => typeof k !== "string" || !EDGE_KINDS.includes(k as EdgeKind)))
+          errors.push(`${at} ${r.id} wk entries must be one of ${EDGE_KINDS.join(", ")}`);
         else if (r.kind === "zone" && r.wk.some((k: unknown) => k !== "boundary"))
           errors.push(`${at} ${r.id} is a zone and cannot have a wall edge: every wk entry must be boundary`);
       }

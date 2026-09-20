@@ -601,7 +601,7 @@ S1.42 are three defects the verifiers found.
 - Done when: tests pass; SPEC's text line says white outline, dark grey text.
 - Break it: a room on the darkest room colour still has the white outline on its name.
 
-### S1.47 A room edge can be deleted
+### S1.47 A room edge can be deleted (done)
 - Outcome: one side of a room can be taken away. The room stays closed for area and snapping; only the line is not drawn.
 - Files: `src/core/schema.ts`, `src/core/render.ts`, `src/editor/ops.ts`, `src/editor/panels.ts`, `tests/core/*.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
 - Interface: `WALL_KINDS` gains `"none"`. `renderFloor` skips a "none" edge and its white twin (S1.35b), and its hit line; the corner handles and the selection line stay so it can be picked again. The edge panel gets an orange `Delete` button (`#edel`, class `warn`) that calls `setEdgeKind(f, ref, "none")` for the edge and for the same edge in the neighbour room when they share it (`edgeRooms`). If a door or window lies on the edge, `#edel` asks first (`#edelyes`, `#edelno`, as the floor delete does). A "none" edge is listed in the kind select as `not drawn`, so it can be brought back. Area, centroid, snapping and `inside` ignore `wk`. A zone edge is `boundary` only (existing rule) and keeps it.
