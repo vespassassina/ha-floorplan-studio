@@ -727,7 +727,7 @@ pressed state.
 - Done when: tests pass.
 - Break it: a second tap while the dialog is open does not open a second dialog.
 
-### S2.8 A lit lamp casts an aura
+### S2.8 A lit lamp casts an aura (done)
 - Outcome: a light that is on draws a soft round aura, 2 m across, in its own colour.
 - Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/card/card.test.ts`.
 - Interface: for a device of type `light` that is on, `renderFloor` draws `<circle class="aura" r="100"/>` at the device's centre, in plan units, before every device group and after the rooms, so one lamp's aura never hides another's icon. `.aura{fill:var(--fp-aura);fill-opacity:var(--fp-alpha);pointer-events:none}` (`--fp-alpha` is .25, the value of the halo and the cone; it was .5) with `--fp-aura` (#f0c419). A light whose state carries `rgb_color` sets `--fp-aura` on its own circle through the inline `style` that the device group already uses, so the aura is the colour the lamp actually shows; a lamp bound to a switch takes the switch's state and the default colour. Off, unavailable and unknown draw no aura.

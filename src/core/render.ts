@@ -27,7 +27,7 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
 // duplicated verbatim between the explicit selector and the prefers-color-scheme query, 47 tokens byte-identical).
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.75;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.75;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;
 --fp-on-dark:#fff;--fp-on-light:#2b2a27`;
 /* Home Assistant's own dark night-blue. Every accent that carries meaning (device colours, the warn/danger/primary
    buttons) keeps the same hex as light: each already clears 4.5:1 against its fixed on-dark/on-light text token, so
@@ -35,7 +35,7 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ga
    wall-external/-fence) change, because those are the tokens a dark background actually breaks. */
 const DARK_TOKENS = `--fp-ink:#e8e6e0;--fp-bg:#111c2b;--fp-room:#1c2a3a;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#e8e6e0;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#a9a49a;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-halo:#8a97a8;--fp-alpha:.25;--fp-disc:#1c2a3a;--fp-disc-alpha:.75;--fp-outline:#111c2b;--fp-text:#e8e6e0;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#c9c6bf;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#e8e6e0;--fp-glow:#4a3f22;
+--fp-tread:#a9a49a;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-halo:#8a97a8;--fp-alpha:.25;--fp-disc:#1c2a3a;--fp-disc-alpha:.75;--fp-outline:#111c2b;--fp-text:#e8e6e0;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#c9c6bf;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#e8e6e0;--fp-glow:#4a3f22;--fp-aura:#f0c419;
 --fp-on-dark:#fff;--fp-on-light:#2b2a27`;
 
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
@@ -69,6 +69,7 @@ export const FLOORPLAN_CSS = `
 .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-on));opacity:var(--fp-dev-opacity,1)} .dev-contact.on path{fill:var(--fp-open)}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 .dev .halo{fill:var(--fp-disc);fill-opacity:var(--fp-disc-alpha);stroke:var(--fp-halo);stroke-width:1;vector-effect:non-scaling-stroke}
+.aura{fill:var(--fp-aura);fill-opacity:var(--fp-alpha);pointer-events:none}
 .dev.unavailable{opacity:.45}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl.zone{opacity:.75}
@@ -300,6 +301,22 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const [x, y] = nameAt(c, 14 * k, r.name.length);
     out.push(`<text class="lbl" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
     if (r.label) { const [lx, ly] = screenDown([x, y], 16 * k); out.push(`<text class="lbl" x="${num(lx)}" y="${num(ly)}"${up(lx, ly)} text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`); }
+  });
+
+  // S2.8: every lit lamp's aura, drawn as one flat pass before any device group. One pass, not interleaved with the
+  // devices loop below, so two overlapping auras never sit between one lamp's icon and the next lamp's icon; the
+  // icons themselves (drawn after every aura) stay on top and legible. The colour is the lamp's own rgb_color, read
+  // the same way as the device group's --fp-dev-fill (S2.2): from the light entity's own state, never the bound switch's.
+  f.devices.forEach((d, i) => {
+    const sel = o.selection?.t === "dev" && o.selection.i === i;
+    if (d.type !== "light") return;
+    if (o.filter && o.filter !== d.type && !sel) return;
+    if (classOf(d, o) !== "on") return;
+    const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
+    if (!c.every(Number.isFinite)) return;
+    const fill = lightFill(o.state?.[d.entity]);
+    const style = fill ? ` style="--fp-aura:${fill}"` : "";
+    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="100"${style}/>`);
   });
 
   f.devices.forEach((d, i) => {

@@ -3934,6 +3934,30 @@ test("Opus review CSS pair: the palette variables equal DEVICE_COLOURS, camera a
   expect(out).toBe(rgb("#3f8f4f"));
 });
 
+test("Opus review CSS pair: a lamp's aura fills with --fp-aura at --fp-alpha and lets a real click pass through to the room under it (render.test.ts:S2.8)", async ({ page }) => {
+  // The editor has no live `hass` state, so no aura is ever drawn by renderFloor here; this pins the .aura rule
+  // itself the way the motion-fade pair above pins .dev-motion, by putting a circle with that one class on the
+  // live stylesheet and reading it back through getComputedStyle in the real browser (CLAUDE.md finding 10: the
+  // FLOORPLAN_CSS string match in render.test.ts is blind to specificity and to pointer-events actually taking hold).
+  const c = await screenOf(page, 200, 150); // inside the Living room (room 0), away from every device icon
+  await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("class", "aura");
+    circle.setAttribute("cx", "200");
+    circle.setAttribute("cy", "150");
+    circle.setAttribute("r", "100");
+    svg.querySelector('polygon[data-r="0"]')!.after(circle);
+  }, EDITOR);
+  const style = await page.locator("svg circle.aura").evaluate((e) => { const s = getComputedStyle(e); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents }; });
+  expect(style.fill).toBe(rgb("#f0c419"));
+  expect(style.op).toBe("0.25");
+  expect(style.pe).toBe("none");
+  await page.mouse.click(c.x, c.y); // the aura visually covers this point; pointer-events:none must let the click fall through to the room
+  await expect(page.locator("#rk")).toHaveValue("room");
+  await expect(page.locator("#ra")).toHaveValue("living");
+});
+
 test("Opus review CSS pair: a motion sensor that is on still fades: the fill follows --fp-fade (render.test.ts:107)", async ({ page }) => {
   const g = page.locator("svg g.dev-motion").first();
   const fillAt = (fade: string, on: boolean) => g.evaluate((e, [f, o]) => { e.classList.toggle("on", o as boolean); (e as SVGElement).style.setProperty("--fp-fade", f as string); return getComputedStyle(e.querySelector("path:not(.halo)")!).fill; }, [fade, on] as const);

@@ -134,6 +134,61 @@ describe("renderFloor", () => {
     expect(html).toMatch(/data-x="1"[^>]*class="dev dev-light unavailable"/);
   });
 
+  describe("S2.8: a lit lamp casts an aura", () => {
+    it("draws one circle.aura of radius 100 at a lit light's centre", () => {
+      const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="100"\/>/);
+    });
+
+    it("draws no aura for a light that is off, unavailable or unknown", () => {
+      const off = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("off") } });
+      expect(off).not.toContain('class="aura"');
+      const unavailable = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("unavailable") } });
+      expect(unavailable).not.toContain('class="aura"');
+      const unknown = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("unknown") } });
+      expect(unknown).not.toContain('class="aura"');
+      const none = renderFloor(ground, base);
+      expect(none).not.toContain('class="aura"');
+    });
+
+    it("a light with rgb_color sets --fp-aura on its own circle through style", () => {
+      const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0, 0] } }) } });
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="100" style="--fp-aura:rgb\(255,0,0\)"\/>/);
+    });
+
+    it("a light with no rgb_color carries no --fp-aura, so the default CSS variable applies", () => {
+      const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="100"\/>/);
+      expect(html).not.toContain("--fp-aura");
+    });
+
+    it("a bound light's aura follows the switch's on state but keeps the default colour (no rgb_color on the light entity itself)", () => {
+      const html = renderFloor(ground, { ...base, state: { "switch.demo_living_relay": st("on") } }); // light.demo_living itself missing from state
+      expect(html).toMatch(/<circle class="aura" cx="250" cy="200" r="100"\/>/);
+    });
+
+    it("every aura is drawn before every device group, so overlapping auras never hide an icon", () => {
+      const html = renderFloor(ground, { ...base, state: { "light.demo_living": st("on"), "light.demo_kitchen": st("on") } });
+      const auras = [...html.matchAll(/<circle class="aura"/g)].map((m) => m.index!);
+      const groups = [...html.matchAll(/<g[^>]*data-x="/g)].map((m) => m.index!);
+      expect(auras).toHaveLength(2);
+      expect(Math.max(...auras)).toBeLessThan(Math.min(...groups));
+    });
+
+    it("the aura is drawn after the rooms", () => {
+      const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
+      const lastRoom = html.lastIndexOf('data-r="');
+      const aura = html.indexOf('class="aura"');
+      expect(lastRoom).toBeGreaterThan(-1);
+      expect(aura).toBeGreaterThan(lastRoom);
+    });
+
+    it("the .aura rule reads --fp-aura at --fp-alpha and never catches the pointer", () => {
+      expect(FLOORPLAN_CSS).toMatch(/\.aura\{fill:var\(--fp-aura\);fill-opacity:var\(--fp-alpha\);pointer-events:none\}/);
+      expect(FLOORPLAN_CSS).toContain("--fp-aura:#f0c419");
+    });
+  });
+
   it("S2.6: room_glow tints only the room a lit light sits in, by point-in-polygon of its x,y", () => {
     // light-living (device 0) sits at 250,200, inside room 0 (Living); light-kitchen (device 1) is off.
     const html = renderFloor(ground, { ...base, roomGlow: true, state: { "light.demo_living": st("on") } });
