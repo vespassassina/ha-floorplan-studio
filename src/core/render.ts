@@ -22,7 +22,7 @@ export const FLOORPLAN_CSS = `
 .door{stroke:var(--fp-door)} .door-glass{stroke:var(--fp-glass)} .door-window{stroke:var(--fp-window)} .door-sealed{stroke:var(--fp-sealed);stroke-dasharray:10 6}
 .door.open{stroke:var(--fp-open)} .door.cover-open{stroke:var(--fp-open)}
 .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-on)} .dev-contact.on path{fill:var(--fp-open)}
-.dev-camera path{fill:var(--fp-dev-camera)} .dev.outdoor path{fill:var(--fp-dev-garden)}
+.dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:.33;pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 .dev .halo{fill:var(--fp-halo);fill-opacity:.5}
 .dev.unavailable{opacity:.45}
 .dev-motion{--fp-fade:0} .dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
@@ -196,8 +196,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const title = `${esc(d.type)}: ${esc(label)}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
     // The group turns by `rot` about the icon's centre; the icon turns back so the glyph stays upright (only what else is drawn in the group turns).
     const rot = typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot !== 0 ? d.rot : 0;
+    // Camera: a 120 degree, 300 cm cone about "up" (-90 degrees), in plan units (the group is scaled by k). It comes first, so the icon covers its tip.
+    let cone = "";
+    if (d.type === "camera") {
+      const R = 300 / k, p = (deg: number) => at([12 + R * Math.cos((deg * Math.PI) / 180), 12 + R * Math.sin((deg * Math.PI) / 180)]);
+      cone = `<path class="cone" d="M12 12L${p(-150)}A${num(R)} ${num(R)} 0 0 1 ${p(-30)}Z"/>`;
+    }
     const icon = `<circle class="halo" cx="12" cy="12" r="13"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>`;
-    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${bound ? " bound" : ""} ${cls}${sel ? " sel" : ""}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${title}</title>${rot ? `<g transform="rotate(${num(-rot)} 12 12)">${icon}</g>` : icon}</g>`);
+    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${bound ? " bound" : ""} ${cls}${sel ? " sel" : ""}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${title}</title>${cone}${rot ? `<g transform="rotate(${num(-rot)} 12 12)">${icon}</g>` : icon}</g>`);
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
     if ((d.type === "temp" || d.type === "humidity") && s) {
       const bad = s.state === "unknown" || s.state === "unavailable";

@@ -580,3 +580,51 @@ describe("outdoor sensors and the palette (S1.30)", () => {
     expect(FLOORPLAN_CSS).toContain(".dev.outdoor path{fill:var(--fp-dev-garden)}");
   });
 });
+
+describe("camera cone (S1.31)", () => {
+  const ci = ground.devices.findIndex((d) => d.type === "camera");
+  const withRot = (rot?: number, scale = 0.5) => {
+    const f = structuredClone(ground);
+    if (rot !== undefined) (f.devices[ci] as { rot?: number }).rot = rot;
+    return renderFloor(f, { ...base, scale });
+  };
+  const group = (html: string) => html.match(new RegExp(`<g data-x="${ci}"[\\s\\S]*?</g>`))![0];
+  /** The cone's path in the device group's frame: centre, the two ends of the arc and its radius. */
+  const cone = (html: string) => {
+    const m = group(html).match(/<path class="cone" d="M([\d.-]+) ([\d.-]+)L([\d.-]+) ([\d.-]+)A([\d.-]+) ([\d.-]+) 0 0 1 ([\d.-]+) ([\d.-]+)Z"\/>/)!;
+    const n = m.slice(1).map(Number);
+    return { c: [n[0], n[1]], p1: [n[2], n[3]], p2: [n[6], n[7]], r: n[4] };
+  };
+  /** Bearing in degrees from +x, y down (clockwise), of a point about c after the group's rotation `rot`. */
+  const bearing = (c: number[], p: number[], rot: number) => {
+    const a = (Math.atan2(p[1] - c[1], p[0] - c[0]) * 180) / Math.PI + rot;
+    return ((Math.round(a) + 540) % 360) - 180;
+  };
+
+  it("draws one cone, before the icon and inside the group, from the icon centre", () => {
+    const g = group(withRot(90));
+    expect(g.match(/class="cone"/g)).toHaveLength(1);
+    expect(g.indexOf('class="cone"')).toBeLessThan(g.indexOf('class="halo"'));
+    expect(cone(withRot(90)).c).toEqual([12, 12]);
+  });
+
+  it("at rot 90 spans 120 degrees about +x; with no rot it points up", () => {
+    const a = cone(withRot(90));
+    expect([bearing(a.c, a.p1, 90), bearing(a.c, a.p2, 90)]).toEqual([-60, 60]);
+    const b = cone(withRot());
+    expect([bearing(b.c, b.p1, 0), bearing(b.c, b.p2, 0)]).toEqual([-150, -30]); // up is -90
+  });
+
+  it("is 300 cm deep whatever the zoom: the radius in the scaled frame is 300 x scale", () => {
+    expect(cone(withRot(undefined, 0.5)).r).toBe(150);
+    expect(cone(withRot(undefined, 2)).r).toBe(600);
+  });
+
+  it("no other device type emits a cone, and the cone lets the pointer through", () => {
+    expect(renderFloor(ground, base).match(/class="cone"/g)).toHaveLength(1);
+    const f = structuredClone(ground);
+    f.devices = f.devices.filter((d) => d.type !== "camera");
+    expect(renderFloor(f, base)).not.toContain("cone");
+    expect(FLOORPLAN_CSS).toMatch(/path\.cone\{[^}]*fill:var\(--fp-dev-camera\)[^}]*fill-opacity:\.33[^}]*pointer-events:none/);
+  });
+});

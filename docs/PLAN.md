@@ -421,7 +421,7 @@ S2.10. Everything drawn from the layout alone is here.
 - Done when: tests pass; SPEC's device type list and behaviours table match.
 - Break it: a device standing in a garden room *and* a zone on top of it is still `outdoor`, and a device in no room at all gets no class and does not throw.
 
-### S1.31 A camera shows what it sees
+### S1.31 A camera shows what it sees (done)
 - Outcome: a camera draws a 120 degree cone in dark grey at 33 % alpha, turned by its `rot`.
 - Files: `src/core/render.ts`, `src/editor/panels.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`.
 - Interface: for a device of type `camera`, `renderFloor` draws, before the icon and inside the device's group so it turns with `rot`, `<path class="cone" d="M0 0 L… A…"/>`: a 120 degree sector of radius 300 cm, centred on the device, pointing along `rot` (0 is up, degrees clockwise, as everywhere else). `.cone{fill:var(--fp-dev-camera);fill-opacity:.33;pointer-events:none}`. The cone is drawn in plan units, not in the icon's screen-size frame, so it keeps its size in centimetres as the user zooms. The device panel shows the rotation field of S1.23 for every device and adds, for a camera, the hint "The cone shows a 120 degree field of view, 3 m deep."

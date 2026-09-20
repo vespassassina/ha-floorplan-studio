@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.31: the cone rule is `.dev.dev-camera path.cone`
+
+The cone is a `path` inside the device group, so `.dev path`, `.dev.on path` and `.dev-camera path` all match it and out-rank a plain `.cone` rule (it rendered idle grey until the rule was written with three classes; the Chromium test reads the computed fill, opacity and pointer-events). Its radius is `300 / k` in the group's scaled frame, so it stays 300 cm at any zoom. The device panel's rotation field already existed (S1.23); S1.31 only adds the camera hint.
+
 ## 2026-09-20 Names come from Home Assistant; custom shapes keep a plan name (S1.37 to S1.42)
 
 Diego: "we are mapping not inventing... no custom names for things that are connected to HA. HA is authoritative. custom things can be deployed and named and also have a dropdown to attach them to an HA entity."

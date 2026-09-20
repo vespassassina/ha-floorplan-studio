@@ -2689,3 +2689,44 @@ test("S1.29: a device standing on a room name is the top element there", async (
   });
   expect(after).toBe(true);
 });
+
+// ---- S1.31 camera cone ----
+const CAM = { x: 20, y: 580 }; // the demo hall camera
+
+test("S1.31: the cone is dark grey at 33 % alpha in the browser and lets the pointer through to the room", async ({ page }) => {
+  const cone = page.locator("svg g.dev-camera path.cone");
+  await expect(cone).toHaveCount(1);
+  const st = await cone.evaluate((el) => { const s = getComputedStyle(el); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents }; });
+  expect(st).toEqual({ fill: "rgb(74, 74, 72)", op: "0.33", pe: "none" });
+  // 150 cm up the cone (rot 0 points up), over the Hall: the top element is the room, not the cone or the camera
+  const p = await screenOf(page, CAM.x, CAM.y - 100);
+  const top = await page.evaluate(([tag, x, y]) => (document.querySelector(tag as string) as any).shadowRoot.elementFromPoint(x, y)?.outerHTML.slice(0, 40), [EDITOR, p.x, p.y] as const);
+  expect(top).toContain('data-r="2"');
+  await page.mouse.click(p.x, p.y);
+  await expect(page.locator("#rn")).toHaveValue("Hall");
+  await expect(page.locator("#vrot")).toHaveCount(0);
+});
+
+test("S1.31: the rotation field turns the cone; the panel carries the hint; rot 90 points it along +x", async ({ page }) => {
+  const c = await screenOf(page, CAM.x, CAM.y);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#vrot")).toBeVisible();
+  await expect(page.locator(".hint", { hasText: "The cone shows a 120 degree field of view, 3 m deep." })).toHaveCount(1);
+  const centreOf = () => page.locator("svg path.cone").evaluate((el) => { const b = el.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
+  const up = await centreOf();
+  expect(up.y).toBeLessThan(c.y - 20); // above the camera
+  expect(Math.abs(up.x - c.x)).toBeLessThan(5);
+  await page.locator("#vrot").fill("90");
+  await page.locator("#vrot").press("Enter");
+  const right = await centreOf();
+  expect(right.x).toBeGreaterThan(c.x + 20);
+  expect(Math.abs(right.y - c.y)).toBeLessThan(5);
+  const p = await screenOf(page, CAM.x + 100, CAM.y); // inside the turned cone, over the Hall
+  await page.mouse.click(p.x, p.y);
+  await expect(page.locator("#rn")).toHaveValue("Hall");
+});
+
+test("S1.31: only a camera has a cone", async ({ page }) => {
+  await expect(page.locator("svg path.cone")).toHaveCount(1);
+  await expect(page.locator("svg g.dev:not(.dev-camera) path.cone")).toHaveCount(0);
+});
