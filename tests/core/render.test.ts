@@ -452,6 +452,33 @@ describe("room edge kinds (S1.17)", () => {
   });
 });
 
+describe("outline edge kinds (S1.52)", () => {
+  const kinds = ["wall", "boundary", "external", "fence", "edge"] as const;
+  it("gives the outline the class of its owk, external by default", () => {
+    const html = renderFloor(ground, base);
+    const cls = (i: number) => html.match(new RegExp(`<line class="([^"]*)" data-e="o:${i}"`))?.[1];
+    expect([0, 1, 2, 3].every((i) => cls(i) === "e external")).toBe(true); // the demo's owk is external all round
+  });
+  it("takes any wall kind on the outline, same classes as a room edge", () => {
+    const f = structuredClone(ground);
+    f.owk = [...kinds].slice(0, 4) as never;
+    const html = renderFloor(f, base);
+    const cls = (i: number) => html.match(new RegExp(`<line class="([^"]*)" data-e="o:${i}"`))?.[1];
+    expect([0, 1, 2, 3].map(cls)).toEqual(["e", "e nw", "e external", "e fence"]);
+  });
+  it("draws an outline edge of kind none as a guide only in the editor, not as a line", () => {
+    const f = structuredClone(ground);
+    f.owk = ["none", "external", "external", "external"];
+    const card = renderFloor(f, base);
+    expect(card).not.toContain('data-e="o:0"');
+    const editor = renderFloor(f, { ...base, editor: true });
+    expect(editor).toContain('class="e none" data-e="o:0"');
+  });
+  it("the demo's perimeter is external, not the wall default", () => {
+    expect(ground.owk).toEqual(["external", "external", "external", "external"]);
+  });
+});
+
 describe("device rotation (S1.23)", () => {
   const withRot = (rot?: number) => { const f = structuredClone(ground); if (rot !== undefined) (f.devices[0] as { rot?: number }).rot = rot; return renderFloor(f, base); };
   const group = (html: string) => html.match(/<g data-x="0"[^>]*>/)![0];

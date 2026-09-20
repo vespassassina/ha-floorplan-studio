@@ -55,7 +55,7 @@ in `prompts/`, then fixed in the editor.
   "floors": {
     "ground": {
       "title": "Ground", "ha": "downstairs",
-      "outline": [[x, y], ...],
+      "outline": [[x, y], ...], "owk": ["external", ...],
       "rooms":   [{"id", "name", "area", "label", "kind", "pts", "wk", "color"?, "free"?, "entity"?}],
       "walls":   [{"id", "a", "b", "kind"}],
       "stairs":  [{"id", "name", "pts", "shape", "steps", "rot", "dia"?, "inner"?}],
@@ -111,6 +111,16 @@ in `prompts/`, then fixed in the editor.
   guide so the edge can be picked and brought back. Delete in the edge panel
   sets `none` on every room that shares the edge; a door or window on it asks
   first and stays.
+- `floor.owk` (optional) is the kind of each outline edge, one entry per point,
+  same meaning and order as `room.wk`: the edge from `outline[i]` to
+  `outline[i+1]` is `owk[i]`. Missing or short, `migrate` fills it with
+  `external` for every edge, at v1 and at v2, so an old file gains a proper
+  perimeter; a stored `owk` whose length does not match `outline` is refused.
+  The outline keeps bounding the house whatever the kinds are: the view box,
+  content bounds, area and snapping ignore it. A perimeter edge is selectable
+  and editable in the editor exactly like a room edge, kind select and orange
+  Delete included, even where no room's own edge spans it (S1.52). The demo
+  shows external walls where the house meets outside.
 - `room.color` (optional) overrides the fill of that room or zone. It is the
   one place a colour is stored in a layout, and it must be `#rrggbb`.
 - `room.free` (optional): the user has unsnapped this room, so its corners are

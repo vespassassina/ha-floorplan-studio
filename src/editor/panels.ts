@@ -166,16 +166,18 @@ function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
   const a = pts[s.i], b = pts[(s.i + 1) % pts.length];
   const ang = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
   const rooms = edgeRooms(c.st.f, s.poly, s.i);
+  const isOutline = s.poly === "o"; // S1.52: the house perimeter has its own kind, editable even with no room on it
   const end = { poly: s.poly, j: (s.i + 1) % pts.length };
   const set = (how: Parameters<typeof setSecondEnd>[3]) => c.commit((f) => setSecondEnd(f, a, b, how, end));
-  const kind = rooms[0]?.room.wk[rooms[0].i] ?? "wall"; // rooms that disagree show the first one's kind
+  const kind = rooms[0]?.room.wk[rooms[0].i] ?? (isOutline ? (c.st.f.owk?.[s.i] ?? "external") : "wall"); // rooms that disagree show the first one's kind
+  const editable = rooms.length > 0 || isOutline;
   return html`<strong>${WALL_LABELS[kind] ?? "Wall"}</strong>
     ${number(c, "length (m)", "elen", (dist(a, b) / 100).toFixed(2), (m) => set({ length: m }))}
     ${hint(`angle ${ang.toFixed(1)}°`)}
     <div class="row">${button("mkh", "Make horizontal", () => set({ axis: "h" }))}${button("mkv", "Make vertical", () => set({ axis: "v" }))}</div>
     <p>${button("addpt", "Add a point in the middle", () => { c.commit((f) => insertPoint(f, s.poly, s.i, [Math.round((a[0] + b[0]) / 2), Math.round((a[1] + b[1]) / 2)])); c.select(null); })}</p>
-    ${rooms.length ? html`<label for="ek">kind</label><select id="ek" .value=${kind} @change=${(e: Event) => c.commit((f) => setEdgeKind(f, s.poly, s.i, val(e) as EdgeKind))}>${EDGE_KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${WALL_LABELS[k]}</option>`)}</select>` : nothing}
-    ${rooms.length && kind !== "none" ? edgeDelete(c, s, a, b) : nothing}
+    ${editable ? html`<label for="ek">kind</label><select id="ek" .value=${kind} @change=${(e: Event) => c.commit((f) => setEdgeKind(f, s.poly, s.i, val(e) as EdgeKind))}>${EDGE_KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${WALL_LABELS[k]}</option>`)}</select>` : nothing}
+    ${editable && kind !== "none" ? edgeDelete(c, s, a, b) : nothing}
     ${hint("The second end moves. Corners shared with other rooms move with it.")}`;
 }
 

@@ -102,7 +102,13 @@ export function snapPoint(f: Floor, p: Pt, o: SnapOpts): Pt {
   return q;
 }
 
-/** Puts `pt` into every polygon edge it lies on (one point per polygon), keeping room edge kinds. */
+/** The outline's own `owk`, defaulted to external for its current length if missing (S1.52). Mutates `g` and returns the array. */
+function ensureOwk(g: Floor): EdgeKind[] {
+  if (!g.owk) g.owk = g.outline.map(() => "external");
+  return g.owk;
+}
+
+/** Puts `pt` into every polygon edge it lies on (one point per polygon), keeping room and outline edge kinds. */
 export function stitch(f: Floor, pt: Pt): Floor {
   const g = structuredClone(f);
   const at = polys(g).filter((P) => P.pts.some((q) => dist(q, pt) <= TOUCH));
@@ -114,8 +120,10 @@ export function stitch(f: Floor, pt: Pt): Floor {
       const { t, q } = project(pt, a, b);
       if (t <= 0.01 || t >= 0.99) continue;
       if (dist(pt, q) <= TOUCH) {
+        if (P.id === "o") ensureOwk(g);
         P.pts.splice(i + 1, 0, [pt[0], pt[1]]);
         if (P.room) P.room.wk.splice(i + 1, 0, P.room.wk[i]);
+        if (P.id === "o") g.owk!.splice(i + 1, 0, g.owk![i]);
         break;
       }
     }
@@ -127,8 +135,10 @@ export function insertPoint(f: Floor, poly: string, i: number, pt: Pt): Floor {
   const g = structuredClone(f);
   const P = polys(g).find((x) => x.id === poly);
   if (!P) return f;
+  if (poly === "o") ensureOwk(g);
   P.pts.splice(i + 1, 0, pt);
   if (P.room) P.room.wk.splice(i + 1, 0, P.room.wk[i]);
+  if (poly === "o") g.owk!.splice(i + 1, 0, g.owk![i]);
   return g;
 }
 
@@ -137,8 +147,10 @@ export function removePoint(f: Floor, poly: string, j: number): Floor {
   const g = structuredClone(f);
   const P = polys(g).find((x) => x.id === poly);
   if (!P || P.pts.length <= 3) return f;
+  if (poly === "o") ensureOwk(g);
   P.pts.splice(j, 1);
   if (P.room) P.room.wk.splice(j, 1);
+  if (poly === "o") g.owk!.splice(j, 1);
   return g;
 }
 
@@ -178,19 +190,25 @@ export function edgeRooms(f: Floor, poly: string, i: number): { room: Room; i: n
   return out;
 }
 
-/** Sets the kind of an edge on every room that has it. A zone edge stays a boundary: `validate` rejects anything else. Returns `f` itself when no room matches. */
+/**
+ * Sets the kind of an edge on every room that has it, and on the outline itself when `poly` is "o"
+ * (S1.52). A zone edge stays a boundary: `validate` rejects anything else. Returns `f` itself when
+ * neither the outline nor any room matches.
+ */
 export function setEdgeKind(f: Floor, poly: string, i: number, kind: EdgeKind): Floor {
   const g = structuredClone(f);
   const hits = edgeRooms(g, poly, i);
-  if (!hits.length) return f;
-  for (const h of hits) h.room.wk[h.i] = kind;
-  return g;
+  let changed = false;
+  if (poly === "o") { ensureOwk(g)[i] = kind; changed = true; }
+  for (const h of hits) { h.room.wk[h.i] = kind; changed = true; }
+  return changed ? g : f;
 }
 
 /**
  * Delete for a room edge: no room draws any part of segment a-b afterwards. A room edge that lies on the segment
  * but reaches past it is first cut at the segment's ends (like `stitch`, kinds copied), then every piece on the
- * segment becomes "none". Zones are skipped. Returns `f` itself when the edge is a zone's, has no length, or no room edge lies on it.
+ * segment becomes "none". When `poly` is "o" the outline's own edge becomes "none" too (S1.52). Zones are skipped.
+ * Returns `f` itself when the edge is a zone's, has no length, or nothing (outline or room) lies on it.
  */
 export function deleteEdge(f: Floor, poly: string, i: number): Floor {
   const P = polys(f).find((x) => x.id === poly);
@@ -201,6 +219,7 @@ export function deleteEdge(f: Floor, poly: string, i: number): Floor {
   const off = (p: Pt) => Math.abs((p[0] - a[0]) * (b[1] - a[1]) - (p[1] - a[1]) * (b[0] - a[0])) / L;
   const g = structuredClone(f);
   let hit = false;
+  if (poly === "o") { const owk = ensureOwk(g); if (owk[i] !== "none") { owk[i] = "none"; hit = true; } }
   for (const room of g.rooms) {
     if (room.kind === "zone") continue;
     for (let j = 0; j < room.pts.length; ) {
@@ -237,9 +256,9 @@ export function onEdge(f: Floor, a: Pt, b: Pt): { doors: number[]; openings: num
 export function mergeCorners(f: Floor, tol: number): Floor {
   const g = structuredClone(f);
   const list = [
-    { pts: g.outline, outline: true, room: undefined as Room | undefined },
-    ...g.rooms.filter((r) => r.kind !== "garden" && r.kind !== "zone" && !r.free).map((r) => ({ pts: r.pts, outline: false, room: r })),
-    ...g.stairs.map((s) => ({ pts: s.pts, outline: false, room: undefined })),
+    { pts: g.outline, outline: true, wk: ensureOwk(g) as EdgeKind[] | undefined },
+    ...g.rooms.filter((r) => r.kind !== "garden" && r.kind !== "zone" && !r.free).map((r) => ({ pts: r.pts, outline: false, wk: r.wk as EdgeKind[] | undefined })),
+    ...g.stairs.map((s) => ({ pts: s.pts, outline: false, wk: undefined as EdgeKind[] | undefined })),
   ];
   const all = list.flatMap((P) => P.pts.map((q) => ({ q, outline: P.outline })));
   const seen = new Set<Pt>();
@@ -257,7 +276,7 @@ export function mergeCorners(f: Floor, tol: number): Floor {
     for (let i = 0; P.pts.length > 3 && i < P.pts.length; ) {
       if (same(P.pts[i], P.pts[(i + 1) % P.pts.length])) {
         P.pts.splice(i, 1);
-        P.room?.wk.splice(i, 1);
+        P.wk?.splice(i, 1);
       } else i++;
     }
   }

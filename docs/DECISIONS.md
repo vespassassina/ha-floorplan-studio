@@ -2,6 +2,48 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.52: the outline gets its own `owk`, touched wherever `Room.wk` already was
+
+Treated the perimeter as "just another poly with a wk-like array": a new `ensureOwk(g)` helper
+(`if (!g.owk) g.owk = g.outline.map(() => "external"); return g.owk;`) is called at every point
+`Room.wk` was already read or written — `stitch`, `insertPoint`, `removePoint`, `setEdgeKind`,
+`deleteEdge`, `mergeCorners` — gated by `poly === "o"` / `P.id === "o"` / `P.outline`, alongside
+the existing room-cascade logic, never replacing it. `renderFloor`'s outline poly now carries
+`wk: f.owk`, and its kind fallback is `external` (not the room default `wall`) when `owk` is
+absent, so a hand-built floor with no `owk` still renders correctly before `migrate` runs.
+
+No `editor-app.ts` change was needed despite the task block listing it as a file to touch: every
+edge line, including the outline's, already carried `data-e="o:i"`, and `hitOf()`'s
+`el.closest("[data-e]")` was already generic across every poly. The only real gap was `edgePanel`
+in `panels.ts`, which hid the kind select and Delete whenever `edgeRooms(...).length === 0` — true
+for every outline edge in the demo, since each is shared by multiple partial room walls, never one
+room edge spanning it whole. Fixed with `editable = rooms.length > 0 || isOutline`.
+
+Demo curation (`demo/layout.json`, `demo/layout.v1.json`): `owk` is `external` on all four
+perimeter edges of both floors, and every room edge that geometrically coincides with an outline
+segment (checked by collinearity and range against each rectangular room) is also set `external`;
+interior room edges stay `wall`, and zone/garden/pavement/water rooms keep `boundary` untouched —
+this marking is a manual authoring choice for the starter template, not something `migrate` or
+`renderFloor` derives on their own. `demo/layout.v1.json` needed the same `wk` values written by
+hand, because its boolean `w` arrays only ever migrate to `wall`/`boundary`, never `external`; the
+alternative (a v1 fixture that no longer round-trips to the same v2 demo) would have weakened a
+real invariant, so the test kept its strength and the fixture gained the missing kind.
+
+Pre-existing tests updated in this commit, as flagged by the task: `schema.test.ts`'s demo `wk`
+assertion for `room-ground-1` (now `["external","wall","wall","external"]`, was uniform `"wall"`),
+`migrate.test.ts`'s v1-vs-demo round-trip (needed the `layout.v1.json` fix above), and
+`render.test.ts`'s snapshot (perimeter lines now render with the `external` class). One further
+existing test needed a deliberate behaviour-change update, not just a data fix: "an outline edge of
+a floor with no rooms has no kind select" asserted `#ek` absent by design before this task; it is
+now present and external by default, so the test was renamed and its assertion flipped rather than
+kept as a regression.
+
+Deviation in the Playwright test: the block's Test section describes the stroke-width changing
+"from 8 to the internal width" on External to Internal. The actual selectable `[data-e]` line runs
+6 px (`.e.external`) to 3 px (`.e`); "8" is `.eh.external`, the non-selectable white halo twin with
+no `data-e` attribute. The test asserts the real, selectable element's width (6 to 3) and notes the
+discrepancy inline rather than chasing the illustrative number.
+
 ## 2026-09-20 S1.51: scaleFurniture works in the piece's own local frame, and three small gaps closed along the way
 
 `scaleFurniture(m, corner, to, opts)` holds the opposite corner fixed and recomputes `w`, `h`, `x`, `y`

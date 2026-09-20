@@ -283,7 +283,8 @@ describe("room colour (S1.16)", () => {
 describe("room wk (S1.17)", () => {
   const errs = (fn: (l: any) => void) => { const l = clone(); fn(l); return errorsOf(l).join("\n"); };
   it("the demo has wk and validates", () => {
-    expect(clone().floors.ground.rooms[0].wk).toEqual(["wall", "wall", "wall", "wall"]);
+    // S1.52: room-ground-1's north and west edges lie on the house perimeter, external; its two inner edges stay wall.
+    expect(clone().floors.ground.rooms[0].wk).toEqual(["external", "wall", "wall", "external"]);
   });
   it("rejects a wk of the wrong length, an unknown kind, and a missing wk", () => {
     expect(errs((l) => { l.floors.ground.rooms[0].wk = ["wall"]; })).toMatch(/room-ground-1.*wk must have 4 entries/);
@@ -297,6 +298,25 @@ describe("room wk (S1.17)", () => {
   it("a zone must be boundary on every edge", () => {
     expect(errs((l) => { l.floors.ground.rooms[3].wk[1] = "wall"; })).toMatch(/room-ground-4.*zone.*wk/);
     expect(errs((l) => { l.floors.ground.rooms[3].wk[1] = "fence"; })).toMatch(/room-ground-4.*zone.*wk/);
+  });
+});
+
+describe("outline owk (S1.52)", () => {
+  const errs = (fn: (l: any) => void) => { const l = clone(); fn(l); return errorsOf(l).join("\n"); };
+  it("the demo has owk of external on every outline edge and validates", () => {
+    expect(clone().floors.ground.owk).toEqual(["external", "external", "external", "external"]);
+    expect(errorsOf(clone())).toEqual([]);
+  });
+  it("is optional: a layout with no owk still validates (migrate fills it)", () => {
+    expect(errs((l) => { delete l.floors.ground.owk; })).toBe("");
+  });
+  it("rejects a wrong length, an unknown kind, and a non-array", () => {
+    expect(errs((l) => { l.floors.ground.owk = ["external"]; })).toMatch(/ground:.*owk must have 4 entries/);
+    expect(errs((l) => { l.floors.ground.owk = ["external", "external", "moat", "external"]; })).toMatch(/ground:.*owk entries must be one of wall, boundary, external, fence, edge/);
+    expect(errs((l) => { l.floors.ground.owk = "external"; })).toMatch(/ground:.*owk must have 4 entries/);
+  });
+  it("accepts every wall kind, including none", () => {
+    expect(errs((l) => { l.floors.ground.owk = ["wall", "boundary", "fence", "none"]; })).toBe("");
   });
 });
 

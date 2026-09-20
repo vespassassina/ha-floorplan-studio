@@ -45,11 +45,11 @@
        400
       ]
      ],
-     "w": [
-      true,
-      true,
-      true,
-      true
+     "wk": [
+      "external",
+      "wall",
+      "wall",
+      "external"
      ]
     },
     {
@@ -74,11 +74,11 @@
        400
       ]
      ],
-     "w": [
-      true,
-      true,
-      true,
-      true
+     "wk": [
+      "external",
+      "external",
+      "wall",
+      "wall"
      ]
     },
     {
@@ -103,11 +103,11 @@
        600
       ]
      ],
-     "w": [
-      true,
-      true,
-      true,
-      true
+     "wk": [
+      "wall",
+      "external",
+      "external",
+      "external"
      ]
     },
     {
@@ -133,11 +133,11 @@
        140
       ]
      ],
-     "w": [
-      false,
-      false,
-      false,
-      false
+     "wk": [
+      "boundary",
+      "boundary",
+      "boundary",
+      "boundary"
      ]
     },
     {
@@ -162,11 +162,11 @@
        540
       ]
      ],
-     "w": [
-      false,
-      false,
-      false,
-      false
+     "wk": [
+      "boundary",
+      "boundary",
+      "boundary",
+      "boundary"
      ]
     },
     {
@@ -191,11 +191,11 @@
        630
       ]
      ],
-     "w": [
-      false,
-      false,
-      false,
-      false
+     "wk": [
+      "boundary",
+      "boundary",
+      "boundary",
+      "boundary"
      ]
     },
     {
@@ -224,12 +224,12 @@
        490
       ]
      ],
-     "w": [
-      false,
-      false,
-      false,
-      false,
-      false
+     "wk": [
+      "boundary",
+      "boundary",
+      "boundary",
+      "boundary",
+      "boundary"
      ]
     }
    ],
@@ -435,11 +435,11 @@
        300
       ]
      ],
-     "w": [
-      true,
-      true,
-      true,
-      true
+     "wk": [
+      "external",
+      "wall",
+      "wall",
+      "external"
      ]
     },
     {
@@ -464,11 +464,11 @@
        300
       ]
      ],
-     "w": [
-      true,
-      true,
-      true,
-      true
+     "wk": [
+      "external",
+      "external",
+      "wall",
+      "wall"
      ]
     },
     {
@@ -493,11 +493,11 @@
        600
       ]
      ],
-     "w": [
-      true,
-      true,
-      true,
-      true
+     "wk": [
+      "wall",
+      "external",
+      "external",
+      "external"
      ]
     }
    ],

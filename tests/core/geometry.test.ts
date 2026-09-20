@@ -87,6 +87,22 @@ describe("stitch, insertPoint, removePoint", () => {
     f.rooms[0] = room("a", [[0, 0], [10, 0], [0, 10]]);
     expect(removePoint(f, "r0", 0)).toBe(f);
   });
+  it("S1.52: insertPoint and removePoint on the outline keep owk in step, copying the split edge's kind", () => {
+    const f = floor();
+    f.owk = ["fence", "wall", "wall", "wall"];
+    const g = insertPoint(f, "o", 0, [50, 0]);
+    expect(g.outline).toHaveLength(5);
+    expect(g.owk).toEqual(["fence", "fence", "wall", "wall", "wall"]);
+    const h = removePoint(g, "o", 1);
+    expect(h.outline).toHaveLength(4);
+    expect(h.owk).toHaveLength(4);
+  });
+  it("S1.52: insertPoint and removePoint default a missing owk to external before splicing", () => {
+    const f = floor();
+    delete (f as any).owk;
+    const g = insertPoint(f, "o", 0, [50, 0]);
+    expect(g.owk).toEqual(["external", "external", "external", "external", "external"]);
+  });
 });
 
 describe("movePoints", () => {
@@ -294,14 +310,20 @@ describe("setEdgeKind (S1.17)", () => {
     expect(g.rooms[0].wk.filter((k) => k !== "external")).toHaveLength(3);
     expect(f.rooms[0].wk[1]).toBe("wall"); // input untouched
   });
-  it("returns the same floor when no room has the edge, and leaves a zone edge alone", () => {
+  it("returns the same floor for an unknown poly, and leaves a zone edge alone", () => {
     const f = floor();
-    expect(setEdgeKind(f, "o", 0, "fence")).toBe(f);
     expect(setEdgeKind(f, "r9", 0, "fence")).toBe(f);
     const z = floor();
     z.rooms.push({ ...room("z", [[10, 10], [60, 10], [60, 60], [10, 60]]), kind: "zone" as const, wk: ["boundary", "boundary", "boundary", "boundary"] });
     expect(setEdgeKind(z, "r2", 0, "fence")).toBe(z);
     expect(z.rooms[2].wk).toEqual(["boundary", "boundary", "boundary", "boundary"]);
+  });
+  it("S1.52: sets the outline's own owk even when no room shares the edge, and leaves the input untouched", () => {
+    const f = floor();
+    const g = setEdgeKind(f, "o", 0, "fence");
+    expect(g).not.toBe(f);
+    expect(g.owk?.[0]).toBe("fence");
+    expect(f.owk?.[0]).not.toBe("fence"); // input untouched
   });
 });
 

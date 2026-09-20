@@ -34,7 +34,7 @@ export type Device = { id: string; type: DeviceType; entity: string; name?: stri
 export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string }
 /** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. */
 export interface Floor {
-  ha?: string; title: string; outline: Pt[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
+  ha?: string; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[];
 }
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
@@ -98,6 +98,11 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     };
     if (f.ha !== undefined && !(typeof f.ha === "string" && f.ha)) errors.push(`${at} ha must be a non-empty text (the HA floor id)`);
     poly("outline", f.outline);
+    // S1.52: owk is optional (migrate fills it), but once present it must match the outline point by point.
+    if (f.owk !== undefined) {
+      if (!Array.isArray(f.outline) || !Array.isArray(f.owk) || f.owk.length !== f.outline.length) errors.push(`${at} owk must have ${Array.isArray(f.outline) ? f.outline.length : 0} entries`);
+      else if (f.owk.some((k: unknown) => typeof k !== "string" || !EDGE_KINDS.includes(k as EdgeKind))) errors.push(`${at} owk entries must be one of ${EDGE_KINDS.join(", ")}`);
+    }
     each("rooms", (r) => {
       poly(`${r.id} pts`, r.pts);
       name(r); // migrate turns a missing name into "", so a name that is still not text is a bad file

@@ -657,7 +657,7 @@ test("the room panel kind select lists zone and water; picking zone clears every
   await expect(page.locator("#rk")).toHaveValue("room");
   const options = await page.locator("#rk option").allTextContents();
   expect(options).toEqual(expect.arrayContaining(["Zone", "Water"])); // labels, not raw ids
-  expect((await groundOf(page)).rooms[0].wk).toEqual(["wall", "wall", "wall", "wall"]);
+  expect((await groundOf(page)).rooms[0].wk).toEqual(["external", "wall", "wall", "external"]); // two edges lie on the perimeter (S1.52)
   await page.locator("#rk").selectOption("zone");
   const z = (await groundOf(page)).rooms[0];
   expect(z.kind).toBe("zone");
@@ -666,7 +666,7 @@ test("the room panel kind select lists zone and water; picking zone clears every
   await page.locator("#undo").click();
   const back = (await groundOf(page)).rooms[0];
   expect(back.kind).toBe("room");
-  expect(back.wk).toEqual(["wall", "wall", "wall", "wall"]);
+  expect(back.wk).toEqual(["external", "wall", "wall", "external"]);
 });
 
 test("dragging a zone corner onto a wall does not insert a point into the wall or the rooms", async ({ page }) => {
@@ -1985,7 +1985,7 @@ test("the kind select of a shared edge writes both rooms, redraws the line, is o
   await page.locator("#ek").selectOption("external");
   const g = await groundOf(page);
   expect([g.rooms[0].wk[1], g.rooms[1].wk[3]]).toEqual(["external", "external"]);
-  expect(g.rooms[0].wk.filter((k) => k === "external")).toHaveLength(1);
+  expect(g.rooms[0].wk.filter((k) => k === "external")).toHaveLength(3); // edges 0 and 3 are already on the perimeter (S1.52); this makes edge 1 the third
   await expect(page.locator('svg line[data-e="r0:1"]')).toHaveClass("e external");
   await expect(page.locator('svg line[data-e="r1:3"]')).toHaveClass("e external");
   await expect(page.locator("#panel strong").first()).toHaveText("External wall");
@@ -1999,7 +1999,7 @@ test("the kind select of a shared edge writes both rooms, redraws the line, is o
   await savedValid(page);
 });
 
-test("break it: an outline edge of a floor with no rooms has no kind select and nothing throws", async ({ page }) => {
+test("break it: an outline edge of a floor with no rooms still has a kind select, external by default, and nothing throws (S1.52)", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   await page.evaluate((tag) => {
@@ -2009,8 +2009,94 @@ test("break it: an outline edge of a floor with no rooms has no kind select and 
   }, EDITOR);
   await clickCm(page, 400, 0); // the top outline edge
   await expect(page.locator("#elen")).toBeVisible(); // an edge is selected
-  await expect(page.locator("#ek")).toHaveCount(0);
+  await expect(page.locator("#ek")).toHaveValue("external"); // the outline has its own kind now (S1.52)
   expect(errors).toEqual([]);
+});
+
+// ---- S1.52 the outline has wall kinds, and its edges can be deleted ----
+
+test("S1.52: a perimeter edge shows External wall by default, and its kind can be changed like any other edge", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.rooms = []; // isolate the outline: no room edge competes for the click or the panel
+    el.layout = l;
+  }, EDITOR);
+  await clickCm(page, 400, 0); // the top outline edge, o:0
+  await expect(page.locator("#panel strong").first()).toHaveText("External wall");
+  await expect(page.locator("#ek")).toHaveValue("external");
+  const line = page.locator('svg line[data-e="o:0"]');
+  await expect(line).toHaveClass("e external");
+  expect(await line.evaluate((el) => getComputedStyle(el).strokeWidth)).toBe("6px");
+  await page.locator("#ek").selectOption("wall");
+  expect((await groundOf(page)).owk?.[0]).toBe("wall");
+  await expect(page.locator("#panel strong").first()).toHaveText("Internal wall");
+  await expect(line).toHaveClass("e");
+  // the block's Test section names "8", the halo twin's width (.eh.external); the selectable line itself goes 6 -> 3
+  expect(await line.evaluate((el) => getComputedStyle(el).strokeWidth)).toBe("3px");
+  await savedValid(page);
+});
+
+test("S1.52: Delete on a perimeter edge stops drawing it, and one undo brings it back with its kind", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.rooms = [];
+    el.layout = l;
+  }, EDITOR);
+  await clickCm(page, 400, 0); // o:0, no door on this edge
+  await expectWarn(page, "#edel");
+  await page.locator("#edel").click();
+  const g = await groundOf(page);
+  expect(g.owk?.[0]).toBe("none");
+  await expect(page.locator('svg line.e.none[data-e="o:0"]')).toHaveCount(1); // a guide only in the editor, not a drawn line
+  await expect(page.locator("#edel")).toHaveCount(0);
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  const u = await groundOf(page);
+  expect(u.owk?.[0]).toBe("external");
+  await expect(page.locator('svg line[data-e="o:0"]')).toHaveClass("e external");
+});
+
+test("S1.52: a door on the perimeter edge asks first; Cancel changes nothing, the door stays either way", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.rooms = []; // the demo's Front door already sits on outline edge o:2 (the bottom)
+    el.layout = l;
+  }, EDITOR);
+  await clickCm(page, 600, 600); // o:2, away from the door itself but on the same edge
+  const before = await groundOf(page);
+  await page.locator("#edel").click();
+  await expect(page.locator("#edelyes")).toBeVisible();
+  expect(await groundOf(page)).toEqual(before);
+  await page.locator("#edelno").click();
+  await expect(page.locator("#edelyes")).toHaveCount(0);
+  await expect(page.locator("#edel")).toBeVisible();
+  await page.locator("#edel").click();
+  await page.locator("#edelyes").click();
+  const g = await groundOf(page);
+  expect(g.owk?.[2]).toBe("none");
+  expect(g.doors.some((d) => d.id === "door-ground-1")).toBe(true); // the door stays
+});
+
+test("S1.52: the outline still fits the view after a perimeter edge is deleted", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.rooms = []; // isolate the outline edge so the click cannot land on a room edge instead
+    el.layout = l;
+  }, EDITOR);
+  await clickCm(page, 400, 0); // o:0
+  await page.locator("#edel").click();
+  expect((await groundOf(page)).owk?.[0]).toBe("none");
+  await menu(page, "View");
+  await page.locator("#fit").click();
+  const box = await page.evaluate((tag) => {
+    const root = (document.querySelector(tag as string) as any).shadowRoot as ShadowRoot;
+    return (root.querySelector("svg")!.getAttribute("viewBox") ?? "").split(/\s+/).map(Number);
+  }, EDITOR);
+  const [x, y, w, h] = box;
+  expect(x).toBeLessThanOrEqual(0); // Fit to window still frames the 0,0 - 800,600 outline
+  expect(y).toBeLessThanOrEqual(0);
+  expect(x + w).toBeGreaterThanOrEqual(800);
+  expect(y + h).toBeGreaterThanOrEqual(600);
 });
 
 // ---- S1.19 a free wall becomes an opening, and back ----
@@ -3627,11 +3713,11 @@ test("S1.47: Delete on the edge Hall shares in halves leaves no line drawn; one 
   await expect(page.locator("#undo")).toBeDisabled();
 });
 
-test("S1.47: an edge that belongs to no room has no Delete", async ({ page }) => {
+test("S1.52: an outline edge with no room on it still has Delete (the perimeter is always editable)", async ({ page }) => {
   await addFloorVia(page, "Attic"); // the outline only
   await clickCm(page, 400, 0);
   await expect(page.locator("#addpt")).toBeVisible(); // the edge panel is up
-  await expect(page.locator("#edel")).toHaveCount(0);
+  await expect(page.locator("#edel")).toBeVisible();
 });
 
 // ---- S1.48 a closed loop of walls becomes a room ----

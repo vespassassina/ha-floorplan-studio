@@ -24,6 +24,12 @@
      600
     ]
    ],
+   "owk": [
+    "external",
+    "external",
+    "external",
+    "external"
+   ],
    "rooms": [
     {
      "id": "room-ground-1",
@@ -50,10 +56,10 @@
       ]
      ],
      "wk": [
+      "external",
       "wall",
       "wall",
-      "wall",
-      "wall"
+      "external"
      ]
     },
     {
@@ -81,8 +87,8 @@
       ]
      ],
      "wk": [
-      "wall",
-      "wall",
+      "external",
+      "external",
       "wall",
       "wall"
      ]
@@ -113,9 +119,9 @@
      ],
      "wk": [
       "wall",
-      "wall",
-      "wall",
-      "wall"
+      "external",
+      "external",
+      "external"
      ]
     },
     {
@@ -436,6 +442,12 @@
      600
     ]
    ],
+   "owk": [
+    "external",
+    "external",
+    "external",
+    "external"
+   ],
    "rooms": [
     {
      "id": "room-first-1",
@@ -462,10 +474,10 @@
       ]
      ],
      "wk": [
+      "external",
       "wall",
       "wall",
-      "wall",
-      "wall"
+      "external"
      ]
     },
     {
@@ -493,8 +505,8 @@
       ]
      ],
      "wk": [
-      "wall",
-      "wall",
+      "external",
+      "external",
       "wall",
       "wall"
      ]
@@ -525,9 +537,9 @@
      ],
      "wk": [
       "wall",
-      "wall",
-      "wall",
-      "wall"
+      "external",
+      "external",
+      "external"
      ]
     }
    ],

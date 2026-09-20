@@ -44,6 +44,24 @@ describe("migrate", () => {
     expect(m.catalog).toEqual([{ id: "l1", floor: "g", room: "Hall Way", type: "light", name: "A", entity: "light.a" }]);
   });
 
+  describe("owk (S1.52)", () => {
+    it("fills a missing owk with external for every outline edge, at v1 and at v2", () => {
+      expect(migrate(v1).floors.ground.owk).toEqual(["external", "external", "external", "external"]);
+      const l: any = structuredClone(demo);
+      delete l.floors.ground.owk;
+      expect(migrate(l).floors.ground.owk).toEqual(["external", "external", "external", "external"]);
+    });
+    it("is idempotent: migrating an already-migrated v2 layout keeps owk unchanged", () => {
+      const once = migrate(v1);
+      expect(migrate(once).floors.ground.owk).toEqual(once.floors.ground.owk);
+    });
+    it("keeps a stored owk that differs from the default", () => {
+      const l: any = structuredClone(demo);
+      l.floors.ground.owk = ["wall", "external", "external", "external"];
+      expect(migrate(l).floors.ground.owk).toEqual(["wall", "external", "external", "external"]);
+    });
+  });
+
   it("fills rotate with 0, v1 and v2, and keeps a stored one", () => {
     expect(migrate(v1).rotate).toBe(0);
     const l = structuredClone(demo) as any;
