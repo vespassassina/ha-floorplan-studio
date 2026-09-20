@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import demo from "../../demo/layout.json";
 import v1 from "../../demo/layout.v1.json";
-import type { Layout } from "../../src/core/schema";
+import type { Layout, WallKind } from "../../src/core/schema";
 import { movePointAll, setSecondEnd, stairsAt } from "../../src/editor/ops";
 import { EditorState, STORAGE_KEY, loadLayout, newId, restoreLayout } from "../../src/editor/state";
 
@@ -382,7 +382,7 @@ describe("floors", () => {
 describe("a zone corner and a room corner at one spot move apart (review S1.5, finding 2)", () => {
   // zone z has its corner on the shared corner (100, 0) of rooms a and b; the corner is (100, 0) in the demo-free floor below
   const rect = (x0: number, y0: number, x1: number, y1: number): [number, number][] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-  const mk = (id: string, pts: [number, number][], kind: "room" | "zone") => ({ id, name: id, area: id, label: "", kind, pts, w: pts.map(() => kind === "room") });
+  const mk = (id: string, pts: [number, number][], kind: "room" | "zone") => ({ id, name: id, area: id, label: "", kind, pts, wk: pts.map((): WallKind => (kind === "room" ? "wall" : "boundary")) });
   const floor = () => {
     const f = structuredClone(demo.floors.ground) as any;
     f.outline = rect(0, 0, 200, 100);

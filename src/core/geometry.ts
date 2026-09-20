@@ -1,4 +1,4 @@
-import type { Floor, Pt, Room } from "./schema";
+import type { Floor, Pt, Room, WallKind } from "./schema";
 
 // Everything here is pure: functions return a new Floor and never touch the DOM.
 
@@ -99,7 +99,7 @@ export function snapPoint(f: Floor, p: Pt, o: SnapOpts): Pt {
   return q;
 }
 
-/** Puts `pt` into every polygon edge it lies on (one point per polygon), keeping room wall flags. */
+/** Puts `pt` into every polygon edge it lies on (one point per polygon), keeping room edge kinds. */
 export function stitch(f: Floor, pt: Pt): Floor {
   const g = structuredClone(f);
   const at = polys(g).filter((P) => P.pts.some((q) => dist(q, pt) <= TOUCH));
@@ -112,7 +112,7 @@ export function stitch(f: Floor, pt: Pt): Floor {
       if (t <= 0.01 || t >= 0.99) continue;
       if (dist(pt, q) <= TOUCH) {
         P.pts.splice(i + 1, 0, [pt[0], pt[1]]);
-        if (P.room) P.room.w.splice(i + 1, 0, P.room.w[i]);
+        if (P.room) P.room.wk.splice(i + 1, 0, P.room.wk[i]);
         break;
       }
     }
@@ -125,7 +125,7 @@ export function insertPoint(f: Floor, poly: string, i: number, pt: Pt): Floor {
   const P = polys(g).find((x) => x.id === poly);
   if (!P) return f;
   P.pts.splice(i + 1, 0, pt);
-  if (P.room) P.room.w.splice(i + 1, 0, P.room.w[i]);
+  if (P.room) P.room.wk.splice(i + 1, 0, P.room.wk[i]);
   return g;
 }
 
@@ -135,7 +135,7 @@ export function removePoint(f: Floor, poly: string, j: number): Floor {
   const P = polys(g).find((x) => x.id === poly);
   if (!P || P.pts.length <= 3) return f;
   P.pts.splice(j, 1);
-  if (P.room) P.room.w.splice(j, 1);
+  if (P.room) P.room.wk.splice(j, 1);
   return g;
 }
 
@@ -175,19 +175,18 @@ export function edgeRooms(f: Floor, poly: string, i: number): { room: Room; i: n
   return out;
 }
 
-/** Flips the wall flag of an edge on every room that has it, all to the same new value. A zone is never flipped: `validate` rejects a zone wall. */
-export function toggleWall(f: Floor, poly: string, i: number): Floor {
+/** Sets the kind of an edge on every room that has it. A zone edge stays a boundary: `validate` rejects anything else. Returns `f` itself when no room matches. */
+export function setEdgeKind(f: Floor, poly: string, i: number, kind: WallKind): Floor {
   const g = structuredClone(f);
   const hits = edgeRooms(g, poly, i);
   if (!hits.length) return f;
-  const next = !hits[0].room.w[hits[0].i];
-  for (const h of hits) h.room.w[h.i] = next;
+  for (const h of hits) h.room.wk[h.i] = kind;
   return g;
 }
 
 /**
  * Corners within `tol` cm become one point: the outline's if the group has one, else the average.
- * Consecutive equal corners are dropped with their wall flags. Gardens and zones are left alone.
+ * Consecutive equal corners are dropped with their edge kinds. Gardens and zones are left alone.
  */
 export function mergeCorners(f: Floor, tol: number): Floor {
   const g = structuredClone(f);
@@ -212,7 +211,7 @@ export function mergeCorners(f: Floor, tol: number): Floor {
     for (let i = 0; P.pts.length > 3 && i < P.pts.length; ) {
       if (same(P.pts[i], P.pts[(i + 1) % P.pts.length])) {
         P.pts.splice(i, 1);
-        P.room?.w.splice(i, 1);
+        P.room?.wk.splice(i, 1);
       } else i++;
     }
   }

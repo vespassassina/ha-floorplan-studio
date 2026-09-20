@@ -1,6 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, toggleWall } from "../core";
+import { DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, WALL_KINDS, dist, edgeRooms, insertPoint, removePoint, setEdgeKind } from "../core";
 import type { DeviceType, Floor, RoomKind, WallKind } from "../core";
 import { movePointAll, resizeSegment, setSecondEnd } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
@@ -107,7 +107,7 @@ function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
     ${hint(`angle ${ang.toFixed(1)}°`)}
     <div class="row">${button("mkh", "Make horizontal", () => set({ axis: "h" }))}${button("mkv", "Make vertical", () => set({ axis: "v" }))}</div>
     <p>${button("addpt", "Add a point in the middle", () => { c.commit((f) => insertPoint(f, s.poly, s.i, [Math.round((a[0] + b[0]) / 2), Math.round((a[1] + b[1]) / 2)])); c.select(null); })}</p>
-    ${rooms.length ? html`<p>${button("wallt", rooms.some((m) => m.room.w[m.i]) ? "Make this edge a dotted boundary" : "Make this edge a wall", () => c.commit((f) => toggleWall(f, s.poly, s.i)))}</p>` : nothing}
+    ${rooms.length ? html`<p>${button("wallt", rooms.some((m) => m.room.wk[m.i] === "wall") ? "Make this edge a dotted boundary" : "Make this edge a wall", () => c.commit((f) => setEdgeKind(f, s.poly, s.i, rooms.some((m) => m.room.wk[m.i] === "wall") ? "boundary" : "wall")))}</p>` : nothing}
     ${hint("The second end moves. Corners shared with other rooms move with it.")}`;
 }
 
@@ -160,7 +160,7 @@ function roomPanel(c: PanelCtx, i: number) {
       const room = f.rooms[i];
       if (room.kind === v) return;
       room.kind = v as typeof r.kind;
-      if (v === "zone") room.w = room.pts.map(() => false); // a zone has no wall edge
+      if (v === "zone") room.wk = room.pts.map((): WallKind => "boundary"); // a zone has no wall edge
     }))}
     <label for="rcol">colour</label><input id="rcol" type="color" .value=${r.color ?? "#ffffff"} @change=${(e: Event) => c.commit((f) => { f.rooms[i].color = val(e); })}>
     <p>${button("rcolx", "Use the default colour", () => c.commit((f) => { delete f.rooms[i].color; }))}</p>

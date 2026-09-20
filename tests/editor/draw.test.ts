@@ -92,16 +92,16 @@ describe("applyShape", () => {
   it("adds a room with defaults and selects it", () => {
     const f = ground(), r = applyShape(f, "ground", { kind: "room", wall: "wall", pts: sq });
     const room = r.floor.rooms[f.rooms.length];
-    expect(room).toEqual({ id: "room-ground-8", name: "New room", area: "new-room", label: "", kind: "room", pts: sq, w: [true, true, true, true] });
+    expect(room).toEqual({ id: "room-ground-8", name: "New room", area: "new-room", label: "", kind: "room", pts: sq, wk: ["wall", "wall", "wall", "wall"] });
     expect(r.sel).toEqual({ t: "room", i: f.rooms.length });
     expect(f.rooms).toHaveLength(7); // input untouched
   });
 
   it("zone and water are dotted with their own names and areas", () => {
     const z = applyShape(ground(), "ground", { kind: "zone", wall: "wall", pts: sq }).floor.rooms.at(-1)!;
-    expect([z.kind, z.name, z.area, z.w]).toEqual(["zone", "New zone", "new-zone", [false, false, false, false]]);
+    expect([z.kind, z.name, z.area, z.wk]).toEqual(["zone", "New zone", "new-zone", ["boundary", "boundary", "boundary", "boundary"]]);
     const w = applyShape(ground(), "ground", { kind: "water", wall: "wall", pts: sq }).floor.rooms.at(-1)!;
-    expect([w.kind, w.name, w.area, w.w]).toEqual(["water", "New water", "", [false, false, false, false]]);
+    expect([w.kind, w.name, w.area, w.wk]).toEqual(["water", "New water", "", ["boundary", "boundary", "boundary", "boundary"]]);
   });
 
   it("a room corner drawn on another room's edge is stitched into it; a zone's is not", () => {

@@ -17,14 +17,14 @@ describe("validate", () => {
   it("rejects a polygon with fewer than 3 points", () => {
     const l = clone();
     l.floors.ground.rooms[0].pts = [[0, 0], [1, 1]];
-    l.floors.ground.rooms[0].w = [true, true];
+    l.floors.ground.rooms[0].wk = ["wall", "wall"];
     expect(errorsOf(l).join("\n")).toMatch(/room-ground-1.*at least 3 points/);
   });
 
-  it("rejects w whose length differs from pts", () => {
+  it("rejects wk whose length differs from pts", () => {
     const l = clone();
-    l.floors.ground.rooms[0].w = [true];
-    expect(errorsOf(l).join("\n")).toMatch(/room-ground-1.*w must have 4 entries/);
+    l.floors.ground.rooms[0].wk = ["wall"];
+    expect(errorsOf(l).join("\n")).toMatch(/room-ground-1.*wk must have 4 entries/);
   });
 
   it("rejects duplicate ids on one floor", () => {
@@ -145,25 +145,25 @@ describe("validate bound", () => {
     it("accepts a zone with no wall edge and a water polygon", () => {
       const l = clone();
       l.floors.ground.rooms.push(
-        { id: "z1", name: "Nook", area: "nook", label: "", kind: "zone", pts: [[10, 10], [60, 10], [60, 60]], w: [false, false, false] },
-        { id: "w1", name: "Pond", area: "", label: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60]], w: [false, false, false] },
+        { id: "z1", name: "Nook", area: "nook", label: "", kind: "zone", pts: [[10, 10], [60, 10], [60, 60]], wk: ["boundary", "boundary", "boundary"] },
+        { id: "w1", name: "Pond", area: "", label: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60]], wk: ["boundary", "boundary", "boundary"] },
       );
       expect(errorsOf(l)).toEqual([]);
     });
     it("accepts water with wall flags, like a room", () => {
       const l = clone();
-      l.floors.ground.rooms.push({ id: "w1", name: "Pool", area: "", label: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60]], w: [true, true, true] });
+      l.floors.ground.rooms.push({ id: "w1", name: "Pool", area: "", label: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60]], wk: ["wall", "wall", "wall"] });
       expect(errorsOf(l)).toEqual([]);
     });
     it("rejects a zone with a wall edge", () => {
       const l = clone();
-      l.floors.ground.rooms.push({ id: "z1", name: "Nook", area: "nook", label: "", kind: "zone", pts: [[10, 10], [60, 10], [60, 60]], w: [false, true, false] });
+      l.floors.ground.rooms.push({ id: "z1", name: "Nook", area: "nook", label: "", kind: "zone", pts: [[10, 10], [60, 10], [60, 60]], wk: ["boundary", "wall", "boundary"] });
       expect(errorsOf(l).join("\n")).toMatch(/z1.*zone.*wall/);
     });
     it("rejects a zone or water polygon with fewer than 3 points", () => {
       for (const kind of ["zone", "water"]) {
         const l = clone();
-        l.floors.ground.rooms.push({ id: "q1", name: "Q", area: "", label: "", kind, pts: [[0, 0], [1, 1]], w: [false, false] });
+        l.floors.ground.rooms.push({ id: "q1", name: "Q", area: "", label: "", kind, pts: [[0, 0], [1, 1]], wk: ["boundary", "boundary"] });
         expect(errorsOf(l).join("\n")).toMatch(/q1.*at least 3 points/);
       }
     });
@@ -236,5 +236,25 @@ describe("room colour (S1.16)", () => {
       expect(withColor(bad)).toMatch(/room-ground-1 color must be a colour like #aabbcc/);
     expect(withColor("#AABBCC")).toBe("");
     expect(withColor("#aabbcc")).toBe("");
+  });
+});
+
+describe("room wk (S1.17)", () => {
+  const errs = (fn: (l: any) => void) => { const l = clone(); fn(l); return errorsOf(l).join("\n"); };
+  it("the demo has wk and validates", () => {
+    expect(clone().floors.ground.rooms[0].wk).toEqual(["wall", "wall", "wall", "wall"]);
+  });
+  it("rejects a wk of the wrong length, an unknown kind, and a missing wk", () => {
+    expect(errs((l) => { l.floors.ground.rooms[0].wk = ["wall"]; })).toMatch(/room-ground-1.*wk must have 4 entries/);
+    expect(errs((l) => { l.floors.ground.rooms[0].wk = ["wall", "wall", "moat", "wall"]; })).toMatch(/room-ground-1.*wk.*one of wall, boundary, external, fence, edge/);
+    expect(errs((l) => { delete l.floors.ground.rooms[0].wk; })).toMatch(/room-ground-1.*wk must have 4 entries/);
+  });
+  it("accepts every wall kind on a room edge", () => {
+    expect(errs((l) => { l.floors.ground.rooms[0].wk = ["wall", "boundary", "external", "fence"]; })).toBe("");
+    expect(errs((l) => { l.floors.ground.rooms[0].wk = ["edge", "edge", "edge", "edge"]; })).toBe("");
+  });
+  it("a zone must be boundary on every edge", () => {
+    expect(errs((l) => { l.floors.ground.rooms[3].wk[1] = "wall"; })).toMatch(/room-ground-4.*zone.*wk/);
+    expect(errs((l) => { l.floors.ground.rooms[3].wk[1] = "fence"; })).toMatch(/room-ground-4.*zone.*wk/);
   });
 });

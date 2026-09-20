@@ -13,6 +13,14 @@ function inside(p: Pt, poly: Pt[]): boolean {
   return c;
 }
 
+/** Room edges: `w` booleans become `wk` kinds (true wall, false boundary); a missing or short list is padded with wall. */
+function edgeKinds(r: any) {
+  const n = Array.isArray(r.pts) ? r.pts.length : 0;
+  if (!Array.isArray(r.wk)) r.wk = Array.isArray(r.w) ? r.w.map((v: unknown) => (v === false ? "boundary" : "wall")) : [];
+  while (r.wk.length < n) r.wk.push("wall");
+  delete r.w;
+}
+
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x);
 
 /** Accepts a v1 or v2 layout and returns a new v2 layout. The input is never changed. Missing arrays and ids are filled in. */
@@ -33,7 +41,7 @@ export function migrate(x: unknown): Layout {
     }
     for (const o of [...f.stairs, ...f.extras]) o.name = o.name ?? ""; // validate wants text; an older file has none
     if (f.devices !== undefined && !Array.isArray(f.devices)) throw new Error(`Floor "${fname}": devices must be an array`);
-    for (const r of f.rooms) { if (r.kind === "outdoor") r.kind = "garden"; r.area = r.area ?? (r.kind === "water" ? "" : slug(String(r.name ?? ""))); r.name = r.name ?? ""; r.label = r.label ?? ""; }
+    for (const r of f.rooms) { if (r.kind === "outdoor") r.kind = "garden"; r.area = r.area ?? (r.kind === "water" ? "" : slug(String(r.name ?? ""))); r.name = r.name ?? ""; r.label = r.label ?? ""; edgeKinds(r); }
     f.devices = (f.devices ?? []).filter(isObj).map((d: any, i: number) => {
       if (v === 1) d.type = RENAME[d.type] ?? d.type;
       d.id = d.id ?? `${d.type}-${fname}-${i + 1}`;

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { validate, type Layout, type Floor } from "../../src/core/schema";
+import { validate, type Layout, type Floor, type WallKind } from "../../src/core/schema";
 
 // Every pointer action goes through page.mouse at real screen coordinates, so the
 // real top element decides what is hit (icons, handles, walls), as for a user.
@@ -555,13 +555,13 @@ test("a selection made from the Device menu survives the menu closing, then Dele
 const addKind = async (page: Page, id: "#addZone" | "#addWater") => { await menu(page, "Add"); await page.locator(id).click(); };
 const roomPolys = (page: Page) => page.locator("svg polygon[data-r]");
 
-test("Add, Zone places a 200 x 200 cm zone on the grid, centred, selected, dotted, with all w false; one undo step removes it", async ({ page }) => {
+test("Add, Zone places a 200 x 200 cm zone on the grid, centred, selected, dotted, with all wk boundary; one undo step removes it", async ({ page }) => {
   const before = await groundOf(page);
   await addKind(page, "#addZone");
   await expect(roomPolys(page)).toHaveCount(before.rooms.length + 1);
   const g = await groundOf(page), z = g.rooms[g.rooms.length - 1], n = g.rooms.length - 1;
   expect(z.kind).toBe("zone");
-  expect(z.w).toEqual([false, false, false, false]);
+  expect(z.wk).toEqual(["boundary", "boundary", "boundary", "boundary"]);
   expect(new Set(g.rooms.map((r) => r.id)).size).toBe(g.rooms.length);
   const xs = z.pts.map((p) => p[0]), ys = z.pts.map((p) => p[1]);
   expect(Math.max(...xs) - Math.min(...xs)).toBe(200);
@@ -606,22 +606,22 @@ test("the room panel kind select lists zone and water; picking zone clears every
   await expect(page.locator("#rk")).toHaveValue("room");
   const options = await page.locator("#rk option").allTextContents();
   expect(options).toEqual(expect.arrayContaining(["Zone", "Water"])); // labels, not raw ids
-  expect((await groundOf(page)).rooms[0].w).toEqual([true, true, true, true]);
+  expect((await groundOf(page)).rooms[0].wk).toEqual(["wall", "wall", "wall", "wall"]);
   await page.locator("#rk").selectOption("zone");
   const z = (await groundOf(page)).rooms[0];
   expect(z.kind).toBe("zone");
-  expect(z.w).toEqual([false, false, false, false]);
+  expect(z.wk).toEqual(["boundary", "boundary", "boundary", "boundary"]);
   await menu(page, "File");
   await page.locator("#undo").click();
   const back = (await groundOf(page)).rooms[0];
   expect(back.kind).toBe("room");
-  expect(back.w).toEqual([true, true, true, true]);
+  expect(back.wk).toEqual(["wall", "wall", "wall", "wall"]);
 });
 
 test("dragging a zone corner onto a wall does not insert a point into the wall or the rooms", async ({ page }) => {
   await addKind(page, "#addZone");
   const g0 = await groundOf(page), zi = g0.rooms.length - 1, z = g0.rooms[zi];
-  const counts = (g: Floor) => ({ o: g.outline.length, rooms: g.rooms.slice(0, 3).map((r) => r.pts.length), w: g.rooms.slice(0, 3).map((r) => r.w.length), walls: g.walls.length });
+  const counts = (g: Floor) => ({ o: g.outline.length, rooms: g.rooms.slice(0, 3).map((r) => r.pts.length), w: g.rooms.slice(0, 3).map((r) => r.wk.length), walls: g.walls.length });
   const before = counts(g0);
   // the corner that has no neighbour on the target; the target lies on the living / kitchen wall x = 500
   const corner = z.pts.reduce((a, p) => (p[0] < a[0] ? p : a)); // a left corner of the zone
@@ -985,7 +985,7 @@ test("Draw, Room: four clicks and Enter give a room of four points at the snappe
   expect(g.rooms).toHaveLength(before.rooms.length + 1);
   const room = g.rooms.at(-1)!;
   expect(room.pts).toEqual(FREE_SNAPPED);
-  expect([room.kind, room.name, room.area, room.w]).toEqual(["room", "New room", "new-room", [true, true, true, true]]);
+  expect([room.kind, room.name, room.area, room.wk]).toEqual(["room", "New room", "new-room", ["wall", "wall", "wall", "wall"]]);
   await expect(page.locator("#rn")).toHaveValue("New room"); // selected: the room panel
   await expect(drawnPoints(page)).toHaveCount(0);
   expect(await svgCursor(page)).not.toBe("crosshair");
@@ -1097,7 +1097,7 @@ test("Draw, Zone on top of a room's corner does not snap to it", async ({ page }
   const z = (await groundOf(page)).rooms.at(-1)!;
   expect(z.kind).toBe("zone");
   expect(z.pts[0]).toEqual([505, 400]); // the grid, not the corner (500, 400)
-  expect(z.w).toEqual([false, false, false]);
+  expect(z.wk).toEqual(["boundary", "boundary", "boundary"]);
   expect((await groundOf(page)).rooms[0].pts).toEqual(g0.rooms[0].pts); // nothing stitched into the room
 });
 
@@ -1169,7 +1169,7 @@ test("Draw, Water and Draw, Opening and Draw, Structure line add their shapes", 
   await clicksCm(page, [850, 300], [900, 300], [900, 350]);
   await page.keyboard.press("Enter");
   const w = (await groundOf(page)).rooms.at(-1)!;
-  expect([w.kind, w.name, w.area, w.w]).toEqual(["water", "New water", "", [false, false, false]]);
+  expect([w.kind, w.name, w.area, w.wk]).toEqual(["water", "New water", "", ["boundary", "boundary", "boundary"]]);
   await startDraw(page, "drawOpening");
   await clicksCm(page, [103, 632], [297, 633]); // the second click finishes a single segment
   await expect(drawnPoints(page)).toHaveCount(0);
@@ -1561,8 +1561,8 @@ test("a zone edge has no wall toggle, and every panel action on it leaves a vali
   await expect(page.locator("#elen")).toBeVisible();
   await expect(page.locator("#wallt")).toHaveCount(0);
   const zi = (await groundOf(page)).rooms.findIndex((r) => r.kind === "zone");
-  const zoneW = async () => (await groundOf(page)).rooms[zi].w;
-  const ok = async () => { expect(validate(await layoutOf(page)).ok).toBe(true); expect(await zoneW()).toEqual((await zoneW()).map(() => false)); };
+  const zoneW = async () => (await groundOf(page)).rooms[zi].wk;
+  const ok = async () => { expect(validate(await layoutOf(page)).ok).toBe(true); expect(await zoneW()).toEqual((await zoneW()).map((): WallKind => "boundary")); };
   await page.locator("#elen").fill("1.5");
   await page.locator("#elen").press("Enter");
   await ok();
@@ -1618,7 +1618,7 @@ test("the length of a room edge does not take a zone corner on its second end al
   await page.evaluate((tag) => {
     const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
     const z = l.floors.ground.rooms.find((r: any) => r.kind === "zone");
-    z.pts = [[500, 0], [560, 0], [520, 60]]; z.w = [false, false, false];
+    z.pts = [[500, 0], [560, 0], [520, 60]]; z.wk = ["boundary", "boundary", "boundary"];
     el.layout = l;
   }, EDITOR);
   await clickCm(page, 500, 200); // the shared edge; the top polygon's line (the kitchen's) is the one hit, its second end is (500, 0)
@@ -1842,7 +1842,7 @@ test("a zone corner dropped on a wall where a third polygon has a corner is not 
   // a small structure whose corner (500, 250) lies on the living / kitchen wall x = 500
   await page.evaluate((tag) => {
     const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
-    l.floors.ground.rooms.push({ id: "room-ground-9", name: "Shed", area: "shed", label: "", kind: "structure", pts: [[500, 250], [540, 250], [540, 290]], w: [true, true, true] });
+    l.floors.ground.rooms.push({ id: "room-ground-9", name: "Shed", area: "shed", label: "", kind: "structure", pts: [[500, 250], [540, 250], [540, 290]], wk: ["wall", "wall", "wall"] });
     el.layout = l;
   }, EDITOR);
   const g0 = await groundOf(page), zi = g0.rooms.findIndex((r) => r.kind === "zone"), z = g0.rooms[zi];

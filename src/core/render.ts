@@ -1,5 +1,5 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
-import type { Device, DeviceType, Floor, Pt } from "./schema";
+import type { Device, DeviceType, Floor, Pt, WallKind } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
 export interface RenderOpts {
@@ -41,6 +41,8 @@ export function viewBoxFor(f: Floor, pad = 60): { x: number; y: number; w: numbe
   return { x: x0, y: y0, w: Math.max(...xs) + pad - x0, h: Math.max(...ys) + pad - y0 };
 }
 
+/** Class of a room edge or free wall: wall is plain, boundary is dotted, the rest carry their kind. */
+const edgeClass = (kind: unknown) => `e${kind === "boundary" ? " nw" : kind === "wall" || kind === undefined ? "" : ` ${esc(String(kind))}`}`;
 const at = (p: Pt) => `${num(p[0])} ${num(p[1])}`;
 type Cls = "on" | "off" | "unavailable";
 
@@ -81,14 +83,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   });
   f.stairs.forEach((s, i) => out.push(`<polygon data-s="${i}" class="stairs room" points="${pts(s.pts)}"/>`));
 
-  const polys: { id: string; pts: Pt[]; w?: boolean[]; zone?: boolean }[] = [{ id: "o", pts: f.outline }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, w: r.w, zone: r.kind === "zone" }))];
+  const polys: { id: string; pts: Pt[]; wk?: WallKind[]; zone?: boolean }[] = [{ id: "o", pts: f.outline }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, wk: r.wk, zone: r.kind === "zone" }))];
   for (const P of polys)
     P.pts.forEach((a, i) => {
-      const b = P.pts[(i + 1) % P.pts.length], wall = P.zone ? false : P.w ? P.w[i] : true;
-      out.push(`<line class="e${wall ? "" : " nw"}" data-e="${P.id}:${i}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"/>`);
+      const b = P.pts[(i + 1) % P.pts.length], kind = P.zone ? "boundary" : P.wk ? P.wk[i] : "wall";
+      out.push(`<line class="${edgeClass(kind)}" data-e="${P.id}:${i}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"/>`);
     });
   f.walls.forEach((w, i) =>
-    out.push(`<line class="e${w.kind === "boundary" ? " nw" : w.kind === "wall" ? "" : ` ${esc(String(w.kind))}`}" data-w="${i}" x1="${num(w.a[0])}" y1="${num(w.a[1])}" x2="${num(w.b[0])}" y2="${num(w.b[1])}"/>`));
+    out.push(`<line class="${edgeClass(w.kind)}" data-w="${i}" x1="${num(w.a[0])}" y1="${num(w.a[1])}" x2="${num(w.b[0])}" y2="${num(w.b[1])}"/>`));
 
   f.stairs.forEach((t, i) => t.pts.forEach((a, j) => {
     const b = t.pts[(j + 1) % t.pts.length];

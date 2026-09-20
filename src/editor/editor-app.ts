@@ -532,7 +532,7 @@ export class FloorplanStudioEditor extends LitElement {
     else if (s.t === "stairs") del((f) => { f.stairs.splice(s.i, 1); });
     else if (s.t === "v" && "poly" in s.ref && (polyPts(this.st.f, s.ref.poly)?.length ?? 0) > 3) {
       const { poly, j } = s.ref;
-      del((f) => { const P = polys(f).find((x) => x.id === poly); if (P) { P.pts.splice(j, 1); P.room?.w.splice(j, 1); } });
+      del((f) => { const P = polys(f).find((x) => x.id === poly); if (P) { P.pts.splice(j, 1); P.room?.wk.splice(j, 1); } });
     }
   };
 
@@ -642,14 +642,14 @@ export class FloorplanStudioEditor extends LitElement {
   private addStructure() {
     this.stopDraw();
     const [cx, cy] = this.centre(), x = cx - 200, y = cy - 150, floor = this.st.floor;
-    this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name: "New structure", area: slug("New structure"), label: "", kind: "structure", pts: [[x, y], [x + 400, y], [x + 400, y + 300], [x, y + 300]], w: [true, true, true, true] }); });
+    this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name: "New structure", area: slug("New structure"), label: "", kind: "structure", pts: [[x, y], [x + 400, y], [x + 400, y + 300], [x, y + 300]], wk: ["wall", "wall", "wall", "wall"] }); });
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
     this.requestUpdate();
   }
   private addArea(kind: "zone" | "water") {
     this.stopDraw();
     const pts = squareAt(this.centre()), floor = this.st.floor, name = kind === "zone" ? "New zone" : "New water";
-    this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name, area: kind === "zone" ? slug(name) : "", label: "", kind, pts, w: pts.map(() => false) }); });
+    this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name, area: kind === "zone" ? slug(name) : "", label: "", kind, pts, wk: pts.map((): WallKind => "boundary") }); });
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
     this.requestUpdate();
   }

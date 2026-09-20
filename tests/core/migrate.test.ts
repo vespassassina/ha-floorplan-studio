@@ -110,8 +110,10 @@ describe("migrate", () => {
     const rooms = migrate(l).floors.ground.rooms.slice(-4);
     expect(rooms[3].area).toBe(""); // one rule with the editor's Add and Draw: water is not an HA area
     expect(rooms[1].area).toBe(""); // "" is a value, not a gap: a fill that used || would turn it into "pond"
-    expect(rooms[0]).toEqual(l.floors.ground.rooms.at(-4));
-    expect(rooms[1].w).toEqual([false, false, false]);
+    const { w, ...z1 } = l.floors.ground.rooms.at(-4);
+    expect(rooms[0]).toEqual({ ...z1, wk: ["boundary", "boundary", "boundary"] }); // a zone keeps its area and its dotted edges
+    expect(w).toEqual([false, false, false]);
+    expect((rooms[1] as any).wk).toEqual(["boundary", "boundary", "boundary"]);
     expect(rooms[2].area).toBe("cellar-store");
   });
 });
@@ -186,5 +188,35 @@ describe("outdoor is renamed garden (S1.14)", () => {
     const m = migrate(l);
     expect(m.floors.g.rooms[0].kind).toBeUndefined();
     expect(validate(m).ok).toBe(false);
+  });
+});
+
+describe("room edge kinds wk (S1.17)", () => {
+  const rooms = (version: number, r: any) => ({ version, north: 0, floors: { g: { title: "G", outline: [[0, 0], [1, 0], [1, 1]], rooms: [{ id: "r0", name: "R", area: "r", label: "", kind: "room", pts: [[0, 0], [1, 0], [1, 1]], ...r }] } } });
+  for (const v of [1, 2])
+    it(`v${v}: w [true, false, true] becomes wk [wall, boundary, wall], w is gone, and a second migrate changes nothing`, () => {
+      const once = migrate(rooms(v, { w: [true, false, true] }));
+      const r = once.floors.g.rooms[0] as any;
+      expect(r.wk).toEqual(["wall", "boundary", "wall"]);
+      expect(r).not.toHaveProperty("w");
+      expect(migrate(once)).toEqual(once);
+    });
+  it("break it: w [true, true] on three points gives three entries, the third wall, and validate accepts it", () => {
+    const m = migrate(rooms(2, { w: [true, true] }));
+    expect((m.floors.g.rooms[0] as any).wk).toEqual(["wall", "wall", "wall"]);
+    expect(validate(m).ok).toBe(true);
+  });
+  it("fills a missing wk with wall and pads a short one, and leaves a valid one alone", () => {
+    expect((migrate(rooms(2, {})).floors.g.rooms[0] as any).wk).toEqual(["wall", "wall", "wall"]);
+    expect((migrate(rooms(2, { wk: ["fence"] })).floors.g.rooms[0] as any).wk).toEqual(["fence", "wall", "wall"]);
+    const kept = migrate(rooms(2, { wk: ["external", "fence", "edge"] })).floors.g.rooms[0] as any;
+    expect(kept.wk).toEqual(["external", "fence", "edge"]);
+  });
+  it("a wk that is already there wins over a stale w, and an unknown entry is left for validate", () => {
+    const r = migrate(rooms(2, { wk: ["fence", "edge", "wall"], w: [false, false, false] })).floors.g.rooms[0] as any;
+    expect(r.wk).toEqual(["fence", "edge", "wall"]);
+    expect(r).not.toHaveProperty("w");
+    expect(validate(migrate(rooms(2, { wk: ["fence", "wall", "wall"] }))).ok).toBe(true); // the same helper is valid with good kinds
+    expect(JSON.stringify(validate(migrate(rooms(2, { wk: ["fence", "bogus", "wall"] }))))).toContain("wk entries");
   });
 });

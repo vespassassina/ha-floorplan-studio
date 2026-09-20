@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import type { Floor, Pt } from "../../src/core/schema";
-import { dist, polys, nearestEdge, snapPoint, stitch, insertPoint, removePoint, movePoints, edgeRooms, toggleWall, mergeCorners } from "../../src/core/geometry";
+import type { Floor, Pt, WallKind } from "../../src/core/schema";
+import { dist, polys, nearestEdge, snapPoint, stitch, insertPoint, removePoint, movePoints, edgeRooms, setEdgeKind, mergeCorners } from "../../src/core/geometry";
 
 // Two rooms side by side sharing the edge x=100, inside a 200x100 outline.
 const rect = (x0: number, y0: number, x1: number, y1: number): Pt[] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-const room = (id: string, pts: Pt[]) => ({ id, name: id, area: id, label: "", kind: "room" as const, pts, w: pts.map(() => true) });
+const room = (id: string, pts: Pt[]) => ({ id, name: id, area: id, label: "", kind: "room" as const, pts, wk: pts.map((): WallKind => "wall") });
 const floor = (): Floor => ({
   ...(structuredClone(demo.floors.ground) as unknown as Floor),
   outline: rect(0, 0, 200, 100),
@@ -57,13 +57,13 @@ describe("snapPoint", () => {
 });
 
 describe("stitch, insertPoint, removePoint", () => {
-  it("inserts a point on an edge the point lies on, exactly once, keeping w", () => {
+  it("inserts a point on an edge the point lies on, exactly once, keeping wk", () => {
     const f = floor();
-    f.rooms[0].w = [true, false, true, true];
+    f.rooms[0].wk = ["wall", "boundary", "wall", "wall"];
     f.rooms.push(room("c", [[50, 100], [60, 130], [40, 130]]));
     const g = stitch(f, [50, 100]);
     expect(g.rooms[0].pts).toEqual([[0, 0], [100, 0], [100, 100], [50, 100], [0, 100]]);
-    expect(g.rooms[0].w).toEqual([true, false, true, true, true]);
+    expect(g.rooms[0].wk).toEqual(["wall", "boundary", "wall", "wall", "wall"]);
     expect(g.rooms[2].pts).toHaveLength(3);
     expect(f.rooms[0].pts).toHaveLength(4);
   });
@@ -71,16 +71,16 @@ describe("stitch, insertPoint, removePoint", () => {
     expect(stitch(floor(), [0.5, 0]).rooms[0].pts).toHaveLength(4);
     expect(stitch(floor(), [3, 0]).rooms[0].pts).toHaveLength(5);
   });
-  it("insertPoint copies the wall flag of the edge it splits", () => {
+  it("insertPoint copies the edge kind of the edge it splits", () => {
     const f = floor();
-    f.rooms[0].w = [false, true, true, true];
+    f.rooms[0].wk = ["fence", "wall", "wall", "wall"];
     const g = insertPoint(f, "r0", 0, [50, 0]);
-    expect(g.rooms[0].w).toEqual([false, false, true, true, true]);
+    expect(g.rooms[0].wk).toEqual(["fence", "fence", "wall", "wall", "wall"]);
   });
-  it("removePoint drops the point and its flag", () => {
+  it("removePoint drops the point and its kind", () => {
     const g = removePoint(floor(), "r0", 1);
     expect(g.rooms[0].pts).toEqual([[0, 0], [100, 100], [0, 100]]);
-    expect(g.rooms[0].w).toHaveLength(3);
+    expect(g.rooms[0].wk).toHaveLength(3);
   });
   it("removePoint refuses to go below 3 points", () => {
     const f = floor();
@@ -108,22 +108,11 @@ describe("movePoints", () => {
   });
 });
 
-describe("edgeRooms and toggleWall", () => {
+describe("edgeRooms", () => {
   it("finds both rooms on a shared edge", () => {
     const f = floor();
     const e = edgeRooms(f, "r0", 1);
     expect(e.map((x) => x.room.id).sort()).toEqual(["a", "b"]);
-  });
-  it("toggleWall sets every matching room edge to the same new value", () => {
-    const f = floor();
-    f.rooms[0].w[1] = true;
-    f.rooms[1].w[3] = false;
-    const g = toggleWall(f, "r0", 1);
-    expect(g.rooms[0].w[1]).toBe(false);
-    expect(g.rooms[1].w[3]).toBe(false);
-    const h = toggleWall(g, "r0", 1);
-    expect(h.rooms[0].w[1]).toBe(true);
-    expect(h.rooms[1].w[3]).toBe(true);
   });
 });
 
@@ -143,18 +132,18 @@ describe("mergeCorners", () => {
     expect(g.rooms[0].pts[1]).toEqual(g.rooms[1].pts[0]);
     expect(g.rooms[0].pts[1]).toEqual([105, 10]);
   });
-  it("drops consecutive equal corners and their wall flags", () => {
+  it("drops consecutive equal corners and their edge kinds", () => {
     const f = floor();
     f.rooms[0].pts = [[0, 0], [100, 0], [105, 0], [100, 100], [0, 100]];
-    f.rooms[0].w = [true, true, true, true, true];
+    f.rooms[0].wk = ["wall", "fence", "wall", "wall", "wall"];
     const g = mergeCorners(f, 25);
-    expect(g.rooms[0].pts.length).toBe(g.rooms[0].w.length);
+    expect(g.rooms[0].pts.length).toBe(g.rooms[0].wk.length);
     expect(g.rooms[0].pts.length).toBeLessThan(5);
   });
 });
 
 describe("zones do not take part in snapping, stitching or merging", () => {
-  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, w: pts.map(() => false) });
+  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, wk: pts.map((): WallKind => "boundary") });
   // an off-grid zone inside room a, so a corner snap onto it would be visible
   const withZone = (): Floor => {
     const f = floor();
@@ -184,7 +173,7 @@ describe("zones do not take part in snapping, stitching or merging", () => {
     f.rooms[2].pts = [[50, 100], [70, 100], [70, 90], [50, 90]]; // corner (50, 100) lies on the edge of room a and the outline? (a: y=100)
     const g = stitch(f, [50, 100]);
     expect(g.rooms[0].pts).toHaveLength(4);
-    expect(g.rooms[0].w).toHaveLength(4);
+    expect(g.rooms[0].wk).toHaveLength(4);
     expect(g.rooms[2].pts).toHaveLength(4);
   });
   it("stitch still stitches a room corner that is not a zone corner", () => {
@@ -214,11 +203,11 @@ describe("zones do not take part in snapping, stitching or merging", () => {
 });
 
 describe("a zone edge is never a wall (review S1.5, finding 1)", () => {
-  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, w: pts.map(() => false) });
-  it("toggleWall on a zone polygon returns the floor unchanged", () => {
+  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, wk: pts.map((): WallKind => "boundary") });
+  it("setEdgeKind on a zone polygon returns the floor unchanged", () => {
     const f = floor();
     f.rooms.push(zone("z", rect(20, 20, 60, 60)));
-    expect(toggleWall(f, "r2", 0)).toBe(f);
+    expect(setEdgeKind(f, "r2", 0, "fence")).toBe(f);
     expect(edgeRooms(f, "r2", 0)).toEqual([]);
   });
   it("nearestEdge with zones: true prefers the room edge on an exact tie with a zone edge, whichever is listed first", () => {
@@ -231,19 +220,18 @@ describe("a zone edge is never a wall (review S1.5, finding 1)", () => {
       expect(polys(f).find((P) => P.id === hit.poly)!.room?.kind).toBe("room");
     }
   });
-  it("toggleWall on a room edge that a zone edge lies on leaves the zone dotted", () => {
+  it("setEdgeKind on a room edge that a zone edge lies on leaves the zone dotted", () => {
     const f = floor();
     f.rooms.push(zone("z", rect(0, 0, 100, 40))); // its top edge is the top edge of room a
-    f.rooms[0].w[0] = false; // dotted now, so the toggle sets true: a zone edge would follow
-    const g = toggleWall(f, "r0", 0);
-    expect(g.rooms[0].w[0]).toBe(true);
-    expect(g.rooms[2].w).toEqual([false, false, false, false]);
+    const g = setEdgeKind(f, "r0", 0, "external"); // a zone edge would follow if it were a match
+    expect(g.rooms[0].wk[0]).toBe("external");
+    expect(g.rooms[2].wk).toEqual(["boundary", "boundary", "boundary", "boundary"]);
     expect(edgeRooms(f, "r0", 0).map((h) => h.room.id)).toEqual(["a"]);
   });
 });
 
 describe("movePoints without an owner never drags a zone corner (review S1.5, finding 2)", () => {
-  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, w: pts.map(() => false) });
+  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, wk: pts.map((): WallKind => "boundary") });
   it("a zone corner on a room corner stays when the point is moved with no `only`", () => {
     const f = floor();
     f.rooms.push(zone("z", [[100, 0], [150, 0], [150, 50], [100, 50]]));
@@ -256,7 +244,7 @@ describe("movePoints without an owner never drags a zone corner (review S1.5, fi
 });
 
 describe("nearestEdge and zones (review S1.5, finding 4)", () => {
-  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, w: pts.map(() => false) });
+  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, wk: pts.map((): WallKind => "boundary") });
   const withZone = () => { const f = floor(); f.rooms.push(zone("z", rect(20, 20, 60, 60))); return f; };
   it("skips a zone edge by default, so a door never attaches to it", () => {
     // 2 cm from the zone edge y=20, 20 cm from the room edge y=0
@@ -294,5 +282,25 @@ describe("nearestEdge with free walls (review S1.5, finding 6)", () => {
     // room edges are 40+ cm away; the wall end (30, 60) is 15, and the zero-length wall sits right on the point
     const e = nearestEdge(f, [45, 60], 1e9, { walls: true })!;
     expect([e.poly, e.i, e.q, e.d]).toEqual(["w", 0, [30, 60], 15]);
+  });
+});
+
+describe("setEdgeKind (S1.17)", () => {
+  it("writes the kind into both rooms that share the edge and leaves other edges alone", () => {
+    const f = floor();
+    const g = setEdgeKind(f, "r0", 1, "external");
+    expect(g.rooms[0].wk[1]).toBe("external");
+    expect(g.rooms[1].wk[3]).toBe("external");
+    expect(g.rooms[0].wk.filter((k) => k !== "external")).toHaveLength(3);
+    expect(f.rooms[0].wk[1]).toBe("wall"); // input untouched
+  });
+  it("returns the same floor when no room has the edge, and leaves a zone edge alone", () => {
+    const f = floor();
+    expect(setEdgeKind(f, "o", 0, "fence")).toBe(f);
+    expect(setEdgeKind(f, "r9", 0, "fence")).toBe(f);
+    const z = floor();
+    z.rooms.push({ ...room("z", [[10, 10], [60, 10], [60, 60], [10, 60]]), kind: "zone" as const, wk: ["boundary", "boundary", "boundary", "boundary"] });
+    expect(setEdgeKind(z, "r2", 0, "fence")).toBe(z);
+    expect(z.rooms[2].wk).toEqual(["boundary", "boundary", "boundary", "boundary"]);
   });
 });

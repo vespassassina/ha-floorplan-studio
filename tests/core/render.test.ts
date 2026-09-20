@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import type { Layout } from "../../src/core/schema";
+import type { Layout, WallKind } from "../../src/core/schema";
 import { renderFloor, viewBoxFor, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
 
 const L = demo as unknown as Layout;
@@ -196,9 +196,9 @@ describe("zones and water", () => {
     for (const e of edges) expect(e).toContain('class="e nw"');
     expect(html).not.toContain("data-h=");
   });
-  it("draws a zone edge dotted even if its w flag says wall", () => {
+  it("draws a zone edge dotted even if its wk says wall", () => {
     const f = structuredClone(ground);
-    f.rooms[zi].w = f.rooms[zi].w.map(() => true);
+    f.rooms[zi].wk = f.rooms[zi].wk.map((): WallKind => "wall");
     expect(renderFloor(f, { scale: 0.5 })).toContain(`<line class="e nw" data-e="r${zi}:0"`);
   });
   it("the zone has no fill and a small name label; the water has class water and the --fp-water fill", () => {
@@ -378,7 +378,7 @@ describe("garden and pavement (S1.14)", () => {
 describe("fill is hatched (S1.15)", () => {
   const withFill = (n: number) => {
     const f = structuredClone(ground);
-    for (let i = 0; i < n; i++) f.rooms.push({ id: `fill${i}`, name: `F${i}`, area: "", label: "", kind: "fill", pts: [[0, 0], [50, 0], [50, 50]], w: [true, true, true] });
+    for (let i = 0; i < n; i++) f.rooms.push({ id: `fill${i}`, name: `F${i}`, area: "", label: "", kind: "fill", pts: [[0, 0], [50, 0], [50, 50]], wk: ["wall", "wall", "wall"] });
     return f;
   };
   it("emits the hatch pattern first, once, and the class points at it", () => {
@@ -422,9 +422,31 @@ describe("room colour (S1.16)", () => {
   });
   it("a fill room with a colour renders and still emits the hatch", () => {
     const f = structuredClone(ground);
-    f.rooms.push({ id: "f1", name: "F", area: "", label: "", kind: "fill", pts: [[0, 0], [50, 0], [50, 50]], w: [true, true, true], color: "#aabbcc" });
+    f.rooms.push({ id: "f1", name: "F", area: "", label: "", kind: "fill", pts: [[0, 0], [50, 0], [50, 50]], wk: ["wall", "wall", "wall"], color: "#aabbcc" });
     const html = renderFloor(f, base);
     expect(html).toContain("<defs>");
     expect(html).toContain('class="room room-fill" fill="#aabbcc"');
+  });
+});
+
+describe("room edge kinds (S1.17)", () => {
+  const kinds = ["wall", "boundary", "external", "fence", "edge"] as const;
+  it("gives a room edge the class of its kind", () => {
+    const f = structuredClone(ground);
+    f.rooms[0].wk = [...kinds].slice(0, 4) as never;
+    f.rooms[1].wk = ["edge", "wall", "wall", "wall"];
+    const html = renderFloor(f, base);
+    const cls = (id: string) => html.match(new RegExp(`<line class="([^"]*)" data-e="${id}"`))?.[1];
+    expect([0, 1, 2, 3].map((i) => cls(`r0:${i}`))).toEqual(["e", "e nw", "e external", "e fence"]);
+    expect(cls("r1:0")).toBe("e edge");
+  });
+  it("a zone edge stays dotted whatever wk says, and a hostile kind is escaped", () => {
+    const f = structuredClone(ground);
+    const zi = f.rooms.findIndex((r) => r.kind === "zone");
+    f.rooms[zi].wk = ["fence", "fence", "fence", "fence"];
+    f.rooms[0].wk[0] = '"><script>x</script>' as never;
+    const html = renderFloor(f, base);
+    expect(html).toContain(`class="e nw" data-e="r${zi}:0"`);
+    expect(html).not.toContain("<script>");
   });
 });

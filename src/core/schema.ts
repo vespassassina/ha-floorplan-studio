@@ -8,7 +8,7 @@ export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "tv" | "computer" | "tree" | "patio-wood" | "patio-concrete" | "car";
 
-export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; w: boolean[]; color?: string }
+export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: WallKind[]; color?: string }
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
 export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind }
 export interface Stairs { id: string; name: string; pts: Pt[] }
@@ -80,10 +80,14 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       oneOf(`${r.id} kind`, r.kind, ROOM_KINDS);
       if (r.color !== undefined && !(typeof r.color === "string" && /^#[0-9a-fA-F]{6}$/.test(r.color)))
         errors.push(`${at} ${r.id} color must be a colour like #aabbcc`);
-      if (Array.isArray(r.pts) && r.pts.length >= 3 && (!Array.isArray(r.w) || r.w.length !== r.pts.length))
-        errors.push(`${at} ${r.id} w must have ${r.pts.length} entries`);
-      else if (r.kind === "zone" && Array.isArray(r.w) && r.w.some((v: unknown) => v !== false))
-        errors.push(`${at} ${r.id} is a zone and cannot have a wall edge: every w entry must be false`);
+      if (Array.isArray(r.pts) && r.pts.length >= 3 && (!Array.isArray(r.wk) || r.wk.length !== r.pts.length))
+        errors.push(`${at} ${r.id} wk must have ${r.pts.length} entries`);
+      else if (Array.isArray(r.wk)) {
+        if (r.wk.some((k: unknown) => typeof k !== "string" || !WALL_KINDS.includes(k as WallKind)))
+          errors.push(`${at} ${r.id} wk entries must be one of ${WALL_KINDS.join(", ")}`);
+        else if (r.kind === "zone" && r.wk.some((k: unknown) => k !== "boundary"))
+          errors.push(`${at} ${r.id} is a zone and cannot have a wall edge: every wk entry must be boundary`);
+      }
     });
     each("walls", (w) => {
       oneOf(`${w.id} kind`, w.kind, WALL_KINDS);
