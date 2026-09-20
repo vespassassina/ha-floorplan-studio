@@ -3752,7 +3752,6 @@ test("Opus review a11y: the turn buttons are a labelled group and their names ca
 // ---- Opus review: every CSS rule that render.test.ts only matches as a string is checked here in the browser ----
 
 const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `rgb(${n >> 16}, ${(n >> 8) & 255}, ${n & 255})`; };
-const sq = (x: number, y: number): [number, number][] => [[x, y], [x + 80, y], [x + 80, y + 80], [x, y + 80]];
 /** Adds shapes below the house: one room per kind, one wall per kind, a room with a "none" edge, a temp sensor in a garden. */
 async function addCssFixtures(page: Page) {
   await page.evaluate((tag) => {
