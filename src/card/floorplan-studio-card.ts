@@ -2,6 +2,7 @@ import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, migrate, planPivot, renderFloor, validate, viewBoxFor } from "../core";
 import type { Floor, Layout } from "../core";
+import { bindDeviceActions, lightFill, lightOpacity } from "./actions";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
 
@@ -11,6 +12,7 @@ export interface Hass {
   states: Record<string, HassEntity>;
   themes?: { darkMode?: boolean };
   connection?: { sendMessagePromise<T>(msg: Record<string, unknown>): Promise<T> };
+  callService?(domain: string, service: string, data?: Record<string, unknown>): Promise<unknown>;
 }
 
 export interface FloorplanStudioCardConfig {
@@ -43,6 +45,8 @@ export class FloorplanStudioCard extends LitElement {
   private _urlRequested = false;
   private _wsRequested = false;
   private _timer: ReturnType<typeof setInterval> | null = null;
+  private _actionsSvg: SVGSVGElement | null = null;
+  private _unbindActions: (() => void) | null = null;
 
   static getStubConfig(): FloorplanStudioCardConfig {
     return { type: "custom:floorplan-studio-card" };
@@ -79,6 +83,9 @@ export class FloorplanStudioCard extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this._stopTimer();
+    this._unbindActions?.();
+    this._unbindActions = null;
+    this._actionsSvg = null;
   }
 
   /** Takes any accepted layout (from config or a fetch), migrates and validates it. Never throws: an unusable one just leaves the message up. */
@@ -184,6 +191,27 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /**
+   * The light's own colour (S2.2): `renderFloor` draws every icon in its type's flat `--fp-on`, since it never
+   * looks past `state` for a per-entity attribute. Here, on top of that markup, a lit light's `<path>` gets an
+   * inline `fill`/`opacity` from its own `rgb_color`/`brightness` — inline always outranks the CSS class rule.
+   * Runs after every render because `unsafeSVG` replaces the `<svg>`'s content wholesale, taking any inline
+   * style set on a previous render's nodes with it.
+   */
+  private _paintLights(svg: SVGSVGElement): void {
+    const f = this._floor();
+    if (!f) return;
+    f.devices.forEach((d, i) => {
+      if (d.type !== "light") return;
+      const g = svg.querySelector(`[data-x="${i}"]`);
+      const path = g?.querySelector("path");
+      if (!g || !path) return;
+      if (!g.classList.contains("on")) { path.removeAttribute("style"); return; }
+      const state = this._hass?.states[d.entity];
+      path.setAttribute("style", `fill:${lightFill(state)};opacity:${lightOpacity(state)}`);
+    });
+  }
+
+  /**
    * The host's own chrome (this `p.msg`, anything outside the `<svg>`) is styled by `FLOORPLAN_CSS`'s `:host` rules,
    * which read `data-theme` off the host element itself, not off `renderFloor`'s output. Without this the chrome
    * would follow the OS's `prefers-color-scheme` instead of Home Assistant's own theme (Opus review). Kept in sync
@@ -194,6 +222,17 @@ export class FloorplanStudioCard extends LitElement {
     const t = this._theme();
     if (t) this.setAttribute("data-theme", t);
     else this.removeAttribute("data-theme");
+
+    const svg = this.shadowRoot?.querySelector("svg") ?? null;
+    if (svg !== this._actionsSvg) {
+      // Lit keeps the <svg> element itself across renders (only unsafeSVG's content is replaced), so binding
+      // once per element, not once per render, avoids piling up duplicate listeners (S2.2 "Break it": no
+      // debounce, but also no double-firing from a stale second listener).
+      this._unbindActions?.();
+      this._unbindActions = svg ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i]) : null;
+      this._actionsSvg = svg;
+    }
+    if (svg) this._paintLights(svg);
   }
 
   protected render() {

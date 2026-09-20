@@ -684,7 +684,7 @@ pressed state.
 - Done when: tests pass; `npm run build` emits `dist/floorplan-studio-card.js` under 300 kB.
 - Break it: `setConfig({})` with no layout shows the text "No layout: install the Floorplan Studio integration or set layout_url".
 
-### S2.2 Lights, switches, plugs
+### S2.2 Lights, switches, plugs (done)
 - Outcome: tap toggles, hold opens more-info, light colour and brightness shown.
 - Files: card, `src/card/actions.ts`, `tests/card/actions.test.ts`.
 - Interface: `tap` → `hass.callService(domain, "toggle", { entity_id })`; hold (≥ 500 ms) → `fireEvent(this, "hass-more-info", { entityId })`. Light on: icon `fill` from `attributes.rgb_color` if present else `--fp-on`, opacity `brightness/255` floor 0.35.
