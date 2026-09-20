@@ -349,7 +349,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
     out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${bound ? " bound" : ""} ${cls}${sel ? " sel" : ""}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}</g>`);
     if ((d.type === "temp" || d.type === "humidity") && s) {
-      const bad = s.state === "unknown" || s.state === "unavailable";
+      // Anything that is not a finite number reads as "–". `unknown` and `unavailable` are only the two HA spells for it;
+      // an integration can report an empty string, a comma decimal or a word, and printing "not-a-number °C" is worse than saying nothing.
+      const bad = !/^-?\d+(\.\d+)?$/.test(s.state.trim()) || !Number.isFinite(Number(s.state));
       const unit = typeof s.attributes.unit_of_measurement === "string" ? ` ${s.attributes.unit_of_measurement}` : "";
       out.push(`<text class="val" x="${num(c[0])}" y="${num(c[1] + 24 * k)}"${up(c[0], c[1] + 24 * k)} text-anchor="middle" font-size="${num(11 * k)}">${bad ? "–" : esc(s.state + unit)}</text>`);
     }
