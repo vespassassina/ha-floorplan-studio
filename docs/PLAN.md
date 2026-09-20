@@ -569,6 +569,54 @@ S1.42 are three defects the verifiers found.
 - Done when: tests pass; SPEC's View entry names it.
 - Break it: a floor with nothing but an empty outline, or no outline at all, does not throw and shows a sensible box.
 
+### S1.43 Rotation is buttons: 30, 45, 60, 90, reset
+- Outcome: no rotation textbox is left. Four buttons turn the selected thing by 30, 45, 60 or 90 degrees, in a direction the user picks, and Reset puts it back to 0.
+- Files: `src/editor/panels.ts`, `src/editor/state.ts`, `src/editor/editor-app.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: one helper `rotateButtons(c, id, current, apply)` in `panels.ts`, used by stairs (`srot`), furniture (`fr`), devices and cameras (`vrot`) and rooms (`rrot`). It draws a row: a cw/ccw toggle (`#rdir`, `aria-pressed`, default cw, kept in `EditorState.turnDir` for the session) and the buttons `#rot30`, `#rot45`, `#rot60`, `#rot90` with an id prefix per panel (`srot30`, `frot30`, `vrot30`, `rrot30`). Pressing N sets `rot = (rot + dir * N) mod 360`, one commit. A `Reset` button (`<prefix>reset`) sets `rot` to 0 and, for a device, deletes the field. A room has no stored angle (`rotatePoly` moves its corners), so it gets the four buttons and the toggle but no Reset. Rooms stay rotatable only when unsnapped; the buttons are disabled and the hint stays as it is today. Walls, doors and openings keep their `angle (deg)` field: it is an absolute angle of a line, not a turn.
+- Test: Playwright, real clicks: with stairs at rot 0 click 30 then 45: rot is 75; switch to ccw and click 90: rot is 345; Reset gives 0. Same for a furniture piece and a device (Reset deletes `rot`). A snapped room has the buttons disabled; after Unsnap, 90 turns its corners a quarter turn about the centre. No `input#srot`, `#fr`, `#vrot` or `#rrot` exists. One undo reverts one press.
+- Done when: tests pass; `npm run lint` clean; SPEC's rotation lines describe the buttons.
+- Break it: 360 wraps to a value below 360, and a press on a locked room changes nothing and adds no undo step.
+
+### S1.44 Stair steps are computed from the length
+- Outcome: the step count is never typed. It is the run length divided by a 40 cm tread, rounded.
+- Files: `src/core/schema.ts`, `src/core/migrate.ts`, `src/core/render.ts`, `src/editor/ops.ts`, `src/editor/panels.ts`, `tests/core/*.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: `stairSteps(t: Stairs): number` in `src/core/geometry.ts` or `ops.ts`, exported from core: for a straight run `max(2, round(length / 40))`, where length is the long side of the box (the direction the treads run along); for a round stair `max(2, round(pi * (outer + inner) / 2 / 40))` on the mean circumference. `steps` stays in the schema, so old files load, but it is derived: `migrate` recomputes it and ignores a stored value that disagrees, and every edit that changes the shape recomputes it. `renderFloor` draws `stairSteps(t)` treads. The editable `#sst` field goes; the panel shows `steps: N` as read only text (`#sstn`). `validate` still requires an integer from 2 to 40 and clamps nothing.
+- Test: unit: a 300 cm run gives 8 (7.5 rounds up), 100 cm gives 3 (2.5 up), 60 cm gives 2 (floor of 2 holds); a round stair of outer 200 and inner 80 gives round(pi * 140 / 40) = 11; `migrate` on a file with `steps: 30` and a 300 cm run returns 8. Playwright: no `#sst` exists; stretching the run by a corner drag changes `#sstn` and the treads drawn.
+- Done when: tests pass; SPEC states the 40 cm tread.
+- Break it: a run of 10 cm gives 2, not 0 or 1; a stored `steps: 99` never reaches the renderer.
+
+### S1.45 The icon circle is white and readable
+- Outcome: a device icon sits on a white disc, so a coloured glyph is readable on any floor colour.
+- Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: the `.halo` circle is white at 75 % alpha with a 1 px grey border (`--fp-halo`), radius 3 px larger than the icon (r=13 in the 24-unit icon box today, so the circle grows to r=16 in that box and the 1 px border is drawn in screen pixels with `vector-effect:non-scaling-stroke`). The camera cone and the active-colour tint keep `--fp-alpha` at .25; only the disc uses the new `--fp-disc-alpha:.75` and `--fp-disc:#fff`. Both are variables in `FLOORPLAN_CSS`. The S1.42 collision uses the new radius.
+- Test: render: the CSS holds the three variables and `.halo` uses them; Playwright: computed `fill` of a halo is white, `fill-opacity` .75, `stroke` grey, `stroke-width` 1px; the camera cone `fill-opacity` is still .25; the disc radius on screen equals the icon size plus 3 px.
+- Done when: tests pass; the S1.42 test still passes with the new radius.
+- Break it: a device on a dark room colour still shows a white disc; setting `--fp-alpha` does not change the disc.
+
+### S1.46 All text has a white outline
+- Outcome: every label is readable on any background: dark grey text with a white outline, never black, never a dark-background-only rule.
+- Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: one rule for `.lbl` and `.val` and every other SVG text: `fill:var(--fp-text)` with `--fp-text:#3a3a3a`, `paint-order:stroke`, `stroke:var(--fp-outline)`, `stroke-width:3`, `stroke-linejoin:round`. `--fp-outline` is the S1.35b variable, white. Any rule that adds the outline only on a dark floor, and any `fill` that is black or `--fp-ink` on a text element, is removed. Extras and stairs names use the same class.
+- Test: Playwright: for each of a room name, a zone name, a device label, a temperature value and an extra's name, the computed `fill` is rgb(58, 58, 58), `stroke` is white, `paint-order` starts with `stroke`; unit: no `fill="var(--fp-idle)"` or dark-only outline rule is left in the CSS or the markup of text.
+- Done when: tests pass; SPEC's text line says white outline, dark grey text.
+- Break it: a room on the darkest room colour still has the white outline on its name.
+
+### S1.47 A room edge can be deleted
+- Outcome: one side of a room can be taken away. The room stays closed for area and snapping; only the line is not drawn.
+- Files: `src/core/schema.ts`, `src/core/render.ts`, `src/editor/ops.ts`, `src/editor/panels.ts`, `tests/core/*.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: `WALL_KINDS` gains `"none"`. `renderFloor` skips a "none" edge and its white twin (S1.35b), and its hit line; the corner handles and the selection line stay so it can be picked again. The edge panel gets an orange `Delete` button (`#edel`, class `warn`) that calls `setEdgeKind(f, ref, "none")` for the edge and for the same edge in the neighbour room when they share it (`edgeRooms`). If a door or window lies on the edge, `#edel` asks first (`#edelyes`, `#edelno`, as the floor delete does). A "none" edge is listed in the kind select as `not drawn`, so it can be brought back. Area, centroid, snapping and `inside` ignore `wk`. A zone edge is `boundary` only (existing rule) and keeps it.
+- Test: unit: `validate` accepts `none`; `renderFloor` output has one fewer edge line and one fewer twin; area unchanged. Playwright: click an edge, Delete: the line is gone, the neighbour's shared edge too, undo brings both back in one step; with a door on the edge the confirm shows and Cancel changes nothing.
+- Done when: tests pass; SPEC lists `none`.
+- Break it: deleting all four edges of a room leaves it selectable by its fill; a stored `none` in a zone is an error.
+
+### S1.48 A closed loop of walls becomes a room
+- Outcome: drawing walls until the last point meets the first makes a room, zone or garden out of them, so the user does not draw the same shape twice.
+- Files: `src/editor/ops.ts`, `src/editor/state.ts`, `src/editor/editor-app.ts`, `tests/editor/ops.test.ts`, `tests/editor/editor.spec.ts`, `docs/SPEC.md`.
+- Interface: `closedLoop(f, wall): Pt[] | null` in `ops.ts` walks the drawn walls from the one just added and returns the ring of points when the last end is within the snap distance of the first start and the ring has three or more corners. The perimeter Outline is never part of a loop. On close, the editor removes those walls and adds one room in the same commit (undo removes the whole room in one step): kind `room` for wall or external walls, `zone` for dotted, `garden` for fence or edge; `wk` per edge takes the walls' kind (`boundary` for a zone). The new room has an empty `area`, is selected, and its name field is focused; it can be renamed and linked to an HA area like any room. The status line says `Room created from 4 walls`.
+- Test: unit: four walls in a ring give one room with four points and matching `wk`; three walls that do not close give null; a ring through the outline does not convert. Playwright: draw four walls with real clicks, the last onto the first point: one room exists, no walls, it is selected, one undo removes it and the four walls come back together; dotted gives a zone, fence a garden.
+- Done when: tests pass; SPEC's drawing section describes it.
+- Break it: closing at 30 cm from the first point (outside the snap) does not convert; two rings sharing a wall make two rooms, not one.
+
 ## Sprint 2 — card (E3)
 
 ### S2.1 Card element
