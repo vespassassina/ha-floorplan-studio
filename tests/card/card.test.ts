@@ -220,7 +220,12 @@ describe("FloorplanStudioCard", () => {
 
   describe("the motion re-render timer", () => {
     beforeEach(() => vi.useFakeTimers());
-    afterEach(() => vi.useRealTimers());
+    // Restore spies before uninstalling fake timers: `vi.spyOn(globalThis, "setInterval"/"clearInterval")` below
+    // wraps the fake clock's functions, and @sinonjs/fake-timers' uninstall() only restores the real originals when
+    // it finds its own function still in place; left wrapped by a leaked spy, it silently `delete`s the global
+    // instead, leaving `clearInterval` undefined for the rest of the file and the card's disconnectedCallback
+    // throwing on the next `document.body.innerHTML = ""` (S2.4 review: caught only by running `npm test` bare).
+    afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
     it("runs only while a motion device is inside its fade window", async () => {
       const setSpy = vi.spyOn(globalThis, "setInterval");
@@ -252,7 +257,8 @@ describe("FloorplanStudioCard", () => {
 
   describe("S2.4 motion fade: the card remembers the last on time so an off sensor keeps fading", () => {
     beforeEach(() => vi.useFakeTimers());
-    afterEach(() => vi.useRealTimers());
+    // See "the motion re-render timer" above: spies on globalThis timers must be restored before uninstalling fakes.
+    afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
     const motionIndex = L.floors.ground.devices.findIndex((d) => d.entity === "binary_sensor.demo_hall_motion");
 

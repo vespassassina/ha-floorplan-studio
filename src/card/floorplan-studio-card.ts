@@ -215,7 +215,10 @@ export class FloorplanStudioCard extends LitElement {
 
   private _stopTimer(): void {
     if (this._timer !== null) {
-      clearInterval(this._timer);
+      // Explicit `globalThis` lookup: jsdom can run a custom element's `disconnectedCallback` reaction in a realm
+      // where the bare `clearInterval` identifier is not defined, throwing `ReferenceError` instead of clearing
+      // the timer (seen when a test's `afterEach` clears `document.body.innerHTML` with a card's timer still live).
+      globalThis.clearInterval(this._timer);
       this._timer = null;
     }
   }
@@ -225,7 +228,7 @@ export class FloorplanStudioCard extends LitElement {
     const active = this._motionFading();
     if (active && this._timer === null) {
       // Each tick checks for itself, so the timer stops the moment the fade window closes rather than running forever once started.
-      this._timer = setInterval(() => {
+      this._timer = globalThis.setInterval(() => {
         if (this._motionFading()) this.requestUpdate();
         else this._stopTimer();
       }, 1000);
