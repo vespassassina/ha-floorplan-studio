@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Opus review: colors.ac is stored, its state colours come in Sprint 2
+
+`layout.colors.ac` passes `validate` and is written as `--fp-dev-ac`, but the air conditioner draws with `--fp-dev-ac-cool` and `--fp-dev-ac-heat`, which the knob does not set. Chosen: document it in SPEC, no behaviour change. Sprint 2, which adds the state colours, decides what `ac` drives.
+
 ## 2026-09-20 Opus review: turn buttons are a labelled group; no orphan label
 
 `rotateButtons` is `role="group"` with `aria-label="Turn by degrees"`, and each button's name carries the direction ("Turn 30 degrees clockwise", or counter-clockwise), because the visible "30" says neither. The stairs panel's `<label>steps</label>` pointed at a span, not a control; it is a plain span now.

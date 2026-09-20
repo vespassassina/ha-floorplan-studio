@@ -80,6 +80,9 @@ in `prompts/`, then fixed in the editor.
   keys are device types, values `#rrggbb`. The renderer sets each as
   `--fp-dev-<type>` on a group round the drawing, so the editor and the card
   use the same palette. Missing means the defaults; it is never invented.
+  `colors.ac` is stored and valid, but the air conditioner's state colours
+  (`--fp-dev-ac-cool`, `--fp-dev-ac-heat`) are set in Sprint 2; until then the
+  knob has no visible effect on them.
 - `room.kind`: room, garden, pavement, fill, terrace, structure, zone, water.
   `room.area` is the HA area id. A zone is a dotted subdivision inside a room
   (a reading corner, a kitchen in an open living room): every edge is a
