@@ -3667,6 +3667,18 @@ test("walls that return to an intermediate corner stay walls: no room, no wall t
   await expect(page.locator("#status")).toHaveText("Added the shape");
 });
 
+test("a ring of 13 walls stays walls and the status says why", async ({ page }) => {
+  await setGrid(page, 5);
+  const before = await groundOf(page);
+  const ring = Array.from({ length: 13 }, (_, i): [number, number] => [Math.round((400 + 250 * Math.cos((i * 2 * Math.PI) / 13)) / 5) * 5, Math.round((300 + 250 * Math.sin((i * 2 * Math.PI) / 13)) / 5) * 5]);
+  await startDraw(page, "drawWall-wall");
+  await clicksCm(page, ...ring, ring[0]);
+  const g = await groundOf(page);
+  expect(g.rooms).toHaveLength(before.rooms.length);
+  expect(g.walls).toHaveLength(13);
+  await expect(page.locator("#status")).toHaveText("13 walls, too many to make a room (max 12)");
+});
+
 test("two rings sharing a wall make two rooms", async ({ page }) => {
   await setGrid(page, 5);
   const before = await groundOf(page);

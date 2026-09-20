@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 S1.48 fix: the ring cap is 12, and a bigger ring says so
+
+A ring of 13 or more walls stayed walls and the status said "Added the shape", which hid why nothing became a room. The cap stays at 12 (`MAX_RING` in `ops.ts`); a chain that closes on its first corner with more walls than that now reports "N walls, too many to make a room (max 12)". The walls stay. Supersedes the silent cap in "Closed walls become a room".
+
 ## 2026-09-20 S1.47 fix: Delete removes every overlapping edge
 
 Delete on a room edge used to match only edges with the same two ends. The demo Hall edge (0,400)-(800,400) is shared in halves by Living and Kitchen, so the halves stayed drawn. `deleteEdge` in `geometry.ts` now sets "none" on every room edge that lies on the selected segment (within 2 cm of its line, overlapping it by more than 2 cm). An edge that reaches past the segment is cut at the segment's ends first, kinds copied, as `stitch` does; the whole change is one commit, so one undo restores it exactly. Zones are skipped. `setEdgeKind` and the kind select are unchanged and still act on exact matches only. Supersedes "Delete sets none on all rooms that share the edge" in S1.47.

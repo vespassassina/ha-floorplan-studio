@@ -130,6 +130,16 @@ describe("applyShape, closed walls (S1.48)", () => {
     expect(r.floor.walls).toHaveLength(7);
     expect(r.floor.rooms).toHaveLength(ground().rooms.length);
   });
+  it("a ring of 13 walls stays walls and the note says why; 12 walls convert", () => {
+    const n = (k: number): Pt[] => Array.from({ length: k + 1 }, (_, i): Pt => [Math.round(2000 + 100 * Math.cos(((i % k) * 2 * Math.PI) / k)), Math.round(100 * Math.sin(((i % k) * 2 * Math.PI) / k))]);
+    const big = applyShape(ground(), "ground", { kind: "wall", wall: "wall", pts: n(13) });
+    expect(big.floor.walls).toHaveLength(13);
+    expect(big.floor.rooms).toHaveLength(ground().rooms.length);
+    expect(big.note).toBe("13 walls, too many to make a room (max 12)");
+    const ok = applyShape(ground(), "ground", { kind: "wall", wall: "wall", pts: n(12) });
+    expect(ok.floor.walls).toHaveLength(0);
+    expect(ok.note).toBe("Room created from 12 walls");
+  });
   it("the outline is not converted", () => {
     const f = ground();
     const o = f.outline;

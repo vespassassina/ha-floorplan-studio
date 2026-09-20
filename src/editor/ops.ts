@@ -65,6 +65,9 @@ export function segmentAt(q: Pt, u: Pt, len: number): { a: Pt; b: Pt } {
   return { a: round([q[0] - u[0] * n, q[1] - u[1] * n]), b: round([q[0] + u[0] * n, q[1] + u[1] * n]) };
 }
 
+/** Longest ring of walls that becomes a room. */
+export const MAX_RING = 12;
+
 /**
  * The shortest ring of 3 to 12 walls through wall `w`, whose ends meet within `tol` cm: the wall
  * indices and the ring's corners in order. Null when `w` is on no ring. With `through`, only a ring that
@@ -86,7 +89,7 @@ export function closedLoop(f: Floor, w: number, tol = 2, through?: Pt): { walls:
     return null;
   };
   if (!W[w]) return null;
-  for (let depth = 3; depth <= 12; depth++) {
+  for (let depth = 3; depth <= MAX_RING; depth++) {
     const r = from(w, W[w].b, [w], [W[w].a, W[w].b], W[w].a, depth);
     if (r) return { walls: r.walls, pts: r.pts.slice(0, -1).map((p): Pt => [p[0], p[1]]) };
   }
