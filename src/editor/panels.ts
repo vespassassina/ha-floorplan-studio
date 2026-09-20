@@ -70,8 +70,8 @@ function floorPanel(c: PanelCtx) {
     <label for="ft">floor title</label>
     <input id="ft" type="text" .value=${live(st.f.title)} @change=${(e: Event) => { c.floors.rename(key, val(e)); c.refresh(); }}>
     <div class="row">
-      <button class="btn" id="fup" title="Earlier in the list of floors" ?disabled=${i <= 0} @click=${() => c.floors.move(key, -1)}>Move up</button>
-      <button class="btn" id="fdown" title="Later in the list of floors" ?disabled=${i < 0 || i >= keys.length - 1} @click=${() => c.floors.move(key, 1)}>Move down</button>
+      <button class="btn" id="fup" title="Higher floor: later in the chips" ?disabled=${i < 0 || i >= keys.length - 1} @click=${() => c.floors.move(key, 1)}>Move up</button>
+      <button class="btn" id="fdown" title="Lower floor: earlier in the chips" ?disabled=${i <= 0} @click=${() => c.floors.move(key, -1)}>Move down</button>
     </div>
     ${st.confirmDelete
       ? html`<p id="fconfirm" role="alert">Delete floor ${title} and everything on it?</p>

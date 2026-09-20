@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-20 Floor Move up goes to a higher floor
+
+- Supersedes "Move up: earlier in the list" in the floors entry. Chips run left to right, lowest floor first, so Move up now moves a floor one place later (a higher floor) and Move down one place earlier. Diego found the buttons inverted. `moveFloor(key, delta)` is unchanged; only the buttons and the undo message swapped.
+
 ## 2026-09-20 Sonnet verifies, Opus decides
 
 - The Test role moves from Haiku to Sonnet and is renamed Verify. Haiku's break-it runs in Sprint 1.5 cited existing tests instead of running its own, and one script never reached the state it claimed to test. Verification is where a weak model costs most.

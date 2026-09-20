@@ -831,8 +831,8 @@ test("break it: adding \"Ground\" gets the key ground-2 and does not overwrite t
 test("with nothing selected the panel is the floor panel: title field, Move up, Move down, Delete; a selection replaces it", async ({ page }) => {
   await expect(page.locator("#panel")).toContainText("Nothing selected");
   await expect(page.locator("#ft")).toHaveValue("Ground");
-  await expect(page.locator("#fup")).toBeDisabled(); // first
-  await expect(page.locator("#fdown")).toBeEnabled();
+  await expect(page.locator("#fdown")).toBeDisabled(); // lowest floor
+  await expect(page.locator("#fup")).toBeEnabled();
   await expect(page.locator("#fdel")).toBeEnabled();
   await clickCm(page, 200, 150);
   await expect(page.locator("#ft")).toHaveCount(0);
@@ -864,17 +864,17 @@ test("a title is text, never markup", async ({ page }) => {
   await expect(page.locator("#panel img")).toHaveCount(0);
 });
 
-test("Move up puts Attic first, the chips follow the order, Move down is disabled at the end, and it undoes", async ({ page }) => {
+test("Move down puts Attic first, the chips follow the order, Move up is disabled at the top, and it undoes", async ({ page }) => {
   await addFloorVia(page, "Attic");
-  await expect(page.locator("#fdown")).toBeDisabled();
-  await page.locator("#fup").click();
+  await expect(page.locator("#fup")).toBeDisabled();
+  await page.locator("#fdown").click();
   expect(await chipKeys(page)).toEqual(["ground", "attic", "first"]);
-  await page.locator("#fup").click();
+  await page.locator("#fdown").click();
   expect(await chipKeys(page)).toEqual(["attic", "ground", "first"]);
   expect(await floorKeys(page)).toEqual(["attic", "ground", "first"]);
-  await expect(page.locator("#fup")).toBeDisabled();
+  await expect(page.locator("#fdown")).toBeDisabled();
   await expect(page.locator('.chip[data-f="attic"]')).toHaveAttribute("aria-pressed", "true");
-  await page.locator("#fdown").click();
+  await page.locator("#fup").click();
   expect(await chipKeys(page)).toEqual(["ground", "attic", "first"]);
   await page.keyboard.press("Control+z");
   expect(await chipKeys(page)).toEqual(["attic", "ground", "first"]);
@@ -936,7 +936,7 @@ test("a floor added, renamed, moved and deleted is four undo steps, one per acti
   await addFloorVia(page, "Attic");
   await page.locator("#ft").fill("Loft");
   await page.locator("#ft").press("Enter");
-  await page.locator("#fup").click();
+  await page.locator("#fdown").click();
   await page.locator("#fdel").click();
   await page.locator("#fdelyes").click();
   expect(await floorKeys(page)).toEqual(["ground", "first"]);

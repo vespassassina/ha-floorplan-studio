@@ -698,7 +698,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.renameFloor(key, title)) this.floorDone(`Renamed floor to ${title.trim()}`);
     else this.requestUpdate();
   }
-  private moveFloor(key: string, delta: number) { if (this.st.moveFloor(key, delta)) this.floorDone(delta < 0 ? "Moved floor up" : "Moved floor down"); }
+  private moveFloor(key: string, delta: number) { if (this.st.moveFloor(key, delta)) this.floorDone(delta > 0 ? "Moved floor up" : "Moved floor down"); }
   private deleteFloor(key: string) {
     const title = (hasOwn(this.st.layout.floors, key) ? this.st.layout.floors[key].title : "") || key;
     if (this.st.deleteFloor(key)) { this.floorDone(`Deleted floor ${title}`); this.focus({ preventScroll: true }); }
