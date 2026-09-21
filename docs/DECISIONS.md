@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-21 Update banner reads HACS's update entity; icon ships in the integration
+
+The panel does not call GitHub. It finds the HACS update entity by its
+`release_url` (so a renamed entity still works), shows the banner while it is
+`on`, and installs through `update.install`. It can only show what HACS has
+already noticed; HACS polls on its own timer. After an install HA needs a
+restart, and the banner says so. Brand images live in
+`custom_components/floorplan_studio/brand/` (source: `assets/brand/icon.svg`),
+which HA 2026.3 and later reads with no brands-repository entry.
+
 ## 2026-09-21 Reset means blank; Load demo is separate and only on a blank plan
 
 Supersedes the `seed` entry below: File, Reset used to return to the starting
