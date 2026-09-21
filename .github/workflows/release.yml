@@ -1,0 +1,29 @@
+name: Release
+# Push a tag like v0.1.0. The zip holds the integration with the built card, panel and editor in www/,
+# which HACS downloads because hacs.json sets zip_release.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - name: The tag must match manifest.json
+        run: |
+          v=$(python3 -c "import json;print(json.load(open('custom_components/floorplan_studio/manifest.json'))['version'])")
+          [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} does not match manifest version v$v. Fix manifest.json, or retag."; exit 1; }
+      - run: npm ci
+      - run: npm run build
+      - name: Zip
+        run: |
+          for f in floorplan-studio-card.js floorplan-studio-panel.js editor.html; do test -s custom_components/floorplan_studio/www/$f || { echo "missing www/$f: the build did not produce it"; exit 1; }; done
+          cd custom_components/floorplan_studio && zip -r ../../floorplan_studio.zip . -x "__pycache__/*" "*.pyc"
+      - run: gh release create "$GITHUB_REF_NAME" floorplan_studio.zip --title "$GITHUB_REF_NAME" --generate-notes
+        env: { GH_TOKEN: "${{ github.token }}" }

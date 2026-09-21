@@ -32,3 +32,17 @@ async def test_the_built_panel_file_is_served_from_the_static_path(hass, entry, 
     r = await client.get("/floorplan_studio_static/floorplan-studio-panel.js")
     assert r.status == 200
     assert "floorplan-studio-panel" in await r.text()
+
+
+async def test_the_card_script_is_added_to_every_dashboard_with_no_manual_resource(hass, entry):
+
+    urls = hass.data["frontend_extra_module_url"].urls
+    assert any(u.startswith("/floorplan_studio_static/floorplan-studio-card.js") for u in urls)
+
+
+async def test_unloading_takes_the_card_script_away_again(hass, entry):
+    assert any(u.startswith("/floorplan_studio_static/") for u in hass.data["frontend_extra_module_url"].urls)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    urls = hass.data["frontend_extra_module_url"].urls
+    assert not any(u.startswith("/floorplan_studio_static/") for u in urls)

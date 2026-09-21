@@ -14,7 +14,7 @@ See `docs/SPEC.md` and `docs/PLAN.md`.
 | Zones, water, wall kinds, floors, draw mode | done |
 | Stairs, gardens, plan rotation, colours, HA names, closed walls to rooms | done |
 | Lovelace card (themes: blueprint, light, Home Assistant) | done, not yet run on a real Home Assistant |
-| HA integration, panel, HACS release | Sprint 3 |
+| HA integration, panel, HACS release | Sprint 3, built; first release waits for a live check |
 | Organise: areas, helpers, groups, automations from the plan | Sprint 4 |
 | Skill and schema for LLMs, validator (`scripts/validate-layout.mjs`) | done, pulled forward from Sprint 5 |
 | Docs | Sprint 5 |
@@ -29,16 +29,18 @@ See `docs/SPEC.md` and `docs/PLAN.md`.
   shown live. Motion fades from red to grey; open doors turn orange.
 - A skill that turns photos of your architect's plans into a first draft.
 
-## Install (planned)
+## Install
 
 [![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=vespassassina&repository=ha-floorplan-studio&category=integration)
 
-The button opens HACS on your Home Assistant with this repository ready to add. Or by hand:
+The button opens HACS on your Home Assistant with this repository ready to add. It needs HACS installed, and a published release (from `v0.1.0`). Or by hand:
 
-1. HACS → Integrations → add this repository → install.
+1. HACS → Integrations → add this repository → install, then restart Home Assistant.
 2. Settings → Devices & services → add **Floorplan Studio**.
 3. Open **Floorplan Studio** in the sidebar and draw, or load a draft (below).
-4. Add the card: `type: custom:floorplan-studio-card`.
+4. Add the card: `type: custom:floorplan-studio-card`. No resource to add; the integration does it.
+
+Updates arrive through HACS like any other.
 
 ## Start from photos or architect drawings
 

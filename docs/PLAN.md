@@ -835,14 +835,16 @@ Honest limits: the builder ran this pass, not a separate session; the table show
 - Done when: tests pass; the panel in the dev container shows real areas and real floors.
 - Break it: an entity with no area lands under "No area"; a `hass` with no floor registry (older HA) gives `floors: []` and the floor title stays free text.
 
-### S3.4 Card as a resource
+### S3.4 Card as a resource (built 2026-09-21; live check open)
+- Built: `panel.py` calls `frontend.add_extra_js_url` and removes it on unload. Two pytest tests, both fail with the call removed.
 - Outcome: the card JS is available to Lovelace without manual resource setup.
 - Interface: `__init__.py` calls `frontend.add_extra_js_url(hass, "/floorplan_studio_static/floorplan-studio-card.js")`.
 - Test: dev container: add the card by YAML, it renders the saved layout with no `layout` in config.
 - Done when: screenshot in the PR; acceptance criterion 4 checked and recorded.
 - Break it: with no saved layout the card shows the S2.1 message.
 
-### S3.5 Release
+### S3.5 Release (workflows and packaging built 2026-09-21; the tag waits for Diego's yes and a live check)
+- Diego does not copy files by hand: install and updates go through HACS. `hacs.json` sets `zip_release`; `.github/workflows/release.yml` builds on a `v*` tag, checks the tag against `manifest.json`, zips the integration with `www/` and creates the release. `ci.yml` runs lint, vitest, Playwright and pytest. `validate.yml` runs hassfest and the HACS action. None of the three has run on GitHub yet.
 - Outcome: installable through HACS as a custom repository.
 - Files: `hacs.json`, `.github/workflows/{validate.yml (hassfest + hacs action), ci.yml (lint, test, build, pytest)}`, `README.md` install steps, `CHANGELOG.md`, tag `v0.1.0`.
 - Test: CI green on main; fresh HA in the dev container installs from the tag and runs acceptance criteria 3 and 4.
