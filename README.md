@@ -13,10 +13,11 @@ See `docs/SPEC.md` and `docs/PLAN.md`.
 | Editor (standalone `dist/editor.html`, works from `file://`, offline) | done |
 | Zones, water, wall kinds, floors, draw mode | done |
 | Stairs, gardens, plan rotation, colours, HA names, closed walls to rooms | done |
-| Lovelace card | Sprint 2 |
+| Lovelace card | built through S2.9, S2.10 open |
 | HA integration, panel, HACS release | Sprint 3 |
 | Organise: areas, helpers, groups, automations from the plan | Sprint 4 |
-| Prompt for LLMs, docs | Sprint 5 |
+| Skill and schema for LLMs, validator (`scripts/validate-layout.mjs`) | done, pulled forward from Sprint 5 |
+| Docs | Sprint 5 |
 
 ## What you get
 
@@ -26,7 +27,7 @@ See `docs/SPEC.md` and `docs/PLAN.md`.
   ("Controlled by") and the plan shows both as one lamp.
 - A Lovelace card: lights, switches, sensors, cameras, thermostats and doors
   shown live. Motion fades from red to grey; open doors turn orange.
-- A prompt that turns photos of your architect's plans into a first draft.
+- A skill that turns photos of your architect's plans into a first draft.
 
 ## Install (planned)
 
@@ -39,26 +40,19 @@ The button opens HACS on your Home Assistant with this repository ready to add. 
 3. Open **Floorplan Studio** in the sidebar and draw, or load a draft (below).
 4. Add the card: `type: custom:floorplan-studio-card`.
 
-## Start from photos
+## Start from photos or architect drawings
 
-Open your assistant with the prompt already filled in, then attach your photos:
+Give an AI assistant your drawings, it gives you back a `layout.json`, you open it in the editor and fix what is off. No drawing the outside walls by hand.
 
-<a href="https://claude.ai/new?q=Read%20the%20instructions%20at%20https%3A%2F%2Fraw.githubusercontent.com%2Fvespassassina%2Fha-floorplan-studio%2Fmain%2Fprompts%2Ftrace-from-photos.md%20and%20follow%20them%20exactly.%20I%20will%20attach%20photos%20of%20my%20floor%20plans."><img alt="Open in Claude" src="https://img.shields.io/badge/Open%20in-Claude-D97757?style=for-the-badge"></a> <a href="https://chatgpt.com/?q=Read%20the%20instructions%20at%20https%3A%2F%2Fraw.githubusercontent.com%2Fvespassassina%2Fha-floorplan-studio%2Fmain%2Fprompts%2Ftrace-from-photos.md%20and%20follow%20them%20exactly.%20I%20will%20attach%20photos%20of%20my%20floor%20plans."><img alt="Open in ChatGPT" src="https://img.shields.io/badge/Open%20in-ChatGPT-10A37F?style=for-the-badge"></a> <a href="https://grok.com/?q=Read%20the%20instructions%20at%20https%3A%2F%2Fraw.githubusercontent.com%2Fvespassassina%2Fha-floorplan-studio%2Fmain%2Fprompts%2Ftrace-from-photos.md%20and%20follow%20them%20exactly.%20I%20will%20attach%20photos%20of%20my%20floor%20plans."><img alt="Open in Grok" src="https://img.shields.io/badge/Open%20in-Grok-000000?style=for-the-badge"></a> <a href="https://gemini.google.com/app"><img alt="Open in Gemini" src="https://img.shields.io/badge/Open%20in-Gemini-4285F4?style=for-the-badge"></a>
+It works from a **skill** and a **schema**, two files any assistant can follow (Claude, ChatGPT, Gemini, Grok, Copilot):
 
-The buttons send a short message that tells the assistant to read the full
-prompt from this repository, so the assistant needs web access. Gemini has no
-way to pre-fill a message: open it, then paste that message yourself:
+- [`prompts/SKILL.md`](prompts/SKILL.md): what to do, in order. It asks you for one real measurement and where north is, then draws, then checks its own work.
+- [`prompts/SCHEMA.md`](prompts/SCHEMA.md): the file format, written for an assistant to read.
+- [`prompts/examples/`](prompts/examples/): a flat and a two-floor house, both valid.
 
-> Read the instructions at https://raw.githubusercontent.com/vespassassina/ha-floorplan-studio/main/prompts/trace-from-photos.md and follow them exactly. I will attach photos of my floor plans.
+**How to load them into your assistant, step by step: [`prompts/README.md`](prompts/README.md).**
 
-If your assistant cannot open links, copy `prompts/trace-from-photos.md` and paste it instead.
-
-1. Photograph or scan each floor plan.
-2. Open `prompts/trace-from-photos.md`, paste it into Claude, ChatGPT, Gemini
-   or Grok, attach the photos, and answer its two questions (one known
-   dimension, where north is).
-3. Save the JSON it returns as `layout.json`.
-4. In the editor: File → Open, fix what is off, Save.
+To check what an assistant gave you, run `node scripts/validate-layout.mjs layout.json`. It prints `ok`, or one line per problem: metres written as centimetres, a room outside the walls, a door on no wall.
 
 ## Develop
 

@@ -15,7 +15,8 @@ src/card/    floorplan-studio-card.ts
 custom_components/floorplan_studio/  __init__.py  manifest.json  const.py  config_flow.py  storage.py  websocket.py  panel.py
 demo/        layout.json  layout.v1.json
 tests/core/  tests/card/  tests/editor/  tests/integration/
-prompts/     trace-from-photos.md
+prompts/     SKILL.md  SCHEMA.md  README.md  examples/
+scripts/     validate-layout.mjs  shots.mjs
 docs/
 ```
 
@@ -899,7 +900,7 @@ config). No write ever runs on load or on save.
 - Done when: tests pass.
 - Break it: rotation 450 is stored as 90.
 
-### S5.2 Prompt
+### S5.2 Prompt (superseded by S5.8, done)
 - Outcome: `prompts/trace-from-photos.md` that any of Claude, ChatGPT, Gemini, Grok can follow.
 - Content: role; ask two questions first (one known dimension with the wall it belongs to; where north is on the photo); then per floor list rooms, outline, doors, windows in cm, north up, y down, as a v2 layout with `catalog: []`; output JSON only, no prose; a 20-line example; a checklist the model must satisfy before answering (closed polygons, doors on walls, no room outside the outline); stairs: only `straight` and `round` exist, so a curved or angled flight is written as several straight sections placed end to end, each with its own `rot`, and a spiral as `round` with an outer and an inner diameter.
 - Test: the maintainer runs it on the private photos with Claude; the JSON passes `validate()` and opens in the editor. Record model, date and pass/fail in `prompts/RESULTS.md` (no photos, no layout).
@@ -938,7 +939,7 @@ config). No write ever runs on load or on save.
 - Test: a fixture with a light 20 cm inside the right wall gives a viewBox whose right edge is at or beyond the aura's right edge; the same for a camera at the top wall; a plan with no devices keeps the 60 cm padding exactly, so no existing snapshot moves.
 - Break it: a light exactly on a wall, and a plan whose only device is a light, still give a finite viewBox with the whole circle inside it.
 
-### S5.8 A skill any assistant can follow to draw a plan into this repo's format
+### S5.8 A skill any assistant can follow to draw a plan into this repo's format (built 2026-09-21, pulled forward; not yet run by a model)
 - Outcome: an agent, given architect drawings, photos or a hand sketch, produces a `layout.json` that opens in the editor first time, and can check its own work before handing it over.
 - Why, on top of S5.2: S5.2 is a prompt — one shot, photos in, JSON out, no way for the model to know whether it got it right. The plan is the one artefact a person cannot type by hand, so the agent path is not a convenience, it is how most people will ever get a layout. It needs a specification the model can hold in its head, worked examples, and a check it can run.
 - Files: `prompts/SKILL.md` (the skill, portable prose with no tool calls, so Claude, ChatGPT, Gemini, Grok and Copilot can all follow it), `prompts/SCHEMA.md` (v2 written for a reader, not a type checker: every field, units, the sign of y, what is required), `prompts/examples/` (two small layouts, one flat, one with two floors and stairs), `scripts/validate-layout.mjs`, `tests/core/validate-cli.test.ts`.
@@ -946,7 +947,8 @@ config). No write ever runs on load or on save.
 - Test: run the skill end to end on the demo plan's own source drawing with one model; the JSON it returns passes the CLI and opens in the editor. Record model, date and pass/fail in `prompts/RESULTS.md` — no photos, no personal layout.
 - Done when: one recorded pass with a model that is not Claude, so the prose is proven portable; README's assistant buttons point at files that exist.
 - Break it: a sketch with no dimension at all — the skill must make the model ask rather than invent a scale; a room drawn outside the outline must be caught by the CLI, not by the person.
-- Known now: `prompts/` contains only `.gitkeep`, but README already ships "Open in Claude / ChatGPT / Grok" buttons whose links resolve to `prompts/trace-from-photos.md` on `main`. Anyone clicking one today sends the assistant to a 404. Either S5.2 lands or those buttons come out of the README before the repo is advertised.
+- Built: `prompts/{SKILL,SCHEMA,README}.md`, `prompts/examples/{flat,two-floors}.json`, `scripts/validate-layout.mjs`, `tests/core/validate-cli.test.ts` (11 tests). The README buttons that pointed at a missing file are gone; the section links to `prompts/README.md`, which explains loading the skill into each assistant.
+- **Still open, and it is the point of the task:** the "Done when" run. No model has yet traced a drawing with this skill. Until one has, and one that is not Claude, the skill is untested prose. Record it in `prompts/RESULTS.md`.
 
 ## Later, not planned
 

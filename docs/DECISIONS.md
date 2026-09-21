@@ -2,6 +2,24 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-21 The agent path is a skill and a schema, pulled forward; dark theme becomes blueprint
+
+Diego's call. Most people will never type a layout: it comes from an architect's
+drawing, a photo or a sketch, through an assistant. So S5.2's one-shot prompt is
+replaced by S5.8, pulled ahead of Sprint 3: `prompts/SKILL.md` (procedure),
+`prompts/SCHEMA.md` (format for a reader), two examples, and
+`scripts/validate-layout.mjs`, which wraps the existing `validate()` and adds
+what a model gets wrong: metres for centimetres, a room outside the outline, a
+door on no wall. The skill keeps `devices` and `catalog` empty: a drawing holds
+no entities, and an invented entity id is worse than none. The README's "Open in
+Claude / ChatGPT / Grok" buttons pointed at `prompts/trace-from-photos.md`, which
+never existed; they are replaced by a link to `prompts/README.md`, which
+explains loading the skill into each assistant.
+
+Same message: the dark theme is to be a blueprint style (navy ground, blue
+linework, one orange accent), taken from a reference screenshot Diego supplied.
+Assumed: it replaces the dark theme rather than adding a third; light stays.
+
 ## 2026-09-21 Verify moves from every task to sprint close
 
 Diego's call, for throughput. Until now every task ran Execute → Verify →

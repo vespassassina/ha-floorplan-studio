@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "unit": "cm",
+  "north": 0,
+  "floors": {
+    "ground": {
+      "title": "Flat",
+      "outline": [[0, 0], [600, 0], [600, 400], [0, 400]],
+      "owk": ["external", "external", "external", "external"],
+      "rooms": [
+        { "id": "room-ground-1", "name": "Living room", "area": "", "label": "", "kind": "room", "pts": [[0, 0], [400, 0], [400, 400], [0, 400]], "wk": ["external", "wall", "external", "external"] },
+        { "id": "room-ground-2", "name": "Bedroom", "area": "", "label": "", "kind": "room", "pts": [[400, 0], [600, 0], [600, 400], [400, 400]], "wk": ["external", "external", "external", "wall"] }
+      ],
+      "walls": [],
+      "stairs": [],
+      "doors": [
+        { "id": "door-ground-1", "name": "Front door", "kind": "door", "a": [100, 400], "b": [190, 400] },
+        { "id": "door-ground-2", "name": "Bedroom door", "kind": "door", "a": [400, 150], "b": [400, 240] },
+        { "id": "door-ground-3", "name": "Living window", "kind": "window", "a": [100, 0], "b": [300, 0] }
+      ],
+      "openings": [],
+      "extras": [],
+      "devices": [],
+      "furniture": [
+        { "id": "furniture-ground-1", "symbol": "sofa", "x": 200, "y": 300, "rot": 0, "w": 200, "h": 90 },
+        { "id": "furniture-ground-2", "symbol": "bed", "x": 500, "y": 200, "rot": 90, "w": 200, "h": 160 }
+      ]
+    }
+  },
+  "catalog": []
+}

@@ -25,8 +25,10 @@ in `prompts/`, then fixed in the editor.
 4. **Integration**: a small Python component with websocket `load` and `save`
    for the layout, so the editor and the card share one file under
    `.storage`.
-5. **Prompt**: `prompts/trace-from-photos.md`, a prompt for Claude, ChatGPT,
-   Gemini or Grok that turns photos of plans into a first `layout.json`.
+5. **Skill**: `prompts/SKILL.md` and `prompts/SCHEMA.md`, portable instructions
+   any assistant (Claude, ChatGPT, Gemini, Grok, Copilot) can follow to turn
+   photos, architect drawings or a sketch into a first `layout.json`, and
+   `scripts/validate-layout.mjs`, the check it runs on its own answer.
 6. **Organise** (panel only): create HA areas from rooms and zones, put devices
    into areas by placing them, make a light helper from a switch, make light
    and motion groups, link a switch or a motion group to what it turns on, set
@@ -360,11 +362,17 @@ room_glow: true
 - Registers the editor panel (`/floorplan-studio`) and serves the card JS as a
   Lovelace resource.
 
-## Prompt
+## Skill
 
-`prompts/trace-from-photos.md` asks the LLM for: one known dimension for scale,
-north direction, then a v2 layout with outline, rooms, doors and windows per
-floor. Output only JSON. README explains the steps.
+`prompts/SKILL.md` has the assistant ask first for one real measurement and for
+north, work out the scale, draw outline, rooms, doors, windows and stairs per
+floor in that order, and leave `devices` and `catalog` empty (a drawing holds no
+entities). `prompts/SCHEMA.md` is the v2 format written for a reader. Before it
+answers, the assistant runs `node scripts/validate-layout.mjs`, which wraps
+`validate()` and adds three checks a model needs: units are centimetres, a room
+lies inside the outline, a door lies on a wall. It ends with a short list of
+everything it guessed. `prompts/README.md` explains loading it into each
+assistant.
 
 ## Acceptance criteria
 
