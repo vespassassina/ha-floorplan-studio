@@ -876,7 +876,7 @@ describe("S2.9: a device wears its colour when it is on", () => {
 // from a deliberate grey — the S2.9 verifier found media, cover and other sitting there while SPEC promised media
 // an accent. This test makes every member of DEVICE_TYPES a decision someone had to write down.
 describe("S2.9: every device type has a decided active colour", () => {
-  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera"];
+  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "battery", "inverter", "server", "access_point"]; // S2.13: these four are monitored, not switched
   it.each(DEVICE_TYPES)("%s either names its own --fp-dev or is idle on purpose", (t) => {
     if (t === "ac") return; // ac has two: .dev-ac.cool.on and .dev-ac.heat.on, tested below
     const rule = new RegExp(`\\.dev-${t}\\.on\\{--fp-dev:var\\((--fp-[a-z-]+)\\)\\}`);

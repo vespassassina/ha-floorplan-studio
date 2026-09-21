@@ -143,7 +143,8 @@ in `prompts/`, then fixed in the editor.
 - `door.kind`: door, glass, window, sealed. `sensor` is a binary_sensor entity;
   `cover` is a cover entity for doors that HA can open.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
-  camera, climate, ac, tv, computer, media, cover, other. Heaters have `a`/`b`
+  camera, climate, ac, tv, computer, media, cover, battery, inverter, server,
+  access_point, other. Heaters have `a`/`b`
   (a bar), the rest `x`/`y`. `ac` is an air conditioner, heat pump, fan or air
   cleaner; what it is doing comes from the entity, not from the layout.
 - `device.rot` (optional, degrees): which way the device faces. Only a camera
@@ -208,6 +209,7 @@ honest metaphor there.
 | heater, climate (TRV, thermostat) | heater bar grey with target; icon and halo grey | orange icon and halo when heating | `--fp-dev-heater` / `--fp-dev-climate` (#e8801a) | more-info |
 | ac (air conditioner, heat pump, fan, air cleaner) | grey | blue while `hvac_action` is cooling, orange while heating, grey otherwise | `--fp-dev-ac-cool` (#2c7fb8) / `--fp-dev-ac-heat` (#e8801a) | more-info |
 | tv | grey | blue icon and halo when the player is on or playing | `--fp-dev-tv` (#2c7fb8) | more-info |
+| battery, inverter, server, access_point | grey icon on the round disc, `on` or off | grey, unchanged | — (idle grey `--fp-idle`; `layout.colors` can name one) | more-info |
 | computer | grey | blue icon and halo | `--fp-dev-computer` (#2c7fb8) | more-info |
 | camera | dark grey icon with a 120° cone of view in dark grey at 25 % alpha, turned by `rot` | — | `--fp-dev-camera` (#4a4a48) | more-info (live view) |
 | cover on a door | door normal | door open state shown, orange | `--fp-open` (#f28c28) | confirm dialog naming the action, then `cover.open_cover`, or `close_cover` when it is already open |

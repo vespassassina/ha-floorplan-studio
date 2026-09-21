@@ -59,6 +59,11 @@ function hassFor(which, dark) {
   return { states, themes: { darkMode: dark } }; // no callService: a function cannot be sent into the page, and nothing here clicks
 }
 
+// S2.13: the monitored types on their own, on the ground floor, beside the demo's devices. Grey on the disc, in every theme.
+const MON = ["battery", "inverter", "server", "access_point"];
+const monLayout = structuredClone(layout);
+MON.forEach((t, i) => monLayout.floors.ground.devices.push({ id: `mon-${t}`, type: t, entity: `sensor.demo_${t}`, x: 500 + i * 70, y: 500 }));
+
 const shots = [];
 const errors = [];
 mkdirSync("shots", { recursive: true });
@@ -94,7 +99,7 @@ try {
       const el = document.getElementById("c");
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
-    }, [{ layout, floor: s.floor, theme: s.theme }, hassFor(s.which, s.dark)]);
+    }, [{ layout: s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme }, hassFor(s.which, s.dark)]);
     const nodes = await page.evaluate(() => document.getElementById("c").shadowRoot.querySelectorAll("svg *").length);
     if (nodes < 10) errors.push(`${s.name}: the plan drew ${nodes} nodes; something is wrong before you even look`);
     await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });

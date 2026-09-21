@@ -325,3 +325,26 @@ describe("actions: bindDeviceActions on doors (S2.3)", () => {
     expect(moreInfo).not.toHaveBeenCalled();
   });
 });
+
+describe("actions: a battery, inverter, server or access point opens more-info on a tap (S2.13)", () => {
+  it.each(["battery", "inverter", "server", "access_point"] as const)("%s: tap fires hass-more-info with its own entity and calls no service", (type) => {
+    vi.useFakeTimers();
+    const callService = vi.fn();
+    const dev: Device = { id: "d1", type, entity: `sensor.demo_${type}`, x: 100, y: 100 };
+    const svg = svgFixture([dev]);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    const unbind = bindDeviceActions(svg, host, () => dev);
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: `sensor.demo_${type}` });
+    expect(callService).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+});

@@ -769,6 +769,13 @@ pressed state.
 - Checked: computed-style tests for each theme in Chromium, with and without HA variables; unit tests for the token blocks; `npm run shots` looked at (27 images).
 - Not covered: a real HA dashboard. The stand-in HA variables in the shots are typical values, not read from a running instance. The editor's picker default for a device colour is the light palette, so on blueprint a camera swatch (#4a4a48) differs from what the plan draws (#8a8a86).
 
+### S2.13 Battery, inverter, server, access point (done, 2026-09-21)
+- Outcome: four new device types. Each draws an icon (MDI: battery, current-ac, server, access-point) in idle grey on the round disc; a tap opens Home Assistant's more-info popup for its entity at once, never a toggle. They map to entities like any other device and appear in the editor's Add menu, filter and colour rows.
+- Why: Diego's request, mid-Sprint 2. These are things you watch, not switch.
+- Files: `src/core/schema.ts`, `icons.ts`, `render.ts` (`DEVICE_COLOURS`), `src/card/actions.ts` (`NO_TOGGLE`), `src/editor/panels.ts`, `scripts/shots.mjs`, `docs/SPEC.md`.
+- Checked: unit test per type for tap to more-info with no service call; a Chromium pair for icon, disc and idle-grey fill; shots looked at.
+- Decided: grey always, no active colour (a battery's state is a percentage, not on/off); `layout.colors` can still name one. The type id is `access_point`. Not covered: a low-battery warning colour, which needs a threshold nobody has asked for yet.
+
 ## Sprint 3 — integration, panel, release (E4)
 
 ### S3.0 Dev environment: a real Home Assistant to test against

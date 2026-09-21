@@ -3,7 +3,8 @@ export type RoomKind = "room" | "garden" | "pavement" | "fill" | "terrace" | "st
 export type DoorKind = "door" | "glass" | "window" | "sealed";
 export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
-  | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover" | "other";
+  | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover"
+  | "battery" | "inverter" | "server" | "access_point" | "other";
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "tv" | "computer" | "tree" | "patio-wood" | "patio-concrete" | "car";
@@ -50,7 +51,7 @@ export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", 
 export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
 export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed"];
-export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "other"];
+export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "other"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"];
 
 /** Checks a v2 layout. Never throws; returns every problem it finds. */

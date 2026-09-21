@@ -11,7 +11,8 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["heater", "Heaters"], ["light", "Lights"], ["switch", "Wall switches"], ["plug", "Plugs"], ["temp", "Temperature"],
   ["humidity", "Humidity"], ["motion", "Motion"], ["contact", "Window / door sensor"], ["camera", "Cameras"],
   ["climate", "Climate"], ["ac", "Air conditioning / heat pump"], ["tv", "TV"], ["computer", "Computers"],
-  ["media", "Media players"], ["cover", "Covers"], ["other", "Other"],
+  ["media", "Media players"], ["cover", "Covers"], ["battery", "Batteries"], ["inverter", "Inverters"], ["server", "Servers"],
+  ["access_point", "Access points"], ["other", "Other"],
 ];
 
 export const WALL_LABELS: Record<EdgeKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge", none: "Not drawn" };

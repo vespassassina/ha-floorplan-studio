@@ -24,7 +24,7 @@ export type Theme = (typeof THEMES)[number];
 export const DEVICE_COLOURS: Record<DeviceType, string> = {
   heater: "#e8801a", light: "#e0a800", switch: "#8b8578", plug: "#2c7fb8", temp: "#8b8578", humidity: "#8b8578", motion: "#d64545",
   contact: "#d64545", camera: "#4a4a48", climate: "#e8801a", ac: "#2c7fb8", tv: "#2c7fb8", computer: "#2c7fb8", media: "#2c7fb8",
-  cover: "#f28c28", other: "#8b8578",
+  cover: "#f28c28", battery: "#8b8578", inverter: "#8b8578", server: "#8b8578", access_point: "#8b8578", other: "#8b8578",
 };
 
 // S1.53: the light and dark (now blueprint) token sets, each written once and interpolated wherever CSS needs it, so a new

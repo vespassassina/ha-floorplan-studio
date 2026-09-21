@@ -356,3 +356,22 @@ test("S2.10 CSS pair: an air conditioner's icon is blue cooling, orange heating,
   expect(idle).not.toBe("rgb(44, 127, 184)");
   expect(await fillFor("off", { hvac_action: "cooling" })).toBe(idle);
 });
+
+// S2.13: the four monitored types draw their own icon in the idle grey on the round disc, whatever the entity says.
+test("S2.13 CSS pair: battery, inverter, server and access point draw an icon in idle grey on the disc", async ({ page }) => {
+  await open(page);
+  const layout = structuredClone(demo);
+  const types = ["battery", "inverter", "server", "access_point"];
+  const first = layout.floors.ground.devices.length;
+  types.forEach((t, i) => layout.floors.ground.devices.push({ id: `mon-${t}`, type: t, entity: `sensor.demo_${t}`, x: 500 + i * 60, y: 300 }));
+  await configure(page, { layout, theme: "light" }, { states: Object.fromEntries(types.map((t) => [`sensor.demo_${t}`, { state: "on", attributes: {}, last_changed: new Date().toISOString() }])) });
+  const got = await page.locator("floorplan-studio-card").evaluate((el, [f, n]) => {
+    const idle = getComputedStyle(el.shadowRoot!.querySelector("svg")!).getPropertyValue("--fp-idle").trim();
+    return { idle, items: Array.from({ length: n as number }, (_, k) => {
+      const g = el.shadowRoot!.querySelector(`g[data-x="${(f as number) + k}"]`)!;
+      return { d: g.querySelector("path")!.getAttribute("d")!.length, fill: getComputedStyle(g.querySelector("path")!).fill, halo: !!g.querySelector("circle.halo") };
+    }) };
+  }, [first, types.length]);
+  const rgb = (h: string) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(", ")})`;
+  for (const it of got.items) { expect(it.d).toBeGreaterThan(20); expect(it.halo).toBe(true); expect(it.fill).toBe(rgb("#8b8578")); }
+});
