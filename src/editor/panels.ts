@@ -1,5 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
+import { entitiesForType, inside } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { DeviceType, EdgeKind, Floor, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -144,7 +145,16 @@ function floorPanel(c: PanelCtx) {
         <div class="row">${button("fdelyes", "Delete", () => c.floors.remove(key), "danger")}${button("fdelno", "Cancel", () => { st.confirmDelete = false; c.refresh(); })}</div>`
       : html`<p><button class="btn danger" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
     ${hint("A new floor starts with the outline and the stairs of the first floor. Delete a floor to start again with a clean one.")}
-    ${hint("Devices on a deleted floor stay in the catalog and go back to the Device menu.")}`;
+    ${hint("Devices on a deleted floor stay in the catalog and go back to the Device menu.")}
+    ${unboundList(c)}`;
+}
+
+/** Devices of this floor with no entity, as buttons that select them; nothing when there are none. */
+function unboundList(c: PanelCtx) {
+  const list = c.st.f.devices.map((d, i) => ({ d, i })).filter((x) => x.d.entity === "");
+  if (!list.length) return nothing;
+  return html`<div id="unbound"><strong>Needs an entity (${list.length})</strong>
+    <div class="row">${list.map(({ d, i }) => html`<button class="btn" data-unbound=${i} @click=${() => c.select({ t: "dev", i })}>${d.name ?? d.id}</button>`)}</div></div>`;
 }
 
 /** The HA floor this floor is. Choosing one writes the id and the name HA gave it; "(not linked)" keeps the title and brings the text field back. */
@@ -334,13 +344,39 @@ function devicePanel(c: PanelCtx, i: number) {
   const label = TYPE_LABELS.find((t) => t[0] === d.type)?.[1] ?? d.type;
   return html`<strong>${d.name ?? d.id}</strong>
     ${hint(`${label.toLowerCase()}. Its name comes from Home Assistant.`)}
-    ${text("Home Assistant entity", "ve", d.entity, (v) => c.commit((f) => { f.devices[i].entity = v.trim(); }))}
+    ${deviceEntity(c, i)}
     ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}
     ${d.type === "camera" ? hint("The cone shows a 120 degree field of view, 1 m deep.") : nothing}
     ${d.type === "light" ? boundField(c, i) : nothing}
     ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
     <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it. Alt disables the grid.") + " Removed devices go back to the Device menu.")}`;
+}
+
+/**
+ * The device's Home Assistant entity. With HA data it is a select: the entities that suit the device's type, those in the room's area first,
+ * then everything else, so nothing is out of reach. It can attach an unbound device, switch a bound one to another, and go back to
+ * "not connected" (entity ""). An id HA does not know stays as the selected option. Without HA data it stays a text field.
+ */
+function deviceEntity(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i], ha = c.st.ha;
+  const set = (v: string) => c.commit((f) => { f.devices[i].entity = v.trim(); });
+  if (!ha) return text("Home Assistant entity", "ve", d.entity, set);
+  const at: [number, number] = "a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y];
+  const room = c.st.f.rooms.find((r) => r.area && (r.kind === "room" || r.kind === "structure") && inside(at, r.pts));
+  const { match, rest } = entitiesForType(ha, d.type);
+  const here = room ? match.filter((e) => e.area === room.area) : [], elsewhere = match.filter((e) => !here.includes(e));
+  const opts = (l: HaData["entities"]) => byName(l).map((e) => html`<option value=${e.id} title=${e.id} ?selected=${e.id === d.entity}>${e.name}</option>`);
+  const unknown = !!d.entity && !ha.entities.some((e) => e.id === d.entity);
+  const label = TYPE_LABELS.find((t) => t[0] === d.type)?.[1] ?? d.type;
+  return html`<label for="ve">Home Assistant entity</label>
+    <select id="ve" .value=${live(d.entity)} @change=${(e: Event) => set(val(e))}>
+      <option value="" ?selected=${!d.entity}>(not connected)</option>
+      ${here.length ? html`<optgroup label=${`In ${room!.name}`}>${opts(here)}</optgroup>` : nothing}
+      ${elsewhere.length ? html`<optgroup label=${here.length ? "Elsewhere" : label}>${opts(elsewhere)}</optgroup>` : nothing}
+      ${rest.length ? html`<optgroup label="Everything else">${opts(rest)}</optgroup>` : nothing}
+      ${unknown ? missingOpt(d.entity) : nothing}
+    </select>${unknown ? hint(NOT_IN_HA) : nothing}${d.entity ? nothing : hint("Not connected to Home Assistant yet. Pick its entity.")}`;
 }
 
 /** "Controlled by": the switch or plug that powers a light. Written as `bound`, the key is deleted for none. */

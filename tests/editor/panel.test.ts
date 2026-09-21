@@ -53,6 +53,23 @@ describe("<floorplan-studio-panel>", () => {
     expect(st.hist.length).toBe(undo);
   });
 
+  it("hands the editor what HA knows after the load, without re-loading the layout", async () => {
+    const hass = stubHass((m) => {
+      if (m.type === "floorplan_studio/load") return { layout: L };
+      if (m.type === "config/area_registry/list") return [{ area_id: "living", name: "Living" }];
+      if (m.type === "config/entity_registry/list") return [{ entity_id: "light.lamp", area_id: "living" }];
+      throw new Error("no");
+    }, false, { "light.lamp": { state: "on", attributes: { friendly_name: "Lamp" } } });
+    const el = await mount(hass);
+    await settle(el);
+    const ed = editorOf(el)!;
+    expect(ed.ha?.entities.find((e) => e.id === "light.lamp")).toMatchObject({ name: "Lamp", area: "living" });
+    const st = (ed as unknown as { st: { views: Record<string, unknown>; floor: string } }).st;
+    st.views[st.floor] = { x: 1, y: 2, w: 300, h: 200 };
+    el.hass = { ...hass } as never; await settle(el);
+    expect(st.views[st.floor]).toEqual({ x: 1, y: 2, w: 300, h: 200 }); // still the person's view
+  });
+
   it("with nothing saved yet, the editor opens on an empty layout and no error", async () => {
     const el = await mount(stubHass(() => ({ layout: null })));
     expect(el.shadowRoot!.textContent).not.toMatch(/could not|error/i);

@@ -3,6 +3,8 @@ import { guard } from "lit/directives/guard.js";
 import type { Layout } from "../core";
 import demo from "../../demo/layout.json";
 import "./editor-app";
+import { haData } from "./hass-pickers";
+import type { HaData } from "../core";
 import type { FloorplanStudioEditor } from "./editor-app";
 
 /** The part of Home Assistant's `hass` object the panel uses. */
@@ -53,6 +55,8 @@ export class FloorplanStudioPanel extends LitElement {
   /** The install click: empty when idle, busy, done, or an error text. */
   declare install: string;
   private started = false;
+  /** What HA has, fetched once after the load. Handed to the editor directly, never through a template binding: the editor is drawn once (see `render`). */
+  private ha: HaData | undefined;
 
   constructor() {
     super();
@@ -75,6 +79,7 @@ export class FloorplanStudioPanel extends LitElement {
       const r = await this.hass!.callWS<{ layout: Layout | null }>({ type: "floorplan_studio/load" });
       this.layout = r.layout;
       this.ready = true;
+      void this.loadHa();
     } catch (e) {
       // No editor on a failed load: saving from it would overwrite the stored plan with an empty one.
       this.layout = null;
@@ -82,6 +87,16 @@ export class FloorplanStudioPanel extends LitElement {
       this.error = `Could not load the floor plan: ${errText(e)}`;
     }
   }
+
+  private async loadHa() {
+    try { this.ha = await haData(this.hass as never); } catch { this.ha = undefined; } // no data: the editor keeps its text fields
+    this.pushHa();
+  }
+  private pushHa() {
+    const ed = this.renderRoot?.querySelector("floorplan-studio-editor") as FloorplanStudioEditor | null;
+    if (ed && this.ha && ed.ha !== this.ha) ed.ha = this.ha;
+  }
+  protected updated() { this.pushHa(); }
 
   private async onSave(e: Event) {
     const ed = e.currentTarget as FloorplanStudioEditor;

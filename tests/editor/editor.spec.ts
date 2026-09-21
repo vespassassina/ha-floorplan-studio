@@ -4603,3 +4603,62 @@ test("a custom room colour becomes a swatch (kept in layout.palette); textures p
   await page.keyboard.press("Control+z");
   expect((await layoutOf(page)).palette).toBeUndefined();
 });
+
+// ---- S3.3: attach, switch and clear a device's entity ---------------------------------
+
+const PICK_HA = { floors: [], areas: [{ id: "living", name: "Living" }],
+  entities: [
+    { id: "light.living_lamp", name: "Living lamp", domain: "light", area: "living" },
+    { id: "light.garage", name: "Garage light", domain: "light", area: "garage" },
+    { id: "sensor.pond", name: "Pond level", domain: "sensor", area: null },
+  ] };
+/** The demo with its first light reduced to a wired fitting that is not in Home Assistant: entity "". */
+async function withUnboundLight(page: Page) {
+  const idx = await page.evaluate(([tag]) => {
+    const ed = document.querySelector(tag as string) as any;
+    const l = JSON.parse(JSON.stringify(ed.layout));
+    const g = l.floors.ground, i = g.devices.findIndex((d: any) => d.type === "light");
+    delete g.devices[i].bound; g.devices[i].entity = "";
+    ed.layout = l;
+    return i;
+  }, [EDITOR]);
+  return idx as number;
+}
+
+test("S3.3: an unbound device is marked on the plan and listed, and the list selects it", async ({ page }) => {
+  const i = await withUnboundLight(page);
+  await expect(page.locator("svg .dev.unbound")).toHaveCount(1);
+  await expect(page.locator("#unbound")).toContainText("Needs an entity (1)");
+  await page.locator("#unbound button[data-unbound]").click();
+  await expect(page.locator("#ve")).toBeVisible();
+  expect((await groundOf(page)).devices[i].entity).toBe("");
+});
+
+test("S3.3: the picker attaches an entity, switches to another, and clears it back to unbound", async ({ page }) => {
+  const i = await withUnboundLight(page);
+  await setHa(page, PICK_HA);
+  await page.locator("#unbound button[data-unbound]").click();
+  const sel = page.locator("#ve");
+  await expect(sel).toHaveJSProperty("tagName", "SELECT");
+  // A light: light entities first, the pond sensor still reachable under everything else.
+  expect(await opts(page, "#ve")).toEqual(expect.arrayContaining(["", "light.living_lamp", "light.garage", "sensor.pond"]));
+  await sel.selectOption("light.garage");
+  expect((await groundOf(page)).devices[i].entity).toBe("light.garage");
+  await expect(page.locator("svg .dev.unbound")).toHaveCount(0);
+  await sel.selectOption("light.living_lamp"); // switch
+  expect((await groundOf(page)).devices[i].entity).toBe("light.living_lamp");
+  await sel.selectOption(""); // back to unbound
+  expect((await groundOf(page)).devices[i].entity).toBe("");
+  await expect(page.locator("svg .dev.unbound")).toHaveCount(1);
+  await savedValid(page);
+});
+
+test("S3.3 break it: an entity id HA does not know stays selected and is not cleared, and no HA means a text field", async ({ page }) => {
+  await page.evaluate(([tag]) => { const ed = document.querySelector(tag as string) as any; const l = JSON.parse(JSON.stringify(ed.layout)); const g = l.floors.ground; g.devices.find((d: any) => d.type === "light").entity = "light.gone"; ed.layout = l; }, [EDITOR]);
+  await page.locator("svg .dev-light").first().click();
+  await expect(page.locator("#ve")).toHaveJSProperty("tagName", "INPUT");
+  await setHa(page, PICK_HA);
+  await expect(page.locator("#ve")).toHaveJSProperty("tagName", "SELECT");
+  await expect(page.locator("#ve")).toHaveValue("light.gone");
+  await expect(page.locator("#panel")).toContainText("Home Assistant does not have this one");
+});

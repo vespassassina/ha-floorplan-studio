@@ -1,10 +1,38 @@
-import type { Layout } from "./schema";
+import type { DeviceType, Layout } from "./schema";
 
 /** What the host (the HA panel) knows about Home Assistant and hands to the editor. Standalone there is none. */
 export interface HaData {
   floors: { id: string; name: string }[];
   areas: { id: string; name: string; floor_id?: string }[];
-  entities: { id: string; name: string; domain: string }[];
+  /** `area` is the HA area id the entity sits in (its own, else its device's), null for none. `dc` is its device class, when it has one. */
+  entities: { id: string; name: string; domain: string; area?: string | null; dc?: string }[];
+}
+
+/** Which entities suit a device type: [domain, device classes]. A class list of null means any class of that domain; a type with no rule (computer, server...) has none listed here and takes any entity. */
+const TYPE_RULES: Partial<Record<DeviceType, { domain: string; dcs?: string[]; not?: string[] }[]>> = {
+  light: [{ domain: "light" }],
+  plug: [{ domain: "switch", dcs: ["outlet"] }],
+  switch: [{ domain: "switch", not: ["outlet"] }],
+  temp: [{ domain: "sensor", dcs: ["temperature"] }],
+  humidity: [{ domain: "sensor", dcs: ["humidity"] }],
+  motion: [{ domain: "binary_sensor", dcs: ["motion", "occupancy", "presence"] }],
+  contact: [{ domain: "binary_sensor", dcs: ["door", "window", "garage_door", "opening"] }],
+  camera: [{ domain: "camera" }],
+  climate: [{ domain: "climate" }],
+  ac: [{ domain: "climate" }],
+  heater: [{ domain: "climate" }, { domain: "switch" }],
+  media: [{ domain: "media_player" }],
+  tv: [{ domain: "media_player" }],
+  cover: [{ domain: "cover" }],
+  battery: [{ domain: "sensor", dcs: ["battery"] }],
+};
+
+/** The entities that suit `type`, and the rest. A type with no rule matches everything. */
+export function entitiesForType(ha: HaData, type: DeviceType): { match: HaData["entities"]; rest: HaData["entities"] } {
+  const rules = TYPE_RULES[type];
+  if (!rules) return { match: ha.entities, rest: [] };
+  const ok = (e: HaData["entities"][number]) => rules.some((r) => e.domain === r.domain && (!r.dcs || (e.dc !== undefined && r.dcs.includes(e.dc))) && !(r.not && e.dc !== undefined && r.not.includes(e.dc)));
+  return { match: ha.entities.filter(ok), rest: ha.entities.filter((e) => !ok(e)) };
 }
 
 const nameIn = (list: { id: string; name: string }[] | undefined, id: unknown): string | undefined => {
