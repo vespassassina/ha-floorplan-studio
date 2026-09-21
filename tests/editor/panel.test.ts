@@ -38,6 +38,21 @@ describe("<floorplan-studio-panel>", () => {
     expect(editorOf(el)!.layout.floors.ground.rooms.length).toBe(L.floors.ground.rooms.length);
   });
 
+  it("a state update from Home Assistant leaves the editor as the person left it: zoom, edits and undo survive", async () => {
+    // HA sets `hass` on every state change, several times a second. Lit re-sets an object property on every render, so the
+    // panel handing the stored layout down again would read as a fresh load: zoom reset, selection gone, edits reverted.
+    const hass = stubHass(() => ({ layout: L }));
+    const el = await mount(hass);
+    const st = (editorOf(el) as unknown as { st: { views: Record<string, unknown>; floor: string; edit(fn: (f: { title?: string }) => void): boolean; layout: Layout; hist: unknown[] } }).st;
+    st.views[st.floor] = { x: 1, y: 2, w: 300, h: 200 };
+    st.edit((f) => { f.title = "Edited by hand"; });
+    const undo = st.hist.length;
+    for (let i = 0; i < 3; i++) { el.hass = { ...hass, states: { "sensor.x": { state: String(i), attributes: {} } } } as never; await settle(el); }
+    expect(st.views[st.floor]).toEqual({ x: 1, y: 2, w: 300, h: 200 });
+    expect(editorOf(el)!.layout.floors[st.floor].title).toBe("Edited by hand");
+    expect(st.hist.length).toBe(undo);
+  });
+
   it("with nothing saved yet, the editor opens on an empty layout and no error", async () => {
     const el = await mount(stubHass(() => ({ layout: null })));
     expect(el.shadowRoot!.textContent).not.toMatch(/could not|error/i);

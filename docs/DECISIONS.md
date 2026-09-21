@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-21 The drawing board ignores Home Assistant; the grid starts at the plan's corner
+
+HA sets `hass` on the panel at every state change. Lit re-sets object properties on every render, so `.layout=${obj}` re-ran the editor's `layout` setter each time and reset zoom, selection, undo and every unsaved edit. The panel now renders the editor through `guard([layout, dark])`: it re-renders only when the loaded layout or the theme changes. The editor is a drawing board; it does not follow HA. A test fails without the guard. The measure grid now has zero at the outline's min x and min y (top-left corner of the plan), lines every 50 cm (steps grow so no axis exceeds 400 lines), and covers the whole visible region, also when the plan is rotated. Zoom buttons (+, -, 0) sit top right of the canvas; none is an edit. Lesson: a panel test must check that the editor's state survives a `hass` update, not only that `load` is called once.
+
 ## 2026-09-21 A device may have an empty entity
 
 `validate()` accepted only an entity id for `device.entity`. Diego's home has lights that are plain wired fittings: they exist on the plan and are not in Home Assistant until he wires them to a switch. Dropping them loses the plan; inventing an id breaks the rule in `SCHEMA.md`. So `entity: ""` is now valid on a device (`bound` still must be an id). The catalog was never checked, so it is unchanged. The card already ignores an empty id on tap. The editor's entity field is free text, so an unbound device can be attached by typing; the picker in S3.3 will make it easy (PLAN note added). `prompts/SCHEMA.md` still tells a drawing-reading model to leave devices empty; that is unchanged.

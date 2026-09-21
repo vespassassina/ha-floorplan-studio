@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: the editor no longer resets (zoom, selection, undo, edits snapping back, lost focus) each time Home Assistant updates a state.
+- The blueprint grid covers the whole canvas and its zero is at the plan's top-left corner.
+- Zoom buttons top right of the canvas: + in, - out, 0 reset.
+
 ## 0.5.0
 
 - A device may have an empty entity: a fitting that is on the plan but not in Home Assistant yet (a wired light, say) no longer makes the whole layout fail to load.

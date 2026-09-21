@@ -1,4 +1,5 @@
 import { LitElement, css, html, nothing } from "lit";
+import { guard } from "lit/directives/guard.js";
 import type { Layout } from "../core";
 import demo from "../../demo/layout.json";
 import "./editor-app";
@@ -120,10 +121,15 @@ export class FloorplanStudioPanel extends LitElement {
     }
     if (!this.ready) return html`<div class="msg">Loading…</div>`;
     const demoLayout = demo as unknown as Layout;
+    const dark = this.hass?.themes?.darkMode;
+    // The editor is drawn again only when the stored layout or the dark mode changes. `hass` changes on every state update in the
+    // house, and Lit re-sets an object property on every render: without this guard each update handed the editor the stored layout
+    // again, which it takes for a fresh load (zoom reset, selection gone, unsaved edits reverted, undo history wiped).
     // No stored plan: leave `layout` unset. A blank plan is not a valid layout (an outline needs 3 points), so the editor's own blank start is used.
-    return html`${this.banner()}${this.layout
-      ? html`<floorplan-studio-editor .layout=${this.layout} .demo=${demoLayout} .haDark=${this.hass?.themes?.darkMode} @save-request=${this.onSave}></floorplan-studio-editor>`
-      : html`<floorplan-studio-editor .demo=${demoLayout} .haDark=${this.hass?.themes?.darkMode} @save-request=${this.onSave}></floorplan-studio-editor>`}`;
+    const editor = guard([this.layout, dark], () => this.layout
+      ? html`<floorplan-studio-editor .layout=${this.layout} .demo=${demoLayout} .haDark=${dark} @save-request=${this.onSave}></floorplan-studio-editor>`
+      : html`<floorplan-studio-editor .demo=${demoLayout} .haDark=${dark} @save-request=${this.onSave}></floorplan-studio-editor>`);
+    return html`${this.banner()}${editor}`;
   }
 
   static styles = css`

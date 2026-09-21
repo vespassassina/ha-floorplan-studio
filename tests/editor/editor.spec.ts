@@ -4196,10 +4196,46 @@ test("Opus review CSS pair: the measure grid is thin and non-scaling, brighter o
   expect(metre.op).toBe("0.22");
 });
 
-test("S1.50: the number at x=0 reads 0 m, the one a metre right reads 1", async ({ page }) => {
+test("the grid's zero is the plan's top-left corner: the number there reads 0 m, the one a metre right reads 1", async ({ page }) => {
   // the top-edge (x-axis) numbers sit at x="<plan x>"; the left-edge ones do not, so this picks the x-axis label
-  await expect(page.locator('svg text.mg-n[x="0"]')).toHaveText("0 m");
-  await expect(page.locator('svg text.mg-n[x="100"]')).toHaveText("1");
+  // Move the whole plan off the layout origin first, so a grid still zeroed at (0, 0) cannot pass by accident.
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    const shift = (p: [number, number]): [number, number] => [p[0] + 730, p[1] + 310];
+    const f = l.floors.ground;
+    f.outline = f.outline.map(shift);
+    for (const r of f.rooms) r.pts = r.pts.map(shift);
+    for (const w of f.walls) { w.a = shift(w.a); w.b = shift(w.b); }
+    for (const d of f.doors) { d.a = shift(d.a); d.b = shift(d.b); }
+    for (const o of f.openings) { o.a = shift(o.a); o.b = shift(o.b); }
+    for (const x of f.extras) { x.a = shift(x.a); x.b = shift(x.b); }
+    for (const t of f.stairs) t.pts = t.pts.map(shift);
+    for (const m of f.furniture) { m.x += 730; m.y += 310; }
+    for (const dv of f.devices) { if ("a" in dv) { dv.a = shift(dv.a); dv.b = shift(dv.b); } else { dv.x += 730; dv.y += 310; } }
+    el.layout = l;
+  }, EDITOR);
+  await expect(page.locator("svg polygon[data-r]").first()).toBeVisible();
+  const zx = await page.evaluate((tag) => Math.min(...(document.querySelector(tag) as any).layout.floors.ground.outline.map((p: number[]) => p[0])), EDITOR);
+  expect(zx).toBeGreaterThan(0);
+  await expect(page.locator(`svg text.mg-n[x="${zx}"]`)).toHaveText("0 m");
+  await expect(page.locator(`svg text.mg-n[x="${zx + 100}"]`)).toHaveText("1");
+  const lx = await page.locator("svg line.mg.m").evaluateAll((els) => els.filter((e) => e.getAttribute("x1") === e.getAttribute("x2")).map((e) => Number(e.getAttribute("x1"))));
+  expect(lx).toContain(zx); // a bright metre line stands on the corner
+});
+
+test("the grid covers everything the editor shows, not only the plan's box", async ({ page }) => {
+  const r = await page.evaluate((tag) => {
+    const o = (document.querySelector(tag) as any).layout.floors.ground.outline as number[][];
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const vb = svg.viewBox.baseVal;
+    const xs = [...svg.querySelectorAll("line.mg")].map((e) => [Number(e.getAttribute("x1")), Number(e.getAttribute("x2")), Number(e.getAttribute("y1")), Number(e.getAttribute("y2"))]);
+    return { vb: [vb.x, vb.y, vb.width, vb.height], minx: Math.min(...xs.map((l) => l[0])), maxx: Math.max(...xs.map((l) => l[0])), miny: Math.min(...xs.map((l) => Math.min(l[2], l[3]))), maxy: Math.max(...xs.map((l) => Math.max(l[2], l[3]))), o: [Math.min(...o.map((p) => p[0])), Math.max(...o.map((p) => p[0]))] };
+  }, EDITOR);
+  const [vx, vy, vw, vh] = r.vb;
+  expect(r.miny).toBeLessThanOrEqual(vy + 1); // the lines reach the top and bottom of what is shown
+  expect(r.maxy).toBeGreaterThanOrEqual(vy + vh - 1);
+  expect(r.minx).toBeLessThan(vx + 50); // and stand within one step of the left and right edges
+  expect(r.maxx).toBeGreaterThan(vx + vw - 50);
 });
 
 test("S1.50: toggling #mgrid off removes every .mg and the choice survives a reload", async ({ page }) => {
@@ -4217,7 +4253,7 @@ test("S1.50: toggling #mgrid off removes every .mg and the choice survives a rel
   await expect(page.locator("#mgrid")).toHaveAttribute("aria-pressed", "false");
 });
 
-test("S1.53 break it: a measure grid on an all-negative layout numbers its axes with negative metres", async ({ page }) => {
+test("a measure grid on an all-negative layout still reads 0 m at the plan's corner", async ({ page }) => {
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
     const shift = (p: [number, number]): [number, number] => [p[0] - 1000, p[1] - 1000];
@@ -4237,8 +4273,9 @@ test("S1.53 break it: a measure grid on an all-negative layout numbers its axes 
   await expect.poll(() => page.locator("svg line.mg").count()).toBeGreaterThan(0);
   const texts = await page.locator("svg text.mg-n").allTextContents();
   expect(texts.length).toBeGreaterThan(0);
-  expect(texts.some((t) => /^-\d/.test(t))).toBe(true); // at least one axis number reads negative, not just small or zero
-  expect(texts.every((t) => !/^-?0(\s|$)/.test(t) || t === "0 m" || Number(t.replace(" m", "")) !== 0 || true)).toBe(true);
+  await expect(page.locator("svg text.mg-n", { hasText: "0 m" })).toHaveCount(1); // zero follows the plan's corner, wherever the plan sits
+  const zx = await page.locator("svg text.mg-n", { hasText: "0 m" }).getAttribute("x");
+  expect(Number(zx)).toBeLessThan(0);
 });
 
 test("S1.50: turning the plan turns the grid lines with the walls while the numbers stay upright", async ({ page }) => {
@@ -4517,4 +4554,26 @@ test("S1.53 break it: switching theme mid-drag does not lose the drag (pointer c
   expect(after.rooms[0].pts[1]).not.toEqual([500, 0]); // the drag committed, not reset by the re-render
   expect(after.rooms[0].pts[1][1]).toBeGreaterThan(0);
   expect(after.rooms[1].pts[0]).toEqual(after.rooms[0].pts[1]); // the coincident neighbour corner moved with it, as an uninterrupted drag would
+});
+
+// ---- zoom buttons, top right of the canvas ----
+
+test("zoom buttons: + zooms in, - zooms out, 0 fits the floor again, and none of them is an edit", async ({ page }) => {
+  const vb = async () => (await page.locator(`${EDITOR} svg`).first().getAttribute("viewBox"))!.split(" ").map(Number);
+  const start = await vb();
+  const undoBefore = await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR);
+  await page.locator("#zin").click();
+  const zin = await vb();
+  expect(zin[2] / start[2]).toBeCloseTo(1 / 1.25, 1); // shows less of the plan: the plan looks bigger
+  expect(zin[0] + zin[2] / 2).toBeCloseTo(start[0] + start[2] / 2, 0); // about the middle of what is shown
+  await page.locator("#zout").click();
+  await page.locator("#zout").click();
+  expect((await vb())[2]).toBeGreaterThan(start[2]);
+  await page.locator("#zin").click();
+  await page.locator("#zreset").click();
+  expect(await vb()).toEqual(start);
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR)).toBe(undoBefore);
+  const box = await page.locator(".zoom").boundingBox(), canvas = await page.locator(".canvas").boundingBox();
+  expect(box!.x + box!.width).toBeGreaterThan(canvas!.x + canvas!.width - 20); // top right
+  expect(box!.y).toBeLessThan(canvas!.y + 20);
 });

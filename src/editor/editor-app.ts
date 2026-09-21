@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, rotateAbout, snapPoint, stitch, validate, viewBoxFor } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, rotateAbout, snapPoint, stitch, validate } from "../core";
 import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
 import { gridRound, looseEnds, movePointAll, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
@@ -41,6 +41,8 @@ type Drag =
 
 const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 const num = (n: number) => String(Math.round(n * 100) / 100);
+/** Where the measure grid reads zero: the top-left corner of the floor's outline (lowest x, lowest y). A floor with no outline has none, so its zero is the layout's own. */
+export const planZero = (f: Floor): Pt => (f.outline.length ? [Math.min(...f.outline.map((p) => p[0])), Math.min(...f.outline.map((p) => p[1]))] : [0, 0]);
 const DRAW_HINT = "Click to add points, double-click or Enter to finish, Esc to cancel";
 const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 /** Does this point reference a corner of a zone? A zone never joins another polygon. */
@@ -190,7 +192,9 @@ export class FloorplanStudioEditor extends LitElement {
     .colrow{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:2px 0} .colrow label{display:flex;flex:1;justify-content:space-between;gap:6px} .colrow input{padding:0;width:36px;height:24px} .colrow .btn{width:auto}
     .rotrow{display:flex;flex-wrap:wrap;gap:6px} .rotrow>span{width:100%} .box .rotrow .btn{width:auto;flex:1;text-align:center}
     .ed{display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:start}
-    .canvas{border:1px solid var(--fp-idle);height:var(--fp-editor-height,calc(100vh - 150px));min-height:420px;touch-action:none;background:var(--fp-bg)}
+    .canvas{position:relative;border:1px solid var(--fp-idle);height:var(--fp-editor-height,calc(100vh - 150px));min-height:420px;touch-action:none;background:var(--fp-bg)}
+    .zoom{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px;z-index:2}
+    .zoom .btn{width:32px;height:32px;padding:0;text-align:center;line-height:1;font-size:16px}
     .canvas svg{width:100%;height:100%;display:block;cursor:grab;user-select:none}
     .canvas svg.drawing,.canvas svg.drawing *{cursor:crosshair}
     .dr{fill:none;stroke:var(--fp-window);stroke-width:2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke;pointer-events:none}
@@ -587,6 +591,14 @@ export class FloorplanStudioEditor extends LitElement {
     this.requestUpdate();
   };
 
+  /** Zoom by `k` (below 1 zooms in) about the middle of what is shown; 0 fits the whole floor again. A view change only: no layout edit, no undo step. */
+  private zoomBy(k: number) {
+    const st = this.st, v = st.view;
+    if (!k) st.fit();
+    else { const cx = v.x + v.w / 2, cy = v.y + v.h / 2; st.views[st.floor] = { x: cx - (v.w * k) / 2, y: cy - (v.h * k) / 2, w: v.w * k, h: v.h * k }; }
+    this.requestUpdate();
+  }
+
   private onKey = (ev: KeyboardEvent) => {
     const t = ev.composedPath()[0] as HTMLElement | undefined;
     if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
@@ -914,14 +926,16 @@ export class FloorplanStudioEditor extends LitElement {
   // ---- drawing -------------------------------------------------------------
 
   /**
-   * The measure grid drawn behind the plan: faint lines every 50 cm of the layout's own coordinates (more on a huge
-   * floor, so no axis ever needs more than 400), numbered at every whole metre along the top and left edges of
-   * `viewBoxFor(f)`. Off, this returns "". A viewer preference, never in the layout, never an undo step.
+   * The measure grid drawn behind the plan: faint lines every 50 cm (more on a huge floor, so no axis ever needs more
+   * than 400), over the whole area the editor shows, not just the plan. Zero is the plan's top-left corner, the
+   * lowest x and y of the outline, so a metre marker reads the distance from that corner and not from the layout's
+   * origin. Numbered at every whole metre along the top and left edges of the shown area. Off, this returns "". A
+   * viewer preference, never in the layout, never an undo step.
    */
-  private measureGrid(k: number): string {
+  private measureGrid(k: number, box: { x: number; y: number; w: number; h: number }): string {
     const st = this.st;
     if (!st.measure) return "";
-    const box = viewBoxFor(st.f);
+    const zero = planZero(st.f);
     const perAxis = (s: number) => Math.max(Math.ceil(box.w / s), Math.ceil(box.h / s));
     let step = 50;
     if (perAxis(step) > 400) step = 100;
@@ -930,22 +944,23 @@ export class FloorplanStudioEditor extends LitElement {
     const deg = st.layout.rotate ?? 0;
     const upright = (x: number, y: number) => (deg % 360 ? ` transform="rotate(${num(-deg)} ${num(x)} ${num(y)})"` : "");
     const x1 = box.x + box.w, y1 = box.y + box.h;
+    const first = (from: number, z: number, s: number) => z + Math.ceil((from - z) / s) * s;
     const o: string[] = [];
-    for (let x = Math.ceil(box.x / step) * step; x <= x1; x += step) {
-      const m = Math.round(x) % 100 === 0;
+    for (let x = first(box.x, zero[0], step); x <= x1; x += step) {
+      const m = Math.round(x - zero[0]) % 100 === 0;
       o.push(`<line class="mg${m ? " m" : ""}" stroke-opacity="${m ? "0.22" : "0.12"}" x1="${num(x)}" y1="${num(box.y)}" x2="${num(x)}" y2="${num(y1)}"/>`);
     }
-    for (let y = Math.ceil(box.y / step) * step; y <= y1; y += step) {
-      const m = Math.round(y) % 100 === 0;
+    for (let y = first(box.y, zero[1], step); y <= y1; y += step) {
+      const m = Math.round(y - zero[1]) % 100 === 0;
       o.push(`<line class="mg${m ? " m" : ""}" stroke-opacity="${m ? "0.22" : "0.12"}" x1="${num(box.x)}" y1="${num(y)}" x2="${num(x1)}" y2="${num(y)}"/>`);
     }
     // The unit is stated once: only the x-axis origin reads "0 m"; the y-axis one, and every other number, is bare.
-    for (let x = Math.ceil(box.x / numStep) * numStep; x <= x1; x += numStep) {
-      const v = Math.round(x / 100), ly = box.y + 12 * k;
+    for (let x = first(box.x, zero[0], numStep); x <= x1; x += numStep) {
+      const v = Math.round((x - zero[0]) / 100), ly = box.y + 12 * k;
       o.push(`<text class="lbl mg-n" x="${num(x)}" y="${num(ly)}"${upright(x, ly)} text-anchor="middle" font-size="${num(10 * k)}">${v === 0 ? "0 m" : num(v)}</text>`);
     }
-    for (let y = Math.ceil(box.y / numStep) * numStep; y <= y1; y += numStep) {
-      const v = Math.round(y / 100), lx = box.x + 2 * k, ly = y + 3 * k;
+    for (let y = first(box.y, zero[1], numStep); y <= y1; y += numStep) {
+      const v = Math.round((y - zero[1]) / 100), lx = box.x + 2 * k, ly = y + 3 * k;
       o.push(`<text class="lbl mg-n" x="${num(lx)}" y="${num(ly)}"${upright(lx, ly)} text-anchor="start" font-size="${num(10 * k)}">${num(v)}</text>`);
     }
     return o.join("");
@@ -1002,7 +1017,12 @@ export class FloorplanStudioEditor extends LitElement {
     const rot = st.rotation, vc: Pt = rot ? rotateAbout([v.x + v.w / 2, v.y + v.h / 2], rot.deg, rot.pivot) : [v.x + v.w / 2, v.y + v.h / 2];
     const viewBox = `${num(vc[0] - w / 2)} ${num(vc[1] - h / 2)} ${num(w)} ${num(h)}`;
     const sel = st.sel && (st.sel.t === "door" || st.sel.t === "dev") ? { t: st.sel.t, i: st.sel.i } : null;
-    const overlay = this.overlay(k), grid = this.measureGrid(k);
+    // The grid covers everything on screen: the shown rectangle, taken back into the plan's own (unturned) space.
+    const shown = [[vc[0] - w / 2, vc[1] - h / 2], [vc[0] + w / 2, vc[1] - h / 2], [vc[0] + w / 2, vc[1] + h / 2], [vc[0] - w / 2, vc[1] + h / 2]] as Pt[];
+    const back = rot ? shown.map((p) => rotateAbout(p, -rot.deg, rot.pivot)) : shown;
+    const bx = back.map((p) => p[0]), by = back.map((p) => p[1]);
+    const region = { x: Math.min(...bx), y: Math.min(...by), w: Math.max(...bx) - Math.min(...bx), h: Math.max(...by) - Math.min(...by) };
+    const overlay = this.overlay(k), grid = this.measureGrid(k, region);
     const turnG = (svg: string) => (rot ? `<g class="plan-turn" transform="rotate(${num(rot.deg)} ${num(rot.pivot[0])} ${num(rot.pivot[1])})">${svg}</g>` : svg);
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
     const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark() }) + turnG(overlay);
@@ -1084,6 +1104,11 @@ export class FloorplanStudioEditor extends LitElement {
       ${this.errors.length ? html`<div class="errors" id="errors" role="alert"><strong>That layout was not used.</strong><ul>${this.errors.map((e) => html`<li>${e}</li>`)}</ul><button class="btn" id="errclose" @click=${() => { this.errors = []; }}>Dismiss</button></div>` : nothing}
       <div class="ed">
         <div class="canvas">
+          <div class="zoom" role="group" aria-label="Zoom">
+            <button class="btn" id="zin" title="Zoom in" aria-label="Zoom in" @click=${() => this.zoomBy(1 / 1.25)}>+</button>
+            <button class="btn" id="zout" title="Zoom out" aria-label="Zoom out" @click=${() => this.zoomBy(1.25)}>&minus;</button>
+            <button class="btn" id="zreset" title="Reset zoom: fit the whole floor" aria-label="Reset zoom" @click=${() => this.zoomBy(0)}>0</button>
+          </div>
           <svg xmlns="http://www.w3.org/2000/svg" class=${this.draw ? "drawing" : ""} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
         </div>
         <aside>
