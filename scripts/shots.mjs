@@ -67,34 +67,46 @@ mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch();
 try {
+  // Themes: blueprint (the default), light, and Home Assistant's own, drawn under stand-in HA variables in a light and a dark set.
+  const HA_VARS = {
+    light: "--primary-text-color:#212121;--secondary-text-color:#727272;--card-background-color:#ffffff;--secondary-background-color:#e5e5e5",
+    dark: "--primary-text-color:#e1e1e1;--secondary-text-color:#9b9b9b;--card-background-color:#1c1c1c;--secondary-background-color:#282828",
+  };
+  const THEMES = [
+    { id: "blueprint", theme: "blueprint", dark: false, vars: "", page: "#0d1522" },
+    { id: "light", theme: "light", dark: false, vars: "", page: "#fff" },
+    { id: "ha-light", theme: "ha", dark: false, vars: HA_VARS.light, page: "#fafafa" },
+    { id: "ha-dark", theme: "ha", dark: true, vars: HA_VARS.dark, page: "#111111" },
+  ];
   const cardShots = [];
-  for (const floor of Object.keys(layout.floors)) for (const which of Object.keys(STATES)) for (const dark of [false, true]) {
-    cardShots.push({ name: `card-${floor}-${which}-${dark ? "dark" : "light"}`, floor, which, dark });
+  for (const floor of Object.keys(layout.floors)) for (const which of Object.keys(STATES)) for (const t of THEMES) {
+    cardShots.push({ name: `card-${floor}-${which}-${t.id}`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
   }
   for (const s of cardShots) {
-    const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: s.dark ? "dark" : "light", reducedMotion: "reduce" });
+    const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(`${s.name}: ${e}`));
     page.on("console", (m) => { if (m.type() === "error") errors.push(`${s.name}: console.error ${m.text()}`); });
-    await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:${s.dark ? "#14141a" : "#fff"}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`);
+    await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:${s.page};${s.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`);
     await page.addScriptTag({ content: cardJs, type: "module" });
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
     await page.evaluate(([config, hass]) => {
       const el = document.getElementById("c");
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
-    }, [{ layout, floor: s.floor }, hassFor(s.which, s.dark)]);
+    }, [{ layout, floor: s.floor, theme: s.theme }, hassFor(s.which, s.dark)]);
     const nodes = await page.evaluate(() => document.getElementById("c").shadowRoot.querySelectorAll("svg *").length);
     if (nodes < 10) errors.push(`${s.name}: the plan drew ${nodes} nodes; something is wrong before you even look`);
     await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });
     shots.push(s.name);
     await ctx.close();
   }
-  for (const dark of [false, true]) {
-    const name = `editor-${dark ? "dark" : "light"}`;
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: dark ? "dark" : "light", reducedMotion: "reduce" });
+  for (const theme of ["blueprint", "light", "ha"]) {
+    const name = `editor-${theme}`;
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: "light", reducedMotion: "reduce" });
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(`${name}: ${e}`));
+    await page.addInitScript((t) => localStorage.setItem("floorplan-studio:theme", t), theme);
     await page.goto(pathToFileURL(resolve(EDITOR)).href);
     await page.locator("floorplan-studio-editor svg polygon[data-r]").first().waitFor();
     await page.screenshot({ path: `${OUT}/${name}.png` });

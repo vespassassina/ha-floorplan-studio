@@ -2864,6 +2864,7 @@ test("S1.29: a device standing on a room name is the top element there", async (
 const CAM = { x: 20, y: 580 }; // the demo hall camera
 
 test("S1.31: the cone is dark grey at 25 % alpha in the browser, the disc is 75 % white and lets the pointer through to the room", async ({ page }) => {
+  await setTheme(page, "light"); // pins light values; blueprint is the default since S2.12
   const cone = page.locator("svg g.dev-camera path.cone");
   await expect(cone).toHaveCount(1);
   const st = await cone.evaluate((el) => { const s = getComputedStyle(el); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents }; });
@@ -2959,7 +2960,7 @@ test("S1.33: a turned plan changes only rotate in the data, and Save then Open k
   expect(await rotOf(page)).toBe(0);
   await page.evaluate(([tag, l]) => { (document.querySelector(tag as string) as any).layout = l; }, [EDITOR, saved] as const);
   expect(await rotOf(page)).toBe(135);
-  await expect(page.locator(`${EDITOR} svg > g.plan-turn[transform^="rotate(135 "]`)).toHaveCount(3); // the measure grid, the drawing and the overlay (S1.50)
+  await expect(page.locator(`${EDITOR} svg g.plan-turn[transform^="rotate(135 "]`)).toHaveCount(3); // the measure grid, the drawing (now inside the theme group) and the overlay (S1.50)
 });
 
 for (const deg of [45, 90]) {
@@ -3373,6 +3374,7 @@ test("S1.49: Re-center shows a device parked far outside the outline, which Fit 
 
 // ---- S1.35b white twin under walls and edges ----
 test("S1.35b: on a Lava floor the wall has a white twin, wider than the wall, that never takes the click", async ({ page }) => {
+  await setTheme(page, "light"); // pins light values; blueprint is the default since S2.12
   await page.evaluate(([tag, l]) => {
     const c = JSON.parse(JSON.stringify(l));
     c.floors.ground.rooms[0].color = "#38393b";
@@ -3658,6 +3660,7 @@ test("S1.43: an unsnapped room turns a quarter, and has no Reset", async ({ page
 // ---- the icon disc (S1.45) ----------------------------------------------------------------
 
 test("S1.45: the disc is 3 units wider than the icon and stays white on a dark floor", async ({ page }) => {
+  await setTheme(page, "light"); // pins light values; blueprint is the default since S2.12
   const r = await page.locator("svg g.dev .halo").first().evaluate((el) => Number(el.getAttribute("r")));
   expect(r).toBe(16); // the icon glyph is 12 out from the centre, the border adds one, the gap three
   await page.evaluate((tag) => { const el = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(el.layout)); for (const rm of l.floors.ground.rooms) rm.color = "#222222"; el.layout = l; }, EDITOR);
@@ -3670,6 +3673,7 @@ test("S1.45: the disc is 3 units wider than the icon and stays white on a dark f
 // ---- every text has a white outline (S1.46) ----------------------------------------------
 
 test("S1.46: room, zone, device and extra names and the edge length are dark grey with a white outline", async ({ page }) => {
+  await setTheme(page, "light"); // pins light values; blueprint is the default since S2.12
   await page.evaluate((tag) => { const el = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.extras.push({ id: "x1", name: "Shed", a: [100, 700], b: [200, 760] }); l.floors.ground.rooms[0].color = "#222222"; el.layout = l; }, EDITOR);
   await page.locator("#names").click();
   await page.mouse.click(...Object.values(await screenOf(page, 500, 200)) as [number, number]); // a click on the shared edge shows its length
@@ -3880,6 +3884,7 @@ test("Opus review a11y: the turn buttons are a labelled group and their names ca
 const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `rgb(${n >> 16}, ${(n >> 8) & 255}, ${n & 255})`; };
 /** Adds shapes below the house: one room per kind, one wall per kind, a room with a "none" edge, a temp sensor in a garden. */
 async function addCssFixtures(page: Page) {
+  await setTheme(page, "light"); // the CSS pairs below pin light values; blueprint is the default since S2.12
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), g = l.floors.ground;
     const kinds = ["garden", "terrace", "pavement", "fill", "zone", "water"];
@@ -4138,6 +4143,7 @@ test("S1.50: .mg lines are 50 cm apart in plan units and sit before the first ro
 });
 
 test("Opus review CSS pair: the measure grid is thin and non-scaling, brighter on the metre (render.test.ts:522)", async ({ page }) => {
+  await setTheme(page, "light"); // pins light values; blueprint is the default since S2.12
   const half = await page.locator("svg line.mg:not(.m)").first().evaluate((e) => { const s = getComputedStyle(e); return { stroke: s.stroke, w: s.strokeWidth, ve: s.vectorEffect, op: s.strokeOpacity }; });
   const metre = await page.locator("svg line.mg.m").first().evaluate((e) => { const s = getComputedStyle(e); return { w: s.strokeWidth, op: s.strokeOpacity }; });
   expect(half.stroke).toBe(rgb("#3a3a3a"));
@@ -4334,20 +4340,19 @@ test("S1.51 break it: a corner dragged past its opposite one clamps at 5 cm inst
   await expect(page.locator("svg circle[data-fh]")).toHaveCount(0);
 });
 
-// ---- S1.53 a light and a dark theme ---------------------------------------------------------
+// ---- S1.53 / S2.12 themes: blueprint (default), light, Home Assistant ---------------------------------------------------------
 
 // Blueprint palette (2026-09-21): ground #0d1522, room #14213a, wall #8fb4f0, text #d8e2f2.
 const DARK_TH = { bg: "rgb(13, 21, 34)", room: "rgb(20, 33, 58)", wall: "rgb(143, 180, 240)", text: "rgb(216, 226, 242)", outline: "rgb(13, 21, 34)", disc: "rgb(20, 33, 58)", measure: "rgb(143, 180, 240)" };
 const LIGHT_TH = { bg: "rgb(244, 240, 230)", room: "rgb(233, 227, 211)", wall: "rgb(43, 42, 39)", text: "rgb(58, 58, 58)", outline: "rgb(255, 255, 255)" };
 
-async function setTheme(page: Page, t: "auto" | "light" | "dark") {
+async function setTheme(page: Page, t: "blueprint" | "light" | "ha") {
   await menu(page, "View");
   await page.locator(`[data-th="${t}"]`).click();
   await menu(page, "View");
 }
 
-test("S1.53: dark theme takes the page background, room fill, wall stroke, room name colours, device disc and measure grid to their dark values", async ({ page }) => {
-  await setTheme(page, "dark");
+test("S2.12: blueprint, the default, has the dark page background, room fill, wall stroke, room name colours, device disc and measure grid", async ({ page }) => {
   const got = await page.evaluate((tag) => {
     const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
     const host = document.querySelector(tag) as HTMLElement;
@@ -4368,7 +4373,8 @@ test("S1.53: dark theme takes the page background, room fill, wall stroke, room 
   expect(got.mg).toBe(DARK_TH.measure);
 });
 
-test("S1.53: light theme (the default) keeps today's values", async ({ page }) => {
+test("S1.53: light theme keeps its values", async ({ page }) => {
+  await setTheme(page, "light");
   const got = await page.evaluate((tag) => {
     const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
     const host = document.querySelector(tag) as HTMLElement;
@@ -4384,7 +4390,7 @@ test("S1.53: light theme (the default) keeps today's values", async ({ page }) =
   expect(got.lblStroke).toBe(LIGHT_TH.outline);
 });
 
-test("S1.53: every .btn keeps at least 4.5:1 contrast against its own background, in light and in dark", async ({ page }) => {
+test("S1.53: every .btn keeps at least 4.5:1 contrast against its own background, in blueprint, light and Home Assistant", async ({ page }) => {
   const checkAll = async () => {
     const pairs = await page.evaluate((tag) => {
       const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
@@ -4396,37 +4402,42 @@ test("S1.53: every .btn keeps at least 4.5:1 contrast against its own background
     expect(pairs.length).toBeGreaterThan(5);
     for (const { label, bg, fg } of pairs) expect(ratio(rgbOf(bg), rgbOf(fg)), label).toBeGreaterThanOrEqual(4.5);
   };
-  await checkAll(); // light, the default
-  await setTheme(page, "dark");
+  await checkAll(); // blueprint, the default
+  await setTheme(page, "light");
+  await checkAll();
+  await setTheme(page, "ha");
   await checkAll();
 });
 
-test("S1.53: the theme chip switches Light, Dark and Auto, and the choice survives a reload", async ({ page }) => {
+test("S2.12: the theme chip switches Blueprint, Light and Home Assistant, and the choice survives a reload", async ({ page }) => {
   await menu(page, "View");
-  await expect(page.locator('[data-th="auto"]')).toHaveAttribute("aria-pressed", "true"); // Auto is the default
-  await page.locator('[data-th="dark"]').click();
-  expect(await page.evaluate(() => localStorage.getItem("floorplan-studio:theme"))).toBe("dark");
-  await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator('[data-th="blueprint"]')).toHaveAttribute("aria-pressed", "true"); // Blueprint is the default
+  await expect(page.locator('[data-th="ha"]')).toHaveText("Home Assistant");
+  await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "blueprint");
+  await page.locator('[data-th="ha"]').click();
+  expect(await page.evaluate(() => localStorage.getItem("floorplan-studio:theme"))).toBe("ha");
+  await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "ha");
   await page.reload();
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
-  await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "ha");
   await menu(page, "View");
-  await expect(page.locator('[data-th="dark"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-th="ha"]')).toHaveAttribute("aria-pressed", "true");
   await page.locator('[data-th="light"]').click();
   expect(await page.evaluate(() => localStorage.getItem("floorplan-studio:theme"))).toBe("light");
-  await page.locator('[data-th="auto"]').click(); // the menu is still open from the earlier menu(page, "View")
-  await expect(page.locator(EDITOR)).not.toHaveAttribute("data-theme", /.*/);
+  await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "light");
 });
 
-test("S1.53: Auto follows the emulated prefers-color-scheme, both ways", async ({ page }) => {
-  await page.emulateMedia({ colorScheme: "dark" });
+test("S2.12: an editor on the Home Assistant theme follows haDark when the host gives it, and the OS when it does not", async ({ page }) => {
+  await setTheme(page, "ha");
+  const host = () => page.evaluate((tag) => getComputedStyle(document.querySelector(tag) as HTMLElement).backgroundColor, EDITOR);
+  await page.emulateMedia({ colorScheme: "light" });
   await page.reload();
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
-  const host = () => page.evaluate((tag) => getComputedStyle(document.querySelector(tag) as HTMLElement).backgroundColor, EDITOR);
-  expect(await host()).toBe(DARK_TH.bg); // OS dark, no explicit choice stored: Auto follows it
-  await page.emulateMedia({ colorScheme: "light" });
-  expect(await host()).toBe(LIGHT_TH.bg);
-  await page.emulateMedia({ colorScheme: null }); // reset for the tests that follow
+  expect(await host()).toBe(LIGHT_TH.bg); // no HA variables here, no haDark: the OS is light
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; el.haDark = true; }, EDITOR);
+  await expect(page.locator(EDITOR)).toHaveAttribute("data-mode", "dark");
+  expect(await host()).toBe(DARK_TH.bg);
+  await page.emulateMedia({ colorScheme: null });
 });
 
 test("S1.53 break it: a per-room colour stays the same colour in both themes, and its name stays readable", async ({ page }) => {
@@ -4436,9 +4447,10 @@ test("S1.53 break it: a per-room colour stays the same colour in both themes, an
     const poly = root.querySelector('svg polygon[data-r="0"]')!, lbl = root.querySelector("svg text.lbl")!;
     return { fill: getComputedStyle(poly).fill, lblFill: getComputedStyle(lbl).fill, lblStroke: getComputedStyle(lbl).stroke };
   }, EDITOR);
+  await setTheme(page, "light");
   const light = await fillOf();
   expect(light.fill).toBe("rgb(170, 187, 204)"); // #aabbcc, the user's own choice
-  await setTheme(page, "dark");
+  await setTheme(page, "blueprint");
   const dark = await fillOf();
   expect(dark.fill).toBe(light.fill); // unchanged by theme
   expect(dark.lblFill).toBe(DARK_TH.text); // the name still reads: light fill, dark outline
@@ -4455,8 +4467,8 @@ test("S1.53 break it: switching theme mid-drag does not lose the drag (pointer c
   // A theme switch normally goes through a menu click, which would release the mouse; this drives the
   // same state change (and the requestUpdate/re-render it causes) directly, mouse button still down, to
   // prove the drag survives a mid-drag re-render rather than that the user can open a menu while dragging.
-  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; el.st.setTheme("dark"); el.requestUpdate(); }, EDITOR);
-  await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "dark");
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; el.st.setTheme("light"); el.requestUpdate(); }, EDITOR);
+  await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "light");
   await page.mouse.move(c.x, c.y + 50, { steps: 4 });
   await page.mouse.up();
   const after = await groundOf(page);

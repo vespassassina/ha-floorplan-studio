@@ -616,26 +616,27 @@ describe("outline edge kinds (S1.52)", () => {
   });
 });
 
-describe("theme (S1.53)", () => {
-  it("writes a data-theme attribute when given one, and nothing when not", () => {
-    expect(renderFloor(ground, { ...base, theme: "dark" })).toContain('<g data-theme="dark">');
+describe("theme (S2.12)", () => {
+  it("wraps the plan in a data-theme group for a named theme, marks ha+dark, and writes nothing for an unknown name", () => {
+    expect(renderFloor(ground, { ...base, theme: "blueprint" })).toContain('<g data-theme="blueprint">');
     expect(renderFloor(ground, { ...base, theme: "light" })).toContain('<g data-theme="light">');
+    expect(renderFloor(ground, { ...base, theme: "ha" })).toContain('<g data-theme="ha">');
+    expect(renderFloor(ground, { ...base, theme: "ha", dark: true })).toContain('<g data-theme="ha" data-mode="dark">');
+    expect(renderFloor(ground, { ...base, theme: "light", dark: true })).not.toContain("data-mode"); // dark only means something to ha
+    expect(renderFloor(ground, { ...base, theme: "dark" as never })).not.toContain("data-theme");
     expect(renderFloor(ground, base)).not.toContain("data-theme");
   });
-  it("the dark block defines every token the light block defines, with the same names AND real dark values, so a dark block copied from light (or a forgotten token) would fail", () => {
-    const tokenPairs = (css: string) => new Map((css.match(/--fp-[a-z-]+:[^;]+/g) ?? []).map((kv) => { const j = kv.indexOf(":"); return [kv.slice(0, j), kv.slice(j + 1)]; }));
-    const [light] = FLOORPLAN_CSS.match(/:host,\.fp\{[^}]*\}/s) ?? [""];
-    const [dataLight] = FLOORPLAN_CSS.match(/\[data-theme="light"\]\{[^}]*\}/s) ?? [""];
-    const [dark] = FLOORPLAN_CSS.match(/:host\(\[data-theme="dark"\]\)[^{]*\{[^}]*\}/s) ?? [""];
-    const [auto] = FLOORPLAN_CSS.match(/@media[^{]*\{[^{]*\{[^}]*\}/s) ?? [""];
-    const lightTokens = tokenPairs(light), darkTokens = tokenPairs(dark), autoTokens = tokenPairs(auto), dataLightTokens = tokenPairs(dataLight);
-    expect(new Set(darkTokens.keys())).toEqual(new Set(lightTokens.keys())); // same token names...
-    expect(darkTokens).toEqual(autoTokens); // ...and the explicit dark block and the media-query one are the same shared constant
-    expect(dataLightTokens).toEqual(lightTokens); // the nested [data-theme="light"] block matches the base light block exactly
-    // The structural neutrals a dark background actually breaks must differ from light: a dark block that was
-    // a copy-paste of light (same names, same values) would pass the name-only check above but fail here.
+  it("the default block is blueprint; light and ha override it, and ha maps only neutrals onto Home Assistant's variables, each with a fallback", () => {
+    const tokenPairs = (css: string) => new Map((css.match(/--fp-[a-z-]+:[^;]+/g) ?? []).map((kv) => { const j = kv.indexOf(":"); return [kv.slice(0, j), kv.slice(j + 1).replace(/\}$/, "")]; }));
+    const block = (sel: string) => FLOORPLAN_CSS.match(new RegExp(sel.replace(/[[\]().]/g, "\\$&") + "[^{]*\\{[^}]*\\}", "s"))?.[0] ?? "";
+    const base_ = tokenPairs(FLOORPLAN_CSS.match(/:host,\.fp\{[^}]*\}/s)?.[0] ?? "");
+    const light = tokenPairs(block(':host([data-theme="light"])'));
+    const ha = tokenPairs(block(':host([data-theme="ha"])'));
+    expect(new Set(light.keys())).toEqual(new Set(base_.keys())); // every token is defined by every theme
     for (const k of ["--fp-ink", "--fp-bg", "--fp-room", "--fp-wall", "--fp-disc", "--fp-outline", "--fp-measure", "--fp-wall-external"])
-      expect(darkTokens.get(k), k).not.toBe(lightTokens.get(k));
+      expect(light.get(k), k).not.toBe(base_.get(k)); // a light block copied from blueprint would fail here
+    for (const k of ["--fp-ink", "--fp-bg", "--fp-room", "--fp-wall", "--fp-measure"]) expect(ha.get(k), k).toMatch(/^var\(--[a-z-]+,[^)]+\)$/);
+    for (const k of ["--fp-on", "--fp-danger", "--fp-warn", "--fp-primary"]) if (base_.has(k)) expect(ha.get(k), k).toBe(base_.get(k)); // meaning colours never follow the host's theme
   });
 });
 
@@ -1084,6 +1085,7 @@ describe("device colours (S1.36)", () => {
     expect(html).not.toContain("fridge"); expect(html).not.toContain("onload");
     expect(renderFloor(ground, { scale: 0.5, colors: { light: "nope" } as any })).toBe(renderFloor(ground, { scale: 0.5 }));
   });
+  const LIGHT_BLOCK = FLOORPLAN_CSS.match(/:host\(\[data-theme="light"\]\)[^{]*\{[^}]*\}/s)?.[0] ?? "";
   it("DEVICE_COLOURS gives every device type a #rrggbb default that matches the palette variables", () => {
     for (const t of DEVICE_TYPES) expect(DEVICE_COLOURS[t], t).toMatch(/^#[0-9a-f]{6}$/);
     expect(DEVICE_COLOURS.light).toBe("#e0a800");
@@ -1092,7 +1094,8 @@ describe("device colours (S1.36)", () => {
     // one thing while this map says another shows the user a swatch the plan will not draw. Check every type that
     // has a variable of its own, not just the two that were spot-checked here before.
     for (const t of DEVICE_TYPES) {
-      const v = FLOORPLAN_CSS.match(new RegExp(`--fp-dev-${t}:(#[0-9a-f]{6})`));
+      // the light block: DEVICE_COLOURS are the light palette, and a few types (camera) have a lighter value on blueprint
+      const v = LIGHT_BLOCK.match(new RegExp(`--fp-dev-${t}:(#[0-9a-f]{6})`));
       if (v) expect(DEVICE_COLOURS[t], t).toBe(v[1]);
     }
   });

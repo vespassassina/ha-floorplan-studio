@@ -6,9 +6,9 @@ import { pathToFileURL } from "node:url";
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 
 // Opus review of S2.1: the card's own chrome (p.msg, anything outside the <svg>) is styled by FLOORPLAN_CSS's
-// :host rules, which read data-theme off the host element. This must follow hass.themes.darkMode, never the
-// OS's prefers-color-scheme. A same-direction test (dark hass under dark OS) would pass without the fix, since
-// prefers-color-scheme alone would already give the dark tokens; the crossed pairs below are the point.
+// :host rules, which read data-theme off the host element. Since S2.12 the default is blueprint, whatever the OS or
+// hass says; light is a config choice; ha inherits Home Assistant's variables and, when they are absent, falls back
+// to the plain light or dark set by hass.themes.darkMode. Crossed pairs (OS one way, hass the other) are the point.
 
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
 const LIGHT_INK = "rgb(58, 58, 58)"; // --fp-text light, #3a3a3a
@@ -45,24 +45,35 @@ function msgColor(page: Page) {
   });
 }
 
-test("S2.1 review: the host follows hass.themes.darkMode, crossed against the OS colour scheme, not the OS itself", async ({ page }, testInfo) => {
-  await page.emulateMedia({ colorScheme: "light" });
+test("S2.12: the default theme is blueprint, whatever the OS colour scheme and hass.themes.darkMode say", async ({ page }) => {
+  for (const [os, dark] of [["light", false], ["light", true], ["dark", false]] as const) {
+    await page.emulateMedia({ colorScheme: os });
+    await open(page);
+    await configure(page, {}, { states: {}, themes: { darkMode: dark } });
+    await expect.poll(() => msgColor(page), `os ${os}, hass dark ${dark}`).toBe(DARK_INK);
+  }
   await open(page);
-  await configure(page, {}, { states: {}, themes: { darkMode: true } });
+  await configure(page, {}, { states: {} }); // no hass.themes at all
   await expect.poll(() => msgColor(page)).toBe(DARK_INK);
-
-  await page.emulateMedia({ colorScheme: "dark" });
-  await open(page);
-  await configure(page, {}, { states: {}, themes: { darkMode: false } });
-  await expect.poll(() => msgColor(page)).toBe(LIGHT_INK);
-  void testInfo;
 });
 
-test("S2.1 review: with no hass.themes at all the card is never hard-coded, and follows the OS instead", async ({ page }) => {
+test("S2.12: theme light gives the light ink under a dark OS and a dark hass", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await open(page);
-  await configure(page, {}, { states: {} });
+  await configure(page, { theme: "light" }, { states: {}, themes: { darkMode: true } });
+  await expect.poll(() => msgColor(page)).toBe(LIGHT_INK);
+});
+
+test("S2.12: theme ha takes Home Assistant's own colour when it defines one, and the plain light or dark set when it does not", async ({ page }) => {
+  await open(page);
+  await configure(page, { theme: "ha" }, { states: {}, themes: { darkMode: false } });
+  await expect.poll(() => msgColor(page)).toBe(LIGHT_INK); // no --primary-text-color on this page: fallback
+  await configure(page, { theme: "ha" }, { states: {}, themes: { darkMode: true } });
   await expect.poll(() => msgColor(page)).toBe(DARK_INK);
+  await page.evaluate(() => document.documentElement.style.setProperty("--primary-text-color", "rgb(1, 2, 3)"));
+  await expect.poll(() => msgColor(page)).toBe("rgb(1, 2, 3)"); // HA's variable wins, in either mode
+  await configure(page, { theme: "ha" }, { states: {}, themes: { darkMode: false } });
+  await expect.poll(() => msgColor(page)).toBe("rgb(1, 2, 3)");
 });
 
 // Opus review of S2.2: the light's icon fill comes from render.ts's own `--fp-dev-fill` custom property
@@ -143,10 +154,10 @@ test("S2.6 CSS pair: a room's fill is the glow tint only while room_glow is on a
   await open(page);
   const livingFill = () => page.locator("floorplan-studio-card").evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('svg polygon[data-r="0"]')!).fill);
 
-  await configure(page, { layout: structuredClone(demo), room_glow: true }, { states: { "light.demo_living": { state: "off", attributes: {}, last_changed: new Date().toISOString() } } });
+  await configure(page, { layout: structuredClone(demo), theme: "light", room_glow: true }, { states: { "light.demo_living": { state: "off", attributes: {}, last_changed: new Date().toISOString() } } });
   expect(await livingFill()).toBe("rgb(233, 227, 211)"); // --fp-room, the light is off
 
-  await configure(page, { layout: structuredClone(demo), room_glow: true }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+  await configure(page, { layout: structuredClone(demo), theme: "light", room_glow: true }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
   // --fp-glow mixed 25% into the room's own --fp-room, not read outright (S2.9 Opus review: the old rule read
   // --fp-glow directly and so replaced the room's colour instead of tinting it; fixed for room_glow and the
   // S1.37 "on" tint in the same pass). Chromium serialises a color-mix() computed value as color(srgb ...), not
@@ -154,7 +165,7 @@ test("S2.6 CSS pair: a room's fill is the glow tint only while room_glow is on a
   expect(await livingFill()).toBe("color(srgb 0.92549 0.889216 0.777451)");
 
   // room_glow: false (or absent): the same lit light gives no glow at all, even though the light itself is on.
-  await configure(page, { layout: structuredClone(demo) }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+  await configure(page, { layout: structuredClone(demo), theme: "light" }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
   expect(await livingFill()).toBe("rgb(233, 227, 211)");
 });
 
@@ -176,7 +187,7 @@ test("Opus review CSS pair: S2.9 round 3 an on room's outline paints after the w
   const layout = structuredClone(demo);
   const pond = layout.floors.ground.rooms[6]; // "Garden pond", kind water, boundary walls all round it
   pond.entity = "switch.demo_pump";
-  await configure(page, { layout }, { states: { "switch.demo_pump": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+  await configure(page, { layout, theme: "light" }, { states: { "switch.demo_pump": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
 
   const info = await page.locator("floorplan-studio-card").evaluate(() => {
     const svg = document.getElementById("card")!.shadowRoot!.querySelector("svg")!;

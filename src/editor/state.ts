@@ -1,5 +1,5 @@
-import { DEVICE_TYPES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, unplacedCatalog, validate, viewBoxFor } from "../core";
-import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs } from "../core";
+import { DEVICE_TYPES, THEMES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, unplacedCatalog, validate, viewBoxFor } from "../core";
+import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, Theme } from "../core";
 
 /** localStorage key for the autosaved edit. */
 export const STORAGE_KEY = "floorplan-studio:layout";
@@ -25,12 +25,12 @@ function readMeasure(): boolean {
   try { return localStorage.getItem(MEASURE_KEY) !== "false"; } catch { return true; }
 }
 
-/** localStorage key for the light/dark theme choice (S1.53). A viewer preference, not part of the layout, never an undo step. */
+/** localStorage key for the theme choice (S1.53). A viewer preference, not part of the layout, never an undo step. */
 export const THEME_KEY = "floorplan-studio:theme";
-export const THEME_VALUES = ["auto", "light", "dark"] as const;
-export type ThemeChoice = (typeof THEME_VALUES)[number];
-export const DEFAULT_THEME: ThemeChoice = "auto";
-/** The stored choice, or Auto when there is none, it is not one of the three, or storage is blocked. */
+export const THEME_VALUES = THEMES;
+export type ThemeChoice = Theme;
+export const DEFAULT_THEME: ThemeChoice = "blueprint";
+/** The stored choice, or blueprint when there is none, it is not one of the three (an old "auto" or "dark" lands here), or storage is blocked. */
 function readTheme(): ThemeChoice {
   try {
     const raw = localStorage.getItem(THEME_KEY);
@@ -114,7 +114,7 @@ export class EditorState {
   showLen = true;
   /** Whether the measure grid is drawn. Kept in localStorage, not in the layout, never an undo step. */
   measure: boolean = readMeasure();
-  /** Light, dark or auto (follows the OS/browser). Kept in localStorage, not in the layout, never an undo step. */
+  /** Blueprint (default), light, or ha (Home Assistant's own theme). Kept in localStorage, not in the layout, never an undo step. */
   theme: ThemeChoice = readTheme();
   /** id of the door drawn open in the preview */
   openDoor: string | null = null;

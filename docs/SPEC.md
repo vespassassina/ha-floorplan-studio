@@ -224,7 +224,10 @@ type: custom:floorplan-studio-card
 floor: ground          # or "all" with a floor switcher
 fade: 300              # motion fade, seconds
 room_glow: true
+theme: blueprint         # blueprint (default), light, or ha
 ```
+
+`theme` is blueprint unless the dashboard says otherwise: a dark navy ground with blue linework. `light` is the paper-and-ink set. `ha` inherits the dashboard's own theme: ground from `--card-background-color`, rooms from `--secondary-background-color`, walls and text from `--primary-text-color`, measure marks from `--secondary-text-color`. Each has the plain light or dark set as its fallback, chosen by `hass.themes.darkMode`, so a dashboard that defines none of them still draws. Device and state colours (on, danger, warn, primary) never follow the dashboard: an amber light stays amber. The card ignores the OS colour scheme.
 
 ## Editor
 
@@ -311,24 +314,29 @@ room_glow: true
   On a huge floor the step grows to 100 or 500 cm so no axis needs more than
   400 lines. A chip in the View menu, next to Grid; kept in the browser, not
   in the layout, and never an undo step.
-- Theme (S1.53): every colour in `FLOORPLAN_CSS` is a `--fp-*` custom
-  property. Light values sit on the base selector; a `data-theme="dark"`
-  attribute, on the editor's own host or on one plan's root, switches to dark
-  values (page `#111c2b`, room fill `#1c2a3a`, ink/walls `#e8e6e0`, disc
-  `#1c2a3a`, measure grid `#e8e6e0`); no attribute anywhere follows the
-  browser's `prefers-color-scheme` (Auto). Device colours (motion, heater,
-  light, ...) and the accent buttons (primary, warn, danger) keep the same
-  hex in both themes: each already clears 4.5:1 against the theme-invariant
-  text tokens `--fp-on-dark`/`--fp-on-light` it is paired with, so only the
-  structural neutrals differ per theme. A three-way chip (Auto/Light/Dark) in
-  the View menu, default Auto, kept in the browser under
-  `floorplan-studio:theme`, never in the layout and never an undo step; a
-  blocked store falls back to Auto. The editor's own chrome (menus, panels,
-  buttons) follows the same theme as the plan, and every button keeps its
-  4.5:1 contrast (S1.40) in both. A per-room colour keeps its own hue in
-  either theme; only the room's name ink/outline flips to stay readable. The
-  card will set `theme` from Home Assistant itself in Sprint 2 (S2.1) and
-  never hard-code it.
+- Theme (S1.53, reworked S2.12): every colour in `FLOORPLAN_CSS` is a `--fp-*`
+  custom property. Three themes. **Blueprint**, the default and the base
+  selector: ground `#0d1522`, room fill `#14213a`, walls `#8fb4f0`, ink
+  `#d8e2f2`. **Light**: ground `#f4f0e6`, room fill `#e9e3d3`, walls
+  `#2b2a27`. **Home Assistant**: the neutrals are `var(--card-background-color)`,
+  `var(--secondary-background-color)`, `var(--primary-text-color)` and
+  `var(--secondary-text-color)`, each with the plain light or dark set as its
+  fallback (dark when `data-mode="dark"`). A `data-theme` attribute, on the
+  editor's own host or on one plan's root, picks one; none means blueprint. The
+  OS colour scheme is not read by the card or the plan. The standalone editor
+  page has a blueprint ground; the editor's `ha` theme follows the host's
+  `haDark` property when the panel sets it, the OS when it does not. Device
+  colours and the accent buttons (primary, warn, danger) keep the same hex in
+  every theme: each already clears 4.5:1 against the theme-invariant text
+  tokens `--fp-on-dark`/`--fp-on-light` it is paired with (orange was tried for
+  primary and failed 4.5:1 with white text). A three-way chip (Blueprint /
+  Light / Home Assistant) in the View menu, default Blueprint, kept in the
+  browser under `floorplan-studio:theme`, never in the layout and never an undo
+  step; a blocked store, an unknown value, or an old `auto` or `dark` falls back
+  to Blueprint. The editor's own chrome follows the same theme as the plan, and
+  every button keeps its 4.5:1 contrast (S1.40) in all three. A per-room colour
+  keeps its own hue in every theme; only the room's name ink/outline flips to
+  stay readable. The card takes `theme` from its config.
 - Undo/redo, autosave in the browser, Open/Save file, Reset to stored layout.
 - In HA: Load and Save go through the integration. Standalone: file only.
 

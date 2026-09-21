@@ -11,9 +11,14 @@ export interface RenderOpts {
   rotate?: { deg: number; pivot: Pt };
   /** `layout.colors`: a colour per device type, set as `--fp-dev-<type>` on a group round the drawing. */
   colors?: Layout["colors"];
-  /** S1.53: forces this plan to light or dark regardless of the host's own theme; omitted follows the host (Auto). Nothing else in core reads it. */
-  theme?: "light" | "dark";
+  /** Names this plan's theme, regardless of its host's; omitted inherits the host's, and with no host theme at all the plan is blueprint. Nothing else in core reads it. */
+  theme?: Theme;
+  /** With `theme: "ha"`: true when Home Assistant itself is in dark mode, so the tokens HA's CSS variables do not cover (device colours, glow, the on-room stroke) are the dark ones. */
+  dark?: boolean;
 }
+/** blueprint is the default and the look of the project; light is the same plan on paper; ha takes its neutrals straight from Home Assistant's own CSS variables. */
+export const THEMES = ["blueprint", "light", "ha"] as const;
+export type Theme = (typeof THEMES)[number];
 
 /** The colour each device type has when `layout.colors` says nothing: the `--fp-dev-*` defaults below; types with none of their own use the idle grey. */
 export const DEVICE_COLOURS: Record<DeviceType, string> = {
@@ -22,9 +27,8 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
   cover: "#f28c28", other: "#8b8578",
 };
 
-// S1.53: the light and dark token sets, each written once and interpolated wherever CSS needs it, so a new
-// token can never be added to one selector and forgotten in another (Opus review: the dark block used to be
-// duplicated verbatim between the explicit selector and the prefers-color-scheme query, 47 tokens byte-identical).
+// S1.53: the light and dark (now blueprint) token sets, each written once and interpolated wherever CSS needs it, so a new
+// token can never be added to one selector and forgotten in another. The "ha" theme is built from the same two.
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
 --fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.75;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;
@@ -38,21 +42,28 @@ const DARK_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp-gar
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
 --fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.75;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;
 --fp-on-dark:#fff;--fp-on-light:#2b2a27`;
+/* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
+   fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
+   nothing. Not mapped, on purpose: primary, danger, warn. HA's error and warning colours fail 4.5:1 against the fixed white or dark text on our
+   buttons in some themes, and the device colours carry meaning that must not move with a theme. */
+const haTokens = (base: string, fb: Record<string, string>) => `${base};
+--fp-ink:var(--primary-text-color,${fb.ink});--fp-text:var(--primary-text-color,${fb.text});--fp-bg:var(--card-background-color,${fb.bg});--fp-room:var(--secondary-background-color,${fb.room});--fp-wall:var(--primary-text-color,${fb.wall});--fp-wall-external:var(--primary-text-color,${fb.wallExternal});--fp-outline:var(--card-background-color,${fb.outline});--fp-disc:var(--card-background-color,${fb.disc});--fp-measure:var(--secondary-text-color,${fb.measure})`;
+const HA_LIGHT = haTokens(LIGHT_TOKENS, { ink: "#2b2a27", text: "#3a3a3a", bg: "#f4f0e6", room: "#e9e3d3", wall: "#2b2a27", wallExternal: "#1a1917", outline: "#fff", disc: "#fff", measure: "#3a3a3a" });
+const HA_DARK = haTokens(DARK_TOKENS, { ink: "#d8e2f2", text: "#d8e2f2", bg: "#0d1522", room: "#14213a", wall: "#8fb4f0", wallExternal: "#b4cdf7", outline: "#0d1522", disc: "#14213a", measure: "#8fb4f0" });
+
 
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
 export const FLOORPLAN_CSS = `
-:host,.fp{${LIGHT_TOKENS}}
-/* S1.53: a nested plan can carry data-theme on its own root (renderFloor's theme option), independent of the
-   host's. [data-theme="light"] beside the dark block below: without it a plan marked light inside a host under
-   OS or explicit dark inherits the dark custom properties from its ancestor (the base :host,.fp rule above
-   only matches the host itself, never a descendant), and light-in-dark silently stays dark. */
-[data-theme="light"]{${LIGHT_TOKENS}}
-/* Explicit choice (data-theme, set on the host or on one plan's own root) wins outright; Auto (no attribute
-   anywhere) follows the OS/browser preference below. :host([data-theme="dark"]) is a whole-editor override
-   (cascades through the shadow tree to chrome and plan together); the plain [data-theme="dark"] (no :host())
-   is the nested override, so one plan can be dark while its host is not. */
-:host([data-theme="dark"]),[data-theme="dark"]{${DARK_TOKENS}}
-@media (prefers-color-scheme:dark){:host(:not([data-theme="light"]):not([data-theme="dark"])),.fp:not([data-theme="light"]):not([data-theme="dark"]){${DARK_TOKENS}}}
+:host,.fp{${DARK_TOKENS}}
+/* Blueprint is the default: with no data-theme anywhere the plan is blueprint, whatever the OS or Home Assistant is doing (Diego's call, 2026-09-21;
+   this replaces the old Auto, which followed prefers-color-scheme). A theme is named by data-theme, on the host (:host([data-theme])) or on one
+   plan's own root (renderFloor's theme option, a <g data-theme>). Each rule has three selectors: the host itself, the .fp svg inside it (which the
+   base rule above sets directly, so it would not inherit the host's tokens otherwise), and a nested element. Same specificity within a theme; the
+   ha+dark rule is one attribute more, so it wins over plain ha. */
+:host([data-theme="blueprint"]),:host([data-theme="blueprint"]) .fp,[data-theme="blueprint"]{${DARK_TOKENS}}
+:host([data-theme="light"]),:host([data-theme="light"]) .fp,[data-theme="light"]{${LIGHT_TOKENS}}
+:host([data-theme="ha"]),:host([data-theme="ha"]) .fp,[data-theme="ha"]{${HA_LIGHT}}
+:host([data-theme="ha"][data-mode="dark"]),:host([data-theme="ha"][data-mode="dark"]) .fp,[data-theme="ha"][data-mode="dark"]{${HA_DARK}}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
    Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
    or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,
@@ -438,6 +449,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // Custom properties inherit, so one style on a group reaches every device. Only known types and strict #rrggbb go in: the value ends up in an attribute.
   const vars = Object.entries(o.colors ?? {}).filter(([t, v]) => (DEVICE_TYPES as readonly string[]).includes(t) && typeof v === "string" && COLOR.test(v)).map(([t, v]) => `--fp-dev-${t}:${v}`);
   const coloured = vars.length ? `<g class="dev-colours" style="${vars.join(";")}">${turned}</g>` : turned;
-  // S1.53: a plan-level theme override, so one plan can be dark while its host is not. Auto (no o.theme) writes nothing and just inherits.
-  return o.theme ? `<g data-theme="${o.theme}">${coloured}</g>` : coloured;
+  // A plan-level theme, so one plan can differ from its host. No o.theme writes nothing and inherits the host's. o.theme is checked against THEMES:
+  // it lands in an attribute, and a caller's stray string must not.
+  if (!o.theme || !(THEMES as readonly string[]).includes(o.theme)) return coloured;
+  return `<g data-theme="${o.theme}"${o.theme === "ha" && o.dark ? ' data-mode="dark"' : ""}>${coloured}</g>`;
 }

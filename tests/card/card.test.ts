@@ -196,16 +196,21 @@ describe("FloorplanStudioCard", () => {
     expect(el.shadowRoot!.querySelector("svg")).not.toBeNull();
   });
 
-  it("sets the plan's theme from hass.themes.darkMode, dark when the dashboard is dark", async () => {
+  it("draws blueprint by default, whatever hass.themes.darkMode says, and takes light or ha from the config", async () => {
     const el = await mount();
     el.setConfig({ layout: structuredClone(L) });
-    el.hass = stubHass({}, true) as never;
-    await el.updateComplete;
-    expect(el.shadowRoot!.querySelector("svg")!.innerHTML).toContain('data-theme="dark"');
-
-    el.hass = stubHass({}, false) as never;
+    for (const dark of [true, false]) {
+      el.hass = stubHass({}, dark) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector("svg")!.innerHTML).toContain('data-theme="blueprint"');
+    }
+    el.setConfig({ layout: structuredClone(L), theme: "light" });
     await el.updateComplete;
     expect(el.shadowRoot!.querySelector("svg")!.innerHTML).toContain('data-theme="light"');
+    el.setConfig({ layout: structuredClone(L), theme: "ha" });
+    el.hass = stubHass({}, true) as never;
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector("svg")!.innerHTML).toContain('data-theme="ha" data-mode="dark"');
   });
 
   it("passes layout.rotate through to renderFloor and viewBoxFor", async () => {
@@ -923,20 +928,26 @@ describe("FloorplanStudioCard", () => {
     expect(sizeAt90).not.toBe(sizeAt0);
   });
 
-  it("sets data-theme on the host itself, matching the theme passed into renderFloor, and clears it when hass.themes is absent (Opus review)", async () => {
+  it("sets data-theme on the host itself, matching the plan; an unknown theme falls back to blueprint; data-mode is for ha in dark only (Opus review)", async () => {
     const el = await mount();
     el.setConfig({ layout: structuredClone(L) });
     el.hass = stubHass({}, true) as never;
     await el.updateComplete;
-    expect(el.getAttribute("data-theme")).toBe("dark");
+    expect(el.getAttribute("data-theme")).toBe("blueprint");
+    expect(el.hasAttribute("data-mode")).toBe(false);
 
+    el.setConfig({ layout: structuredClone(L), theme: "ha" });
+    await el.updateComplete;
+    expect(el.getAttribute("data-theme")).toBe("ha");
+    expect(el.getAttribute("data-mode")).toBe("dark");
     el.hass = stubHass({}, false) as never;
     await el.updateComplete;
-    expect(el.getAttribute("data-theme")).toBe("light");
+    expect(el.hasAttribute("data-mode")).toBe(false);
 
-    el.hass = { states: {} } as never; // no themes field at all: never hard-coded, so no attribute
+    el.setConfig({ layout: structuredClone(L), theme: "neon" as never });
+    el.hass = { states: {} } as never; // no themes field at all
     await el.updateComplete;
-    expect(el.hasAttribute("data-theme")).toBe(false);
+    expect(el.getAttribute("data-theme")).toBe("blueprint");
   });
 
   it("the message colour has no hard-coded hex fallback outside FLOORPLAN_CSS (Opus review, CLAUDE.md finding 9)", () => {

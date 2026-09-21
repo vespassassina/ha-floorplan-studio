@@ -95,9 +95,13 @@ function hitOf(el: Element | null): Hit {
   return { k: "bg" };
 }
 
+/** What each theme is called on its chip. `ha` says what it does rather than what it is. */
+const THEME_LABELS: Record<(typeof THEME_VALUES)[number], string> = { blueprint: "Blueprint", light: "Light", ha: "Home Assistant" };
+
 export class FloorplanStudioEditor extends LitElement {
   static properties = {
     floor: { type: String },
+    haDark: { attribute: false },
     seed: { attribute: false },
     errors: { state: true },
     status: { state: true },
@@ -105,6 +109,8 @@ export class FloorplanStudioEditor extends LitElement {
     devQuery: { state: true },
   };
   declare floor: string;
+  /** Home Assistant's dark mode, set by the panel host from `hass.themes.darkMode`. Read only by the `ha` theme; undefined (standalone) follows the OS instead. */
+  declare haDark: boolean | undefined;
   declare seed: Layout | undefined;
   declare errors: string[];
   declare status: string;
@@ -230,12 +236,19 @@ export class FloorplanStudioEditor extends LitElement {
     this.ro?.disconnect();
   }
 
+  /** Whether the `ha` theme should use the dark set: the host's word when it gave one, the OS's otherwise. */
+  private isDark(): boolean {
+    if (this.haDark !== undefined) return this.haDark;
+    try { return matchMedia("(prefers-color-scheme: dark)").matches; } catch { return false; }
+  }
+
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has("floor") && this.floor && this.floor !== this.st.floor && hasOwn(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
-    // S1.53: Auto removes the attribute so the CSS prefers-color-scheme block decides; Light/Dark override it explicitly.
-    // Reflected on the host itself, not just the svg, so the editor's own chrome (menus, panels, buttons) themes with the plan.
-    if (this.st.theme === "auto") this.removeAttribute("data-theme");
-    else this.setAttribute("data-theme", this.st.theme);
+    // Always named, never left to inherit: blueprint unless the viewer chose otherwise. Reflected on the host itself, not just the svg,
+    // so the editor's own chrome (menus, panels, buttons) themes with the plan. data-mode is for the ha theme only.
+    this.setAttribute("data-theme", this.st.theme);
+    if (this.st.theme === "ha" && this.isDark()) this.setAttribute("data-mode", "dark");
+    else this.removeAttribute("data-mode");
   }
 
   protected firstUpdated() {
@@ -982,8 +995,7 @@ export class FloorplanStudioEditor extends LitElement {
     const overlay = this.overlay(k), grid = this.measureGrid(k);
     const turnG = (svg: string) => (rot ? `<g class="plan-turn" transform="rotate(${num(rot.deg)} ${num(rot.pivot[0])} ${num(rot.pivot[1])})">${svg}</g>` : svg);
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const theme = st.theme === "auto" ? undefined : st.theme;
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, rotate: rot, colors: st.layout.colors, theme }) + turnG(overlay);
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark() }) + turnG(overlay);
     const counts: Record<string, number> = {};
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const unplaced = st.unplaced(), q = this.devQuery.trim().toLowerCase();
@@ -1036,7 +1048,7 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="chip" id="mgrid" aria-pressed=${pressed(st.measure)} title="A faint 50 cm grid with metre markers, behind the plan" @click=${() => { st.setMeasure(!st.measure); this.requestUpdate(); }}>Measure grid</button>
           <button class="chip" id="lens" aria-pressed=${pressed(st.showLen)} @click=${() => { st.showLen = !st.showLen; this.requestUpdate(); }}>Lengths</button>
           <div class="rotrow" id="th" role="group" aria-label="Theme"><span>Theme</span>
-            ${THEME_VALUES.map((t) => html`<button class="chip keep" data-th=${t} aria-pressed=${pressed(st.theme === t)} @click=${() => { st.setTheme(t); this.requestUpdate(); }}>${t[0].toUpperCase()}${t.slice(1)}</button>`)}</div>
+            ${THEME_VALUES.map((t) => html`<button class="chip keep" data-th=${t} aria-pressed=${pressed(st.theme === t)} @click=${() => { st.setTheme(t); this.requestUpdate(); }}>${THEME_LABELS[t]}</button>`)}</div>
           <button class="btn" id="recenter" @click=${() => { st.recenter(); this.requestUpdate(); }}>Re-center</button>
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
           <details id="devcols"><summary class="btn">Device colours</summary>

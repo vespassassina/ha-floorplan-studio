@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-21 Themes: blueprint default, light, and Home Assistant's own; Auto is gone
+
+Diego's call. Supersedes the Auto/Light/Dark choice of S1.53 and the
+"follow hass.themes.darkMode" rule of S2.1. Blueprint is the default everywhere.
+`light` stays. `ha` inherits the dashboard's variables for neutrals only, with the
+plain light or dark set as fallback. Assumptions, stated to Diego: blueprint
+replaces the old dark; nothing follows the OS scheme any more, because a default
+that changes with the viewer's OS is not a default; primary, danger, warn and the
+device colours do not follow the dashboard, because HA's primary colour with white
+text can fail 4.5:1 and a light must stay amber. Cost: the dashboard's dark mode no
+longer darkens the card by itself. Set `theme: ha`.
+
 ## 2026-09-21 The agent path is a skill and a schema, pulled forward; dark theme becomes blueprint
 
 Diego's call. Most people will never type a layout: it comes from an architect's

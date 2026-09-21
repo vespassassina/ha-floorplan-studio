@@ -761,6 +761,13 @@ pressed state.
 - Checked: two consecutive runs with no change report `identical to baseline`, so any difference is real. The baseline is gitignored: PNGs differ between machines.
 - Not covered: it looks at the demo layout only, in the states listed. It says nothing about a state it does not draw.
 
+### S2.12 Themes: blueprint by default, or inherit Home Assistant (done, 2026-09-21)
+- Outcome: the card has `theme: blueprint | light | ha` (default blueprint). The editor's View menu has the same three chips. `ha` draws the plan in the dashboard's own colours.
+- Why: Diego wanted the blueprint look as the default and a way to just follow HA. This replaces S1.53's Auto/Light/Dark and S2.1's darkMode-only choice.
+- Files: `src/core/render.ts` (`THEMES`, `haTokens`, theme CSS blocks), `src/card/floorplan-studio-card.ts`, `src/editor/state.ts`, `src/editor/editor-app.ts` (`haDark`), `src/editor/standalone.html`, `scripts/shots.mjs` (blueprint, light, ha-light, ha-dark).
+- Checked: computed-style tests for each theme in Chromium, with and without HA variables; unit tests for the token blocks; `npm run shots` looked at (27 images).
+- Not covered: a real HA dashboard. The stand-in HA variables in the shots are typical values, not read from a running instance. The editor's picker default for a device colour is the light palette, so on blueprint a camera swatch (#4a4a48) differs from what the plan draws (#8a8a86).
+
 ## Sprint 3 — integration, panel, release (E4)
 
 ### S3.0 Dev environment: a real Home Assistant to test against

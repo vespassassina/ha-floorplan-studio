@@ -1,6 +1,7 @@
 import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { FLOORPLAN_CSS, migrate, planPivot, renderFloor, validate, viewBoxFor } from "../core";
+import { FLOORPLAN_CSS, THEMES, migrate, planPivot, renderFloor, validate, viewBoxFor } from "../core";
+import type { Theme } from "../core";
 import type { Door, Floor, Layout } from "../core";
 import { bindDeviceActions } from "./actions";
 
@@ -22,6 +23,8 @@ export interface FloorplanStudioCardConfig {
   room_glow?: boolean;
   layout?: Layout;
   layout_url?: string;
+  /** `blueprint` (default), `light`, or `ha` to take the neutrals from Home Assistant's own theme variables. */
+  theme?: Theme;
 }
 
 declare global {
@@ -220,10 +223,15 @@ export class FloorplanStudioCard extends LitElement {
     return { deg: this._layout.rotate, pivot: planPivot(this._layout) };
   }
 
-  /** Dark when the Home Assistant dashboard is dark, light when it is explicitly not; undefined (never hard-coded) with no `hass.themes` at all. */
-  private _theme(): "light" | "dark" | undefined {
-    if (!this._hass?.themes) return undefined;
-    return this._hass.themes.darkMode ? "dark" : "light";
+  /** The configured theme, blueprint when there is none or it is not one of the three. The OS and Home Assistant's dark mode no longer pick it: only `theme: ha` follows Home Assistant. */
+  private _theme(): Theme {
+    const t = this._config.theme;
+    return t && (THEMES as readonly string[]).includes(t) ? t : "blueprint";
+  }
+
+  /** Home Assistant's dark mode, used only by `theme: ha` to choose the dark set for what its CSS variables do not cover. */
+  private _haDark(): boolean {
+    return this._hass?.themes?.darkMode === true;
   }
 
   /** The floor key `_floor()` shows right now: `config.floor` when it names a real floor, `_shownFloor` (defaulting
@@ -295,15 +303,16 @@ export class FloorplanStudioCard extends LitElement {
 
   /**
    * The host's own chrome (this `p.msg`, anything outside the `<svg>`) is styled by `FLOORPLAN_CSS`'s `:host` rules,
-   * which read `data-theme` off the host element itself, not off `renderFloor`'s output. Without this the chrome
-   * would follow the OS's `prefers-color-scheme` instead of Home Assistant's own theme (Opus review). Kept in sync
-   * with the same value passed into `renderFloor`, and cleared, never hard-coded, when there is no `hass.themes`.
+   * which read `data-theme` off the host element itself, not off `renderFloor`'s output. Kept in sync with the
+   * value passed into `renderFloor`, and always set: blueprint unless the config says otherwise. `data-mode` says
+   * whether Home Assistant is dark, for `theme: ha` only.
    */
   protected updated(changed: PropertyValues): void {
     super.updated(changed);
     const t = this._theme();
-    if (t) this.setAttribute("data-theme", t);
-    else this.removeAttribute("data-theme");
+    this.setAttribute("data-theme", t);
+    if (t === "ha" && this._haDark()) this.setAttribute("data-mode", "dark");
+    else this.removeAttribute("data-mode");
 
     const svg = this.shadowRoot?.querySelector("svg") ?? null;
     if (svg !== this._actionsSvg) {
@@ -409,6 +418,7 @@ export class FloorplanStudioCard extends LitElement {
       fade: this._config.fade,
       roomGlow: this._config.room_glow,
       theme: this._theme(),
+      dark: this._haDark(),
       rotate,
     });
     return html`${this._floorChips()}<svg viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._coverDialogTemplate()}`;

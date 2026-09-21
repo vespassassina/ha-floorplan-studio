@@ -635,42 +635,43 @@ describe("the measure grid preference (S1.50)", () => {
   });
 });
 
-describe("the theme choice (S1.53)", () => {
+describe("the theme choice (S2.12)", () => {
   beforeEach(() => localStorage.clear());
-  it("is auto by default and not part of the layout", () => {
+  it("is blueprint by default and not part of the layout", () => {
     const st = new EditorState(fresh());
-    expect(st.theme).toBe("auto");
-    st.setTheme("dark");
+    expect(st.theme).toBe("blueprint");
+    st.setTheme("light");
     expect(JSON.stringify(st.layout)).not.toContain("theme");
   });
-  it.each(["auto", "light", "dark"] as const)("keeps %s under its own key and the next state reads it", (t) => {
+  it.each(["blueprint", "light", "ha"] as const)("keeps %s under its own key and the next state reads it", (t) => {
     new EditorState(fresh()).setTheme(t);
     expect(localStorage.getItem(THEME_KEY)).toBe(t);
     expect(new EditorState(fresh()).theme).toBe(t);
   });
-  it.each(["", "x", "null", "Dark", "system"])("a stored %j falls back to auto", (v) => {
+  it.each(["", "x", "null", "Dark", "system", "auto", "dark"])("a stored %j (unknown, or a retired choice) falls back to blueprint", (v) => {
     localStorage.setItem(THEME_KEY, v);
-    expect(new EditorState(fresh()).theme).toBe("auto");
+    expect(new EditorState(fresh()).theme).toBe("blueprint");
   });
   it("setTheme refuses a value that is not one of the three", () => {
     const st = new EditorState(fresh());
-    st.setTheme("Dark" as never);
-    expect(st.theme).toBe("auto");
+    st.setTheme("Light" as never);
+    expect(st.theme).toBe("blueprint");
   });
   it("toggling it is not an undo step", () => {
     const st = new EditorState(fresh());
-    st.setTheme("dark");
+    st.setTheme("light");
     expect(st.canUndo).toBe(false);
   });
-  it("a blocked storage falls back to auto: the in-memory choice still changes, only the write is lost", () => {
+  it("a blocked storage falls back to blueprint: the in-memory choice still changes, only the write is lost", () => {
     const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
     const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
     const st = new EditorState(fresh());
-    expect(st.theme).toBe("auto");
-    st.setTheme("dark");
-    expect(st.theme).toBe("dark");
+    expect(st.theme).toBe("blueprint");
+    st.setTheme("light");
+    expect(st.theme).toBe("light");
     get.mockRestore(); set.mockRestore();
   });
+
 });
 
 describe("device colours (S1.36)", () => {
