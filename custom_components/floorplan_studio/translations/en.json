@@ -1,5 +1,11 @@
 {
   "config": {
+    "step": {
+      "user": {
+        "title": "Floorplan Studio",
+        "description": "Adds the floor plan editor to the sidebar. Nothing to configure."
+      }
+    },
     "abort": {
       "single_instance_allowed": "Floorplan Studio is already set up."
     }
