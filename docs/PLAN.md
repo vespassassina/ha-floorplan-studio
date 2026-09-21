@@ -827,6 +827,9 @@ Honest limits: the builder ran this pass, not a separate session; the table show
 - Done when: the manual check is recorded with a screenshot in the PR; Playwright test present and skipping cleanly without env.
 - Break it: a non-admin user does not see the sidebar entry.
 
+### S3.2b Load demo and blank Reset (done 2026-09-21, from Diego's first look at the panel)
+- File, Load demo (blank plan only) and File, Reset to blank; fresh-install error fixed. See DECISIONS. Live check on Diego's HA is the next proof.
+
 ### S3.3 Pickers from hass
 - Outcome: rooms pick an area, devices pick an entity, from HA data, grouped.
 - Files: `src/editor/hass-pickers.ts`, `src/editor/panel.ts`, `tests/editor/pickers.test.ts`.

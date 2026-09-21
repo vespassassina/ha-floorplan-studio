@@ -117,7 +117,7 @@ test("File, Save downloads a file that validates", async ({ page }) => {
   expect(res.ok).toBe(true);
 });
 
-test("a reload restores the edit from localStorage and Reset returns to the demo", async ({ page }) => {
+test("a reload restores the edit from localStorage and Reset starts from scratch", async ({ page }) => {
   await drag(page, 'circle[data-h="r0:1"]', 0, 50);
   const edited = await groundOf(page);
   await page.reload();
@@ -126,7 +126,49 @@ test("a reload restores the edit from localStorage and Reset returns to the demo
   page.once("dialog", (d) => d.accept());
   await menu(page, "File");
   await page.locator("#reset").click();
+  const after = await layoutOf(page);
+  expect(Object.values(after.floors).every((f) => f.rooms.length === 0 && f.devices.length === 0 && f.outline.length === 0)).toBe(true);
+});
+
+test("Undo brings back what Reset erased", async ({ page }) => {
+  const before = await layoutOf(page);
+  page.once("dialog", (d) => d.accept());
+  await menu(page, "File");
+  await page.locator("#reset").click();
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect(await layoutOf(page)).toEqual(before);
+});
+
+test("Load demo is off while the plan has content, and says why", async ({ page }) => {
+  await menu(page, "File");
+  await expect(page.locator("#loaddemo")).toBeDisabled();
+  await expect(page.locator("#loaddemo")).toHaveAttribute("title", /Reset first/);
+});
+
+test("after Reset, Load demo loads the demo without asking, and is off again", async ({ page }) => {
+  page.once("dialog", (d) => d.accept());
+  await menu(page, "File");
+  await page.locator("#reset").click();
+  await menu(page, "File");
+  await expect(page.locator("#loaddemo")).toBeEnabled();
+  let asked = false;
+  page.once("dialog", (d) => { asked = true; void d.dismiss(); });
+  await page.locator("#loaddemo").click();
+  expect(asked).toBe(false);
   expect(await layoutOf(page)).toEqual(demo);
+  await menu(page, "File");
+  await expect(page.locator("#loaddemo")).toBeDisabled();
+});
+
+test("break it: Reset cancelled keeps the plan and Load demo stays off", async ({ page }) => {
+  const before = await layoutOf(page);
+  page.once("dialog", (d) => d.dismiss());
+  await menu(page, "File");
+  await page.locator("#reset").click();
+  expect(await layoutOf(page)).toEqual(before);
+  await menu(page, "File");
+  await expect(page.locator("#loaddemo")).toBeDisabled();
 });
 
 test("undo reverts the last drag", async ({ page }) => {

@@ -4,7 +4,7 @@ import v1 from "../../demo/layout.v1.json";
 import type { Layout, WallKind } from "../../src/core/schema";
 import { movePointAll, setSecondEnd, stairsAt } from "../../src/editor/ops";
 import { contentPoints, rotateAbout } from "../../src/core";
-import { EditorState, GRID_KEY, MEASURE_KEY, STORAGE_KEY, THEME_KEY, loadLayout, newId, restoreLayout } from "../../src/editor/state";
+import { EditorState, GRID_KEY, MEASURE_KEY, STORAGE_KEY, THEME_KEY, emptyLayout, isBlank, loadLayout, newId, restoreLayout } from "../../src/editor/state";
 
 const fresh = () => structuredClone(demo) as unknown as Layout;
 
@@ -743,5 +743,23 @@ describe("recenter (S1.49)", () => {
     const st = new EditorState(l);
     expect(() => st.recenter()).not.toThrow();
     expect(st.view.w).toBeGreaterThan(0); expect(st.view.h).toBeGreaterThan(0);
+  });
+});
+
+// Load demo may only run when there is nothing to overwrite; isBlank is that question.
+describe("isBlank", () => {
+  const demoLayout = fresh();
+  it("an empty layout is blank, and so is one with an extra empty floor or a catalog", () => {
+    const l = emptyLayout();
+    expect(isBlank(l)).toBe(true);
+    l.floors.first = { ...emptyLayout().floors.ground, title: "First" };
+    l.catalog = [{ id: "x", type: "light", entity: "light.x", name: "X" } as never];
+    expect(isBlank(l)).toBe(true);
+  });
+  it("the demo is not blank", () => expect(isBlank(demoLayout)).toBe(false));
+  it.each(["outline", "rooms", "walls", "stairs", "doors", "openings", "extras", "devices", "furniture"] as const)("one %s is enough to not be blank", (k) => {
+    const l = emptyLayout();
+    (l.floors.ground[k] as unknown[]).push(k === "outline" ? [0, 0] : {});
+    expect(isBlank(l)).toBe(false);
   });
 });

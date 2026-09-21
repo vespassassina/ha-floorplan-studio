@@ -340,7 +340,7 @@ theme: blueprint         # blueprint (default), light, or ha
   every button keeps its 4.5:1 contrast (S1.40) in all three. A per-room colour
   keeps its own hue in every theme; only the room's name ink/outline flips to
   stay readable. The card takes `theme` from its config.
-- Undo/redo, autosave in the browser, Open/Save file, Reset to stored layout.
+- Undo/redo, autosave in the browser, Open/Save file. File, Reset erases the plan to a blank one (asks first, one undo step; in HA nothing stored changes until Save). File, Load demo puts the demo home in, only while nothing is drawn, so it never asks and never overwrites; it is greyed out otherwise with the reason. A blank plan is not a valid layout (an outline needs 3 points), so it cannot be saved until something is drawn, and a panel with nothing stored opens on the editor's own blank start.
 - In HA: Load and Save go through the integration. Standalone: file only.
 
 ## Organise (panel only)

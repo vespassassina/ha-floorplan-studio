@@ -80,8 +80,8 @@ test("autosave key and Reset work under file://", async ({ page }) => {
   page.once("dialog", (d) => d.accept());
   await page.locator("details.menu > summary", { hasText: "File" }).click();
   await page.locator("#reset").click();
-  const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
-  expect(await layoutOf(page)).toEqual(demo);
+  const after = await layoutOf(page);
+  expect(Object.values(after.floors).every((f: any) => f.rooms.length === 0 && f.devices.length === 0)).toBe(true);
 });
 
 test("break it: offline still loads", async ({ browser }) => {

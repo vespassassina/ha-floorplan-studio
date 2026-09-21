@@ -34,6 +34,7 @@ describe("<floorplan-studio-panel>", () => {
   it("with nothing saved yet, the editor opens on an empty layout and no error", async () => {
     const el = await mount(stubHass(() => ({ layout: null })));
     expect(el.shadowRoot!.textContent).not.toMatch(/could not|error/i);
+    expect((editorOf(el) as unknown as { errors: string[] }).errors).toEqual([]); // the editor's own refusal list, not just the panel's text
     expect(editorOf(el)!.layout.version).toBe(2);
     expect(Object.keys(editorOf(el)!.layout.floors).length).toBeGreaterThan(0);
   });
@@ -68,6 +69,11 @@ describe("<floorplan-studio-panel>", () => {
     (el.shadowRoot!.querySelector("button") as HTMLButtonElement).click();
     await settle(el);
     expect(editorOf(el)).not.toBeNull();
+  });
+
+  it("the editor is given the demo home, so File, Load demo works on an empty plan", async () => {
+    const el = await mount(stubHass(() => ({ layout: null })));
+    expect(editorOf(el)!.demo?.floors.ground.rooms.length).toBe(L.floors.ground.rooms.length);
   });
 
   it("the editor follows Home Assistant's dark mode", async () => {
