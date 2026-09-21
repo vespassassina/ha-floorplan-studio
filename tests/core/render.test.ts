@@ -876,8 +876,9 @@ describe("S2.9: a device wears its colour when it is on", () => {
 // from a deliberate grey — the S2.9 verifier found media, cover and other sitting there while SPEC promised media
 // an accent. This test makes every member of DEVICE_TYPES a decision someone had to write down.
 describe("S2.9: every device type has a decided active colour", () => {
-  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "ac"]; // ac until S2.10 gives it cool/heat
+  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera"];
   it.each(DEVICE_TYPES)("%s either names its own --fp-dev or is idle on purpose", (t) => {
+    if (t === "ac") return; // ac has two: .dev-ac.cool.on and .dev-ac.heat.on, tested below
     const rule = new RegExp(`\\.dev-${t}\\.on\\{--fp-dev:var\\((--fp-[a-z-]+)\\)\\}`);
     const m = FLOORPLAN_CSS.match(rule);
     if (IDLE_ON_PURPOSE.includes(t)) return; // the catch-all .dev.on{--fp-dev:var(--fp-idle)} covers these
@@ -1200,5 +1201,32 @@ describe("S1.47: an edge of kind none", () => {
     const b = renderFloor(withNone(), { ...base, editor: true });
     expect(b).toContain('<line class="e none" data-e="r0:1"');
     expect(FLOORPLAN_CSS).toMatch(/\.e\.none\{[^}]*stroke-dasharray/);
+  });
+});
+
+describe("an air conditioner shows what it is doing (S2.10)", () => {
+  const ac = { id: "ac1", type: "ac", entity: "climate.ac", x: 100, y: 100 };
+  const fl = { ...ground, devices: [ac] } as never;
+  const draw = (state: string, attributes: Record<string, unknown> = {}) =>
+    renderFloor(fl, { ...base, state: { "climate.ac": { state, attributes, last_changed: "2026-01-01T00:00:00Z" } } as never });
+  const cls = (svg: string) => svg.match(/class="(dev dev-ac[^"]*)"/)?.[1];
+  it.each([
+    ["cooling", "cool", "dev dev-ac cool on"], ["heating", "heat", "dev dev-ac heat on"],
+  ])("hvac_action %s draws %s", (a, state, want) => { expect(cls(draw(state, { hvac_action: a }))).toBe(want); });
+  it("hvac_action idle is grey even when the mode is cool", () => { expect(cls(draw("cool", { hvac_action: "idle" }))).toBe("dev dev-ac off"); });
+  it("with no hvac_action, state cool is blue, heat is orange, fan_only and dry are grey", () => {
+    expect(cls(draw("cool"))).toBe("dev dev-ac cool on");
+    expect(cls(draw("heat"))).toBe("dev dev-ac heat on");
+    expect(cls(draw("fan_only"))).toBe("dev dev-ac off");
+    expect(cls(draw("dry"))).toBe("dev dev-ac off");
+  });
+  it("break it: off wins over a stale hvac_action of cooling", () => { expect(cls(draw("off", { hvac_action: "cooling" }))).toBe("dev dev-ac off"); });
+  it("unavailable is unavailable, and a missing entity draws grey without throwing", () => {
+    expect(cls(draw("unavailable", { hvac_action: "cooling" }))).toBe("dev dev-ac unavailable");
+    expect(cls(renderFloor(fl, { ...base, state: {} as never }))).toBe("dev dev-ac off");
+  });
+  it("the two colour rules exist and name real tokens", () => {
+    expect(FLOORPLAN_CSS).toContain(".dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)}");
+    expect(FLOORPLAN_CSS).toContain(".dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)}");
   });
 });

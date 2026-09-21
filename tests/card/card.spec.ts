@@ -338,3 +338,21 @@ test("S2.6: floor chips are real, keyboard-reachable buttons outside the <svg>, 
   await page.keyboard.press("Enter");
   await expect(chips.nth(1)).toHaveAttribute("aria-pressed", "true");
 });
+
+// S2.10 CSS pair: the class names are asserted in render.test.ts; this reads the icon's computed fill in Chromium,
+// because `.dev-ac.cool.on` has to outrank the catch-all `.dev.on` (CLAUDE.md finding 10).
+test("S2.10 CSS pair: an air conditioner's icon is blue cooling, orange heating, idle grey otherwise", async ({ page }) => {
+  await open(page);
+  const layout = structuredClone(demo);
+  layout.floors.ground.devices.push({ id: "ac-test", type: "ac", entity: "climate.demo_ac", x: 300, y: 300 });
+  const idx = layout.floors.ground.devices.length - 1;
+  const fillFor = async (state: string, attributes: Record<string, unknown>) => {
+    await configure(page, { layout, theme: "light" }, { states: { "climate.demo_ac": { state, attributes, last_changed: new Date().toISOString() } } });
+    return page.locator("floorplan-studio-card").evaluate((el, i) => getComputedStyle(el.shadowRoot!.querySelector(`g[data-x="${i}"] path:not(.cone)`)!).fill, idx);
+  };
+  expect(await fillFor("cool", { hvac_action: "cooling" })).toBe("rgb(44, 127, 184)");
+  expect(await fillFor("heat", { hvac_action: "heating" })).toBe("rgb(232, 128, 26)");
+  const idle = await fillFor("cool", { hvac_action: "idle" });
+  expect(idle).not.toBe("rgb(44, 127, 184)");
+  expect(await fillFor("off", { hvac_action: "cooling" })).toBe(idle);
+});

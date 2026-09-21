@@ -744,13 +744,14 @@ pressed state.
 - Done when: tests pass; the behaviours table lists one row per type with its colour.
 - Break it: a light that is on *and* unavailable keeps the unavailable styling; the colour rule does not override it.
 
-### S2.10 An air conditioner shows what it is doing
+### S2.10 An air conditioner shows what it is doing (done, 2026-09-21)
 - Outcome: an `ac` device is blue when it cools, orange when it heats and grey otherwise.
 - Files: `src/core/render.ts`, `tests/core/render.test.ts`, `tests/card/card.test.ts`.
 - Interface: the mode is read at render time from the entity, never stored. A `state` of `off`, `unavailable` or `unknown` is grey and nothing else is looked at. Otherwise `hvac_action` decides (`cooling` → blue, `heating` → orange, anything else grey), falling back to `state` when the attribute is missing (`cool` → blue, `heat` → orange, `off`, `fan_only`, `dry` and the rest grey). `renderFloor` adds the class `cool` or `heat` to the device group, and `.dev-ac.cool` and `.dev-ac.heat` set `--fp-dev` to `--fp-dev-ac-cool` and `--fp-dev-ac-heat`; with neither class the device stays `--fp-idle`, so a fan or a filter is grey with no extra rule. The same two classes work for a heat pump, which is the same entity domain.
 - Test: state stubs for `hvac_action: "cooling"`, `"heating"`, `"idle"`, a missing attribute with `state: "cool"`, and `state: "fan_only"` give blue, orange, grey, blue, grey; an `ac` entity missing from `hass.states` draws grey and throws nothing.
 - Done when: tests pass.
 - Break it: an entity that reports `hvac_action: "cooling"` while its state is `off` draws grey, because the state wins when it says the unit is off.
+- Checked: 7 unit tests for the mode table, and a Chromium computed-fill pair (blue, orange, idle, off-beats-stale-cooling). `layout.colors.ac` stays inert by decision: one colour cannot name two states.
 
 ---
 
