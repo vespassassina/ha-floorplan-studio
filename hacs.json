@@ -1,1 +1,7 @@
-{"name": "Floorplan Studio", "render_readme": true, "homeassistant": "2025.6.0"}
+{
+  "name": "Floorplan Studio",
+  "render_readme": true,
+  "homeassistant": "2025.6.0",
+  "zip_release": true,
+  "filename": "floorplan_studio.zip"
+}
