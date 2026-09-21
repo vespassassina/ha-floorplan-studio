@@ -53,6 +53,11 @@ export function emptyLayout(): Layout {
   return { version: 2, unit: "cm", north: 0, rotate: 0, floors: { ground: floor }, catalog: [] };
 }
 
+/** True when nothing is drawn on any floor: nothing a demo could overwrite. Floor titles and the catalog do not count. */
+export function isBlank(l: Layout): boolean {
+  return Object.values(l.floors).every((f) => Object.values(f).every((v) => !Array.isArray(v) || v.length === 0));
+}
+
 /** Migrates, then validates. Never throws: a bad file gives the list of what is wrong. */
 export function loadLayout(x: unknown): { ok: true; layout: Layout } | { ok: false; errors: string[] } {
   try {

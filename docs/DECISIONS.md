@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-21 Reset means blank; Load demo is separate and only on a blank plan
+
+Supersedes the `seed` entry below: File, Reset used to return to the starting
+layout. It now erases to a blank plan (confirm, one undo step), which is what
+"start from scratch" means. `seed` is gone; a `demo` property drives File,
+Load demo, greyed out unless nothing is drawn. Found on the way: the panel gave
+the editor `emptyLayout()` when nothing was stored, and the editor refused it
+(outline needs 3 points), so a fresh install showed an error list. The panel
+now leaves `layout` unset then, and Reset bypasses the validator for the same
+reason. Its test now reads the editor's own `errors`, not just the panel text.
+
 ## 2026-09-21 The sidebar link is an option, on by default
 
 Configure on the integration has one switch, `show_in_sidebar`. Off removes the

@@ -14,7 +14,7 @@
   import "./editor-app";
 
   const el = document.getElementById("editor");
-  el.seed = demo;
+  el.demo = demo;
   el.layout = restoreLayout() ?? demo;
   // Standalone: the host of the element writes the file.
   el.addEventListener("save-request", (e) => {

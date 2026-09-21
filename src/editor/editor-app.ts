@@ -6,13 +6,13 @@ import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "..
 import { gridRound, looseEnds, movePointAll, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
-import { EditorState, GRID_VALUES, THEME_VALUES, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
+import { EditorState, GRID_VALUES, THEME_VALUES, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
 
 /**
  * <floorplan-studio-editor>: draws and edits a layout.
  *   property `layout`  the layout to edit (validated; a bad one is refused and listed)
  *   property `floor`   the floor shown
- *   property `seed`    what File, Reset returns to (default: the first layout set)
+ *   property `demo`    a demo home; File, Load demo puts it in, only while nothing is drawn (Reset first). No demo, no button.
  *   event `layout-changed`  detail: the Layout, after every edit
  *   event `save-request`    detail: the Layout, File, Save (host writes it somewhere)
  *   method saveDone(ok, message?)  the host calls it when the write is over; status stays "Saving…" until then.
@@ -102,7 +102,7 @@ export class FloorplanStudioEditor extends LitElement {
   static properties = {
     floor: { type: String },
     haDark: { attribute: false },
-    seed: { attribute: false },
+    demo: { attribute: false },
     errors: { state: true },
     status: { state: true },
     addingFloor: { state: true },
@@ -111,7 +111,7 @@ export class FloorplanStudioEditor extends LitElement {
   declare floor: string;
   /** Home Assistant's dark mode, set by the panel host from `hass.themes.darkMode`. Read only by the `ha` theme; undefined (standalone) follows the OS instead. */
   declare haDark: boolean | undefined;
-  declare seed: Layout | undefined;
+  declare demo: Layout | undefined;
   declare errors: string[];
   declare status: string;
   declare addingFloor: boolean;
@@ -163,7 +163,6 @@ export class FloorplanStudioEditor extends LitElement {
     if (!r.ok) { this.errors = r.errors; return; }
     this.errors = [];
     this.st.setLayout(r.layout, this.floor);
-    this.seed ??= structuredClone(r.layout);
     this.floor = this.st.floor;
     this.refreshNames();
     this.requestUpdate("layout", old);
@@ -873,10 +872,21 @@ export class FloorplanStudioEditor extends LitElement {
     if (type === "save-request" && this.saveListeners > 0) this.saveListeners--;
     super.removeEventListener(type, listener, options);
   }
+  /** Wipes the plan to a blank one. In Home Assistant nothing stored changes until Save. */
   private reset() {
-    if (!this.seed) return;
-    if (!confirm("Discard the autosaved edit in this browser and load the starting layout? Save first if you want to keep it.")) return;
-    this.applyLayout(this.seed, "Reset to the starting layout");
+    if (!confirm("Erase everything and start from a blank plan? Nothing saved is touched until you Save. Undo brings it back.")) return;
+    // Not through applyLayout: a blank plan is not a valid layout (an outline needs 3 points), so it would be refused.
+    this.stopDraw();
+    this.errors = [];
+    this.st.setLayout(emptyLayout(), undefined, true);
+    this.floor = this.st.floor;
+    this.refreshNames();
+    this.changed("Blank plan. Draw, then Save.");
+  }
+  /** Only on a blank plan, so it never asks: there is nothing to lose. */
+  private loadDemo() {
+    if (!this.demo || !isBlank(this.st.layout)) return;
+    this.applyLayout(this.demo, "Demo home loaded");
   }
   /** Validates first; on any problem lists them and leaves the current layout untouched. */
   private applyLayout(x: unknown, status: string) {
@@ -1065,7 +1075,8 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn" id="redo" ?disabled=${!st.canRedo} @click=${() => this.undo(false)}>Redo</button>
           <div class="sep"></div>
           <button class="btn" id="imp" @click=${() => this.renderRoot.querySelector<HTMLInputElement>("#file")?.click()}>Open…</button>
-          <button class="btn danger" id="reset" title="Discard the autosaved edit and go back to the starting layout" @click=${() => this.reset()}>Reset</button>
+          ${this.demo ? html`<button class="btn" id="loaddemo" ?disabled=${!isBlank(st.layout)} title=${isBlank(st.layout) ? "Load the demo home" : "Reset first: loading the demo would overwrite your plan."} @click=${() => this.loadDemo()}>Load demo</button>` : nothing}
+          <button class="btn danger" id="reset" title="Erase everything and start from a blank plan" @click=${() => this.reset()}>Reset</button>
           <button class="btn primary" id="save" @click=${() => this.save()}>Save</button>
         </div></details>
         <input type="file" id="file" accept=".json,application/json" hidden @change=${(e: Event) => this.openFile(e)}>
