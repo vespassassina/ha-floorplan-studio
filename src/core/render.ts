@@ -1,6 +1,7 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
 import { stairSteps } from "./geometry";
 import { DEVICE_TYPES } from "./schema";
+import { TEXTURE_IDS, texturePatterns } from "./textures";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
@@ -19,6 +20,10 @@ export interface RenderOpts {
 /** blueprint is the default and the look of the project; light is the same plan on paper; ha takes its neutrals straight from Home Assistant's own CSS variables. */
 export const THEMES = ["blueprint", "light", "ha"] as const;
 export type Theme = (typeof THEMES)[number];
+
+/** The `fill` attribute for a room or staircase that carries its own paint: a texture wins over a colour. Both are checked against a fixed list or a strict pattern, because the value goes into an attribute. */
+const paintAttr = (r: { color?: string; texture?: string }) =>
+  typeof r.texture === "string" && TEXTURE_IDS.includes(r.texture) ? ` fill="url(#fp-tex-${r.texture})"` : typeof r.color === "string" && COLOR.test(r.color) ? ` fill="${r.color}"` : "";
 
 /** The colour each device type has when `layout.colors` says nothing: the `--fp-dev-*` defaults below; types with none of their own use the idle grey. */
 export const DEVICE_COLOURS: Record<DeviceType, string> = {
@@ -245,13 +250,13 @@ function stairsGroup(t: Stairs, i: number): string {
   if (round) {
     const R = t.dia! / 2;
     const hole = inner ? ` M${num(cx + inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx - inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx + inner)} ${num(cy)}Z` : "";
-    g.push(`<path class="stairs room" fill-rule="evenodd" d="M${t.pts.map((p) => `${num(p[0])} ${num(p[1])}`).join("L")}Z${hole}"/>`);
+    g.push(`<path class="stairs room"${paintAttr(t)} fill-rule="evenodd" d="M${t.pts.map((p) => `${num(p[0])} ${num(p[1])}`).join("L")}Z${hole}"/>`);
     for (let n = 1; n < steps; n++) {
       const a = (n * 2 * Math.PI) / steps;
       g.push(`<line class="tread" x1="${num(cx + inner * Math.cos(a))}" y1="${num(cy + inner * Math.sin(a))}" x2="${num(cx + R * Math.cos(a))}" y2="${num(cy + R * Math.sin(a))}"/>`);
     }
   } else {
-    g.push(`<polygon class="stairs room" points="${pts(t.pts)}"/>`);
+    g.push(`<polygon class="stairs room"${paintAttr(t)} points="${pts(t.pts)}"/>`);
     // Treads run across the short side of the box, one every (long side / steps).
     const along = x1 - x0 > y1 - y0;
     for (let n = 1; n < steps; n++) {
@@ -275,8 +280,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const now = o.now ?? Date.now();
 
   // One fixed id: two cards on a page declare the same pattern twice, and both are identical (see DECISIONS).
-  if (f.rooms.some((r) => r.kind === "fill"))
-    out.push('<defs><pattern id="fp-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="var(--fp-fill)"/><line x1="0" y1="0" x2="0" y2="12" stroke="var(--fp-fill-line)" stroke-width="2"/></pattern></defs>');
+  const textured = [...f.rooms, ...(f.stairs ?? [])].map((r) => r.texture).filter((t): t is string => typeof t === "string" && TEXTURE_IDS.includes(t));
+  const hatch = f.rooms.some((r) => r.kind === "fill") ? '<pattern id="fp-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="var(--fp-fill)"/><line x1="0" y1="0" x2="0" y2="12" stroke="var(--fp-fill-line)" stroke-width="2"/></pattern>' : "";
+  if (hatch || textured.length) out.push(`<defs>${hatch}${texturePatterns(textured)}</defs>`);
   // S2.6: room_glow. A room glows when any light "in" it (point-in-polygon of the device's x,y; a light never has
   // a/b, only a heater does, but the same "a" in d guard the rest of the file uses is kept here too) is on. Untrusted
   // layout/state: a non-finite coordinate or a light outside every room's polygon is simply not counted, never thrown.
@@ -292,7 +298,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   [...f.rooms.keys()].sort((a, b) => +(f.rooms[a].kind === "zone") - +(f.rooms[b].kind === "zone")).forEach((i) => {
     const r = f.rooms[i];
     if (r.kind === "fill" && !r.name) return;
-    const own = typeof r.color === "string" && COLOR.test(r.color) ? ` fill="${r.color}"` : ""; // strict pattern: the value goes into an attribute
+    const own = paintAttr(r);
     const glow = glowRooms.has(i) ? " glow" : "";
     const on = !r.area && entityOn(o, r.entity) ? " on" : "";
     out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}${on}"${own} points="${pts(r.pts)}"/>`);

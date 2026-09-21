@@ -3241,8 +3241,9 @@ test("S1.34 break it: with storage blocked the editor loads, uses 10 and lets th
 test("S1.35: the room panel shows twelve floor swatches next to the free colour input", async ({ page }) => {
   const at = await screenOf(page, 200, 150);
   await page.mouse.click(at.x, at.y);
-  const sw = page.locator("#panel .sw");
+  const sw = page.locator('#panel .swatches[aria-label="Colours"] .sw');
   await expect(sw).toHaveCount(12);
+  await expect(page.locator("#panel .sw.tex")).toHaveCount(7); // and seven textures beside them
   await expect(sw.nth(10)).toHaveAttribute("title", "Belgian stone");
   await expect(sw.nth(10)).toHaveAttribute("aria-label", "Belgian stone");
   await expect(page.locator("#rcol")).toHaveCount(1);
@@ -4576,4 +4577,29 @@ test("zoom buttons: + zooms in, - zooms out, 0 fits the floor again, and none of
   const box = await page.locator(".zoom").boundingBox(), canvas = await page.locator(".canvas").boundingBox();
   expect(box!.x + box!.width).toBeGreaterThan(canvas!.x + canvas!.width - 20); // top right
   expect(box!.y).toBeLessThan(canvas!.y + 20);
+});
+
+test("a custom room colour becomes a swatch (kept in layout.palette); textures paint the room and survive undo", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  const custom = page.locator('.swatches[aria-label="Colours"] .sw.custom');
+  await expect(custom).toHaveCount(0);
+  await page.locator("#rcol").fill("#12ab34");
+  await expect(custom).toHaveCount(1);
+  expect((await layoutOf(page)).palette).toEqual(["#12ab34"]);
+  // Another room can use it from the swatches without opening the picker.
+  const r1 = (await groundOf(page)).rooms[1].pts; // a point near a corner: the middle of a room may hold a device
+  const other = await screenOf(page, Math.min(...r1.map((p) => p[0])) + 30, Math.min(...r1.map((p) => p[1])) + 30);
+  await page.mouse.click(other.x, other.y);
+  await expect(page.locator('.swatches[aria-label="Colours"] .sw.custom')).toHaveCount(1);
+  // A texture.
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  await expect(page.locator('svg polygon[fill="url(#fp-tex-wood-dark)"]')).toHaveCount(1);
+  await expect(page.locator("pattern#fp-tex-wood-dark")).toHaveCount(1);
+  await page.keyboard.press("Control+z");
+  await expect(page.locator('svg polygon[fill="url(#fp-tex-wood-dark)"]')).toHaveCount(0);
+  // Undo the first colour: the palette goes with it.
+  await page.mouse.click(at.x, at.y);
+  await page.keyboard.press("Control+z");
+  expect((await layoutOf(page)).palette).toBeUndefined();
 });

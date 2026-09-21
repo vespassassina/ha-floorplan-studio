@@ -1,6 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { DOOR_KINDS, FLOOR_COLOURS, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
+import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { DeviceType, EdgeKind, Floor, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
@@ -22,6 +22,8 @@ export interface PanelCtx {
   /** One undoable edit of the current floor; autosaves and notifies the host. */
   commit(fn: (f: Floor) => Floor | void): void;
   select(s: Sel): void;
+  /** Paints a room, zone or staircase (colour, texture or default): one undo step; a new custom colour joins `layout.palette`. */
+  paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string } | null): void;
   /** Say something in the status line. */
   say(msg: string): void;
   /** Redraw without an edit. */
@@ -37,6 +39,25 @@ const numVal = (e: Event): number | null => {
   const n = Number(v);
   return v.trim() !== "" && Number.isFinite(n) ? n : null;
 };
+
+/** CSS that hints at a texture on its swatch: board lines for wood, a grid for stone, over the texture's base colour. */
+const texturePreview = (t: { id: string; preview: string }) =>
+  t.id.startsWith("wood")
+    ? `background:repeating-linear-gradient(0deg,transparent 0 7px,rgba(0,0,0,.35) 7px 8px),${t.preview}`
+    : `background:linear-gradient(90deg,rgba(0,0,0,.35) 1px,transparent 1px) 0 0/14px 14px,linear-gradient(rgba(0,0,0,.35) 1px,transparent 1px) 0 0/14px 14px,${t.preview}`;
+
+/**
+ * Colour, custom colours, textures and "default" for a room, zone or staircase. A colour picked on the input that is not a swatch
+ * yet is added to the swatches (kept in `layout.palette`, so it is still there after a reload). `id` prefixes the element ids.
+ */
+function paintControls(c: PanelCtx, on: "rooms" | "stairs", i: number, id: string, shape: { color?: string; texture?: string }) {
+  const cur = (shape.color ?? "").toLowerCase(), custom = c.st.layout.palette ?? [];
+  const swatch = (hex: string, name: string, extra = "") => html`<button class=${`sw${extra}`} type="button" title=${name} aria-label=${name} aria-pressed=${String(!shape.texture && cur === hex)} style="background:${hex}" @click=${() => c.paint(on, i, { color: hex })}></button>`;
+  return html`<label for=${`${id}col`}>colour</label><input id=${`${id}col`} type="color" .value=${shape.color ?? "#ffffff"} @change=${(e: Event) => c.paint(on, i, { color: val(e) })}>
+    <div class="swatches" role="group" aria-label="Colours">${FLOOR_COLOURS.map((k) => swatch(k.hex, k.name))}${custom.map((hex) => swatch(hex, `Custom ${hex}`, " custom"))}</div>
+    <div class="swatches" role="group" aria-label="Textures">${TEXTURES.map((t) => html`<button class="sw tex" type="button" title=${t.name} aria-label=${t.name} aria-pressed=${String(shape.texture === t.id)} style=${texturePreview(t)} @click=${() => c.paint(on, i, { texture: t.id })}></button>`)}</div>
+    <p>${button(`${id}colx`, "Use the default colour", () => c.paint(on, i, null))}</p>`;
+}
 
 function text(label: string, id: string, value: string, on: (v: string) => void) {
   return html`<label for=${id}>${label}</label><input id=${id} type="text" .value=${value} @change=${(e: Event) => on(val(e))}>`;
@@ -262,9 +283,7 @@ function roomPanel(c: PanelCtx, i: number) {
       if (v === "zone") room.wk = room.pts.map((): WallKind => "boundary"); // a zone has no wall edge
     }))}
     ${roomTurn(c, i)}
-    <label for="rcol">colour</label><input id="rcol" type="color" .value=${r.color ?? "#ffffff"} @change=${(e: Event) => c.commit((f) => { f.rooms[i].color = val(e); })}>
-    <div class="swatches" role="group" aria-label="Floor colours">${FLOOR_COLOURS.map((k) => html`<button class="sw" type="button" title=${k.name} aria-label=${k.name} aria-pressed=${String((r.color ?? "").toLowerCase() === k.hex)} style="background:${k.hex}" @click=${() => c.commit((f) => { f.rooms[i].color = k.hex; })}></button>`)}</div>
-    <p>${button("rcolx", "Use the default colour", () => c.commit((f) => { delete f.rooms[i].color; }))}</p>
+    ${paintControls(c, "rooms", i, "r", r)}
     <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${r.kind === "zone" ? hint("A zone is a dotted area inside a room. Give it an area id to map it to a Home Assistant area. Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag the body to move it. Drag corners to reshape. Select an edge and choose its kind.") : nothing}`;
@@ -379,6 +398,7 @@ function stairsPanel(c: PanelCtx, i: number) {
     <p><span>steps</span> <span id="sstn">${stairSteps(t)}</span> <span class="hint">one every 40 cm</span></p>
     ${rotateButtons(c, "srot", (n) => c.commit((f) => { f.stairs[i].rot = ((t.rot + n) % 360 + 360) % 360; }), { reset: () => { if (t.rot) c.commit((f) => { f.stairs[i].rot = 0; }); } })}
     ${round ? html`${number(c, "outer diameter (cm)", "sdia", t.dia ?? 0, setDia)}${number(c, "inner diameter (cm)", "sinner", t.inner ?? 0, setInner)}` : nothing}
+    ${paintControls(c, "stairs", i, "s", t)}
     <p>${button("sdel", "Delete", () => { c.commit((f) => { f.stairs.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Stairs are added to every floor and deleted from one.")}
     ${hint(round ? "Drag it to move it. Set the diameters and the rotation here." : "Drag a corner to reshape. Click an edge to add a point in the middle. A rotated flight has no corner handles: set the rotation to 0 to reshape it.")}`;

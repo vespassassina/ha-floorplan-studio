@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-21 Custom colours are kept in `layout.palette`; rooms and stairs may have a texture
+
+A colour picked on the free input that is not one of the twelve built-in swatches is added to `layout.palette` (lower-case, newest last, at most 24, no duplicates), so it is offered as a swatch on every room and staircase and survives a save. It is in the layout, not the browser, because the plan is the one place Diego's colours already live. `texture` on a room, zone or staircase names one of seven built-in patterns (three woods, four stone tiles); a texture and a colour exclude each other, and painting one removes the other. Textures are fixed ids, not free SVG: the render writes only `url(#fp-tex-<id>)` from a whitelist, and declares only the patterns in use. Zones already took a colour (they are rooms); stairs gained `color` and `texture`. Not done: uploaded images, per-texture scale or rotation.
+
 ## 2026-09-21 The drawing board ignores Home Assistant; the grid starts at the plan's corner
 
 HA sets `hass` on the panel at every state change. Lit re-sets object properties on every render, so `.layout=${obj}` re-ran the editor's `layout` setter each time and reset zoom, selection, undo and every unsaved edit. The panel now renders the editor through `guard([layout, dark])`: it re-renders only when the loaded layout or the theme changes. The editor is a drawing board; it does not follow HA. A test fails without the guard. The measure grid now has zero at the outline's min x and min y (top-left corner of the plan), lines every 50 cm (steps grow so no axis exceeds 400 lines), and covers the whole visible region, also when the plan is rotated. Zoom buttons (+, -, 0) sit top right of the canvas; none is an edit. Lesson: a panel test must check that the editor's state survives a `hass` update, not only that `load` is called once.

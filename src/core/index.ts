@@ -1,4 +1,6 @@
 export * from "./schema";
+export { TEXTURES, TEXTURE_IDS, texturePatterns } from "./textures";
+export type { Texture } from "./textures";
 export { migrate } from "./migrate";
 export { applyHaNames } from "./ha";
 export type { HaData } from "./ha";

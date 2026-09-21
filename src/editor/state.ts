@@ -1,4 +1,4 @@
-import { DEVICE_TYPES, THEMES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, unplacedCatalog, validate, viewBoxFor } from "../core";
+import { DEVICE_TYPES, FLOOR_COLOURS, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, unplacedCatalog, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, Theme } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -278,6 +278,32 @@ export class EditorState {
     this.snapshot();
     this.layout.rotate = n;
     this.views = {};
+    return true;
+  }
+  /**
+   * Paints a room, zone or staircase of the current floor, one undo step. `{ color }` sets a flat colour (and drops any texture); a
+   * colour that is not a built-in swatch joins `layout.palette`, newest last, so the swatches keep every custom colour used.
+   * `{ texture }` sets a texture (and drops the colour). `null` returns to the theme's default fill. Returns false, recording
+   * nothing, when the shape is missing, the value is bad or nothing changes.
+   */
+  paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string } | null): boolean {
+    const next: Layout = structuredClone(this.layout);
+    const shape = next.floors[this.floor][on][i];
+    if (!shape) return false;
+    delete shape.color; delete shape.texture;
+    if (paint && "color" in paint) {
+      const hex = paint.color.toLowerCase();
+      if (!/^#[0-9a-f]{6}$/.test(hex)) return false;
+      shape.color = hex;
+      if (!FLOOR_COLOURS.some((k) => k.hex === hex) && !(next.palette ?? []).includes(hex)) next.palette = [...(next.palette ?? []), hex].slice(-MAX_PALETTE);
+    } else if (paint) {
+      if (!TEXTURE_IDS.includes(paint.texture)) return false;
+      shape.texture = paint.texture;
+    }
+    if (JSON.stringify(next) === JSON.stringify(this.layout)) return false;
+    this.snapshot();
+    this.layout.floors[this.floor] = next.floors[this.floor];
+    if (next.palette) this.layout.palette = next.palette;
     return true;
   }
   /** Sets (`hex`) or removes (null) the colour of one device type in `layout.colors`: one undo step, none when nothing changes. `colors` is removed when it empties, so an untouched layout stays as it was. */

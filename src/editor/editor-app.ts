@@ -188,7 +188,7 @@ export class FloorplanStudioEditor extends LitElement {
     .box{max-height:75vh;overflow:auto;position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:210px;display:flex;flex-direction:column;gap:6px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px}
     .box .btn,.box .chip,.box select{width:100%;text-align:left}
     .sep{border-top:1px solid var(--fp-idle)}
-    .swatches{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0} .sw{width:28px;height:28px;padding:0;border:1px solid var(--fp-idle);border-radius:4px;cursor:pointer} .sw[aria-pressed="true"]{outline:2px solid var(--fp-ink);outline-offset:1px}
+    .swatches{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0} .sw{width:28px;height:28px;padding:0;border:1px solid var(--fp-idle);border-radius:4px;cursor:pointer} .sw.custom{border-style:dashed} .sw[aria-pressed="true"]{outline:2px solid var(--fp-ink);outline-offset:1px}
     .colrow{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:2px 0} .colrow label{display:flex;flex:1;justify-content:space-between;gap:6px} .colrow input{padding:0;width:36px;height:24px} .colrow .btn{width:auto}
     .rotrow{display:flex;flex-wrap:wrap;gap:6px} .rotrow>span{width:100%} .box .rotrow .btn{width:auto;flex:1;text-align:center}
     .ed{display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:start}
@@ -299,7 +299,7 @@ export class FloorplanStudioEditor extends LitElement {
   private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); };
   private select = (s: Sel) => { this.st.sel = s; this.requestUpdate(); };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------

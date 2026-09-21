@@ -73,7 +73,7 @@ Every object in `rooms`, `walls`, `stairs`, `doors`, `openings`, `extras`, `furn
 
 `room` and `structure` must lie **inside the outline**. The others may sit outside it.
 
-Optional: `"color": "#rrggbb"` sets a floor colour.
+Optional: `"color": "#rrggbb"` sets a floor colour; `"texture"` (`wood-light`, `wood-warm`, `wood-dark`, `stone-white`, `stone-grey`, `stone-bluegrey`, `stone-black`) paints a pattern instead, and wins over `color`. Stairs take both too. The layout may carry `"palette": ["#rrggbb", ...]`, the custom colours the editor offers as swatches (at most 24); an assistant leaves it out.
 
 ## Doors and windows
 

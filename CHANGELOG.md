@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- A custom colour picked for a room now becomes a swatch, kept in the layout (`palette`), so you can reuse it.
+- Seven textures for floors: light, warm and dark wood; white, grey, dark blue-grey and black stone tiles.
+- Stairs can be coloured and textured like rooms. Zones already could.
+
 ## 0.5.1
 
 - Fixed: the editor no longer resets (zoom, selection, undo, edits snapping back, lost focus) each time Home Assistant updates a state.
