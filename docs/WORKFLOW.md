@@ -3,6 +3,14 @@
 One task at a time, from `docs/PLAN.md`. Three roles. Each role gets the task
 block from PLAN.md plus this file. Nobody skips a step.
 
+Execute and Review run per task. **Verify runs once, at sprint close, over
+the whole sprint** (changed 2026-09-21, see DECISIONS.md): one session, every
+task's "Done when" list and "Break it" line in one pass, a recap, then only
+the flagged tasks re-run. The cost of a verify session per task was not
+buying enough: across Sprint 2 the reviews caught the design defects and the
+verifier caught one real thing. The trade, accepted knowingly: a defect found
+at close can touch several tasks at once.
+
 Models: Sonnet executes and verifies (two separate sessions; the verifier never
 sees the author's reasoning). Opus decides: it reviews, settles any design
 choice, picks between two readings of the spec, and judges every disagreement
@@ -43,25 +51,26 @@ Steps:
 5. Commit. Tick the task in `docs/PLAN.md` in the same commit.
 6. Report as above. No summary of how great it went; facts only.
 
-## Role: Verify (Sonnet)
+## Role: Verify (Sonnet) — once per sprint, at close
 
 Prompt to paste:
 
-> Verify task `<id>` on branch `task/<id>`. Follow docs/WORKFLOW.md, role Verify.
-> Do not change source code. Run every command listed and paste the output.
-> Go through the task's "Done when" list and mark each line true or false with
-> the evidence. End with PASS or FAIL.
+> Verify sprint `<n>` on branch `task/<last id>`. Follow docs/WORKFLOW.md, role
+> Verify. Do not change source code. Run every command listed once and paste the
+> output. Then, for every task in the sprint, go through its "Done when" list and
+> its "Break it" line and mark each true or false with the evidence. End with a
+> per-task PASS or FAIL table and one overall verdict.
 
 Steps:
 
-1. `git status` must be clean and on `task/<id>`.
+1. `git status` must be clean and on the sprint's last branch.
 2. Run, and paste output of: `npm ci`, `npm run lint`, `npm test`,
    `npm run build`. For Python tasks also `pip install -r requirements_test.txt`
    and `pytest`. For editor tasks also `npm run test:e2e`.
-3. Open the task block. For each "Done when" line, state true/false and the
-   command or file that proves it.
+3. Open each task block in the sprint. For each "Done when" line, state
+   true/false and the command or file that proves it.
 4. Try to break it: one wrong input, one wrong order, one empty case, from the
-   "Break it" line of the task. Write and run your own script for each; citing
+   "Break it" line of each task. Write and run your own script for each; citing
    an existing test does not count. A script must reach the state it claims to
    test (draw mode entered, file loaded); say how you know. Report what
    happened.
@@ -75,8 +84,10 @@ Steps:
 7. Check the exit code of every command: run it bare and read `$?` on its own
    line, never `cmd | tail; echo $?` (that reports `tail`'s exit code, not
    the command's — see CLAUDE.md finding 14).
-8. Verdict: PASS only if every "Done when" line is true and all suites are
-   green. Otherwise FAIL with the first failing line quoted.
+8. Verdict, per task: PASS only if every "Done when" line is true and all
+   suites are green. Otherwise FAIL with the first failing line quoted. A FAIL
+   sends that one task back to Execute with the findings pasted in; the tasks
+   that passed are not re-run. Re-verify only what came back.
 
 ## Role: Review (Opus)
 
@@ -107,7 +118,8 @@ deletes the branch. CHANGES go back to Execute with the findings pasted in.
 
 ## At the end of a sprint
 
-Review the sprint as a whole (Opus) before the merge, then close it: README
+Verify the whole sprint (Sonnet, the role above), re-run whatever it fails,
+then review the sprint as a whole (Opus) before the merge, then close it: README
 state table, a closing block at the end of the sprint in `docs/PLAN.md` (what
 landed, real test counts, what the reviews found, what is carried over), a
 `docs/DECISIONS.md` entry, and every lesson written into this file or

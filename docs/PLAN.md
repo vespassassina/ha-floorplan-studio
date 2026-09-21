@@ -755,6 +755,15 @@ pressed state.
 
 ## Sprint 3 — integration, panel, release (E4)
 
+### S3.0 Dev environment: a real Home Assistant to test against
+- Outcome: `pytest` runs green on an empty test, and a Home Assistant instance exists that the panel can be loaded into.
+- Why it is a task: nothing Python in this repo has ever executed. The six files in `custom_components/floorplan_studio/` are one-line stubs, `pytest-homeassistant-custom-component` is named in `requirements_test.txt` but is not installed, and there is no `tests/integration/`. Every later Sprint 3 task's "Done when" assumes a running HA; without this they cannot close.
+- Files: `.devcontainer/devcontainer.json` (HA custom component template), `tests/integration/conftest.py`, `tests/integration/test_smoke.py`, `docs/WORKFLOW.md` command table gains the Python setup line.
+- Test: `pip install -r requirements_test.txt` then `pytest` → one passing test that sets up nothing but imports `custom_components.floorplan_studio.const`.
+- Done when: `pytest` exits 0 with the output pasted; the dev container starts HA and its URL is recorded.
+- Break it: `pytest` run from a directory other than the repo root still finds `custom_components/` (or the failure names the fix).
+- Note: Diego's own HA is an alternative to the dev container for the manual checks. His instance URL, token and layout never enter the repo — they live in a gitignored local file read by name.
+
 ### S3.1 Integration: storage and websocket
 - Outcome: load and save the layout inside HA.
 - Files: `custom_components/floorplan_studio/{__init__.py, const.py, config_flow.py, storage.py, websocket.py, manifest.json, strings.json, translations/en.json}`, `tests/integration/test_websocket.py`, `tests/integration/conftest.py`.
@@ -928,6 +937,16 @@ config). No write ever runs on load or on save.
 - Interface: the padding is the greater of 60 cm and the reach of anything a device paints around its own centre. Decide one way: a constant next to the aura and cone radii that all three read, so the three cannot drift apart again.
 - Test: a fixture with a light 20 cm inside the right wall gives a viewBox whose right edge is at or beyond the aura's right edge; the same for a camera at the top wall; a plan with no devices keeps the 60 cm padding exactly, so no existing snapshot moves.
 - Break it: a light exactly on a wall, and a plan whose only device is a light, still give a finite viewBox with the whole circle inside it.
+
+### S5.8 A skill any assistant can follow to draw a plan into this repo's format
+- Outcome: an agent, given architect drawings, photos or a hand sketch, produces a `layout.json` that opens in the editor first time, and can check its own work before handing it over.
+- Why, on top of S5.2: S5.2 is a prompt — one shot, photos in, JSON out, no way for the model to know whether it got it right. The plan is the one artefact a person cannot type by hand, so the agent path is not a convenience, it is how most people will ever get a layout. It needs a specification the model can hold in its head, worked examples, and a check it can run.
+- Files: `prompts/SKILL.md` (the skill, portable prose with no tool calls, so Claude, ChatGPT, Gemini, Grok and Copilot can all follow it), `prompts/SCHEMA.md` (v2 written for a reader, not a type checker: every field, units, the sign of y, what is required), `prompts/examples/` (two small layouts, one flat, one with two floors and stairs), `scripts/validate-layout.mjs`, `tests/core/validate-cli.test.ts`.
+- Interface: `node scripts/validate-layout.mjs <file>` prints either `ok` or one line per error and exits non-zero, wrapping the existing `validate()` from `src/core/schema.ts` — nothing new to keep in step, just a door into it from a shell. The skill's last step is to run it, and to fix and re-run until it prints `ok`. The skill also states the two questions to ask first (one known dimension and its wall; where north is), because scale and orientation cannot be recovered afterwards.
+- Test: run the skill end to end on the demo plan's own source drawing with one model; the JSON it returns passes the CLI and opens in the editor. Record model, date and pass/fail in `prompts/RESULTS.md` — no photos, no personal layout.
+- Done when: one recorded pass with a model that is not Claude, so the prose is proven portable; README's assistant buttons point at files that exist.
+- Break it: a sketch with no dimension at all — the skill must make the model ask rather than invent a scale; a room drawn outside the outline must be caught by the CLI, not by the person.
+- Known now: `prompts/` contains only `.gitkeep`, but README already ships "Open in Claude / ChatGPT / Grok" buttons whose links resolve to `prompts/trace-from-photos.md` on `main`. Anyone clicking one today sends the assistant to a 404. Either S5.2 lands or those buttons come out of the README before the repo is advertised.
 
 ## Later, not planned
 

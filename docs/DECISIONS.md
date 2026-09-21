@@ -2,6 +2,24 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-21 Verify moves from every task to sprint close
+
+Diego's call, for throughput. Until now every task ran Execute → Verify →
+Review, three sessions each. Across Sprint 2 the Opus reviews caught the design
+defects (three separate visible-but-green bugs in S2.9 alone) and the verifier
+caught one real thing: three device types with no active colour. One session
+per task was not buying enough.
+
+From now Verify runs once per sprint, over every task in it at once: the full
+suite, then each task's "Done when" list and "Break it" line, then a per-task
+PASS/FAIL table. Only the failing tasks go back to Execute and get re-verified.
+Execute and Review stay per task, unchanged.
+
+What is deliberately not relaxed: a task still closes only when its own tests
+pass in a real run, and nobody reports green they did not see. The accepted
+trade is that a defect surfacing at close can touch several tasks at once, so
+the fix is bigger when it lands.
+
 ## 2026-09-20 task/S2.9: media and cover get an active colour, and every type must have one
 
 The S2.9 verifier found that `media`, `cover` and `other` had no
