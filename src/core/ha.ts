@@ -5,7 +5,7 @@ export interface HaData {
   floors: { id: string; name: string }[];
   areas: { id: string; name: string; floor_id?: string }[];
   /** `area` is the HA area id the entity sits in (its own, else its device's), null for none. `dc` is its device class, when it has one. */
-  entities: { id: string; name: string; domain: string; area?: string | null; dc?: string }[];
+  entities: { id: string; name: string; domain: string; area?: string | null; dc?: string; /** the HA device it belongs to */ dev?: string }[];
 }
 
 /** Which entities suit a device type: [domain, device classes]. A class list of null means any class of that domain; a type with no rule (computer, server...) has none listed here and takes any entity. */
@@ -33,6 +33,14 @@ export function entitiesForType(ha: HaData, type: DeviceType): { match: HaData["
   if (!rules) return { match: ha.entities, rest: [] };
   const ok = (e: HaData["entities"][number]) => rules.some((r) => e.domain === r.domain && (!r.dcs || (e.dc !== undefined && r.dcs.includes(e.dc))) && !(r.not && e.dc !== undefined && r.not.includes(e.dc)));
   return { match: ha.entities.filter(ok), rest: ha.entities.filter((e) => !ok(e)) };
+}
+
+/** What to write to put `entity` in the HA area `area`, or null when it is there, unknown, or `area` is empty. The device moves when the entity is its only one; otherwise the entity alone, so its siblings stay. */
+export function areaMove(ha: HaData, entity: string, area: string): { kind: "device" | "entity"; id: string; area: string } | null {
+  const e = entity && area ? ha.entities.find((x) => x.id === entity) : undefined;
+  if (!e || (e.area ?? "") === area) return null;
+  const alone = e.dev && ha.entities.filter((x) => x.dev === e.dev).length === 1;
+  return alone ? { kind: "device", id: e.dev!, area } : { kind: "entity", id: e.id, area };
 }
 
 const nameIn = (list: { id: string; name: string }[] | undefined, id: unknown): string | undefined => {

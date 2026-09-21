@@ -4737,3 +4737,64 @@ test("S4.4: a switch that a light is already bound to has no button", async ({ p
   await selectHallSwitch(page);
   await expect(page.locator("#vmklight")).toHaveCount(0);
 });
+
+// ---- S4.3: move a dropped device into the room's HA area ------------------------------------
+
+const AREA_HA = { floors: [], areas: [{ id: "living", name: "Living" }, { id: "kitchen", name: "Kitchen" }], entities: [
+  { id: "light.demo_kitchen", name: "Kitchen light", domain: "light", area: "kitchen", dev: "dev-k" },
+  { id: "sensor.a", name: "A", domain: "sensor", area: "kitchen", dev: "dev-shared" }, { id: "sensor.b", name: "B", domain: "sensor", area: "kitchen", dev: "dev-shared" },
+] };
+async function withAreaWriter(page: Page, fail = "") {
+  await setHa(page, AREA_HA);
+  await page.evaluate(([tag, f]) => {
+    const w = window as any; w.__area = [];
+    (document.querySelector(tag as string) as any).writer = {
+      createHelper: async () => ({ entity_id: "x.y" }),
+      setDeviceArea: async (d: string, a: string) => { w.__area.push(["device", d, a]); if (f) throw new Error(f as string); },
+      setEntityArea: async (e: string, a: string) => { w.__area.push(["entity", e, a]); if (f) throw new Error(f as string); },
+    };
+  }, [EDITOR, fail]);
+}
+const areaCalls = (page: Page) => page.evaluate(() => (window as any).__area as unknown[][]);
+
+test("S4.3: dropping the kitchen light in the Living room asks, then moves its device to Living in HA", async ({ page }) => {
+  await withAreaWriter(page);
+  await dragCm(page, [650, 200], [250, 300]);
+  await expect(page.locator("#fp-confirm")).toContainText("Move Kitchen light to Living?");
+  expect(await areaCalls(page)).toHaveLength(0);
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await areaCalls(page)).length).toBe(1);
+  expect((await areaCalls(page))[0]).toEqual(["device", "dev-k", "living"]);
+  await expect(page.locator("#status")).toContainText("Moved");
+});
+
+test("S4.3 break it: Cancel writes nothing and leaves a note plus a button; a drop outside every room asks nothing; a failing HA changes nothing", async ({ page }) => {
+  await withAreaWriter(page);
+  await dragCm(page, [650, 200], [250, 300]);
+  await page.locator("#fp-confirm-no").click();
+  expect(await areaCalls(page)).toHaveLength(0);
+  await expect(page.locator("#panel")).toContainText("another area than Living");
+  await dragCm(page, [250, 300], [850, 250]); // off every room
+  await expect(page.locator("#fp-confirm")).toHaveCount(0);
+  await dragCm(page, [850, 250], [250, 300]);
+  await page.locator("#fp-confirm-no").click();
+  await withAreaWriter(page, "not_allowed");
+  await page.locator("#vmovearea").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("Nothing was changed");
+  await expect(page.locator("#vmovearea")).toHaveCount(1); // still differs
+});
+
+test("S4.3: 'Don't ask again' moves the next drops without the dialog, and a device with siblings moves only its entity", async ({ page }) => {
+  await withAreaWriter(page);
+  await dragCm(page, [650, 200], [250, 300]);
+  await page.locator("#fp-confirm-remember").check();
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await areaCalls(page)).length).toBe(1);
+  // the temperature sensor's entity has a sibling on its device
+  await page.evaluate(([tag]) => { const ed = document.querySelector(tag as string) as any; ed.ha = { ...ed.ha, entities: ed.ha.entities.map((e: any) => (e.id === "light.demo_living" ? e : e)).concat([{ id: "sensor.demo_living_temperature", name: "T", domain: "sensor", area: "living", dev: "dev-shared" }]) }; }, [EDITOR]);
+  await dragCm(page, [380, 120], [650, 300]); // Living to Kitchen, no dialog now
+  await expect(page.locator("#fp-confirm")).toHaveCount(0);
+  await expect.poll(async () => (await areaCalls(page)).length).toBe(2);
+  expect((await areaCalls(page))[1]).toEqual(["entity", "sensor.demo_living_temperature", "kitchen"]);
+});

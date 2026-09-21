@@ -4,7 +4,9 @@
  */
 export const NO_UNDO = "Home Assistant cannot undo this.";
 
-export function confirm(host: HTMLElement | ShadowRoot, title: string, lines: string[], okLabel = "Create"): Promise<boolean> {
+export interface ConfirmOpts { okLabel?: string; /** Adds a checkbox with this label; `onRemember` runs when it is ticked and the answer is OK. */ remember?: string; onRemember?: () => void }
+
+export function confirm(host: HTMLElement | ShadowRoot, title: string, lines: string[], opts: ConfirmOpts = {}): Promise<boolean> {
   return new Promise((resolve) => {
     const root = host instanceof ShadowRoot ? host : (host.shadowRoot ?? host);
     const box = document.createElement("div");
@@ -19,17 +21,24 @@ export function confirm(host: HTMLElement | ShadowRoot, title: string, lines: st
     h.textContent = title;
     card.append(h);
     for (const l of [...lines, NO_UNDO]) { const p = document.createElement("p"); p.textContent = l; card.append(p); }
+    let tick: HTMLInputElement | undefined;
+    if (opts.remember) {
+      const lab = document.createElement("label");
+      tick = document.createElement("input"); tick.type = "checkbox"; tick.id = "fp-confirm-remember";
+      lab.append(tick, ` ${opts.remember}`);
+      card.append(lab);
+    }
     const row = document.createElement("div");
     row.style.cssText = "display:flex;gap:8px;justify-content:flex-end";
     const mk = (id: string, text: string) => { const b = document.createElement("button"); b.id = id; b.type = "button"; b.textContent = text; b.style.cssText = "font:inherit;padding:4px 12px;cursor:pointer"; return b; };
-    const cancel = mk("fp-confirm-no", "Cancel"), ok = mk("fp-confirm-yes", okLabel);
+    const cancel = mk("fp-confirm-no", "Cancel"), ok = mk("fp-confirm-yes", opts.okLabel ?? "Create");
     row.append(cancel, ok);
     card.append(row);
     box.append(card);
     const done = (v: boolean) => { box.removeEventListener("keydown", key); box.remove(); resolve(v); };
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); done(false); } };
     cancel.addEventListener("click", () => done(false));
-    ok.addEventListener("click", () => done(true));
+    ok.addEventListener("click", () => { if (tick?.checked) opts.onRemember?.(); done(true); });
     box.addEventListener("click", (e) => { if (e.target === box) done(false); });
     box.addEventListener("keydown", key);
     root.append(box);

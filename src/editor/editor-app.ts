@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, rotateAbout, snapPoint, stitch, validate } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, rotateAbout, snapPoint, stitch, validate } from "../core";
 import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
 import { gridRound, looseEnds, movePointAll, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
@@ -305,7 +305,7 @@ export class FloorplanStudioEditor extends LitElement {
   private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); };
   private select = (s: Sel) => { this.st.sel = s; this.requestUpdate(); };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------
@@ -567,6 +567,7 @@ export class FloorplanStudioEditor extends LitElement {
       st.replaceFloor(f);
       if (d.type === "fscale") { const m = f.furniture[d.i]; this.changed(`Scaled the ${m?.name || m?.symbol || "furniture"}`); }
       else this.changed();
+      if (d.type === "dev") void this.offerAreaMove(d.i);
     } else this.requestUpdate();
   };
 
@@ -827,6 +828,43 @@ export class FloorplanStudioEditor extends LitElement {
     const v = st.view;
     st.views[st.floor] = { ...v, x: ctr[0] - v.w / 2, y: ctr[1] - v.h / 2 };
     this.changed(`Placed ${c.name}${room ? ` in ${room.name}` : ""}. Drag it to its spot.`);
+  }
+
+  /** Set when the person ticked "Don't ask again this session": device-to-area moves then go through without the dialog. Not stored. */
+  private moveWithoutAsking = false;
+
+  /** S4.3: the room a placed device sits in, when it has an HA area that differs from the one HA has the device in. */
+  private areaDiff(i: number): { room: string; name: string; move: NonNullable<ReturnType<typeof areaMove>> } | null {
+    const st = this.st, d = st.f.devices[i], ha = st.ha;
+    if (!d || !ha || !this.writer) return null;
+    const at: Pt = "a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y];
+    const room = st.f.rooms.find((r) => r.area && (r.kind === "room" || r.kind === "structure") && inside(at, r.pts));
+    const move = room && areaMove(ha, d.entity, room.area);
+    return room && move ? { room: room.area, name: room.name, move } : null;
+  }
+
+  /** S4.3: after a device is dropped in a room, offers to put it in that room's HA area. Dropping outside every room asks nothing. */
+  private async offerAreaMove(i: number, force = false) {
+    const diff = this.areaDiff(i), d = this.st.f.devices[i];
+    if (!diff || !d) return;
+    if (!this.moveWithoutAsking || force) {
+      const ok = await askHa(this.shadowRoot ?? this, `Move ${d.name ?? d.entity} to ${diff.name}?`, [
+        `Home Assistant will put ${diff.move.kind === "device" ? "the device" : d.entity} in the area ${diff.name}.`], { okLabel: "Move", remember: "Don't ask again this session", onRemember: () => { this.moveWithoutAsking = true; } });
+      if (!ok) return;
+    }
+    try {
+      if (diff.move.kind === "device") await this.writer!.setDeviceArea(diff.move.id, diff.move.area);
+      else await this.writer!.setEntityArea(diff.move.id, diff.move.area);
+    } catch (err) {
+      this.status = `Could not move it in Home Assistant: ${err instanceof Error ? err.message : String(err)}. Nothing was changed.`; this.requestUpdate();
+      return;
+    }
+    const ha = this.st.ha;
+    if (ha) { // keep our copy in step, so the mismatch note goes away
+      const ids = new Set(diff.move.kind === "device" ? ha.entities.filter((e) => e.dev === diff.move.id).map((e) => e.id) : [diff.move.id]);
+      this.ha = { ...ha, entities: ha.entities.map((e) => (ids.has(e.id) ? { ...e, area: diff.move.area } : e)) };
+    }
+    this.status = `Moved ${d.name ?? d.entity} to ${diff.name} in Home Assistant.`; this.requestUpdate();
   }
 
   /** S4.4: asks, has Home Assistant wrap the placed switch in a light, then swaps it on the plan. A failure changes nothing on the plan. */

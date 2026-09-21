@@ -883,6 +883,7 @@ through `hass.callWS` (registries, config flows) and `hass.callApi` (automation
 config). No write ever runs on load or on save.
 
 ### S4.1 Writes to HA
+- **Status: partly done in slice 4a (2026-09-21). Built: `ensureLabel`, `setDeviceArea`, `setEntityArea`, `createHelper` (finds the new entity by its config entry and labels it), `makeWriter`, `confirm` (Cancel has focus, Esc and outside click cancel, optional "remember" checkbox). Still to do: `createArea`, `createAutomation`, `openAutomation`, with the tasks that need them. Tests: `tests/editor/hass-write.test.ts`, and `grep` finds no write code in `dist/editor.html`.**
 - Outcome: one module that does every HA write, with the label and the confirm dialog.
 - Files: `src/editor/hass-write.ts`, `src/editor/confirm.ts`, `tests/editor/hass-write.test.ts`.
 - Interface:
@@ -910,6 +911,7 @@ config). No write ever runs on load or on save.
 - Break it: Cancel in the dialog writes nothing, the room stays custom and keeps its plan name.
 
 ### S4.3 Devices into areas
+- **Status: done in slice 4a for a device dropped by dragging. Deviations: the move writes the device only when the entity is its only one (`areaMove` in `core/ha.ts`), else the entity; placing from the Device menu asks nothing; the mismatch mark is a note and a "Move it to <room> in Home Assistant" button in the device panel, not a dot in the menu. Tests: `tests/core/area-move.test.ts`, `editor.spec.ts` (S4.3).**
 - Outcome: placing or moving a device into a room assigns its HA area.
 - Files: `src/editor/editor-app.ts`, `src/editor/panel.ts`, `tests/editor/organise.spec.ts`.
 - Interface: after a device drop (place or drag end) inside a room or zone with an HA area, if the entity's device (or the entity, when it has no device) is in another area or none, ask "Move <name> to area <room>?" (one dialog per drop, with "Don't ask again this session"). Yes → `setDeviceArea` or `setEntityArea`. The Device menu (S1.12, grouped by area since S3.3) marks entities whose HA area differs from the room they sit in with a small dot and a tooltip "HA says: <area>".
@@ -918,6 +920,7 @@ config). No write ever runs on load or on save.
 - Break it: a device dropped outside every room asks nothing.
 
 ### S4.4 Light from a switch
+- **Status: done in slice 4a. `EditorState.lightFromSwitch` and `canMakeLight` (`tests/editor/light-from-switch.test.ts`), button `#vmklight`, Playwright tests in `editor.spec.ts` (S4.4). Not yet run against the live HA: needs Diego's yes for one write.**
 - Outcome: a placed switch can become a light helper; the plan gets the light, bound to the switch.
 - Files: `src/editor/panels.ts`, `tests/editor/organise.spec.ts`.
 - Interface: switch or plug device panel gains "Create light from this switch". Confirm → `createHelper(hass, "switch_as_x", [{ entity_id, target_domain: "light" }])`; the new `light.*` entity is added to the catalog and placed 30 cm to the right of the switch, type `light`, `bound` = the switch entity; the switch device is removed from the plan (the light icon now stands for both, per SPEC). One undo step for the plan change; the helper stays in HA on undo, and the status line says so.
