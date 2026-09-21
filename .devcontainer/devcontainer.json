@@ -1,0 +1,7 @@
+{
+  "name": "Floorplan Studio (Home Assistant dev)",
+  "image": "mcr.microsoft.com/devcontainers/python:3.13",
+  "postCreateCommand": "pip install homeassistant -r requirements_test.txt && mkdir -p /tmp/ha-config && ln -sfn ${containerWorkspaceFolder}/custom_components /tmp/ha-config/custom_components && printf 'http:\\nfrontend:\\nlogger:\\n  default: warning\\n  logs:\\n    custom_components.floorplan_studio: debug\\n' > /tmp/ha-config/configuration.yaml",
+  "forwardPorts": [8123],
+  "customizations": { "vscode": { "extensions": ["ms-python.python"] } }
+}
