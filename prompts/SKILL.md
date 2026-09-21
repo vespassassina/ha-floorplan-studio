@@ -35,6 +35,8 @@ Do one floor at a time, lowest first. Put `[0, 0]` at the top-left corner of the
 5. **Furniture**, only if it is drawn clearly. Skip anything you are unsure of.
 6. **Outdoors**, if drawn: a garden, terrace or pavement is a room with that `kind`, and may sit outside the outline.
 
+Do **not** set `color`, `texture` or `palette`. Floor materials are the person's choice, made in the editor; a drawing's shading is not a colour. If the drawing labels a material (parquet, tiles), say so in the notes you give back and leave the field off.
+
 Do **not** add devices, entities or a catalog. A drawing has no Home Assistant entities in it. Leave `devices` and `catalog` empty. Never invent an entity id.
 
 ## 4. When you cannot read something

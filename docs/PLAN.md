@@ -833,6 +833,11 @@ Honest limits: the builder ran this pass, not a separate session; the table show
 ### S3.2c Update banner and brand icon (done 2026-09-21, Diego's requests)
 - Panel banner from HACS's update entity, with Update; icon and logo in `brand/`. Not yet seen on a real HA.
 
+### S3.2d Fixes and paint from Diego's own use (done 2026-09-21: v0.5.1 and v0.5.2 on his HA)
+- v0.5.1: the panel reset the editor on every HA state update (zoom, selection, undo, edits snapping back); fixed with `guard`, with a test that fails without it. The measure grid covers the whole view with zero at the plan's top-left corner. Zoom buttons +, -, 0 top right of the canvas.
+- v0.5.2: a custom room colour becomes a swatch (`layout.palette`); seven textures (three wood, four stone) for rooms and zones; stairs take colour and texture. See DECISIONS.
+- Open: Diego saw rooms in light gray "until customized" when drawing or importing. Not reproduced: rooms are navy under blueprint. Likely the `ha` theme in light mode (`--secondary-background-color`). Waiting for which theme; if it is `ha`, give default rooms a tint of their own.
+
 ### S3.3 Pickers from hass
 - Outcome: rooms pick an area, devices pick an entity, from HA data, grouped.
 - Files: `src/editor/hass-pickers.ts`, `src/editor/panel.ts`, `tests/editor/pickers.test.ts`.

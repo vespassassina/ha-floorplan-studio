@@ -58,9 +58,9 @@ in `prompts/`, then fixed in the editor.
     "ground": {
       "title": "Ground", "ha": "downstairs",
       "outline": [[x, y], ...], "owk": ["external", ...],
-      "rooms":   [{"id", "name", "area", "label", "kind", "pts", "wk", "color"?, "free"?, "entity"?}],
+      "rooms":   [{"id", "name", "area", "label", "kind", "pts", "wk", "color"?, "texture"?, "free"?, "entity"?}],
       "walls":   [{"id", "a", "b", "kind"}],
-      "stairs":  [{"id", "name", "pts", "shape", "steps", "rot", "dia"?, "inner"?}],
+      "stairs":  [{"id", "name", "pts", "shape", "steps", "rot", "dia"?, "inner"?, "color"?, "texture"?}],
       "doors":   [{"id", "name", "kind", "a", "b", "sensor", "cover"}],
       "openings":[{"id", "a", "b"}],
       "extras":  [{"id", "name", "a", "b"}],
@@ -124,8 +124,18 @@ in `prompts/`, then fixed in the editor.
   and editable in the editor exactly like a room edge, kind select and orange
   Delete included, even where no room's own edge spans it (S1.52). The demo
   shows external walls where the house meets outside.
-- `room.color` (optional) overrides the fill of that room or zone. It is the
-  one place a colour is stored in a layout, and it must be `#rrggbb`.
+- `room.color` (optional) overrides the fill of that room or zone; it must be
+  `#rrggbb`. Stairs take `color` too.
+- `room.texture` (optional, also on stairs) is one of `wood-light`, `wood-warm`,
+  `wood-dark`, `stone-white`, `stone-grey`, `stone-bluegrey`, `stone-black`: a
+  repeating pattern (boards 20 x 80 cm, tiles 50 cm). It wins over `color`; the
+  editor removes one when it sets the other. The render writes only
+  `url(#fp-tex-<id>)` from this fixed list and declares only the patterns in use.
+- `palette` (optional, top level) is a list of `#rrggbb`, at most 24: the custom
+  colours used so far. The editor adds a colour picked on the free colour input
+  when it is not one of the twelve built-in swatches, and offers the list as
+  swatches on every room and staircase. Colours in `colors` (per device type)
+  are separate and are not added to it.
 - `room.free` (optional): the user has unsnapped this room, so its corners are
   no snap, stitch or merge target and it can be rotated even where it still
   touches a neighbour.
@@ -278,8 +288,10 @@ theme: blueprint         # blueprint (default), light, or ha
   cover), room (name or area, label, kind, colour, unsnap, rotation; the colour
   is a swatch of one of twelve floor materials, White ceramic, Marble, Sand,
   Terracotta, Light oak, Warm wood, Dark oak, Walnut, Light grey, Grey floor,
-  Belgian stone or Lava, or any colour typed in), stairs
-  (name, shape, steps shown read only, diameter, rotation), device (entity, rotation, length
+  Belgian stone or Lava, then the custom colours used before, then seven
+  textures: three woods and four stone tiles; or any colour typed in), stairs
+  (name, shape, steps shown read only, diameter, rotation, colour and texture
+  as for a room), device (entity, rotation, length
   for heaters), furniture (name, symbol, size, rotation, entity).
 - A selected piece of furniture (a table, a bed, a tree, a patio — never a
   device, a door, a window or stairs) also draws a small handle at each of its

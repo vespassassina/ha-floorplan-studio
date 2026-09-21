@@ -133,6 +133,17 @@ Each of these was a real defect. Do not repeat them.
 - Motion fade is computed from `last_changed`; the card passes the last `on`
   time so a sensor that already went off keeps fading.
 
+- The panel must never re-run the editor's `layout` setter on a Home Assistant
+  state update. HA sets `hass` on every change, and Lit re-sets object
+  properties on every render (its dirty check skips only primitives), so
+  `.layout=${obj}` reset zoom, selection, undo and unsaved edits. The editor is
+  rendered through `guard([layout, dark])`. A panel test must check that editor
+  state survives a `hass` update, not only that `load` was called once.
+- Room and stair paint is `EditorState.paint(on, i, ...)`: one undo step, and a
+  custom colour joins `layout.palette` in the same step. Textures come from
+  `src/core/textures.ts`; add one there and the schema, render and swatches
+  follow. A test in `tests/editor/editor.spec.ts` counts the swatches by group.
+
 ## Release ends on Diego's HA
 
 Once Diego approves a push and a tag, finish the release without asking again: refresh HACS (`hacs/repository/refresh`, key `repository`), install `update.floorplan_studio_update`, restart HA, and read the installed version back. Push and tag still need his yes each time.
