@@ -132,3 +132,7 @@ Each of these was a real defect. Do not repeat them.
   lights may name one switch, and the switch may be an icon of its own.
 - Motion fade is computed from `last_changed`; the card passes the last `on`
   time so a sensor that already went off keeps fading.
+
+## Release ends on Diego's HA
+
+Once Diego approves a push and a tag, finish the release without asking again: refresh HACS (`hacs/repository/refresh`, key `repository`), install `update.floorplan_studio_update`, restart HA, and read the installed version back. Push and tag still need his yes each time.
