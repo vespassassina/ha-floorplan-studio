@@ -115,6 +115,15 @@ Each of these was a real defect. Do not repeat them.
     `.room{pointer-events:all}` outranks it, so the ring would have taken
     clicks the day the editor showed live state. Put the behaviour in a class
     rule in the same stylesheet, and give the class its own computed-style pair.
+19. **Changing a default breaks every test that pinned the old one.** Making
+    blueprint the default theme failed 14 Playwright tests that read light
+    values, and wrapping the plan in a theme group moved a `svg > g` selector.
+    A test that pins a theme's values sets that theme first, and never leans on
+    the default. Selectors reach a plan element with `svg g.x`, not `svg > g.x`.
+20. **A new device type needs its tap decided too.** The default tap toggles the
+    entity; for a `sensor.*` that calls a service that does not exist. Every
+    type is either in `NO_TOGGLE` (`src/card/actions.ts`) or a decision that a
+    tap toggles it.
 
 ## Domain notes
 
