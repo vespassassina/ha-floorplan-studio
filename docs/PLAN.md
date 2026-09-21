@@ -776,6 +776,27 @@ pressed state.
 - Checked: unit test per type for tap to more-info with no service call; a Chromium pair for icon, disc and idle-grey fill; shots looked at.
 - Decided: grey always, no active colour (a battery's state is a percentage, not on/off); `layout.colors` can still name one. The type id is `access_point`. Not covered: a low-battery warning colour, which needs a threshold nobody has asked for yet.
 
+### Sprint 2 close (2026-09-21)
+Verified at sprint close, not per task (WORKFLOW). One pass over the whole sprint on `main` at `6dcf88e`: `npm run lint` exit 0, unit 671 passed, Playwright 340 passed, `npm run shots` looked at (27 images).
+
+| Task | Tests naming it | Result |
+|---|---|---|
+| S2.1 card element | 3 | PASS |
+| S2.2 lights, switches, plugs | 11 | PASS |
+| S2.3 contact sensors on doors | 4 | PASS |
+| S2.4 motion fade | 3 | PASS |
+| S2.5 sensors, climate, camera, media | 8 | PASS |
+| S2.6 room glow, floor switcher, unavailable | 11 | PASS |
+| S2.7 covers on doors | 10 | PASS |
+| S2.8 lamp aura | 3 | PASS |
+| S2.9 device colour when on | 17 | PASS |
+| S2.10 air conditioner | 3 | PASS |
+| S2.11 screenshot harness | none, a script | PASS: two runs identical to baseline |
+| S2.12 themes | 18 | PASS |
+| S2.13 monitored devices | 4 | PASS |
+
+Honest limits: the builder ran this pass, not a separate session; the table shows every suite is green, not that every claim was re-derived. S2.9's media, cover and other fix was never independently re-verified. Nothing has run against a real Home Assistant or a real dashboard's colours. The card is untested as a Lovelace resource. The Python side has never executed. Lessons: CLAUDE.md findings 19 and 20.
+
 ## Sprint 3 — integration, panel, release (E4)
 
 ### S3.0 Dev environment: a real Home Assistant to test against

@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-21 Sprint 2 closed; monitored devices are grey and open more-info
+
+Sprint 2 is done: card, themes, air conditioner, screenshot harness. Two calls
+made on the way. An air conditioner's colour comes from its state, so
+`colors.ac` stays inert: one knob cannot name cool and heat. Battery, inverter,
+server and access point are watched, not switched: idle grey always, and a tap
+opens more-info, never a toggle. A low-battery colour waits for someone to ask.
+
 ## 2026-09-21 Themes: blueprint default, light, and Home Assistant's own; Auto is gone
 
 Diego's call. Supersedes the Auto/Light/Dark choice of S1.53 and the
