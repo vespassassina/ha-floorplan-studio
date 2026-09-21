@@ -1,6 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { entitiesForType, inside } from "../core";
+import { entitiesForType, inside, placedEntities } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { DeviceType, EdgeKind, Floor, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -355,7 +355,7 @@ function devicePanel(c: PanelCtx, i: number) {
 
 /**
  * The device's Home Assistant entity. With HA data it is a select: the entities that suit the device's type, those in the room's area first,
- * then everything else, so nothing is out of reach. It can attach an unbound device, switch a bound one to another, and go back to
+ * then everything else, so nothing is out of reach. Entities already placed on the plan are left out. It can attach an unbound device, switch a bound one to another, and go back to
  * "not connected" (entity ""). An id HA does not know stays as the selected option. Without HA data it stays a text field.
  */
 function deviceEntity(c: PanelCtx, i: number) {
@@ -364,7 +364,9 @@ function deviceEntity(c: PanelCtx, i: number) {
   if (!ha) return text("Home Assistant entity", "ve", d.entity, set);
   const at: [number, number] = "a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y];
   const room = c.st.f.rooms.find((r) => r.area && (r.kind === "room" || r.kind === "structure") && inside(at, r.pts));
-  const { match, rest } = entitiesForType(ha, d.type);
+  // An entity already on the plan is not offered again, except this device's own.
+  const placed = placedEntities(c.st.layout);
+  const { match, rest } = entitiesForType({ ...ha, entities: ha.entities.filter((e) => e.id === d.entity || !placed.has(e.id)) }, d.type);
   const here = room ? match.filter((e) => e.area === room.area) : [], elsewhere = match.filter((e) => !here.includes(e));
   const opts = (l: HaData["entities"]) => byName(l).map((e) => html`<option value=${e.id} title=${e.id} ?selected=${e.id === d.entity}>${e.name}</option>`);
   const unknown = !!d.entity && !ha.entities.some((e) => e.id === d.entity);

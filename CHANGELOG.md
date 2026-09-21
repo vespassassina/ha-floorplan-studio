@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The device entity picker no longer offers an entity that is already on the plan (a device's own stays).
+- README status brought up to date.
+
 ## 0.5.3
 
 - Room and device pickers now work in the panel: the panel reads areas, floors and entities from Home Assistant.

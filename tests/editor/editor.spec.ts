@@ -4662,3 +4662,17 @@ test("S3.3 break it: an entity id HA does not know stays selected and is not cle
   await expect(page.locator("#ve")).toHaveValue("light.gone");
   await expect(page.locator("#panel")).toContainText("Home Assistant does not have this one");
 });
+
+test("S3.3: the picker does not offer an entity that is already on the plan, except the device's own", async ({ page }) => {
+  const i = await withUnboundLight(page);
+  const placed = await page.evaluate(([tag]) => { const ed = document.querySelector(tag as string) as any; return ed.layout.floors.ground.devices.filter((d: any) => d.entity && d.type === "light").map((d: any) => d.entity) as string[]; }, [EDITOR]);
+  expect(placed.length).toBeGreaterThan(0);
+  await setHa(page, { floors: [], areas: [], entities: [...placed, "light.free"].map((id) => ({ id, name: id, domain: "light", area: null })) });
+  await page.locator("#unbound button[data-unbound]").click();
+  const offered = await opts(page, "#ve");
+  expect(offered).toContain("light.free");
+  for (const p of placed) expect(offered).not.toContain(p);
+  await page.locator("#ve").selectOption("light.free");
+  expect((await groundOf(page)).devices[i].entity).toBe("light.free");
+  expect(await opts(page, "#ve")).toContain("light.free"); // still there: it is this device's own
+});

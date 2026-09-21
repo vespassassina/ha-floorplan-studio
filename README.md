@@ -3,8 +3,9 @@
 Draw your home inside Home Assistant, attach your devices, use it as a live
 dashboard. No external drawing tool, no YAML per element.
 
-Status: early. The core library and the standalone editor work and are
-tested. The card, the HA integration and the photo prompt are not built yet.
+Status: usable, still young. The editor, the card and the HA integration are
+built, tested and installable through HACS (see `CHANGELOG.md` for the current
+release). Organising your home from the plan (Sprint 4) is not built yet.
 See `docs/SPEC.md` and `docs/PLAN.md`.
 
 | Part | State |
@@ -13,8 +14,8 @@ See `docs/SPEC.md` and `docs/PLAN.md`.
 | Editor (standalone `dist/editor.html`, works from `file://`, offline) | done |
 | Zones, water, wall kinds, floors, draw mode | done |
 | Stairs, gardens, plan rotation, colours, HA names, closed walls to rooms | done |
-| Lovelace card (themes: blueprint, light, Home Assistant) | done, not yet run on a real Home Assistant |
-| HA integration, panel, HACS release | Sprint 3, built; first release waits for a live check |
+| Lovelace card (themes: blueprint, light, Home Assistant) | done; its script is served by the integration, and it is not yet seen on a dashboard by eye |
+| HA integration, panel, pickers, HACS releases | done, running on the author's Home Assistant |
 | Organise: areas, helpers, groups, automations from the plan | Sprint 4 |
 | Skill and schema for LLMs, validator (`scripts/validate-layout.mjs`) | done, pulled forward from Sprint 5 |
 | Docs | Sprint 5 |
@@ -33,7 +34,7 @@ See `docs/SPEC.md` and `docs/PLAN.md`.
 
 [![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=vespassassina&repository=ha-floorplan-studio&category=integration)
 
-The button opens HACS on your Home Assistant with this repository ready to add. It needs HACS installed, and a published release (from `v0.1.0`). Or by hand:
+The button opens HACS on your Home Assistant with this repository ready to add. It needs HACS installed, and a published release. Or by hand:
 
 1. HACS → Integrations → add this repository → install, then restart Home Assistant.
 2. Add the integration: [![Set up Floorplan Studio.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=floorplan_studio) (one click, no fields). Home Assistant does not load a custom integration until it has an entry, so this step cannot be skipped.

@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-21 The catalog is not rebuilt from Home Assistant on Save
+
+S3.3 said the catalog would be rebuilt from HA's entity list on Save. Dropped. Diego's HA has 3185 entities; his catalog is a curated 235 of them, and a rebuild would flood the Device menu and undo that curation. The Device menu keeps drawing from the catalog; the entity picker on a device draws from HA. An entity picked there is not added to the catalog (a placed device does not need one). If a way to add HA entities to the catalog by hand is wanted, it is its own task. The picker also hides entities already on the plan, except the device's own.
+
 ## 2026-09-21 The panel feeds the editor Home Assistant's data; a device's entity is a picker
 
 Until now `editor.ha` (floors, areas, entities) was only set by tests, so the area and entity dropdowns never showed in the panel. `haData(hass)` (`src/editor/hass-pickers.ts`) reads the floor, area, entity and device registries once after the load; the entity's own area wins over its device's; disabled entities are left out; a registry that fails leaves its part empty, and if neither the area nor the entity registry answers there is no data and the text fields stay. The panel hands the data to the editor as a property set on the element, never through the template, so a late answer cannot re-run the layout setter (the reset bug of 0.5.1). A device's entity is a select: entities that suit its type (`entitiesForType`: domain and device class), those in the room's area first, then everything else so nothing is out of reach, plus "(not connected)" which writes `entity: ""`. An id HA does not know stays selected. Devices with `entity: ""` are drawn with a dashed orange outline in the editor only, and listed as "Needs an entity" on the floor panel. Not done: hiding entities already placed, and rebuilding the catalog from HA on save.
