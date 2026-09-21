@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-21 Panel: a failed load shows an error, never an empty editor
+
+The panel is the editor plus two websocket calls. If `load` fails it shows the
+error and a Retry button. An editor opened on an empty layout would let one
+Save overwrite the stored plan. With nothing saved yet (`layout: null`) the
+editor opens empty, which is not an error. The sidebar entry is admin only.
+
 ## 2026-09-21 Integration: one layout in `.storage`, the door checks only `version`
 
 `load` is open to every user, `save` to admins. `save` rejects anything that is

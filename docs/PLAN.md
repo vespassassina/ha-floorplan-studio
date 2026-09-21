@@ -818,7 +818,9 @@ Honest limits: the builder ran this pass, not a separate session; the table show
 - Done when: `pytest` green; `hassfest` action passes.
 - Break it: load before any save returns `null`, not an error.
 
-### S3.2 Panel
+### S3.2 Panel (built 2026-09-21; the live check on Diego's HA is still open)
+- Built: `src/editor/panel.ts`, `panel.py`, static path and sidebar entry, `tests/editor/panel.test.ts` (6), `tests/integration/test_panel.py` (3), `tests/integration/panel-live.spec.ts` (skips without `HA_URL` and `HA_TOKEN`, never run against a real HA). The built panel was also driven in Chromium against a stub `hass`: it loads, saves, shows the status. Bug found on the way: the vite `panel` build pointed at `panels.ts` (selection helpers), not the panel element.
+- Open: install on Diego's HA (copy `custom_components/floorplan_studio` into `config/`, restart, add the integration), then File, Save, reload, check the sidebar entry is hidden for a non-admin. Screenshot goes in the PR.
 - Outcome: the editor served at `/floorplan-studio` in the sidebar, saving through the websocket.
 - Files: `panel.py`, `src/editor/panel.ts` (`<floorplan-studio-panel>` receives `hass`, wraps the editor, Load/Save buttons call the websocket), `__init__.py` registers static path `/floorplan_studio_static` → the integration's `www/` folder, and the panel with `panel_custom.async_register_panel(frontend_url_path="floorplan-studio", webcomponent_name="floorplan-studio-panel", module_url=..., sidebar_title="Floorplan Studio", sidebar_icon="mdi:floor-plan", require_admin=True)`. `npm run build` copies `dist/*.js` and `dist/editor.html` into `custom_components/floorplan_studio/www/`.
 - Test: dev container (`.devcontainer` from the HA custom component template): open the panel, File → Load gets the demo saved in S3.1's test fixture, move a light, Save, reload the page, the light stays. Record as a Playwright test against the dev container URL when `HA_URL` and `HA_TOKEN` env vars are set; skipped otherwise.
