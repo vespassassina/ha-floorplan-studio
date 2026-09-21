@@ -867,6 +867,13 @@ Honest limits: the builder ran this pass, not a separate session; the table show
 
 ## Sprint 4 — organise the home from the plan (E6)
 
+**Slice 4a (agreed with Diego 2026-09-21): S4.1, then S4.4, then S4.3.** S4.2, S4.5, S4.6, S4.7 and S4.8 wait for later slices.
+Rules from the interview: tests use a stub `hass` that records every call; one live write on Diego's HA runs only after he says yes to
+that exact write, and it carries the `floorplan-studio` label; every write asks in the dialog, except the device-to-area move (S4.3), which
+offers "Don't ask again this session"; the light-from-switch button shows on a placed switch or plug only. S4.1 builds only the functions the
+slice uses (`ensureLabel`, `setDeviceArea`, `setEntityArea`, `createHelper`, `confirm`); `createArea` and `createAutomation` are added by the
+task that needs them. The editor gets the writer as a property set by the panel, never an import, so the standalone build cannot reach it.
+
 Panel only: every task needs `hass`. The standalone editor hides these
 controls. Rules for the whole sprint: every write to HA is confirmed in a
 dialog that names what will be created; everything the tool creates carries
