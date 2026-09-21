@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.2
 
 - A custom colour picked for a room now becomes a swatch, kept in the layout (`palette`), so you can reuse it.
 - Seven textures for floors: light, warm and dark wood; white, grey, dark blue-grey and black stone tiles.
