@@ -17,4 +17,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: hacs/action@main
-        with: { category: integration }
+        with: { category: integration, ignore: "brands topics" }  # store-listing checks; a custom repository does not need them
