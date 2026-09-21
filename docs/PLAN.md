@@ -830,6 +830,9 @@ Honest limits: the builder ran this pass, not a separate session; the table show
 ### S3.2b Load demo and blank Reset (done 2026-09-21, from Diego's first look at the panel)
 - File, Load demo (blank plan only) and File, Reset to blank; fresh-install error fixed. See DECISIONS. Live check on Diego's HA is the next proof.
 
+### S3.2c Update banner and brand icon (done 2026-09-21, Diego's requests)
+- Panel banner from HACS's update entity, with Update; icon and logo in `brand/`. Not yet seen on a real HA.
+
 ### S3.3 Pickers from hass
 - Outcome: rooms pick an area, devices pick an entity, from HA data, grouped.
 - Files: `src/editor/hass-pickers.ts`, `src/editor/panel.ts`, `tests/editor/pickers.test.ts`.

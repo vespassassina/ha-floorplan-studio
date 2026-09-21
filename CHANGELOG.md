@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+
+- The panel shows a banner when HACS has an update for Floorplan Studio, with an Update button (HACS's own install) and a link to the release notes. Restart Home Assistant afterwards.
+- Icon and logo (blueprint style) shipped inside the integration, for Home Assistant 2026.3 and later.
+
 ## 0.3.0
 
 - File, Load demo: puts the demo home in, only while the plan is blank.

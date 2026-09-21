@@ -85,3 +85,22 @@ async def test_switching_it_back_on_brings_the_entry_back(hass, entry):
 async def test_unloading_while_hidden_does_not_fail(hass, entry):
     await _set_sidebar(hass, entry, False)
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+BRAND = Path("custom_components/floorplan_studio/brand")
+
+
+def _png_size(path: Path) -> tuple[int, int]:
+    import struct  # noqa: PLC0415
+
+    data = path.read_bytes()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n", f"{path.name} is not a PNG"
+    return struct.unpack(">II", data[16:24])
+
+
+@pytest.mark.parametrize(
+    "name,size",
+    [("icon.png", (256, 256)), ("icon@2x.png", (512, 512)), ("logo.png", (640, 256)), ("logo@2x.png", (1280, 512)), ("dark_logo.png", (640, 256)), ("dark_logo@2x.png", (1280, 512))],
+)
+def test_the_brand_images_ship_inside_the_integration_at_the_sizes_home_assistant_expects(name, size):
+    assert _png_size(BRAND / name) == size

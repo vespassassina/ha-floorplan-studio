@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs><clipPath id="c"><rect width="256" height="256" rx="48"/></clipPath></defs>
+  <g clip-path="url(#c)">
+    <rect width="256" height="256" fill="#0d1522"/>
+    <g stroke="#8fb4f0" stroke-opacity=".14" stroke-width="2">
+      <path d="M32 0V256M64 0V256M96 0V256M128 0V256M160 0V256M192 0V256M224 0V256"/>
+      <path d="M0 32H256M0 64H256M0 96H256M0 128H256M0 160H256M0 192H256M0 224H256"/>
+    </g>
+  </g>
+  <rect x="1.5" y="1.5" width="253" height="253" rx="46.5" fill="none" stroke="#8fb4f0" stroke-opacity=".55" stroke-width="3"/>
+  <!-- plan: outer walls with a gap for the door, inner walls, a door swing, one device -->
+  <g fill="none" stroke="#8fb4f0" stroke-width="9" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M56 176V64H200V176H132M108 176H56"/>
+    <path d="M132 64V124M56 124H98M126 124H200"/>
+  </g>
+  <path d="M108 176A24 24 0 0 1 132 152" fill="none" stroke="#8fb4f0" stroke-width="3" stroke-opacity=".8"/>
+  <circle cx="94" cy="94" r="11" fill="#f0b429"/>
+  <circle cx="166" cy="150" r="11" fill="none" stroke="#8fb4f0" stroke-width="4"/>
+  <!-- dimension line -->
+  <g stroke="#8fb4f0" stroke-width="3" stroke-opacity=".8"><path d="M56 206H200M56 199V213M200 199V213"/></g>
+</svg>
