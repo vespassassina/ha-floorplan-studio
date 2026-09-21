@@ -1,4 +1,4 @@
-import { DEVICE_TYPES, FLOOR_COLOURS, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, unplacedCatalog, validate, viewBoxFor } from "../core";
+import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, unplacedCatalog, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, Theme } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -306,6 +306,34 @@ export class EditorState {
     if (next.palette) this.layout.palette = next.palette;
     return true;
   }
+  /** A switch or plug that no light is bound to: the ones "Create a light from this switch" is offered on. */
+  canMakeLight(devIndex: number): boolean {
+    const d = this.f.devices[devIndex];
+    if (!d || (d.type !== "switch" && d.type !== "plug")) return false;
+    return !Object.values(this.layout.floors).some((f) => f.devices.some((x) => x.bound === d.entity));
+  }
+
+  /**
+   * After Home Assistant made `entity` (a light wrapping the switch at `devIndex`): the switch leaves the plan, the light takes its place
+   * 30 cm to the right, bound to the switch, and joins the catalog. One undo step. False, and nothing recorded, for a device that is not a
+   * switch or plug, or an entity that is already on the plan or in the catalog.
+   */
+  lightFromSwitch(devIndex: number, entity: string, name: string): boolean {
+    const sw = this.f.devices[devIndex];
+    if (!sw || !this.canMakeLight(devIndex) || "a" in sw) return false;
+    if (Object.values(this.layout.floors).some((f) => f.devices.some((d) => d.entity === entity)) || this.layout.catalog.some((c) => c.entity === entity)) return false;
+    const next = structuredClone(this.layout);
+    const f = next.floors[this.floor];
+    const id = newId(f, this.floor, "light");
+    const room = f.rooms.find((r) => (r.kind === "room" || r.kind === "structure") && inside([sw.x, sw.y], r.pts));
+    f.devices.splice(devIndex, 1, { id, name, type: "light", entity, x: sw.x + 30, y: sw.y, bound: sw.entity });
+    next.catalog.push({ id, floor: this.floor, room: room?.name ?? "", type: "light", name, entity });
+    this.snapshot();
+    this.layout = next;
+    this.sel = { t: "dev", i: devIndex };
+    return true;
+  }
+
   /** Sets (`hex`) or removes (null) the colour of one device type in `layout.colors`: one undo step, none when nothing changes. `colors` is removed when it empties, so an untouched layout stays as it was. */
   setColour(type: DeviceType, hex: string | null): boolean {
     const cur = this.layout.colors ?? {};

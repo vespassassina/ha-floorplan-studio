@@ -4676,3 +4676,64 @@ test("S3.3: the picker does not offer an entity that is already on the plan, exc
   expect((await groundOf(page)).devices[i].entity).toBe("light.free");
   expect(await opts(page, "#ve")).toContain("light.free"); // still there: it is this device's own
 });
+
+// ---- S4.4: create a light from a placed switch ------------------------------------------
+
+/** Gives the editor HA data and a recording writer. `fail` makes createHelper throw. Calls land in window.__calls. */
+async function withWriter(page: Page, opt: { fail?: string } = {}) {
+  await setHa(page, { floors: [], areas: [], entities: [{ id: "switch.demo_hall", name: "Hall switch", domain: "switch", area: null }] });
+  await page.evaluate(([tag, fail]) => {
+    const w = window as any; w.__calls = [];
+    (document.querySelector(tag as string) as any).writer = {
+      setDeviceArea: async () => {}, setEntityArea: async () => {},
+      createHelper: async (...a: unknown[]) => { w.__calls.push(a); if (fail) throw new Error(fail as string); return { entity_id: "light.hall_switch" }; },
+    };
+  }, [EDITOR, opt.fail ?? ""]);
+}
+const calls = (page: Page) => page.evaluate(() => (window as any).__calls as unknown[][]);
+const selectHallSwitch = (page: Page) => page.locator("svg .dev-switch").first().click();
+
+test("S4.4: Create a light from this switch asks, then swaps the switch for a bound light on the plan, in one undo step", async ({ page }) => {
+  await withWriter(page);
+  await selectHallSwitch(page);
+  await page.locator("#vmklight").click();
+  await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
+  expect(await calls(page)).toHaveLength(0); // asking is not doing
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual(["switch_as_x", [{ entity_id: "switch.demo_hall", target_domain: "light" }]]);
+  const g = await groundOf(page);
+  expect(g.devices.some((d) => d.entity === "switch.demo_hall")).toBe(false);
+  expect(g.devices.find((d) => d.entity === "light.hall_switch")).toMatchObject({ type: "light", bound: "switch.demo_hall" });
+  await savedValid(page);
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).devices.some((d) => d.entity === "switch.demo_hall")).toBe(true);
+  expect((await groundOf(page)).devices.some((d) => d.entity === "light.hall_switch")).toBe(false);
+});
+
+test("S4.4 break it: Cancel writes nothing, a failing Home Assistant leaves the plan alone, and no writer means no button", async ({ page }) => {
+  await withWriter(page);
+  await selectHallSwitch(page);
+  await page.locator("#vmklight").click();
+  await page.locator("#fp-confirm-no").click();
+  expect(await calls(page)).toHaveLength(0);
+  expect((await groundOf(page)).devices.some((d) => d.entity === "switch.demo_hall")).toBe(true);
+
+  await withWriter(page, { fail: "entity_not_found" });
+  await selectHallSwitch(page);
+  await page.locator("#vmklight").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("Nothing was changed");
+  expect((await groundOf(page)).devices.some((d) => d.entity === "switch.demo_hall")).toBe(true);
+
+  await page.evaluate(([tag]) => { (document.querySelector(tag as string) as any).writer = undefined; }, [EDITOR]);
+  await selectHallSwitch(page);
+  await expect(page.locator("#vmklight")).toHaveCount(0);
+});
+
+test("S4.4: a switch that a light is already bound to has no button", async ({ page }) => {
+  await withWriter(page);
+  await page.evaluate(([tag]) => { const ed = document.querySelector(tag as string) as any; const l = JSON.parse(JSON.stringify(ed.layout)); l.floors.ground.devices.find((d: any) => d.type === "light").bound = "switch.demo_hall"; ed.layout = l; }, [EDITOR]);
+  await selectHallSwitch(page);
+  await expect(page.locator("#vmklight")).toHaveCount(0);
+});

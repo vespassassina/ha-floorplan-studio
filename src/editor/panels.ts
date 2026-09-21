@@ -25,6 +25,8 @@ export interface PanelCtx {
   select(s: Sel): void;
   /** Paints a room, zone or staircase (colour, texture or default): one undo step; a new custom colour joins `layout.palette`. */
   paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string } | null): void;
+  /** S4.4: create a light from the selected switch or plug. Absent when there is no Home Assistant to write to. */
+  makeLight?: (devIndex: number) => void;
   /** Say something in the status line. */
   say(msg: string): void;
   /** Redraw without an edit. */
@@ -349,6 +351,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${d.type === "camera" ? hint("The cone shows a 120 degree field of view, 1 m deep.") : nothing}
     ${d.type === "light" ? boundField(c, i) : nothing}
     ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
+    ${c.makeLight && c.st.canMakeLight(i) ? html`<p>${button("vmklight", "Create a light from this switch", () => c.makeLight!(i))}</p>${hint("Home Assistant gets a new light that wraps this switch. The plan then shows the light.")}` : nothing}
     <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it. Alt disables the grid.") + " Removed devices go back to the Device menu.")}`;
 }

@@ -6,6 +6,8 @@ import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "..
 import { gridRound, looseEnds, movePointAll, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
+import { confirm as askHa } from "./confirm";
+import type { HaWriter } from "./hass-write";
 import { EditorState, GRID_VALUES, THEME_VALUES, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
 
 /**
@@ -138,6 +140,10 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   /** What Home Assistant has (floors, areas, entities), set by the host. With it the name fields are dropdowns and linked names are refreshed once, without an undo step. */
+  /** Writes to Home Assistant. Set by the panel host only, never imported here, so the standalone build has none and shows no button that needs one. */
+  get writer(): HaWriter | undefined { return this._writer; }
+  set writer(v: HaWriter | undefined) { const old = this._writer; this._writer = v; this.requestUpdate("writer", old); }
+  private _writer?: HaWriter;
   get ha(): HaData | undefined { return this.st.ha; }
   set ha(v: HaData | undefined) {
     const old = this.st.ha;
@@ -299,7 +305,7 @@ export class FloorplanStudioEditor extends LitElement {
   private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); };
   private select = (s: Sel) => { this.st.sel = s; this.requestUpdate(); };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------
@@ -821,6 +827,29 @@ export class FloorplanStudioEditor extends LitElement {
     const v = st.view;
     st.views[st.floor] = { ...v, x: ctr[0] - v.w / 2, y: ctr[1] - v.h / 2 };
     this.changed(`Placed ${c.name}${room ? ` in ${room.name}` : ""}. Drag it to its spot.`);
+  }
+
+  /** S4.4: asks, has Home Assistant wrap the placed switch in a light, then swaps it on the plan. A failure changes nothing on the plan. */
+  private async makeLight(i: number) {
+    const w = this.writer, st = this.st, d = st.f.devices[i];
+    if (!w || !d || !st.canMakeLight(i)) return;
+    const name = d.name ?? d.entity;
+    const ok = await askHa(this.shadowRoot ?? this, "Create a light from this switch", [
+      `Home Assistant will create a light "${name}" that wraps ${d.entity}, and label it floorplan-studio.`,
+      "The switch stays in Home Assistant. The plan shows the light, bound to the switch."]);
+    if (!ok) return;
+    this.status = `Creating a light from ${name}...`; this.requestUpdate();
+    try {
+      const { entity_id } = await w.createHelper("switch_as_x", [{ entity_id: d.entity, target_domain: "light" }]);
+      // The plan may have changed while HA worked: find the switch again by its entity.
+      const at = st.f.devices.findIndex((x) => x.entity === d.entity);
+      if (at < 0 || !st.lightFromSwitch(at, entity_id, name)) { this.status = `Created ${entity_id} in Home Assistant, but the plan changed meanwhile. Place it from the Device menu.`; this.requestUpdate(); return; }
+      const ha = st.ha;
+      if (ha && !ha.entities.some((e) => e.id === entity_id)) this.ha = { ...ha, entities: [...ha.entities, { id: entity_id, name, domain: "light" }] };
+      this.changed(`Created ${entity_id}. The helper stays in Home Assistant if you undo.`);
+    } catch (err) {
+      this.status = `Could not create the light: ${err instanceof Error ? err.message : String(err)}. Nothing was changed.`; this.requestUpdate();
+    }
   }
 
   /** A floor operation of the state is one undo step; the host hears about it like any other edit. */
