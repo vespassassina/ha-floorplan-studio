@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "build": "node scripts/build.mjs",
+    "shots": "node scripts/build.mjs && node scripts/shots.mjs",
     "dev": "vite --config vite.config.ts --mode editor --host 127.0.0.1 src/editor"
   },
   "dependencies": {

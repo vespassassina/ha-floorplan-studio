@@ -47,7 +47,9 @@ Steps:
    file paths). If the block is wrong or impossible, stop and say why; do not
    improvise a different interface.
 4. Run the task tests, then the full suite (`npm test`, and `pytest` for Python
-   tasks). Fix until green.
+   tasks). Fix until green. A task that touches `render.ts` or any stylesheet
+   also runs `npm run shots` and looks at the images: three Sprint 2 defects
+   passed every test and were visibly wrong.
 5. Commit. Tick the task in `docs/PLAN.md` in the same commit.
 6. Report as above. No summary of how great it went; facts only.
 
@@ -133,6 +135,7 @@ landed, real test counts, what the reviews found, what is carried over), a
 | `npm run lint` | eslint + tsc --noEmit |
 | `npm test` | vitest, unit |
 | `npm run test:e2e` | playwright, editor |
+| `npm run shots` | builds, then renders the demo plan (card, both floors, three states, both themes, and the editor) to `shots/current/`; open `index.html` and look. `-- --accept` after you have looked, `-- --strict` to fail on any change |
 | `npm run build` | vite: `dist/floorplan-studio-card.js`, `dist/floorplan-studio-panel.js`, `dist/editor.html` |
 | `npm run dev` | vite dev server for the standalone editor |
 | `pytest` | integration tests (from repo root, `custom_components/` on path) |
