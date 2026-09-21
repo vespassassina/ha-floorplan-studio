@@ -6,7 +6,7 @@ import { FLOORPLAN_CSS } from "../../src/core/render";
 // cannot see specificity or inheritance. This drives FLOORPLAN_CSS in a real Chromium page, independent of the
 // editor, and reads getComputedStyle, never the CSS string.
 
-const DARK = { bg: "rgb(17, 28, 43)", wall: "rgb(232, 230, 224)" };
+const DARK = { bg: "rgb(13, 21, 34)", wall: "rgb(143, 180, 240)" }; // blueprint: --fp-bg #0d1522, --fp-wall #8fb4f0
 const LIGHT = { bg: "rgb(244, 240, 230)", wall: "rgb(43, 42, 39)" };
 
 /** A bare page with FLOORPLAN_CSS and a `.fp` root carrying an un-themed line, a nested light `<g>` and a nested dark `<g>`. */

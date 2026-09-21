@@ -12,7 +12,7 @@ const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
 const LIGHT_INK = "rgb(58, 58, 58)"; // --fp-text light, #3a3a3a
-const DARK_INK = "rgb(232, 230, 224)"; // --fp-text dark, #e8e6e0
+const DARK_INK = "rgb(216, 226, 242)"; // --fp-text dark, #d8e2f2
 
 // A plain <script src="../../dist/floorplan-studio-card.js"> fails under file://: Chromium refuses a cross-origin
 // module fetch between two file:// URLs (unlike dist/editor.html, which is inlined into one file). Injecting the

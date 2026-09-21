@@ -4336,7 +4336,8 @@ test("S1.51 break it: a corner dragged past its opposite one clamps at 5 cm inst
 
 // ---- S1.53 a light and a dark theme ---------------------------------------------------------
 
-const DARK_TH = { bg: "rgb(17, 28, 43)", room: "rgb(28, 42, 58)", wall: "rgb(232, 230, 224)", text: "rgb(232, 230, 224)", outline: "rgb(17, 28, 43)", disc: "rgb(28, 42, 58)", measure: "rgb(232, 230, 224)" };
+// Blueprint palette (2026-09-21): ground #0d1522, room #14213a, wall #8fb4f0, text #d8e2f2.
+const DARK_TH = { bg: "rgb(13, 21, 34)", room: "rgb(20, 33, 58)", wall: "rgb(143, 180, 240)", text: "rgb(216, 226, 242)", outline: "rgb(13, 21, 34)", disc: "rgb(20, 33, 58)", measure: "rgb(143, 180, 240)" };
 const LIGHT_TH = { bg: "rgb(244, 240, 230)", room: "rgb(233, 227, 211)", wall: "rgb(43, 42, 39)", text: "rgb(58, 58, 58)", outline: "rgb(255, 255, 255)" };
 
 async function setTheme(page: Page, t: "auto" | "light" | "dark") {
