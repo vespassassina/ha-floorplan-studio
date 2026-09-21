@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.4
 
 - The device entity picker no longer offers an entity that is already on the plan (a device's own stays).
 - README status brought up to date.
