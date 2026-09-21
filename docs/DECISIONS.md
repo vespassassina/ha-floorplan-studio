@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-21 Integration: one layout in `.storage`, the door checks only `version`
+
+`load` is open to every user, `save` to admins. `save` rejects anything that is
+not an object with `version == 2` as `invalid_format`. The full schema check
+stays in the editor (`src/core/schema.ts`), so Python does not carry a second
+copy that drifts. Adding the integration creates the entry at once, with no
+form, and `single_config_entry` in the manifest allows one instance.
+
 ## 2026-09-21 Sprint 2 closed; monitored devices are grey and open more-info
 
 Sprint 2 is done: card, themes, air conditioner, screenshot harness. Two calls

@@ -810,7 +810,7 @@ Honest limits: the builder ran this pass, not a separate session; the table show
 - Break it: `pytest` run from a directory other than the repo root still finds `custom_components/` (or the failure names the fix).
 - Note: Diego's own HA is an alternative to the dev container for the manual checks. His instance URL, token and layout never enter the repo — they live in a gitignored local file read by name.
 
-### S3.1 Integration: storage and websocket
+### S3.1 Integration: storage and websocket (done 2026-09-21: 8 pytest green; hassfest not yet run, it needs the CI action of S3.5)
 - Outcome: load and save the layout inside HA.
 - Files: `custom_components/floorplan_studio/{__init__.py, const.py, config_flow.py, storage.py, websocket.py, manifest.json, strings.json, translations/en.json}`, `tests/integration/test_websocket.py`, `tests/integration/conftest.py`.
 - Interface: `Store(hass, 1, "floorplan_studio.layout")`; websocket commands `{"type": "floorplan_studio/load"}` → `{"layout": {...} | null}` and `{"type": "floorplan_studio/save", "layout": {...}}` → `{"ok": true}`; save validates `version == 2` and rejects anything else with `invalid_format`. Config flow: single instance, no fields. Admin only for save.

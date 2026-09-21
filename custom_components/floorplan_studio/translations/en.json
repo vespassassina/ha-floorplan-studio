@@ -1,1 +1,7 @@
-{}
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Floorplan Studio is already set up."
+    }
+  }
+}
