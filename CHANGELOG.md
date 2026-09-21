@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+
+- A device may have an empty entity: a fitting that is on the plan but not in Home Assistant yet (a wired light, say) no longer makes the whole layout fail to load.
+
 ## 0.4.0
 
 - The panel shows a banner when HACS has an update for Floorplan Studio, with an Update button (HACS's own install) and a link to the release notes. Restart Home Assistant afterwards.

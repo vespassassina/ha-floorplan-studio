@@ -153,7 +153,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     each("devices", (d) => {
       oneOf(`${d.id} type`, d.type, DEVICE_TYPES);
       optText(d, "name");
-      if (!isEntity(d.entity)) errors.push(`${at} ${d.id} entity must be an entity id like light.name`);
+      if (d.entity !== "" && !isEntity(d.entity)) errors.push(`${at} ${d.id} entity must be an entity id like light.name`);
       if (!(typeof d.x === "number" && Number.isFinite(d.x) && typeof d.y === "number" && Number.isFinite(d.y)) && !(isPt(d.a) && isPt(d.b)))
         errors.push(`${at} ${d.id} needs x and y, or a and b`);
       if (d.rot !== undefined && !(typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot >= 0 && d.rot < 360))

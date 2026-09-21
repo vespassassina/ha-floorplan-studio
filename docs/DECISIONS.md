@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-21 A device may have an empty entity
+
+`validate()` accepted only an entity id for `device.entity`. Diego's home has lights that are plain wired fittings: they exist on the plan and are not in Home Assistant until he wires them to a switch. Dropping them loses the plan; inventing an id breaks the rule in `SCHEMA.md`. So `entity: ""` is now valid on a device (`bound` still must be an id). The catalog was never checked, so it is unchanged. The card already ignores an empty id on tap. The editor's entity field is free text, so an unbound device can be attached by typing; the picker in S3.3 will make it easy (PLAN note added). `prompts/SCHEMA.md` still tells a drawing-reading model to leave devices empty; that is unchanged.
+
 ## 2026-09-21 Update banner reads HACS's update entity; icon ships in the integration
 
 The panel does not call GitHub. It finds the HACS update entity by its
