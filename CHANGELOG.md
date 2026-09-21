@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0
+
+- The sidebar link can be hidden: Configure on the integration, **Show in the sidebar** (on by default).
+- README: one-click setup link.
+
 ## 0.1.0
 
 First release.

@@ -9,5 +9,18 @@
     "abort": {
       "single_instance_allowed": "Floorplan Studio is already set up."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Floorplan Studio",
+        "data": {
+          "show_in_sidebar": "Show in the sidebar"
+        },
+        "data_description": {
+          "show_in_sidebar": "Turn off to hide the sidebar link. The card and your saved plan keep working."
+        }
+      }
+    }
   }
 }

@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-21 The sidebar link is an option, on by default
+
+Configure on the integration has one switch, `show_in_sidebar`. Off removes the
+sidebar link only; the card script and the websocket stay. Changing it reloads
+the entry. The link is not auto-created: Home Assistant loads a custom
+integration only once it has an entry, so the README carries a one-click setup
+link. Hiding through HA's own sidebar editor still works per user.
+
 ## 2026-09-21 Install and update through HACS releases, never by copying files
 
 The maintainer will not copy files into Home Assistant by hand. A `v*` tag

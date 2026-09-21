@@ -12,13 +12,14 @@ from .const import DOMAIN, PANEL_URL_PATH, STATIC_URL
 
 _STATIC_DONE = f"{DOMAIN}_static_registered"
 _CARD_URL = f"{DOMAIN}_card_url"
+_PANEL_SHOWN = f"{DOMAIN}_panel_shown"
 
 
 def _card_url(version: str) -> str:
     return f"{STATIC_URL}/floorplan-studio-card.js?v={version}"
 
 
-async def async_register(hass: HomeAssistant) -> None:
+async def async_register(hass: HomeAssistant, show_in_sidebar: bool = True) -> None:
     if not hass.data.get(_STATIC_DONE):  # a static path cannot be removed, so once per run
         www = Path(__file__).parent / "www"
         await hass.http.async_register_static_paths([StaticPathConfig(STATIC_URL, str(www), cache_headers=False)])
@@ -26,6 +27,9 @@ async def async_register(hass: HomeAssistant) -> None:
     version = (await async_get_integration(hass, DOMAIN)).version
     frontend.add_extra_js_url(hass, _card_url(version))
     hass.data[_CARD_URL] = _card_url(version)
+    if not show_in_sidebar:  # hidden: the card and the websocket still work, only the sidebar link is gone
+        return
+    hass.data[_PANEL_SHOWN] = True
     await panel_custom.async_register_panel(
         hass,
         webcomponent_name="floorplan-studio-panel",
@@ -38,6 +42,7 @@ async def async_register(hass: HomeAssistant) -> None:
 
 
 def async_unregister(hass: HomeAssistant) -> None:
-    frontend.async_remove_panel(hass, PANEL_URL_PATH)
+    if hass.data.pop(_PANEL_SHOWN, None):
+        frontend.async_remove_panel(hass, PANEL_URL_PATH)
     if url := hass.data.pop(_CARD_URL, None):
         frontend.remove_extra_js_url(hass, url)
