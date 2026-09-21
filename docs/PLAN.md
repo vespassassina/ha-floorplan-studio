@@ -840,6 +840,7 @@ Honest limits: the builder ran this pass, not a separate session; the table show
 - Test: registry fixtures → grouping as above; a placed entity is absent from the list; a `hass` stub whose registries answer gives a `HaData` with the floors, the areas with their `floor_id` and the entities with their domain, and the editor's room panel then shows the area select of S1.38.
 - Done when: tests pass; the panel in the dev container shows real areas and real floors.
 - Break it: an entity with no area lands under "No area"; a `hass` with no floor registry (older HA) gives `floors: []` and the floor title stays free text.
+- Added 2026-09-21 (Diego's own home is loaded with some devices unbound, entity `""`): the picker must also reconnect and change. A device's Home Assistant entity field becomes a picker (today it is free text, `panels.ts` "Home Assistant entity"), offering entities of the device's type, the room's area first. Devices with an empty entity show a marker on the plan and in a "needs an entity" list, so they are easy to find. Test: an unbound device gets an entity from the picker; a bound device is switched to another; clearing it returns it to unbound. Done when the four unbound lights in the own-home layout can be attached without typing an id.
 
 ### S3.4 Card as a resource (built 2026-09-21; live check open)
 - Built: `panel.py` calls `frontend.add_extra_js_url` and removes it on unload. Two pytest tests, both fail with the call removed.

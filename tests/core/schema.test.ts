@@ -59,10 +59,17 @@ describe("validate", () => {
     }
     const ok = clone(); ok.floors.ground.rooms[0].area = ""; // empty is a custom shape: drawn rooms have no area
     expect(validate(ok).ok).toBe(true);
-    for (const bad of [5, {}, "", "nodot", null, undefined]) {
+    for (const bad of [5, {}, "nodot", null, undefined]) {
       const l = clone(); l.floors.ground.devices[0].entity = bad;
       expect(errorsOf(l).join("\n"), String(bad)).toMatch(/entity must be an entity id/);
     }
+  });
+
+  it("accepts a device with an empty entity: a fitting on the plan that is not in Home Assistant yet", () => {
+    const l = clone(); l.floors.ground.devices[0].entity = "";
+    expect(validate(l).ok).toBe(true);
+    l.floors.ground.devices[0].bound = "";
+    expect(errorsOf(l).join("\n")).toMatch(/bound must be an entity id/);
   });
 
   it("rejects a door sensor that is not an entity id", () => {
