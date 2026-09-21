@@ -94,6 +94,28 @@ Each of these was a real defect. Do not repeat them.
     here as an unhandled error inside a `disconnectedCallback` during
     teardown, which read as a bug in the card and was not one.
 
+## Findings from the Sprint 2 reviews (Opus)
+
+16. **A green suite does not mean the pixel is right. Render it and look.**
+    Three S2.9 defects passed lint, unit tests and Chromium computed-style
+    pairs while being visibly wrong: a lit pond lost its blue to a more
+    specific rule, then a yellow tint mixed into blue read duller than the
+    unlit pond (two colours of similar lightness desaturate each other), then
+    a stroke was buried under the wall halo. Each was found only by drawing the
+    demo and looking, the pond at 4x. `npm run shots` renders both floors, three
+    states, both themes and the editor to `shots/current/`; any task that
+    touches `render.ts` or a stylesheet runs it and looks before it reports.
+17. **An enumeration is a list of decisions, not a default.** `media`, `cover`
+    and `other` had no active colour and fell through to idle grey, which looks
+    exactly like grey chosen on purpose. Where behaviour is per member of a
+    union (`DEVICE_TYPES`, `RoomKind`), add a test that iterates the union, so a
+    new member fails until someone writes down what it does.
+18. **A presentation attribute loses to any author CSS rule.** The on-room ring
+    set `pointer-events="none"` as an attribute; the editor's own
+    `.room{pointer-events:all}` outranks it, so the ring would have taken
+    clicks the day the editor showed live state. Put the behaviour in a class
+    rule in the same stylesheet, and give the class its own computed-style pair.
+
 ## Domain notes
 
 - Schema v2 is in `docs/SPEC.md`. A `light` device may have `bound`, the

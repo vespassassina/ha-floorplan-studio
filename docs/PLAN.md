@@ -754,6 +754,13 @@ pressed state.
 
 ---
 
+### S2.11 Screenshot harness (done, 2026-09-21)
+- Outcome: `npm run shots` renders the demo plan through the built card (ground and first floor, off, on and unavailable states, light and dark) and the standalone editor to `shots/current/*.png` with a contact sheet `index.html`, and reports which images differ from a local baseline in `shots/baseline/`.
+- Why: CLAUDE.md finding 16. Three S2.9 defects were green on every test and wrong on screen.
+- Files: `scripts/shots.mjs`, `package.json` (`shots`), `.gitignore` (`shots/`), `docs/WORKFLOW.md`.
+- Checked: two consecutive runs with no change report `identical to baseline`, so any difference is real. The baseline is gitignored: PNGs differ between machines.
+- Not covered: it looks at the demo layout only, in the states listed. It says nothing about a state it does not draw.
+
 ## Sprint 3 — integration, panel, release (E4)
 
 ### S3.0 Dev environment: a real Home Assistant to test against
