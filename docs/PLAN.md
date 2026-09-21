@@ -799,7 +799,9 @@ Honest limits: the builder ran this pass, not a separate session; the table show
 
 ## Sprint 3 — integration, panel, release (E4)
 
-### S3.0 Dev environment: a real Home Assistant to test against
+### S3.0 Dev environment: a real Home Assistant to test against (done 2026-09-21: pytest here, Diego's own HA for live checks)
+- Decision: Diego uses his own HA. Steps in `docs/LIVE-TEST.md`. The dev container stays unused unless a Linux box appears.
+- Status: `pytest` half done and green. `.venv` on Python 3.13 via uv, `requirements_test.txt` installed (Home Assistant 2026.2.3), `tests/integration/test_smoke.py` passes, and it passes from another directory too. The real-HA half is NOT done: `hass` run from that venv on this Mac dies with exit 137 (SIGKILL) right after Core Bluetooth fails to start, with a minimal config too; Docker is not installed. `.devcontainer/devcontainer.json` is written but has never been started. The way forward is Diego's own HA (the note below), or a Linux container.
 - Outcome: `pytest` runs green on an empty test, and a Home Assistant instance exists that the panel can be loaded into.
 - Why it is a task: nothing Python in this repo has ever executed. The six files in `custom_components/floorplan_studio/` are one-line stubs, `pytest-homeassistant-custom-component` is named in `requirements_test.txt` but is not installed, and there is no `tests/integration/`. Every later Sprint 3 task's "Done when" assumes a running HA; without this they cannot close.
 - Files: `.devcontainer/devcontainer.json` (HA custom component template), `tests/integration/conftest.py`, `tests/integration/test_smoke.py`, `docs/WORKFLOW.md` command table gains the Python setup line.

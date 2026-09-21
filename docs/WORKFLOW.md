@@ -138,4 +138,4 @@ landed, real test counts, what the reviews found, what is carried over), a
 | `npm run shots` | builds, then renders the demo plan (card, both floors, three states, both themes, and the editor) to `shots/current/`; open `index.html` and look. `-- --accept` after you have looked, `-- --strict` to fail on any change |
 | `npm run build` | vite: `dist/floorplan-studio-card.js`, `dist/floorplan-studio-panel.js`, `dist/editor.html` |
 | `npm run dev` | vite dev server for the standalone editor |
-| `pytest` | integration tests (from repo root, `custom_components/` on path) |
+| `pytest` | integration tests (from repo root, `custom_components/` on path). One-time: `uv venv --python 3.13 .venv && uv pip install --python .venv/bin/python -r requirements_test.txt`, then `.venv/bin/pytest` |

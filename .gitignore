@@ -6,3 +6,5 @@ node_modules/
 playwright-report/
 test-results/
 shots/
+.venv/
+.local/
