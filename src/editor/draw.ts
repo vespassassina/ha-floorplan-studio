@@ -101,6 +101,7 @@ export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; s
     sel = { t: "opening", i: g.openings.length - 1 };
   } else {
     g.extras.push({ id: newId(g, floor, "extra"), name: "New line", a: pts[0], b: pts[1] });
+    sel = { t: "extra", i: g.extras.length - 1 };
   }
   // A polygon corner on another polygon's edge becomes a point of it, as when a corner is dropped. `stitch` itself leaves zones alone.
   if (POLYGONS.includes(s.kind)) return { floor: pts.reduce((h, p) => stitch(h, p), g), sel };

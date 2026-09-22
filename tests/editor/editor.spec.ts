@@ -691,7 +691,7 @@ test("Add, Zone places a 200 x 200 cm zone on the grid, centred on the spawn poi
   expect(Math.max(...xs) - Math.min(...xs)).toBe(200);
   expect(Math.max(...ys) - Math.min(...ys)).toBe(200);
   for (const v of [...xs, ...ys]) expect(Math.abs(v % 5)).toBe(0);
-  expect([Math.min(...xs) + 100, Math.min(...ys) + 100]).toEqual([950, 0]); // centred on the spawn point, right of the house (S1.20)
+  expect([Math.min(...xs) + 100, Math.min(...ys) + 100]).toEqual([1050, 0]); // centred on the spawn point, clear of the demo's own devices (reach x 900), not just the outline (S1.20, S4.13-adjacent)
   // selected: the panel shows kind zone
   await expect(page.locator("#rk")).toHaveValue("zone");
   // its four edges are dotted for real: the browser resolves the dash array from the shared CSS
@@ -1350,11 +1350,25 @@ test("Draw, Water and Draw, Opening and Draw, Structure line add their shapes", 
   await expect(page.locator("svg line.hl")).toHaveCount(1);
   await startDraw(page, "drawExtra");
   await clicksCm(page, [103, 662], [297, 663]);
-  await expect(page.locator("#panel")).toContainText("Nothing selected"); // extras stay unselected
+  await expect(page.locator("#exn")).toHaveValue("New line"); // S4.13: selected on finish, like an opening
   const g = await groundOf(page);
   expect(g.extras).toHaveLength(1);
   expect(g.extras[0].name).toBe("New line");
   expect(validate(await layoutOf(page)).ok).toBe(true);
+});
+
+// S4.13 (Opus review, real-layout repro): a structure line's own body took no clicks at all (`.extra` was
+// `pointer-events:none`), so a click on "tech area" or "boiler + tank" always fell through to the room under
+// it. The test draws one on top of a room on purpose, deselects, then clicks the line itself, not a handle.
+test("an existing structure line, drawn over a room, is still selectable and deletable by clicking it", async ({ page }) => {
+  await startDraw(page, "drawExtra");
+  await clicksCm(page, [180, 150], [260, 150]); // inside the Living Room: on top of a room, like Diego's basement extras
+  await clickCm(page, 150, 650); // free ground: deselect
+  await expect(page.locator("#panel")).toContainText("Nothing selected");
+  await clickCm(page, 220, 150); // the line's own midpoint, still over the room
+  await expect(page.locator("#exn")).toHaveValue("New line");
+  await page.locator("#exdel").click();
+  expect((await groundOf(page)).extras).toHaveLength(0);
 });
 
 test("switching floor mid-draw cancels: no points left, no change, later clicks select", async ({ page }) => {

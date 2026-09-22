@@ -1,23 +1,34 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import type { Furniture, Layout, Pt } from "../../src/core/schema";
+import type { Floor, Furniture, Layout, Pt } from "../../src/core/schema";
 import { closedLoop, gridRound, pivotOnArc, roundStairs, rotateSegment, scaleFurniture, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "../../src/editor/ops";
 
 const ground = () => structuredClone((demo as unknown as Layout).floors.ground);
 const FALLBACK: Pt = [123, 457];
 
+/** A floor with only an outline: nothing else on it. */
+const bareFloor = (outline: Pt[]): Floor => ({ title: "T", outline, rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] });
+
 describe("spawnPoint", () => {
-  it("is right of the outline's bounding box, at its top, on the grid (10 cm by default)", () => {
-    const f = ground();
-    f.outline = [[10, 20], [803, 20], [803, 604], [10, 604]]; // max x 803, min y 20: asymmetric on purpose
+  it("is right of the outline's bounding box, at its top, on the grid (10 cm by default), when the outline is everything", () => {
+    const f = bareFloor([[10, 20], [803, 20], [803, 604], [10, 604]]); // max x 803, min y 20: asymmetric on purpose
     expect(spawnPoint(f, FALLBACK)).toEqual([950, 20]); // 803 + 150 = 953 rounds to 950 (S1.34: it was 955 on the 5 cm grid)
     expect(spawnPoint(f, FALLBACK, 5)).toEqual([955, 20]);
     expect(spawnPoint(f, FALLBACK, 50)).toEqual([950, 0]);
     expect(spawnPoint(f, FALLBACK, 0)).toEqual([953, 20]);
   });
 
+  // S4.13-adjacent fix (Diego, 2026-09-22): a fixed spawn point at "outline right edge + 150" landed every
+  // second new item on top of the first, because nothing already spawned there moved the next spawn along.
+  // spawnPoint now reads every point already on the floor (contentPoints), not only the outline.
+  it("clears a loose wall that reaches further right than the outline, not only the outline itself", () => {
+    const f = bareFloor([[10, 20], [500, 20], [500, 604], [10, 604]]);
+    f.walls = [{ id: "w1", a: [10, 20], b: [803, 400], kind: "wall" }]; // its far end is well past the outline's own right edge (500)
+    expect(spawnPoint(f, FALLBACK)).toEqual([950, 20]); // 803 (the wall's end, not the outline's 500) + 150 = 953, rounds to 950
+  });
+
   it("uses the demo outline: 800 wide, top at 0", () => {
-    expect(spawnPoint(ground(), FALLBACK)).toEqual([950, 0]);
+    expect(spawnPoint(ground(), FALLBACK)).toEqual([1050, 0]); // the demo's own devices reach x 900, further right than the outline (800)
   });
 
   it("returns the fallback for an outline of fewer than three points", () => {

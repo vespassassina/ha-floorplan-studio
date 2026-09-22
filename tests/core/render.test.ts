@@ -30,8 +30,8 @@ describe("renderFloor", () => {
     f.extras.push({ id: "x1", name: "<b>shed</b>", a: [100, 450], b: [200, 520] }, { id: "x2", name: "path", a: [0, 0], b: [50, 0] });
     const html = renderFloor(f, base);
     expect(html).toMatch(/<line class="opening" x1="100" y1="400" x2="200" y2="400"\/>/);
-    expect(html).toMatch(/<rect class="extra" x="100" y="450" width="100" height="70"\/>/);
-    expect(html).toMatch(/<line class="extra" x1="0" y1="0" x2="50" y2="0"\/>/);
+    expect(html).toMatch(/<rect class="extra" data-ex="\d+" x="100" y="450" width="100" height="70"\/>/);
+    expect(html).toMatch(/<line class="extra" data-ex="\d+" x1="0" y1="0" x2="50" y2="0"\/>/);
     expect(html).toContain("&lt;b&gt;shed&lt;/b&gt;");
     expect(html).not.toContain("<b>");
   });
