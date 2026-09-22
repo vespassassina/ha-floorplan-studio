@@ -235,6 +235,17 @@ export class EditorState {
   /** Swap the current floor without touching history (used while dragging). */
   replaceFloor(f: Floor) { for (const t of f.stairs) t.steps = stairSteps(t); this.layout.floors[this.floor] = f; }
 
+  /** Commits a gesture already shown live via `replaceFloor` (a value dragged with an `<input type="range">`, for
+   * instance): one undo step from `before` (the layout exactly as it stood when the gesture started) to the current
+   * layout, none if the gesture ended back where it started. Returns whether a step was recorded. */
+  commitLiveEdit(before: Layout): boolean {
+    if (JSON.stringify(before) === JSON.stringify(this.layout)) return false;
+    this.hist.push(JSON.stringify(before));
+    if (this.hist.length > MAX_HISTORY) this.hist.shift();
+    this.fut = [];
+    return true;
+  }
+
   undo() { return this.step(this.hist, this.fut); }
   redo() { return this.step(this.fut, this.hist); }
   private step(from: string[], to: string[]): boolean {
@@ -283,14 +294,15 @@ export class EditorState {
   /**
    * Paints a room, zone or staircase of the current floor, one undo step. `{ color }` sets a flat colour (and drops any texture); a
    * colour that is not a built-in swatch joins `layout.palette`, newest last, so the swatches keep every custom colour used.
-   * `{ texture }` sets a texture (and drops the colour). `null` returns to the theme's default fill. Returns false, recording
-   * nothing, when the shape is missing, the value is bad or nothing changes.
+   * `{ texture, rot }` sets a texture (and drops the colour) and, optionally, the texture's own rotation in whole
+   * degrees (S4.22; 0 or omitted is never stored). `null` returns to the theme's default fill. Returns false,
+   * recording nothing, when the shape is missing, the value is bad or nothing changes.
    */
-  paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string } | null): boolean {
+  paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string; rot?: number } | null): boolean {
     const next: Layout = structuredClone(this.layout);
     const shape = next.floors[this.floor][on][i];
     if (!shape) return false;
-    delete shape.color; delete shape.texture;
+    delete shape.color; delete shape.texture; delete shape.textureRot;
     if (paint && "color" in paint) {
       const hex = paint.color.toLowerCase();
       if (!/^#[0-9a-f]{6}$/.test(hex)) return false;
@@ -299,6 +311,8 @@ export class EditorState {
     } else if (paint) {
       if (!TEXTURE_IDS.includes(paint.texture)) return false;
       shape.texture = paint.texture;
+      const rot = ((Math.trunc(paint.rot ?? 0) % 360) + 360) % 360;
+      if (rot !== 0) shape.textureRot = rot;
     }
     if (JSON.stringify(next) === JSON.stringify(this.layout)) return false;
     this.snapshot();

@@ -139,6 +139,8 @@ export class FloorplanStudioEditor extends LitElement {
   private drag: Drag | null = null;
   /** Draw mode: the shape being drawn, and where the pointer is (snapped) for the rubber band. */
   private draw: Draw | null = null;
+  /** S4.22: the layout as it stood when the texture-rotation slider's drag began, or null between drags. */
+  private textureRotGesture: Layout | null = null;
   private hover: Pt | null = null;
   private rect = { w: 800, h: 600 };
   private ro?: ResizeObserver;
@@ -216,6 +218,7 @@ export class FloorplanStudioEditor extends LitElement {
     .sub>.btn:not(summary){padding-left:20px}
     .sep{border-top:1px solid var(--fp-idle)}
     .swatches{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0} .sw{width:28px;height:28px;padding:0;border:1px solid var(--fp-idle);border-radius:4px;cursor:pointer} .sw.custom{border-style:dashed} .sw[aria-pressed="true"]{outline:2px solid var(--fp-ink);outline-offset:1px}
+    .rot-val{display:inline-block;min-width:3em;text-align:right;font-variant-numeric:tabular-nums}
     .colrow{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:2px 0} .colrow label{display:flex;flex:1;justify-content:space-between;gap:6px} .colrow input{padding:0;width:36px;height:24px} .colrow .btn{width:auto}
     .rotrow{display:flex;flex-wrap:wrap;gap:6px} .rotrow>span{width:100%} .box .rotrow .btn{width:auto;flex:1;text-align:center}
     .ed{display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:start}
@@ -326,8 +329,26 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); };
   private select = (s: Sel) => { this.st.sel = s; this.requestUpdate(); };
+  /** S4.22: the paint panel's rotation slider. `live` previews every tick via `replaceFloor` (no undo step, the same
+   * pattern a mouse drag uses); `commit`, once at release, records the whole drag as one step — none if it ended back
+   * where it started (mirrors `begin()`/`onUp` for a pointer drag). */
+  private rotateTexture = (on: "rooms" | "stairs", i: number, rot: number, phase: "live" | "commit") => {
+    // A commit with no prior live tick (a click on the track, or an arrow key) still needs a "before": take it now,
+    // before the value below is applied.
+    if (!this.textureRotGesture) this.textureRotGesture = structuredClone(this.st.layout);
+    const g = structuredClone(this.st.f);
+    const shape = g[on][i];
+    const n = ((Math.trunc(rot) % 360) + 360) % 360; // 0 is never stored (matches paint()'s convention)
+    if (shape) { if (n === 0) delete shape.textureRot; else shape.textureRot = n; }
+    this.st.replaceFloor(g);
+    if (phase === "live") { this.requestUpdate(); return; }
+    const before = this.textureRotGesture;
+    this.textureRotGesture = null;
+    if (this.st.commitLiveEdit(before)) this.changed("Texture rotated");
+    else this.requestUpdate();
+  };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------

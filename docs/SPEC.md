@@ -58,9 +58,9 @@ in `prompts/`, then fixed in the editor.
     "ground": {
       "title": "Ground", "ha": "downstairs",
       "outline": [[x, y], ...], "owk": ["external", ...],
-      "rooms":   [{"id", "name", "area", "label", "kind", "pts", "wk", "color"?, "texture"?, "free"?, "entity"?}],
+      "rooms":   [{"id", "name", "area", "label", "kind", "pts", "wk", "color"?, "texture"?, "textureRot"?, "free"?, "entity"?}],
       "walls":   [{"id", "a", "b", "kind"}],
-      "stairs":  [{"id", "name", "pts", "shape", "steps", "rot", "dia"?, "inner"?, "color"?, "texture"?}],
+      "stairs":  [{"id", "name", "pts", "shape", "steps", "rot", "dia"?, "inner"?, "color"?, "texture"?, "textureRot"?}],
       "doors":   [{"id", "name", "kind", "a", "b", "sensor", "cover"}],
       "openings":[{"id", "a", "b"}],
       "extras":  [{"id", "name", "a", "b"}],
@@ -131,6 +131,14 @@ in `prompts/`, then fixed in the editor.
   repeating pattern (boards 20 x 80 cm, tiles 50 cm). It wins over `color`; the
   editor removes one when it sets the other. The render writes only
   `url(#fp-tex-<id>)` from this fixed list and declares only the patterns in use.
+- `room.textureRot` (optional, also on stairs, S4.22) is the texture pattern's
+  own rotation in whole degrees, `[0, 360)`; it never appears without a
+  `texture` and is dropped whenever the texture or colour changes. 0 (no
+  rotation) is never stored — the field is simply absent. The editor's paint
+  panel shows a slider once a texture is chosen; dragging it previews live but
+  writes one undo step for the whole drag, same as a furniture corner drag. A
+  hostile or non-finite value never throws: the render wraps it into `[0, 360)`
+  and treats anything that is not a finite number as 0.
 - `palette` (optional, top level) is a list of `#rrggbb`, at most 24: the custom
   colours used so far. The editor adds a colour picked on the free colour input
   when it is not one of the twelve built-in swatches, and offers the list as
