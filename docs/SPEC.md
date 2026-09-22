@@ -237,10 +237,24 @@ type: custom:floorplan-studio-card
 floor: ground          # or "all" with a floor switcher
 fade: 300              # motion fade, seconds
 room_glow: true
-theme: blueprint         # blueprint (default), light, or ha
+theme: blueprint       # blueprint (default), midnight, light, slate, terminal, solarized, or ha
 ```
 
-`theme` is blueprint unless the dashboard says otherwise: a dark navy ground with blue linework. `light` is the paper-and-ink set. `ha` inherits the dashboard's own theme: ground from `--card-background-color`, rooms from `--secondary-background-color`, walls and text from `--primary-text-color`, measure marks from `--secondary-text-color`. Each has the plain light or dark set as its fallback, chosen by `hass.themes.darkMode`, so a dashboard that defines none of them still draws. Device and state colours (on, danger, warn, primary) never follow the dashboard: an amber light stays amber. The card ignores the OS colour scheme.
+`theme` is blueprint unless the dashboard says otherwise. `light` is the paper-and-ink set; `midnight` is the project's first dark theme, kept under its own name once blueprint moved on to a new palette (2026-09-22). `ha` inherits the dashboard's own theme: ground from `--card-background-color`, rooms from `--secondary-background-color`, walls and text from `--primary-text-color`, measure marks from `--secondary-text-color`. Each has the plain light or midnight set as its fallback, chosen by `hass.themes.darkMode`, so a dashboard that defines none of them still draws. Warn, danger and primary (the UI chrome, not a device's own colour) never follow the theme: they and their on-dark/on-light text are the same fixed pair everywhere, because they already clear 4.5:1 against it. The card ignores the OS colour scheme.
+
+### Role-generated themes (S4.21, 2026-09-22)
+
+`blueprint`, `slate` and `terminal` are built from four roles instead of ~50 independent hexes (`src/core/theme-roles.ts`, `rolesToTokens`): a **base** hue shaded from background to strongest linework for every structural surface (ground, walls, garden, doors, windows...), a **foreground** colour for text, icons and detail, a **line** colour for the measurement grid only, and one saturated **accent** for anything "on" or "live" — device state, the on-room ring, aura and glow. A device's own colour defaults to the accent (every "on" icon the same colour, Diego's brief: "collapse to one accent"), but a theme's role definition may give specific device or entity types their own colour instead via an optional `devices` map, so a theme can keep its device colours distinct where that reads better. None of the three built-in role-generated themes use that override; `solarized` (below) does, as the worked example.
+
+| Theme | Base | Foreground | Line | Accent |
+|---|---|---|---|---|
+| `blueprint` | dark blue | cool white | terminal green | saturated orange |
+| `slate` | neutral grey (light) | dark ink | muted green | burnt orange |
+| `terminal` | near-black | terminal green | terminal green | amber |
+
+`solarized` is bespoke, not role-generated: the real Solarized dark palette (base03 ground through base3 linework, its eight accent hues), each device type kept in its own Solarized colour rather than collapsed to one accent — Diego's call, 2026-09-22, real Solarized fidelity over reuse.
+
+`ha` is untouched by this system: its neutrals still come from Home Assistant's CSS variables, with `midnight`'s fixed hexes as the fallback, not blueprint's new palette.
 
 ## Editor
 
@@ -329,29 +343,31 @@ theme: blueprint         # blueprint (default), light, or ha
   On a huge floor the step grows to 100 or 500 cm so no axis needs more than
   400 lines. A chip in the View menu, next to Grid; kept in the browser, not
   in the layout, and never an undo step.
-- Theme (S1.53, reworked S2.12): every colour in `FLOORPLAN_CSS` is a `--fp-*`
-  custom property. Three themes. **Blueprint**, the default and the base
-  selector: ground `#0d1522`, room fill `#14213a`, walls `#8fb4f0`, ink
-  `#d8e2f2`. **Light**: ground `#f4f0e6`, room fill `#e9e3d3`, walls
-  `#2b2a27`. **Home Assistant**: the neutrals are `var(--card-background-color)`,
+- Theme (S1.53, reworked S2.12, role system added S4.21): every colour in
+  `FLOORPLAN_CSS` is a `--fp-*` custom property. Seven themes: **Blueprint**,
+  the default and the base selector, **Midnight** (blueprint's old palette,
+  kept under its own name), **Light**, the paper-and-ink set, **Slate**,
+  **Terminal** and **Solarized** (see "Role-generated themes" above), and
+  **Home Assistant**, whose neutrals are `var(--card-background-color)`,
   `var(--secondary-background-color)`, `var(--primary-text-color)` and
-  `var(--secondary-text-color)`, each with the plain light or dark set as its
+  `var(--secondary-text-color)`, each with midnight's plain hexes as its
   fallback (dark when `data-mode="dark"`). A `data-theme` attribute, on the
   editor's own host or on one plan's root, picks one; none means blueprint. The
   OS colour scheme is not read by the card or the plan. The standalone editor
   page has a blueprint ground; the editor's `ha` theme follows the host's
-  `haDark` property when the panel sets it, the OS when it does not. Device
-  colours and the accent buttons (primary, warn, danger) keep the same hex in
-  every theme: each already clears 4.5:1 against the theme-invariant text
-  tokens `--fp-on-dark`/`--fp-on-light` it is paired with (orange was tried for
-  primary and failed 4.5:1 with white text). A three-way chip (Blueprint /
-  Light / Home Assistant) in the View menu, default Blueprint, kept in the
-  browser under `floorplan-studio:theme`, never in the layout and never an undo
-  step; a blocked store, an unknown value, or an old `auto` or `dark` falls back
-  to Blueprint. The editor's own chrome follows the same theme as the plan, and
-  every button keeps its 4.5:1 contrast (S1.40) in all three. A per-room colour
-  keeps its own hue in every theme; only the room's name ink/outline flips to
-  stay readable. The card takes `theme` from its config.
+  `haDark` property when the panel sets it, the OS when it does not. The
+  accent buttons (primary, warn, danger) keep the same hex in every theme:
+  each already clears 4.5:1 against the theme-invariant text tokens
+  `--fp-on-dark`/`--fp-on-light` it is paired with (orange was tried for
+  primary and failed 4.5:1 with white text; folding them into the new accent
+  role repeated the same mistake and was reverted, Opus review 2026-09-22). A
+  chip per theme in the View menu, default Blueprint, kept in the browser
+  under `floorplan-studio:theme`, never in the layout and never an undo step;
+  a blocked store, an unknown value, or an old `auto` or `dark` falls back to
+  Blueprint. The editor's own chrome follows the same theme as the plan, and
+  every button keeps its 4.5:1 contrast (S1.40) in every theme. A per-room
+  colour keeps its own hue in every theme; only the room's name ink/outline
+  flips to stay readable. The card takes `theme` from its config.
 - Undo/redo, autosave in the browser, Open/Save file. File, Reset erases the plan to a blank one (asks first, one undo step; in HA nothing stored changes until Save). File, Load demo puts the demo home in, only while nothing is drawn, so it never asks and never overwrites; it is greyed out otherwise with the reason. A blank plan is not a valid layout (an outline needs 3 points), so it cannot be saved until something is drawn, and a panel with nothing stored opens on the editor's own blank start.
 - In HA: Load and Save go through the integration. Standalone: file only.
 
