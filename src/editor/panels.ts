@@ -2,7 +2,7 @@ import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { entitiesForType, inside, placedEntities } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import type { DeviceType, EdgeKind, Floor, HaData, Room, RoomKind, WallKind } from "../core";
+import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 
@@ -13,7 +13,7 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["humidity", "Humidity"], ["motion", "Motion"], ["contact", "Window / door sensor"], ["camera", "Cameras"],
   ["climate", "Climate"], ["ac", "Air conditioning / heat pump"], ["tv", "TV"], ["computer", "Computers"],
   ["media", "Media players"], ["cover", "Covers"], ["battery", "Batteries"], ["inverter", "Inverters"], ["server", "Servers"],
-  ["access_point", "Access points"], ["other", "Other"],
+  ["access_point", "Access points"], ["lock", "Door locks"], ["vibration", "Vibration sensors"], ["other", "Other"],
 ];
 
 export const WALL_LABELS: Record<EdgeKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge", none: "Not drawn" };
@@ -282,22 +282,44 @@ function angleField(c: PanelCtx, id: string, list: "walls" | "doors" | "openings
   });
 }
 
+/**
+ * S4.24: "attach several entities, filtered by type" — one add-select of catalog entries not yet attached, plus
+ * one row with a remove button per entity already attached. Shared by door sensors/vibration/locks and the
+ * heater/ac bindings below, so this UI is written once and every caller stays in step.
+ */
+function multiAttachField(c: PanelCtx, id: string, label: string, cur: string[], choices: CatalogEntry[], set: (next: string[]) => void) {
+  const nameOf = (entity: string) => { const e = c.st.layout.catalog.find((x) => x.entity === entity); return e ? (e.room ? `${e.room} - ${e.name}` : e.name) : entity; };
+  const avail = choices.filter((s) => !cur.includes(s.entity));
+  const add = (e: Event) => { const v = val(e); if (v) set([...cur, v]); };
+  return html`<label for=${id}>${label}</label>
+    <select id=${id} .value=${live("")} @change=${add}>
+      <option value="" selected>add...</option>
+      ${avail.map((s) => html`<option value=${s.entity}>${s.room ? `${s.room} - ` : ""}${s.name}</option>`)}
+    </select>
+    ${cur.map((en, k) => html`<p class="attach-row">${nameOf(en)} ${button(`${id}-rm${k}`, "Remove", () => set(cur.filter((x) => x !== en)), "warn")}</p>`)}`;
+}
+
 function doorPanel(c: PanelCtx, i: number) {
   const d = c.st.f.doors[i];
-  const sensors = c.st.sensorChoices(d.id);
+  const setList = (field: "sensors" | "vibration" | "locks") => (next: string[]) => c.commit((f) => { if (next.length) f.doors[i][field] = next; else delete f.doors[i][field]; });
+  // `cover` is general purpose (a garage door's roller shutter is one too, kind "door") and stays offered on
+  // every kind, same as before S4.24 — it doubles as the electric-curtain dropdown on a glass door or window.
+  const coverLabel = d.kind === "glass" || d.kind === "window" ? "electric curtain" : "cover";
   return html`<strong>Door / window</strong>
     ${text("name", "dn", d.name, (v) => c.commit((f) => { f.doors[i].name = v; }))}
     ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }))}
     ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); f.doors[i].locked = true; }))}
     ${lockField(c, "dlock", "doors", i)}
     ${angleField(c, "drot", "doors", i)}
-    <label for="dsens">contact sensor</label>
-    <select id="dsens" .value=${d.sensor ?? ""} @change=${(e: Event) => c.commit((f) => { const v = val(e); if (v) f.doors[i].sensor = v; else delete f.doors[i].sensor; })}>
-      <option value="" ?selected=${!d.sensor}>none</option>
-      ${sensors.map((s) => html`<option value=${s.entity} ?selected=${s.entity === d.sensor}>${s.room ? `${s.room} - ` : ""}${s.name}</option>`)}
-      ${d.sensor && !sensors.some((s) => s.entity === d.sensor) ? html`<option value=${d.sensor} selected>${d.sensor}</option>` : nothing}
+    ${multiAttachField(c, "dsens", "contact sensors", d.sensors ?? [], c.st.doorAttachChoices(d.id, "sensors"), setList("sensors"))}
+    ${multiAttachField(c, "dvibr", "vibration sensors", d.vibration ?? [], c.st.doorAttachChoices(d.id, "vibration"), setList("vibration"))}
+    ${multiAttachField(c, "dlocks", "smart locks", d.locks ?? [], c.st.doorAttachChoices(d.id, "locks"), setList("locks"))}
+    <label for="dcover">${coverLabel}</label>
+    <select id="dcover" .value=${d.cover ?? ""} @change=${(e: Event) => c.commit((f) => { const v = val(e); if (v) f.doors[i].cover = v; else delete f.doors[i].cover; })}>
+      <option value="" ?selected=${!d.cover}>none</option>
+      ${c.st.coverChoices(d.id).map((s) => html`<option value=${s.entity} ?selected=${s.entity === d.cover}>${s.room ? `${s.room} - ` : ""}${s.name}</option>`)}
+      ${d.cover && !c.st.coverChoices(d.id).some((s) => s.entity === d.cover) ? html`<option value=${d.cover} selected>${d.cover}</option>` : nothing}
     </select>
-    ${text("cover entity (optional)", "dcover", d.cover ?? "", (v) => c.commit((f) => { if (v.trim()) f.doors[i].cover = v.trim(); else delete f.doors[i].cover; }))}
     <label><input type="checkbox" id="dopen" .checked=${c.st.openDoor === d.id} @change=${(e: Event) => { c.st.openDoor = (e.target as HTMLInputElement).checked ? d.id : null; c.refresh(); }}> preview open</label>
     <p>${button("deld", "Delete", () => { c.commit((f) => { f.doors.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag it along a wall. Drag an end to resize.")}`;
@@ -390,6 +412,8 @@ function devicePanel(c: PanelCtx, i: number) {
     ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}
     ${d.type === "camera" ? hint("The cone shows a 120 degree field of view, 1 m deep.") : nothing}
     ${d.type === "light" ? boundField(c, i) : nothing}
+    ${d.type === "heater" ? heaterFields(c, i) : nothing}
+    ${d.type === "ac" ? acField(c, i) : nothing}
     ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
     ${areaDiffField(c, i)}
     ${c.makeLight && c.st.canMakeLight(i) ? html`<p>${button("vmklight", "Create a light from this switch", () => c.makeLight!(i))}</p>${hint("Home Assistant gets a new light that wraps this switch. The plan then shows the light.")}` : nothing}
@@ -444,6 +468,22 @@ function boundField(c: PanelCtx, i: number) {
       ${d.bound && !choices.some((s) => s.entity === d.bound) ? html`<option value=${d.bound} selected>${d.bound}</option>` : nothing}
     </select>
     ${d.bound ? hint(`${d.name ?? nameOf(d.entity)} + ${nameOf(d.bound)}`) : nothing}`;
+}
+
+/** S4.24: a heater attaches several TRV/climate entities and several temperature sensors — design interview,
+ * 2026-09-22: this is the whole scope, no open-window cutoff. */
+function heaterFields(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  const setList = (field: "trvs" | "tempSensors") => (next: string[]) => c.commit((f) => { if (next.length) f.devices[i][field] = next; else delete f.devices[i][field]; });
+  return html`${multiAttachField(c, "htrv", "TRVs", d.trvs ?? [], c.st.deviceAttachChoices(i, "trvs"), setList("trvs"))}
+    ${multiAttachField(c, "hsens", "temperature sensors", d.tempSensors ?? [], c.st.deviceAttachChoices(i, "tempSensors"), setList("tempSensors"))}`;
+}
+
+/** S4.24: an ac attaches several AC-or-TRV entities to one list. */
+function acField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  const set = (next: string[]) => c.commit((f) => { if (next.length) f.devices[i].linked = next; else delete f.devices[i].linked; });
+  return multiAttachField(c, "aclink", "AC / TRV entities", d.linked ?? [], c.st.deviceAttachChoices(i, "linked"), set);
 }
 
 function furniturePanel(c: PanelCtx, i: number) {

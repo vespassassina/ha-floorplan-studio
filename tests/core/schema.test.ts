@@ -65,6 +65,34 @@ describe("validate", () => {
     }
   });
 
+  it("accepts several TRVs and temp sensors on a heater, rejects them on any other type (S4.24)", () => {
+    const l = clone();
+    const heater = l.floors.ground.devices.find((d: { id: string }) => d.id === "heater-living");
+    heater.trvs = ["climate.demo_trv1", "climate.demo_trv2"];
+    heater.tempSensors = ["sensor.demo_temp1"];
+    expect(validate(l).ok).toBe(true);
+    const light = l.floors.ground.devices.find((d: { id: string }) => d.id === "light-living");
+    light.trvs = ["climate.demo_trv1"];
+    expect(errorsOf(l).join("\n")).toMatch(/light-living trvs\/tempSensors are only allowed on a heater/);
+  });
+
+  it("rejects a heater trv that is not an entity id", () => {
+    const l = clone();
+    const heater = l.floors.ground.devices.find((d: { id: string }) => d.id === "heater-living");
+    heater.trvs = ["nodot"];
+    expect(errorsOf(l).join("\n")).toMatch(/heater-living trvs\[0\]/);
+  });
+
+  it("accepts several linked entities on an ac, rejects them on any other type (S4.24)", () => {
+    const l = clone();
+    const dev = l.floors.ground.devices.find((d: { id: string }) => d.id === "camera-hall");
+    dev.type = "ac";
+    dev.linked = ["climate.demo_trv1", "ac.demo_ac1"];
+    expect(validate(l).ok).toBe(true);
+    dev.type = "camera";
+    expect(errorsOf(l).join("\n")).toMatch(/linked is only allowed on an ac/);
+  });
+
   it("accepts a device with an empty entity: a fitting on the plan that is not in Home Assistant yet", () => {
     const l = clone(); l.floors.ground.devices[0].entity = "";
     expect(validate(l).ok).toBe(true);
@@ -72,10 +100,25 @@ describe("validate", () => {
     expect(errorsOf(l).join("\n")).toMatch(/bound must be an entity id/);
   });
 
-  it("rejects a door sensor that is not an entity id", () => {
+  it("rejects a door sensor that is not an entity id (S4.24: sensors is a list)", () => {
     const l = clone();
-    l.floors.ground.doors[0].sensor = "nodot";
-    expect(errorsOf(l).join("\n")).toMatch(/door-ground-1.*sensor/);
+    l.floors.ground.doors[0].sensors = ["nodot"];
+    expect(errorsOf(l).join("\n")).toMatch(/door-ground-1.*sensors\[0\]/);
+  });
+
+  it("rejects a door sensors value that is not a list", () => {
+    const l = clone();
+    l.floors.ground.doors[0].sensors = "binary_sensor.x";
+    expect(errorsOf(l).join("\n")).toMatch(/door-ground-1.*sensors must be a list/);
+  });
+
+  it("rejects a door vibration or locks entry that is not an entity id", () => {
+    const l = clone();
+    l.floors.ground.doors[0].vibration = ["nodot"];
+    expect(errorsOf(l).join("\n")).toMatch(/door-ground-1.*vibration\[0\]/);
+    const m = clone();
+    m.floors.ground.doors[0].locks = ["nodot"];
+    expect(errorsOf(m).join("\n")).toMatch(/door-ground-1.*locks\[0\]/);
   });
 
   it("rejects a door cover that is not an entity id", () => {

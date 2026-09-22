@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-22 S4.24 built: `cover` stays unrestricted by door kind, despite the request's wording
+
+Building the multi-attach schema below, the first pass restricted `Door.cover` (the electric-curtain/blind field) to `kind === "glass" | "window"`, matching the request's literal phrasing ("glass doors and windows have another dropdown to attach electric curtains"). That broke `demo/layout.json`'s own "Garage door" (`kind: "door"`), which has a pre-existing, legitimate `cover: "cover.demo_garage_door"` for its garage opener — a general-purpose use of the field that predates S4.24 and has nothing to do with curtains. Caught by inspecting the fixture before running any test, not by a test failure.
+
+Reverted: `cover` validates on every door kind, exactly as before this task — it was already a free-text field with no kind restriction. S4.24 only upgrades it from free text to a `<select>` filtered to `cover`-type catalog entries, and the panel's *label* switches cosmetically — "electric curtain" on a glass door or window, "cover" otherwise — with no change to what the field accepts or where it's offered. A curtain and a garage opener are the same kind of thing to Home Assistant (a `cover` entity); splitting them into two schema fields would have been unjustified complexity for a distinction that only exists in the panel's wording.
+
 ## 2026-09-22 Door/window sensors, heater and AC bindings: all multi-attach, one shared panel component
 
 Diego asked for a batch of device-binding UI in one message: doors/windows attach several contact sensors, several vibration sensors and several smart locks; heaters attach TRV/climate entities and temperature sensors; ACs attach AC or TRV entities; glass doors/windows get a curtain dropdown. Two points needed a design interview (CLAUDE.md section 6) before touching schema, since guessing wrong here means redoing a schema change, not just a UI tweak.

@@ -61,6 +61,9 @@ export function migrate(x: unknown): Layout {
     if (f.outline !== undefined && !Array.isArray(f.outline)) throw new Error(`Floor "${fname}": outline must be an array`);
     outlineKinds(f);
     for (const r of f.rooms) { if (r.kind === "outdoor") r.kind = "garden"; r.area = r.area ?? (r.kind === "water" ? "" : slug(String(r.name ?? ""))); r.name = r.name ?? ""; r.label = r.label ?? ""; edgeKinds(r); }
+    // S4.24: a door's single `sensor` becomes `sensors`, a list. Always drop the old key, whether or not a new
+    // list is already present, so a half-migrated file never keeps both.
+    for (const d of f.doors) { if (typeof d.sensor === "string" && d.sensor && !Array.isArray(d.sensors)) d.sensors = [d.sensor]; delete d.sensor; }
     f.devices = (f.devices ?? []).filter(isObj).map((d: any, i: number) => {
       if (v === 1) d.type = RENAME[d.type] ?? d.type;
       d.id = d.id ?? `${d.type}-${fname}-${i + 1}`;

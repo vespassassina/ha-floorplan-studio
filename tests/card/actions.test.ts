@@ -7,7 +7,7 @@ const LIGHT: Device = { id: "l1", type: "light", entity: "light.demo_living", x:
 const SWITCH: Device = { id: "s1", type: "switch", entity: "switch.demo_hall", x: 200, y: 100 };
 const CAMERA: Device = { id: "c1", type: "camera", entity: "camera.demo_hall", x: 300, y: 100 };
 const MEDIA: Device = { id: "m1", type: "media", entity: "media_player.demo_office", x: 400, y: 100 };
-const SENSOR_DOOR: Door = { id: "d1", name: "Front door", kind: "door", a: [0, 0], b: [100, 0], sensor: "binary_sensor.demo_front_door" };
+const SENSOR_DOOR: Door = { id: "d1", name: "Front door", kind: "door", a: [0, 0], b: [100, 0], sensors: ["binary_sensor.demo_front_door"] };
 const COVER_DOOR: Door = { id: "d2", name: "Garage door", kind: "door", a: [0, 100], b: [100, 100], cover: "cover.demo_garage_door" };
 
 /** A minimal `<svg><g data-x="0">...</g></svg>` with the icon's inner `<circle class="halo">` and `<path>`, matching what `renderFloor` emits. */
@@ -231,7 +231,7 @@ describe("actions: bindDeviceActions on camera and media (S2.5)", () => {
 
 const SENSOR_AND_COVER_DOOR: Door = {
   id: "d3", name: "Back door", kind: "door", a: [0, 200], b: [100, 200],
-  sensor: "binary_sensor.demo_back_door", cover: "cover.demo_back_door",
+  sensors: ["binary_sensor.demo_back_door"], cover: "cover.demo_back_door",
 };
 
 describe("actions: bindDeviceActions on doors (S2.3)", () => {

@@ -153,7 +153,7 @@ describe("FloorplanStudioCard", () => {
     el.hass = { states: rest, themes: { darkMode: false } } as never;
     await el.updateComplete;
     const svg = el.shadowRoot!.querySelector("svg")!;
-    const doorIndex = L.floors.ground.doors.findIndex((d) => d.sensor === "binary_sensor.demo_front_door");
+    const doorIndex = L.floors.ground.doors.findIndex((d) => d.sensors?.includes("binary_sensor.demo_front_door"));
     const line = svg.querySelector(`line[data-d="${doorIndex}"]`)!;
     expect(line.getAttribute("class")).not.toMatch(/\bopen\b/);
   });

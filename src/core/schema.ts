@@ -5,7 +5,7 @@ export type DoorKind = "door" | "glass" | "window" | "sealed";
 export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
   | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover"
-  | "battery" | "inverter" | "server" | "access_point" | "other";
+  | "battery" | "inverter" | "server" | "access_point" | "lock" | "vibration" | "other";
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "tv" | "computer" | "tree" | "patio-wood" | "patio-concrete" | "car";
@@ -31,11 +31,22 @@ export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boole
 export type StairShape = "straight" | "round";
 /** `dia` (outer) and `inner` (the empty well) exist on a round stair only; `pts` is its outer circle as a polygon. `rot` turns it about the centre of its box. */
 export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape; steps: number; rot: number; dia?: number; inner?: number; color?: string; texture?: string; textureRot?: number }
-export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensor?: string; cover?: string; locked?: boolean }
+/**
+ * `sensors`/`vibration`/`locks` (S4.24): every contact sensor, vibration sensor and smart lock attached to
+ * this door or window — several of each allowed. `cover` (a curtain/blind entity) is not restricted by
+ * kind — a plain door's garage opener is a cover too — it just doubles as the electric-curtain field on a
+ * glass door or window.
+ */
+export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensors?: string[]; vibration?: string[]; locks?: string[]; cover?: string; locked?: boolean }
 export interface Opening { id: string; a: Pt; b: Pt; locked?: boolean }
 export interface Extra { id: string; name: string; a: Pt; b: Pt }
-/** `bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+/**
+ * `bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in
+ * HA. Several lights may share one switch, and the switch may be an icon too.
+ * `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor
+ * entity attached to this device — several allowed, unlike `bound`.
+ */
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. */
 export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string }
 /** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. */
@@ -56,7 +67,7 @@ export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", 
 export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
 export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed"];
-export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "other"];
+export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"];
 
 /** Checks a v2 layout. Never throws; returns every problem it finds. */
@@ -159,11 +170,21 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         if (s.inner !== undefined) errors.push(`${at} ${s.id} inner is only for a round stair`);
       }
     });
+    const entityList = (o: any, k: string, label: string) => {
+      if (o[k] === undefined) return;
+      if (!Array.isArray(o[k])) { errors.push(`${at} ${o.id} ${k} must be a list of entity ids`); return; }
+      o[k].forEach((v: unknown, i: number) => { if (!isEntity(v)) errors.push(`${at} ${o.id} ${k}[${i}] must be an entity id like ${label}`); });
+    };
     each("doors", (d) => {
       name(d);
       oneOf(`${d.id} kind`, d.kind, DOOR_KINDS);
       if (!isPt(d.a) || !isPt(d.b)) errors.push(`${at} ${d.id} needs points a and b`);
-      if (d.sensor !== undefined && !isEntity(d.sensor)) errors.push(`${at} ${d.id} sensor must be an entity id like binary_sensor.name`);
+      entityList(d, "sensors", "binary_sensor.name");
+      entityList(d, "vibration", "binary_sensor.name");
+      entityList(d, "locks", "lock.name");
+      // `cover` is not restricted to a glass door or a window: a plain door's roller shutter or garage opener is
+      // a cover entity too (the demo's "Garage door" is `kind: "door"` with a `cover`). S4.24's electric curtain
+      // dropdown reuses this same field, just offered on every door kind, same as before.
       if (d.cover !== undefined && !isEntity(d.cover)) errors.push(`${at} ${d.id} cover must be an entity id like cover.name`);
       if (d.locked !== undefined && typeof d.locked !== "boolean") errors.push(`${at} ${d.id} locked must be true or false`);
     });
@@ -190,6 +211,15 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
           if (d.type !== "light") errors.push(`${at} ${d.id} bound is only allowed on a light`);
           if (d.bound === d.entity) errors.push(`${at} ${d.id} bound must differ from entity`);
         }
+      }
+      if (d.trvs !== undefined || d.tempSensors !== undefined) {
+        entityList(d, "trvs", "climate.name");
+        entityList(d, "tempSensors", "sensor.name");
+        if (d.type !== "heater") errors.push(`${at} ${d.id} trvs/tempSensors are only allowed on a heater`);
+      }
+      if (d.linked !== undefined) {
+        entityList(d, "linked", "climate.name");
+        if (d.type !== "ac") errors.push(`${at} ${d.id} linked is only allowed on an ac`);
       }
     });
     each("furniture", (m) => {

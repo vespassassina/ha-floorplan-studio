@@ -380,11 +380,40 @@ export class EditorState {
     return this.layout.catalog.filter((c) => (c.type === "switch" || c.type === "plug") && c.entity !== d.entity);
   }
 
-  /** Contact sensors from the catalog that no other door uses. */
-  sensorChoices(doorId: string): CatalogEntry[] {
+  /**
+   * S4.24: catalog entries of `type` not already on this door's own `field` list (those stay offered, so a
+   * current pick still shows) and not on any *other* door's `field` list — several sensors per door, but one
+   * door per sensor, matching the single-sensor behaviour this replaces.
+   */
+  doorAttachChoices(doorId: string, field: "sensors" | "vibration" | "locks"): CatalogEntry[] {
+    const type: DeviceType = field === "sensors" ? "contact" : field === "vibration" ? "vibration" : "lock";
     const used = new Set<string>();
-    for (const f of Object.values(this.layout.floors)) for (const d of f.doors) if (d.id !== doorId && d.sensor) used.add(d.sensor);
-    return this.layout.catalog.filter((c) => c.type === "contact" && !used.has(c.entity));
+    for (const f of Object.values(this.layout.floors)) for (const d of f.doors) if (d.id !== doorId) for (const e of d[field] ?? []) used.add(e);
+    return this.layout.catalog.filter((c) => c.type === type && !used.has(c.entity));
+  }
+
+  /**
+   * Curtain/blind entities from the catalog not already on another door's `cover`. Offered on every door kind —
+   * a plain door's garage opener is a cover entity too — the panel just labels it "electric curtain" on a
+   * glass door or window.
+   */
+  coverChoices(doorId: string): CatalogEntry[] {
+    const used = new Set<string>();
+    for (const f of Object.values(this.layout.floors)) for (const d of f.doors) if (d.id !== doorId && d.cover) used.add(d.cover);
+    return this.layout.catalog.filter((c) => c.type === "cover" && !used.has(c.entity));
+  }
+
+  /**
+   * S4.24: catalog entries a heater's `trvs`/`tempSensors` or an ac's `linked` list may attach, minus the
+   * device's own entity. Unlike a door's sensors, these are not excluded elsewhere on the plan — the same
+   * temperature sensor, say, may reasonably feed more than one heater, the same way a switch can power several
+   * lights (`bindChoices` above).
+   */
+  deviceAttachChoices(devIndex: number, field: "trvs" | "tempSensors" | "linked"): CatalogEntry[] {
+    const d = this.f.devices[devIndex];
+    if (!d) return [];
+    if (field === "tempSensors") return this.layout.catalog.filter((c) => c.type === "temp" && c.entity !== d.entity);
+    return this.layout.catalog.filter((c) => (c.type === "climate" || c.type === "ac") && c.entity !== d.entity);
   }
 
   /** Writes the autosave. Storage may be blocked or full; the edit then simply is not remembered. */

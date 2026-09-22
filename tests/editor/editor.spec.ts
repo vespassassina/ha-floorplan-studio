@@ -357,28 +357,25 @@ test("break it: a corner dragged onto its own neighbour never collapses the edge
   }
 });
 
-test("the contact sensor picker follows the selected door", async ({ page }) => {
-  // A behaviour check only: in Chromium it also passes with the .value binding removed (tried, incl. changing one door before selecting another), because every change re-renders the option attributes.
+test("S4.24: the contact sensor picker follows the selected door, several allowed, one attach list per door", async ({ page }) => {
+  // Rewritten for S4.24 (a door's contact sensors are now a list, not one .value): the #dsens select is an
+  // "add" control (always resets to "") and each attached sensor gets its own row with a Remove button.
   const pick = async (i: number) => { const c = await centre(page, `line[data-d="${i}"]`); await page.mouse.click(c.x, c.y); };
-  await pick(0);
-  await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_front_door");
-  await pick(2);
-  await expect(page.locator("#dsens")).toHaveValue("");
+  await pick(0); // Front door: already has one sensor attached
+  await expect(page.locator("#dsens")).toHaveValue(""); // add-select, never shows the current pick as its value
+  await expect(page.locator('#dsens option[value="binary_sensor.demo_front_door"]')).toHaveCount(0); // already attached: not offered again
+  await pick(2); // Garage door: no sensor yet
   await expect(page.locator('#dsens option[value="binary_sensor.demo_garage_door"]')).toHaveCount(1);
   await pick(1);
-  await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_patio_door");
-  // choose a sensor for the garage door, then go back to a door with another one and to one with none
+  await expect(page.locator('#dsens option[value="binary_sensor.demo_patio_door"]')).toHaveCount(0); // Patio door's own sensor already attached to it
+  // attach a sensor to the garage door, confirm it lands in the layout, then remove it again
   await pick(2);
   await page.locator("#dsens").selectOption("binary_sensor.demo_garage_door");
-  expect((await groundOf(page)).doors[2].sensor).toBe("binary_sensor.demo_garage_door");
-  await pick(0);
-  await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_front_door");
-  await pick(2);
-  await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_garage_door");
-  await page.locator("#dsens").selectOption("");
-  await pick(1);
-  await pick(2);
-  await expect(page.locator("#dsens")).toHaveValue("");
+  expect((await groundOf(page)).doors[2].sensors).toEqual(["binary_sensor.demo_garage_door"]);
+  await expect(page.locator('#dsens option[value="binary_sensor.demo_garage_door"]')).toHaveCount(0); // now attached: no longer offered
+  await page.locator("#dsens-rm0").click();
+  expect((await groundOf(page)).doors[2].sensors).toBeUndefined();
+  await expect(page.locator('#dsens option[value="binary_sensor.demo_garage_door"]')).toHaveCount(1); // free again
 });
 
 test("File, Save waits for the host: Saving until saveDone, Saved after the download", async ({ page }) => {
@@ -3432,7 +3429,7 @@ const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first
 
 test("S1.36: View, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
   await openDevCols(page);
-  await expect(page.locator(`${EDITOR} #devcols [data-type]`)).toHaveCount(20);
+  await expect(page.locator(`${EDITOR} #devcols [data-type]`)).toHaveCount(22); // S4.24 added lock and vibration
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
   await expect(colourRow(page, "light").locator("button")).toHaveCount(1);
   await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
@@ -5081,4 +5078,42 @@ test("S4.23: Undo and Redo sit in the toolbar, outside every menu box, styled li
   await expect(page.locator("#redo")).toBeEnabled();
   await page.locator("#redo").click();
   expect((await groundOf(page)).rooms[0].color).toBe("#e2dfda");
+});
+
+// ---- S4.24: door/window sensors, locks and curtains attach several; heater and ac bindings too ------------------------
+
+test("S4.24: a door attaches several vibration sensors and locks, each removable, one undo step per change", async ({ page }) => {
+  const pick = async (i: number) => { const c = await centre(page, `line[data-d="${i}"]`); await page.mouse.click(c.x, c.y); };
+  await pick(0); // Front door
+  await expect(page.locator("#dvibr")).toBeVisible();
+  await expect(page.locator("#dlocks")).toBeVisible();
+  await expect(page.locator("#dvibr option")).toHaveCount(1); // only the placeholder: no vibration sensor in the catalog yet
+  await expect((await groundOf(page)).doors[0].vibration).toBeUndefined();
+  await expect((await groundOf(page)).doors[0].locks).toBeUndefined();
+});
+
+test("S4.24: a heater attaches several temperature sensors; removing the last one clears the field, one undo step each way", async ({ page }) => {
+  const HEATER: [number, number] = [180, 8]; // demo's "Living radiator"
+  const p = await screenOf(page, ...HEATER);
+  await page.mouse.click(p.x, p.y);
+  await expect(page.locator("#hsens")).toBeVisible();
+  await expect(page.locator("#htrv")).toBeVisible();
+  const before = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(before.tempSensors).toBeUndefined();
+
+  await page.locator("#hsens").selectOption("sensor.demo_bedroom_temperature");
+  let heater = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(heater.tempSensors).toEqual(["sensor.demo_bedroom_temperature"]);
+
+  await page.locator("#hsens-rm0").click();
+  heater = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(heater.tempSensors).toBeUndefined();
+
+  // two undo steps: the removal, then the attach
+  await page.keyboard.press("Control+z");
+  heater = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(heater.tempSensors).toEqual(["sensor.demo_bedroom_temperature"]);
+  await page.keyboard.press("Control+z");
+  heater = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(heater.tempSensors).toBeUndefined();
 });

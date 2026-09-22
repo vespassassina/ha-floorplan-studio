@@ -295,7 +295,7 @@
             390,
             600
           ],
-          "sensor": "binary_sensor.demo_front_door"
+          "sensors": ["binary_sensor.demo_front_door"]
         },
         {
           "id": "door-ground-2",
@@ -309,7 +309,7 @@
             0,
             280
           ],
-          "sensor": "binary_sensor.demo_patio_door"
+          "sensors": ["binary_sensor.demo_patio_door"]
         },
         {
           "id": "door-ground-3",
@@ -558,7 +558,7 @@
             300,
             0
           ],
-          "sensor": "binary_sensor.demo_bedroom_window"
+          "sensors": ["binary_sensor.demo_bedroom_window"]
         }
       ],
       "openings": [],
