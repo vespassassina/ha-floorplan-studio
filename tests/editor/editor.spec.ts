@@ -131,6 +131,21 @@ test("File, Save downloads a file that validates", async ({ page }) => {
   expect(res.ok).toBe(true);
 });
 
+test("File, Export downloads the current layout, with no save-request and no host involved", async ({ page }) => {
+  const before = await layoutOf(page);
+  let saveRequested = false;
+  await page.exposeFunction("__markSaveRequested", () => { saveRequested = true; });
+  await page.evaluate((tag) => document.querySelector(tag)!.addEventListener("save-request", () => (window as any).__markSaveRequested()), EDITOR);
+  await menu(page, "File");
+  const dl = page.waitForEvent("download");
+  await page.locator("#exp").click();
+  const download = await dl;
+  expect(download.suggestedFilename()).toMatch(/^floorplan-studio-\d{4}-\d{2}-\d{2}\.json$/);
+  const file = await download.path();
+  expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(before);
+  expect(saveRequested).toBe(false);
+});
+
 test("a reload restores the edit from localStorage and Reset starts from scratch", async ({ page }) => {
   await drag(page, 'circle[data-h="r0:1"]', 0, 50);
   const edited = await groundOf(page);

@@ -1007,6 +1007,21 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.saveListeners === 0 && !ev.defaultPrevented) this.saveDone(true);
     else this.requestUpdate();
   }
+  /**
+   * File, Export: downloads the current layout as JSON directly from the browser, regardless of host. Unlike Save
+   * (`save-request`), no host is involved and nothing is asked to persist it — this is the only way to get the JSON
+   * out of the HA panel, where Save writes to `.storage` instead of downloading (the standalone host's Save already
+   * downloads, so this duplicates it there, which is fine: the button means the same thing everywhere).
+   */
+  private exportJson() {
+    const blob = new Blob([JSON.stringify(this.st.layout, null, 1)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `floorplan-studio-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   /** The host calls this when it has written (or failed to write) the layout it got in `save-request`. */
   saveDone(ok: boolean, message?: string) {
     this.status = ok ? message || "Saved" : message || "Save failed";
@@ -1243,6 +1258,7 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn" id="redo" ?disabled=${!st.canRedo} @click=${() => this.undo(false)}>Redo</button>
           <div class="sep"></div>
           <button class="btn" id="imp" @click=${() => this.renderRoot.querySelector<HTMLInputElement>("#file")?.click()}>Open…</button>
+          <button class="btn" id="exp" title="Download the current layout as JSON" @click=${() => this.exportJson()}>Export…</button>
           ${this.demo ? html`<button class="btn" id="loaddemo" ?disabled=${!isBlank(st.layout)} title=${isBlank(st.layout) ? "Load the demo home" : "Reset first: loading the demo would overwrite your plan."} @click=${() => this.loadDemo()}>Load demo</button>` : nothing}
           <button class="btn danger" id="reset" title="Erase everything and start from a blank plan" @click=${() => this.reset()}>Reset</button>
           <button class="btn primary" id="save" @click=${() => this.save()}>Save</button>
