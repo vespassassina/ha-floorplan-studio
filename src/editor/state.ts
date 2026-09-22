@@ -349,26 +349,43 @@ export class EditorState {
   }
 
   /**
-   * S4.18: places `e`, an entity from the current floor's `roomIndex` room's linked HA area, as a new device at the
-   * room's centre — both a new `layout.catalog` entry and a new device on the plan, one undo step. `typeForEntity`
-   * guesses the device type; the panel's own type field corrects it afterward. False, and nothing recorded, for an
-   * unknown room or an entity already placed or already in the catalog.
+   * Places `e` as a new device at `ctr` — both a new `layout.catalog` entry (`room`, when known, for its labels in the
+   * Device menu) and a new device on the current floor, one undo step. `typeForEntity` guesses the device type; the
+   * device panel's own type field corrects it afterward. False, and nothing recorded, for an entity already placed
+   * or already in the catalog. Shared by `addFromArea` (S4.18, one room's area) and `addEntity` (S4.14, the general palette).
    */
-  addFromArea(roomIndex: number, e: HaData["entities"][number]): boolean {
-    const room = this.f.rooms[roomIndex];
-    if (!room) return false;
+  private addHaEntity(e: HaData["entities"][number], ctr: Pt, room?: string): boolean {
     if (Object.values(this.layout.floors).some((f) => f.devices.some((d) => d.entity === e.id)) || this.layout.catalog.some((c) => c.entity === e.id)) return false;
     const next = structuredClone(this.layout);
     const f = next.floors[this.floor];
     const id = newId(f, this.floor, "device");
     const type = typeForEntity(e);
-    const ctr: Pt = [Math.round(room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length), Math.round(room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length)];
     f.devices.push({ id, name: e.name, type, entity: e.id, x: ctr[0], y: ctr[1] });
-    next.catalog.push({ id, floor: this.floor, room: room.name, type, name: e.name, entity: e.id });
+    next.catalog.push({ id, floor: this.floor, room: room ?? "", type, name: e.name, entity: e.id });
     this.snapshot();
     this.layout = next;
     this.sel = { t: "dev", i: f.devices.length - 1 };
     return true;
+  }
+
+  /** S4.18: places `e`, an entity from the current floor's `roomIndex` room's linked HA area, at that room's centre. False for an unknown room. */
+  addFromArea(roomIndex: number, e: HaData["entities"][number]): boolean {
+    const room = this.f.rooms[roomIndex];
+    if (!room) return false;
+    const ctr: Pt = [Math.round(room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length), Math.round(room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length)];
+    return this.addHaEntity(e, ctr, room.name);
+  }
+
+  /**
+   * S4.14: places `e` from the general "Add > Entities" palette. When `e`'s HA area matches a room on the current
+   * floor, it lands at that room's centre and the catalog records the room, exactly like `addFromArea` — a room the
+   * user already drew is a better guess than the caller's `fallback` spawn point. Otherwise it lands at `fallback`.
+   */
+  addEntity(e: HaData["entities"][number], fallback: Pt): boolean {
+    const room = e.area ? this.f.rooms.find((r) => r.area === e.area) : undefined;
+    if (!room) return this.addHaEntity(e, fallback);
+    const ctr: Pt = [Math.round(room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length), Math.round(room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length)];
+    return this.addHaEntity(e, ctr, room.name);
   }
 
   /** Sets (`hex`) or removes (null) the colour of one device type in `layout.colors`: one undo step, none when nothing changes. `colors` is removed when it empties, so an untouched layout stays as it was. */

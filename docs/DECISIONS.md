@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-22 S4.14 entity palette: click-to-place, a new Add submenu, S4.18's shortcut stays
+
+Diego picked S4.14 (the full HA entity palette) next and answered three design questions (CLAUDE.md section 6) before any code:
+
+1. **Click-to-place, not real drag-and-drop.** Every existing placement path in the editor — the Device menu, S4.18's "Add device from `<area>`" — is click, spawn, then drag into position; nothing anywhere does pointer drag-and-drop. Inventing gesture code to be the first would have been complexity with no precedent to justify it, for the same end result.
+2. **A new "Entities" item in the Add menu**, alongside its existing Openings/Wall/Areas submenus, not a new root toolbar menu. Add is already "things that create something new"; the palette fits the same drawer.
+3. **Keep S4.18's context-menu shortcut as it is**, don't fold it into or replace it with the new palette. It stays the fast, room-scoped path for the common case (right-click a room, add one of its area's entities); the new palette is the general path (any entity, any area, no room needs to exist or be right-clicked first).
+
+Built as `unplacedHaEntities` (core: everything neither a device on any floor nor already in `layout.catalog`) and `EditorState.addEntity` (state: places at a matching room's centroid when one exists, else a spawn point clear of the floor). `addFromArea` (S4.18) was refactored onto the same shared private mutation the new method uses, with its existing tests left unchanged and still green, so the two paths can never drift apart on what "adding an entity" actually does to the layout.
+
 ## 2026-09-22 S4.18 right-click menu: one shared list, colour reuses the panel, a minimal S4.14 slice now, and a permanent device-type fix
 
 Diego picked S4.18 (the right-click context menu on a room, zone or structure) from the open backlog and answered four design questions (CLAUDE.md section 6) before any code:

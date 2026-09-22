@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, placedEntities, polys, renderFloor, rotateAbout, snapPoint, stitch, typeForEntity, validate } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, placedEntities, polys, renderFloor, rotateAbout, snapPoint, stitch, typeForEntity, unplacedHaEntities, validate } from "../core";
 import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
@@ -117,6 +117,7 @@ export class FloorplanStudioEditor extends LitElement {
     status: { state: true },
     addingFloor: { state: true },
     devQuery: { state: true },
+    entQuery: { state: true },
     haList: { state: true },
     haListLoading: { state: true },
     haListErr: { state: true },
@@ -130,6 +131,8 @@ export class FloorplanStudioEditor extends LitElement {
   declare addingFloor: boolean;
   /** The text in the Device menu search field. Cleared when the menu closes. */
   declare devQuery: string;
+  /** S4.14: the text in the Add > Entities search field. Cleared when the submenu closes. */
+  declare entQuery: string;
   /** S4.10: everything floorplan-studio labelled in Home Assistant, loaded fresh each time the Home Assistant menu opens. `null` before the first load. */
   declare haList: Labelled[] | null;
   declare haListLoading: boolean;
@@ -154,6 +157,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.status = "Ready";
     this.addingFloor = false;
     this.devQuery = "";
+    this.entQuery = "";
     this.haList = null;
     this.haListLoading = false;
     this.haListErr = "";
@@ -1299,6 +1303,11 @@ export class FloorplanStudioEditor extends LitElement {
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const unplaced = st.unplaced(), q = this.devQuery.trim().toLowerCase();
     const matches = q ? unplaced.filter((c) => c.name.toLowerCase().includes(q) || c.entity.toLowerCase().includes(q)) : unplaced;
+    // S4.14: the Add > Entities palette — every HA entity not yet on the plan or in the catalog, filtered the same way the Device menu filters its own list.
+    const ha = st.ha, palette = ha ? unplacedHaEntities(st.layout, ha) : [];
+    const eq = this.entQuery.trim().toLowerCase();
+    const entMatches = eq ? palette.filter((e) => e.name.toLowerCase().includes(eq) || e.id.toLowerCase().includes(eq)) : palette;
+    const areaName = (id: string | null | undefined) => (id ? ha?.areas.find((a) => a.id === id)?.name : undefined);
     const pressed = (b: boolean) => (b ? "true" : "false");
     return html`
       <div class="bar">
@@ -1326,6 +1335,12 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="addZone" @click=${() => this.addArea("zone")}>Zone</button>
             <button class="btn" id="addStairs" @click=${() => this.addStairs()}>Stairs</button>
           </details>
+          ${ha ? html`<details class="sub" id="addEntSub" @toggle=${this.onAddEntToggle}><summary class="btn">Entities</summary>
+            <input id="entSearch" type="search" autocomplete="off" aria-label="Search Home Assistant entities by name or entity id" placeholder="Search name or entity" .value=${live(this.entQuery)} @input=${(e: Event) => { this.entQuery = (e.target as HTMLInputElement).value; }} @keydown=${this.onAddEntSearchKey}>
+            ${palette.length === 0 ? html`<span class="grp" id="addEntNone">Nothing new in Home Assistant</span>` : nothing}
+            ${palette.length > 0 && entMatches.length === 0 ? html`<span class="grp" id="addEntNone">No entity matches</span>` : nothing}
+            ${TYPE_LABELS.map(([t, label]) => { const g = entMatches.filter((e) => typeForEntity(e) === t); return g.length ? html`<span class="grp">${label}</span>${g.map((e) => html`<button class="btn" data-ent=${e.id} @click=${() => this.addHaEntity(e)}>${e.name}${areaName(e.area) ? ` — ${areaName(e.area)}` : ""}</button>`)}` : nothing; })}
+          </details>` : nothing}
           <div class="sep"></div>
           <select id="addFurn" aria-label="Add furniture" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addFurniture(el.value); el.value = ""; this.closeMenus(); }}>
             <option value="">Furniture…</option>
@@ -1420,6 +1435,26 @@ export class FloorplanStudioEditor extends LitElement {
   private onDevSearchKey = (ev: KeyboardEvent) => {
     if (ev.key === "Escape") { ev.preventDefault(); this.closeMenus(); }
   };
+  /** S4.14: Add > Entities' own search, the same pattern as Device's (`onDevToggle`/`onDevSearchKey`). */
+  private onAddEntToggle = (ev: Event) => {
+    const m = ev.currentTarget as HTMLDetailsElement;
+    if (m.open) this.renderRoot.querySelector<HTMLInputElement>("#entSearch")?.focus({ preventScroll: true });
+    else if (this.entQuery) this.entQuery = "";
+  };
+  private onAddEntSearchKey = (ev: KeyboardEvent) => {
+    if (ev.key === "Escape") { ev.preventDefault(); this.closeMenus(); }
+  };
+  /**
+   * S4.14: places `e` from the Add > Entities palette — the room its HA area names, when one is drawn on the current
+   * floor, else a spawn point clear of everything already there (the same fallback `placeDevice`/`addFurniture` use).
+   * One undo step, via `EditorState.addEntity`.
+   */
+  private addHaEntity(e: HaData["entities"][number]) {
+    this.focus({ preventScroll: true }); // the clicked item leaves the list on the next render; see placeDevice's own note
+    if (!this.st.addEntity(e, this.spawn())) return;
+    this.closeMenus();
+    this.changed(`Added ${e.name}. Drag it to its spot.`);
+  }
 
   private closeMenus() {
     const open = this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]");

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { applyHaNames, typeForEntity, type HaData } from "../../src/core/ha";
+import { applyHaNames, typeForEntity, unplacedHaEntities, type HaData } from "../../src/core/ha";
 import { migrate } from "../../src/core/migrate";
 import v1 from "../../demo/layout.v1.json";
 import type { Layout } from "../../src/core/schema";
@@ -60,6 +60,37 @@ describe("migrate keeps the HA links and invents none (S1.37)", () => {
     expect(out.floors.ground.rooms[5].entity).toBe("sensor.pond");
     expect(out.floors.ground.furniture[0].name).toBe("Sofa");
     expect(out.floors.ground.furniture[0].entity).toBe("media_player.tv");
+  });
+});
+
+describe("unplacedHaEntities (S4.14): the palette's source list", () => {
+  const layout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: { ground: { title: "Ground", outline: [], walls: [], rooms: [], stairs: [], doors: [], openings: [], extras: [], furniture: [],
+      devices: [{ id: "l-1", name: "Lamp", type: "light", entity: "light.lamp", x: 0, y: 0 }] } },
+    catalog: [{ id: "l-1", floor: "ground", room: "", type: "light", name: "Lamp", entity: "light.lamp" }, { id: "s-1", floor: "ground", room: "", type: "switch", name: "Fan switch", entity: "switch.fan" }],
+  } as unknown as Layout);
+  const has: HaData = { floors: [], areas: [{ id: "kitchen", name: "Kitchen" }],
+    entities: [
+      { id: "light.lamp", name: "Lamp", domain: "light" },       // already a device on the plan
+      { id: "switch.fan", name: "Fan switch", domain: "switch" }, // in the catalog but not placed — still not "new"
+      { id: "sensor.kitchen_temp", name: "Kitchen temp", domain: "sensor", dc: "temperature", area: "kitchen" },
+      { id: "light.spare", name: "Spare bulb", domain: "light" },
+    ] };
+
+  it("keeps only entities neither on the plan nor already in the catalog", () => {
+    const out = unplacedHaEntities(layout(), has);
+    expect(out.map((e) => e.id).sort()).toEqual(["light.spare", "sensor.kitchen_temp"]);
+  });
+
+  it("returns everything when there is no catalog and no device yet", () => {
+    const l = layout(); l.catalog = []; l.floors.ground.devices = [];
+    expect(unplacedHaEntities(l, has)).toHaveLength(4);
+  });
+
+  it("an empty or hostile entity list never throws", () => {
+    expect(unplacedHaEntities(layout(), { floors: [], areas: [], entities: [] })).toEqual([]);
+    expect(unplacedHaEntities(layout(), { floors: null, areas: null, entities: null } as any)).toEqual([]);
   });
 });
 

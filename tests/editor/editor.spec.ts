@@ -5202,3 +5202,53 @@ test("S4.18: 'Add device from <area>' lists the room's unplaced HA entities and 
   await page.keyboard.press("Control+z");
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.living_temp")).toBe(false);
 });
+
+// ---- S4.14: Add > Entities, a palette of every HA entity not yet on the plan -------------------------------------
+
+test("S4.14: Add > Entities lists HA entities not yet placed or catalogued, grouped by type, and is absent without Home Assistant", async ({ page }) => {
+  await menu(page, "Add");
+  await expect(page.locator('#mAdd details.sub > summary:text-is("Entities")')).toHaveCount(0); // no ha: nothing to add from
+  await menu(page, "Add"); // close it again
+
+  await setHa(page, { ...HA, entities: [...HA.entities, { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" }, { id: "light.demo_kitchen", name: "Kitchen light", domain: "light" }] });
+  await menu(page, "Add");
+  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
+  const sub = page.locator("#addEntSub");
+  await expect(sub).toContainText("Living temp");
+  await expect(sub).toContainText("Pond level"); // HA's own fixture entity, not yet placed or catalogued
+  await expect(sub.locator('button:text-is("Kitchen light")')).toHaveCount(0); // already a device on the demo plan
+});
+
+test("S4.14: search filters the palette by name or entity id", async ({ page }) => {
+  await setHa(page, HA);
+  await menu(page, "Add");
+  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
+  await page.locator("#entSearch").fill("pond");
+  await expect(page.locator("#addEntSub")).toContainText("Pond level");
+  await page.locator("#entSearch").fill("nothing-matches-this");
+  await expect(page.locator("#addEntNone")).toHaveText("No entity matches");
+});
+
+test("S4.14: clicking an entity places it — at its area's room centre when one is drawn, else near the plan centre — one undo step", async ({ page }) => {
+  await setHa(page, { ...HA, entities: [...HA.entities, { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" }] });
+  await menu(page, "Add");
+  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
+  await page.locator('[data-ent="sensor.living_temp"]').click();
+  await expect(page.locator("#mAdd")).not.toHaveJSProperty("open", true); // the menu closes after placing
+
+  const devs = (await groundOf(page)).devices;
+  const d = devs.find((x: any) => x.entity === "sensor.living_temp");
+  expect(d).toMatchObject({ type: "temp", name: "Living temp" });
+  expect((await layoutOf(page)).catalog.find((c: any) => c.entity === "sensor.living_temp")).toMatchObject({ room: "Living" });
+
+  await menu(page, "Add");
+  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
+  await page.locator('[data-ent="sensor.pond"]').click(); // no area on this fixture entity: falls back, not refused
+  const pond = (await groundOf(page)).devices.find((x: any) => x.entity === "sensor.pond");
+  expect(pond).toBeTruthy();
+  expect((await layoutOf(page)).catalog.find((c: any) => c.entity === "sensor.pond")?.room).toBeFalsy();
+
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.pond")).toBe(false);
+  expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.living_temp")).toBe(true);
+});

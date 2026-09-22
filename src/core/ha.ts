@@ -1,4 +1,5 @@
 import type { DeviceType, Layout } from "./schema";
+import { placedEntities } from "./bind";
 
 /** What the host (the HA panel) knows about Home Assistant and hands to the editor. Standalone there is none. */
 export interface HaData {
@@ -65,6 +66,18 @@ export function typeForEntity(e: HaData["entities"][number]): DeviceType {
       return "other";
     default: return "other";
   }
+}
+
+/**
+ * S4.14: the palette's source list — every HA entity that is neither a device on any floor nor already in
+ * `layout.catalog`. Both are "already the plan's", whether or not the device is currently placed (`unplacedCatalog`
+ * covers the catalogued-but-unplaced case elsewhere); this only surfaces entities that have never entered the plan at all.
+ * Hostile or missing `entities` never throws — an empty list, not a crash.
+ */
+export function unplacedHaEntities(l: Layout, ha: HaData): HaData["entities"] {
+  if (!Array.isArray(ha?.entities)) return [];
+  const placed = placedEntities(l), catalogued = new Set(l.catalog.map((c) => c.entity));
+  return ha.entities.filter((e) => !placed.has(e.id) && !catalogued.has(e.id));
 }
 
 /** What to write to put `entity` in the HA area `area`, or null when it is there, unknown, or `area` is empty. The device moves when the entity is its only one; otherwise the entity alone, so its siblings stay. */
