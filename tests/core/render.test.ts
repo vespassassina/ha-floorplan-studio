@@ -550,7 +550,7 @@ describe("room colour (S1.16)", () => {
   it("wins over the class colour rules, except that fill keeps its hatch", () => {
     for (const k of ["garden", "pavement", "terrace", "water", "zone"])
       expect(FLOORPLAN_CSS).toMatch(new RegExp(`\\.room-${k}:not\\(\\[fill\\]\\)`));
-    expect(FLOORPLAN_CSS).toContain(".room:not([fill]){--fp-room-fill:var(--fp-room);fill:var(--fp-room-fill)}");
+    expect(FLOORPLAN_CSS).toContain(".room:not([fill]){--fp-room-fill:var(--fp-room-empty);fill:var(--fp-room-fill)}");
     expect(FLOORPLAN_CSS).toMatch(/\.room-fill\{[^}]*fill:url\(#fp-hatch\)\}/);
   });
   it("a hostile colour that skipped validate is not written into the markup", () => {

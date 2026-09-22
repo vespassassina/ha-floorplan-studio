@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- An unpainted room is one light gray in every theme, not the theme's own tint (only a plain room or structure; garden, water and the rest keep their kind colour).
+
 - Sprint 4, first slice: the panel can now write to Home Assistant, always after a confirmation dialog.
 - A placed switch or plug has "Create a light from this switch": Home Assistant gets a light helper (labelled `floorplan-studio`) and the plan swaps the switch for it.
 - Drop a device in a room and the panel offers to move it to that room's Home Assistant area. "Don't ask again this session" is in the dialog.

@@ -4422,9 +4422,11 @@ test("S1.51 break it: a corner dragged past its opposite one clamps at 5 cm inst
 
 // ---- S1.53 / S2.12 themes: blueprint (default), light, Home Assistant ---------------------------------------------------------
 
-// Blueprint palette (2026-09-21): ground #0d1522, room #14213a, wall #8fb4f0, text #d8e2f2.
-const DARK_TH = { bg: "rgb(13, 21, 34)", room: "rgb(20, 33, 58)", wall: "rgb(143, 180, 240)", text: "rgb(216, 226, 242)", outline: "rgb(13, 21, 34)", disc: "rgb(20, 33, 58)", measure: "rgb(143, 180, 240)" };
-const LIGHT_TH = { bg: "rgb(244, 240, 230)", room: "rgb(233, 227, 211)", wall: "rgb(43, 42, 39)", text: "rgb(58, 58, 58)", outline: "rgb(255, 255, 255)" };
+// Blueprint palette (2026-09-21): ground #0d1522, room #14213a, wall #8fb4f0, text #d8e2f2. An unpainted room
+// (the demo's Living, room 0) is --fp-room-empty, #d6d6d2 = rgb(214, 214, 210) in every theme (2026-09-22).
+const ROOM_EMPTY = "rgb(214, 214, 210)";
+const DARK_TH = { bg: "rgb(13, 21, 34)", room: ROOM_EMPTY, wall: "rgb(143, 180, 240)", text: "rgb(216, 226, 242)", outline: "rgb(13, 21, 34)", disc: "rgb(20, 33, 58)", measure: "rgb(143, 180, 240)" };
+const LIGHT_TH = { bg: "rgb(244, 240, 230)", room: ROOM_EMPTY, wall: "rgb(43, 42, 39)", text: "rgb(58, 58, 58)", outline: "rgb(255, 255, 255)" };
 
 async function setTheme(page: Page, t: "blueprint" | "light" | "ha") {
   await menu(page, "View");
