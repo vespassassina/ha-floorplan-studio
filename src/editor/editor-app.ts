@@ -217,6 +217,11 @@ export class FloorplanStudioEditor extends LitElement {
     .sub>summary::after{content:" \\25B8"}
     .sub>.btn:not(summary){padding-left:20px}
     .sep{border-top:1px solid var(--fp-idle)}
+    .vsep{align-self:stretch;border-left:1px solid var(--fp-idle);margin:2px 0}
+    /* Lighter, not lower-contrast: opacity leaves .btn's own colour/background computed values untouched (S1.53's
+       contrast pair still passes) and only changes how it blends against the page behind it. */
+    .btn.light{opacity:.6}
+    .btn.light:hover,.btn.light:focus-visible{opacity:1}
     .swatches{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0} .sw{width:28px;height:28px;padding:0;border:1px solid var(--fp-idle);border-radius:4px;cursor:pointer} .sw.custom{border-style:dashed} .sw[aria-pressed="true"]{outline:2px solid var(--fp-ink);outline-offset:1px}
     .rot-val{display:inline-block;min-width:3em;text-align:right;font-variant-numeric:tabular-nums}
     .colrow{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:2px 0} .colrow label{display:flex;flex:1;justify-content:space-between;gap:6px} .colrow input{padding:0;width:36px;height:24px} .colrow .btn{width:auto}
@@ -1293,9 +1298,6 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn keep" id="rotr" aria-label="Rotate the plan 45 degrees right" @click=${() => this.rotatePlan(45)}>45° &#8631;</button></div>
         </div></details>
         <details class="menu" id="mFile"><summary class="btn">File</summary><div class="box">
-          <button class="btn" id="undo" ?disabled=${!st.canUndo} @click=${() => this.undo(true)}>Undo</button>
-          <button class="btn" id="redo" ?disabled=${!st.canRedo} @click=${() => this.undo(false)}>Redo</button>
-          <div class="sep"></div>
           <button class="btn" id="imp" @click=${() => this.renderRoot.querySelector<HTMLInputElement>("#file")?.click()}>Open…</button>
           <button class="btn" id="exp" title="Download the current layout as JSON" @click=${() => this.exportJson()}>Export…</button>
           ${this.demo ? html`<button class="btn" id="loaddemo" ?disabled=${!isBlank(st.layout)} title=${isBlank(st.layout) ? "Load the demo home" : "Reset first: loading the demo would overwrite your plan."} @click=${() => this.loadDemo()}>Load demo</button>` : nothing}
@@ -1308,6 +1310,9 @@ export class FloorplanStudioEditor extends LitElement {
           ${!this.haListLoading && !this.haListErr && this.haList?.length === 0 ? html`<span class="grp" id="haNone">Nothing floorplan-studio made is labelled in Home Assistant.</span>` : nothing}
           ${HA_KIND_LABELS.map(([k, label]) => { const g = (this.haList ?? []).filter((x) => x.kind === k); return g.length ? html`<span class="grp">${label}</span>${g.map((it) => this.haRow(it))}` : nothing; })}
         </div></details>` : nothing}
+        <div class="vsep"></div>
+        <button class="btn light" id="undo" ?disabled=${!st.canUndo} @click=${() => this.undo(true)}>Undo</button>
+        <button class="btn light" id="redo" ?disabled=${!st.canRedo} @click=${() => this.undo(false)}>Redo</button>
         <input type="file" id="file" accept=".json,application/json" hidden @change=${(e: Event) => this.openFile(e)}>
       </div>
       ${this.errors.length ? html`<div class="errors" id="errors" role="alert"><strong>That layout was not used.</strong><ul>${this.errors.map((e) => html`<li>${e}</li>`)}</ul><button class="btn" id="errclose" @click=${() => { this.errors = []; }}>Dismiss</button></div>` : nothing}

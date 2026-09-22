@@ -3,6 +3,7 @@
 ## Unreleased
 
 - A room's or staircase's texture can now rotate on its own, independently of the shape: a slider in the paint panel, once a texture is chosen, 0–360°.
+- Editor: Undo and Redo moved out of the File menu into the toolbar itself, after Home Assistant, so undoing no longer needs opening a menu first.
 
 ## 0.9.0
 

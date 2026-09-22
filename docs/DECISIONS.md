@@ -2,6 +2,22 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-22 Door/window sensors, heater and AC bindings: all multi-attach, one shared panel component
+
+Diego asked for a batch of device-binding UI in one message: doors/windows attach several contact sensors, several vibration sensors and several smart locks; heaters attach TRV/climate entities and temperature sensors; ACs attach AC or TRV entities; glass doors/windows get a curtain dropdown. Two points needed a design interview (CLAUDE.md section 6) before touching schema, since guessing wrong here means redoing a schema change, not just a UI tweak.
+
+First: "heater... and other heater specific stuff" didn't say what the "other stuff" was. Asked directly; Diego confirmed TRV + temperature sensor is the whole scope — an open-window cutoff (linking a heater to a door/window sensor so it turns off when open) was floated as an alternative and explicitly declined for now, not silently dropped.
+
+Second: whether heater/AC bindings are single-entity (like the light's existing `bound` field: one switch powers one light) or multi-attach (like the door/window sensors Diego explicitly said "can attach more than one" for). Diego chose multi-attach for all of them. That collapses five separately-designed dropdowns into one reusable "attach several entities, filtered by type" panel component — worth doing once, well, rather than as five near-duplicate pieces of UI. Two new `DeviceType`s follow from this: `lock` (a smart door latch is not a `contact` sensor) and `vibration` (a different HA `device_class` from `motion`, and a different physical thing — room presence versus a door/window being tampered with).
+
+This item (S4.24 in `docs/PLAN.md`) is recorded here as a design decision only; implementation has not started. The existing single-entity `Door.sensor`/`Door.cover` fields and the `bound` pattern on lights are the mechanical precedent the new multi-attach fields build on, not something this decision replaces.
+
+## 2026-09-22 Undo/Redo move to the toolbar; a `.light` button class that doesn't touch computed colour
+
+Diego asked for Undo/Redo to move out of the File dropdown into the top toolbar (a separator after Home Assistant, "lighter" colour) so undoing doesn't need opening a menu first. The first implementation reached for the obvious "lighter" styling — `background:transparent`, muted text colour — and it broke the pinned S1.53 accessibility test (every `.btn`'s computed colour/background pair needs ≥4.5:1 contrast; a transparent background resolves to black for that check, same failure mode Finding #10 already named once for a different rule). Caught by running the full suite before calling the task done, not by the new test alone, which only checked placement and behaviour, not styling.
+
+Fixed with `opacity:.6` (`1` on hover/focus) instead of new colour values. Opacity doesn't change what `getComputedStyle` reports for `color`/`background-color` — only how the element composites against the page behind it — so the contrast pair stays exactly what a plain `.btn` already passes with, and the button still reads as visually lighter. Any future "lighter" or "muted" button variant in this project should use `opacity`, not a transparent or desaturated colour pair, unless a new `getComputedStyle` contrast test is written for it.
+
 ## 2026-09-22 A texture's own rotation: rooms and stairs only, a full 0–360° slider, one undo step per drag
 
 S4.22, raised by Diego as a backlog item: "as backlog we had the option to rotate the texture of the rooms, furniture and other non functional objects. add a slider to rotate. save the rotation." The phrasing didn't map onto the schema as written — furniture has no texture/fill concept at all, only tinted line-art icons — so this went through a design interview (CLAUDE.md section 6) before any code. Three questions, three explicit answers: scope is rooms/stairs only (furniture's rendering is untouched); the slider lives in the existing paint panel, appearing once a texture is chosen; the range is the full 0–360° at 1° steps, which Diego chose explicitly over a recommended 0–90°/15° — honour that choice exactly, don't "simplify" it back down later.

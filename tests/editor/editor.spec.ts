@@ -5060,3 +5060,25 @@ test("S4.10 break it: nothing labelled says so, a failing remove changes nothing
   await page.evaluate(([tag]) => { (document.querySelector(tag as string) as any).writer = undefined; }, [EDITOR]);
   await expect(page.locator("#mHA")).toHaveCount(0);
 });
+
+// ---- S4.23: Undo/Redo move to the toolbar, after Home Assistant, no menu to open first --------------------------------
+
+test("S4.23: Undo and Redo sit in the toolbar, outside every menu box, styled lighter, and still undo/redo", async ({ page }) => {
+  await expect(page.locator("#mFile .box #undo")).toHaveCount(0); // no longer inside the File menu
+  await expect(page.locator("#mFile .box #redo")).toHaveCount(0);
+  await expect(page.locator("#undo")).toBeVisible(); // visible with no menu open
+  await expect(page.locator("#redo")).toBeVisible();
+  await expect(page.locator("#undo")).toHaveClass(/light/);
+  await expect(page.locator("#redo")).toHaveClass(/light/);
+  await expect(page.locator("#undo")).toBeDisabled();
+
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator('.sw[aria-label="Marble"]').click(); // one undoable edit, no menu opened
+  await expect(page.locator("#undo")).toBeEnabled();
+  await page.locator("#undo").click();
+  expect((await groundOf(page)).rooms[0].color).toBeUndefined();
+  await expect(page.locator("#redo")).toBeEnabled();
+  await page.locator("#redo").click();
+  expect((await groundOf(page)).rooms[0].color).toBe("#e2dfda");
+});
