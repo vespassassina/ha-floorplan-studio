@@ -631,12 +631,15 @@ describe("theme (S2.12)", () => {
     const block = (sel: string) => FLOORPLAN_CSS.match(new RegExp(sel.replace(/[[\]().]/g, "\\$&") + "[^{]*\\{[^}]*\\}", "s"))?.[0] ?? "";
     const base_ = tokenPairs(FLOORPLAN_CSS.match(/:host,\.fp\{[^}]*\}/s)?.[0] ?? "");
     const light = tokenPairs(block(':host([data-theme="light"])'));
+    // ha's un-themed neutrals fall back to midnight's fixed hexes, not to whatever the default theme (blueprint) currently is
+    // (Diego's call, 2026-09-22: ha stays untouched by the new role-generated palettes).
+    const midnight = tokenPairs(block(':host([data-theme="midnight"])'));
     const ha = tokenPairs(block(':host([data-theme="ha"])'));
     expect(new Set(light.keys())).toEqual(new Set(base_.keys())); // every token is defined by every theme
     for (const k of ["--fp-ink", "--fp-bg", "--fp-room", "--fp-wall", "--fp-disc", "--fp-outline", "--fp-measure", "--fp-wall-external"])
-      expect(light.get(k), k).not.toBe(base_.get(k)); // a light block copied from blueprint would fail here
+      expect(light.get(k), k).not.toBe(midnight.get(k)); // a light block copied from midnight would fail here
     for (const k of ["--fp-ink", "--fp-bg", "--fp-room", "--fp-wall", "--fp-measure"]) expect(ha.get(k), k).toMatch(/^var\(--[a-z-]+,[^)]+\)$/);
-    for (const k of ["--fp-on", "--fp-danger", "--fp-warn", "--fp-primary"]) if (base_.has(k)) expect(ha.get(k), k).toBe(base_.get(k)); // meaning colours never follow the host's theme
+    for (const k of ["--fp-on", "--fp-danger", "--fp-warn", "--fp-primary"]) if (midnight.has(k)) expect(ha.get(k), k).toBe(midnight.get(k)); // meaning colours never follow the host's theme
   });
 });
 

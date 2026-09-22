@@ -6,7 +6,8 @@ import { FLOORPLAN_CSS } from "../../src/core/render";
 // cannot see specificity or inheritance. This drives FLOORPLAN_CSS in a real Chromium page, independent of the
 // editor, and reads getComputedStyle, never the CSS string.
 
-const DARK = { bg: "rgb(13, 21, 34)", wall: "rgb(143, 180, 240)" }; // blueprint: --fp-bg #0d1522, --fp-wall #8fb4f0
+const DARK = { bg: "rgb(12, 21, 33)", wall: "rgb(99, 148, 221)" }; // blueprint (role-generated, 2026-09-22): --fp-bg #0c1521, --fp-wall #6394dd
+const MIDNIGHT = { bg: "rgb(13, 21, 34)", wall: "rgb(143, 180, 240)" }; // midnight (ex-blueprint): --fp-bg #0d1522, --fp-wall #8fb4f0
 const LIGHT = { bg: "rgb(244, 240, 230)", wall: "rgb(43, 42, 39)" };
 
 /** A bare page with FLOORPLAN_CSS and a `.fp` root carrying an un-themed line and one nested `<g>` or `<div>` per theme. */
@@ -17,11 +18,13 @@ const PAGE = `<!DOCTYPE html><html><body>
   <svg><line class="e" id="outerWall" x1="0" y1="0" x2="1" y2="1"/>
     <g data-theme="light"><line class="e" id="lightWall" x1="0" y1="0" x2="1" y2="1"/></g>
     <g data-theme="blueprint"><line class="e" id="bpWall" x1="0" y1="0" x2="1" y2="1"/></g>
+    <g data-theme="midnight"><line class="e" id="midnightWall" x1="0" y1="0" x2="1" y2="1"/></g>
     <g data-theme="ha"><line class="e" id="haWall" x1="0" y1="0" x2="1" y2="1"/></g>
     <g data-theme="ha" data-mode="dark"><line class="e" id="haDarkWall" x1="0" y1="0" x2="1" y2="1"/></g>
   </svg>
   <div class="bg" id="lightBg" data-theme="light"></div>
   <div class="bg" id="bpBg" data-theme="blueprint"></div>
+  <div class="bg" id="midnightBg" data-theme="midnight"></div>
   <div class="bg" id="haBg" data-theme="ha"></div>
 </div>
 </body></html>`;
@@ -39,6 +42,8 @@ test("S2.12: with no data-theme the plan is blueprint, and a nested light or blu
     expect(await bg(page, "lightBg"), os).toBe(LIGHT.bg);
     expect(await stroke(page, "bpWall"), os).toBe(DARK.wall);
     expect(await bg(page, "bpBg"), os).toBe(DARK.bg);
+    expect(await stroke(page, "midnightWall"), os).toBe(MIDNIGHT.wall);
+    expect(await bg(page, "midnightBg"), os).toBe(MIDNIGHT.bg);
   }
 });
 

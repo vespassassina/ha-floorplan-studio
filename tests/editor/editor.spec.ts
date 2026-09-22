@@ -3460,7 +3460,7 @@ test("S1.36: changing the light colour reaches every light icon, camera colour c
   await menu(page, "File");
   await page.locator("#undo").click();
   expect((await layoutOf(page)).colors).toBeUndefined();
-  expect(await varOn(page, lights, "--fp-dev-light")).toBe("#e0a800");
+  expect(await varOn(page, lights, "--fp-dev-light")).toBe("#ff8a1f"); // blueprint's --fp-dev-light collapses to the single accent
 });
 
 test("S1.36: a row's reset and Reset all remove colours, each one undo step", async ({ page }) => {
@@ -4140,7 +4140,7 @@ test("Opus review CSS pair: a lamp's aura fills with --fp-aura at --fp-alpha and
     svg.querySelector('polygon[data-r="0"]')!.after(circle);
   }, EDITOR);
   const style = await page.locator("svg circle.aura").evaluate((e) => { const s = getComputedStyle(e); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents }; });
-  expect(style.fill).toBe(rgb("#f0c419"));
+  expect(style.fill).toBe(rgb("#ff8a1f")); // blueprint's --fp-aura collapses to the single accent
   expect(style.op).toBe("0.25");
   expect(style.pe).toBe("none");
   await page.mouse.click(c.x, c.y); // the aura visually covers this point; pointer-events:none must let the click fall through to the room
@@ -4154,7 +4154,7 @@ test("Opus review CSS pair: a motion sensor that is on still fades: the fill fol
   // color-mix computes to color(srgb r g b) in 0..1, a plain colour to rgb(r, g, b) in 0..255: compare in 0..255
   const chan = (c: string) => (c.startsWith("color(") ? c.match(/[\d.]+/g)!.slice(-3).map((n) => Math.round(+n * 255)) : c.match(/\d+/g)!.map(Number));
   const idle = chan(await fillAt("0", false));
-  expect(chan(await fillAt("1", true))).toEqual([214, 69, 69]); // fully faded in: the motion colour
+  expect(chan(await fillAt("1", true))).toEqual([255, 138, 31]); // fully faded in: blueprint's motion colour collapses to the single accent
   expect(chan(await fillAt("0", true))).toEqual(idle);          // fully faded out: idle, not the "on" colour
   const half = chan(await fillAt("0.5", true));
   expect(half).not.toEqual(idle);
@@ -4560,14 +4560,19 @@ test("S1.51 break it: a corner dragged past its opposite one clamps at 5 cm inst
 
 // ---- S1.53 / S2.12 themes: blueprint (default), light, Home Assistant ---------------------------------------------------------
 
-// Blueprint palette (2026-09-21): ground #0d1522, room #14213a, wall #8fb4f0, text #d8e2f2. An unpainted room
-// (the demo's Living, room 0) is --fp-room-empty, #d6d6d2 = rgb(214, 214, 210) in every theme (2026-09-22).
+// Blueprint palette (role-generated, 2026-09-22): base #1c3f73 shaded into ground #0c1521 / wall #6394dd, fg #eef3fb,
+// line (measure) #35d47a. An unpainted room (the demo's Living, room 0) is --fp-room-empty, #d6d6d2 = rgb(214, 214, 210)
+// in every theme, unchanged since 2026-09-22.
 const ROOM_EMPTY = "rgb(214, 214, 210)";
-const DARK_TH = { bg: "rgb(13, 21, 34)", room: ROOM_EMPTY, wall: "rgb(143, 180, 240)", text: "rgb(216, 226, 242)", outline: "rgb(13, 21, 34)", disc: "rgb(20, 33, 58)", measure: "rgb(143, 180, 240)" };
+const DARK_TH = { bg: "rgb(12, 21, 33)", room: ROOM_EMPTY, wall: "rgb(99, 148, 221)", text: "rgb(238, 243, 251)", outline: "rgb(12, 21, 33)", disc: "rgb(238, 243, 251)", measure: "rgb(53, 212, 122)" };
+// Midnight (the old default, ex-"blueprint", renamed 2026-09-22): ground #0d1522, room #14213a, wall #8fb4f0, text
+// #d8e2f2. Still what the ha theme's dark-mode fallback uses (Diego's call: ha stays untouched by the new palettes).
+const MIDNIGHT_TH = { bg: "rgb(13, 21, 34)" };
 const LIGHT_TH = { bg: "rgb(244, 240, 230)", room: ROOM_EMPTY, wall: "rgb(43, 42, 39)", text: "rgb(58, 58, 58)", outline: "rgb(255, 255, 255)" };
 
-async function setTheme(page: Page, t: "blueprint" | "light" | "ha") {
+async function setTheme(page: Page, t: "blueprint" | "midnight" | "light" | "slate" | "terminal" | "solarized" | "ha") {
   await menu(page, "View");
+  await page.locator("#thSub > summary").click();
   await page.locator(`[data-th="${t}"]`).click();
   await menu(page, "View");
 }
@@ -4631,6 +4636,7 @@ test("S1.53: every .btn keeps at least 4.5:1 contrast against its own background
 
 test("S2.12: the theme chip switches Blueprint, Light and Home Assistant, and the choice survives a reload", async ({ page }) => {
   await menu(page, "View");
+  await page.locator("#thSub > summary").click();
   await expect(page.locator('[data-th="blueprint"]')).toHaveAttribute("aria-pressed", "true"); // Blueprint is the default
   await expect(page.locator('[data-th="ha"]')).toHaveText("Home Assistant");
   await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "blueprint");
@@ -4641,6 +4647,7 @@ test("S2.12: the theme chip switches Blueprint, Light and Home Assistant, and th
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "ha");
   await menu(page, "View");
+  await page.locator("#thSub > summary").click();
   await expect(page.locator('[data-th="ha"]')).toHaveAttribute("aria-pressed", "true");
   await page.locator('[data-th="light"]').click();
   expect(await page.evaluate(() => localStorage.getItem("floorplan-studio:theme"))).toBe("light");
@@ -4656,7 +4663,7 @@ test("S2.12: an editor on the Home Assistant theme follows haDark when the host 
   expect(await host()).toBe(LIGHT_TH.bg); // no HA variables here, no haDark: the OS is light
   await page.evaluate((tag) => { const el = document.querySelector(tag) as any; el.haDark = true; }, EDITOR);
   await expect(page.locator(EDITOR)).toHaveAttribute("data-mode", "dark");
-  expect(await host()).toBe(DARK_TH.bg);
+  expect(await host()).toBe(MIDNIGHT_TH.bg); // ha's dark fallback is midnight's bg, not blueprint's
   await page.emulateMedia({ colorScheme: null });
 });
 

@@ -12,7 +12,8 @@ const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
 const LIGHT_INK = "rgb(58, 58, 58)"; // --fp-text light, #3a3a3a
-const DARK_INK = "rgb(216, 226, 242)"; // --fp-text dark, #d8e2f2
+const DARK_INK = "rgb(238, 243, 251)"; // blueprint's --fp-text, #eef3fb
+const MIDNIGHT_INK = "rgb(216, 226, 242)"; // midnight's --fp-text, #d8e2f2 — still what ha's dark fallback uses
 
 // A plain <script src="../../dist/floorplan-studio-card.js"> fails under file://: Chromium refuses a cross-origin
 // module fetch between two file:// URLs (unlike dist/editor.html, which is inlined into one file). Injecting the
@@ -69,7 +70,7 @@ test("S2.12: theme ha takes Home Assistant's own colour when it defines one, and
   await configure(page, { theme: "ha" }, { states: {}, themes: { darkMode: false } });
   await expect.poll(() => msgColor(page)).toBe(LIGHT_INK); // no --primary-text-color on this page: fallback
   await configure(page, { theme: "ha" }, { states: {}, themes: { darkMode: true } });
-  await expect.poll(() => msgColor(page)).toBe(DARK_INK);
+  await expect.poll(() => msgColor(page)).toBe(MIDNIGHT_INK);
   await page.evaluate(() => document.documentElement.style.setProperty("--primary-text-color", "rgb(1, 2, 3)"));
   await expect.poll(() => msgColor(page)).toBe("rgb(1, 2, 3)"); // HA's variable wins, in either mode
   await configure(page, { theme: "ha" }, { states: {}, themes: { darkMode: false } });
@@ -122,14 +123,14 @@ test("S2.5 CSS pair: the heater bar's stroke is idle grey off and the heater col
     { layout: structuredClone(demo) },
     { states: { "climate.demo_living": { state: "heat", attributes: { hvac_action: "idle" }, last_changed: new Date().toISOString() } } },
   );
-  expect(await heaterStroke()).toBe("rgb(139, 133, 120)"); // --fp-idle
+  expect(await heaterStroke()).toBe("rgb(43, 86, 151)"); // blueprint's --fp-idle, #2b5697
 
   await configure(
     page,
     { layout: structuredClone(demo) },
     { states: { "climate.demo_living": { state: "heat", attributes: { hvac_action: "heating" }, last_changed: new Date().toISOString() } } },
   );
-  expect(await heaterStroke()).toBe("rgb(232, 128, 26)"); // --fp-heater
+  expect(await heaterStroke()).toBe("rgb(255, 138, 31)"); // blueprint's --fp-heater collapses to the single accent, #ff8a1f
 });
 
 test("S2.1 review: getCardSize accounts for layout.rotate in a real browser too", async ({ page }) => {

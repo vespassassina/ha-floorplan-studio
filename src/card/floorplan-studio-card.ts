@@ -23,7 +23,7 @@ export interface FloorplanStudioCardConfig {
   room_glow?: boolean;
   layout?: Layout;
   layout_url?: string;
-  /** `blueprint` (default), `light`, or `ha` to take the neutrals from Home Assistant's own theme variables. */
+  /** `blueprint` (default), `midnight`, `light`, `slate`, `terminal`, `solarized`, or `ha` to take the neutrals from Home Assistant's own theme variables. */
   theme?: Theme;
 }
 
