@@ -327,7 +327,7 @@ test("S2.6: floor chips are real, keyboard-reachable buttons outside the <svg>, 
   await configure(page, { layout: structuredClone(demo), floor: "all" }, { states: {} });
 
   const chips = page.locator("floorplan-studio-card").locator("css=.fp-floors button");
-  await expect(chips).toHaveCount(2);
+  await expect(chips).toHaveCount(3);
   for (const tag of await chips.evaluateAll((els) => els.map((e) => e.tagName))) expect(tag).toBe("BUTTON");
 
   const pairs = await chips.evaluateAll((els) => els.map((el) => { const s = getComputedStyle(el); return { pressed: el.getAttribute("aria-pressed"), bg: s.backgroundColor, fg: s.color }; }));

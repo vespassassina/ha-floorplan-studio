@@ -961,6 +961,21 @@ config). No write ever runs on load or on save.
 - Done when: tests pass; screenshots reviewed.
 - Break it: with `hass.themes` missing (older HA) the map falls back to the `FLOORPLAN_CSS` defaults and the panel still renders.
 
+### S4.9 Lock a wall's length (raised by Diego, 2026-09-22)
+- Outcome: a wall, door, opening or heater run (any two-point segment) can have its length locked: dragging either endpoint moves it, but the length itself cannot change (the free end slides so the length holds, or the drag is refused past that point — pick one and say which in the test names). Typing a length while locked still works and changes the length. Typing a length on an unlocked segment locks it, by default.
+- Files: `src/core/schema.ts` (`locked?: boolean` on a segment), `src/editor/state.ts` or `src/editor/ops.ts` (drag rule), `src/editor/panels.ts` (checkbox next to the length field), `tests/editor/*`.
+- Interface: a `locked` checkbox in the segment's panel, next to its length number field. Ticking it without changing the number locks at the current length. Typing a number sets the length and ticks the box. Unticking frees it; a drag on a locked segment's endpoint then still moves that end, but resizes it in place instead of changing length — needs the exact drag rule decided before building (see design note below).
+- Test: TDD, failing test first: drag a locked wall's endpoint further out — length is unchanged, the other end (or the dragged end, per the chosen rule) moved instead; typing a number on an unlocked wall locks it; unticking frees it for a length-changing drag again.
+- Design note: needs one decision before building — when a locked segment's endpoint is dragged, does the *other* endpoint follow along the same line to keep the length (a pure translate/rotate), or is the drag simply capped at the current length? Ask Diego, or default to translate/rotate (matches "move the point but not make it shorter" read literally: the point moves, the wall doesn't get shorter, so the far end must follow).
+- Not started.
+
+### S4.10 Track what the app created in HA, for cleanup (raised by Diego, 2026-09-22)
+- Outcome: every area, helper, or automation floorplan-studio creates in HA is discoverable and can be found again from the editor, so deleting it locally does not orphan it in HA. Deleting something locally never deletes it in HA — it only disconnects the plan from it. A separate, explicit action removes the HA side.
+- Files: `src/editor/hass-write.ts` (already labels every entity it creates with `floorplan-studio`, S4.1), `src/editor/panels.ts` or a new "Home Assistant" menu, `tests/editor/*`.
+- Interface: sketch, to refine before building — a panel or menu item lists everything on the current plan carrying the `floorplan-studio` label (`config/label_registry/list` + entities filtered by label), each with a link to open it in HA and a "Remove from Home Assistant" action (asks first, "cannot undo"). Areas created via S4.2's `createArea` need the same label support (areas do not carry entity labels in HA; may need a naming convention or a small local record of area ids the app created, kept in `layout` itself so it travels with the plan). Removing a *plan* item (room, device) already only ever edits the plan (`f.rooms.splice`, etc.); this task is about surfacing the HA side, not changing that.
+- Test: TDD, failing test first: after S4.4 creates a helper, the list shows it; "Remove from Home Assistant" asks, then deletes the config entry; a plan device removed from the floor (Remove from plan) leaves the HA entity alone and still listed until explicitly removed there too.
+- Not started. Needs a short design pass on the area-tracking question above before a plan/test can be final.
+
 ---
 
 ## Sprint 5 — content and docs (E5)

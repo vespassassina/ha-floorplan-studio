@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-22 The demo layout carries a "Test" floor, one plain room
+
+Diego wants a stable fixture for demos and for quick manual checks: a third floor, "test", with one square unpainted room (`area: "test"`), added to both `demo/layout.json` and `demo/layout.v1.json` at the end so key order stays `ground, first, test`. Flagged as risky before building it: `demo/layout.json` backs ~350 Playwright tests and most of the vitest suite, and every hardcoded floor-key array or chip count in those tests now needed a fourth entry (`state.test.ts`, `card.test.ts`, `editor.spec.ts`, `card.spec.ts`). Root cause of the first two failures after adding it: `migrate()` derives a room's `area` from `slug(name)` when the field is absent, so the v1 fixture needed an explicit `area: "test"` to match v2, and the v2 floor needed the `owk` (outline wall kinds) array `migrate()` adds to every floor. All three files' expectations were walked through by hand and updated to match the new floor order and the selection/undo semantics around it (deleting the newly-`test`-adjacent floor no longer selects the same neighbour it used to). Full suite green after: 730 vitest, 357 Playwright, 24 pytest, tsc and eslint clean.
+
 ## 2026-09-22 An unpainted room is one light gray, in every theme
 
 Diego: an unpainted room ("kind: room" or "structure", no `color` or `texture`) looked light gray to him whatever theme he ran, not the theme's own tint. New token `--fp-room-empty` (`#d6d6d2`, fixed in `LIGHT_TOKENS` and `DARK_TOKENS`, so `ha` never overrides it from `--secondary-background-color` the way `--fp-room` still does everywhere else) replaces `--fp-room` in the base `.room:not([fill])` rule only. `--fp-room` itself is unchanged and keeps doing its other jobs (editor and card chrome backgrounds, the opening stroke). Garden, terrace, pavement, water and zone keep their own kind colour; only the plain, unpainted room reads as "not yet painted". `tests/core/render.test.ts`, `tests/card/card.spec.ts` (S2.6 glow), `tests/editor/editor.spec.ts` (S2.12, S1.53) updated for the new fixed value.

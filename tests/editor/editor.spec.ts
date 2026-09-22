@@ -46,7 +46,7 @@ test("loads the demo and draws the ground floor", async ({ page }) => {
   const l = await layoutOf(page);
   expect(l.floors.ground.rooms).toHaveLength(7); // three rooms, the Reading corner zone, garden, pavement and the pond
   await expect(page.locator("svg polygon[data-r]")).toHaveCount(7);
-  await expect(page.locator(".chip[data-f]")).toHaveCount(2);
+  await expect(page.locator(".chip[data-f]")).toHaveCount(3);
 });
 
 test("dragging a room corner 50 px moves the coincident corner of the neighbour", async ({ page }) => {
@@ -902,8 +902,8 @@ test("the + chip sits after the floor chips, opens an input, and Enter adds a fl
   expect(add!.x).toBeGreaterThan(last!.x + last!.width - 1);
   await expect(page.locator("#newFloor")).toHaveCount(0);
   await addFloorVia(page, "Attic");
-  expect(await chipKeys(page)).toEqual(["ground", "first", "attic"]);
-  expect(await chipTitles(page)).toEqual(["Ground", "First", "Attic"]);
+  expect(await chipKeys(page)).toEqual(["ground", "first", "test", "attic"]);
+  expect(await chipTitles(page)).toEqual(["Ground", "First", "Test", "Attic"]);
   await expect(page.locator('.chip[data-f="attic"]')).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#newFloor")).toHaveCount(0);
   await expect(page.locator("svg polygon[data-r]")).toHaveCount(0); // no rooms
@@ -923,7 +923,7 @@ test("+ then Esc adds nothing and leaves no undo step; Enter on an empty or blan
   await page.keyboard.press("Enter");
   await expect(page.locator("#newFloor")).toBeVisible(); // still asking
   await page.keyboard.press("Escape");
-  expect(await floorKeys(page)).toEqual(["ground", "first"]);
+  expect(await floorKeys(page)).toEqual(["ground", "first", "test"]);
   await menu(page, "File");
   await expect(undoBtn(page)).toBeDisabled();
 });
@@ -931,7 +931,7 @@ test("+ then Esc adds nothing and leaves no undo step; Enter on an empty or blan
 test("break it: adding \"Ground\" gets the key ground-2 and does not overwrite the ground floor", async ({ page }) => {
   await addFloorVia(page, "Ground");
   const l = await layoutOf(page);
-  expect(Object.keys(l.floors)).toEqual(["ground", "first", "ground-2"]);
+  expect(Object.keys(l.floors)).toEqual(["ground", "first", "test", "ground-2"]);
   expect(l.floors.ground.rooms).toHaveLength(7);
   expect(l.floors["ground-2"].rooms).toHaveLength(0);
 });
@@ -951,15 +951,15 @@ test("renaming from the panel changes the chip title, keeps the key, is one undo
   await addFloorVia(page, "Attic");
   await page.locator("#ft").fill("  Loft  ");
   await page.locator("#ft").press("Enter");
-  expect(await chipTitles(page)).toEqual(["Ground", "First", "Loft"]);
-  expect(await chipKeys(page)).toEqual(["ground", "first", "attic"]);
+  expect(await chipTitles(page)).toEqual(["Ground", "First", "Test", "Loft"]);
+  expect(await chipKeys(page)).toEqual(["ground", "first", "test", "attic"]);
   await page.locator("#ft").fill("   "); // blank: refused, the field falls back
   await page.locator("#ft").press("Enter");
   await expect(page.locator("#ft")).toHaveValue("Loft");
-  expect(await chipTitles(page)).toEqual(["Ground", "First", "Loft"]);
+  expect(await chipTitles(page)).toEqual(["Ground", "First", "Test", "Loft"]);
   await page.locator("#panel").click({ position: { x: 2, y: 2 } });
   await page.keyboard.press("Control+z");
-  expect(await chipTitles(page)).toEqual(["Ground", "First", "Attic"]);
+  expect(await chipTitles(page)).toEqual(["Ground", "First", "Test", "Attic"]);
 });
 
 test("a title is text, never markup", async ({ page }) => {
@@ -973,22 +973,27 @@ test("a title is text, never markup", async ({ page }) => {
 });
 
 test("Move down puts Attic first, the chips follow the order, Move up is disabled at the top, and it undoes", async ({ page }) => {
-  await addFloorVia(page, "Attic");
+  await addFloorVia(page, "Attic"); // ground, first, test, attic; attic selected, at the top
   await expect(page.locator("#fup")).toBeDisabled();
   await page.locator("#fdown").click();
-  expect(await chipKeys(page)).toEqual(["ground", "attic", "first"]);
+  expect(await chipKeys(page)).toEqual(["ground", "first", "attic", "test"]);
   await page.locator("#fdown").click();
-  expect(await chipKeys(page)).toEqual(["attic", "ground", "first"]);
-  expect(await floorKeys(page)).toEqual(["attic", "ground", "first"]);
+  expect(await chipKeys(page)).toEqual(["ground", "attic", "first", "test"]);
+  await page.locator("#fdown").click();
+  expect(await chipKeys(page)).toEqual(["attic", "ground", "first", "test"]);
+  expect(await floorKeys(page)).toEqual(["attic", "ground", "first", "test"]);
   await expect(page.locator("#fdown")).toBeDisabled();
   await expect(page.locator('.chip[data-f="attic"]')).toHaveAttribute("aria-pressed", "true");
   await page.locator("#fup").click();
-  expect(await chipKeys(page)).toEqual(["ground", "attic", "first"]);
+  expect(await chipKeys(page)).toEqual(["ground", "attic", "first", "test"]);
   await page.keyboard.press("Control+z");
-  expect(await chipKeys(page)).toEqual(["attic", "ground", "first"]);
+  expect(await chipKeys(page)).toEqual(["attic", "ground", "first", "test"]);
   await page.keyboard.press("Control+z");
+  expect(await chipKeys(page)).toEqual(["ground", "attic", "first", "test"]);
   await page.keyboard.press("Control+z");
-  expect(await chipKeys(page)).toEqual(["ground", "first", "attic"]);
+  expect(await chipKeys(page)).toEqual(["ground", "first", "attic", "test"]);
+  await page.keyboard.press("Control+z");
+  expect(await chipKeys(page)).toEqual(["ground", "first", "test", "attic"]);
 });
 
 test("Delete asks first inline: Cancel keeps the floor; Delete removes it and selects a neighbour", async ({ page }) => {
@@ -997,11 +1002,11 @@ test("Delete asks first inline: Cancel keeps the floor; Delete removes it and se
   await expect(page.locator("#panel")).toContainText("Delete floor Attic and everything on it?");
   await page.locator("#fdelno").click();
   await expect(page.locator("#panel")).not.toContainText("and everything on it?");
-  expect(await floorKeys(page)).toEqual(["ground", "first", "attic"]);
+  expect(await floorKeys(page)).toEqual(["ground", "first", "test", "attic"]);
   await page.locator("#fdel").click();
   await page.locator("#fdelyes").click();
-  expect(await chipKeys(page)).toEqual(["ground", "first"]);
-  await expect(page.locator('.chip[data-f="first"]')).toHaveAttribute("aria-pressed", "true"); // the neighbour before it
+  expect(await chipKeys(page)).toEqual(["ground", "first", "test"]);
+  await expect(page.locator('.chip[data-f="test"]')).toHaveAttribute("aria-pressed", "true"); // the neighbour before it
   await expect(page.locator("#panel")).not.toContainText("and everything on it?");
 });
 
@@ -1011,17 +1016,22 @@ test("a pointer press on the plan cancels a pending delete confirm", async ({ pa
   await clickCm(page, 200, 150);
   await page.mouse.click(2, 2); // out of the editor: selection clears, the floor panel is back
   await expect(page.locator("#fdelyes")).toHaveCount(0);
-  expect(await floorKeys(page)).toEqual(["ground", "first"]);
+  expect(await floorKeys(page)).toEqual(["ground", "first", "test"]);
 });
 
 test("deleting the ground floor with content, then Undo, brings it back in place with all its content", async ({ page }) => {
   const before = await layoutOf(page);
   await page.locator("#fdel").click();
   await page.locator("#fdelyes").click();
+  expect(await chipKeys(page)).toEqual(["first", "test"]);
+  await page.locator('.chip[data-f="test"]').click();
+  await page.locator("#fdel").click();
+  await page.locator("#fdelyes").click();
   expect(await chipKeys(page)).toEqual(["first"]);
   await expect(page.locator("#fdel")).toBeDisabled(); // the last floor cannot go
-  await page.keyboard.press("Control+z");
-  expect(await chipKeys(page)).toEqual(["ground", "first"]);
+  await page.keyboard.press("Control+z"); // undo delete test
+  await page.keyboard.press("Control+z"); // undo delete ground
+  expect(await chipKeys(page)).toEqual(["ground", "first", "test"]);
   expect(await layoutOf(page)).toEqual(before);
   await page.locator('.chip[data-f="ground"]').click();
   await expect(page.locator("svg polygon[data-r]")).toHaveCount(7);
@@ -1041,24 +1051,24 @@ test("devices of a deleted floor go back to the Device menu and the catalog is u
 });
 
 test("a floor added, renamed, moved and deleted is four undo steps, one per action", async ({ page }) => {
-  await addFloorVia(page, "Attic");
+  await addFloorVia(page, "Attic"); // ground, first, test, attic
   await page.locator("#ft").fill("Loft");
   await page.locator("#ft").press("Enter");
-  await page.locator("#fdown").click();
+  await page.locator("#fdown").click(); // ground, first, attic, test
   await page.locator("#fdel").click();
   await page.locator("#fdelyes").click();
-  expect(await floorKeys(page)).toEqual(["ground", "first"]);
+  expect(await floorKeys(page)).toEqual(["ground", "first", "test"]);
   for (const [keys, titles] of [
-    [["ground", "attic", "first"], ["Ground", "Loft", "First"]], // undo the delete
-    [["ground", "first", "attic"], ["Ground", "First", "Loft"]], // undo the move
-    [["ground", "first", "attic"], ["Ground", "First", "Attic"]], // undo the rename
+    [["ground", "first", "attic", "test"], ["Ground", "First", "Loft", "Test"]], // undo the delete
+    [["ground", "first", "test", "attic"], ["Ground", "First", "Test", "Loft"]], // undo the move
+    [["ground", "first", "test", "attic"], ["Ground", "First", "Test", "Attic"]], // undo the rename
   ] as [string[], string[]][]) {
     await page.keyboard.press("Control+z");
     expect(await chipKeys(page)).toEqual(keys);
     expect(await chipTitles(page)).toEqual(titles);
   }
   await page.keyboard.press("Control+z");
-  expect(await floorKeys(page)).toEqual(["ground", "first"]);
+  expect(await floorKeys(page)).toEqual(["ground", "first", "test"]);
 });
 
 // ---- S1.11 draw mode ----
@@ -2335,7 +2345,7 @@ test("a new structure that does not fit at this zoom brings the view out until i
 
 test("a floor with no outline: an added zone lands at the view centre, as before", async ({ page }) => {
   await addBareFloor(page, "Attic");
-  await expect(page.locator(".chip[data-f]")).toHaveCount(3);
+  await expect(page.locator(".chip[data-f]")).toHaveCount(4);
   const v = await visible(page);
   await addMenuItem(page, "#addZone");
   const l = await layoutOf(page), z = l.floors.attic.rooms[0], cx = (z.pts[0][0] + z.pts[2][0]) / 2, cy = (z.pts[0][1] + z.pts[2][1]) / 2;

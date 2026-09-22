@@ -523,6 +523,7 @@ describe("FloorplanStudioCard", () => {
     it("Break it: a layout with one floor and floor: \"all\" shows one chip and throws nothing", async () => {
       const oneFloor = structuredClone(L);
       delete (oneFloor.floors as Record<string, unknown>).first;
+      delete (oneFloor.floors as Record<string, unknown>).test;
       const el = await mount();
       expect(() => el.setConfig({ layout: oneFloor, floor: "all" })).not.toThrow();
       el.hass = stubHass() as never;

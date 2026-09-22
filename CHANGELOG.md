@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The demo layout has a third floor, "Test", with one plain square room, for demos and manual checks.
 - An unpainted room is one light gray in every theme, not the theme's own tint (only a plain room or structure; garden, water and the rest keep their kind colour).
 
 - Sprint 4, first slice: the panel can now write to Home Assistant, always after a confirmation dialog.
