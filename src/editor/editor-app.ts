@@ -144,6 +144,8 @@ export class FloorplanStudioEditor extends LitElement {
   private draw: Draw | null = null;
   /** S4.22: the layout as it stood when the texture-rotation slider's drag began, or null between drags. */
   private textureRotGesture: Layout | null = null;
+  /** S4.19: the same, for the texture-scale slider. */
+  private textureScaleGesture: Layout | null = null;
   private hover: Pt | null = null;
   /** S4.18: the right-click context menu on a room, zone or structure — its screen position and the room it opened for. Closed (null) by an outside click, Escape or scroll. */
   private ctxMenu: { x: number; y: number; roomIdx: number } | null = null;
@@ -360,8 +362,22 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.commitLiveEdit(before)) this.changed("Texture rotated");
     else this.requestUpdate();
   };
+  /** S4.19: the paint panel's scale slider. Same live/commit gesture as `rotateTexture`. */
+  private scaleTexture = (on: "rooms" | "stairs", i: number, scale: number, phase: "live" | "commit") => {
+    if (!this.textureScaleGesture) this.textureScaleGesture = structuredClone(this.st.layout);
+    const g = structuredClone(this.st.f);
+    const shape = g[on][i];
+    const n = Math.min(2, Math.max(0.25, scale)); // matches paint()'s clamp; 1 is never stored
+    if (shape) { if (n === 1) delete shape.textureScale; else shape.textureScale = n; }
+    this.st.replaceFloor(g);
+    if (phase === "live") { this.requestUpdate(); return; }
+    const before = this.textureScaleGesture;
+    this.textureScaleGesture = null;
+    if (this.st.commitLiveEdit(before)) this.changed("Texture scale changed");
+    else this.requestUpdate();
+  };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------

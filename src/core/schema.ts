@@ -22,7 +22,7 @@ export const FLOOR_COLOURS: { name: string; hex: string }[] = [
 export const MAX_PALETTE = 24;
 
 /** `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows. */
-export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; free?: boolean; entity?: string }
+export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string }
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
 /** A room edge is a wall kind, or "none": not drawn. The room stays closed for area and snapping. */
 export type EdgeKind = WallKind | "none";
@@ -30,7 +30,7 @@ export type EdgeKind = WallKind | "none";
 export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boolean }
 export type StairShape = "straight" | "round";
 /** `dia` (outer) and `inner` (the empty well) exist on a round stair only; `pts` is its outer circle as a polygon. `rot` turns it about the centre of its box. */
-export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape; steps: number; rot: number; dia?: number; inner?: number; color?: string; texture?: string; textureRot?: number }
+export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape; steps: number; rot: number; dia?: number; inner?: number; color?: string; texture?: string; textureRot?: number; textureScale?: number }
 /**
  * `sensors`/`vibration`/`locks` (S4.24): every contact sensor, vibration sensor and smart lock attached to
  * this door or window — several of each allowed. `cover` (a curtain/blind entity) is not restricted by
@@ -135,6 +135,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (r.texture !== undefined && !TEXTURE_IDS.includes(r.texture as string)) errors.push(`${at} ${r.id} texture must be one of ${TEXTURE_IDS.join(", ")}`);
       if (r.textureRot !== undefined && !(typeof r.textureRot === "number" && Number.isFinite(r.textureRot) && r.textureRot >= 0 && r.textureRot < 360))
         errors.push(`${at} ${r.id} textureRot must be a number in [0, 360)`);
+      if (r.textureScale !== undefined && !(typeof r.textureScale === "number" && Number.isFinite(r.textureScale) && r.textureScale >= 0.25 && r.textureScale <= 2))
+        errors.push(`${at} ${r.id} textureScale must be a number from 0.25 to 2`);
       if (typeof r.area !== "string") errors.push(`${at} ${r.id} area must be text (empty for a custom shape)`);
       if (r.entity !== undefined && !isEntity(r.entity)) errors.push(`${at} ${r.id} entity must be an entity id like sensor.name`);
       if (r.free !== undefined && typeof r.free !== "boolean") errors.push(`${at} ${r.id} free must be true or false`);
@@ -158,6 +160,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (s.texture !== undefined && !TEXTURE_IDS.includes(s.texture as string)) errors.push(`${at} ${s.id} texture must be one of ${TEXTURE_IDS.join(", ")}`);
       if (s.textureRot !== undefined && !(typeof s.textureRot === "number" && Number.isFinite(s.textureRot) && s.textureRot >= 0 && s.textureRot < 360))
         errors.push(`${at} ${s.id} textureRot must be a number in [0, 360)`);
+      if (s.textureScale !== undefined && !(typeof s.textureScale === "number" && Number.isFinite(s.textureScale) && s.textureScale >= 0.25 && s.textureScale <= 2))
+        errors.push(`${at} ${s.id} textureScale must be a number from 0.25 to 2`);
       oneOf(`${s.id} shape`, s.shape, STAIR_SHAPES);
       if (!Number.isInteger(s.steps) || s.steps < 2 || s.steps > 40) errors.push(`${at} ${s.id} steps must be a whole number from 2 to 40`);
       if (!(typeof s.rot === "number" && Number.isFinite(s.rot) && s.rot >= 0 && s.rot < 360)) errors.push(`${at} ${s.id} rot must be a number in [0, 360)`);

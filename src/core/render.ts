@@ -1,7 +1,7 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
 import { stairSteps } from "./geometry";
 import { DEVICE_TYPES } from "./schema";
-import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot } from "./textures";
+import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
 
@@ -26,8 +26,8 @@ export const THEMES = ["blueprint", "midnight", "light", "slate", "terminal", "s
 export type Theme = (typeof THEMES)[number];
 
 /** The `fill` attribute for a room or staircase that carries its own paint: a texture wins over a colour. Both are checked against a fixed list or a strict pattern, because the value goes into an attribute. */
-const paintAttr = (r: { color?: string; texture?: string; textureRot?: number }) =>
-  typeof r.texture === "string" && TEXTURE_IDS.includes(r.texture) ? ` fill="url(#${texturePatternId(r.texture, normTextureRot(r.textureRot))})"` : typeof r.color === "string" && COLOR.test(r.color) ? ` fill="${r.color}"` : "";
+const paintAttr = (r: { color?: string; texture?: string; textureRot?: number; textureScale?: number }) =>
+  typeof r.texture === "string" && TEXTURE_IDS.includes(r.texture) ? ` fill="url(#${texturePatternId(r.texture, normTextureRot(r.textureRot), normTextureScale(r.textureScale))})"` : typeof r.color === "string" && COLOR.test(r.color) ? ` fill="${r.color}"` : "";
 
 /** The colour each device type has when `layout.colors` says nothing: the `--fp-dev-*` defaults below; types with none of their own use the idle grey. */
 export const DEVICE_COLOURS: Record<DeviceType, string> = {
@@ -318,7 +318,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // One fixed id: two cards on a page declare the same pattern twice, and both are identical (see DECISIONS).
   const textured = [...f.rooms, ...(f.stairs ?? [])]
     .filter((r): r is typeof r & { texture: string } => typeof r.texture === "string" && TEXTURE_IDS.includes(r.texture))
-    .map((r) => ({ id: r.texture, rot: normTextureRot(r.textureRot) }));
+    .map((r) => ({ id: r.texture, rot: normTextureRot(r.textureRot), scale: normTextureScale(r.textureScale) }));
   const hatch = f.rooms.some((r) => r.kind === "fill") ? '<pattern id="fp-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="var(--fp-fill)"/><line x1="0" y1="0" x2="0" y2="12" stroke="var(--fp-fill-line)" stroke-width="2"/></pattern>' : "";
   if (hatch || textured.length) out.push(`<defs>${hatch}${texturePatterns(textured)}</defs>`);
   // S2.6: room_glow. A room glows when any light "in" it (point-in-polygon of the device's x,y; a light never has

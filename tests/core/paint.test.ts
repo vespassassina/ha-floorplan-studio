@@ -65,9 +65,10 @@ describe("room and stair paint: colours you used, and textures", () => {
     expect(renderFloor(st.f, opts)).toContain(`data-r="${z}" class="room room-zone" fill="#336699"`);
   });
 
-  it("there are 3 wood and 4 stone textures, and only the ones in use are declared", () => {
-    expect(TEXTURES.filter((t) => t.id.startsWith("wood"))).toHaveLength(3);
-    expect(TEXTURES.filter((t) => t.id.startsWith("stone"))).toHaveLength(4);
+  it("there are 5 wood, 5 stone and 1 checkerboard texture (S4.19), and only the ones in use are declared", () => {
+    expect(TEXTURES.filter((t) => t.id.startsWith("wood"))).toHaveLength(5);
+    expect(TEXTURES.filter((t) => t.id.startsWith("stone"))).toHaveLength(5);
+    expect(TEXTURES.filter((t) => t.id.startsWith("checker"))).toHaveLength(1);
     const st = new EditorState(fresh());
     expect(renderFloor(st.f, opts)).not.toContain("fp-tex-");
     st.paint("rooms", 0, { texture: "wood-light" });
@@ -161,5 +162,87 @@ describe("room and stair paint: colours you used, and textures", () => {
     g = structuredClone(st.f); g.rooms[0].textureRot = 30; st.replaceFloor(g); // back to where it started
     expect(st.commitLiveEdit(before)).toBe(false); // no-op: nothing to undo
     expect(st.f.rooms[0].textureRot).toBe(30);
+  });
+
+  // S4.19: a texture's own scale.
+  it("validate accepts textureScale in [0.25, 2] and rejects everything else; it never appears without a texture", () => {
+    const ok = fresh();
+    (ok.floors[Object.keys(ok.floors)[0]].rooms[0] as any).texture = "wood-light";
+    (ok.floors[Object.keys(ok.floors)[0]].rooms[0] as any).textureScale = 1.5;
+    expect(validate(ok).ok).toBe(true);
+    for (const bad of [0.24, 2.01, NaN, Infinity, "1.5", null, "many"]) {
+      const l = fresh();
+      (l.floors[Object.keys(l.floors)[0]].rooms[0] as any).texture = "wood-light";
+      (l.floors[Object.keys(l.floors)[0]].rooms[0] as any).textureScale = bad;
+      expect(validate(l).ok, `textureScale ${String(bad)} should be refused`).toBe(false);
+    }
+    const noTex = fresh();
+    (noTex.floors[Object.keys(noTex.floors)[0]].rooms[0] as any).textureScale = 1.5; // no texture set: still well-formed, so validate accepts it
+    expect(validate(noTex).ok).toBe(true);
+  });
+
+  it("a texture scale clears when the texture or colour changes, and render ignores a hostile textureScale value", () => {
+    const st = new EditorState(fresh());
+    st.paint("rooms", 0, { texture: "wood-light", scale: 1.5 });
+    expect(st.f.rooms[0].textureScale).toBe(1.5);
+    st.paint("rooms", 0, { texture: "stone-grey" }); // a fresh texture starts at its natural scale
+    expect(st.f.rooms[0].textureScale).toBeUndefined();
+    st.paint("rooms", 0, { texture: "wood-light", scale: 0.5 });
+    st.paint("rooms", 0, { color: "#123456" });
+    expect(st.f.rooms[0].textureScale).toBeUndefined();
+
+    const l = fresh();
+    (l.floors[Object.keys(l.floors)[0]].rooms[0] as any).texture = "wood-light";
+    (l.floors[Object.keys(l.floors)[0]].rooms[0] as any).textureScale = '"><script>x</script>';
+    const html = renderFloor(l.floors[Object.keys(l.floors)[0]], opts);
+    expect(html).not.toContain("<script>");
+    expect(html).toContain('fill="url(#fp-tex-wood-light)"'); // a hostile scale falls back to 1, not a broken url
+  });
+
+  it("scaleTexture: a scaled pattern gets its own <pattern>, at 100% it reuses the plain one; only in-use scales are declared", () => {
+    const st = new EditorState(fresh());
+    st.paint("rooms", 0, { texture: "wood-light" });
+    st.paint("rooms", 1, { texture: "wood-light", scale: 1.5 });
+    const html = renderFloor(st.f, opts);
+    expect(html).toContain('<pattern id="fp-tex-wood-light"'); // room 0, at 100%: the plain id, unchanged from before this feature
+    expect(html).toContain('<pattern id="fp-tex-wood-light-s150" width="120" height="60" patternUnits="userSpaceOnUse" viewBox="0 0 80 40"');
+    expect(html).toContain('fill="url(#fp-tex-wood-light)"');
+    expect(html).toContain('fill="url(#fp-tex-wood-light-s150)"');
+    expect(html.match(/<pattern id="fp-tex-wood-light/g)).toHaveLength(2); // no duplicate declarations
+  });
+
+  it("scaleTexture: one undo step per gesture (a live preview via replaceFloor, committed once), none if it ends back where it started", () => {
+    const st = new EditorState(fresh());
+    st.paint("rooms", 0, { texture: "wood-light" });
+    const before = structuredClone(st.layout);
+    // Simulates the slider: replaceFloor on every drag tick (no history), one commitLiveEdit at release.
+    let g = structuredClone(st.f); g.rooms[0].textureScale = 0.5; st.replaceFloor(g);
+    g = structuredClone(st.f); g.rooms[0].textureScale = 0.75; st.replaceFloor(g);
+    expect(st.f.rooms[0].textureScale).toBe(0.75); // live-previewed already, before any undo step exists
+    expect(st.commitLiveEdit(before)).toBe(true);
+    expect(st.f.rooms[0].textureScale).toBe(0.75);
+    expect(st.undo()).toBe(true);
+    expect(st.f.rooms[0].textureScale).toBeUndefined(); // the whole gesture is one step, back to before the drag
+    expect(st.undo()).toBe(true); // the paint() that set the texture is its own, separate, earlier step
+    expect(st.f.rooms[0].texture).toBeUndefined();
+    expect(st.undo()).toBe(false); // nothing further back than the fresh demo layout
+  });
+
+  it("scaleTexture: a drag that ends back at its starting value adds no undo step", () => {
+    const st = new EditorState(fresh());
+    st.paint("rooms", 0, { texture: "wood-light", scale: 0.75 });
+    const before = structuredClone(st.layout);
+    let g = structuredClone(st.f); g.rooms[0].textureScale = 2; st.replaceFloor(g);
+    g = structuredClone(st.f); g.rooms[0].textureScale = 0.75; st.replaceFloor(g); // back to where it started
+    expect(st.commitLiveEdit(before)).toBe(false); // no-op: nothing to undo
+    expect(st.f.rooms[0].textureScale).toBe(0.75);
+  });
+
+  it("rotation and scale combine into one pattern id", () => {
+    const st = new EditorState(fresh());
+    st.paint("rooms", 0, { texture: "wood-light", rot: 90, scale: 1.5 });
+    const html = renderFloor(st.f, opts);
+    expect(html).toContain('<pattern id="fp-tex-wood-light-r90-s150" width="120" height="60" patternUnits="userSpaceOnUse" viewBox="0 0 80 40" patternTransform="rotate(90)"');
+    expect(html).toContain('fill="url(#fp-tex-wood-light-r90-s150)"');
   });
 });

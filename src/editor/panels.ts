@@ -28,6 +28,8 @@ export interface PanelCtx {
   /** S4.22: the paint panel's texture-rotation slider. `live` previews every tick, no undo step; `commit`, once at
    * release, records the whole drag as one step (none if it ended back where it started). */
   rotateTexture(on: "rooms" | "stairs", i: number, rot: number, phase: "live" | "commit"): void;
+  /** S4.19: the paint panel's texture-scale slider, 25–200%. Same live/commit gesture as `rotateTexture`. */
+  scaleTexture(on: "rooms" | "stairs", i: number, scale: number, phase: "live" | "commit"): void;
   /** S4.4: create a light from the selected switch or plug. Absent when there is no Home Assistant to write to. */
   makeLight?: (devIndex: number) => void;
   /** S4.3: the room whose HA area differs from the device's, when there is one, and the action that moves it there. */
@@ -59,7 +61,7 @@ const texturePreview = (t: { id: string; preview: string }) =>
  * Colour, custom colours, textures and "default" for a room, zone or staircase. A colour picked on the input that is not a swatch
  * yet is added to the swatches (kept in `layout.palette`, so it is still there after a reload). `id` prefixes the element ids.
  */
-function paintControls(c: PanelCtx, on: "rooms" | "stairs", i: number, id: string, shape: { color?: string; texture?: string; textureRot?: number }) {
+function paintControls(c: PanelCtx, on: "rooms" | "stairs", i: number, id: string, shape: { color?: string; texture?: string; textureRot?: number; textureScale?: number }) {
   const cur = (shape.color ?? "").toLowerCase(), custom = c.st.layout.palette ?? [];
   const swatch = (hex: string, name: string, extra = "") => html`<button class=${`sw${extra}`} type="button" title=${name} aria-label=${name} aria-pressed=${String(!shape.texture && cur === hex)} style="background:${hex}" @click=${() => c.paint(on, i, { color: hex })}></button>`;
   return html`<label for=${`${id}col`}>colour</label><input id=${`${id}col`} type="color" .value=${shape.color ?? "#ffffff"} @change=${(e: Event) => c.paint(on, i, { color: val(e) })}>
@@ -69,7 +71,12 @@ function paintControls(c: PanelCtx, on: "rooms" | "stairs", i: number, id: strin
       <input id=${`${id}rot`} type="range" min="0" max="359" step="1" .value=${live(String(shape.textureRot ?? 0))}
         @input=${(e: Event) => c.rotateTexture(on, i, Number(val(e)), "live")}
         @change=${(e: Event) => c.rotateTexture(on, i, Number(val(e)), "commit")}>
-      <span class="rot-val">${shape.textureRot ?? 0}°</span>` : nothing}
+      <span class="rot-val">${shape.textureRot ?? 0}°</span>
+      <label for=${`${id}scale`}>texture scale</label>
+      <input id=${`${id}scale`} type="range" min="25" max="200" step="5" .value=${live(String(Math.round((shape.textureScale ?? 1) * 100)))}
+        @input=${(e: Event) => c.scaleTexture(on, i, Number(val(e)) / 100, "live")}
+        @change=${(e: Event) => c.scaleTexture(on, i, Number(val(e)) / 100, "commit")}>
+      <span class="rot-val">${Math.round((shape.textureScale ?? 1) * 100)}%</span>` : nothing}
     <p>${button(`${id}colx`, "Use the default colour", () => c.paint(on, i, null))}</p>`;
 }
 

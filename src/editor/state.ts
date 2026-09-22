@@ -294,15 +294,16 @@ export class EditorState {
   /**
    * Paints a room, zone or staircase of the current floor, one undo step. `{ color }` sets a flat colour (and drops any texture); a
    * colour that is not a built-in swatch joins `layout.palette`, newest last, so the swatches keep every custom colour used.
-   * `{ texture, rot }` sets a texture (and drops the colour) and, optionally, the texture's own rotation in whole
-   * degrees (S4.22; 0 or omitted is never stored). `null` returns to the theme's default fill. Returns false,
-   * recording nothing, when the shape is missing, the value is bad or nothing changes.
+   * `{ texture, rot, scale }` sets a texture (and drops the colour) and, optionally, the texture's own rotation in
+   * whole degrees (S4.22; 0 or omitted is never stored) and scale (S4.19; 1 or omitted is never stored). `null`
+   * returns to the theme's default fill. Returns false, recording nothing, when the shape is missing, the value is
+   * bad or nothing changes.
    */
-  paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string; rot?: number } | null): boolean {
+  paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string; rot?: number; scale?: number } | null): boolean {
     const next: Layout = structuredClone(this.layout);
     const shape = next.floors[this.floor][on][i];
     if (!shape) return false;
-    delete shape.color; delete shape.texture; delete shape.textureRot;
+    delete shape.color; delete shape.texture; delete shape.textureRot; delete shape.textureScale;
     if (paint && "color" in paint) {
       const hex = paint.color.toLowerCase();
       if (!/^#[0-9a-f]{6}$/.test(hex)) return false;
@@ -313,6 +314,8 @@ export class EditorState {
       shape.texture = paint.texture;
       const rot = ((Math.trunc(paint.rot ?? 0) % 360) + 360) % 360;
       if (rot !== 0) shape.textureRot = rot;
+      const scale = Math.min(2, Math.max(0.25, paint.scale ?? 1));
+      if (scale !== 1) shape.textureScale = scale;
     }
     if (JSON.stringify(next) === JSON.stringify(this.layout)) return false;
     this.snapshot();

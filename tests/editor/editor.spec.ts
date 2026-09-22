@@ -3378,7 +3378,7 @@ test("S1.35: the room panel shows twelve floor swatches next to the free colour 
   await page.mouse.click(at.x, at.y);
   const sw = page.locator('#panel .swatches[aria-label="Colours"] .sw');
   await expect(sw).toHaveCount(12);
-  await expect(page.locator("#panel .sw.tex")).toHaveCount(7); // and seven textures beside them
+  await expect(page.locator("#panel .sw.tex")).toHaveCount(11); // and eleven textures beside them (S4.19)
   await expect(sw.nth(10)).toHaveAttribute("title", "Belgian stone");
   await expect(sw.nth(10)).toHaveAttribute("aria-label", "Belgian stone");
   await expect(page.locator("#rcol")).toHaveCount(1);
@@ -4807,6 +4807,70 @@ test("S4.22: the rotation survives a save/reload round trip", async ({ page }) =
   const saved = await layoutOf(page);
   expect(saved.floors.ground.rooms[0].textureRot).toBe(200);
   expect(validate(saved).ok).toBe(true);
+});
+
+// ---- S4.19: a texture's own scale, dragged with the paint panel's slider --------------------------------------
+
+test("S4.19: the scale slider appears only once a texture is chosen, defaults to 100%, and disappears back at the default colour", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator("#rscale")).toHaveCount(0);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  await expect(page.locator("#rscale")).toHaveCount(1);
+  await expect(page.locator("#rscale")).toHaveValue("100");
+  await page.getByText("Use the default colour").click();
+  await expect(page.locator("#rscale")).toHaveCount(0);
+});
+
+test("S4.19: dragging the scale slider live-updates the rendered pattern, and releasing commits exactly one undo step", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  const before = await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR);
+  await moveSlider(page, "#rscale", 120, "input");
+  await moveSlider(page, "#rscale", 150, "input");
+  // Live preview: the scaled pattern is already on the plan, but no undo step has been recorded yet.
+  await expect(page.locator('svg polygon[fill="url(#fp-tex-wood-dark-s150)"]')).toHaveCount(1);
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR)).toBe(before);
+  await moveSlider(page, "#rscale", 150, "change");
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR)).toBe(before + 1);
+  expect((await groundOf(page)).rooms[0].textureScale).toBe(1.5);
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).rooms[0].textureScale).toBeUndefined();
+});
+
+test("S4.19: a scale slider drag that ends back at its starting value adds no undo step", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  await moveSlider(page, "#rscale", 75, "change"); // an initial scale to drag away from and back to
+  const before = await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR);
+  await moveSlider(page, "#rscale", 200, "input");
+  await moveSlider(page, "#rscale", 75, "input"); // back to where it started
+  await moveSlider(page, "#rscale", 75, "change");
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR)).toBe(before);
+  expect((await groundOf(page)).rooms[0].textureScale).toBe(0.75);
+});
+
+test("S4.19: the scale survives a save/reload round trip", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  await moveSlider(page, "#rscale", 200, "change");
+  const saved = await layoutOf(page);
+  expect(saved.floors.ground.rooms[0].textureScale).toBe(2);
+  expect(validate(saved).ok).toBe(true);
+});
+
+test("S4.19: two more wood textures and one more stone texture, plus a checkerboard, are offered", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator('.sw.tex[aria-label="Herringbone wood"]')).toHaveCount(1);
+  await expect(page.locator('.sw.tex[aria-label="Parquet wood"]')).toHaveCount(1);
+  await expect(page.locator('.sw.tex[aria-label="Terracotta tiles"]')).toHaveCount(1);
+  await expect(page.locator('.sw.tex[aria-label="Checkerboard"]')).toHaveCount(1);
+  await page.locator('.sw.tex[aria-label="Checkerboard"]').click();
+  await expect(page.locator('svg polygon[fill="url(#fp-tex-checker-classic)"]')).toHaveCount(1);
 });
 
 // ---- S3.3: attach, switch and clear a device's entity ---------------------------------
