@@ -1252,13 +1252,14 @@ export class FloorplanStudioEditor extends LitElement {
           ${unplaced.length > 0 && matches.length === 0 ? html`<span class="grp" id="devNone">No device matches</span>` : nothing}
           ${TYPE_LABELS.map(([t, label]) => { const g = matches.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-dev=${c.id} @click=${() => this.placeDevice(c.id)}>${c.name}${c.room ? ` — ${c.room}` : ""}</button>`)}` : nothing; })}
         </div></details>
-        <details class="menu" id="mOpt"><summary class="btn">View</summary><div class="box">
+        <details class="menu" id="mOpt" @toggle=${this.onOptToggle}><summary class="btn">View</summary><div class="box">
           <div class="rotrow" id="grid" role="group" aria-label="Grid"><span>Grid</span>
             ${GRID_VALUES.map((g) => html`<button class="chip keep" data-grid=${g} aria-pressed=${pressed(st.snapGrid === g)} @click=${() => { st.setGrid(g); this.requestUpdate(); }}>${g ? `${g} cm` : "None"}</button>`)}</div>
           <button class="chip" id="mgrid" aria-pressed=${pressed(st.measure)} title="A faint 50 cm grid with metre markers, behind the plan" @click=${() => { st.setMeasure(!st.measure); this.requestUpdate(); }}>Measure grid</button>
           <button class="chip" id="lens" aria-pressed=${pressed(st.showLen)} @click=${() => { st.showLen = !st.showLen; this.requestUpdate(); }}>Lengths</button>
-          <div class="rotrow" id="th" role="group" aria-label="Theme"><span>Theme</span>
-            ${THEME_VALUES.map((t) => html`<button class="chip keep" data-th=${t} aria-pressed=${pressed(st.theme === t)} @click=${() => { st.setTheme(t); this.requestUpdate(); }}>${THEME_LABELS[t]}</button>`)}</div>
+          <details class="sub" id="thSub"><summary class="btn">Theme: ${THEME_LABELS[st.theme]}</summary>
+            ${THEME_VALUES.map((t) => html`<button class="btn keep" data-th=${t} aria-pressed=${pressed(st.theme === t)} @click=${() => { st.setTheme(t); this.requestUpdate(); }}>${THEME_LABELS[t]}</button>`)}
+          </details>
           <button class="btn" id="recenter" @click=${() => { st.recenter(); this.requestUpdate(); }}>Re-center</button>
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
           <details id="devcols"><summary class="btn">Device colours</summary>
@@ -1306,6 +1307,13 @@ export class FloorplanStudioEditor extends LitElement {
       </div>`;
   }
 
+  /** View's Theme submenu keeps its own open state (S4.11 pattern); a "keep" theme button never closes the menu on
+   * click, so closing View by clicking its own summary again — the one route `onWindowClick` does not cover — must
+   * collapse the submenu itself, or reopening View leaves Theme already open. */
+  private onOptToggle = (ev: Event) => {
+    const m = ev.currentTarget as HTMLDetailsElement;
+    if (!m.open) this.closeSubs(m);
+  };
   /** Opening the Device menu focuses the search; closing it, by any route, forgets the text. */
   private onDevToggle = (ev: Event) => {
     const m = ev.currentTarget as HTMLDetailsElement;

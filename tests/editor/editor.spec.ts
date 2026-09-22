@@ -4572,6 +4572,7 @@ const LIGHT_TH = { bg: "rgb(244, 240, 230)", room: ROOM_EMPTY, wall: "rgb(43, 42
 
 async function setTheme(page: Page, t: "blueprint" | "midnight" | "light" | "slate" | "terminal" | "solarized" | "ha") {
   await menu(page, "View");
+  await page.locator("#thSub > summary").click();
   await page.locator(`[data-th="${t}"]`).click();
   await menu(page, "View");
 }
@@ -4635,6 +4636,7 @@ test("S1.53: every .btn keeps at least 4.5:1 contrast against its own background
 
 test("S2.12: the theme chip switches Blueprint, Light and Home Assistant, and the choice survives a reload", async ({ page }) => {
   await menu(page, "View");
+  await page.locator("#thSub > summary").click();
   await expect(page.locator('[data-th="blueprint"]')).toHaveAttribute("aria-pressed", "true"); // Blueprint is the default
   await expect(page.locator('[data-th="ha"]')).toHaveText("Home Assistant");
   await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "blueprint");
@@ -4645,6 +4647,7 @@ test("S2.12: the theme chip switches Blueprint, Light and Home Assistant, and th
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "ha");
   await menu(page, "View");
+  await page.locator("#thSub > summary").click();
   await expect(page.locator('[data-th="ha"]')).toHaveAttribute("aria-pressed", "true");
   await page.locator('[data-th="light"]').click();
   expect(await page.evaluate(() => localStorage.getItem("floorplan-studio:theme"))).toBe("light");
