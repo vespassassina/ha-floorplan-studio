@@ -155,18 +155,18 @@ test("S2.6 CSS pair: a room's fill is the glow tint only while room_glow is on a
   const livingFill = () => page.locator("floorplan-studio-card").evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('svg polygon[data-r="0"]')!).fill);
 
   await configure(page, { layout: structuredClone(demo), theme: "light", room_glow: true }, { states: { "light.demo_living": { state: "off", attributes: {}, last_changed: new Date().toISOString() } } });
-  expect(await livingFill()).toBe("rgb(233, 227, 211)"); // --fp-room, the light is off
+  expect(await livingFill()).toBe("rgb(214, 214, 210)"); // --fp-room-empty, the light is off
 
   await configure(page, { layout: structuredClone(demo), theme: "light", room_glow: true }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
-  // --fp-glow mixed 25% into the room's own --fp-room, not read outright (S2.9 Opus review: the old rule read
+  // --fp-glow mixed 25% into the room's own --fp-room-empty, not read outright (S2.9 Opus review: the old rule read
   // --fp-glow directly and so replaced the room's colour instead of tinting it; fixed for room_glow and the
   // S1.37 "on" tint in the same pass). Chromium serialises a color-mix() computed value as color(srgb ...), not
-  // rgb(...); 0.92549/0.889216/0.777451 * 255 = 236/227/198, the 25%-glow/75%-room mix.
-  expect(await livingFill()).toBe("color(srgb 0.92549 0.889216 0.777451)");
+  // rgb(...); the 25%-glow/75%-room-empty mix of #f5e2a0 and #d6d6d2.
+  expect(await livingFill()).toBe("color(srgb 0.869608 0.85098 0.77451)");
 
   // room_glow: false (or absent): the same lit light gives no glow at all, even though the light itself is on.
   await configure(page, { layout: structuredClone(demo), theme: "light" }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
-  expect(await livingFill()).toBe("rgb(233, 227, 211)");
+  expect(await livingFill()).toBe("rgb(214, 214, 210)");
 });
 
 test("S2.6 CSS pair: a room's own colour (a [fill] attribute) is kept, glow or not — the user's choice wins", async ({ page }) => {
@@ -327,7 +327,7 @@ test("S2.6: floor chips are real, keyboard-reachable buttons outside the <svg>, 
   await configure(page, { layout: structuredClone(demo), floor: "all" }, { states: {} });
 
   const chips = page.locator("floorplan-studio-card").locator("css=.fp-floors button");
-  await expect(chips).toHaveCount(2);
+  await expect(chips).toHaveCount(3);
   for (const tag of await chips.evaluateAll((els) => els.map((e) => e.tagName))) expect(tag).toBe("BUTTON");
 
   const pairs = await chips.evaluateAll((els) => els.map((el) => { const s = getComputedStyle(el); return { pressed: el.getAttribute("aria-pressed"), bg: s.backgroundColor, fg: s.color }; }));

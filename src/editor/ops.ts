@@ -173,6 +173,18 @@ export function snapRoomTo(f: Floor, i: number, radius: number): Floor {
   return g;
 }
 
+/**
+ * A point at exactly `radius` cm from `pivot`, in the direction of `to` (S4.9: dragging a locked segment's
+ * endpoint pivots it on an arc of fixed radius around the segment's other, unmoved end). `fallback` is the
+ * direction used when `to` lands on the pivot itself, where no direction exists; it defaults to `to`.
+ */
+export function pivotOnArc(pivot: Pt, to: Pt, radius: number, fallback: Pt = to): Pt {
+  let dx = to[0] - pivot[0], dy = to[1] - pivot[1];
+  let l = Math.hypot(dx, dy);
+  if (l === 0) { dx = fallback[0] - pivot[0]; dy = fallback[1] - pivot[1]; l = Math.hypot(dx, dy) || 1; }
+  return round([pivot[0] + (dx / l) * radius, pivot[1] + (dy / l) * radius]);
+}
+
 /** A segment turned by `deg` (clockwise on screen) about its midpoint, ends rounded to 1 cm. */
 export function rotateSegment(a: Pt, b: Pt, deg: number): { a: Pt; b: Pt } {
   const c: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], r = (deg * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);

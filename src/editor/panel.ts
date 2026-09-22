@@ -4,6 +4,7 @@ import type { Layout } from "../core";
 import demo from "../../demo/layout.json";
 import "./editor-app";
 import { haData } from "./hass-pickers";
+import { makeWriter } from "./hass-write";
 import type { HaData } from "../core";
 import type { FloorplanStudioEditor } from "./editor-app";
 
@@ -95,6 +96,7 @@ export class FloorplanStudioPanel extends LitElement {
   private pushHa() {
     const ed = this.renderRoot?.querySelector("floorplan-studio-editor") as FloorplanStudioEditor | null;
     if (ed && this.ha && ed.ha !== this.ha) ed.ha = this.ha;
+    if (ed && this.hass && !ed.writer) ed.writer = makeWriter({ callWS: (m) => this.hass!.callWS(m as never), callApi: (m, p, d) => (this.hass as never as { callApi: (...a: unknown[]) => Promise<never> }).callApi(m, p, d) }); // late-bound: hass is replaced on every state change
   }
   protected updated() { this.pushHa(); }
 

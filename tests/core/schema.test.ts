@@ -351,6 +351,29 @@ describe("room free (S1.24)", () => {
   });
 });
 
+describe("wall, door and opening locked (S4.9)", () => {
+  const withLocked = (list: "walls" | "doors" | "openings", v: unknown) => {
+    const l = clone();
+    const base: Record<string, unknown> = { id: "x1", a: [0, 0], b: [10, 0] };
+    if (list === "walls") base.kind = "wall";
+    if (list === "doors") { base.name = "x"; base.kind = "door"; }
+    if (v !== "absent") base.locked = v;
+    (l.floors.ground[list] as unknown[]).push(base);
+    return errorsOf(l).join("\n");
+  };
+  it("accepts a boolean, or none, on a wall, a door and an opening", () => {
+    for (const list of ["walls", "doors", "openings"] as const) {
+      expect(withLocked(list, true)).toBe("");
+      expect(withLocked(list, false)).toBe("");
+      expect(withLocked(list, "absent")).toBe("");
+    }
+  });
+  it("rejects anything else", () => {
+    for (const list of ["walls", "doors", "openings"] as const)
+      for (const bad of ["yes", 1, null]) expect(withLocked(list, bad)).toMatch(/x1 locked must be true or false/);
+  });
+});
+
 describe("stairs shape, steps, rotation and diameters (S1.25)", () => {
   const withStairs = (patch: (t: any) => void) => { const l = clone(); patch(l.floors.ground.stairs[0]); return errorsOf(l).join("\n"); };
   const round = (t: any) => { t.shape = "round"; t.dia = 200; t.inner = 60; };

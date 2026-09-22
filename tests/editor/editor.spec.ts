@@ -46,7 +46,7 @@ test("loads the demo and draws the ground floor", async ({ page }) => {
   const l = await layoutOf(page);
   expect(l.floors.ground.rooms).toHaveLength(7); // three rooms, the Reading corner zone, garden, pavement and the pond
   await expect(page.locator("svg polygon[data-r]")).toHaveCount(7);
-  await expect(page.locator(".chip[data-f]")).toHaveCount(2);
+  await expect(page.locator(".chip[data-f]")).toHaveCount(3);
 });
 
 test("dragging a room corner 50 px moves the coincident corner of the neighbour", async ({ page }) => {
@@ -902,8 +902,8 @@ test("the + chip sits after the floor chips, opens an input, and Enter adds a fl
   expect(add!.x).toBeGreaterThan(last!.x + last!.width - 1);
   await expect(page.locator("#newFloor")).toHaveCount(0);
   await addFloorVia(page, "Attic");
-  expect(await chipKeys(page)).toEqual(["ground", "first", "attic"]);
-  expect(await chipTitles(page)).toEqual(["Ground", "First", "Attic"]);
+  expect(await chipKeys(page)).toEqual(["ground", "first", "test", "attic"]);
+  expect(await chipTitles(page)).toEqual(["Ground", "First", "Test", "Attic"]);
   await expect(page.locator('.chip[data-f="attic"]')).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#newFloor")).toHaveCount(0);
   await expect(page.locator("svg polygon[data-r]")).toHaveCount(0); // no rooms
@@ -923,7 +923,7 @@ test("+ then Esc adds nothing and leaves no undo step; Enter on an empty or blan
   await page.keyboard.press("Enter");
   await expect(page.locator("#newFloor")).toBeVisible(); // still asking
   await page.keyboard.press("Escape");
-  expect(await floorKeys(page)).toEqual(["ground", "first"]);
+  expect(await floorKeys(page)).toEqual(["ground", "first", "test"]);
   await menu(page, "File");
   await expect(undoBtn(page)).toBeDisabled();
 });
@@ -931,7 +931,7 @@ test("+ then Esc adds nothing and leaves no undo step; Enter on an empty or blan
 test("break it: adding \"Ground\" gets the key ground-2 and does not overwrite the ground floor", async ({ page }) => {
   await addFloorVia(page, "Ground");
   const l = await layoutOf(page);
-  expect(Object.keys(l.floors)).toEqual(["ground", "first", "ground-2"]);
+  expect(Object.keys(l.floors)).toEqual(["ground", "first", "test", "ground-2"]);
   expect(l.floors.ground.rooms).toHaveLength(7);
   expect(l.floors["ground-2"].rooms).toHaveLength(0);
 });
@@ -951,15 +951,15 @@ test("renaming from the panel changes the chip title, keeps the key, is one undo
   await addFloorVia(page, "Attic");
   await page.locator("#ft").fill("  Loft  ");
   await page.locator("#ft").press("Enter");
-  expect(await chipTitles(page)).toEqual(["Ground", "First", "Loft"]);
-  expect(await chipKeys(page)).toEqual(["ground", "first", "attic"]);
+  expect(await chipTitles(page)).toEqual(["Ground", "First", "Test", "Loft"]);
+  expect(await chipKeys(page)).toEqual(["ground", "first", "test", "attic"]);
   await page.locator("#ft").fill("   "); // blank: refused, the field falls back
   await page.locator("#ft").press("Enter");
   await expect(page.locator("#ft")).toHaveValue("Loft");
-  expect(await chipTitles(page)).toEqual(["Ground", "First", "Loft"]);
+  expect(await chipTitles(page)).toEqual(["Ground", "First", "Test", "Loft"]);
   await page.locator("#panel").click({ position: { x: 2, y: 2 } });
   await page.keyboard.press("Control+z");
-  expect(await chipTitles(page)).toEqual(["Ground", "First", "Attic"]);
+  expect(await chipTitles(page)).toEqual(["Ground", "First", "Test", "Attic"]);
 });
 
 test("a title is text, never markup", async ({ page }) => {
@@ -973,22 +973,27 @@ test("a title is text, never markup", async ({ page }) => {
 });
 
 test("Move down puts Attic first, the chips follow the order, Move up is disabled at the top, and it undoes", async ({ page }) => {
-  await addFloorVia(page, "Attic");
+  await addFloorVia(page, "Attic"); // ground, first, test, attic; attic selected, at the top
   await expect(page.locator("#fup")).toBeDisabled();
   await page.locator("#fdown").click();
-  expect(await chipKeys(page)).toEqual(["ground", "attic", "first"]);
+  expect(await chipKeys(page)).toEqual(["ground", "first", "attic", "test"]);
   await page.locator("#fdown").click();
-  expect(await chipKeys(page)).toEqual(["attic", "ground", "first"]);
-  expect(await floorKeys(page)).toEqual(["attic", "ground", "first"]);
+  expect(await chipKeys(page)).toEqual(["ground", "attic", "first", "test"]);
+  await page.locator("#fdown").click();
+  expect(await chipKeys(page)).toEqual(["attic", "ground", "first", "test"]);
+  expect(await floorKeys(page)).toEqual(["attic", "ground", "first", "test"]);
   await expect(page.locator("#fdown")).toBeDisabled();
   await expect(page.locator('.chip[data-f="attic"]')).toHaveAttribute("aria-pressed", "true");
   await page.locator("#fup").click();
-  expect(await chipKeys(page)).toEqual(["ground", "attic", "first"]);
+  expect(await chipKeys(page)).toEqual(["ground", "attic", "first", "test"]);
   await page.keyboard.press("Control+z");
-  expect(await chipKeys(page)).toEqual(["attic", "ground", "first"]);
+  expect(await chipKeys(page)).toEqual(["attic", "ground", "first", "test"]);
   await page.keyboard.press("Control+z");
+  expect(await chipKeys(page)).toEqual(["ground", "attic", "first", "test"]);
   await page.keyboard.press("Control+z");
-  expect(await chipKeys(page)).toEqual(["ground", "first", "attic"]);
+  expect(await chipKeys(page)).toEqual(["ground", "first", "attic", "test"]);
+  await page.keyboard.press("Control+z");
+  expect(await chipKeys(page)).toEqual(["ground", "first", "test", "attic"]);
 });
 
 test("Delete asks first inline: Cancel keeps the floor; Delete removes it and selects a neighbour", async ({ page }) => {
@@ -997,11 +1002,11 @@ test("Delete asks first inline: Cancel keeps the floor; Delete removes it and se
   await expect(page.locator("#panel")).toContainText("Delete floor Attic and everything on it?");
   await page.locator("#fdelno").click();
   await expect(page.locator("#panel")).not.toContainText("and everything on it?");
-  expect(await floorKeys(page)).toEqual(["ground", "first", "attic"]);
+  expect(await floorKeys(page)).toEqual(["ground", "first", "test", "attic"]);
   await page.locator("#fdel").click();
   await page.locator("#fdelyes").click();
-  expect(await chipKeys(page)).toEqual(["ground", "first"]);
-  await expect(page.locator('.chip[data-f="first"]')).toHaveAttribute("aria-pressed", "true"); // the neighbour before it
+  expect(await chipKeys(page)).toEqual(["ground", "first", "test"]);
+  await expect(page.locator('.chip[data-f="test"]')).toHaveAttribute("aria-pressed", "true"); // the neighbour before it
   await expect(page.locator("#panel")).not.toContainText("and everything on it?");
 });
 
@@ -1011,17 +1016,22 @@ test("a pointer press on the plan cancels a pending delete confirm", async ({ pa
   await clickCm(page, 200, 150);
   await page.mouse.click(2, 2); // out of the editor: selection clears, the floor panel is back
   await expect(page.locator("#fdelyes")).toHaveCount(0);
-  expect(await floorKeys(page)).toEqual(["ground", "first"]);
+  expect(await floorKeys(page)).toEqual(["ground", "first", "test"]);
 });
 
 test("deleting the ground floor with content, then Undo, brings it back in place with all its content", async ({ page }) => {
   const before = await layoutOf(page);
   await page.locator("#fdel").click();
   await page.locator("#fdelyes").click();
+  expect(await chipKeys(page)).toEqual(["first", "test"]);
+  await page.locator('.chip[data-f="test"]').click();
+  await page.locator("#fdel").click();
+  await page.locator("#fdelyes").click();
   expect(await chipKeys(page)).toEqual(["first"]);
   await expect(page.locator("#fdel")).toBeDisabled(); // the last floor cannot go
-  await page.keyboard.press("Control+z");
-  expect(await chipKeys(page)).toEqual(["ground", "first"]);
+  await page.keyboard.press("Control+z"); // undo delete test
+  await page.keyboard.press("Control+z"); // undo delete ground
+  expect(await chipKeys(page)).toEqual(["ground", "first", "test"]);
   expect(await layoutOf(page)).toEqual(before);
   await page.locator('.chip[data-f="ground"]').click();
   await expect(page.locator("svg polygon[data-r]")).toHaveCount(7);
@@ -1041,24 +1051,24 @@ test("devices of a deleted floor go back to the Device menu and the catalog is u
 });
 
 test("a floor added, renamed, moved and deleted is four undo steps, one per action", async ({ page }) => {
-  await addFloorVia(page, "Attic");
+  await addFloorVia(page, "Attic"); // ground, first, test, attic
   await page.locator("#ft").fill("Loft");
   await page.locator("#ft").press("Enter");
-  await page.locator("#fdown").click();
+  await page.locator("#fdown").click(); // ground, first, attic, test
   await page.locator("#fdel").click();
   await page.locator("#fdelyes").click();
-  expect(await floorKeys(page)).toEqual(["ground", "first"]);
+  expect(await floorKeys(page)).toEqual(["ground", "first", "test"]);
   for (const [keys, titles] of [
-    [["ground", "attic", "first"], ["Ground", "Loft", "First"]], // undo the delete
-    [["ground", "first", "attic"], ["Ground", "First", "Loft"]], // undo the move
-    [["ground", "first", "attic"], ["Ground", "First", "Attic"]], // undo the rename
+    [["ground", "first", "attic", "test"], ["Ground", "First", "Loft", "Test"]], // undo the delete
+    [["ground", "first", "test", "attic"], ["Ground", "First", "Test", "Loft"]], // undo the move
+    [["ground", "first", "test", "attic"], ["Ground", "First", "Test", "Attic"]], // undo the rename
   ] as [string[], string[]][]) {
     await page.keyboard.press("Control+z");
     expect(await chipKeys(page)).toEqual(keys);
     expect(await chipTitles(page)).toEqual(titles);
   }
   await page.keyboard.press("Control+z");
-  expect(await floorKeys(page)).toEqual(["ground", "first"]);
+  expect(await floorKeys(page)).toEqual(["ground", "first", "test"]);
 });
 
 // ---- S1.11 draw mode ----
@@ -2335,7 +2345,7 @@ test("a new structure that does not fit at this zoom brings the view out until i
 
 test("a floor with no outline: an added zone lands at the view centre, as before", async ({ page }) => {
   await addBareFloor(page, "Attic");
-  await expect(page.locator(".chip[data-f]")).toHaveCount(3);
+  await expect(page.locator(".chip[data-f]")).toHaveCount(4);
   const v = await visible(page);
   await addMenuItem(page, "#addZone");
   const l = await layoutOf(page), z = l.floors.attic.rooms[0], cx = (z.pts[0][0] + z.pts[2][0]) / 2, cy = (z.pts[0][1] + z.pts[2][1]) / 2;
@@ -2393,6 +2403,66 @@ test("each Add, Wall item places a 200 cm wall of its kind at the spawn point, s
   expect((await groundOf(page)).walls).toHaveLength(4);
 });
 const dist2 = (a: number[], b: number[]) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+// ---- S4.9: locked walls, doors and openings pivot on drag, length fixed ----
+
+test("a locked wall's dragged end pivots on an arc of fixed radius around the other end", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator("#addWall-wall").click();
+  const w = (await groundOf(page)).walls.at(-1)!;
+  await centreViewOn(page, mid(w));
+  await expect(page.locator("#wlock")).not.toBeChecked();
+  await page.locator("#wlock").check();
+  await dragCm(page, w.a as [number, number], [w.a[0] + 30, w.a[1] + 40]);
+  const w2 = (await groundOf(page)).walls.at(-1)!;
+  expect(Math.abs(dist2(w2.a, w2.b) - dist2(w.a, w.b))).toBeLessThanOrEqual(1); // length fixed, within rounding
+  expect(w2.b).toEqual(w.b); // the far end never moved
+  expect(w2.a).not.toEqual(w.a);
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).walls.at(-1)!.a).toEqual(w.a); // one undo step
+});
+
+test("typing a wall's length locks it; unticking frees it for a normal, length-changing drag", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator("#addWall-wall").click();
+  const w = (await groundOf(page)).walls.at(-1)!;
+  await centreViewOn(page, mid(w));
+  await page.locator("#wlen").fill("3");
+  await page.locator("#wlen").press("Enter");
+  await expect(page.locator("#wlock")).toBeChecked();
+  expect(dist2((await groundOf(page)).walls.at(-1)!.a, (await groundOf(page)).walls.at(-1)!.b)).toBe(300);
+  await page.locator("#wlock").uncheck();
+  const w2 = (await groundOf(page)).walls.at(-1)!;
+  await dragCm(page, w2.a as [number, number], [w2.a[0] + 50, w2.a[1]]);
+  const w3 = (await groundOf(page)).walls.at(-1)!;
+  expect(dist2(w3.a, w3.b)).not.toBe(300); // free again: the drag changed the length
+});
+
+test("a locked door's dragged end pivots on an arc of fixed radius", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator("#addDoor").click();
+  const d = (await groundOf(page)).doors.at(-1)!;
+  await centreViewOn(page, mid(d));
+  await expect(page.locator("#dlock")).not.toBeChecked();
+  await page.locator("#dlock").check();
+  await dragCm(page, d.a as [number, number], [d.a[0] + 40, d.a[1] + 30]);
+  const d2 = (await groundOf(page)).doors.at(-1)!;
+  expect(Math.abs(dist2(d2.a, d2.b) - dist2(d.a, d.b))).toBeLessThanOrEqual(1);
+  expect(d2.b).toEqual(d.b);
+  expect(d2.a).not.toEqual(d.a);
+});
+
+test("a locked opening's dragged end pivots on an arc of fixed radius", async ({ page }) => {
+  await addGap(page);
+  const o = (await gaps(page))[0];
+  await expect(page.locator("#olock")).not.toBeChecked();
+  await page.locator("#olock").check();
+  await dragCm(page, o.a as [number, number], [o.a[0] + 40, o.a[1] + 25]);
+  const o2 = (await gaps(page))[0];
+  expect(Math.abs(len(o2) - len(o))).toBeLessThanOrEqual(1);
+  expect(o2.b).toEqual(o.b);
+  expect(o2.a).not.toEqual(o.a);
+});
 
 test("opening Draw closes Add, and a Draw item starts drawing with the Draw menu closed", async ({ page }) => {
   await menu(page, "Add");
@@ -4422,9 +4492,11 @@ test("S1.51 break it: a corner dragged past its opposite one clamps at 5 cm inst
 
 // ---- S1.53 / S2.12 themes: blueprint (default), light, Home Assistant ---------------------------------------------------------
 
-// Blueprint palette (2026-09-21): ground #0d1522, room #14213a, wall #8fb4f0, text #d8e2f2.
-const DARK_TH = { bg: "rgb(13, 21, 34)", room: "rgb(20, 33, 58)", wall: "rgb(143, 180, 240)", text: "rgb(216, 226, 242)", outline: "rgb(13, 21, 34)", disc: "rgb(20, 33, 58)", measure: "rgb(143, 180, 240)" };
-const LIGHT_TH = { bg: "rgb(244, 240, 230)", room: "rgb(233, 227, 211)", wall: "rgb(43, 42, 39)", text: "rgb(58, 58, 58)", outline: "rgb(255, 255, 255)" };
+// Blueprint palette (2026-09-21): ground #0d1522, room #14213a, wall #8fb4f0, text #d8e2f2. An unpainted room
+// (the demo's Living, room 0) is --fp-room-empty, #d6d6d2 = rgb(214, 214, 210) in every theme (2026-09-22).
+const ROOM_EMPTY = "rgb(214, 214, 210)";
+const DARK_TH = { bg: "rgb(13, 21, 34)", room: ROOM_EMPTY, wall: "rgb(143, 180, 240)", text: "rgb(216, 226, 242)", outline: "rgb(13, 21, 34)", disc: "rgb(20, 33, 58)", measure: "rgb(143, 180, 240)" };
+const LIGHT_TH = { bg: "rgb(244, 240, 230)", room: ROOM_EMPTY, wall: "rgb(43, 42, 39)", text: "rgb(58, 58, 58)", outline: "rgb(255, 255, 255)" };
 
 async function setTheme(page: Page, t: "blueprint" | "light" | "ha") {
   await menu(page, "View");
@@ -4675,4 +4747,126 @@ test("S3.3: the picker does not offer an entity that is already on the plan, exc
   await page.locator("#ve").selectOption("light.free");
   expect((await groundOf(page)).devices[i].entity).toBe("light.free");
   expect(await opts(page, "#ve")).toContain("light.free"); // still there: it is this device's own
+});
+
+// ---- S4.4: create a light from a placed switch ------------------------------------------
+
+/** Gives the editor HA data and a recording writer. `fail` makes createHelper throw. Calls land in window.__calls. */
+async function withWriter(page: Page, opt: { fail?: string } = {}) {
+  await setHa(page, { floors: [], areas: [], entities: [{ id: "switch.demo_hall", name: "Hall switch", domain: "switch", area: null }] });
+  await page.evaluate(([tag, fail]) => {
+    const w = window as any; w.__calls = [];
+    (document.querySelector(tag as string) as any).writer = {
+      setDeviceArea: async () => {}, setEntityArea: async () => {},
+      createHelper: async (...a: unknown[]) => { w.__calls.push(a); if (fail) throw new Error(fail as string); return { entity_id: "light.hall_switch" }; },
+    };
+  }, [EDITOR, opt.fail ?? ""]);
+}
+const calls = (page: Page) => page.evaluate(() => (window as any).__calls as unknown[][]);
+const selectHallSwitch = (page: Page) => page.locator("svg .dev-switch").first().click();
+
+test("S4.4: Create a light from this switch asks, then swaps the switch for a bound light on the plan, in one undo step", async ({ page }) => {
+  await withWriter(page);
+  await selectHallSwitch(page);
+  await page.locator("#vmklight").click();
+  await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
+  expect(await calls(page)).toHaveLength(0); // asking is not doing
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual(["switch_as_x", [{ entity_id: "switch.demo_hall", target_domain: "light" }]]);
+  const g = await groundOf(page);
+  expect(g.devices.some((d) => d.entity === "switch.demo_hall")).toBe(false);
+  expect(g.devices.find((d) => d.entity === "light.hall_switch")).toMatchObject({ type: "light", bound: "switch.demo_hall" });
+  await savedValid(page);
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).devices.some((d) => d.entity === "switch.demo_hall")).toBe(true);
+  expect((await groundOf(page)).devices.some((d) => d.entity === "light.hall_switch")).toBe(false);
+});
+
+test("S4.4 break it: Cancel writes nothing, a failing Home Assistant leaves the plan alone, and no writer means no button", async ({ page }) => {
+  await withWriter(page);
+  await selectHallSwitch(page);
+  await page.locator("#vmklight").click();
+  await page.locator("#fp-confirm-no").click();
+  expect(await calls(page)).toHaveLength(0);
+  expect((await groundOf(page)).devices.some((d) => d.entity === "switch.demo_hall")).toBe(true);
+
+  await withWriter(page, { fail: "entity_not_found" });
+  await selectHallSwitch(page);
+  await page.locator("#vmklight").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("Nothing was changed");
+  expect((await groundOf(page)).devices.some((d) => d.entity === "switch.demo_hall")).toBe(true);
+
+  await page.evaluate(([tag]) => { (document.querySelector(tag as string) as any).writer = undefined; }, [EDITOR]);
+  await selectHallSwitch(page);
+  await expect(page.locator("#vmklight")).toHaveCount(0);
+});
+
+test("S4.4: a switch that a light is already bound to has no button", async ({ page }) => {
+  await withWriter(page);
+  await page.evaluate(([tag]) => { const ed = document.querySelector(tag as string) as any; const l = JSON.parse(JSON.stringify(ed.layout)); l.floors.ground.devices.find((d: any) => d.type === "light").bound = "switch.demo_hall"; ed.layout = l; }, [EDITOR]);
+  await selectHallSwitch(page);
+  await expect(page.locator("#vmklight")).toHaveCount(0);
+});
+
+// ---- S4.3: move a dropped device into the room's HA area ------------------------------------
+
+const AREA_HA = { floors: [], areas: [{ id: "living", name: "Living" }, { id: "kitchen", name: "Kitchen" }], entities: [
+  { id: "light.demo_kitchen", name: "Kitchen light", domain: "light", area: "kitchen", dev: "dev-k" },
+  { id: "sensor.a", name: "A", domain: "sensor", area: "kitchen", dev: "dev-shared" }, { id: "sensor.b", name: "B", domain: "sensor", area: "kitchen", dev: "dev-shared" },
+] };
+async function withAreaWriter(page: Page, fail = "") {
+  await setHa(page, AREA_HA);
+  await page.evaluate(([tag, f]) => {
+    const w = window as any; w.__area = [];
+    (document.querySelector(tag as string) as any).writer = {
+      createHelper: async () => ({ entity_id: "x.y" }),
+      setDeviceArea: async (d: string, a: string) => { w.__area.push(["device", d, a]); if (f) throw new Error(f as string); },
+      setEntityArea: async (e: string, a: string) => { w.__area.push(["entity", e, a]); if (f) throw new Error(f as string); },
+    };
+  }, [EDITOR, fail]);
+}
+const areaCalls = (page: Page) => page.evaluate(() => (window as any).__area as unknown[][]);
+
+test("S4.3: dropping the kitchen light in the Living room asks, then moves its device to Living in HA", async ({ page }) => {
+  await withAreaWriter(page);
+  await dragCm(page, [650, 200], [250, 300]);
+  await expect(page.locator("#fp-confirm")).toContainText("Move Kitchen light to Living?");
+  expect(await areaCalls(page)).toHaveLength(0);
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await areaCalls(page)).length).toBe(1);
+  expect((await areaCalls(page))[0]).toEqual(["device", "dev-k", "living"]);
+  await expect(page.locator("#status")).toContainText("Moved");
+});
+
+test("S4.3 break it: Cancel writes nothing and leaves a note plus a button; a drop outside every room asks nothing; a failing HA changes nothing", async ({ page }) => {
+  await withAreaWriter(page);
+  await dragCm(page, [650, 200], [250, 300]);
+  await page.locator("#fp-confirm-no").click();
+  expect(await areaCalls(page)).toHaveLength(0);
+  await expect(page.locator("#panel")).toContainText("another area than Living");
+  await dragCm(page, [250, 300], [850, 250]); // off every room
+  await expect(page.locator("#fp-confirm")).toHaveCount(0);
+  await dragCm(page, [850, 250], [250, 300]);
+  await page.locator("#fp-confirm-no").click();
+  await withAreaWriter(page, "not_allowed");
+  await page.locator("#vmovearea").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("Nothing was changed");
+  await expect(page.locator("#vmovearea")).toHaveCount(1); // still differs
+});
+
+test("S4.3: 'Don't ask again' moves the next drops without the dialog, and a device with siblings moves only its entity", async ({ page }) => {
+  await withAreaWriter(page);
+  await dragCm(page, [650, 200], [250, 300]);
+  await page.locator("#fp-confirm-remember").check();
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await areaCalls(page)).length).toBe(1);
+  // the temperature sensor's entity has a sibling on its device
+  await page.evaluate(([tag]) => { const ed = document.querySelector(tag as string) as any; ed.ha = { ...ed.ha, entities: ed.ha.entities.map((e: any) => (e.id === "light.demo_living" ? e : e)).concat([{ id: "sensor.demo_living_temperature", name: "T", domain: "sensor", area: "living", dev: "dev-shared" }]) }; }, [EDITOR]);
+  await dragCm(page, [380, 120], [650, 300]); // Living to Kitchen, no dialog now
+  await expect(page.locator("#fp-confirm")).toHaveCount(0);
+  await expect.poll(async () => (await areaCalls(page)).length).toBe(2);
+  expect((await areaCalls(page))[1]).toEqual(["entity", "sensor.demo_living_temperature", "kitchen"]);
 });

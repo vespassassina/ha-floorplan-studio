@@ -867,6 +867,13 @@ Honest limits: the builder ran this pass, not a separate session; the table show
 
 ## Sprint 4 — organise the home from the plan (E6)
 
+**Slice 4a (agreed with Diego 2026-09-21): S4.1, then S4.4, then S4.3.** S4.2, S4.5, S4.6, S4.7 and S4.8 wait for later slices.
+Rules from the interview: tests use a stub `hass` that records every call; one live write on Diego's HA runs only after he says yes to
+that exact write, and it carries the `floorplan-studio` label; every write asks in the dialog, except the device-to-area move (S4.3), which
+offers "Don't ask again this session"; the light-from-switch button shows on a placed switch or plug only. S4.1 builds only the functions the
+slice uses (`ensureLabel`, `setDeviceArea`, `setEntityArea`, `createHelper`, `confirm`); `createArea` and `createAutomation` are added by the
+task that needs them. The editor gets the writer as a property set by the panel, never an import, so the standalone build cannot reach it.
+
 Panel only: every task needs `hass`. The standalone editor hides these
 controls. Rules for the whole sprint: every write to HA is confirmed in a
 dialog that names what will be created; everything the tool creates carries
@@ -876,6 +883,7 @@ through `hass.callWS` (registries, config flows) and `hass.callApi` (automation
 config). No write ever runs on load or on save.
 
 ### S4.1 Writes to HA
+- **Status: partly done in slice 4a (2026-09-21). Built: `ensureLabel`, `setDeviceArea`, `setEntityArea`, `createHelper` (finds the new entity by its config entry and labels it), `makeWriter`, `confirm` (Cancel has focus, Esc and outside click cancel, optional "remember" checkbox). Still to do: `createArea`, `createAutomation`, `openAutomation`, with the tasks that need them. Tests: `tests/editor/hass-write.test.ts`, and `grep` finds no write code in `dist/editor.html`.**
 - Outcome: one module that does every HA write, with the label and the confirm dialog.
 - Files: `src/editor/hass-write.ts`, `src/editor/confirm.ts`, `tests/editor/hass-write.test.ts`.
 - Interface:
@@ -903,6 +911,7 @@ config). No write ever runs on load or on save.
 - Break it: Cancel in the dialog writes nothing, the room stays custom and keeps its plan name.
 
 ### S4.3 Devices into areas
+- **Status: done in slice 4a for a device dropped by dragging. Deviations: the move writes the device only when the entity is its only one (`areaMove` in `core/ha.ts`), else the entity; placing from the Device menu asks nothing; the mismatch mark is a note and a "Move it to <room> in Home Assistant" button in the device panel, not a dot in the menu. Tests: `tests/core/area-move.test.ts`, `editor.spec.ts` (S4.3).**
 - Outcome: placing or moving a device into a room assigns its HA area.
 - Files: `src/editor/editor-app.ts`, `src/editor/panel.ts`, `tests/editor/organise.spec.ts`.
 - Interface: after a device drop (place or drag end) inside a room or zone with an HA area, if the entity's device (or the entity, when it has no device) is in another area or none, ask "Move <name> to area <room>?" (one dialog per drop, with "Don't ask again this session"). Yes → `setDeviceArea` or `setEntityArea`. The Device menu (S1.12, grouped by area since S3.3) marks entities whose HA area differs from the room they sit in with a small dot and a tooltip "HA says: <area>".
@@ -911,6 +920,7 @@ config). No write ever runs on load or on save.
 - Break it: a device dropped outside every room asks nothing.
 
 ### S4.4 Light from a switch
+- **Status: done in slice 4a. `EditorState.lightFromSwitch` and `canMakeLight` (`tests/editor/light-from-switch.test.ts`), button `#vmklight`, Playwright tests in `editor.spec.ts` (S4.4). Not yet run against the live HA: needs Diego's yes for one write.**
 - Outcome: a placed switch can become a light helper; the plan gets the light, bound to the switch.
 - Files: `src/editor/panels.ts`, `tests/editor/organise.spec.ts`.
 - Interface: switch or plug device panel gains "Create light from this switch". Confirm → `createHelper(hass, "switch_as_x", [{ entity_id, target_domain: "light" }])`; the new `light.*` entity is added to the catalog and placed 30 cm to the right of the switch, type `light`, `bound` = the switch entity; the switch device is removed from the plan (the light icon now stands for both, per SPEC). One undo step for the plan change; the helper stays in HA on undo, and the status line says so.
@@ -950,6 +960,67 @@ config). No write ever runs on load or on save.
 - Test: unit: the map covers every `--fp-*` in `FLOORPLAN_CSS` (parsed from the string); Playwright in the dev container: screenshots in the default theme and in a dark theme, attached to the PR, no `#rrggbb` in panel CSS except the theme file.
 - Done when: tests pass; screenshots reviewed.
 - Break it: with `hass.themes` missing (older HA) the map falls back to the `FLOORPLAN_CSS` defaults and the panel still renders.
+
+### S4.9 Lock a wall's length (raised by Diego, 2026-09-22)
+- Outcome: a wall, door or opening can have its length locked: dragging either endpoint pivots it on an arc of fixed radius around the *other* (unmoved) endpoint, so the length never changes, only the angle. Typing a length while locked still works and changes the length. Typing a length on an unlocked segment locks it, by default. A locked segment must be unlocked to be dragged freely (shorter or longer); the length can always be typed regardless of lock state.
+- Files: `src/core/schema.ts` (`locked?: boolean` on `Wall`, `Door`, `Opening`), `src/editor/ops.ts` (`pivotOnArc`: projects the dragged point onto the circle centred on the fixed endpoint, radius = the segment's length when locked), `src/editor/editor-app.ts` (`onMove`'s `"corner"` case for walls and openings, `"dend"` case for doors), `src/editor/panels.ts` (`lockField` checkbox next to each length field in `wallPanel`, `doorPanel`, `openingPanel`), `tests/core/schema.test.ts`, `tests/editor/ops.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface: a "length locked" checkbox in the wall, door and opening panels, next to the length field. Ticking it locks at the current length. Typing a number sets the length and ticks the box. Unticking frees it for an ordinary length-changing drag.
+- Decided, 2026-09-22: dragging a locked endpoint moves it on an arc of fixed radius (the far end is the pivot, length is the radius) — Diego's own words.
+- Out of scope, decided while building: room/zone polygon edges (`edgePanel`), `Extra` (no panel or selection exists for it), and the `{a,b}` `Device` variant (a heater run drags as a rigid whole body only; its length is already preserved). See `docs/DECISIONS.md`, 2026-09-22.
+- Test: TDD, failing test first — done. `pivotOnArc` unit tests, schema `locked` validation tests, and four Playwright tests: a locked wall's drag stays on the arc (far end fixed, length fixed within rounding); typing a wall's length locks it and unticking frees a normal drag; a locked door's drag arcs; a locked opening's drag arcs.
+- Done. Full suite green: 736 vitest, 361 Playwright, 24 pytest, tsc and eslint clean.
+
+### S4.10 Track what the app created in HA, for cleanup (raised by Diego, 2026-09-22)
+- Outcome: every area, helper, or automation floorplan-studio creates in HA is discoverable and can be found again from the editor, so deleting it locally does not orphan it in HA. Deleting something locally never deletes it in HA — it only disconnects the plan from it. A separate, explicit action removes the HA side. Scoped to the whole HA instance, not just the current plan: an item orphaned by a plan edit (its device removed from the floor, its room deleted) still shows up, which is the point — that is exactly the cleanup case.
+- Design settled, 2026-09-22 (was open, now resolved): the area registry supports `labels` the same way entities and devices do (`config/area_registry/create`/`update` both take an optional `labels` list — confirmed against Home Assistant's own docs, developers.home-assistant.io/docs/area_registry_index and home-assistant.io/docs/organizing/labels). So every kind S4.10 needs to track — helper, area, automation — carries the same `floorplan-studio` label, no separate naming convention or local record needed. `createArea` (S4.2, not yet built) and `createAutomation` (S4.6, not yet built) must call `ensureLabel` and set `labels: [labelId]` on the row they create, exactly as `createHelper` already does (S4.1's stated rule, now made concrete for these two).
+- Files: `src/editor/hass-write.ts` (`listLabelled`, `removeLabelled`; `createArea`/`createAutomation` gain the label-setting call when they are built in S4.2/S4.6), a new "Home Assistant" toolbar menu item in `src/editor/panels.ts` or `editor-app.ts`, `tests/editor/hass-write.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface:
+  ```ts
+  export type Labelled = { kind: "helper" | "automation" | "area"; id: string; name: string; entityId?: string };
+  export async function listLabelled(hass): Promise<Labelled[]>;   // ensureLabel, then filters config/entity_registry/list, config/device_registry/list and config/area_registry/list rows whose labels include that id
+  export async function removeLabelled(hass, item: Labelled): Promise<void>;  // helper: config_entries/delete(entry_id); automation: DELETE config/config/automation/config/<id>; area: config/area_registry/delete
+  ```
+  A `kind: "helper"` row is one whose entity or device carries a `config_entry_id` (every helper `createHelper` makes is config-entry backed: `switch_as_x`, `group`); its `id` is that entry id. `kind: "automation"` rows come from the automation domain's own entities (still label-filtered from `entity_registry/list`, `entityId` set, `id` is the automation's own id used in the delete URL). `kind: "area"` rows come straight from `area_registry/list`. The "Home Assistant" menu shows the list grouped by kind, each row a name, an "Open in HA" link (more-info for an entity, `/config/areas/area/<id>` for an area), and "Remove from Home Assistant" (the shared `confirm` dialog, ends "Home Assistant cannot undo this."). Removing a *plan* item (room, device) is unchanged: it only ever edits the plan; this menu is the one place that touches HA's own registries for cleanup.
+- Test: TDD, failing test first: stub `hass` with `config_entry_id` on a helper's registry row — `listLabelled` returns it as `kind: "helper"`; a stub area row with the label returns as `kind: "area"`; `removeLabelled` on each kind sends the documented call; after S4.4 creates a helper in a Playwright test, the Home Assistant menu lists it, Remove asks then the delete call is recorded and the row is gone on reopen; a plan device removed from the floor (S1's Remove from plan) leaves the HA entity alone and it is still listed until explicitly removed here too.
+- Not started. Design resolved; ready to build once S4.9 is landed and the branch has capacity for it (depends on nothing from S4.2/S4.6 to start — helpers alone already exercise the whole list/remove path; areas and automations light up as those tasks land).
+
+### S4.11 Menus: a few root items, submenus for detail (raised by Diego, 2026-09-22)
+- Outcome: the toolbar reads as a few root menus, each opening a submenu for its detail, instead of one flat list per root menu. Diego's example: Add > Zone > Room/Area/... Pure reorganisation of what already exists (Add, Draw, Device, View, File); no new capability here — S4.12/S4.13's "Add area" tool and S4.17's right-click menu are what actually add new items, and should land in the structure this task settles.
+- Files: `src/editor/editor-app.ts` (the `render()` toolbar, `<details class="menu">` blocks), `tests/editor/editor.spec.ts` (every existing `#addWall-wall`, `#drawZone`, etc. locator moves under a submenu — a mechanical but wide test update, same shape as the S4.9 demo-floor fixture pass).
+- Interface: to settle before building — nested `<details>` (a submenu inside Add's box) is the natural HTML fit and keeps every existing element id, so `page.locator("#addWall-wall")` keeps working; needs a click-outside/Escape check so a submenu does not trap focus. Proposed grouping, for review: Add > Door/Window/Opening (openings), Add > Wall (kind submenu, as today), Add > Zone/Structure/Stairs (areas), Add > Furniture (unchanged). Draw and Device stay flat (they are already one coherent group each). View and File stay flat.
+- Test: Playwright: every existing Add-menu locator still finds its button (now one submenu-open click deeper); keyboard reaches every item in DOM order; closing the root menu closes any open submenu.
+- Not started. Needs the grouping proposal above confirmed (or corrected) before the id/DOM changes are made, since ~30 Playwright tests touch these locators.
+
+### S4.12 An "area" drawing tool, separate from a zone (raised by Diego, 2026-09-22)
+- Outcome: a new Add item draws a dotted-boundary area (draggable, resizable like a room), with a name field and an optional link to an existing HA area — the same linking S4.2 gives a room. Diego's wording keeps "area" and "zone" as separate words; needs one clarifying question before this is written up as its own interface: is this a new `RoomKind` alongside `"zone"`, or is it that `"zone"` already *is* this and the ask is really "make zone drag/resize/link work" (see S4.13, which is exactly that report). No schema or interface written yet — do not build from this bullet alone.
+- Not started. Blocked on the question above.
+
+### S4.13 Zones are not selectable, movable or deletable on at least one real floor (raised by Diego, 2026-09-22)
+- Bug report, not a designed feature: "the one in basement I cannot do anything with them." `roomPanel` in `panels.ts` already gives every room, zone included, a Delete button, a name/area field and (via the `"room"` hit case in `editor-app.ts`) a drag-to-move; the editor's own CSS sets `.room{pointer-events:all}` specifically so a zone's `fill:none` interior still receives clicks (`render.ts` line ~100 documents why). So this should already work in `feat/sprint4` — the bug is either in an older deployed build (HACS ships a tagged release, not this branch) or in the shape of Diego's own basement data (a degenerate polygon, `free: true` with some other flag interacting badly, or similar). Needs a repro before a fix: which surface (standalone editor / HA panel), which HA-floorplan-studio version, and ideally the basement floor's JSON (or a screenshot of what happens on click) before writing a test that reproduces it.
+- Not started. Blocked on repro info from Diego; route through `/investigate` once that lands rather than guessing at a fix blind.
+
+### S4.14 A palette of existing HA entities to drag onto the plan (raised by Diego, 2026-09-22)
+- Outcome: an "Entities" palette (new Add item or menu) lists entities already in Home Assistant (not only the layout's own `catalog`) and lets one be dragged onto a room, zone or the plan directly, adding it as a device at the drop point with that entity bound. Overlaps the existing Device menu (S1.12, click-to-place from the plan's own `catalog`) but draws from HA's live entity list instead, which is new — the catalog today only holds what a person or the assistant already typed into the layout.
+- Files: `src/editor/panels.ts` or a new palette component, `src/editor/editor-app.ts` (drop handling), `tests/editor/*`.
+- Not started. Needs a short design pass: does a dropped HA entity also get added to `layout.catalog` (so it behaves like every other device from then on), and does the palette filter by type the way the Device menu's `TYPE_LABELS` groups already do.
+
+### S4.15 Auto-place entities HA already has configured in an area (raised by Diego, 2026-09-22)
+- Outcome: a button that looks at a room's linked HA area (S4.2) and places every entity HA already has in that area onto the room automatically, instead of dragging each one from S4.14's palette by hand. Depends on S4.14 existing first (same underlying "HA entity → plan device" placement code), and on S4.2 (a room's `area` link) to know which entities belong where.
+- Not started. Design follows S4.14; likely one button in the room panel: "Place every device Home Assistant has in this area."
+
+### S4.16 Filter the entity picker by floor/room/area (raised by Diego, 2026-09-22)
+- Outcome: wherever an HA entity is picked (S4.14's palette; existing entity fields like a custom room's `entity`, a door's sensor/cover), a filter narrows the list by floor, room or area, prefilled to the current floor (removable). Touches `entitiesForType`/`placedEntities` in `core/` and the picker components in `panels.ts`.
+- Not started. Needs a design pass once S4.14 exists to pick one filter UI reused everywhere, rather than inventing it per picker.
+
+### S4.17 Confirm and write when a device's area changes, on a general move (raised by Diego, 2026-09-22)
+- Checked, 2026-09-22: dragging an already-placed device from one room to another **on the same floor** already asks "Move <name> to area <room>?" and writes on Yes — done in slice 4a (`tests/core/area-move.test.ts`, the three S4.3 tests in `editor.spec.ts`, e.g. dragging the kitchen light into Living asks and moves its device). That half of Diego's ask is already built.
+- What is not built, and is a real gap: moving a device **to a different floor**. There is no such gesture at all today — floors are separate views (one `devices` array per floor) and the only "move floor" feature that exists reorders the floor chips themselves, not a device between them. Needs Diego's answer on the interface before this is scoped: cut on one floor / paste on another, a "Move to floor…" panel action with a floor picker, or drag onto a floor chip.
+- Not started. The same-floor case needs no new code. The cross-floor case needs a design question answered first.
+
+### S4.18 Right-click menu on a room, zone or structure (raised by Diego, 2026-09-22)
+- Outcome: right-clicking a room, zone or structure opens a context menu: add an item from the HA area/room's entity list (ties into S4.14/S4.15), change colour (today only reachable via the panel's swatches), delete, and whatever else the panel already offers as a quicker path. The editor currently suppresses the browser's own context menu everywhere (`@contextmenu=${(e) => e.preventDefault()}` in `editor-app.ts`) and replaces it with nothing — this task is what fills that gap in.
+- Files: `src/editor/editor-app.ts` (a context-menu popup, positioned at the click, closed on outside click/Escape/scroll), `tests/editor/*`.
+- Not started. Needs a design pass: which actions duplicate the side panel exactly (delete, colour) versus add something the panel does not have (S4.15's per-item HA placement) — and whether the menu differs by kind (room vs. zone vs. structure) or is one shared list with irrelevant items hidden.
 
 ---
 
