@@ -24,12 +24,34 @@ export const TEXTURES: Texture[] = [
 
 export const TEXTURE_IDS: string[] = TEXTURES.map((t) => t.id);
 
-/** The `<pattern>` elements for the given texture ids (unknown ids skipped). Fixed ids: two cards on a page declare the same pattern twice, identically. */
-export function texturePatterns(ids: Iterable<string>): string {
-  const want = new Set(ids);
-  return TEXTURES.filter((t) => want.has(t.id))
-    .map((t) => {
+/** A texture's own rotation, wrapped into `[0, 360)`. Anything that is not a finite number is 0 — a hostile or malformed
+ * value never throws and never reaches an SVG attribute unescaped. */
+export function normTextureRot(rot: unknown): number {
+  if (typeof rot !== "number" || !Number.isFinite(rot)) return 0;
+  const w = Math.trunc(rot) % 360;
+  return w < 0 ? w + 360 : w;
+}
+
+/** The pattern id a room or stair should reference for this texture and rotation: the plain, unrotated id when rot is 0
+ * (unchanged from before this feature, so nothing already pinned to it breaks), else a distinct `-r<rot>` id. */
+export function texturePatternId(textureId: string, rot: number): string {
+  return rot === 0 ? `fp-tex-${textureId}` : `fp-tex-${textureId}-r${rot}`;
+}
+
+/** The `<pattern>` elements for the given (texture id, rotation) pairs (unknown texture ids skipped). Fixed ids: two
+ * cards on a page declare the same pattern twice, identically, and only the rotations actually in use are declared. */
+export function texturePatterns(uses: Iterable<{ id: string; rot?: number }>): string {
+  const want = new Map<string, { t: Texture; rot: number }>();
+  for (const u of uses) {
+    const t = TEXTURES.find((x) => x.id === u.id);
+    if (!t) continue;
+    const rot = normTextureRot(u.rot);
+    want.set(texturePatternId(t.id, rot), { t, rot });
+  }
+  return [...want.entries()]
+    .map(([patId, { t, rot }]) => {
       const [w, h] = t.id.startsWith("wood") ? [80, 40] : [50, 50];
-      return `<pattern id="fp-tex-${t.id}" width="${w}" height="${h}" patternUnits="userSpaceOnUse">${t.tile}</pattern>`;
+      const transform = rot === 0 ? "" : ` patternTransform="rotate(${rot})"`;
+      return `<pattern id="${patId}" width="${w}" height="${h}" patternUnits="userSpaceOnUse"${transform}>${t.tile}</pattern>`;
     }).join("");
 }

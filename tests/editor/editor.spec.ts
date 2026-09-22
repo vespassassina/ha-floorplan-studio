@@ -4751,6 +4751,67 @@ test("a custom room colour becomes a swatch (kept in layout.palette); textures p
   expect((await layoutOf(page)).palette).toBeUndefined();
 });
 
+// ---- S4.22: a texture's own rotation, dragged with the paint panel's slider ----------------------------------------
+
+/** Sets a range input's value and fires the given events, exactly as a real drag or a release would. */
+async function moveSlider(page: Page, sel: string, value: number, event: "input" | "change") {
+  await page.locator(sel).evaluate((el: HTMLInputElement, [v, ev]) => {
+    el.value = String(v);
+    el.dispatchEvent(new Event(ev, { bubbles: true, composed: true }));
+  }, [value, event] as const);
+}
+
+test("S4.22: the rotation slider appears only once a texture is chosen, and disappears back at the default colour", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator("#rrot")).toHaveCount(0);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  await expect(page.locator("#rrot")).toHaveCount(1);
+  await expect(page.locator("#rrot")).toHaveValue("0");
+  await page.getByText("Use the default colour").click();
+  await expect(page.locator("#rrot")).toHaveCount(0);
+});
+
+test("S4.22: dragging the slider live-updates the rendered rotation, and releasing commits exactly one undo step", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  const before = await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR);
+  await moveSlider(page, "#rrot", 45, "input");
+  await moveSlider(page, "#rrot", 90, "input");
+  // Live preview: the rotated pattern is already on the plan, but no undo step has been recorded yet.
+  await expect(page.locator('svg polygon[fill="url(#fp-tex-wood-dark-r90)"]')).toHaveCount(1);
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR)).toBe(before);
+  await moveSlider(page, "#rrot", 90, "change");
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR)).toBe(before + 1);
+  expect((await groundOf(page)).rooms[0].textureRot).toBe(90);
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).rooms[0].textureRot).toBeUndefined();
+});
+
+test("S4.22: a slider drag that ends back at its starting value adds no undo step", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  await moveSlider(page, "#rrot", 30, "change"); // an initial rotation to drag away from and back to
+  const before = await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR);
+  await moveSlider(page, "#rrot", 200, "input");
+  await moveSlider(page, "#rrot", 30, "input"); // back to where it started
+  await moveSlider(page, "#rrot", 30, "change");
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR)).toBe(before);
+  expect((await groundOf(page)).rooms[0].textureRot).toBe(30);
+});
+
+test("S4.22: the rotation survives a save/reload round trip", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  await moveSlider(page, "#rrot", 200, "change");
+  const saved = await layoutOf(page);
+  expect(saved.floors.ground.rooms[0].textureRot).toBe(200);
+  expect(validate(saved).ok).toBe(true);
+});
+
 // ---- S3.3: attach, switch and clear a device's entity ---------------------------------
 
 const PICK_HA = { floors: [], areas: [{ id: "living", name: "Living" }],
