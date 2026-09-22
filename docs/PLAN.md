@@ -984,6 +984,43 @@ config). No write ever runs on load or on save.
 - Test: TDD, failing test first: stub `hass` with `config_entry_id` on a helper's registry row — `listLabelled` returns it as `kind: "helper"`; a stub area row with the label returns as `kind: "area"`; `removeLabelled` on each kind sends the documented call; after S4.4 creates a helper in a Playwright test, the Home Assistant menu lists it, Remove asks then the delete call is recorded and the row is gone on reopen; a plan device removed from the floor (S1's Remove from plan) leaves the HA entity alone and it is still listed until explicitly removed here too.
 - Not started. Design resolved; ready to build once S4.9 is landed and the branch has capacity for it (depends on nothing from S4.2/S4.6 to start — helpers alone already exercise the whole list/remove path; areas and automations light up as those tasks land).
 
+### S4.11 Menus: a few root items, submenus for detail (raised by Diego, 2026-09-22)
+- Outcome: the toolbar reads as a few root menus, each opening a submenu for its detail, instead of one flat list per root menu. Diego's example: Add > Zone > Room/Area/... Pure reorganisation of what already exists (Add, Draw, Device, View, File); no new capability here — S4.12/S4.13's "Add area" tool and S4.17's right-click menu are what actually add new items, and should land in the structure this task settles.
+- Files: `src/editor/editor-app.ts` (the `render()` toolbar, `<details class="menu">` blocks), `tests/editor/editor.spec.ts` (every existing `#addWall-wall`, `#drawZone`, etc. locator moves under a submenu — a mechanical but wide test update, same shape as the S4.9 demo-floor fixture pass).
+- Interface: to settle before building — nested `<details>` (a submenu inside Add's box) is the natural HTML fit and keeps every existing element id, so `page.locator("#addWall-wall")` keeps working; needs a click-outside/Escape check so a submenu does not trap focus. Proposed grouping, for review: Add > Door/Window/Opening (openings), Add > Wall (kind submenu, as today), Add > Zone/Structure/Stairs (areas), Add > Furniture (unchanged). Draw and Device stay flat (they are already one coherent group each). View and File stay flat.
+- Test: Playwright: every existing Add-menu locator still finds its button (now one submenu-open click deeper); keyboard reaches every item in DOM order; closing the root menu closes any open submenu.
+- Not started. Needs the grouping proposal above confirmed (or corrected) before the id/DOM changes are made, since ~30 Playwright tests touch these locators.
+
+### S4.12 An "area" drawing tool, separate from a zone (raised by Diego, 2026-09-22)
+- Outcome: a new Add item draws a dotted-boundary area (draggable, resizable like a room), with a name field and an optional link to an existing HA area — the same linking S4.2 gives a room. Diego's wording keeps "area" and "zone" as separate words; needs one clarifying question before this is written up as its own interface: is this a new `RoomKind` alongside `"zone"`, or is it that `"zone"` already *is* this and the ask is really "make zone drag/resize/link work" (see S4.13, which is exactly that report). No schema or interface written yet — do not build from this bullet alone.
+- Not started. Blocked on the question above.
+
+### S4.13 Zones are not selectable, movable or deletable on at least one real floor (raised by Diego, 2026-09-22)
+- Bug report, not a designed feature: "the one in basement I cannot do anything with them." `roomPanel` in `panels.ts` already gives every room, zone included, a Delete button, a name/area field and (via the `"room"` hit case in `editor-app.ts`) a drag-to-move; the editor's own CSS sets `.room{pointer-events:all}` specifically so a zone's `fill:none` interior still receives clicks (`render.ts` line ~100 documents why). So this should already work in `feat/sprint4` — the bug is either in an older deployed build (HACS ships a tagged release, not this branch) or in the shape of Diego's own basement data (a degenerate polygon, `free: true` with some other flag interacting badly, or similar). Needs a repro before a fix: which surface (standalone editor / HA panel), which HA-floorplan-studio version, and ideally the basement floor's JSON (or a screenshot of what happens on click) before writing a test that reproduces it.
+- Not started. Blocked on repro info from Diego; route through `/investigate` once that lands rather than guessing at a fix blind.
+
+### S4.14 A palette of existing HA entities to drag onto the plan (raised by Diego, 2026-09-22)
+- Outcome: an "Entities" palette (new Add item or menu) lists entities already in Home Assistant (not only the layout's own `catalog`) and lets one be dragged onto a room, zone or the plan directly, adding it as a device at the drop point with that entity bound. Overlaps the existing Device menu (S1.12, click-to-place from the plan's own `catalog`) but draws from HA's live entity list instead, which is new — the catalog today only holds what a person or the assistant already typed into the layout.
+- Files: `src/editor/panels.ts` or a new palette component, `src/editor/editor-app.ts` (drop handling), `tests/editor/*`.
+- Not started. Needs a short design pass: does a dropped HA entity also get added to `layout.catalog` (so it behaves like every other device from then on), and does the palette filter by type the way the Device menu's `TYPE_LABELS` groups already do.
+
+### S4.15 Auto-place entities HA already has configured in an area (raised by Diego, 2026-09-22)
+- Outcome: a button that looks at a room's linked HA area (S4.2) and places every entity HA already has in that area onto the room automatically, instead of dragging each one from S4.14's palette by hand. Depends on S4.14 existing first (same underlying "HA entity → plan device" placement code), and on S4.2 (a room's `area` link) to know which entities belong where.
+- Not started. Design follows S4.14; likely one button in the room panel: "Place every device Home Assistant has in this area."
+
+### S4.16 Filter the entity picker by floor/room/area (raised by Diego, 2026-09-22)
+- Outcome: wherever an HA entity is picked (S4.14's palette; existing entity fields like a custom room's `entity`, a door's sensor/cover), a filter narrows the list by floor, room or area, prefilled to the current floor (removable). Touches `entitiesForType`/`placedEntities` in `core/` and the picker components in `panels.ts`.
+- Not started. Needs a design pass once S4.14 exists to pick one filter UI reused everywhere, rather than inventing it per picker.
+
+### S4.17 Confirm and write when a device's area changes, on a general move (raised by Diego, 2026-09-22)
+- Likely already covered by S4.3 ("Devices into areas", done in slice 4a): dropping or dragging a device into a room with an HA area already asks "Move <name> to area <room>?" and writes on Yes. Diego's wording ("when moving entities to a new area/floor") may mean more than the drop case S4.3 covers — e.g. dragging a device from one already-placed room to another on the same floor, or moving it across floors — needs a quick check against what S4.3 actually built (`tests/core/area-move.test.ts`, `editor.spec.ts` S4.3 tests) before deciding this is new work or already done.
+- Not started. Needs five minutes confirming against S4.3's existing behaviour before it becomes its own task or is folded into S4.3 as "was already correct."
+
+### S4.18 Right-click menu on a room, zone or structure (raised by Diego, 2026-09-22)
+- Outcome: right-clicking a room, zone or structure opens a context menu: add an item from the HA area/room's entity list (ties into S4.14/S4.15), change colour (today only reachable via the panel's swatches), delete, and whatever else the panel already offers as a quicker path. The editor currently suppresses the browser's own context menu everywhere (`@contextmenu=${(e) => e.preventDefault()}` in `editor-app.ts`) and replaces it with nothing — this task is what fills that gap in.
+- Files: `src/editor/editor-app.ts` (a context-menu popup, positioned at the click, closed on outside click/Escape/scroll), `tests/editor/*`.
+- Not started. Needs a design pass: which actions duplicate the side panel exactly (delete, colour) versus add something the panel does not have (S4.15's per-item HA placement) — and whether the menu differs by kind (room vs. zone vs. structure) or is one shared list with irrelevant items hidden.
+
 ---
 
 ## Sprint 5 — content and docs (E5)
