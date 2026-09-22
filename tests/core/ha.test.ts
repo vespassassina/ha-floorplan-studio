@@ -1,9 +1,41 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { applyHaNames, type HaData } from "../../src/core/ha";
+import { applyHaNames, typeForEntity, type HaData } from "../../src/core/ha";
 import { migrate } from "../../src/core/migrate";
 import v1 from "../../demo/layout.v1.json";
 import type { Layout } from "../../src/core/schema";
+
+type Ent = HaData["entities"][number];
+const ent = (id: string, domain: string, dc?: string): Ent => ({ id, name: id, domain, dc });
+
+describe("typeForEntity (S4.18): a reverse domain/device_class guess for placing an HA entity as a device", () => {
+  it("maps every device_class the forward TYPE_RULES already distinguish unambiguously", () => {
+    expect(typeForEntity(ent("light.x", "light"))).toBe("light");
+    expect(typeForEntity(ent("lock.x", "lock"))).toBe("lock");
+    expect(typeForEntity(ent("camera.x", "camera"))).toBe("camera");
+    expect(typeForEntity(ent("cover.x", "cover"))).toBe("cover");
+    expect(typeForEntity(ent("switch.x", "switch", "outlet"))).toBe("plug");
+    expect(typeForEntity(ent("switch.x", "switch"))).toBe("switch");
+    expect(typeForEntity(ent("sensor.x", "sensor", "temperature"))).toBe("temp");
+    expect(typeForEntity(ent("sensor.x", "sensor", "humidity"))).toBe("humidity");
+    expect(typeForEntity(ent("sensor.x", "sensor", "battery"))).toBe("battery");
+    expect(typeForEntity(ent("binary_sensor.x", "binary_sensor", "motion"))).toBe("motion");
+    expect(typeForEntity(ent("binary_sensor.x", "binary_sensor", "occupancy"))).toBe("motion");
+    expect(typeForEntity(ent("binary_sensor.x", "binary_sensor", "door"))).toBe("contact");
+    expect(typeForEntity(ent("binary_sensor.x", "binary_sensor", "garage_door"))).toBe("contact");
+    expect(typeForEntity(ent("binary_sensor.x", "binary_sensor", "vibration"))).toBe("vibration");
+  });
+  it("defaults a genuinely ambiguous domain to its most common member, correctable afterward via the device panel's type field", () => {
+    expect(typeForEntity(ent("climate.x", "climate"))).toBe("climate"); // not ac or heater: those add heater/ac-only UI a guess should not turn on
+    expect(typeForEntity(ent("media_player.x", "media_player"))).toBe("media"); // not tv
+  });
+  it("falls back to other for a domain with no rule and a sensor/binary_sensor with no recognised device_class", () => {
+    expect(typeForEntity(ent("vacuum.x", "vacuum"))).toBe("other");
+    expect(typeForEntity(ent("sensor.x", "sensor", "pressure"))).toBe("other");
+    expect(typeForEntity(ent("sensor.x", "sensor"))).toBe("other");
+    expect(typeForEntity(ent("binary_sensor.x", "binary_sensor", "moisture"))).toBe("other");
+  });
+});
 
 const L = demo as unknown as Layout;
 const ha: HaData = {

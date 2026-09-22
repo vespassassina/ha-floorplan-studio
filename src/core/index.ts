@@ -4,7 +4,7 @@ export type { Texture } from "./textures";
 export { migrate } from "./migrate";
 export { applyHaNames } from "./ha";
 export type { HaData } from "./ha";
-export { areaMove, entitiesForType } from "./ha";
+export { areaMove, entitiesForType, typeForEntity } from "./ha";
 export * from "./geometry";
 export { DEVICE_ICONS, FURNITURE } from "./icons";
 export * from "./render";

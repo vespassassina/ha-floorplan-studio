@@ -408,6 +408,7 @@ function devicePanel(c: PanelCtx, i: number) {
   const label = TYPE_LABELS.find((t) => t[0] === d.type)?.[1] ?? d.type;
   return html`<strong>${d.name ?? d.id}</strong>
     ${hint(`${label.toLowerCase()}. Its name comes from Home Assistant.`)}
+    ${deviceTypeField(c, i)}
     ${deviceEntity(c, i)}
     ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}
     ${d.type === "camera" ? hint("The cone shows a 120 degree field of view, 1 m deep.") : nothing}
@@ -419,6 +420,26 @@ function devicePanel(c: PanelCtx, i: number) {
     ${c.makeLight && c.st.canMakeLight(i) ? html`<p>${button("vmklight", "Create a light from this switch", () => c.makeLight!(i))}</p>${hint("Home Assistant gets a new light that wraps this switch. The plan then shows the light.")}` : nothing}
     <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it. Alt disables the grid.") + " Removed devices go back to the Device menu.")}`;
+}
+
+/**
+ * S4.18: corrects a device's type, whatever set it wrong (a guess from the area's entity list, or a bad catalog
+ * entry) — there was previously no way to fix one once placed. Changing away from a type drops the fields only that
+ * type uses (`bound` for light, `trvs`/`tempSensors` for heater, `linked` for ac), in the same undo step, so the
+ * layout stays valid and the panel never shows a field for the wrong type.
+ */
+function deviceTypeField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  const set = (t: string) => c.commit((f) => {
+    const dv = f.devices[i];
+    dv.type = t as DeviceType;
+    if (t !== "light") delete dv.bound;
+    if (t !== "heater") { delete dv.trvs; delete dv.tempSensors; }
+    if (t !== "ac") delete dv.linked;
+  });
+  return html`<label for="vtype">type</label><select id="vtype" .value=${d.type} @change=${(e: Event) => set(val(e))}>
+    ${TYPE_LABELS.map(([t, lbl]) => html`<option value=${t} ?selected=${t === d.type}>${lbl}</option>`)}
+  </select>`;
 }
 
 /** The device sits in a room whose HA area is not the one HA has it in: say so, and offer the move (asked again even after "don't ask"). */

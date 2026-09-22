@@ -5117,3 +5117,88 @@ test("S4.24: a heater attaches several temperature sensors; removing the last on
   heater = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
   expect(heater.tempSensors).toBeUndefined();
 });
+
+// ---- S4.18: a device's type can be corrected after placement, and clears type-specific fields it no longer fits -----
+
+test("S4.18: the device panel's type selector changes a device's type and drops fields the new type does not use, one undo step", async ({ page }) => {
+  const p = await screenOf(page, 180, 8); // demo's "Living radiator" heater, with tempSensors already set
+  await page.mouse.click(p.x, p.y);
+  await page.locator("#hsens").selectOption("sensor.demo_bedroom_temperature");
+  await expect(page.locator("#vtype")).toBeVisible();
+  await expect(page.locator("#vtype")).toHaveValue("heater");
+
+  await page.locator("#vtype").selectOption("light");
+  const before = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(before.type).toBe("light");
+  expect(before.tempSensors).toBeUndefined();
+  expect(before.trvs).toBeUndefined();
+  await expect(page.locator("#hsens")).toHaveCount(0); // heater-only field is gone
+  await expect(page.locator("#vbound")).toBeVisible(); // light-only field appeared
+
+  // one undo step brings the type and the cleared fields back together
+  await page.keyboard.press("Control+z");
+  const after = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(after.type).toBe("heater");
+  expect(after.tempSensors).toEqual(["sensor.demo_bedroom_temperature"]);
+});
+
+// ---- S4.18: right-click context menu on a room, zone or structure -----------------------------------------------
+
+async function rightClickCm(page: Page, x: number, y: number) {
+  const c = await screenOf(page, x, y);
+  await page.mouse.click(c.x, c.y, { button: "right" });
+}
+
+test("S4.18: right-clicking a room selects it and opens a context menu with Change colour and Delete", async ({ page }) => {
+  await rightClickCm(page, 200, 150); // inside Living
+  await expect(page.locator("#rk")).toHaveValue("room"); // the room panel is already open, per the design decision
+  const menu = page.locator(".ctxmenu");
+  await expect(menu).toBeVisible();
+  await expect(menu.locator("#cmColour")).toBeVisible();
+  await expect(menu.locator("#cmDelete")).toBeVisible();
+});
+
+test("S4.18: right-clicking the background or a device opens no menu", async ({ page }) => {
+  await rightClickCm(page, 950, 700); // outside every room
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+});
+
+test("S4.18: outside click, Escape and scroll all close the context menu", async ({ page }) => {
+  await rightClickCm(page, 200, 150);
+  await expect(page.locator(".ctxmenu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+
+  await rightClickCm(page, 200, 150);
+  await expect(page.locator(".ctxmenu")).toBeVisible();
+  const bg = await screenOf(page, 950, 700);
+  await page.mouse.click(bg.x, bg.y);
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+
+  await rightClickCm(page, 200, 150);
+  await expect(page.locator(".ctxmenu")).toBeVisible();
+  await page.mouse.wheel(0, 100);
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+});
+
+test("S4.18: Delete from the menu removes the room, same as the panel's own Delete", async ({ page }) => {
+  await rightClickCm(page, 200, 150); // Living
+  await page.locator("#cmDelete").click();
+  expect((await groundOf(page)).rooms.find((r: any) => r.name === "Living")).toBeUndefined();
+});
+
+test("S4.18: 'Add device from <area>' lists the room's unplaced HA entities and adds one, one undo step", async ({ page }) => {
+  await setHa(page, { ...HA, areas: [...HA.areas], entities: [...HA.entities, { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" }] });
+  await rightClickCm(page, 200, 150); // Living, area "living"
+  const menu = page.locator(".ctxmenu");
+  await expect(menu).toContainText("Living temp");
+  await menu.locator("button", { hasText: "Living temp" }).click();
+  const devs = (await groundOf(page)).devices;
+  const d = devs.find((x: any) => x.entity === "sensor.living_temp");
+  expect(d).toMatchObject({ type: "temp", name: "Living temp" });
+  expect((await layoutOf(page)).catalog.find((c: any) => c.entity === "sensor.living_temp")).toMatchObject({ type: "temp", room: "Living" });
+  await expect(page.locator(".ctxmenu")).toHaveCount(0); // the menu closes after adding
+
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.living_temp")).toBe(false);
+});

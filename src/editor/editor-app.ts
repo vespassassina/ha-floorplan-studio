@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, rotateAbout, snapPoint, stitch, validate } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, placedEntities, polys, renderFloor, rotateAbout, snapPoint, stitch, typeForEntity, validate } from "../core";
 import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
@@ -31,7 +31,7 @@ type Hit =
   | { k: "bg" };
 
 type Drag =
-  | { type: "pan"; sx: number; sy: number; v: View }
+  | { type: "pan"; sx: number; sy: number; v: View; button: number; moved: boolean }
   | { type: "corner"; base: Floor; from: Pt; ref: PtRef; moved: boolean; to: Pt }
   | { type: "edge"; base: Floor; ends: { from: Pt; ref: PtRef }[]; start: Pt; moved: boolean; to: Pt[] }
   | { type: "dend"; base: Floor; i: number; end: "a" | "b"; moved: boolean }
@@ -142,6 +142,8 @@ export class FloorplanStudioEditor extends LitElement {
   /** S4.22: the layout as it stood when the texture-rotation slider's drag began, or null between drags. */
   private textureRotGesture: Layout | null = null;
   private hover: Pt | null = null;
+  /** S4.18: the right-click context menu on a room, zone or structure — its screen position and the room it opened for. Closed (null) by an outside click, Escape or scroll. */
+  private ctxMenu: { x: number; y: number; roomIdx: number } | null = null;
   private rect = { w: 800, h: 600 };
   private ro?: ResizeObserver;
 
@@ -211,6 +213,8 @@ export class FloorplanStudioEditor extends LitElement {
     .menu>summary::after{content:" \\25BE"}
     .box{max-height:75vh;overflow:auto;position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:210px;display:flex;flex-direction:column;gap:6px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px}
     .box .btn,.box .chip,.box select{width:100%;text-align:left}
+    .ctxmenu{position:fixed;z-index:30;max-height:70vh;overflow:auto;min-width:200px;display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+    .ctxmenu .btn{width:100%;text-align:left}
     .sub{display:flex;flex-direction:column;gap:6px}
     .sub>summary{list-style:none;display:inline-block}
     .sub>summary::-webkit-details-marker{display:none}
@@ -408,7 +412,7 @@ export class FloorplanStudioEditor extends LitElement {
     const capture = () => { try { svg.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ } };
     if (ev.button === 1 || ev.button === 2 || ev.ctrlKey || ev.metaKey) {
       ev.preventDefault();
-      this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view } };
+      this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: ev.button, moved: false };
       capture();
       return;
     }
@@ -500,7 +504,7 @@ export class FloorplanStudioEditor extends LitElement {
       case "opening": st.sel = { t: "opening", i: hit.i }; break;
       default:
         st.sel = null;
-        this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view } };
+        this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: ev.button, moved: false };
     }
     capture();
     this.requestUpdate();
@@ -516,6 +520,8 @@ export class FloorplanStudioEditor extends LitElement {
     if (!d && this.draw) { this.hover = this.snapDraw(this.draw, this.toSvg(ev), ev.altKey); this.requestUpdate(); return; }
     if (!d) return;
     if (d.type === "pan") {
+      // Screen movement past a few pixels means this is a drag, not a (possibly right-button) click — same threshold "room" uses.
+      if (!d.moved && Math.hypot(ev.clientX - d.sx, ev.clientY - d.sy) >= 4) d.moved = true;
       // The drag is on the screen; the view is in plan coordinates, so turn the shift back by the plan's rotation.
       const s = this.scale, r = st.rotation, shift: Pt = [(ev.clientX - d.sx) / s, (ev.clientY - d.sy) / s];
       const [dx, dy] = r ? rotateAbout(shift, -r.deg, [0, 0]) : shift;
@@ -620,10 +626,16 @@ export class FloorplanStudioEditor extends LitElement {
     if (g) { st.replaceFloor(g); this.requestUpdate(); }
   };
 
-  private onUp = () => {
+  private onUp = (ev: PointerEvent) => {
     const d = this.drag, st = this.st;
     this.drag = null;
-    if (!d || d.type === "pan") return;
+    if (!d) return;
+    if (d.type === "pan") {
+      // A right button pressed and released without a drag: not a pan, the context menu on whatever is under it.
+      // (`ev.type === "pointercancel"` carries no useful position and is never this case.)
+      if (d.button === 2 && !d.moved && ev.type === "pointerup") this.openCtxMenuAt(ev.clientX, ev.clientY);
+      return;
+    }
     if (d.moved) {
       // a corner dropped on another polygon's edge becomes a point of that polygon
       let f = st.f;
@@ -660,11 +672,66 @@ export class FloorplanStudioEditor extends LitElement {
 
   private onWheel = (ev: WheelEvent) => {
     ev.preventDefault();
+    this.closeCtxMenu();
     const st = this.st, v = st.view, k = ev.deltaY > 0 ? 1.12 : 1 / 1.12, p = this.toSvg(ev);
     const cx = v.x + v.w / 2, cy = v.y + v.h / 2, nx = p[0] + (cx - p[0]) * k, ny = p[1] + (cy - p[1]) * k;
     st.views[st.floor] = { x: nx - (v.w * k) / 2, y: ny - (v.h * k) / 2, w: v.w * k, h: v.h * k };
     this.requestUpdate();
   };
+
+  private closeCtxMenu = () => { if (this.ctxMenu) { this.ctxMenu = null; this.requestUpdate(); } };
+
+  /**
+   * S4.18: right-click on a room, zone or structure selects it (opening its side panel, already the "change colour"
+   * surface) and opens a small menu at the pointer: Change colour (closes the menu, the panel is already showing),
+   * Delete, and — when the room has a linked HA area — a section that places one of the area's unplaced entities as
+   * a new device. Any other target (background, a device, furniture...) just closes a menu that might already be
+   * open. Called from `onUp`, not the `contextmenu` DOM event: `onDown` already calls `preventDefault()` on every
+   * right-button pointerdown (so a right-drag pans the canvas), and that suppresses the browser's own `contextmenu`
+   * event along with it — so there is nothing to hook there. A stationary right-button press and release is the
+   * signal instead, exactly how a left-button "room" drag already tells a click from a drag (`onUp`'s `d.moved`).
+   */
+  private openCtxMenuAt(clientX: number, clientY: number) {
+    const el = (this.renderRoot as unknown as DocumentOrShadowRoot).elementFromPoint(clientX, clientY);
+    const hit = hitOf(el);
+    if (hit.k !== "room") { this.closeCtxMenu(); return; }
+    const r = this.st.f.rooms[hit.i];
+    if (!r || (r.kind !== "room" && r.kind !== "zone" && r.kind !== "structure")) { this.closeCtxMenu(); return; }
+    this.st.sel = { t: "room", i: hit.i };
+    this.ctxMenu = { x: clientX, y: clientY, roomIdx: hit.i };
+    this.focus({ preventScroll: true }); // a right click never focuses the host on its own; Escape needs it to
+    this.requestUpdate();
+  }
+
+  private ctxDelete() {
+    const i = this.ctxMenu?.roomIdx;
+    if (i === undefined) return;
+    this.commit((f) => { f.rooms.splice(i, 1); });
+    this.st.sel = null;
+    this.closeCtxMenu();
+  }
+
+  /** S4.18: places `e` (an entity of the menu's room's HA area) as a new device, one undo step, then closes the menu. */
+  private addFromArea(e: HaData["entities"][number]) {
+    const i = this.ctxMenu?.roomIdx;
+    if (i === undefined) return;
+    if (!this.st.addFromArea(i, e)) return;
+    this.closeCtxMenu();
+    this.changed(`Added ${e.name}. Drag it to its spot.`);
+  }
+
+  /** S4.18's menu markup, positioned at the click (`position:fixed`, so no container-relative math is needed). */
+  private ctxMenuView(m: { x: number; y: number; roomIdx: number }) {
+    const st = this.st, r = st.f.rooms[m.roomIdx];
+    const ha = st.ha;
+    const unplaced = r?.area && ha ? ha.entities.filter((e) => e.area === r.area && !placedEntities(st.layout).has(e.id)) : [];
+    return html`<div class="ctxmenu" style="left:${m.x}px;top:${m.y}px">
+      <button class="btn" id="cmColour" @click=${() => this.closeCtxMenu()}>Change colour</button>
+      <button class="btn warn" id="cmDelete" @click=${() => this.ctxDelete()}>Delete</button>
+      ${unplaced.length ? html`<div class="sep"></div><span class="grp">Add device from ${r!.name}</span>
+        ${unplaced.map((e) => html`<button class="btn" @click=${() => this.addFromArea(e)}>${e.name} (${TYPE_LABELS.find((t) => t[0] === typeForEntity(e))?.[1] ?? typeForEntity(e)})</button>`)}` : nothing}
+    </div>`;
+  }
 
   /** Zoom by `k` (below 1 zooms in) about the middle of what is shown; 0 fits the whole floor again. A view change only: no layout edit, no undo step. */
   private zoomBy(k: number) {
@@ -678,6 +745,7 @@ export class FloorplanStudioEditor extends LitElement {
     const t = ev.composedPath()[0] as HTMLElement | undefined;
     if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); this.undo(!ev.shiftKey); return; }
+    if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
     if (this.draw) {
       // Draw mode owns these keys: Delete must not remove the item that was selected before.
       if (ev.key === "Enter") { ev.preventDefault(); this.finishDraw(); }
@@ -723,6 +791,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   private onWindowClick = (ev: MouseEvent) => {
     const path = ev.composedPath();
+    if (this.ctxMenu && !path.some((n) => (n as Element).classList?.contains?.("ctxmenu"))) this.closeCtxMenu();
     this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]").forEach((m) => {
       if (!path.includes(m)) { m.open = false; this.closeSubs(m); }
       else if ((path[0] as Element).closest?.("button:not(.keep)")) { m.open = false; this.closeSubs(m); } // .keep: a stepper, several clicks in a row
@@ -1324,6 +1393,7 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="zreset" title="Reset zoom: fit the whole floor" aria-label="Reset zoom" @click=${() => this.zoomBy(0)}>0</button>
           </div>
           <svg xmlns="http://www.w3.org/2000/svg" class=${this.draw ? "drawing" : ""} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
+          ${this.ctxMenu ? this.ctxMenuView(this.ctxMenu) : nothing}
         </div>
         <aside>
           <div id="panel">${selectionPanel(this.ctx())}</div>

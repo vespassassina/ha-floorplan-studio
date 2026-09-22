@@ -35,6 +35,38 @@ export function entitiesForType(ha: HaData, type: DeviceType): { match: HaData["
   return { match: ha.entities.filter(ok), rest: ha.entities.filter((e) => !ok(e)) };
 }
 
+/**
+ * S4.18: the reverse guess — which `DeviceType` a raw HA entity is, for placing one from a room's area menu rather than
+ * `layout.catalog`. Domain + `device_class` pairs that `TYPE_RULES` already resolve unambiguously (light, lock, camera,
+ * cover, a switch's outlet class, a sensor's temperature/humidity/battery class, a binary_sensor's motion/contact/vibration
+ * classes) map straight across. A domain that is genuinely ambiguous under the forward rules (`climate` could be a plain
+ * thermostat, a heater's TRV or an AC; `switch` could be a plug or a switch; `media_player` could be a TV) defaults to its
+ * most common, least commital member — `climate`, `switch`, `media` — never `heater`/`ac`/`plug`/`tv`, so a wrong guess
+ * never silently turns on heater/AC-only UI. Nothing here is final: the device panel's own type field corrects any guess.
+ */
+export function typeForEntity(e: HaData["entities"][number]): DeviceType {
+  switch (e.domain) {
+    case "light": return "light";
+    case "lock": return "lock";
+    case "camera": return "camera";
+    case "cover": return "cover";
+    case "climate": return "climate";
+    case "media_player": return "media";
+    case "switch": return e.dc === "outlet" ? "plug" : "switch";
+    case "sensor":
+      if (e.dc === "temperature") return "temp";
+      if (e.dc === "humidity") return "humidity";
+      if (e.dc === "battery") return "battery";
+      return "other";
+    case "binary_sensor":
+      if (e.dc === "motion" || e.dc === "occupancy" || e.dc === "presence") return "motion";
+      if (e.dc === "door" || e.dc === "window" || e.dc === "garage_door" || e.dc === "opening") return "contact";
+      if (e.dc === "vibration") return "vibration";
+      return "other";
+    default: return "other";
+  }
+}
+
 /** What to write to put `entity` in the HA area `area`, or null when it is there, unknown, or `area` is empty. The device moves when the entity is its only one; otherwise the entity alone, so its siblings stay. */
 export function areaMove(ha: HaData, entity: string, area: string): { kind: "device" | "entity"; id: string; area: string } | null {
   const e = entity && area ? ha.entities.find((x) => x.id === entity) : undefined;

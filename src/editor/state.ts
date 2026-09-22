@@ -1,4 +1,4 @@
-import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, unplacedCatalog, validate, viewBoxFor } from "../core";
+import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, typeForEntity, unplacedCatalog, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, Theme } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -345,6 +345,29 @@ export class EditorState {
     this.snapshot();
     this.layout = next;
     this.sel = { t: "dev", i: devIndex };
+    return true;
+  }
+
+  /**
+   * S4.18: places `e`, an entity from the current floor's `roomIndex` room's linked HA area, as a new device at the
+   * room's centre — both a new `layout.catalog` entry and a new device on the plan, one undo step. `typeForEntity`
+   * guesses the device type; the panel's own type field corrects it afterward. False, and nothing recorded, for an
+   * unknown room or an entity already placed or already in the catalog.
+   */
+  addFromArea(roomIndex: number, e: HaData["entities"][number]): boolean {
+    const room = this.f.rooms[roomIndex];
+    if (!room) return false;
+    if (Object.values(this.layout.floors).some((f) => f.devices.some((d) => d.entity === e.id)) || this.layout.catalog.some((c) => c.entity === e.id)) return false;
+    const next = structuredClone(this.layout);
+    const f = next.floors[this.floor];
+    const id = newId(f, this.floor, "device");
+    const type = typeForEntity(e);
+    const ctr: Pt = [Math.round(room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length), Math.round(room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length)];
+    f.devices.push({ id, name: e.name, type, entity: e.id, x: ctr[0], y: ctr[1] });
+    next.catalog.push({ id, floor: this.floor, room: room.name, type, name: e.name, entity: e.id });
+    this.snapshot();
+    this.layout = next;
+    this.sel = { t: "dev", i: f.devices.length - 1 };
     return true;
   }
 
