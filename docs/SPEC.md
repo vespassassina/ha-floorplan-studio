@@ -374,6 +374,10 @@ theme: blueprint         # blueprint (default), light, or ha
   entities that have none.
 - Every write: confirm dialog naming what will be created, label
   `floorplan-studio` on the result, and the note that HA cannot undo it.
+- Home Assistant menu: everything in HA labelled `floorplan-studio` — helpers,
+  areas, automations — whole-instance, not just the current plan, so an item
+  orphaned by a plan edit still shows up. "Remove from Home Assistant" deletes
+  it there; removing something from the plan never touches HA on its own.
 - Look: the panel maps `--fp-*` to HA theme variables and uses HA's own form
   elements and pickers, so it follows the user's theme, light or dark.
 
