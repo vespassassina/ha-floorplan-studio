@@ -26,7 +26,7 @@ type Hit =
   | { k: "loose"; ref: LooseRef }
   | { k: "dend"; i: number; end: "a" | "b" }
   | { k: "fscale"; i: number; corner: Corner }
-  | { k: "door" | "opening" | "dev" | "furn" | "wall" | "room" | "stairs"; i: number }
+  | { k: "door" | "opening" | "dev" | "furn" | "wall" | "room" | "stairs" | "extra"; i: number }
   | { k: "edge"; poly: string; i: number }
   | { k: "bg" };
 
@@ -92,6 +92,8 @@ function hitOf(el: Element | null): Hit {
   if (e) { const [poly, i] = (e.getAttribute("data-e") ?? "").split(":"); return { k: "edge", poly, i: +i }; }
   const w = el.closest("[data-w]");
   if (w) return { k: "wall", i: +(w.getAttribute("data-w") ?? -1) };
+  const ex = el.closest("[data-ex]");
+  if (ex) return { k: "extra", i: +(ex.getAttribute("data-ex") ?? -1) };
   const r = el.closest("[data-r]");
   if (r) return { k: "room", i: +(r.getAttribute("data-r") ?? -1) };
   const st = el.closest("[data-s]");
@@ -447,6 +449,17 @@ export class FloorplanStudioEditor extends LitElement {
         this.drag = { type: "edge", base, ends, start: p, moved: false, to: [] };
         break;
       }
+      case "extra": {
+        const x = f.extras[hit.i];
+        if (!x) break;
+        st.sel = { t: "extra", i: hit.i };
+        const ends = [
+          { from: [...x.a] as Pt, ref: { k: "extras", i: hit.i, end: "a" } as PtRef },
+          { from: [...x.b] as Pt, ref: { k: "extras", i: hit.i, end: "b" } as PtRef },
+        ];
+        this.drag = { type: "edge", base, ends, start: p, moved: false, to: [] };
+        break;
+      }
       case "room": {
         st.sel = { t: "room", i: hit.i };
         if (f.rooms[hit.i]) this.drag = { type: "room", base, list: "rooms", i: hit.i, start: p, moved: false };
@@ -652,6 +665,7 @@ export class FloorplanStudioEditor extends LitElement {
     else if (s.t === "opening") del((f) => { f.openings.splice(s.i, 1); });
     else if (s.t === "dev") del((f) => { f.devices.splice(s.i, 1); });
     else if (s.t === "wall") del((f) => { f.walls.splice(s.i, 1); });
+    else if (s.t === "extra") del((f) => { f.extras.splice(s.i, 1); });
     else if (s.t === "furn") del((f) => { f.furniture.splice(s.i, 1); });
     else if (s.t === "stairs") del((f) => { f.stairs.splice(s.i, 1); });
     else if (s.t === "v" && "poly" in s.ref && (polyPts(this.st.f, s.ref.poly)?.length ?? 0) > 3) {
@@ -1131,6 +1145,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (s?.t === "edge") { const pts = polyPts(f, s.poly); if (pts) { const a = pts[s.i], b = pts[(s.i + 1) % pts.length]; o.push(line(a, b, "hl", 'stroke-width="4"'), len(a, b)); } }
     if (s?.t === "opening" && f.openings[s.i]) o.push(line(f.openings[s.i].a, f.openings[s.i].b, "hl", 'stroke-width="4"'));
     if (s?.t === "wall" && f.walls[s.i]) o.push(line(f.walls[s.i].a, f.walls[s.i].b, "hl", 'stroke-width="4"'));
+    if (s?.t === "extra" && f.extras[s.i]) o.push(line(f.extras[s.i].a, f.extras[s.i].b, "hl", 'stroke-width="4"'));
     if (s?.t === "room" && f.rooms[s.i]) o.push(`<polygon class="hl" points="${f.rooms[s.i].pts.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
     if (s?.t === "stairs" && f.stairs[s.i]) o.push(`<polygon class="hl" ${stairsTurn(f.stairs[s.i])} points="${f.stairs[s.i].pts.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
     if (s?.t === "furn" && f.furniture[s.i]) {

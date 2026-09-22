@@ -124,6 +124,7 @@ export function selectionPanel(c: PanelCtx): TemplateResult {
     case "v": return cornerPanel(c, s);
     case "edge": return edgePanel(c, s);
     case "wall": return wallPanel(c, s.i);
+    case "extra": return f.extras[s.i] ? extraPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "opening": return f.openings[s.i] ? openingPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "door": return f.doors[s.i] ? doorPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "room": return f.rooms[s.i] ? roomPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
@@ -240,6 +241,17 @@ function wallPanel(c: PanelCtx, i: number) {
     }}>${WALL_KINDS.map((k) => html`<option value=${k} ?selected=${k === w.kind}>${WALL_LABELS[k]}</option>`)}<option value="opening">Opening (a gap in the wall)</option></select>
     <p>${button("wdel", "Delete", () => { c.commit((f) => { f.walls.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag its ends to place it. Ends snap to corners.")}`;
+}
+
+/** S4.13: a structure line (a free-standing annotation like "boiler + tank" - not a wall, not a room edge). Name and length only; no kind. */
+function extraPanel(c: PanelCtx, i: number) {
+  const x = c.st.f.extras[i];
+  if (!x) return html`<p class="hint">Nothing selected.</p>`;
+  return html`<strong>Structure line</strong>
+    ${text("name", "exn", x.name, (v) => c.commit((f) => { f.extras[i].name = v; }))}
+    ${hint(`length ${(dist(x.a, x.b) / 100).toFixed(2)} m`)}
+    <p>${button("exdel", "Delete", () => { c.commit((f) => { f.extras.splice(i, 1); }); c.select(null); }, "warn")}</p>
+    ${hint("Drag its ends to resize it, or drag the middle to move it.")}`;
 }
 
 /**

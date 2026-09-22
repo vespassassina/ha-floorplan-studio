@@ -46,7 +46,7 @@ export type Sel =
   | null
   | { t: "v"; ref: PtRef }
   | { t: "edge"; poly: string; i: number }
-  | { t: "wall" | "door" | "opening" | "dev" | "room" | "furn" | "stairs"; i: number };
+  | { t: "wall" | "door" | "opening" | "dev" | "room" | "furn" | "stairs" | "extra"; i: number };
 
 export function emptyLayout(): Layout {
   const floor: Floor = { title: "Ground", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };

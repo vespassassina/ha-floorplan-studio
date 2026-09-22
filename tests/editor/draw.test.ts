@@ -217,7 +217,7 @@ describe("applyShape", () => {
     expect(r.sel).toEqual({ t: "opening", i: 0 });
     const x = applyShape(ground(), "ground", { kind: "extra", wall: "wall", pts: [[0, 0], [120, 0]] });
     expect(x.floor.extras).toEqual([{ id: "extra-ground-1", name: "New line", a: [0, 0], b: [120, 0] }]);
-    expect(x.sel).toBeNull(); // extras have no selection type
+    expect(x.sel).toEqual({ t: "extra", i: 0 }); // S4.13: selected on finish, like an opening
   });
 });
 

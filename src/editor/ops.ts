@@ -1,4 +1,4 @@
-import { dist, movePoints, polys, stairSteps, stitch } from "../core";
+import { contentPoints, dist, movePoints, polys, stairSteps, stitch } from "../core";
 import type { Floor, Furniture, Pt, Stairs, WallKind } from "../core";
 import { newId, type LooseRef, type PtRef } from "./state";
 
@@ -141,12 +141,18 @@ export function openingToWall(f: Floor, i: number, kind: WallKind, floor: string
   return g;
 }
 
-/** Where a new item goes: right of the outline's bounding box, at its top, on the grid. With no outline (fewer than three points) `fallback`. */
+/**
+ * Where a new item goes: right of everything already on the floor, at the outline's top, on the grid. With no
+ * outline (fewer than three points) `fallback`. Reads `contentPoints`, not just the outline, so a second new item
+ * spawns clear of the first instead of landing back on the same spot (150 cm right of the outline, every time) and
+ * needing to be dragged off it before it can be dragged anywhere else.
+ */
 export function spawnPoint(f: Floor, fallback: Pt, grid = 10): Pt {
   if (f.outline.length < 3) return fallback;
-  const xs = f.outline.map((p) => p[0]), ys = f.outline.map((p) => p[1]);
+  const pts = contentPoints(f), oys = f.outline.map((p) => p[1]);
+  const xs = pts.map((p) => p[0]);
   const g = (n: number) => gridRound(n, grid);
-  return [g(Math.max(...xs) + 150), g(Math.min(...ys))];
+  return [g(Math.max(...xs) + 150), g(Math.min(...oys))];
 }
 
 /**
