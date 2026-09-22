@@ -3,7 +3,7 @@ import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, polys, renderFloor, rotateAbout, snapPoint, stitch, validate } from "../core";
 import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
-import { gridRound, looseEnds, movePointAll, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
+import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
@@ -469,7 +469,12 @@ export class FloorplanStudioEditor extends LitElement {
     let g: Floor | null = null;
     switch (d.type) {
       case "corner": {
-        const to = this.snapCorner(d.base, p, d.from, d.ref, alt, [], isZoneRef(d.base, d.ref));
+        let to = this.snapCorner(d.base, p, d.from, d.ref, alt, [], isZoneRef(d.base, d.ref));
+        // S4.9: a locked wall or opening keeps its length; the dragged end only pivots around the other, fixed end.
+        if (!("poly" in d.ref) && (d.ref.k === "walls" || d.ref.k === "openings")) {
+          const seg = d.base[d.ref.k][d.ref.i];
+          if (seg?.locked) to = pivotOnArc(seg[d.ref.end === "a" ? "b" : "a"], to, dist(seg.a, seg.b), d.from);
+        }
         if (!d.moved && dist(to, d.from) === 0) return;
         this.begin(d); d.to = to;
         // Shift: only the grabbed corner moves and leaves the others behind
@@ -491,11 +496,15 @@ export class FloorplanStudioEditor extends LitElement {
       }
       case "dend": {
         const door = d.base.doors[d.i], other = door[d.end === "a" ? "b" : "a"], cur = door[d.end];
-        const l = dist(cur, other) || 1, ux = (cur[0] - other[0]) / l, uy = (cur[1] - other[1]) / l;
-        const t = Math.max(20, g5((p[0] - other[0]) * ux + (p[1] - other[1]) * uy));
         this.begin(d);
         g = structuredClone(d.base);
-        g.doors[d.i][d.end] = round([other[0] + ux * t, other[1] + uy * t]);
+        // S4.9: a locked door keeps its length; the dragged end only pivots around the other, fixed end.
+        if (door.locked) g.doors[d.i][d.end] = pivotOnArc(other, p, dist(door.a, door.b), cur);
+        else {
+          const l = dist(cur, other) || 1, ux = (cur[0] - other[0]) / l, uy = (cur[1] - other[1]) / l;
+          const t = Math.max(20, g5((p[0] - other[0]) * ux + (p[1] - other[1]) * uy));
+          g.doors[d.i][d.end] = round([other[0] + ux * t, other[1] + uy * t]);
+        }
         break;
       }
       case "door": {

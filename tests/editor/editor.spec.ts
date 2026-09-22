@@ -2404,6 +2404,66 @@ test("each Add, Wall item places a 200 cm wall of its kind at the spawn point, s
 });
 const dist2 = (a: number[], b: number[]) => Math.hypot(b[0] - a[0], b[1] - a[1]);
 
+// ---- S4.9: locked walls, doors and openings pivot on drag, length fixed ----
+
+test("a locked wall's dragged end pivots on an arc of fixed radius around the other end", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator("#addWall-wall").click();
+  const w = (await groundOf(page)).walls.at(-1)!;
+  await centreViewOn(page, mid(w));
+  await expect(page.locator("#wlock")).not.toBeChecked();
+  await page.locator("#wlock").check();
+  await dragCm(page, w.a as [number, number], [w.a[0] + 30, w.a[1] + 40]);
+  const w2 = (await groundOf(page)).walls.at(-1)!;
+  expect(Math.abs(dist2(w2.a, w2.b) - dist2(w.a, w.b))).toBeLessThanOrEqual(1); // length fixed, within rounding
+  expect(w2.b).toEqual(w.b); // the far end never moved
+  expect(w2.a).not.toEqual(w.a);
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).walls.at(-1)!.a).toEqual(w.a); // one undo step
+});
+
+test("typing a wall's length locks it; unticking frees it for a normal, length-changing drag", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator("#addWall-wall").click();
+  const w = (await groundOf(page)).walls.at(-1)!;
+  await centreViewOn(page, mid(w));
+  await page.locator("#wlen").fill("3");
+  await page.locator("#wlen").press("Enter");
+  await expect(page.locator("#wlock")).toBeChecked();
+  expect(dist2((await groundOf(page)).walls.at(-1)!.a, (await groundOf(page)).walls.at(-1)!.b)).toBe(300);
+  await page.locator("#wlock").uncheck();
+  const w2 = (await groundOf(page)).walls.at(-1)!;
+  await dragCm(page, w2.a as [number, number], [w2.a[0] + 50, w2.a[1]]);
+  const w3 = (await groundOf(page)).walls.at(-1)!;
+  expect(dist2(w3.a, w3.b)).not.toBe(300); // free again: the drag changed the length
+});
+
+test("a locked door's dragged end pivots on an arc of fixed radius", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator("#addDoor").click();
+  const d = (await groundOf(page)).doors.at(-1)!;
+  await centreViewOn(page, mid(d));
+  await expect(page.locator("#dlock")).not.toBeChecked();
+  await page.locator("#dlock").check();
+  await dragCm(page, d.a as [number, number], [d.a[0] + 40, d.a[1] + 30]);
+  const d2 = (await groundOf(page)).doors.at(-1)!;
+  expect(Math.abs(dist2(d2.a, d2.b) - dist2(d.a, d.b))).toBeLessThanOrEqual(1);
+  expect(d2.b).toEqual(d.b);
+  expect(d2.a).not.toEqual(d.a);
+});
+
+test("a locked opening's dragged end pivots on an arc of fixed radius", async ({ page }) => {
+  await addGap(page);
+  const o = (await gaps(page))[0];
+  await expect(page.locator("#olock")).not.toBeChecked();
+  await page.locator("#olock").check();
+  await dragCm(page, o.a as [number, number], [o.a[0] + 40, o.a[1] + 25]);
+  const o2 = (await gaps(page))[0];
+  expect(Math.abs(len(o2) - len(o))).toBeLessThanOrEqual(1);
+  expect(o2.b).toEqual(o.b);
+  expect(o2.a).not.toEqual(o.a);
+});
+
 test("opening Draw closes Add, and a Draw item starts drawing with the Draw menu closed", async ({ page }) => {
   await menu(page, "Add");
   await expect(page.locator("#mAdd")).toHaveJSProperty("open", true);

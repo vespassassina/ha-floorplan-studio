@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A wall, door or opening can have its length locked: dragging an end then only pivots it, on an arc of fixed radius, around the other end. Typing a length locks it by default; untick "length locked" to drag freely again.
 - The demo layout has a third floor, "Test", with one plain square room, for demos and manual checks.
 - An unpainted room is one light gray in every theme, not the theme's own tint (only a plain room or structure; garden, water and the rest keep their kind colour).
 

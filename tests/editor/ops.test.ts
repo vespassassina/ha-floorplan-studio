@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Furniture, Layout, Pt } from "../../src/core/schema";
-import { closedLoop, gridRound, roundStairs, rotateSegment, scaleFurniture, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "../../src/editor/ops";
+import { closedLoop, gridRound, pivotOnArc, roundStairs, rotateSegment, scaleFurniture, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "../../src/editor/ops";
 
 const ground = () => structuredClone((demo as unknown as Layout).floors.ground);
 const FALLBACK: Pt = [123, 457];
@@ -75,6 +75,26 @@ describe("rotateSegment", () => {
   });
   it("a segment of zero length stays a point", () => {
     expect(rotateSegment([5, 5], [5, 5], 77)).toEqual({ a: [5, 5], b: [5, 5] });
+  });
+});
+
+describe("pivotOnArc (S4.9)", () => {
+  it("puts the point on the circle around the pivot, at the given radius, towards the pointer", () => {
+    expect(pivotOnArc([0, 0], [100, 0], 50)).toEqual([50, 0]); // pointer straight out: lands at that distance
+    expect(pivotOnArc([0, 0], [0, 200], 50)).toEqual([0, 50]);
+  });
+  it("keeps the exact radius even when the pointer is not on the circle", () => {
+    const p = pivotOnArc([0, 0], [30, 40], 100); // 30-40-50 triangle, same direction, radius 100
+    expect(Math.hypot(p[0], p[1])).toBeCloseTo(100, 6);
+    expect(p[0] / p[1]).toBeCloseTo(30 / 40, 6); // same direction as the pointer
+  });
+  it("a pointer exactly on the pivot keeps the previous point's direction", () => {
+    expect(pivotOnArc([10, 10], [10, 10], 50, [110, 10])).toEqual([60, 10]); // falls back to the old direction (right)
+  });
+  it("rounds to the whole cm", () => {
+    const p = pivotOnArc([0, 0], [1, 1], 100);
+    expect(p[0]).toBe(Math.round(p[0]));
+    expect(p[1]).toBe(Math.round(p[1]));
   });
 });
 

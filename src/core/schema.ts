@@ -26,12 +26,13 @@ export interface Room { id: string; name: string; area: string; label: string; k
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
 /** A room edge is a wall kind, or "none": not drawn. The room stays closed for area and snapping. */
 export type EdgeKind = WallKind | "none";
-export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind }
+/** `locked` (S4.9): the segment's length is fixed. Dragging an endpoint then only pivots it, on an arc around the other endpoint. */
+export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boolean }
 export type StairShape = "straight" | "round";
 /** `dia` (outer) and `inner` (the empty well) exist on a round stair only; `pts` is its outer circle as a polygon. `rot` turns it about the centre of its box. */
 export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape; steps: number; rot: number; dia?: number; inner?: number; color?: string; texture?: string }
-export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensor?: string; cover?: string }
-export interface Opening { id: string; a: Pt; b: Pt }
+export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensor?: string; cover?: string; locked?: boolean }
+export interface Opening { id: string; a: Pt; b: Pt; locked?: boolean }
 export interface Extra { id: string; name: string; a: Pt; b: Pt }
 /** `bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. */
 export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
@@ -136,6 +137,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     each("walls", (w) => {
       oneOf(`${w.id} kind`, w.kind, WALL_KINDS);
       if (!isPt(w.a) || !isPt(w.b)) errors.push(`${at} ${w.id} needs points a and b`);
+      if (w.locked !== undefined && typeof w.locked !== "boolean") errors.push(`${at} ${w.id} locked must be true or false`);
     });
     each("stairs", (s) => {
       name(s); poly(`${s.id} pts`, s.pts);
@@ -159,8 +161,12 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (!isPt(d.a) || !isPt(d.b)) errors.push(`${at} ${d.id} needs points a and b`);
       if (d.sensor !== undefined && !isEntity(d.sensor)) errors.push(`${at} ${d.id} sensor must be an entity id like binary_sensor.name`);
       if (d.cover !== undefined && !isEntity(d.cover)) errors.push(`${at} ${d.id} cover must be an entity id like cover.name`);
+      if (d.locked !== undefined && typeof d.locked !== "boolean") errors.push(`${at} ${d.id} locked must be true or false`);
     });
-    each("openings", (o) => { if (!isPt(o.a) || !isPt(o.b)) errors.push(`${at} ${o.id} needs points a and b`); });
+    each("openings", (o) => {
+      if (!isPt(o.a) || !isPt(o.b)) errors.push(`${at} ${o.id} needs points a and b`);
+      if (o.locked !== undefined && typeof o.locked !== "boolean") errors.push(`${at} ${o.id} locked must be true or false`);
+    });
     each("extras", (o) => { name(o); if (!isPt(o.a) || !isPt(o.b)) errors.push(`${at} ${o.id} needs points a and b`); });
     each("devices", (d) => {
       oneOf(`${d.id} type`, d.type, DEVICE_TYPES);

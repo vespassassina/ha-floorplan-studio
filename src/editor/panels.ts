@@ -221,10 +221,15 @@ function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
 function wallPanel(c: PanelCtx, i: number) {
   const w = c.st.f.walls[i];
   if (!w) return html`<p class="hint">Nothing selected.</p>`;
-  const set = (how: Parameters<typeof setSecondEnd>[3]) => c.commit((f) => setSecondEnd(f, w.a, w.b, how, { k: "walls", i, end: "b" }));
+  const set = (how: Parameters<typeof setSecondEnd>[3]) => c.commit((f) => {
+    const g = setSecondEnd(f, w.a, w.b, how, { k: "walls", i, end: "b" });
+    if ("length" in how) g.walls[i].locked = true; // typing a length locks the wall, by default
+    return g;
+  });
   return html`<strong>${WALL_LABELS[w.kind] ?? "Wall"}</strong>
     ${number(c, "length (m)", "wlen", (dist(w.a, w.b) / 100).toFixed(2), (m) => set({ length: m }))}
     <div class="row">${button("wh", "Make horizontal", () => set({ axis: "h" }))}${button("wv", "Make vertical", () => set({ axis: "v" }))}</div>
+    ${lockField(c, "wlock", "walls", i)}
     ${angleField(c, "wrot", "walls", i)}
     <label for="wk">kind</label><select id="wk" .value=${live(w.kind)} @change=${(e: Event) => {
       const v = val(e);
@@ -235,6 +240,16 @@ function wallPanel(c: PanelCtx, i: number) {
     }}>${WALL_KINDS.map((k) => html`<option value=${k} ?selected=${k === w.kind}>${WALL_LABELS[k]}</option>`)}<option value="opening">Opening (a gap in the wall)</option></select>
     <p>${button("wdel", "Delete", () => { c.commit((f) => { f.walls.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag its ends to place it. Ends snap to corners.")}`;
+}
+
+/**
+ * "length locked" (S4.9): a wall, door or opening whose length is fixed. Dragging one of its ends then only
+ * pivots it, on an arc of that length, around the other end. Typing a length (see `number` callers below)
+ * locks a segment that was not locked yet; unticking frees it for an ordinary, length-changing drag.
+ */
+function lockField(c: PanelCtx, id: string, list: "walls" | "doors" | "openings", i: number) {
+  const locked = !!c.st.f[list][i].locked;
+  return html`<label><input type="checkbox" id=${id} .checked=${locked} @change=${(e: Event) => c.commit((f) => { f[list][i].locked = (e.target as HTMLInputElement).checked; })}> length locked</label>`;
 }
 
 /** "angle (deg)": turns wall, door or opening `i` about its midpoint to the typed angle. Same angle, or rubbish: nothing. */
@@ -253,7 +268,8 @@ function doorPanel(c: PanelCtx, i: number) {
   return html`<strong>Door / window</strong>
     ${text("name", "dn", d.name, (v) => c.commit((f) => { f.doors[i].name = v; }))}
     ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }))}
-    ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); }))}
+    ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); f.doors[i].locked = true; }))}
+    ${lockField(c, "dlock", "doors", i)}
     ${angleField(c, "drot", "doors", i)}
     <label for="dsens">contact sensor</label>
     <select id="dsens" .value=${d.sensor ?? ""} @change=${(e: Event) => c.commit((f) => { const v = val(e); if (v) f.doors[i].sensor = v; else delete f.doors[i].sensor; })}>
@@ -278,7 +294,8 @@ function openingPanel(c: PanelCtx, i: number) {
   };
   return html`<strong>Opening</strong>
     <label for="ok">kind</label><select id="ok" .value=${live("opening")} @change=${toWall}><option value="opening" selected>Opening</option>${WALL_KINDS.map((k) => html`<option value=${k}>${WALL_LABELS[k]}</option>`)}</select>
-    ${number(c, "length (cm)", "ol", Math.round(dist(o.a, o.b)), (n) => c.commit((f) => { Object.assign(f.openings[i], resizeSegment(o.a, o.b, Math.max(20, n))); }))}
+    ${number(c, "length (cm)", "ol", Math.round(dist(o.a, o.b)), (n) => c.commit((f) => { Object.assign(f.openings[i], resizeSegment(o.a, o.b, Math.max(20, n))); f.openings[i].locked = true; }))}
+    ${lockField(c, "olock", "openings", i)}
     ${angleField(c, "orot", "openings", i)}
     <p>${button("odel", "Delete", () => { c.commit((f) => { f.openings.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag an end to resize or move it. A gap hides the wall under it.")}`;
