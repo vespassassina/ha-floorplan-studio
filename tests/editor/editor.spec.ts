@@ -4870,3 +4870,57 @@ test("S4.3: 'Don't ask again' moves the next drops without the dialog, and a dev
   await expect.poll(async () => (await areaCalls(page)).length).toBe(2);
   expect((await areaCalls(page))[1]).toEqual(["entity", "sensor.demo_living_temperature", "kitchen"]);
 });
+
+// ---- S4.10: the Home Assistant menu lists and removes everything floorplan-studio labelled --------
+
+/** A writer whose list/remove are scripted from the test; `removes` records what Remove was called with. */
+async function withHaMenu(page: Page, opt: { list?: unknown[]; failRemove?: string } = {}) {
+  await setHa(page, { floors: [], areas: [], entities: [] });
+  await page.evaluate(([tag, list, failRemove]) => {
+    const w = window as any; w.__removes = [];
+    (document.querySelector(tag as string) as any).writer = {
+      setDeviceArea: async () => {}, setEntityArea: async () => {}, createHelper: async () => ({ entity_id: "x.y" }),
+      listLabelled: async () => list,
+      removeLabelled: async (item: unknown) => { w.__removes.push(item); if (failRemove) throw new Error(failRemove as string); },
+    };
+  }, [EDITOR, opt.list ?? [], opt.failRemove ?? ""]);
+}
+const removes = (page: Page) => page.evaluate(() => (window as any).__removes as unknown[]);
+
+test("S4.10: the Home Assistant menu lists what's labelled, grouped by kind, and Remove asks then deletes it there", async ({ page }) => {
+  await withHaMenu(page, { list: [
+    { kind: "helper", id: "E1", name: "Hall light", entityId: "light.hall_switch" },
+    { kind: "automation", id: "A1", name: "Close at night", entityId: "automation.close_at_night" },
+    { kind: "area", id: "attic", name: "Attic" },
+  ] });
+  await page.locator("#mHA summary").click();
+  await expect(page.locator(".harow")).toHaveCount(3);
+  const box = page.locator("#mHA .box");
+  for (const t of ["Helpers", "Hall light", "Automations", "Close at night", "Areas", "Attic"]) await expect(box).toContainText(t);
+  await page.locator('[data-ha="attic"] button.warn').click();
+  await expect(page.locator("#fp-confirm")).toContainText("Remove Attic from Home Assistant?");
+  expect(await removes(page)).toHaveLength(0);
+  await withHaMenu(page, { list: [] }); // Remove reloads the list: the next load comes back empty
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await removes(page)).length).toBe(1);
+  expect((await removes(page))[0]).toMatchObject({ kind: "area", id: "attic" });
+  await expect(page.locator("#status")).toContainText("Removed Attic from Home Assistant");
+  await page.locator("#mHA summary").click(); // confirming closed the menu (an outside click); reopen it to see the refreshed list
+  await expect(page.locator("#haNone")).toBeVisible();
+});
+
+test("S4.10 break it: nothing labelled says so, a failing remove changes nothing, and no writer means no menu", async ({ page }) => {
+  await withHaMenu(page, { list: [] });
+  await page.locator("#mHA summary").click();
+  await expect(page.locator("#haNone")).toBeVisible();
+
+  await page.locator("#mHA summary").click(); // close it first: it opened above
+  await withHaMenu(page, { list: [{ kind: "helper", id: "E1", name: "Hall light", entityId: "light.hall_switch" }], failRemove: "not_allowed" });
+  await page.locator("#mHA summary").click();
+  await page.locator('[data-ha="E1"] button.warn').click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("Nothing was changed");
+
+  await page.evaluate(([tag]) => { (document.querySelector(tag as string) as any).writer = undefined; }, [EDITOR]);
+  await expect(page.locator("#mHA")).toHaveCount(0);
+});
