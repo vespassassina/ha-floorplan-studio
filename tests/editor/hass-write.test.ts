@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { LABEL_NAME, createHelper, ensureLabel, makeWriter, setDeviceArea, setEntityArea, type WriteHass } from "../../src/editor/hass-write";
+import { LABEL_NAME, createHelper, ensureLabel, listLabelled, makeWriter, removeLabelled, setDeviceArea, setEntityArea, type WriteHass } from "../../src/editor/hass-write";
 import { confirm, NO_UNDO } from "../../src/editor/confirm";
 
 type Msg = { type: string; [k: string]: unknown };
@@ -74,6 +74,48 @@ describe("createHelper", () => {
     const h = stub();
     await makeWriter(h).setDeviceArea("d", "a");
     expect(h.callWS).toHaveBeenCalledWith({ type: "config/device_registry/update", device_id: "d", area_id: "a" });
+  });
+});
+
+describe("S4.10: listLabelled / removeLabelled", () => {
+  const registries = (entities: unknown[], areas: unknown[] = []) => (m: Msg) => {
+    if (m.type === "config/label_registry/list") return [{ label_id: "fs", name: LABEL_NAME }];
+    if (m.type === "config/entity_registry/list") return entities;
+    if (m.type === "config/area_registry/list") return areas;
+    return {};
+  };
+
+  it("lists a labelled helper by its config entry id, an automation by its own id, and a labelled area", async () => {
+    const h = stub(registries([
+      { entity_id: "light.hall_switch", config_entry_id: "E1", labels: ["fs"], name: "Hall switch light" },
+      { entity_id: "automation.close_at_night", unique_id: "A1", labels: ["fs"], original_name: "Close at night" },
+      { entity_id: "sensor.unrelated", config_entry_id: "E9", labels: [] }, // no label: left out
+    ], [
+      { area_id: "attic", name: "Attic", labels: ["fs"] },
+      { area_id: "kitchen", name: "Kitchen", labels: [] }, // no label: left out
+    ]));
+    expect(await listLabelled(h)).toEqual([
+      { kind: "helper", id: "E1", name: "Hall switch light", entityId: "light.hall_switch" },
+      { kind: "automation", id: "A1", name: "Close at night", entityId: "automation.close_at_night" },
+      { kind: "area", id: "attic", name: "Attic" },
+    ]);
+  });
+
+  it("an unlabelled instance (nothing floorplan-studio made) lists nothing", async () => {
+    const h = stub(registries([{ entity_id: "light.x", config_entry_id: "E1" }], [{ area_id: "a", name: "A" }]));
+    expect(await listLabelled(h)).toEqual([]);
+  });
+
+  it("removeLabelled sends the call documented for each kind", async () => {
+    const h = stub();
+    await removeLabelled(h, { kind: "helper", id: "E1", name: "x" });
+    await removeLabelled(h, { kind: "automation", id: "A1", name: "y", entityId: "automation.y" });
+    await removeLabelled(h, { kind: "area", id: "attic", name: "z" });
+    expect(h.callApi.mock.calls).toEqual([
+      ["DELETE", "config/config_entries/entry/E1"],
+      ["DELETE", "config/automation/config/A1"],
+    ]);
+    expect(h.callWS).toHaveBeenCalledWith({ type: "config/area_registry/delete", area_id: "attic" });
   });
 });
 

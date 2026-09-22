@@ -7,7 +7,7 @@ import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurnit
 import { Draw, applyShape, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
-import type { HaWriter } from "./hass-write";
+import type { HaWriter, Labelled } from "./hass-write";
 import { EditorState, GRID_VALUES, THEME_VALUES, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
 
 /**
@@ -101,6 +101,8 @@ function hitOf(el: Element | null): Hit {
 
 /** What each theme is called on its chip. `ha` says what it does rather than what it is. */
 const THEME_LABELS: Record<(typeof THEME_VALUES)[number], string> = { blueprint: "Blueprint", light: "Light", ha: "Home Assistant" };
+/** S4.10: the Home Assistant menu's groups, in the order they are shown. */
+const HA_KIND_LABELS: [Labelled["kind"], string][] = [["helper", "Helpers"], ["automation", "Automations"], ["area", "Areas"]];
 
 export class FloorplanStudioEditor extends LitElement {
   static properties = {
@@ -111,6 +113,9 @@ export class FloorplanStudioEditor extends LitElement {
     status: { state: true },
     addingFloor: { state: true },
     devQuery: { state: true },
+    haList: { state: true },
+    haListLoading: { state: true },
+    haListErr: { state: true },
   };
   declare floor: string;
   /** Home Assistant's dark mode, set by the panel host from `hass.themes.darkMode`. Read only by the `ha` theme; undefined (standalone) follows the OS instead. */
@@ -121,6 +126,10 @@ export class FloorplanStudioEditor extends LitElement {
   declare addingFloor: boolean;
   /** The text in the Device menu search field. Cleared when the menu closes. */
   declare devQuery: string;
+  /** S4.10: everything floorplan-studio labelled in Home Assistant, loaded fresh each time the Home Assistant menu opens. `null` before the first load. */
+  declare haList: Labelled[] | null;
+  declare haListLoading: boolean;
+  declare haListErr: string;
 
   private st = new EditorState();
   private drag: Drag | null = null;
@@ -137,6 +146,9 @@ export class FloorplanStudioEditor extends LitElement {
     this.status = "Ready";
     this.addingFloor = false;
     this.devQuery = "";
+    this.haList = null;
+    this.haListLoading = false;
+    this.haListErr = "";
   }
 
   /** What Home Assistant has (floors, areas, entities), set by the host. With it the name fields are dropdowns and linked names are refreshed once, without an undo step. */
@@ -208,6 +220,7 @@ export class FloorplanStudioEditor extends LitElement {
     .dp.first{fill:var(--fp-window)}
     .grp{font-size:.8em;opacity:.7}
     .box input[type=search]{width:100%;box-sizing:border-box}
+    .harow{display:flex;align-items:center;gap:4px;flex-wrap:wrap} .harow>span:first-child{flex:1;min-width:80px} .harow .btn{width:auto}
     aside{display:flex;flex-direction:column;gap:12px}
     aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}
     aside input:not([type=checkbox]),aside select{width:100%;box-sizing:border-box}
@@ -899,6 +912,49 @@ export class FloorplanStudioEditor extends LitElement {
     }
   }
 
+  /** S4.10: opening the Home Assistant menu loads everything floorplan-studio labelled, fresh each time (HA state moves on its own). */
+  private onHaToggle = (ev: Event) => {
+    if ((ev.currentTarget as HTMLDetailsElement).open) void this.loadHaList();
+  };
+
+  private async loadHaList() {
+    if (!this.writer) return;
+    this.haListLoading = true; this.haListErr = ""; this.requestUpdate();
+    try {
+      this.haList = await this.writer.listLabelled();
+    } catch (err) {
+      this.haList = null;
+      this.haListErr = `Could not read Home Assistant: ${err instanceof Error ? err.message : String(err)}`;
+    } finally {
+      this.haListLoading = false; this.requestUpdate();
+    }
+  }
+
+  /** S4.10: asks, then deletes the HA-side thing and refreshes the list. Never touches the plan: a room or device that used it, if any, is untouched. */
+  private async removeHaItem(item: Labelled) {
+    if (!this.writer) return;
+    const what = item.kind === "area" ? "the area" : item.kind === "helper" ? "the helper" : "the automation";
+    const ok = await askHa(this.shadowRoot ?? this, `Remove ${item.name} from Home Assistant?`, [
+      `Home Assistant will delete ${what} ${item.name}.`,
+      "This does not touch the plan. If it is used on a room or device there, remove it from there separately."]);
+    if (!ok) return;
+    try {
+      await this.writer.removeLabelled(item);
+      this.status = `Removed ${item.name} from Home Assistant.`; this.requestUpdate();
+      await this.loadHaList();
+    } catch (err) {
+      this.status = `Could not remove ${item.name}: ${err instanceof Error ? err.message : String(err)}. Nothing was changed.`; this.requestUpdate();
+    }
+  }
+
+  /** One row of the Home Assistant menu: its name, a link/button to open it in Home Assistant, and Remove. */
+  private haRow(it: Labelled) {
+    const open = it.entityId
+      ? html`<button class="btn keep" @click=${() => this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: it.entityId }, bubbles: true, composed: true }))}>Open in Home Assistant</button>`
+      : html`<a class="btn keep" href=${`/config/areas/area/${it.id}`} target="_top">Open in Home Assistant</a>`;
+    return html`<div class="harow" data-ha=${it.id}><span>${it.name}</span>${open}<button class="btn warn keep" @click=${() => void this.removeHaItem(it)}>Remove from Home Assistant</button></div>`;
+  }
+
   /** A floor operation of the state is one undo step; the host hears about it like any other edit. */
   private floorDone(status: string) { this.stopDraw(); this.floor = this.st.floor; this.changed(status); }
   private renameFloor(key: string, title: string) {
@@ -1175,6 +1231,12 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn danger" id="reset" title="Erase everything and start from a blank plan" @click=${() => this.reset()}>Reset</button>
           <button class="btn primary" id="save" @click=${() => this.save()}>Save</button>
         </div></details>
+        ${this.writer ? html`<details class="menu" id="mHA" @toggle=${this.onHaToggle}><summary class="btn">Home Assistant</summary><div class="box">
+          ${this.haListLoading ? html`<span class="grp" id="haLoading">Loading…</span>` : nothing}
+          ${this.haListErr ? html`<span class="grp" id="haErr">${this.haListErr}</span>` : nothing}
+          ${!this.haListLoading && !this.haListErr && this.haList?.length === 0 ? html`<span class="grp" id="haNone">Nothing floorplan-studio made is labelled in Home Assistant.</span>` : nothing}
+          ${HA_KIND_LABELS.map(([k, label]) => { const g = (this.haList ?? []).filter((x) => x.kind === k); return g.length ? html`<span class="grp">${label}</span>${g.map((it) => this.haRow(it))}` : nothing; })}
+        </div></details>` : nothing}
         <input type="file" id="file" accept=".json,application/json" hidden @change=${(e: Event) => this.openFile(e)}>
       </div>
       ${this.errors.length ? html`<div class="errors" id="errors" role="alert"><strong>That layout was not used.</strong><ul>${this.errors.map((e) => html`<li>${e}</li>`)}</ul><button class="btn" id="errclose" @click=${() => { this.errors = []; }}>Dismiss</button></div>` : nothing}
