@@ -29,6 +29,20 @@ async function drag(page: Page, selector: string, dx: number, dy: number) {
 async function menu(page: Page, name: string) {
   await page.locator(`details.menu > summary:text-is("${name}")`).click();
 }
+/** S4.11: which of Add's submenus a leaf item's id opened under, or null for one that stayed flat (Furniture). */
+function addSubFor(id: string): "Openings" | "Wall" | "Areas" | null {
+  if (id === "#addDoor" || id === "#addWin" || id === "#addGap") return "Openings";
+  if (id.startsWith("#addWall-")) return "Wall";
+  if (id === "#addStr" || id === "#addZone" || id === "#addStairs") return "Areas";
+  return null;
+}
+/** Opens Add, then the leaf's submenu (if it has one), then clicks it. */
+async function addItem(page: Page, id: string) {
+  await menu(page, "Add");
+  const sub = addSubFor(id);
+  if (sub) await page.locator(`#mAdd details.sub > summary:text-is("${sub}")`).click();
+  await page.locator(id).click();
+}
 /** Chooses the snap grid in View, Grid (0 = none), and closes the menu. */
 async function setGrid(page: Page, g: number) {
   await menu(page, "View");
@@ -408,7 +422,7 @@ const savedValid = async (page: Page) => {
   expect(res.ok).toBe(true);
   return res.ok ? res.layout : null;
 };
-const addStairs = async (page: Page) => { await menu(page, "Add"); await page.locator("#addStairs").click(); };
+const addStairs = async (page: Page) => addItem(page, "#addStairs");
 
 test("Add, Stairs places a 100 x 300 cm stairs on the grid, selected, with a fresh id", async ({ page }) => {
   await expect(stairsCount(page)).toHaveCount(1);
@@ -647,7 +661,7 @@ test("a selection made from the Device menu survives the menu closing, then Dele
 });
 
 // ---- S1.8 zones and water ----------------------------------------------------
-const addKind = async (page: Page, id: "#addZone") => { await menu(page, "Add"); await page.locator(id).click(); };
+const addKind = async (page: Page, id: "#addZone") => addItem(page, id);
 const roomPolys = (page: Page) => page.locator("svg polygon[data-r]");
 
 test("Add, Zone places a 200 x 200 cm zone on the grid, centred on the spawn point, selected, dotted, with all wk boundary; one undo step removes it", async ({ page }) => {
@@ -1349,8 +1363,7 @@ test("choosing another Add item or Undo mid-draw leaves draw mode and its rubber
   await expect(drawnPoints(page)).toHaveCount(0);
   await clickCm(page, 200, 668);
   await expect(drawnPoints(page)).toHaveCount(1);
-  await menu(page, "Add");
-  await page.locator("#addDoor").click(); // a single-shape item ends draw mode
+  await addItem(page, "#addDoor"); // a single-shape item ends draw mode
   await expect(drawnPoints(page)).toHaveCount(0);
   expect(await svgCursor(page)).not.toBe("crosshair");
   // Undo
@@ -1406,8 +1419,7 @@ test("draw-mode keys stay on the editor: Enter and Esc elsewhere in the page do 
 });
 
 test("draw items keep the single-shape Add items: Zone still adds a square in one step", async ({ page }) => {
-  await menu(page, "Add");
-  await page.locator("#addZone").click();
+  await addItem(page, "#addZone");
   expect((await groundOf(page)).rooms.at(-1)!.kind).toBe("zone");
 });
 
@@ -1520,7 +1532,7 @@ test("a device name with markup is text in the Device menu, and a click on it pl
 });
 
 // ---- S1.13 opening tool ------------------------------------------------------
-const addGap = async (page: Page) => { await menu(page, "Add"); await page.locator("#addGap").click(); };
+const addGap = async (page: Page) => addItem(page, "#addGap");
 const gaps = async (page: Page) => (await groundOf(page)).openings;
 const len = (o: { a: number[]; b: number[] }) => Math.hypot(o.b[0] - o.a[0], o.b[1] - o.a[1]);
 /** The real top element at a plan point (the editor's hit order), as a short description. */
@@ -1638,8 +1650,7 @@ test("Delete in the panel, and the Delete and Backspace keys, remove the opening
 });
 
 test("an opening lands on a free wall when that is the nearest edge", async ({ page }) => {
-  await menu(page, "Add");
-  await page.locator("#addWall-wall").click();
+  await addItem(page, "#addWall-wall");
   const w = (await groundOf(page)).walls[0];
   await centreViewOn(page, mid(w)); // the wall is now the edge nearest the view centre
   await addGap(page);
@@ -1684,10 +1695,8 @@ test("break it: with no wall on the floor, Add, Opening places a horizontal open
 });
 
 test("Add, Door and Add, Window still place a door and a window", async ({ page }) => {
-  await menu(page, "Add");
-  await page.locator("#addDoor").click();
-  await menu(page, "Add");
-  await page.locator("#addWin").click();
+  await addItem(page, "#addDoor");
+  await addItem(page, "#addWin");
   const d = (await groundOf(page)).doors;
   expect(d.slice(-2).map((x) => [x.kind, len(x)])).toEqual([["door", 90], ["window", 120]]);
 });
@@ -1894,13 +1903,11 @@ test("Add, Door and Add, Opening skip a zone edge: they land on the nearest wall
     el.layout = l;
   }, [EDITOR, cx, cy] as const);
   const zoneYs = [cy - 20, cy + 40];
-  await menu(page, "Add");
-  await page.locator("#addDoor").click();
+  await addItem(page, "#addDoor");
   const d = (await groundOf(page)).doors.at(-1)!;
   expect(zoneYs).not.toContain(d.a[1]);
   expect(zoneYs).not.toContain(d.b[1]);
-  await menu(page, "Add");
-  await page.locator("#addGap").click();
+  await addItem(page, "#addGap");
   const o = (await groundOf(page)).openings.at(-1)!;
   expect(zoneYs).not.toContain(o.a[1]);
   expect(zoneYs).not.toContain(o.b[1]);
@@ -1908,12 +1915,10 @@ test("Add, Door and Add, Opening skip a zone edge: they land on the nearest wall
 });
 
 test("Add, Door lands on a free wall when that is the nearest edge, along its direction", async ({ page }) => {
-  await menu(page, "Add");
-  await page.locator("#addWall-wall").click(); // a horizontal wall
+  await addItem(page, "#addWall-wall"); // a horizontal wall
   const w = (await groundOf(page)).walls[0];
   await centreViewOn(page, mid(w)); // the wall is now the edge nearest the view centre
-  await menu(page, "Add");
-  await page.locator("#addDoor").click();
+  await addItem(page, "#addDoor");
   const d = (await groundOf(page)).doors.at(-1)!;
   expect(d.a[1]).toBe(w.a[1]);
   expect(d.b[1]).toBe(w.a[1]);
@@ -2257,7 +2262,7 @@ const visible = (page: Page) =>
     const svg = (document.querySelector(tag as string) as any).shadowRoot.querySelector("svg") as SVGSVGElement, v = svg.viewBox.baseVal;
     return [v.x, v.y, v.x + v.width, v.y + v.height] as [number, number, number, number];
   }, EDITOR);
-const addMenuItem = async (page: Page, id: string) => { await menu(page, "Add"); await page.locator(id).click(); };
+const addMenuItem = async (page: Page, id: string) => addItem(page, id);
 const OUTLINE_MAX_X = 800;
 
 test("Add, Structure puts every point outside the outline's box, and the structure is inside the view afterwards", async ({ page }) => {
@@ -2387,11 +2392,52 @@ test("the Add menu holds no Draw item and no Water; the Draw menu holds all elev
   await expect(page.locator("#drawRoom")).toBeVisible();
 });
 
+// ---- S4.11 Add is grouped into submenus: Openings, Wall, Areas; Furniture stays flat ----
+
+test("S4.11: Add's items sit under three submenus by group, Furniture stays flat, and every id still finds its button one click deeper", async ({ page }) => {
+  const subOf = (id: string) => page.locator(`#mAdd details.sub:has(#${id})`);
+  await menu(page, "Add");
+  // grouped correctly
+  for (const id of ["addDoor", "addWin", "addGap"]) await expect(subOf(id).locator("summary")).toHaveText("Openings");
+  for (const k of WALL_KINDS) await expect(subOf(`addWall-${k}`).locator("summary")).toHaveText("Wall");
+  for (const id of ["addStr", "addZone", "addStairs"]) await expect(subOf(id).locator("summary")).toHaveText("Areas");
+  // Furniture is not inside any submenu
+  await expect(page.locator("#mAdd > .box > #addFurn")).toHaveCount(1);
+  await menu(page, "Add"); // close
+  // every existing id still resolves, one submenu-open click deeper (exercises addItem's routing for one of each group)
+  for (const id of ["#addDoor", "#addWall-wall", "#addZone"]) {
+    const before = await groundOf(page);
+    await addItem(page, id);
+    const g = await groundOf(page);
+    expect(g.walls.length + g.doors.length + g.rooms.length).toBeGreaterThan(before.walls.length + before.doors.length + before.rooms.length);
+  }
+});
+
+test("S4.11: closing Add by an outside click collapses any open submenu, so reopening Add starts collapsed", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator(`#mAdd details.sub > summary:text-is("Openings")`).click();
+  await expect(page.locator("#addDoor")).toBeVisible();
+  await expect(page.locator("#addOpenings")).toHaveJSProperty("open", true);
+  await page.mouse.click(2, 2); // outside every menu
+  await expect(page.locator("#mAdd")).toHaveJSProperty("open", false);
+  await menu(page, "Add"); // reopen
+  await expect(page.locator("#addOpenings")).toHaveJSProperty("open", false); // the submenu did not stay expanded
+  await expect(page.locator("#addDoor")).not.toBeVisible();
+});
+
+test("S4.11: Tab reaches every Add item in DOM order, submenus included", async ({ page }) => {
+  await menu(page, "Add");
+  await page.locator(`#mAdd details.sub > summary:text-is("Openings")`).click();
+  await page.locator(`#mAdd details.sub > summary:text-is("Wall")`).click();
+  await page.locator(`#mAdd details.sub > summary:text-is("Areas")`).click();
+  const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.map((e) => e.id || e.textContent?.trim()));
+  expect(order).toEqual(["Openings", "addDoor", "addWin", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "addFurn"]);
+});
+
 test("each Add, Wall item places a 200 cm wall of its kind at the spawn point, selected, in one undo step", async ({ page }) => {
   for (const kind of WALL_KINDS) {
     const before = await groundOf(page);
-    await menu(page, "Add");
-    await page.locator(`#addWall-${kind}`).click();
+    await addItem(page, `#addWall-${kind}`);
     const g = await groundOf(page), w = g.walls[g.walls.length - 1];
     expect(g.walls).toHaveLength(before.walls.length + 1);
     expect([w.kind, dist2(w.a, w.b)]).toEqual([kind, 200]);
@@ -2407,8 +2453,7 @@ const dist2 = (a: number[], b: number[]) => Math.hypot(b[0] - a[0], b[1] - a[1])
 // ---- S4.9: locked walls, doors and openings pivot on drag, length fixed ----
 
 test("a locked wall's dragged end pivots on an arc of fixed radius around the other end", async ({ page }) => {
-  await menu(page, "Add");
-  await page.locator("#addWall-wall").click();
+  await addItem(page, "#addWall-wall");
   const w = (await groundOf(page)).walls.at(-1)!;
   await centreViewOn(page, mid(w));
   await expect(page.locator("#wlock")).not.toBeChecked();
@@ -2423,8 +2468,7 @@ test("a locked wall's dragged end pivots on an arc of fixed radius around the ot
 });
 
 test("typing a wall's length locks it; unticking frees it for a normal, length-changing drag", async ({ page }) => {
-  await menu(page, "Add");
-  await page.locator("#addWall-wall").click();
+  await addItem(page, "#addWall-wall");
   const w = (await groundOf(page)).walls.at(-1)!;
   await centreViewOn(page, mid(w));
   await page.locator("#wlen").fill("3");
@@ -2439,8 +2483,7 @@ test("typing a wall's length locks it; unticking frees it for a normal, length-c
 });
 
 test("a locked door's dragged end pivots on an arc of fixed radius", async ({ page }) => {
-  await menu(page, "Add");
-  await page.locator("#addDoor").click();
+  await addItem(page, "#addDoor");
   const d = (await groundOf(page)).doors.at(-1)!;
   await centreViewOn(page, mid(d));
   await expect(page.locator("#dlock")).not.toBeChecked();
@@ -2592,8 +2635,7 @@ test("a device sitting on a room is still dragged as a device, not as the room",
 const angleOf = (o: { a: number[]; b: number[] }) => Math.round(((Math.atan2(o.b[1] - o.a[1], o.b[0] - o.a[0]) * 180) / Math.PI + 360) % 360);
 
 test("a door's angle field turns it about its midpoint: at 90 the ends swap axis, the midpoint stays, the length stays", async ({ page }) => {
-  await menu(page, "Add");
-  await page.locator("#addDoor").click();
+  await addItem(page, "#addDoor");
   const d0 = (await groundOf(page)).doors.at(-1)!;
   const turn = (angleOf(d0) + 90) % 360;
   await expect(page.locator("#drot")).toHaveValue(String(angleOf(d0)));
@@ -2659,8 +2701,7 @@ test("a device rotation is stored, drawn on the group and undone; the glyph stay
 });
 
 test("break it: an angle field with rubbish changes nothing", async ({ page }) => {
-  await menu(page, "Add");
-  await page.locator("#addDoor").click();
+  await addItem(page, "#addDoor");
   const before = await groundOf(page);
   await page.locator("#drot").fill("");
   await page.locator("#drot").press("Enter");
@@ -2923,7 +2964,7 @@ test("S1.28: every item Delete is orange", async ({ page }) => {
   await expectWarn(page, "#sdel");
   await addMenuItem(page, "#addWall-wall");
   await expectWarn(page, "#wdel");
-  await menu(page, "Add"); await page.locator("#addDoor").click();
+  await addItem(page, "#addDoor");
   await expectWarn(page, "#deld");
   await addGap(page);
   await expectWarn(page, "#odel");
@@ -3208,8 +3249,7 @@ for (const deg of [45, 90]) {
 
 test("S1.33: adding an item at 90 puts it in view and the panel value survives", async ({ page }) => {
   await rotateBy(page, 2);
-  await menu(page, "Add");
-  await page.locator("#addStairs").click();
+  await addItem(page, "#addStairs");
   const svg = (await page.locator("svg").first().boundingBox())!;
   const t = (await groundOf(page)).stairs.at(-1)!;
   for (const p of t.pts) {
@@ -3262,8 +3302,7 @@ test("S1.34: with 50 selected a whole room dragged by its edge moves by a multip
 
 test("S1.34: new items go on the chosen grid", async ({ page }) => {
   await setGrid(page, 50);
-  await menu(page, "Add");
-  await page.locator("#addStairs").click();
+  await addItem(page, "#addStairs");
   const t = (await groundOf(page)).stairs.at(-1)!;
   for (const p of t.pts) { expect(Math.abs(p[0] % 50)).toBe(0); expect(Math.abs(p[1] % 50)).toBe(0); }
 });

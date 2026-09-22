@@ -205,6 +205,11 @@ export class FloorplanStudioEditor extends LitElement {
     .menu>summary::after{content:" \\25BE"}
     .box{max-height:75vh;overflow:auto;position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:210px;display:flex;flex-direction:column;gap:6px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px}
     .box .btn,.box .chip,.box select{width:100%;text-align:left}
+    .sub{display:flex;flex-direction:column;gap:6px}
+    .sub>summary{list-style:none;display:inline-block}
+    .sub>summary::-webkit-details-marker{display:none}
+    .sub>summary::after{content:" \\25B8"}
+    .sub>.btn:not(summary){padding-left:20px}
     .sep{border-top:1px solid var(--fp-idle)}
     .swatches{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0} .sw{width:28px;height:28px;padding:0;border:1px solid var(--fp-idle);border-radius:4px;cursor:pointer} .sw.custom{border-style:dashed} .sw[aria-pressed="true"]{outline:2px solid var(--fp-ink);outline-offset:1px}
     .colrow{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:2px 0} .colrow label{display:flex;flex:1;justify-content:space-between;gap:6px} .colrow input{padding:0;width:36px;height:24px} .colrow .btn{width:auto}
@@ -677,10 +682,15 @@ export class FloorplanStudioEditor extends LitElement {
   private onWindowClick = (ev: MouseEvent) => {
     const path = ev.composedPath();
     this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]").forEach((m) => {
-      if (!path.includes(m)) m.open = false;
-      else if ((path[0] as Element).closest?.("button:not(.keep)")) m.open = false; // .keep: a stepper, several clicks in a row
+      if (!path.includes(m)) { m.open = false; this.closeSubs(m); }
+      else if ((path[0] as Element).closest?.("button:not(.keep)")) { m.open = false; this.closeSubs(m); } // .keep: a stepper, several clicks in a row
     });
   };
+  /** S4.11: a submenu (Add's Openings/Wall/Areas) is nested `<details class="sub">`, so it keeps its own open state even while its
+   * root menu is hidden. Whenever the root closes, collapse any submenu inside it too, so reopening the root starts collapsed. */
+  private closeSubs(root: ParentNode) {
+    root.querySelectorAll<HTMLDetailsElement>("details.sub[open]").forEach((s) => { s.open = false; });
+  }
 
   // ---- actions -------------------------------------------------------------
 
@@ -1176,13 +1186,19 @@ export class FloorplanStudioEditor extends LitElement {
         </select>
         <button class="chip" id="names" aria-pressed=${pressed(st.showNames)} title="Show every visible device's name on the plan" @click=${() => { st.showNames = !st.showNames; this.requestUpdate(); }}>Names</button>
         <details class="menu" id="mAdd"><summary class="btn">Add</summary><div class="box">
-          <button class="btn" id="addDoor" @click=${() => this.addDoor("door", 90)}>Door</button>
-          <button class="btn" id="addWin" @click=${() => this.addDoor("window", 120)}>Window</button>
-          <button class="btn" id="addGap" title="A gap in a wall: the wall is not drawn there" @click=${() => this.addOpeningGap()}>Opening</button>
-          ${WALL_KINDS.map((k) => html`<button class="btn" id=${`addWall-${k}`} @click=${() => this.addWall(k)}>Wall: ${WALL_LABELS[k]}</button>`)}
-          <button class="btn" id="addStr" @click=${() => this.addStructure()}>Structure</button>
-          <button class="btn" id="addZone" @click=${() => this.addArea("zone")}>Zone</button>
-          <button class="btn" id="addStairs" @click=${() => this.addStairs()}>Stairs</button>
+          <details class="sub" id="addOpenings"><summary class="btn">Openings</summary>
+            <button class="btn" id="addDoor" @click=${() => this.addDoor("door", 90)}>Door</button>
+            <button class="btn" id="addWin" @click=${() => this.addDoor("window", 120)}>Window</button>
+            <button class="btn" id="addGap" title="A gap in a wall: the wall is not drawn there" @click=${() => this.addOpeningGap()}>Opening</button>
+          </details>
+          <details class="sub" id="addWallSub"><summary class="btn">Wall</summary>
+            ${WALL_KINDS.map((k) => html`<button class="btn" id=${`addWall-${k}`} @click=${() => this.addWall(k)}>${WALL_LABELS[k]}</button>`)}
+          </details>
+          <details class="sub" id="addAreas"><summary class="btn">Areas</summary>
+            <button class="btn" id="addStr" @click=${() => this.addStructure()}>Structure</button>
+            <button class="btn" id="addZone" @click=${() => this.addArea("zone")}>Zone</button>
+            <button class="btn" id="addStairs" @click=${() => this.addStairs()}>Stairs</button>
+          </details>
           <div class="sep"></div>
           <select id="addFurn" aria-label="Add furniture" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addFurniture(el.value); el.value = ""; this.closeMenus(); }}>
             <option value="">Furniture…</option>
@@ -1270,7 +1286,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   private closeMenus() {
     const open = this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]");
-    open.forEach((m) => { m.open = false; });
+    open.forEach((m) => { m.open = false; this.closeSubs(m); });
     if (open.length) this.focus({ preventScroll: true }); // the focused item just hid
   }
 }
