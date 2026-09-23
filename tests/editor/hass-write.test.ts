@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { LABEL_NAME, createArea, createHelper, ensureLabel, listLabelled, makeWriter, removeLabelled, setDeviceArea, setEntityArea, type WriteHass } from "../../src/editor/hass-write";
+import { LABEL_NAME, createArea, createAutomation, createHelper, ensureLabel, listLabelled, makeWriter, openAutomation, removeLabelled, setDeviceArea, setEntityArea, type AutomationConfig, type WriteHass } from "../../src/editor/hass-write";
 import { confirm, NO_UNDO } from "../../src/editor/confirm";
 
 type Msg = { type: string; [k: string]: unknown };
@@ -133,6 +133,54 @@ describe("S4.10: listLabelled / removeLabelled", () => {
       ["DELETE", "config/automation/config/A1"],
     ]);
     expect(h.callWS).toHaveBeenCalledWith({ type: "config/area_registry/delete", area_id: "attic" });
+  });
+});
+
+describe("S4.6: createAutomation / openAutomation", () => {
+  const CFG: AutomationConfig = { alias: "x", trigger: [], action: [] };
+
+  it("posts the config to a fresh fp_<id>, then finds and labels the automation entity by its unique_id", async () => {
+    let postedId = "";
+    const h = stub((m) => {
+      if (m.type === "config/label_registry/list") return [{ label_id: "fs", name: LABEL_NAME }];
+      if (m.type === "config/entity_registry/list") return [{ entity_id: "automation.x", unique_id: postedId, labels: ["other"] }];
+      return {};
+    }, (_m, path) => { postedId = path.split("/").pop()!; return {}; });
+    const id = await createAutomation(h, CFG, { retryMs: 0 });
+    expect(h.callApi).toHaveBeenCalledWith("POST", `config/automation/config/${id}`, CFG);
+    expect(id).toMatch(/^fp_/);
+    expect(id).toBe(postedId);
+    expect(h.callWS).toHaveBeenCalledWith({ type: "config/entity_registry/update", entity_id: "automation.x", labels: ["other", "fs"] });
+  });
+
+  it("when the automation never shows in the registry it rejects after the tries, not forever", async () => {
+    const h = stub((m) => (m.type === "config/label_registry/list" ? [{ label_id: "fs", name: LABEL_NAME }] : []));
+    await expect(createAutomation(h, CFG, { retryMs: 0, tries: 3 })).rejects.toThrow(/did not appear/);
+    expect(h.callWS.mock.calls.filter((c) => c[0].type === "config/entity_registry/list")).toHaveLength(3);
+  });
+
+  it("makeWriter exposes createAutomation", async () => {
+    let postedId = "";
+    const h = stub((m) => {
+      if (m.type === "config/label_registry/list") return [{ label_id: "fs", name: LABEL_NAME }];
+      if (m.type === "config/entity_registry/list") return [{ entity_id: "automation.x", unique_id: postedId }];
+      return {};
+    }, (_m, path) => { postedId = path.split("/").pop()!; return {}; });
+    expect(await makeWriter(h).createAutomation(CFG)).toMatch(/^fp_/);
+  });
+
+  it("openAutomation pushes the edit URL and fires a bubbling, composed location-changed event", () => {
+    const seen: Event[] = [];
+    const onEvent = (e: Event) => seen.push(e);
+    window.addEventListener("location-changed", onEvent);
+    const before = history.length;
+    openAutomation("fp_abc123");
+    window.removeEventListener("location-changed", onEvent);
+    expect(location.pathname).toBe("/config/automation/edit/fp_abc123");
+    expect(history.length).toBe(before + 1);
+    expect(seen).toHaveLength(1);
+    expect(seen[0].bubbles).toBe(true);
+    expect(seen[0].composed).toBe(true);
   });
 });
 

@@ -41,6 +41,10 @@ export interface PanelCtx {
   placeArea(roomIndex: number): void;
   /** S4.5: create an HA group of the devices at `is` (all one kind), named `name`, after asking. Absent without a writer. */
   createGroup?: (is: number[], kind: "light" | "motion", name: string) => void;
+  /** S4.6: build and create the "switch controls..." automation for the switch at `devIndex`, after asking, then open it in HA. Absent without a writer. */
+  controlsAutomation?: (devIndex: number, targets: string[]) => void;
+  /** S4.6: build and create the "schedule" automation for the device at `devIndex`, after asking, then open it in HA. Absent without a writer. */
+  scheduleAutomation?: (devIndex: number, on: string, off: string) => void;
   /** S4.3: the room whose HA area differs from the device's, when there is one, and the action that moves it there. */
   areaDiff?: (devIndex: number) => { name: string } | null;
   moveArea?: (devIndex: number) => void;
@@ -453,6 +457,28 @@ function roomTurn(c: PanelCtx, i: number) {
     ${free ? hint("Unsnapped: this room no longer joins its neighbours.") : locked ? hint("This room shares a corner with a neighbour. Unsnap it to rotate.") : nothing}`;
 }
 
+/** S4.6: switch panel "Controls..." — pick lights, switches, plugs or groups, then create the automation. */
+function controlsField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i], draft = c.st.controlsDraft;
+  const choices = c.st.controlsChoices(i);
+  const single = draft.length === 1 ? choices.find((s) => s.entity === draft[0]) : undefined;
+  return html`${multiAttachField(c, "vctl", "Controls", draft, choices, (next) => { c.st.controlsDraft = next; c.refresh(); })}
+    ${single?.type === "light" && c.st.canMakeLight(i) ? hint(`For one light, "Create a light from this switch" above is simpler than an automation.`) : nothing}
+    <p>${button("vctlgo", "Create automation", () => { if (draft.length) c.controlsAutomation!(i, draft); })}</p>
+    ${hint(`Home Assistant opens the automation's own editor once it is created, so it can be adjusted or renamed. "${d.name ?? d.entity}" cannot control itself.`)}`;
+}
+
+/** S4.6: "Schedule" — two HH:MM fields, then create the automation. On light, switch, plug and media panels. */
+function scheduleField(c: PanelCtx, i: number) {
+  const st = c.st, d = st.f.devices[i];
+  return html`<label for="vschon">on at</label><input id="vschon" type="time" .value=${live(st.scheduleOn)} @change=${(e: Event) => { st.scheduleOn = val(e); c.refresh(); }}>
+    <label for="vschoff">off at</label><input id="vschoff" type="time" .value=${live(st.scheduleOff)} @change=${(e: Event) => { st.scheduleOff = val(e); c.refresh(); }}>
+    <p>${button("vschgo", "Create schedule automation", () => { if (st.scheduleOn && st.scheduleOff) c.scheduleAutomation!(i, st.scheduleOn, st.scheduleOff); })}</p>
+    ${hint(`Home Assistant opens the automation's own editor once it is created. It turns ${d.name ?? d.entity} on and off at these times every day.`)}`;
+}
+
+const SCHEDULABLE: DeviceType[] = ["light", "switch", "plug", "media"];
+
 function devicePanel(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
   const label = TYPE_LABELS.find((t) => t[0] === d.type)?.[1] ?? d.type;
@@ -468,6 +494,8 @@ function devicePanel(c: PanelCtx, i: number) {
     ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
     ${areaDiffField(c, i)}
     ${c.makeLight && c.st.canMakeLight(i) ? html`<p>${button("vmklight", "Create a light from this switch", () => c.makeLight!(i))}</p>${hint("Home Assistant gets a new light that wraps this switch. The plan then shows the light.")}` : nothing}
+    ${c.controlsAutomation && d.type === "switch" ? controlsField(c, i) : nothing}
+    ${c.scheduleAutomation && SCHEDULABLE.includes(d.type) ? scheduleField(c, i) : nothing}
     <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it. Alt disables the grid.") + " Removed devices go back to the Device menu.")}`;
 }

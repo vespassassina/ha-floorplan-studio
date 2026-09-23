@@ -8,6 +8,7 @@ import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
 import type { HaWriter, Labelled } from "./hass-write";
+import { motionLights, openAutomation, schedule, switchControls } from "./automations";
 import { EditorState, GRID_VALUES, THEME_VALUES, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
 
 /**
@@ -380,7 +381,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.requestUpdate();
   };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => { const n = this.st.placeArea(i); if (n) this.changed(`Placed ${n} device${n === 1 ? "" : "s"}. Drag each to its spot.`); }, makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => { const n = this.st.placeArea(i); if (n) this.changed(`Placed ${n} device${n === 1 ? "" : "s"}. Drag each to its spot.`); }, makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------
@@ -1135,6 +1136,66 @@ export class FloorplanStudioEditor extends LitElement {
     }
   }
 
+  /** S4.6: asks, has Home Assistant build the "switch controls..." automation, then opens it in HA's own editor. The plan never changes: nothing here is undoable. */
+  private async controlsAutomation(i: number, targets: string[]) {
+    const w = this.writer, d = this.st.f.devices[i];
+    if (!w || !d || !targets.length) return;
+    const ok = await askHa(this.shadowRoot ?? this, "Create automation", [
+      `Home Assistant will get a new automation: ${d.entity} turns ${targets.length} thing${targets.length === 1 ? "" : "s"} on and off with it, labelled floorplan-studio.`,
+      "It opens in Home Assistant's own editor once created, to finish or rename."]);
+    if (!ok) return;
+    this.status = "Creating the automation..."; this.requestUpdate();
+    try {
+      const cfg = switchControls(d.entity, targets);
+      const id = await w.createAutomation(cfg);
+      this.st.controlsDraft = [];
+      this.status = `Created the automation. Opening it in Home Assistant...`; this.requestUpdate();
+      openAutomation(id);
+    } catch (err) {
+      this.status = `Could not create the automation: ${err instanceof Error ? err.message : String(err)}. Nothing was changed.`; this.requestUpdate();
+    }
+  }
+
+  /** S4.6: asks, has Home Assistant build the "schedule" automation, then opens it in HA's own editor. */
+  private async scheduleAutomation(i: number, on: string, off: string) {
+    const w = this.writer, d = this.st.f.devices[i];
+    if (!w || !d || !on || !off) return;
+    const ok = await askHa(this.shadowRoot ?? this, "Create automation", [
+      `Home Assistant will get a new automation: ${d.entity} on at ${on}, off at ${off}, every day, labelled floorplan-studio.`,
+      "It opens in Home Assistant's own editor once created, to finish or rename."]);
+    if (!ok) return;
+    this.status = "Creating the automation..."; this.requestUpdate();
+    try {
+      const cfg = schedule(d.entity, on, off);
+      const id = await w.createAutomation(cfg);
+      this.st.scheduleOn = ""; this.st.scheduleOff = "";
+      this.status = `Created the automation. Opening it in Home Assistant...`; this.requestUpdate();
+      openAutomation(id);
+    } catch (err) {
+      this.status = `Could not create the automation: ${err instanceof Error ? err.message : String(err)}. Nothing was changed.`; this.requestUpdate();
+    }
+  }
+
+  /** S4.6: asks, has Home Assistant build the "turns on..." motion-group automation, then opens it in HA's own editor. */
+  private async motionAutomation(motionGroupId: string, lightGroupId: string, minutes: number) {
+    const w = this.writer;
+    if (!w || !lightGroupId || !(minutes > 0)) return;
+    const ok = await askHa(this.shadowRoot ?? this, "Create automation", [
+      `Home Assistant will get a new automation: ${lightGroupId} turns on with ${motionGroupId}, off ${minutes} minute${minutes === 1 ? "" : "s"} after motion stops, labelled floorplan-studio.`,
+      "It opens in Home Assistant's own editor once created, to finish or rename."]);
+    if (!ok) return;
+    this.status = "Creating the automation..."; this.requestUpdate();
+    try {
+      const cfg = motionLights(motionGroupId, lightGroupId, Math.round(minutes * 60));
+      const id = await w.createAutomation(cfg);
+      this.st.motionLightGroup = ""; this.st.motionMinutes = "";
+      this.status = `Created the automation. Opening it in Home Assistant...`; this.requestUpdate();
+      openAutomation(id);
+    } catch (err) {
+      this.status = `Could not create the automation: ${err instanceof Error ? err.message : String(err)}. Nothing was changed.`; this.requestUpdate();
+    }
+  }
+
   /** S4.10: opening the Home Assistant menu loads everything floorplan-studio labelled, fresh each time (HA state moves on its own). */
   private onHaToggle = (ev: Event) => {
     if ((ev.currentTarget as HTMLDetailsElement).open) void this.loadHaList();
@@ -1400,6 +1461,8 @@ export class FloorplanStudioEditor extends LitElement {
     const floorEntities = new Set(f.devices.map((d) => d.entity).filter((e) => e));
     const groups = ha ? ha.entities.filter((e) => e.domain === "group" && (e.members ?? []).some((m) => floorEntities.has(m))) : [];
     const activeGroup = st.activeGroup ? groups.find((g) => g.id === st.activeGroup) : undefined;
+    // S4.6: a group's kind (light or motion) read off its first member's domain, to offer "Turns on..." only for a motion group.
+    const groupKindOf = (g: { members?: string[] }) => (g.members ?? [])[0]?.split(".")[0] === "binary_sensor" ? "motion" as const : (g.members ?? [])[0]?.split(".")[0] === "light" ? "light" as const : undefined;
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
     const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed }) + turnG(overlay);
@@ -1474,6 +1537,15 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn" id="groupAll" aria-pressed=${pressed(!st.activeGroup)} @click=${() => { st.activeGroup = null; this.requestUpdate(); }}>All</button>
           ${groups.length === 0 ? html`<span class="grp" id="groupNone">No Home Assistant group has a member on this floor</span>` : nothing}
           ${groups.map((g) => html`<button class="btn" data-group=${g.id} aria-pressed=${pressed(st.activeGroup === g.id)} @click=${() => { st.activeGroup = g.id; this.requestUpdate(); }}>${g.name}</button>`)}
+          ${this.writer && activeGroup && groupKindOf(activeGroup) === "motion" ? html`<div class="sep"></div>
+            <label for="motLightGrp">Turns on</label>
+            <select id="motLightGrp" .value=${live(st.motionLightGroup)} @change=${(e: Event) => { st.motionLightGroup = (e.target as HTMLSelectElement).value; this.requestUpdate(); }}>
+              <option value="" ?selected=${!st.motionLightGroup}>choose a light group...</option>
+              ${groups.filter((g) => groupKindOf(g) === "light").map((g) => html`<option value=${g.id} ?selected=${g.id === st.motionLightGroup}>${g.name}</option>`)}
+            </select>
+            <label for="motMinutes">off after (minutes)</label>
+            <input id="motMinutes" type="number" min="1" step="1" .value=${live(st.motionMinutes)} @change=${(e: Event) => { st.motionMinutes = (e.target as HTMLInputElement).value; this.requestUpdate(); }}>
+            <p><button class="btn" id="motGo" @click=${() => { const min = Number(st.motionMinutes); if (st.motionLightGroup && min > 0) void this.motionAutomation(activeGroup.id, st.motionLightGroup, min); }}>Create automation</button></p>` : nothing}
         </div></details>` : nothing}
         <details class="menu" id="mOpt" @toggle=${this.onOptToggle}><summary class="btn">View</summary><div class="box">
           <div class="rotrow" id="grid" role="group" aria-label="Grid"><span>Grid</span>

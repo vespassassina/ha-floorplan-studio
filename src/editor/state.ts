@@ -120,6 +120,14 @@ export class EditorState {
   activeGroup: string | null = null;
   /** S4.5: the "Create group" panel's draft name field. Kept for the session, never the layout. */
   groupDraft = "";
+  /** S4.6: the switch panel's "Controls..." draft target list. Kept for the session, never the layout. */
+  controlsDraft: string[] = [];
+  /** S4.6: the "Schedule" panel's draft on/off time fields, "HH:MM". Kept for the session, never the layout. */
+  scheduleOn = "";
+  scheduleOff = "";
+  /** S4.6: the Group menu's "Turns on..." draft — a light group id and the off delay in minutes. Kept for the session, never the layout. */
+  motionLightGroup = "";
+  motionMinutes = "";
   /** Snap grid in cm; 0 is none. Kept in localStorage, not in the layout. */
   snapGrid: Grid = readGrid();
   showLen = true;
@@ -517,6 +525,19 @@ export class EditorState {
    */
   unlinkedAttachChoices(): CatalogEntry[] {
     return this.layout.catalog;
+  }
+
+  /**
+   * S4.6: what a switch's "Controls..." automation may target — every placed light, switch or plug except the
+   * switch's own entity, plus every Home Assistant group (light or motion groups both list here; a group is not
+   * a plan device, so it is not in `layout.catalog` and carries no room).
+   */
+  controlsChoices(devIndex: number): CatalogEntry[] {
+    const d = this.f.devices[devIndex];
+    if (!d) return [];
+    const placed: CatalogEntry[] = this.layout.catalog.filter((c) => (c.type === "light" || c.type === "switch" || c.type === "plug") && c.entity !== d.entity);
+    const groups = (this.ha?.entities ?? []).filter((e) => e.domain === "group" && e.id !== d.entity);
+    return [...placed, ...groups.map((g): CatalogEntry => ({ id: g.id, floor: "", room: "", type: "light", name: g.name, entity: g.id }))];
   }
 
   /** Writes the autosave. Storage may be blocked or full; the edit then simply is not remembered. */

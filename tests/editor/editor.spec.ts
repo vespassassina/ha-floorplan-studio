@@ -5547,3 +5547,146 @@ test("Opus review CSS pair: a dimmed device fades to opacity .3 (Group menu, ren
   expect(await opacity(false)).toBe("1");
   expect(await opacity(true)).toBe("0.3");
 });
+
+// ---- S4.6: links and automations -----------------------------------------------------------
+
+const CTRL_HA = { floors: [], areas: [], entities: [
+  { id: "switch.demo_hall", name: "Hall switch", domain: "switch" },
+  { id: "light.demo_living", name: "Living light", domain: "light" },
+  { id: "light.demo_kitchen", name: "Kitchen light", domain: "light" },
+] };
+/** Gives the editor HA data and a recording writer whose `createAutomation` resolves to a fixed id. `fail` makes it throw. */
+async function withAutomationWriter(page: Page, ha: unknown, opt: { fail?: string } = {}) {
+  await setHa(page, ha);
+  await page.evaluate(([tag, fail]) => {
+    const w = window as any; w.__calls = [];
+    (document.querySelector(tag as string) as any).writer = {
+      setDeviceArea: async () => {}, setEntityArea: async () => {},
+      createAutomation: async (cfg: unknown) => { w.__calls.push(cfg); if (fail) throw new Error(fail as string); return "fp_test123"; },
+    };
+  }, [EDITOR, opt.fail ?? ""]);
+}
+const selectHallSwitch2 = (page: Page) => page.locator("svg .dev-switch").first().click();
+/** A listener on `location-changed`, so a test can tell the navigation actually fired, not only that `history.pushState` ran. */
+async function watchLocationChanged(page: Page) {
+  await page.evaluate(() => { (window as any).__locChanged = false; window.addEventListener("location-changed", () => { (window as any).__locChanged = true; }); });
+}
+
+test("S4.6: switch panel \"Controls...\" picks two lights, confirms, posts the built automation, then opens it in Home Assistant's editor", async ({ page }) => {
+  await withAutomationWriter(page, CTRL_HA);
+  await watchLocationChanged(page);
+  await selectHallSwitch2(page);
+  await page.locator("#vctl").selectOption("light.demo_living");
+  await expect(page.locator("#panel")).toContainText('For one light, "Create a light from this switch" above is simpler than an automation.');
+  await page.locator("#vctl").selectOption("light.demo_kitchen");
+  await expect(page.locator("#panel")).not.toContainText('simpler than an automation');
+  await page.locator("#vctlgo").click();
+  await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
+  expect(await calls(page)).toHaveLength(0); // asking is not doing
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual({
+    alias: "switch.demo_hall controls",
+    trigger: [
+      { platform: "state", entity_id: "switch.demo_hall", to: "on", id: "on" },
+      { platform: "state", entity_id: "switch.demo_hall", to: "off", id: "off" },
+    ],
+    action: [{ choose: [
+      { conditions: [{ condition: "trigger", id: "on" }], sequence: [{ service: "homeassistant.turn_on", target: { entity_id: ["light.demo_living", "light.demo_kitchen"] } }] },
+      { conditions: [{ condition: "trigger", id: "off" }], sequence: [{ service: "homeassistant.turn_off", target: { entity_id: ["light.demo_living", "light.demo_kitchen"] } }] },
+    ] }],
+  });
+  await expect(page.locator("#status")).toContainText("Created the automation");
+  await expect.poll(() => page.evaluate(() => location.pathname)).toBe("/config/automation/edit/fp_test123");
+  expect(await page.evaluate(() => (window as any).__locChanged)).toBe(true);
+});
+
+test("S4.6 break it: Cancel and a failing Home Assistant write nothing, and a switch forced to target itself is refused \"A switch cannot control itself.\"", async ({ page }) => {
+  await withAutomationWriter(page, CTRL_HA);
+  await selectHallSwitch2(page);
+  await page.locator("#vctl").selectOption("light.demo_living");
+  await page.locator("#vctlgo").click();
+  await page.locator("#fp-confirm-no").click();
+  expect(await calls(page)).toHaveLength(0);
+
+  await withAutomationWriter(page, CTRL_HA, { fail: "not_allowed" });
+  await selectHallSwitch2(page);
+  await page.locator("#vctl").selectOption("light.demo_kitchen"); // "living" is already in the draft from the block above
+  await page.locator("#vctlgo").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("Nothing was changed");
+
+  // controlsChoices (state.ts) never offers the switch's own entity, so force the draft directly to prove the
+  // refusal itself — switchControls (tests/editor/automations.test.ts) — is what actually stops it.
+  await withAutomationWriter(page, CTRL_HA);
+  await selectHallSwitch2(page);
+  await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any; el.st.controlsDraft = ["switch.demo_hall"]; el.requestUpdate(); }, EDITOR);
+  await page.locator("#vctlgo").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("A switch cannot control itself.");
+});
+
+test("S4.6: \"Schedule\" on a light panel picks on/off times, confirms, posts the built automation; a temperature sensor has no Schedule field", async ({ page }) => {
+  await withAutomationWriter(page, CTRL_HA);
+  await watchLocationChanged(page);
+  await page.locator("svg .dev-light").first().click(); // light.demo_living
+  await page.locator("#vschon").fill("07:30");
+  await page.locator("#vschoff").fill("23:00");
+  await page.locator("#vschgo").click();
+  await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual({
+    alias: "light.demo_living schedule",
+    trigger: [
+      { platform: "time", at: "07:30", id: "on" },
+      { platform: "time", at: "23:00", id: "off" },
+    ],
+    action: [{ choose: [
+      { conditions: [{ condition: "trigger", id: "on" }], sequence: [{ service: "homeassistant.turn_on", target: { entity_id: "light.demo_living" } }] },
+      { conditions: [{ condition: "trigger", id: "off" }], sequence: [{ service: "homeassistant.turn_off", target: { entity_id: "light.demo_living" } }] },
+    ] }],
+  });
+  await expect.poll(() => page.evaluate(() => location.pathname)).toBe("/config/automation/edit/fp_test123");
+
+  await page.locator("svg .dev-temp").first().click();
+  await expect(page.locator("#vschon")).toHaveCount(0);
+});
+
+const MOTION_HA = { floors: [], areas: [], entities: [
+  { id: "light.demo_living", name: "Living light", domain: "light" },
+  { id: "binary_sensor.demo_hall_motion", name: "Hall motion", domain: "binary_sensor" },
+  { id: "group.demo_lights", name: "Demo lights", domain: "group", members: ["light.demo_living"] },
+  { id: "group.demo_motion", name: "Demo motion", domain: "group", members: ["binary_sensor.demo_hall_motion"] },
+] };
+
+test("S4.6: the Group menu's \"Turns on...\" builds a motion-group automation, minutes converted to seconds", async ({ page }) => {
+  await withAutomationWriter(page, MOTION_HA);
+  await watchLocationChanged(page);
+  await menu(page, "Group");
+  await page.locator('#mGroup [data-group="group.demo_motion"]').click();
+  await menu(page, "Group"); // choosing a group closes the menu (S4.5); reopen it to reach "Turns on..."
+  await expect(page.locator("#motLightGrp")).toBeVisible();
+  await page.locator("#motLightGrp").selectOption("group.demo_lights");
+  await page.locator("#motMinutes").fill("5");
+  await page.locator("#motGo").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual({
+    alias: "group.demo_motion → group.demo_lights",
+    trigger: [
+      { platform: "state", entity_id: "group.demo_motion", to: "on", id: "on" },
+      { platform: "state", entity_id: "group.demo_motion", to: "off", for: { seconds: 300 }, id: "off" },
+    ],
+    action: [{ choose: [
+      { conditions: [{ condition: "trigger", id: "on" }], sequence: [{ service: "homeassistant.turn_on", target: { entity_id: "group.demo_lights" } }] },
+      { conditions: [{ condition: "trigger", id: "off" }], sequence: [{ service: "homeassistant.turn_off", target: { entity_id: "group.demo_lights" } }] },
+    ] }],
+  });
+  await expect.poll(() => page.evaluate(() => location.pathname)).toBe("/config/automation/edit/fp_test123");
+
+  // A light group, selected instead, offers no "Turns on...": only a motion group does.
+  await menu(page, "Group");
+  await page.locator('#mGroup [data-group="group.demo_lights"]').click();
+  await expect(page.locator("#motLightGrp")).toHaveCount(0);
+});

@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-23 S4.6 automations: one config with `choose`, `openAutomation` moved out of `hass-write.ts` for build safety
+
+Each of the three builders (`switchControls`, `motionLights`, `schedule`) returns one `AutomationConfig` with two triggers (ids "on"/"off") and a single `choose` action, not two separate automations — one POST, one entity, one thing for the user to find and edit in HA's own editor.
+
+`openAutomation(id)` (a `history.pushState` plus a `location-changed` event, no `hass` involved) was first written in `hass-write.ts` alongside `createAutomation`. That broke the file's own header rule — "the editor never imports this file" — the moment `editor-app.ts` needed to call it after a successful write: any value import from `hass-write.ts` pulls it into the standalone bundle, which the build already guards against (`grep hass-write dist/editor.html` must find nothing, per S4.1's Done note). Moved `openAutomation` into `automations.ts` (pure, already safe to import) and re-exported it from `hass-write.ts` so nothing else had to change. The `AutomationConfig` interface, previously declared once in each file, now lives only in `automations.ts`; `hass-write.ts` imports the type and re-exports it.
+
 ## 2026-09-23 S4.5 groups: Shift+click never mixes kinds, group membership rides on `HaData.entities[].members`, dimming is a new render mechanism
 
 Shift+click builds a `{t: "devs", is: number[]}` selection, but only by accumulating devices `groupKind` (`src/core/bind.ts`) already agrees share a kind; clicking a device of a different kind than the current selection starts a fresh single selection instead of joining or refusing. So a mixed selection can never reach the panel through normal use — `groupKind`'s own guard (unit-tested for every shape: single device, empty, mixed, non-groupable type, out-of-range index, unbound entity) is the only place "which kinds may group" is decided, and the panel is Playwright-tested with a forced mixed selection too, to confirm it stays silent even if that guard were ever bypassed elsewhere.

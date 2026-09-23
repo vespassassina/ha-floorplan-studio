@@ -4,6 +4,9 @@
  * or on save; each function is called by an explicit action the person has confirmed.
  */
 
+import type { AutomationConfig } from "./automations";
+export type { AutomationConfig } from "./automations";
+
 /** The part of `hass` a write needs. */
 export interface WriteHass {
   callWS<T>(msg: { type: string; [k: string]: unknown }): Promise<T>;
@@ -21,6 +24,8 @@ export interface HaWriter {
   /** S4.10: everything in this Home Assistant instance labelled `floorplan-studio`, so it can be found again and removed. */
   listLabelled(): Promise<Labelled[]>;
   removeLabelled(item: Labelled): Promise<void>;
+  /** S4.6: creates the automation, labelled `floorplan-studio`. Resolves to its own id (used to open it in HA's editor). */
+  createAutomation(cfg: AutomationConfig): Promise<string>;
 }
 
 /** The label everything the tool creates carries, so the person can find it in HA and remove it. */
@@ -123,6 +128,32 @@ export async function listLabelled(hass: WriteHass): Promise<Labelled[]> {
   return out;
 }
 
+/**
+ * S4.6: creates the automation under a fresh id (`fp_` + random), the same way HA's own UI does. The registry needs a
+ * moment to register the new `automation.*` entity (found by its `unique_id`, which is this id), exactly as
+ * `createHelper` waits for its own entity; the label is added the same way once it appears.
+ */
+export async function createAutomation(hass: WriteHass, cfg: AutomationConfig, opt: HelperOptions = {}): Promise<string> {
+  const labelId = await ensureLabel(hass);
+  const id = `fp_${Math.random().toString(36).slice(2, 10)}`;
+  await hass.callApi("POST", `config/automation/config/${id}`, cfg as unknown as Record<string, unknown>);
+  const tries = opt.tries ?? 10, ms = opt.retryMs ?? 500;
+  for (let n = 0; n < tries; n++) {
+    const all = await hass.callWS<EntityEntry[]>({ type: "config/entity_registry/list" });
+    const hit = all.find((e) => e.unique_id === id);
+    if (hit) {
+      await hass.callWS({ type: "config/entity_registry/update", entity_id: hit.entity_id, labels: [...new Set([...(hit.labels ?? []), labelId])] });
+      return id;
+    }
+    if (n < tries - 1) await new Promise((res) => setTimeout(res, ms));
+  }
+  throw new Error("Home Assistant made the automation but it did not appear in time; look for it under Settings, Automations.");
+}
+
+/** `openAutomation` actually lives in `automations.ts` (it touches no `hass`, and the editor must never import this
+ * file) — re-exported here so the panel host and this file's own tests can still reach it from one place. */
+export { openAutomation } from "./automations";
+
 /** Removes the HA-side thing a `Labelled` row points at. Never touches the plan: that is a separate, ordinary "remove from plan" edit. */
 export async function removeLabelled(hass: WriteHass, item: Labelled): Promise<void> {
   if (item.kind === "helper") await hass.callApi("DELETE", `config/config_entries/entry/${item.id}`);
@@ -139,5 +170,6 @@ export function makeWriter(hass: WriteHass): HaWriter {
     createHelper: (h, s) => createHelper(hass, h, s),
     listLabelled: () => listLabelled(hass),
     removeLabelled: (item) => removeLabelled(hass, item),
+    createAutomation: (cfg) => createAutomation(hass, cfg),
   };
 }
