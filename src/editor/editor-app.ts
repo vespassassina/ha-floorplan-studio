@@ -33,7 +33,8 @@ type Hit =
   | { k: "bg" };
 
 /** S4.18/S4.27: what the right-click context menu opened on. */
-type CtxTarget = { k: "room"; i: number } | { k: "edge"; poly: string; i: number } | { k: "wall"; i: number };
+type CtxTarget = { k: "room"; i: number } | { k: "edge"; poly: string; i: number }
+  | { k: "wall"; i: number } | { k: "door"; i: number } | { k: "opening"; i: number } | { k: "furn"; i: number } | { k: "unl"; i: number };
 
 type Drag =
   | { type: "pan"; sx: number; sy: number; v: View; button: number; moved: boolean }
@@ -41,6 +42,7 @@ type Drag =
   | { type: "edge"; base: Floor; ends: { from: Pt; ref: PtRef }[]; start: Pt; moved: boolean; to: Pt[] }
   | { type: "dend"; base: Floor; i: number; end: "a" | "b"; moved: boolean }
   | { type: "door"; base: Floor; i: number; off: Pt; len: number; moved: boolean }
+  | { type: "opening"; base: Floor; i: number; off: Pt; len: number; moved: boolean }
   | { type: "dev"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "furn"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "unl"; base: Floor; i: number; off: Pt; moved: boolean }
@@ -512,20 +514,21 @@ export class FloorplanStudioEditor extends LitElement {
         const m = f.furniture[hit.i];
         if (!m) break;
         st.sel = { t: "furn", i: hit.i };
-        this.drag = { type: "furn", base, i: hit.i, off: [p[0] - m.x, p[1] - m.y], moved: false };
+        if (!m.locked) this.drag = { type: "furn", base, i: hit.i, off: [p[0] - m.x, p[1] - m.y], moved: false };
         break;
       }
       case "fscale": {
-        if (!f.furniture[hit.i]) break;
+        const m = f.furniture[hit.i];
+        if (!m) break;
         st.sel = { t: "furn", i: hit.i };
-        this.drag = { type: "fscale", base, i: hit.i, corner: hit.corner, moved: false };
+        if (!m.locked) this.drag = { type: "fscale", base, i: hit.i, corner: hit.corner, moved: false };
         break;
       }
       case "unl": {
         const u = f.unlinked[hit.i];
         if (!u) break;
         st.sel = { t: "unl", i: hit.i };
-        this.drag = { type: "unl", base, i: hit.i, off: [p[0] - u.x, p[1] - u.y], moved: false };
+        if (!u.locked) this.drag = { type: "unl", base, i: hit.i, off: [p[0] - u.x, p[1] - u.y], moved: false };
         break;
       }
       case "edge": case "wall": {
@@ -570,7 +573,14 @@ export class FloorplanStudioEditor extends LitElement {
         st.sel = { t: "stairs", i: hit.i };
         if (f.stairs[hit.i]) this.drag = { type: "room", base, list: "stairs", i: hit.i, start: p, moved: false };
         break;
-      case "opening": st.sel = { t: "opening", i: hit.i }; break;
+      case "opening": {
+        const o = f.openings[hit.i];
+        if (!o) break;
+        st.sel = { t: "opening", i: hit.i };
+        // S4.9: locked keeps an opening's length fixed for endpoint drags; it does not stop a whole-body slide, matching a door.
+        this.drag = { type: "opening", base, i: hit.i, off: [p[0] - (o.a[0] + o.b[0]) / 2, p[1] - (o.a[1] + o.b[1]) / 2], len: dist(o.a, o.b), moved: false };
+        break;
+      }
       default:
         st.sel = null;
         this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: ev.button, moved: false };
@@ -647,6 +657,14 @@ export class FloorplanStudioEditor extends LitElement {
         this.begin(d);
         g = structuredClone(d.base);
         Object.assign(g.doors[d.i], segmentAt(e.q, e.u, d.len));
+        break;
+      }
+      case "opening": {
+        const c: Pt = [p[0] - d.off[0], p[1] - d.off[1]], e = nearestEdge(d.base, c, 60, HOST);
+        if (!e) return;
+        this.begin(d);
+        g = structuredClone(d.base);
+        Object.assign(g.openings[d.i], segmentAt(e.q, e.u, d.len));
         break;
       }
       case "dev": {
@@ -805,10 +823,11 @@ export class FloorplanStudioEditor extends LitElement {
       if (this.edgeKind(hit.poly, hit.i) === "none") { this.closeCtxMenu(); return; }
       this.st.sel = { t: "edge", poly: hit.poly, i: hit.i };
       this.ctxMenu = { x: clientX, y: clientY, target: { k: "edge", poly: hit.poly, i: hit.i } };
-    } else if (hit.k === "wall") {
-      if (!this.st.f.walls[hit.i]) { this.closeCtxMenu(); return; }
-      this.st.sel = { t: "wall", i: hit.i };
-      this.ctxMenu = { x: clientX, y: clientY, target: { k: "wall", i: hit.i } };
+    } else if (hit.k === "wall" || hit.k === "door" || hit.k === "opening" || hit.k === "furn" || hit.k === "unl") {
+      const list = hit.k === "wall" ? this.st.f.walls : hit.k === "door" ? this.st.f.doors : hit.k === "opening" ? this.st.f.openings : hit.k === "furn" ? this.st.f.furniture : this.st.f.unlinked;
+      if (!list[hit.i]) { this.closeCtxMenu(); return; }
+      this.st.sel = { t: hit.k, i: hit.i };
+      this.ctxMenu = { x: clientX, y: clientY, target: { k: hit.k, i: hit.i } };
     } else { this.closeCtxMenu(); return; }
     this.focus({ preventScroll: true }); // a right click never focuses the host on its own; Escape needs it to
     this.requestUpdate();
@@ -829,6 +848,7 @@ export class FloorplanStudioEditor extends LitElement {
       this.closeCtxMenu();
       return;
     }
+    if (t.k !== "edge") return; // Delete lives only on the room, wall and edge menus
     const pts = polyPts(this.st.f, t.poly);
     if (!pts) { this.closeCtxMenu(); return; }
     const a = pts[t.i], b = pts[(t.i + 1) % pts.length], key = `${t.poly}:${t.i}`, n = onEdge(this.st.f, a, b);
@@ -836,6 +856,31 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.confirmEdge = null;
     this.commit((f) => deleteEdge(f, t.poly, t.i));
     this.st.sel = null;
+    this.closeCtxMenu();
+  }
+
+  /** Whether the ctx menu's target is currently locked (fixed): false for a room or an edge, neither of which has the field. */
+  private lockedOf(t: CtxTarget): boolean {
+    const f = this.st.f;
+    if (t.k === "wall") return !!f.walls[t.i]?.locked;
+    if (t.k === "door") return !!f.doors[t.i]?.locked;
+    if (t.k === "opening") return !!f.openings[t.i]?.locked;
+    if (t.k === "furn") return !!f.furniture[t.i]?.locked;
+    if (t.k === "unl") return !!f.unlinked[t.i]?.locked;
+    return false;
+  }
+  /** Toggles the ctx menu's target between fixed and unfixed, one undo step, then closes the menu. A wall or opening
+   *  fixed this way keeps its length on drag (S4.9); furniture and an unlinked device simply stop being draggable. */
+  private ctxToggleLock() {
+    const t = this.ctxMenu?.target;
+    if (!t) return;
+    const next = !this.lockedOf(t);
+    if (t.k === "wall") this.commit((f) => { if (f.walls[t.i]) f.walls[t.i].locked = next; });
+    else if (t.k === "door") this.commit((f) => { if (f.doors[t.i]) f.doors[t.i].locked = next; });
+    else if (t.k === "opening") this.commit((f) => { if (f.openings[t.i]) f.openings[t.i].locked = next; });
+    else if (t.k === "furn") this.commit((f) => { if (f.furniture[t.i]) f.furniture[t.i].locked = next; });
+    else if (t.k === "unl") this.commit((f) => { if (f.unlinked[t.i]) f.unlinked[t.i].locked = next; });
+    else return;
     this.closeCtxMenu();
   }
 
@@ -860,11 +905,18 @@ export class FloorplanStudioEditor extends LitElement {
     this.closeCtxMenu();
   }
 
-  /** S4.27: places a new opening centred on the right-click point — the same `addOpeningGap` an Add-menu item uses, anchored at the click instead of the view's centre. */
+  /** S4.27: places a new opening (a gap) centred on the right-click point — the same `addOpeningGap` an Add-menu item uses, anchored at the click instead of the view's centre. */
   private ctxAddOpening() {
     const m = this.ctxMenu;
     if (!m) return;
     this.addOpeningGap(120, this.toSvg({ clientX: m.x, clientY: m.y }));
+    this.closeCtxMenu();
+  }
+  /** S4.27: places a new door or window centred on the right-click point, the same way `ctxAddOpening` places a gap. */
+  private ctxAddDoor(kind: "door" | "window", len: number) {
+    const m = this.ctxMenu;
+    if (!m) return;
+    this.addDoor(kind, len, this.toSvg({ clientX: m.x, clientY: m.y }));
     this.closeCtxMenu();
   }
 
@@ -880,7 +932,12 @@ export class FloorplanStudioEditor extends LitElement {
 
   /** S4.18/S4.27's menu markup, positioned at the click (`position:fixed`, so no container-relative math is needed). */
   private ctxMenuView(m: { x: number; y: number; target: CtxTarget }) {
-    return html`<div class="ctxmenu" style="left:${m.x}px;top:${m.y}px">${m.target.k === "room" ? this.roomCtxItems(m.target.i) : this.wallCtxItems(m.target)}</div>`;
+    const t = m.target;
+    let items;
+    if (t.k === "room") items = this.roomCtxItems(t.i);
+    else if (t.k === "edge" || t.k === "wall") items = this.wallCtxItems(t);
+    else items = this.fixCtxItems(t);
+    return html`<div class="ctxmenu" style="left:${m.x}px;top:${m.y}px">${items}</div>`;
   }
 
   /** Device colours: a floating, draggable panel (View > Device colours), a 3-column grid of every device type's colour and reset. */
@@ -934,8 +991,18 @@ export class FloorplanStudioEditor extends LitElement {
       ${WALL_KINDS.filter((k) => k !== kind).map((k) => html`<button class="btn" @click=${() => this.ctxSetKind(k)}>${WALL_LABELS[k]}</button>`)}
       <div class="sep"></div>
       ${t.k === "edge" ? html`<button class="btn" @click=${() => this.ctxAddPoint()}>Add a point</button>` : nothing}
-      <button class="btn" @click=${() => this.ctxAddOpening()}>Add an opening</button>
+      <details class="sub" id="cmAddOpening"><summary class="btn">Add an opening</summary>
+        <button class="btn" @click=${() => this.ctxAddDoor("door", 90)}>Door</button>
+        <button class="btn" @click=${() => this.ctxAddDoor("window", 120)}>Window</button>
+        <button class="btn" @click=${() => this.ctxAddOpening()}>Opening</button>
+      </details>
+      ${t.k === "wall" ? html`<button class="btn" @click=${() => this.ctxToggleLock()}>${this.lockedOf(t) ? "Unfix" : "Fix"}</button>` : nothing}
       <button class="btn warn" @click=${() => this.ctxDelete()}>Delete</button>`;
+  }
+
+  /** S4.27/S4.29: a door, opening, furniture piece or unlinked device offers only Fix/Unfix — delete already lives on its own side panel. */
+  private fixCtxItems(t: Extract<CtxTarget, { k: "door" | "opening" | "furn" | "unl" }>) {
+    return html`<button class="btn" @click=${() => this.ctxToggleLock()}>${this.lockedOf(t) ? "Unfix" : "Fix"}</button>`;
   }
 
   /** Zoom by `k` (below 1 zooms in) about the middle of what is shown; 0 fits the whole floor again. A view change only: no layout edit, no undo step. */
@@ -1103,9 +1170,9 @@ export class FloorplanStudioEditor extends LitElement {
     } else this.requestUpdate();
   }
 
-  private addDoor(kind: "door" | "window", len: number) {
+  private addDoor(kind: "door" | "window", len: number, at?: Pt) {
     this.stopDraw();
-    const c = this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
+    const c = at ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
     this.commit((f) => { f.doors.push({ id: newId(f, floor, "door"), name: `new ${kind}`, kind, ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
     this.st.sel = { t: "door", i: this.st.f.doors.length - 1 };
     this.requestUpdate();

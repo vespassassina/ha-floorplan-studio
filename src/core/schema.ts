@@ -48,8 +48,9 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * entity attached to this device — several allowed, unlike `bound`.
  */
 export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
-/** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. */
-export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string }
+/** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
+ *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. */
+export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean }
 /**
  * S4.25: an appliance placed on the plan with a fixed icon (by `type`, from `UNLINKED_TYPES`), not tied to a
  * single entity's state. `attached` is zero or more HA entities linked to it for reference only — it never
@@ -57,7 +58,7 @@ export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: 
  * `scale` (0.25-4) resizes the icon, `rot` turns it. Furniture reused a swappable symbol; this reuses the
  * device icon set instead because the point is "this is a heater", not "this is shaped like one".
  */
-export interface Unlinked { id: string; type: DeviceType; name?: string; x: number; y: number; rot: number; scale: number; color?: string; attached?: string[] }
+export interface Unlinked { id: string; type: DeviceType; name?: string; x: number; y: number; rot: number; scale: number; color?: string; attached?: string[]; locked?: boolean }
 /** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. */
 export interface Floor {
   ha?: string; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
@@ -244,6 +245,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       for (const k of ["x", "y", "rot", "w", "h"]) if (typeof m[k] !== "number" || !Number.isFinite(m[k])) errors.push(`${at} ${m.id} ${k} must be a number`);
       // S1.51: a piece of furniture is never smaller than 5 cm or bigger than 2000 cm on a side.
       for (const k of ["w", "h"] as const) if (typeof m[k] === "number" && Number.isFinite(m[k]) && (m[k] < 5 || m[k] > 2000)) errors.push(`${at} ${m.id} ${k} must be between 5 and 2000`);
+      if (m.locked !== undefined && typeof m.locked !== "boolean") errors.push(`${at} ${m.id} locked must be true or false`);
     });
     each("unlinked", (u) => {
       oneOf(`${u.id} type`, u.type, DEVICE_TYPES);
@@ -253,6 +255,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (!(typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale >= 0.25 && u.scale <= 4)) errors.push(`${at} ${u.id} scale must be a number from 0.25 to 4`);
       if (u.color !== undefined && !(typeof u.color === "string" && /^#[0-9a-fA-F]{6}$/.test(u.color))) errors.push(`${at} ${u.id} color must be a colour like #aabbcc`);
       entityList(u, "attached", "light.name");
+      if (u.locked !== undefined && typeof u.locked !== "boolean") errors.push(`${at} ${u.id} locked must be true or false`);
     });
   }
   return errors.length ? { ok: false, errors } : { ok: true, layout: x as unknown as Layout };
