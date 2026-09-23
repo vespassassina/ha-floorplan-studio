@@ -307,8 +307,15 @@ describe("renderFloor", () => {
   });
 
   it("filters devices by type and keeps the selected one", () => {
-    const html = renderFloor(ground, { ...base, filter: "switch", selection: { t: "dev", i: 0 } });
+    const html = renderFloor(ground, { ...base, filter: ["switch"], selection: { t: "dev", i: 0 } });
     expect(html.match(/<g[^>]*data-x="/g)).toHaveLength(2);
+  });
+
+  it("filters devices by several types at once", () => {
+    const both = renderFloor(ground, { ...base, filter: ["switch", "light"] }).match(/<g[^>]*data-x="/g)?.length;
+    const single = renderFloor(ground, { ...base, filter: ["switch"] }).match(/<g[^>]*data-x="/g)?.length ?? 0;
+    expect(both).toBeGreaterThan(single); // adding a second type shows more devices than either alone
+    expect(renderFloor(ground, { ...base, filter: [...DEVICE_TYPES] })).toBe(renderFloor(ground, { ...base, filter: [] })); // every type checked equals no filter at all
   });
 
   it("escapes names", () => {

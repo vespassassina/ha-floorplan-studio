@@ -121,7 +121,8 @@ export class EditorState {
   floor: string;
   sel: Sel = null;
   views: Record<string, View> = {};
-  filter: DeviceType | "" = "";
+  /** The toolbar's device-type filter: empty shows every type, several may be checked at once. */
+  filter: DeviceType[] = [];
   showNames = false;
   /** S4.5: the Group menu's chosen HA group entity, dimming every device not among its members. Kept for the session, never the layout. */
   activeGroup: string | null = null;

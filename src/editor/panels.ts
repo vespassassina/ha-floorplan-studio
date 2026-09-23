@@ -456,12 +456,12 @@ function roomLink(c: PanelCtx, ha: HaData, i: number) {
   };
   const opt = (a: { id: string; name: string }) => html`<option value=${a.id} ?selected=${a.id === r.area}>${a.name}</option>`;
   return html`${hits.length === 1 ? html`<p><button class="btn" id="rmatch" @click=${() => pick(hits[0].id)}>Link to the Home Assistant area ${hits[0].name}</button></p>` : nothing}
-    <label for="ra">area</label><select id="ra" ?disabled=${!!r.area && !unknown} .value=${live(r.area)} @change=${(e: Event) => pick(val(e))}>
+    <label for="ra">area</label><select id="ra" @change=${(e: Event) => pick(val(e))}>
       <option value="" ?selected=${!r.area}>(no area — custom)</option>
       ${free.map(opt)}
       ${taken.length ? html`<optgroup label="Already on the plan">${taken.map(opt)}</optgroup>` : nothing}
       ${unknown ? missingOpt(r.area) : nothing}
-    </select>${unknown ? hint(NOT_IN_HA) : r.area ? hint("Linked to this Home Assistant area. Delete the room to link a different one.") : nothing}
+    </select>${unknown ? hint(NOT_IN_HA) : nothing}
     ${c.createArea && r.kind !== "water" && r.name.trim() && (!r.area || unknown) ? html`<p>${button("rcreate", `Create area ${r.name.trim()} in Home Assistant`, () => c.createArea!(i))}</p>` : nothing}
     ${r.area ? nothing : html`${text("plan name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
     ${entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}`;

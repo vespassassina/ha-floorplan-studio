@@ -1529,10 +1529,10 @@ export class FloorplanStudioEditor extends LitElement {
           ? html`<input id="newFloor" type="text" aria-label="Title of the new floor" placeholder="Floor title" @keydown=${this.onNewFloorKey} @blur=${() => { if (document.hasFocus()) this.addingFloor = false; }}>`
           : html`<button class="chip" id="addFloor" title="Add a floor" aria-label="Add a floor" @click=${() => this.startAddFloor()}>+</button>`}
         <span class="grow"></span>
-        <select id="filter" aria-label="Filter devices" .value=${st.filter} @change=${(e: Event) => { st.filter = (e.target as HTMLSelectElement).value as DeviceType | ""; st.sel = null; this.requestUpdate(); }}>
-          <option value="" ?selected=${!st.filter}>Devices: all (${f.devices.length})</option>
-          ${TYPE_LABELS.map(([t, label]) => html`<option value=${t} ?selected=${st.filter === t}>${label} (${counts[t] ?? 0})</option>`)}
-        </select>
+        <details class="menu" id="filter"><summary class="btn" aria-label="Filter devices">${st.filter.length ? `Devices: ${st.filter.length} type${st.filter.length > 1 ? "s" : ""}` : `Devices: all (${f.devices.length})`}</summary><div class="box">
+          <button class="btn keep" id="filterAll" ?disabled=${!st.filter.length} @click=${() => { st.filter = []; st.sel = null; this.requestUpdate(); }}>All</button>
+          ${TYPE_LABELS.map(([t, label]) => html`<button class="btn keep" data-filter=${t} aria-pressed=${pressed(st.filter.includes(t))} @click=${() => { st.filter = st.filter.includes(t) ? st.filter.filter((x) => x !== t) : [...st.filter, t]; st.sel = null; this.requestUpdate(); }}>${label} (${counts[t] ?? 0})</button>`)}
+        </div></details>
         <button class="chip" id="names" aria-pressed=${pressed(st.showNames)} title="Show every visible device's name on the plan" @click=${() => { st.showNames = !st.showNames; this.requestUpdate(); }}>Names</button>
         <details class="menu" id="mAdd"><summary class="btn">Add</summary><div class="box">
           <details class="sub" id="addOpenings"><summary class="btn">Openings</summary>

@@ -1465,12 +1465,35 @@ test("draw items keep the single-shape Add items: Zone still adds a square in on
   expect((await groundOf(page)).rooms.at(-1)!.kind).toBe("zone");
 });
 
+test("the plan filter checks several device types at once, dropping any one un-checks it, All clears the filter", async ({ page }) => {
+  const total = await page.locator("svg .dev").count();
+  const lights = await page.locator("svg .dev-light").count(), switches = await page.locator("svg .dev-switch").count();
+  expect(total).toBeGreaterThan(lights + switches); // the demo has other device types too, or this test proves nothing
+
+  await page.locator("#filter summary").click();
+  await page.locator('#filter [data-filter="light"]').click();
+  await expect(page.locator("svg .dev:visible")).toHaveCount(lights);
+  await expect(page.locator('#filter [data-filter="light"]')).toHaveAttribute("aria-pressed", "true");
+
+  await page.locator('#filter [data-filter="switch"]').click();
+  await expect(page.locator("svg .dev:visible")).toHaveCount(lights + switches);
+  await expect(page.locator("#filter summary")).toHaveText("Devices: 2 types");
+
+  await page.locator('#filter [data-filter="light"]').click(); // un-check one, the other stays checked
+  await expect(page.locator("svg .dev:visible")).toHaveCount(switches);
+  await expect(page.locator('#filter [data-filter="switch"]')).toHaveAttribute("aria-pressed", "true");
+
+  await page.locator("#filterAll").click();
+  await expect(page.locator("svg .dev:visible")).toHaveCount(total);
+  await expect(page.locator("#filter summary")).toHaveText(`Devices: all (${total})`);
+});
+
 // ---- S1.12 Device menu -------------------------------------------------------
 const search = (page: Page) => page.locator("#devSearch");
 const shown = (page: Page) => page.locator("#mDev button[data-dev]:visible");
 
 test("the toolbar order is Add, Draw, View, File; Device is a submenu of Add, after Unlinked device", async ({ page }) => {
-  await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Draw", "View", "File"]);
+  await expect(page.locator("details.menu > summary")).toHaveText(["Devices: all (8)", "Add", "Draw", "View", "File"]);
   await expect(page.locator("#mAdd select")).toHaveCount(2); // furniture and unlinked-device selects (S4.25)
   await menu(page, "Add");
   const subs = await page.locator("#mAdd > .box > *").evaluateAll((els) => els.map((e) => e.id || e.tagName));
@@ -2437,7 +2460,7 @@ const DRAW_IDS = ["drawRoom", "drawZone", "drawWater", "drawOutline", "drawWall-
 test("the Add menu holds no Draw item and no Water; the Draw menu holds all eleven", async ({ page }) => {
   for (const id of [...DRAW_IDS, "addWater", "addWall"]) await expect(page.locator(`#mAdd #${id}`)).toHaveCount(0);
   await expect(page.locator("#mAdd .grp, #mAdd .sep").filter({ hasText: /Draw/ })).toHaveCount(0);
-  const ids = await page.locator("#mAdd button").evaluateAll((b) => b.map((x) => x.id));
+  const ids = await page.locator("#mAdd button").evaluateAll((b) => b.filter((x) => !x.closest("#mDev")).map((x) => x.id));
   expect(ids).toEqual(["addDoor", "addWin", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addStr", "addZone", "addStairs"]);
   await expect(page.locator("#mAdd select#addFurn")).toHaveCount(1);
   expect(await page.locator("#mDraw button").evaluateAll((b) => b.map((x) => x.id))).toEqual(DRAW_IDS);
@@ -2488,8 +2511,8 @@ test("S4.11: Tab reaches every Add item in DOM order, submenus included", async 
   await page.locator(`#mAdd details.sub > summary:text-is("Openings")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Wall")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Areas")`).click();
-  const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.map((e) => e.id || e.textContent?.trim()));
-  expect(order).toEqual(["Openings", "addDoor", "addWin", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "addFurn", "addUnlDev"]);
+  const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.filter((e) => !e.closest("#mDev") || (e.tagName === "SUMMARY" && e.parentElement?.id === "mDev")).map((e) => e.id || e.textContent?.trim()));
+  expect(order).toEqual(["Openings", "addDoor", "addWin", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "addFurn", "addUnlDev", "Device"]);
 });
 
 test("each Add, Wall item places a 200 cm wall of its kind at the spawn point, selected, in one undo step", async ({ page }) => {

@@ -7,7 +7,7 @@ import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
 export interface RenderOpts {
-  scale: number; selection?: { t: string; i: number } | null; showNames?: boolean; filter?: DeviceType | "";
+  scale: number; selection?: { t: string; i: number } | null; showNames?: boolean; filter?: DeviceType[];
   state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
@@ -416,7 +416,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const spots: Pt[] = [];
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
-    if (o.filter && o.filter !== d.type && !sel) return;
+    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (c.every(Number.isFinite)) spots.push(c);
   });
@@ -447,7 +447,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (d.type !== "light") return;
-    if (o.filter && o.filter !== d.type && !sel) return;
+    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
     if (classOf(d, o) !== "on") return;
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (!c.every(Number.isFinite)) return;
@@ -458,7 +458,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
-    if (o.filter && o.filter !== d.type && !sel) return;
+    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (!c.every(Number.isFinite)) return;
     // Value sensors in a garden room are outdoor sensors. Motion and contact keep their own state colours.
