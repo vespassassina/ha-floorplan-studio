@@ -4160,6 +4160,16 @@ test("Opus review CSS pair: wall kinds have their colour, thickness and dash (re
   expect(edge.dash).toBe("none");
 });
 
+test("CSS pair: furniture has its own fixed grey token, decoupled from idle devices", async ({ page }) => {
+  await addCssFixtures(page); // adds a "css-gate" furniture piece (patio-wood)
+  const furn = await page.locator("svg g.furn").first().evaluate((e) => getComputedStyle(e).color);
+  const idle = await page.locator("svg g.dev path:not(.halo)").first().evaluate((e) => getComputedStyle(e).fill);
+  expect(furn).toBe(rgb("#79766e"));
+  expect(furn).not.toBe(idle);
+  await setTheme(page, "midnight");
+  expect(await page.locator("svg g.furn").first().evaluate((e) => getComputedStyle(e).color)).toBe(rgb("#79766e"));
+});
+
 test("Opus review CSS pair: each room kind has its own fill; fill is hatched; zone is unfilled (render.test.ts:207-210, 371-394)", async ({ page }) => {
   await addCssFixtures(page);
   const fill = (k: string) => page.locator(`svg polygon.room-${k}`).first().evaluate((e) => getComputedStyle(e).fill);
