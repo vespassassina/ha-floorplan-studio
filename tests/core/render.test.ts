@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { DEVICE_TYPES, type Layout, type WallKind } from "../../src/core/schema";
+import { DEVICE_TYPES, UNLINKED_TYPES, type Layout, type WallKind } from "../../src/core/schema";
 import { stairSteps } from "../../src/core";
+import { DEVICE_ICONS } from "../../src/core/icons";
 import { renderFloor, viewBoxFor, planPivot, rotateAbout, contentPoints, DEVICE_COLOURS, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
 
 const L = demo as unknown as Layout;
@@ -879,7 +880,7 @@ describe("S2.9: a device wears its colour when it is on", () => {
 // from a deliberate grey — the S2.9 verifier found media, cover and other sitting there while SPEC promised media
 // an accent. This test makes every member of DEVICE_TYPES a decision someone had to write down.
 describe("S2.9: every device type has a decided active colour", () => {
-  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "battery", "inverter", "server", "access_point"]; // S2.13: these four are monitored, not switched
+  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "battery", "inverter", "server", "access_point", "boiler", "car", "ups", "printer", "speaker"]; // S2.13: these are monitored, not switched; the S4.25 five are unlinked-only types with no entity state to read, so never on
   it.each(DEVICE_TYPES)("%s either names its own --fp-dev or is idle on purpose", (t) => {
     if (t === "ac") return; // ac has two: .dev-ac.cool.on and .dev-ac.heat.on, tested below
     const rule = new RegExp(`\\.dev-${t}\\.on\\{--fp-dev:var\\((--fp-[a-z-]+)\\)\\}`);
@@ -1231,5 +1232,74 @@ describe("an air conditioner shows what it is doing (S2.10)", () => {
   it("the two colour rules exist and name real tokens", () => {
     expect(FLOORPLAN_CSS).toContain(".dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)}");
     expect(FLOORPLAN_CSS).toContain(".dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)}");
+  });
+});
+
+describe("unlinked appliances (S4.25)", () => {
+  const heater = { id: "u1", type: "heater" as const, x: 200, y: 200, rot: 0, scale: 1 };
+  const fl = { ...ground, unlinked: [heater] } as never;
+
+  it("draws one g[data-u] group per unlinked item, class 'dev unl', with the icon path for its type", () => {
+    const html = renderFloor(fl, base);
+    expect(html.match(/<g[^>]*data-u="/g)).toHaveLength(1);
+    const group = html.match(/<g data-u="0"[^>]*>[^]*?<\/g>/)![0];
+    expect(group).toContain('class="dev unl"');
+    expect(group).toContain(DEVICE_ICONS.heater);
+  });
+
+  it("never carries .on: an unlinked item has no entity state to read", () => {
+    const html = renderFloor(fl, base);
+    expect(html.match(/<g data-u="0"[^>]*>/)![0]).not.toContain(" on");
+  });
+
+  it("carries .sel when it is the current selection, mirroring a device", () => {
+    const sel = renderFloor(fl, { ...base, selection: { t: "unl", i: 0 } });
+    expect(sel.match(/<g data-u="0"[^>]*>/)![0]).toContain("dev unl sel");
+    const none = renderFloor(fl, { ...base, selection: { t: "dev", i: 0 } });
+    expect(none.match(/<g data-u="0"[^>]*>/)![0]).not.toContain("sel");
+  });
+
+  it("a per-instance color becomes --fp-dev-fill; a malformed one is dropped, not thrown on", () => {
+    const coloured = { ...ground, unlinked: [{ ...heater, color: "#ff0000" }] } as never;
+    expect(renderFloor(coloured, base)).toMatch(/data-u="0"[^>]*style="[^"]*--fp-dev-fill:#ff0000/);
+    const bad = { ...ground, unlinked: [{ ...heater, color: "red" }] } as never;
+    expect(renderFloor(bad, base).match(/<g data-u="0"[^>]*>/)![0]).not.toContain("--fp-dev-fill");
+  });
+
+  it("scale changes the group's transform scale, distinct from the plan's own k", () => {
+    const small = renderFloor({ ...ground, unlinked: [{ ...heater, scale: 0.25 }] } as never, base);
+    const big = renderFloor({ ...ground, unlinked: [{ ...heater, scale: 4 }] } as never, base);
+    const scaleOf = (svg: string) => Number(svg.match(/<g data-u="0"[^>]*>/)![0].match(/scale\(([\d.]+)\)/)![1]);
+    expect(scaleOf(big)).toBeCloseTo(scaleOf(small) * 16, 3); // 4 / 0.25 = 16x
+  });
+
+  it("rot turns the glyph itself, unlike a device's icon which counter-turns to stay upright (asymmetric check, not [1,0])", () => {
+    const html = renderFloor({ ...ground, unlinked: [{ ...heater, rot: 33 }] } as never, base);
+    const group = html.match(/<g data-u="0"[^>]*>[^]*?<\/g>/)![0];
+    expect(group).toContain('rotate(33 12 12)');
+    expect(group).not.toContain("rotate(-33 12 12)"); // no counter-turn: the icon visibly rotates, like furniture
+  });
+
+  it("attached does not change the class: it is reference-only, never state (Opus finding 12 discipline)", () => {
+    const withAttach = { ...ground, unlinked: [{ ...heater, attached: ["light.a"] }] } as never;
+    expect(renderFloor(withAttach, base).match(/<g data-u="0"[^>]*>/)![0]).toBe(renderFloor(fl, base).match(/<g data-u="0"[^>]*>/)![0]);
+  });
+
+  it("a non-finite x or y is skipped without throwing", () => {
+    const bad = { ...ground, unlinked: [{ ...heater, x: NaN }] } as never;
+    expect(() => renderFloor(bad, base)).not.toThrow();
+    expect(renderFloor(bad, base).match(/<g[^>]*data-u="/g)).toBeNull();
+  });
+
+  it("every UNLINKED_TYPES member has a real icon (finding 17: a union member is a decision, not a default)", () => {
+    for (const t of UNLINKED_TYPES) expect(DEVICE_ICONS[t], t).toBeTruthy();
+  });
+
+  it("the CSS fill override rule exists and names --fp-dev-fill with an idle fallback", () => {
+    expect(FLOORPLAN_CSS).toContain(".dev.unl path{fill:var(--fp-dev-fill,var(--fp-idle))}");
+  });
+
+  it("counts toward contentPoints, so Re-center reaches it", () => {
+    expect(contentPoints(fl).some((p) => p[0] === 200 && p[1] === 200)).toBe(true);
   });
 });

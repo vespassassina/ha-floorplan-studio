@@ -35,6 +35,7 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
   contact: "#d64545", camera: "#4a4a48", climate: "#e8801a", ac: "#2c7fb8", tv: "#2c7fb8", computer: "#2c7fb8", media: "#2c7fb8",
   cover: "#f28c28", battery: "#8b8578", inverter: "#8b8578", server: "#8b8578", access_point: "#8b8578",
   lock: "#d64545", vibration: "#d64545", other: "#8b8578",
+  boiler: "#8b8578", car: "#8b8578", ups: "#8b8578", printer: "#8b8578", speaker: "#8b8578",
 };
 
 // S1.53: the light and dark (now blueprint) token sets, each written once and interpolated wherever CSS needs it, so a new
@@ -151,6 +152,10 @@ export const FLOORPLAN_CSS = `
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
 .dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)}
+/* S4.25: an unlinked item has no on/off state of its own, so it never carries .on — it stays at the plain .dev
+   path idle-grey rule above unless the instance has its own --fp-dev-fill colour override, which this rule
+   (three classes, out-specifies the two-class .dev path default) lets through. */
+.dev.unl path{fill:var(--fp-dev-fill,var(--fp-idle))}
 .dev .halo{fill:var(--fp-disc);fill-opacity:var(--fp-disc-alpha);stroke:var(--fp-halo);stroke-width:1;vector-effect:non-scaling-stroke}
 .dev.on .halo{fill:var(--fp-dev);fill-opacity:var(--fp-alpha)}
 .aura{fill:var(--fp-aura);fill-opacity:var(--fp-alpha);pointer-events:none}
@@ -200,6 +205,7 @@ export function contentPoints(f: Floor): Pt[] {
   for (const k of ["walls", "doors", "openings", "extras"] as const) for (const o of f[k] ?? []) { add(o.a); add(o.b); }
   for (const m of f.furniture ?? []) add([m.x, m.y]);
   for (const d of f.devices ?? []) { if ("a" in d) { add(d.a); add(d.b); } else add([d.x, d.y]); }
+  for (const u of f.unlinked ?? []) add([u.x, u.y]);
   return out;
 }
 
@@ -495,6 +501,26 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       out.push(`<text class="val" x="${num(c[0])}" y="${num(c[1] + 24 * k)}"${up(c[0], c[1] + 24 * k)} text-anchor="middle" font-size="${num(11 * k)}">${bad ? "–" : esc(s.state + unit)}</text>`);
     }
     if (o.showNames || sel) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
+  });
+
+  // S4.25: an unlinked appliance. Flat idle-grey icon (no on/off state), an optional per-instance colour override,
+  // and its own scale/rot — otherwise the same group shape as a device icon, so selection (.sel) and hit-testing
+  // (data-u, mirroring data-x) need no new CSS or overlay code (finding 8, one draw path).
+  (f.unlinked ?? []).forEach((u, i) => {
+    if (!Number.isFinite(u.x) || !Number.isFinite(u.y)) return;
+    const sel = o.selection?.t === "unl" && o.selection.i === i;
+    const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1;
+    const rot = typeof u.rot === "number" && Number.isFinite(u.rot) && u.rot !== 0 ? u.rot : 0;
+    const uk = k * scale;
+    const style = u.color && COLOR.test(u.color) ? ` style="--fp-dev-fill:${u.color}"` : "";
+    const label = u.name ?? u.id;
+    const icon = `<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[u.type] ?? DEVICE_ICONS.other}"/>`;
+    // Unlike a device icon (which stays upright so a live state reads at a glance), an unlinked appliance is a
+    // placed object like furniture: `rot` turns the glyph itself, and it turns again with the plan when the
+    // plan is rotated (no counter-rotation) — found by looking at the render (npm run shots), not by the unit
+    // test alone: a copy of the device's "icon stays upright" logic left `rot` with no visible effect at all.
+    out.push(`<g data-u="${i}" class="dev unl${sel ? " sel" : ""}"${style} transform="translate(${at([u.x - 12 * uk, u.y - 12 * uk])}) scale(${num(uk)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${esc(String(u.type))}: ${esc(label)}</title>${icon}</g>`);
+    if (o.showNames || sel) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
   });
 
   if (o.editor)
