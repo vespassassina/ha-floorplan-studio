@@ -6,8 +6,10 @@ export interface HaData {
   floors: { id: string; name: string }[];
   areas: { id: string; name: string; floor_id?: string }[];
   /** `area` is the HA area id the entity sits in (its own, else its device's), null for none. `dc` is its device class, when it has one.
-   * `members` (S4.5) is a `group.*` entity's own `entity_id` list, from its state attributes; absent on everything else. */
-  entities: { id: string; name: string; domain: string; area?: string | null; dc?: string; /** the HA device it belongs to */ dev?: string; members?: string[] }[];
+   * `members` (S4.5) is a `group.*` entity's own `entity_id` list, from its state attributes; absent on everything else.
+   * `platform` (S4.7) is the integration that owns the entity (from the entity registry), used to tell a `switch_as_x` light
+   * apart from a physical one. `uid` (S4.7) is an automation or script's own registry `unique_id`, the id its HA editor URL takes. */
+  entities: { id: string; name: string; domain: string; area?: string | null; dc?: string; /** the HA device it belongs to */ dev?: string; members?: string[]; platform?: string; uid?: string }[];
 }
 
 /** Which entities suit a device type: [domain, device classes]. A class list of null means any class of that domain; a type with no rule (computer, server...) has none listed here and takes any entity. */
@@ -79,6 +81,34 @@ export function unplacedHaEntities(l: Layout, ha: HaData): HaData["entities"] {
   if (!Array.isArray(ha?.entities)) return [];
   const placed = placedEntities(l), catalogued = new Set(l.catalog.map((c) => c.entity));
   return ha.entities.filter((e) => !placed.has(e.id) && !catalogued.has(e.id));
+}
+
+/** S4.7: one row of the room box: an entity in the room's area, and whether it is already drawn on the plan. */
+export interface HaBoxRow { id: string; name: string; placed: boolean }
+
+/** S4.7: the room box's five headings, in the order they are shown. */
+export interface HaBox { devices: HaBoxRow[]; helpers: HaBoxRow[]; automations: HaBoxRow[]; scripts: HaBoxRow[]; scenes: HaBoxRow[] }
+
+/**
+ * S4.7: every entity of HA area `areaId`, grouped for the room box. `automation.*`/`script.*`/`scene.*` are their own headings;
+ * `group.*`, any `input_*` domain, and a `switch_as_x` light (told apart by `platform`, since domain alone reads as an ordinary
+ * light) are helpers; everything else is a device. Hostile or missing input never throws — an empty box, not a crash.
+ */
+export function roomHaBox(ha: HaData | undefined, areaId: string, placed: ReadonlySet<string>): HaBox {
+  const box: HaBox = { devices: [], helpers: [], automations: [], scripts: [], scenes: [] };
+  if (!ha || !Array.isArray(ha.entities) || !areaId) return box;
+  for (const e of ha.entities) {
+    if (!e || typeof e.id !== "string" || e.area !== areaId) continue;
+    const row: HaBoxRow = { id: e.id, name: e.name || e.id, placed: placed.has(e.id) };
+    if (e.domain === "automation") box.automations.push(row);
+    else if (e.domain === "script") box.scripts.push(row);
+    else if (e.domain === "scene") box.scenes.push(row);
+    else if (e.domain === "group" || e.domain.startsWith("input_") || (e.domain === "light" && e.platform === "switch_as_x")) box.helpers.push(row);
+    else box.devices.push(row);
+  }
+  const byName = (a: HaBoxRow, b: HaBoxRow) => a.name.localeCompare(b.name);
+  for (const rows of Object.values(box)) rows.sort(byName);
+  return box;
 }
 
 /** What to write to put `entity` in the HA area `area`, or null when it is there, unknown, or `area` is empty. The device moves when the entity is its only one; otherwise the entity alone, so its siblings stay. */

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { LABEL_NAME, createArea, createAutomation, createHelper, ensureLabel, listLabelled, makeWriter, openAutomation, removeLabelled, setDeviceArea, setEntityArea, type AutomationConfig, type WriteHass } from "../../src/editor/hass-write";
+import { LABEL_NAME, createArea, createAutomation, createHelper, ensureLabel, listLabelled, makeWriter, openAutomation, removeLabelled, runScene, setDeviceArea, setEntityArea, type AutomationConfig, type WriteHass } from "../../src/editor/hass-write";
 import { confirm, NO_UNDO } from "../../src/editor/confirm";
 
 type Msg = { type: string; [k: string]: unknown };
@@ -181,6 +181,19 @@ describe("S4.6: createAutomation / openAutomation", () => {
     expect(seen).toHaveLength(1);
     expect(seen[0].bubbles).toBe(true);
     expect(seen[0].composed).toBe(true);
+  });
+});
+
+describe("S4.7: runScene", () => {
+  it("calls scene.turn_on on the given entity", async () => {
+    const h = stub();
+    await runScene(h, "scene.dinner");
+    expect(h.callWS).toHaveBeenCalledWith({ type: "call_service", domain: "scene", service: "turn_on", target: { entity_id: "scene.dinner" } });
+  });
+  it("makeWriter exposes it", async () => {
+    const h = stub();
+    await makeWriter(h).runScene("scene.dinner");
+    expect(h.callWS).toHaveBeenCalledWith({ type: "call_service", domain: "scene", service: "turn_on", target: { entity_id: "scene.dinner" } });
   });
 });
 

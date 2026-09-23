@@ -5690,3 +5690,89 @@ test("S4.6: the Group menu's \"Turns on...\" builds a motion-group automation, m
   await page.locator('#mGroup [data-group="group.demo_lights"]').click();
   await expect(page.locator("#motLightGrp")).toHaveCount(0);
 });
+
+// ---- S4.7: room box --------------------------------------------------------------
+
+const BOX_HA = { floors: [], areas: [{ id: "living", name: "Living" }], entities: [
+  { id: "light.demo_living", name: "Living lamp", domain: "light", area: "living" }, // already placed on the demo floor
+  { id: "switch.living_fan", name: "Living fan", domain: "switch", area: "living" },
+  { id: "group.living_lights", name: "Living lights", domain: "group", area: "living" },
+  { id: "automation.living_off", name: "Living off", domain: "automation", area: "living" },
+  { id: "script.living_morning", name: "Living morning", domain: "script", area: "living" },
+  { id: "scene.living_movie", name: "Movie night", domain: "scene", area: "living" },
+  { id: "sensor.spare", name: "Spare sensor", domain: "sensor" }, // no area: not in this room's box, but in "Add to area..."
+] };
+async function withBoxWriter(page: Page, fail = "") {
+  await setHa(page, BOX_HA);
+  await page.evaluate(([tag, f]) => {
+    const w = window as any; w.__box = [];
+    (document.querySelector(tag as string) as any).writer = {
+      setEntityArea: async (e: string, a: string) => { w.__box.push(["area", e, a]); if (f) throw new Error(f as string); },
+      runScene: async (e: string) => { w.__box.push(["scene", e]); if (f) throw new Error(f as string); },
+    };
+  }, [EDITOR, fail]);
+}
+const boxCalls = (page: Page) => page.evaluate(() => (window as any).__box as unknown[][]);
+const selectLiving = (page: Page) => clickCm(page, 200, 150);
+
+test("S4.7: the room box lists the fixture's entities under the right headings, and marks the one already on the plan", async ({ page }) => {
+  await withBoxWriter(page);
+  await selectLiving(page);
+  const box = page.locator(".habox");
+  await expect(box).toContainText("Devices");
+  await expect(box).toContainText("Living lamp (on plan)");
+  await expect(box).toContainText("Living fan");
+  await expect(box).toContainText("Helpers");
+  await expect(box).toContainText("Living lights");
+  await expect(box).toContainText("Automations");
+  await expect(box).toContainText("Living off");
+  await expect(box).toContainText("Scripts");
+  await expect(box).toContainText("Living morning");
+  await expect(box).toContainText("Scenes");
+  await expect(box).toContainText("Movie night");
+  await expect(page.locator('.harow2:has-text("Spare sensor")')).toHaveCount(0); // it has no area: not a row of this room's box
+  await expect(page.locator("#haadd option")).toContainText(["Spare sensor"]); // it does show up as something that COULD be added
+});
+
+test("S4.7: Run calls scene.turn_on, and Open dispatches Home Assistant's more-info event with the entity id", async ({ page }) => {
+  await withBoxWriter(page);
+  await selectLiving(page);
+  await page.evaluate((tag) => { (window as any).__moreInfo = null; document.querySelector(tag as string)!.addEventListener("hass-more-info", (e: any) => { (window as any).__moreInfo = e.detail; }); }, EDITOR);
+  await page.locator('[data-ha-row="scene.living_movie"] button:has-text("Run")').click();
+  await expect.poll(async () => (await boxCalls(page)).length).toBe(1);
+  expect((await boxCalls(page))[0]).toEqual(["scene", "scene.living_movie"]);
+  await page.locator('[data-ha-row="light.demo_living"] button:has-text("Open")').click();
+  expect(await page.evaluate(() => (window as any).__moreInfo)).toEqual({ entityId: "light.demo_living" });
+});
+
+test('S4.7: "Add to area..." asks, then records the registry write for the picked entity; a failing Home Assistant changes nothing', async ({ page }) => {
+  await withBoxWriter(page);
+  await selectLiving(page);
+  await page.locator("#haadd").selectOption("sensor.spare");
+  await expect(page.locator("#fp-confirm")).toContainText("Add Spare sensor to Living?");
+  expect(await boxCalls(page)).toHaveLength(0);
+  await page.locator("#fp-confirm-no").click();
+  expect(await boxCalls(page)).toHaveLength(0);
+
+  await page.locator("#haadd").selectOption("sensor.spare");
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await boxCalls(page)).length).toBe(1);
+  expect((await boxCalls(page))[0]).toEqual(["area", "sensor.spare", "living"]);
+  await expect(page.locator("#status")).toContainText("Added Spare sensor to Living");
+
+  await withBoxWriter(page, "not_allowed");
+  await selectLiving(page);
+  await page.locator("#haadd").selectOption("sensor.spare");
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("Nothing was changed");
+});
+
+test("S4.7: a custom room with an entity shows that one row with no headings; with neither area nor entity it shows the no-area hint", async ({ page }) => {
+  await setHa(page, BOX_HA);
+  await page.locator('svg polygon[data-r="6"]').click({ force: true }); // Garden pond: no area, no entity yet
+  await expect(page.locator(".habox")).toHaveCount(0);
+  await expect(page.locator("#panel")).toContainText("No area: set one above.");
+  await page.locator("#rent").selectOption("light.demo_living");
+  await expect(page.locator(".habox")).toContainText("Living lamp");
+  await expect(page.locator(".habox")).not.toContainText("Devices"); // no headings for the single-entity case
+});

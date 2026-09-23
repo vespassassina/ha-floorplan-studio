@@ -1,8 +1,8 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { entitiesForType, groupKind, inside, placedEntities } from "../core";
+import { entitiesForType, groupKind, inside, placedEntities, roomHaBox } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaData, Room, RoomKind, WallKind } from "../core";
+import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 
@@ -45,6 +45,12 @@ export interface PanelCtx {
   controlsAutomation?: (devIndex: number, targets: string[]) => void;
   /** S4.6: build and create the "schedule" automation for the device at `devIndex`, after asking, then open it in HA. Absent without a writer. */
   scheduleAutomation?: (devIndex: number, on: string, off: string) => void;
+  /** S4.7: opens Home Assistant's own more-info dialog for an entity. Always present; harmless when nothing is listening (standalone build). */
+  moreInfo(entityId: string): void;
+  /** S4.7: runs a scene (`scene.turn_on`) from the room box. Absent without a writer. */
+  runScene?: (entityId: string) => void;
+  /** S4.7: puts an area-less HA entity into room `roomIndex`'s area, after asking. Absent without a writer. */
+  addToArea?: (roomIndex: number, entityId: string) => void;
   /** S4.3: the room whose HA area differs from the device's, when there is one, and the action that moves it there. */
   areaDiff?: (devIndex: number) => { name: string } | null;
   moveArea?: (devIndex: number) => void;
@@ -405,6 +411,7 @@ function roomPanel(c: PanelCtx, i: number) {
     }))}
     ${roomTurn(c, i)}
     ${paintControls(c, "rooms", i, "r", r)}
+    ${haBox(c, i)}
     <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${r.kind === "zone" ? hint("A zone is a dotted area inside a room. Give it an area id to map it to a Home Assistant area. Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag the body to move it. Drag corners to reshape. Select an edge and choose its kind.") : nothing}`;
@@ -446,6 +453,44 @@ function roomLink(c: PanelCtx, ha: HaData, i: number) {
     ${c.createArea && r.kind !== "water" && r.name.trim() && (!r.area || unknown) ? html`<p>${button("rcreate", `Create area ${r.name.trim()} in Home Assistant`, () => c.createArea!(i))}</p>` : nothing}
     ${r.area ? nothing : html`${text("plan name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
     ${entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}`;
+}
+
+/** S4.7: one row of the "In Home Assistant" box: its name, "Open" (more-info), and a kind-specific extra action. */
+function haRow(c: PanelCtx, row: HaBoxRow, kind?: "automation" | "script" | "scene", uid?: string) {
+  const edit = (seg: "automation" | "script") => `/config/${seg}/edit/${uid ?? row.id.split(".").slice(1).join(".")}`;
+  return html`<div class="harow2" data-ha-row=${row.id}>
+    <span>${row.name}${row.placed ? " (on plan)" : ""}</span>
+    <button class="btn keep" type="button" @click=${() => c.moreInfo(row.id)}>Open</button>
+    ${kind === "scene" && c.runScene ? html`<button class="btn keep" type="button" @click=${() => c.runScene!(row.id)}>Run</button>` : nothing}
+    ${(kind === "automation" || kind === "script") ? html`<a class="btn keep" href=${edit(kind)} target="_top">Edit in HA</a>` : nothing}
+  </div>`;
+}
+
+/**
+ * S4.7: below the room panel, everything Home Assistant has in the room's area, grouped under five headings (placed
+ * devices marked), plus "Add to area..." for an entity HA has in no area yet. A custom room (no area) with its own
+ * `entity` shows that one row instead; with neither, a hint that there is nothing to show.
+ */
+function haBox(c: PanelCtx, i: number) {
+  const ha = c.st.ha;
+  if (!ha) return nothing;
+  const r = c.st.f.rooms[i];
+  if (!r.area) {
+    if (!r.entity) return html`${hint("No area: set one above.")}`;
+    const e = ha.entities.find((x) => x.id === r.entity);
+    return html`<div class="habox"><strong>In Home Assistant</strong>${haRow(c, { id: r.entity, name: e?.name ?? r.entity, placed: true })}</div>`;
+  }
+  const box = roomHaBox(ha, r.area, placedEntities(c.st.layout));
+  const all: [string, HaBoxRow[], "automation" | "script" | "scene" | undefined][] = [
+    ["Devices", box.devices, undefined], ["Helpers", box.helpers, undefined],
+    ["Automations", box.automations, "automation"], ["Scripts", box.scripts, "script"], ["Scenes", box.scenes, "scene"],
+  ];
+  const groups = all.filter(([, rows]) => rows.length);
+  const free = byName(ha.entities.filter((e) => !e.area));
+  return html`<div class="habox"><strong>In Home Assistant</strong>
+    ${groups.length ? groups.map(([label, rows, kind]) => html`<p class="habox-h">${label}</p>${rows.map((row) => haRow(c, row, kind, kind ? ha.entities.find((e) => e.id === row.id)?.uid : undefined))}`) : hint("Nothing in this area yet.")}
+    ${c.addToArea && free.length ? html`<label for="haadd">Add to area...</label><select id="haadd" .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) c.addToArea!(i, v); }}>
+      <option value="" selected>(pick an entity)</option>${free.map((e) => html`<option value=${e.id}>${e.name}</option>`)}</select>` : nothing}</div>`;
 }
 
 /** Rotation of a room or zone (a turn, in degrees, about its middle) and the Unsnap toggle. A room that still shares a corner cannot turn. */

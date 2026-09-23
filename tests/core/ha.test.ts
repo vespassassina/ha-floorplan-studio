@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { applyHaNames, typeForEntity, unplacedHaEntities, type HaData } from "../../src/core/ha";
+import { applyHaNames, roomHaBox, typeForEntity, unplacedHaEntities, type HaData } from "../../src/core/ha";
 import { migrate } from "../../src/core/migrate";
 import v1 from "../../demo/layout.v1.json";
 import type { Layout } from "../../src/core/schema";
@@ -135,5 +135,48 @@ describe("applyHaNames (S1.37)", () => {
     expect(applyHaNames(plain, ha).changed).toBe(0);
     expect(applyHaNames(linked(), { floors: [], areas: [], entities: [] }).changed).toBe(0);
     expect(applyHaNames(linked(), { floors: null, areas: [{ id: "kitchen", name: 5 }, null] } as any).changed).toBe(0);
+  });
+});
+
+describe("roomHaBox (S4.7): the room box's grouping", () => {
+  const box: HaData = {
+    floors: [], areas: [],
+    entities: [
+      { id: "light.kitchen", name: "Kitchen light", domain: "light", area: "kitchen" },
+      { id: "switch.kettle", name: "Kettle", domain: "switch", area: "kitchen" },
+      { id: "light.helper", name: "Mock light", domain: "light", area: "kitchen", platform: "switch_as_x" },
+      { id: "group.kitchen_lights", name: "Kitchen lights", domain: "group", area: "kitchen" },
+      { id: "input_boolean.party_mode", name: "Party mode", domain: "input_boolean", area: "kitchen" },
+      { id: "automation.kettle_off", name: "Kettle off", domain: "automation", area: "kitchen" },
+      { id: "script.morning", name: "Morning", domain: "script", area: "kitchen" },
+      { id: "scene.dinner", name: "Dinner", domain: "scene", area: "kitchen" },
+      { id: "light.living", name: "Living light", domain: "light", area: "living" }, // a different area: never shown
+      { id: "sensor.no_area", name: "Loose", domain: "sensor" }, // no area: never shown
+    ],
+  };
+  it("sorts a physical light, a plug-domain switch and a switch_as_x light correctly into devices vs. helpers", () => {
+    const b = roomHaBox(box, "kitchen", new Set());
+    expect(b.devices.map((r) => r.id)).toEqual(["switch.kettle", "light.kitchen"]);
+    expect(b.helpers.map((r) => r.id)).toEqual(["light.helper", "group.kitchen_lights", "input_boolean.party_mode"].sort((a, x) => box.entities.find((e) => e.id === a)!.name.localeCompare(box.entities.find((e) => e.id === x)!.name)));
+  });
+  it("gives automations, scripts and scenes their own heading, and leaves out every other area and unassigned entity", () => {
+    const b = roomHaBox(box, "kitchen", new Set());
+    expect(b.automations.map((r) => r.id)).toEqual(["automation.kettle_off"]);
+    expect(b.scripts.map((r) => r.id)).toEqual(["script.morning"]);
+    expect(b.scenes.map((r) => r.id)).toEqual(["scene.dinner"]);
+    const all = [...b.devices, ...b.helpers, ...b.automations, ...b.scripts, ...b.scenes].map((r) => r.id);
+    expect(all).not.toContain("light.living");
+    expect(all).not.toContain("sensor.no_area");
+  });
+  it("marks a row placed when its id is in the given set", () => {
+    const b = roomHaBox(box, "kitchen", new Set(["light.kitchen"]));
+    expect(b.devices.find((r) => r.id === "light.kitchen")?.placed).toBe(true);
+    expect(b.devices.find((r) => r.id === "switch.kettle")?.placed).toBe(false);
+  });
+  it("break it: hostile or missing input never throws, and an empty area id returns an empty box", () => {
+    expect(roomHaBox(undefined, "kitchen", new Set())).toEqual({ devices: [], helpers: [], automations: [], scripts: [], scenes: [] });
+    expect(roomHaBox(box, "", new Set())).toEqual({ devices: [], helpers: [], automations: [], scripts: [], scenes: [] });
+    expect(roomHaBox({ floors: [], areas: [], entities: null } as any, "kitchen", new Set()).devices).toEqual([]);
+    expect(roomHaBox({ floors: [], areas: [], entities: [null, { id: 5 }, "junk"] } as any, "kitchen", new Set()).devices).toEqual([]);
   });
 });

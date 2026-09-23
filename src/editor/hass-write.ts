@@ -26,6 +26,8 @@ export interface HaWriter {
   removeLabelled(item: Labelled): Promise<void>;
   /** S4.6: creates the automation, labelled `floorplan-studio`. Resolves to its own id (used to open it in HA's editor). */
   createAutomation(cfg: AutomationConfig): Promise<string>;
+  /** S4.7: runs a scene from the room box's "Run" button. */
+  runScene(entityId: string): Promise<void>;
 }
 
 /** The label everything the tool creates carries, so the person can find it in HA and remove it. */
@@ -150,6 +152,11 @@ export async function createAutomation(hass: WriteHass, cfg: AutomationConfig, o
   throw new Error("Home Assistant made the automation but it did not appear in time; look for it under Settings, Automations.");
 }
 
+/** S4.7: the room box's "Run" button on a scene row. */
+export async function runScene(hass: WriteHass, entityId: string): Promise<void> {
+  await hass.callWS({ type: "call_service", domain: "scene", service: "turn_on", target: { entity_id: entityId } });
+}
+
 /** `openAutomation` actually lives in `automations.ts` (it touches no `hass`, and the editor must never import this
  * file) — re-exported here so the panel host and this file's own tests can still reach it from one place. */
 export { openAutomation } from "./automations";
@@ -171,5 +178,6 @@ export function makeWriter(hass: WriteHass): HaWriter {
     listLabelled: () => listLabelled(hass),
     removeLabelled: (item) => removeLabelled(hass, item),
     createAutomation: (cfg) => createAutomation(hass, cfg),
+    runScene: (id) => runScene(hass, id),
   };
 }

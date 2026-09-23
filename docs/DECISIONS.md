@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-23 S4.7 room box: plain `<select>` for "Add to area...", `platform`/`uid` added to `HaData`
+
+The spec sketch had "Add to area..." open `ha-entity-picker`, but that element is only available inside real Home Assistant (it's an HA frontend component, not something the standalone build can import) and S4.8 ("Native look") is exactly where the editor gets an adapter that picks a real picker inside HA versus a plain control standalone. Until then, `haBox` uses a plain `<select>` limited to entities with no area — the same deviation, and the same reasoning, as S4.2's area field.
+
+`HaData.entities[]` gained two optional fields read from the entity registry in `hass-pickers.ts`: `platform`, captured only for `light`-domain entities, tells a `switch_as_x` helper light apart from a physical one (both are plain `light.*` entities; only the registry says which integration made them). `uid`, captured only for `automation`/`script` domains, is the id an automation or script's own HA editor URL takes (`/config/automation/edit/<uid>`) — it is not the same as the entity id's object_id, which is what "Edit in HA" falls back to when a stub or an older HA has no `unique_id` on the entry.
+
+"Run" (a scene row's button, `scene.turn_on`) does not go through the `askHa` confirm dialog that every other HA write in this codebase uses. It is reasoned as equivalent to an ordinary card tap — a scene turning on is not a registry change, and the person is already looking at the plan to do exactly this. Every other room-box action that writes the HA registry ("Add to area...") does use `askHa`.
+
 ## 2026-09-23 S4.6 automations: one config with `choose`, `openAutomation` moved out of `hass-write.ts` for build safety
 
 Each of the three builders (`switchControls`, `motionLights`, `schedule`) returns one `AutomationConfig` with two triggers (ids "on"/"off") and a single `choose` action, not two separate automations — one POST, one entity, one thing for the user to find and edit in HA's own editor.
