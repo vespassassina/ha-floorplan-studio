@@ -88,9 +88,9 @@ export function bindDeviceActions(
         clearTimer();
         return;
       }
-      if (!door?.sensor) return; // neither sensor nor cover: nothing to do
+      if (!door?.sensors?.length) return; // neither sensor nor cover: nothing to do
       held = false;
-      entityId = door.sensor;
+      entityId = door.sensors[0]; // several may be attached (S4.24); more-info opens the first
       action = "more-info";
       clearTimer();
       return;

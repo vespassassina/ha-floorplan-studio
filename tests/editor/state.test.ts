@@ -55,15 +55,15 @@ describe("EditorState", () => {
     expect(st.bindChoices(2)).toEqual([]); // not a light
   });
 
-  it("offers only contact sensors no other door uses", () => {
+  it("offers only contact sensors no other door uses (S4.24: doorAttachChoices)", () => {
     const l = fresh();
     l.catalog.push({ id: "contact-front", floor: "ground", room: "Hall", type: "contact", name: "Front door", entity: "binary_sensor.demo_front_door" });
     const st = new EditorState(l);
     // the front door itself may keep its own sensor; another door may not take it
-    expect(st.sensorChoices("door-ground-1").map((c) => c.entity)).toContain("binary_sensor.demo_front_door");
-    expect(st.sensorChoices("other-door").map((c) => c.entity)).not.toContain("binary_sensor.demo_front_door");
+    expect(st.doorAttachChoices("door-ground-1", "sensors").map((c) => c.entity)).toContain("binary_sensor.demo_front_door");
+    expect(st.doorAttachChoices("other-door", "sensors").map((c) => c.entity)).not.toContain("binary_sensor.demo_front_door");
     // the demo's garage contact is free for any door
-    expect(st.sensorChoices("door-ground-3").map((c) => c.entity)).toContain("binary_sensor.demo_garage_door");
+    expect(st.doorAttachChoices("door-ground-3", "sensors").map((c) => c.entity)).toContain("binary_sensor.demo_garage_door");
   });
 
   it("autosaves under the documented key and restores it", () => {
@@ -156,7 +156,7 @@ describe("stairs add and remove", () => {
 
 describe("floors", () => {
   const keys = (st: EditorState) => Object.keys(st.layout.floors);
-  const empty = { outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };
+  const empty = { outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
 
   describe("addFloor", () => {
     it("adds an empty floor last, keyed by the slug of its title, and selects it", () => {
@@ -742,7 +742,7 @@ describe("recenter (S1.49)", () => {
   });
   it("an empty floor does not throw and gets a sensible box", () => {
     const l = fresh();
-    Object.assign(l.floors.ground, { outline: [], rooms: [], walls: [], doors: [], openings: [], extras: [], stairs: [], furniture: [], devices: [] });
+    Object.assign(l.floors.ground, { outline: [], rooms: [], walls: [], doors: [], openings: [], extras: [], stairs: [], furniture: [], devices: [], unlinked: [] });
     const st = new EditorState(l);
     expect(() => st.recenter()).not.toThrow();
     expect(st.view.w).toBeGreaterThan(0); expect(st.view.h).toBeGreaterThan(0);

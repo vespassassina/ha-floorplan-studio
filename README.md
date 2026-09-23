@@ -8,6 +8,8 @@ built, tested and installable through HACS (see `CHANGELOG.md` for the current
 release). Organising your home from the plan (Sprint 4) is not built yet.
 See `docs/SPEC.md` and `docs/PLAN.md`.
 
+![The demo house, live as a card, then open for editing.](docs/img/demo.gif)
+
 | Part | State |
 |---|---|
 | Core: schema v2, v1 migration, geometry, SVG renderer, icons | done |
@@ -18,7 +20,7 @@ See `docs/SPEC.md` and `docs/PLAN.md`.
 | HA integration, panel, pickers, HACS releases | done, running on the author's Home Assistant |
 | Organise: areas, helpers, groups, automations from the plan | Sprint 4 |
 | Skill and schema for LLMs, validator (`scripts/validate-layout.mjs`) | done, pulled forward from Sprint 5 |
-| Docs | Sprint 5 |
+| Docs (`docs/schema.md`, [`docs/card.md`](docs/card.md), [`docs/editor.md`](docs/editor.md), `CONTRIBUTING.md`) | done |
 
 ## What you get
 
@@ -72,7 +74,9 @@ npx playwright test # editor tests; PW_PORT=5400 to run beside another checkout
 Open `dist/editor.html` in a browser to use the editor with no server.
 Work is split in tasks (`docs/PLAN.md`), run with the three-role flow (Sonnet executes and verifies, Opus decides) in
 `docs/WORKFLOW.md`. Decisions are in `docs/DECISIONS.md`. Notes for AI
-assistants working on the code are in `CLAUDE.md`.
+assistants working on the code are in `CLAUDE.md`. Contributing by hand: see
+[`CONTRIBUTING.md`](CONTRIBUTING.md). The layout format itself:
+[`docs/schema.md`](docs/schema.md).
 
 ## Licence
 

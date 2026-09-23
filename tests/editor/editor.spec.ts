@@ -1,15 +1,26 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { DEVICE_COLOURS } from "../../src/core/render";
-import { validate, type Layout, type Floor, type WallKind } from "../../src/core/schema";
+import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
+import { GUIDE_STEPS } from "../../src/editor/guide";
 
 // Every pointer action goes through page.mouse at real screen coordinates, so the
 // real top element decides what is hit (icons, handles, walls), as for a user.
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8")) as Layout;
+const manifest = JSON.parse(readFileSync("custom_components/floorplan_studio/manifest.json", "utf8")) as { version: string };
 const EDITOR = "floorplan-studio-editor";
 const layoutOf = (page: Page) => page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
 const groundOf = async (page: Page): Promise<Floor> => (await layoutOf(page)).floors.ground;
+/** A snapped room can no longer be dragged by its body (it pans the view instead); tests of the drag-by-body mechanics
+ *  themselves mark the room free first, the same way `Unsnap` does, rather than exercising that UI here too. */
+async function freeRoom(page: Page, i: number) {
+  await page.evaluate(([tag, idx]) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.rooms[idx as number].free = true;
+    el.layout = l;
+  }, [EDITOR, i] as const);
+}
 const unplaced = (page: Page) => page.locator("#mDev button[data-dev]");
 const devItem = (page: Page, id: string) => page.locator(`#mDev button[data-dev="${id}"]`);
 
@@ -43,10 +54,15 @@ async function addItem(page: Page, id: string) {
   if (sub) await page.locator(`#mAdd details.sub > summary:text-is("${sub}")`).click();
   await page.locator(id).click();
 }
+/** Opens Add, then its Device submenu (S4.26: Device moved under Add, next to Unlinked device). */
+async function openDevice(page: Page) {
+  await menu(page, "Add");
+  await page.locator('#mAdd details.sub > summary:text-is("Device")').click();
+}
 /** Chooses the snap grid in View, Grid (0 = none), and closes the menu. */
 async function setGrid(page: Page, g: number) {
   await menu(page, "View");
-  await page.locator(`#grid [data-grid="${g}"]`).click();
+  await page.locator(`#snap [data-grid="${g}"]`).click();
   await menu(page, "View");
 }
 
@@ -101,7 +117,7 @@ test("Device places one and the list shrinks; removing it makes the list grow", 
   // the light and its relay come back together
   await expect(unplaced(page)).toHaveCount(3);
   expect((await groundOf(page)).devices).toHaveLength(7);
-  await menu(page, "Device");
+  await openDevice(page);
   await devItem(page, "light-living").click(); // a real click on the visible item
   await expect(unplaced(page)).toHaveCount(2);
   expect((await groundOf(page)).devices).toHaveLength(8);
@@ -357,28 +373,25 @@ test("break it: a corner dragged onto its own neighbour never collapses the edge
   }
 });
 
-test("the contact sensor picker follows the selected door", async ({ page }) => {
-  // A behaviour check only: in Chromium it also passes with the .value binding removed (tried, incl. changing one door before selecting another), because every change re-renders the option attributes.
+test("S4.24: the contact sensor picker follows the selected door, several allowed, one attach list per door", async ({ page }) => {
+  // Rewritten for S4.24 (a door's contact sensors are now a list, not one .value): the #dsens select is an
+  // "add" control (always resets to "") and each attached sensor gets its own row with a Remove button.
   const pick = async (i: number) => { const c = await centre(page, `line[data-d="${i}"]`); await page.mouse.click(c.x, c.y); };
-  await pick(0);
-  await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_front_door");
-  await pick(2);
-  await expect(page.locator("#dsens")).toHaveValue("");
+  await pick(0); // Front door: already has one sensor attached
+  await expect(page.locator("#dsens")).toHaveValue(""); // add-select, never shows the current pick as its value
+  await expect(page.locator('#dsens option[value="binary_sensor.demo_front_door"]')).toHaveCount(0); // already attached: not offered again
+  await pick(2); // Garage door: no sensor yet
   await expect(page.locator('#dsens option[value="binary_sensor.demo_garage_door"]')).toHaveCount(1);
   await pick(1);
-  await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_patio_door");
-  // choose a sensor for the garage door, then go back to a door with another one and to one with none
+  await expect(page.locator('#dsens option[value="binary_sensor.demo_patio_door"]')).toHaveCount(0); // Patio door's own sensor already attached to it
+  // attach a sensor to the garage door, confirm it lands in the layout, then remove it again
   await pick(2);
   await page.locator("#dsens").selectOption("binary_sensor.demo_garage_door");
-  expect((await groundOf(page)).doors[2].sensor).toBe("binary_sensor.demo_garage_door");
-  await pick(0);
-  await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_front_door");
-  await pick(2);
-  await expect(page.locator("#dsens")).toHaveValue("binary_sensor.demo_garage_door");
-  await page.locator("#dsens").selectOption("");
-  await pick(1);
-  await pick(2);
-  await expect(page.locator("#dsens")).toHaveValue("");
+  expect((await groundOf(page)).doors[2].sensors).toEqual(["binary_sensor.demo_garage_door"]);
+  await expect(page.locator('#dsens option[value="binary_sensor.demo_garage_door"]')).toHaveCount(0); // now attached: no longer offered
+  await page.locator("#dsens-rm0").click();
+  expect((await groundOf(page)).doors[2].sensors).toBeUndefined();
+  await expect(page.locator('#dsens option[value="binary_sensor.demo_garage_door"]')).toHaveCount(1); // free again
 });
 
 test("File, Save waits for the host: Saving until saveDone, Saved after the download", async ({ page }) => {
@@ -580,7 +593,7 @@ test("S1.32: two lights on one wall switch, and the switch placed as its own ico
   await page.locator("#vbound").selectOption(RELAY); // the living light already has it
   const g1 = await groundOf(page);
   expect(g1.devices.filter((d) => d.bound === RELAY).map((d) => d.id)).toEqual(["light-living", "light-kitchen"]);
-  await menu(page, "Device");
+  await openDevice(page);
   await devItem(page, "switch-living-relay").click(); // still offered while two lights name it
   await expect(devItem(page, "switch-living-relay")).toHaveCount(0);
   const g2 = await groundOf(page);
@@ -666,7 +679,7 @@ test("Ctrl+Z works right after the Delete button in the panel", async ({ page })
 });
 
 test("a selection made from the Device menu survives the menu closing, then Delete works", async ({ page }) => {
-  await menu(page, "Device");
+  await openDevice(page);
   await unplaced(page).first().click();
   await expect(page.locator("g.dev.sel")).toHaveCount(1);
   await expect(page.locator("#panel")).not.toContainText("Nothing selected");
@@ -1067,7 +1080,7 @@ test("deleting the ground floor with content, then Undo, brings it back in place
 });
 
 test("devices of a deleted floor go back to the Device menu and the catalog is unchanged", async ({ page }) => {
-  await menu(page, "Device");
+  await openDevice(page);
   const n = await unplaced(page).count();
   await page.keyboard.press("Escape");
   const cat = (await layoutOf(page)).catalog;
@@ -1075,7 +1088,7 @@ test("devices of a deleted floor go back to the Device menu and the catalog is u
   await page.locator("#fdel").click();
   await page.locator("#fdelyes").click();
   expect((await layoutOf(page)).catalog).toEqual(cat);
-  await menu(page, "Device");
+  await openDevice(page);
   expect(await unplaced(page).count()).toBeGreaterThan(n);
 });
 
@@ -1103,9 +1116,11 @@ test("a floor added, renamed, moved and deleted is four undo steps, one per acti
 // ---- S1.11 draw mode ----
 const DRAW_STATUS = "Click to add points, double-click or Enter to finish, Esc to cancel";
 
-/** Draw, then one Draw item, through the real menu. */
+/** Draw, then one Draw item, through the real menu — opening its submenu first (S4.26: Draw is grouped like Add). */
 async function startDraw(page: Page, id: string) {
   await menu(page, "Draw");
+  const sub = page.locator(`#mDraw details.sub:has(#${id})`);
+  await sub.locator("summary").click();
   await page.locator(`#${id}`).click(); // scrolls the menu to the item; the menu is taller than a short window
 }
 /** Real clicks at plan points (cm). */
@@ -1452,21 +1467,46 @@ test("draw items keep the single-shape Add items: Zone still adds a square in on
   expect((await groundOf(page)).rooms.at(-1)!.kind).toBe("zone");
 });
 
+test("the plan filter checks several device types at once, dropping any one un-checks it, All clears the filter", async ({ page }) => {
+  const total = await page.locator("svg .dev").count();
+  const lights = await page.locator("svg .dev-light").count(), switches = await page.locator("svg .dev-switch").count();
+  expect(total).toBeGreaterThan(lights + switches); // the demo has other device types too, or this test proves nothing
+
+  await page.locator("#filter summary").click();
+  await page.locator('#filter [data-filter="light"]').click();
+  await expect(page.locator("svg .dev:visible")).toHaveCount(lights);
+  await expect(page.locator('#filter [data-filter="light"]')).toHaveAttribute("aria-pressed", "true");
+
+  await page.locator('#filter [data-filter="switch"]').click();
+  await expect(page.locator("svg .dev:visible")).toHaveCount(lights + switches);
+  await expect(page.locator("#filter summary")).toHaveText("Devices: 2 types");
+
+  await page.locator('#filter [data-filter="light"]').click(); // un-check one, the other stays checked
+  await expect(page.locator("svg .dev:visible")).toHaveCount(switches);
+  await expect(page.locator('#filter [data-filter="switch"]')).toHaveAttribute("aria-pressed", "true");
+
+  await page.locator("#filterAll").click();
+  await expect(page.locator("svg .dev:visible")).toHaveCount(total);
+  await expect(page.locator("#filter summary")).toHaveText(`Devices: all (${total})`);
+});
+
 // ---- S1.12 Device menu -------------------------------------------------------
 const search = (page: Page) => page.locator("#devSearch");
 const shown = (page: Page) => page.locator("#mDev button[data-dev]:visible");
 
-test("the toolbar order is Add, Draw, Device, View, File and Add has no Device item", async ({ page }) => {
-  await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Draw", "Device", "View", "File"]);
-  await expect(page.locator("#mAdd select")).toHaveCount(1); // only the furniture select is left
-  await expect(page.locator("#mAdd #addDev")).toHaveCount(0);
-  await expect(page.locator("#mAdd")).not.toContainText("Device");
+test("the toolbar order is Add, Draw, View, File; Device is a submenu of Add, after Areas", async ({ page }) => {
+  await expect(page.locator("details.menu > summary")).toHaveText(["Devices: all (8)", "Add", "Draw", "View", "File"]);
+  await expect(page.locator("#mAdd select")).toHaveCount(2); // furniture and unlinked-device selects (S4.25)
+  await menu(page, "Add");
+  const subs = await page.locator("#mAdd > .box > *").evaluateAll((els) => els.map((e) => e.id || e.tagName));
+  const areasIdx = subs.indexOf("addAreas");
+  expect(subs[areasIdx + 1]).toBe("mDev"); // Device sits right after Areas
 });
 
 test("Device lists the unplaced entries grouped by type; a deleted light and its relay come back, placing the light takes only the light", async ({ page }) => {
   await selectDev(page, 0);
   await page.locator("#vdel").click(); // the light and its relay come back
-  await menu(page, "Device");
+  await openDevice(page);
   expect(await page.locator("#mDev .grp").allInnerTexts()).toEqual(["Lights", "Wall switches", "Window / door sensor"]);
   await devItem(page, "light-living").click();
   await expect(devItem(page, "light-living")).toHaveCount(0);
@@ -1475,7 +1515,7 @@ test("Device lists the unplaced entries grouped by type; a deleted light and its
 
 test("the search filters by name and by entity id, ignoring case", async ({ page }) => {
   await setCatalog(page, [{ id: "plug-free", floor: "ground", room: "Living", type: "plug", name: "Free plug", entity: "switch.Garden_Pump" }]);
-  await menu(page, "Device");
+  await openDevice(page);
   await expect(shown(page)).toHaveCount(3); // contact sensor, relay (bound, no icon) and the free plug
   await search(page).fill("FREE PL");
   await expect(shown(page)).toHaveCount(1);
@@ -1491,34 +1531,34 @@ test("the search filters by name and by entity id, ignoring case", async ({ page
 });
 
 test("a search with no match says so, and the search is cleared when the menu closes", async ({ page }) => {
-  await menu(page, "Device");
+  await openDevice(page);
   await search(page).fill("zzz-no-such-thing");
   await expect(shown(page)).toHaveCount(0);
   await expect(page.locator("#mDev")).toContainText("No device matches");
   await page.mouse.click(2, 2); // closes the menu
   await expect(page.locator("#mDev")).not.toHaveAttribute("open", "");
-  await menu(page, "Device");
+  await openDevice(page);
   await expect(search(page)).toHaveValue("");
   await expect(shown(page)).toHaveCount(2); // contact sensor and the bound relay
   await expect(page.locator("#mDev")).not.toContainText("No device matches");
 });
 
 test("the search is cleared when the menu closes by choosing an item, and by opening another menu", async ({ page }) => {
-  await menu(page, "Device");
+  await openDevice(page);
   await search(page).fill("contact");
   await shown(page).first().click();
-  await menu(page, "Device");
+  await openDevice(page);
   await expect(search(page)).toHaveValue("");
   await search(page).fill("x");
   await menu(page, "View");
-  await menu(page, "Device");
+  await openDevice(page);
   await expect(search(page)).toHaveValue("");
 });
 
 test("typing in the search field does not trigger editor shortcuts", async ({ page }) => {
   await selectDev(page, 0); // a selected light: Delete or Backspace outside an input would remove it
   const before = await layoutOf(page);
-  await menu(page, "Device");
+  await openDevice(page);
   await search(page).click();
   await page.keyboard.type("Delete abcz");
   await page.keyboard.press("Backspace");
@@ -1532,14 +1572,14 @@ test("Ctrl+Z in the search field does not undo the plan", async ({ page }) => {
   await selectDev(page, 0);
   await page.locator("#vdel").click();
   const after = await layoutOf(page);
-  await menu(page, "Device");
+  await openDevice(page);
   await search(page).click();
   await page.keyboard.press("Control+z");
   expect(await layoutOf(page)).toEqual(after);
 });
 
 test("Escape in the search field closes the menu and gives the keys back to the editor", async ({ page }) => {
-  await menu(page, "Device");
+  await openDevice(page);
   await search(page).fill("abc");
   await page.keyboard.press("Escape");
   await expect(page.locator("#mDev")).not.toHaveAttribute("open", "");
@@ -1550,7 +1590,7 @@ test("Escape in the search field closes the menu and gives the keys back to the 
 
 test("a device name with markup is text in the Device menu, and a click on it places that device", async ({ page }) => {
   await setCatalog(page, [{ id: "evil", floor: "ground", room: "Living", type: "plug", name: '<img src=x onerror="window.__pwn=1">', entity: "switch.evil" }]);
-  await menu(page, "Device");
+  await openDevice(page);
   await expect(page.locator("#mDev img")).toHaveCount(0);
   await expect(devItem(page, "evil")).toContainText("<img");
   await search(page).fill("<img");
@@ -1728,6 +1768,24 @@ test("Add, Door and Add, Window still place a door and a window", async ({ page 
   await addItem(page, "#addWin");
   const d = (await groundOf(page)).doors;
   expect(d.slice(-2).map((x) => [x.kind, len(x)])).toEqual([["door", 90], ["window", 120]]);
+});
+
+test("dragging an opening's body slides it along its wall, keeping its length, like a door", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.openings.push({ id: "opening-ground-1", a: [450, 600], b: [540, 600] });
+    el.layout = l;
+  }, EDITOR);
+  const before = (await gaps(page))[0];
+  await dragCm(page, [495, 600], [620, 600]); // grab the middle, drag along the same wall
+  const after = (await gaps(page))[0];
+  expect(after).not.toEqual(before);
+  expect(len(after)).toBeCloseTo(len(before), 0); // length is preserved, not resized
+  expect(after.a[1]).toBe(600); // still hugs the same wall
+  expect(after.b[1]).toBe(600);
+  expect(mid(after)[0]).toBeGreaterThan(mid(before)[0]); // actually moved, not a no-op
+  await page.keyboard.press("Control+z");
+  expect((await gaps(page))[0]).toEqual(before);
 });
 
 test("dragging an opening end snaps like a door end: to a corner", async ({ page }) => {
@@ -2002,7 +2060,7 @@ test("placing a device whose catalog floor is named like an Object.prototype key
   // the editor's own floors have a null prototype; a plain object reaches the lookup
   await page.evaluate((tag) => { const st = (document.querySelector(tag) as any).st; st.layout.floors = { ...st.layout.floors }; st.layout.catalog.find((c: any) => c.id === "light-living").floor = "constructor"; }, EDITOR);
   const floor = await page.evaluate((tag) => (document.querySelector(tag) as any).st.floor, EDITOR);
-  await menu(page, "Device");
+  await openDevice(page);
   await devItem(page, "light-living").click();
   expect(await page.evaluate((tag) => (document.querySelector(tag) as any).floor, EDITOR)).toBe(floor);
   await expect(page.locator(`.chip[data-f="${floor}"]`)).toHaveAttribute("aria-pressed", "true");
@@ -2318,6 +2376,21 @@ test("Add, Wall, Zone, Stairs and Furniture all land right of the house, top ali
   expect(bed.y).toBe(0); // the top of the outline
 });
 
+test("S5.1: every FURNITURE_SYMBOLS entry can be placed from the Add menu, and the layout still validates", async ({ page }) => {
+  const before = (await groundOf(page)).furniture.length;
+  for (const sym of FURNITURE_SYMBOLS) { await menu(page, "Add"); await page.locator("#addFurn").selectOption(sym); }
+  const l = await layoutOf(page), g = l.floors.ground;
+  expect(g.furniture.slice(before).map((m) => m.symbol)).toEqual([...FURNITURE_SYMBOLS]);
+  expect(validate(l).ok).toBe(true);
+});
+
+test("S5.1 break it: a furniture piece rotated past 360 by repeated button clicks stays wrapped into [0, 360)", async ({ page }) => {
+  await menu(page, "Add"); await page.locator("#addFurn").selectOption("bed"); // placing selects it
+  for (let i = 0; i < 5; i++) await page.locator("#fr90").click(); // 5 x 90 = 450
+  const g = await groundOf(page);
+  expect(g.furniture[g.furniture.length - 1].rot).toBe(90);
+});
+
 test("break it: with the view panned far from the house, an added item is still outside the house and comes into view", async ({ page }) => {
   // pan with real drags on the background, far to the south-west of the house
   for (let n = 0; n < 4; n++) {
@@ -2393,7 +2466,7 @@ test("a device whose catalog room is not on the floor lands right of the house a
     l.catalog.find((c: any) => c.id === "contact-garage").room = "Nowhere";
     el.layout = l;
   }, EDITOR);
-  await menu(page, "Device");
+  await openDevice(page);
   await devItem(page, "contact-garage").click();
   const g = await groundOf(page), d = g.devices[g.devices.length - 1] as { id: string; x: number; y: number };
   expect(d.id).toBe("contact-garage");
@@ -2404,16 +2477,20 @@ test("a device whose catalog room is not on the floor lands right of the house a
 
 // ---- S1.21 Draw is its own menu ----
 const DRAW_IDS = ["drawRoom", "drawZone", "drawWater", "drawOutline", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawOpening", "drawExtra"];
+// S4.26: grouped like Add — Openings, Wall, Areas — so DOM order differs from DRAW_IDS' logical grouping.
+const DRAW_IDS_DOM = ["drawOpening", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawRoom", "drawZone", "drawWater", "drawOutline", "drawExtra"];
 
 test("the Add menu holds no Draw item and no Water; the Draw menu holds all eleven", async ({ page }) => {
   for (const id of [...DRAW_IDS, "addWater", "addWall"]) await expect(page.locator(`#mAdd #${id}`)).toHaveCount(0);
   await expect(page.locator("#mAdd .grp, #mAdd .sep").filter({ hasText: /Draw/ })).toHaveCount(0);
-  const ids = await page.locator("#mAdd button").evaluateAll((b) => b.map((x) => x.id));
+  const ids = await page.locator("#mAdd button").evaluateAll((b) => b.filter((x) => !x.closest("#mDev")).map((x) => x.id));
   expect(ids).toEqual(["addDoor", "addWin", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addStr", "addZone", "addStairs"]);
   await expect(page.locator("#mAdd select#addFurn")).toHaveCount(1);
-  expect(await page.locator("#mDraw button").evaluateAll((b) => b.map((x) => x.id))).toEqual(DRAW_IDS);
+  expect(await page.locator("#mDraw button").evaluateAll((b) => b.map((x) => x.id))).toEqual(DRAW_IDS_DOM);
+  expect(new Set(DRAW_IDS_DOM)).toEqual(new Set(DRAW_IDS));
   // and they are really there to click: open, visible, inside the window
   await menu(page, "Draw");
+  await page.locator(`#mDraw details.sub > summary:text-is("Areas")`).click();
   const box = await page.locator("#drawRoom").boundingBox();
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
@@ -2459,8 +2536,8 @@ test("S4.11: Tab reaches every Add item in DOM order, submenus included", async 
   await page.locator(`#mAdd details.sub > summary:text-is("Openings")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Wall")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Areas")`).click();
-  const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.map((e) => e.id || e.textContent?.trim()));
-  expect(order).toEqual(["Openings", "addDoor", "addWin", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "addFurn"]);
+  const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.filter((e) => !e.closest("#mDev") || (e.tagName === "SUMMARY" && e.parentElement?.id === "mDev")).map((e) => e.id || e.textContent?.trim()));
+  expect(order).toEqual(["Openings", "addDoor", "addWin", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "Device", "addFurn", "addUnlDev"]);
 });
 
 test("each Add, Wall item places a 200 cm wall of its kind at the spawn point, selected, in one undo step", async ({ page }) => {
@@ -2542,6 +2619,7 @@ test("opening Draw closes Add, and a Draw item starts drawing with the Draw menu
   await menu(page, "Draw");
   await expect(page.locator("#mAdd")).toHaveJSProperty("open", false);
   await expect(page.locator("#mDraw")).toHaveJSProperty("open", true);
+  await page.locator(`#mDraw details.sub:has(#drawWall-fence) summary`).click();
   await page.locator("#drawWall-fence").click();
   await expect(page.locator("#mDraw")).toHaveJSProperty("open", false);
   expect(await svgCursor(page)).toBe("crosshair");
@@ -2570,10 +2648,10 @@ test("dragging the pond by its middle moves every point by the same amount, adds
   const before = await groundOf(page), pond = before.rooms[6];
   expect(pond.kind).toBe("water");
   const b0 = await bbox(page, 'svg polygon[data-r="6"]');
-  await drag(page, 'svg polygon[data-r="6"]', 20, 60); // far from any corner, so the drop does not snap
+  await drag(page, 'svg polygon[data-r="6"]', 90, 150); // far from any corner, so the drop does not snap
   const b1 = await bbox(page, 'svg polygon[data-r="6"]');
-  expect(Math.round(b1.x - b0.x)).toBe(20); // it followed the pointer on screen
-  expect(Math.round(b1.y - b0.y)).toBe(60);
+  expect(Math.round(b1.x - b0.x)).toBe(90); // it followed the pointer on screen
+  expect(Math.round(b1.y - b0.y)).toBe(150);
   const after = await groundOf(page), moved = after.rooms[6];
   const d = [moved.pts[0][0] - pond.pts[0][0], moved.pts[0][1] - pond.pts[0][1]];
   expect(d[0]).toBeGreaterThan(0); expect(d[1]).toBeGreaterThan(0);
@@ -2604,6 +2682,7 @@ test("dragging the stairs by their middle moves every point by the same amount",
 });
 
 test("a press on a room body that does not move selects it and records no undo step; the plan does not pan", async ({ page }) => {
+  await freeRoom(page, 0); // a snapped room's press-drag is a pan, tested separately; this one is about the room-drag path
   const v0 = await visible(page);
   const c = await screenOf(page, 100, 300);
   await page.mouse.move(c.x, c.y);
@@ -2618,6 +2697,7 @@ test("a press on a room body that does not move selects it and records no undo s
 test("break it: dragging a room by its body leaves the neighbour's corner and the outline where they were", async ({ page }) => {
   const before = await groundOf(page);
   expect(before.rooms[0].pts[1]).toEqual(before.rooms[1].pts[0]); // living and kitchen share (500, 0)
+  await freeRoom(page, 0); // otherwise the snapped room's drag just pans the view
   await dragCm(page, [100, 300], [100, 340]); // the living room, by its middle
   const after = await groundOf(page);
   expect(after.rooms[0].pts.map((p) => p[1] - before.rooms[0].pts[after.rooms[0].pts.indexOf(p)][1])).toEqual([40, 40, 40, 40]);
@@ -2627,12 +2707,15 @@ test("break it: dragging a room by its body leaves the neighbour's corner and th
   expect(after.rooms[0].pts.length).toBe(4);
 });
 
-test("a room dragged 300 cm away and back to within a few cm snaps corner on corner and shares its edges again", async ({ page }) => {
+test("a room dragged 250 cm away and back to within a few cm snaps corner on corner and shares its edges again", async ({ page }) => {
   const before = await groundOf(page);
-  await dragCm(page, [50, 200], [350, 200]); // the living room, by its body, 300 cm to the right
+  await clickCm(page, 50, 200); // the living room
+  await page.locator("#runsnap").click(); // Unsnap: it starts snapped, so the first drag would otherwise just pan
+  await dragCm(page, [50, 200], [300, 200]); // the living room, by its body, 250 cm to the right — clear of every other corner
   const away = await groundOf(page);
-  expect(away.rooms[0].pts[0]).toEqual([before.rooms[0].pts[0][0] + 300, before.rooms[0].pts[0][1]]);
-  await dragCm(page, [350, 200], [47, 203]); // back to 3 cm left and 3 cm low of its place
+  expect(away.rooms[0].pts[0]).toEqual([before.rooms[0].pts[0][0] + 250, before.rooms[0].pts[0][1]]);
+  await page.locator("#runsnap").click(); // Snap back, so dropping near its place re-joins it
+  await dragCm(page, [300, 200], [47, 203]); // back to 3 cm left and 3 cm low of its place
   const after = await groundOf(page);
   expect(after.rooms[0].pts).toEqual(before.rooms[0].pts); // exactly the original points
   expect(after.rooms[0].pts[1]).toEqual(after.rooms[1].pts[0]); // living and kitchen share (500, 0) again
@@ -2644,6 +2727,8 @@ test("a room dragged 300 cm away and back to within a few cm snaps corner on cor
 
 test("holding Alt while dropping a room near its place leaves it exactly where it was dropped", async ({ page }) => {
   const before = await groundOf(page);
+  await clickCm(page, 50, 200); // the living room
+  await page.locator("#runsnap").click(); // Unsnap: it starts snapped, so the first drag would otherwise just pan
   await dragCm(page, [50, 200], [350, 200]);
   await dragCm(page, [350, 200], [47, 203], ["Alt"]);
   const after = await groundOf(page);
@@ -3051,9 +3136,9 @@ test("S1.31: the cone is dark grey at 25 % alpha in the browser, the disc is 75 
   await expect(cone).toHaveCount(1);
   const st = await cone.evaluate((el) => { const s = getComputedStyle(el); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents }; });
   expect(st).toEqual({ fill: "rgb(74, 74, 72)", op: "0.25", pe: "none" });
-  // the disc behind every icon is its own: white at 75 %, a 1 px grey border (S1.45)
+  // the disc behind every icon is its own: white at 50 % (Diego, 2026-09-23), a 1 px grey border (S1.45)
   const disc = await page.locator("svg .dev .halo").evaluateAll((els) => [...new Set(els.map((e) => { const s = getComputedStyle(e); return [s.fill, s.fillOpacity, s.stroke, s.strokeWidth].join("|"); }))]);
-  expect(disc).toEqual(["rgb(255, 255, 255)|0.75|rgb(139, 133, 120)|1px"]);
+  expect(disc).toEqual(["rgb(255, 255, 255)|0.5|rgb(139, 133, 120)|1px"]);
   // the cone is 100 cm deep: its box is 100 cm tall on screen (rot 0 points up)
   const box = await cone.evaluate((el) => el.getBoundingClientRect().height);
   const one = Math.abs((await screenOf(page, CAM.x, CAM.y - 100)).y - (await screenOf(page, CAM.x, CAM.y)).y);
@@ -3289,8 +3374,8 @@ test("S1.33: adding an item at 90 puts it in view and the panel value survives",
 });
 
 // ---- S1.34 the grid is a setting ----
-const gridChoices = (page: Page) => page.locator(`${EDITOR} #grid [data-grid]`);
-const pressedGrid = async (page: Page) => page.locator(`${EDITOR} #grid [data-grid][aria-pressed="true"]`).evaluateAll((els) => els.map((e) => e.getAttribute("data-grid")));
+const gridChoices = (page: Page) => page.locator(`${EDITOR} #snap [data-grid]`);
+const pressedGrid = async (page: Page) => page.locator(`${EDITOR} #snap [data-grid][aria-pressed="true"]`).evaluateAll((els) => els.map((e) => e.getAttribute("data-grid")));
 
 test("S1.34: View has a Grid group of four, 10 cm pressed by default; the old Snap chip is gone", async ({ page }) => {
   await menu(page, "View");
@@ -3370,7 +3455,7 @@ test("S1.34 break it: with storage blocked the editor loads, uses 10 and lets th
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   await menu(page, "View");
   expect(await pressedGrid(page)).toEqual(["10"]);
-  await page.locator(`#grid [data-grid="50"]`).click();
+  await page.locator(`#snap [data-grid="50"]`).click();
   expect(await pressedGrid(page)).toEqual(["50"]);
   expect(errors).toEqual([]);
 });
@@ -3381,7 +3466,7 @@ test("S1.35: the room panel shows twelve floor swatches next to the free colour 
   await page.mouse.click(at.x, at.y);
   const sw = page.locator('#panel .swatches[aria-label="Colours"] .sw');
   await expect(sw).toHaveCount(12);
-  await expect(page.locator("#panel .sw.tex")).toHaveCount(7); // and seven textures beside them
+  await expect(page.locator("#panel .sw.tex")).toHaveCount(11); // and eleven textures beside them (S4.19)
   await expect(sw.nth(10)).toHaveAttribute("title", "Belgian stone");
   await expect(sw.nth(10)).toHaveAttribute("aria-label", "Belgian stone");
   await expect(page.locator("#rcol")).toHaveCount(1);
@@ -3420,10 +3505,10 @@ test("S1.35 break it: a colour typed in the free input still works, and a swatch
 });
 
 // ---- S1.36 device colours by type ----
-const colourRow = (page: Page, type: string) => page.locator(`${EDITOR} #devcols [data-type="${type}"]`);
+const colourRow = (page: Page, type: string) => page.locator(`${EDITOR} .devcols-panel [data-type="${type}"]`);
 const openDevCols = async (page: Page) => {
   await menu(page, "View");
-  await page.locator(`${EDITOR} #devcols > summary`).click();
+  await page.locator(`${EDITOR} #devcols`).click();
 };
 const setColourInput = (page: Page, type: string, hex: string) =>
   colourRow(page, type).locator("input[type=color]").evaluate((el, v) => { (el as HTMLInputElement).value = v; el.dispatchEvent(new Event("change", { bubbles: true })); }, hex);
@@ -3432,10 +3517,49 @@ const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first
 
 test("S1.36: View, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
   await openDevCols(page);
-  await expect(page.locator(`${EDITOR} #devcols [data-type]`)).toHaveCount(20);
+  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(27); // S4.25 added boiler, car, ups, printer, speaker
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
   await expect(colourRow(page, "light").locator("button")).toHaveCount(1);
   await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
+});
+
+test("S1.36: Device colours opens as a floating panel — a 3-column grid, closed by its own X, not by clicking elsewhere", async ({ page }) => {
+  await openDevCols(page);
+  const panel = page.locator(`${EDITOR} .devcols-panel`);
+  await expect(panel).toBeVisible();
+  // Three columns: the first three rows' tops match, the fourth starts a new row.
+  const tops = await page.locator(`${EDITOR} .devcols-panel [data-type]`).evaluateAll((els) => els.slice(0, 4).map((e) => e.getBoundingClientRect().top));
+  expect(tops[0]).toBeCloseTo(tops[1], 0);
+  expect(tops[0]).toBeCloseTo(tops[2], 0);
+  expect(tops[3]).toBeGreaterThan(tops[0] + 5);
+  // A click elsewhere on the canvas leaves it open.
+  const at = await screenOf(page, 1000, 1000);
+  await page.mouse.click(at.x, at.y);
+  await expect(panel).toBeVisible();
+  // Its own close button dismisses it.
+  await page.locator(`${EDITOR} .devcols-panel #devcolsClose`).click();
+  await expect(panel).toHaveCount(0);
+});
+
+test("S1.36: Escape closes the Device colours panel", async ({ page }) => {
+  await openDevCols(page);
+  const panel = page.locator(`${EDITOR} .devcols-panel`);
+  await expect(panel).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+});
+
+test("S1.36: dragging the panel's header by its title moves the panel", async ({ page }) => {
+  await openDevCols(page);
+  const head = page.locator(`${EDITOR} .devcols-panel .devcols-head`);
+  const before = (await head.boundingBox())!;
+  await page.mouse.move(before.x + 40, before.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(before.x + 140, before.y + 110, { steps: 5 });
+  await page.mouse.up();
+  const after = (await head.boundingBox())!;
+  expect(after.x - before.x).toBeCloseTo(100, 0);
+  expect(after.y - before.y).toBeCloseTo(100, 0);
 });
 
 test("S1.36: changing the light colour reaches every light icon, camera colour changes the camera fill, undo restores", async ({ page }) => {
@@ -4093,6 +4217,16 @@ test("Opus review CSS pair: wall kinds have their colour, thickness and dash (re
   expect(edge.dash).toBe("none");
 });
 
+test("CSS pair: furniture has its own fixed grey token, decoupled from idle devices", async ({ page }) => {
+  await addCssFixtures(page); // adds a "css-gate" furniture piece (patio-wood)
+  const furn = await page.locator("svg g.furn").first().evaluate((e) => getComputedStyle(e).color);
+  const idle = await page.locator("svg g.dev path:not(.halo)").first().evaluate((e) => getComputedStyle(e).fill);
+  expect(furn).toBe(rgb("#79766e"));
+  expect(furn).not.toBe(idle);
+  await setTheme(page, "midnight");
+  expect(await page.locator("svg g.furn").first().evaluate((e) => getComputedStyle(e).color)).toBe(rgb("#79766e"));
+});
+
 test("Opus review CSS pair: each room kind has its own fill; fill is hatched; zone is unfilled (render.test.ts:207-210, 371-394)", async ({ page }) => {
   await addCssFixtures(page);
   const fill = (k: string) => page.locator(`svg polygon.room-${k}`).first().evaluate((e) => getComputedStyle(e).fill);
@@ -4446,7 +4580,7 @@ test("S1.50 break it: an empty floor draws a grid around the origin with no erro
   page.on("pageerror", (e) => errors.push(e.message));
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
-    l.floors.ground = { title: "Empty", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };
+    l.floors.ground = { title: "Empty", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
     el.layout = l;
   }, EDITOR);
   await expect.poll(() => page.locator("svg line.mg").count()).toBeGreaterThan(0);
@@ -4569,6 +4703,14 @@ const DARK_TH = { bg: "rgb(12, 21, 33)", room: ROOM_EMPTY, wall: "rgb(99, 148, 2
 // #d8e2f2. Still what the ha theme's dark-mode fallback uses (Diego's call: ha stays untouched by the new palettes).
 const MIDNIGHT_TH = { bg: "rgb(13, 21, 34)" };
 const LIGHT_TH = { bg: "rgb(244, 240, 230)", room: ROOM_EMPTY, wall: "rgb(43, 42, 39)", text: "rgb(58, 58, 58)", outline: "rgb(255, 255, 255)" };
+
+test("CSS pair: an off icon's disc is 50 % in every theme (Diego, 2026-09-23)", async ({ page }) => {
+  for (const t of ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha"] as const) {
+    await setTheme(page, t);
+    const ops = await page.locator("svg .dev:not(.on) .halo").evaluateAll((els) => [...new Set(els.map((e) => getComputedStyle(e).fillOpacity))]);
+    expect(ops, t).toEqual(["0.5"]);
+  }
+});
 
 async function setTheme(page: Page, t: "blueprint" | "midnight" | "light" | "slate" | "terminal" | "solarized" | "ha") {
   await menu(page, "View");
@@ -4751,6 +4893,22 @@ test("a custom room colour becomes a swatch (kept in layout.palette); textures p
   expect((await layoutOf(page)).palette).toBeUndefined();
 });
 
+test("CSS pair: a custom swatch carries a corner badge, not a dashed border, at the same size as a built-in one", async ({ page }) => {
+  await setTheme(page, "light");
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator("#rcol").fill("#12ab34");
+  const custom = page.locator(".swatches[aria-label='Colours'] .sw.custom").first();
+  const builtin = page.locator(".swatches[aria-label='Colours'] .sw:not(.custom)").first();
+  const [customBox, builtinBox] = await Promise.all([custom.boundingBox(), builtin.boundingBox()]);
+  expect([customBox!.width, customBox!.height]).toEqual([builtinBox!.width, builtinBox!.height]); // same size, not a bigger button
+  expect(await custom.evaluate((e) => getComputedStyle(e).borderStyle)).toBe("solid"); // no longer dashed
+  const badge = await custom.evaluate((e) => parseFloat(getComputedStyle(e, "::after").borderRightWidth));
+  const builtinBadge = await builtin.evaluate((e) => parseFloat(getComputedStyle(e, "::after").borderRightWidth));
+  expect(badge).toBeGreaterThan(0); // a corner badge is drawn...
+  expect(builtinBadge).toBe(0); // ...only on the custom swatch
+});
+
 // ---- S4.22: a texture's own rotation, dragged with the paint panel's slider ----------------------------------------
 
 /** Sets a range input's value and fires the given events, exactly as a real drag or a release would. */
@@ -4770,6 +4928,19 @@ test("S4.22: the rotation slider appears only once a texture is chosen, and disa
   await expect(page.locator("#rrot")).toHaveValue("0");
   await page.getByText("Use the default colour").click();
   await expect(page.locator("#rrot")).toHaveCount(0);
+});
+
+test("S4.22: the rotation and scale value sit beside their slider, not on the line under it", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  for (const [range, val] of [["#rrot", ".rot-val"], ["#rscale", ".rot-val"]] as const) {
+    const slider = page.locator(range).boundingBox(), value = page.locator(`#panel ${val}`).nth(range === "#rrot" ? 0 : 1).boundingBox();
+    const [s, v] = await Promise.all([slider, value]);
+    expect(s).not.toBeNull();
+    expect(v).not.toBeNull();
+    expect(Math.abs(s!.y - v!.y)).toBeLessThan(4); // same row: near-equal top, not stacked a line height apart
+  }
 });
 
 test("S4.22: dragging the slider live-updates the rendered rotation, and releasing commits exactly one undo step", async ({ page }) => {
@@ -4810,6 +4981,70 @@ test("S4.22: the rotation survives a save/reload round trip", async ({ page }) =
   const saved = await layoutOf(page);
   expect(saved.floors.ground.rooms[0].textureRot).toBe(200);
   expect(validate(saved).ok).toBe(true);
+});
+
+// ---- S4.19: a texture's own scale, dragged with the paint panel's slider --------------------------------------
+
+test("S4.19: the scale slider appears only once a texture is chosen, defaults to 100%, and disappears back at the default colour", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator("#rscale")).toHaveCount(0);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  await expect(page.locator("#rscale")).toHaveCount(1);
+  await expect(page.locator("#rscale")).toHaveValue("100");
+  await page.getByText("Use the default colour").click();
+  await expect(page.locator("#rscale")).toHaveCount(0);
+});
+
+test("S4.19: dragging the scale slider live-updates the rendered pattern, and releasing commits exactly one undo step", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  const before = await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR);
+  await moveSlider(page, "#rscale", 120, "input");
+  await moveSlider(page, "#rscale", 150, "input");
+  // Live preview: the scaled pattern is already on the plan, but no undo step has been recorded yet.
+  await expect(page.locator('svg polygon[fill="url(#fp-tex-wood-dark-s150)"]')).toHaveCount(1);
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR)).toBe(before);
+  await moveSlider(page, "#rscale", 150, "change");
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR)).toBe(before + 1);
+  expect((await groundOf(page)).rooms[0].textureScale).toBe(1.5);
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).rooms[0].textureScale).toBeUndefined();
+});
+
+test("S4.19: a scale slider drag that ends back at its starting value adds no undo step", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  await moveSlider(page, "#rscale", 75, "change"); // an initial scale to drag away from and back to
+  const before = await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR);
+  await moveSlider(page, "#rscale", 200, "input");
+  await moveSlider(page, "#rscale", 75, "input"); // back to where it started
+  await moveSlider(page, "#rscale", 75, "change");
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length, EDITOR)).toBe(before);
+  expect((await groundOf(page)).rooms[0].textureScale).toBe(0.75);
+});
+
+test("S4.19: the scale survives a save/reload round trip", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  await moveSlider(page, "#rscale", 200, "change");
+  const saved = await layoutOf(page);
+  expect(saved.floors.ground.rooms[0].textureScale).toBe(2);
+  expect(validate(saved).ok).toBe(true);
+});
+
+test("S4.19: two more wood textures and one more stone texture, plus a checkerboard, are offered", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator('.sw.tex[aria-label="Herringbone wood"]')).toHaveCount(1);
+  await expect(page.locator('.sw.tex[aria-label="Parquet wood"]')).toHaveCount(1);
+  await expect(page.locator('.sw.tex[aria-label="Terracotta tiles"]')).toHaveCount(1);
+  await expect(page.locator('.sw.tex[aria-label="Checkerboard"]')).toHaveCount(1);
+  await page.locator('.sw.tex[aria-label="Checkerboard"]').click();
+  await expect(page.locator('svg polygon[fill="url(#fp-tex-checker-classic)"]')).toHaveCount(1);
 });
 
 // ---- S3.3: attach, switch and clear a device's entity ---------------------------------
@@ -5059,4 +5294,945 @@ test("S4.10 break it: nothing labelled says so, a failing remove changes nothing
 
   await page.evaluate(([tag]) => { (document.querySelector(tag as string) as any).writer = undefined; }, [EDITOR]);
   await expect(page.locator("#mHA")).toHaveCount(0);
+});
+
+// ---- S4.23: Undo/Redo move to the toolbar, after Home Assistant, no menu to open first --------------------------------
+
+test("S4.23: Undo and Redo sit in the toolbar, outside every menu box, styled lighter, and still undo/redo", async ({ page }) => {
+  await expect(page.locator("#mFile .box #undo")).toHaveCount(0); // no longer inside the File menu
+  await expect(page.locator("#mFile .box #redo")).toHaveCount(0);
+  await expect(page.locator("#undo")).toBeVisible(); // visible with no menu open
+  await expect(page.locator("#redo")).toBeVisible();
+  await expect(page.locator("#undo")).toHaveClass(/light/);
+  await expect(page.locator("#redo")).toHaveClass(/light/);
+  await expect(page.locator("#undo")).toBeDisabled();
+
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator('.sw[aria-label="Marble"]').click(); // one undoable edit, no menu opened
+  await expect(page.locator("#undo")).toBeEnabled();
+  await page.locator("#undo").click();
+  expect((await groundOf(page)).rooms[0].color).toBeUndefined();
+  await expect(page.locator("#redo")).toBeEnabled();
+  await page.locator("#redo").click();
+  expect((await groundOf(page)).rooms[0].color).toBe("#e2dfda");
+});
+
+// ---- S4.24: door/window sensors, locks and curtains attach several; heater and ac bindings too ------------------------
+
+test("S4.24: a door attaches several vibration sensors and locks, each removable, one undo step per change", async ({ page }) => {
+  const pick = async (i: number) => { const c = await centre(page, `line[data-d="${i}"]`); await page.mouse.click(c.x, c.y); };
+  await pick(0); // Front door
+  await expect(page.locator("#dvibr")).toBeVisible();
+  await expect(page.locator("#dlocks")).toBeVisible();
+  await expect(page.locator("#dvibr option")).toHaveCount(1); // only the placeholder: no vibration sensor in the catalog yet
+  await expect((await groundOf(page)).doors[0].vibration).toBeUndefined();
+  await expect((await groundOf(page)).doors[0].locks).toBeUndefined();
+});
+
+test("S4.24: a heater attaches several temperature sensors; removing the last one clears the field, one undo step each way", async ({ page }) => {
+  const HEATER: [number, number] = [180, 8]; // demo's "Living radiator"
+  const p = await screenOf(page, ...HEATER);
+  await page.mouse.click(p.x, p.y);
+  await expect(page.locator("#hsens")).toBeVisible();
+  await expect(page.locator("#htrv")).toBeVisible();
+  const before = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(before.tempSensors).toBeUndefined();
+
+  await page.locator("#hsens").selectOption("sensor.demo_bedroom_temperature");
+  let heater = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(heater.tempSensors).toEqual(["sensor.demo_bedroom_temperature"]);
+
+  await page.locator("#hsens-rm0").click();
+  heater = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(heater.tempSensors).toBeUndefined();
+
+  // two undo steps: the removal, then the attach
+  await page.keyboard.press("Control+z");
+  heater = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(heater.tempSensors).toEqual(["sensor.demo_bedroom_temperature"]);
+  await page.keyboard.press("Control+z");
+  heater = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(heater.tempSensors).toBeUndefined();
+});
+
+// ---- S4.18: a device's type can be corrected after placement, and clears type-specific fields it no longer fits -----
+
+test("S4.18: the device panel's type selector changes a device's type and drops fields the new type does not use, one undo step", async ({ page }) => {
+  const p = await screenOf(page, 180, 8); // demo's "Living radiator" heater, with tempSensors already set
+  await page.mouse.click(p.x, p.y);
+  await page.locator("#hsens").selectOption("sensor.demo_bedroom_temperature");
+  await expect(page.locator("#vtype")).toBeVisible();
+  await expect(page.locator("#vtype")).toHaveValue("heater");
+
+  await page.locator("#vtype").selectOption("light");
+  const before = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(before.type).toBe("light");
+  expect(before.tempSensors).toBeUndefined();
+  expect(before.trvs).toBeUndefined();
+  await expect(page.locator("#hsens")).toHaveCount(0); // heater-only field is gone
+  await expect(page.locator("#vbound")).toBeVisible(); // light-only field appeared
+
+  // one undo step brings the type and the cleared fields back together
+  await page.keyboard.press("Control+z");
+  const after = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
+  expect(after.type).toBe("heater");
+  expect(after.tempSensors).toEqual(["sensor.demo_bedroom_temperature"]);
+});
+
+// ---- S4.18: right-click context menu on a room, zone or structure -----------------------------------------------
+
+async function rightClickCm(page: Page, x: number, y: number) {
+  const c = await screenOf(page, x, y);
+  await page.mouse.click(c.x, c.y, { button: "right" });
+}
+
+test("S4.18: right-clicking a room selects it and opens a context menu with Change colour and Delete", async ({ page }) => {
+  await rightClickCm(page, 200, 150); // inside Living
+  await expect(page.locator("#rk")).toHaveValue("room"); // the room panel is already open, per the design decision
+  const menu = page.locator(".ctxmenu");
+  await expect(menu).toBeVisible();
+  await expect(menu.locator("#cmColour")).toBeVisible();
+  await expect(menu.locator("#cmDelete")).toBeVisible();
+});
+
+test("S4.18: right-clicking the background or a device opens no menu", async ({ page }) => {
+  await rightClickCm(page, 950, 700); // outside every room
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+});
+
+test("S4.18: outside click, Escape and scroll all close the context menu", async ({ page }) => {
+  await rightClickCm(page, 200, 150);
+  await expect(page.locator(".ctxmenu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+
+  await rightClickCm(page, 200, 150);
+  await expect(page.locator(".ctxmenu")).toBeVisible();
+  const bg = await screenOf(page, 950, 700);
+  await page.mouse.click(bg.x, bg.y);
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+
+  await rightClickCm(page, 200, 150);
+  await expect(page.locator(".ctxmenu")).toBeVisible();
+  await page.mouse.wheel(0, 100);
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+});
+
+test("S4.18: Delete from the menu removes the room, same as the panel's own Delete", async ({ page }) => {
+  await rightClickCm(page, 200, 150); // Living
+  await page.locator("#cmDelete").click();
+  expect((await groundOf(page)).rooms.find((r: any) => r.name === "Living")).toBeUndefined();
+});
+
+test("S4.18: 'Add device from <area>' lists the room's unplaced HA entities and adds one, one undo step", async ({ page }) => {
+  await setHa(page, { ...HA, areas: [...HA.areas], entities: [...HA.entities, { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" }] });
+  await rightClickCm(page, 200, 150); // Living, area "living"
+  const menu = page.locator(".ctxmenu");
+  await expect(menu).toContainText("Living temp");
+  await menu.locator("button", { hasText: "Living temp" }).click();
+  const devs = (await groundOf(page)).devices;
+  const d = devs.find((x: any) => x.entity === "sensor.living_temp");
+  expect(d).toMatchObject({ type: "temp", name: "Living temp" });
+  expect((await layoutOf(page)).catalog.find((c: any) => c.entity === "sensor.living_temp")).toMatchObject({ type: "temp", room: "Living" });
+  await expect(page.locator(".ctxmenu")).toHaveCount(0); // the menu closes after adding
+
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.living_temp")).toBe(false);
+});
+
+test("S4.26: 'Add device from <area>' places the device at the right-click point, not the room's centre", async ({ page }) => {
+  await setHa(page, { ...HA, areas: [...HA.areas], entities: [...HA.entities, { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" }] });
+  await rightClickCm(page, 200, 150); // Living spans (0,0)-(500,400); its centre is (250,200) — well off this point
+  await page.locator(".ctxmenu button", { hasText: "Living temp" }).click();
+  const d = (await groundOf(page)).devices.find((x: any) => x.entity === "sensor.living_temp") as any;
+  expect(d.x).toBeCloseTo(200, 0);
+  expect(d.y).toBeCloseTo(150, 0);
+});
+
+// ---- S4.27: right-click context menu on a wall (a room edge or the outline) --------------------------------------
+
+test("S4.27: right-clicking a wall selects it (the side panel shows its kind, like the room menu) and opens a context menu with Change type, Add a point, Add an opening, Delete", async ({ page }) => {
+  await rightClickCm(page, 500, 300); // the Living / Kitchen shared wall
+  await expect(page.locator("#ek")).toHaveValue("wall"); // the edge panel is already open, per the room ctx menu's own design decision
+  const menu = page.locator(".ctxmenu");
+  await expect(menu).toBeVisible();
+  for (const label of ["Dotted boundary", "External wall", "Fence", "Outdoor edge", "Add a point", "Delete"])
+    await expect(menu.locator("button", { hasText: label })).toBeVisible();
+  await expect(menu.locator("summary", { hasText: "Add an opening" })).toBeVisible(); // S4.31: a submenu, not a plain button
+  // an edge (a room boundary) has no Fix/Unfix — only a free wall does
+  await expect(menu.locator("button", { hasText: "Fix" })).toHaveCount(0);
+});
+
+test("S4.31: 'Add an opening' on a wall is a submenu offering Door, Window and Opening, each placed centred on the right-click point", async ({ page }) => {
+  await rightClickCm(page, 500, 300); // the wall's own midpoint is (500,200) — 100 cm away from this point
+  const menu = page.locator(".ctxmenu");
+  await menu.locator("summary", { hasText: "Add an opening" }).click();
+  await menu.locator("details.sub button", { hasText: "Door" }).click();
+  await expect(menu).toHaveCount(0);
+  const d = (await groundOf(page)).doors.at(-1)!;
+  expect(d.kind).toBe("door");
+  expect(d.locked).not.toBe(true); // freshly placed, so it starts unfixed and can be moved
+  expect((d.a[1] + d.b[1]) / 2).toBeCloseTo(300, 0);
+});
+
+test("S4.27: right-clicking the background, a device or a room's interior (away from any edge) opens no wall menu", async ({ page }) => {
+  await rightClickCm(page, 950, 700); // outside every room and wall
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+});
+
+test("S4.27: 'Change type' from the wall menu sets the kind on both rooms sharing the wall, one undo step", async ({ page }) => {
+  await rightClickCm(page, 500, 300);
+  await page.locator(".ctxmenu button", { hasText: "External wall" }).click();
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+  const g = await groundOf(page);
+  expect([g.rooms[0].wk[1], g.rooms[1].wk[3]]).toEqual(["external", "external"]);
+
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).rooms[0].wk[1]).toBe("wall");
+});
+
+test("S4.27: 'Add a point' from the wall menu inserts a point at the wall's midpoint, one undo step", async ({ page }) => {
+  // Living and Kitchen share the wall at x=500, drawn once per room; the click lands on whichever line is on top,
+  // so the point is added to that room's own points — same as the edge panel's own "Add a point in the middle".
+  const before = (await groundOf(page)).rooms.map((r: any) => r.pts.length as number);
+  await rightClickCm(page, 500, 300); // the wall runs (500,0)-(500,400); its midpoint is (500,200)
+  await page.locator(".ctxmenu button", { hasText: "Add a point" }).click();
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+  const rooms = (await groundOf(page)).rooms;
+  const grew = rooms.findIndex((r: any, i: number) => r.pts.length === before[i] + 1 && r.pts.some((p: number[]) => p[0] === 500 && p[1] === 200));
+  expect(grew).toBeGreaterThanOrEqual(0);
+  expect(rooms.reduce((n: number, r: any) => n + r.pts.length, 0)).toBe(before.reduce((n, l) => n + l, 0) + 1);
+
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).rooms.map((r: any) => r.pts.length)).toEqual(before);
+});
+
+test("S4.27: 'Add an opening' from the wall menu places it centred on the right-click point, not the wall's midpoint", async ({ page }) => {
+  await rightClickCm(page, 500, 300); // the wall's own midpoint is (500,200) — 100 cm away from this point
+  await page.locator(".ctxmenu summary", { hasText: "Add an opening" }).click();
+  await page.locator(".ctxmenu button", { hasText: "Opening" }).click();
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+  const o = (await groundOf(page)).openings[0];
+  expect((o.a[1] + o.b[1]) / 2).toBeCloseTo(300, 0);
+  expect((o.a[0] + o.b[0]) / 2).toBeCloseTo(500, 0);
+  expect(o.locked).not.toBe(true); // freshly placed, so it starts unfixed and can be moved
+});
+
+test("S4.27: 'Delete' from the wall menu stops drawing it, same as the edge panel's own Delete; a door or window on it confirms first", async ({ page }) => {
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.doors.push({ id: "door-x", name: "Between", kind: "door", a: [500, 100], b: [500, 190] }); el.layout = l; }, EDITOR); // on the same wall (500,0)-(500,400)
+  await rightClickCm(page, 500, 300); // on the wall, clear of the door itself so the click still hits the edge, not the door
+  await page.locator(".ctxmenu button", { hasText: "Delete" }).click();
+  await expect(page.locator(".ctxmenu")).toContainText("door or window is on this wall");
+  await page.locator(".ctxmenu button", { hasText: "Delete" }).click();
+  expect((await groundOf(page)).rooms[0].wk[1]).toBe("none");
+});
+
+// ---- S4.31: right-click Fix/Unfix on a wall, door, opening, furniture piece and unattached device ------------------
+
+test("S4.31: 'Fix' on a free wall's context menu locks it, one undo step; the menu then offers 'Unfix'", async ({ page }) => {
+  // Near the top of the plan, clear of the menu's own height, unlike withWallRow's row under the house.
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.walls = [{ id: "wall-fix-1", a: [250, 20], b: [350, 20], kind: "wall" }];
+    el.layout = l;
+  }, EDITOR);
+  await rightClickCm(page, 300, 20);
+  const menu = page.locator(".ctxmenu");
+  await expect(menu.locator("button", { hasText: "Fix" })).toBeVisible();
+  await menu.locator("button", { hasText: "Fix" }).click();
+  await expect(menu).toHaveCount(0);
+  expect((await groundOf(page)).walls[0].locked).toBe(true);
+
+  await rightClickCm(page, 300, 20);
+  await expect(menu.locator("button", { hasText: "Unfix" })).toBeVisible();
+  await menu.locator("button", { hasText: "Unfix" }).click();
+  expect((await groundOf(page)).walls[0].locked).toBe(false);
+
+  await rightClickCm(page, 300, 20);
+  await menu.locator("button", { hasText: "Fix" }).click();
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).walls[0].locked).toBe(false); // one undo step
+});
+
+/** Right-clicks the centre of a plan element by its CSS selector — for furniture/unlinked, whose click point isn't a simple plan coordinate. */
+async function rightClickEl(page: Page, selector: string) {
+  const c = await centre(page, selector);
+  await page.mouse.click(c.x, c.y, { button: "right" });
+}
+
+test("S4.31: right-clicking a door, an opening, a furniture piece or an unattached device opens a menu with only Fix/Unfix", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.openings.push({ id: "opening-fix-1", a: [450, 600], b: [540, 600] });
+    l.floors.ground.furniture.push({ id: "furn-fix-1", symbol: "sofa", x: 700, y: 500, rot: 0, w: 90, h: 60 });
+    l.floors.ground.unlinked.push({ id: "unl-fix-1", type: "heater", x: 850, y: 500, rot: 0, scale: 1 });
+    el.layout = l;
+  }, EDITOR);
+  const menu = page.locator(".ctxmenu");
+
+  await rightClickCm(page, 345, 600); // door-ground-1, "Front door"
+  await expect(menu.locator("button")).toHaveCount(1);
+  await expect(menu.locator("button", { hasText: "Fix" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await rightClickCm(page, 495, 600); // opening-fix-1
+  await expect(menu.locator("button")).toHaveCount(1);
+  await expect(menu.locator("button", { hasText: "Fix" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await rightClickEl(page, 'g[data-f="2"]'); // furn-fix-1: the demo already has 2 furniture pieces
+  await expect(menu.locator("button")).toHaveCount(1);
+  await menu.locator("button", { hasText: "Fix" }).click();
+  expect((await groundOf(page)).furniture.find((m) => m.id === "furn-fix-1")!.locked).toBe(true);
+
+  await rightClickEl(page, 'g[data-u="0"]'); // unl-fix-1: the only unlinked device
+  await expect(menu.locator("button")).toHaveCount(1);
+  await menu.locator("button", { hasText: "Fix" }).click();
+  expect((await groundOf(page)).unlinked.find((u) => u.id === "unl-fix-1")!.locked).toBe(true);
+});
+
+test("S4.31: fixing furniture or an unattached device blocks a drag; unfixing restores it", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.furniture.push({ id: "furn-fix-2", symbol: "sofa", x: 700, y: 500, rot: 0, w: 90, h: 60, locked: true });
+    el.layout = l;
+  }, EDITOR);
+  const before = (await groundOf(page)).furniture.find((m) => m.id === "furn-fix-2")!;
+  await drag(page, 'g[data-f="2"]', 50, 30); // the demo already has 2 furniture pieces
+  expect((await groundOf(page)).furniture.find((m) => m.id === "furn-fix-2")).toEqual(before); // locked: drag is a no-op
+
+  await rightClickEl(page, 'g[data-f="2"]');
+  await page.locator(".ctxmenu button", { hasText: "Unfix" }).click();
+  await drag(page, 'g[data-f="2"]', 50, 30);
+  expect((await groundOf(page)).furniture.find((m) => m.id === "furn-fix-2")).not.toEqual(before); // unfixed: drag works again
+});
+
+// ---- S4.2: areas from the plan -------------------------------------------------------------------------------------
+
+/** HA knows Living and Garage but not Kitchen; the writer records createArea and answers with HA's own id. */
+async function withNewAreaWriter(page: Page, opt: { fail?: string } = {}) {
+  await setHa(page, { floors: [], areas: [{ id: "living", name: "Living" }, { id: "garage", name: "Garage" }], entities: [] });
+  await page.evaluate(([tag, fail]) => {
+    const w = window as any; w.__calls = [];
+    (document.querySelector(tag as string) as any).writer = {
+      setDeviceArea: async () => {}, setEntityArea: async () => {}, createHelper: async () => ({ entity_id: "" }),
+      createArea: async (name: string) => { w.__calls.push([name]); if (fail) throw new Error(fail as string); return { id: "kitchen_2", name }; },
+    };
+  }, [EDITOR, opt.fail ?? ""]);
+}
+const roomAt = async (page: Page, x: number, y: number) => { const c = await screenOf(page, x, y); await page.mouse.click(c.x, c.y); };
+
+test("S4.2: a room whose area HA does not know creates it on confirm, then links to it; a linked room has no button", async ({ page }) => {
+  await withNewAreaWriter(page);
+  await roomAt(page, 560, 80); // Kitchen, area "kitchen": unknown to this HA
+  const btn = page.locator("#rcreate");
+  await expect(btn).toHaveText("Create area Kitchen in Home Assistant");
+  await btn.click();
+  await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
+  expect(await calls(page)).toHaveLength(0); // asking is not doing
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual(["Kitchen"]);
+  await expect(page.locator("#ra")).toHaveValue("kitchen_2");
+  expect((await groundOf(page)).rooms.find((r) => r.name === "Kitchen")).toMatchObject({ area: "kitchen_2" });
+  await expect(page.locator("#rcreate")).toHaveCount(0);
+  await savedValid(page);
+
+  await roomAt(page, 200, 150); // Living, linked to a known area
+  await expect(page.locator("#ra")).toHaveValue("living");
+  await expect(page.locator("#rcreate")).toHaveCount(0);
+});
+
+test("S4.2 break it: Cancel writes nothing and a failing Home Assistant changes nothing; no writer, no button", async ({ page }) => {
+  await withNewAreaWriter(page);
+  const before = await groundOf(page);
+  await roomAt(page, 560, 80);
+  await page.locator("#rcreate").click();
+  await page.locator("#fp-confirm-no").click();
+  expect(await calls(page)).toHaveLength(0);
+  expect(await groundOf(page)).toEqual(before);
+
+  await withNewAreaWriter(page, { fail: "name_in_use" });
+  await roomAt(page, 560, 80);
+  await page.locator("#rcreate").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("name_in_use");
+  expect(await groundOf(page)).toEqual(before);
+
+  await page.evaluate(([tag]) => { (document.querySelector(tag as string) as any).writer = undefined; }, [EDITOR]);
+  await roomAt(page, 560, 80);
+  await expect(page.locator("#ra")).toBeVisible();
+  await expect(page.locator("#rcreate")).toHaveCount(0);
+});
+
+test("S4.2: 'Areas not on the plan' lists an unused HA area; clicking it draws a room that takes it, and it leaves the list", async ({ page }) => {
+  await withNewAreaWriter(page);
+  await page.keyboard.press("Escape"); // nothing selected: the floor panel
+  const box = page.locator("#unplacedAreas");
+  await expect(box.locator("button")).toHaveText(["Garage"]); // Living is on the plan
+  await box.locator("button", { hasText: "Garage" }).click();
+  await expect(page.locator("#status")).toHaveText(DRAW_STATUS);
+  const n = (await groundOf(page)).rooms.length;
+  await clicksCm(page, ...FREE);
+  await page.keyboard.press("Enter");
+  const rooms = (await groundOf(page)).rooms;
+  expect(rooms).toHaveLength(n + 1);
+  expect(rooms[n]).toMatchObject({ name: "Garage", area: "garage", kind: "room" });
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#unplacedAreas")).toHaveCount(0); // none left
+});
+
+test("S4.2: no 'Areas not on the plan' box without Home Assistant", async ({ page }) => {
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#unplacedAreas")).toHaveCount(0);
+});
+
+// ---- S4.15: the room panel places every unplaced entity of the room's HA area ------------------------------------
+
+test("S4.15: the room panel's Place button adds every unplaced entity of the area, one undo step, and is absent when none is left", async ({ page }) => {
+  await setHa(page, { ...HA, areas: [...HA.areas], entities: [...HA.entities,
+    { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" },
+    { id: "binary_sensor.living_motion", name: "Living motion", domain: "binary_sensor", dc: "motion", area: "living" }] });
+  const before = (await groundOf(page)).devices.length;
+  const c = await screenOf(page, 200, 150); // inside Living
+  await page.mouse.click(c.x, c.y);
+  const btn = page.locator("#rplace");
+  await expect(btn).toHaveText(/Place 2 Home Assistant devices/);
+  await btn.click();
+  const devs = (await groundOf(page)).devices;
+  expect(devs).toHaveLength(before + 2);
+  const added = devs.filter((d: any) => d.entity === "sensor.living_temp" || d.entity === "binary_sensor.living_motion");
+  expect(added.map((d: any) => d.type).sort()).toEqual(["motion", "temp"]);
+  expect(new Set(added.map((d: any) => `${d.x},${d.y}`)).size).toBe(2);
+  await expect(page.locator("#rplace")).toHaveCount(0); // nothing left to place
+
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).devices).toHaveLength(before); // one gesture, one step
+});
+
+test("S4.15: no Place button without Home Assistant", async ({ page }) => {
+  const c = await screenOf(page, 200, 150);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#rk")).toHaveValue("room");
+  await expect(page.locator("#rplace")).toHaveCount(0);
+});
+
+// ---- S4.14: Add > Entities, a palette of every HA entity not yet on the plan -------------------------------------
+
+test("S4.14: Add > Entities lists HA entities not yet placed or catalogued, grouped by type, and is absent without Home Assistant", async ({ page }) => {
+  await menu(page, "Add");
+  await expect(page.locator('#mAdd details.sub > summary:text-is("Entities")')).toHaveCount(0); // no ha: nothing to add from
+  await menu(page, "Add"); // close it again
+
+  await setHa(page, { ...HA, entities: [...HA.entities, { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" }, { id: "light.demo_kitchen", name: "Kitchen light", domain: "light" }] });
+  await menu(page, "Add");
+  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
+  const sub = page.locator("#addEntSub");
+  await expect(sub).toContainText("Living temp");
+  await expect(sub).toContainText("Pond level"); // HA's own fixture entity, not yet placed or catalogued
+  await expect(sub.locator('button:text-is("Kitchen light")')).toHaveCount(0); // already a device on the demo plan
+});
+
+test("S4.14: search filters the palette by name or entity id", async ({ page }) => {
+  await setHa(page, HA);
+  await menu(page, "Add");
+  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
+  await page.locator("#entSearch").fill("pond");
+  await expect(page.locator("#addEntSub")).toContainText("Pond level");
+  await page.locator("#entSearch").fill("nothing-matches-this");
+  await expect(page.locator("#addEntNone")).toHaveText("No entity matches");
+});
+
+test("S4.14: clicking an entity places it — at its area's room centre when one is drawn, else near the plan centre — one undo step", async ({ page }) => {
+  await setHa(page, { ...HA, entities: [...HA.entities, { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" }] });
+  await menu(page, "Add");
+  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
+  await page.locator('[data-ent="sensor.living_temp"]').click();
+  await expect(page.locator("#mAdd")).not.toHaveJSProperty("open", true); // the menu closes after placing
+
+  const devs = (await groundOf(page)).devices;
+  const d = devs.find((x: any) => x.entity === "sensor.living_temp");
+  expect(d).toMatchObject({ type: "temp", name: "Living temp" });
+  expect((await layoutOf(page)).catalog.find((c: any) => c.entity === "sensor.living_temp")).toMatchObject({ room: "Living" });
+
+  await menu(page, "Add");
+  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
+  await page.locator('[data-ent="sensor.pond"]').click(); // no area on this fixture entity: falls back, not refused
+  const pond = (await groundOf(page)).devices.find((x: any) => x.entity === "sensor.pond");
+  expect(pond).toBeTruthy();
+  expect((await layoutOf(page)).catalog.find((c: any) => c.entity === "sensor.pond")?.room).toBeFalsy();
+
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.pond")).toBe(false);
+  expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.living_temp")).toBe(true);
+});
+
+// ---- S4.5: groups -------------------------------------------------------------------------
+
+async function shiftClickCm(page: Page, x: number, y: number) {
+  const c = await screenOf(page, x, y);
+  await page.keyboard.down("Shift");
+  await page.mouse.click(c.x, c.y);
+  await page.keyboard.up("Shift");
+}
+const GROUP_HA = { floors: [], areas: [], entities: [
+  { id: "light.demo_living", name: "Living light", domain: "light" },
+  { id: "light.demo_kitchen", name: "Kitchen light", domain: "light" },
+  { id: "binary_sensor.demo_hall_motion", name: "Hall motion", domain: "binary_sensor" },
+] };
+/** Gives the editor HA data (two lights, one motion sensor, no group yet) and a recording writer, like withWriter. */
+async function withGroupWriter(page: Page, opt: { fail?: string } = {}) {
+  await setHa(page, GROUP_HA);
+  await page.evaluate(([tag, fail]) => {
+    const w = window as any; w.__calls = [];
+    (document.querySelector(tag as string) as any).writer = {
+      setDeviceArea: async () => {}, setEntityArea: async () => {},
+      createHelper: async (...a: unknown[]) => { w.__calls.push(a); if (fail) throw new Error(fail as string); return { entity_id: "group.demo_lights" }; },
+    };
+  }, [EDITOR, opt.fail ?? ""]);
+}
+
+test("S4.5: Shift+click accumulates same-kind devices, toggles one back out, and a different kind starts a fresh single selection instead of mixing", async ({ page }) => {
+  const sel = (page: Page) => page.evaluate((tag) => (document.querySelector(tag as string) as any).st.sel, EDITOR);
+  await clickCm(page, 250, 200); // light: living
+  expect(await sel(page)).toEqual({ t: "dev", i: 0 });
+  await shiftClickCm(page, 650, 200); // + light: kitchen
+  expect(await sel(page)).toEqual({ t: "devs", is: [0, 1] });
+  await shiftClickCm(page, 250, 200); // toggle living back out
+  expect(await sel(page)).toEqual({ t: "dev", i: 1 });
+  await shiftClickCm(page, 400, 500); // motion sensor: a different kind than the current light selection
+  expect(await sel(page)).toEqual({ t: "dev", i: 5 }); // starts fresh, never mixes kinds
+});
+
+test("S4.5: Create group asks, then Home Assistant builds a light group from the shift-clicked selection", async ({ page }) => {
+  await withGroupWriter(page);
+  await clickCm(page, 250, 200); // Living light
+  await shiftClickCm(page, 650, 200); // + Kitchen light
+  await expect(page.locator("#panel")).toContainText("2 devices selected");
+  await page.locator("#grpName").fill("Downstairs lights");
+  await page.locator("#vgroup").click();
+  await expect(page.locator("#fp-confirm")).toContainText("Create group Downstairs lights");
+  await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
+  expect(await calls(page)).toHaveLength(0); // asking is not doing
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual(["group", [
+    { next_step_id: "light" },
+    { name: "Downstairs lights", entities: ["light.demo_living", "light.demo_kitchen"], hide_members: false, all: false },
+  ]]);
+  await expect(page.locator("#status")).toContainText("Created group group.demo_lights");
+});
+
+test("S4.5 break it: Cancel writes nothing, a failing Home Assistant leaves the plan alone, and a forced mixed selection has no Create group button", async ({ page }) => {
+  await withGroupWriter(page);
+  await clickCm(page, 250, 200);
+  await shiftClickCm(page, 650, 200);
+  await page.locator("#grpName").fill("Downstairs lights");
+  await page.locator("#vgroup").click();
+  await page.locator("#fp-confirm-no").click();
+  expect(await calls(page)).toHaveLength(0);
+
+  await withGroupWriter(page, { fail: "not_allowed" });
+  await clickCm(page, 250, 200);
+  await shiftClickCm(page, 650, 200);
+  await page.locator("#grpName").fill("Downstairs lights");
+  await page.locator("#vgroup").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("Nothing was changed");
+
+  // The kind guard in groupKind (tests/core/bind.test.ts) keeps this from happening through the UI; force it to prove
+  // the panel itself never offers "Create group" for a mixed selection, even if that guard were ever bypassed elsewhere.
+  await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any; el.st.sel = { t: "devs", is: [0, 5] }; el.requestUpdate(); }, EDITOR);
+  await expect(page.locator("#panel")).toContainText("2 devices selected");
+  await expect(page.locator("#panel")).toContainText("Shift+click more lights, or more motion sensors, all the same kind, to create a group.");
+  await expect(page.locator("#vgroup")).toHaveCount(0);
+});
+
+const GROUP_ON_FLOOR_HA = { floors: [], areas: [], entities: [
+  { id: "light.demo_living", name: "Living light", domain: "light" },
+  { id: "light.demo_kitchen", name: "Kitchen light", domain: "light" },
+  { id: "group.demo_lights", name: "Demo lights", domain: "group", members: ["light.demo_living"] },
+] };
+
+test("S4.5: the Group menu lists a Home Assistant group with a member on this floor; choosing it dims every other device, All clears it", async ({ page }) => {
+  await setHa(page, GROUP_ON_FLOOR_HA);
+  await menu(page, "Group");
+  await expect(page.locator("#groupNone")).toHaveCount(0);
+  await page.locator('#mGroup [data-group="group.demo_lights"]').click();
+  await expect(page.locator('g[data-x="0"]')).not.toHaveClass(/dim/); // Living light: a member
+  await expect(page.locator('g[data-x="1"]')).toHaveClass(/dim/); // Kitchen light: not a member
+  await expect(page.locator('g[data-x="5"]')).toHaveClass(/dim/); // the motion sensor: not a member
+  await menu(page, "Group");
+  await page.locator("#groupAll").click();
+  await expect(page.locator('g[data-x="1"]')).not.toHaveClass(/dim/);
+});
+
+test("S4.5: no Home Assistant group with a member on this floor shows the empty note, not a button list", async ({ page }) => {
+  await setHa(page, { floors: [], areas: [], entities: [{ id: "group.elsewhere", name: "Elsewhere", domain: "group", members: ["light.not_on_this_floor"] }] });
+  await menu(page, "Group");
+  await expect(page.locator("#groupNone")).toContainText("No Home Assistant group has a member on this floor");
+  await expect(page.locator("#mGroup [data-group]")).toHaveCount(0);
+});
+
+test("Opus review CSS pair: a dimmed device fades to opacity .3 (Group menu, render.ts .dev.dim)", async ({ page }) => {
+  const opacity = (dim: boolean) => page.locator("svg g.dev-light").first().evaluate((e, d) => { e.classList.toggle("dim", d as boolean); return getComputedStyle(e).opacity; }, dim);
+  expect(await opacity(false)).toBe("1");
+  expect(await opacity(true)).toBe("0.3");
+});
+
+// ---- S4.6: links and automations -----------------------------------------------------------
+
+const CTRL_HA = { floors: [], areas: [], entities: [
+  { id: "switch.demo_hall", name: "Hall switch", domain: "switch" },
+  { id: "light.demo_living", name: "Living light", domain: "light" },
+  { id: "light.demo_kitchen", name: "Kitchen light", domain: "light" },
+] };
+/** Gives the editor HA data and a recording writer whose `createAutomation` resolves to a fixed id. `fail` makes it throw. */
+async function withAutomationWriter(page: Page, ha: unknown, opt: { fail?: string } = {}) {
+  await setHa(page, ha);
+  await page.evaluate(([tag, fail]) => {
+    const w = window as any; w.__calls = [];
+    (document.querySelector(tag as string) as any).writer = {
+      setDeviceArea: async () => {}, setEntityArea: async () => {},
+      createAutomation: async (cfg: unknown) => { w.__calls.push(cfg); if (fail) throw new Error(fail as string); return "fp_test123"; },
+    };
+  }, [EDITOR, opt.fail ?? ""]);
+}
+const selectHallSwitch2 = (page: Page) => page.locator("svg .dev-switch").first().click();
+/** A listener on `location-changed`, so a test can tell the navigation actually fired, not only that `history.pushState` ran. */
+async function watchLocationChanged(page: Page) {
+  await page.evaluate(() => { (window as any).__locChanged = false; window.addEventListener("location-changed", () => { (window as any).__locChanged = true; }); });
+}
+
+test("S4.6: switch panel \"Controls...\" picks two lights, confirms, posts the built automation, then opens it in Home Assistant's editor", async ({ page }) => {
+  await withAutomationWriter(page, CTRL_HA);
+  await watchLocationChanged(page);
+  await selectHallSwitch2(page);
+  await page.locator("#vctl").selectOption("light.demo_living");
+  await expect(page.locator("#panel")).toContainText('For one light, "Create a light from this switch" above is simpler than an automation.');
+  await page.locator("#vctl").selectOption("light.demo_kitchen");
+  await expect(page.locator("#panel")).not.toContainText('simpler than an automation');
+  await page.locator("#vctlgo").click();
+  await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
+  expect(await calls(page)).toHaveLength(0); // asking is not doing
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual({
+    alias: "switch.demo_hall controls",
+    trigger: [
+      { platform: "state", entity_id: "switch.demo_hall", to: "on", id: "on" },
+      { platform: "state", entity_id: "switch.demo_hall", to: "off", id: "off" },
+    ],
+    action: [{ choose: [
+      { conditions: [{ condition: "trigger", id: "on" }], sequence: [{ service: "homeassistant.turn_on", target: { entity_id: ["light.demo_living", "light.demo_kitchen"] } }] },
+      { conditions: [{ condition: "trigger", id: "off" }], sequence: [{ service: "homeassistant.turn_off", target: { entity_id: ["light.demo_living", "light.demo_kitchen"] } }] },
+    ] }],
+  });
+  await expect(page.locator("#status")).toContainText("Created the automation");
+  await expect.poll(() => page.evaluate(() => location.pathname)).toBe("/config/automation/edit/fp_test123");
+  expect(await page.evaluate(() => (window as any).__locChanged)).toBe(true);
+});
+
+test("S4.6 break it: Cancel and a failing Home Assistant write nothing, and a switch forced to target itself is refused \"A switch cannot control itself.\"", async ({ page }) => {
+  await withAutomationWriter(page, CTRL_HA);
+  await selectHallSwitch2(page);
+  await page.locator("#vctl").selectOption("light.demo_living");
+  await page.locator("#vctlgo").click();
+  await page.locator("#fp-confirm-no").click();
+  expect(await calls(page)).toHaveLength(0);
+
+  await withAutomationWriter(page, CTRL_HA, { fail: "not_allowed" });
+  await selectHallSwitch2(page);
+  await page.locator("#vctl").selectOption("light.demo_kitchen"); // "living" is already in the draft from the block above
+  await page.locator("#vctlgo").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("Nothing was changed");
+
+  // controlsChoices (state.ts) never offers the switch's own entity, so force the draft directly to prove the
+  // refusal itself — switchControls (tests/editor/automations.test.ts) — is what actually stops it.
+  await withAutomationWriter(page, CTRL_HA);
+  await selectHallSwitch2(page);
+  await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any; el.st.controlsDraft = ["switch.demo_hall"]; el.requestUpdate(); }, EDITOR);
+  await page.locator("#vctlgo").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("A switch cannot control itself.");
+});
+
+test("S4.6: \"Schedule\" on a light panel picks on/off times, confirms, posts the built automation; a temperature sensor has no Schedule field", async ({ page }) => {
+  await withAutomationWriter(page, CTRL_HA);
+  await watchLocationChanged(page);
+  await page.locator("svg .dev-light").first().click(); // light.demo_living
+  await page.locator("#vschon").fill("07:30");
+  await page.locator("#vschoff").fill("23:00");
+  await page.locator("#vschgo").click();
+  await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual({
+    alias: "light.demo_living schedule",
+    trigger: [
+      { platform: "time", at: "07:30", id: "on" },
+      { platform: "time", at: "23:00", id: "off" },
+    ],
+    action: [{ choose: [
+      { conditions: [{ condition: "trigger", id: "on" }], sequence: [{ service: "homeassistant.turn_on", target: { entity_id: "light.demo_living" } }] },
+      { conditions: [{ condition: "trigger", id: "off" }], sequence: [{ service: "homeassistant.turn_off", target: { entity_id: "light.demo_living" } }] },
+    ] }],
+  });
+  await expect.poll(() => page.evaluate(() => location.pathname)).toBe("/config/automation/edit/fp_test123");
+
+  await page.locator("svg .dev-temp").first().click();
+  await expect(page.locator("#vschon")).toHaveCount(0);
+});
+
+const MOTION_HA = { floors: [], areas: [], entities: [
+  { id: "light.demo_living", name: "Living light", domain: "light" },
+  { id: "binary_sensor.demo_hall_motion", name: "Hall motion", domain: "binary_sensor" },
+  { id: "group.demo_lights", name: "Demo lights", domain: "group", members: ["light.demo_living"] },
+  { id: "group.demo_motion", name: "Demo motion", domain: "group", members: ["binary_sensor.demo_hall_motion"] },
+] };
+
+test("S4.6: the Group menu's \"Turns on...\" builds a motion-group automation, minutes converted to seconds", async ({ page }) => {
+  await withAutomationWriter(page, MOTION_HA);
+  await watchLocationChanged(page);
+  await menu(page, "Group");
+  await page.locator('#mGroup [data-group="group.demo_motion"]').click();
+  await menu(page, "Group"); // choosing a group closes the menu (S4.5); reopen it to reach "Turns on..."
+  await expect(page.locator("#motLightGrp")).toBeVisible();
+  await page.locator("#motLightGrp").selectOption("group.demo_lights");
+  await page.locator("#motMinutes").fill("5");
+  await page.locator("#motGo").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual({
+    alias: "group.demo_motion → group.demo_lights",
+    trigger: [
+      { platform: "state", entity_id: "group.demo_motion", to: "on", id: "on" },
+      { platform: "state", entity_id: "group.demo_motion", to: "off", for: { seconds: 300 }, id: "off" },
+    ],
+    action: [{ choose: [
+      { conditions: [{ condition: "trigger", id: "on" }], sequence: [{ service: "homeassistant.turn_on", target: { entity_id: "group.demo_lights" } }] },
+      { conditions: [{ condition: "trigger", id: "off" }], sequence: [{ service: "homeassistant.turn_off", target: { entity_id: "group.demo_lights" } }] },
+    ] }],
+  });
+  await expect.poll(() => page.evaluate(() => location.pathname)).toBe("/config/automation/edit/fp_test123");
+
+  // A light group, selected instead, offers no "Turns on...": only a motion group does.
+  await menu(page, "Group");
+  await page.locator('#mGroup [data-group="group.demo_lights"]').click();
+  await expect(page.locator("#motLightGrp")).toHaveCount(0);
+});
+
+// ---- S4.7: room box --------------------------------------------------------------
+
+const BOX_HA = { floors: [], areas: [{ id: "living", name: "Living" }], entities: [
+  { id: "light.demo_living", name: "Living lamp", domain: "light", area: "living" }, // already placed on the demo floor
+  { id: "switch.living_fan", name: "Living fan", domain: "switch", area: "living" },
+  { id: "group.living_lights", name: "Living lights", domain: "group", area: "living" },
+  { id: "automation.living_off", name: "Living off", domain: "automation", area: "living" },
+  { id: "script.living_morning", name: "Living morning", domain: "script", area: "living" },
+  { id: "scene.living_movie", name: "Movie night", domain: "scene", area: "living" },
+  { id: "sensor.spare", name: "Spare sensor", domain: "sensor" }, // no area: not in this room's box, but in "Add to area..."
+] };
+async function withBoxWriter(page: Page, fail = "") {
+  await setHa(page, BOX_HA);
+  await page.evaluate(([tag, f]) => {
+    const w = window as any; w.__box = [];
+    (document.querySelector(tag as string) as any).writer = {
+      setEntityArea: async (e: string, a: string) => { w.__box.push(["area", e, a]); if (f) throw new Error(f as string); },
+      runScene: async (e: string) => { w.__box.push(["scene", e]); if (f) throw new Error(f as string); },
+    };
+  }, [EDITOR, fail]);
+}
+const boxCalls = (page: Page) => page.evaluate(() => (window as any).__box as unknown[][]);
+const selectLiving = (page: Page) => clickCm(page, 200, 150);
+
+test("S4.7: the room box lists the fixture's entities under the right headings, and marks the one already on the plan", async ({ page }) => {
+  await withBoxWriter(page);
+  await selectLiving(page);
+  const box = page.locator(".habox");
+  await expect(box).toContainText("Devices");
+  await expect(box).toContainText("Living lamp (on plan)");
+  await expect(box).toContainText("Living fan");
+  await expect(box).toContainText("Helpers");
+  await expect(box).toContainText("Living lights");
+  await expect(box).toContainText("Automations");
+  await expect(box).toContainText("Living off");
+  await expect(box).toContainText("Scripts");
+  await expect(box).toContainText("Living morning");
+  await expect(box).toContainText("Scenes");
+  await expect(box).toContainText("Movie night");
+  await expect(page.locator('.harow2:has-text("Spare sensor")')).toHaveCount(0); // it has no area: not a row of this room's box
+  await expect(page.locator("#haadd option")).toContainText(["Spare sensor"]); // it does show up as something that COULD be added
+});
+
+test("S4.7: Run calls scene.turn_on, and Open dispatches Home Assistant's more-info event with the entity id", async ({ page }) => {
+  await withBoxWriter(page);
+  await selectLiving(page);
+  await page.evaluate((tag) => { (window as any).__moreInfo = null; document.querySelector(tag as string)!.addEventListener("hass-more-info", (e: any) => { (window as any).__moreInfo = e.detail; }); }, EDITOR);
+  await page.locator('[data-ha-row="scene.living_movie"] button:has-text("Run")').click();
+  await expect.poll(async () => (await boxCalls(page)).length).toBe(1);
+  expect((await boxCalls(page))[0]).toEqual(["scene", "scene.living_movie"]);
+  await page.locator('[data-ha-row="light.demo_living"] button:has-text("Open")').click();
+  expect(await page.evaluate(() => (window as any).__moreInfo)).toEqual({ entityId: "light.demo_living" });
+});
+
+test('S4.7: "Add to area..." asks, then records the registry write for the picked entity; a failing Home Assistant changes nothing', async ({ page }) => {
+  await withBoxWriter(page);
+  await selectLiving(page);
+  await page.locator("#haadd").selectOption("sensor.spare");
+  await expect(page.locator("#fp-confirm")).toContainText("Add Spare sensor to Living?");
+  expect(await boxCalls(page)).toHaveLength(0);
+  await page.locator("#fp-confirm-no").click();
+  expect(await boxCalls(page)).toHaveLength(0);
+
+  await page.locator("#haadd").selectOption("sensor.spare");
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await boxCalls(page)).length).toBe(1);
+  expect((await boxCalls(page))[0]).toEqual(["area", "sensor.spare", "living"]);
+  await expect(page.locator("#status")).toContainText("Added Spare sensor to Living");
+
+  await withBoxWriter(page, "not_allowed");
+  await selectLiving(page);
+  await page.locator("#haadd").selectOption("sensor.spare");
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("Nothing was changed");
+});
+
+test("S4.7: a custom room with an entity shows that one row with no headings; with neither area nor entity it shows the no-area hint", async ({ page }) => {
+  await setHa(page, BOX_HA);
+  await page.locator('svg polygon[data-r="6"]').click({ force: true }); // Garden pond: no area, no entity yet
+  await expect(page.locator(".habox")).toHaveCount(0);
+  await expect(page.locator("#panel")).toContainText("No area: set one above.");
+  await page.locator("#rent").selectOption("light.demo_living");
+  await expect(page.locator(".habox")).toContainText("Living lamp");
+  await expect(page.locator(".habox")).not.toContainText("Devices"); // no headings for the single-entity case
+});
+
+test("S5.5: Help opens a step-by-step guide, matching GUIDE_STEPS, and closes with Escape, returning focus to the button", async ({ page }) => {
+  const help = page.locator("#help");
+  await expect(help).toHaveAttribute("aria-expanded", "false");
+  await help.click();
+  await expect(help).toHaveAttribute("aria-expanded", "true");
+  const steps = page.locator("#panel .guide > li");
+  expect(await steps.count()).toBe(GUIDE_STEPS.length);
+  for (let i = 0; i < GUIDE_STEPS.length; i++) {
+    await expect(steps.nth(i)).toContainText(GUIDE_STEPS[i].title);
+    await expect(steps.nth(i)).toContainText(GUIDE_STEPS[i].body);
+  }
+  await page.keyboard.press("Escape");
+  await expect(help).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#panel .guide")).toHaveCount(0);
+  await expect(help).toBeFocused();
+});
+
+test("S5.5: each guide step is a collapsible section, closed by default, with a chevron that opens it on click", async ({ page }) => {
+  await page.locator("#help").click();
+  const first = page.locator("#panel .guide > li").first().locator("details");
+  await expect(first).not.toHaveJSProperty("open", true);
+  await expect(first.locator("p")).toBeHidden();
+  await first.locator("summary").click();
+  await expect(first).toHaveJSProperty("open", true);
+  await expect(first.locator("p")).toBeVisible();
+  await expect(first.locator("p")).toContainText(GUIDE_STEPS[0].body);
+  // a second step opens independently, the first stays open
+  const second = page.locator("#panel .guide > li").nth(1).locator("details");
+  await second.locator("summary").click();
+  await expect(second).toHaveJSProperty("open", true);
+  await expect(first).toHaveJSProperty("open", true);
+});
+
+test("S5.5: Help is reachable and toggled from the keyboard, and Close in the panel also returns focus to the button", async ({ page }) => {
+  await page.locator("#help").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#help")).toHaveAttribute("aria-expanded", "true");
+  await page.locator("#helpClose").click();
+  await expect(page.locator("#help")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#help")).toBeFocused();
+});
+
+test("S5.5 break it: the guide stays open, and the selection panel it replaced does not reappear, across a plan rotation, a floor add and a layout load", async ({ page }) => {
+  await page.locator("#help").click();
+  await expect(page.locator("#panel .guide")).toBeVisible();
+
+  await this_rotatePlan(page);
+  await expect(page.locator("#panel .guide")).toBeVisible();
+
+  await page.locator("#addFloor").click();
+  await page.locator("#newFloor").fill("Attic");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#panel .guide")).toBeVisible();
+
+  const layout = { ...demo, floors: { ground: demo.floors.ground } };
+  await page.locator("#file").setInputFiles({ name: "reload.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(layout)) });
+  await expect.poll(async () => (await layoutOf(page)).floors.ground.outline.length).toBe(layout.floors.ground.outline.length);
+  await expect(page.locator("#panel .guide")).toBeVisible();
+
+  async function this_rotatePlan(p: Page) {
+    await menu(p, "View");
+    await p.locator("#rotr").click();
+    await menu(p, "View");
+  }
+});
+
+test("S5.5 CSS: the guide panel's own text reads against its own background in every theme", async ({ page }) => {
+  await page.locator("#help").click();
+  for (const t of ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha"] as const) {
+    await setTheme(page, t);
+    const got = await page.evaluate((tag) => {
+      const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
+      const panel = root.querySelector("#panel")!;
+      const s = getComputedStyle(panel);
+      return { color: s.color, background: getComputedStyle(document.querySelector(tag) as HTMLElement).backgroundColor };
+    }, EDITOR);
+    expect(got.color, t).not.toBe(got.background);
+  }
+});
+
+test("S5.5: on a narrow window the guide's own steps don't scroll away under the toolbar — the panel column stays reachable", async ({ page }) => {
+  await page.setViewportSize({ width: 480, height: 700 });
+  await page.locator("#help").click();
+  const last = page.locator("#panel .guide > li").last();
+  await last.scrollIntoViewIfNeeded();
+  await expect(last).toBeVisible();
+});
+
+test("a room's Delete button sits next to Unsnap, not at the bottom of the panel", async ({ page }) => {
+  await clickCm(page, 50, 200); // the living room
+  await expect(page.locator("#rn")).toHaveValue("Living");
+  const row = page.locator("#runsnap").locator("xpath=..");
+  await expect(row.locator("#rdel")).toHaveCount(1);
+});
+
+test("View menu shows the installed version, matching the integration manifest, at the top of the menu", async ({ page }) => {
+  await menu(page, "View");
+  const box = page.locator("#mOpt .box");
+  const first = box.locator("> *").first();
+  await expect(first).toHaveAttribute("id", "version");
+  await expect(first).toHaveText(`Floorplan Studio ${manifest.version}`);
+});
+
+test("dragging a room snapped to a neighbour pans the view instead of moving the room; Unsnap first lets it move", async ({ page }) => {
+  const g0 = await groundOf(page), living = g0.rooms[0];
+  const v0 = await page.evaluate((tag) => ({ ...(document.querySelector(tag as string) as any).st.view }), EDITOR);
+  await dragCm(page, [60, 200], [160, 300]); // inside the living room, snapped to Kitchen/Hall by default
+  const g1 = await groundOf(page);
+  expect(g1.rooms[0].pts).toEqual(living.pts); // the room did not move
+  const v1 = await page.evaluate((tag) => ({ ...(document.querySelector(tag as string) as any).st.view }), EDITOR);
+  expect(v1).not.toEqual(v0); // the view panned instead
+
+  await clickCm(page, 60, 200);
+  await page.locator("#runsnap").click(); // Unsnap
+  await dragCm(page, [60, 200], [160, 300]);
+  const g2 = await groundOf(page);
+  expect(g2.rooms[0].pts).not.toEqual(living.pts); // now it moves
+});
+
+test("View menu: the grid-snap row is labelled Snap, and its chips are half width so two sit on one line", async ({ page }) => {
+  await menu(page, "View");
+  await expect(page.locator("#snap > span")).toHaveText("Snap");
+  const boxes = await page.locator("#snap [data-grid]").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()));
+  expect(boxes[0].top).toBeCloseTo(boxes[1].top, 0); // first two chips share a row
+  expect(boxes[0].left).toBeLessThan(boxes[1].left);
 });

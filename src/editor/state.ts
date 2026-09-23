@@ -1,4 +1,4 @@
-import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, unplacedCatalog, validate, viewBoxFor } from "../core";
+import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, Theme } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -38,6 +38,13 @@ function readTheme(): ThemeChoice {
   } catch { return DEFAULT_THEME; }
 }
 
+/** localStorage key for the Help panel's open/closed state (S5.5). A viewer preference, not part of the layout, never an undo step. */
+export const HELP_KEY = "floorplan-studio:help";
+/** The stored choice, or closed when there is none or storage is blocked. */
+function readHelp(): boolean {
+  try { return localStorage.getItem(HELP_KEY) === "true"; } catch { return false; }
+}
+
 export interface View { x: number; y: number; w: number; h: number }
 /** A point that is not a polygon corner: the end of a wall, an opening or an extra. */
 export type LooseRef = { k: "walls" | "openings" | "extras"; i: number; end: "a" | "b" };
@@ -46,10 +53,12 @@ export type Sel =
   | null
   | { t: "v"; ref: PtRef }
   | { t: "edge"; poly: string; i: number }
-  | { t: "wall" | "door" | "opening" | "dev" | "room" | "furn" | "stairs" | "extra"; i: number };
+  | { t: "wall" | "door" | "opening" | "dev" | "room" | "furn" | "stairs" | "extra" | "unl"; i: number }
+  /** S4.5: several lights, or several motion sensors, Shift+clicked together, for "Create group". */
+  | { t: "devs"; is: number[] };
 
 export function emptyLayout(): Layout {
-  const floor: Floor = { title: "Ground", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };
+  const floor: Floor = { title: "Ground", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
   return { version: 2, unit: "cm", north: 0, rotate: 0, floors: { ground: floor }, catalog: [] };
 }
 
@@ -112,8 +121,21 @@ export class EditorState {
   floor: string;
   sel: Sel = null;
   views: Record<string, View> = {};
-  filter: DeviceType | "" = "";
+  /** The toolbar's device-type filter: empty shows every type, several may be checked at once. */
+  filter: DeviceType[] = [];
   showNames = false;
+  /** S4.5: the Group menu's chosen HA group entity, dimming every device not among its members. Kept for the session, never the layout. */
+  activeGroup: string | null = null;
+  /** S4.5: the "Create group" panel's draft name field. Kept for the session, never the layout. */
+  groupDraft = "";
+  /** S4.6: the switch panel's "Controls..." draft target list. Kept for the session, never the layout. */
+  controlsDraft: string[] = [];
+  /** S4.6: the "Schedule" panel's draft on/off time fields, "HH:MM". Kept for the session, never the layout. */
+  scheduleOn = "";
+  scheduleOff = "";
+  /** S4.6: the Group menu's "Turns on..." draft — a light group id and the off delay in minutes. Kept for the session, never the layout. */
+  motionLightGroup = "";
+  motionMinutes = "";
   /** Snap grid in cm; 0 is none. Kept in localStorage, not in the layout. */
   snapGrid: Grid = readGrid();
   showLen = true;
@@ -121,6 +143,8 @@ export class EditorState {
   measure: boolean = readMeasure();
   /** Blueprint (default), light, or ha (Home Assistant's own theme). Kept in localStorage, not in the layout, never an undo step. */
   theme: ThemeChoice = readTheme();
+  /** S5.5: whether the Help panel is open. Kept in localStorage, not in the layout, never an undo step. */
+  helpOpen: boolean = readHelp();
   /** id of the door drawn open in the preview */
   openDoor: string | null = null;
   /** The floor panel is asking "Delete floor ...?". Any change of floor, undo or press on the plan cancels it. */
@@ -166,7 +190,7 @@ export class EditorState {
     for (let n = 2; hasOwn(this.layout.floors, key); n++) key = `${base}-${n}`;
     this.snapshot();
     const first = Object.values(this.layout.floors)[0];
-    const nf: Floor = { title: t, outline: structuredClone(first?.outline ?? []), rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };
+    const nf: Floor = { title: t, outline: structuredClone(first?.outline ?? []), rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
     if (first?.owk) nf.owk = structuredClone(first.owk); // Opus review: the outline's kinds must follow its points, or a new floor's perimeter drops back to the wk-less default
     for (const s of first?.stairs ?? []) nf.stairs.push({ ...structuredClone(s), id: newId(nf, key, "stairs") });
     Object.defineProperty(this.layout.floors, key, { value: nf, enumerable: true, writable: true, configurable: true });
@@ -294,15 +318,16 @@ export class EditorState {
   /**
    * Paints a room, zone or staircase of the current floor, one undo step. `{ color }` sets a flat colour (and drops any texture); a
    * colour that is not a built-in swatch joins `layout.palette`, newest last, so the swatches keep every custom colour used.
-   * `{ texture, rot }` sets a texture (and drops the colour) and, optionally, the texture's own rotation in whole
-   * degrees (S4.22; 0 or omitted is never stored). `null` returns to the theme's default fill. Returns false,
-   * recording nothing, when the shape is missing, the value is bad or nothing changes.
+   * `{ texture, rot, scale }` sets a texture (and drops the colour) and, optionally, the texture's own rotation in
+   * whole degrees (S4.22; 0 or omitted is never stored) and scale (S4.19; 1 or omitted is never stored). `null`
+   * returns to the theme's default fill. Returns false, recording nothing, when the shape is missing, the value is
+   * bad or nothing changes.
    */
-  paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string; rot?: number } | null): boolean {
+  paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string; rot?: number; scale?: number } | null): boolean {
     const next: Layout = structuredClone(this.layout);
     const shape = next.floors[this.floor][on][i];
     if (!shape) return false;
-    delete shape.color; delete shape.texture; delete shape.textureRot;
+    delete shape.color; delete shape.texture; delete shape.textureRot; delete shape.textureScale;
     if (paint && "color" in paint) {
       const hex = paint.color.toLowerCase();
       if (!/^#[0-9a-f]{6}$/.test(hex)) return false;
@@ -313,6 +338,8 @@ export class EditorState {
       shape.texture = paint.texture;
       const rot = ((Math.trunc(paint.rot ?? 0) % 360) + 360) % 360;
       if (rot !== 0) shape.textureRot = rot;
+      const scale = Math.min(2, Math.max(0.25, paint.scale ?? 1));
+      if (scale !== 1) shape.textureScale = scale;
     }
     if (JSON.stringify(next) === JSON.stringify(this.layout)) return false;
     this.snapshot();
@@ -348,6 +375,94 @@ export class EditorState {
     return true;
   }
 
+  /**
+   * Places `e` as a new device at `ctr` — both a new `layout.catalog` entry (`room`, when known, for its labels in the
+   * Device menu) and a new device on the current floor, one undo step. `typeForEntity` guesses the device type; the
+   * device panel's own type field corrects it afterward. False, and nothing recorded, for an entity already placed
+   * or already in the catalog. Shared by `addFromArea` (S4.18, one room's area) and `addEntity` (S4.14, the general palette).
+   */
+  private addHaEntity(e: HaData["entities"][number], ctr: Pt, room?: string): boolean {
+    if (Object.values(this.layout.floors).some((f) => f.devices.some((d) => d.entity === e.id)) || this.layout.catalog.some((c) => c.entity === e.id)) return false;
+    const next = structuredClone(this.layout);
+    const f = next.floors[this.floor];
+    const id = newId(f, this.floor, "device");
+    const type = typeForEntity(e);
+    f.devices.push({ id, name: e.name, type, entity: e.id, x: ctr[0], y: ctr[1] });
+    next.catalog.push({ id, floor: this.floor, room: room ?? "", type, name: e.name, entity: e.id });
+    this.snapshot();
+    this.layout = next;
+    this.sel = { t: "dev", i: f.devices.length - 1 };
+    return true;
+  }
+
+  /**
+   * S4.18: places `e`, an entity from the current floor's `roomIndex` room's linked HA area, at `at` — the point the
+   * user right-clicked to open the menu (S4.26), or that room's centre when no point is given. False for an unknown room.
+   */
+  addFromArea(roomIndex: number, e: HaData["entities"][number], at?: Pt): boolean {
+    const room = this.f.rooms[roomIndex];
+    if (!room) return false;
+    const ctr: Pt = at ?? [Math.round(room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length), Math.round(room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length)];
+    return this.addHaEntity(e, ctr, room.name);
+  }
+
+  /** S4.15: entities of room `roomIndex`'s HA area that are neither drawn nor catalogued. Empty with no HA, no area or no such room. */
+  areaToPlace(roomIndex: number): HaData["entities"] {
+    const room = this.f.rooms[roomIndex];
+    if (!room?.area || !this.ha || room.pts.length < 3) return [];
+    return unplacedHaEntities(this.layout, this.ha).filter((e) => e.area === room.area);
+  }
+
+  /**
+   * S4.15: places every entity `areaToPlace` returns, one undo step, and returns how many. They take the free cells
+   * of a 60 cm grid about the room's centre, nearest first: inside the room, not the centre itself (the room's label
+   * is there), not next to a device already on the floor. A room too small for that shrinks the grid; one too small
+   * even then stacks the rest on the centre. None to place records no step.
+   */
+  placeArea(roomIndex: number): number {
+    const todo = this.areaToPlace(roomIndex);
+    if (!todo.length) return 0;
+    const room = this.f.rooms[roomIndex];
+    const xs = room.pts.map((p) => p[0]), ys = room.pts.map((p) => p[1]);
+    const ctr: Pt = [xs.reduce((s, v) => s + v, 0) / xs.length, ys.reduce((s, v) => s + v, 0) / ys.length];
+    const reach = Math.max(...xs.map((x) => Math.abs(x - ctr[0])), ...ys.map((y) => Math.abs(y - ctr[1])));
+    const taken = this.f.devices.flatMap((d) => ("x" in d ? [[d.x, d.y] as Pt] : []));
+    const cells = (step: number): Pt[] => {
+      const r = Math.ceil(reach / step), out: [number, Pt][] = [];
+      for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) {
+        const p: Pt = [Math.round(ctr[0] + i * step), Math.round(ctr[1] + j * step)];
+        if ((i || j) && inside(p, room.pts) && taken.every((t) => Math.hypot(t[0] - p[0], t[1] - p[1]) >= step * 0.7)) out.push([Math.hypot(i, j), p]);
+      }
+      return out.sort((a, b) => a[0] - b[0]).map((c) => c[1]); // stable: equal distances keep row order
+    };
+    let spots = cells(60);
+    for (let step = 48; spots.length < todo.length && step >= 10; step *= 0.8) spots = cells(step);
+    const next = structuredClone(this.layout);
+    const f = next.floors[this.floor];
+    todo.forEach((e, k) => {
+      const at = spots[k] ?? (ctr.map(Math.round) as Pt);
+      const id = newId(f, this.floor, "device"), type = typeForEntity(e);
+      f.devices.push({ id, name: e.name, type, entity: e.id, x: at[0], y: at[1] });
+      next.catalog.push({ id, floor: this.floor, room: room.name, type, name: e.name, entity: e.id });
+    });
+    this.snapshot();
+    this.layout = next;
+    this.sel = { t: "room", i: roomIndex };
+    return todo.length;
+  }
+
+  /**
+   * S4.14: places `e` from the general "Add > Entities" palette. When `e`'s HA area matches a room on the current
+   * floor, it lands at that room's centre and the catalog records the room, exactly like `addFromArea` — a room the
+   * user already drew is a better guess than the caller's `fallback` spawn point. Otherwise it lands at `fallback`.
+   */
+  addEntity(e: HaData["entities"][number], fallback: Pt): boolean {
+    const room = e.area ? this.f.rooms.find((r) => r.area === e.area) : undefined;
+    if (!room) return this.addHaEntity(e, fallback);
+    const ctr: Pt = [Math.round(room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length), Math.round(room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length)];
+    return this.addHaEntity(e, ctr, room.name);
+  }
+
   /** Sets (`hex`) or removes (null) the colour of one device type in `layout.colors`: one undo step, none when nothing changes. `colors` is removed when it empties, so an untouched layout stays as it was. */
   setColour(type: DeviceType, hex: string | null): boolean {
     const cur = this.layout.colors ?? {};
@@ -380,11 +495,62 @@ export class EditorState {
     return this.layout.catalog.filter((c) => (c.type === "switch" || c.type === "plug") && c.entity !== d.entity);
   }
 
-  /** Contact sensors from the catalog that no other door uses. */
-  sensorChoices(doorId: string): CatalogEntry[] {
+  /**
+   * S4.24: catalog entries of `type` not already on this door's own `field` list (those stay offered, so a
+   * current pick still shows) and not on any *other* door's `field` list — several sensors per door, but one
+   * door per sensor, matching the single-sensor behaviour this replaces.
+   */
+  doorAttachChoices(doorId: string, field: "sensors" | "vibration" | "locks"): CatalogEntry[] {
+    const type: DeviceType = field === "sensors" ? "contact" : field === "vibration" ? "vibration" : "lock";
     const used = new Set<string>();
-    for (const f of Object.values(this.layout.floors)) for (const d of f.doors) if (d.id !== doorId && d.sensor) used.add(d.sensor);
-    return this.layout.catalog.filter((c) => c.type === "contact" && !used.has(c.entity));
+    for (const f of Object.values(this.layout.floors)) for (const d of f.doors) if (d.id !== doorId) for (const e of d[field] ?? []) used.add(e);
+    return this.layout.catalog.filter((c) => c.type === type && !used.has(c.entity));
+  }
+
+  /**
+   * Curtain/blind entities from the catalog not already on another door's `cover`. Offered on every door kind —
+   * a plain door's garage opener is a cover entity too — the panel just labels it "electric curtain" on a
+   * glass door or window.
+   */
+  coverChoices(doorId: string): CatalogEntry[] {
+    const used = new Set<string>();
+    for (const f of Object.values(this.layout.floors)) for (const d of f.doors) if (d.id !== doorId && d.cover) used.add(d.cover);
+    return this.layout.catalog.filter((c) => c.type === "cover" && !used.has(c.entity));
+  }
+
+  /**
+   * S4.24: catalog entries a heater's `trvs`/`tempSensors` or an ac's `linked` list may attach, minus the
+   * device's own entity. Unlike a door's sensors, these are not excluded elsewhere on the plan — the same
+   * temperature sensor, say, may reasonably feed more than one heater, the same way a switch can power several
+   * lights (`bindChoices` above).
+   */
+  deviceAttachChoices(devIndex: number, field: "trvs" | "tempSensors" | "linked"): CatalogEntry[] {
+    const d = this.f.devices[devIndex];
+    if (!d) return [];
+    if (field === "tempSensors") return this.layout.catalog.filter((c) => c.type === "temp" && c.entity !== d.entity);
+    return this.layout.catalog.filter((c) => (c.type === "climate" || c.type === "ac") && c.entity !== d.entity);
+  }
+
+  /**
+   * S4.25: catalog entries an unlinked item's `attached` list may offer. Unlike a heater's trvs or an ac's
+   * linked climates, an unlinked item has no fixed HA domain (a "car" or "server" type has no natural one), so
+   * every placed entity is a candidate; `multiAttachField` already excludes what is attached to this item.
+   */
+  unlinkedAttachChoices(): CatalogEntry[] {
+    return this.layout.catalog;
+  }
+
+  /**
+   * S4.6: what a switch's "Controls..." automation may target — every placed light, switch or plug except the
+   * switch's own entity, plus every Home Assistant group (light or motion groups both list here; a group is not
+   * a plan device, so it is not in `layout.catalog` and carries no room).
+   */
+  controlsChoices(devIndex: number): CatalogEntry[] {
+    const d = this.f.devices[devIndex];
+    if (!d) return [];
+    const placed: CatalogEntry[] = this.layout.catalog.filter((c) => (c.type === "light" || c.type === "switch" || c.type === "plug") && c.entity !== d.entity);
+    const groups = (this.ha?.entities ?? []).filter((e) => e.domain === "group" && e.id !== d.entity);
+    return [...placed, ...groups.map((g): CatalogEntry => ({ id: g.id, floor: "", room: "", type: "light", name: g.name, entity: g.id }))];
   }
 
   /** Writes the autosave. Storage may be blocked or full; the edit then simply is not remembered. */
@@ -404,6 +570,11 @@ export class EditorState {
     this.theme = t;
     try { localStorage.setItem(THEME_KEY, t); } catch { /* private mode: the choice lasts until reload */ }
   }
+  /** Opens or closes the Help panel (S5.5). A viewer preference: no undo step, never written to the layout. */
+  setHelp(v: boolean) {
+    this.helpOpen = v;
+    try { localStorage.setItem(HELP_KEY, String(v)); } catch { /* private mode: the choice lasts until reload */ }
+  }
   persist() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.layout)); } catch { /* private mode, quota */ }
   }
@@ -412,7 +583,7 @@ export class EditorState {
 /** An id that no object of the floor uses yet: `<prefix>-<floor>-<n>`. */
 export function newId(f: Floor, floor: string, prefix: string): string {
   const used = new Set<string>();
-  for (const list of [f.rooms, f.walls, f.stairs, f.doors, f.openings, f.extras, f.devices, f.furniture]) for (const o of list) used.add(o.id);
+  for (const list of [f.rooms, f.walls, f.stairs, f.doors, f.openings, f.extras, f.devices, f.furniture, f.unlinked]) for (const o of list) used.add(o.id);
   let n = 1;
   while (used.has(`${prefix}-${floor}-${n}`)) n++;
   return `${prefix}-${floor}-${n}`;

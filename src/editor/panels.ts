@@ -1,10 +1,11 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { entitiesForType, inside, placedEntities } from "../core";
+import { entitiesForType, groupKind, inside, placedEntities, roomHaBox } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import type { DeviceType, EdgeKind, Floor, HaData, Room, RoomKind, WallKind } from "../core";
+import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
+import { GUIDE_STEPS } from "./guide";
 
 /** Selection panels: one function per kind of selection, all pure views over the state. */
 
@@ -13,7 +14,8 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["humidity", "Humidity"], ["motion", "Motion"], ["contact", "Window / door sensor"], ["camera", "Cameras"],
   ["climate", "Climate"], ["ac", "Air conditioning / heat pump"], ["tv", "TV"], ["computer", "Computers"],
   ["media", "Media players"], ["cover", "Covers"], ["battery", "Batteries"], ["inverter", "Inverters"], ["server", "Servers"],
-  ["access_point", "Access points"], ["other", "Other"],
+  ["access_point", "Access points"], ["lock", "Door locks"], ["vibration", "Vibration sensors"], ["other", "Other"],
+  ["boiler", "Boiler"], ["car", "Car"], ["ups", "UPS"], ["printer", "3D printer"], ["speaker", "Speaker"],
 ];
 
 export const WALL_LABELS: Record<EdgeKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge", none: "Not drawn" };
@@ -28,8 +30,28 @@ export interface PanelCtx {
   /** S4.22: the paint panel's texture-rotation slider. `live` previews every tick, no undo step; `commit`, once at
    * release, records the whole drag as one step (none if it ended back where it started). */
   rotateTexture(on: "rooms" | "stairs", i: number, rot: number, phase: "live" | "commit"): void;
+  /** S4.19: the paint panel's texture-scale slider, 25–200%. Same live/commit gesture as `rotateTexture`. */
+  scaleTexture(on: "rooms" | "stairs", i: number, scale: number, phase: "live" | "commit"): void;
   /** S4.4: create a light from the selected switch or plug. Absent when there is no Home Assistant to write to. */
   makeLight?: (devIndex: number) => void;
+  /** S4.2: create an HA area named after room `roomIndex` and link the room to it, after asking. Absent without a writer. */
+  createArea?: (roomIndex: number) => void;
+  /** S4.2: start drawing a room for an HA area no room uses yet. */
+  drawArea(area: { id: string; name: string }): void;
+  /** S4.15: place every unplaced entity of room `roomIndex`'s HA area, one undo step. */
+  placeArea(roomIndex: number): void;
+  /** S4.5: create an HA group of the devices at `is` (all one kind), named `name`, after asking. Absent without a writer. */
+  createGroup?: (is: number[], kind: "light" | "motion", name: string) => void;
+  /** S4.6: build and create the "switch controls..." automation for the switch at `devIndex`, after asking, then open it in HA. Absent without a writer. */
+  controlsAutomation?: (devIndex: number, targets: string[]) => void;
+  /** S4.6: build and create the "schedule" automation for the device at `devIndex`, after asking, then open it in HA. Absent without a writer. */
+  scheduleAutomation?: (devIndex: number, on: string, off: string) => void;
+  /** S4.7: opens Home Assistant's own more-info dialog for an entity. Always present; harmless when nothing is listening (standalone build). */
+  moreInfo(entityId: string): void;
+  /** S4.7: runs a scene (`scene.turn_on`) from the room box. Absent without a writer. */
+  runScene?: (entityId: string) => void;
+  /** S4.7: puts an area-less HA entity into room `roomIndex`'s area, after asking. Absent without a writer. */
+  addToArea?: (roomIndex: number, entityId: string) => void;
   /** S4.3: the room whose HA area differs from the device's, when there is one, and the action that moves it there. */
   areaDiff?: (devIndex: number) => { name: string } | null;
   moveArea?: (devIndex: number) => void;
@@ -59,31 +81,40 @@ const texturePreview = (t: { id: string; preview: string }) =>
  * Colour, custom colours, textures and "default" for a room, zone or staircase. A colour picked on the input that is not a swatch
  * yet is added to the swatches (kept in `layout.palette`, so it is still there after a reload). `id` prefixes the element ids.
  */
-function paintControls(c: PanelCtx, on: "rooms" | "stairs", i: number, id: string, shape: { color?: string; texture?: string; textureRot?: number }) {
+function paintControls(c: PanelCtx, on: "rooms" | "stairs", i: number, id: string, shape: { color?: string; texture?: string; textureRot?: number; textureScale?: number }) {
   const cur = (shape.color ?? "").toLowerCase(), custom = c.st.layout.palette ?? [];
   const swatch = (hex: string, name: string, extra = "") => html`<button class=${`sw${extra}`} type="button" title=${name} aria-label=${name} aria-pressed=${String(!shape.texture && cur === hex)} style="background:${hex}" @click=${() => c.paint(on, i, { color: hex })}></button>`;
   return html`<label for=${`${id}col`}>colour</label><input id=${`${id}col`} type="color" .value=${shape.color ?? "#ffffff"} @change=${(e: Event) => c.paint(on, i, { color: val(e) })}>
     <div class="swatches" role="group" aria-label="Colours">${FLOOR_COLOURS.map((k) => swatch(k.hex, k.name))}${custom.map((hex) => swatch(hex, `Custom ${hex}`, " custom"))}</div>
     <div class="swatches" role="group" aria-label="Textures">${TEXTURES.map((t) => html`<button class="sw tex" type="button" title=${t.name} aria-label=${t.name} aria-pressed=${String(shape.texture === t.id)} style=${texturePreview(t)} @click=${() => c.paint(on, i, { texture: t.id })}></button>`)}</div>
     ${shape.texture ? html`<label for=${`${id}rot`}>texture rotation</label>
-      <input id=${`${id}rot`} type="range" min="0" max="359" step="1" .value=${live(String(shape.textureRot ?? 0))}
-        @input=${(e: Event) => c.rotateTexture(on, i, Number(val(e)), "live")}
-        @change=${(e: Event) => c.rotateTexture(on, i, Number(val(e)), "commit")}>
-      <span class="rot-val">${shape.textureRot ?? 0}°</span>` : nothing}
+      <div class="rangerow">
+        <input id=${`${id}rot`} type="range" min="0" max="359" step="1" .value=${live(String(shape.textureRot ?? 0))}
+          @input=${(e: Event) => c.rotateTexture(on, i, Number(val(e)), "live")}
+          @change=${(e: Event) => c.rotateTexture(on, i, Number(val(e)), "commit")}>
+        <span class="rot-val">${shape.textureRot ?? 0}°</span>
+      </div>
+      <label for=${`${id}scale`}>texture scale</label>
+      <div class="rangerow">
+        <input id=${`${id}scale`} type="range" min="25" max="200" step="5" .value=${live(String(Math.round((shape.textureScale ?? 1) * 100)))}
+          @input=${(e: Event) => c.scaleTexture(on, i, Number(val(e)) / 100, "live")}
+          @change=${(e: Event) => c.scaleTexture(on, i, Number(val(e)) / 100, "commit")}>
+        <span class="rot-val">${Math.round((shape.textureScale ?? 1) * 100)}%</span>
+      </div>` : nothing}
     <p>${button(`${id}colx`, "Use the default colour", () => c.paint(on, i, null))}</p>`;
 }
 
-function text(label: string, id: string, value: string, on: (v: string) => void) {
-  return html`<label for=${id}>${label}</label><input id=${id} type="text" .value=${value} @change=${(e: Event) => on(val(e))}>`;
+function text(label: string, id: string, value: string, on: (v: string) => void, disabled = false) {
+  return html`<label for=${id}>${label}</label><input id=${id} type="text" ?disabled=${disabled} .value=${value} @change=${(e: Event) => on(val(e))}>`;
 }
 /** A number field. It always shows what the state holds: `refresh` re-renders it after every change, so a refused or clamped value snaps back. */
 function number(c: PanelCtx, label: string, id: string, value: number | string, on: (v: number) => void) {
   return html`<label for=${id}>${label}</label><input id=${id} type="number" .value=${live(String(value))} @change=${(e: Event) => { const n = numVal(e); if (n !== null) on(n); c.refresh(); }}>`;
 }
 /** Rotation as buttons: 30, 45, 60 or 90 more degrees in the chosen direction, and Reset to 0 when `reset` is given. `turn` gets the signed degrees. */
-function rotateButtons(c: PanelCtx, id: string, turn: (deg: number) => void, opts: { reset?: () => void; disabled?: boolean } = {}) {
+function rotateButtons(c: PanelCtx, id: string, turn: (deg: number) => void, opts: { reset?: () => void; disabled?: boolean; label?: string } = {}) {
   const cw = c.st.turnDir === 1;
-  return html`<div class="rotrow" role="group" aria-label="Turn by degrees"><span>rotation</span>
+  return html`<div class="rotrow" role="group" aria-label="Turn by degrees"><span>${opts.label ?? "rotation"}</span>
     <button class="btn" id=${`${id}dir`} aria-pressed=${cw ? "false" : "true"} @click=${() => { c.st.turnDir = cw ? -1 : 1; c.refresh(); }}>${cw ? "clockwise" : "counter-clockwise"}</button>
     ${[30, 45, 60, 90].map((n) => html`<button class="btn" id=${`${id}${n}`} ?disabled=${opts.disabled} aria-label=${`Turn ${n} degrees ${cw ? "clockwise" : "counter-clockwise"}`} @click=${() => turn(c.st.turnDir * n)}>${n}</button>`)}
     ${opts.reset ? html`<button class="btn" id=${`${id}reset`} @click=${opts.reset}>Reset</button>` : nothing}</div>`;
@@ -125,6 +156,19 @@ function entityField(c: PanelCtx, id: string, label: string, cur: string | undef
     </select>${unknown ? hint(NOT_IN_HA) : nothing}`;
 }
 
+/**
+ * S5.5: the Help panel — a step-by-step guide, the same regardless of selection. It replaces the selection panel
+ * while open, so the reader can follow a step and do it with the guide still visible; the button that opens it is
+ * in the toolbar (editor-app.ts), which also gives focus back to itself when this panel's Close button is used.
+ */
+export function helpPanel(close: () => void): TemplateResult {
+  return html`<strong>Help</strong>
+    <p><button class="btn" id="helpClose" @click=${close}>Close</button></p>
+    <ol class="guide">
+      ${GUIDE_STEPS.map((s) => html`<li><details><summary>${s.title}</summary><p>${s.body}</p></details></li>`)}
+    </ol>`;
+}
+
 export function selectionPanel(c: PanelCtx): TemplateResult {
   const { st } = c, f = st.f, s = st.sel;
   if (!s) return floorPanel(c);
@@ -139,7 +183,22 @@ export function selectionPanel(c: PanelCtx): TemplateResult {
     case "dev": return f.devices[s.i] ? devicePanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "furn": return f.furniture[s.i] ? furniturePanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "stairs": return f.stairs[s.i] ? stairsPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
+    case "unl": return f.unlinked[s.i] ? unlinkedPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
+    case "devs": return devsPanel(c, s.is);
   }
+}
+
+/** S4.5: several Shift+clicked devices. "Create group" shows only when they are all lights or all motion sensors, two or more. */
+function devsPanel(c: PanelCtx, is: number[]): TemplateResult {
+  const { st } = c, f = st.f;
+  const names = is.map((i) => f.devices[i]).filter((d) => !!d).map((d) => d!.name ?? d!.entity);
+  const kind = groupKind(f, is);
+  return html`<strong>${is.length} devices selected</strong>
+    <ul>${names.map((n) => html`<li>${n}</li>`)}</ul>
+    ${!kind ? hint("Shift+click more lights, or more motion sensors, all the same kind, to create a group.") : nothing}
+    ${kind && c.createGroup ? html`
+      ${text("group name", "grpName", st.groupDraft, (v) => { st.groupDraft = v; c.refresh(); })}
+      <p>${button("vgroup", "Create group", () => { const name = st.groupDraft.trim(); if (name) c.createGroup!(is, kind, name); })}</p>` : nothing}`;
 }
 
 /** Shown when nothing is selected: the current floor. */
@@ -160,7 +219,18 @@ function floorPanel(c: PanelCtx) {
       : html`<p><button class="btn danger" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
     ${hint("A new floor starts with the outline and the stairs of the first floor. Delete a floor to start again with a clean one.")}
     ${hint("Devices on a deleted floor stay in the catalog and go back to the Device menu.")}
-    ${unboundList(c)}`;
+    ${unboundList(c)}
+    ${st.ha ? unplacedAreas(c, st.ha) : nothing}`;
+}
+
+/** S4.2: HA areas no room or zone on any floor uses, as buttons that start drawing a room for one. Nothing when every area is on the plan. */
+function unplacedAreas(c: PanelCtx, ha: HaData) {
+  const used = new Set(Object.values(c.st.layout.floors).flatMap((f) => f.rooms.map((r: Room) => r.area).filter(Boolean)));
+  const list = byName(ha.areas).filter((a) => !used.has(a.id));
+  if (!list.length) return nothing;
+  return html`<div id="unplacedAreas"><strong>Areas not on the plan (${list.length})</strong>
+    <div class="row">${list.map((a) => html`<button class="btn" @click=${() => c.drawArea(a)}>${a.name}</button>`)}</div>
+    ${hint("Click one, then draw its room.")}</div>`;
 }
 
 /** Devices of this floor with no entity, as buttons that select them; nothing when there are none. */
@@ -282,22 +352,44 @@ function angleField(c: PanelCtx, id: string, list: "walls" | "doors" | "openings
   });
 }
 
+/**
+ * S4.24: "attach several entities, filtered by type" — one add-select of catalog entries not yet attached, plus
+ * one row with a remove button per entity already attached. Shared by door sensors/vibration/locks and the
+ * heater/ac bindings below, so this UI is written once and every caller stays in step.
+ */
+function multiAttachField(c: PanelCtx, id: string, label: string, cur: string[], choices: CatalogEntry[], set: (next: string[]) => void) {
+  const nameOf = (entity: string) => { const e = c.st.layout.catalog.find((x) => x.entity === entity); return e ? (e.room ? `${e.room} - ${e.name}` : e.name) : entity; };
+  const avail = choices.filter((s) => !cur.includes(s.entity));
+  const add = (e: Event) => { const v = val(e); if (v) set([...cur, v]); };
+  return html`<label for=${id}>${label}</label>
+    <select id=${id} .value=${live("")} @change=${add}>
+      <option value="" selected>add...</option>
+      ${avail.map((s) => html`<option value=${s.entity}>${s.room ? `${s.room} - ` : ""}${s.name}</option>`)}
+    </select>
+    ${cur.map((en, k) => html`<p class="attach-row">${nameOf(en)} ${button(`${id}-rm${k}`, "Remove", () => set(cur.filter((x) => x !== en)), "warn")}</p>`)}`;
+}
+
 function doorPanel(c: PanelCtx, i: number) {
   const d = c.st.f.doors[i];
-  const sensors = c.st.sensorChoices(d.id);
+  const setList = (field: "sensors" | "vibration" | "locks") => (next: string[]) => c.commit((f) => { if (next.length) f.doors[i][field] = next; else delete f.doors[i][field]; });
+  // `cover` is general purpose (a garage door's roller shutter is one too, kind "door") and stays offered on
+  // every kind, same as before S4.24 — it doubles as the electric-curtain dropdown on a glass door or window.
+  const coverLabel = d.kind === "glass" || d.kind === "window" ? "electric curtain" : "cover";
   return html`<strong>Door / window</strong>
     ${text("name", "dn", d.name, (v) => c.commit((f) => { f.doors[i].name = v; }))}
     ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }))}
     ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); f.doors[i].locked = true; }))}
     ${lockField(c, "dlock", "doors", i)}
     ${angleField(c, "drot", "doors", i)}
-    <label for="dsens">contact sensor</label>
-    <select id="dsens" .value=${d.sensor ?? ""} @change=${(e: Event) => c.commit((f) => { const v = val(e); if (v) f.doors[i].sensor = v; else delete f.doors[i].sensor; })}>
-      <option value="" ?selected=${!d.sensor}>none</option>
-      ${sensors.map((s) => html`<option value=${s.entity} ?selected=${s.entity === d.sensor}>${s.room ? `${s.room} - ` : ""}${s.name}</option>`)}
-      ${d.sensor && !sensors.some((s) => s.entity === d.sensor) ? html`<option value=${d.sensor} selected>${d.sensor}</option>` : nothing}
+    ${multiAttachField(c, "dsens", "contact sensors", d.sensors ?? [], c.st.doorAttachChoices(d.id, "sensors"), setList("sensors"))}
+    ${multiAttachField(c, "dvibr", "vibration sensors", d.vibration ?? [], c.st.doorAttachChoices(d.id, "vibration"), setList("vibration"))}
+    ${multiAttachField(c, "dlocks", "smart locks", d.locks ?? [], c.st.doorAttachChoices(d.id, "locks"), setList("locks"))}
+    <label for="dcover">${coverLabel}</label>
+    <select id="dcover" .value=${d.cover ?? ""} @change=${(e: Event) => c.commit((f) => { const v = val(e); if (v) f.doors[i].cover = v; else delete f.doors[i].cover; })}>
+      <option value="" ?selected=${!d.cover}>none</option>
+      ${c.st.coverChoices(d.id).map((s) => html`<option value=${s.entity} ?selected=${s.entity === d.cover}>${s.room ? `${s.room} - ` : ""}${s.name}</option>`)}
+      ${d.cover && !c.st.coverChoices(d.id).some((s) => s.entity === d.cover) ? html`<option value=${d.cover} selected>${d.cover}</option>` : nothing}
     </select>
-    ${text("cover entity (optional)", "dcover", d.cover ?? "", (v) => c.commit((f) => { if (v.trim()) f.doors[i].cover = v.trim(); else delete f.doors[i].cover; }))}
     <label><input type="checkbox" id="dopen" .checked=${c.st.openDoor === d.id} @change=${(e: Event) => { c.st.openDoor = (e.target as HTMLInputElement).checked ? d.id : null; c.refresh(); }}> preview open</label>
     <p>${button("deld", "Delete", () => { c.commit((f) => { f.doors.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag it along a wall. Drag an end to resize.")}`;
@@ -325,9 +417,9 @@ function roomPanel(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
   return html`<strong>Room</strong>
     ${c.st.ha ? roomLink(c, c.st.ha, i) : html`${text("name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
-    ${text("area id", "ra", r.area, (v) => c.commit((f) => { f.rooms[i].area = v; }))}
+    ${text("area id", "ra", r.area, (v) => c.commit((f) => { f.rooms[i].area = v; }), !!r.area)}
     ${r.area ? nothing : entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}
-    ${text("plan label", "rl", r.label, (v) => c.commit((f) => { f.rooms[i].label = v; }))}
+    ${placeAreaButton(c, i)}
     ${kindSelect(r.kind, (v) => c.commit((f) => {
       const room = f.rooms[i];
       if (room.kind === v) return;
@@ -336,9 +428,15 @@ function roomPanel(c: PanelCtx, i: number) {
     }))}
     ${roomTurn(c, i)}
     ${paintControls(c, "rooms", i, "r", r)}
-    <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>
+    ${haBox(c, i)}
     ${r.kind === "zone" ? hint("A zone is a dotted area inside a room. Give it an area id to map it to a Home Assistant area. Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag the body to move it. Drag corners to reshape. Select an edge and choose its kind.") : nothing}`;
+}
+
+/** S4.15: one button that places every entity Home Assistant has in the room's area and the plan does not show yet. */
+function placeAreaButton(c: PanelCtx, i: number) {
+  const n = c.st.areaToPlace(i).length;
+  return n ? html`<p>${button("rplace", `Place ${n} Home Assistant device${n === 1 ? "" : "s"} of this area`, () => c.placeArea(i))}</p>` : nothing;
 }
 
 const setOrDelete = <T extends object, K extends keyof T>(o: T, k: K, v: T[K] | undefined) => { if (v === undefined || v === "") delete o[k]; else o[k] = v; };
@@ -362,39 +460,126 @@ function roomLink(c: PanelCtx, ha: HaData, i: number) {
   };
   const opt = (a: { id: string; name: string }) => html`<option value=${a.id} ?selected=${a.id === r.area}>${a.name}</option>`;
   return html`${hits.length === 1 ? html`<p><button class="btn" id="rmatch" @click=${() => pick(hits[0].id)}>Link to the Home Assistant area ${hits[0].name}</button></p>` : nothing}
-    <label for="ra">area</label><select id="ra" .value=${live(r.area)} @change=${(e: Event) => pick(val(e))}>
+    <label for="ra">area</label><select id="ra" @change=${(e: Event) => pick(val(e))}>
       <option value="" ?selected=${!r.area}>(no area — custom)</option>
       ${free.map(opt)}
       ${taken.length ? html`<optgroup label="Already on the plan">${taken.map(opt)}</optgroup>` : nothing}
       ${unknown ? missingOpt(r.area) : nothing}
     </select>${unknown ? hint(NOT_IN_HA) : nothing}
+    ${c.createArea && r.kind !== "water" && r.name.trim() && (!r.area || unknown) ? html`<p>${button("rcreate", `Create area ${r.name.trim()} in Home Assistant`, () => c.createArea!(i))}</p>` : nothing}
     ${r.area ? nothing : html`${text("plan name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
     ${entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}`;
+}
+
+/** S4.7: one row of the "In Home Assistant" box: its name, "Open" (more-info), and a kind-specific extra action. */
+function haRow(c: PanelCtx, row: HaBoxRow, kind?: "automation" | "script" | "scene", uid?: string) {
+  const edit = (seg: "automation" | "script") => `/config/${seg}/edit/${uid ?? row.id.split(".").slice(1).join(".")}`;
+  return html`<div class="harow2" data-ha-row=${row.id}>
+    <span>${row.name}${row.placed ? " (on plan)" : ""}</span>
+    <button class="btn keep" type="button" @click=${() => c.moreInfo(row.id)}>Open</button>
+    ${kind === "scene" && c.runScene ? html`<button class="btn keep" type="button" @click=${() => c.runScene!(row.id)}>Run</button>` : nothing}
+    ${(kind === "automation" || kind === "script") ? html`<a class="btn keep" href=${edit(kind)} target="_top">Edit in HA</a>` : nothing}
+  </div>`;
+}
+
+/**
+ * S4.7: below the room panel, everything Home Assistant has in the room's area, grouped under five headings (placed
+ * devices marked), plus "Add to area..." for an entity HA has in no area yet. A custom room (no area) with its own
+ * `entity` shows that one row instead; with neither, a hint that there is nothing to show.
+ */
+function haBox(c: PanelCtx, i: number) {
+  const ha = c.st.ha;
+  if (!ha) return nothing;
+  const r = c.st.f.rooms[i];
+  if (!r.area) {
+    if (!r.entity) return html`${hint("No area: set one above.")}`;
+    const e = ha.entities.find((x) => x.id === r.entity);
+    return html`<div class="habox"><strong>In Home Assistant</strong>${haRow(c, { id: r.entity, name: e?.name ?? r.entity, placed: true })}</div>`;
+  }
+  const box = roomHaBox(ha, r.area, placedEntities(c.st.layout));
+  const all: [string, HaBoxRow[], "automation" | "script" | "scene" | undefined][] = [
+    ["Devices", box.devices, undefined], ["Helpers", box.helpers, undefined],
+    ["Automations", box.automations, "automation"], ["Scripts", box.scripts, "script"], ["Scenes", box.scenes, "scene"],
+  ];
+  const groups = all.filter(([, rows]) => rows.length);
+  const free = byName(ha.entities.filter((e) => !e.area));
+  return html`<div class="habox"><strong>In Home Assistant</strong>
+    ${groups.length ? groups.map(([label, rows, kind]) => html`<p class="habox-h">${label}</p>${rows.map((row) => haRow(c, row, kind, kind ? ha.entities.find((e) => e.id === row.id)?.uid : undefined))}`) : hint("Nothing in this area yet.")}
+    ${c.addToArea && free.length ? html`<label for="haadd">Add to area...</label><select id="haadd" .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) c.addToArea!(i, v); }}>
+      <option value="" selected>(pick an entity)</option>${free.map((e) => html`<option value=${e.id}>${e.name}</option>`)}</select>` : nothing}</div>`;
 }
 
 /** Rotation of a room or zone (a turn, in degrees, about its middle) and the Unsnap toggle. A room that still shares a corner cannot turn. */
 function roomTurn(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i], id = `r${i}`;
   const free = r.free === true, locked = !free && snapped(c.st.f, id);
-  return html`${rotateButtons(c, "rrot", (n) => c.commit((f) => rotatePoly(f, id, n)), { disabled: locked })}
-    <p>${button("runsnap", free ? "Snap back" : "Unsnap", () => c.commit((f) => { if (free) delete f.rooms[i].free; else f.rooms[i].free = true; }))}</p>
+  return html`${rotateButtons(c, "rrot", (n) => c.commit((f) => rotatePoly(f, id, n)), { disabled: locked, label: "Room Rotation" })}
+    <p>${button("runsnap", free ? "Snap back" : "Unsnap", () => c.commit((f) => { if (free) delete f.rooms[i].free; else f.rooms[i].free = true; }))}
+    ${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${free ? hint("Unsnapped: this room no longer joins its neighbours.") : locked ? hint("This room shares a corner with a neighbour. Unsnap it to rotate.") : nothing}`;
 }
+
+/** S4.6: switch panel "Controls..." — pick lights, switches, plugs or groups, then create the automation. */
+function controlsField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i], draft = c.st.controlsDraft;
+  const choices = c.st.controlsChoices(i);
+  const single = draft.length === 1 ? choices.find((s) => s.entity === draft[0]) : undefined;
+  return html`${multiAttachField(c, "vctl", "Controls", draft, choices, (next) => { c.st.controlsDraft = next; c.refresh(); })}
+    ${single?.type === "light" && c.st.canMakeLight(i) ? hint(`For one light, "Create a light from this switch" above is simpler than an automation.`) : nothing}
+    <p>${button("vctlgo", "Create automation", () => { if (draft.length) c.controlsAutomation!(i, draft); })}</p>
+    ${hint(`Home Assistant opens the automation's own editor once it is created, so it can be adjusted or renamed. "${d.name ?? d.entity}" cannot control itself.`)}`;
+}
+
+/** S4.6: "Schedule" — two HH:MM fields, then create the automation. On light, switch, plug and media panels. */
+function scheduleField(c: PanelCtx, i: number) {
+  const st = c.st, d = st.f.devices[i];
+  return html`<label for="vschon">on at</label><input id="vschon" type="time" .value=${live(st.scheduleOn)} @change=${(e: Event) => { st.scheduleOn = val(e); c.refresh(); }}>
+    <label for="vschoff">off at</label><input id="vschoff" type="time" .value=${live(st.scheduleOff)} @change=${(e: Event) => { st.scheduleOff = val(e); c.refresh(); }}>
+    <p>${button("vschgo", "Create schedule automation", () => { if (st.scheduleOn && st.scheduleOff) c.scheduleAutomation!(i, st.scheduleOn, st.scheduleOff); })}</p>
+    ${hint(`Home Assistant opens the automation's own editor once it is created. It turns ${d.name ?? d.entity} on and off at these times every day.`)}`;
+}
+
+const SCHEDULABLE: DeviceType[] = ["light", "switch", "plug", "media"];
 
 function devicePanel(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
   const label = TYPE_LABELS.find((t) => t[0] === d.type)?.[1] ?? d.type;
   return html`<strong>${d.name ?? d.id}</strong>
     ${hint(`${label.toLowerCase()}. Its name comes from Home Assistant.`)}
+    ${deviceTypeField(c, i)}
     ${deviceEntity(c, i)}
     ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}
     ${d.type === "camera" ? hint("The cone shows a 120 degree field of view, 1 m deep.") : nothing}
     ${d.type === "light" ? boundField(c, i) : nothing}
+    ${d.type === "heater" ? heaterFields(c, i) : nothing}
+    ${d.type === "ac" ? acField(c, i) : nothing}
     ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
     ${areaDiffField(c, i)}
     ${c.makeLight && c.st.canMakeLight(i) ? html`<p>${button("vmklight", "Create a light from this switch", () => c.makeLight!(i))}</p>${hint("Home Assistant gets a new light that wraps this switch. The plan then shows the light.")}` : nothing}
+    ${c.controlsAutomation && d.type === "switch" ? controlsField(c, i) : nothing}
+    ${c.scheduleAutomation && SCHEDULABLE.includes(d.type) ? scheduleField(c, i) : nothing}
     <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it. Alt disables the grid.") + " Removed devices go back to the Device menu.")}`;
+}
+
+/**
+ * S4.18: corrects a device's type, whatever set it wrong (a guess from the area's entity list, or a bad catalog
+ * entry) — there was previously no way to fix one once placed. Changing away from a type drops the fields only that
+ * type uses (`bound` for light, `trvs`/`tempSensors` for heater, `linked` for ac), in the same undo step, so the
+ * layout stays valid and the panel never shows a field for the wrong type.
+ */
+function deviceTypeField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  const set = (t: string) => c.commit((f) => {
+    const dv = f.devices[i];
+    dv.type = t as DeviceType;
+    if (t !== "light") delete dv.bound;
+    if (t !== "heater") { delete dv.trvs; delete dv.tempSensors; }
+    if (t !== "ac") delete dv.linked;
+  });
+  return html`<label for="vtype">type</label><select id="vtype" .value=${d.type} @change=${(e: Event) => set(val(e))}>
+    ${TYPE_LABELS.map(([t, lbl]) => html`<option value=${t} ?selected=${t === d.type}>${lbl}</option>`)}
+  </select>`;
 }
 
 /** The device sits in a room whose HA area is not the one HA has it in: say so, and offer the move (asked again even after "don't ask"). */
@@ -446,6 +631,22 @@ function boundField(c: PanelCtx, i: number) {
     ${d.bound ? hint(`${d.name ?? nameOf(d.entity)} + ${nameOf(d.bound)}`) : nothing}`;
 }
 
+/** S4.24: a heater attaches several TRV/climate entities and several temperature sensors — design interview,
+ * 2026-09-22: this is the whole scope, no open-window cutoff. */
+function heaterFields(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  const setList = (field: "trvs" | "tempSensors") => (next: string[]) => c.commit((f) => { if (next.length) f.devices[i][field] = next; else delete f.devices[i][field]; });
+  return html`${multiAttachField(c, "htrv", "TRVs", d.trvs ?? [], c.st.deviceAttachChoices(i, "trvs"), setList("trvs"))}
+    ${multiAttachField(c, "hsens", "temperature sensors", d.tempSensors ?? [], c.st.deviceAttachChoices(i, "tempSensors"), setList("tempSensors"))}`;
+}
+
+/** S4.24: an ac attaches several AC-or-TRV entities to one list. */
+function acField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  const set = (next: string[]) => c.commit((f) => { if (next.length) f.devices[i].linked = next; else delete f.devices[i].linked; });
+  return multiAttachField(c, "aclink", "AC / TRV entities", d.linked ?? [], c.st.deviceAttachChoices(i, "linked"), set);
+}
+
 function furniturePanel(c: PanelCtx, i: number) {
   const m = c.st.f.furniture[i];
   // S1.51: width and depth are clamped to the same 5..2000 cm bounds the corner drag and validate() hold.
@@ -458,6 +659,28 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
     ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}
     <p>${button("fudel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); }, "warn")}</p>
+    ${hint("Drag it to move it. Alt disables the grid.")}`;
+}
+
+/**
+ * S4.25: an unlinked appliance — a fixed icon by type (not a swappable furniture symbol), scaled, coloured and
+ * rotated, with zero or more HA entities attached for reference only (`multiAttachField`, same as a heater's
+ * trvs). No on/off state: the colour is a flat override, not a live reading.
+ */
+function unlinkedPanel(c: PanelCtx, i: number) {
+  const u = c.st.f.unlinked[i];
+  const label = TYPE_LABELS.find((t) => t[0] === u.type)?.[1] ?? u.type;
+  const setAttached = (next: string[]) => c.commit((f) => { if (next.length) f.unlinked[i].attached = next; else delete f.unlinked[i].attached; });
+  return html`<strong>${u.name ?? label}</strong>
+    ${hint(`${label.toLowerCase()}. Not connected to a single entity's state.`)}
+    ${text("plan name", "uun", u.name ?? "", (v) => c.commit((f) => { setOrDelete(f.unlinked[i], "name", v.trim()); }))}
+    <label for="uucol">colour</label>
+    <input id="uucol" type="color" .value=${u.color ?? "#8b8578"} @change=${(e: Event) => c.commit((f) => { f.unlinked[i].color = val(e); })}>
+    ${button("uuclr", "Use default colour", () => c.commit((f) => { delete f.unlinked[i].color; }))}
+    ${number(c, "scale", "uusc", u.scale, (n) => c.commit((f) => { f.unlinked[i].scale = Math.min(4, Math.max(0.25, n)); }))}
+    ${rotateButtons(c, "uurot", (n) => c.commit((f) => { f.unlinked[i].rot = ((u.rot + n) % 360 + 360) % 360; }), { reset: () => { if (u.rot) c.commit((f) => { f.unlinked[i].rot = 0; }); } })}
+    ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(), setAttached)}
+    <p>${button("uudel", "Delete", () => { c.commit((f) => { f.unlinked.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag it to move it. Alt disables the grid.")}`;
 }
 

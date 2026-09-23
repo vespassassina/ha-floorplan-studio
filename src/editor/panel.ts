@@ -1,10 +1,11 @@
-import { LitElement, css, html, nothing } from "lit";
+import { LitElement, css, html, nothing, unsafeCSS } from "lit";
 import { guard } from "lit/directives/guard.js";
 import type { Layout } from "../core";
 import demo from "../../demo/layout.json";
 import "./editor-app";
 import { haData } from "./hass-pickers";
 import { makeWriter } from "./hass-write";
+import { panelVar } from "./theme";
 import type { HaData } from "../core";
 import type { FloorplanStudioEditor } from "./editor-app";
 
@@ -150,9 +151,9 @@ export class FloorplanStudioPanel extends LitElement {
   }
 
   static styles = css`
-    :host { display: block; font: 14px/1.4 system-ui, sans-serif; box-sizing: border-box; min-height: 100%; padding: 8px 12px; background: var(--primary-background-color, #0d1522); color: var(--primary-text-color, #e6e6e6); }
+    :host { display: block; font: 14px/1.4 system-ui, sans-serif; box-sizing: border-box; min-height: 100%; padding: 8px 12px; background: ${unsafeCSS(panelVar("background"))}; color: ${unsafeCSS(panelVar("text"))}; }
     .msg { padding: 24px; }
-    .update { margin: 0 0 8px; padding: 8px 12px; border-radius: 6px; background: var(--primary-color, #1f6699); color: var(--text-primary-color, #fff); }
+    .update { margin: 0 0 8px; padding: 8px 12px; border-radius: 6px; background: ${unsafeCSS(panelVar("accent"))}; color: ${unsafeCSS(panelVar("accentText"))}; }
     .update a { color: inherit; margin-left: 8px; }
     .update .bad { margin-left: 8px; font-weight: 600; }
     button { font: inherit; padding: 4px 12px; cursor: pointer; }

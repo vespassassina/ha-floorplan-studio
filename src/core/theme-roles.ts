@@ -90,7 +90,9 @@ export function rolesToTokens(roles: ThemeRoles): string {
     // warn/danger/primary and their on-dark/on-light text stay the same fixed pair in every theme, generated or not
     // (matching midnight and light before them): they are UI chrome, not "device on" state, and each already clears
     // 4.5:1 against its own fixed text colour - collapsing them into the accent broke that pairing (Opus review, 2026-09-22).
-    `--fp-warn:#f28c28`, `--fp-danger:#b02a2a`, `--fp-primary:#1f6699`,
+    // --fp-furniture is the same kind of fixed pair: a neutral grey for furniture lines, deliberately not shared with
+    // --fp-idle, so changing idle-device colouring never moves furniture and vice versa (Diego, 2026-09-23).
+    `--fp-warn:#f28c28`, `--fp-danger:#b02a2a`, `--fp-primary:#1f6699`, `--fp-furniture:#79766e`,
     `--fp-wall-external:${shades.wallExternal}`, `--fp-wall-fence:${shades.wallFence}`,
     `--fp-wall-edge:${shades.wallEdge}`, `--fp-measure:${roles.line}`, `--fp-glow:${roles.accent}`, `--fp-aura:${roles.accent}`,
     `--fp-active:${roles.accent}`,

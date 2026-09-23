@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { DEVICE_TYPES, type Layout, type WallKind } from "../../src/core/schema";
+import { DEVICE_TYPES, UNLINKED_TYPES, FURNITURE_SYMBOLS, type Layout, type WallKind } from "../../src/core/schema";
 import { stairSteps } from "../../src/core";
-import { renderFloor, viewBoxFor, planPivot, rotateAbout, contentPoints, DEVICE_COLOURS, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
+import { DEVICE_ICONS } from "../../src/core/icons";
+import { renderFloor, viewBoxFor, planPivot, rotateAbout, contentPoints, DEVICE_COLOURS, DEVICE_REACH, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
 
 const L = demo as unknown as Layout;
 const ground = L.floors.ground;
@@ -13,6 +14,11 @@ const base = { scale: 0.5, now: NOW, fade: 10 };
 describe("renderFloor", () => {
   it("matches the snapshot for the demo ground floor without state", () => {
     expect(renderFloor(ground, { scale: 0.5 })).toMatchSnapshot();
+  });
+
+  it("S5.1: matches the snapshot for a floor carrying every FURNITURE_SYMBOLS symbol", () => {
+    const f = { ...ground, furniture: FURNITURE_SYMBOLS.map((symbol, i) => ({ id: `f-${symbol}`, symbol, x: 100 + i * 150, y: 100, rot: 0, w: 80, h: 60 })) };
+    expect(renderFloor(f, { scale: 0.5 })).toMatchSnapshot();
   });
 
   it("draws room.label under the name, escaped, and nothing when it is empty", () => {
@@ -301,8 +307,15 @@ describe("renderFloor", () => {
   });
 
   it("filters devices by type and keeps the selected one", () => {
-    const html = renderFloor(ground, { ...base, filter: "switch", selection: { t: "dev", i: 0 } });
+    const html = renderFloor(ground, { ...base, filter: ["switch"], selection: { t: "dev", i: 0 } });
     expect(html.match(/<g[^>]*data-x="/g)).toHaveLength(2);
+  });
+
+  it("filters devices by several types at once", () => {
+    const both = renderFloor(ground, { ...base, filter: ["switch", "light"] }).match(/<g[^>]*data-x="/g)?.length;
+    const single = renderFloor(ground, { ...base, filter: ["switch"] }).match(/<g[^>]*data-x="/g)?.length ?? 0;
+    expect(both).toBeGreaterThan(single); // adding a second type shows more devices than either alone
+    expect(renderFloor(ground, { ...base, filter: [...DEVICE_TYPES] })).toBe(renderFloor(ground, { ...base, filter: [] })); // every type checked equals no filter at all
   });
 
   it("escapes names", () => {
@@ -368,10 +381,40 @@ describe("zones and water", () => {
 
 describe("viewBoxFor", () => {
   it("wraps the outline with padding", () => {
-    expect(viewBoxFor(ground, 60)).toEqual({ x: -60, y: -60, w: 920, h: 720 });
+    // The demo ground floor has lights and a camera, so the plain 60 cm pad (S5.7) widens to DEVICE_REACH.
+    expect(viewBoxFor(ground, 60)).toEqual({ x: -100, y: -100, w: 1000, h: 800 });
   });
-  it("defaults to 60 cm of padding", () => {
-    expect(viewBoxFor(ground).x).toBe(-60);
+  it("defaults to 60 cm of padding, widened when a light or camera is on the floor", () => {
+    expect(viewBoxFor(ground).x).toBe(-100);
+  });
+
+  it("S5.7: keeps the plain padding exactly when nothing on the floor reaches further", () => {
+    const f = structuredClone(ground);
+    f.devices = [];
+    expect(viewBoxFor(f, 60)).toEqual({ x: -60, y: -60, w: 920, h: 720 });
+  });
+
+  it("S5.7: widens the padding so a lamp's aura, 20 cm inside the right wall, is never clipped", () => {
+    const f = structuredClone(ground);
+    f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 780, y: 300 }];
+    const v = viewBoxFor(f, 60);
+    expect(v.x + v.w).toBeGreaterThanOrEqual(780 + DEVICE_REACH);
+  });
+
+  it("S5.7: widens the padding so a camera's cone, 20 cm inside the top wall, is never clipped", () => {
+    const f = structuredClone(ground);
+    f.devices = [{ id: "c1", type: "camera", entity: "camera.x", x: 400, y: 20 }];
+    const v = viewBoxFor(f, 60);
+    expect(v.y).toBeLessThanOrEqual(20 - DEVICE_REACH);
+  });
+
+  it("S5.7 break it: a light exactly on the wall, or the plan's only device, still gives a finite box with the whole circle inside", () => {
+    const f = structuredClone(ground);
+    f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 800, y: 300 }];
+    const v = viewBoxFor(f, 60);
+    expect(Number.isFinite(v.x) && Number.isFinite(v.w) && Number.isFinite(v.y) && Number.isFinite(v.h)).toBe(true);
+    expect(v.x + v.w).toBeGreaterThanOrEqual(800 + DEVICE_REACH);
+    expect(v.x).toBeLessThanOrEqual(800 - DEVICE_REACH);
   });
 });
 
@@ -753,7 +796,8 @@ describe("devices sit on top (S1.29)", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{fill:var\(--fp-disc\);fill-opacity:var\(--fp-disc-alpha\);stroke:var\(--fp-halo\);stroke-width:1;vector-effect:non-scaling-stroke\}/);
     expect(FLOORPLAN_CSS).toContain("--fp-halo:#8b8578");
     expect(FLOORPLAN_CSS).toContain("--fp-disc:#fff");
-    expect(FLOORPLAN_CSS).toContain("--fp-disc-alpha:.75");
+    expect(FLOORPLAN_CSS).toContain("--fp-disc-alpha:.5");
+    expect(FLOORPLAN_CSS).not.toMatch(/--fp-disc-alpha:(?!0?\.5[;},])/); // one value in every theme (Diego, 2026-09-23)
   });
   it("a device on a room-name spot draws after that name", () => {
     const room = ground.rooms.find((r) => r.name && r.kind !== "fill" && r.kind !== "zone")!;
@@ -879,7 +923,7 @@ describe("S2.9: a device wears its colour when it is on", () => {
 // from a deliberate grey — the S2.9 verifier found media, cover and other sitting there while SPEC promised media
 // an accent. This test makes every member of DEVICE_TYPES a decision someone had to write down.
 describe("S2.9: every device type has a decided active colour", () => {
-  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "battery", "inverter", "server", "access_point"]; // S2.13: these four are monitored, not switched
+  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "battery", "inverter", "server", "access_point", "boiler", "car", "ups", "printer", "speaker"]; // S2.13: these are monitored, not switched; the S4.25 five are unlinked-only types with no entity state to read, so never on
   it.each(DEVICE_TYPES)("%s either names its own --fp-dev or is idle on purpose", (t) => {
     if (t === "ac") return; // ac has two: .dev-ac.cool.on and .dev-ac.heat.on, tested below
     const rule = new RegExp(`\\.dev-${t}\\.on\\{--fp-dev:var\\((--fp-[a-z-]+)\\)\\}`);
@@ -1052,6 +1096,7 @@ describe("plan rotation (S1.33)", () => {
   it("viewBoxFor at 90 on a wide outline is tall, at 45 it is the box of the turned corners, at 0 or none unchanged", () => {
     const f = structuredClone(ground);
     f.outline = [[0, 0], [1000, 0], [1000, 200], [0, 200]];
+    f.devices = []; // pure padding/rotation geometry, not S5.7's device-reach widening
     const flat = viewBoxFor(f, 0);
     expect(flat).toEqual({ x: 0, y: 0, w: 1000, h: 200 });
     const piv: [number, number] = [500, 100];
@@ -1231,5 +1276,74 @@ describe("an air conditioner shows what it is doing (S2.10)", () => {
   it("the two colour rules exist and name real tokens", () => {
     expect(FLOORPLAN_CSS).toContain(".dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)}");
     expect(FLOORPLAN_CSS).toContain(".dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)}");
+  });
+});
+
+describe("unlinked appliances (S4.25)", () => {
+  const heater = { id: "u1", type: "heater" as const, x: 200, y: 200, rot: 0, scale: 1 };
+  const fl = { ...ground, unlinked: [heater] } as never;
+
+  it("draws one g[data-u] group per unlinked item, class 'dev unl', with the icon path for its type", () => {
+    const html = renderFloor(fl, base);
+    expect(html.match(/<g[^>]*data-u="/g)).toHaveLength(1);
+    const group = html.match(/<g data-u="0"[^>]*>[^]*?<\/g>/)![0];
+    expect(group).toContain('class="dev unl"');
+    expect(group).toContain(DEVICE_ICONS.heater);
+  });
+
+  it("never carries .on: an unlinked item has no entity state to read", () => {
+    const html = renderFloor(fl, base);
+    expect(html.match(/<g data-u="0"[^>]*>/)![0]).not.toContain(" on");
+  });
+
+  it("carries .sel when it is the current selection, mirroring a device", () => {
+    const sel = renderFloor(fl, { ...base, selection: { t: "unl", i: 0 } });
+    expect(sel.match(/<g data-u="0"[^>]*>/)![0]).toContain("dev unl sel");
+    const none = renderFloor(fl, { ...base, selection: { t: "dev", i: 0 } });
+    expect(none.match(/<g data-u="0"[^>]*>/)![0]).not.toContain("sel");
+  });
+
+  it("a per-instance color becomes --fp-dev-fill; a malformed one is dropped, not thrown on", () => {
+    const coloured = { ...ground, unlinked: [{ ...heater, color: "#ff0000" }] } as never;
+    expect(renderFloor(coloured, base)).toMatch(/data-u="0"[^>]*style="[^"]*--fp-dev-fill:#ff0000/);
+    const bad = { ...ground, unlinked: [{ ...heater, color: "red" }] } as never;
+    expect(renderFloor(bad, base).match(/<g data-u="0"[^>]*>/)![0]).not.toContain("--fp-dev-fill");
+  });
+
+  it("scale changes the group's transform scale, distinct from the plan's own k", () => {
+    const small = renderFloor({ ...ground, unlinked: [{ ...heater, scale: 0.25 }] } as never, base);
+    const big = renderFloor({ ...ground, unlinked: [{ ...heater, scale: 4 }] } as never, base);
+    const scaleOf = (svg: string) => Number(svg.match(/<g data-u="0"[^>]*>/)![0].match(/scale\(([\d.]+)\)/)![1]);
+    expect(scaleOf(big)).toBeCloseTo(scaleOf(small) * 16, 3); // 4 / 0.25 = 16x
+  });
+
+  it("rot turns the glyph itself, unlike a device's icon which counter-turns to stay upright (asymmetric check, not [1,0])", () => {
+    const html = renderFloor({ ...ground, unlinked: [{ ...heater, rot: 33 }] } as never, base);
+    const group = html.match(/<g data-u="0"[^>]*>[^]*?<\/g>/)![0];
+    expect(group).toContain('rotate(33 12 12)');
+    expect(group).not.toContain("rotate(-33 12 12)"); // no counter-turn: the icon visibly rotates, like furniture
+  });
+
+  it("attached does not change the class: it is reference-only, never state (Opus finding 12 discipline)", () => {
+    const withAttach = { ...ground, unlinked: [{ ...heater, attached: ["light.a"] }] } as never;
+    expect(renderFloor(withAttach, base).match(/<g data-u="0"[^>]*>/)![0]).toBe(renderFloor(fl, base).match(/<g data-u="0"[^>]*>/)![0]);
+  });
+
+  it("a non-finite x or y is skipped without throwing", () => {
+    const bad = { ...ground, unlinked: [{ ...heater, x: NaN }] } as never;
+    expect(() => renderFloor(bad, base)).not.toThrow();
+    expect(renderFloor(bad, base).match(/<g[^>]*data-u="/g)).toBeNull();
+  });
+
+  it("every UNLINKED_TYPES member has a real icon (finding 17: a union member is a decision, not a default)", () => {
+    for (const t of UNLINKED_TYPES) expect(DEVICE_ICONS[t], t).toBeTruthy();
+  });
+
+  it("the CSS fill override rule exists and names --fp-dev-fill with an idle fallback", () => {
+    expect(FLOORPLAN_CSS).toContain(".dev.unl path{fill:var(--fp-dev-fill,var(--fp-idle))}");
+  });
+
+  it("counts toward contentPoints, so Re-center reaches it", () => {
+    expect(contentPoints(fl).some((p) => p[0] === 200 && p[1] === 200)).toBe(true);
   });
 });

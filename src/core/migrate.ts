@@ -2,7 +2,7 @@ import { stairSteps } from "./geometry";
 import type { CatalogEntry, Device, DeviceType, Layout, Pt } from "./schema";
 
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const KINDS: [string, string][] = [["rooms", "room"], ["walls", "wall"], ["stairs", "stairs"], ["doors", "door"], ["openings", "opening"], ["extras", "extra"], ["furniture", "furniture"]];
+const KINDS: [string, string][] = [["rooms", "room"], ["walls", "wall"], ["stairs", "stairs"], ["doors", "door"], ["openings", "opening"], ["extras", "extra"], ["furniture", "furniture"], ["unlinked", "unlinked"]];
 const RENAME: Record<string, DeviceType> = { sensor: "temp", window: "contact" };
 
 function inside(p: Pt, poly: Pt[]): boolean {
@@ -55,12 +55,19 @@ export function migrate(x: unknown): Layout {
     // `validate`. A piece of furniture outside 5-2000 cm (an old file with a 25 m patio, say) gets the same
     // treatment, so it opens instead of failing with no repair path. `validate`'s own check is unchanged.
     for (const m of f.furniture) for (const k of ["w", "h"] as const) if (typeof m[k] === "number" && Number.isFinite(m[k])) m[k] = Math.max(5, Math.min(2000, m[k]));
+    // S5.1: the editor's own rotate buttons always wrap into [0, 360), but a hand-edited file can carry a 450 or a
+    // -30; wrapped here so it opens as the angle it actually means, not rejected by `validate`'s finite-number check alone.
+    for (const m of f.furniture) if (typeof m.rot === "number" && Number.isFinite(m.rot)) m.rot = ((m.rot % 360) + 360) % 360;
     for (const o of [...f.stairs, ...f.extras]) o.name = o.name ?? ""; // validate wants text; an older file has none
     for (const t of f.stairs) { t.shape = t.shape ?? "straight"; t.rot = t.rot ?? 0; if (t.shape === "round") t.inner = t.inner ?? 0; t.steps = stairSteps(t); } // steps are derived: a stored value that disagrees is dropped
+    for (const u of f.unlinked) { u.rot = u.rot ?? 0; u.scale = u.scale ?? 1; } // S4.25: a hand-authored entry with no rot/scale still opens
     if (f.devices !== undefined && !Array.isArray(f.devices)) throw new Error(`Floor "${fname}": devices must be an array`);
     if (f.outline !== undefined && !Array.isArray(f.outline)) throw new Error(`Floor "${fname}": outline must be an array`);
     outlineKinds(f);
     for (const r of f.rooms) { if (r.kind === "outdoor") r.kind = "garden"; r.area = r.area ?? (r.kind === "water" ? "" : slug(String(r.name ?? ""))); r.name = r.name ?? ""; r.label = r.label ?? ""; edgeKinds(r); }
+    // S4.24: a door's single `sensor` becomes `sensors`, a list. Always drop the old key, whether or not a new
+    // list is already present, so a half-migrated file never keeps both.
+    for (const d of f.doors) { if (typeof d.sensor === "string" && d.sensor && !Array.isArray(d.sensors)) d.sensors = [d.sensor]; delete d.sensor; }
     f.devices = (f.devices ?? []).filter(isObj).map((d: any, i: number) => {
       if (v === 1) d.type = RENAME[d.type] ?? d.type;
       d.id = d.id ?? `${d.type}-${fname}-${i + 1}`;

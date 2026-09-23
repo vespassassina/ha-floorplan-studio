@@ -5,7 +5,8 @@ export type DoorKind = "door" | "glass" | "window" | "sealed";
 export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
   | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover"
-  | "battery" | "inverter" | "server" | "access_point" | "other";
+  | "battery" | "inverter" | "server" | "access_point" | "lock" | "vibration" | "other"
+  | "boiler" | "car" | "ups" | "printer" | "speaker";
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "tv" | "computer" | "tree" | "patio-wood" | "patio-concrete" | "car";
@@ -22,7 +23,7 @@ export const FLOOR_COLOURS: { name: string; hex: string }[] = [
 export const MAX_PALETTE = 24;
 
 /** `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows. */
-export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; free?: boolean; entity?: string }
+export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string }
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
 /** A room edge is a wall kind, or "none": not drawn. The room stays closed for area and snapping. */
 export type EdgeKind = WallKind | "none";
@@ -30,18 +31,38 @@ export type EdgeKind = WallKind | "none";
 export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boolean }
 export type StairShape = "straight" | "round";
 /** `dia` (outer) and `inner` (the empty well) exist on a round stair only; `pts` is its outer circle as a polygon. `rot` turns it about the centre of its box. */
-export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape; steps: number; rot: number; dia?: number; inner?: number; color?: string; texture?: string; textureRot?: number }
-export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensor?: string; cover?: string; locked?: boolean }
+export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape; steps: number; rot: number; dia?: number; inner?: number; color?: string; texture?: string; textureRot?: number; textureScale?: number }
+/**
+ * `sensors`/`vibration`/`locks` (S4.24): every contact sensor, vibration sensor and smart lock attached to
+ * this door or window — several of each allowed. `cover` (a curtain/blind entity) is not restricted by
+ * kind — a plain door's garage opener is a cover too — it just doubles as the electric-curtain field on a
+ * glass door or window.
+ */
+export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensors?: string[]; vibration?: string[]; locks?: string[]; cover?: string; locked?: boolean }
 export interface Opening { id: string; a: Pt; b: Pt; locked?: boolean }
 export interface Extra { id: string; name: string; a: Pt; b: Pt }
-/** `bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
-/** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. */
-export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string }
+/**
+ * `bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in
+ * HA. Several lights may share one switch, and the switch may be an icon too.
+ * `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor
+ * entity attached to this device — several allowed, unlike `bound`.
+ */
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+/** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
+ *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. */
+export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean }
+/**
+ * S4.25: an appliance placed on the plan with a fixed icon (by `type`, from `UNLINKED_TYPES`), not tied to a
+ * single entity's state. `attached` is zero or more HA entities linked to it for reference only — it never
+ * drives the icon's colour or the card's tap behaviour, unlike a `Device`. `color` overrides the idle grey;
+ * `scale` (0.25-4) resizes the icon, `rot` turns it. Furniture reused a swappable symbol; this reuses the
+ * device icon set instead because the point is "this is a heater", not "this is shaped like one".
+ */
+export interface Unlinked { id: string; type: DeviceType; name?: string; x: number; y: number; rot: number; scale: number; color?: string; attached?: string[]; locked?: boolean }
 /** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. */
 export interface Floor {
   ha?: string; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
-  openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[];
+  openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[];
 }
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
 /** `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned. */
@@ -56,8 +77,10 @@ export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", 
 export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
 export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed"];
-export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "other"];
+export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"];
+/** S4.25: the appliance types offered in the Add > Unlinked device menu — a curated subset of DEVICE_TYPES, each with a fixed icon and no linked-entity state. "heatpump" reuses the "ac" icon and colour; there is no separate type for it. */
+export const UNLINKED_TYPES: readonly DeviceType[] = ["heater", "ac", "boiler", "battery", "computer", "tv", "car", "server", "ups", "inverter", "speaker", "printer", "light"];
 
 /** Checks a v2 layout. Never throws; returns every problem it finds. */
 export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false; errors: string[] } {
@@ -124,6 +147,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (r.texture !== undefined && !TEXTURE_IDS.includes(r.texture as string)) errors.push(`${at} ${r.id} texture must be one of ${TEXTURE_IDS.join(", ")}`);
       if (r.textureRot !== undefined && !(typeof r.textureRot === "number" && Number.isFinite(r.textureRot) && r.textureRot >= 0 && r.textureRot < 360))
         errors.push(`${at} ${r.id} textureRot must be a number in [0, 360)`);
+      if (r.textureScale !== undefined && !(typeof r.textureScale === "number" && Number.isFinite(r.textureScale) && r.textureScale >= 0.25 && r.textureScale <= 2))
+        errors.push(`${at} ${r.id} textureScale must be a number from 0.25 to 2`);
       if (typeof r.area !== "string") errors.push(`${at} ${r.id} area must be text (empty for a custom shape)`);
       if (r.entity !== undefined && !isEntity(r.entity)) errors.push(`${at} ${r.id} entity must be an entity id like sensor.name`);
       if (r.free !== undefined && typeof r.free !== "boolean") errors.push(`${at} ${r.id} free must be true or false`);
@@ -147,6 +172,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (s.texture !== undefined && !TEXTURE_IDS.includes(s.texture as string)) errors.push(`${at} ${s.id} texture must be one of ${TEXTURE_IDS.join(", ")}`);
       if (s.textureRot !== undefined && !(typeof s.textureRot === "number" && Number.isFinite(s.textureRot) && s.textureRot >= 0 && s.textureRot < 360))
         errors.push(`${at} ${s.id} textureRot must be a number in [0, 360)`);
+      if (s.textureScale !== undefined && !(typeof s.textureScale === "number" && Number.isFinite(s.textureScale) && s.textureScale >= 0.25 && s.textureScale <= 2))
+        errors.push(`${at} ${s.id} textureScale must be a number from 0.25 to 2`);
       oneOf(`${s.id} shape`, s.shape, STAIR_SHAPES);
       if (!Number.isInteger(s.steps) || s.steps < 2 || s.steps > 40) errors.push(`${at} ${s.id} steps must be a whole number from 2 to 40`);
       if (!(typeof s.rot === "number" && Number.isFinite(s.rot) && s.rot >= 0 && s.rot < 360)) errors.push(`${at} ${s.id} rot must be a number in [0, 360)`);
@@ -159,11 +186,21 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         if (s.inner !== undefined) errors.push(`${at} ${s.id} inner is only for a round stair`);
       }
     });
+    const entityList = (o: any, k: string, label: string) => {
+      if (o[k] === undefined) return;
+      if (!Array.isArray(o[k])) { errors.push(`${at} ${o.id} ${k} must be a list of entity ids`); return; }
+      o[k].forEach((v: unknown, i: number) => { if (!isEntity(v)) errors.push(`${at} ${o.id} ${k}[${i}] must be an entity id like ${label}`); });
+    };
     each("doors", (d) => {
       name(d);
       oneOf(`${d.id} kind`, d.kind, DOOR_KINDS);
       if (!isPt(d.a) || !isPt(d.b)) errors.push(`${at} ${d.id} needs points a and b`);
-      if (d.sensor !== undefined && !isEntity(d.sensor)) errors.push(`${at} ${d.id} sensor must be an entity id like binary_sensor.name`);
+      entityList(d, "sensors", "binary_sensor.name");
+      entityList(d, "vibration", "binary_sensor.name");
+      entityList(d, "locks", "lock.name");
+      // `cover` is not restricted to a glass door or a window: a plain door's roller shutter or garage opener is
+      // a cover entity too (the demo's "Garage door" is `kind: "door"` with a `cover`). S4.24's electric curtain
+      // dropdown reuses this same field, just offered on every door kind, same as before.
       if (d.cover !== undefined && !isEntity(d.cover)) errors.push(`${at} ${d.id} cover must be an entity id like cover.name`);
       if (d.locked !== undefined && typeof d.locked !== "boolean") errors.push(`${at} ${d.id} locked must be true or false`);
     });
@@ -191,6 +228,15 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
           if (d.bound === d.entity) errors.push(`${at} ${d.id} bound must differ from entity`);
         }
       }
+      if (d.trvs !== undefined || d.tempSensors !== undefined) {
+        entityList(d, "trvs", "climate.name");
+        entityList(d, "tempSensors", "sensor.name");
+        if (d.type !== "heater") errors.push(`${at} ${d.id} trvs/tempSensors are only allowed on a heater`);
+      }
+      if (d.linked !== undefined) {
+        entityList(d, "linked", "climate.name");
+        if (d.type !== "ac") errors.push(`${at} ${d.id} linked is only allowed on an ac`);
+      }
     });
     each("furniture", (m) => {
       oneOf(`${m.id} symbol`, m.symbol, FURNITURE_SYMBOLS);
@@ -199,6 +245,17 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       for (const k of ["x", "y", "rot", "w", "h"]) if (typeof m[k] !== "number" || !Number.isFinite(m[k])) errors.push(`${at} ${m.id} ${k} must be a number`);
       // S1.51: a piece of furniture is never smaller than 5 cm or bigger than 2000 cm on a side.
       for (const k of ["w", "h"] as const) if (typeof m[k] === "number" && Number.isFinite(m[k]) && (m[k] < 5 || m[k] > 2000)) errors.push(`${at} ${m.id} ${k} must be between 5 and 2000`);
+      if (m.locked !== undefined && typeof m.locked !== "boolean") errors.push(`${at} ${m.id} locked must be true or false`);
+    });
+    each("unlinked", (u) => {
+      oneOf(`${u.id} type`, u.type, DEVICE_TYPES);
+      optText(u, "name");
+      if (!(typeof u.x === "number" && Number.isFinite(u.x)) || !(typeof u.y === "number" && Number.isFinite(u.y))) errors.push(`${at} ${u.id} needs x and y`);
+      if (!(typeof u.rot === "number" && Number.isFinite(u.rot) && u.rot >= 0 && u.rot < 360)) errors.push(`${at} ${u.id} rot must be a number in [0, 360)`);
+      if (!(typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale >= 0.25 && u.scale <= 4)) errors.push(`${at} ${u.id} scale must be a number from 0.25 to 4`);
+      if (u.color !== undefined && !(typeof u.color === "string" && /^#[0-9a-fA-F]{6}$/.test(u.color))) errors.push(`${at} ${u.id} color must be a colour like #aabbcc`);
+      entityList(u, "attached", "light.name");
+      if (u.locked !== undefined && typeof u.locked !== "boolean") errors.push(`${at} ${u.id} locked must be true or false`);
     });
   }
   return errors.length ? { ok: false, errors } : { ok: true, layout: x as unknown as Layout };

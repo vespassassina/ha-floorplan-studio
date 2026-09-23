@@ -331,3 +331,53 @@ describe("furniture w/h are clamped to 5-2000 cm (Opus review)", () => {
     expect(validate(l).ok).toBe(false);
   });
 });
+
+describe("S5.1: furniture rot is wrapped into [0, 360) on migrate", () => {
+  const withRot = (rot: number) => {
+    const l: any = structuredClone(demo);
+    l.floors.ground.furniture = [{ id: "f1", symbol: "table", x: 100, y: 100, rot, w: 120, h: 60 }];
+    return l;
+  };
+  it("a stored 450 (break it: the editor's own rotate buttons could never produce this, but a hand-edited file can) opens as 90", () => {
+    const m = migrate(withRot(450));
+    expect(m.floors.ground.furniture[0].rot).toBe(90);
+  });
+  it("a stored -30 opens as 330, not a negative angle", () => {
+    const m = migrate(withRot(-30));
+    expect(m.floors.ground.furniture[0].rot).toBe(330);
+  });
+  it("a value already in range is left untouched", () => {
+    const m = migrate(withRot(180));
+    expect(m.floors.ground.furniture[0].rot).toBe(180);
+  });
+  it("360 itself wraps to 0", () => {
+    const m = migrate(withRot(360));
+    expect(m.floors.ground.furniture[0].rot).toBe(0);
+  });
+});
+
+describe("unlinked appliances (S4.25)", () => {
+  it("fills a missing unlinked with an empty array on a v1 layout", () => {
+    const m = migrate(v1);
+    expect(m.floors.ground.unlinked).toEqual([]);
+  });
+  it("assigns an id to a raw unlinked entry that has none", () => {
+    const l: any = structuredClone(v1);
+    l.floors.ground.unlinked = [{ type: "heater", x: 10, y: 10, rot: 0, scale: 1 }];
+    const m = migrate(l);
+    expect(m.floors.ground.unlinked[0].id).toBe("unlinked-ground-1");
+  });
+  it("fills missing rot and scale on a hand-written entry, without touching values that are already there", () => {
+    const l: any = structuredClone(v1);
+    l.floors.ground.unlinked = [{ id: "u1", type: "heater", x: 10, y: 10 }, { id: "u2", type: "ac", x: 20, y: 20, rot: 90, scale: 2 }];
+    const m = migrate(l);
+    expect(m.floors.ground.unlinked[0]).toMatchObject({ rot: 0, scale: 1 });
+    expect(m.floors.ground.unlinked[1]).toMatchObject({ rot: 90, scale: 2 });
+    expect(validate(m).ok).toBe(true);
+  });
+  it("rejects a floor whose unlinked is not an array (Opus finding 1 discipline: migrate does not trust shapes either)", () => {
+    const l: any = structuredClone(v1);
+    l.floors.ground.unlinked = "nope";
+    expect(() => migrate(l)).toThrow(/unlinked must be an array/);
+  });
+});

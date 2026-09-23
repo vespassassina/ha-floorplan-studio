@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Layout } from "../../src/core/schema";
-import { placedEntities, unplacedCatalog } from "../../src/core/bind";
+import { groupKind, placedEntities, unplacedCatalog } from "../../src/core/bind";
 
 const clone = () => structuredClone(demo) as unknown as Layout;
 
@@ -34,5 +34,31 @@ describe("unplacedCatalog", () => {
     const l = clone();
     l.floors.ground.devices.push({ id: "switch-relay", type: "switch", entity: "switch.demo_living_relay", x: 10, y: 10 });
     expect(unplacedCatalog(l).map((c) => c.id)).not.toContain("switch-living-relay");
+  });
+});
+
+// S4.5 (Opus review pair: break it by removing the `devs.length !== is.length` guard, which makes a selection with one
+// missing/duplicate index still read as "same kind" — the "keeps clear of a mixed or partial selection" case below then passes).
+describe("groupKind", () => {
+  it("is the shared kind for two or more lights, or two or more motion sensors", () => {
+    const l = clone(), f = l.floors.ground;
+    f.devices.push({ id: "motion-2", type: "motion", entity: "binary_sensor.demo_kitchen_motion", x: 1, y: 1 });
+    expect(groupKind(f, [0, 1])).toBe("light"); // demo devices 0, 1 are both lights
+    expect(groupKind(f, [5, f.devices.length - 1])).toBe("motion"); // demo device 5 plus the pushed one
+  });
+
+  it("is undefined for a single device, an empty selection, a mixed kind, a non-groupable type, or an index off the end", () => {
+    const l = clone(), f = l.floors.ground;
+    expect(groupKind(f, [0])).toBeUndefined(); // one light alone
+    expect(groupKind(f, [])).toBeUndefined();
+    expect(groupKind(f, [0, 5])).toBeUndefined(); // a light and a motion sensor
+    expect(groupKind(f, [2, 3])).toBeUndefined(); // switch + plug: neither light nor motion
+    expect(groupKind(f, [0, 99])).toBeUndefined();
+  });
+
+  it("skips a device with no entity: an unbound light does not count towards the kind", () => {
+    const l = clone(), f = l.floors.ground;
+    f.devices.push({ id: "unbound-light", type: "light", entity: "", x: 2, y: 2 });
+    expect(groupKind(f, [0, f.devices.length - 1])).toBeUndefined();
   });
 });
