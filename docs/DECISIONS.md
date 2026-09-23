@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-23 S4.8 rescoped: no automatic theme, no native widgets — confirmed with Diego
+
+S4.8's plan text ("the panel looks like the rest of HA... form controls are HA's own elements... panel chrome uses `ha-top-app-bar-fixed`") predates the 2026-09-21 decision below, which already settled this the other way: blueprint stays the default everywhere, `ha` is opt-in, and `primary`/`danger`/`warn`/device colours never follow the dashboard. Asked Diego directly rather than build against a since-superseded sketch or silently reinterpret it; confirmed the scope is the smallest of three offered: formalize what's genuinely still missing (`panel.ts`'s own outer wrapper — background, text, one accent — was three inline `var(..., fallback)` literals with nothing testing they matched what they claimed to follow) into a small, tested `theme.ts`, and stop there. No automatic HA-follow, no `ha-top-app-bar-fixed`, no native-picker adapter (`ha-textfield`/`ha-select`/`ha-area-picker`/`ha-entity-picker`/`mwc-button`) — the last of those would touch every field helper across `panels.ts` (~700 lines) and is a separate undertaking if ever wanted, not started here.
+
 ## 2026-09-23 S4.7 room box: plain `<select>` for "Add to area...", `platform`/`uid` added to `HaData`
 
 The spec sketch had "Add to area..." open `ha-entity-picker`, but that element is only available inside real Home Assistant (it's an HA frontend component, not something the standalone build can import) and S4.8 ("Native look") is exactly where the editor gets an adapter that picks a real picker inside HA versus a plain control standalone. Until then, `haBox` uses a plain `<select>` limited to entities with no area — the same deviation, and the same reasoning, as S4.2's area field.
