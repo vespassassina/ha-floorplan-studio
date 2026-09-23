@@ -250,6 +250,7 @@ export class FloorplanStudioEditor extends LitElement {
     .swatches{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0} .sw{width:28px;height:28px;padding:0;border:1px solid var(--fp-idle);border-radius:4px;cursor:pointer} .sw.custom{border-style:dashed} .sw[aria-pressed="true"]{outline:2px solid var(--fp-ink);outline-offset:1px}
     .rot-val{display:inline-block;min-width:3em;text-align:right;font-variant-numeric:tabular-nums}
     .colrow{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:2px 0} .colrow label{display:flex;flex:1;justify-content:space-between;gap:6px} .colrow input{padding:0;width:36px;height:24px} .colrow .btn{width:auto}
+    .rangerow{display:flex;align-items:center;gap:8px;margin:2px 0} .rangerow input{flex:1;width:auto} .rangerow .rot-val{flex:none;min-width:3.5em;text-align:right}
     .rotrow{display:flex;flex-wrap:wrap;gap:6px} .rotrow>span{width:100%} .box .rotrow .btn{width:auto;flex:1;text-align:center}
     #snap.rotrow .chip{width:calc(50% - 3px);text-align:center}
     .ed{display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:start}

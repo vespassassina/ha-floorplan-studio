@@ -88,15 +88,19 @@ function paintControls(c: PanelCtx, on: "rooms" | "stairs", i: number, id: strin
     <div class="swatches" role="group" aria-label="Colours">${FLOOR_COLOURS.map((k) => swatch(k.hex, k.name))}${custom.map((hex) => swatch(hex, `Custom ${hex}`, " custom"))}</div>
     <div class="swatches" role="group" aria-label="Textures">${TEXTURES.map((t) => html`<button class="sw tex" type="button" title=${t.name} aria-label=${t.name} aria-pressed=${String(shape.texture === t.id)} style=${texturePreview(t)} @click=${() => c.paint(on, i, { texture: t.id })}></button>`)}</div>
     ${shape.texture ? html`<label for=${`${id}rot`}>texture rotation</label>
-      <input id=${`${id}rot`} type="range" min="0" max="359" step="1" .value=${live(String(shape.textureRot ?? 0))}
-        @input=${(e: Event) => c.rotateTexture(on, i, Number(val(e)), "live")}
-        @change=${(e: Event) => c.rotateTexture(on, i, Number(val(e)), "commit")}>
-      <span class="rot-val">${shape.textureRot ?? 0}°</span>
+      <div class="rangerow">
+        <input id=${`${id}rot`} type="range" min="0" max="359" step="1" .value=${live(String(shape.textureRot ?? 0))}
+          @input=${(e: Event) => c.rotateTexture(on, i, Number(val(e)), "live")}
+          @change=${(e: Event) => c.rotateTexture(on, i, Number(val(e)), "commit")}>
+        <span class="rot-val">${shape.textureRot ?? 0}°</span>
+      </div>
       <label for=${`${id}scale`}>texture scale</label>
-      <input id=${`${id}scale`} type="range" min="25" max="200" step="5" .value=${live(String(Math.round((shape.textureScale ?? 1) * 100)))}
-        @input=${(e: Event) => c.scaleTexture(on, i, Number(val(e)) / 100, "live")}
-        @change=${(e: Event) => c.scaleTexture(on, i, Number(val(e)) / 100, "commit")}>
-      <span class="rot-val">${Math.round((shape.textureScale ?? 1) * 100)}%</span>` : nothing}
+      <div class="rangerow">
+        <input id=${`${id}scale`} type="range" min="25" max="200" step="5" .value=${live(String(Math.round((shape.textureScale ?? 1) * 100)))}
+          @input=${(e: Event) => c.scaleTexture(on, i, Number(val(e)) / 100, "live")}
+          @change=${(e: Event) => c.scaleTexture(on, i, Number(val(e)) / 100, "commit")}>
+        <span class="rot-val">${Math.round((shape.textureScale ?? 1) * 100)}%</span>
+      </div>` : nothing}
     <p>${button(`${id}colx`, "Use the default colour", () => c.paint(on, i, null))}</p>`;
 }
 

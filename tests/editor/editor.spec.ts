@@ -4857,6 +4857,19 @@ test("S4.22: the rotation slider appears only once a texture is chosen, and disa
   await expect(page.locator("#rrot")).toHaveCount(0);
 });
 
+test("S4.22: the rotation and scale value sit beside their slider, not on the line under it", async ({ page }) => {
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator('.sw.tex[aria-label="Dark wood"]').click();
+  for (const [range, val] of [["#rrot", ".rot-val"], ["#rscale", ".rot-val"]] as const) {
+    const slider = page.locator(range).boundingBox(), value = page.locator(`#panel ${val}`).nth(range === "#rrot" ? 0 : 1).boundingBox();
+    const [s, v] = await Promise.all([slider, value]);
+    expect(s).not.toBeNull();
+    expect(v).not.toBeNull();
+    expect(Math.abs(s!.y - v!.y)).toBeLessThan(4); // same row: near-equal top, not stacked a line height apart
+  }
+});
+
 test("S4.22: dragging the slider live-updates the rendered rotation, and releasing commits exactly one undo step", async ({ page }) => {
   const at = await screenOf(page, 200, 150);
   await page.mouse.click(at.x, at.y);
