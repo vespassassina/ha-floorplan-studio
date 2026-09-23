@@ -1571,13 +1571,19 @@ export class FloorplanStudioEditor extends LitElement {
           </select>
         </div></details>
         <details class="menu" id="mDraw"><summary class="btn">Draw</summary><div class="box">
-          <button class="btn" id="drawRoom" @click=${() => this.startDraw("room")}>Draw room</button>
-          <button class="btn" id="drawZone" @click=${() => this.startDraw("zone")}>Draw zone</button>
-          <button class="btn" id="drawWater" @click=${() => this.startDraw("water")}>Draw water</button>
-          <button class="btn" id="drawOutline" title="Replaces the outline of this floor" @click=${() => this.startDraw("outline")}>Draw outline</button>
-          ${WALL_KINDS.map((k) => html`<button class="btn" id=${`drawWall-${k}`} @click=${() => this.startDraw("wall", k)}>Draw wall: ${WALL_LABELS[k]}</button>`)}
-          <button class="btn" id="drawOpening" @click=${() => this.startDraw("opening")}>Draw opening</button>
-          <button class="btn" id="drawExtra" @click=${() => this.startDraw("extra")}>Draw structure line</button>
+          <details class="sub" id="drawOpenings"><summary class="btn">Openings</summary>
+            <button class="btn" id="drawOpening" @click=${() => this.startDraw("opening")}>Draw opening</button>
+          </details>
+          <details class="sub" id="drawWallSub"><summary class="btn">Wall</summary>
+            ${WALL_KINDS.map((k) => html`<button class="btn" id=${`drawWall-${k}`} @click=${() => this.startDraw("wall", k)}>${WALL_LABELS[k]}</button>`)}
+          </details>
+          <details class="sub" id="drawAreas"><summary class="btn">Areas</summary>
+            <button class="btn" id="drawRoom" @click=${() => this.startDraw("room")}>Draw room</button>
+            <button class="btn" id="drawZone" @click=${() => this.startDraw("zone")}>Draw zone</button>
+            <button class="btn" id="drawWater" @click=${() => this.startDraw("water")}>Draw water</button>
+            <button class="btn" id="drawOutline" title="Replaces the outline of this floor" @click=${() => this.startDraw("outline")}>Draw outline</button>
+            <button class="btn" id="drawExtra" @click=${() => this.startDraw("extra")}>Draw structure line</button>
+          </details>
         </div></details>
         ${ha ? html`<details class="menu" id="mGroup"><summary class="btn">Group</summary><div class="box">
           <button class="btn" id="groupAll" aria-pressed=${pressed(!st.activeGroup)} @click=${() => { st.activeGroup = null; this.requestUpdate(); }}>All</button>

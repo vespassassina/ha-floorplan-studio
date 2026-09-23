@@ -1116,9 +1116,11 @@ test("a floor added, renamed, moved and deleted is four undo steps, one per acti
 // ---- S1.11 draw mode ----
 const DRAW_STATUS = "Click to add points, double-click or Enter to finish, Esc to cancel";
 
-/** Draw, then one Draw item, through the real menu. */
+/** Draw, then one Draw item, through the real menu — opening its submenu first (S4.26: Draw is grouped like Add). */
 async function startDraw(page: Page, id: string) {
   await menu(page, "Draw");
+  const sub = page.locator(`#mDraw details.sub:has(#${id})`);
+  await sub.locator("summary").click();
   await page.locator(`#${id}`).click(); // scrolls the menu to the item; the menu is taller than a short window
 }
 /** Real clicks at plan points (cm). */
@@ -2457,6 +2459,8 @@ test("a device whose catalog room is not on the floor lands right of the house a
 
 // ---- S1.21 Draw is its own menu ----
 const DRAW_IDS = ["drawRoom", "drawZone", "drawWater", "drawOutline", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawOpening", "drawExtra"];
+// S4.26: grouped like Add — Openings, Wall, Areas — so DOM order differs from DRAW_IDS' logical grouping.
+const DRAW_IDS_DOM = ["drawOpening", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawRoom", "drawZone", "drawWater", "drawOutline", "drawExtra"];
 
 test("the Add menu holds no Draw item and no Water; the Draw menu holds all eleven", async ({ page }) => {
   for (const id of [...DRAW_IDS, "addWater", "addWall"]) await expect(page.locator(`#mAdd #${id}`)).toHaveCount(0);
@@ -2464,9 +2468,11 @@ test("the Add menu holds no Draw item and no Water; the Draw menu holds all elev
   const ids = await page.locator("#mAdd button").evaluateAll((b) => b.filter((x) => !x.closest("#mDev")).map((x) => x.id));
   expect(ids).toEqual(["addDoor", "addWin", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addStr", "addZone", "addStairs"]);
   await expect(page.locator("#mAdd select#addFurn")).toHaveCount(1);
-  expect(await page.locator("#mDraw button").evaluateAll((b) => b.map((x) => x.id))).toEqual(DRAW_IDS);
+  expect(await page.locator("#mDraw button").evaluateAll((b) => b.map((x) => x.id))).toEqual(DRAW_IDS_DOM);
+  expect(new Set(DRAW_IDS_DOM)).toEqual(new Set(DRAW_IDS));
   // and they are really there to click: open, visible, inside the window
   await menu(page, "Draw");
+  await page.locator(`#mDraw details.sub > summary:text-is("Areas")`).click();
   const box = await page.locator("#drawRoom").boundingBox();
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
@@ -2595,6 +2601,7 @@ test("opening Draw closes Add, and a Draw item starts drawing with the Draw menu
   await menu(page, "Draw");
   await expect(page.locator("#mAdd")).toHaveJSProperty("open", false);
   await expect(page.locator("#mDraw")).toHaveJSProperty("open", true);
+  await page.locator(`#mDraw details.sub:has(#drawWall-fence) summary`).click();
   await page.locator("#drawWall-fence").click();
   await expect(page.locator("#mDraw")).toHaveJSProperty("open", false);
   expect(await svgCursor(page)).toBe("crosshair");
