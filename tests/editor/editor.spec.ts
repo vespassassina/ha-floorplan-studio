@@ -1501,6 +1501,13 @@ test("Opus review CSS pair: a pressed filter-menu row is visually highlighted, n
   expect(pressed).not.toEqual(stillUnpressed); // ...and set it apart from a row that is not pressed
 });
 
+test("the plan filter hides device types with no instance on the current floor, keeps the ones that have some", async ({ page }) => {
+  await page.locator("#filter summary").click();
+  await expect(page.locator('#filter [data-filter="light"]')).toBeVisible(); // ground has 2
+  await expect(page.locator('#filter [data-filter="humidity"]')).toHaveCount(0); // ground has 0
+  await expect(page.locator('#filter [data-filter="tv"]')).toHaveCount(0); // ground has 0
+});
+
 // ---- S1.12 Device menu -------------------------------------------------------
 const search = (page: Page) => page.locator("#devSearch");
 const shown = (page: Page) => page.locator("#mDev button[data-dev]:visible");
