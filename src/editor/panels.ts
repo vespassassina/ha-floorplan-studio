@@ -33,6 +33,10 @@ export interface PanelCtx {
   scaleTexture(on: "rooms" | "stairs", i: number, scale: number, phase: "live" | "commit"): void;
   /** S4.4: create a light from the selected switch or plug. Absent when there is no Home Assistant to write to. */
   makeLight?: (devIndex: number) => void;
+  /** S4.2: create an HA area named after room `roomIndex` and link the room to it, after asking. Absent without a writer. */
+  createArea?: (roomIndex: number) => void;
+  /** S4.2: start drawing a room for an HA area no room uses yet. */
+  drawArea(area: { id: string; name: string }): void;
   /** S4.15: place every unplaced entity of room `roomIndex`'s HA area, one undo step. */
   placeArea(roomIndex: number): void;
   /** S4.3: the room whose HA area differs from the device's, when there is one, and the action that moves it there. */
@@ -171,7 +175,18 @@ function floorPanel(c: PanelCtx) {
       : html`<p><button class="btn danger" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
     ${hint("A new floor starts with the outline and the stairs of the first floor. Delete a floor to start again with a clean one.")}
     ${hint("Devices on a deleted floor stay in the catalog and go back to the Device menu.")}
-    ${unboundList(c)}`;
+    ${unboundList(c)}
+    ${st.ha ? unplacedAreas(c, st.ha) : nothing}`;
+}
+
+/** S4.2: HA areas no room or zone on any floor uses, as buttons that start drawing a room for one. Nothing when every area is on the plan. */
+function unplacedAreas(c: PanelCtx, ha: HaData) {
+  const used = new Set(Object.values(c.st.layout.floors).flatMap((f) => f.rooms.map((r: Room) => r.area).filter(Boolean)));
+  const list = byName(ha.areas).filter((a) => !used.has(a.id));
+  if (!list.length) return nothing;
+  return html`<div id="unplacedAreas"><strong>Areas not on the plan (${list.length})</strong>
+    <div class="row">${list.map((a) => html`<button class="btn" @click=${() => c.drawArea(a)}>${a.name}</button>`)}</div>
+    ${hint("Click one, then draw its room.")}</div>`;
 }
 
 /** Devices of this floor with no entity, as buttons that select them; nothing when there are none. */
@@ -408,6 +423,7 @@ function roomLink(c: PanelCtx, ha: HaData, i: number) {
       ${taken.length ? html`<optgroup label="Already on the plan">${taken.map(opt)}</optgroup>` : nothing}
       ${unknown ? missingOpt(r.area) : nothing}
     </select>${unknown ? hint(NOT_IN_HA) : nothing}
+    ${c.createArea && r.kind !== "water" && r.name.trim() && (!r.area || unknown) ? html`<p>${button("rcreate", `Create area ${r.name.trim()} in Home Assistant`, () => c.createArea!(i))}</p>` : nothing}
     ${r.area ? nothing : html`${text("plan name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
     ${entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}`;
 }

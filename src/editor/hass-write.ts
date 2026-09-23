@@ -14,6 +14,8 @@ export interface WriteHass {
 export interface HaWriter {
   setDeviceArea(deviceId: string, areaId: string): Promise<void>;
   setEntityArea(entityId: string, areaId: string | null): Promise<void>;
+  /** S4.2: a new HA area, labelled `floorplan-studio`. Resolves to the id and name HA gave it. */
+  createArea(name: string): Promise<{ id: string; name: string }>;
   /** A helper (`switch_as_x`, `group`) created through its config flow, labelled `floorplan-studio`. Resolves to the entity it made. */
   createHelper(handler: "switch_as_x" | "group", steps: Record<string, unknown>[]): Promise<{ entity_id: string }>;
   /** S4.10: everything in this Home Assistant instance labelled `floorplan-studio`, so it can be found again and removed. */
@@ -48,6 +50,15 @@ export async function setDeviceArea(hass: WriteHass, deviceId: string, areaId: s
 /** `null` takes the entity out of any area of its own (it then follows its device). */
 export async function setEntityArea(hass: WriteHass, entityId: string, areaId: string | null): Promise<void> {
   await hass.callWS({ type: "config/entity_registry/update", entity_id: entityId, area_id: areaId });
+}
+
+/** S4.2: creates the area `name` with the `floorplan-studio` label, so S4.10 can find it again. HA picks the id (it may add a suffix). */
+export async function createArea(hass: WriteHass, name: string): Promise<{ id: string; name: string }> {
+  const n = name.trim();
+  if (!n) throw new Error("An area needs a name. Give the room a plan name first.");
+  const labelId = await ensureLabel(hass);
+  const a = await hass.callWS<AreaEntry>({ type: "config/area_registry/create", name: n, labels: [labelId] });
+  return { id: a.area_id, name: a.name };
 }
 
 const flowError = (r: FlowResult) => {
@@ -124,6 +135,7 @@ export function makeWriter(hass: WriteHass): HaWriter {
   return {
     setDeviceArea: (d, a) => setDeviceArea(hass, d, a),
     setEntityArea: (e, a) => setEntityArea(hass, e, a),
+    createArea: (n) => createArea(hass, n),
     createHelper: (h, s) => createHelper(hass, h, s),
     listLabelled: () => listLabelled(hass),
     removeLabelled: (item) => removeLabelled(hass, item),

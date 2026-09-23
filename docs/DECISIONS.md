@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-23 S4.2 areas from the plan: a room-panel button and an unplaced-areas box, `ha-area-picker` deferred to S4.8
+
+PLAN specced the area field itself becoming `ha-area-picker`, the native HA picker component. That belongs to S4.8 ("native look"), which is not started and adds nothing this task needs — the plain `<select>` from S1.38 already filters to unused areas and marks an unknown one. Kept as-is; noted as a deviation rather than silently dropped.
+
+Two pieces: a custom room (or one whose stored `area` HA no longer has) gets "Create area `<name>` in Home Assistant" in its panel, confirming creates the area with the `floorplan-studio` label and links the room to it — mirrors S4.4's `createHelper`/`makeLight` shape exactly (ask, write, find the room again by id in case the plan changed meanwhile, one undo step, the HA side stays on undo). The floor panel (nothing selected) gets "Areas not on the plan": every HA area no room or zone anywhere uses, each a button that starts Draw, Room with that area preset so the finished shape takes the area's id and name directly, instead of "New room" waiting to be relinked by hand.
+
 ## 2026-09-23 An off icon's disc is 50 % in every theme
 
 Diego's call. The disc behind an icon was 75 % in light, midnight, solarized and blueprint, 70 % in slate and 60 % in terminal. It is now 50 % everywhere, including the two `ha` variants, which inherit light and midnight. `fgAlpha` stays a theme role, so a later theme can still differ, but every shipped theme uses .5. A Playwright pair walks all seven themes and reads the computed `fill-opacity`; a unit test rejects any other `--fp-disc-alpha` in the stylesheet. Supersedes the 75 % of S1.45 and the per-theme values of S4.21. Rendered with `npm run shots` and looked at: the discs are fainter, the icons still read.

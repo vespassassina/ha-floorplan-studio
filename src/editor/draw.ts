@@ -8,7 +8,9 @@ import { newId, slug, type Sel } from "./state";
 // feeds it snapped points and draws what it reports.
 
 export type DrawKind = "room" | "zone" | "water" | "outline" | "wall" | "opening" | "extra";
-export interface Shape { kind: DrawKind; wall: WallKind; pts: Pt[] }
+/** S4.2: the HA area a room or zone is drawn for, from "Areas not on the plan". */
+export interface AreaPreset { id: string; name: string }
+export interface Shape { kind: DrawKind; wall: WallKind; pts: Pt[]; area?: AreaPreset }
 export type ClickResult = "add" | "ignore" | "finish";
 
 const POLYGONS: readonly DrawKind[] = ["room", "zone", "water", "outline"];
@@ -18,7 +20,7 @@ const SAME = 1; // cm: a click this close to the last point is the second click 
 
 export class Draw {
   points: Pt[] = [];
-  constructor(readonly kind: DrawKind, readonly wall: WallKind = "wall") {}
+  constructor(readonly kind: DrawKind, readonly wall: WallKind = "wall", readonly area?: AreaPreset) {}
 
   get polygon() { return POLYGONS.includes(this.kind); }
   /** Points a shape needs before it can finish. */
@@ -46,7 +48,8 @@ export class Draw {
   finish(): Shape | null {
     const pts = this.points;
     this.points = [];
-    return pts.length >= this.min ? { kind: this.kind, wall: this.wall, pts } : null;
+    if (pts.length < this.min) return null;
+    return this.area ? { kind: this.kind, wall: this.wall, pts, area: this.area } : { kind: this.kind, wall: this.wall, pts };
   }
 
   /** The dashed path to draw: the points so far and the pointer. Null before the first point. */
@@ -76,8 +79,8 @@ export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; s
     g.outline = pts;
     sel = { t: "edge", poly: "o", i: 0 };
   } else if (s.kind === "room" || s.kind === "zone" || s.kind === "water") {
-    const name = `New ${s.kind}`, dotted = s.kind !== "room";
-    g.rooms.push({ id: newId(g, floor, "room"), name, area: s.kind === "water" ? "" : slug(name), label: "", kind: s.kind, pts, wk: pts.map((): WallKind => (dotted ? "boundary" : "wall")) });
+    const name = s.area?.name ?? `New ${s.kind}`, dotted = s.kind !== "room";
+    g.rooms.push({ id: newId(g, floor, "room"), name, area: s.kind === "water" ? "" : s.area?.id ?? slug(name), label: "", kind: s.kind, pts, wk: pts.map((): WallKind => (dotted ? "boundary" : "wall")) });
     sel = { t: "room", i: g.rooms.length - 1 };
   } else if (s.kind === "wall") {
     for (let i = 1; i < pts.length; i++) g.walls.push({ id: newId(g, floor, "wall"), a: pts[i - 1], b: [pts[i][0], pts[i][1]], kind: s.wall });

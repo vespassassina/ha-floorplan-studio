@@ -5275,6 +5275,86 @@ test("S4.18: 'Add device from <area>' lists the room's unplaced HA entities and 
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.living_temp")).toBe(false);
 });
 
+// ---- S4.2: areas from the plan -------------------------------------------------------------------------------------
+
+/** HA knows Living and Garage but not Kitchen; the writer records createArea and answers with HA's own id. */
+async function withNewAreaWriter(page: Page, opt: { fail?: string } = {}) {
+  await setHa(page, { floors: [], areas: [{ id: "living", name: "Living" }, { id: "garage", name: "Garage" }], entities: [] });
+  await page.evaluate(([tag, fail]) => {
+    const w = window as any; w.__calls = [];
+    (document.querySelector(tag as string) as any).writer = {
+      setDeviceArea: async () => {}, setEntityArea: async () => {}, createHelper: async () => ({ entity_id: "" }),
+      createArea: async (name: string) => { w.__calls.push([name]); if (fail) throw new Error(fail as string); return { id: "kitchen_2", name }; },
+    };
+  }, [EDITOR, opt.fail ?? ""]);
+}
+const roomAt = async (page: Page, x: number, y: number) => { const c = await screenOf(page, x, y); await page.mouse.click(c.x, c.y); };
+
+test("S4.2: a room whose area HA does not know creates it on confirm, then links to it; a linked room has no button", async ({ page }) => {
+  await withNewAreaWriter(page);
+  await roomAt(page, 560, 80); // Kitchen, area "kitchen": unknown to this HA
+  const btn = page.locator("#rcreate");
+  await expect(btn).toHaveText("Create area Kitchen in Home Assistant");
+  await btn.click();
+  await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
+  expect(await calls(page)).toHaveLength(0); // asking is not doing
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual(["Kitchen"]);
+  await expect(page.locator("#ra")).toHaveValue("kitchen_2");
+  expect((await groundOf(page)).rooms.find((r) => r.name === "Kitchen")).toMatchObject({ area: "kitchen_2" });
+  await expect(page.locator("#rcreate")).toHaveCount(0);
+  await savedValid(page);
+
+  await roomAt(page, 200, 150); // Living, linked to a known area
+  await expect(page.locator("#ra")).toHaveValue("living");
+  await expect(page.locator("#rcreate")).toHaveCount(0);
+});
+
+test("S4.2 break it: Cancel writes nothing and a failing Home Assistant changes nothing; no writer, no button", async ({ page }) => {
+  await withNewAreaWriter(page);
+  const before = await groundOf(page);
+  await roomAt(page, 560, 80);
+  await page.locator("#rcreate").click();
+  await page.locator("#fp-confirm-no").click();
+  expect(await calls(page)).toHaveLength(0);
+  expect(await groundOf(page)).toEqual(before);
+
+  await withNewAreaWriter(page, { fail: "name_in_use" });
+  await roomAt(page, 560, 80);
+  await page.locator("#rcreate").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("name_in_use");
+  expect(await groundOf(page)).toEqual(before);
+
+  await page.evaluate(([tag]) => { (document.querySelector(tag as string) as any).writer = undefined; }, [EDITOR]);
+  await roomAt(page, 560, 80);
+  await expect(page.locator("#ra")).toBeVisible();
+  await expect(page.locator("#rcreate")).toHaveCount(0);
+});
+
+test("S4.2: 'Areas not on the plan' lists an unused HA area; clicking it draws a room that takes it, and it leaves the list", async ({ page }) => {
+  await withNewAreaWriter(page);
+  await page.keyboard.press("Escape"); // nothing selected: the floor panel
+  const box = page.locator("#unplacedAreas");
+  await expect(box.locator("button")).toHaveText(["Garage"]); // Living is on the plan
+  await box.locator("button", { hasText: "Garage" }).click();
+  await expect(page.locator("#status")).toHaveText(DRAW_STATUS);
+  const n = (await groundOf(page)).rooms.length;
+  await clicksCm(page, ...FREE);
+  await page.keyboard.press("Enter");
+  const rooms = (await groundOf(page)).rooms;
+  expect(rooms).toHaveLength(n + 1);
+  expect(rooms[n]).toMatchObject({ name: "Garage", area: "garage", kind: "room" });
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#unplacedAreas")).toHaveCount(0); // none left
+});
+
+test("S4.2: no 'Areas not on the plan' box without Home Assistant", async ({ page }) => {
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#unplacedAreas")).toHaveCount(0);
+});
+
 // ---- S4.15: the room panel places every unplaced entity of the room's HA area ------------------------------------
 
 test("S4.15: the room panel's Place button adds every unplaced entity of the area, one undo step, and is absent when none is left", async ({ page }) => {

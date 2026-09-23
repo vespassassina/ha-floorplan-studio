@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { LABEL_NAME, createHelper, ensureLabel, listLabelled, makeWriter, removeLabelled, setDeviceArea, setEntityArea, type WriteHass } from "../../src/editor/hass-write";
+import { LABEL_NAME, createArea, createHelper, ensureLabel, listLabelled, makeWriter, removeLabelled, setDeviceArea, setEntityArea, type WriteHass } from "../../src/editor/hass-write";
 import { confirm, NO_UNDO } from "../../src/editor/confirm";
 
 type Msg = { type: string; [k: string]: unknown };
@@ -30,6 +30,23 @@ describe("area writes", () => {
       { type: "config/entity_registry/update", entity_id: "light.a", area_id: "kitchen" },
       { type: "config/entity_registry/update", entity_id: "light.a", area_id: null },
     ]);
+  });
+});
+
+describe("S4.2: createArea", () => {
+  it("creates the area with the floorplan-studio label and returns HA's id and name", async () => {
+    const h = stub((m) => (m.type === "config/label_registry/list" ? [{ label_id: "fs", name: LABEL_NAME }] : { area_id: "garage_2", name: "Garage" }));
+    expect(await createArea(h, "Garage")).toEqual({ id: "garage_2", name: "Garage" });
+    expect(h.callWS).toHaveBeenLastCalledWith({ type: "config/area_registry/create", name: "Garage", labels: ["fs"] });
+  });
+  it("an empty name is refused before anything is sent", async () => {
+    const h = stub();
+    await expect(createArea(h, "  ")).rejects.toThrow(/name/);
+    expect(h.callWS).not.toHaveBeenCalled();
+  });
+  it("makeWriter exposes it", async () => {
+    const h = stub((m) => (m.type === "config/label_registry/list" ? [{ label_id: "fs", name: LABEL_NAME }] : { area_id: "a", name: "A" }));
+    expect(await makeWriter(h).createArea("A")).toEqual({ id: "a", name: "A" });
   });
 });
 

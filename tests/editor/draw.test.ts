@@ -256,3 +256,21 @@ describe("room kind follows the ring's wall kinds (Opus review)", () => {
     expect(n).toBe(WALL_KINDS.length ** 4);
   });
 });
+
+describe("S4.2: drawing a room for an HA area not on the plan", () => {
+  it("the new room or zone takes the area's id and name; without a preset it stays 'New room'", () => {
+    const d = new Draw("room", "wall", { id: "garage_2", name: "Garage" });
+    click(d, [0, 0], [100, 0], [100, 100]);
+    const s = d.finish()!;
+    const r = applyShape(ground(), "ground", s);
+    const room = r.floor.rooms[r.floor.rooms.length - 1];
+    expect(room).toMatchObject({ name: "Garage", area: "garage_2", kind: "room" });
+    expect(validate({ ...(demo as unknown as Layout), floors: { ...(demo as unknown as Layout).floors, ground: r.floor } }).ok).toBe(true);
+    const z = new Draw("zone", "wall", { id: "nook", name: "Nook" }); click(z, [0, 0], [100, 0], [100, 100]);
+    const zf = applyShape(ground(), "ground", z.finish()!).floor;
+    expect(zf.rooms[zf.rooms.length - 1]).toMatchObject({ name: "Nook", area: "nook", kind: "zone" });
+    const plain = new Draw("room"); click(plain, [0, 0], [100, 0], [100, 100]);
+    const pf = applyShape(ground(), "ground", plain.finish()!).floor;
+    expect(pf.rooms[pf.rooms.length - 1]).toMatchObject({ name: "New room", area: "new-room" });
+  });
+});
