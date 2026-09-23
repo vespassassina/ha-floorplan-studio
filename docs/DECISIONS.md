@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-23 S4.15 place an area's entities: a room-panel button, spread on a grid that avoids the label and existing devices
+
+One button in the room panel, as PLAN sketched, not a context-menu item: the right-click menu (S4.18) already adds one entity at a time. The button places only entities that are neither drawn nor in the catalog, the same rule as S4.14's palette, so it never duplicates and disappears when nothing is left. All land in one undo step.
+
+Placement is a 60 cm grid about the room's centre, nearest cells first, skipping the centre (the room label) and any cell within 0.7 of a step of a device already on the floor. The first version, a plain grid centred on the room, passed its tests and was visibly wrong once rendered: it covered the label and the ceiling light. The rule was tightened and a test for it added. Nothing is written to Home Assistant; the entities are already in that area.
+
 ## 2026-09-23 S4.25 unlinked devices: own schema array, fixed icon, no counter-rotation — a copy-pasted device pattern silently broke `rot`
 
 Diego asked for a menu of unlinked-but-linkable appliances (heater, ac, heatpump, boiler, battery, lamp, computer, tv, car, server, UPS, inverter, speaker, 3D printer): placed with a fixed icon, not a swappable furniture symbol, scalable, colourable, rotatable, and attachable to zero or more HA entities for reference only. Pre-resolved before any code: a new `Floor.unlinked: Unlinked[]` array (not `furniture`, not a `Device` variant — the point is "this is a heater", which reuses the existing `DEVICE_ICONS` set rather than a furniture shape); no live-drag gesture machinery, scale/rotation/position are committed panel fields like `furniturePanel`; multi-entity attach reuses S4.24's `multiAttachField`; selection draws inside `renderFloor` via `.sel`, parallel to devices, so the editor's `overlay()` needs no new branch.

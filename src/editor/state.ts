@@ -1,4 +1,4 @@
-import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, typeForEntity, unplacedCatalog, validate, viewBoxFor } from "../core";
+import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, Theme } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -377,6 +377,51 @@ export class EditorState {
     if (!room) return false;
     const ctr: Pt = [Math.round(room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length), Math.round(room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length)];
     return this.addHaEntity(e, ctr, room.name);
+  }
+
+  /** S4.15: entities of room `roomIndex`'s HA area that are neither drawn nor catalogued. Empty with no HA, no area or no such room. */
+  areaToPlace(roomIndex: number): HaData["entities"] {
+    const room = this.f.rooms[roomIndex];
+    if (!room?.area || !this.ha || room.pts.length < 3) return [];
+    return unplacedHaEntities(this.layout, this.ha).filter((e) => e.area === room.area);
+  }
+
+  /**
+   * S4.15: places every entity `areaToPlace` returns, one undo step, and returns how many. They take the free cells
+   * of a 60 cm grid about the room's centre, nearest first: inside the room, not the centre itself (the room's label
+   * is there), not next to a device already on the floor. A room too small for that shrinks the grid; one too small
+   * even then stacks the rest on the centre. None to place records no step.
+   */
+  placeArea(roomIndex: number): number {
+    const todo = this.areaToPlace(roomIndex);
+    if (!todo.length) return 0;
+    const room = this.f.rooms[roomIndex];
+    const xs = room.pts.map((p) => p[0]), ys = room.pts.map((p) => p[1]);
+    const ctr: Pt = [xs.reduce((s, v) => s + v, 0) / xs.length, ys.reduce((s, v) => s + v, 0) / ys.length];
+    const reach = Math.max(...xs.map((x) => Math.abs(x - ctr[0])), ...ys.map((y) => Math.abs(y - ctr[1])));
+    const taken = this.f.devices.flatMap((d) => ("x" in d ? [[d.x, d.y] as Pt] : []));
+    const cells = (step: number): Pt[] => {
+      const r = Math.ceil(reach / step), out: [number, Pt][] = [];
+      for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) {
+        const p: Pt = [Math.round(ctr[0] + i * step), Math.round(ctr[1] + j * step)];
+        if ((i || j) && inside(p, room.pts) && taken.every((t) => Math.hypot(t[0] - p[0], t[1] - p[1]) >= step * 0.7)) out.push([Math.hypot(i, j), p]);
+      }
+      return out.sort((a, b) => a[0] - b[0]).map((c) => c[1]); // stable: equal distances keep row order
+    };
+    let spots = cells(60);
+    for (let step = 48; spots.length < todo.length && step >= 10; step *= 0.8) spots = cells(step);
+    const next = structuredClone(this.layout);
+    const f = next.floors[this.floor];
+    todo.forEach((e, k) => {
+      const at = spots[k] ?? (ctr.map(Math.round) as Pt);
+      const id = newId(f, this.floor, "device"), type = typeForEntity(e);
+      f.devices.push({ id, name: e.name, type, entity: e.id, x: at[0], y: at[1] });
+      next.catalog.push({ id, floor: this.floor, room: room.name, type, name: e.name, entity: e.id });
+    });
+    this.snapshot();
+    this.layout = next;
+    this.sel = { t: "room", i: roomIndex };
+    return todo.length;
   }
 
   /**

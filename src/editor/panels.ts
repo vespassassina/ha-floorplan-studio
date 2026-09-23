@@ -33,6 +33,8 @@ export interface PanelCtx {
   scaleTexture(on: "rooms" | "stairs", i: number, scale: number, phase: "live" | "commit"): void;
   /** S4.4: create a light from the selected switch or plug. Absent when there is no Home Assistant to write to. */
   makeLight?: (devIndex: number) => void;
+  /** S4.15: place every unplaced entity of room `roomIndex`'s HA area, one undo step. */
+  placeArea(roomIndex: number): void;
   /** S4.3: the room whose HA area differs from the device's, when there is one, and the action that moves it there. */
   areaDiff?: (devIndex: number) => { name: string } | null;
   moveArea?: (devIndex: number) => void;
@@ -358,6 +360,7 @@ function roomPanel(c: PanelCtx, i: number) {
     ${c.st.ha ? roomLink(c, c.st.ha, i) : html`${text("name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
     ${text("area id", "ra", r.area, (v) => c.commit((f) => { f.rooms[i].area = v; }))}
     ${r.area ? nothing : entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}
+    ${placeAreaButton(c, i)}
     ${text("plan label", "rl", r.label, (v) => c.commit((f) => { f.rooms[i].label = v; }))}
     ${kindSelect(r.kind, (v) => c.commit((f) => {
       const room = f.rooms[i];
@@ -370,6 +373,12 @@ function roomPanel(c: PanelCtx, i: number) {
     <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${r.kind === "zone" ? hint("A zone is a dotted area inside a room. Give it an area id to map it to a Home Assistant area. Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag the body to move it. Drag corners to reshape. Select an edge and choose its kind.") : nothing}`;
+}
+
+/** S4.15: one button that places every entity Home Assistant has in the room's area and the plan does not show yet. */
+function placeAreaButton(c: PanelCtx, i: number) {
+  const n = c.st.areaToPlace(i).length;
+  return n ? html`<p>${button("rplace", `Place ${n} Home Assistant device${n === 1 ? "" : "s"} of this area`, () => c.placeArea(i))}</p>` : nothing;
 }
 
 const setOrDelete = <T extends object, K extends keyof T>(o: T, k: K, v: T[K] | undefined) => { if (v === undefined || v === "") delete o[k]; else o[k] = v; };

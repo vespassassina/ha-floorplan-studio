@@ -5267,6 +5267,36 @@ test("S4.18: 'Add device from <area>' lists the room's unplaced HA entities and 
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.living_temp")).toBe(false);
 });
 
+// ---- S4.15: the room panel places every unplaced entity of the room's HA area ------------------------------------
+
+test("S4.15: the room panel's Place button adds every unplaced entity of the area, one undo step, and is absent when none is left", async ({ page }) => {
+  await setHa(page, { ...HA, areas: [...HA.areas], entities: [...HA.entities,
+    { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" },
+    { id: "binary_sensor.living_motion", name: "Living motion", domain: "binary_sensor", dc: "motion", area: "living" }] });
+  const before = (await groundOf(page)).devices.length;
+  const c = await screenOf(page, 200, 150); // inside Living
+  await page.mouse.click(c.x, c.y);
+  const btn = page.locator("#rplace");
+  await expect(btn).toHaveText(/Place 2 Home Assistant devices/);
+  await btn.click();
+  const devs = (await groundOf(page)).devices;
+  expect(devs).toHaveLength(before + 2);
+  const added = devs.filter((d: any) => d.entity === "sensor.living_temp" || d.entity === "binary_sensor.living_motion");
+  expect(added.map((d: any) => d.type).sort()).toEqual(["motion", "temp"]);
+  expect(new Set(added.map((d: any) => `${d.x},${d.y}`)).size).toBe(2);
+  await expect(page.locator("#rplace")).toHaveCount(0); // nothing left to place
+
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).devices).toHaveLength(before); // one gesture, one step
+});
+
+test("S4.15: no Place button without Home Assistant", async ({ page }) => {
+  const c = await screenOf(page, 200, 150);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#rk")).toHaveValue("room");
+  await expect(page.locator("#rplace")).toHaveCount(0);
+});
+
 // ---- S4.14: Add > Entities, a palette of every HA entity not yet on the plan -------------------------------------
 
 test("S4.14: Add > Entities lists HA entities not yet placed or catalogued, grouped by type, and is absent without Home Assistant", async ({ page }) => {
