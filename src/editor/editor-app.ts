@@ -1747,7 +1747,7 @@ export class FloorplanStudioEditor extends LitElement {
         <span class="grow"></span>
         <details class="menu" id="filter"><summary class="btn" aria-label="Filter devices">${st.filter.length ? `Devices: ${st.filter.length} type${st.filter.length > 1 ? "s" : ""}` : `Devices: all (${f.devices.length})`}</summary><div class="box">
           <button class="btn keep" id="filterAll" ?disabled=${!st.filter.length} @click=${() => { st.filter = []; st.sel = null; this.requestUpdate(); }}>All</button>
-          ${TYPE_LABELS.map(([t, label]) => html`<button class="btn keep" data-filter=${t} aria-pressed=${pressed(st.filter.includes(t))} @click=${() => { st.filter = st.filter.includes(t) ? st.filter.filter((x) => x !== t) : [...st.filter, t]; st.sel = null; this.requestUpdate(); }}>${label} (${counts[t] ?? 0})</button>`)}
+          ${TYPE_LABELS.filter(([t]) => counts[t]).map(([t, label]) => html`<button class="btn keep" data-filter=${t} aria-pressed=${pressed(st.filter.includes(t))} @click=${() => { st.filter = st.filter.includes(t) ? st.filter.filter((x) => x !== t) : [...st.filter, t]; st.sel = null; this.requestUpdate(); }}>${label} (${counts[t]})</button>`)}
         </div></details>
         <button class="chip" id="names" aria-pressed=${pressed(st.showNames)} title="Show every visible device's name on the plan" @click=${() => { st.showNames = !st.showNames; this.requestUpdate(); }}>Names</button>
         <details class="menu" id="mAdd"><summary class="btn">Add</summary><div class="box">
