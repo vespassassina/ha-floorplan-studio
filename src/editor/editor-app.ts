@@ -247,7 +247,7 @@ export class FloorplanStudioEditor extends LitElement {
        contrast pair still passes) and only changes how it blends against the page behind it. */
     .btn.light{opacity:.6}
     .btn.light:hover,.btn.light:focus-visible{opacity:1}
-    .swatches{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0} .sw{width:28px;height:28px;padding:0;border:1px solid var(--fp-idle);border-radius:4px;cursor:pointer} .sw.custom{border-style:dashed} .sw[aria-pressed="true"]{outline:2px solid var(--fp-ink);outline-offset:1px}
+    .swatches{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0} .sw{width:28px;height:28px;padding:0;border:1px solid var(--fp-idle);border-radius:4px;cursor:pointer;position:relative;overflow:hidden} .sw.custom::after{content:"";position:absolute;top:0;right:0;width:0;height:0;border-style:solid;border-width:0 9px 9px 0;border-color:transparent var(--fp-ink) transparent transparent} .sw[aria-pressed="true"]{outline:2px solid var(--fp-ink);outline-offset:1px}
     .rot-val{display:inline-block;min-width:3em;text-align:right;font-variant-numeric:tabular-nums}
     .colrow{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:2px 0} .colrow label{display:flex;flex:1;justify-content:space-between;gap:6px} .colrow input{padding:0;width:36px;height:24px} .colrow .btn{width:auto}
     .rangerow{display:flex;align-items:center;gap:8px;margin:2px 0} .rangerow input{flex:1;width:auto} .rangerow .rot-val{flex:none;min-width:3.5em;text-align:right}

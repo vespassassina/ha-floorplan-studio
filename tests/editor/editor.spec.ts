@@ -4836,6 +4836,22 @@ test("a custom room colour becomes a swatch (kept in layout.palette); textures p
   expect((await layoutOf(page)).palette).toBeUndefined();
 });
 
+test("CSS pair: a custom swatch carries a corner badge, not a dashed border, at the same size as a built-in one", async ({ page }) => {
+  await setTheme(page, "light");
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await page.locator("#rcol").fill("#12ab34");
+  const custom = page.locator(".swatches[aria-label='Colours'] .sw.custom").first();
+  const builtin = page.locator(".swatches[aria-label='Colours'] .sw:not(.custom)").first();
+  const [customBox, builtinBox] = await Promise.all([custom.boundingBox(), builtin.boundingBox()]);
+  expect([customBox!.width, customBox!.height]).toEqual([builtinBox!.width, builtinBox!.height]); // same size, not a bigger button
+  expect(await custom.evaluate((e) => getComputedStyle(e).borderStyle)).toBe("solid"); // no longer dashed
+  const badge = await custom.evaluate((e) => parseFloat(getComputedStyle(e, "::after").borderRightWidth));
+  const builtinBadge = await builtin.evaluate((e) => parseFloat(getComputedStyle(e, "::after").borderRightWidth));
+  expect(badge).toBeGreaterThan(0); // a corner badge is drawn...
+  expect(builtinBadge).toBe(0); // ...only on the custom swatch
+});
+
 // ---- S4.22: a texture's own rotation, dragged with the paint panel's slider ----------------------------------------
 
 /** Sets a range input's value and fires the given events, exactly as a real drag or a release would. */
