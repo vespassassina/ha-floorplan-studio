@@ -1492,12 +1492,13 @@ test("the plan filter checks several device types at once, dropping any one un-c
 const search = (page: Page) => page.locator("#devSearch");
 const shown = (page: Page) => page.locator("#mDev button[data-dev]:visible");
 
-test("the toolbar order is Add, Draw, View, File; Device is a submenu of Add, after Unlinked device", async ({ page }) => {
+test("the toolbar order is Add, Draw, View, File; Device is a submenu of Add, after Areas", async ({ page }) => {
   await expect(page.locator("details.menu > summary")).toHaveText(["Devices: all (8)", "Add", "Draw", "View", "File"]);
   await expect(page.locator("#mAdd select")).toHaveCount(2); // furniture and unlinked-device selects (S4.25)
   await menu(page, "Add");
   const subs = await page.locator("#mAdd > .box > *").evaluateAll((els) => els.map((e) => e.id || e.tagName));
-  expect(subs.at(-1)).toBe("mDev"); // Device is the last item, right after the Unlinked device select
+  const areasIdx = subs.indexOf("addAreas");
+  expect(subs[areasIdx + 1]).toBe("mDev"); // Device sits right after Areas
 });
 
 test("Device lists the unplaced entries grouped by type; a deleted light and its relay come back, placing the light takes only the light", async ({ page }) => {
@@ -2512,7 +2513,7 @@ test("S4.11: Tab reaches every Add item in DOM order, submenus included", async 
   await page.locator(`#mAdd details.sub > summary:text-is("Wall")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Areas")`).click();
   const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.filter((e) => !e.closest("#mDev") || (e.tagName === "SUMMARY" && e.parentElement?.id === "mDev")).map((e) => e.id || e.textContent?.trim()));
-  expect(order).toEqual(["Openings", "addDoor", "addWin", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "addFurn", "addUnlDev", "Device"]);
+  expect(order).toEqual(["Openings", "addDoor", "addWin", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "Device", "addFurn", "addUnlDev"]);
 });
 
 test("each Add, Wall item places a 200 cm wall of its kind at the spawn point, selected, in one undo step", async ({ page }) => {

@@ -1548,6 +1548,12 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="addZone" @click=${() => this.addArea("zone")}>Zone</button>
             <button class="btn" id="addStairs" @click=${() => this.addStairs()}>Stairs</button>
           </details>
+          <details class="sub" id="mDev" @toggle=${this.onDevToggle}><summary class="btn">Device</summary>
+            <input id="devSearch" type="search" autocomplete="off" aria-label="Search devices by name or entity id" placeholder="Search name or entity" .value=${live(this.devQuery)} @input=${(e: Event) => { this.devQuery = (e.target as HTMLInputElement).value; }} @keydown=${this.onDevSearchKey}>
+            ${unplaced.length === 0 ? html`<span class="grp" id="devNone">Every device in the catalog is on the plan</span>` : nothing}
+            ${unplaced.length > 0 && matches.length === 0 ? html`<span class="grp" id="devNone">No device matches</span>` : nothing}
+            ${TYPE_LABELS.map(([t, label]) => { const g = matches.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-dev=${c.id} @click=${() => this.placeDevice(c.id)}>${c.name}${c.room ? ` — ${c.room}` : ""}</button>`)}` : nothing; })}
+          </details>
           ${ha ? html`<details class="sub" id="addEntSub" @toggle=${this.onAddEntToggle}><summary class="btn">Entities</summary>
             <input id="entSearch" type="search" autocomplete="off" aria-label="Search Home Assistant entities by name or entity id" placeholder="Search name or entity" .value=${live(this.entQuery)} @input=${(e: Event) => { this.entQuery = (e.target as HTMLInputElement).value; }} @keydown=${this.onAddEntSearchKey}>
             ${palette.length === 0 ? html`<span class="grp" id="addEntNone">Nothing new in Home Assistant</span>` : nothing}
@@ -1563,12 +1569,6 @@ export class FloorplanStudioEditor extends LitElement {
             <option value="">Unlinked device…</option>
             ${UNLINKED_TYPES.map((t) => html`<option value=${t}>${TYPE_LABELS.find((x) => x[0] === t)?.[1] ?? t}</option>`)}
           </select>
-          <details class="sub" id="mDev" @toggle=${this.onDevToggle}><summary class="btn">Device</summary>
-            <input id="devSearch" type="search" autocomplete="off" aria-label="Search devices by name or entity id" placeholder="Search name or entity" .value=${live(this.devQuery)} @input=${(e: Event) => { this.devQuery = (e.target as HTMLInputElement).value; }} @keydown=${this.onDevSearchKey}>
-            ${unplaced.length === 0 ? html`<span class="grp" id="devNone">Every device in the catalog is on the plan</span>` : nothing}
-            ${unplaced.length > 0 && matches.length === 0 ? html`<span class="grp" id="devNone">No device matches</span>` : nothing}
-            ${TYPE_LABELS.map(([t, label]) => { const g = matches.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-dev=${c.id} @click=${() => this.placeDevice(c.id)}>${c.name}${c.room ? ` — ${c.room}` : ""}</button>`)}` : nothing; })}
-          </details>
         </div></details>
         <details class="menu" id="mDraw"><summary class="btn">Draw</summary><div class="box">
           <button class="btn" id="drawRoom" @click=${() => this.startDraw("room")}>Draw room</button>
