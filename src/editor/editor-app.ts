@@ -160,6 +160,9 @@ export class FloorplanStudioEditor extends LitElement {
    * free-standing wall. Its screen position and its target. Closed (null) by an outside click, Escape or scroll.
    */
   private ctxMenu: { x: number; y: number; target: CtxTarget } | null = null;
+  /** The Device colours popup's screen position; null when closed. Dragged by its header, closed by its own X or Escape. */
+  private devColsPos: { x: number; y: number } | null = null;
+  private dcDrag: { dx: number; dy: number } | null = null;
   private rect = { w: 800, h: 600 };
   private ro?: ResizeObserver;
 
@@ -232,6 +235,11 @@ export class FloorplanStudioEditor extends LitElement {
     .box .btn,.box .chip,.box select{width:100%;text-align:left}
     .ctxmenu{position:fixed;z-index:30;max-height:70vh;overflow:auto;min-width:200px;display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
     .ctxmenu .btn{width:100%;text-align:left}
+    .devcols-panel{position:fixed;z-index:30;width:560px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+    .devcols-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--fp-idle);font-weight:600;cursor:move;touch-action:none}
+    .devcols-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
+    .devcols-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 14px;padding:10px;overflow:auto}
+    .devcols-panel>.btn{margin:0 10px 10px;width:auto;align-self:flex-start}
     .sub{display:flex;flex-direction:column;gap:6px}
     .sub>summary{list-style:none;display:inline-block}
     .sub>summary::-webkit-details-marker{display:none}
@@ -749,6 +757,22 @@ export class FloorplanStudioEditor extends LitElement {
 
   private closeCtxMenu = () => { if (this.ctxMenu) { this.ctxMenu = null; this.requestUpdate(); } };
 
+  private toggleDevCols = () => {
+    this.devColsPos = this.devColsPos ? null : { x: Math.max(20, (window.innerWidth - 560) / 2), y: 90 };
+    this.requestUpdate();
+  };
+  private onDevColsHeaderDown = (e: PointerEvent) => {
+    if (!this.devColsPos || (e.target as Element).closest("button")) return;
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    this.dcDrag = { dx: e.clientX - this.devColsPos.x, dy: e.clientY - this.devColsPos.y };
+  };
+  private onDevColsHeaderMove = (e: PointerEvent) => {
+    if (!this.dcDrag) return;
+    this.devColsPos = { x: e.clientX - this.dcDrag.dx, y: e.clientY - this.dcDrag.dy };
+    this.requestUpdate();
+  };
+  private onDevColsHeaderUp = () => { this.dcDrag = null; };
+
   /** The kind a room/outline edge shows in its own panel: the first room's, or the outline's own, "wall" with no room and no outline. */
   private edgeKind(poly: string, i: number): WallKind | "none" {
     const rooms = edgeRooms(this.st.f, poly, i);
@@ -859,6 +883,22 @@ export class FloorplanStudioEditor extends LitElement {
     return html`<div class="ctxmenu" style="left:${m.x}px;top:${m.y}px">${m.target.k === "room" ? this.roomCtxItems(m.target.i) : this.wallCtxItems(m.target)}</div>`;
   }
 
+  /** Device colours: a floating, draggable panel (View > Device colours), a 3-column grid of every device type's colour and reset. */
+  private devColsView(st: EditorState) {
+    const p = this.devColsPos!;
+    return html`<div class="devcols-panel" style="left:${p.x}px;top:${p.y}px">
+      <div class="devcols-head" @pointerdown=${this.onDevColsHeaderDown} @pointermove=${this.onDevColsHeaderMove} @pointerup=${this.onDevColsHeaderUp} @pointercancel=${this.onDevColsHeaderUp}>
+        <span>Device colours</span>
+        <button class="btn keep" id="devcolsClose" aria-label="Close" @click=${() => this.toggleDevCols()}>&times;</button>
+      </div>
+      <div class="devcols-grid">
+        ${TYPE_LABELS.map(([t, label]) => html`<div class="colrow" data-type=${t}><label>${label}<input type="color" .value=${live(st.layout.colors?.[t] ?? DEVICE_COLOURS[t])} @change=${(e: Event) => this.setColour(t, (e.target as HTMLInputElement).value)}></label>
+          <button class="btn keep" aria-label=${`Reset ${label}`} ?disabled=${!(st.layout.colors && t in st.layout.colors)} @click=${() => this.setColour(t, null)}>Reset</button></div>`)}
+      </div>
+      <button class="btn keep" id="devcolsx" ?disabled=${!st.layout.colors} @click=${() => { if (st.resetColours()) this.changed("Device colours reset"); }}>Reset all</button>
+    </div>`;
+  }
+
   private roomCtxItems(i: number) {
     const st = this.st, r = st.f.rooms[i], ha = st.ha;
     const unplaced = r?.area && ha ? ha.entities.filter((e) => e.area === r.area && !placedEntities(st.layout).has(e.id)) : [];
@@ -911,6 +951,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); this.undo(!ev.shiftKey); return; }
     if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
+    if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
     if (ev.key === "Escape" && this.st.helpOpen) { ev.preventDefault(); this.toggleHelp(); return; }
     if (this.draw) {
       // Draw mode owns these keys: Delete must not remove the item that was selected before.
@@ -1718,11 +1759,7 @@ export class FloorplanStudioEditor extends LitElement {
           </details>
           <button class="btn" id="recenter" @click=${() => { st.recenter(); this.requestUpdate(); }}>Re-center</button>
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
-          <details id="devcols"><summary class="btn">Device colours</summary>
-            ${TYPE_LABELS.map(([t, label]) => html`<div class="colrow" data-type=${t}><label>${label}<input type="color" .value=${live(st.layout.colors?.[t] ?? DEVICE_COLOURS[t])} @change=${(e: Event) => this.setColour(t, (e.target as HTMLInputElement).value)}></label>
-              <button class="btn keep" aria-label=${`Reset ${label}`} ?disabled=${!(st.layout.colors && t in st.layout.colors)} @click=${() => this.setColour(t, null)}>Reset</button></div>`)}
-            <button class="btn keep" id="devcolsx" ?disabled=${!st.layout.colors} @click=${() => { if (st.resetColours()) this.changed("Device colours reset"); }}>Reset all</button>
-          </details>
+          <button class="btn" id="devcols" aria-expanded=${pressed(!!this.devColsPos)} @click=${() => this.toggleDevCols()}>Device colours</button>
           <div class="rotrow"><span id="rotv">Rotate the plan: ${st.layout.rotate ?? 0}°</span>
             <button class="btn keep" id="rotl" aria-label="Rotate the plan 45 degrees left" @click=${() => this.rotatePlan(-45)}>&#8630; 45°</button>
             <button class="btn keep" id="rotr" aria-label="Rotate the plan 45 degrees right" @click=${() => this.rotatePlan(45)}>45° &#8631;</button></div>
@@ -1756,6 +1793,7 @@ export class FloorplanStudioEditor extends LitElement {
           </div>
           <svg xmlns="http://www.w3.org/2000/svg" class=${this.draw ? "drawing" : ""} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
           ${this.ctxMenu ? this.ctxMenuView(this.ctxMenu) : nothing}
+          ${this.devColsPos ? this.devColsView(st) : nothing}
         </div>
         <aside>
           <div id="panel">${st.helpOpen ? helpPanel(() => this.toggleHelp()) : selectionPanel(this.ctx())}</div>

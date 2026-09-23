@@ -3487,10 +3487,10 @@ test("S1.35 break it: a colour typed in the free input still works, and a swatch
 });
 
 // ---- S1.36 device colours by type ----
-const colourRow = (page: Page, type: string) => page.locator(`${EDITOR} #devcols [data-type="${type}"]`);
+const colourRow = (page: Page, type: string) => page.locator(`${EDITOR} .devcols-panel [data-type="${type}"]`);
 const openDevCols = async (page: Page) => {
   await menu(page, "View");
-  await page.locator(`${EDITOR} #devcols > summary`).click();
+  await page.locator(`${EDITOR} #devcols`).click();
 };
 const setColourInput = (page: Page, type: string, hex: string) =>
   colourRow(page, type).locator("input[type=color]").evaluate((el, v) => { (el as HTMLInputElement).value = v; el.dispatchEvent(new Event("change", { bubbles: true })); }, hex);
@@ -3499,10 +3499,49 @@ const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first
 
 test("S1.36: View, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
   await openDevCols(page);
-  await expect(page.locator(`${EDITOR} #devcols [data-type]`)).toHaveCount(27); // S4.25 added boiler, car, ups, printer, speaker
+  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(27); // S4.25 added boiler, car, ups, printer, speaker
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
   await expect(colourRow(page, "light").locator("button")).toHaveCount(1);
   await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
+});
+
+test("S1.36: Device colours opens as a floating panel — a 3-column grid, closed by its own X, not by clicking elsewhere", async ({ page }) => {
+  await openDevCols(page);
+  const panel = page.locator(`${EDITOR} .devcols-panel`);
+  await expect(panel).toBeVisible();
+  // Three columns: the first three rows' tops match, the fourth starts a new row.
+  const tops = await page.locator(`${EDITOR} .devcols-panel [data-type]`).evaluateAll((els) => els.slice(0, 4).map((e) => e.getBoundingClientRect().top));
+  expect(tops[0]).toBeCloseTo(tops[1], 0);
+  expect(tops[0]).toBeCloseTo(tops[2], 0);
+  expect(tops[3]).toBeGreaterThan(tops[0] + 5);
+  // A click elsewhere on the canvas leaves it open.
+  const at = await screenOf(page, 1000, 1000);
+  await page.mouse.click(at.x, at.y);
+  await expect(panel).toBeVisible();
+  // Its own close button dismisses it.
+  await page.locator(`${EDITOR} .devcols-panel #devcolsClose`).click();
+  await expect(panel).toHaveCount(0);
+});
+
+test("S1.36: Escape closes the Device colours panel", async ({ page }) => {
+  await openDevCols(page);
+  const panel = page.locator(`${EDITOR} .devcols-panel`);
+  await expect(panel).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+});
+
+test("S1.36: dragging the panel's header by its title moves the panel", async ({ page }) => {
+  await openDevCols(page);
+  const head = page.locator(`${EDITOR} .devcols-panel .devcols-head`);
+  const before = (await head.boundingBox())!;
+  await page.mouse.move(before.x + 40, before.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(before.x + 140, before.y + 110, { steps: 5 });
+  await page.mouse.up();
+  const after = (await head.boundingBox())!;
+  expect(after.x - before.x).toBeCloseTo(100, 0);
+  expect(after.y - before.y).toBeCloseTo(100, 0);
 });
 
 test("S1.36: changing the light colour reaches every light icon, camera colour changes the camera fill, undo restores", async ({ page }) => {
