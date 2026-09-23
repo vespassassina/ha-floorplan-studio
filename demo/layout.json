@@ -295,7 +295,9 @@
             390,
             600
           ],
-          "sensors": ["binary_sensor.demo_front_door"]
+          "sensors": [
+            "binary_sensor.demo_front_door"
+          ]
         },
         {
           "id": "door-ground-2",
@@ -309,7 +311,9 @@
             0,
             280
           ],
-          "sensors": ["binary_sensor.demo_patio_door"]
+          "sensors": [
+            "binary_sensor.demo_patio_door"
+          ]
         },
         {
           "id": "door-ground-3",
@@ -420,7 +424,8 @@
           "w": 160,
           "h": 90
         }
-      ]
+      ],
+      "unlinked": []
     },
     "first": {
       "title": "First",
@@ -558,7 +563,9 @@
             300,
             0
           ],
-          "sensors": ["binary_sensor.demo_bedroom_window"]
+          "sensors": [
+            "binary_sensor.demo_bedroom_window"
+          ]
         }
       ],
       "openings": [],
@@ -597,7 +604,8 @@
           "y": 450
         }
       ],
-      "furniture": []
+      "furniture": [],
+      "unlinked": []
     },
     "test": {
       "title": "Test",
@@ -713,7 +721,8 @@
       "openings": [],
       "extras": [],
       "furniture": [],
-      "devices": []
+      "devices": [],
+      "unlinked": []
     }
   },
   "catalog": [

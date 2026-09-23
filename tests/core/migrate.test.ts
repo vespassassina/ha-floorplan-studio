@@ -331,3 +331,29 @@ describe("furniture w/h are clamped to 5-2000 cm (Opus review)", () => {
     expect(validate(l).ok).toBe(false);
   });
 });
+
+describe("unlinked appliances (S4.25)", () => {
+  it("fills a missing unlinked with an empty array on a v1 layout", () => {
+    const m = migrate(v1);
+    expect(m.floors.ground.unlinked).toEqual([]);
+  });
+  it("assigns an id to a raw unlinked entry that has none", () => {
+    const l: any = structuredClone(v1);
+    l.floors.ground.unlinked = [{ type: "heater", x: 10, y: 10, rot: 0, scale: 1 }];
+    const m = migrate(l);
+    expect(m.floors.ground.unlinked[0].id).toBe("unlinked-ground-1");
+  });
+  it("fills missing rot and scale on a hand-written entry, without touching values that are already there", () => {
+    const l: any = structuredClone(v1);
+    l.floors.ground.unlinked = [{ id: "u1", type: "heater", x: 10, y: 10 }, { id: "u2", type: "ac", x: 20, y: 20, rot: 90, scale: 2 }];
+    const m = migrate(l);
+    expect(m.floors.ground.unlinked[0]).toMatchObject({ rot: 0, scale: 1 });
+    expect(m.floors.ground.unlinked[1]).toMatchObject({ rot: 90, scale: 2 });
+    expect(validate(m).ok).toBe(true);
+  });
+  it("rejects a floor whose unlinked is not an array (Opus finding 1 discipline: migrate does not trust shapes either)", () => {
+    const l: any = structuredClone(v1);
+    l.floors.ground.unlinked = "nope";
+    expect(() => migrate(l)).toThrow(/unlinked must be an array/);
+  });
+});

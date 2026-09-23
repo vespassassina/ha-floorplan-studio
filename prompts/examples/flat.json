@@ -24,7 +24,8 @@
       "furniture": [
         { "id": "furniture-ground-1", "symbol": "sofa", "x": 200, "y": 300, "rot": 0, "w": 200, "h": 90 },
         { "id": "furniture-ground-2", "symbol": "bed", "x": 500, "y": 200, "rot": 90, "w": 200, "h": 160 }
-      ]
+      ],
+      "unlinked": []
     }
   },
   "catalog": []

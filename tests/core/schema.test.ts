@@ -509,6 +509,79 @@ describe("HA links (S1.37)", () => {
   });
 });
 
+describe("unlinked (S4.25)", () => {
+  const good = () => ({ id: "u1", type: "heater", x: 10, y: 10, rot: 0, scale: 1 });
+
+  it("accepts a well-formed entry, with and without the optional fields", () => {
+    const l = clone(); l.floors.ground.unlinked = [good()];
+    expect(errorsOf(l)).toEqual([]);
+    const m = clone();
+    m.floors.ground.unlinked = [{ ...good(), name: "Old boiler", color: "#112233", attached: ["light.a", "switch.b"] }];
+    expect(errorsOf(m)).toEqual([]);
+  });
+
+  it("rejects a floor whose unlinked is not an array", () => {
+    const l = clone(); l.floors.ground.unlinked = "nope";
+    expect(errorsOf(l).join("\n")).toMatch(/unlinked must be an array/);
+  });
+
+  it("rejects an entry with no id, and flags duplicate ids on the same floor", () => {
+    const l = clone(); l.floors.ground.unlinked = [{ ...good(), id: undefined }];
+    expect(errorsOf(l).join("\n")).toMatch(/an object has no id/);
+    const m = clone(); m.floors.ground.unlinked = [good(), good()];
+    expect(errorsOf(m).join("\n")).toMatch(/duplicate id u1/);
+  });
+
+  it("rejects a type that is not one of DEVICE_TYPES", () => {
+    const l = clone(); l.floors.ground.unlinked = [{ ...good(), type: "not-a-type" }];
+    expect(errorsOf(l).join("\n")).toMatch(/u1 type must be one of/);
+  });
+
+  it("rejects missing or non-finite x/y", () => {
+    for (const bad of [undefined, "5", NaN, Infinity]) {
+      const l = clone(); l.floors.ground.unlinked = [{ ...good(), x: bad }];
+      expect(errorsOf(l).join("\n"), String(bad)).toMatch(/u1 needs x and y/);
+    }
+  });
+
+  it("rejects scale outside 0.25-4, and accepts the ends of the range", () => {
+    for (const bad of [0, 0.1, 4.1, -1, "big", NaN]) {
+      const l = clone(); l.floors.ground.unlinked = [{ ...good(), scale: bad }];
+      expect(errorsOf(l).join("\n"), String(bad)).toMatch(/u1 scale must be a number from 0.25 to 4/);
+    }
+    const l = clone(); l.floors.ground.unlinked = [{ ...good(), scale: 0.25 }];
+    expect(errorsOf(l)).toEqual([]);
+    const m = clone(); m.floors.ground.unlinked = [{ ...good(), scale: 4 }];
+    expect(errorsOf(m)).toEqual([]);
+  });
+
+  it("rejects rot outside [0, 360)", () => {
+    for (const bad of [-1, 360, "45", NaN]) {
+      const l = clone(); l.floors.ground.unlinked = [{ ...good(), rot: bad }];
+      expect(errorsOf(l).join("\n"), String(bad)).toMatch(/u1 rot must be a number in \[0, 360\)/);
+    }
+  });
+
+  it("rejects a malformed colour", () => {
+    for (const bad of ["red", "#fff", "#gggggg", 5]) {
+      const l = clone(); l.floors.ground.unlinked = [{ ...good(), color: bad }];
+      expect(errorsOf(l).join("\n"), String(bad)).toMatch(/u1 color must be a colour like #aabbcc/);
+    }
+  });
+
+  it("rejects a non-array attached, and an attached entry with no dot", () => {
+    const l = clone(); l.floors.ground.unlinked = [{ ...good(), attached: "light.a" }];
+    expect(errorsOf(l).join("\n")).toMatch(/u1 attached must be a list of entity ids/);
+    const m = clone(); m.floors.ground.unlinked = [{ ...good(), attached: ["nodot"] }];
+    expect(errorsOf(m).join("\n")).toMatch(/u1 attached\[0\] must be an entity id/);
+  });
+
+  it("rejects a payload trying to hide a script injection in name (still just text, never thrown on)", () => {
+    const l = clone(); l.floors.ground.unlinked = [{ ...good(), name: '"><script>' }];
+    expect(errorsOf(l)).toEqual([]); // name is free text; escaping is render.ts's job, not validate's
+  });
+});
+
 describe("furniture size bounds (S1.51)", () => {
   it("rejects w or h of 0 or of 5000 as out of range", () => {
     for (const bad of [0, 5000]) {

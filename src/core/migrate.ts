@@ -2,7 +2,7 @@ import { stairSteps } from "./geometry";
 import type { CatalogEntry, Device, DeviceType, Layout, Pt } from "./schema";
 
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const KINDS: [string, string][] = [["rooms", "room"], ["walls", "wall"], ["stairs", "stairs"], ["doors", "door"], ["openings", "opening"], ["extras", "extra"], ["furniture", "furniture"]];
+const KINDS: [string, string][] = [["rooms", "room"], ["walls", "wall"], ["stairs", "stairs"], ["doors", "door"], ["openings", "opening"], ["extras", "extra"], ["furniture", "furniture"], ["unlinked", "unlinked"]];
 const RENAME: Record<string, DeviceType> = { sensor: "temp", window: "contact" };
 
 function inside(p: Pt, poly: Pt[]): boolean {
@@ -57,6 +57,7 @@ export function migrate(x: unknown): Layout {
     for (const m of f.furniture) for (const k of ["w", "h"] as const) if (typeof m[k] === "number" && Number.isFinite(m[k])) m[k] = Math.max(5, Math.min(2000, m[k]));
     for (const o of [...f.stairs, ...f.extras]) o.name = o.name ?? ""; // validate wants text; an older file has none
     for (const t of f.stairs) { t.shape = t.shape ?? "straight"; t.rot = t.rot ?? 0; if (t.shape === "round") t.inner = t.inner ?? 0; t.steps = stairSteps(t); } // steps are derived: a stored value that disagrees is dropped
+    for (const u of f.unlinked) { u.rot = u.rot ?? 0; u.scale = u.scale ?? 1; } // S4.25: a hand-authored entry with no rot/scale still opens
     if (f.devices !== undefined && !Array.isArray(f.devices)) throw new Error(`Floor "${fname}": devices must be an array`);
     if (f.outline !== undefined && !Array.isArray(f.outline)) throw new Error(`Floor "${fname}": outline must be an array`);
     outlineKinds(f);
