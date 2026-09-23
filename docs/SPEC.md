@@ -190,8 +190,10 @@ set on the device group as `--fp-dev` when it carries the `on` class and read
 by both the icon fill and the halo fill (the halo keeps its 25 % alpha). A
 switch or a humidity sensor falls back to idle grey, so those two look the
 same on and off. A contact device draws red whether it is a device icon or a
-door sensor. An unavailable device keeps its struck-through, 45 % opacity
-styling regardless of the colour rule. The camera cone stays at 25 % alpha,
+door sensor. An unavailable device keeps its 45 % opacity styling regardless
+of the colour rule, no strikethrough — a drawn line across a device icon this
+small reads as noise, not signal, and Home Assistant's own dashboards dim an
+unavailable entity rather than strike it through. The camera cone stays at 25 % alpha,
 its own grey. A room with an `entity` (never a room with an `area`) draws an
 outline in `--fp-active` while that entity is on, open or playing; the fill
 never moves. An earlier version tinted the fill instead, mixing 25 %
@@ -236,7 +238,7 @@ honest metaphor there.
 | other | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
 | room with `entity` | own kind colour, no outline | own kind colour, unmoved, plus an outline when the entity is on, open or playing | `--fp-active` stroke (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | furniture with `entity` | idle grey (`currentColor`) | `--fp-active`, chosen per theme for at least 3:1 contrast against both `--fp-room` and `--fp-bg` | `--fp-active` (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
-| unavailable / unknown | icon struck through, 45 % opacity | — | — | more-info |
+| unavailable / unknown | 45 % opacity, no strikethrough | — | — | more-info |
 
 Rooms tint when any light in them is on (`room_glow: true`). Card config:
 

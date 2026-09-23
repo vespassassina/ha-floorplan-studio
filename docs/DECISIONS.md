@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-23 S5.6 unavailable entities: dimming is right, the spec's strikethrough is wrong
+
+`docs/SPEC.md` said an unavailable device is "struck through, 45 % opacity"; the code (`.dev.unavailable{opacity:.45}`, `src/core/render.ts`) has only ever dimmed it. Decided the code is right and fixed the spec, not the CSS: a literal line drawn across a device icon at this size (roughly 24–32 px in the plan) reads as visual noise, not a clean "this one is unavailable" signal, and Home Assistant's own dashboards dim an unavailable entity rather than strike it through — matching that convention is worth more here than matching a spec line nobody had implemented.
+
 ## 2026-09-23 S4.8 rescoped: no automatic theme, no native widgets — confirmed with Diego
 
 S4.8's plan text ("the panel looks like the rest of HA... form controls are HA's own elements... panel chrome uses `ha-top-app-bar-fixed`") predates the 2026-09-21 decision below, which already settled this the other way: blueprint stays the default everywhere, `ha` is opt-in, and `primary`/`danger`/`warn`/device colours never follow the dashboard. Asked Diego directly rather than build against a since-superseded sketch or silently reinterpret it; confirmed the scope is the smallest of three offered: formalize what's genuinely still missing (`panel.ts`'s own outer wrapper — background, text, one accent — was three inline `var(..., fallback)` literals with nothing testing they matched what they claimed to follow) into a small, tested `theme.ts`, and stop there. No automatic HA-follow, no `ha-top-app-bar-fixed`, no native-picker adapter (`ha-textfield`/`ha-select`/`ha-area-picker`/`ha-entity-picker`/`mwc-button`) — the last of those would touch every field helper across `panels.ts` (~700 lines) and is a separate undertaking if ever wanted, not started here.

@@ -1129,6 +1129,7 @@ config). No write ever runs on load or on save.
 - Note: found while building S2.6. The `unavailable` class is applied correctly everywhere; only the styling falls short. Decide whether the spec or the CSS is wrong before writing code — dimming may be the better answer, in which case the spec changes and this task is a one-line edit plus a `docs/DECISIONS.md` entry.
 - Test: `getComputedStyle` in Chromium on an unavailable device in both themes.
 - Done when: the spec and the pixel agree, whichever way it is settled.
+- Done, 2026-09-23. Decided the pixel was right: `docs/SPEC.md`'s two "struck through" lines were the stale ones (see `docs/DECISIONS.md`). No CSS change — `.dev.unavailable{opacity:.45}` already matches, and `tests/editor/editor.spec.ts`'s existing "Opus review CSS pair" S2.9 test already covers it in Chromium, so no new test was needed. Files: `docs/SPEC.md`, `docs/DECISIONS.md`.
 
 ### S5.7 The viewBox leaves room for what a device paints around itself
 - Outcome: a lamp or a camera near an outer wall shows all of what it draws, not a circle cut off by the edge of the plan.
