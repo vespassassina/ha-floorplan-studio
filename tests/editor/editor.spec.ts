@@ -8,6 +8,7 @@ import { GUIDE_STEPS } from "../../src/editor/guide";
 // real top element decides what is hit (icons, handles, walls), as for a user.
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8")) as Layout;
+const manifest = JSON.parse(readFileSync("custom_components/floorplan_studio/manifest.json", "utf8")) as { version: string };
 const EDITOR = "floorplan-studio-editor";
 const layoutOf = (page: Page) => page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
 const groundOf = async (page: Page): Promise<Floor> => (await layoutOf(page)).floors.ground;
@@ -5863,4 +5864,12 @@ test("S5.5: on a narrow window the guide's own steps don't scroll away under the
   const last = page.locator("#panel .guide > li").last();
   await last.scrollIntoViewIfNeeded();
   await expect(last).toBeVisible();
+});
+
+test("View menu shows the installed version, matching the integration manifest, at the top of the menu", async ({ page }) => {
+  await menu(page, "View");
+  const box = page.locator("#mOpt .box");
+  const first = box.locator("> *").first();
+  await expect(first).toHaveAttribute("id", "version");
+  await expect(first).toHaveText(`Floorplan Studio ${manifest.version}`);
 });

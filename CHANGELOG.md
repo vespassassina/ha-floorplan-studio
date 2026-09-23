@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The View menu now shows the installed version at the top, read from the integration's manifest.
 - A demo GIF in the README, recorded from `demo/layout.json`: the card live, then the editor.
 - A Help button in the editor's toolbar opens a step-by-step guide — drawing the outline, walls, doors and windows, stairs and zones, furniture, a device, attaching an entity, floors, saving — in a side panel that stays open while you work. It remembers whether you had it open, same as the grid and theme choices.
 - Docs: `docs/schema.md` (generated from the schema's own comments), `docs/card.md`, `docs/editor.md` and `CONTRIBUTING.md`, for anyone reading the format or contributing by hand.

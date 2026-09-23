@@ -26,7 +26,8 @@ Left to right:
   appliance icon, and (inside Home Assistant) entities from your instance.
 - **Draw** — freehand outline/room drawing mode.
 - **Device** — the catalog of every device on this layout, placed or not.
-- **View** — grid, measure marks, plan rotation, theme.
+- **View** — the installed version at the top, then grid, measure marks, plan
+  rotation, theme.
 - **File** — Save, Open, Export, Reset.
 - **Help** — a step-by-step guide in the side panel, for someone who has
   never used the editor before. It stays open while you work, so you can
