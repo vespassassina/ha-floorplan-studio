@@ -142,7 +142,11 @@ export const FLOORPLAN_CSS = `
 .e{stroke:var(--fp-wall);stroke-width:3;stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5}
 .e.external{stroke:var(--fp-wall-external);stroke-width:6;stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
 .eh{stroke:var(--fp-outline);stroke-width:5;stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.external{stroke-width:8;stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
-.e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none} .opening{stroke:var(--fp-room);stroke-width:9;pointer-events:none}
+.e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none}
+/* An opening erases the wall under it by painting over it, so its stroke must match a plain room's own fill, not
+   --fp-room: that token is UI chrome (toolbar buttons), shaded near the background in a dark theme, so an opening
+   used to punch a visibly wrong-coloured hole instead of blending away (Opus review). */
+.opening{stroke:var(--fp-room-empty);stroke-width:9;pointer-events:none}
 /* S4.13 (Opus review): was pointer-events:none, so a click on "tech area" or any other structure line always fell
    through to the room under it - the line rendered but took no clicks of its own, ever, on any floor. "all" matches
    .room{pointer-events:all} just above: a fill:none shape still needs the flag or its interior (a rect's, here) and
