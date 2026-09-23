@@ -2567,10 +2567,10 @@ test("dragging the pond by its middle moves every point by the same amount, adds
   const before = await groundOf(page), pond = before.rooms[6];
   expect(pond.kind).toBe("water");
   const b0 = await bbox(page, 'svg polygon[data-r="6"]');
-  await drag(page, 'svg polygon[data-r="6"]', 20, 60); // far from any corner, so the drop does not snap
+  await drag(page, 'svg polygon[data-r="6"]', 90, 150); // far from any corner, so the drop does not snap
   const b1 = await bbox(page, 'svg polygon[data-r="6"]');
-  expect(Math.round(b1.x - b0.x)).toBe(20); // it followed the pointer on screen
-  expect(Math.round(b1.y - b0.y)).toBe(60);
+  expect(Math.round(b1.x - b0.x)).toBe(90); // it followed the pointer on screen
+  expect(Math.round(b1.y - b0.y)).toBe(150);
   const after = await groundOf(page), moved = after.rooms[6];
   const d = [moved.pts[0][0] - pond.pts[0][0], moved.pts[0][1] - pond.pts[0][1]];
   expect(d[0]).toBeGreaterThan(0); expect(d[1]).toBeGreaterThan(0);

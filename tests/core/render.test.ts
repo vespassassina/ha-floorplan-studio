@@ -3,7 +3,7 @@ import demo from "../../demo/layout.json";
 import { DEVICE_TYPES, UNLINKED_TYPES, type Layout, type WallKind } from "../../src/core/schema";
 import { stairSteps } from "../../src/core";
 import { DEVICE_ICONS } from "../../src/core/icons";
-import { renderFloor, viewBoxFor, planPivot, rotateAbout, contentPoints, DEVICE_COLOURS, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
+import { renderFloor, viewBoxFor, planPivot, rotateAbout, contentPoints, DEVICE_COLOURS, DEVICE_REACH, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
 
 const L = demo as unknown as Layout;
 const ground = L.floors.ground;
@@ -369,10 +369,40 @@ describe("zones and water", () => {
 
 describe("viewBoxFor", () => {
   it("wraps the outline with padding", () => {
-    expect(viewBoxFor(ground, 60)).toEqual({ x: -60, y: -60, w: 920, h: 720 });
+    // The demo ground floor has lights and a camera, so the plain 60 cm pad (S5.7) widens to DEVICE_REACH.
+    expect(viewBoxFor(ground, 60)).toEqual({ x: -100, y: -100, w: 1000, h: 800 });
   });
-  it("defaults to 60 cm of padding", () => {
-    expect(viewBoxFor(ground).x).toBe(-60);
+  it("defaults to 60 cm of padding, widened when a light or camera is on the floor", () => {
+    expect(viewBoxFor(ground).x).toBe(-100);
+  });
+
+  it("S5.7: keeps the plain padding exactly when nothing on the floor reaches further", () => {
+    const f = structuredClone(ground);
+    f.devices = [];
+    expect(viewBoxFor(f, 60)).toEqual({ x: -60, y: -60, w: 920, h: 720 });
+  });
+
+  it("S5.7: widens the padding so a lamp's aura, 20 cm inside the right wall, is never clipped", () => {
+    const f = structuredClone(ground);
+    f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 780, y: 300 }];
+    const v = viewBoxFor(f, 60);
+    expect(v.x + v.w).toBeGreaterThanOrEqual(780 + DEVICE_REACH);
+  });
+
+  it("S5.7: widens the padding so a camera's cone, 20 cm inside the top wall, is never clipped", () => {
+    const f = structuredClone(ground);
+    f.devices = [{ id: "c1", type: "camera", entity: "camera.x", x: 400, y: 20 }];
+    const v = viewBoxFor(f, 60);
+    expect(v.y).toBeLessThanOrEqual(20 - DEVICE_REACH);
+  });
+
+  it("S5.7 break it: a light exactly on the wall, or the plan's only device, still gives a finite box with the whole circle inside", () => {
+    const f = structuredClone(ground);
+    f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 800, y: 300 }];
+    const v = viewBoxFor(f, 60);
+    expect(Number.isFinite(v.x) && Number.isFinite(v.w) && Number.isFinite(v.y) && Number.isFinite(v.h)).toBe(true);
+    expect(v.x + v.w).toBeGreaterThanOrEqual(800 + DEVICE_REACH);
+    expect(v.x).toBeLessThanOrEqual(800 - DEVICE_REACH);
   });
 });
 
@@ -1054,6 +1084,7 @@ describe("plan rotation (S1.33)", () => {
   it("viewBoxFor at 90 on a wide outline is tall, at 45 it is the box of the turned corners, at 0 or none unchanged", () => {
     const f = structuredClone(ground);
     f.outline = [[0, 0], [1000, 0], [1000, 200], [0, 200]];
+    f.devices = []; // pure padding/rotation geometry, not S5.7's device-reach widening
     const flat = viewBoxFor(f, 0);
     expect(flat).toEqual({ x: 0, y: 0, w: 1000, h: 200 });
     const piv: [number, number] = [500, 100];

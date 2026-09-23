@@ -189,13 +189,19 @@ export function planPivot(l: Layout): Pt {
   return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
 }
 
-/** The box that fits the outline, in what the screen shows: turned by `rotate` when there is one. */
+/** cm a lit lamp's aura or a camera's cone reaches from its own centre (also read by the aura circle and the cone radius below, S2.8 and Sprint 1, so the three cannot drift apart). */
+export const DEVICE_REACH = 100;
+
+/** The box that fits the outline, in what the screen shows: turned by `rotate` when there is one. Padded by the greater
+ * of `pad` and DEVICE_REACH whenever the floor has a light or camera, so a wall-mounted one's aura or cone is never
+ * clipped (S5.7) — a plan with neither keeps `pad` exactly. */
 export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt }): { x: number; y: number; w: number; h: number } {
   if (!f.outline.length) return { x: -pad, y: -pad, w: 1000 + 2 * pad, h: 1000 + 2 * pad };
+  const reach = f.devices.some((d) => d.type === "light" || d.type === "camera") ? Math.max(pad, DEVICE_REACH) : pad;
   const shown = rotate && rotate.deg % 360 ? f.outline.map((p) => rotateAbout(p, rotate.deg, rotate.pivot)) : f.outline;
   const xs = shown.map((p) => p[0]), ys = shown.map((p) => p[1]);
-  const x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad;
-  return { x: x0, y: y0, w: Math.max(...xs) + pad - x0, h: Math.max(...ys) + pad - y0 };
+  const x0 = Math.min(...xs) - reach, y0 = Math.min(...ys) - reach;
+  return { x: x0, y: y0, w: Math.max(...xs) + reach - x0, h: Math.max(...ys) + reach - y0 };
 }
 
 /** Every point that makes up the floor: outline, rooms, stairs, walls, doors, openings, extras, furniture (its centre) and devices (a heater's two ends, else the centre). Only finite points; the editor's Re-center fits them all. */
@@ -447,7 +453,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!c.every(Number.isFinite)) return;
     const fill = lightFill(o.state?.[d.entity]);
     const style = fill ? ` style="--fp-aura:${fill}"` : "";
-    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="100"${style}/>`);
+    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${DEVICE_REACH}"${style}/>`);
   });
 
   f.devices.forEach((d, i) => {
@@ -488,7 +494,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // Camera: a 120 degree, 100 cm cone about "up" (-90 degrees), in plan units (the group is scaled by k). It comes first, so the icon covers its tip.
     let cone = "";
     if (d.type === "camera") {
-      const R = 100 / k, p = (deg: number) => at([12 + R * Math.cos((deg * Math.PI) / 180), 12 + R * Math.sin((deg * Math.PI) / 180)]);
+      const R = DEVICE_REACH / k, p = (deg: number) => at([12 + R * Math.cos((deg * Math.PI) / 180), 12 + R * Math.sin((deg * Math.PI) / 180)]);
       cone = `<path class="cone" d="M12 12L${p(-150)}A${num(R)} ${num(R)} 0 0 1 ${p(-30)}Z"/>`;
     }
     const icon = `<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>`;
