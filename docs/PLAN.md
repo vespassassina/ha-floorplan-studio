@@ -1179,8 +1179,11 @@ config). No write ever runs on load or on save.
   on `main` ✓, a release with the `hacs.json`-named zip attached (v0.9.0) ✓, issues enabled ✓,
   description ✓ — but `gh repo view` shows no GitHub topics set, and the docs require topics for this
   specific submission (the repo's own `.github/workflows/validate.yml` ignores that check, which is
-  right for being *addable as a custom repository* but not for the *default-list submission*). Setting
-  topics is a public repo-settings change and also needs a go-ahead first.
+  right for being *addable as a custom repository* but not for the *default-list submission*).
+  2026-09-23: topics proposed to Diego, approved, set with `gh repo edit --add-topic` — home-assistant,
+  hacs, hacs-integration, home-assistant-integration, custom-component, lovelace, lovelace-card,
+  floorplan, floor-plan, dashboard. Every checked requirement now passes; only the submission PR itself
+  remains, still waiting on Diego's separate go-ahead before forking `hacs/default` and opening it.
 
 ### S5.5 Help guide in the editor
 - Outcome: a Help button opens a step-by-step guide in a side panel, written so a twelve-year-old can follow it without asking anyone.
