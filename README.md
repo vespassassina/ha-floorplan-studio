@@ -8,6 +8,8 @@ built, tested and installable through HACS (see `CHANGELOG.md` for the current
 release). Organising your home from the plan (Sprint 4) is not built yet.
 See `docs/SPEC.md` and `docs/PLAN.md`.
 
+![The demo house, live as a card, then open for editing.](docs/img/demo.gif)
+
 | Part | State |
 |---|---|
 | Core: schema v2, v1 migration, geometry, SVG renderer, icons | done |

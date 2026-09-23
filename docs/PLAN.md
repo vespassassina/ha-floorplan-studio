@@ -1165,6 +1165,22 @@ config). No write ever runs on load or on save.
 ### S5.4 Demo and HACS default
 - Outcome: a GIF in the README; submission PR to the HACS default repository.
 - Done when: GIF under 3 MB; submission opened.
+- Done, 2026-09-23, GIF half only: `scripts/demo-gif.mjs` records a short Playwright screencast of
+  `demo/layout.json` — the card live (a light on, motion active, a camera streaming), then the
+  standalone editor (Add menu, a device panel) — and converts it with `ffmpeg` (palette generation,
+  8 fps, 640 px wide) to `docs/img/demo.gif`, 1.14 MB, under the 3 MB budget. `npm run demo-gif`
+  rebuilds `dist/` first. Embedded in `README.md` under the status table. Checked by eye: extracted
+  four frames with `ffmpeg -vf select=...` and read them back — the card and the editor panel both
+  render correctly, not just "a GIF exists".
+  The HACS default-repository submission is **not done** and needs Diego's go-ahead before any of it
+  proceeds, per CLAUDE.md ("ask before push, PR or merge") — it is a PR to someone else's repository
+  (`hacs/default`), not this one. Checked the requirements against this repo
+  (https://www.hacs.xyz/docs/publish/include/): public ✓, `hacs.json` ✓, HACS Action + Hassfest green
+  on `main` ✓, a release with the `hacs.json`-named zip attached (v0.9.0) ✓, issues enabled ✓,
+  description ✓ — but `gh repo view` shows no GitHub topics set, and the docs require topics for this
+  specific submission (the repo's own `.github/workflows/validate.yml` ignores that check, which is
+  right for being *addable as a custom repository* but not for the *default-list submission*). Setting
+  topics is a public repo-settings change and also needs a go-ahead first.
 
 ### S5.5 Help guide in the editor
 - Outcome: a Help button opens a step-by-step guide in a side panel, written so a twelve-year-old can follow it without asking anyone.
