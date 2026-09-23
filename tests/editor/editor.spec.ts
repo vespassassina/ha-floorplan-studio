@@ -5354,6 +5354,67 @@ test("S4.26: 'Add device from <area>' places the device at the right-click point
   expect(d.y).toBeCloseTo(150, 0);
 });
 
+// ---- S4.27: right-click context menu on a wall (a room edge or the outline) --------------------------------------
+
+test("S4.27: right-clicking a wall selects it (the side panel shows its kind, like the room menu) and opens a context menu with Change type, Add a point, Add an opening, Delete", async ({ page }) => {
+  await rightClickCm(page, 500, 300); // the Living / Kitchen shared wall
+  await expect(page.locator("#ek")).toHaveValue("wall"); // the edge panel is already open, per the room ctx menu's own design decision
+  const menu = page.locator(".ctxmenu");
+  await expect(menu).toBeVisible();
+  for (const label of ["Dotted boundary", "External wall", "Fence", "Outdoor edge", "Add a point", "Add an opening", "Delete"])
+    await expect(menu.locator("button", { hasText: label })).toBeVisible();
+});
+
+test("S4.27: right-clicking the background, a device or a room's interior (away from any edge) opens no wall menu", async ({ page }) => {
+  await rightClickCm(page, 950, 700); // outside every room and wall
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+});
+
+test("S4.27: 'Change type' from the wall menu sets the kind on both rooms sharing the wall, one undo step", async ({ page }) => {
+  await rightClickCm(page, 500, 300);
+  await page.locator(".ctxmenu button", { hasText: "External wall" }).click();
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+  const g = await groundOf(page);
+  expect([g.rooms[0].wk[1], g.rooms[1].wk[3]]).toEqual(["external", "external"]);
+
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).rooms[0].wk[1]).toBe("wall");
+});
+
+test("S4.27: 'Add a point' from the wall menu inserts a point at the wall's midpoint, one undo step", async ({ page }) => {
+  // Living and Kitchen share the wall at x=500, drawn once per room; the click lands on whichever line is on top,
+  // so the point is added to that room's own points — same as the edge panel's own "Add a point in the middle".
+  const before = (await groundOf(page)).rooms.map((r: any) => r.pts.length as number);
+  await rightClickCm(page, 500, 300); // the wall runs (500,0)-(500,400); its midpoint is (500,200)
+  await page.locator(".ctxmenu button", { hasText: "Add a point" }).click();
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+  const rooms = (await groundOf(page)).rooms;
+  const grew = rooms.findIndex((r: any, i: number) => r.pts.length === before[i] + 1 && r.pts.some((p: number[]) => p[0] === 500 && p[1] === 200));
+  expect(grew).toBeGreaterThanOrEqual(0);
+  expect(rooms.reduce((n: number, r: any) => n + r.pts.length, 0)).toBe(before.reduce((n, l) => n + l, 0) + 1);
+
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).rooms.map((r: any) => r.pts.length)).toEqual(before);
+});
+
+test("S4.27: 'Add an opening' from the wall menu places it centred on the right-click point, not the wall's midpoint", async ({ page }) => {
+  await rightClickCm(page, 500, 300); // the wall's own midpoint is (500,200) — 100 cm away from this point
+  await page.locator(".ctxmenu button", { hasText: "Add an opening" }).click();
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+  const o = (await groundOf(page)).openings[0];
+  expect((o.a[1] + o.b[1]) / 2).toBeCloseTo(300, 0);
+  expect((o.a[0] + o.b[0]) / 2).toBeCloseTo(500, 0);
+});
+
+test("S4.27: 'Delete' from the wall menu stops drawing it, same as the edge panel's own Delete; a door or window on it confirms first", async ({ page }) => {
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.doors.push({ id: "door-x", name: "Between", kind: "door", a: [500, 100], b: [500, 190] }); el.layout = l; }, EDITOR); // on the same wall (500,0)-(500,400)
+  await rightClickCm(page, 500, 300); // on the wall, clear of the door itself so the click still hits the edge, not the door
+  await page.locator(".ctxmenu button", { hasText: "Delete" }).click();
+  await expect(page.locator(".ctxmenu")).toContainText("door or window is on this wall");
+  await page.locator(".ctxmenu button", { hasText: "Delete" }).click();
+  expect((await groundOf(page)).rooms[0].wk[1]).toBe("none");
+});
+
 // ---- S4.2: areas from the plan -------------------------------------------------------------------------------------
 
 /** HA knows Living and Garage but not Kitchen; the writer records createArea and answers with HA's own id. */

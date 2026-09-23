@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, groupKind, insertPoint, nearestEdge, placedEntities, polys, renderFloor, rotateAbout, snapPoint, snapped, stitch, typeForEntity, unplacedHaEntities, validate } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, placedEntities, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedHaEntities, validate } from "../core";
 import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
@@ -31,6 +31,9 @@ type Hit =
   | { k: "door" | "opening" | "dev" | "furn" | "unl" | "wall" | "room" | "stairs" | "extra"; i: number }
   | { k: "edge"; poly: string; i: number }
   | { k: "bg" };
+
+/** S4.18/S4.27: what the right-click context menu opened on. */
+type CtxTarget = { k: "room"; i: number } | { k: "edge"; poly: string; i: number } | { k: "wall"; i: number };
 
 type Drag =
   | { type: "pan"; sx: number; sy: number; v: View; button: number; moved: boolean }
@@ -152,8 +155,11 @@ export class FloorplanStudioEditor extends LitElement {
   /** S4.19: the same, for the texture-scale slider. */
   private textureScaleGesture: Layout | null = null;
   private hover: Pt | null = null;
-  /** S4.18: the right-click context menu on a room, zone or structure — its screen position and the room it opened for. Closed (null) by an outside click, Escape or scroll. */
-  private ctxMenu: { x: number; y: number; roomIdx: number } | null = null;
+  /**
+   * S4.18: the right-click context menu — a room, zone or structure, or (S4.27) a wall: a room/outline edge or a
+   * free-standing wall. Its screen position and its target. Closed (null) by an outside click, Escape or scroll.
+   */
+  private ctxMenu: { x: number; y: number; target: CtxTarget } | null = null;
   private rect = { w: 800, h: 600 };
   private ro?: ResizeObserver;
 
@@ -738,56 +744,153 @@ export class FloorplanStudioEditor extends LitElement {
 
   private closeCtxMenu = () => { if (this.ctxMenu) { this.ctxMenu = null; this.requestUpdate(); } };
 
+  /** The kind a room/outline edge shows in its own panel: the first room's, or the outline's own, "wall" with no room and no outline. */
+  private edgeKind(poly: string, i: number): WallKind | "none" {
+    const rooms = edgeRooms(this.st.f, poly, i);
+    if (rooms.length) return rooms[0].room.wk[rooms[0].i];
+    return poly === "o" ? (this.st.f.owk?.[i] ?? "external") : "wall";
+  }
+
   /**
-   * S4.18: right-click on a room, zone or structure selects it (opening its side panel, already the "change colour"
-   * surface) and opens a small menu at the pointer: Change colour (closes the menu, the panel is already showing),
-   * Delete, and — when the room has a linked HA area — a section that places one of the area's unplaced entities as
-   * a new device at the click point (S4.26). Any other target (background, a device, furniture...) just closes a menu that might already be
-   * open. Called from `onUp`, not the `contextmenu` DOM event: `onDown` already calls `preventDefault()` on every
-   * right-button pointerdown (so a right-drag pans the canvas), and that suppresses the browser's own `contextmenu`
-   * event along with it — so there is nothing to hook there. A stationary right-button press and release is the
-   * signal instead, exactly how a left-button "room" drag already tells a click from a drag (`onUp`'s `d.moved`).
+   * S4.18/S4.27: right-click on a room, zone, structure or wall selects it (opening its side panel, already the
+   * "change colour"/"kind" surface) and opens a small menu at the pointer. A room offers Change colour (closes the
+   * menu, the panel is already showing), Delete, and — with a linked HA area — a section that places one of its
+   * unplaced entities as a new device at the click point (S4.26). A wall (a room/outline edge, or a free-standing
+   * wall) offers Change type, Add a point (edges only), Add an opening and Delete (S4.27). Any other target
+   * (background, a device, furniture...) just closes a menu that might already be open. Called from `onUp`, not the
+   * `contextmenu` DOM event: `onDown` already calls `preventDefault()` on every right-button pointerdown (so a
+   * right-drag pans the canvas), and that suppresses the browser's own `contextmenu` event along with it — so there
+   * is nothing to hook there. A stationary right-button press and release is the signal instead, exactly how a
+   * left-button "room" drag already tells a click from a drag (`onUp`'s `d.moved`).
    */
   private openCtxMenuAt(clientX: number, clientY: number) {
     const el = (this.renderRoot as unknown as DocumentOrShadowRoot).elementFromPoint(clientX, clientY);
-    const hit = hitOf(el);
-    if (hit.k !== "room") { this.closeCtxMenu(); return; }
-    const r = this.st.f.rooms[hit.i];
-    if (!r || (r.kind !== "room" && r.kind !== "zone" && r.kind !== "structure")) { this.closeCtxMenu(); return; }
-    this.st.sel = { t: "room", i: hit.i };
-    this.ctxMenu = { x: clientX, y: clientY, roomIdx: hit.i };
+    let hit = hitOf(el);
+    if (hit.k === "bg" || hit.k === "room" || hit.k === "stairs") hit = this.edgeNear(this.toSvg({ clientX, clientY })) ?? hit;
+    if (hit.k === "room") {
+      const r = this.st.f.rooms[hit.i];
+      if (!r || (r.kind !== "room" && r.kind !== "zone" && r.kind !== "structure")) { this.closeCtxMenu(); return; }
+      this.st.sel = { t: "room", i: hit.i };
+      this.ctxMenu = { x: clientX, y: clientY, target: { k: "room", i: hit.i } };
+    } else if (hit.k === "edge") {
+      if (this.edgeKind(hit.poly, hit.i) === "none") { this.closeCtxMenu(); return; }
+      this.st.sel = { t: "edge", poly: hit.poly, i: hit.i };
+      this.ctxMenu = { x: clientX, y: clientY, target: { k: "edge", poly: hit.poly, i: hit.i } };
+    } else if (hit.k === "wall") {
+      if (!this.st.f.walls[hit.i]) { this.closeCtxMenu(); return; }
+      this.st.sel = { t: "wall", i: hit.i };
+      this.ctxMenu = { x: clientX, y: clientY, target: { k: "wall", i: hit.i } };
+    } else { this.closeCtxMenu(); return; }
     this.focus({ preventScroll: true }); // a right click never focuses the host on its own; Escape needs it to
     this.requestUpdate();
   }
 
   private ctxDelete() {
-    const i = this.ctxMenu?.roomIdx;
-    if (i === undefined) return;
-    this.commit((f) => { f.rooms.splice(i, 1); });
+    const t = this.ctxMenu?.target;
+    if (!t) return;
+    if (t.k === "room") {
+      this.commit((f) => { f.rooms.splice(t.i, 1); });
+      this.st.sel = null;
+      this.closeCtxMenu();
+      return;
+    }
+    if (t.k === "wall") {
+      this.commit((f) => { f.walls.splice(t.i, 1); });
+      this.st.sel = null;
+      this.closeCtxMenu();
+      return;
+    }
+    const pts = polyPts(this.st.f, t.poly);
+    if (!pts) { this.closeCtxMenu(); return; }
+    const a = pts[t.i], b = pts[(t.i + 1) % pts.length], key = `${t.poly}:${t.i}`, n = onEdge(this.st.f, a, b);
+    if (n.doors.length + n.openings.length && this.st.confirmEdge !== key) { this.st.confirmEdge = key; this.requestUpdate(); return; }
+    this.st.confirmEdge = null;
+    this.commit((f) => deleteEdge(f, t.poly, t.i));
     this.st.sel = null;
+    this.closeCtxMenu();
+  }
+
+  /** S4.27: sets a wall's kind (an edge's, on every room sharing it, or a free wall's own), one undo step, then closes the menu. */
+  private ctxSetKind(kind: WallKind) {
+    const t = this.ctxMenu?.target;
+    if (!t) return;
+    if (t.k === "edge") this.commit((f) => setEdgeKind(f, t.poly, t.i, kind));
+    else if (t.k === "wall") this.commit((f) => { f.walls[t.i].kind = kind; });
+    else return;
+    this.closeCtxMenu();
+  }
+
+  /** S4.27: inserts a point at an edge's own midpoint (never a free wall — it has no interior points), one undo step. */
+  private ctxAddPoint() {
+    const t = this.ctxMenu?.target;
+    if (!t || t.k !== "edge") return;
+    const pts = polyPts(this.st.f, t.poly);
+    if (!pts) return;
+    const a = pts[t.i], b = pts[(t.i + 1) % pts.length];
+    this.commit((f) => insertPoint(f, t.poly, t.i, [Math.round((a[0] + b[0]) / 2), Math.round((a[1] + b[1]) / 2)]));
+    this.closeCtxMenu();
+  }
+
+  /** S4.27: places a new opening centred on the right-click point — the same `addOpeningGap` an Add-menu item uses, anchored at the click instead of the view's centre. */
+  private ctxAddOpening() {
+    const m = this.ctxMenu;
+    if (!m) return;
+    this.addOpeningGap(120, this.toSvg({ clientX: m.x, clientY: m.y }));
     this.closeCtxMenu();
   }
 
   /** S4.18: places `e` (an entity of the menu's room's HA area) as a new device at the right-click point (S4.26), one undo step, then closes the menu. */
   private addFromArea(e: HaData["entities"][number]) {
-    const m = this.ctxMenu;
-    if (!m) return;
-    if (!this.st.addFromArea(m.roomIdx, e, this.toSvg({ clientX: m.x, clientY: m.y }))) return;
+    const t = this.ctxMenu?.target;
+    if (!t || t.k !== "room") return;
+    const m = this.ctxMenu!;
+    if (!this.st.addFromArea(t.i, e, this.toSvg({ clientX: m.x, clientY: m.y }))) return;
     this.closeCtxMenu();
     this.changed(`Added ${e.name}. Drag it to its spot.`);
   }
 
-  /** S4.18's menu markup, positioned at the click (`position:fixed`, so no container-relative math is needed). */
-  private ctxMenuView(m: { x: number; y: number; roomIdx: number }) {
-    const st = this.st, r = st.f.rooms[m.roomIdx];
-    const ha = st.ha;
+  /** S4.18/S4.27's menu markup, positioned at the click (`position:fixed`, so no container-relative math is needed). */
+  private ctxMenuView(m: { x: number; y: number; target: CtxTarget }) {
+    return html`<div class="ctxmenu" style="left:${m.x}px;top:${m.y}px">${m.target.k === "room" ? this.roomCtxItems(m.target.i) : this.wallCtxItems(m.target)}</div>`;
+  }
+
+  private roomCtxItems(i: number) {
+    const st = this.st, r = st.f.rooms[i], ha = st.ha;
     const unplaced = r?.area && ha ? ha.entities.filter((e) => e.area === r.area && !placedEntities(st.layout).has(e.id)) : [];
-    return html`<div class="ctxmenu" style="left:${m.x}px;top:${m.y}px">
-      <button class="btn" id="cmColour" @click=${() => this.closeCtxMenu()}>Change colour</button>
+    return html`<button class="btn" id="cmColour" @click=${() => this.closeCtxMenu()}>Change colour</button>
       <button class="btn warn" id="cmDelete" @click=${() => this.ctxDelete()}>Delete</button>
       ${unplaced.length ? html`<div class="sep"></div><span class="grp">Add device from ${r!.name}</span>
-        ${unplaced.map((e) => html`<button class="btn" @click=${() => this.addFromArea(e)}>${e.name} (${TYPE_LABELS.find((t) => t[0] === typeForEntity(e))?.[1] ?? typeForEntity(e)})</button>`)}` : nothing}
-    </div>`;
+        ${unplaced.map((e) => html`<button class="btn" @click=${() => this.addFromArea(e)}>${e.name} (${TYPE_LABELS.find((t) => t[0] === typeForEntity(e))?.[1] ?? typeForEntity(e)})</button>`)}` : nothing}`;
+  }
+
+  /** S4.27: Change type, Add a point (edges only), Add an opening, Delete — with the same doors/windows confirm dance as the edge panel's own Delete. */
+  private wallCtxItems(t: Extract<CtxTarget, { k: "edge" | "wall" }>) {
+    const f = this.st.f;
+    let kind: WallKind, a: Pt | undefined, b: Pt | undefined, key: string;
+    if (t.k === "edge") {
+      const pts = polyPts(f, t.poly);
+      if (!pts) return nothing;
+      a = pts[t.i]; b = pts[(t.i + 1) % pts.length];
+      const ek = this.edgeKind(t.poly, t.i);
+      kind = ek === "none" ? "wall" : ek;
+      key = `${t.poly}:${t.i}`;
+    } else {
+      const w = f.walls[t.i];
+      if (!w) return nothing;
+      a = w.a; b = w.b; kind = w.kind; key = `wall:${t.i}`;
+    }
+    if (this.st.confirmEdge === key) {
+      const n = t.k === "edge" ? onEdge(f, a, b) : { doors: [], openings: [] };
+      const count = n.doors.length + n.openings.length;
+      return html`<p class="hint">${count === 1 ? "A door or window is on this wall." : `${count} doors and windows are on this wall.`} They stay. Stop drawing it?</p>
+        <div class="row"><button class="btn warn" @click=${() => this.ctxDelete()}>Delete</button><button class="btn" @click=${() => { this.st.confirmEdge = null; this.requestUpdate(); }}>Cancel</button></div>`;
+    }
+    return html`<span class="grp">Change type</span>
+      ${WALL_KINDS.filter((k) => k !== kind).map((k) => html`<button class="btn" @click=${() => this.ctxSetKind(k)}>${WALL_LABELS[k]}</button>`)}
+      <div class="sep"></div>
+      ${t.k === "edge" ? html`<button class="btn" @click=${() => this.ctxAddPoint()}>Add a point</button>` : nothing}
+      <button class="btn" @click=${() => this.ctxAddOpening()}>Add an opening</button>
+      <button class="btn warn" @click=${() => this.ctxDelete()}>Delete</button>`;
   }
 
   /** Zoom by `k` (below 1 zooms in) about the middle of what is shown; 0 fits the whole floor again. A view change only: no layout edit, no undo step. */
@@ -961,10 +1064,10 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.sel = { t: "door", i: this.st.f.doors.length - 1 };
     this.requestUpdate();
   }
-  /** An opening: a gap in a wall. Placed like a door on the edge nearest the view centre, else at the centre. */
-  private addOpeningGap(len = 120) {
+  /** An opening: a gap in a wall. Placed like a door on the edge nearest `at`, or the view centre when it is not given, else at that point. S4.27's wall context menu passes the right-click point. */
+  private addOpeningGap(len = 120, at?: Pt) {
     this.stopDraw();
-    const c = this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
+    const c = at ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
     this.commit((f) => { f.openings.push({ id: newId(f, floor, "opening"), ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
     this.st.sel = { t: "opening", i: this.st.f.openings.length - 1 };
     this.requestUpdate();
