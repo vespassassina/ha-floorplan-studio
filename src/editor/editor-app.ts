@@ -742,7 +742,7 @@ export class FloorplanStudioEditor extends LitElement {
    * S4.18: right-click on a room, zone or structure selects it (opening its side panel, already the "change colour"
    * surface) and opens a small menu at the pointer: Change colour (closes the menu, the panel is already showing),
    * Delete, and — when the room has a linked HA area — a section that places one of the area's unplaced entities as
-   * a new device. Any other target (background, a device, furniture...) just closes a menu that might already be
+   * a new device at the click point (S4.26). Any other target (background, a device, furniture...) just closes a menu that might already be
    * open. Called from `onUp`, not the `contextmenu` DOM event: `onDown` already calls `preventDefault()` on every
    * right-button pointerdown (so a right-drag pans the canvas), and that suppresses the browser's own `contextmenu`
    * event along with it — so there is nothing to hook there. A stationary right-button press and release is the
@@ -768,11 +768,11 @@ export class FloorplanStudioEditor extends LitElement {
     this.closeCtxMenu();
   }
 
-  /** S4.18: places `e` (an entity of the menu's room's HA area) as a new device, one undo step, then closes the menu. */
+  /** S4.18: places `e` (an entity of the menu's room's HA area) as a new device at the right-click point (S4.26), one undo step, then closes the menu. */
   private addFromArea(e: HaData["entities"][number]) {
-    const i = this.ctxMenu?.roomIdx;
-    if (i === undefined) return;
-    if (!this.st.addFromArea(i, e)) return;
+    const m = this.ctxMenu;
+    if (!m) return;
+    if (!this.st.addFromArea(m.roomIdx, e, this.toSvg({ clientX: m.x, clientY: m.y }))) return;
     this.closeCtxMenu();
     this.changed(`Added ${e.name}. Drag it to its spot.`);
   }

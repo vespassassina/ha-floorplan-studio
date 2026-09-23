@@ -395,11 +395,14 @@ export class EditorState {
     return true;
   }
 
-  /** S4.18: places `e`, an entity from the current floor's `roomIndex` room's linked HA area, at that room's centre. False for an unknown room. */
-  addFromArea(roomIndex: number, e: HaData["entities"][number]): boolean {
+  /**
+   * S4.18: places `e`, an entity from the current floor's `roomIndex` room's linked HA area, at `at` — the point the
+   * user right-clicked to open the menu (S4.26), or that room's centre when no point is given. False for an unknown room.
+   */
+  addFromArea(roomIndex: number, e: HaData["entities"][number], at?: Pt): boolean {
     const room = this.f.rooms[roomIndex];
     if (!room) return false;
-    const ctr: Pt = [Math.round(room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length), Math.round(room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length)];
+    const ctr: Pt = at ?? [Math.round(room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length), Math.round(room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length)];
     return this.addHaEntity(e, ctr, room.name);
   }
 

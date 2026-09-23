@@ -5345,6 +5345,15 @@ test("S4.18: 'Add device from <area>' lists the room's unplaced HA entities and 
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.living_temp")).toBe(false);
 });
 
+test("S4.26: 'Add device from <area>' places the device at the right-click point, not the room's centre", async ({ page }) => {
+  await setHa(page, { ...HA, areas: [...HA.areas], entities: [...HA.entities, { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" }] });
+  await rightClickCm(page, 200, 150); // Living spans (0,0)-(500,400); its centre is (250,200) — well off this point
+  await page.locator(".ctxmenu button", { hasText: "Living temp" }).click();
+  const d = (await groundOf(page)).devices.find((x: any) => x.entity === "sensor.living_temp") as any;
+  expect(d.x).toBeCloseTo(200, 0);
+  expect(d.y).toBeCloseTo(150, 0);
+});
+
 // ---- S4.2: areas from the plan -------------------------------------------------------------------------------------
 
 /** HA knows Living and Garage but not Kitchen; the writer records createArea and answers with HA's own id. */
