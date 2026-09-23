@@ -1132,6 +1132,35 @@ config). No write ever runs on load or on save.
 - Outcome: `docs/schema.md` (generated from `schema.ts` comments), `docs/card.md`, `docs/editor.md` with screenshots, `CONTRIBUTING.md`.
 - Test: `npx markdown-link-check docs/*.md README.md` clean.
 - Done when: link check passes; screenshots are of the demo, not a real house.
+- Done, 2026-09-23.
+  - `docs/schema.md` is generated, not hand-written: `scripts/gen-schema-docs.mjs` walks
+    `src/core/schema.ts`, pairs every exported interface/type/const with the `/** ... */` comment directly
+    above it, and emits one section per pair — comment as prose, the real declaration as a `ts` code block.
+    `npm run docs:schema` regenerates it; it is a no-op when nothing changed (checked). TDD: `tests/core/gen-schema-docs.test.ts`
+    was written first, including a "break it" case that caught a real bug in the first version — a
+    multi-line interface (`Floor`) whose "end of declaration" check required a trailing `;` kept reading
+    past its own closing `}` into the next declaration's comment and body (`CatalogEntry`, then the `isObj`
+    helper leaked into `Floor`'s code block). Fixed by ending a brace/bracket block the moment it balances
+    to zero, semicolon or not; a brace-free declaration (a bare union) still ends at its first `;`.
+  - `docs/card.md`: config keys table, the seven themes, a condensed on/off behaviour summary linking to
+    `SPEC.md`'s full table rather than duplicating it, a troubleshooting section.
+  - `docs/editor.md`: toolbar walkthrough, side panel, a numbered "drawing a house" sequence, snapping and
+    rotation rules, a pointer to the photo-tracing skill, and the untrusted-file handling from finding #1 and
+    S5.1. Three screenshots (`scripts/doc-shots.mjs`, `npm run build && node scripts/doc-shots.mjs`, only
+    `demo/layout.json` ever drawn): the full editor, the Add menu open, a device selected with its panel.
+  - `CONTRIBUTING.md`: setup, the command list, branch/commit/PR conventions, what never goes in a commit
+    (a token, a private HA URL, a real house — only `demo/` ships), pointing at `docs/WORKFLOW.md` for the
+    AI-assisted process as background, not a requirement.
+  - `markdown-link-check` added as a devDependency (`npm run docs:check`); confirmed it adds no new
+    vulnerability (`npm ls markdown-link-check`, `npm audit --omit=dev` stays at 0 — the 5 pre-existing
+    moderate/high findings are all in the vitest/esbuild dev chain, unrelated). Every link in `docs/*.md`,
+    `README.md` and `CONTRIBUTING.md` checked clean; two relative-path mistakes in the first draft of
+    `CONTRIBUTING.md` (root-relative links written as if the file were inside `docs/`) were caught this way,
+    not by eye.
+  - README's status table and Develop section link to the new docs.
+  - Full suite green: 849 vitest (up from 845; +4 gen-schema-docs), lint clean, build clean, 412 Playwright
+    passed / 1 skipped (untouched by this task — no editor or card behaviour changed). `npm run shots` not
+    run: nothing here touches `render.ts` or a stylesheet.
 
 ### S5.4 Demo and HACS default
 - Outcome: a GIF in the README; submission PR to the HACS default repository.
