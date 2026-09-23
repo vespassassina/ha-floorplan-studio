@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-23 An off icon's disc is 50 % in every theme
+
+Diego's call. The disc behind an icon was 75 % in light, midnight, solarized and blueprint, 70 % in slate and 60 % in terminal. It is now 50 % everywhere, including the two `ha` variants, which inherit light and midnight. `fgAlpha` stays a theme role, so a later theme can still differ, but every shipped theme uses .5. A Playwright pair walks all seven themes and reads the computed `fill-opacity`; a unit test rejects any other `--fp-disc-alpha` in the stylesheet. Supersedes the 75 % of S1.45 and the per-theme values of S4.21. Rendered with `npm run shots` and looked at: the discs are fainter, the icons still read.
+
 ## 2026-09-23 S4.15 place an area's entities: a room-panel button, spread on a grid that avoids the label and existing devices
 
 One button in the room panel, as PLAN sketched, not a context-menu item: the right-click menu (S4.18) already adds one entity at a time. The button places only entities that are neither drawn nor in the catalog, the same rule as S4.14's palette, so it never duplicates and disappears when nothing is left. All land in one undo step.

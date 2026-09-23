@@ -3048,9 +3048,9 @@ test("S1.31: the cone is dark grey at 25 % alpha in the browser, the disc is 75 
   await expect(cone).toHaveCount(1);
   const st = await cone.evaluate((el) => { const s = getComputedStyle(el); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents }; });
   expect(st).toEqual({ fill: "rgb(74, 74, 72)", op: "0.25", pe: "none" });
-  // the disc behind every icon is its own: white at 75 %, a 1 px grey border (S1.45)
+  // the disc behind every icon is its own: white at 50 % (Diego, 2026-09-23), a 1 px grey border (S1.45)
   const disc = await page.locator("svg .dev .halo").evaluateAll((els) => [...new Set(els.map((e) => { const s = getComputedStyle(e); return [s.fill, s.fillOpacity, s.stroke, s.strokeWidth].join("|"); }))]);
-  expect(disc).toEqual(["rgb(255, 255, 255)|0.75|rgb(139, 133, 120)|1px"]);
+  expect(disc).toEqual(["rgb(255, 255, 255)|0.5|rgb(139, 133, 120)|1px"]);
   // the cone is 100 cm deep: its box is 100 cm tall on screen (rot 0 points up)
   const box = await cone.evaluate((el) => el.getBoundingClientRect().height);
   const one = Math.abs((await screenOf(page, CAM.x, CAM.y - 100)).y - (await screenOf(page, CAM.x, CAM.y)).y);
@@ -4566,6 +4566,14 @@ const DARK_TH = { bg: "rgb(12, 21, 33)", room: ROOM_EMPTY, wall: "rgb(99, 148, 2
 // #d8e2f2. Still what the ha theme's dark-mode fallback uses (Diego's call: ha stays untouched by the new palettes).
 const MIDNIGHT_TH = { bg: "rgb(13, 21, 34)" };
 const LIGHT_TH = { bg: "rgb(244, 240, 230)", room: ROOM_EMPTY, wall: "rgb(43, 42, 39)", text: "rgb(58, 58, 58)", outline: "rgb(255, 255, 255)" };
+
+test("CSS pair: an off icon's disc is 50 % in every theme (Diego, 2026-09-23)", async ({ page }) => {
+  for (const t of ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha"] as const) {
+    await setTheme(page, t);
+    const ops = await page.locator("svg .dev:not(.on) .halo").evaluateAll((els) => [...new Set(els.map((e) => getComputedStyle(e).fillOpacity))]);
+    expect(ops, t).toEqual(["0.5"]);
+  }
+});
 
 async function setTheme(page: Page, t: "blueprint" | "midnight" | "light" | "slate" | "terminal" | "solarized" | "ha") {
   await menu(page, "View");

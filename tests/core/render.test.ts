@@ -754,7 +754,8 @@ describe("devices sit on top (S1.29)", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{fill:var\(--fp-disc\);fill-opacity:var\(--fp-disc-alpha\);stroke:var\(--fp-halo\);stroke-width:1;vector-effect:non-scaling-stroke\}/);
     expect(FLOORPLAN_CSS).toContain("--fp-halo:#8b8578");
     expect(FLOORPLAN_CSS).toContain("--fp-disc:#fff");
-    expect(FLOORPLAN_CSS).toContain("--fp-disc-alpha:.75");
+    expect(FLOORPLAN_CSS).toContain("--fp-disc-alpha:.5");
+    expect(FLOORPLAN_CSS).not.toMatch(/--fp-disc-alpha:(?!0?\.5[;},])/); // one value in every theme (Diego, 2026-09-23)
   });
   it("a device on a room-name spot draws after that name", () => {
     const room = ground.rooms.find((r) => r.name && r.kind !== "fill" && r.kind !== "zone")!;
