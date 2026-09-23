@@ -5,7 +5,7 @@ import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITUR
 import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
-import { TYPE_LABELS, WALL_LABELS, selectionPanel, type PanelCtx } from "./panels";
+import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
 import type { HaWriter, Labelled } from "./hass-write";
 import { motionLights, openAutomation, schedule, switchControls } from "./automations";
@@ -796,6 +796,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); this.undo(!ev.shiftKey); return; }
     if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
+    if (ev.key === "Escape" && this.st.helpOpen) { ev.preventDefault(); this.toggleHelp(); return; }
     if (this.draw) {
       // Draw mode owns these keys: Delete must not remove the item that was selected before.
       if (ev.key === "Enter") { ev.preventDefault(); this.finishDraw(); }
@@ -824,7 +825,8 @@ export class FloorplanStudioEditor extends LitElement {
   /** A button (panel Delete, a menu item) keeps focus on itself and may vanish or hide: hand focus back so Ctrl+Z and Delete keep working. */
   private onButtonClick = (ev: Event) => {
     const el = ev.composedPath()[0] as Element;
-    if (el.closest?.("button") && !el.closest("#addFloor")) this.focus({ preventScroll: true }); // "+" hands focus to its own input
+    // "+" hands focus to its own input; helpClose hands focus to the #help toggle button (toggleHelp).
+    if (el.closest?.("button") && !el.closest("#addFloor") && !el.closest("#helpClose")) this.focus({ preventScroll: true });
   };
 
   /** Keys only reach a focused editor, so a highlighted selection must mean Delete works: clear it when focus leaves for good. */
@@ -1616,6 +1618,7 @@ export class FloorplanStudioEditor extends LitElement {
           ${!this.haListLoading && !this.haListErr && this.haList?.length === 0 ? html`<span class="grp" id="haNone">Nothing floorplan-studio made is labelled in Home Assistant.</span>` : nothing}
           ${HA_KIND_LABELS.map(([k, label]) => { const g = (this.haList ?? []).filter((x) => x.kind === k); return g.length ? html`<span class="grp">${label}</span>${g.map((it) => this.haRow(it))}` : nothing; })}
         </div></details>` : nothing}
+        <button class="btn" id="help" aria-expanded=${pressed(st.helpOpen)} @click=${() => this.toggleHelp()}>Help</button>
         <div class="vsep"></div>
         <button class="btn light" id="undo" ?disabled=${!st.canUndo} @click=${() => this.undo(true)}>Undo</button>
         <button class="btn light" id="redo" ?disabled=${!st.canRedo} @click=${() => this.undo(false)}>Redo</button>
@@ -1633,7 +1636,7 @@ export class FloorplanStudioEditor extends LitElement {
           ${this.ctxMenu ? this.ctxMenuView(this.ctxMenu) : nothing}
         </div>
         <aside>
-          <div id="panel">${selectionPanel(this.ctx())}</div>
+          <div id="panel">${st.helpOpen ? helpPanel(() => this.toggleHelp()) : selectionPanel(this.ctx())}</div>
           <p class="hint">Snapping: corners jump to other corners, snap onto other walls and line up with their neighbours. Hold Alt to move freely. Drag a wall to move it with its neighbours. Hold Shift while dragging a corner or a wall to move it alone. Drag a room, zone or stairs by the middle to move it. Delete removes the selected corner, wall, door, opening, device, furniture or stairs. Ctrl/Cmd+Z undoes. Scroll to zoom. Pan by dragging the background, or drag anywhere with the middle button, right button or Ctrl/Cmd held.</p>
           <span class="status" id="status" role="status">${this.status}</span>
         </aside>
@@ -1676,6 +1679,17 @@ export class FloorplanStudioEditor extends LitElement {
     if (!this.st.addEntity(e, this.spawn())) return;
     this.closeMenus();
     this.changed(`Added ${e.name}. Drag it to its spot.`);
+  }
+
+  /**
+   * S5.5: opens or closes the Help panel. Closing hands focus back to the toolbar's own #help button — the same
+   * rule Escape follows for a menu (closeMenus): a keyboard user must not lose their place when a panel disappears.
+   */
+  private toggleHelp() {
+    const wasOpen = this.st.helpOpen;
+    this.st.setHelp(!wasOpen);
+    this.requestUpdate();
+    if (wasOpen) this.renderRoot.querySelector<HTMLButtonElement>("#help")?.focus({ preventScroll: true });
   }
 
   private closeMenus() {

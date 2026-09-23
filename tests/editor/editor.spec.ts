@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { DEVICE_COLOURS } from "../../src/core/render";
 import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
+import { GUIDE_STEPS } from "../../src/editor/guide";
 
 // Every pointer action goes through page.mouse at real screen coordinates, so the
 // real top element decides what is hit (icons, handles, walls), as for a user.
@@ -5790,4 +5791,76 @@ test("S4.7: a custom room with an entity shows that one row with no headings; wi
   await page.locator("#rent").selectOption("light.demo_living");
   await expect(page.locator(".habox")).toContainText("Living lamp");
   await expect(page.locator(".habox")).not.toContainText("Devices"); // no headings for the single-entity case
+});
+
+test("S5.5: Help opens a step-by-step guide, matching GUIDE_STEPS, and closes with Escape, returning focus to the button", async ({ page }) => {
+  const help = page.locator("#help");
+  await expect(help).toHaveAttribute("aria-expanded", "false");
+  await help.click();
+  await expect(help).toHaveAttribute("aria-expanded", "true");
+  const steps = page.locator("#panel .guide > li");
+  expect(await steps.count()).toBe(GUIDE_STEPS.length);
+  for (let i = 0; i < GUIDE_STEPS.length; i++) {
+    await expect(steps.nth(i)).toContainText(GUIDE_STEPS[i].title);
+    await expect(steps.nth(i)).toContainText(GUIDE_STEPS[i].body);
+  }
+  await page.keyboard.press("Escape");
+  await expect(help).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#panel .guide")).toHaveCount(0);
+  await expect(help).toBeFocused();
+});
+
+test("S5.5: Help is reachable and toggled from the keyboard, and Close in the panel also returns focus to the button", async ({ page }) => {
+  await page.locator("#help").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#help")).toHaveAttribute("aria-expanded", "true");
+  await page.locator("#helpClose").click();
+  await expect(page.locator("#help")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#help")).toBeFocused();
+});
+
+test("S5.5 break it: the guide stays open, and the selection panel it replaced does not reappear, across a plan rotation, a floor add and a layout load", async ({ page }) => {
+  await page.locator("#help").click();
+  await expect(page.locator("#panel .guide")).toBeVisible();
+
+  await this_rotatePlan(page);
+  await expect(page.locator("#panel .guide")).toBeVisible();
+
+  await page.locator("#addFloor").click();
+  await page.locator("#newFloor").fill("Attic");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#panel .guide")).toBeVisible();
+
+  const layout = { ...demo, floors: { ground: demo.floors.ground } };
+  await page.locator("#file").setInputFiles({ name: "reload.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(layout)) });
+  await expect.poll(async () => (await layoutOf(page)).floors.ground.outline.length).toBe(layout.floors.ground.outline.length);
+  await expect(page.locator("#panel .guide")).toBeVisible();
+
+  async function this_rotatePlan(p: Page) {
+    await menu(p, "View");
+    await p.locator("#rotr").click();
+    await menu(p, "View");
+  }
+});
+
+test("S5.5 CSS: the guide panel's own text reads against its own background in every theme", async ({ page }) => {
+  await page.locator("#help").click();
+  for (const t of ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha"] as const) {
+    await setTheme(page, t);
+    const got = await page.evaluate((tag) => {
+      const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
+      const panel = root.querySelector("#panel")!;
+      const s = getComputedStyle(panel);
+      return { color: s.color, background: getComputedStyle(document.querySelector(tag) as HTMLElement).backgroundColor };
+    }, EDITOR);
+    expect(got.color, t).not.toBe(got.background);
+  }
+});
+
+test("S5.5: on a narrow window the guide's own steps don't scroll away under the toolbar — the panel column stays reachable", async ({ page }) => {
+  await page.setViewportSize({ width: 480, height: 700 });
+  await page.locator("#help").click();
+  const last = page.locator("#panel .guide > li").last();
+  await last.scrollIntoViewIfNeeded();
+  await expect(last).toBeVisible();
 });

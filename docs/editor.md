@@ -28,6 +28,10 @@ Left to right:
 - **Device** — the catalog of every device on this layout, placed or not.
 - **View** — grid, measure marks, plan rotation, theme.
 - **File** — Save, Open, Export, Reset.
+- **Help** — a step-by-step guide in the side panel, for someone who has
+  never used the editor before. It stays open while you work, so you can
+  follow a step and do it without the guide getting in the way. Escape or
+  its own Close button puts the side panel back to normal.
 - **Undo / Redo** — one step per gesture; a drag that ends back where it
   started adds no step.
 

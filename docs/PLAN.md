@@ -1174,6 +1174,40 @@ config). No write ever runs on load or on save.
 - Test: the panel opens from the button and closes with Escape; the step count matches the array; every step has a non-empty title and body; the panel is reachable by keyboard from the toolbar and returns focus to the button when it closes; `getComputedStyle` in Chromium confirms it is readable in both themes.
 - Done when: tests pass; someone who has never seen the tool follows the steps unaided and ends with a saved floor, and what they got stuck on is written down.
 - Break it: the guide is open when the plan is rotated, when a floor is added and when a layout is loaded, and none of them closes it or loses the reader's place; the steps do not scroll away under the toolbar on a narrow window.
+- Done, 2026-09-23, tests only — the second half of "Done when" (a real first-time user follows the steps unaided)
+  needs an actual person, not an agent, and has not happened. Flagging it here rather than marking the task closed.
+  - `src/editor/guide.ts`: `GUIDE_STEPS`, a plain `{ title, body }[]` covering outline, closing it, inside walls,
+    doors/windows, stairs/zones, furniture, a device, attaching an entity, adding a floor, saving. TDD:
+    `tests/editor/guide.test.ts` written first (non-empty, no leading/trailing whitespace, no "canvas"/"polygon"/
+    "viewport") — confirmed failing (module didn't exist) before the file was written.
+  - `src/editor/state.ts`: `HELP_KEY = "floorplan-studio:help"`, `readHelp()`, `EditorState.helpOpen` and
+    `setHelp()`, the exact `GRID_KEY`/`MEASURE_KEY`/`THEME_KEY` pattern (try/catch read and write, "private mode:
+    the choice lasts until reload"). `setLayout` doesn't touch it, so Open/Reset/a host `hass` update can't close
+    it — that's what the "break it" line relies on, not new code written for this task.
+  - `src/editor/panels.ts`: `helpPanel(close)` — a `<strong>Help</strong>`, a Close button, an `<ol class="guide">`
+    of the steps. It replaces `selectionPanel` in `#panel` while open (`editor-app.ts`'s `render()`), rather than
+    living in a second column, so it never fights the existing `.ed{grid-template-columns:1fr 300px}` layout.
+  - `src/editor/editor-app.ts`: a plain `#help` button (`aria-expanded`, nothing else — Sprint 1.6 finding) between
+    File and the Undo/Redo separator; `toggleHelp()` calls `st.setHelp()` and, when it closed the panel, focuses
+    `#help` itself; `onKey` closes it on Escape the same way it closes a context menu, ahead of every other key
+    handler. Found and fixed one real bug via Playwright, not by reading the code: the existing `onButtonClick`
+    bubble listener (every button click hands focus back to the editor host, for Ctrl+Z/Delete) fired *after*
+    `toggleHelp`'s own focus call and stole it back to the host — the same class of race the `#addFloor` exception
+    already existed for. Fixed by adding `#helpClose` to that exception, not by fighting the generic handler.
+  - Playwright, `tests/editor/editor.spec.ts`: opens/closes with Escape and matches `GUIDE_STEPS` exactly; keyboard
+    open + Close button, both returning focus to `#help`; "break it" across a plan rotation, a floor add and a
+    layout load (`#panel .guide` still there after each); a CSS pair-style check (`#panel`'s computed `color` vs.
+    the host's computed `background-color`, all seven themes — no new CSS rule was added, so this isn't a Finding
+    10 pair, just a plain readability check); a 480px-wide window with the last step scrolled into view. Reverted
+    the fix (`git stash` on `editor-app.ts` alone) once: all 5 new tests failed as expected, restored, rebuilt,
+    green again. `--repeat-each=10` on `-g "S5.5"`: 50/50, no flakes.
+  - `npm run shots`: run and looked at (finding #16 applies — a new toolbar button is a render change).
+    `editor-blueprint`/`editor-light`/`editor-ha` differ only by the new "Help" button sitting between File and
+    Undo; the Help panel itself (`/tmp/help-panel.png`, not committed) reads cleanly in the dark theme. New
+    baselines accepted.
+  - Full suite green: 852 vitest (up from 849; +3 guide), lint clean, build clean, 417 Playwright passed / 1
+    skipped (up from 412; +5).
+  - `docs/editor.md`'s toolbar list gained a Help bullet.
 
 ### S5.6 Unavailable entities are struck through
 - Outcome: the plan matches `docs/SPEC.md`, which says an unavailable entity is struck through; the CSS only dims it with `opacity:.45`.

@@ -5,6 +5,7 @@ import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STA
 import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
+import { GUIDE_STEPS } from "./guide";
 
 /** Selection panels: one function per kind of selection, all pure views over the state. */
 
@@ -149,6 +150,19 @@ function entityField(c: PanelCtx, id: string, label: string, cur: string | undef
       ${domains.map((d) => html`<optgroup label=${d}>${byName(ha.entities.filter((e) => e.domain === d)).map((e) => html`<option value=${e.id} title=${e.id} ?selected=${e.id === cur}>${e.name}</option>`)}</optgroup>`)}
       ${unknown ? missingOpt(cur!) : nothing}
     </select>${unknown ? hint(NOT_IN_HA) : nothing}`;
+}
+
+/**
+ * S5.5: the Help panel — a step-by-step guide, the same regardless of selection. It replaces the selection panel
+ * while open, so the reader can follow a step and do it with the guide still visible; the button that opens it is
+ * in the toolbar (editor-app.ts), which also gives focus back to itself when this panel's Close button is used.
+ */
+export function helpPanel(close: () => void): TemplateResult {
+  return html`<strong>Help</strong>
+    <p><button class="btn" id="helpClose" @click=${close}>Close</button></p>
+    <ol class="guide">
+      ${GUIDE_STEPS.map((s) => html`<li><strong>${s.title}</strong><p>${s.body}</p></li>`)}
+    </ol>`;
 }
 
 export function selectionPanel(c: PanelCtx): TemplateResult {

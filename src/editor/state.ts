@@ -38,6 +38,13 @@ function readTheme(): ThemeChoice {
   } catch { return DEFAULT_THEME; }
 }
 
+/** localStorage key for the Help panel's open/closed state (S5.5). A viewer preference, not part of the layout, never an undo step. */
+export const HELP_KEY = "floorplan-studio:help";
+/** The stored choice, or closed when there is none or storage is blocked. */
+function readHelp(): boolean {
+  try { return localStorage.getItem(HELP_KEY) === "true"; } catch { return false; }
+}
+
 export interface View { x: number; y: number; w: number; h: number }
 /** A point that is not a polygon corner: the end of a wall, an opening or an extra. */
 export type LooseRef = { k: "walls" | "openings" | "extras"; i: number; end: "a" | "b" };
@@ -135,6 +142,8 @@ export class EditorState {
   measure: boolean = readMeasure();
   /** Blueprint (default), light, or ha (Home Assistant's own theme). Kept in localStorage, not in the layout, never an undo step. */
   theme: ThemeChoice = readTheme();
+  /** S5.5: whether the Help panel is open. Kept in localStorage, not in the layout, never an undo step. */
+  helpOpen: boolean = readHelp();
   /** id of the door drawn open in the preview */
   openDoor: string | null = null;
   /** The floor panel is asking "Delete floor ...?". Any change of floor, undo or press on the plan cancels it. */
@@ -556,6 +565,11 @@ export class EditorState {
     if (!(THEME_VALUES as readonly string[]).includes(t)) return;
     this.theme = t;
     try { localStorage.setItem(THEME_KEY, t); } catch { /* private mode: the choice lasts until reload */ }
+  }
+  /** Opens or closes the Help panel (S5.5). A viewer preference: no undo step, never written to the layout. */
+  setHelp(v: boolean) {
+    this.helpOpen = v;
+    try { localStorage.setItem(HELP_KEY, String(v)); } catch { /* private mode: the choice lasts until reload */ }
   }
   persist() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.layout)); } catch { /* private mode, quota */ }
