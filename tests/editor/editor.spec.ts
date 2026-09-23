@@ -5866,6 +5866,13 @@ test("S5.5: on a narrow window the guide's own steps don't scroll away under the
   await expect(last).toBeVisible();
 });
 
+test("a room's Delete button sits next to Unsnap, not at the bottom of the panel", async ({ page }) => {
+  await clickCm(page, 50, 200); // the living room
+  await expect(page.locator("#rn")).toHaveValue("Living");
+  const row = page.locator("#runsnap").locator("xpath=..");
+  await expect(row.locator("#rdel")).toHaveCount(1);
+});
+
 test("View menu shows the installed version, matching the integration manifest, at the top of the menu", async ({ page }) => {
   await menu(page, "View");
   const box = page.locator("#mOpt .box");
