@@ -161,7 +161,7 @@ export function helpPanel(close: () => void): TemplateResult {
   return html`<strong>Help</strong>
     <p><button class="btn" id="helpClose" @click=${close}>Close</button></p>
     <ol class="guide">
-      ${GUIDE_STEPS.map((s) => html`<li><strong>${s.title}</strong><p>${s.body}</p></li>`)}
+      ${GUIDE_STEPS.map((s) => html`<li><details><summary>${s.title}</summary><p>${s.body}</p></details></li>`)}
     </ol>`;
 }
 

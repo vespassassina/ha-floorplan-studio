@@ -5944,6 +5944,22 @@ test("S5.5: Help opens a step-by-step guide, matching GUIDE_STEPS, and closes wi
   await expect(help).toBeFocused();
 });
 
+test("S5.5: each guide step is a collapsible section, closed by default, with a chevron that opens it on click", async ({ page }) => {
+  await page.locator("#help").click();
+  const first = page.locator("#panel .guide > li").first().locator("details");
+  await expect(first).not.toHaveJSProperty("open", true);
+  await expect(first.locator("p")).toBeHidden();
+  await first.locator("summary").click();
+  await expect(first).toHaveJSProperty("open", true);
+  await expect(first.locator("p")).toBeVisible();
+  await expect(first.locator("p")).toContainText(GUIDE_STEPS[0].body);
+  // a second step opens independently, the first stays open
+  const second = page.locator("#panel .guide > li").nth(1).locator("details");
+  await second.locator("summary").click();
+  await expect(second).toHaveJSProperty("open", true);
+  await expect(first).toHaveJSProperty("open", true);
+});
+
 test("S5.5: Help is reachable and toggled from the keyboard, and Close in the panel also returns focus to the button", async ({ page }) => {
   await page.locator("#help").focus();
   await page.keyboard.press("Enter");

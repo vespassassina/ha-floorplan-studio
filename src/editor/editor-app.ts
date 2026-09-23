@@ -237,6 +237,10 @@ export class FloorplanStudioEditor extends LitElement {
     .sub>summary::-webkit-details-marker{display:none}
     .sub>summary::after{content:" \\25B8"}
     .sub>.btn:not(summary){padding-left:20px}
+    .guide summary{cursor:pointer;font-weight:600}
+    .guide summary::-webkit-details-marker{display:none}
+    .guide summary::before{content:"\\25B8";display:inline-block;width:1em;transition:transform .15s ease}
+    .guide details[open] summary::before{transform:rotate(90deg)}
     .sep{border-top:1px solid var(--fp-idle)}
     .vsep{align-self:stretch;border-left:1px solid var(--fp-idle);margin:2px 0}
     /* Lighter, not lower-contrast: opacity leaves .btn's own colour/background computed values untouched (S1.53's
