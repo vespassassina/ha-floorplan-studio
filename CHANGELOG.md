@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Right-clicking a wall, a door, an opening, a furniture piece or an unattached device offers Fix/Unfix: a fixed wall or opening keeps its length on drag (only its endpoint pivots, as before), fixed furniture or a device can no longer be dragged at all. A wall's "Add an opening" is now a submenu — Door, Window, Opening — instead of one button, and every new door, window or opening it adds starts unfixed.
+- An opening can be dragged by its body, sliding it along its wall and keeping its length, the same as a door.
+- Right-clicking a room's "Add device from &lt;area&gt;" now places the new device at the point you right-clicked, not the room's centre.
+- Right-clicking a wall opens a menu: change its kind, add a point, add an opening, delete — mirroring the room/zone/structure context menu.
+- The Draw menu groups its items under Openings, Wall and Areas submenus, matching the Add menu's own layout; Device moved under Add's Areas submenu, ahead of Furniture and Unlinked device.
+- The plan's device filter can check several types at once instead of one at a time; its zoom buttons are smaller.
+- Dragging a room that's snapped to a neighbour pans the view instead of moving the room, so it can't be dragged loose by accident — Unsnap it first to move it.
+- View, Device colours: a row per device type with a colour input and a reset, and a Reset all. It opens as a floating, draggable panel — a 3-column grid, closed by its own X, not by clicking elsewhere.
+- A custom colour swatch gets a small corner badge instead of a dashed border, so it reads at a glance among the preset swatches.
+- The texture rotation and scale sliders show their value beside the bar, not on the line under it.
+- Furniture gets its own fixed grey token (`--fp-furniture`), decoupled from the idle-device colour so the two can no longer drift together by accident.
+- Help guide steps collapse behind a chevron, opened on click, instead of all showing open at once.
+
 - A room's Delete button moved next to Unsnap, near the top of its panel, instead of at the bottom.
 - The View menu now shows the installed version at the top, read from the integration's manifest.
 - A demo GIF in the README, recorded from `demo/layout.json`: the card live, then the editor.
