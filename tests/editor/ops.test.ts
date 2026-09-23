@@ -7,7 +7,7 @@ const ground = () => structuredClone((demo as unknown as Layout).floors.ground);
 const FALLBACK: Pt = [123, 457];
 
 /** A floor with only an outline: nothing else on it. */
-const bareFloor = (outline: Pt[]): Floor => ({ title: "T", outline, rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] });
+const bareFloor = (outline: Pt[]): Floor => ({ title: "T", outline, rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] });
 
 describe("spawnPoint", () => {
   it("is right of the outline's bounding box, at its top, on the grid (10 cm by default), when the outline is everything", () => {

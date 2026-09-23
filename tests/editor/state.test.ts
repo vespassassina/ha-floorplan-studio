@@ -156,7 +156,7 @@ describe("stairs add and remove", () => {
 
 describe("floors", () => {
   const keys = (st: EditorState) => Object.keys(st.layout.floors);
-  const empty = { outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };
+  const empty = { outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
 
   describe("addFloor", () => {
     it("adds an empty floor last, keyed by the slug of its title, and selects it", () => {
@@ -742,7 +742,7 @@ describe("recenter (S1.49)", () => {
   });
   it("an empty floor does not throw and gets a sensible box", () => {
     const l = fresh();
-    Object.assign(l.floors.ground, { outline: [], rooms: [], walls: [], doors: [], openings: [], extras: [], stairs: [], furniture: [], devices: [] });
+    Object.assign(l.floors.ground, { outline: [], rooms: [], walls: [], doors: [], openings: [], extras: [], stairs: [], furniture: [], devices: [], unlinked: [] });
     const st = new EditorState(l);
     expect(() => st.recenter()).not.toThrow();
     expect(st.view.w).toBeGreaterThan(0); expect(st.view.h).toBeGreaterThan(0);

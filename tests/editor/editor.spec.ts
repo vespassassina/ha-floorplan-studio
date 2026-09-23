@@ -1455,7 +1455,7 @@ const shown = (page: Page) => page.locator("#mDev button[data-dev]:visible");
 
 test("the toolbar order is Add, Draw, Device, View, File and Add has no Device item", async ({ page }) => {
   await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Draw", "Device", "View", "File"]);
-  await expect(page.locator("#mAdd select")).toHaveCount(1); // only the furniture select is left
+  await expect(page.locator("#mAdd select")).toHaveCount(2); // furniture and unlinked-device selects (S4.25)
   await expect(page.locator("#mAdd #addDev")).toHaveCount(0);
   await expect(page.locator("#mAdd")).not.toContainText("Device");
 });
@@ -2457,7 +2457,7 @@ test("S4.11: Tab reaches every Add item in DOM order, submenus included", async 
   await page.locator(`#mAdd details.sub > summary:text-is("Wall")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Areas")`).click();
   const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.map((e) => e.id || e.textContent?.trim()));
-  expect(order).toEqual(["Openings", "addDoor", "addWin", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "addFurn"]);
+  expect(order).toEqual(["Openings", "addDoor", "addWin", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "addFurn", "addUnlDev"]);
 });
 
 test("each Add, Wall item places a 200 cm wall of its kind at the spawn point, selected, in one undo step", async ({ page }) => {
@@ -3429,7 +3429,7 @@ const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first
 
 test("S1.36: View, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
   await openDevCols(page);
-  await expect(page.locator(`${EDITOR} #devcols [data-type]`)).toHaveCount(22); // S4.24 added lock and vibration
+  await expect(page.locator(`${EDITOR} #devcols [data-type]`)).toHaveCount(27); // S4.25 added boiler, car, ups, printer, speaker
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
   await expect(colourRow(page, "light").locator("button")).toHaveCount(1);
   await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
@@ -4443,7 +4443,7 @@ test("S1.50 break it: an empty floor draws a grid around the origin with no erro
   page.on("pageerror", (e) => errors.push(e.message));
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
-    l.floors.ground = { title: "Empty", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };
+    l.floors.ground = { title: "Empty", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
     el.layout = l;
   }, EDITOR);
   await expect.poll(() => page.locator("svg line.mg").count()).toBeGreaterThan(0);

@@ -4,7 +4,7 @@ import { EditorState } from "../../src/editor/state";
 
 const layout = (): Layout => ({
   version: 2, unit: "cm", north: 0,
-  floors: { ground: { title: "Ground", outline: [], walls: [], rooms: [{ id: "room-ground-1", name: "Kitchen", area: "kitchen", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 300], [0, 300]], wk: ["wall", "wall", "wall", "wall"] }], stairs: [], doors: [], openings: [], extras: [], furniture: [],
+  floors: { ground: { title: "Ground", outline: [], walls: [], rooms: [{ id: "room-ground-1", name: "Kitchen", area: "kitchen", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 300], [0, 300]], wk: ["wall", "wall", "wall", "wall"] }], stairs: [], doors: [], openings: [], extras: [], furniture: [], unlinked: [],
     devices: [{ id: "l-1", name: "Lamp", type: "light", entity: "light.lamp", x: 200, y: 200 }] } },
   catalog: [{ id: "l-1", floor: "ground", room: "Kitchen", type: "light", name: "Lamp", entity: "light.lamp" }],
 } as unknown as Layout);

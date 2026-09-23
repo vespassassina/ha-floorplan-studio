@@ -46,10 +46,10 @@ export type Sel =
   | null
   | { t: "v"; ref: PtRef }
   | { t: "edge"; poly: string; i: number }
-  | { t: "wall" | "door" | "opening" | "dev" | "room" | "furn" | "stairs" | "extra"; i: number };
+  | { t: "wall" | "door" | "opening" | "dev" | "room" | "furn" | "stairs" | "extra" | "unl"; i: number };
 
 export function emptyLayout(): Layout {
-  const floor: Floor = { title: "Ground", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };
+  const floor: Floor = { title: "Ground", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
   return { version: 2, unit: "cm", north: 0, rotate: 0, floors: { ground: floor }, catalog: [] };
 }
 
@@ -166,7 +166,7 @@ export class EditorState {
     for (let n = 2; hasOwn(this.layout.floors, key); n++) key = `${base}-${n}`;
     this.snapshot();
     const first = Object.values(this.layout.floors)[0];
-    const nf: Floor = { title: t, outline: structuredClone(first?.outline ?? []), rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [] };
+    const nf: Floor = { title: t, outline: structuredClone(first?.outline ?? []), rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
     if (first?.owk) nf.owk = structuredClone(first.owk); // Opus review: the outline's kinds must follow its points, or a new floor's perimeter drops back to the wk-less default
     for (const s of first?.stairs ?? []) nf.stairs.push({ ...structuredClone(s), id: newId(nf, key, "stairs") });
     Object.defineProperty(this.layout.floors, key, { value: nf, enumerable: true, writable: true, configurable: true });
@@ -459,6 +459,15 @@ export class EditorState {
     return this.layout.catalog.filter((c) => (c.type === "climate" || c.type === "ac") && c.entity !== d.entity);
   }
 
+  /**
+   * S4.25: catalog entries an unlinked item's `attached` list may offer. Unlike a heater's trvs or an ac's
+   * linked climates, an unlinked item has no fixed HA domain (a "car" or "server" type has no natural one), so
+   * every placed entity is a candidate; `multiAttachField` already excludes what is attached to this item.
+   */
+  unlinkedAttachChoices(): CatalogEntry[] {
+    return this.layout.catalog;
+  }
+
   /** Writes the autosave. Storage may be blocked or full; the edit then simply is not remembered. */
   setGrid(g: Grid) {
     if (!(GRID_VALUES as readonly number[]).includes(g)) return;
@@ -484,7 +493,7 @@ export class EditorState {
 /** An id that no object of the floor uses yet: `<prefix>-<floor>-<n>`. */
 export function newId(f: Floor, floor: string, prefix: string): string {
   const used = new Set<string>();
-  for (const list of [f.rooms, f.walls, f.stairs, f.doors, f.openings, f.extras, f.devices, f.furniture]) for (const o of list) used.add(o.id);
+  for (const list of [f.rooms, f.walls, f.stairs, f.doors, f.openings, f.extras, f.devices, f.furniture, f.unlinked]) for (const o of list) used.add(o.id);
   let n = 1;
   while (used.has(`${prefix}-${floor}-${n}`)) n++;
   return `${prefix}-${floor}-${n}`;

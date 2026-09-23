@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, dist, insertPoint, nearestEdge, placedEntities, polys, renderFloor, rotateAbout, snapPoint, stitch, typeForEntity, unplacedHaEntities, validate } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, insertPoint, nearestEdge, placedEntities, polys, renderFloor, rotateAbout, snapPoint, stitch, typeForEntity, unplacedHaEntities, validate } from "../core";
 import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type DrawKind } from "./draw";
@@ -26,7 +26,7 @@ type Hit =
   | { k: "loose"; ref: LooseRef }
   | { k: "dend"; i: number; end: "a" | "b" }
   | { k: "fscale"; i: number; corner: Corner }
-  | { k: "door" | "opening" | "dev" | "furn" | "wall" | "room" | "stairs" | "extra"; i: number }
+  | { k: "door" | "opening" | "dev" | "furn" | "unl" | "wall" | "room" | "stairs" | "extra"; i: number }
   | { k: "edge"; poly: string; i: number }
   | { k: "bg" };
 
@@ -38,6 +38,7 @@ type Drag =
   | { type: "door"; base: Floor; i: number; off: Pt; len: number; moved: boolean }
   | { type: "dev"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "furn"; base: Floor; i: number; off: Pt; moved: boolean }
+  | { type: "unl"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "fscale"; base: Floor; i: number; corner: Corner; moved: boolean }
   | { type: "room"; base: Floor; list: "rooms" | "stairs"; i: number; start: Pt; moved: boolean; alt?: boolean };
 
@@ -88,6 +89,8 @@ function hitOf(el: Element | null): Hit {
   if (op) return { k: "opening", i: Array.from(op.parentNode?.children ?? []).filter((c) => c.matches("line.opening")).indexOf(op) };
   const fu = el.closest("g[data-f]");
   if (fu) return { k: "furn", i: +(fu.getAttribute("data-f") ?? -1) };
+  const un = el.closest("g[data-u]");
+  if (un) return { k: "unl", i: +(un.getAttribute("data-u") ?? -1) };
   const e = el.closest("[data-e]");
   if (e) { const [poly, i] = (e.getAttribute("data-e") ?? "").split(":"); return { k: "edge", poly, i: +i }; }
   const w = el.closest("[data-w]");
@@ -484,6 +487,13 @@ export class FloorplanStudioEditor extends LitElement {
         this.drag = { type: "fscale", base, i: hit.i, corner: hit.corner, moved: false };
         break;
       }
+      case "unl": {
+        const u = f.unlinked[hit.i];
+        if (!u) break;
+        st.sel = { t: "unl", i: hit.i };
+        this.drag = { type: "unl", base, i: hit.i, off: [p[0] - u.x, p[1] - u.y], moved: false };
+        break;
+      }
       case "edge": case "wall": {
         let ends: { from: Pt; ref: PtRef }[];
         if (hit.k === "edge") {
@@ -620,6 +630,13 @@ export class FloorplanStudioEditor extends LitElement {
         g = structuredClone(d.base);
         g.furniture[d.i].x = g5(p[0] - d.off[0]);
         g.furniture[d.i].y = g5(p[1] - d.off[1]);
+        break;
+      }
+      case "unl": {
+        this.begin(d);
+        g = structuredClone(d.base);
+        g.unlinked[d.i].x = g5(p[0] - d.off[0]);
+        g.unlinked[d.i].y = g5(p[1] - d.off[1]);
         break;
       }
       case "fscale": {
@@ -783,6 +800,7 @@ export class FloorplanStudioEditor extends LitElement {
     else if (s.t === "wall") del((f) => { f.walls.splice(s.i, 1); });
     else if (s.t === "extra") del((f) => { f.extras.splice(s.i, 1); });
     else if (s.t === "furn") del((f) => { f.furniture.splice(s.i, 1); });
+    else if (s.t === "unl") del((f) => { f.unlinked.splice(s.i, 1); });
     else if (s.t === "stairs") del((f) => { f.stairs.splice(s.i, 1); });
     else if (s.t === "v" && "poly" in s.ref && (polyPts(this.st.f, s.ref.poly)?.length ?? 0) > 3) {
       const { poly, j } = s.ref;
@@ -967,6 +985,16 @@ export class FloorplanStudioEditor extends LitElement {
     this.commit((f) => { f.furniture.push({ id: newId(f, floor, "furniture"), symbol: sym, x, y, rot: 0, w: FURNITURE[sym].w, h: FURNITURE[sym].h }); });
     this.ensureVisible([x - FURNITURE[sym].w / 2, y - FURNITURE[sym].h / 2], [x + FURNITURE[sym].w / 2, y + FURNITURE[sym].h / 2]);
     this.st.sel = { t: "furn", i: this.st.f.furniture.length - 1 };
+    this.requestUpdate();
+  }
+  /** S4.25: places an unlinked appliance (a fixed icon by type, not tied to one entity's state). */
+  private addUnlinked(type: string) {
+    if (!(UNLINKED_TYPES as readonly string[]).includes(type)) return;
+    this.stopDraw();
+    const t = type as DeviceType, p = this.spawn(), [x, y] = p, floor = this.st.floor;
+    this.commit((f) => { f.unlinked.push({ id: newId(f, floor, "unl"), type: t, x, y, rot: 0, scale: 1 }); });
+    this.ensureVisible([x - 30, y - 30], [x + 30, y + 30]);
+    this.st.sel = { t: "unl", i: this.st.f.unlinked.length - 1 };
     this.requestUpdate();
   }
   private placeDevice(id: string) {
@@ -1361,6 +1389,10 @@ export class FloorplanStudioEditor extends LitElement {
           <select id="addFurn" aria-label="Add furniture" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addFurniture(el.value); el.value = ""; this.closeMenus(); }}>
             <option value="">Furniture…</option>
             ${FURNITURE_SYMBOLS.map((y) => html`<option value=${y}>${y}</option>`)}
+          </select>
+          <select id="addUnlDev" aria-label="Add unlinked device" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addUnlinked(el.value); el.value = ""; this.closeMenus(); }}>
+            <option value="">Unlinked device…</option>
+            ${UNLINKED_TYPES.map((t) => html`<option value=${t}>${TYPE_LABELS.find((x) => x[0] === t)?.[1] ?? t}</option>`)}
           </select>
         </div></details>
         <details class="menu" id="mDraw"><summary class="btn">Draw</summary><div class="box">

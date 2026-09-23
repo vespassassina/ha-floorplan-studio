@@ -14,6 +14,7 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["climate", "Climate"], ["ac", "Air conditioning / heat pump"], ["tv", "TV"], ["computer", "Computers"],
   ["media", "Media players"], ["cover", "Covers"], ["battery", "Batteries"], ["inverter", "Inverters"], ["server", "Servers"],
   ["access_point", "Access points"], ["lock", "Door locks"], ["vibration", "Vibration sensors"], ["other", "Other"],
+  ["boiler", "Boiler"], ["car", "Car"], ["ups", "UPS"], ["printer", "3D printer"], ["speaker", "Speaker"],
 ];
 
 export const WALL_LABELS: Record<EdgeKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge", none: "Not drawn" };
@@ -146,6 +147,7 @@ export function selectionPanel(c: PanelCtx): TemplateResult {
     case "dev": return f.devices[s.i] ? devicePanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "furn": return f.furniture[s.i] ? furniturePanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "stairs": return f.stairs[s.i] ? stairsPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
+    case "unl": return f.unlinked[s.i] ? unlinkedPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
   }
 }
 
@@ -526,6 +528,28 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
     ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}
     <p>${button("fudel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); }, "warn")}</p>
+    ${hint("Drag it to move it. Alt disables the grid.")}`;
+}
+
+/**
+ * S4.25: an unlinked appliance — a fixed icon by type (not a swappable furniture symbol), scaled, coloured and
+ * rotated, with zero or more HA entities attached for reference only (`multiAttachField`, same as a heater's
+ * trvs). No on/off state: the colour is a flat override, not a live reading.
+ */
+function unlinkedPanel(c: PanelCtx, i: number) {
+  const u = c.st.f.unlinked[i];
+  const label = TYPE_LABELS.find((t) => t[0] === u.type)?.[1] ?? u.type;
+  const setAttached = (next: string[]) => c.commit((f) => { if (next.length) f.unlinked[i].attached = next; else delete f.unlinked[i].attached; });
+  return html`<strong>${u.name ?? label}</strong>
+    ${hint(`${label.toLowerCase()}. Not connected to a single entity's state.`)}
+    ${text("plan name", "uun", u.name ?? "", (v) => c.commit((f) => { setOrDelete(f.unlinked[i], "name", v.trim()); }))}
+    <label for="uucol">colour</label>
+    <input id="uucol" type="color" .value=${u.color ?? "#8b8578"} @change=${(e: Event) => c.commit((f) => { f.unlinked[i].color = val(e); })}>
+    ${button("uuclr", "Use default colour", () => c.commit((f) => { delete f.unlinked[i].color; }))}
+    ${number(c, "scale", "uusc", u.scale, (n) => c.commit((f) => { f.unlinked[i].scale = Math.min(4, Math.max(0.25, n)); }))}
+    ${rotateButtons(c, "uurot", (n) => c.commit((f) => { f.unlinked[i].rot = ((u.rot + n) % 360 + 360) % 360; }), { reset: () => { if (u.rot) c.commit((f) => { f.unlinked[i].rot = 0; }); } })}
+    ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(), setAttached)}
+    <p>${button("uudel", "Delete", () => { c.commit((f) => { f.unlinked.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag it to move it. Alt disables the grid.")}`;
 }
 
