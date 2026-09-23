@@ -4245,6 +4245,20 @@ test("CSS pair: furniture has its own fixed grey token, decoupled from idle devi
   expect(await page.locator("svg g.furn").first().evaluate((e) => getComputedStyle(e).color)).toBe(rgb("#79766e"));
 });
 
+test("CSS pair: an opening's erase stroke matches a plain room's own fill, in light and in a dark theme", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), g = l.floors.ground;
+    g.openings.push({ id: "css-op", a: [200, 0], b: [300, 0] }); // on Living's plain, uncoloured external wall
+    el.layout = l;
+  }, EDITOR);
+  const style = () => page.locator("svg line.opening").first().evaluate((e) => getComputedStyle(e).stroke);
+  const roomFill = () => page.locator('svg polygon[data-r="0"]').first().evaluate((e) => getComputedStyle(e).fill); // Living, no colour of its own
+  await setTheme(page, "light");
+  expect(await style()).toBe(await roomFill());
+  await setTheme(page, "midnight");
+  expect(await style()).toBe(await roomFill());
+});
+
 test("Opus review CSS pair: each room kind has its own fill; fill is hatched; zone is unfilled (render.test.ts:207-210, 371-394)", async ({ page }) => {
   await addCssFixtures(page);
   const fill = (k: string) => page.locator(`svg polygon.room-${k}`).first().evaluate((e) => getComputedStyle(e).fill);
