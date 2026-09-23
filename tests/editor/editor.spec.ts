@@ -5434,3 +5434,116 @@ test("S4.14: clicking an entity places it — at its area's room centre when one
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.pond")).toBe(false);
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.living_temp")).toBe(true);
 });
+
+// ---- S4.5: groups -------------------------------------------------------------------------
+
+async function shiftClickCm(page: Page, x: number, y: number) {
+  const c = await screenOf(page, x, y);
+  await page.keyboard.down("Shift");
+  await page.mouse.click(c.x, c.y);
+  await page.keyboard.up("Shift");
+}
+const GROUP_HA = { floors: [], areas: [], entities: [
+  { id: "light.demo_living", name: "Living light", domain: "light" },
+  { id: "light.demo_kitchen", name: "Kitchen light", domain: "light" },
+  { id: "binary_sensor.demo_hall_motion", name: "Hall motion", domain: "binary_sensor" },
+] };
+/** Gives the editor HA data (two lights, one motion sensor, no group yet) and a recording writer, like withWriter. */
+async function withGroupWriter(page: Page, opt: { fail?: string } = {}) {
+  await setHa(page, GROUP_HA);
+  await page.evaluate(([tag, fail]) => {
+    const w = window as any; w.__calls = [];
+    (document.querySelector(tag as string) as any).writer = {
+      setDeviceArea: async () => {}, setEntityArea: async () => {},
+      createHelper: async (...a: unknown[]) => { w.__calls.push(a); if (fail) throw new Error(fail as string); return { entity_id: "group.demo_lights" }; },
+    };
+  }, [EDITOR, opt.fail ?? ""]);
+}
+
+test("S4.5: Shift+click accumulates same-kind devices, toggles one back out, and a different kind starts a fresh single selection instead of mixing", async ({ page }) => {
+  const sel = (page: Page) => page.evaluate((tag) => (document.querySelector(tag as string) as any).st.sel, EDITOR);
+  await clickCm(page, 250, 200); // light: living
+  expect(await sel(page)).toEqual({ t: "dev", i: 0 });
+  await shiftClickCm(page, 650, 200); // + light: kitchen
+  expect(await sel(page)).toEqual({ t: "devs", is: [0, 1] });
+  await shiftClickCm(page, 250, 200); // toggle living back out
+  expect(await sel(page)).toEqual({ t: "dev", i: 1 });
+  await shiftClickCm(page, 400, 500); // motion sensor: a different kind than the current light selection
+  expect(await sel(page)).toEqual({ t: "dev", i: 5 }); // starts fresh, never mixes kinds
+});
+
+test("S4.5: Create group asks, then Home Assistant builds a light group from the shift-clicked selection", async ({ page }) => {
+  await withGroupWriter(page);
+  await clickCm(page, 250, 200); // Living light
+  await shiftClickCm(page, 650, 200); // + Kitchen light
+  await expect(page.locator("#panel")).toContainText("2 devices selected");
+  await page.locator("#grpName").fill("Downstairs lights");
+  await page.locator("#vgroup").click();
+  await expect(page.locator("#fp-confirm")).toContainText("Create group Downstairs lights");
+  await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
+  expect(await calls(page)).toHaveLength(0); // asking is not doing
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual(["group", [
+    { next_step_id: "light" },
+    { name: "Downstairs lights", entities: ["light.demo_living", "light.demo_kitchen"], hide_members: false, all: false },
+  ]]);
+  await expect(page.locator("#status")).toContainText("Created group group.demo_lights");
+});
+
+test("S4.5 break it: Cancel writes nothing, a failing Home Assistant leaves the plan alone, and a forced mixed selection has no Create group button", async ({ page }) => {
+  await withGroupWriter(page);
+  await clickCm(page, 250, 200);
+  await shiftClickCm(page, 650, 200);
+  await page.locator("#grpName").fill("Downstairs lights");
+  await page.locator("#vgroup").click();
+  await page.locator("#fp-confirm-no").click();
+  expect(await calls(page)).toHaveLength(0);
+
+  await withGroupWriter(page, { fail: "not_allowed" });
+  await clickCm(page, 250, 200);
+  await shiftClickCm(page, 650, 200);
+  await page.locator("#grpName").fill("Downstairs lights");
+  await page.locator("#vgroup").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect(page.locator("#status")).toContainText("Nothing was changed");
+
+  // The kind guard in groupKind (tests/core/bind.test.ts) keeps this from happening through the UI; force it to prove
+  // the panel itself never offers "Create group" for a mixed selection, even if that guard were ever bypassed elsewhere.
+  await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any; el.st.sel = { t: "devs", is: [0, 5] }; el.requestUpdate(); }, EDITOR);
+  await expect(page.locator("#panel")).toContainText("2 devices selected");
+  await expect(page.locator("#panel")).toContainText("Shift+click more lights, or more motion sensors, all the same kind, to create a group.");
+  await expect(page.locator("#vgroup")).toHaveCount(0);
+});
+
+const GROUP_ON_FLOOR_HA = { floors: [], areas: [], entities: [
+  { id: "light.demo_living", name: "Living light", domain: "light" },
+  { id: "light.demo_kitchen", name: "Kitchen light", domain: "light" },
+  { id: "group.demo_lights", name: "Demo lights", domain: "group", members: ["light.demo_living"] },
+] };
+
+test("S4.5: the Group menu lists a Home Assistant group with a member on this floor; choosing it dims every other device, All clears it", async ({ page }) => {
+  await setHa(page, GROUP_ON_FLOOR_HA);
+  await menu(page, "Group");
+  await expect(page.locator("#groupNone")).toHaveCount(0);
+  await page.locator('#mGroup [data-group="group.demo_lights"]').click();
+  await expect(page.locator('g[data-x="0"]')).not.toHaveClass(/dim/); // Living light: a member
+  await expect(page.locator('g[data-x="1"]')).toHaveClass(/dim/); // Kitchen light: not a member
+  await expect(page.locator('g[data-x="5"]')).toHaveClass(/dim/); // the motion sensor: not a member
+  await menu(page, "Group");
+  await page.locator("#groupAll").click();
+  await expect(page.locator('g[data-x="1"]')).not.toHaveClass(/dim/);
+});
+
+test("S4.5: no Home Assistant group with a member on this floor shows the empty note, not a button list", async ({ page }) => {
+  await setHa(page, { floors: [], areas: [], entities: [{ id: "group.elsewhere", name: "Elsewhere", domain: "group", members: ["light.not_on_this_floor"] }] });
+  await menu(page, "Group");
+  await expect(page.locator("#groupNone")).toContainText("No Home Assistant group has a member on this floor");
+  await expect(page.locator("#mGroup [data-group]")).toHaveCount(0);
+});
+
+test("Opus review CSS pair: a dimmed device fades to opacity .3 (Group menu, render.ts .dev.dim)", async ({ page }) => {
+  const opacity = (dim: boolean) => page.locator("svg g.dev-light").first().evaluate((e, d) => { e.classList.toggle("dim", d as boolean); return getComputedStyle(e).opacity; }, dim);
+  expect(await opacity(false)).toBe("1");
+  expect(await opacity(true)).toBe("0.3");
+});

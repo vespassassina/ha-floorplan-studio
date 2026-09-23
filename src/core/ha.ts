@@ -5,8 +5,9 @@ import { placedEntities } from "./bind";
 export interface HaData {
   floors: { id: string; name: string }[];
   areas: { id: string; name: string; floor_id?: string }[];
-  /** `area` is the HA area id the entity sits in (its own, else its device's), null for none. `dc` is its device class, when it has one. */
-  entities: { id: string; name: string; domain: string; area?: string | null; dc?: string; /** the HA device it belongs to */ dev?: string }[];
+  /** `area` is the HA area id the entity sits in (its own, else its device's), null for none. `dc` is its device class, when it has one.
+   * `members` (S4.5) is a `group.*` entity's own `entity_id` list, from its state attributes; absent on everything else. */
+  entities: { id: string; name: string; domain: string; area?: string | null; dc?: string; /** the HA device it belongs to */ dev?: string; members?: string[] }[];
 }
 
 /** Which entities suit a device type: [domain, device classes]. A class list of null means any class of that domain; a type with no rule (computer, server...) has none listed here and takes any entity. */

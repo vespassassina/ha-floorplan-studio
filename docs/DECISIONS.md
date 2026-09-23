@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-23 S4.5 groups: Shift+click never mixes kinds, group membership rides on `HaData.entities[].members`, dimming is a new render mechanism
+
+Shift+click builds a `{t: "devs", is: number[]}` selection, but only by accumulating devices `groupKind` (`src/core/bind.ts`) already agrees share a kind; clicking a device of a different kind than the current selection starts a fresh single selection instead of joining or refusing. So a mixed selection can never reach the panel through normal use — `groupKind`'s own guard (unit-tested for every shape: single device, empty, mixed, non-groupable type, out-of-range index, unbound entity) is the only place "which kinds may group" is decided, and the panel is Playwright-tested with a forced mixed selection too, to confirm it stays silent even if that guard were ever bypassed elsewhere.
+
+Group membership has no home in HA's device/entity/area registries the editor already reads through `hass-pickers.ts` — a `group.*` entity's members live only in `attributes.entity_id` on its live state. `HaData.entities[]` gained an optional `members?: string[]`, populated only for `domain === "group"`. This is the first place the editor's `HaData` snapshot carries anything from `hass.states` rather than a registry, and it stays read-only: the plan never stores group membership, and creating a group (`createHelper(hass, "group", ...)`) always asks Home Assistant to build it, never writes it to the layout.
+
+Dimming devices outside the chosen group needed a mechanism `render.ts` didn't have: the only existing de-emphasis, `RenderOpts.filter`, hides a device outright rather than fading it. Added `RenderOpts.dimmed?: ReadonlySet<string>` (entity ids) and a `dim` class with `.dev.dim{opacity:.3}`, mirroring the existing `.dev.unavailable{opacity:.45}` rule and carrying its own `getComputedStyle` pair per Finding #10.
+
 ## 2026-09-23 S4.2 areas from the plan: a room-panel button and an unplaced-areas box, `ha-area-picker` deferred to S4.8
 
 PLAN specced the area field itself becoming `ha-area-picker`, the native HA picker component. That belongs to S4.8 ("native look"), which is not started and adds nothing this task needs — the plain `<select>` from S1.38 already filters to unused areas and marks an unknown one. Kept as-is; noted as a deviation rather than silently dropped.

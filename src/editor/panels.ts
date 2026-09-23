@@ -1,6 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { entitiesForType, inside, placedEntities } from "../core";
+import { entitiesForType, groupKind, inside, placedEntities } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -39,6 +39,8 @@ export interface PanelCtx {
   drawArea(area: { id: string; name: string }): void;
   /** S4.15: place every unplaced entity of room `roomIndex`'s HA area, one undo step. */
   placeArea(roomIndex: number): void;
+  /** S4.5: create an HA group of the devices at `is` (all one kind), named `name`, after asking. Absent without a writer. */
+  createGroup?: (is: number[], kind: "light" | "motion", name: string) => void;
   /** S4.3: the room whose HA area differs from the device's, when there is one, and the action that moves it there. */
   areaDiff?: (devIndex: number) => { name: string } | null;
   moveArea?: (devIndex: number) => void;
@@ -154,7 +156,21 @@ export function selectionPanel(c: PanelCtx): TemplateResult {
     case "furn": return f.furniture[s.i] ? furniturePanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "stairs": return f.stairs[s.i] ? stairsPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
     case "unl": return f.unlinked[s.i] ? unlinkedPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
+    case "devs": return devsPanel(c, s.is);
   }
+}
+
+/** S4.5: several Shift+clicked devices. "Create group" shows only when they are all lights or all motion sensors, two or more. */
+function devsPanel(c: PanelCtx, is: number[]): TemplateResult {
+  const { st } = c, f = st.f;
+  const names = is.map((i) => f.devices[i]).filter((d) => !!d).map((d) => d!.name ?? d!.entity);
+  const kind = groupKind(f, is);
+  return html`<strong>${is.length} devices selected</strong>
+    <ul>${names.map((n) => html`<li>${n}</li>`)}</ul>
+    ${!kind ? hint("Shift+click more lights, or more motion sensors, all the same kind, to create a group.") : nothing}
+    ${kind && c.createGroup ? html`
+      ${text("group name", "grpName", st.groupDraft, (v) => { st.groupDraft = v; c.refresh(); })}
+      <p>${button("vgroup", "Create group", () => { const name = st.groupDraft.trim(); if (name) c.createGroup!(is, kind, name); })}</p>` : nothing}`;
 }
 
 /** Shown when nothing is selected: the current floor. */

@@ -46,7 +46,9 @@ export type Sel =
   | null
   | { t: "v"; ref: PtRef }
   | { t: "edge"; poly: string; i: number }
-  | { t: "wall" | "door" | "opening" | "dev" | "room" | "furn" | "stairs" | "extra" | "unl"; i: number };
+  | { t: "wall" | "door" | "opening" | "dev" | "room" | "furn" | "stairs" | "extra" | "unl"; i: number }
+  /** S4.5: several lights, or several motion sensors, Shift+clicked together, for "Create group". */
+  | { t: "devs"; is: number[] };
 
 export function emptyLayout(): Layout {
   const floor: Floor = { title: "Ground", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
@@ -114,6 +116,10 @@ export class EditorState {
   views: Record<string, View> = {};
   filter: DeviceType | "" = "";
   showNames = false;
+  /** S4.5: the Group menu's chosen HA group entity, dimming every device not among its members. Kept for the session, never the layout. */
+  activeGroup: string | null = null;
+  /** S4.5: the "Create group" panel's draft name field. Kept for the session, never the layout. */
+  groupDraft = "";
   /** Snap grid in cm; 0 is none. Kept in localStorage, not in the layout. */
   snapGrid: Grid = readGrid();
   showLen = true;

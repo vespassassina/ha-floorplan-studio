@@ -17,6 +17,8 @@ export interface RenderOpts {
   theme?: Theme;
   /** With `theme: "ha"`: true when Home Assistant itself is in dark mode, so the tokens HA's CSS variables do not cover (device colours, glow, the on-room stroke) are the dark ones. */
   dark?: boolean;
+  /** S4.5: entity ids to draw faded (class `dim`) — every device not in the Group menu's chosen group. */
+  dimmed?: ReadonlySet<string>;
 }
 /** blueprint is the default and the look of the project; midnight is the project's first dark theme (2026-09-21), kept under
  * its own name once blueprint moved on to a new palette; light is the same plan on paper; slate and terminal are the other two
@@ -160,6 +162,7 @@ export const FLOORPLAN_CSS = `
 .dev.on .halo{fill:var(--fp-dev);fill-opacity:var(--fp-alpha)}
 .aura{fill:var(--fp-aura);fill-opacity:var(--fp-alpha);pointer-events:none}
 .dev.unavailable{opacity:.45}
+.dev.dim{opacity:.3}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl.zone{opacity:.75}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
@@ -492,7 +495,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // The bar draws first so the icon group (fix/heater-bar-under-icon), with its white disc and halo, always paints on top of it.
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
-    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}</g>`);
+    const dim = o.dimmed?.has(d.entity) ? " dim" : "";
+    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}${dim}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}</g>`);
     if ((d.type === "temp" || d.type === "humidity") && s) {
       // Anything that is not a finite number reads as "–". `unknown` and `unavailable` are only the two HA spells for it;
       // an integration can report an empty string, a comma decimal or a word, and printing "not-a-number °C" is worse than saying nothing.

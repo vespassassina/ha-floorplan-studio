@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, insertPoint, nearestEdge, placedEntities, polys, renderFloor, rotateAbout, snapPoint, stitch, typeForEntity, unplacedHaEntities, validate } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, groupKind, insertPoint, nearestEdge, placedEntities, polys, renderFloor, rotateAbout, snapPoint, stitch, typeForEntity, unplacedHaEntities, validate } from "../core";
 import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
@@ -380,7 +380,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.requestUpdate();
   };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => { const n = this.st.placeArea(i); if (n) this.changed(`Placed ${n} device${n === 1 ? "" : "s"}. Drag each to its spot.`); }, makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => { const n = this.st.placeArea(i); if (n) this.changed(`Placed ${n} device${n === 1 ? "" : "s"}. Drag each to its spot.`); }, makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------
@@ -469,6 +469,16 @@ export class FloorplanStudioEditor extends LitElement {
       case "dev": {
         const d = f.devices[hit.i];
         if (!d) break;
+        // S4.5: Shift+click adds a light or motion sensor to a same-kind multi-selection, for "Create group"; toggles it back out if already in. No drag on a Shift+click.
+        if (ev.shiftKey && (d.type === "light" || d.type === "motion")) {
+          const prevIs = st.sel?.t === "devs" ? st.sel.is : st.sel?.t === "dev" ? [st.sel.i] : [];
+          const prevDev = prevIs[0] !== undefined ? f.devices[prevIs[0]] : undefined;
+          if (!prevDev || (!("a" in prevDev) && prevDev.type === d.type)) {
+            const is = prevIs.includes(hit.i) ? prevIs.filter((i) => i !== hit.i) : [...prevIs, hit.i];
+            st.sel = is.length > 1 ? { t: "devs", is } : is.length === 1 ? { t: "dev", i: is[0] } : null;
+            break;
+          }
+        }
         st.sel = { t: "dev", i: hit.i };
         const c: Pt = "a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y];
         this.drag = { type: "dev", base, i: hit.i, off: [p[0] - c[0], p[1] - c[1]], moved: false };
@@ -1103,6 +1113,28 @@ export class FloorplanStudioEditor extends LitElement {
     }
   }
 
+  /** S4.5: asks, has Home Assistant build a light or motion group of the selected devices, then remembers it for the Group menu. Nothing on the plan changes: the plan never stores group membership, HA does. */
+  private async createGroup(is: number[], kind: "light" | "motion", name: string) {
+    const w = this.writer, st = this.st, f = st.f;
+    const n = name.trim();
+    if (!w || !n || groupKind(f, is) !== kind) return;
+    const entities = is.map((i) => f.devices[i]?.entity).filter((e): e is string => !!e);
+    const ok = await askHa(this.shadowRoot ?? this, `Create group ${n}`, [
+      `Home Assistant will get a new group "${n}" of ${entities.length} ${kind === "light" ? "lights" : "motion sensors"}, labelled floorplan-studio.`]);
+    if (!ok) return;
+    this.status = `Creating group ${n}...`; this.requestUpdate();
+    try {
+      const nextStep = kind === "light" ? "light" : "binary_sensor";
+      const { entity_id } = await w.createHelper("group", [{ next_step_id: nextStep }, { name: n, entities, hide_members: false, all: false }]);
+      const ha = st.ha;
+      if (ha && !ha.entities.some((e) => e.id === entity_id)) this.ha = { ...ha, entities: [...ha.entities, { id: entity_id, name: n, domain: "group", members: entities }] };
+      st.groupDraft = ""; st.sel = null;
+      this.changed(`Created group ${entity_id} with ${entities.length} ${kind === "light" ? "lights" : "motion sensors"}. It stays in Home Assistant if you undo.`);
+    } catch (err) {
+      this.status = `Could not create the group: ${err instanceof Error ? err.message : String(err)}. Nothing was changed.`; this.requestUpdate();
+    }
+  }
+
   /** S4.10: opening the Home Assistant menu loads everything floorplan-studio labelled, fresh each time (HA state moves on its own). */
   private onHaToggle = (ev: Event) => {
     if ((ev.currentTarget as HTMLDetailsElement).open) void this.loadHaList();
@@ -1363,14 +1395,20 @@ export class FloorplanStudioEditor extends LitElement {
     const region = { x: Math.min(...bx), y: Math.min(...by), w: Math.max(...bx) - Math.min(...bx), h: Math.max(...by) - Math.min(...by) };
     const overlay = this.overlay(k), grid = this.measureGrid(k, region);
     const turnG = (svg: string) => (rot ? `<g class="plan-turn" transform="rotate(${num(rot.deg)} ${num(rot.pivot[0])} ${num(rot.pivot[1])})">${svg}</g>` : svg);
+    const ha = st.ha;
+    // S4.5: HA groups with at least one member on this floor, for the Group menu; the chosen one dims every other device (class "dim").
+    const floorEntities = new Set(f.devices.map((d) => d.entity).filter((e) => e));
+    const groups = ha ? ha.entities.filter((e) => e.domain === "group" && (e.members ?? []).some((m) => floorEntities.has(m))) : [];
+    const activeGroup = st.activeGroup ? groups.find((g) => g.id === st.activeGroup) : undefined;
+    const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark() }) + turnG(overlay);
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed }) + turnG(overlay);
     const counts: Record<string, number> = {};
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const unplaced = st.unplaced(), q = this.devQuery.trim().toLowerCase();
     const matches = q ? unplaced.filter((c) => c.name.toLowerCase().includes(q) || c.entity.toLowerCase().includes(q)) : unplaced;
     // S4.14: the Add > Entities palette — every HA entity not yet on the plan or in the catalog, filtered the same way the Device menu filters its own list.
-    const ha = st.ha, palette = ha ? unplacedHaEntities(st.layout, ha) : [];
+    const palette = ha ? unplacedHaEntities(st.layout, ha) : [];
     const eq = this.entQuery.trim().toLowerCase();
     const entMatches = eq ? palette.filter((e) => e.name.toLowerCase().includes(eq) || e.id.toLowerCase().includes(eq)) : palette;
     const areaName = (id: string | null | undefined) => (id ? ha?.areas.find((a) => a.id === id)?.name : undefined);
@@ -1432,6 +1470,11 @@ export class FloorplanStudioEditor extends LitElement {
           ${unplaced.length > 0 && matches.length === 0 ? html`<span class="grp" id="devNone">No device matches</span>` : nothing}
           ${TYPE_LABELS.map(([t, label]) => { const g = matches.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-dev=${c.id} @click=${() => this.placeDevice(c.id)}>${c.name}${c.room ? ` — ${c.room}` : ""}</button>`)}` : nothing; })}
         </div></details>
+        ${ha ? html`<details class="menu" id="mGroup"><summary class="btn">Group</summary><div class="box">
+          <button class="btn" id="groupAll" aria-pressed=${pressed(!st.activeGroup)} @click=${() => { st.activeGroup = null; this.requestUpdate(); }}>All</button>
+          ${groups.length === 0 ? html`<span class="grp" id="groupNone">No Home Assistant group has a member on this floor</span>` : nothing}
+          ${groups.map((g) => html`<button class="btn" data-group=${g.id} aria-pressed=${pressed(st.activeGroup === g.id)} @click=${() => { st.activeGroup = g.id; this.requestUpdate(); }}>${g.name}</button>`)}
+        </div></details>` : nothing}
         <details class="menu" id="mOpt" @toggle=${this.onOptToggle}><summary class="btn">View</summary><div class="box">
           <div class="rotrow" id="grid" role="group" aria-label="Grid"><span>Grid</span>
             ${GRID_VALUES.map((g) => html`<button class="chip keep" data-grid=${g} aria-pressed=${pressed(st.snapGrid === g)} @click=${() => { st.setGrid(g); this.requestUpdate(); }}>${g ? `${g} cm` : "None"}</button>`)}</div>

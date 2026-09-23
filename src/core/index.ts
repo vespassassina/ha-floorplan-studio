@@ -8,4 +8,4 @@ export { areaMove, entitiesForType, typeForEntity, unplacedHaEntities } from "./
 export * from "./geometry";
 export { DEVICE_ICONS, FURNITURE } from "./icons";
 export * from "./render";
-export { placedEntities, unplacedCatalog } from "./bind";
+export { groupKind, placedEntities, unplacedCatalog } from "./bind";

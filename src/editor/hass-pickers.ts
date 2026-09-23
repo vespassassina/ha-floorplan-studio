@@ -36,7 +36,10 @@ export async function haData(hass: PickerHass): Promise<HaData | undefined> {
     const r = reg.get(id), attrs = hass.states?.[id]?.attributes ?? {};
     if (!hass.states?.[id] && !r) continue;
     const area = r?.area_id ?? (r?.device_id ? deviceArea.get(r.device_id) : null) ?? null;
-    entities.push({ id, name: text(attrs.friendly_name) ?? text(r?.name) ?? text(r?.original_name) ?? id, domain: id.split(".")[0], area, dc: text(attrs.device_class) ?? text(r?.device_class) ?? text(r?.original_device_class), ...(r?.device_id ? { dev: r.device_id } : {}) });
+    const domain = id.split(".")[0];
+    // S4.5: a group's own membership list, so the Group menu can tell which of its members sit on the current floor.
+    const members = domain === "group" && Array.isArray(attrs.entity_id) ? attrs.entity_id.filter((m): m is string => typeof m === "string") : undefined;
+    entities.push({ id, name: text(attrs.friendly_name) ?? text(r?.name) ?? text(r?.original_name) ?? id, domain, area, dc: text(attrs.device_class) ?? text(r?.device_class) ?? text(r?.original_device_class), ...(r?.device_id ? { dev: r.device_id } : {}), ...(members ? { members } : {}) });
   }
   return {
     floors: floors.status === "fulfilled" ? floors.value.map((f) => ({ id: f.floor_id, name: f.name })) : [],
