@@ -100,17 +100,17 @@ function paintControls(c: PanelCtx, on: "rooms" | "stairs", i: number, id: strin
     <p>${button(`${id}colx`, "Use the default colour", () => c.paint(on, i, null))}</p>`;
 }
 
-function text(label: string, id: string, value: string, on: (v: string) => void) {
-  return html`<label for=${id}>${label}</label><input id=${id} type="text" .value=${value} @change=${(e: Event) => on(val(e))}>`;
+function text(label: string, id: string, value: string, on: (v: string) => void, disabled = false) {
+  return html`<label for=${id}>${label}</label><input id=${id} type="text" ?disabled=${disabled} .value=${value} @change=${(e: Event) => on(val(e))}>`;
 }
 /** A number field. It always shows what the state holds: `refresh` re-renders it after every change, so a refused or clamped value snaps back. */
 function number(c: PanelCtx, label: string, id: string, value: number | string, on: (v: number) => void) {
   return html`<label for=${id}>${label}</label><input id=${id} type="number" .value=${live(String(value))} @change=${(e: Event) => { const n = numVal(e); if (n !== null) on(n); c.refresh(); }}>`;
 }
 /** Rotation as buttons: 30, 45, 60 or 90 more degrees in the chosen direction, and Reset to 0 when `reset` is given. `turn` gets the signed degrees. */
-function rotateButtons(c: PanelCtx, id: string, turn: (deg: number) => void, opts: { reset?: () => void; disabled?: boolean } = {}) {
+function rotateButtons(c: PanelCtx, id: string, turn: (deg: number) => void, opts: { reset?: () => void; disabled?: boolean; label?: string } = {}) {
   const cw = c.st.turnDir === 1;
-  return html`<div class="rotrow" role="group" aria-label="Turn by degrees"><span>rotation</span>
+  return html`<div class="rotrow" role="group" aria-label="Turn by degrees"><span>${opts.label ?? "rotation"}</span>
     <button class="btn" id=${`${id}dir`} aria-pressed=${cw ? "false" : "true"} @click=${() => { c.st.turnDir = cw ? -1 : 1; c.refresh(); }}>${cw ? "clockwise" : "counter-clockwise"}</button>
     ${[30, 45, 60, 90].map((n) => html`<button class="btn" id=${`${id}${n}`} ?disabled=${opts.disabled} aria-label=${`Turn ${n} degrees ${cw ? "clockwise" : "counter-clockwise"}`} @click=${() => turn(c.st.turnDir * n)}>${n}</button>`)}
     ${opts.reset ? html`<button class="btn" id=${`${id}reset`} @click=${opts.reset}>Reset</button>` : nothing}</div>`;
@@ -413,10 +413,9 @@ function roomPanel(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
   return html`<strong>Room</strong>
     ${c.st.ha ? roomLink(c, c.st.ha, i) : html`${text("name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
-    ${text("area id", "ra", r.area, (v) => c.commit((f) => { f.rooms[i].area = v; }))}
+    ${text("area id", "ra", r.area, (v) => c.commit((f) => { f.rooms[i].area = v; }), !!r.area)}
     ${r.area ? nothing : entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}
     ${placeAreaButton(c, i)}
-    ${text("plan label", "rl", r.label, (v) => c.commit((f) => { f.rooms[i].label = v; }))}
     ${kindSelect(r.kind, (v) => c.commit((f) => {
       const room = f.rooms[i];
       if (room.kind === v) return;
@@ -457,12 +456,12 @@ function roomLink(c: PanelCtx, ha: HaData, i: number) {
   };
   const opt = (a: { id: string; name: string }) => html`<option value=${a.id} ?selected=${a.id === r.area}>${a.name}</option>`;
   return html`${hits.length === 1 ? html`<p><button class="btn" id="rmatch" @click=${() => pick(hits[0].id)}>Link to the Home Assistant area ${hits[0].name}</button></p>` : nothing}
-    <label for="ra">area</label><select id="ra" .value=${live(r.area)} @change=${(e: Event) => pick(val(e))}>
+    <label for="ra">area</label><select id="ra" ?disabled=${!!r.area && !unknown} .value=${live(r.area)} @change=${(e: Event) => pick(val(e))}>
       <option value="" ?selected=${!r.area}>(no area — custom)</option>
       ${free.map(opt)}
       ${taken.length ? html`<optgroup label="Already on the plan">${taken.map(opt)}</optgroup>` : nothing}
       ${unknown ? missingOpt(r.area) : nothing}
-    </select>${unknown ? hint(NOT_IN_HA) : nothing}
+    </select>${unknown ? hint(NOT_IN_HA) : r.area ? hint("Linked to this Home Assistant area. Delete the room to link a different one.") : nothing}
     ${c.createArea && r.kind !== "water" && r.name.trim() && (!r.area || unknown) ? html`<p>${button("rcreate", `Create area ${r.name.trim()} in Home Assistant`, () => c.createArea!(i))}</p>` : nothing}
     ${r.area ? nothing : html`${text("plan name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
     ${entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}`;
@@ -510,7 +509,7 @@ function haBox(c: PanelCtx, i: number) {
 function roomTurn(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i], id = `r${i}`;
   const free = r.free === true, locked = !free && snapped(c.st.f, id);
-  return html`${rotateButtons(c, "rrot", (n) => c.commit((f) => rotatePoly(f, id, n)), { disabled: locked })}
+  return html`${rotateButtons(c, "rrot", (n) => c.commit((f) => rotatePoly(f, id, n)), { disabled: locked, label: "Room Rotation" })}
     <p>${button("runsnap", free ? "Snap back" : "Unsnap", () => c.commit((f) => { if (free) delete f.rooms[i].free; else f.rooms[i].free = true; }))}
     ${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${free ? hint("Unsnapped: this room no longer joins its neighbours.") : locked ? hint("This room shares a corner with a neighbour. Unsnap it to rotate.") : nothing}`;

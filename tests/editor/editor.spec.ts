@@ -12,6 +12,15 @@ const manifest = JSON.parse(readFileSync("custom_components/floorplan_studio/man
 const EDITOR = "floorplan-studio-editor";
 const layoutOf = (page: Page) => page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
 const groundOf = async (page: Page): Promise<Floor> => (await layoutOf(page)).floors.ground;
+/** A snapped room can no longer be dragged by its body (it pans the view instead); tests of the drag-by-body mechanics
+ *  themselves mark the room free first, the same way `Unsnap` does, rather than exercising that UI here too. */
+async function freeRoom(page: Page, i: number) {
+  await page.evaluate(([tag, idx]) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.rooms[idx as number].free = true;
+    el.layout = l;
+  }, [EDITOR, i] as const);
+}
 const unplaced = (page: Page) => page.locator("#mDev button[data-dev]");
 const devItem = (page: Page, id: string) => page.locator(`#mDev button[data-dev="${id}"]`);
 
@@ -45,10 +54,15 @@ async function addItem(page: Page, id: string) {
   if (sub) await page.locator(`#mAdd details.sub > summary:text-is("${sub}")`).click();
   await page.locator(id).click();
 }
+/** Opens Add, then its Device submenu (S4.26: Device moved under Add, next to Unlinked device). */
+async function openDevice(page: Page) {
+  await menu(page, "Add");
+  await page.locator('#mAdd details.sub > summary:text-is("Device")').click();
+}
 /** Chooses the snap grid in View, Grid (0 = none), and closes the menu. */
 async function setGrid(page: Page, g: number) {
   await menu(page, "View");
-  await page.locator(`#grid [data-grid="${g}"]`).click();
+  await page.locator(`#snap [data-grid="${g}"]`).click();
   await menu(page, "View");
 }
 
@@ -103,7 +117,7 @@ test("Device places one and the list shrinks; removing it makes the list grow", 
   // the light and its relay come back together
   await expect(unplaced(page)).toHaveCount(3);
   expect((await groundOf(page)).devices).toHaveLength(7);
-  await menu(page, "Device");
+  await openDevice(page);
   await devItem(page, "light-living").click(); // a real click on the visible item
   await expect(unplaced(page)).toHaveCount(2);
   expect((await groundOf(page)).devices).toHaveLength(8);
@@ -579,7 +593,7 @@ test("S1.32: two lights on one wall switch, and the switch placed as its own ico
   await page.locator("#vbound").selectOption(RELAY); // the living light already has it
   const g1 = await groundOf(page);
   expect(g1.devices.filter((d) => d.bound === RELAY).map((d) => d.id)).toEqual(["light-living", "light-kitchen"]);
-  await menu(page, "Device");
+  await openDevice(page);
   await devItem(page, "switch-living-relay").click(); // still offered while two lights name it
   await expect(devItem(page, "switch-living-relay")).toHaveCount(0);
   const g2 = await groundOf(page);
@@ -665,7 +679,7 @@ test("Ctrl+Z works right after the Delete button in the panel", async ({ page })
 });
 
 test("a selection made from the Device menu survives the menu closing, then Delete works", async ({ page }) => {
-  await menu(page, "Device");
+  await openDevice(page);
   await unplaced(page).first().click();
   await expect(page.locator("g.dev.sel")).toHaveCount(1);
   await expect(page.locator("#panel")).not.toContainText("Nothing selected");
@@ -1066,7 +1080,7 @@ test("deleting the ground floor with content, then Undo, brings it back in place
 });
 
 test("devices of a deleted floor go back to the Device menu and the catalog is unchanged", async ({ page }) => {
-  await menu(page, "Device");
+  await openDevice(page);
   const n = await unplaced(page).count();
   await page.keyboard.press("Escape");
   const cat = (await layoutOf(page)).catalog;
@@ -1074,7 +1088,7 @@ test("devices of a deleted floor go back to the Device menu and the catalog is u
   await page.locator("#fdel").click();
   await page.locator("#fdelyes").click();
   expect((await layoutOf(page)).catalog).toEqual(cat);
-  await menu(page, "Device");
+  await openDevice(page);
   expect(await unplaced(page).count()).toBeGreaterThan(n);
 });
 
@@ -1455,17 +1469,18 @@ test("draw items keep the single-shape Add items: Zone still adds a square in on
 const search = (page: Page) => page.locator("#devSearch");
 const shown = (page: Page) => page.locator("#mDev button[data-dev]:visible");
 
-test("the toolbar order is Add, Draw, Device, View, File and Add has no Device item", async ({ page }) => {
-  await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Draw", "Device", "View", "File"]);
+test("the toolbar order is Add, Draw, View, File; Device is a submenu of Add, after Unlinked device", async ({ page }) => {
+  await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Draw", "View", "File"]);
   await expect(page.locator("#mAdd select")).toHaveCount(2); // furniture and unlinked-device selects (S4.25)
-  await expect(page.locator("#mAdd #addDev")).toHaveCount(0);
-  await expect(page.locator("#mAdd")).not.toContainText("Device");
+  await menu(page, "Add");
+  const subs = await page.locator("#mAdd > .box > *").evaluateAll((els) => els.map((e) => e.id || e.tagName));
+  expect(subs.at(-1)).toBe("mDev"); // Device is the last item, right after the Unlinked device select
 });
 
 test("Device lists the unplaced entries grouped by type; a deleted light and its relay come back, placing the light takes only the light", async ({ page }) => {
   await selectDev(page, 0);
   await page.locator("#vdel").click(); // the light and its relay come back
-  await menu(page, "Device");
+  await openDevice(page);
   expect(await page.locator("#mDev .grp").allInnerTexts()).toEqual(["Lights", "Wall switches", "Window / door sensor"]);
   await devItem(page, "light-living").click();
   await expect(devItem(page, "light-living")).toHaveCount(0);
@@ -1474,7 +1489,7 @@ test("Device lists the unplaced entries grouped by type; a deleted light and its
 
 test("the search filters by name and by entity id, ignoring case", async ({ page }) => {
   await setCatalog(page, [{ id: "plug-free", floor: "ground", room: "Living", type: "plug", name: "Free plug", entity: "switch.Garden_Pump" }]);
-  await menu(page, "Device");
+  await openDevice(page);
   await expect(shown(page)).toHaveCount(3); // contact sensor, relay (bound, no icon) and the free plug
   await search(page).fill("FREE PL");
   await expect(shown(page)).toHaveCount(1);
@@ -1490,34 +1505,34 @@ test("the search filters by name and by entity id, ignoring case", async ({ page
 });
 
 test("a search with no match says so, and the search is cleared when the menu closes", async ({ page }) => {
-  await menu(page, "Device");
+  await openDevice(page);
   await search(page).fill("zzz-no-such-thing");
   await expect(shown(page)).toHaveCount(0);
   await expect(page.locator("#mDev")).toContainText("No device matches");
   await page.mouse.click(2, 2); // closes the menu
   await expect(page.locator("#mDev")).not.toHaveAttribute("open", "");
-  await menu(page, "Device");
+  await openDevice(page);
   await expect(search(page)).toHaveValue("");
   await expect(shown(page)).toHaveCount(2); // contact sensor and the bound relay
   await expect(page.locator("#mDev")).not.toContainText("No device matches");
 });
 
 test("the search is cleared when the menu closes by choosing an item, and by opening another menu", async ({ page }) => {
-  await menu(page, "Device");
+  await openDevice(page);
   await search(page).fill("contact");
   await shown(page).first().click();
-  await menu(page, "Device");
+  await openDevice(page);
   await expect(search(page)).toHaveValue("");
   await search(page).fill("x");
   await menu(page, "View");
-  await menu(page, "Device");
+  await openDevice(page);
   await expect(search(page)).toHaveValue("");
 });
 
 test("typing in the search field does not trigger editor shortcuts", async ({ page }) => {
   await selectDev(page, 0); // a selected light: Delete or Backspace outside an input would remove it
   const before = await layoutOf(page);
-  await menu(page, "Device");
+  await openDevice(page);
   await search(page).click();
   await page.keyboard.type("Delete abcz");
   await page.keyboard.press("Backspace");
@@ -1531,14 +1546,14 @@ test("Ctrl+Z in the search field does not undo the plan", async ({ page }) => {
   await selectDev(page, 0);
   await page.locator("#vdel").click();
   const after = await layoutOf(page);
-  await menu(page, "Device");
+  await openDevice(page);
   await search(page).click();
   await page.keyboard.press("Control+z");
   expect(await layoutOf(page)).toEqual(after);
 });
 
 test("Escape in the search field closes the menu and gives the keys back to the editor", async ({ page }) => {
-  await menu(page, "Device");
+  await openDevice(page);
   await search(page).fill("abc");
   await page.keyboard.press("Escape");
   await expect(page.locator("#mDev")).not.toHaveAttribute("open", "");
@@ -1549,7 +1564,7 @@ test("Escape in the search field closes the menu and gives the keys back to the 
 
 test("a device name with markup is text in the Device menu, and a click on it places that device", async ({ page }) => {
   await setCatalog(page, [{ id: "evil", floor: "ground", room: "Living", type: "plug", name: '<img src=x onerror="window.__pwn=1">', entity: "switch.evil" }]);
-  await menu(page, "Device");
+  await openDevice(page);
   await expect(page.locator("#mDev img")).toHaveCount(0);
   await expect(devItem(page, "evil")).toContainText("<img");
   await search(page).fill("<img");
@@ -2001,7 +2016,7 @@ test("placing a device whose catalog floor is named like an Object.prototype key
   // the editor's own floors have a null prototype; a plain object reaches the lookup
   await page.evaluate((tag) => { const st = (document.querySelector(tag) as any).st; st.layout.floors = { ...st.layout.floors }; st.layout.catalog.find((c: any) => c.id === "light-living").floor = "constructor"; }, EDITOR);
   const floor = await page.evaluate((tag) => (document.querySelector(tag) as any).st.floor, EDITOR);
-  await menu(page, "Device");
+  await openDevice(page);
   await devItem(page, "light-living").click();
   expect(await page.evaluate((tag) => (document.querySelector(tag) as any).floor, EDITOR)).toBe(floor);
   await expect(page.locator(`.chip[data-f="${floor}"]`)).toHaveAttribute("aria-pressed", "true");
@@ -2407,7 +2422,7 @@ test("a device whose catalog room is not on the floor lands right of the house a
     l.catalog.find((c: any) => c.id === "contact-garage").room = "Nowhere";
     el.layout = l;
   }, EDITOR);
-  await menu(page, "Device");
+  await openDevice(page);
   await devItem(page, "contact-garage").click();
   const g = await groundOf(page), d = g.devices[g.devices.length - 1] as { id: string; x: number; y: number };
   expect(d.id).toBe("contact-garage");
@@ -2618,6 +2633,7 @@ test("dragging the stairs by their middle moves every point by the same amount",
 });
 
 test("a press on a room body that does not move selects it and records no undo step; the plan does not pan", async ({ page }) => {
+  await freeRoom(page, 0); // a snapped room's press-drag is a pan, tested separately; this one is about the room-drag path
   const v0 = await visible(page);
   const c = await screenOf(page, 100, 300);
   await page.mouse.move(c.x, c.y);
@@ -2632,6 +2648,7 @@ test("a press on a room body that does not move selects it and records no undo s
 test("break it: dragging a room by its body leaves the neighbour's corner and the outline where they were", async ({ page }) => {
   const before = await groundOf(page);
   expect(before.rooms[0].pts[1]).toEqual(before.rooms[1].pts[0]); // living and kitchen share (500, 0)
+  await freeRoom(page, 0); // otherwise the snapped room's drag just pans the view
   await dragCm(page, [100, 300], [100, 340]); // the living room, by its middle
   const after = await groundOf(page);
   expect(after.rooms[0].pts.map((p) => p[1] - before.rooms[0].pts[after.rooms[0].pts.indexOf(p)][1])).toEqual([40, 40, 40, 40]);
@@ -2641,12 +2658,15 @@ test("break it: dragging a room by its body leaves the neighbour's corner and th
   expect(after.rooms[0].pts.length).toBe(4);
 });
 
-test("a room dragged 300 cm away and back to within a few cm snaps corner on corner and shares its edges again", async ({ page }) => {
+test("a room dragged 250 cm away and back to within a few cm snaps corner on corner and shares its edges again", async ({ page }) => {
   const before = await groundOf(page);
-  await dragCm(page, [50, 200], [350, 200]); // the living room, by its body, 300 cm to the right
+  await clickCm(page, 50, 200); // the living room
+  await page.locator("#runsnap").click(); // Unsnap: it starts snapped, so the first drag would otherwise just pan
+  await dragCm(page, [50, 200], [300, 200]); // the living room, by its body, 250 cm to the right — clear of every other corner
   const away = await groundOf(page);
-  expect(away.rooms[0].pts[0]).toEqual([before.rooms[0].pts[0][0] + 300, before.rooms[0].pts[0][1]]);
-  await dragCm(page, [350, 200], [47, 203]); // back to 3 cm left and 3 cm low of its place
+  expect(away.rooms[0].pts[0]).toEqual([before.rooms[0].pts[0][0] + 250, before.rooms[0].pts[0][1]]);
+  await page.locator("#runsnap").click(); // Snap back, so dropping near its place re-joins it
+  await dragCm(page, [300, 200], [47, 203]); // back to 3 cm left and 3 cm low of its place
   const after = await groundOf(page);
   expect(after.rooms[0].pts).toEqual(before.rooms[0].pts); // exactly the original points
   expect(after.rooms[0].pts[1]).toEqual(after.rooms[1].pts[0]); // living and kitchen share (500, 0) again
@@ -2658,6 +2678,8 @@ test("a room dragged 300 cm away and back to within a few cm snaps corner on cor
 
 test("holding Alt while dropping a room near its place leaves it exactly where it was dropped", async ({ page }) => {
   const before = await groundOf(page);
+  await clickCm(page, 50, 200); // the living room
+  await page.locator("#runsnap").click(); // Unsnap: it starts snapped, so the first drag would otherwise just pan
   await dragCm(page, [50, 200], [350, 200]);
   await dragCm(page, [350, 200], [47, 203], ["Alt"]);
   const after = await groundOf(page);
@@ -3303,8 +3325,8 @@ test("S1.33: adding an item at 90 puts it in view and the panel value survives",
 });
 
 // ---- S1.34 the grid is a setting ----
-const gridChoices = (page: Page) => page.locator(`${EDITOR} #grid [data-grid]`);
-const pressedGrid = async (page: Page) => page.locator(`${EDITOR} #grid [data-grid][aria-pressed="true"]`).evaluateAll((els) => els.map((e) => e.getAttribute("data-grid")));
+const gridChoices = (page: Page) => page.locator(`${EDITOR} #snap [data-grid]`);
+const pressedGrid = async (page: Page) => page.locator(`${EDITOR} #snap [data-grid][aria-pressed="true"]`).evaluateAll((els) => els.map((e) => e.getAttribute("data-grid")));
 
 test("S1.34: View has a Grid group of four, 10 cm pressed by default; the old Snap chip is gone", async ({ page }) => {
   await menu(page, "View");
@@ -3384,7 +3406,7 @@ test("S1.34 break it: with storage blocked the editor loads, uses 10 and lets th
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   await menu(page, "View");
   expect(await pressedGrid(page)).toEqual(["10"]);
-  await page.locator(`#grid [data-grid="50"]`).click();
+  await page.locator(`#snap [data-grid="50"]`).click();
   expect(await pressedGrid(page)).toEqual(["50"]);
   expect(errors).toEqual([]);
 });
@@ -5879,4 +5901,28 @@ test("View menu shows the installed version, matching the integration manifest, 
   const first = box.locator("> *").first();
   await expect(first).toHaveAttribute("id", "version");
   await expect(first).toHaveText(`Floorplan Studio ${manifest.version}`);
+});
+
+test("dragging a room snapped to a neighbour pans the view instead of moving the room; Unsnap first lets it move", async ({ page }) => {
+  const g0 = await groundOf(page), living = g0.rooms[0];
+  const v0 = await page.evaluate((tag) => ({ ...(document.querySelector(tag as string) as any).st.view }), EDITOR);
+  await dragCm(page, [60, 200], [160, 300]); // inside the living room, snapped to Kitchen/Hall by default
+  const g1 = await groundOf(page);
+  expect(g1.rooms[0].pts).toEqual(living.pts); // the room did not move
+  const v1 = await page.evaluate((tag) => ({ ...(document.querySelector(tag as string) as any).st.view }), EDITOR);
+  expect(v1).not.toEqual(v0); // the view panned instead
+
+  await clickCm(page, 60, 200);
+  await page.locator("#runsnap").click(); // Unsnap
+  await dragCm(page, [60, 200], [160, 300]);
+  const g2 = await groundOf(page);
+  expect(g2.rooms[0].pts).not.toEqual(living.pts); // now it moves
+});
+
+test("View menu: the grid-snap row is labelled Snap, and its chips are half width so two sit on one line", async ({ page }) => {
+  await menu(page, "View");
+  await expect(page.locator("#snap > span")).toHaveText("Snap");
+  const boxes = await page.locator("#snap [data-grid]").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()));
+  expect(boxes[0].top).toBeCloseTo(boxes[1].top, 0); // first two chips share a row
+  expect(boxes[0].left).toBeLessThan(boxes[1].left);
 });
