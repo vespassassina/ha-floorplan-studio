@@ -332,6 +332,30 @@ describe("furniture w/h are clamped to 5-2000 cm (Opus review)", () => {
   });
 });
 
+describe("S5.1: furniture rot is wrapped into [0, 360) on migrate", () => {
+  const withRot = (rot: number) => {
+    const l: any = structuredClone(demo);
+    l.floors.ground.furniture = [{ id: "f1", symbol: "table", x: 100, y: 100, rot, w: 120, h: 60 }];
+    return l;
+  };
+  it("a stored 450 (break it: the editor's own rotate buttons could never produce this, but a hand-edited file can) opens as 90", () => {
+    const m = migrate(withRot(450));
+    expect(m.floors.ground.furniture[0].rot).toBe(90);
+  });
+  it("a stored -30 opens as 330, not a negative angle", () => {
+    const m = migrate(withRot(-30));
+    expect(m.floors.ground.furniture[0].rot).toBe(330);
+  });
+  it("a value already in range is left untouched", () => {
+    const m = migrate(withRot(180));
+    expect(m.floors.ground.furniture[0].rot).toBe(180);
+  });
+  it("360 itself wraps to 0", () => {
+    const m = migrate(withRot(360));
+    expect(m.floors.ground.furniture[0].rot).toBe(0);
+  });
+});
+
 describe("unlinked appliances (S4.25)", () => {
   it("fills a missing unlinked with an empty array on a v1 layout", () => {
     const m = migrate(v1);

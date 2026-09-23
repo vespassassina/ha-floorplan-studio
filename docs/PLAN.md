@@ -1098,6 +1098,28 @@ config). No write ever runs on load or on save.
 - Test: Playwright places each symbol; render snapshot with all symbols.
 - Done when: tests pass.
 - Break it: rotation 450 is stored as 90.
+- Done, 2026-09-23. Placing, sizing and rotating furniture, and drawing it under devices, was already built in
+  Sprint 4 — this task closed the two acceptance criteria named in its own Test/Break-it lines, which had no
+  dedicated coverage yet.
+  - Break it (rotation 450 → 90): the editor's rotate buttons (`src/editor/panels.ts`, `furniturePanel`) already
+    wrap every commit into `[0, 360)`, so 450 can only reach a layout through a hand-edited file — untrusted
+    input per finding #1. Normalised in `migrate.ts` right after the existing furniture `w`/`h` clamp, same
+    repair-path pattern: `m.rot = ((m.rot % 360) + 360) % 360`. TDD: `tests/core/migrate.test.ts` got a new
+    `describe` (450→90, -30→330, 180 untouched, 360→0), written first and confirmed failing (3 of 4) before the
+    fix, then passing (53/53 migrate tests). `validate()`'s own finite-number check on `rot` is unchanged — this
+    is a repair path, not a loosened gate.
+  - Playwright "places each symbol": `tests/editor/editor.spec.ts` gained "every FURNITURE_SYMBOLS entry can be
+    placed from the Add menu, and the layout still validates" (iterates `FURNITURE_SYMBOLS`, asserts the tail of
+    `furniture` matches the symbols in order, `validate()` passes) and "a furniture piece rotated past 360 by
+    repeated button clicks stays wrapped into [0, 360)" (5 × the 90° button = 450, asserts 90 — the UI-side half
+    of the break-it scenario, placement already selects the new item so no extra click is needed before `#fr90`).
+    `--repeat-each=10`: 20/20 clean.
+  - Render snapshot with all symbols: `tests/core/render.test.ts` got "matches the snapshot for a floor carrying
+    every FURNITURE_SYMBOLS symbol" — one piece per symbol, laid out left to right, `toMatchSnapshot()`.
+  - Full suite green: 845 vitest (up from 840; +4 migrate, +1 render), lint (`eslint . && tsc --noEmit`) clean,
+    build clean, 412 Playwright passed / 1 skipped (up from 410; +2). `npm run shots` not run: nothing here
+    touches `render.ts` or a stylesheet, only `migrate.ts` (a data-repair path, not a drawing change) and new
+    test coverage.
 
 ### S5.2 Prompt (superseded by S5.8, done)
 - Outcome: `prompts/trace-from-photos.md` that any of Claude, ChatGPT, Gemini, Grok can follow.

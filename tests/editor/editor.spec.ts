@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { DEVICE_COLOURS } from "../../src/core/render";
-import { validate, type Layout, type Floor, type WallKind } from "../../src/core/schema";
+import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
 
 // Every pointer action goes through page.mouse at real screen coordinates, so the
 // real top element decides what is hit (icons, handles, walls), as for a user.
@@ -2313,6 +2313,21 @@ test("Add, Wall, Zone, Stairs and Furniture all land right of the house, top ali
   const bed = g.furniture[g.furniture.length - 1];
   expect(bed.x - bed.w / 2).toBeGreaterThan(OUTLINE_MAX_X);
   expect(bed.y).toBe(0); // the top of the outline
+});
+
+test("S5.1: every FURNITURE_SYMBOLS entry can be placed from the Add menu, and the layout still validates", async ({ page }) => {
+  const before = (await groundOf(page)).furniture.length;
+  for (const sym of FURNITURE_SYMBOLS) { await menu(page, "Add"); await page.locator("#addFurn").selectOption(sym); }
+  const l = await layoutOf(page), g = l.floors.ground;
+  expect(g.furniture.slice(before).map((m) => m.symbol)).toEqual([...FURNITURE_SYMBOLS]);
+  expect(validate(l).ok).toBe(true);
+});
+
+test("S5.1 break it: a furniture piece rotated past 360 by repeated button clicks stays wrapped into [0, 360)", async ({ page }) => {
+  await menu(page, "Add"); await page.locator("#addFurn").selectOption("bed"); // placing selects it
+  for (let i = 0; i < 5; i++) await page.locator("#fr90").click(); // 5 x 90 = 450
+  const g = await groundOf(page);
+  expect(g.furniture[g.furniture.length - 1].rot).toBe(90);
 });
 
 test("break it: with the view panned far from the house, an added item is still outside the house and comes into view", async ({ page }) => {

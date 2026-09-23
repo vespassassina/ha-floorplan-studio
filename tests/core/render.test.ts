@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { DEVICE_TYPES, UNLINKED_TYPES, type Layout, type WallKind } from "../../src/core/schema";
+import { DEVICE_TYPES, UNLINKED_TYPES, FURNITURE_SYMBOLS, type Layout, type WallKind } from "../../src/core/schema";
 import { stairSteps } from "../../src/core";
 import { DEVICE_ICONS } from "../../src/core/icons";
 import { renderFloor, viewBoxFor, planPivot, rotateAbout, contentPoints, DEVICE_COLOURS, DEVICE_REACH, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
@@ -14,6 +14,11 @@ const base = { scale: 0.5, now: NOW, fade: 10 };
 describe("renderFloor", () => {
   it("matches the snapshot for the demo ground floor without state", () => {
     expect(renderFloor(ground, { scale: 0.5 })).toMatchSnapshot();
+  });
+
+  it("S5.1: matches the snapshot for a floor carrying every FURNITURE_SYMBOLS symbol", () => {
+    const f = { ...ground, furniture: FURNITURE_SYMBOLS.map((symbol, i) => ({ id: `f-${symbol}`, symbol, x: 100 + i * 150, y: 100, rot: 0, w: 80, h: 60 })) };
+    expect(renderFloor(f, { scale: 0.5 })).toMatchSnapshot();
   });
 
   it("draws room.label under the name, escaped, and nothing when it is empty", () => {
