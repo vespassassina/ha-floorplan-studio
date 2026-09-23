@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1
+
+- A pressed row in the devices filter menu is now visually highlighted, not only marked `aria-pressed`.
+- The devices filter menu hides device types with no instance on the current floor.
+- An opening no longer paints a visibly wrong-coloured patch over the wall it erases in a dark theme; its erase colour now matches the room's own fill.
+
 ## 0.10.0
 
 - Right-clicking a wall, a door, an opening, a furniture piece or an unattached device offers Fix/Unfix: a fixed wall or opening keeps its length on drag (only its endpoint pivots, as before), fixed furniture or a device can no longer be dragged at all. A wall's "Add an opening" is now a submenu — Door, Window, Opening — instead of one button, and every new door, window or opening it adds starts unfixed.
