@@ -1490,6 +1490,17 @@ test("the plan filter checks several device types at once, dropping any one un-c
   await expect(page.locator("#filter summary")).toHaveText(`Devices: all (${total})`);
 });
 
+test("Opus review CSS pair: a pressed filter-menu row is visually highlighted, not just aria-pressed", async ({ page }) => {
+  const styleOf = (sel: string) => page.locator(sel).evaluate((el) => { const s = getComputedStyle(el); return { bg: s.backgroundColor, color: s.color }; });
+  await page.locator("#filter summary").click();
+  const before = await styleOf('#filter [data-filter="light"]');
+  await page.locator('#filter [data-filter="light"]').click();
+  const pressed = await styleOf('#filter [data-filter="light"]');
+  const stillUnpressed = await styleOf('#filter [data-filter="switch"]');
+  expect(pressed).not.toEqual(before); // pressing must change the row's own look
+  expect(pressed).not.toEqual(stillUnpressed); // ...and set it apart from a row that is not pressed
+});
+
 // ---- S1.12 Device menu -------------------------------------------------------
 const search = (page: Page) => page.locator("#devSearch");
 const shown = (page: Page) => page.locator("#mDev button[data-dev]:visible");
