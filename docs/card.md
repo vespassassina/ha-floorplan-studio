@@ -31,6 +31,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `theme` | `blueprint` | `blueprint`, `light`, `midnight`, `slate`, `terminal`, `solarized`, or `ha` (see Themes, below) |
 | `fade` | `300` | seconds a motion sensor takes to fade from red to grey after it last went off |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
+| `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons top right. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). `false` fixes the plan and gives touches back to the page, so a swipe over the plan scrolls it |
 
 ```yaml
 type: custom:floorplan-studio-card
@@ -40,6 +41,7 @@ floors:
 fade: 300
 room_glow: true
 theme: blueprint
+zoom: true
 ```
 
 ## A premade dashboard

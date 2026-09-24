@@ -7,6 +7,9 @@ const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "battery", "i
 /** A pointer held this long or longer is a hold, opening more-info instead of toggling. */
 export const HOLD_MS = 500;
 
+/** S7.4: a pointer that moves further than this between down and up is a drag (a pan of the plan), not a tap. */
+export const TAP_SLOP_PX = 6;
+
 /** Home Assistant's own `fireEvent` shape: a bubbling, composed CustomEvent so it crosses the card's shadow boundary. */
 export function fireEvent(el: EventTarget, type: string, detail?: unknown): void {
   el.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
@@ -41,6 +44,9 @@ export interface DeviceActionsHost extends EventTarget {
  * more-info. A camera or a media player has no toggle: a tap on either opens more-info at once, the same as a
  * sensor door (S2.5).
  *
+ * S7.4: a press that moves more than `TAP_SLOP_PX` before release is a pan, not a tap: the gesture and its hold
+ * timer are dropped. A second pointer down (a pinch) drops it too, and nothing fires until every pointer is up.
+ *
  * No debounce: each pointerdown/pointerup pair is independent, so two quick taps toggle twice, not once
  * (S2.2 "Break it"). `openCoverDialog` itself is responsible for ignoring a second call while its dialog is
  * still open (S2.7 "Break it") — this function fires it on every completed tap regardless.
@@ -57,6 +63,10 @@ export function bindDeviceActions(
   let entityId: string | null = null;
   let action: "toggle" | "more-info" | "cover-dialog" | null = null;
   let coverDoor: Door | null = null;
+  let startX = 0, startY = 0;
+  /** Pointers currently down on the svg; more than one is a pinch, which is never a tap. */
+  const down = new Set<number | undefined>();
+  let multi = false;
 
   const clearTimer = () => {
     if (timer !== null) {
@@ -74,6 +84,21 @@ export function bindDeviceActions(
   };
 
   const onDown = (e: Event) => {
+    const pe = e as PointerEvent;
+    // A primary pointer means no other of its kind is down: drop any id whose pointerup never reached us, so
+    // one lost event cannot leave every later tap read as half a pinch.
+    if (pe.isPrimary) {
+      down.clear();
+      multi = false;
+    }
+    down.add(pe.pointerId);
+    if (down.size > 1 || multi) {
+      multi = true;
+      reset();
+      return;
+    }
+    startX = pe.clientX ?? 0;
+    startY = pe.clientY ?? 0;
     const target = (e.target as Element | null)?.closest('g[data-x], line[data-d]');
     if (!target) return;
 
@@ -120,7 +145,19 @@ export function bindDeviceActions(
     }, HOLD_MS);
   };
 
-  const onUp = () => {
+  const onMove = (e: Event) => {
+    if (action === null && timer === null) return;
+    const pe = e as PointerEvent;
+    if (Math.hypot((pe.clientX ?? 0) - startX, (pe.clientY ?? 0) - startY) > TAP_SLOP_PX) reset();
+  };
+
+  const onUp = (e: Event) => {
+    down.delete((e as PointerEvent).pointerId);
+    if (multi) {
+      if (!down.size) multi = false;
+      reset();
+      return;
+    }
     const wasHeld = held, id = entityId, act = action, door = coverDoor;
     clearTimer();
     if (!wasHeld) {
@@ -134,16 +171,25 @@ export function bindDeviceActions(
     coverDoor = null;
   };
 
+  /** A pointer that is cancelled or leaves the svg will not send its pointerup here: forget it along with the gesture. */
+  const onGone = (e: Event) => {
+    down.delete((e as PointerEvent).pointerId);
+    if (!down.size) multi = false;
+    reset();
+  };
+
   svg.addEventListener("pointerdown", onDown);
+  svg.addEventListener("pointermove", onMove);
   svg.addEventListener("pointerup", onUp);
-  svg.addEventListener("pointercancel", reset);
-  svg.addEventListener("pointerleave", reset);
+  svg.addEventListener("pointercancel", onGone);
+  svg.addEventListener("pointerleave", onGone);
 
   return () => {
     reset();
     svg.removeEventListener("pointerdown", onDown);
+    svg.removeEventListener("pointermove", onMove);
     svg.removeEventListener("pointerup", onUp);
-    svg.removeEventListener("pointercancel", reset);
-    svg.removeEventListener("pointerleave", reset);
+    svg.removeEventListener("pointercancel", onGone);
+    svg.removeEventListener("pointerleave", onGone);
   };
 }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HOLD_MS, bindDeviceActions, fireEvent, toggleEntity } from "../../src/card/actions";
+import { HOLD_MS, TAP_SLOP_PX, bindDeviceActions, fireEvent, toggleEntity } from "../../src/card/actions";
 import type { Device, Door } from "../../src/core";
 import type { Hass } from "../../src/card/floorplan-studio-card";
 
@@ -346,5 +346,107 @@ describe("actions: a battery, inverter, server or access point opens more-info o
     unbind();
     document.body.innerHTML = "";
     vi.useRealTimers();
+  });
+});
+
+describe("actions: a drag is a pan, not a tap (S7.4)", () => {
+  let callService: ReturnType<typeof vi.fn>;
+  let moreInfo: ReturnType<typeof vi.fn>;
+  let host: { hass: Hass } & EventTarget;
+  let svg: SVGSVGElement;
+  let unbind: () => void;
+
+  /** A pointer event at client (x, y) with its own pointerId. jsdom has no PointerEvent, so a MouseEvent carries the
+   * coordinates and the id is added on top. */
+  function at(el: Element, type: string, x: number, y: number, id = 1) {
+    const e = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y });
+    Object.defineProperty(e, "pointerId", { value: id });
+    el.dispatchEvent(e);
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    callService = vi.fn();
+    moreInfo = vi.fn();
+    svg = svgFixture([LIGHT, CAMERA]);
+    host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    host.addEventListener("hass-more-info", moreInfo);
+    unbind = bindDeviceActions(svg, host, (i) => [LIGHT, CAMERA][i]);
+  });
+
+  afterEach(() => {
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("TAP_SLOP_PX is 6", () => {
+    expect(TAP_SLOP_PX).toBe(6);
+  });
+
+  it("a press that moves 40 px before release does not toggle", () => {
+    const g = svg.querySelector('[data-x="0"]')!;
+    at(g, "pointerdown", 100, 100);
+    at(g, "pointermove", 120, 100);
+    at(g, "pointermove", 140, 100);
+    at(g, "pointerup", 140, 100);
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it("a press that moves 7 px (just past the slop) does not toggle; 6 px still does", () => {
+    const g = svg.querySelector('[data-x="0"]')!;
+    at(g, "pointerdown", 100, 100);
+    at(g, "pointermove", 100, 107);
+    at(g, "pointerup", 100, 107);
+    expect(callService).not.toHaveBeenCalled();
+    at(g, "pointerdown", 100, 100);
+    at(g, "pointermove", 106, 100);
+    at(g, "pointerup", 106, 100);
+    expect(callService).toHaveBeenCalledTimes(1);
+  });
+
+  it("moving past the slop cancels the hold timer: no more-info after HOLD_MS", () => {
+    const g = svg.querySelector('[data-x="0"]')!;
+    at(g, "pointerdown", 100, 100);
+    at(g, "pointermove", 130, 100);
+    vi.advanceTimersByTime(HOLD_MS + 100);
+    at(g, "pointerup", 130, 100);
+    expect(moreInfo).not.toHaveBeenCalled();
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it("a drag that starts on a camera does not open more-info either", () => {
+    const g = svg.querySelector('[data-x="1"]')!;
+    at(g, "pointerdown", 100, 100);
+    at(g, "pointermove", 100, 140);
+    at(g, "pointerup", 100, 140);
+    expect(moreInfo).not.toHaveBeenCalled();
+  });
+
+  it("a pointerup that never arrived does not leave every later tap read as a pinch", () => {
+    const g = svg.querySelector('[data-x="0"]')!;
+    const primary = (type: string, id: number) => {
+      const e = new MouseEvent(type, { bubbles: true, clientX: 100, clientY: 100 });
+      Object.defineProperty(e, "pointerId", { value: id });
+      Object.defineProperty(e, "isPrimary", { value: true });
+      g.dispatchEvent(e);
+    };
+    primary("pointerdown", 1); // its pointerup is lost somewhere outside
+    primary("pointerdown", 2);
+    primary("pointerup", 2);
+    expect(callService).toHaveBeenCalledTimes(1);
+  });
+
+  it("a second finger down makes it a pinch: neither finger toggles on release", () => {
+    const g = svg.querySelector('[data-x="0"]')!;
+    at(g, "pointerdown", 100, 100, 1);
+    at(svg, "pointerdown", 300, 300, 2);
+    at(svg, "pointerup", 300, 300, 2);
+    at(g, "pointerup", 100, 100, 1);
+    expect(callService).not.toHaveBeenCalled();
+    // and the next plain tap works again
+    at(g, "pointerdown", 100, 100, 3);
+    at(g, "pointerup", 100, 100, 3);
+    expect(callService).toHaveBeenCalledTimes(1);
   });
 });

@@ -3,7 +3,8 @@ import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, THEMES, migrate, planPivot, renderFloor, validate, viewBoxFor } from "../core";
 import type { Theme } from "../core";
 import type { Door, Floor, Layout } from "../core";
-import { bindDeviceActions } from "./actions";
+import { TAP_SLOP_PX, bindDeviceActions } from "./actions";
+import { MAX_ZOOM, clamp, panBy, pinch, zoomAt, type Pt, type View } from "./viewport";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
 
@@ -29,7 +30,16 @@ export interface FloorplanStudioCardConfig {
   layout_url?: string;
   /** `blueprint` (default), `midnight`, `light`, `slate`, `terminal`, `solarized`, or `ha` to take the neutrals from Home Assistant's own theme variables. */
   theme?: Theme;
+  /** S7.4: `true` (default) pinch, drag, double-tap, Ctrl/Cmd+wheel and the +/−/fit buttons; `"wheel"` also zooms
+   * on a plain wheel; `false` a fixed plan, as before. */
+  zoom?: boolean | "wheel";
 }
+
+/** Two taps closer than this in time and space are a double-tap. */
+const DOUBLE_TAP_MS = 350;
+const DOUBLE_TAP_PX = 24;
+/** One click of a zoom button. */
+const BUTTON_ZOOM = 1.5;
 
 declare global {
   interface Window {
@@ -58,6 +68,13 @@ export class FloorplanStudioCard extends LitElement {
     .fp-dialog p { margin: 0 0 14px; font: 14px/1.3 system-ui, sans-serif; }
     .fp-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
     .fp-dialog-actions button { font: 13px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 6px 14px; cursor: pointer; }
+    /* S7.4: the zoom buttons are card chrome, the same colours as the floor chips, in the other top corner. */
+    .fp-zoom { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; gap: 4px; }
+    .fp-zoom button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
+    .fp-zoom button:disabled { opacity: 0.45; cursor: default; }
+    .fp-zoom svg { width: 14px; height: 14px; }
+    /* Only when zoom is on: the plan takes every touch, so the page does not scroll or zoom under a pinch. */
+    svg.fp-zoomable { touch-action: none; }
     .fp-dialog-actions button.confirm { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); }
   `];
 
@@ -90,6 +107,11 @@ export class FloorplanStudioCard extends LitElement {
   /** Tracks whether the dialog was open on the *previous* render, so `updated()` moves focus into it exactly once
    * per open (not on every unrelated re-render while it stays open) and back out exactly once per close. */
   private _coverDialogWasOpen = false;
+  /** S7.4: the zoomed viewBox, or `null` for fit. Card state: reset by `setConfig` and a floor change, never by `hass`. */
+  private _view: View | null = null;
+  /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
+  private _fit: View | null = null;
+  private _unbindZoom: (() => void) | null = null;
 
   static getStubConfig(): FloorplanStudioCardConfig {
     return { type: "custom:floorplan-studio-card" };
@@ -111,6 +133,7 @@ export class FloorplanStudioCard extends LitElement {
     this._urlRequested = false;
     this._wsRequested = false;
     this._shownFloor = null;
+    this._view = null;
     this._loadLayout();
     this.requestUpdate();
   }
@@ -171,6 +194,8 @@ export class FloorplanStudioCard extends LitElement {
     this._stopTimer();
     this._unbindActions?.();
     this._unbindActions = null;
+    this._unbindZoom?.();
+    this._unbindZoom = null;
     this._actionsSvg = null;
   }
 
@@ -282,6 +307,7 @@ export class FloorplanStudioCard extends LitElement {
   private _selectFloor(key: string): void {
     if (this._shownFloor === key) return;
     this._shownFloor = key;
+    this._view = null;
     this.requestUpdate();
   }
 
@@ -346,6 +372,8 @@ export class FloorplanStudioCard extends LitElement {
       this._unbindActions = svg
         ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], (door) => this._openCoverDialog(door))
         : null;
+      this._unbindZoom?.();
+      this._unbindZoom = svg ? this._bindZoom(svg) : null;
       this._actionsSvg = svg;
     }
 
@@ -435,7 +463,10 @@ export class FloorplanStudioCard extends LitElement {
     const f = this._floor();
     if (!f) return html`<p class="msg">${this._error ?? NO_LAYOUT}</p>`;
     const rotate = this._rotate();
-    const box = viewBoxFor(f, 60, rotate);
+    const fit = viewBoxFor(f, 60, rotate);
+    this._fit = fit;
+    const zoom = this._zoomMode() !== false;
+    const box = zoom && this._view ? clamp(this._view, fit) : fit;
     const body = renderFloor(f, {
       scale: 1,
       state: this._stateForRender(),
@@ -446,7 +477,182 @@ export class FloorplanStudioCard extends LitElement {
       dark: this._haDark(),
       rotate,
     });
-    return html`${this._floorChips()}<svg viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._coverDialogTemplate()}`;
+    // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
+    // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
+    return html`${this._floorChips()}<svg class=${zoom ? "fp-zoomable" : ""} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${zoom ? this._zoomButtons(box, fit) : null}${this._coverDialogTemplate()}`;
+  }
+
+  /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */
+  private _zoomMode(): boolean | "wheel" {
+    const z = this._config.zoom;
+    return z === false ? false : z === "wheel" ? "wheel" : true;
+  }
+
+  /** The view on screen now: the zoomed one, clamped, or fit. */
+  private _current(): View | null {
+    const fit = this._fit;
+    if (!fit) return null;
+    return this._view ? clamp(this._view, fit) : fit;
+  }
+
+  private _zoomed(): boolean {
+    const v = this._current(), fit = this._fit;
+    return !!v && !!fit && v.w < fit.w * (1 - 1e-6);
+  }
+
+  /** Stores `v`, clamped, as the view; fit is stored as `null`, the same as never zoomed. */
+  private _setView(v: View): void {
+    const fit = this._fit;
+    if (!fit) return;
+    const c = clamp(v, fit);
+    this._view = c.w < fit.w * (1 - 1e-6) ? c : null;
+    this.requestUpdate();
+  }
+
+  /** Zooms by `k` about the centre of what is on screen: the + and − buttons. */
+  private _zoomCentre(k: number): void {
+    const v = this._current();
+    if (v) this._setView(zoomAt(v, k, v.x + v.w / 2, v.y + v.h / 2));
+  }
+
+  private _fitView(): void {
+    this._view = null;
+    this.requestUpdate();
+  }
+
+  /** S7.4: +, − and fit, card chrome in the top-right corner (like `_floorChips`, outside the plan's `<svg>`). */
+  private _zoomButtons(box: View, fit: View) {
+    const atFit = !(box.w < fit.w * (1 - 1e-6));
+    const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
+    return html`<div class="fp-zoom">
+      <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
+      <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atFit} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
+      <button type="button" aria-label="Fit" title="Fit" ?disabled=${atFit} @click=${() => this._fitView()}>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+      </button>
+    </div>`;
+  }
+
+  /**
+   * S7.4: pointer and wheel handlers for zoom and pan on the plan's own `<svg>`, bound once per element like
+   * `bindDeviceActions`. Each handler reads `config.zoom` afresh, so `zoom: false` needs no rebinding.
+   *
+   * One pointer that moves past `TAP_SLOP_PX` pans (`bindDeviceActions` drops its tap at the same threshold); two
+   * pinch. A pointer that goes down while none is tracked and is not the primary one is a second finger whose
+   * first landed outside the svg: it is ignored, so half a pinch never pans the plan. Taps stay with
+   * `bindDeviceActions`, except two quick taps off any device or door: 2x about the tap at fit, back to fit when
+   * zoomed. The wheel zooms only with Ctrl/Cmd, or always under `zoom: "wheel"`; it is bound on the svg, so a
+   * wheel over a floor chip or a zoom button never reaches it and scrolls the page.
+   */
+  private _bindZoom(svg: SVGSVGElement): () => void {
+    const ptrs = new Map<number, { x: number; y: number }>();
+    let start = { x: 0, y: 0 };
+    let panning = false;
+    let pinched = false;
+    let lastTap: { t: number; x: number; y: number } | null = null;
+
+    /** Screen point to plan point under view `v`. */
+    const toPlan = (v: View, cx: number, cy: number): Pt => {
+      const r = svg.getBoundingClientRect();
+      return [v.x + ((cx - r.left) / r.width) * v.w, v.y + ((cy - r.top) / r.height) * v.h];
+    };
+    const capture = (id: number) => {
+      try { svg.setPointerCapture(id); } catch { /* the pointer is already gone */ }
+    };
+
+    const onDown = (e: PointerEvent) => {
+      if (this._zoomMode() === false) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (e.isPrimary) ptrs.clear(); // nothing else of its kind is down: forget any pointer whose up went missing
+      else if (!ptrs.size) return;
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (ptrs.size === 1) {
+        start = { x: e.clientX, y: e.clientY };
+        panning = false;
+        pinched = false;
+      } else {
+        pinched = true;
+        lastTap = null;
+        for (const id of ptrs.keys()) capture(id);
+      }
+    };
+
+    const onMove = (e: PointerEvent) => {
+      const p = ptrs.get(e.pointerId);
+      const v = this._current();
+      if (!p || !v) return;
+      if (ptrs.size === 1) {
+        if (!panning) {
+          if (Math.hypot(e.clientX - start.x, e.clientY - start.y) <= TAP_SLOP_PX) return;
+          panning = true;
+          capture(e.pointerId);
+        }
+        const r = svg.getBoundingClientRect();
+        this._setView(panBy(v, (-(e.clientX - p.x) / r.width) * v.w, (-(e.clientY - p.y) / r.height) * v.h));
+      } else if (ptrs.size === 2) {
+        const o = [...ptrs].find(([id]) => id !== e.pointerId)![1];
+        this._setView(pinch(v, toPlan(v, p.x, p.y), toPlan(v, o.x, o.y), toPlan(v, e.clientX, e.clientY), toPlan(v, o.x, o.y)));
+      }
+      p.x = e.clientX;
+      p.y = e.clientY;
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (!ptrs.delete(e.pointerId)) return;
+      if (ptrs.size) {
+        // One finger of a pinch lifted: the other carries on as a pan from where it is now.
+        panning = true;
+        return;
+      }
+      const tap = !panning && !pinched;
+      panning = false;
+      pinched = false;
+      const onThing = (e.target as Element | null)?.closest?.("g[data-x], line[data-d]");
+      if (!tap || onThing) {
+        lastTap = null;
+        return;
+      }
+      const now = performance.now();
+      if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX) {
+        lastTap = null;
+        const fit = this._fit;
+        if (this._zoomed() || !fit) this._fitView();
+        else this._setView(zoomAt(fit, 2, ...toPlan(fit, e.clientX, e.clientY)));
+        return;
+      }
+      lastTap = { t: now, x: e.clientX, y: e.clientY };
+    };
+
+    const onCancel = (e: PointerEvent) => {
+      ptrs.delete(e.pointerId);
+      if (!ptrs.size) {
+        panning = false;
+        pinched = false;
+      }
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      const mode = this._zoomMode();
+      if (mode === false || (mode !== "wheel" && !e.ctrlKey && !e.metaKey)) return;
+      const v = this._current();
+      if (!v) return;
+      e.preventDefault();
+      const dy = Math.max(-100, Math.min(100, e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY));
+      this._setView(zoomAt(v, Math.exp(-dy * 0.002), ...toPlan(v, e.clientX, e.clientY)));
+    };
+
+    svg.addEventListener("pointerdown", onDown);
+    svg.addEventListener("pointermove", onMove);
+    svg.addEventListener("pointerup", onUp);
+    svg.addEventListener("pointercancel", onCancel);
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      svg.removeEventListener("pointerdown", onDown);
+      svg.removeEventListener("pointermove", onMove);
+      svg.removeEventListener("pointerup", onUp);
+      svg.removeEventListener("pointercancel", onCancel);
+      svg.removeEventListener("wheel", onWheel);
+    };
   }
 
   /** S2.7: the cover confirm dialog, or `null` when none is open. Card chrome (like `_floorChips` above): outside
