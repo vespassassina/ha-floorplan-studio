@@ -6,7 +6,7 @@ export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
   | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover"
   | "battery" | "inverter" | "server" | "access_point" | "lock" | "vibration" | "other"
-  | "boiler" | "car" | "ups" | "printer" | "speaker";
+  | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar";
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "tv" | "computer" | "tree" | "patio-wood" | "patio-concrete" | "car";
@@ -46,8 +46,16 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * HA. Several lights may share one switch, and the switch may be an icon too.
  * `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor
  * entity attached to this device — several allowed, unlike `bound`.
+ * `room` (person only), S7.8: an entity whose state, `area_id` or `area` attribute names the room the person is
+ * in (a Bermuda or ESPresense area sensor, say). The card moves the icon to that room; no match keeps the
+ * placed spot. The person's own `entity` is `person.*` or `device_tracker.*`.
+ * `targets` (radar only), S7.9: up to any number of x/y sensor-entity pairs from an mmWave presence sensor (an
+ * ESPHome LD2450, say), each pair's two entities reporting one target's position in millimetres, x to the
+ * sensor's right and y ahead of it. `entity` is the radar's own presence entity (typically a
+ * `binary_sensor.*occupancy`), which colours the icon; `rot` is which way the sensor points (`0` = ahead is
+ * screen-up), the same field a camera already uses for its cone.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
  *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. */
 export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean }
@@ -85,7 +93,7 @@ export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", 
 export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
 export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed"];
-export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker"];
+export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"];
 /** S4.25: the appliance types offered in the Add > Unlinked device menu — a curated subset of DEVICE_TYPES, each with a fixed icon and no linked-entity state. "heatpump" reuses the "ac" icon and colour; there is no separate type for it. */
 export const UNLINKED_TYPES: readonly DeviceType[] = ["heater", "ac", "boiler", "battery", "computer", "tv", "car", "server", "ups", "inverter", "speaker", "printer", "light"];
@@ -244,6 +252,21 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (d.linked !== undefined) {
         entityList(d, "linked", "climate.name");
         if (d.type !== "ac") errors.push(`${at} ${d.id} linked is only allowed on an ac`);
+      }
+      if (d.room !== undefined) {
+        if (!isEntity(d.room)) errors.push(`${at} ${d.id} room must be an entity id like sensor.name`);
+        else {
+          if (d.type !== "person") errors.push(`${at} ${d.id} room is only allowed on a person`);
+          if (d.room === d.entity) errors.push(`${at} ${d.id} room must differ from entity: it names the sensor that says which room the person is in`);
+        }
+      }
+      if (d.targets !== undefined) {
+        if (!Array.isArray(d.targets)) errors.push(`${at} ${d.id} targets must be a list of {x, y} entity pairs`);
+        else d.targets.forEach((tg: unknown, i: number) => {
+          if (!tg || typeof tg !== "object" || !isEntity((tg as any).x) || !isEntity((tg as any).y))
+            errors.push(`${at} ${d.id} targets[${i}] must be {x, y}, each an entity id like sensor.name`);
+        });
+        if (d.type !== "radar") errors.push(`${at} ${d.id} targets is only allowed on a radar`);
       }
     });
     each("furniture", (m) => {

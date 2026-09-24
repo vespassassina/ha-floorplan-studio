@@ -2,6 +2,51 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-24 S7.8/S7.9 People and radar targets: frame math, drawing path, and one environment fix
+
+Five decisions past the brief, plus a Node/vitest fix that blocked a clean `npm test` and is recorded here since it touches every test file, not this feature alone.
+
+- **Radar target frame.** The brief gives one worked example (x=0, y=2000mm, `rot`
+  90 draws 200 cm screen-right) and leaves the general formula implicit. Derived
+  and checked against SVG's own clockwise `rotate()` convention: with `xl, yl` in
+  centimetres and `rad` the device's `rot` in radians, `dx = xl·cos(rad) +
+  yl·sin(rad)`, `dy = xl·sin(rad) − yl·cos(rad)`, added to the sensor's own
+  `x, y`. At `rot` 0 this keeps "ahead" (positive `yl`) pointing screen-up, matching
+  "0 is ahead is screen-up" in `docs/SPEC.md`.
+- **Targets are drawn as plan-coordinate `<circle>`s, not nested inside the
+  device's own local-frame `<g>`.** The device group is scaled and (for other
+  types) rotated in its own 24×24 icon space; a target's position is already a
+  real plan point once the frame math above runs, so pushing it straight into
+  the same `out` array as rooms and other devices lets it pick up the ambient
+  `plan-turn` wrapper for free, with no double-transform to undo.
+- **`typeForEntity` does not guess `radar`.** An occupancy `binary_sensor` reads
+  as `motion`, same as before S7.9 — nothing in a bare entity id or device class
+  says "this is an mmWave sensor with target sensors, not a plain PIR". The
+  device panel's own type picker is the correction path; guessing wrong here
+  would be worse than not guessing (finding 1: layouts stay untrusted, and a
+  bad auto-type would need to be un-set by hand anyway).
+- **`prompts/SCHEMA.md` needed no edit.** It has no `DeviceType` enumeration of
+  its own — it points at `docs/schema.md`, generated from `src/core/schema.ts`'s
+  own JSDoc by `npm run docs:schema`, which already picked up `room` and
+  `targets` once their doc comments were in place. One of the "eight places" a
+  new type touches turned out to already be covered by generation.
+- **The demo's own radar (`radar-office`, first floor) got explicit on/off/gone
+  states in `scripts/shots.mjs`**, matching the pattern already used for
+  `person.demo_alex`, so the first-floor shots show it doing something instead
+  of sitting permanently idle for want of a state — caught only by looking at
+  the rendered PNG (finding 16), not by any test.
+- **Node 22+'s own global `localStorage`/`sessionStorage`** (gated behind
+  `--localstorage-file`, unset here) shadows jsdom's working implementation:
+  vitest's jsdom environment only patches a global key that is not already `in
+  global` or on its own hardcoded override list, and `localStorage` is neither.
+  Every test touching storage failed with "Cannot read properties of undefined
+  (reading 'clear')" — a version-skew gap between Node and this vitest version,
+  not a bug in this repo. Fixed with `tests/setup-storage.ts` (`setupFiles` in
+  `vitest.config.ts`), which reassigns both globals from jsdom's own `window`
+  once the jsdom environment installs. This was required to get a clean `npm
+  test` run at all, so it is recorded here rather than left as a silent
+  workaround; it touches no product code.
+
 ## 2026-09-24 S7.1 Label placement: three details the brief left open
 
 The S7.1 brief places room names, room labels, zone labels and sensor values

@@ -376,3 +376,59 @@ test("S2.13 CSS pair: battery, inverter, server and access point draw an icon in
   const rgb = (h: string) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(", ")})`;
   for (const it of got.items) { expect(it.d).toBeGreaterThan(20); expect(it.halo).toBe(true); expect(it.fill).toBe(rgb("#8b8578")); }
 });
+
+// S7.8: a person is placed like any device, moves to the room its room sensor names, and a tap opens more-info.
+function personLayout() {
+  const layout = structuredClone(demo);
+  layout.floors.ground.devices.push({ id: "person-test", type: "person", entity: "person.test", x: 200, y: 520, room: "sensor.test_room" });
+  return { layout, idx: layout.floors.ground.devices.length - 1 };
+}
+const live = (state: string) => ({ state, attributes: {}, last_changed: new Date().toISOString() });
+
+test("S7.8: a real tap on a person opens more-info for the person and calls no service", async ({ page }) => {
+  await open(page);
+  const { layout, idx } = personLayout();
+  await configureWithCallServiceSpy(page, { layout }, { "person.test": live("home") });
+  await page.evaluate(() => {
+    (window as unknown as { __more: unknown[] }).__more = [];
+    document.getElementById("card")!.addEventListener("hass-more-info", (e) => (window as unknown as { __more: unknown[] }).__more.push((e as CustomEvent).detail));
+  });
+  const g = page.locator("floorplan-studio-card").locator(`css=g[data-x="${idx}"]`);
+  await g.scrollIntoViewIfNeeded();
+  const box = (await g.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __more: unknown[] }).__more)).toEqual([{ entityId: "person.test" }]);
+  expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
+});
+
+test("S7.8: when the room sensor changes, the person glides to the new room: a real CSS transition runs on transform", async ({ page }) => {
+  await open(page);
+  const { layout, idx } = personLayout();
+  await configure(page, { layout }, { states: { "person.test": live("home"), "sensor.test_room": live("Living") } });
+  const moved = await page.locator("floorplan-studio-card").evaluate(async (el, i) => {
+    const card = el as unknown as { hass: { states: Record<string, unknown> }; updateComplete: Promise<unknown> };
+    const before = el.shadowRoot!.querySelector(`g[data-x="${i}"]`)!.getBoundingClientRect();
+    card.hass = { ...card.hass, states: { ...card.hass.states, "sensor.test_room": { state: "Kitchen", attributes: {}, last_changed: new Date().toISOString() } } };
+    await card.updateComplete;
+    const g = el.shadowRoot!.querySelector(`g[data-x="${i}"]`)!;
+    const anims = g.getAnimations().map((a) => (a as CSSTransition).transitionProperty);
+    const mid = g.getBoundingClientRect();
+    return { anims, dx: mid.x - before.x };
+  }, idx);
+  expect(moved.anims).toContain("transform");
+  expect(moved.dx).toBeLessThan(50); // right after the update the icon is still near Living, not already in the Kitchen
+});
+
+test("S7.8: under prefers-reduced-motion the person jumps, no transition", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await open(page);
+  const { layout, idx } = personLayout();
+  await configure(page, { layout }, { states: { "person.test": live("home"), "sensor.test_room": live("Living") } });
+  const anims = await page.locator("floorplan-studio-card").evaluate(async (el, i) => {
+    const card = el as unknown as { hass: { states: Record<string, unknown> }; updateComplete: Promise<unknown> };
+    card.hass = { ...card.hass, states: { ...card.hass.states, "sensor.test_room": { state: "Kitchen", attributes: {}, last_changed: new Date().toISOString() } } };
+    await card.updateComplete;
+    return el.shadowRoot!.querySelector(`g[data-x="${i}"]`)!.getAnimations().length;
+  }, idx);
+  expect(anims).toBe(0);
+});

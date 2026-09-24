@@ -330,8 +330,41 @@ export class FloorplanStudioCard extends LitElement {
    * value passed into `renderFloor`, and always set: blueprint unless the config says otherwise. `data-mode` says
    * whether Home Assistant is dark, for `theme: ha` only.
    */
+  /** S7.8: where each person stood before this render, by entity. Read by `_glidePeople`. */
+  private _peopleWere = new Map<string, string>();
+
+  protected willUpdate(changed: PropertyValues): void {
+    super.willUpdate(changed);
+    this._peopleWere = new Map();
+    const devices = this._floor()?.devices;
+    this.shadowRoot?.querySelectorAll<SVGGElement>("g.dev-person[data-x]").forEach((g) => {
+      const e = devices?.[Number(g.dataset.x)]?.entity;
+      if (e) this._peopleWere.set(e, g.style.transform);
+    });
+  }
+
+  /**
+   * S7.8: each render replaces every node under the <svg> (unsafeSVG), so `.dev-person`'s transform transition would
+   * never fire on its own: the new node starts where it ends. For each person that moved, the new node is put back
+   * where the old one stood, its style is flushed, and then it is given its new place, so the class rule animates the
+   * move (a FLIP). Under prefers-reduced-motion the rule has no transition and the person jumps.
+   */
+  private _glidePeople(): void {
+    const devices = this._floor()?.devices;
+    this.shadowRoot?.querySelectorAll<SVGGElement>("g.dev-person[data-x]").forEach((g) => {
+      const e = devices?.[Number(g.dataset.x)]?.entity, was = e ? this._peopleWere.get(e) : undefined, now = g.style.transform;
+      if (!was || was === now) return;
+      g.style.transition = "none";
+      g.style.transform = was;
+      void getComputedStyle(g).transform;
+      g.style.transition = "";
+      g.style.transform = now;
+    });
+  }
+
   protected updated(changed: PropertyValues): void {
     super.updated(changed);
+    this._glidePeople();
     const t = this._theme();
     this.setAttribute("data-theme", t);
     if (t === "ha" && this._haDark()) this.setAttribute("data-mode", "dark");

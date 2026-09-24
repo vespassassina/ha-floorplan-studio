@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.11.0
+
+- A new `person` device type: an icon placed where the person usually is. Home
+  is full brightness; away dims to 35 % with a small "away" mark. An optional
+  `room` sensor (state, `area_id` or `area` matching a room) moves the icon to
+  that room's centroid, gliding there over 600 ms; several people in one room
+  spread on a ring. Tap opens more-info; the entity is `person.*` or
+  `device_tracker.*`.
+- A new `radar` device type for mmWave presence sensors (an ESPHome LD2450, or
+  any sensor exposing target x/y): up to any number of `targets` pairs (two
+  entities each, x right and y ahead of the sensor, in millimetres) draw as
+  small dots turned by the device's own `rot`. The presence entity (a
+  `binary_sensor.*occupancy`) colours the icon. `docs/card.md` has a worked
+  ESPHome snippet.
+
 ## 0.10.3
 
 - File, Export now writes an `available` list into the downloaded JSON when Home Assistant is connected: every entity Home Assistant knows about, with its name, domain, device class, area and the room on the plan that area already has, and whether it is already placed. An AI assistant can add and position devices from that one file, offline, using only entity ids that are actually listed. Save and the stored plan never carry it, and it is dropped again the next time the file is opened. Documented in `prompts/SCHEMA.md` ("Placing devices from an export"), `prompts/README.md` and the README.
