@@ -3582,7 +3582,7 @@ const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first
 
 test("S1.36: View, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
   await openDevCols(page);
-  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(29); // S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar
+  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(30); // S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
   await expect(colourRow(page, "light").locator("button")).toHaveCount(1);
   await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
@@ -5567,6 +5567,31 @@ test("Opus review CSS pair: S7.9 a radar wears --fp-dev-radar when on, and a tar
   expect(got.dot.stroke).toBe(rgb("#ffffff")); // --fp-outline in the light theme
   expect(got.dot.strokeWidth).toBe("1px");
   expect(got.dot.pointerEvents).toBe("none");
+});
+
+test("Opus review CSS pair: S7.10 a vacuum wears --fp-dev-vacuum when on, and spins only while its .spin class is present", async ({ page }) => {
+  await setTheme(page, "light");
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.devices.push({ id: "css-vacuum", type: "vacuum", entity: "vacuum.css_test", x: 1900, y: 300 });
+    el.layout = l;
+  }, EDITOR);
+  const got = await page.locator("svg g.dev-vacuum").first().evaluate((e) => {
+    const path = e.querySelector("path:not(.halo)")!;
+    e.classList.add("on");
+    const on = { fill: getComputedStyle(path).fill, devVar: getComputedStyle(e).getPropertyValue("--fp-dev").trim() };
+    const notSpinning = getComputedStyle(path).animationName;
+    e.classList.add("spin");
+    const spinning = { animationName: getComputedStyle(path).animationName, animationDuration: getComputedStyle(path).animationDuration };
+    e.classList.remove("spin");
+    e.classList.remove("on");
+    return { on, notSpinning, spinning };
+  });
+  expect(got.on.devVar).toBe("#2f8f8f"); // a custom property is not colour-resolved by getComputedStyle
+  expect(got.on.fill).toBe(rgb("#2f8f8f"));
+  expect(got.notSpinning).toBe("none"); // no .spin class: no animation at all
+  expect(got.spinning.animationName).toBe("fp-spin");
+  expect(got.spinning.animationDuration).toBe("4s");
 });
 
 // ---- S4.18: right-click context menu on a room, zone or structure -----------------------------------------------
