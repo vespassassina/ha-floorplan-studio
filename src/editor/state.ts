@@ -1,5 +1,5 @@
 import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
-import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, Theme } from "../core";
+import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, Theme, Trace } from "../core";
 
 /** localStorage key for the autosaved edit. */
 export const STORAGE_KEY = "floorplan-studio:layout";
@@ -239,7 +239,7 @@ export class EditorState {
   }
 
   snapshot() {
-    this.hist.push(JSON.stringify(this.layout));
+    this.hist.push(this.pack(this.layout));
     if (this.hist.length > MAX_HISTORY) this.hist.shift();
     this.fut = [];
   }
@@ -264,7 +264,7 @@ export class EditorState {
    * layout, none if the gesture ended back where it started. Returns whether a step was recorded. */
   commitLiveEdit(before: Layout): boolean {
     if (JSON.stringify(before) === JSON.stringify(this.layout)) return false;
-    this.hist.push(JSON.stringify(before));
+    this.hist.push(this.pack(before));
     if (this.hist.length > MAX_HISTORY) this.hist.shift();
     this.fut = [];
     return true;
@@ -275,8 +275,8 @@ export class EditorState {
   private step(from: string[], to: string[]): boolean {
     const s = from.pop();
     if (s === undefined) return false;
-    to.push(JSON.stringify(this.layout));
-    this.layout = JSON.parse(s) as Layout;
+    to.push(this.pack(this.layout));
+    this.layout = this.unpack(s);
     if (!hasOwn(this.layout.floors, this.floor)) this.floor = Object.keys(this.layout.floors)[0];
     this.sel = null; this.confirmDelete = false;
     return true;
@@ -575,8 +575,33 @@ export class EditorState {
     this.helpOpen = v;
     try { localStorage.setItem(HELP_KEY, String(v)); } catch { /* private mode: the choice lasts until reload */ }
   }
-  persist() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.layout)); } catch { /* private mode, quota */ }
+  /** Writes the autosave. S7.11: a trace image can fill the few MB a browser gives a site; the plan is then saved
+   *  without its images rather than not at all, and this returns false. Blocked storage also returns false. */
+  persist(): boolean {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.layout)); return true; } catch { /* private mode, quota */ }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.layout, (k, v) => (k === "trace" ? undefined : v))); } catch { /* blocked */ }
+    return false;
+  }
+
+  /** S7.11: sets (or, with null, removes) the current floor's trace image: one undo step, none when nothing changes. */
+  setTrace(t: Trace | null): boolean {
+    return this.edit((f) => { if (t) f.trace = { src: t.src, x: t.x, y: t.y, w: t.w, rot: t.rot, alpha: t.alpha, on: t.on }; else delete f.trace; });
+  }
+
+  // S7.11: undo steps are whole-layout JSON, and a trace image is up to 4 MB. Each distinct image is kept once, here,
+  // and a step holds a short token in its place, so a hundred steps do not hold a hundred copies of the same scan.
+  private srcToken = new Map<string, string>();
+  private tokenSrc = new Map<string, string>();
+  private pack(l: Layout): string {
+    return JSON.stringify(l, (k, v) => {
+      if (k !== "src" || typeof v !== "string" || !v.startsWith("data:")) return v;
+      let t = this.srcToken.get(v);
+      if (!t) { t = `\u0000trace:${this.srcToken.size}`; this.srcToken.set(v, t); this.tokenSrc.set(t, v); }
+      return t;
+    });
+  }
+  private unpack(s: string): Layout {
+    return JSON.parse(s, (k, v) => (k === "src" && typeof v === "string" && this.tokenSrc.has(v) ? this.tokenSrc.get(v) : v)) as Layout;
   }
 }
 

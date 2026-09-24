@@ -81,6 +81,21 @@ test("S2.12: theme ha takes Home Assistant's own colour when it defines one, and
 // (`.dev.on path{fill:var(--fp-dev-fill,var(--fp-on))}`), never a DOM-manipulation pass in the card. A markup or
 // CSS-text assertion cannot tell a real cascade resolution from a coincidence, so this reads the built card's
 // actual `<path>` in Chromium with getComputedStyle (CLAUDE.md finding 10).
+test("S7.11: the card never draws a floor's trace image, even one that is on", async ({ page }) => {
+  await open(page);
+  const layout = structuredClone(demo);
+  // A real 2x1 PNG, so a broken <image> is not the reason nothing shows.
+  const src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGP4z8DAwPAfAAcAAf9+CLHQAAAAAElFTkSuQmCC";
+  for (const f of Object.values<any>(layout.floors)) f.trace = { src, x: 0, y: 0, w: 800, rot: 0, alpha: 1, on: true };
+  await configure(page, { layout }, { states: {} });
+  const counts = await page.locator("floorplan-studio-card").evaluate((el) => ({
+    rooms: el.shadowRoot!.querySelectorAll("svg polygon[data-r]").length,
+    images: el.shadowRoot!.querySelectorAll("svg image").length,
+  }));
+  expect(counts.rooms).toBeGreaterThan(0);
+  expect(counts.images).toBe(0);
+});
+
 test("S2.2 review: a lit light's rgb_color resolves through the cascade to the icon's actual computed fill", async ({ page }) => {
   await open(page);
   await configure(

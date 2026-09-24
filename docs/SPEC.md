@@ -65,7 +65,8 @@ in `prompts/`, then fixed in the editor.
       "openings":[{"id", "a", "b"}],
       "extras":  [{"id", "name", "a", "b"}],
       "devices": [{"id", "type", "entity", "x", "y", "rot"?, "bound"?} | {"id", "type", "entity", "a", "b"}],
-      "furniture":[{"id", "symbol", "x", "y", "rot", "w", "h", "name"?, "entity"?}]
+      "furniture":[{"id", "symbol", "x", "y", "rot", "w", "h", "name"?, "entity"?}],
+      "trace"?:  {"src", "x", "y", "w", "rot", "alpha", "on"}
     }
   },
   "catalog": [{"id", "floor", "room", "type", "name", "entity"}]
@@ -173,6 +174,14 @@ in `prompts/`, then fixed in the editor.
   a device of its own on the plan.
 - `furniture.symbol`: table, sofa, bed, cabinet, chair, sink, toilet, shower,
   bathtub, tv, computer, tree, patio-wood, patio-concrete, car.
+- `floor.trace` (optional, S7.11) is a scan to trace over, drawn under the
+  plan in the editor only; the card never draws it. `src` is a
+  `data:image/png`, `jpeg` or `webp` base64 URL of at most 4 MB (`validate`
+  names the limit when it is over). `x`, `y` is the top-left corner in cm, `w`
+  the width in cm (the height follows the image's aspect ratio), `rot` degrees
+  in `[0, 360)` about `x`, `y`, `alpha` the opacity in `[0, 1]`, `on` whether
+  it is shown. File, Export leaves it out unless Include trace image is ticked.
+  An assistant never writes one.
 - v1 files (no `version` or `version: 1`) are migrated on load. So are v2 files
   written by an earlier build: `outdoor` becomes `garden`, `w` becomes `wk`.
 
@@ -311,6 +320,15 @@ zoom: true             # pinch, drag, double-tap, Ctrl/Cmd+wheel, +/−/fit butt
   View, Device colours: one colour input per device type with a reset, and
   Reset all; each change is one undo step and is saved in `colors`.
   All floors turn together. Names and icons stay upright.
+  View, Trace image… (S7.11): a panel for this floor's `trace`. Load reads a
+  PNG, JPEG or WebP, redraws it at most 2000 px on the long side (a PNG stays
+  PNG under 1 MB, else JPEG at 0.85, lower if needed to fit 4 MB) and places
+  it over the outline's box, or the view on a blank floor. Scale takes two
+  clicks on the image and the real distance between them in cm, and sets `w`;
+  the aspect ratio follows. Opacity is a slider, Show a checkbox, Remove drops
+  it. Each is one undo step. While it is shown, room fills are see-through in
+  the editor so traced rooms do not hide the scan. File, Export has an
+  Include trace image tick, off by default and not remembered.
 - Selection panel per kind: corner, edge and wall (length, angle, kind, and on
   a free wall the conversion to an opening), door (name, kind, length, sensor,
   cover), room (name or area, label, kind, colour, unsnap, rotation; the colour

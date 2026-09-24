@@ -622,3 +622,44 @@ describe("furniture size bounds (S1.51)", () => {
     expect(errorsOf(l)).toEqual([]);
   });
 });
+
+describe("floor trace image (S7.11)", () => {
+  const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+  const good = () => ({ src: PNG, x: -40, y: 25, w: 1234, rot: 0, alpha: 0.5, on: true });
+  const withTrace = (t: unknown) => { const l = clone(); l.floors.ground.trace = t; return l; };
+
+  it("accepts a valid trace, PNG and JPEG, and a floor with none", () => {
+    expect(errorsOf(withTrace(good()))).toEqual([]);
+    expect(errorsOf(withTrace({ ...good(), src: "data:image/jpeg;base64,/9j/4AAQSkZJRg==", alpha: 0, on: false, rot: 359.5 }))).toEqual([]);
+    expect(errorsOf(clone())).toEqual([]);
+  });
+
+  it("refuses a src that is not a data:image URL: javascript:, http, svg, a quote in the payload", () => {
+    for (const src of ["javascript:alert(1)", "https://example.com/plan.png", "data:image/svg+xml;base64,PHN2Zz4=", `${PNG}"><script>`, "data:text/html;base64,PGI+", "", 5]) {
+      expect(errorsOf(withTrace({ ...good(), src })).join("\n"), String(src)).toMatch(/ground: trace src must be a data:image\/png, jpeg or webp URL/);
+    }
+  });
+
+  it("refuses a src over the 4 MB cap with a message that names the limit", () => {
+    const big = "data:image/jpeg;base64," + "A".repeat(4 * 1024 * 1024);
+    expect(errorsOf(withTrace({ ...good(), src: big })).join("\n")).toMatch(/trace src is 4\.0 MB; the limit is 4 MB/);
+    const justUnder = "data:image/jpeg;base64," + "A".repeat(4 * 1024 * 1024 - 24);
+    expect(errorsOf(withTrace({ ...good(), src: justUnder }))).toEqual([]);
+  });
+
+  it("refuses alpha outside [0, 1], w of 0 or below, and non-finite numbers", () => {
+    expect(errorsOf(withTrace({ ...good(), alpha: 2 })).join()).toMatch(/trace alpha must be a number from 0 to 1/);
+    expect(errorsOf(withTrace({ ...good(), alpha: -0.1 })).join()).toMatch(/trace alpha/);
+    expect(errorsOf(withTrace({ ...good(), w: 0 })).join()).toMatch(/trace w must be a number above 0/);
+    expect(errorsOf(withTrace({ ...good(), w: -5 })).join()).toMatch(/trace w must be a number above 0/);
+    expect(errorsOf(withTrace({ ...good(), x: NaN })).join()).toMatch(/trace x must be a number/);
+    expect(errorsOf(withTrace({ ...good(), y: "3" })).join()).toMatch(/trace y must be a number/);
+    expect(errorsOf(withTrace({ ...good(), rot: 360 })).join()).toMatch(/trace rot must be a number in \[0, 360\)/);
+    expect(errorsOf(withTrace({ ...good(), on: "yes" })).join()).toMatch(/trace on must be true or false/);
+  });
+
+  it("refuses a trace that is not an object, and never throws on one", () => {
+    for (const t of [null, 5, "x", [1, 2]]) expect(errorsOf(withTrace(t)).join(), JSON.stringify(t)).toMatch(/ground: trace must be an object/);
+    expect(() => validate(withTrace({ src: { toString: () => { throw new Error("boom"); } } }))).not.toThrow();
+  });
+});

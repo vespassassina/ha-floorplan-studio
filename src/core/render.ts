@@ -1,6 +1,6 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
 import { stairSteps } from "./geometry";
-import { DEVICE_TYPES } from "./schema";
+import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
@@ -19,6 +19,8 @@ export interface RenderOpts {
   dark?: boolean;
   /** S4.5: entity ids to draw faded (class `dim`) — every device not in the Group menu's chosen group. */
   dimmed?: ReadonlySet<string>;
+  /** S7.11: draw the floor's trace image under everything. Only the editor passes it; the card never does. */
+  trace?: boolean;
 }
 /** blueprint is the default and the look of the project; midnight is the project's first dark theme (2026-09-21), kept under
  * its own name once blueprint moved on to a new palette; light is the same plan on paper; slate and terminal are the other two
@@ -336,6 +338,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const up = (x: number, y: number) => (turn ? ` transform="rotate(${num(-planDeg)} ${num(x)} ${num(y)})"` : "");
   const out: string[] = [];
   const now = o.now ?? Date.now();
+  // S7.11: the scan to trace over, first so everything draws on top of it. Checked again here: the layout is untrusted.
+  const tr = f.trace;
+  if (o.trace && tr?.on === true && typeof tr.src === "string" && tr.src.length <= MAX_TRACE_BYTES && TRACE_SRC.test(tr.src) && [tr.x, tr.y, tr.w, tr.rot, tr.alpha].every(Number.isFinite) && tr.w > 0)
+    out.push(`<image class="trace" href="${tr.src}" x="${num(tr.x)}" y="${num(tr.y)}" width="${num(tr.w)}" opacity="${num(Math.min(1, Math.max(0, tr.alpha)))}" transform="rotate(${num(tr.rot)} ${num(tr.x)} ${num(tr.y)})"/>`);
 
   // One fixed id: two cards on a page declare the same pattern twice, and both are identical (see DECISIONS).
   const textured = [...f.rooms, ...(f.stairs ?? [])]

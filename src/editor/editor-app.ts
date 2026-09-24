@@ -2,7 +2,8 @@ import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, placedEntities, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedHaEntities, validate } from "../core";
-import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
+import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, Trace, WallKind } from "../core";
+import { traceImage } from "./trace";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, type PanelCtx } from "./panels";
@@ -167,6 +168,10 @@ export class FloorplanStudioEditor extends LitElement {
   private dcDrag: { dx: number; dy: number } | null = null;
   /** File, Install code: whether the panel with the ready-to-paste card YAML is open. Fixed, not draggable; closed by its own X or Escape. */
   private installCodeOpen = false;
+  /** S7.11: View, Trace image: whether its panel is open; the two points of a Scale step (null when not scaling); the Export tick, for this session only. */
+  private traceOpen = false;
+  private traceScale: Pt[] | null = null;
+  private exportTrace = false;
   private rect = { w: 800, h: 600 };
   private ro?: ResizeObserver;
 
@@ -252,6 +257,10 @@ export class FloorplanStudioEditor extends LitElement {
     .installcode-panel p{margin:8px 10px 0;font-size:13px}
     .installcode-panel textarea{margin:8px 10px;padding:8px;font:12px/1.4 ui-monospace,monospace;border:1px solid var(--fp-idle);border-radius:4px;background:var(--fp-room);color:var(--fp-ink);resize:vertical}
     .installcode-panel>.btn{margin:0 10px 10px;width:auto;align-self:flex-start}
+    .trace-panel{position:absolute;left:8px;bottom:8px;z-index:3;width:260px;max-width:calc(100% - 16px);display:flex;flex-direction:column;gap:6px;padding:0 10px 10px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+    .trace-panel .installcode-head{margin:0 -10px}
+    .trace-panel .row .btn{flex:1}
+    .trace-panel input[type=number]{width:6em}
     .sub{display:flex;flex-direction:column;gap:6px}
     .sub>summary{list-style:none;display:inline-block}
     .sub>summary::-webkit-details-marker{display:none}
@@ -279,6 +288,8 @@ export class FloorplanStudioEditor extends LitElement {
     .zoom .btn{width:24px;height:24px;padding:0;text-align:center;line-height:1;font-size:13px}
     .canvas svg{width:100%;height:100%;display:block;cursor:grab;user-select:none}
     .canvas svg.drawing,.canvas svg.drawing *{cursor:crosshair}
+    /* S7.11: the scan is drawn under everything; see-through room fills keep it visible where a room is already traced. Editor only. */
+    .canvas svg.tracing .room{fill-opacity:.4}
     .dr{fill:none;stroke:var(--fp-window);stroke-width:2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke;pointer-events:none}
     .dp{fill:var(--fp-bg);stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
     .dp.first{fill:var(--fp-window)}
@@ -480,6 +491,8 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.button !== 0) return;
     this.focus({ preventScroll: true });
     const p = this.toSvg(ev);
+    // S7.11: a Scale step takes the next two clicks as its points, raw (no snap: they sit on the image, not the plan), and nothing else.
+    if (this.traceScale) { if (this.traceScale.length < 2) { this.traceScale.push(p); this.traceStep(); } return; }
     if (this.draw) { this.drawClick(p, ev.altKey, ev); return; }
     // A press elsewhere, or late, is not the second click of that pair; a third press means the user double-clicked on purpose.
     if (this.finished) { if (this.sameDouble(ev) && this.finished.presses === 0) this.finished.presses = 1; else this.finished = null; }
@@ -808,6 +821,93 @@ export class FloorplanStudioEditor extends LitElement {
     this.requestUpdate();
   };
 
+  // ---- S7.11: trace image ----------------------------------------------------
+
+  private toggleTrace() {
+    this.traceOpen = !this.traceOpen;
+    this.traceScale = null;
+    this.requestUpdate();
+  }
+  /** Changes this floor's trace: one undo step, none when nothing changed. */
+  private setTrace(t: Trace | null, status: string) {
+    if (this.st.setTrace(t)) this.changed(status);
+    else this.requestUpdate();
+  }
+  /** Load: downscale, then place the image over the outline (or the view, on a blank floor), fitted inside it. Load again resets the placement. */
+  private async loadTrace(ev: Event) {
+    const input = ev.target as HTMLInputElement, file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    const floor = this.st.floor;
+    this.status = "Loading the image…";
+    this.requestUpdate();
+    let img;
+    try { img = await traceImage(file); } catch (e) { this.status = (e as Error).message; this.requestUpdate(); return; }
+    if (this.st.floor !== floor) { this.status = "Floor changed while loading; load the image again."; this.requestUpdate(); return; }
+    const o = this.st.f.outline, v = this.st.view;
+    const box = o.length >= 3
+      ? { x: Math.min(...o.map((p) => p[0])), y: Math.min(...o.map((p) => p[1])), w: Math.max(...o.map((p) => p[0])) - Math.min(...o.map((p) => p[0])), h: Math.max(...o.map((p) => p[1])) - Math.min(...o.map((p) => p[1])) }
+      : { x: v.x + v.w * 0.1, y: v.y + v.h * 0.1, w: v.w * 0.8, h: v.h * 0.8 };
+    const w = Math.max(1, Math.round(Math.min(box.w || 100, (box.h || 100) * (img.w / img.h))));
+    this.traceScale = null;
+    this.setTrace({ src: img.src, x: Math.round(box.x), y: Math.round(box.y), w, rot: 0, alpha: 0.5, on: true }, "Image loaded. Scale it: click two points a known distance apart.");
+    this.focus({ preventScroll: true });
+  }
+  private startTraceScale() {
+    this.stopDraw();
+    this.traceScale = [];
+    this.status = "Click two points on the image a known distance apart. Esc cancels.";
+    this.requestUpdate();
+  }
+  private cancelTraceScale() {
+    this.traceScale = null;
+    this.status = "Scale cancelled";
+    this.requestUpdate();
+    this.focus({ preventScroll: true });
+  }
+  /** After each Scale click: the second one asks for the real distance. */
+  private traceStep() {
+    const n = this.traceScale?.length ?? 0;
+    this.status = n < 2 ? "Now the second point." : "Type the real distance between the two points, in cm.";
+    this.requestUpdate();
+    if (n === 2) void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLInputElement>("#traceDist")?.focus({ preventScroll: true }));
+  }
+  /** Sets `w` so the two clicked points are `real` cm apart; the aspect ratio follows, x and y stay. */
+  private applyTraceScale() {
+    const t = this.st.f.trace, pts = this.traceScale;
+    const real = Number(this.renderRoot.querySelector<HTMLInputElement>("#traceDist")?.value);
+    if (!t || !pts || pts.length < 2) return;
+    const d = dist(pts[0], pts[1]);
+    if (!(Number.isFinite(real) && real > 0)) { this.status = "Type a distance above 0 cm."; this.requestUpdate(); return; }
+    if (!(d > 0)) { this.status = "The two points are the same point. Click Scale again."; this.traceScale = null; this.requestUpdate(); return; }
+    const w = Math.round(t.w * (real / d) * 100) / 100;
+    this.traceScale = null;
+    if (!(Number.isFinite(w) && w > 0)) { this.status = "That scale is out of range."; this.requestUpdate(); return; }
+    this.setTrace({ ...t, w }, `Image scaled: ${num(w)} cm wide`);
+    this.focus({ preventScroll: true });
+  }
+  private traceView() {
+    const t = this.st.f.trace, sc = this.traceScale;
+    return html`<div class="trace-panel" id="tracePanel" role="dialog" aria-label="Trace image">
+      <div class="installcode-head"><span>Trace image</span>
+        <button class="btn keep" id="traceClose" aria-label="Close" @click=${() => this.toggleTrace()}>&times;</button>
+      </div>
+      <input type="file" id="traceFile" accept="image/png,image/jpeg,image/webp" hidden @change=${(e: Event) => void this.loadTrace(e)}>
+      <button class="btn" id="traceLoad" title="A scan or photo of a floor plan, drawn under this floor in the editor only" @click=${() => this.renderRoot.querySelector<HTMLInputElement>("#traceFile")?.click()}>${t ? "Replace image…" : "Load image…"}</button>
+      ${t ? html`
+        ${sc && sc.length === 2
+          ? html`<label for="traceDist">Real distance (cm)</label>
+            <div class="row"><input id="traceDist" type="number" min="1" step="1" @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); this.applyTraceScale(); } else if (e.key === "Escape") { e.preventDefault(); this.cancelTraceScale(); } }}>
+              <button class="btn" id="traceApply" @click=${() => this.applyTraceScale()}>Apply</button></div>`
+          : html`<button class="btn" id="traceScale" aria-pressed=${sc ? "true" : "false"} @click=${() => (sc ? this.cancelTraceScale() : this.startTraceScale())}>${sc ? `Click point ${sc.length + 1} of 2…` : "Scale…"}</button>`}
+        <label for="traceAlpha">Opacity</label>
+        <div class="rangerow"><input id="traceAlpha" type="range" min="0" max="1" step="0.05" .value=${live(String(t.alpha))} @change=${(e: Event) => { const a = Number((e.target as HTMLInputElement).value); if (Number.isFinite(a)) this.setTrace({ ...t, alpha: Math.min(1, Math.max(0, a)) }, "Image opacity changed"); }}><span class="rot-val">${Math.round(t.alpha * 100)}%</span></div>
+        <label><input id="traceOn" type="checkbox" .checked=${live(t.on)} @change=${(e: Event) => this.setTrace({ ...t, on: (e.target as HTMLInputElement).checked }, (e.target as HTMLInputElement).checked ? "Image shown" : "Image hidden")}> Show</label>
+        <button class="btn warn" id="traceRemove" @click=${() => { this.traceScale = null; this.setTrace(null, "Image removed"); }}>Remove image</button>`
+        : html`<p class="hint">Load a scan, then Scale it with two points a known distance apart, and draw over it. Only the editor shows it.</p>`}
+    </div>`;
+  }
+
   /** S6.6: a whole premade dashboard — pasteable as-is via a new dashboard's own "Edit in YAML" — with one view
    * holding the card: this editor's own theme, and every floor in its current order when there's more than one,
    * so `floors[0]` stays the default the card opens on (a single-floor layout needs no `floors` at all — the card
@@ -1089,6 +1189,8 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
     if (ev.key === "Escape" && this.installCodeOpen) { ev.preventDefault(); this.toggleInstallCode(); return; }
+    if (ev.key === "Escape" && this.traceScale) { ev.preventDefault(); this.cancelTraceScale(); return; }
+    if (ev.key === "Escape" && this.traceOpen) { ev.preventDefault(); this.toggleTrace(); return; }
     if (ev.key === "Escape" && this.st.helpOpen) { ev.preventDefault(); this.toggleHelp(); return; }
     if (this.draw) {
       // Draw mode owns these keys: Delete must not remove the item that was selected before.
@@ -1625,7 +1727,10 @@ export class FloorplanStudioEditor extends LitElement {
    * anything changes in HA; `migrate()` drops it again if the file is re-opened.
    */
   private exportJson() {
-    const layout = this.ha ? { ...this.st.layout, available: availableEntities(this.st.layout, this.ha) } : this.st.layout;
+    // S7.11: a trace image is megabytes an agent cannot read; it goes only when File, Include trace image is ticked.
+    const own = this.exportTrace ? this.st.layout
+      : { ...this.st.layout, floors: Object.fromEntries(Object.entries(this.st.layout.floors).map(([k, f]) => { const rest: Partial<Floor> = { ...f }; delete rest.trace; return [k, rest]; })) };
+    const layout = this.ha ? { ...own, available: availableEntities(this.st.layout, this.ha) } : own;
     const blob = new Blob([JSON.stringify(layout, null, 1)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1778,6 +1883,10 @@ export class FloorplanStudioEditor extends LitElement {
       if (dr.polygon && dr.points.length >= 2 && this.hover) o.push(`<line class="dr" data-draw="close" x1="${num(this.hover[0])}" y1="${num(this.hover[1])}" x2="${num(dr.points[0][0])}" y2="${num(dr.points[0][1])}"/>`);
       dr.points.forEach((p, i) => o.push(`<circle class="dp${i === 0 ? " first" : ""}" data-dp="${i}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num((i === 0 ? 6 : 4) * k)}"/>`));
     }
+    // S7.11: the points of a trace Scale step, and the line between them.
+    const ts = this.traceScale;
+    if (ts?.length === 2) o.push(`<line class="dr" x1="${num(ts[0][0])}" y1="${num(ts[0][1])}" x2="${num(ts[1][0])}" y2="${num(ts[1][1])}"/>`);
+    ts?.forEach((p) => o.push(`<circle class="dp first" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
     return o.join("");
   }
 
@@ -1803,7 +1912,7 @@ export class FloorplanStudioEditor extends LitElement {
     const groupKindOf = (g: { members?: string[] }) => (g.members ?? [])[0]?.split(".")[0] === "binary_sensor" ? "motion" as const : (g.members ?? [])[0]?.split(".")[0] === "light" ? "light" as const : undefined;
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed }) + turnG(overlay);
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed }) + turnG(overlay);
     const counts: Record<string, number> = {};
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const unplaced = st.unplaced(), q = this.devQuery.trim().toLowerCase();
@@ -1903,6 +2012,7 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn" id="recenter" @click=${() => { st.recenter(); this.requestUpdate(); }}>Re-center</button>
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
           <button class="btn" id="devcols" aria-expanded=${pressed(!!this.devColsPos)} @click=${() => this.toggleDevCols()}>Device colours</button>
+          <button class="btn" id="traceBtn" aria-expanded=${pressed(this.traceOpen)} @click=${() => this.toggleTrace()}>Trace image…</button>
           <div class="rotrow"><span id="rotv">Rotate the plan: ${st.layout.rotate ?? 0}°</span>
             <button class="btn keep" id="rotl" aria-label="Rotate the plan 45 degrees left" @click=${() => this.rotatePlan(-45)}>&#8630; 45°</button>
             <button class="btn keep" id="rotr" aria-label="Rotate the plan 45 degrees right" @click=${() => this.rotatePlan(45)}>45° &#8631;</button></div>
@@ -1910,6 +2020,7 @@ export class FloorplanStudioEditor extends LitElement {
         <details class="menu" id="mFile"><summary class="btn">File</summary><div class="box">
           <button class="btn" id="imp" @click=${() => this.renderRoot.querySelector<HTMLInputElement>("#file")?.click()}>Open…</button>
           <button class="btn" id="exp" title="Download the current layout as JSON" @click=${() => this.exportJson()}>Export…</button>
+          <label class="grp"><input type="checkbox" id="expTrace" .checked=${live(this.exportTrace)} @change=${(e: Event) => { this.exportTrace = (e.target as HTMLInputElement).checked; }}> Include trace image</label>
           <button class="btn" id="installcode" aria-expanded=${pressed(this.installCodeOpen)} @click=${() => this.toggleInstallCode()}>Install code…</button>
           ${this.demo ? html`<button class="btn" id="loaddemo" ?disabled=${!isBlank(st.layout)} title=${isBlank(st.layout) ? "Load the demo home" : "Reset first: loading the demo would overwrite your plan."} @click=${() => this.loadDemo()}>Load demo</button>` : nothing}
           <button class="btn danger" id="reset" title="Erase everything and start from a blank plan" @click=${() => this.reset()}>Reset</button>
@@ -1936,10 +2047,11 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="zout" title="Zoom out" aria-label="Zoom out" @click=${() => this.zoomBy(1.25)}>&minus;</button>
             <button class="btn" id="zreset" title="Reset zoom: fit the whole floor" aria-label="Reset zoom" @click=${() => this.zoomBy(0)}>0</button>
           </div>
-          <svg xmlns="http://www.w3.org/2000/svg" class=${this.draw ? "drawing" : ""} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
+          <svg xmlns="http://www.w3.org/2000/svg" class=${[this.draw ? "drawing" : "", f.trace?.on === true ? "tracing" : ""].filter(Boolean).join(" ")} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
           ${this.ctxMenu ? this.ctxMenuView(this.ctxMenu) : nothing}
           ${this.devColsPos ? this.devColsView(st) : nothing}
           ${this.installCodeOpen ? this.installCodeView() : nothing}
+          ${this.traceOpen ? this.traceView() : nothing}
         </div>
         <aside>
           <div id="panel">${st.helpOpen ? helpPanel(() => this.toggleHelp()) : selectionPanel(this.ctx())}</div>
