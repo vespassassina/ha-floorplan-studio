@@ -12,6 +12,7 @@ vi.mock("../../src/core", async (importOriginal) => {
 });
 import { renderFloor } from "../../src/core";
 import { FloorplanStudioCard } from "../../src/card/floorplan-studio-card";
+import { HOLD_MS } from "../../src/card/actions";
 
 const L = demo as unknown as Layout;
 const lastRenderState = () => (renderFloor as unknown as Mock).mock.calls.at(-1)![1] as RenderOpts;
@@ -597,6 +598,94 @@ describe("FloorplanStudioCard", () => {
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
       expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.first.rooms.length);
+    });
+  });
+
+  describe("S7.5 kiosk mode", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    });
+
+    it("kiosk: true hides .fp-floors and the zoom buttons; kiosk: false (or unset) shows both", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floors: ["ground", "first"], kiosk: true });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
+      expect(el.shadowRoot!.querySelector(".fp-zoom")).toBeNull();
+
+      el.setConfig({ layout: structuredClone(L), floors: ["ground", "first"], kiosk: false });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-floors")).not.toBeNull();
+      expect(el.shadowRoot!.querySelector(".fp-zoom")).not.toBeNull();
+    });
+
+    it("with floors: [a, b] and kiosk: true the first floor shows and there is no switcher", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floors: ["first", "ground"], kiosk: true });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.first.rooms.length);
+    });
+
+    it("a hold of HOLD_MS + 100 on a light fires no hass-more-info under kiosk, and does otherwise (same layout, same hold, two cards)", async () => {
+      vi.useFakeTimers();
+
+      const kioskEl = await mount();
+      const kioskMoreInfo = vi.fn();
+      kioskEl.addEventListener("hass-more-info", kioskMoreInfo);
+      kioskEl.setConfig({ layout: structuredClone(L), kiosk: true });
+      kioskEl.hass = stubHass() as never;
+      await kioskEl.updateComplete;
+      const g = kioskEl.shadowRoot!.querySelector('svg [data-x="0"]')!; // devices[0]: light.demo_living
+      g.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(HOLD_MS + 100);
+      expect(kioskMoreInfo).not.toHaveBeenCalled();
+      g.dispatchEvent(new Event("pointerup", { bubbles: true }));
+
+      // Not passing for nothing: the same hold, on an otherwise identical card without kiosk, does fire more-info.
+      const plainEl = await mount();
+      const plainMoreInfo = vi.fn();
+      plainEl.addEventListener("hass-more-info", plainMoreInfo);
+      plainEl.setConfig({ layout: structuredClone(L) });
+      plainEl.hass = stubHass() as never;
+      await plainEl.updateComplete;
+      const g2 = plainEl.shadowRoot!.querySelector('svg [data-x="0"]')!;
+      g2.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(HOLD_MS + 100);
+      expect(plainMoreInfo).toHaveBeenCalledTimes(1);
+      g2.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    });
+
+    it("a plain tap still toggles under kiosk", async () => {
+      const el = await mount();
+      const callService = vi.fn();
+      el.setConfig({ layout: structuredClone(L), kiosk: true });
+      el.hass = { ...stubHass(), callService } as never;
+      await el.updateComplete;
+
+      const g = el.shadowRoot!.querySelector('svg [data-x="0"]')!;
+      g.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      g.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      expect(callService).toHaveBeenCalledWith("light", "toggle", { entity_id: "light.demo_living" });
+    });
+
+    it("kiosk: \"yes\" (a string) is refused by setConfig, naming the key", async () => {
+      const el = await mount();
+      expect(() => el.setConfig({ kiosk: "yes" as never })).toThrow(/kiosk/);
+    });
+
+    it("zoom: \"yes\" (an unknown string) is refused by setConfig, naming the key — S7.4 left this falling back to true", async () => {
+      const el = await mount();
+      expect(() => el.setConfig({ zoom: "yes" as never })).toThrow(/zoom/);
+    });
+
+    it("zoom: true, false and \"wheel\" are all still accepted", async () => {
+      const el = await mount();
+      for (const zoom of [true, false, "wheel"] as const) expect(() => el.setConfig({ zoom })).not.toThrow();
     });
   });
 

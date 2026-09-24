@@ -2,6 +2,33 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-24 S7.5 Kiosk mode: how the brief was read
+
+- **"No version"** was already moot: the card has never shown a version
+  anywhere on its own face (that line is in the editor's View menu, not the
+  card — see 0.10.0 in `CHANGELOG.md`). `kiosk` hides nothing there because
+  there was nothing to hide; the phrase stays in the brief's own wording
+  above `FloorplanStudioCardConfig.kiosk` and in `docs/card.md` for whoever
+  adds a card-level version line later.
+- **`bindDeviceActions`'s `opts.longPress`** defaults to `true` (unset or
+  explicit) rather than requiring the card to pass it on every call, so
+  every other caller — tests included — keeps working unchanged. The card
+  passes `{ longPress: !this._kiosk() }` on every bind.
+- **`setConfig` also refuses an unrecognised `zoom`.** S7.4 left an unknown
+  `zoom` value falling back to `true` (recorded in its own entry below,
+  "Four places, not five"); that is exactly the silent-typo failure this
+  block's "Break it" line calls out for `kiosk`. Fixed in the same commit,
+  with its own test, rather than leaving one sibling key sloppy next to a
+  strict one.
+- **Every other config key stays permissive** (CLAUDE.md finding 1): an
+  unknown floor id, theme or fade value still falls back quietly, as
+  documented. Only `zoom` and `kiosk` throw, because both have a small,
+  closed set of valid values where a stray string is almost certainly a
+  typo, not an intentional new value.
+- **Four places, not five,** for `kiosk`, same reason as `zoom` in S7.4: the
+  config form (S7.7) does not exist yet.
+
+
 ## 2026-09-24 S7.6 Night: four departures from the brief
 
 - The overlay is a `<polygon class="room-night">` with the room's own points,

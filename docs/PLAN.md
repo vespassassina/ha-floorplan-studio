@@ -1372,6 +1372,34 @@ Shared rules for the sprint, on top of `CLAUDE.md`:
 - Test (first): a `hold` of `HOLD_MS + 100` on a light fires no `hass-more-info` under kiosk and does otherwise; `.fp-floors` and the zoom buttons are absent under kiosk.
 - Done when: tests pass; `docs/card.md` has a Kiosk section with a one-card-per-floor example.
 - Break it: `kiosk: "yes"` (a string) is refused by `setConfig` with a message naming the key.
+- Done, 2026-09-24. Departures and readings of the brief are in `docs/DECISIONS.md` (S7.5 entry).
+  - `src/card/actions.ts`: `bindDeviceActions` takes `opts?: { longPress?: boolean }`, default `true` (unset and
+    `true` behave the same). `false` never starts the hold timer, so a hold never fires `hass-more-info`; the
+    pointerup path is unchanged, so releasing still toggles like a plain tap. 3 new tests in `actions.test.ts`.
+  - `src/card/floorplan-studio-card.ts`: `kiosk` config key (default `false`), `_kiosk()` reads it. `_floorChips()`
+    returns `null` under kiosk; the zoom buttons are gated by a new `showZoomButtons` alongside the existing
+    `zoom` check; `bindDeviceActions` is called with `{ longPress: !this._kiosk() }`. New `_validateConfig`,
+    called from `setConfig`, refuses `kiosk` unless it is exactly `true`/`false`/`undefined`, and — S7.4 leftover
+    — refuses `zoom` unless it is `true`/`false`/`"wheel"`/`undefined`, both naming the key.
+  - "No version": already nothing to hide (see `docs/DECISIONS.md`); no code change needed for it.
+  - Tests written first and seen failing (module/behaviour missing), then green: 3 in `actions.test.ts`, 6 in
+    `card.test.ts` (kiosk hides chrome, first-floor-no-switcher, the hold, a plain tap, both bad-value refusals,
+    `zoom`'s three good values still accepted), 6 in `card.spec.ts` (Playwright: chrome absence, the real
+    `HOLD_MS + 100` hold with two fresh cards, a plain tap, floors + kiosk, both refusals).
+  - Revert-check: hard-coded `longPress = true` in `bindDeviceActions`, ignoring `opts`. Exactly the two kiosk
+    hold tests failed (`actions.test.ts` and `card.test.ts`), nothing else; restored, vitest green again.
+  - Docs: `docs/SPEC.md` yaml block and a paragraph, `docs/card.md` table plus a new Kiosk mode section with a
+    one-card-per-floor example, CHANGELOG 0.11.0, `docs/DECISIONS.md`.
+  - Suites: 914 vitest (up from 889; +3 actions, +6 card — the pre-existing 59 failures in
+    `tests/editor/state.test.ts`, `localStorage.clear()` throwing `undefined`, are unrelated to this task: they
+    fail the same way on `sprint/7` with this branch's changes stashed out, so nothing here caused or fixed them.
+    Filed, not fixed — out of scope for S7.5), lint clean, build clean, 475 Playwright passed / 1 skipped, exit
+    0. `--repeat-each=10` on the 6 new Playwright tests: 60/60.
+  - Note on the Playwright count: a first full run's log was contaminated by a concurrent agent's session writing
+    to the same shared `/tmp/pw_full.log` (its output named a different worktree, `agent-a481e831...`, and showed
+    7 unrelated failures that were never this branch's). Re-run to a session-private scratchpad path came back
+    clean. Lesson: never share a bare `/tmp/<name>.log` path across parallel worktrees; always redirect into the
+    session's own scratchpad.
 
 ### S7.6 Night fill from the sun
 - Outcome: after sunset the plan darkens: every room and the ground outside get a night overlay; a room with a light on stays bright (the same detection as `room_glow`). Cheap version of realistic light. The editor can preview it.

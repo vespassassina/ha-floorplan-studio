@@ -743,3 +743,107 @@ test("S7.6 CSS pair: at night an unlit room is covered by --fp-night, a lit one 
   const fills = await page.locator("floorplan-studio-card").evaluate((el) => [0, 1].map((i) => getComputedStyle(el.shadowRoot!.querySelector(`svg polygon[data-night="${i}"]`)!).fill));
   expect(fills).toEqual(["rgba(4, 10, 30, 0.45)", "none"]);
 });
+
+// S7.5: kiosk mode for a wall tablet. Real page.mouse gestures at real coordinates (CLAUDE.md finding 3), since the
+// hold is a real HOLD_MS + 100 wait, not a fake-timer advance.
+test.describe("S7.5 kiosk mode", () => {
+  test.use({ viewport: { width: 700, height: 900 } });
+  const card = (page: Page) => page.locator("floorplan-studio-card");
+  const states = () => ({ "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+
+  /** Configures the card and records every `hass-more-info` fired on it onto `window.__moreInfo`. */
+  async function configureRecordingMoreInfo(page: Page, config: Record<string, unknown>) {
+    await page.evaluate(
+      ([config, states]) => {
+        (window as unknown as { __moreInfo: unknown[] }).__moreInfo = [];
+        const el = document.getElementById("card") as unknown as EventTarget & { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+        el.addEventListener("hass-more-info", (e) => (window as unknown as { __moreInfo: unknown[] }).__moreInfo.push((e as CustomEvent).detail));
+        el.setConfig(config);
+        el.hass = { states };
+        return el.updateComplete;
+      },
+      [config, states()] as const,
+    );
+  }
+  const moreInfo = (page: Page) => page.evaluate(() => (window as unknown as { __moreInfo: unknown[] }).__moreInfo);
+
+  test(".fp-floors and the zoom buttons are absent under kiosk, and present without it", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: structuredClone(demo), floors: ["ground", "first"], kiosk: true }, { states: states() });
+    await expect(card(page).locator("css=.fp-floors")).toHaveCount(0);
+    await expect(card(page).locator("css=.fp-zoom")).toHaveCount(0);
+
+    await configure(page, { layout: structuredClone(demo), floors: ["ground", "first"] }, { states: states() });
+    await expect(card(page).locator("css=.fp-floors")).toHaveCount(1);
+    await expect(card(page).locator("css=.fp-zoom")).toHaveCount(1);
+  });
+
+  test("a hold of HOLD_MS + 100 on a light fires no hass-more-info under kiosk, and does otherwise", async ({ page }) => {
+    const HOLD_MS = 500;
+    await open(page);
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo), kiosk: true });
+    const light = card(page).locator('css=g[data-x="1"]'); // kitchen light
+    const box = (await light.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(HOLD_MS + 100);
+    expect(await moreInfo(page)).toEqual([]);
+    await page.mouse.up();
+    expect(await moreInfo(page)).toEqual([]); // the hold consumed nothing to fire; releasing toggles instead
+
+    // Not passing for nothing: the same hold, on a fresh card without kiosk, does fire more-info. A fresh `open`
+    // (not a second `configure` on the same element) matters here: the card keeps its `<svg>` element across a
+    // config change (S7.4's own comment on `updated()`), so `bindDeviceActions` is bound once per element, and a
+    // second `configure` on the same card would still be running with the first bind's `longPress: false`.
+    await open(page);
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo) });
+    const light2 = card(page).locator('css=g[data-x="1"]');
+    const box2 = (await light2.boundingBox())!;
+    await page.mouse.move(box2.x + box2.width / 2, box2.y + box2.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(HOLD_MS + 100);
+    expect(await moreInfo(page)).toEqual([{ entityId: "light.demo_kitchen" }]);
+    await page.mouse.up();
+  });
+
+  test("a plain tap still toggles a light under kiosk", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), kiosk: true }, states());
+    const light = await lightAtForKiosk(page);
+    await page.mouse.click(light.x, light.y);
+    const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+    expect(calls).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]);
+  });
+
+  test("with floors: [first, ground] and kiosk: true the first listed floor shows and there is no switcher", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: structuredClone(demo), floors: ["first", "ground"], kiosk: true }, { states: states() });
+    await expect(card(page).locator("css=.fp-floors")).toHaveCount(0);
+    const rooms = await card(page).locator("css=svg [data-r]").count();
+    expect(rooms).toBe(demo.floors.first.rooms.length);
+  });
+
+  test("kiosk: \"yes\" (a string) is refused by setConfig with a message naming the key", async ({ page }) => {
+    await open(page);
+    const threw = await page.evaluate(() => {
+      const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void };
+      try { el.setConfig({ kiosk: "yes" }); return null; } catch (e) { return String(e); }
+    });
+    expect(threw).toMatch(/kiosk/);
+  });
+
+  test("zoom: \"yes\" (an unknown string, left over from S7.4) is refused by setConfig with a message naming the key", async ({ page }) => {
+    await open(page);
+    const threw = await page.evaluate(() => {
+      const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void };
+      try { el.setConfig({ zoom: "yes" }); return null; } catch (e) { return String(e); }
+    });
+    expect(threw).toMatch(/zoom/);
+  });
+
+  /** Centre of the kitchen light on screen, same as S7.4's `lightAt` above but scoped to this describe block. */
+  async function lightAtForKiosk(page: Page) {
+    const b = (await card(page).locator('css=g[data-x="1"]').boundingBox())!;
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  }
+});

@@ -450,3 +450,54 @@ describe("actions: a drag is a pan, not a tap (S7.4)", () => {
     expect(callService).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("actions: longPress option (S7.5 kiosk)", () => {
+  let callService: ReturnType<typeof vi.fn>;
+  let moreInfo: ReturnType<typeof vi.fn>;
+  let host: { hass: Hass } & EventTarget;
+  let svg: SVGSVGElement;
+  let unbind: () => void;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    callService = vi.fn();
+    moreInfo = vi.fn();
+    svg = svgFixture([LIGHT, SWITCH]);
+    host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    host.addEventListener("hass-more-info", moreInfo);
+  });
+
+  afterEach(() => {
+    unbind();
+    document.body.innerHTML = "";
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("longPress: false never fires hass-more-info on a hold, and a plain release still toggles (a hold that removed this would fail)", () => {
+    unbind = bindDeviceActions(svg, host, (i) => [LIGHT, SWITCH][i], undefined, undefined, { longPress: false });
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(HOLD_MS + 100);
+    expect(moreInfo).not.toHaveBeenCalled();
+    pointer(g, "pointerup");
+    expect(callService).toHaveBeenCalledTimes(1);
+    expect(callService).toHaveBeenCalledWith("light", "toggle", { entity_id: "light.demo_living" });
+  });
+
+  it("longPress unset (default) still fires hass-more-info on the same hold, so the test above is not passing for nothing", () => {
+    unbind = bindDeviceActions(svg, host, (i) => [LIGHT, SWITCH][i]);
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(HOLD_MS + 100);
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it("longPress: true is the same as leaving it unset", () => {
+    unbind = bindDeviceActions(svg, host, (i) => [LIGHT, SWITCH][i], undefined, undefined, { longPress: true });
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(HOLD_MS + 100);
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+  });
+});
