@@ -1563,8 +1563,8 @@ Shared rules for the sprint, on top of `CLAUDE.md`:
     `FloorplanStudioCardConfig` didn't already carry them. Both S7.5 and S7.6 landed those three keys onto
     `FloorplanStudioCardConfig` itself (`src/card/floorplan-studio-card.ts`) after S7.7 was written, so the form's
     own hint text is now false and shows the user a stale disclaimer for keys the card has read since 2026-09-24.
-    Left as a follow-up task; this task's brief was docs only and forbade touching `src/` without a doc test
-    demanding it.
+    Fixed on `sprint/7` right after the merge (2026-09-25): the hint now describes Night and Kiosk, and
+    `EditorConfig` is an alias of the card's own config type.
   - Cleanup item (S7.12 point 9): the brief named a duplicated consecutive `await open(page);` pair in
     `tests/card/card.spec.ts` "from S7.6". Searched the file at this branch's base commit (`652554c`) for any two
     `await open(page);` lines within 3 lines of each other — none found (56 total calls, all singly placed). Either

@@ -3,16 +3,8 @@ import { THEMES, migrate, validate } from "../core";
 import type { Layout, Theme } from "../core";
 import type { FloorplanStudioCardConfig, Hass } from "./floorplan-studio-card";
 
-/**
- * S7.7: the fields two other S7 tasks are still landing (S7.5 kiosk, S7.6 night + sun). They are added to the
- * form now, with their planned defaults, so the form does not need a second pass once those branches merge —
- * `docs/PLAN.md`'s S7.7 record says so. `FloorplanStudioCardConfig` itself does not carry them yet.
- */
-export interface EditorConfig extends FloorplanStudioCardConfig {
-  kiosk?: boolean;
-  night?: "auto" | "on" | "off";
-  sun?: string;
-}
+/** The form edits the card's own config type; every key it shows is one the card reads (S7.5 kiosk, S7.6 night and sun). */
+export type EditorConfig = FloorplanStudioCardConfig;
 
 type ZoomChoice = "on" | "wheel" | "off";
 
@@ -245,7 +237,7 @@ export class FloorplanStudioCardEditor extends LitElement {
         <label class="main" for="sun">Sun entity</label>
         <input id="sun" type="text" .value=${this._config.sun ?? DEFAULT_SUN} @change=${this._onSun} />
       </div>
-      <p class="hint">Kiosk, Night and the sun entity land with S7.5 and S7.6; the card does not read them yet.</p>
+      <p class="hint">Night darkens rooms after sunset; Kiosk shows only the plan, for a wall tablet.</p>
     `;
   }
 }
