@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { DEVICE_TYPES, UNLINKED_TYPES, FURNITURE_SYMBOLS, type Layout, type WallKind } from "../../src/core/schema";
+import { DEVICE_TYPES, UNLINKED_TYPES, FURNITURE_SYMBOLS, type Layout, type Pt, type WallKind } from "../../src/core/schema";
 import { stairSteps } from "../../src/core";
 import { DEVICE_ICONS } from "../../src/core/icons";
 import { renderFloor, viewBoxFor, planPivot, rotateAbout, contentPoints, DEVICE_COLOURS, DEVICE_REACH, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
@@ -1206,7 +1206,13 @@ describe("S1.42: a device never hides a room name", () => {
   it("stays put with no device near", () => { expect(nameY(floor("room", []))).toBe(cy); expect(nameY(floor("room", [[20, 20]]))).toBe(cy); });
   it("moves down 32k when a device sits on the centroid", () => { expect(nameY(floor("room", [[200, 100]]))).toBe(cy + 32 * k); });
   it("moves up when the spot below is taken too", () => { expect(nameY(floor("room", [[200, 100], [200, 100 + 32 * k]]))).toBe(cy - 32 * k); });
-  it("stays when all three spots are taken", () => { expect(nameY(floor("room", [[200, 100], [200, 100 + 32 * k], [200, 100 - 32 * k]]))).toBe(cy); });
+  // S7.1: two more rows, 64k below then 64k above, before the centroid is kept regardless.
+  const three: [number, number][] = [[200, 100], [200, 100 + 32 * k], [200, 100 - 32 * k]];
+  it("S7.1: moves 64k down when the three near spots are taken", () => { expect(nameY(floor("room", three))).toBe(cy + 64 * k); });
+  it("S7.1: moves 64k up when 64k down is taken too", () => { expect(nameY(floor("room", [...three, [200, 100 + 64 * k]]))).toBe(cy - 64 * k); });
+  it("stays at the centroid when all five spots are taken, so nothing is dropped", () => {
+    expect(nameY(floor("room", [...three, [200, 100 + 64 * k], [200, 100 - 64 * k]]))).toBe(cy);
+  });
   it("a zone follows the same steps with its smaller size", () => {
     expect(nameY(floor("zone", [[200, 100]]))).toBe(cy + 32 * k);
     expect(nameY(floor("zone", [[200, 100], [200, 100 + 32 * k]]))).toBe(cy - 32 * k);
@@ -1345,5 +1351,122 @@ describe("unlinked appliances (S4.25)", () => {
 
   it("counts toward contentPoints, so Re-center reaches it", () => {
     expect(contentPoints(fl).some((p) => p[0] === 200 && p[1] === 200)).toBe(true);
+  });
+});
+
+describe("S7.1: labels never overprint each other", () => {
+  type Box = [number, number, number, number]; // x, y, w, h in the screen frame, plan units
+  const unesc = (t: string) => t.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+  // Written out here on purpose, not imported from render.ts: the brief's estimate, len x 0.6 x size wide by size tall,
+  // the baseline 0.75 of the size below the top. A device icon is its halo, a 16k disc about the icon centre, as a square.
+  const boxesOf = (html: string, rotate?: { deg: number; pivot: Pt }) => {
+    const scr = (p: Pt): Pt => (rotate ? rotateAbout(p, rotate.deg, rotate.pivot) : p);
+    const texts = [...html.matchAll(/<text ([^>]*)>([^<]*)<\/text>/g)].map((m) => {
+      const a = (n: string) => Number(m[1].match(new RegExp(` ${n}="([^"]+)"`))![1]);
+      const size = a("font-size"), s = unesc(m[2]), w = s.length * 0.6 * size, [x, y] = scr([a("x"), a("y")]);
+      return { s, box: [x - w / 2, y - 0.75 * size, w, size] as Box };
+    });
+    const discs = [...html.matchAll(/<g data-[xu]="\d+"[^>]* transform="translate\(([-\d.]+) ([-\d.]+)\) scale\(([\d.]+)\)/g)].map((m) => {
+      const s = Number(m[3]), [x, y] = scr([Number(m[1]) + 12 * s, Number(m[2]) + 12 * s]);
+      return [x - 16 * s, y - 16 * s, 32 * s, 32 * s] as Box;
+    });
+    return { texts, discs };
+  };
+  const EPS = 0.05; // num() rounds every coordinate to 0.01
+  const meet = (a: Box, b: Box) => a[0] < b[0] + b[2] - EPS && b[0] < a[0] + a[2] - EPS && a[1] < b[1] + b[3] - EPS && b[1] < a[1] + a[3] - EPS;
+  const clashes = (html: string, rotate?: { deg: number; pivot: Pt }) => {
+    const { texts, discs } = boxesOf(html, rotate), out: string[] = [];
+    texts.forEach((t, i) => {
+      for (const u of texts.slice(i + 1)) if (meet(t.box, u.box)) out.push(`"${t.s}" on "${u.s}"`);
+      discs.forEach((d, j) => { if (meet(t.box, d)) out.push(`"${t.s}" on icon ${j}`); });
+    });
+    return out;
+  };
+  const bare = (f: typeof ground) => { f.doors = []; f.stairs = []; f.walls = []; f.furniture = []; return f; };
+  // Every value the demo can show, with units, so the value boxes are as wide as they get on a card.
+  const STATE: StateOverlay = {
+    "sensor.demo_living_temperature": st("23.5", { attributes: { unit_of_measurement: "°C" } }),
+    "sensor.demo_bedroom_temperature": st("19", { attributes: { unit_of_measurement: "°C" } }),
+    "sensor.demo_bathroom_humidity": st("54", { attributes: { unit_of_measurement: "%" } }),
+    "light.demo_living": st("on"), "light.demo_kitchen": st("on"), "binary_sensor.demo_hall_motion": st("on"),
+  };
+  const pivot = planPivot(L);
+
+  // Scale 1 is the card; 0.5 is the editor zoomed out, where the text is twice as big against the plan.
+  for (const name of ["ground", "first"] as const)
+    for (const scale of [1, 0.5])
+      for (const deg of [0, 90])
+        it(`the demo's ${name} floor at scale ${scale}, turned ${deg}: no text on another text or on an icon`, () => {
+          const rotate = deg ? { deg, pivot } : undefined;
+          const f = L.floors[name];
+          const html = renderFloor(f, { scale, now: NOW, state: STATE, rotate });
+          const { texts, discs } = boxesOf(html, rotate);
+          expect(texts.length).toBe(f.rooms.filter((r) => r.name && r.kind !== "fill").length + f.devices.filter((d) => d.type === "temp" || d.type === "humidity").length);
+          expect(discs.length).toBe(f.devices.length);
+          expect(clashes(html, rotate)).toEqual([]);
+        });
+
+  it("two tiny neighbouring zones whose names meet at the centroid end up on different rows", () => {
+    const f = bare(structuredClone(ground));
+    const wk = ["boundary", "boundary", "boundary", "boundary"];
+    f.rooms = [
+      { id: "a", name: "Reading nook", kind: "zone", area: "", pts: [[0, 0], [60, 0], [60, 40], [0, 40]], wk },
+      { id: "b", name: "Music stand", kind: "zone", area: "", pts: [[60, 0], [120, 0], [120, 40], [60, 40]], wk },
+    ] as never;
+    f.devices = [];
+    const html = renderFloor(f, { scale: 1 });
+    const y = (n: string) => Number(html.match(new RegExp(`<text class="lbl zone"[^>]* y="([\\d.-]+)"[^>]*>${n}<`))![1]);
+    expect(y("Reading nook")).toBe(20); // the first keeps its centroid
+    expect(Math.abs(y("Music stand") - 20)).toBeGreaterThanOrEqual(10); // at least a whole row (size 10) away
+    expect(clashes(html)).toEqual([]);
+  });
+
+  it("a room name, its label, a zone label and a sensor value on one spot all get a place of their own", () => {
+    const f = bare(structuredClone(ground));
+    f.rooms = [
+      { id: "r", name: "Study", label: "3 x 4", kind: "room", area: "", pts: [[0, 0], [200, 0], [200, 200], [0, 200]], wk: ["wall", "wall", "wall", "wall"] },
+      { id: "z", name: "Desk corner", kind: "zone", area: "", pts: [[0, 0], [200, 0], [200, 200], [0, 200]], wk: ["boundary", "boundary", "boundary", "boundary"] },
+    ] as never;
+    f.devices = [{ id: "t", type: "temp", entity: "sensor.t", x: 100, y: 150 }] as never;
+    const html = renderFloor(f, { scale: 1, now: NOW, state: { "sensor.t": st("21.5", { attributes: { unit_of_measurement: "°C" } }) } });
+    expect(html).toMatch(/<text class="lbl" x="100" y="100"[^>]*font-weight="600">Study</); // the name goes first and keeps its centroid
+    for (const t of [">3 x 4<", ">Desk corner<", ">21.5 °C<"]) expect(html).toContain(t);
+    expect(clashes(html)).toEqual([]);
+  });
+
+  it("a sensor value tries below its icon, then above, then to the right", () => {
+    const f = bare(structuredClone(ground));
+    f.rooms = [];
+    const t = { id: "t", type: "temp", entity: "sensor.t", x: 100, y: 100 };
+    const sw = (id: string, y: number) => ({ id, type: "switch", entity: `switch.${id}`, x: 100, y });
+    const valAt = (devs: object[]) => {
+      const html = renderFloor({ ...f, devices: devs } as never, { scale: 1, now: NOW, state: { "sensor.t": st("7") } });
+      expect(clashes(html)).toEqual([]);
+      const m = html.match(/<text class="val" x="([\d.-]+)" y="([\d.-]+)"/)!;
+      return [Number(m[1]), Number(m[2])];
+    };
+    const below = valAt([t]);
+    expect(below[0]).toBe(100); expect(below[1]).toBeGreaterThan(116);
+    const above = valAt([t, sw("s", 140)]);
+    expect(above[0]).toBe(100); expect(above[1]).toBeLessThan(84);
+    const right = valAt([t, sw("s", 140), sw("u", 60)]);
+    expect(right[0]).toBeGreaterThan(116); expect(Math.abs(right[1] - 100)).toBeLessThan(8);
+  });
+
+  it("break it: a name longer than its room still draws, whole, at the centroid", () => {
+    const f = bare(structuredClone(ground));
+    const long = "Storage and laundry!"; // 20 characters in a 100 cm store room: about 168 cm of text
+    f.rooms = [{ id: "s", name: long, kind: "room", area: "", pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: ["wall", "wall", "wall", "wall"] }] as never;
+    f.devices = [];
+    expect(renderFloor(f, { scale: 1 })).toMatch(new RegExp(`<text class="lbl" x="50" y="50"[^>]*>${long}<`));
+  });
+
+  it("break it: with every candidate row taken, a name still draws at the centroid, the one documented overlap", () => {
+    const f = bare(structuredClone(ground));
+    f.rooms = [{ id: "s", name: "Store", kind: "room", area: "", pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: ["wall", "wall", "wall", "wall"] }] as never;
+    f.devices = [0, 32, -32, 64, -64].map((d, i) => ({ id: `d${i}`, type: "switch", entity: `switch.d${i}`, x: 50, y: 50 + d })) as never;
+    const html = renderFloor(f, { scale: 1 });
+    expect(html).toMatch(/<text class="lbl" x="50" y="50"[^>]*>Store</);
+    expect(clashes(html)).toEqual(['"Store" on icon 0']);
   });
 });
