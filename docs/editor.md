@@ -35,6 +35,9 @@ Left to right:
   its own Close button puts the side panel back to normal.
 - **Undo / Redo** — one step per gesture; a drag that ends back where it
   started adds no step.
+- **Status line** — right of Redo: what just happened ("Saved", "Edited",
+  an error). A long message is cut with an ellipsis; hover it for the full
+  text.
 
 ![The Add menu open: Openings, Wall and Areas submenus, then Furniture and Unlinked device selects.](img/editor-add-menu.png)
 
@@ -79,6 +82,9 @@ shape. **Delete** removes whatever is selected — corner, wall, door, opening,
 device, furniture or stairs. **Ctrl/Cmd+Z** undoes, **Ctrl/Cmd+Shift+Z**
 redoes. Scroll to zoom; pan by dragging the background, or drag anywhere with
 the middle button, right button, or Ctrl/Cmd held.
+
+The same text is in the editor under Help, step "Moving things and
+snapping". The side panel no longer repeats it.
 
 ## Rotation
 

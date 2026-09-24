@@ -59,6 +59,8 @@ export interface PanelCtx {
   say(msg: string): void;
   /** Redraw without an edit. */
   refresh(): void;
+  /** S7.2: opens the Help panel, the same as the toolbar's Help button. */
+  help(): void;
   /** Floor operations of the editor: each is one undo step and reports in the status line. */
   floors: { rename(key: string, title: string): void; move(key: string, delta: number): void; remove(key: string): void };
 }
@@ -219,6 +221,7 @@ function floorPanel(c: PanelCtx) {
       : html`<p><button class="btn danger" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
     ${hint("A new floor starts with the outline and the stairs of the first floor. Delete a floor to start again with a clean one.")}
     ${hint("Devices on a deleted floor stay in the catalog and go back to the Device menu.")}
+    <p class="hint">Need help? Open Help. <button class="btn" id="floorHelp" @click=${() => c.help()}>Help</button></p>
     ${unboundList(c)}
     ${st.ha ? unplacedAreas(c, st.ha) : nothing}`;
 }
@@ -559,7 +562,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${c.controlsAutomation && d.type === "switch" ? controlsField(c, i) : nothing}
     ${c.scheduleAutomation && SCHEDULABLE.includes(d.type) ? scheduleField(c, i) : nothing}
     <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); }, "warn")}</p>
-    ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it. Alt disables the grid.") + " Removed devices go back to the Device menu.")}`;
+    ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it.") + " Removed devices go back to the Device menu.")}`;
 }
 
 /**
@@ -659,7 +662,7 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
     ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}
     <p>${button("fudel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); }, "warn")}</p>
-    ${hint("Drag it to move it. Alt disables the grid.")}`;
+    ${hint("Drag it to move it.")}`;
 }
 
 /**
@@ -681,7 +684,7 @@ function unlinkedPanel(c: PanelCtx, i: number) {
     ${rotateButtons(c, "uurot", (n) => c.commit((f) => { f.unlinked[i].rot = ((u.rot + n) % 360 + 360) % 360; }), { reset: () => { if (u.rot) c.commit((f) => { f.unlinked[i].rot = 0; }); } })}
     ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(), setAttached)}
     <p>${button("uudel", "Delete", () => { c.commit((f) => { f.unlinked.splice(i, 1); }); c.select(null); }, "warn")}</p>
-    ${hint("Drag it to move it. Alt disables the grid.")}`;
+    ${hint("Drag it to move it.")}`;
 }
 
 function stairsPanel(c: PanelCtx, i: number) {
