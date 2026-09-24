@@ -1257,8 +1257,126 @@ config). No write ever runs on load or on save.
 - Built: `prompts/{SKILL,SCHEMA,README}.md`, `prompts/examples/{flat,two-floors}.json`, `scripts/validate-layout.mjs`, `tests/core/validate-cli.test.ts` (11 tests). The README buttons that pointed at a missing file are gone; the section links to `prompts/README.md`, which explains loading the skill into each assistant.
 - **Still open, and it is the point of the task:** the "Done when" run. No model has yet traced a drawing with this skill. Until one has, and one that is not Claude, the skill is untested prose. Record it in `prompts/RESULTS.md`.
 
+## Sprint 6 — assistant workflow (E5, E6)
+
+Recorded in `docs/DECISIONS.md` and `CHANGELOG.md` only: S6.5 card `floors`
+config and the File, Install code panel (0.10.2); S6.7 File, Export carries an
+entity snapshot (0.10.3).
+
+## Sprint 7 — decent before publishing (E3, E2, E5)
+
+Source: `docs/REVIEW-2026-09-24.md`. Diego, 2026-09-24: "it needs to be decent
+before I publish. No bugs." Every task below is a full brief; assumptions are
+written into the task and stand until he overrides them. Order matters: S7.1 to
+S7.3 are bugs, then card features, then presence, then the trace image, then
+docs. Release 0.11.0 closes the sprint.
+
+Shared rules for the sprint, on top of `CLAUDE.md`:
+
+- A task that touches `render.ts` or a stylesheet runs `npm run shots` and the
+  Execute role looks at the PNGs before reporting.
+- A new config key is added in five places in the same commit: the card's
+  config interface, `docs/SPEC.md`'s yaml block, `docs/card.md`'s table, the
+  config form (S7.7, once it exists) and a card test.
+- A new `DeviceType` is added in eight places in the same commit: `schema.ts`
+  (`DEVICE_TYPES`, the comment), `icons.ts`, `ha.ts` (`TYPE_RULES`,
+  `typeForEntity`), `render.ts` (a decided look for every state), `actions.ts`
+  (`NO_TOGGLE` or a decided tap), the editor's device panel, `docs/SPEC.md`'s
+  type list, `prompts/SCHEMA.md`. The union-iterating tests catch the misses.
+
+### S7.1 Labels never overprint each other
+- Outcome: no room name, zone label, room `label` or sensor value overlaps another label, a device icon or a sensor value on any floor of the demo, and the rule holds in general.
+- Files: `src/core/render.ts` (`nameAt`, `hit`, the `spots` list), `tests/core/render.test.ts`.
+- Interface: no schema change. A label box is `[x, y, w, h]` estimated from `len × 0.6 × size` by `size`. One `placed: Box[]` list per floor; every text drawn checks it and pushes itself. Candidates, in order: centroid; 32k below; 32k above; 64k below; 64k above; then the centroid regardless, so nothing is ever dropped. Room names go first (they are what a person reads), then room `label`s, then zone labels, then sensor values. Sensor values try below the icon, then above, then right.
+- Test (write first, watch it fail): `render.test.ts` parses every `<text>` in the demo's ground and first floor, builds the same boxes, and asserts no two intersect and none intersects a device disc. A second test builds two tiny neighbouring zones whose labels would collide at the centroid and asserts they end up on different rows. Revert the fix once and see both fail.
+- Done when: both tests pass; `npm run shots` shows "Garden" and "Garden pond" apart and "23.5" clear of "Reading corner"; the snapshot tests are updated and read by eye.
+- Break it: a label longer than its room (a 20-character name in a 100 cm store room) still draws, at the centroid, and the test tolerates the overlap only for that documented case.
+
+### S7.2 Trim the side panel, move the status line
+- Outcome: the six-line snapping paragraph is gone from every panel; it lives in Help as a step. The status line (`#status`) sits in the toolbar row, right of Undo/Redo, so feedback appears next to what caused it. Panels keep one short hint each at most.
+- Files: `src/editor/editor-app.ts` (aside, toolbar, `.status` style), `src/editor/guide.ts` (new step "Moving things and snapping"), `src/editor/panels.ts` (drop the repeated `hint(...)` lines that restate Alt/Shift/Ctrl), `tests/editor/editor.spec.ts`.
+- Interface: `#status` keeps its id and `role="status"`, so every existing `#status` assertion still passes. The floor panel gets one line, "Need help? Open Help.", with a button that opens the Help panel.
+- Test (first): Playwright asserts the aside contains no text "Hold Alt"; the Help panel contains it; `#status` is a descendant of the toolbar (`header`/`.toolbar`) and visible; Save still writes "Saved" there.
+- Done when: the tests pass; the 15 panel screenshots in `npm run shots` look right at 1280 wide; nothing in `editor.spec.ts` regresses.
+- Break it: the status text is 200 characters (an error message). It ellipsises with `text-overflow`, the full text in `title`, and the toolbar does not wrap.
+
+### S7.3 Docs are true; shots baseline accepted
+- Outcome: the README status table says what shipped (Organise shipped in 0.10.0; the card is in daily use; Sprint 5 docs exist); `shots/baseline` is re-accepted after S7.1; `docs/REVIEW-2026-09-24.md` is committed.
+- Files: `README.md` (rows 19 and 21), `shots/baseline/` (gitignored, `npm run shots -- --accept`), `docs/REVIEW-2026-09-24.md`.
+- Test: `npm run docs:check` clean.
+- Done when: the table has no row that names a sprint as future when it is done.
+
+### S7.4 Zoom and pan in the card
+- Outcome: a phone user can pinch, drag and double-tap the plan; a desktop user can Ctrl+wheel and drag. The plan never zooms out past fit and never in past 8×. Three small buttons (+, −, fit) sit in the card's top-right corner. Taps and long presses on devices keep working after a pan; a drag that moves more than 6 px is a pan, not a tap.
+- Files: `src/card/floorplan-studio-card.ts` (`viewBox` state, pointer handlers), new `src/card/viewport.ts` (pure: `zoomAt(view, k, px, py)`, `panBy(view, dx, dy)`, `clamp(view, fit)`, `pinch(view, p1, p2, q1, q2)`), `tests/card/viewport.test.ts`, `tests/card/card.spec.ts`.
+- Interface: config `zoom: true | false | "wheel"` (default `true`; `"wheel"` zooms on a plain wheel too, otherwise the wheel needs Ctrl/Cmd so the dashboard still scrolls). The viewBox is the card's own state, reset on `setConfig` and on floor change, kept across `hass` updates. Pointer Events, `touch-action: none` on the svg only when `zoom` is on. No core change: `renderFloor` output is untouched; the card writes the `viewBox` attribute.
+- Test (first): `viewport.test.ts` covers zoom about a point (the point stays put), clamp at fit and 8×, pan bounds (at least one third of the plan stays visible), pinch scale. `card.spec.ts` drives `page.mouse` (wheel with Ctrl, drag 40 px) and `page.touchscreen` for a double-tap, asserts the `viewBox` attribute; asserts a 40 px drag over a light does not toggle it (`callService` not called) and a plain click still does; `zoom: false` leaves the `viewBox` fixed.
+- Done when: tests pass, `--repeat-each=10` clean; the buttons are visible in all seven themes (they use `--fp-*` only); `getCardSize` is unchanged.
+- Break it: a wheel event while the pointer is over a floor chip scrolls the page, not the plan. A pinch that starts with one finger outside the svg is ignored.
+
+### S7.5 Kiosk mode
+- Outcome: `kiosk: true` shows only the plan: no floor chips, no zoom buttons, no version, no cover dialog chrome beyond the dialog itself; long press does nothing; taps still act. Meant for a wall tablet.
+- Files: `src/card/floorplan-studio-card.ts`, `src/card/actions.ts` (`bindDeviceActions` takes `{ longPress: boolean }`), `tests/card/card.spec.ts`.
+- Interface: config `kiosk: boolean` (default `false`). With `floors` or `floor: all` and `kiosk: true`, the card shows the first floor and no switcher; the docs say to use one card per floor in kiosk mode.
+- Test (first): a `hold` of `HOLD_MS + 100` on a light fires no `hass-more-info` under kiosk and does otherwise; `.fp-floors` and the zoom buttons are absent under kiosk.
+- Done when: tests pass; `docs/card.md` has a Kiosk section with a one-card-per-floor example.
+- Break it: `kiosk: "yes"` (a string) is refused by `setConfig` with a message naming the key.
+
+### S7.6 Night fill from the sun
+- Outcome: after sunset the plan darkens: every room and the ground outside get a night overlay; a room with a light on stays bright (the same detection as `room_glow`). Cheap version of realistic light. The editor can preview it.
+- Files: `src/core/render.ts` (a `night` option; a `<rect class="night">` per room drawn after the room fill and before devices; root class `night`), the theme stylesheet (`--fp-night` per theme, default `rgba(4, 10, 30, .45)`; `.night .room-night { fill: var(--fp-night) }`; `.night .room-night.lit { fill: none }`), `src/card/floorplan-studio-card.ts` (reads `sun.sun`), `src/editor/editor-app.ts` (View, "Preview night", a browser pref), `src/editor/state.ts` (`NIGHT_KEY`), tests in `render.test.ts`, `card.spec.ts`, `editor.spec.ts`.
+- Interface: config `night: "auto" | "on" | "off"` (default `"auto"`: night when `sun.sun` is `below_horizon`; no `sun.sun` means day) and `sun: <entity>` (default `sun.sun`). `renderFloor` option `night?: boolean`. A room is lit when any light device inside it is on. Zones, stairs and structures are not overlaid (they sit on a room). Outdoor kinds (garden, water, pavement) are overlaid like rooms.
+- Test (first): `render.test.ts` asserts the root gets class `night`, one `rect.room-night` per room, `lit` on exactly the rooms with an on light; `editor.spec.ts` "Opus review CSS pair" for both rules via `getComputedStyle`; `card.spec.ts` flips `sun.sun` and asserts the class toggles, and `night: "off"` never sets it.
+- Done when: tests pass; `npm run shots` gains a `night` state (ground floor, blueprint and light) and the PNGs read as night with the lit rooms bright.
+- Break it: the `sun` entity is `unavailable`: day, no error. A light whose `x,y` is outside every room lights nothing.
+
+### S7.7 Card config form
+- Outcome: the Edit-card dialog shows a form: theme (select), floors (checkbox per floor, in order), fade (number), room_glow, zoom, kiosk, night. No YAML needed.
+- Files: new `src/card/config-editor.ts` (`floorplan-studio-card-editor`), `src/card/floorplan-studio-card.ts` (`static getConfigElement()`), `tests/card/config-editor.spec.ts`.
+- Interface: plain Lit element, no `ha-form` dependency (it would need HA's own elements at test time). `setConfig(config)` and `hass` setters; the floor list comes from the layout the card already loaded (`layout` or `layout_url` or the stored plan). Every change fires `config-changed` with `{ config }` in `detail`, `bubbles: true, composed: true`. A key left at its default is removed from the emitted config, so the YAML stays short.
+- Test (first): Playwright creates the element, sets a config, ticks a floor and changes the theme, asserts the two events and their payloads; asserts a default value is absent from the payload.
+- Done when: tests pass; `docs/card.md` says the form exists and which keys it covers.
+- Break it: `setConfig` with an unknown theme shows the select on "blueprint" and does not fire.
+
+### S7.8 People on the plan
+- Outcome: a `person` device: an icon placed where the person usually is (their desk, their bed). Its entity is `person.*` or `device_tracker.*`. When the person is home the icon is full; away it is dimmed to 35 % with a small "away" mark; unknown as every other unavailable device. Optionally a `room` entity names the room the person is in right now (a BLE room-presence sensor: state, or an `area_id` or `area` attribute, that matches a room's `area` or name); then the icon moves to that room's centroid with a 600 ms CSS transition, and several people in one room spread on a ring. This is the answer to "is lighting up motion sensors enough?": motion shows that somebody is there, a person icon shows who and where.
+- Files: `src/core/schema.ts` (`DeviceType` + `"person"`; `Device.room?: string`), `src/core/icons.ts` (mdi account), `src/core/ha.ts` (`TYPE_RULES.person`, `typeForEntity` for `person.` and `device_tracker.`), `src/core/render.ts` (position from `state[room]` when it names a room; class `home`/`away`; a `transform` transition class), the stylesheet, `src/card/actions.ts` (`person` in `NO_TOGGLE`; tap opens more-info), `src/editor/panels.ts` (device panel: "Room sensor" entity picker), `docs/SPEC.md`, `prompts/SCHEMA.md`, tests in `render.test.ts`, `card.spec.ts`, `editor.spec.ts`.
+- Interface: `Device.room` is an entity id, validated like `entity`. `renderFloor` resolves it: `state[room].state` or `attributes.area_id` or `attributes.area`, matched against `room.area` then `room.name` case-insensitively; no match keeps the placed spot. The card passes attributes through in `state` as it already does for lights.
+- Test (first): `render.test.ts`: home/away classes; a `room` state that names "Kitchen" moves the icon into the kitchen's centroid; two people in one room have different positions; an unmatched room keeps `x,y`. `icons.test.ts` and the `DEVICE_TYPES` iteration tests fail until every place is filled. `editor.spec.ts`: the device panel shows the Room sensor field only for `person`. `card.spec.ts`: a tap on a person fires more-info, never a service call.
+- Done when: tests pass; the demo gains one person (in the study, home, no room sensor) so the shots show it.
+- Break it: `room` set to the device's own entity (a person picking themselves) is refused by `validate` with a message. A room sensor whose state is `not_home` or `unknown` keeps the placed spot.
+
+### S7.9 mmWave radar targets
+- Outcome: a `radar` device (an LD2450 through ESPHome, or any sensor that exposes target x/y in mm): the icon is the sensor; up to three dots show where the targets are, relative to the sensor's position and `rot`. The presence entity (a `binary_sensor.*occupancy`) colours the icon.
+- Files: as S7.8 plus `Device.targets?: { x: string; y: string }[]` in `schema.ts`; `src/core/icons.ts` (mdi radar); `render.ts` draws `<circle class="target">` per target whose two sensors are finite; the editor panel lists target pairs with add/remove.
+- Interface: the sensor's frame is x to the right, y forward, in mm, as ESPHome's LD2450 component reports; `rot` 0 means "forward" is screen-up. A target outside the floor's bounds is not drawn.
+- Test (first): `render.test.ts`: a target at (0, 2000) with `rot: 90` draws 200 cm to the screen-right of the icon; `NaN` and `unavailable` draw nothing; three targets draw three dots. Union tests as S7.8.
+- Done when: tests pass; `docs/card.md` has an ESPHome snippet naming the entity ids.
+- Break it: 20 target pairs draw 20 dots; nothing caps it, nothing breaks.
+
+### S7.10 Vacuums
+- Outcome: a `vacuum` device: docked (idle grey), cleaning (active colour, a slow spin on the icon), returning (active, no spin), error (danger). Tap opens a dialog like the cover one: Start, Pause, Return to dock. No map position: most integrations expose the map as a camera or a proprietary blob, not coordinates; documented in `docs/card.md` and the decision log. A user who wants the robot to move can wait for a later task that reads a `sensor` pair, as S7.9 does.
+- Files: as S7.8 (`"vacuum"`, mdi robot-vacuum, `TYPE_RULES.vacuum` on domain `vacuum`), `src/card/actions.ts` (a `vacuum` branch that opens `openVacuumDialog`), `src/card/floorplan-studio-card.ts` (the dialog, `vacuum.start|pause|return_to_base`).
+- Test (first): `render.test.ts` for the four states; `card.spec.ts` taps a vacuum, asserts the dialog, clicks Return to dock, asserts `callService("vacuum", "return_to_base", { entity_id })`. A `--repeat-each=10` on the spin rule is not needed (CSS only), but the CSS pair test is.
+- Done when: tests pass; the shots' monitored-types row includes a vacuum.
+- Break it: state `unavailable` shows the dialog with the buttons disabled.
+
+### S7.11 Trace over an image in the editor
+- Outcome: a person with a scanned plan loads it under the drawing, scales it to a known length, traces the walls over it, then hides it or fades it. The image is saved with the plan so the work survives a reload; it never reaches the card, and File, Export leaves it out unless "Include trace image" is ticked.
+- Files: `src/core/schema.ts` (`Floor.trace?: { src: string; x: number; y: number; w: number; rot: number; alpha: number; on: boolean }`, `src` a `data:image/...` URL ≤ 4 MB after downscaling to 2000 px on the long side, validated: prefix, size, finite numbers, `alpha` in [0, 1]), `src/core/render.ts` (draws `<image class="trace">` first, only when `opts.trace` is true; the card never passes it), `src/editor/editor-app.ts` (View, "Trace image…": Load, a Scale step, Opacity slider, Show toggle, Remove; `exportJson` strips `trace` unless the tick is on), `src/editor/state.ts` (`setTrace`, one undo step per change), `tests/core/schema.test.ts`, `tests/core/render.test.ts`, `tests/editor/editor.spec.ts`.
+- Interface: Scale: the user clicks two points on the image and types the real distance in cm; the editor sets `w` so that distance is right and keeps the image's aspect ratio. Load reads the file with `FileReader`, draws it to a canvas capped at 2000 px, exports JPEG at 0.85; PNG stays PNG under 1 MB. A layout whose `trace.src` is over the cap fails `validate` with a message that says the limit.
+- Test (first): `schema.test.ts` accepts a valid trace, rejects `src: "javascript:..."`, an oversize `src`, `alpha: 2`. `render.test.ts`: with `trace: true` an `<image>` is the first child of the floor group with the right `href`, `x`, `y`, `width`, `opacity` and `transform`; without the option nothing is drawn; the card's render never passes it (a card test asserts no `image.trace` in the card's svg for a layout that has one). `editor.spec.ts`: load a 20×10 PNG fixture through `setInputFiles`, the image appears; two-point scale to 500 cm sets `w` to 500 for a full-width pair; opacity 0.3 reaches the `opacity` attribute; Show off hides it and the layout still holds it; Export without the tick has no `trace` key, with the tick it has one.
+- Done when: tests pass, `--repeat-each=10` clean; `docs/editor.md` has a "Trace over a scan" section; `prompts/SCHEMA.md` says `trace` exists and that an assistant must never write one.
+- Break it: a 12 MB photo downscales and saves under 4 MB. A `trace` with `w: 0` is rejected. `Ctrl/Cmd+Z` after Load removes the image.
+
+### S7.12 Docs, README, skills, release 0.11.0
+- Outcome: every new key, type and panel is documented where a user looks: `README.md` (features, status table, card yaml), `docs/card.md`, `docs/editor.md`, `docs/schema.md` (regenerated), `prompts/SCHEMA.md` and `prompts/SKILL.md` (new device types; `trace` and `available` are never written by an assistant), `CHANGELOG.md` 0.11.0, `manifest.json` 0.11.0.
+- Test: `npm run docs:check`; `npm run docs:schema` is a no-op after the commit; the README yaml block is the one `docs/card.md` shows.
+- Done when: green; Diego says yes to push and tag; release finished on his HA per `CLAUDE.md`.
+
 ## Later, not planned
 
+- Vacuum position from an integration that exposes coordinates (none of the common ones does today).
 - Per-room presence heat map over a day.
 - Import from ha-floorplan SVGs.
 - Multiple layouts (several houses).
