@@ -852,7 +852,7 @@ describe("outdoor sensors and the palette (S1.30)", () => {
     expect(classOfDev(draw([room("garden", box(0, 0))], [dev("motion", 50, 50)]), 0)).not.toContain("outdoor");
   });
   it("carries the palette", () => {
-    const want: Record<string, string> = { light: "#e0a800", motion: "#d64545", contact: "#d64545", heater: "#e8801a", climate: "#e8801a", "ac-cool": "#2c7fb8", "ac-heat": "#e8801a", tv: "#2c7fb8", plug: "#2c7fb8", computer: "#2c7fb8", camera: "#4a4a48", garden: "#3f8f4f" };
+    const want: Record<string, string> = { light: "#e0a800", motion: "#d64545", contact: "#d64545", heater: "#e8801a", climate: "#e8801a", "ac-cool": "#2c7fb8", "ac-heat": "#e8801a", tv: "#2c7fb8", plug: "#2c7fb8", computer: "#2c7fb8", camera: "#4a4a48", garden: "#3f8f4f", person: "#1b9e77" };
     for (const [k, v] of Object.entries(want)) expect(FLOORPLAN_CSS).toContain(`--fp-dev-${k}:${v}`);
     expect(FLOORPLAN_CSS).toContain(".dev-camera path{fill:var(--fp-dev-camera)}");
     expect(FLOORPLAN_CSS).toContain(".dev.outdoor path{fill:var(--fp-dev-garden)}");
@@ -869,7 +869,7 @@ describe("S2.9: a device wears its colour when it is on", () => {
     const want: Record<string, string> = {
       light: "var(--fp-dev-light)", motion: "var(--fp-dev-motion)", contact: "var(--fp-dev-contact)", heater: "var(--fp-dev-heater)",
       climate: "var(--fp-dev-climate)", tv: "var(--fp-dev-tv)", plug: "var(--fp-dev-plug)", computer: "var(--fp-dev-computer)",
-      switch: "var(--fp-idle)", humidity: "var(--fp-idle)",
+      switch: "var(--fp-idle)", humidity: "var(--fp-idle)", person: "var(--fp-dev-person)",
     };
     for (const [type, value] of Object.entries(want))
       expect(FLOORPLAN_CSS, type).toContain(`.dev-${type}.on{--fp-dev:${value}}`);
@@ -1366,7 +1366,8 @@ describe("S7.1: labels never overprint each other", () => {
       const size = a("font-size"), s = unesc(m[2]), w = s.length * 0.6 * size, [x, y] = scr([a("x"), a("y")]);
       return { s, box: [x - w / 2, y - 0.75 * size, w, size] as Box };
     });
-    const discs = [...html.matchAll(/<g data-[xu]="\d+"[^>]* transform="translate\(([-\d.]+) ([-\d.]+)\) scale\(([\d.]+)\)/g)].map((m) => {
+    // S7.8: a person's translate is a CSS transform in its style (px units, a comma); every other icon's is the attribute.
+    const discs = [...html.matchAll(/<g data-[xu]="\d+"[^>]*(?: transform="|transform:)translate\(([-\d.]+)(?:px)?[ ,]([-\d.]+)(?:px)?\) scale\(([\d.]+)\)/g)].map((m) => {
       const s = Number(m[3]), [x, y] = scr([Number(m[1]) + 12 * s, Number(m[2]) + 12 * s]);
       return [x - 16 * s, y - 16 * s, 32 * s, 32 * s] as Box;
     });
@@ -1571,5 +1572,193 @@ describe("S7.6 night", () => {
     expect(FLOORPLAN_CSS).toContain(".night .room-night{fill:var(--fp-night)}");
     expect(FLOORPLAN_CSS).toContain(".night .room-night.lit{fill:none}");
     expect(FLOORPLAN_CSS).toContain(".room-night{fill:none;pointer-events:none}");
+  });
+});
+
+describe("S7.8: people on the plan", () => {
+  // The demo ground floor without its devices: the positions below are the room's own, with no other icon to avoid.
+  const empty = { ...structuredClone(ground), devices: [] as typeof ground.devices };
+  const n0 = 0;
+  const P = (id: string, extra: Record<string, unknown> = {}) => ({ id, type: "person", entity: `person.${id}`, x: 200, y: 520, ...extra });
+  const draw = (people: unknown[], state: StateOverlay, f0 = empty) => renderFloor({ ...structuredClone(f0), devices: [...f0.devices, ...people] } as never, { ...base, state });
+  const openTag = (html: string, i = n0) => html.match(new RegExp(`<g data-x="${i}"[^>]*>`))![0];
+  const groupOf = (html: string, i = n0) => { const s = html.indexOf(openTag(html, i)); return html.slice(s, html.indexOf('<g data-x="', s + 5) > 0 ? html.indexOf('<g data-x="', s + 5) : undefined); };
+  const classesOf = (html: string, i = n0) => openTag(html, i).match(/class="([^"]*)"/)![1].split(" ");
+  /** The icon's centre, from its translate (attribute or CSS) plus half the 24-unit glyph box times its scale. */
+  const centreOf = (html: string, i = n0): Pt => {
+    const m = openTag(html, i).match(/translate\((-?[\d.]+)(?:px)?[ ,]+(-?[\d.]+)(?:px)?\) scale\(([\d.]+)\)/)!;
+    const k = Number(m[3]);
+    return [Number(m[1]) + 12 * k, Number(m[2]) + 12 * k];
+  };
+  const near = (a: Pt, b: Pt) => { expect(a[0]).toBeCloseTo(b[0], 1); expect(a[1]).toBeCloseTo(b[1], 1); };
+  const inRect = (p: Pt, x0: number, y0: number, x1: number, y1: number) => p[0] > x0 && p[0] < x1 && p[1] > y0 && p[1] < y1;
+
+  it("home is full and on; not_home or any other zone is away and not on", () => {
+    const home = classesOf(draw([P("a")], { "person.a": st("home") }));
+    expect(home).toEqual(expect.arrayContaining(["dev-person", "on", "home"]));
+    expect(home).not.toContain("away");
+    for (const s of ["not_home", "Work"]) {
+      const c = classesOf(draw([P("a")], { "person.a": st(s) }));
+      expect(c, s).toContain("away");
+      expect(c, s).not.toContain("on");
+      expect(c, s).not.toContain("home");
+    }
+  });
+
+  it("unavailable and unknown read as every other device: unavailable, neither home nor away", () => {
+    for (const s of ["unavailable", "unknown"]) {
+      const c = classesOf(draw([P("a")], { "person.a": st(s) }));
+      expect(c, s).toContain("unavailable");
+      expect(c, s).not.toContain("home");
+      expect(c, s).not.toContain("away");
+    }
+  });
+
+  it("away draws an away mark inside the icon group; home does not", () => {
+    expect(groupOf(draw([P("a")], { "person.a": st("not_home") }))).toContain('class="away-mark"');
+    expect(groupOf(draw([P("a")], { "person.a": st("home") }))).not.toContain("away-mark");
+  });
+
+  it("with no room sensor the icon stays where it was placed", () => {
+    near(centreOf(draw([P("a")], { "person.a": st("home") })), [200, 520]);
+  });
+
+  it("a room sensor whose state names Kitchen moves the icon to the kitchen's centroid", () => {
+    near(centreOf(draw([P("a", { room: "sensor.a_room" })], { "person.a": st("home"), "sensor.a_room": st("Kitchen") })), [650, 200]);
+  });
+
+  it("break it: the kitchen light sits at the centroid; the person moves beside it, inside the kitchen, never over it", () => {
+    const n = ground.devices.length;
+    const html = draw([P("a", { room: "sensor.r" })], { "person.a": st("home"), "sensor.r": st("Kitchen") }, ground);
+    const p = centreOf(html, n);
+    expect(Math.hypot(p[0] - 650, p[1] - 200)).toBeGreaterThanOrEqual(64); // 32k at k = 2: the two discs do not touch
+    expect(inRect(p, 500, 0, 800, 400)).toBe(true);
+    near(centreOf(html, 1), [650, 200]); // the light itself never moves
+  });
+
+  it("area_id and area attributes match too, case-insensitively", () => {
+    near(centreOf(draw([P("a", { room: "sensor.r" })], { "person.a": st("home"), "sensor.r": st("on", { attributes: { area_id: "kitchen" } }) })), [650, 200]);
+    near(centreOf(draw([P("a", { room: "sensor.r" })], { "person.a": st("home"), "sensor.r": st("on", { attributes: { area: "KITCHEN" } }) })), [650, 200]);
+  });
+
+  it("a room's area is matched before any room's name", () => {
+    const f = structuredClone(empty);
+    f.rooms[0].area = "kitchen"; // Living now carries the HA area "kitchen"; the room named Kitchen another one
+    f.rooms[1].area = "cucina";
+    near(centreOf(draw([P("a", { room: "sensor.r" })], { "person.a": st("home"), "sensor.r": st("kitchen") }, f)), [250, 200]);
+  });
+
+  it("two people in one room have different spots, both inside the room, their discs apart", () => {
+    const html = draw([P("a", { room: "sensor.ra" }), P("b", { room: "sensor.rb" })], { "person.a": st("home"), "person.b": st("home"), "sensor.ra": st("Kitchen"), "sensor.rb": st("Kitchen") });
+    const a = centreOf(html, n0), b = centreOf(html, n0 + 1);
+    expect(Math.hypot(a[0] - b[0], a[1] - b[1])).toBeGreaterThanOrEqual(64); // two 16k discs at scale 0.5, k = 2
+    for (const p of [a, b]) expect(inRect(p, 500, 0, 800, 400)).toBe(true);
+  });
+
+  it("break it: five people in one room all get their own spot", () => {
+    const people = [0, 1, 2, 3, 4].map((i) => P(`p${i}`, { room: `sensor.r${i}` }));
+    const state: StateOverlay = {};
+    for (let i = 0; i < 5; i++) { state[`person.p${i}`] = st("home"); state[`sensor.r${i}`] = st("Kitchen"); }
+    const html = draw(people, state);
+    const cs = people.map((_, i) => centreOf(html, n0 + i));
+    for (let i = 0; i < 5; i++) for (let j = i + 1; j < 5; j++) expect(Math.hypot(cs[i][0] - cs[j][0], cs[i][1] - cs[j][1])).toBeGreaterThanOrEqual(64);
+  });
+
+  it("an unmatched room, not_home, unknown, unavailable or a missing sensor keeps the placed spot", () => {
+    for (const s of ["Garage", "not_home", "unknown", "unavailable", ""])
+      near(centreOf(draw([P("a", { room: "sensor.r" })], { "person.a": st("home"), "sensor.r": st(s) })), [200, 520]);
+    near(centreOf(draw([P("a", { room: "sensor.r" })], { "person.a": st("home") })), [200, 520]);
+  });
+
+  it("a person who moved is placed at the room, so the room's name moves off the icon", () => {
+    const f = structuredClone(ground);
+    f.doors = []; f.stairs = []; f.walls = []; f.furniture = []; f.devices = [];
+    f.rooms = [{ id: "d", name: "Den", kind: "room", area: "", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }] as never;
+    const nameAt = (html: string) => html.match(/<text class="lbl" x="([\d.-]+)" y="([\d.-]+)"[^>]*>Den</)!.slice(1).join(",");
+    const person = [{ id: "a", type: "person", entity: "person.a", x: 50, y: 50, room: "sensor.r" }];
+    expect(nameAt(draw(person, { "person.a": st("home") }, f))).toBe("200,200");
+    expect(nameAt(draw(person, { "person.a": st("home"), "sensor.r": st("Den") }, f))).not.toBe("200,200");
+  });
+
+  it("the icon's position is a CSS transform, so the class rule's transition can animate a move", () => {
+    const g = openTag(draw([P("a")], { "person.a": st("home") }));
+    expect(g).toMatch(/style="[^"]*transform:translate\(-?[\d.]+px,-?[\d.]+px\) scale\([\d.]+\)/);
+    expect(g).not.toMatch(/ transform="/);
+    expect(FLOORPLAN_CSS).toContain(".dev-person{transition:transform .6s ease}");
+    expect(FLOORPLAN_CSS).toContain(".dev-person.away{opacity:.35}");
+  });
+
+  it("break it: a person's names are escaped like any other device", () => {
+    const html = draw([P("a", { name: '"><script>' })], { "person.a": st("home") });
+    expect(html).not.toContain("<script>");
+  });
+});
+
+describe("S7.9: mmWave radar targets", () => {
+  // The demo ground floor without its devices, same approach as S7.8's people tests: predictable positions, no other icon in the way.
+  const empty = { ...structuredClone(ground), devices: [] as typeof ground.devices };
+  const R = (id: string, extra: Record<string, unknown> = {}) => ({ id, type: "radar", entity: `binary_sensor.${id}`, x: 200, y: 300, ...extra });
+  const draw = (radars: unknown[], state: StateOverlay, f0 = empty) => renderFloor({ ...structuredClone(f0), devices: [...f0.devices, ...radars] } as never, { ...base, state });
+  const targets = (html: string) => [...html.matchAll(/<circle class="target" cx="(-?[\d.]+)" cy="(-?[\d.]+)" r="([\d.]+)"\/>/g)].map((m) => [Number(m[1]), Number(m[2]), Number(m[3])] as const);
+
+  it("a target at x=0, y=2000mm with rot 90 draws 200cm screen-right of the icon (the brief's own example)", () => {
+    const html = draw([R("r", { rot: 90, targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("0"), "sensor.ty": st("2000") });
+    const [[cx, cy]] = targets(html);
+    expect(cx).toBeCloseTo(200 + 200, 1); // 200cm to the right of the icon's own x=200
+    expect(cy).toBeCloseTo(300, 1); // same height: rot 90 turns "ahead" from up to right
+  });
+
+  it("rot 0: forward (y) is screen-up, right (x) is screen-right, asymmetric values so an axis swap would fail", () => {
+    const html = draw([R("r", { targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("500"), "sensor.ty": st("1500") }); // x=50cm right, y=150cm ahead
+    const [[cx, cy]] = targets(html);
+    expect(cx).toBeCloseTo(200 + 50, 1);
+    expect(cy).toBeCloseTo(300 - 150, 1); // "ahead" moves up (smaller y)
+  });
+
+  it("a non-numeric or unavailable reading draws nothing for that pair; a missing sensor too", () => {
+    for (const bad of [st("unavailable"), st("unknown"), st("not-a-number")]) {
+      const html = draw([R("r", { targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("100"), "sensor.ty": bad });
+      expect(targets(html), bad.state).toHaveLength(0);
+    }
+    const html = draw([R("r", { targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("100") }); // sensor.ty missing entirely
+    expect(targets(html)).toHaveLength(0);
+  });
+
+  it("three targets draw three dots", () => {
+    const html = draw([R("r", { targets: [{ x: "sensor.t0x", y: "sensor.t0y" }, { x: "sensor.t1x", y: "sensor.t1y" }, { x: "sensor.t2x", y: "sensor.t2y" }] })], {
+      "sensor.t0x": st("0"), "sensor.t0y": st("0"), "sensor.t1x": st("100"), "sensor.t1y": st("0"), "sensor.t2x": st("-100"), "sensor.t2y": st("0"),
+    });
+    expect(targets(html)).toHaveLength(3);
+  });
+
+  it("break it: twenty pairs draw twenty dots, nothing caps the count", () => {
+    const pairs = Array.from({ length: 20 }, (_, i) => ({ x: `sensor.t${i}x`, y: `sensor.t${i}y` }));
+    const state: StateOverlay = {};
+    for (let i = 0; i < 20; i++) { state[`sensor.t${i}x`] = st(String(i * 10)); state[`sensor.t${i}y`] = st(String(i * 5)); }
+    expect(targets(draw([R("r", { targets: pairs })], state))).toHaveLength(20);
+  });
+
+  it("a target outside the floor's own outline is skipped, not clamped to the edge", () => {
+    // The ground floor's outline is [[0,0],[800,0],[800,600],[0,600]]; forward (rot 0, y) from an icon at y=100 by 5m (500cm) lands at y=-400, outside.
+    const html = draw([R("r", { x: 100, y: 100, targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("0"), "sensor.ty": st("5000") });
+    expect(targets(html)).toHaveLength(0);
+  });
+
+  it("the outline check discriminates, not just always hides: the same sensor a little closer lands in bounds and is drawn", () => {
+    const html = draw([R("r", { x: 100, y: 100, targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("0"), "sensor.ty": st("5000") });
+    expect(targets(html)).toHaveLength(0); // 500cm ahead of y=100: outside
+    const inBounds = draw([R("r", { x: 100, y: 100, targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("0"), "sensor.ty": st("-500") }); // 50cm behind: y=150, inside
+    expect(targets(inBounds)).toHaveLength(1);
+  });
+
+  it("a target's own colour comes from --fp-dev-radar, and it takes no clicks", () => {
+    expect(FLOORPLAN_CSS).toContain(".target{fill:var(--fp-dev-radar);stroke:var(--fp-outline);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}");
+  });
+
+  it("a radar with a presence entity wears the on class and --fp-dev-radar like any other device", () => {
+    expect(FLOORPLAN_CSS).toContain(".dev-radar.on{--fp-dev:var(--fp-dev-radar)}");
+    const html = draw([R("r")], { "binary_sensor.r": st("on") });
+    const cls = html.match(/<g data-x="0" class="([^"]*)"/)![1].split(" ");
+    expect(cls).toEqual(expect.arrayContaining(["dev-radar", "on"]));
   });
 });

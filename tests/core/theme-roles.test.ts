@@ -20,7 +20,7 @@ describe("theme-roles (S4.21)", () => {
       // battery, inverter, server, access_point, other) fall back to --fp-idle in the stylesheet, no token of their own.
       "--fp-dev-light", "--fp-dev-motion", "--fp-dev-contact", "--fp-dev-heater", "--fp-dev-climate", "--fp-dev-ac-cool",
       "--fp-dev-ac-heat", "--fp-dev-tv", "--fp-dev-media", "--fp-dev-cover", "--fp-dev-plug", "--fp-dev-computer",
-      "--fp-dev-camera", "--fp-dev-garden",
+      "--fp-dev-camera", "--fp-dev-garden", "--fp-dev-person", "--fp-dev-radar",
     ];
     const got = tokenPairs(rolesToTokens(BASE));
     for (const k of wanted) expect(got.has(k), k).toBe(true);

@@ -2,7 +2,7 @@ import type { Device, Door } from "../core";
 import type { Hass } from "./floorplan-studio-card";
 
 /** Device types a tap opens more-info for at once, never a toggle: a camera and a media player have none, and a battery, an inverter, a server or an access point is watched, not switched (S2.13). */
-const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "battery", "inverter", "server", "access_point"]);
+const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "battery", "inverter", "server", "access_point", "person", "radar"]);
 
 /** A pointer held this long or longer is a hold, opening more-info instead of toggling. */
 export const HOLD_MS = 500;

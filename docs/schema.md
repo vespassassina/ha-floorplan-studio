@@ -82,10 +82,10 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
 
 ## Device
 
-`bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor entity attached to this device — several allowed, unlike `bound`.
+`bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor entity attached to this device — several allowed, unlike `bound`. `room` (person only), S7.8: an entity whose state, `area_id` or `area` attribute names the room the person is in (a Bermuda or ESPresense area sensor, say). The card moves the icon to that room; no match keeps the placed spot. The person's own `entity` is `person.*` or `device_tracker.*`. `targets` (radar only), S7.9: up to any number of x/y sensor-entity pairs from an mmWave presence sensor (an ESPHome LD2450, say), each pair's two entities reporting one target's position in millimetres, x to the sensor's right and y ahead of it. `entity` is the radar's own presence entity (typically a `binary_sensor.*occupancy`), which colours the icon; `rot` is which way the sensor points (`0` = ahead is screen-up), the same field a camera already uses for its cone.
 
 ```ts
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 ```
 
 ## Furniture

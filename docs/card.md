@@ -150,6 +150,37 @@ differently:
   time the card loads.
 - **Camera** — a dark cone of view, turned to match the device's own
   rotation.
+- **Radar (mmWave presence)** — a purple icon while its presence entity is on,
+  plus one small dot per tracked target, turned by the device's own `rot` (0
+  is "ahead is screen-up"). Point `entity` at the presence binary sensor, and
+  each `targets` pair at that target's own x/y sensors — an ESPHome LD2450
+  gives one x/y pair per target it can track, named by its own YAML:
+
+  ```yaml
+  # ESPHome, an LD2450 on a UART: exposes an occupancy binary sensor and, per target
+  # (1 to 3, one block each), the x/y sensors floorplan-studio's device.targets wants.
+  binary_sensor:
+    - platform: ld2450
+      target_count:
+        name: "Office radar occupancy"
+        id: office_radar_occupancy
+
+  sensor:
+    - platform: ld2450
+      target_1:
+        x:
+          name: "Office radar target 1 x"
+          id: office_radar_t1_x
+        y:
+          name: "Office radar target 1 y"
+          id: office_radar_t1_y
+  ```
+
+  In the device panel, `entity` is `binary_sensor.office_radar_occupancy`, and
+  the first `targets` pair is `sensor.office_radar_target_1_x` /
+  `sensor.office_radar_target_1_y` (Home Assistant's own generated entity ids
+  for the `name`s above — repeat the `target_2`/`target_3` blocks and add a
+  pair each for more than one tracked person).
 - **Cover on a door** — an open door draws orange; tapping it asks before
   opening or closing.
 - **Unavailable or unknown** — dims to 45% opacity, in any state, with no

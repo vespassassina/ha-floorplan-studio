@@ -3582,7 +3582,7 @@ const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first
 
 test("S1.36: View, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
   await openDevCols(page);
-  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(27); // S4.25 added boiler, car, ups, printer, speaker
+  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(29); // S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
   await expect(colourRow(page, "light").locator("button")).toHaveCount(1);
   await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
@@ -5457,6 +5457,116 @@ test("S4.18: the device panel's type selector changes a device's type and drops 
   const after = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
   expect(after.type).toBe("heater");
   expect(after.tempSensors).toEqual(["sensor.demo_bedroom_temperature"]);
+});
+
+// ---- S7.8: a person has a Room sensor picker, and only a person ------------------------------------------------
+
+test("S7.8: the Room sensor field shows only for a person, writes room, and changing the type away drops it in one undo step", async ({ page }) => {
+  const p = await screenOf(page, 100, 500); // demo's hall switch
+  await page.mouse.click(p.x, p.y);
+  await expect(page.locator("#vtype")).toHaveValue("switch");
+  await expect(page.locator("#vroom")).toHaveCount(0);
+  await page.locator("#vtype").selectOption("person");
+  await expect(page.locator("#vroom")).toBeVisible();
+  await page.locator("#vroom").fill("sensor.alex_room");
+  await page.locator("#vroom").press("Enter");
+  let d = (await groundOf(page)).devices.find((x: any) => x.id === "switch-hall") as any;
+  expect(d.type).toBe("person");
+  expect(d.room).toBe("sensor.alex_room");
+
+  await page.locator("#vtype").selectOption("light");
+  d = (await groundOf(page)).devices.find((x: any) => x.id === "switch-hall") as any;
+  expect(d.room).toBeUndefined();
+  await expect(page.locator("#vroom")).toHaveCount(0);
+  await page.locator("#panel").click({ position: { x: 2, y: 2 } }); // out of the select: the editor ignores keys typed in a field
+  await page.keyboard.press("Control+z");
+  d = (await groundOf(page)).devices.find((x: any) => x.id === "switch-hall") as any;
+  expect(d.type).toBe("person");
+  expect(d.room).toBe("sensor.alex_room");
+});
+
+test("Opus review CSS pair: S7.8 a person glides (transform .6s), is 35 % when away, and a home person wears its colour", async ({ page }) => {
+  await setTheme(page, "light");
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.devices.push({ id: "css-person", type: "person", entity: "person.css", x: 1900, y: 300 });
+    el.layout = l;
+  }, EDITOR);
+  const got = await page.locator("svg g.dev-person").first().evaluate((e) => {
+    const cs = () => getComputedStyle(e);
+    const path = e.querySelector("path:not(.halo)")!;
+    const glide = { prop: cs().transitionProperty, dur: cs().transitionDuration };
+    const plain = { op: cs().opacity, fill: getComputedStyle(path).fill };
+    e.classList.add("away"); const away = cs().opacity; e.classList.remove("away");
+    e.classList.add("on", "home"); const home = { op: cs().opacity, fill: getComputedStyle(path).fill };
+    e.classList.add("unavailable"); e.classList.remove("on", "home"); const gone = cs().opacity;
+    return { glide, plain, away, home, gone };
+  });
+  expect(got.glide).toEqual({ prop: "transform", dur: "0.6s" });
+  expect(got.plain.op).toBe("1");
+  expect(got.away).toBe("0.35");
+  expect(got.home).toEqual({ op: "1", fill: rgb("#1b9e77") });
+  expect(got.plain.fill).not.toBe(rgb("#1b9e77"));
+  expect(got.gone).toBe("0.45");
+});
+
+test("S7.9: the Targets field shows only for a radar, add/remove writes target pairs, and changing type away drops them", async ({ page }) => {
+  const p = await screenOf(page, 100, 500); // demo's hall switch
+  await page.mouse.click(p.x, p.y);
+  await expect(page.locator("#vtype")).toHaveValue("switch");
+  await expect(page.locator("#vtgadd")).toHaveCount(0);
+  await page.locator("#vtype").selectOption("radar");
+  await expect(page.locator("#vtgadd")).toBeVisible();
+  await expect(page.locator("#vtgx0")).toHaveCount(0); // no pair yet
+
+  await page.locator("#vtgadd").click();
+  await expect(page.locator("#vtgx0")).toBeVisible();
+  await page.locator("#vtgx0").fill("sensor.r_tx");
+  await page.locator("#vtgx0").press("Enter");
+  await page.locator("#vtgy0").fill("sensor.r_ty");
+  await page.locator("#vtgy0").press("Enter");
+  let d = (await groundOf(page)).devices.find((x: any) => x.id === "switch-hall") as any;
+  expect(d.type).toBe("radar");
+  expect(d.targets).toEqual([{ x: "sensor.r_tx", y: "sensor.r_ty" }]);
+
+  await page.locator("#vtgrm0").click();
+  d = (await groundOf(page)).devices.find((x: any) => x.id === "switch-hall") as any;
+  expect(d.targets).toBeUndefined();
+  await expect(page.locator("#vtgx0")).toHaveCount(0);
+
+  await page.locator("#vtype").selectOption("light");
+  d = (await groundOf(page)).devices.find((x: any) => x.id === "switch-hall") as any;
+  expect(d.type).toBe("light");
+  expect(d.targets).toBeUndefined();
+});
+
+test("Opus review CSS pair: S7.9 a radar wears --fp-dev-radar when on, and a target dot is unclickable and outlined", async ({ page }) => {
+  await setTheme(page, "light");
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.devices.push({ id: "css-radar", type: "radar", entity: "binary_sensor.css_radar", x: 1900, y: 300 });
+    el.layout = l;
+  }, EDITOR);
+  const got = await page.locator("svg g.dev-radar").first().evaluate((e) => {
+    const path = e.querySelector("path:not(.halo)")!;
+    e.classList.add("on");
+    const on = { fill: getComputedStyle(path).fill, devVar: getComputedStyle(e).getPropertyValue("--fp-dev").trim() };
+    e.classList.remove("on");
+    const target = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    target.setAttribute("class", "target");
+    target.setAttribute("cx", "0"); target.setAttribute("cy", "0"); target.setAttribute("r", "2");
+    e.closest("svg")!.appendChild(target);
+    const ts = getComputedStyle(target);
+    const dot = { fill: ts.fill, stroke: ts.stroke, strokeWidth: ts.strokeWidth, pointerEvents: ts.pointerEvents };
+    target.remove();
+    return { on, dot };
+  });
+  expect(got.on.devVar).toBe("#6a3fbf"); // a custom property is not colour-resolved by getComputedStyle
+  expect(got.on.fill).toBe(rgb("#6a3fbf"));
+  expect(got.dot.fill).toBe(rgb("#6a3fbf"));
+  expect(got.dot.stroke).toBe(rgb("#ffffff")); // --fp-outline in the light theme
+  expect(got.dot.strokeWidth).toBe("1px");
+  expect(got.dot.pointerEvents).toBe("none");
 });
 
 // ---- S4.18: right-click context menu on a room, zone or structure -----------------------------------------------

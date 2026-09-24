@@ -663,3 +663,56 @@ describe("floor trace image (S7.11)", () => {
     expect(() => validate(withTrace({ src: { toString: () => { throw new Error("boom"); } } }))).not.toThrow();
   });
 });
+
+describe("S7.8: a person device and its room sensor", () => {
+  const person = (extra: Record<string, unknown> = {}) => ({ id: "p1", type: "person", entity: "person.alex", x: 100, y: 100, ...extra });
+  const withDev = (d: unknown) => { const l = clone(); l.floors.ground.devices.push(d); return l; };
+
+  it("accepts a person on person.* or device_tracker.*, with or without a room sensor", () => {
+    expect(errorsOf(withDev(person()))).toEqual([]);
+    expect(errorsOf(withDev(person({ entity: "device_tracker.alex_phone" })))).toEqual([]);
+    expect(errorsOf(withDev(person({ room: "sensor.alex_room" })))).toEqual([]);
+  });
+
+  it("rejects a room that is not an entity id", () => {
+    for (const bad of ["kitchen", 5, "", null]) expect(errorsOf(withDev(person({ room: bad }))).join("\n"), String(bad)).toMatch(/p1 room must be an entity id like sensor\.name/);
+  });
+
+  it("rejects a room on anything but a person", () => {
+    expect(errorsOf(withDev({ id: "l1", type: "light", entity: "light.x", x: 1, y: 1, room: "sensor.r" })).join("\n")).toMatch(/l1 room is only allowed on a person/);
+  });
+
+  it("Break it: a room equal to the device's own entity (a person picking themselves) is refused with a message", () => {
+    expect(errorsOf(withDev(person({ room: "person.alex" }))).join("\n")).toMatch(/p1 room must differ from entity/);
+  });
+});
+
+describe("S7.9: a radar device and its targets", () => {
+  const radar = (extra: Record<string, unknown> = {}) => ({ id: "r1", type: "radar", entity: "binary_sensor.radar", x: 100, y: 100, ...extra });
+  const withDev = (d: unknown) => { const l = clone(); l.floors.ground.devices.push(d); return l; };
+
+  it("accepts a radar with no targets, one target, or twenty", () => {
+    expect(errorsOf(withDev(radar()))).toEqual([]);
+    expect(errorsOf(withDev(radar({ targets: [{ x: "sensor.t1x", y: "sensor.t1y" }] })))).toEqual([]);
+    const twenty = Array.from({ length: 20 }, (_, i) => ({ x: `sensor.t${i}x`, y: `sensor.t${i}y` }));
+    expect(errorsOf(withDev(radar({ targets: twenty })))).toEqual([]); // no cap on how many
+  });
+
+  it("rejects a target pair missing x, missing y, or not an entity id", () => {
+    for (const bad of [{ x: "sensor.a" }, { y: "sensor.b" }, { x: "notanentity", y: "sensor.b" }, { x: "sensor.a", y: 5 }, {}, null, "sensor.a"])
+      expect(errorsOf(withDev(radar({ targets: [bad] }))).join("\n"), JSON.stringify(bad)).toMatch(/r1 targets\[0\] must be \{x, y\}, each an entity id like sensor\.name/);
+  });
+
+  it("rejects targets that is not a list", () => {
+    expect(errorsOf(withDev(radar({ targets: "sensor.a" }))).join("\n")).toMatch(/r1 targets must be a list of \{x, y\} entity pairs/);
+  });
+
+  it("rejects targets on anything but a radar", () => {
+    expect(errorsOf(withDev({ id: "l1", type: "light", entity: "light.x", x: 1, y: 1, targets: [{ x: "sensor.a", y: "sensor.b" }] })).join("\n")).toMatch(/l1 targets is only allowed on a radar/);
+  });
+
+  it("never throws on a hostile targets shape (finding 1)", () => {
+    for (const bad of [5, { x: "__proto__" }, [null, undefined, 5, "x"], [{ x: "a.b", y: "c.d", extra: "><script>" }]])
+      expect(() => errorsOf(withDev(radar({ targets: bad })))).not.toThrow();
+  });
+});

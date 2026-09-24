@@ -42,13 +42,14 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
   cover: "#f28c28", battery: "#8b8578", inverter: "#8b8578", server: "#8b8578", access_point: "#8b8578",
   lock: "#d64545", vibration: "#d64545", other: "#8b8578",
   boiler: "#8b8578", car: "#8b8578", ups: "#8b8578", printer: "#8b8578", speaker: "#8b8578",
+  person: "#1b9e77", radar: "#6a3fbf",
 };
 
 // S1.53: the light and dark (now blueprint) token sets, each written once and interpolated wherever CSS needs it, so a new
 // token can never be added to one selector and forgotten in another. The "ha" theme is built from the same two.
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-room-empty:#d6d6d2;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27`;
 /* Midnight (Diego's call, 2026-09-21, ex-"blueprint"): a deep navy ground, blue linework for walls, cool-white text, from the
    reference screenshot he supplied. It replaced HA's night-blue; light is unchanged. Every accent that carries meaning (device colours, the warn/danger/primary
@@ -59,7 +60,7 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ro
    foreground, a terminal-green line colour and a saturated orange accent). */
 const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp-room-empty:#d6d6d2;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#8fb4f0;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27`;
 
 // The three role-generated themes (2026-09-22, Diego's brief): each is one base hue shaded into every structural token, one
@@ -75,7 +76,7 @@ const TERMINAL_TOKENS = rolesToTokens({ base: "#0c1512", fg: "#35d47a", fgAlpha:
    to one accent, demonstrating the per-type override the theme format supports. */
 const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#d6d6d2;--fp-garden:#586e75;--fp-terrace:#657b83;--fp-pavement:#586e75;--fp-wall:#93a1a1;--fp-idle:#586e75;
 --fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#dc322f;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#2aa198;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#268bd2;--fp-fill:#073642;--fp-fill-line:#586e75;
---fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#6c71c4;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#79766e;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#6c71c4;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#79766e;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fdf6e3;--fp-on-light:#002b36`;
 /* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
    fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
@@ -165,7 +166,7 @@ export const FLOORPLAN_CSS = `
 .dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
-.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)}
+.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)}
 /* S4.25: an unlinked item has no on/off state of its own, so it never carries .on — it stays at the plain .dev
    path idle-grey rule above unless the instance has its own --fp-dev-fill colour override, which this rule
    (three classes, out-specifies the two-class .dev path default) lets through. */
@@ -175,6 +176,13 @@ export const FLOORPLAN_CSS = `
 .aura{fill:var(--fp-aura);fill-opacity:var(--fp-alpha);pointer-events:none}
 .dev.unavailable{opacity:.45}
 .dev.dim{opacity:.3}
+/* S7.8: a person glides to the room its room sensor names. The position is an inline CSS transform, not an attribute, so
+   this rule can animate it; the card replays the old position before the new one (a FLIP), because each render builds new
+   nodes. Away is a person at 35 %, with the away mark in the group; unavailable stays .45 like every device. */
+.dev-person{transition:transform .6s ease} .dev-person.away{opacity:.35} .dev-person .away-mark{fill:var(--fp-idle);stroke:var(--fp-outline);stroke-width:1;vector-effect:non-scaling-stroke}
+@media (prefers-reduced-motion:reduce){.dev-person{transition:none}}
+/* S7.9: a radar target dot, one per tracked person, in the radar's own colour, taking no clicks. */
+.target{fill:var(--fp-dev-radar);stroke:var(--fp-outline);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl.zone{opacity:.75}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
@@ -287,7 +295,37 @@ function classOf(d: Device, o: RenderOpts): Cls {
   if (d.type === "ac") return acMode(d, o) ? "on" : "off";
   if (d.type === "climate" || d.type === "heater") return s.attributes.hvac_action === "heating" ? "on" : "off";
   if (d.type === "media") return s.state === "playing" ? "on" : "off";
+  if (d.type === "person") return s.state === "home" ? "on" : "off";
   return s.state === "on" || s.state === "open" ? "on" : "off";
+}
+
+/** S7.8: the extra class a person wears. `home` when home; `away` for any other live state (not_home, a zone's name);
+ *  nothing with no state or a dead one, which reads like every other device. */
+function personClass(d: Device, o: RenderOpts, cls: Cls): string {
+  if (d.type !== "person" || !o.state?.[d.entity] || cls === "unavailable") return "";
+  return cls === "on" ? " home" : " away";
+}
+
+/** Room-sensor states that say nothing about a room: the placed spot is kept. */
+const NO_ROOM = new Set(["", "unknown", "unavailable", "not_home"]);
+
+/**
+ * S7.8: the room a person's room sensor names, as an index into `rooms`, or -1. The sensor's state is tried first, then
+ * its `area_id` and `area` attributes; each is matched, ignoring case, against every room's `area` before any room's
+ * `name`. Untrusted state: anything that is not text is skipped, never thrown on.
+ */
+function personRoom(d: Device, rooms: Floor["rooms"], o: RenderOpts): number {
+  if (d.type !== "person" || typeof d.room !== "string") return -1;
+  const s = o.state?.[d.room];
+  if (!s) return -1;
+  const said = [s.state, s.attributes?.area_id, s.attributes?.area].filter((v): v is string => typeof v === "string").map((v) => v.trim().toLowerCase()).filter((v) => !NO_ROOM.has(v));
+  const usable = (r: Floor["rooms"][number]) => Array.isArray(r.pts) && r.pts.length >= 3;
+  for (const v of said) {
+    let i = rooms.findIndex((r) => usable(r) && typeof r.area === "string" && r.area.toLowerCase() === v);
+    if (i < 0) i = rooms.findIndex((r) => usable(r) && typeof r.name === "string" && r.name.toLowerCase() === v);
+    if (i >= 0) return i;
+  }
+  return -1;
 }
 
 /** S1.37: a room or a piece of furniture with an entity carries "on" when that entity is on, open or playing. */
@@ -436,17 +474,47 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 14k name either way. */
   const rows = (a: Pt): Pt[] => [a, screenOff(a, 0, 32 * k), screenOff(a, 0, -32 * k), screenOff(a, 0, 64 * k), screenOff(a, 0, -64 * k)];
   const disc = (c: Pt, r: number) => { const [x, y] = toScreen(c); placed.push([x - r, y - r, 2 * r, 2 * r]); };
+  const centroid = (p: Pt[]): Pt => [p.reduce((s, q) => s + q[0], 0) / p.length, p.reduce((s, q) => s + q[1], 0) / p.length];
+  // S7.8: a person whose room sensor names a room stands at that room's centroid, the same point its name is tried at
+  // first. Several in one room stand on a ring round it, in device order, far enough apart that their 16k discs never
+  // touch: the chord between neighbours is 2R sin(pi/n) >= 34k. The icon is placed here, before any text, so the room's
+  // name moves off it like off any other icon.
+  const personAt = new Map<number, Pt>();
+  const byRoom = new Map<number, number[]>();
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    const r = personRoom(d, f.rooms, o);
+    if (r >= 0) byRoom.set(r, [...(byRoom.get(r) ?? []), i]);
+  });
+  // Demo and real plans put a light at a room's centroid, so the ring's centre moves off any other icon it would cover:
+  // the centroid, then 40k below, above, right and left of it, the first where no person lands on another icon's disc.
+  const others: Pt[] = [];
+  f.devices.forEach((d, i) => {
+    if ([...byRoom.values()].some((who) => who.includes(i))) return;
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
+    if (c.every(Number.isFinite)) others.push(c);
+  });
+  for (const [r, who] of byRoom) {
+    const c0 = centroid(f.rooms[r].pts), n = who.length;
+    if (!c0.every(Number.isFinite)) continue;
+    const R = n > 1 ? Math.max(20 * k, (17 * k) / Math.sin(Math.PI / n)) : 0;
+    const ring = (c: Pt) => who.map((_, j): Pt => { const a = (2 * Math.PI * j) / n - Math.PI / 2; return [c[0] + R * Math.cos(a), c[1] + R * Math.sin(a)]; });
+    const free = (ps: Pt[]) => ps.every((p) => others.every((q) => Math.hypot(p[0] - q[0], p[1] - q[1]) >= 32 * k));
+    const spots = [c0, screenOff(c0, 0, 40 * k), screenOff(c0, 0, -40 * k), screenOff(c0, 40 * k, 0), screenOff(c0, -40 * k, 0)].map(ring);
+    (spots.find(free) ?? spots[0]).forEach((p, j) => personAt.set(who[j], p));
+  }
+  const centreOf = (d: Device, i: number): Pt => personAt.get(i) ?? ("a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt));
+  f.devices.forEach((d, i) => {
+    const sel = o.selection?.t === "dev" && o.selection.i === i;
+    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    const c = centreOf(d, i);
     if (c.every(Number.isFinite)) disc(c, 16 * k);
   });
   for (const u of f.unlinked ?? []) {
     const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1;
     if (Number.isFinite(u.x) && Number.isFinite(u.y)) disc([u.x, u.y], 16 * k * scale);
   }
-  const centroid = (p: Pt[]): Pt => [p.reduce((s, q) => s + q[0], 0) / p.length, p.reduce((s, q) => s + q[1], 0) / p.length];
   const named = (r: Floor["rooms"][number]) => !!r.name && r.kind !== "fill";
   const nameAt: Pt[] = [], labelAt: Pt[] = [], zoneAt: Pt[] = [];
   f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = place(rows(centroid(r.pts)), 14 * k, r.name); });
@@ -506,11 +574,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
-    const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
+    const c = centreOf(d, i);
     if (!c.every(Number.isFinite)) return;
     // Value sensors in a garden room are outdoor sensors. Motion and contact keep their own state colours.
     const outdoor = (d.type === "temp" || d.type === "humidity") && f.rooms.some((r) => r.kind === "garden" && inside(c, r.pts));
-    const cls = classOf(d, o) + (outdoor ? " outdoor" : "");
+    const base = classOf(d, o), person = d.type === "person";
+    const cls = base + (outdoor ? " outdoor" : "") + personClass(d, o, base);
     const s = o.state?.[d.entity];
     const styleParts: string[] = [];
     if (d.type === "motion" && s) {
@@ -529,13 +598,17 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const opacity = lightOpacity(s);
       if (opacity !== null) styleParts.push(`--fp-dev-opacity:${num(opacity)}`);
     }
+    // S7.8: a person's position is a CSS transform, so .dev-person's transition can glide it to a new room. A person
+    // has no facing, so `rot` is not applied.
+    const origin = at([c[0] - 12 * k, c[1] - 12 * k]).replace(" ", "px,") + "px";
+    if (person) styleParts.push(`transform:translate(${origin}) scale(${num(k)})`);
     const style = styleParts.length ? ` style="${styleParts.join(";")}"` : "";
     const label = d.name ?? d.id;
     const bound = d.type === "light" && d.bound ? d.bound : "";
     const bname = bound ? o.state?.[bound]?.attributes.friendly_name : undefined;
     const title = `${esc(d.type)}: ${esc(label)}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
     // The group turns by `rot` about the icon's centre; the icon turns back so the glyph stays upright (only what else is drawn in the group turns).
-    const rot = typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot !== 0 ? d.rot : 0;
+    const rot = !person && typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot !== 0 ? d.rot : 0;
     // A turned plan turns the group again from outside; the icon takes that back too, the cone (in the group's frame) does not.
     const back = (rot + planDeg) % 360 ? rot + planDeg : 0;
     // Camera: a 120 degree, 100 cm cone about "up" (-90 degrees), in plan units (the group is scaled by k). It comes first, so the icon covers its tip.
@@ -544,12 +617,29 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const R = DEVICE_REACH / k, p = (deg: number) => at([12 + R * Math.cos((deg * Math.PI) / 180), 12 + R * Math.sin((deg * Math.PI) / 180)]);
       cone = `<path class="cone" d="M12 12L${p(-150)}A${num(R)} ${num(R)} 0 0 1 ${p(-30)}Z"/>`;
     }
-    const icon = `<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>`;
+    // S7.8: an away person carries a small grey dot on the disc's edge, so away reads without relying on the fade alone.
+    const mark = person && cls.endsWith(" away") ? `<circle class="away-mark" cx="23" cy="1" r="4.5"/>` : "";
+    const icon = `<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
     // The bar draws first so the icon group (fix/heater-bar-under-icon), with its white disc and halo, always paints on top of it.
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
     const dim = o.dimmed?.has(d.entity) ? " dim" : "";
-    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}${dim}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}</g>`);
+    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}</g>`);
+    // S7.9: a radar's targets. Each pair's x (mm, right of the sensor) and y (mm, ahead of it) is turned by the
+    // sensor's own `rot` the same way a plan point turns (SVG's own clockwise convention: rot 0 keeps "ahead" up),
+    // converted to centimetres, then added to the sensor's own position — the world point a target dot is drawn
+    // at, unless that point falls outside the floor's own outline, in which case it is skipped, not clamped.
+    // Untrusted state: a non-numeric or missing reading draws nothing for that one pair; nothing caps how many.
+    if (d.type === "radar" && Array.isArray(d.targets)) {
+      const rad = (rot * Math.PI) / 180;
+      for (const t of d.targets) {
+        const xl = Number(o.state?.[t.x]?.state) / 10, yl = Number(o.state?.[t.y]?.state) / 10; // mm to cm
+        if (!Number.isFinite(xl) || !Number.isFinite(yl)) continue;
+        const p: Pt = [c[0] + xl * Math.cos(rad) + yl * Math.sin(rad), c[1] + xl * Math.sin(rad) - yl * Math.cos(rad)];
+        if (!inside(p, f.outline)) continue;
+        out.push(`<circle class="target" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(6 * k)}"/>`);
+      }
+    }
     if ((d.type === "temp" || d.type === "humidity") && s) {
       // Anything that is not a finite number reads as "–". `unknown` and `unavailable` are only the two HA spells for it;
       // an integration can report an empty string, a comma decimal or a word, and printing "not-a-number °C" is worse than saying nothing.

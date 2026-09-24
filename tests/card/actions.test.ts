@@ -501,3 +501,49 @@ describe("actions: longPress option (S7.5 kiosk)", () => {
     expect(moreInfo).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("actions: a person opens more-info on a tap (S7.8)", () => {
+  it.each(["person.alex", "device_tracker.phone"])("%s: tap fires hass-more-info with its own entity and calls no service", (entity) => {
+    vi.useFakeTimers();
+    const callService = vi.fn();
+    const dev: Device = { id: "p1", type: "person", entity, x: 100, y: 100, room: "sensor.alex_room" };
+    const svg = svgFixture([dev]);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    const unbind = bindDeviceActions(svg, host, () => dev);
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: entity });
+    expect(callService).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+});
+
+describe("actions: a radar opens more-info on a tap, never toggles (S7.9)", () => {
+  it("tap fires hass-more-info with the radar's own entity and calls no service", () => {
+    vi.useFakeTimers();
+    const callService = vi.fn();
+    const dev: Device = { id: "r1", type: "radar", entity: "binary_sensor.radar_presence", x: 100, y: 100, targets: [{ x: "sensor.r_tx", y: "sensor.r_ty" }] };
+    const svg = svgFixture([dev]);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    const unbind = bindDeviceActions(svg, host, () => dev);
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "binary_sensor.radar_presence" });
+    expect(callService).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+});

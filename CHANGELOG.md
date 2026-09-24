@@ -2,6 +2,18 @@
 
 ## 0.11.0
 
+- A new `person` device type: an icon placed where the person usually is. Home
+  is full brightness; away dims to 35 % with a small "away" mark. An optional
+  `room` sensor (state, `area_id` or `area` matching a room) moves the icon to
+  that room's centroid, gliding there over 600 ms; several people in one room
+  spread on a ring. Tap opens more-info; the entity is `person.*` or
+  `device_tracker.*`.
+- A new `radar` device type for mmWave presence sensors (an ESPHome LD2450, or
+  any sensor exposing target x/y): up to any number of `targets` pairs (two
+  entities each, x right and y ahead of the sensor, in millimetres) draw as
+  small dots turned by the device's own `rot`. The presence entity (a
+  `binary_sensor.*occupancy`) colours the icon. `docs/card.md` has a worked
+  ESPHome snippet.
 - Help: each step showed two chevrons, the browser's own and ours. One now.
 - The card's Edit-card dialog shows a form instead of raw YAML: theme, floors, fade, room glow, zoom, kiosk, night and the sun entity. The floor list comes from the layout the card already loaded. A field left at its default is left out of the saved config.
 - Night: after sunset the card darkens every room, outdoor areas included, and leaves a room with a light on clear. `night: auto` (default) reads `sun.sun` or the entity `sun` names; `on` and `off` force it. The editor previews it under View, Preview night.
