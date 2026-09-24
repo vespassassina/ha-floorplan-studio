@@ -1762,3 +1762,48 @@ describe("S7.9: mmWave radar targets", () => {
     expect(cls).toEqual(expect.arrayContaining(["dev-radar", "on"]));
   });
 });
+
+describe("S7.10: a vacuum's four states", () => {
+  const empty = { ...structuredClone(ground), devices: [] as typeof ground.devices };
+  const V = (extra: Record<string, unknown> = {}) => ({ id: "v", type: "vacuum", entity: "vacuum.v", x: 200, y: 300, ...extra });
+  const draw = (state: StateOverlay) => renderFloor({ ...structuredClone(empty), devices: [V()] } as never, { ...base, state });
+  const classOfDev = (html: string) => html.match(/<g data-x="0" class="([^"]*)"/)![1].split(" ");
+
+  it("docked, idle and paused all read idle grey (off), never on", () => {
+    for (const s of ["docked", "idle", "paused"]) {
+      const cls = classOfDev(draw({ "vacuum.v": st(s) }));
+      expect(cls, s).not.toContain("on");
+      expect(cls, s).not.toContain("danger");
+      expect(cls, s).not.toContain("spin");
+    }
+  });
+
+  it("cleaning is active and spins; returning is active but does not spin", () => {
+    const cleaning = classOfDev(draw({ "vacuum.v": st("cleaning") }));
+    expect(cleaning).toContain("on");
+    expect(cleaning).toContain("spin");
+    const returning = classOfDev(draw({ "vacuum.v": st("returning") }));
+    expect(returning).toContain("on");
+    expect(returning).not.toContain("spin");
+  });
+
+  it("error is its own danger class, not on and not off", () => {
+    const cls = classOfDev(draw({ "vacuum.v": st("error") }));
+    expect(cls).toContain("danger");
+    expect(cls).not.toContain("on");
+    expect(cls).not.toContain("off");
+  });
+
+  it("unavailable and unknown get the standard unavailable treatment", () => {
+    for (const s of ["unavailable", "unknown"]) {
+      const cls = classOfDev(draw({ "vacuum.v": st(s) }));
+      expect(cls, s).toContain("unavailable");
+      expect(cls, s).not.toContain("on");
+    }
+  });
+
+  it("Break it: cleaning without the fix would read idle grey like docked — asymmetric check that on and spin both fire", () => {
+    expect(FLOORPLAN_CSS).toContain(".dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)}");
+    expect(FLOORPLAN_CSS).toMatch(/\.dev-vacuum\.spin path\{[^}]*animation:fp-spin 4s linear infinite/);
+  });
+});

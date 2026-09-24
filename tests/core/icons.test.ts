@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { DEVICE_ICONS, FURNITURE } from "../../src/core/icons";
 import type { DeviceType, FurnitureSymbol } from "../../src/core/schema";
 
-const DEVICE_TYPES: DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar"];
+const DEVICE_TYPES: DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum"];
 const SYMBOLS: FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"];
 
 describe("icons", () => {
@@ -25,6 +25,12 @@ describe("icons", () => {
     expect(DEVICE_ICONS.radar).toMatch(/^M/);
     expect(DEVICE_ICONS.radar).not.toBe(DEVICE_ICONS.person);
     expect(DEVICE_ICONS.radar).not.toBe(DEVICE_ICONS.motion);
+  });
+
+  it("S7.10: draws a vacuum with the MDI robot-vacuum path, not borrowed from another type", () => {
+    expect(DEVICE_ICONS.vacuum).toMatch(/^M/);
+    expect(DEVICE_ICONS.vacuum).not.toBe(DEVICE_ICONS.radar);
+    expect(DEVICE_ICONS.vacuum).not.toBe(DEVICE_ICONS.person);
   });
 
   it("has a symbol for every furniture type with the agreed size", () => {

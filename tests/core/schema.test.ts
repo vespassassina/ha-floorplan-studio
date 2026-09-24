@@ -716,3 +716,11 @@ describe("S7.9: a radar device and its targets", () => {
       expect(() => errorsOf(withDev(radar({ targets: bad })))).not.toThrow();
   });
 });
+
+describe("S7.10: a vacuum device", () => {
+  const withDev = (d: unknown) => { const l = clone(); l.floors.ground.devices.push(d); return l; };
+
+  it("accepts a vacuum device with only the fields every device has — no new field of its own", () => {
+    expect(errorsOf(withDev({ id: "v1", type: "vacuum", entity: "vacuum.hall", x: 100, y: 100 }))).toEqual([]);
+  });
+});

@@ -84,7 +84,7 @@ export function rolesToTokens(roles: ThemeRoles): string {
     `--fp-dev-heater:${devFor("heater")}`, `--fp-dev-climate:${devFor("climate")}`, `--fp-dev-ac-cool:${acCool}`,
     `--fp-dev-ac-heat:${acHeat}`, `--fp-dev-tv:${devFor("tv")}`, `--fp-dev-media:${devFor("media")}`,
     `--fp-dev-cover:${devFor("cover")}`, `--fp-dev-plug:${devFor("plug")}`, `--fp-dev-computer:${devFor("computer")}`,
-    `--fp-dev-camera:${shades.idle}`, `--fp-dev-garden:${shades.idle}`, `--fp-dev-person:${devFor("person")}`, `--fp-dev-radar:${devFor("radar")}`,
+    `--fp-dev-camera:${shades.idle}`, `--fp-dev-garden:${shades.idle}`, `--fp-dev-person:${devFor("person")}`, `--fp-dev-radar:${devFor("radar")}`, `--fp-dev-vacuum:${devFor("vacuum")}`,
     `--fp-halo:${roles.fg}`, `--fp-alpha:.25`, `--fp-disc:${roles.fg}`, `--fp-disc-alpha:${roles.fgAlpha}`,
     `--fp-outline:${shades.bg}`, `--fp-text:${roles.fg}`,
     // warn/danger/primary and their on-dark/on-light text stay the same fixed pair in every theme, generated or not
