@@ -14,6 +14,13 @@
   small dots turned by the device's own `rot`. The presence entity (a
   `binary_sensor.*occupancy`) colours the icon. `docs/card.md` has a worked
   ESPHome snippet.
+- A new `vacuum` device type for `vacuum.*` entities: grey while docked, idle
+  or paused; teal and slowly spinning while cleaning; teal, not spinning,
+  while returning to dock; red on an error state. A tap opens a dialog with
+  Start, Pause and Return to dock, never a toggle; `unavailable`/`unknown`
+  disables the three actions but the dialog still opens, so it can be
+  dismissed. No field for the vacuum's position on the map — most
+  integrations expose that as a camera or a proprietary blob, not coordinates.
 - Help: each step showed two chevrons, the browser's own and ours. One now.
 - The card's Edit-card dialog shows a form instead of raw YAML: theme, floors, fade, room glow, zoom, kiosk, night and the sun entity. The floor list comes from the layout the card already loaded. A field left at its default is left out of the saved config.
 - Night: after sunset the card darkens every room, outdoor areas included, and leaves a room with a light on clear. `night: auto` (default) reads `sun.sun` or the entity `sun` names; `on` and `off` force it. The editor previews it under View, Preview night.

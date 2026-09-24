@@ -2,6 +2,47 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-24 S7.10 vacuum: no map position, dialog instead of toggle
+
+- **No map position field.** Most vacuum integrations expose their current
+  spot, if at all, as a camera entity streaming a proprietary map image, or as
+  attributes with no fixed coordinate system across brands — not a pair of
+  sensors a plan could place a dot from, the way S7.9's radar targets do. A
+  device this schema cannot draw honestly is a device it leaves undrawn: the
+  icon shows state, not position. A later task could read a vendor-specific
+  x/y attribute pair the way S7.9 reads target sensors, if a common enough
+  shape shows up; nothing here forecloses it.
+- **A tap opens a dialog, never toggles.** `vacuum.toggle` does not exist as a
+  clean single action a user would expect from one tap (unlike a light or a
+  switch), and blind service calls on a robot that moves through the house
+  are exactly the case S2.7's cover dialog already exists for. The dialog
+  offers Start, Pause and Return to dock, modelled directly on
+  `_coverDialogTemplate`/`_openCoverDialog` in `floorplan-studio-card.ts`
+  (same focus-in/out-once rule, same "ignore a second tap while open" guard,
+  extended so opening either dialog also checks the other is closed — the
+  two share one keydown handler and query `.fp-dialog-actions button`
+  generically, which only works because exactly one dialog is ever open).
+- **`docked`/`idle`/`paused` are all idle grey, not three shades.** None of
+  the three needs its own colour: what matters to someone glancing at the
+  plan is "doing something" (cleaning, returning) versus "not" (everything
+  else) versus "broken" (error). Collapsing the three saves a decision no one
+  asked for and keeps `--fp-dev-vacuum` meaning one thing: active.
+- **`cleaning` spins the icon; `returning` does not.** Both are the "on"
+  colour (`--fp-dev-vacuum`), but returning-to-dock is not the vacuum doing
+  its job in a room, so the spin — the strongest "look, it's moving" signal
+  the icon has — is reserved for actual cleaning.
+- **`error` is a fourth CSS class, `danger`, not a fourth on/off combination.**
+  `Cls` grew from `"on" | "off" | "unavailable"` to include `"danger"` rather
+  than overloading `on` with a colour swap, so `.dev.danger path{fill:var(--fp-danger)}`
+  reads as its own rule next to `.dev.on`/`.dev.off`, not a special case
+  bolted onto one of them.
+- **`unavailable`/`unknown` disables the three action buttons, not the whole
+  dialog.** Cancel stays clickable so the dialog can always be dismissed —
+  the same reasoning S2.7's cover dialog never needed, since a cover has no
+  disabled state of its own; a vacuum genuinely can be unreachable.
+- **`prompts/SCHEMA.md` needed no edit**, same finding S7.9 already recorded:
+  it has no `DeviceType` enumeration of its own.
+
 ## 2026-09-24 S7.8/S7.9 People and radar targets: frame math, drawing path, and one environment fix
 
 Five decisions past the brief, plus a Node/vitest fix that blocked a clean `npm test` and is recorded here since it touches every test file, not this feature alone.
