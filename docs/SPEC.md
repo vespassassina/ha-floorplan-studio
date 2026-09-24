@@ -245,6 +245,7 @@ Rooms tint when any light in them is on (`room_glow: true`). Card config:
 ```yaml
 type: custom:floorplan-studio-card
 floor: ground          # or "all" with a floor switcher
+floors: [ground, first]  # or an ordered list of floor ids; a switcher over just these, first is the default; wins over `floor`
 fade: 300              # motion fade, seconds
 room_glow: true
 theme: blueprint       # blueprint (default), midnight, light, slate, terminal, solarized, or ha

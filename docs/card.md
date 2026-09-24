@@ -18,22 +18,53 @@ type: custom:floorplan-studio-card
 With no other keys it draws your plan's first floor, in the `blueprint` theme,
 motion fading over 300 seconds, `room_glow` off.
 
+The editor itself can write this for you: File, Install code opens a panel
+with a whole dashboard, matching your plan as it currently stands — theme,
+floors — ready to paste. See "A premade dashboard" below.
+
 ## Config keys
 
 | Key | Default | What it does |
 |---|---|---|
 | `floor` | the first floor in the layout | which floor to draw, by its id (`ground`, `first`, ...); `all` shows a floor switcher in the card itself |
+| `floors` | unset | an array of floor ids: shows a switcher over only these floors, in this order, defaulting to the first one. Takes precedence over `floor`. An id the layout doesn't have is dropped; if none of them match, this is the same as leaving `floors` unset |
 | `theme` | `blueprint` | `blueprint`, `light`, `midnight`, `slate`, `terminal`, `solarized`, or `ha` (see Themes, below) |
 | `fade` | `300` | seconds a motion sensor takes to fade from red to grey after it last went off |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
 
 ```yaml
 type: custom:floorplan-studio-card
-floor: ground
+floors:
+  - ground
+  - first
 fade: 300
 room_glow: true
 theme: blueprint
 ```
+
+## A premade dashboard
+
+To get a whole dashboard rather than one card: in the editor, File, Install
+code. It shows a dashboard — one view, this card, your plan's current theme
+and floors — ready to paste as-is:
+
+```yaml
+title: Floorplan
+views:
+  - title: Floorplan
+    path: floorplan
+    cards:
+      - type: custom:floorplan-studio-card
+        theme: blueprint
+        floors:
+          - ground
+          - first
+```
+
+Settings, Dashboards, Add dashboard, New dashboard from scratch, then its ⋮
+menu, Edit in YAML, and paste this over what's there. To add the card to a
+dashboard you already have instead, paste only the `cards:` entry into an
+existing view.
 
 ## Themes
 

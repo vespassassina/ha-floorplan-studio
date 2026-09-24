@@ -41,7 +41,7 @@ The button opens HACS on your Home Assistant with this repository ready to add. 
 1. HACS → Integrations → add this repository → install, then restart Home Assistant.
 2. Add the integration: [![Set up Floorplan Studio.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=floorplan_studio) (one click, no fields). Home Assistant does not load a custom integration until it has an entry, so this step cannot be skipped.
 3. Open **Floorplan Studio** in the sidebar and draw, or load a draft (below).
-4. Add the card: `type: custom:floorplan-studio-card`. No resource to add; the integration does it.
+4. Add the card: `type: custom:floorplan-studio-card`. No resource to add; the integration does it. For a whole premade dashboard, or the exact code for your plan's theme and floors, use File, Install code in the editor — see [`docs/card.md`](docs/card.md#a-premade-dashboard).
 
 The sidebar link is on by default. To hide it: Settings → Devices & services → Floorplan Studio → Configure → turn off **Show in the sidebar**. The card and your saved plan keep working; turn it back on any time.
 

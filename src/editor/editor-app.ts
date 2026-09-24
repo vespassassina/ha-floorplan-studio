@@ -165,6 +165,8 @@ export class FloorplanStudioEditor extends LitElement {
   /** The Device colours popup's screen position; null when closed. Dragged by its header, closed by its own X or Escape. */
   private devColsPos: { x: number; y: number } | null = null;
   private dcDrag: { dx: number; dy: number } | null = null;
+  /** File, Install code: whether the panel with the ready-to-paste card YAML is open. Fixed, not draggable; closed by its own X or Escape. */
+  private installCodeOpen = false;
   private rect = { w: 800, h: 600 };
   private ro?: ResizeObserver;
 
@@ -242,6 +244,12 @@ export class FloorplanStudioEditor extends LitElement {
     .devcols-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
     .devcols-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 14px;padding:10px;overflow:auto}
     .devcols-panel>.btn{margin:0 10px 10px;width:auto;align-self:flex-start}
+    .installcode-panel{position:fixed;left:50%;top:90px;transform:translateX(-50%);z-index:30;width:520px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+    .installcode-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--fp-idle);font-weight:600}
+    .installcode-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
+    .installcode-panel p{margin:8px 10px 0;font-size:13px}
+    .installcode-panel textarea{margin:8px 10px;padding:8px;font:12px/1.4 ui-monospace,monospace;border:1px solid var(--fp-idle);border-radius:4px;background:var(--fp-room);color:var(--fp-ink);resize:vertical}
+    .installcode-panel>.btn{margin:0 10px 10px;width:auto;align-self:flex-start}
     .sub{display:flex;flex-direction:column;gap:6px}
     .sub>summary{list-style:none;display:inline-block}
     .sub>summary::-webkit-details-marker{display:none}
@@ -791,6 +799,45 @@ export class FloorplanStudioEditor extends LitElement {
   };
   private onDevColsHeaderUp = () => { this.dcDrag = null; };
 
+  private toggleInstallCode = () => {
+    this.installCodeOpen = !this.installCodeOpen;
+    this.requestUpdate();
+  };
+
+  /** S6.6: a whole premade dashboard — pasteable as-is via a new dashboard's own "Edit in YAML" — with one view
+   * holding the card: this editor's own theme, and every floor in its current order when there's more than one,
+   * so `floors[0]` stays the default the card opens on (a single-floor layout needs no `floors` at all — the card
+   * already defaults to its one floor). Floor ids are always a `slug()` (`addFloor`), but a hand-edited or older
+   * layout file is untrusted input (CLAUDE.md finding 1), so each one is still written as a quoted YAML string
+   * rather than assumed bare-safe. */
+  private installCodeYaml(): string {
+    const st = this.st;
+    const keys = Object.keys(st.layout.floors);
+    const lines = [
+      "title: Floorplan",
+      "views:",
+      "  - title: Floorplan",
+      "    path: floorplan",
+      "    cards:",
+      "      - type: custom:floorplan-studio-card",
+      `        theme: ${st.theme}`,
+    ];
+    if (keys.length > 1) {
+      lines.push("        floors:");
+      for (const k of keys) lines.push(`          - ${JSON.stringify(k)}`);
+    }
+    return lines.join("\n");
+  }
+
+  private copyInstallCode(code: string) {
+    const cb = navigator.clipboard;
+    if (!cb) { this.status = "Could not copy — select the text and copy it by hand."; this.requestUpdate(); return; }
+    cb.writeText(code).then(
+      () => { this.status = "Install code copied."; this.requestUpdate(); },
+      () => { this.status = "Could not copy — select the text and copy it by hand."; this.requestUpdate(); },
+    );
+  }
+
   /** The kind a room/outline edge shows in its own panel: the first room's, or the outline's own, "wall" with no room and no outline. */
   private edgeKind(poly: string, i: number): WallKind | "none" {
     const rooms = edgeRooms(this.st.f, poly, i);
@@ -956,6 +1003,24 @@ export class FloorplanStudioEditor extends LitElement {
     </div>`;
   }
 
+  /** File, Install code: a fixed, centred panel with the card config YAML that reproduces the current plan
+   * (`installCodeYaml`), ready to paste into a dashboard. Read-only and selected on focus so a click and Ctrl/Cmd+C
+   * copies it without a native clipboard permission; Copy does the same in one click where `navigator.clipboard`
+   * is available. Escape is handled on the textarea itself, not only by `onKey`, since `onKey` ignores keys typed
+   * into a TEXTAREA (so as not to steal Delete/Backspace from someone editing a field) and focus sits in this one
+   * the moment it opens. */
+  private installCodeView() {
+    const code = this.installCodeYaml();
+    return html`<div class="installcode-panel" role="dialog" aria-label="Install code">
+      <div class="installcode-head"><span>Install this card</span>
+        <button class="btn keep" id="installcodeClose" aria-label="Close" @click=${() => this.toggleInstallCode()}>&times;</button>
+      </div>
+      <p>A whole dashboard, matching what you're editing now — nothing else to install. Settings → Dashboards → Add dashboard → New dashboard from scratch, then its ⋮ menu, Edit in YAML, paste this over what's there. Or paste just the <code>cards:</code> entry into an existing dashboard.</p>
+      <textarea id="installcodeText" readonly rows="12" @focus=${(e: Event) => (e.target as HTMLTextAreaElement).select()} @keydown=${(e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); this.toggleInstallCode(); } }}>${code}</textarea>
+      <button class="btn keep" id="installcodeCopy" @click=${() => this.copyInstallCode(code)}>Copy</button>
+    </div>`;
+  }
+
   private roomCtxItems(i: number) {
     const st = this.st, r = st.f.rooms[i], ha = st.ha;
     const unplaced = r?.area && ha ? ha.entities.filter((e) => e.area === r.area && !placedEntities(st.layout).has(e.id)) : [];
@@ -1019,6 +1084,7 @@ export class FloorplanStudioEditor extends LitElement {
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); this.undo(!ev.shiftKey); return; }
     if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
+    if (ev.key === "Escape" && this.installCodeOpen) { ev.preventDefault(); this.toggleInstallCode(); return; }
     if (ev.key === "Escape" && this.st.helpOpen) { ev.preventDefault(); this.toggleHelp(); return; }
     if (this.draw) {
       // Draw mode owns these keys: Delete must not remove the item that was selected before.
@@ -1834,6 +1900,7 @@ export class FloorplanStudioEditor extends LitElement {
         <details class="menu" id="mFile"><summary class="btn">File</summary><div class="box">
           <button class="btn" id="imp" @click=${() => this.renderRoot.querySelector<HTMLInputElement>("#file")?.click()}>Open…</button>
           <button class="btn" id="exp" title="Download the current layout as JSON" @click=${() => this.exportJson()}>Export…</button>
+          <button class="btn" id="installcode" aria-expanded=${pressed(this.installCodeOpen)} @click=${() => this.toggleInstallCode()}>Install code…</button>
           ${this.demo ? html`<button class="btn" id="loaddemo" ?disabled=${!isBlank(st.layout)} title=${isBlank(st.layout) ? "Load the demo home" : "Reset first: loading the demo would overwrite your plan."} @click=${() => this.loadDemo()}>Load demo</button>` : nothing}
           <button class="btn danger" id="reset" title="Erase everything and start from a blank plan" @click=${() => this.reset()}>Reset</button>
           <button class="btn primary" id="save" @click=${() => this.save()}>Save</button>
@@ -1861,6 +1928,7 @@ export class FloorplanStudioEditor extends LitElement {
           <svg xmlns="http://www.w3.org/2000/svg" class=${this.draw ? "drawing" : ""} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
           ${this.ctxMenu ? this.ctxMenuView(this.ctxMenu) : nothing}
           ${this.devColsPos ? this.devColsView(st) : nothing}
+          ${this.installCodeOpen ? this.installCodeView() : nothing}
         </div>
         <aside>
           <div id="panel">${st.helpOpen ? helpPanel(() => this.toggleHelp()) : selectionPanel(this.ctx())}</div>

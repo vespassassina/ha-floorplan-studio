@@ -162,6 +162,53 @@ test("File, Export downloads the current layout, with no save-request and no hos
   expect(saveRequested).toBe(false);
 });
 
+test("S6.6: File, Install code shows the card YAML for this plan — its theme and every floor, first is ground — closed by its own X", async ({ page }) => {
+  await menu(page, "File");
+  await page.locator("#installcode").click();
+  const panel = page.locator(`${EDITOR} .installcode-panel`);
+  await expect(panel).toBeVisible();
+  const code = await page.locator(`${EDITOR} #installcodeText`).inputValue();
+  expect(code).toContain("views:");
+  expect(code).toContain("type: custom:floorplan-studio-card");
+  expect(code).toContain("theme: blueprint");
+  const floorLines = code.split("\n").filter((l) => /^- "/.test(l.trim())).map((l) => JSON.parse(l.trim().slice(2)));
+  expect(floorLines).toEqual(Object.keys((await layoutOf(page)).floors));
+  await page.locator(`${EDITOR} #installcodeClose`).click();
+  await expect(panel).toHaveCount(0);
+});
+
+test("S6.6: Install code reflects the theme picked in View", async ({ page }) => {
+  await menu(page, "View");
+  await page.locator(`${EDITOR} #thSub summary`).click();
+  await page.locator(`${EDITOR} #thSub button[data-th="slate"]`).click();
+  await menu(page, "File");
+  await page.locator("#installcode").click();
+  const code = await page.locator(`${EDITOR} #installcodeText`).inputValue();
+  expect(code).toContain("theme: slate");
+});
+
+test("S6.6: Escape closes the Install code panel", async ({ page }) => {
+  await menu(page, "File");
+  await page.locator("#installcode").click();
+  const panel = page.locator(`${EDITOR} .installcode-panel`);
+  await expect(panel).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+});
+
+test("S6.6: Copy puts the same code on the clipboard and confirms in the status line", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).__copied = null;
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: (t: string) => { (window as any).__copied = t; return Promise.resolve(); } }, configurable: true });
+  });
+  await menu(page, "File");
+  await page.locator("#installcode").click();
+  const code = await page.locator(`${EDITOR} #installcodeText`).inputValue();
+  await page.locator(`${EDITOR} #installcodeCopy`).click();
+  expect(await page.evaluate(() => (window as any).__copied)).toBe(code);
+  await expect(page.locator("#status")).toHaveText("Install code copied.");
+});
+
 test("a reload restores the edit from localStorage and Reset starts from scratch", async ({ page }) => {
   await drag(page, 'circle[data-h="r0:1"]', 0, 50);
   const edited = await groundOf(page);
