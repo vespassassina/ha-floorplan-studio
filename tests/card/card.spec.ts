@@ -903,3 +903,119 @@ test("S7.8: under prefers-reduced-motion the person jumps, no transition", async
   }, idx);
   expect(anims).toBe(0);
 });
+
+// S7.10: the vacuum dialog. Real `page.mouse` taps at real coordinates (CLAUDE.md finding 3), the dialog's
+// presence and button state read for real in Chromium, never from markup or CSS text alone (finding 10).
+function vacuumLayout() {
+  const layout = structuredClone(demo);
+  layout.floors.ground.devices.push({ id: "vacuum-test", type: "vacuum", entity: "vacuum.test", name: "Test vacuum", x: 200, y: 520 });
+  return { layout, idx: layout.floors.ground.devices.length - 1 };
+}
+
+async function tapVacuum(page: Page, idx: number) {
+  const g = page.locator("floorplan-studio-card").locator(`css=g[data-x="${idx}"]`);
+  await g.scrollIntoViewIfNeeded();
+  const box = (await g.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+}
+
+test("S7.10: a tap on a vacuum opens a real, visible dialog naming it, with Cancel focused by default", async ({ page }) => {
+  await open(page);
+  const { layout, idx } = vacuumLayout();
+  await configureWithCallServiceSpy(page, { layout }, { "vacuum.test": live("docked") });
+
+  await tapVacuum(page, idx);
+
+  const card = page.locator("floorplan-studio-card");
+  await expect(card.locator("css=.fp-vacuum-dialog p")).toHaveText("Test vacuum");
+  const display = await card.evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector(".fp-dialog-backdrop")!).display);
+  expect(display).toBe("flex");
+  const activeIsCancel = await card.evaluate((el) => el.shadowRoot!.activeElement === el.shadowRoot!.querySelector(".fp-vacuum-dialog button.cancel"));
+  expect(activeIsCancel).toBe(true);
+
+  const a11y = await card.evaluate((el) => {
+    const dialog = el.shadowRoot!.querySelector(".fp-vacuum-dialog")!;
+    const labelledBy = dialog.getAttribute("aria-labelledby")!;
+    return { role: dialog.getAttribute("role"), ariaModal: dialog.getAttribute("aria-modal"), labelText: el.shadowRoot!.getElementById(labelledBy)?.textContent };
+  });
+  expect(a11y).toEqual({ role: "dialog", ariaModal: "true", labelText: "Test vacuum" });
+});
+
+test("S7.10: Return to dock calls vacuum.return_to_base with the entity_id, and the dialog closes", async ({ page }) => {
+  await open(page);
+  const { layout, idx } = vacuumLayout();
+  await configureWithCallServiceSpy(page, { layout }, { "vacuum.test": live("cleaning") });
+
+  await tapVacuum(page, idx);
+  await page.locator("floorplan-studio-card").locator("css=.fp-vacuum-dialog button.confirm").click();
+
+  const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+  expect(calls).toEqual([["vacuum", "return_to_base", { entity_id: "vacuum.test" }]]);
+  await expect(page.locator("floorplan-studio-card").locator("css=.fp-vacuum-dialog")).toHaveCount(0);
+});
+
+test("S7.10: Start and Pause call vacuum.start and vacuum.pause with the entity_id", async ({ page }) => {
+  await open(page);
+  const { layout, idx } = vacuumLayout();
+  await configureWithCallServiceSpy(page, { layout }, { "vacuum.test": live("docked") });
+
+  await tapVacuum(page, idx);
+  const buttons = page.locator("floorplan-studio-card").locator("css=.fp-vacuum-dialog .fp-dialog-actions button");
+  await expect(buttons).toHaveText(["Cancel", "Start", "Pause", "Return to dock"]);
+  await buttons.nth(1).click(); // Start
+  await tapVacuum(page, idx);
+  await page.locator("floorplan-studio-card").locator("css=.fp-vacuum-dialog .fp-dialog-actions button").nth(2).click(); // Pause
+
+  const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+  expect(calls).toEqual([
+    ["vacuum", "start", { entity_id: "vacuum.test" }],
+    ["vacuum", "pause", { entity_id: "vacuum.test" }],
+  ]);
+});
+
+test("S7.10: Cancel calls no service", async ({ page }) => {
+  await open(page);
+  const { layout, idx } = vacuumLayout();
+  await configureWithCallServiceSpy(page, { layout }, { "vacuum.test": live("docked") });
+
+  await tapVacuum(page, idx);
+  await page.locator("floorplan-studio-card").locator("css=.fp-vacuum-dialog button.cancel").click();
+
+  const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+  expect(calls).toEqual([]);
+  await expect(page.locator("floorplan-studio-card").locator("css=.fp-vacuum-dialog")).toHaveCount(0);
+});
+
+test("S7.10 Break it: unavailable or unknown shows the dialog with Start/Pause/Return to dock disabled, Cancel still enabled", async ({ page }) => {
+  for (const state of ["unavailable", "unknown"]) {
+    await open(page);
+    const { layout, idx } = vacuumLayout();
+    await configureWithCallServiceSpy(page, { layout }, { "vacuum.test": live(state) });
+    await tapVacuum(page, idx);
+    const card = page.locator("floorplan-studio-card");
+    const disabled = await card.evaluate((el) => [...el.shadowRoot!.querySelectorAll(".fp-vacuum-dialog .fp-dialog-actions button")].map((b) => (b as HTMLButtonElement).disabled));
+    expect(disabled, state).toEqual([false, true, true, true]); // Cancel, Start, Pause, Return to dock
+  }
+});
+
+test("S7.10 Break it: a second tap on the vacuum while the dialog is open does not open a second dialog", async ({ page }) => {
+  await open(page);
+  const { layout, idx } = vacuumLayout();
+  await configureWithCallServiceSpy(page, { layout }, { "vacuum.test": live("docked") });
+
+  await tapVacuum(page, idx);
+  await tapVacuum(page, idx);
+
+  await expect(page.locator("floorplan-studio-card").locator("css=.fp-vacuum-dialog")).toHaveCount(1);
+});
+
+test.describe("S7.10 kiosk mode: the vacuum dialog still opens", () => {
+  test.use({ viewport: { width: 700, height: 900 } });
+  test("a tap opens the dialog under kiosk, same as without it", async ({ page }) => {
+    await open(page);
+    const { layout, idx } = vacuumLayout();
+    await configureWithCallServiceSpy(page, { layout, kiosk: true }, { "vacuum.test": live("docked") });
+    await tapVacuum(page, idx);
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-vacuum-dialog")).toHaveCount(1);
+  });
+});

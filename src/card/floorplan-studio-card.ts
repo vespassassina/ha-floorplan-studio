@@ -2,7 +2,7 @@ import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, THEMES, migrate, planPivot, renderFloor, validate, viewBoxFor } from "../core";
 import type { Theme } from "../core";
-import type { Door, Floor, Layout } from "../core";
+import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions } from "./actions";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
 // one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
@@ -89,6 +89,10 @@ export class FloorplanStudioCard extends LitElement {
     /* Only when zoom is on: the plan takes every touch, so the page does not scroll or zoom under a pinch. */
     svg.fp-zoomable { touch-action: none; }
     .fp-dialog-actions button.confirm { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); }
+    /* S7.10: the vacuum dialog has four buttons where the cover dialog has two; wrap rather than overflow the
+       card on a narrow width, and a disabled action reads as inert (dimmed, no pointer) without a separate class. */
+    .fp-vacuum-dialog .fp-dialog-actions { flex-wrap: wrap; }
+    .fp-dialog-actions button:disabled { opacity: 0.45; cursor: default; }
   `];
 
   private _config: FloorplanStudioCardConfig = {};
@@ -120,6 +124,10 @@ export class FloorplanStudioCard extends LitElement {
   /** Tracks whether the dialog was open on the *previous* render, so `updated()` moves focus into it exactly once
    * per open (not on every unrelated re-render while it stays open) and back out exactly once per close. */
   private _coverDialogWasOpen = false;
+  /** S7.10: the vacuum whose Start/Pause/Return-to-dock dialog is open, or `null` for none. Same "ignore a second
+   * tap while open" rule as `_coverDialog`, and its own was-open flag for the same once-per-open/close focus move. */
+  private _vacuumDialog: Device | null = null;
+  private _vacuumDialogWasOpen = false;
   /** S7.4: the zoomed viewBox, or `null` for fit. Card state: reset by `setConfig` and a floor change, never by `hass`. */
   private _view: View | null = null;
   /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
@@ -439,7 +447,10 @@ export class FloorplanStudioCard extends LitElement {
       // debounce, but also no double-firing from a stale second listener).
       this._unbindActions?.();
       this._unbindActions = svg
-        ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], (door) => this._openCoverDialog(door), { longPress: !this._kiosk() })
+        ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], (door) => this._openCoverDialog(door), {
+            longPress: !this._kiosk(),
+            openVacuumDialog: (d) => this._openVacuumDialog(d),
+          })
         : null;
       this._unbindZoom?.();
       this._unbindZoom = svg ? this._bindZoom(svg) : null;
@@ -458,6 +469,15 @@ export class FloorplanStudioCard extends LitElement {
       this.focus();
     }
     this._coverDialogWasOpen = dialogOpen;
+
+    // S7.10: same focus-in-once/focus-out-once rule as the cover dialog above, its own dialog, its own flag.
+    const vacuumOpen = this._vacuumDialog !== null;
+    if (vacuumOpen && !this._vacuumDialogWasOpen) {
+      this.shadowRoot?.querySelector<HTMLButtonElement>(".fp-vacuum-dialog button.cancel")?.focus();
+    } else if (!vacuumOpen && this._vacuumDialogWasOpen) {
+      this.focus();
+    }
+    this._vacuumDialogWasOpen = vacuumOpen;
   }
 
   /**
@@ -466,7 +486,7 @@ export class FloorplanStudioCard extends LitElement {
    * second one or swap which door it acts on ("Break it" in the PLAN block).
    */
   private _openCoverDialog(door: Door): void {
-    if (this._coverDialog) return;
+    if (this._coverDialog || this._vacuumDialog) return;
     this._coverDialog = door;
     this.requestUpdate();
   }
@@ -474,6 +494,36 @@ export class FloorplanStudioCard extends LitElement {
   private _closeCoverDialog(): void {
     this._coverDialog = null;
     this.requestUpdate();
+  }
+
+  /**
+   * S7.10: opens the vacuum dialog for `d`, unless a dialog (this one or the cover one) is already open — the
+   * same "ignore a second tap while open" rule as `_openCoverDialog`.
+   */
+  private _openVacuumDialog(d: Device): void {
+    if (this._coverDialog || this._vacuumDialog) return;
+    this._vacuumDialog = d;
+    this.requestUpdate();
+  }
+
+  private _closeVacuumDialog(): void {
+    this._vacuumDialog = null;
+    this.requestUpdate();
+  }
+
+  /** S7.10: Break it — `unavailable`/`unknown` (or no state at all) disables the three action buttons; Cancel
+   *  always stays enabled, so the dialog can still be dismissed. */
+  private _vacuumDisabled(): boolean {
+    const d = this._vacuumDialog;
+    if (!d) return true;
+    const s = this._hass?.states[d.entity]?.state;
+    return !s || s === "unavailable" || s === "unknown";
+  }
+
+  private _vacuumAction(service: "start" | "pause" | "return_to_base"): void {
+    const d = this._vacuumDialog;
+    if (d) this._hass?.callService?.("vacuum", service, { entity_id: d.entity });
+    this._closeVacuumDialog();
   }
 
   /** The one place that reads a cover's live state and decides what pressing the button does — the dialog's text
@@ -495,12 +545,15 @@ export class FloorplanStudioCard extends LitElement {
     this._closeCoverDialog();
   }
 
-  /** Escape cancels; Tab/Shift+Tab cycle only between the dialog's own two buttons, so focus never escapes it into
-   * the rest of the card while it is open. */
+  /** Escape cancels; Tab/Shift+Tab cycle only between the open dialog's own buttons, so focus never escapes it into
+   * the rest of the card while it is open. Shared by the cover dialog (two buttons) and the vacuum dialog (four) —
+   * `_openCoverDialog`/`_openVacuumDialog` never let both be open at once, so exactly one `.fp-dialog-actions` is
+   * ever rendered and this reads it generically rather than picking a dialog by name. */
   private _onDialogKeydown = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {
       e.preventDefault();
-      this._closeCoverDialog();
+      if (this._vacuumDialog) this._closeVacuumDialog();
+      else this._closeCoverDialog();
       return;
     }
     if (e.key !== "Tab") return;
@@ -562,7 +615,7 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${zoom ? "fp-zoomable" : ""} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${showZoomButtons ? this._zoomButtons(box, fit) : null}${this._coverDialogTemplate()}`;
+    return html`${this._floorChips()}<svg class=${zoom ? "fp-zoomable" : ""} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${showZoomButtons ? this._zoomButtons(box, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}`;
   }
 
   /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */
@@ -761,6 +814,31 @@ export class FloorplanStudioCard extends LitElement {
           <div class="fp-dialog-actions">
             <button type="button" class="cancel" @click=${() => this._closeCoverDialog()}>Cancel</button>
             <button type="button" class="confirm" @click=${() => this._confirmCoverDialog()}>${verb}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /** S7.10: the vacuum dialog, or `null` when none is open — same shape and rules as `_coverDialogTemplate` above
+   * (card chrome outside `<svg>`, `lit-html` escaping the name, `role`/`aria-modal`/`aria-labelledby`), but three
+   * actions instead of one, since a vacuum has no single obvious verb. Start/Pause/Return to dock each read
+   * `_vacuumDisabled()` fresh on every render, so an entity that goes `unavailable` while the dialog is open
+   * (`hass`'s setter calls `requestUpdate()` on every change, same as the cover dialog) disables them at once
+   * rather than leaving a stale, clickable button. Cancel is never disabled, so the dialog can always be dismissed. */
+  private _vacuumDialogTemplate() {
+    const d = this._vacuumDialog;
+    if (!d) return null;
+    const disabled = this._vacuumDisabled();
+    return html`
+      <div class="fp-dialog-backdrop" @keydown=${this._onDialogKeydown}>
+        <div class="fp-dialog fp-vacuum-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-vacuum-dialog-title">
+          <p id="fp-vacuum-dialog-title">${d.name ?? d.id}</p>
+          <div class="fp-dialog-actions">
+            <button type="button" class="cancel" @click=${() => this._closeVacuumDialog()}>Cancel</button>
+            <button type="button" ?disabled=${disabled} @click=${() => this._vacuumAction("start")}>Start</button>
+            <button type="button" ?disabled=${disabled} @click=${() => this._vacuumAction("pause")}>Pause</button>
+            <button type="button" class="confirm" ?disabled=${disabled} @click=${() => this._vacuumAction("return_to_base")}>Return to dock</button>
           </div>
         </div>
       </div>
