@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.2
+
+- The card gains a `floors` config key: an ordered array of floor ids that restricts the switcher to just those floors, first is the default. Takes precedence over `floor`.
+- The editor's File menu gains Install code: a panel with a whole paste-ready Home Assistant dashboard for the plan as it currently stands — theme, floors, the card itself.
+
 ## 0.10.1
 
 - A pressed row in the devices filter menu is now visually highlighted, not only marked `aria-pressed`.
