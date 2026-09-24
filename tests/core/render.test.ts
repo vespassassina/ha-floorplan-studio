@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { DEVICE_TYPES, UNLINKED_TYPES, FURNITURE_SYMBOLS, type Layout, type Pt, type WallKind } from "../../src/core/schema";
+import { DEVICE_TYPES, UNLINKED_TYPES, FURNITURE_SYMBOLS, ROOM_KINDS, type Layout, type Pt, type RoomKind, type WallKind } from "../../src/core/schema";
 import { stairSteps } from "../../src/core";
 import { DEVICE_ICONS } from "../../src/core/icons";
 import { renderFloor, viewBoxFor, planPivot, rotateAbout, contentPoints, DEVICE_COLOURS, DEVICE_REACH, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
@@ -1468,5 +1468,67 @@ describe("S7.1: labels never overprint each other", () => {
     const html = renderFloor(f, { scale: 1 });
     expect(html).toMatch(/<text class="lbl" x="50" y="50"[^>]*>Store</);
     expect(clashes(html)).toEqual(['"Store" on icon 0']);
+  });
+});
+
+describe("S7.6 night", () => {
+  const nightRows = (html: string) => [...html.matchAll(/<polygon data-night="(\d+)" class="room-night( lit)?"/g)].map((m) => [Number(m[1]), !!m[2]] as const);
+
+  it("sets class night on the root, with or without a plan theme", () => {
+    expect(renderFloor(ground, { ...base, night: true })).toMatch(/^<g class="night">/);
+    expect(renderFloor(ground, { ...base, night: true, theme: "light" })).toMatch(/^<g data-theme="light" class="night">/);
+  });
+
+  it("without night draws no overlay and no night class", () => {
+    const html = renderFloor(ground, { ...base, theme: "light", state: { "light.demo_living": st("on") } });
+    expect(html).not.toMatch(/room-night|class="night"/);
+  });
+
+  it("draws one overlay per room, outdoor kinds included, none for the zone or the stairs", () => {
+    // ground: 0 Living, 1 Kitchen, 2 Hall (room), 3 Reading corner (zone), 4 Garden, 5 Pavement, 6 Garden pond (water); one staircase.
+    const rows = nightRows(renderFloor(ground, { ...base, night: true }));
+    expect(rows.map((r) => r[0])).toEqual([0, 1, 2, 4, 5, 6]);
+    expect(rows.every((r) => !r[1])).toBe(true);
+  });
+
+  it("marks lit exactly the rooms with an on light inside them", () => {
+    const rows = nightRows(renderFloor(ground, { ...base, night: true, state: { "light.demo_kitchen": st("on"), "light.demo_living": st("off") } }));
+    expect(rows.filter((r) => r[1]).map((r) => r[0])).toEqual([1]);
+    // a bound light that is on through its switch alone counts, as it does for room_glow
+    const bound = nightRows(renderFloor(ground, { ...base, night: true, state: { "switch.demo_living_relay": st("on") } }));
+    expect(bound.filter((r) => r[1]).map((r) => r[0])).toEqual([0]);
+  });
+
+  it("the overlay sits over the room fills and stairs, under the walls and devices", () => {
+    const html = renderFloor(ground, { ...base, night: true });
+    const firstNight = html.indexOf('class="room-night'), lastRoom = html.lastIndexOf("<polygon data-r="), stairs = html.lastIndexOf("<g data-s="), wall = html.indexOf('<line class="eh'), dev = html.indexOf("<g data-x=");
+    expect(firstNight).toBeGreaterThan(lastRoom);
+    expect(firstNight).toBeGreaterThan(stairs);
+    expect(firstNight).toBeLessThan(wall);
+    expect(firstNight).toBeLessThan(dev);
+  });
+
+  it("every room kind is a decision: overlaid or not", () => {
+    const decided: Record<RoomKind, boolean> = { room: true, garden: true, pavement: true, fill: true, terrace: true, water: true, structure: false, zone: false };
+    for (const kind of ROOM_KINDS) {
+      const f = structuredClone(ground);
+      f.rooms = [{ id: "k", name: "K", area: "", label: "", kind, pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: Array(4).fill(kind === "zone" ? "boundary" : "wall") }];
+      expect(nightRows(renderFloor(f, { ...base, night: true })).length, kind).toBe(decided[kind] ? 1 : 0);
+    }
+  });
+
+  it("Break it: a light outside every room, or at a non-finite point, lights nothing and throws nothing", () => {
+    const f = structuredClone(ground);
+    f.devices.push({ id: "stray", type: "light", entity: "light.stray", x: 5000, y: 5000 });
+    f.devices.push({ id: "nan", type: "light", entity: "light.nan", x: NaN, y: 10 });
+    const html = renderFloor(f, { ...base, night: true, state: { "light.stray": st("on"), "light.nan": st("on") } });
+    expect(nightRows(html).length).toBe(6);
+    expect(nightRows(html).filter((r) => r[1])).toEqual([]);
+  });
+
+  it("the stylesheet fills the overlay with --fp-night, clears a lit one, and never takes a click", () => {
+    expect(FLOORPLAN_CSS).toContain(".night .room-night{fill:var(--fp-night)}");
+    expect(FLOORPLAN_CSS).toContain(".night .room-night.lit{fill:none}");
+    expect(FLOORPLAN_CSS).toContain(".room-night{fill:none;pointer-events:none}");
   });
 });

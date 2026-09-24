@@ -16,7 +16,7 @@ type: custom:floorplan-studio-card
 ```
 
 With no other keys it draws your plan's first floor, in the `blueprint` theme,
-motion fading over 300 seconds, `room_glow` off.
+motion fading over 300 seconds, `room_glow` off, darker after sunset.
 
 The editor itself can write this for you: File, Install code opens a panel
 with a whole dashboard, matching your plan as it currently stands — theme,
@@ -31,6 +31,8 @@ floors — ready to paste. See "A premade dashboard" below.
 | `theme` | `blueprint` | `blueprint`, `light`, `midnight`, `slate`, `terminal`, `solarized`, or `ha` (see Themes, below) |
 | `fade` | `300` | seconds a motion sensor takes to fade from red to grey after it last went off |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
+| `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
+| `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 
 ```yaml
 type: custom:floorplan-studio-card
@@ -120,6 +122,21 @@ A custom room (no Home Assistant area, drawn free-hand) can carry its own
 `entity` too: its outline lights up while that entity is on, open or playing,
 its fill never moves. A room linked to an *area* instead reflects every
 device placed inside it — that's what `room_glow` tints.
+
+## Night
+
+After sunset the plan darkens: every room, the garden, pavement and pond
+included, gets a dark blue veil. A room with a light on inside it stays
+clear, so at a glance you see where the lights are. It uses the same test as
+`room_glow`: a light counts for the room its icon stands in. Walls, names and
+icons stay on top, unveiled.
+
+With `night: auto` (the default) the card reads `sun.sun`, which Home
+Assistant has out of the box. No sun entity, or an unavailable one, means day.
+Point `sun` at another entity to decide yourself, for instance a binary
+sensor that is `on` when it is dark. `night: off` turns it off for good. In
+the editor, View, Preview night shows the look; the editor has no live
+lights, so every room is dark there.
 
 ## Troubleshooting
 

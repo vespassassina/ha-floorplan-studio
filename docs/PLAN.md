@@ -1336,6 +1336,48 @@ Shared rules for the sprint, on top of `CLAUDE.md`:
 - Test (first): `render.test.ts` asserts the root gets class `night`, one `rect.room-night` per room, `lit` on exactly the rooms with an on light; `editor.spec.ts` "Opus review CSS pair" for both rules via `getComputedStyle`; `card.spec.ts` flips `sun.sun` and asserts the class toggles, and `night: "off"` never sets it.
 - Done when: tests pass; `npm run shots` gains a `night` state (ground floor, blueprint and light) and the PNGs read as night with the lit rooms bright.
 - Break it: the `sun` entity is `unavailable`: day, no error. A light whose `x,y` is outside every room lights nothing.
+- Done, 2026-09-24. The overlay is a `<polygon class="room-night" data-night="<room index>">` with the room's own
+  points, not the brief's `<rect>` (a rect is the bounding box; on an L-shaped room it would darken the neighbour's
+  corner and clear ground that is not the lit room's own), drawn after the room fills and stairs, before walls, names
+  and devices. `renderFloor` reuses the `room_glow` lit-room set for `night` too. The root `<g>` carries class `night`
+  whether or not a plan theme is set. The card's `night()` reads config `night` (`auto`/`on`/`off`) and `sun` (default
+  `sun.sun`), treating `below_horizon` and `on` as night, anything else (including `unavailable` and a missing entity)
+  as day; it re-reads on every `hass` update, so a live sunset flips the card with no new config. The editor keeps the
+  choice in `localStorage` (`NIGHT_KEY`), never in the layout, never an undo step, under View, "Preview night".
+  `--fp-night: rgba(4,10,30,.45)` is one value for every theme for now, added to `rolesToTokens` and both hand-written
+  token strings. Four departures from the brief went to `docs/DECISIONS.md`: the polygon over a rect, the overlay
+  order (after stairs too), `.room-night{pointer-events:none}` in the stylesheet, not just the attribute (finding 18,
+  proven by a Playwright test with the rule removed), and `sun: <entity>` counting `on` as night as well as
+  `below_horizon`.
+  - TDD: written first and watched fail before the code (the previous agent's report, matched by the diff's shape).
+    `render.test.ts` gained a `describe` "S7.6 night" (8 tests: root class with and without a theme, no overlay
+    without `night`, one overlay per room with outdoor kinds included and none for the zone or stairs, `lit` exactly
+    on rooms with an on light including one lit through its bound switch, draw order between fills/stairs and
+    walls/devices, every `RoomKind` a decision via `ROOM_KINDS`, a light outside every room or at a non-finite point
+    lighting nothing, and the CSS pair via `FLOORPLAN_CSS.toContain`). `card.spec.ts` gained 3 (`sun`/`night` config
+    matrix over 12 cases including override and unavailable, a live `hass` update toggling the class with no new
+    config, and a CSS pair in the card's own shadow root). `editor.spec.ts` gained 3 (Preview night toggling the
+    overlay and surviving a reload without touching the saved layout, a click still selecting the room under the
+    overlay, and the "Opus review CSS pair" per finding 10).
+  - Revert-check (finding 4): removed `.night .room-night.lit{fill:none}` from `render.ts`; the `render.test.ts` CSS
+    pair test failed, and both Playwright CSS pair tests (`card.spec.ts`, `editor.spec.ts`) failed with the unlit and
+    lit colours equal. Restored; the diff came back byte-identical (24 insertions / 7 deletions in `render.ts`, as
+    before).
+  - Counts: `npm test` 889 tests / 29 files, 830 passed. 59 failures in `state.test.ts`, `add-from-area.test.ts`,
+    `place-area.test.ts` and `light-from-switch.test.ts` are a pre-existing `localStorage` crash under this machine's
+    Node (v26.10.0) in jsdom — reproduced identically with the S7.6 diff stashed out, so it predates this task and is
+    out of scope here. The 8 new S7.6 unit tests all pass; run alone: `8 passed`. Playwright: `PW_PORT=5306`, one full
+    run hit 7 unrelated failures (menu/draw-mode timing under load, none in S7.6); a second full run on a fresh port
+    came back `454 passed / 1 skipped`, and the 7 also passed in isolation against both the S7.6 diff and the
+    unmodified branch, so they were flaky under contention, not a regression. The 6 new S7.6 Playwright tests:
+    `--repeat-each=10` came back `60 passed`. Lint (`eslint` + `tsc --noEmit`) and `npm run build` both clean.
+    `npm run docs:check` clean.
+  - `npm run shots` looked at: `card-ground-night-blueprint` and `card-ground-night-light` (new), against
+    `card-ground-off-light` for contrast. Blueprint's grey rooms go slate, light's beige rooms, green garden, blue
+    pond and white pavement all mute to the same dark blue-grey veil; the kitchen (its light on) stays the room's own
+    warm fill under the on-light glow in both. Reads as night with the lit room bright, in both themes.
+  - Left out: a room's own texture or fill colour is covered exactly like a plain fill — the brief does not say
+    otherwise, and no shot showed it wrong. The config-form entry (S7.7) is not touched; S7.7 covers it when it lands.
 
 ### S7.7 Card config form
 - Outcome: the Edit-card dialog shows a form: theme (select), floors (checkbox per floor, in order), fade (number), room_glow, zoom, kiosk, night. No YAML needed.

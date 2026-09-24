@@ -15,7 +15,7 @@ describe("theme-roles (S4.21)", () => {
       "--fp-sealed", "--fp-water", "--fp-fill", "--fp-fill-line", "--fp-tread", "--fp-halo", "--fp-alpha", "--fp-disc",
       "--fp-disc-alpha", "--fp-outline", "--fp-text", "--fp-warn", "--fp-danger", "--fp-primary", "--fp-wall-external",
       "--fp-wall-fence", "--fp-wall-edge", "--fp-measure", "--fp-glow", "--fp-aura", "--fp-active", "--fp-on-dark", "--fp-on-light",
-      "--fp-furniture",
+      "--fp-furniture", "--fp-night",
       // the device types render.ts's CSS actually reads a dedicated colour for; the rest (switch, temp, humidity,
       // battery, inverter, server, access_point, other) fall back to --fp-idle in the stylesheet, no token of their own.
       "--fp-dev-light", "--fp-dev-motion", "--fp-dev-contact", "--fp-dev-heater", "--fp-dev-climate", "--fp-dev-ac-cool",

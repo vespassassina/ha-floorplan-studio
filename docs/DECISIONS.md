@@ -2,6 +2,30 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-24 S7.6 Night: four departures from the brief
+
+- The overlay is a `<polygon class="room-night">` with the room's own points,
+  not a `<rect>`. A rect is the room's bounding box: on an L-shaped room it
+  would darken the neighbour's corner, and a lit room would be clear over
+  ground that is not its own. Each overlay carries `data-night="<room index>"`
+  for tests, never `data-r`, so it is not a pick target.
+- It is drawn after the room fills and the stairs, before walls, names and
+  devices, so lines, text and icons stay crisp. Stairs are veiled by their
+  room's overlay; they get none of their own, like zones and structures.
+  `fill` rooms are overlaid (a solid mass darkens too); a `fill` with no name
+  is not drawn, so it gets none.
+- `.room-night` also sets `pointer-events:none` in the stylesheet (finding
+  18). Without it the overlay took the click and the editor could not select
+  a room with Preview night on; a Playwright test proves it with the rule
+  removed.
+- `sun: <entity>` counts `on` as night as well as `below_horizon`. A user who
+  points `sun` at their own "is it dark" binary sensor gets what they meant;
+  `sun.sun` never reports `on`, so the default is untouched.
+
+`--fp-night` is the same `rgba(4,10,30,.45)` in every theme for now. On
+blueprint it turns the grey rooms to a slate grey, on light to a mid grey;
+both read as night next to the lit kitchen in `npm run shots`.
+
 ## 2026-09-24 S7.1 Label placement: three details the brief left open
 
 The S7.1 brief places room names, room labels, zone labels and sensor values

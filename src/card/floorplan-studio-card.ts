@@ -29,6 +29,10 @@ export interface FloorplanStudioCardConfig {
   layout_url?: string;
   /** `blueprint` (default), `midnight`, `light`, `slate`, `terminal`, `solarized`, or `ha` to take the neutrals from Home Assistant's own theme variables. */
   theme?: Theme;
+  /** S7.6: `auto` (default) darkens the plan while the sun entity is `below_horizon` (or `on`); `on` always, `off` never. */
+  night?: "auto" | "on" | "off";
+  /** S7.6: the entity `night: auto` reads; default `sun.sun`. */
+  sun?: string;
 }
 
 declare global {
@@ -431,6 +435,17 @@ export class FloorplanStudioCard extends LitElement {
     </div>`;
   }
 
+  /** S7.6: whether the plan is drawn at night. `on`/`off` force it; anything else is `auto`: the sun entity (config
+   * `sun`, default `sun.sun`) is `below_horizon`, or `on` for a binary sensor. Missing or `unavailable` is day. */
+  private _night(): boolean {
+    const mode = this._config.night;
+    if (mode === "on") return true;
+    if (mode === "off") return false;
+    const id = typeof this._config.sun === "string" && this._config.sun ? this._config.sun : "sun.sun";
+    const s = this._hass?.states?.[id]?.state;
+    return s === "below_horizon" || s === "on";
+  }
+
   protected render() {
     const f = this._floor();
     if (!f) return html`<p class="msg">${this._error ?? NO_LAYOUT}</p>`;
@@ -445,6 +460,7 @@ export class FloorplanStudioCard extends LitElement {
       theme: this._theme(),
       dark: this._haDark(),
       rotate,
+      night: this._night(),
     });
     return html`${this._floorChips()}<svg viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._coverDialogTemplate()}`;
   }

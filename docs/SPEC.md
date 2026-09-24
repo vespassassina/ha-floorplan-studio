@@ -239,8 +239,14 @@ honest metaphor there.
 | room with `entity` | own kind colour, no outline | own kind colour, unmoved, plus an outline when the entity is on, open or playing | `--fp-active` stroke (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | furniture with `entity` | idle grey (`currentColor`) | `--fp-active`, chosen per theme for at least 3:1 contrast against both `--fp-room` and `--fp-bg` | `--fp-active` (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | unavailable / unknown | 45 % opacity, no strikethrough | — | — | more-info |
+| night (S7.6) | day: no overlay | after sunset every room (outdoor kinds too; zones, structures and stairs share their room's) is covered by `--fp-night`; a room with an on light inside it stays clear | `--fp-night` (rgba(4, 10, 30, .45), every theme) | none |
 
-Rooms tint when any light in them is on (`room_glow: true`). Card config:
+Rooms tint when any light in them is on (`room_glow: true`). Night (S7.6):
+`night: auto` darkens the plan while the `sun` entity (default `sun.sun`) is
+`below_horizon`, or `on` for a binary sensor; a missing or `unavailable` sun
+is day. `on` and `off` force it. Walls, names and devices are drawn over the
+overlay, so they stay crisp. The editor previews it under View, Preview night.
+Card config:
 
 ```yaml
 type: custom:floorplan-studio-card
@@ -249,6 +255,8 @@ floors: [ground, first]  # or an ordered list of floor ids; a switcher over just
 fade: 300              # motion fade, seconds
 room_glow: true
 theme: blueprint       # blueprint (default), midnight, light, slate, terminal, solarized, or ha
+night: auto            # auto (default: from the sun), on, off
+sun: sun.sun           # the entity night: auto reads
 ```
 
 `theme` is blueprint unless the dashboard says otherwise. `light` is the paper-and-ink set; `midnight` is the project's first dark theme, kept under its own name once blueprint moved on to a new palette (2026-09-22). `ha` inherits the dashboard's own theme: ground from `--card-background-color`, rooms from `--secondary-background-color`, walls and text from `--primary-text-color`, measure marks from `--secondary-text-color`. Each has the plain light or midnight set as its fallback, chosen by `hass.themes.darkMode`, so a dashboard that defines none of them still draws. Warn, danger and primary (the UI chrome, not a device's own colour) never follow the theme: they and their on-dark/on-light text are the same fixed pair everywhere, because they already clear 4.5:1 against it. The card ignores the OS colour scheme.
