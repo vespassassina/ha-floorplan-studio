@@ -376,3 +376,302 @@ test("S2.13 CSS pair: battery, inverter, server and access point draw an icon in
   const rgb = (h: string) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(", ")})`;
   for (const it of got.items) { expect(it.d).toBeGreaterThan(20); expect(it.halo).toBe(true); expect(it.fill).toBe(rgb("#8b8578")); }
 });
+
+// S7.4: zoom and pan in the card. Every gesture goes through page.mouse / page.touchscreen / CDP touch at real
+// coordinates (CLAUDE.md finding 3), and every assertion reads the <svg viewBox> attribute the card writes.
+test.describe("S7.4 zoom and pan", () => {
+  // Narrow and tall enough that the whole ground floor is on screen without scrolling.
+  test.use({ viewport: { width: 700, height: 900 } });
+
+  type VB = { x: number; y: number; w: number; h: number };
+  const card = (page: Page) => page.locator("floorplan-studio-card");
+  const viewBox = (page: Page): Promise<VB> =>
+    card(page).evaluate((el) => {
+      const [x, y, w, h] = el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number);
+      return { x: x!, y: y!, w: w!, h: h! };
+    });
+  const svgBox = async (page: Page) => (await card(page).locator("css=svg").first().boundingBox())!;
+  /** Centre of the demo's kitchen light (`g[data-x="1"]`) on screen. */
+  const lightAt = async (page: Page) => {
+    const b = (await card(page).locator('css=g[data-x="1"]').boundingBox())!;
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  };
+  const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+  const states = () => ({ "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+  /** Plan point under a screen point, for the given viewBox and svg box. */
+  const toPlan = (vb: VB, b: { x: number; y: number; width: number; height: number }, sx: number, sy: number) =>
+    [vb.x + ((sx - b.x) / b.width) * vb.w, vb.y + ((sy - b.y) / b.height) * vb.h];
+
+  async function ctrlWheel(page: Page, x: number, y: number, dy: number) {
+    await page.mouse.move(x, y);
+    await page.keyboard.down("Control");
+    await page.mouse.wheel(0, dy);
+    await page.keyboard.up("Control");
+  }
+
+  test("Ctrl+wheel zooms in about the pointer; a plain wheel leaves the plan alone so the dashboard can scroll", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+    const b = await svgBox(page);
+    const px = b.x + b.width * 0.3, py = b.y + b.height * 0.6; // off-centre, so a zoom about the centre would fail
+
+    await page.mouse.move(px, py);
+    await page.mouse.wheel(0, -300);
+    await page.waitForTimeout(50); // a wheel event that did land would have re-rendered by now
+    expect(await viewBox(page)).toEqual(fit);
+
+    const before = toPlan(fit, b, px, py);
+    await ctrlWheel(page, px, py, -300);
+    await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(fit.w * 0.95);
+    const z = await viewBox(page);
+    expect(z.w / z.h).toBeCloseTo(fit.w / fit.h, 5);
+    const after = toPlan(z, b, px, py);
+    expect(after[0]).toBeCloseTo(before[0]!, 0);
+    expect(after[1]).toBeCloseTo(before[1]!, 0);
+    expect(await calls(page)).toEqual([]);
+  });
+
+  test("zoom: \"wheel\" zooms on a plain wheel too", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), zoom: "wheel" }, states());
+    const fit = await viewBox(page);
+    const b = await svgBox(page);
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.wheel(0, -300);
+    await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(fit.w * 0.95);
+  });
+
+  test("the plan never zooms out past fit nor in past 8x", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+    const b = await svgBox(page);
+    for (let i = 0; i < 40; i++) await ctrlWheel(page, b.x + b.width / 2, b.y + b.height / 2, -300);
+    await expect.poll(async () => (await viewBox(page)).w).toBeCloseTo(fit.w / 8, 3);
+    for (let i = 0; i < 40; i++) await ctrlWheel(page, b.x + b.width / 2, b.y + b.height / 2, 300);
+    await expect.poll(() => viewBox(page)).toEqual(fit);
+  });
+
+  test("zoom buttons: + zooms in, - zooms out, fit goes back; - and fit are disabled at fit", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+    const zoomIn = card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]');
+    const zoomOut = card(page).locator('css=.fp-zoom button[aria-label="Zoom out"]');
+    const fitBtn = card(page).locator('css=.fp-zoom button[aria-label="Fit"]');
+    await expect(zoomOut).toBeDisabled();
+    await expect(fitBtn).toBeDisabled();
+    await zoomIn.click();
+    await zoomIn.click();
+    const z2 = await viewBox(page);
+    expect(z2.w).toBeLessThan(fit.w * 0.6);
+    await zoomOut.click();
+    expect((await viewBox(page)).w).toBeGreaterThan(z2.w);
+    await fitBtn.click();
+    expect(await viewBox(page)).toEqual(fit);
+    expect(await calls(page)).toEqual([]);
+  });
+
+  test("a 40 px drag that starts on a light pans the plan and does not toggle the light; a plain click still does", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+    // One click (1.5x about the centre): the kitchen light stays on screen and clear of the buttons.
+    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').click();
+    const z = await viewBox(page);
+    const b = await svgBox(page);
+    const l = await lightAt(page);
+
+    await page.mouse.move(l.x, l.y);
+    await page.mouse.down();
+    await page.mouse.move(l.x + 20, l.y, { steps: 4 });
+    await page.mouse.move(l.x + 40, l.y, { steps: 4 });
+    await page.mouse.up();
+    const p = await viewBox(page);
+    expect(p.w).toBeCloseTo(z.w, 5);
+    expect(p.x).toBeCloseTo(z.x - 40 * (z.w / b.width), 0); // the plan followed the pointer 40 px to the right
+    expect(p.y).toBeCloseTo(z.y, 5);
+    expect(await calls(page)).toEqual([]);
+
+    const l2 = await lightAt(page);
+    await page.mouse.click(l2.x, l2.y);
+    expect(await calls(page)).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]);
+    expect(p.w).toBeLessThan(fit.w);
+  });
+
+  test("a 40 px drag over a light at fit does not toggle it either, and does not move the plan", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+    const l = await lightAt(page);
+    await page.mouse.move(l.x, l.y);
+    await page.mouse.down();
+    await page.mouse.move(l.x, l.y + 40, { steps: 8 });
+    await page.mouse.up();
+    expect(await calls(page)).toEqual([]);
+    expect(await viewBox(page)).toEqual(fit);
+  });
+
+  test("zoom: false keeps the viewBox fixed, shows no buttons and leaves touch-action alone", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), zoom: false }, states());
+    const fit = await viewBox(page);
+    const b = await svgBox(page);
+    await ctrlWheel(page, b.x + b.width / 2, b.y + b.height / 2, -300);
+    await page.mouse.dblclick(b.x + 8, b.y + 8);
+    await page.waitForTimeout(50);
+    expect(await viewBox(page)).toEqual(fit);
+    await expect(card(page).locator("css=.fp-zoom")).toHaveCount(0);
+    expect(await card(page).evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector("svg")!).touchAction)).toBe("auto");
+  });
+
+  test("with zoom on the svg has touch-action: none", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    expect(await card(page).evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector("svg")!).touchAction)).toBe("none");
+  });
+
+  test("Break it: a wheel over a floor chip leaves the viewBox alone, even with zoom: \"wheel\"", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), floor: "all", zoom: "wheel" }, states());
+    const fit = await viewBox(page);
+    const chip = (await card(page).locator("css=.fp-floors button").first().boundingBox())!;
+    await page.mouse.move(chip.x + chip.width / 2, chip.y + chip.height / 2);
+    await page.mouse.wheel(0, -300);
+    await page.waitForTimeout(50);
+    expect(await viewBox(page)).toEqual(fit);
+    // The same wheel over the plan itself does zoom, so the check above is not passing for nothing.
+    const b = await svgBox(page);
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.wheel(0, -300);
+    await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(fit.w);
+  });
+
+  test("the zoom survives a hass update, and resets on setConfig and on a floor change", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), floor: "all" }, states());
+    const fit = await viewBox(page);
+    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').click();
+    const z = await viewBox(page);
+    expect(z.w).toBeLessThan(fit.w);
+
+    await page.evaluate(() => {
+      const el = document.getElementById("card") as unknown as { hass: { states: Record<string, unknown> }; updateComplete: Promise<unknown> };
+      el.hass = { ...el.hass, states: { "light.demo_kitchen": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } };
+      return el.updateComplete;
+    });
+    expect(await viewBox(page)).toEqual(z);
+
+    await card(page).locator("css=.fp-floors button").nth(1).click();
+    const firstFit = await viewBox(page);
+    expect(firstFit.w).toBeGreaterThan(z.w); // a new floor opens at its own fit, not at the old zoom
+    await expect(card(page).locator('css=.fp-zoom button[aria-label="Zoom out"]')).toBeDisabled();
+
+    await card(page).locator("css=.fp-floors button").nth(0).click();
+    expect(await viewBox(page)).toEqual(fit);
+    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').click();
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), floor: "all" }, states());
+    expect(await viewBox(page)).toEqual(fit);
+  });
+
+  test("the zoom buttons read at 3:1 or better against their own background in all seven themes", async ({ page }) => {
+    await open(page);
+    for (const theme of ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha"]) {
+      for (const dark of [false, true]) {
+        await configure(page, { layout: structuredClone(demo), theme }, { states: {}, themes: { darkMode: dark } });
+        const got = await card(page).evaluate((el) =>
+          [...el.shadowRoot!.querySelectorAll(".fp-zoom button")].map((btn) => {
+            const s = getComputedStyle(btn);
+            return { bg: s.backgroundColor, fg: s.color, vis: s.visibility, disp: s.display };
+          }),
+        );
+        expect(got.length, `${theme} dark=${dark}`).toBe(3);
+        for (const g of got) {
+          expect(g.disp).not.toBe("none");
+          expect(ratio(rgbOf(g.bg), rgbOf(g.fg)), `${theme} dark=${dark}`).toBeGreaterThanOrEqual(3);
+        }
+      }
+    }
+  });
+});
+
+test.describe("S7.4 touch", () => {
+  test.use({ viewport: { width: 700, height: 900 }, hasTouch: true });
+
+  type VB = { x: number; y: number; w: number; h: number };
+  const card = (page: Page) => page.locator("floorplan-studio-card");
+  const viewBox = (page: Page): Promise<VB> =>
+    card(page).evaluate((el) => {
+      const [x, y, w, h] = el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number);
+      return { x: x!, y: y!, w: w!, h: h! };
+    });
+  const svgBox = async (page: Page) => (await card(page).locator("css=svg").first().boundingBox())!;
+  const states = () => ({ "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+
+  test("a double-tap on the plan zooms in 2x at fit, and a double-tap when zoomed goes back to fit", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+    const b = await svgBox(page);
+    const x = b.x + 10, y = b.y + 10; // the padding around the plan: no device, no chip, no button
+    await page.touchscreen.tap(x, y);
+    await page.touchscreen.tap(x, y);
+    await expect.poll(async () => (await viewBox(page)).w).toBeCloseTo(fit.w / 2, 3);
+    await page.touchscreen.tap(x, y);
+    await page.touchscreen.tap(x, y);
+    await expect.poll(() => viewBox(page)).toEqual(fit);
+    expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
+  });
+
+  test("a double-tap on a light toggles it twice and does not zoom", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+    const lb = (await card(page).locator('css=g[data-x="1"]').boundingBox())!;
+    await page.touchscreen.tap(lb.x + lb.width / 2, lb.y + lb.height / 2);
+    await page.touchscreen.tap(lb.x + lb.width / 2, lb.y + lb.height / 2);
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls.length)).toBe(2);
+    expect(await viewBox(page)).toEqual(fit);
+  });
+
+  /** Two fingers through CDP (Playwright's touchscreen has only tap). One session for the whole gesture: CDP keeps
+   * the touch state per session. */
+  async function toucher(page: Page) {
+    const cdp = await page.context().newCDPSession(page);
+    return (type: "touchStart" | "touchMove" | "touchEnd", touchPoints: { x: number; y: number; id: number }[]) =>
+      cdp.send("Input.dispatchTouchEvent", { type, touchPoints });
+  }
+
+  test("a two-finger pinch inside the plan zooms in", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+    const b = await svgBox(page);
+    const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+    const touch = await toucher(page);
+    await touch("touchStart", [{ x: cx - 50, y: cy, id: 1 }]);
+    await touch("touchStart", [{ x: cx - 50, y: cy, id: 1 }, { x: cx + 50, y: cy, id: 2 }]);
+    for (let s = 1; s <= 5; s++) await touch("touchMove", [{ x: cx - 50 - s * 10, y: cy, id: 1 }, { x: cx + 50 + s * 10, y: cy, id: 2 }]);
+    await touch("touchEnd", []);
+    await expect.poll(async () => (await viewBox(page)).w).toBeCloseTo(fit.w / 2, 0);
+    expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
+  });
+
+  test("Break it: a pinch whose first finger starts outside the svg is ignored", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').tap();
+    const z = await viewBox(page);
+    const b = await svgBox(page);
+    const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+    const out = { x: b.x / 2, y: cy, id: 1 }; // in the page's left margin, outside the card
+    const touch = await toucher(page);
+    await touch("touchStart", [out]);
+    await touch("touchStart", [out, { x: cx, y: cy, id: 2 }]);
+    for (let s = 1; s <= 5; s++) await touch("touchMove", [{ ...out, y: out.y + s * 10 }, { x: cx + s * 12, y: cy - s * 12, id: 2 }]);
+    await touch("touchEnd", []);
+    await page.waitForTimeout(50);
+    expect(await viewBox(page)).toEqual(z);
+  });
+});

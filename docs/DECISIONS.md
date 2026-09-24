@@ -2,6 +2,36 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-24 S7.4 Zoom and pan in the card: how the brief was read
+
+Where the S7.4 block left room, or could not be done as written:
+
+- **Pan bounds.** "At least one third of the plan stays visible" cannot hold
+  past 3×: at 8× the view is an eighth of the plan wide. The rule is a third
+  of the smaller of view and plan, per axis. Zoomed in, that is a third of
+  the view on the plan. At fit there is nothing to pan: `clamp` returns fit.
+  A view within 1e-6 of fit counts as fit, so zooming in and back out does
+  not leave a pannable 1.0000001×.
+- **Double-tap.** At fit it zooms 2× about the tap; zoomed, it returns to
+  fit. Only off a device or a door: two taps on a light still toggle it
+  twice (S2.2 "Break it", no debounce).
+- **The 6 px slop lives in `actions.ts`, for every card.** A press that
+  moves more than `TAP_SLOP_PX` drops its tap and its hold timer, with zoom
+  on or off. A second pointer down drops it too. Before this, the hold timer
+  kept running through a drag and a drag ended in a toggle.
+- **Half a pinch.** "A pinch that starts with one finger outside the svg is
+  ignored" is detected by `isPrimary`: a pointer that goes down on the svg
+  while none is tracked, and is not primary, has a first finger elsewhere.
+  The card ignores it; it neither pans nor zooms.
+- **`touch-action: none`** on the plan, as the block says. The cost: on a
+  phone a swipe that starts on the plan no longer scrolls the dashboard.
+  `zoom: false` gives it back; `docs/card.md` says so.
+- **The zoom buttons follow the plan's `<svg>` in the DOM.** Their fit icon
+  is an `<svg>` too, and every `querySelector("svg")` in the card and its
+  tests must keep finding the plan first.
+- **Four places, not five,** for the `zoom` key: the config form (S7.7) does
+  not exist yet.
+
 ## 2026-09-24 S6.7 File, Export carries an entity snapshot (`Layout.available`), for an agent working with no HA connection
 
 Diego asked how an agent (Claude Code, local or a stranger's) could automate

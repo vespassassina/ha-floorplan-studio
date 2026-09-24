@@ -1313,6 +1313,29 @@ Shared rules for the sprint, on top of `CLAUDE.md`:
 - Test (first): `viewport.test.ts` covers zoom about a point (the point stays put), clamp at fit and 8×, pan bounds (at least one third of the plan stays visible), pinch scale. `card.spec.ts` drives `page.mouse` (wheel with Ctrl, drag 40 px) and `page.touchscreen` for a double-tap, asserts the `viewBox` attribute; asserts a 40 px drag over a light does not toggle it (`callService` not called) and a plain click still does; `zoom: false` leaves the `viewBox` fixed.
 - Done when: tests pass, `--repeat-each=10` clean; the buttons are visible in all seven themes (they use `--fp-*` only); `getCardSize` is unchanged.
 - Break it: a wheel event while the pointer is over a floor chip scrolls the page, not the plan. A pinch that starts with one finger outside the svg is ignored.
+- Done, 2026-09-24. Departures and readings of the brief are in `docs/DECISIONS.md` (S7.4 entry).
+  - `src/card/viewport.ts`: `zoomAt`, `panBy`, `clamp`, `pinch`, `MAX_ZOOM = 8`, pure. TDD:
+    `tests/card/viewport.test.ts` (16 tests) written first and seen failing (module missing), then green.
+  - `src/card/actions.ts`: it did not cancel the hold timer on movement, and a drag ended in a toggle. Now
+    `TAP_SLOP_PX = 6`: a press that moves further drops its tap and its hold timer; a second pointer drops it
+    too; a primary pointer clears any pointer whose up went missing. 7 new tests in `actions.test.ts`, seen
+    failing first (6 at once, then the stale-pointer one with its guard disabled).
+  - The card: `zoom` config (`true` default, `"wheel"`, `false`), `_view` state reset by `setConfig` and a
+    floor change, kept across `hass`; pointer and wheel handlers bound once per `<svg>` beside
+    `bindDeviceActions`; `touch-action: none` via `svg.fp-zoomable` only with zoom on; +, −, fit buttons in
+    `.fp-zoom`, `--fp-*` colours only, disabled at their bound. `getCardSize` unchanged.
+  - `card.spec.ts`: 15 Playwright tests (Ctrl+wheel about the pointer, plain wheel ignored, `"wheel"`,
+    fit/8× bounds, the buttons, a 40 px drag from a light pans and does not toggle and a click still does, a
+    drag at fit does not toggle, `zoom: false`, `touch-action`, wheel over a floor chip, reset/survive, 3:1
+    contrast in all seven themes and ha dark, touch double-tap, double-tap on a light, CDP two-finger pinch,
+    pinch whose first finger is outside the svg). 12 seen failing before the card was wired; the 3 that passed
+    are guards. Disabling the slop check and the `isPrimary` check once failed the drag tests and the
+    half-pinch test. `--repeat-each=10`: 150/150.
+  - Docs: `docs/SPEC.md` yaml block and a paragraph, `docs/card.md` table and example, CHANGELOG 0.11.0.
+  - Suites: 889 vitest (up from 866; +16 viewport, +7 actions), lint clean, build clean, 463 Playwright
+    passed / 1 skipped (up from 448 / 1). `npm run shots`: looked at card-ground-on-blueprint,
+    card-ground-off-light, card-ground-off-ha-light, card-first-on-ha-dark; terminal, slate, solarized,
+    midnight and ha dark zoomed in from a scratch render (shots has no terminal). Buttons read in all.
 
 ### S7.5 Kiosk mode
 - Outcome: `kiosk: true` shows only the plan: no floor chips, no zoom buttons, no version, no cover dialog chrome beyond the dialog itself; long press does nothing; taps still act. Meant for a wall tablet.
