@@ -30,7 +30,12 @@ See `docs/SPEC.md` and `docs/PLAN.md`.
   ("Controlled by") and the plan shows both as one lamp.
 - A Lovelace card: lights, switches, sensors, cameras, thermostats and doors
   shown live. Motion fades from red to grey; open doors turn orange.
+- One click, File, Install code, and it writes you a whole pasteable
+  dashboard — not just the card — matching your plan's theme and floors.
 - A skill that turns photos of your architect's plans into a first draft.
+- File, Export also hands an AI assistant every entity you have in Home
+  Assistant, so it can place and wire up your devices from that one file,
+  offline, without inventing an entity id. See below.
 
 ## Install
 
@@ -60,6 +65,22 @@ It works from a **skill** and a **schema**, two files any assistant can follow (
 **How to load them into your assistant, step by step: [`prompts/README.md`](prompts/README.md).**
 
 To check what an assistant gave you, run `node scripts/validate-layout.mjs layout.json`. It prints `ok`, or one line per problem: metres written as centimetres, a room outside the walls, a door on no wall.
+
+## Let an assistant place your devices too
+
+Tracing gets the walls right; it never touches devices, on purpose — a
+drawing does not know which lamp is which. Once your plan is drawn and
+connected to Home Assistant, **File, Export** downloads a `layout.json` that
+also carries `available`: every entity Home Assistant knows about, its name,
+its area, and the room on your plan that area already has, if any. Hand that
+file and `prompts/SCHEMA.md` to an assistant and it can add and position
+devices for you — using only the entity ids actually listed, never a guessed
+one — with no Home Assistant connection of its own. Open the result back in
+the editor, check it, Save.
+
+The field only appears in a file you exported yourself, with Home Assistant
+connected. It is never part of Save or the plan Home Assistant stores; it is
+dropped again the next time the file is opened or re-exported.
 
 ## Develop
 

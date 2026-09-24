@@ -1,4 +1,4 @@
-import type { DeviceType, Layout } from "./schema";
+import type { AvailableEntity, DeviceType, Layout } from "./schema";
 import { placedEntities } from "./bind";
 
 /** What the host (the HA panel) knows about Home Assistant and hands to the editor. Standalone there is none. */
@@ -81,6 +81,38 @@ export function unplacedHaEntities(l: Layout, ha: HaData): HaData["entities"] {
   if (!Array.isArray(ha?.entities)) return [];
   const placed = placedEntities(l), catalogued = new Set(l.catalog.map((c) => c.entity));
   return ha.entities.filter((e) => !placed.has(e.id) && !catalogued.has(e.id));
+}
+
+/**
+ * S6.7: every HA entity the editor currently knows about, as a `Layout.available` snapshot — written into
+ * File, Export's own download so an agent can add and position devices straight from that file, with no HA
+ * connection of its own. `room` is filled only when the entity's own area already has a drawn room on this
+ * plan; a room can have more than one HA area feeding into it in principle, but this takes the first match, the
+ * same "first wins" rule `nameIn`'s callers already use elsewhere. Hostile or missing `entities` never throws.
+ */
+export function availableEntities(l: Layout, ha: HaData): AvailableEntity[] {
+  if (!Array.isArray(ha?.entities)) return [];
+  const placed = placedEntities(l);
+  const roomByArea = new Map<string, string>();
+  for (const f of Object.values(l.floors)) for (const r of f.rooms) if (r.area && !roomByArea.has(r.area)) roomByArea.set(r.area, r.name);
+  const out: AvailableEntity[] = [];
+  for (const e of ha.entities) {
+    if (!e || typeof e.id !== "string") continue;
+    const area = typeof e.area === "string" && e.area ? e.area : undefined;
+    const areaName = area ? nameIn(ha.areas, area) : undefined;
+    const room = area ? roomByArea.get(area) : undefined;
+    out.push({
+      entity: e.id,
+      name: (typeof e.name === "string" && e.name) || e.id,
+      domain: e.domain,
+      ...(area ? { area } : {}),
+      ...(areaName ? { areaName } : {}),
+      ...(room ? { room } : {}),
+      ...(e.dc ? { dc: e.dc } : {}),
+      placed: placed.has(e.id),
+    });
+  }
+  return out;
 }
 
 /** S4.7: one row of the room box: an entity in the room's area, and whether it is already drawn on the plan. */

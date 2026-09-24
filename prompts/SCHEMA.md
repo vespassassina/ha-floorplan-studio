@@ -110,6 +110,34 @@ Optional: `"color": "#rrggbb"` sets a floor colour; `"texture"` (`wood-light`, `
 
 `walls` holds free-standing wall segments `{ "id", "kind": "wall", "a", "b" }` for a wall that is not the edge of any room. `openings` holds a gap in a wall, `{ "id", "a", "b" }`. `extras` holds named lines such as a balustrade, `{ "id", "name", "a", "b" }`. Leave all three `[]` unless the drawing clearly needs one.
 
+## Placing devices from an export — a different task
+
+Everything above is for **tracing a drawing**, where `devices` and `catalog` stay empty: a drawing does not know which lamp is which. This section is for the opposite task, which only makes sense once someone has already drawn a plan in the editor, connected it to Home Assistant, and used **File → Export**: adding and positioning devices on an **already-drawn** plan, offline, from that one downloaded file.
+
+When Home Assistant was connected at export time, the file carries one extra top-level array, `available` — a snapshot of every entity the editor knew about at that moment:
+
+```json
+{ "entity": "light.kitchen_ceiling", "name": "Kitchen ceiling", "domain": "light",
+  "area": "kitchen", "areaName": "Kitchen", "room": "Kitchen", "placed": false }
+```
+
+- **`entity`**: the real Home Assistant entity id. This is the only source of entity ids for this task — **never invent one, never guess one, never reuse an id from another layout or example.** If the entity you need is not in `available`, say so and stop; you cannot place it.
+- **`name`**: its friendly name, for you to read; not written anywhere in the layout.
+- **`domain`** / **`dc`**: the entity's domain (`light`, `switch`, `binary_sensor`, `sensor`, ...) and device class, when it has one (`motion`, `door`, `temperature`, ...). Use these to guess a sensible `Device.type` (`light`, `motion`, `contact`, `temp`, ...).
+- **`area`** / **`areaName`**: the entity's Home Assistant area, when it has one.
+- **`room`**: this plan's own room name, filled in only when that area already has a drawn room on the plan — place the device inside that room's polygon. When `room` is absent, either the entity has no area, or that area has no room drawn yet: ask, or place it near the plan's edge and say you were unsure.
+- **`placed`**: `true` when the entity already has its own device icon on some floor. Skip it — placing it again would create a duplicate icon for the same entity.
+
+To add one, push an object onto the right floor's `devices` array:
+
+```json
+{ "id": "dev-ground-9", "type": "light", "entity": "light.kitchen_ceiling", "x": 320, "y": 140 }
+```
+
+`id` unique within its floor, `type` one of the `DeviceType` values (see `docs/schema.md`), `entity` copied verbatim from `available`, `x`/`y` the centre in centimetres (or `a`/`b` for a two-point device such as a cover) — inside the room `available` named, or wherever the user told you. Leave `available` itself in the file; the editor drops it automatically the next time the file is saved or re-exported, so you don't need to strip it yourself.
+
+`available` never appears in a file you produced yourself (tracing a drawing gives Home Assistant nothing to snapshot). It only appears in a file the user downloaded from an already-configured plan's **File → Export**, with Home Assistant connected at the time.
+
 ## Check it
 
 ```

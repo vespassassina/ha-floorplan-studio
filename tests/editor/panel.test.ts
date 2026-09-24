@@ -53,6 +53,40 @@ describe("<floorplan-studio-panel>", () => {
     expect(st.hist.length).toBe(undo);
   });
 
+  it("File, Export bakes a live entity snapshot into the download when hass is connected (S6.7)", async () => {
+    const hass = stubHass((m) => {
+      if (m.type === "floorplan_studio/load") return { layout: L };
+      if (m.type === "config/area_registry/list") return [{ area_id: "living", name: "Living" }];
+      if (m.type === "config/entity_registry/list") return [{ entity_id: "light.lamp", area_id: "living" }];
+      throw new Error("no");
+    }, false, { "light.lamp": { state: "on", attributes: { friendly_name: "Lamp" } } });
+    const el = await mount(hass);
+    await settle(el);
+    const ed = editorOf(el)!;
+    let blob: Blob | undefined;
+    if (!URL.createObjectURL) (URL as unknown as { createObjectURL: unknown }).createObjectURL = () => "";
+    if (!URL.revokeObjectURL) (URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL = () => {};
+    const createSpy = vi.spyOn(URL, "createObjectURL").mockImplementation((b: Blob | MediaSource) => { blob = b as Blob; return "blob:mock"; });
+    const revokeSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    (ed as unknown as { exportJson(): void }).exportJson();
+    expect(blob).toBeDefined();
+    const text = await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(r.error);
+      r.readAsText(blob!);
+    });
+    const out = JSON.parse(text);
+    expect(Array.isArray(out.available)).toBe(true);
+    expect(out.available.find((e: { entity: string }) => e.entity === "light.lamp")).toMatchObject({
+      entity: "light.lamp", name: "Lamp", domain: "light", area: "living", areaName: "Living", placed: false,
+    });
+    createSpy.mockRestore();
+    revokeSpy.mockRestore();
+    clickSpy.mockRestore();
+  });
+
   it("hands the editor what HA knows after the load, without re-loading the layout", async () => {
     const hass = stubHass((m) => {
       if (m.type === "floorplan_studio/load") return { layout: L };

@@ -2,7 +2,35 @@
 
 Newest first. A change supersedes; nothing is edited.
 
-## 2026-09-24 S6.5 card `floors` config, editor Install-code panel emits a whole dashboard
+## 2026-09-24 S6.7 File, Export carries an entity snapshot (`Layout.available`), for an agent working with no HA connection
+
+Diego asked how an agent (Claude Code, local or a stranger's) could automate
+plan configuration end to end — not just geometry (`prompts/SKILL.md`) but
+placing and binding devices too. The first answer was "add a separate 'Export
+entity catalog' button, gated on `hass`, kept out of `layout.json`" (recorded
+in `docs/PLAN.md`'s backlog at the time), reasoning that a live HA snapshot
+baked into the saved plan would go stale the moment someone renamed an area
+or added a device in HA afterwards.
+
+Diego overrode that: bake it into the existing File, Export download instead,
+so an agent can work from one file with no HA connection of its own. Reversed
+for three reasons. First, Export already means "a point-in-time copy, not the
+live plan" — unlike Save, nobody expects an exported file to track HA after
+the fact, so the staleness objection doesn't apply the way it would to Save
+or to the live editor state. Second, a second button is a second thing to
+find, name and document; the existing one already means "give me the plan as
+a file". Third, `migrate()` already builds its output from a fixed, named set
+of keys, so an unknown key like `available` is silently dropped the moment
+the file is re-opened in the editor — nothing keeps the snapshot around past
+its usefulness.
+
+`AvailableEntity` (`src/core/schema.ts`) and `availableEntities()`
+(`src/core/ha.ts`) build the list; `editor-app.ts`'s `exportJson()` merges it
+into the download only when `this.ha` is set (the HA panel), and leaves it
+out entirely on the standalone `file://` build, where there is no registry to
+snapshot. Save (`save-request`) and the live editor state never carry it —
+only this one download. `validate()` needed no change: it already never
+rejects an unrelated top-level key.
 
 Added `floors` (an ordered array of floor ids) alongside the existing `floor`
 key: it restricts the card's floor switcher to just those floors, in that
