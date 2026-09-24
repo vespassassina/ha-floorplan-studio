@@ -4,6 +4,10 @@ import { FLOORPLAN_CSS, THEMES, migrate, planPivot, renderFloor, validate, viewB
 import type { Theme } from "../core";
 import type { Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions } from "./actions";
+// S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
+// one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
+// second built file (PLAN block interface).
+import "./config-editor";
 import { MAX_ZOOM, clamp, panBy, pinch, zoomAt, type Pt, type View } from "./viewport";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
@@ -115,6 +119,11 @@ export class FloorplanStudioCard extends LitElement {
 
   static getStubConfig(): FloorplanStudioCardConfig {
     return { type: "custom:floorplan-studio-card" };
+  }
+
+  /** S7.7: the Edit-card dialog's own form instead of raw YAML. */
+  static getConfigElement(): HTMLElement {
+    return document.createElement("floorplan-studio-card-editor");
   }
 
   connectedCallback(): void {

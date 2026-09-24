@@ -1388,6 +1388,25 @@ Shared rules for the sprint, on top of `CLAUDE.md`:
 - Test (first): Playwright creates the element, sets a config, ticks a floor and changes the theme, asserts the two events and their payloads; asserts a default value is absent from the payload.
 - Done when: tests pass; `docs/card.md` says the form exists and which keys it covers.
 - Break it: `setConfig` with an unknown theme shows the select on "blueprint" and does not fire.
+- Done, 2026-09-24. `src/card/config-editor.ts` defines `floorplan-studio-card-editor`, a plain Lit element with no
+  `ha-form`; `floorplan-studio-card.ts` imports it for its side effect and adds `static getConfigElement()`.
+  Reading of the layout mirrors the card's own three sources and order (`layout`, then `layout_url` fetched once,
+  then the stored plan over the websocket), through the same `migrate`/`validate` pair, never throwing on bad
+  input. `kiosk`, `night` and `sun` are in the form now, ahead of S7.5/S7.6, with their planned defaults (`false`,
+  `"auto"`, `"sun.sun"`); `docs/DECISIONS.md` has the S7.7 entry on why and that `FloorplanStudioCardConfig` does
+  not carry them yet.
+  - TDD: this task's own tests were written and passing before this closing pass (a previous run of this agent
+    was killed mid-task after writing `config-editor.ts`, `config-editor-harness.html` and
+    `config-editor.spec.ts` but before committing); this pass read the diff, added the docs, ran every gate fresh,
+    and did a revert-check on the strip-defaults branch of `_set` (removed the `if (value === def) delete
+    next[key]`, saw the two "drop at default" tests fail — 7 passed / 2 failed — restored it, saw 9/9 again).
+  - Suites, run fresh in this pass: lint 0; `npm test` 904/904 (`NODE_OPTIONS=--no-experimental-webstorage`, the
+    Node 26 workaround sprint/7 carries in its `test` script — this branch predates that fix, so it was set by
+    hand rather than added again here); build 0; `PW_PORT=5307 npx playwright test` 478 passed / 1 skipped, 0
+    failed, including the 9 new config-editor tests; the new spec alone `--repeat-each=10`: 90/90; `npm run
+    docs:check` clean.
+  - Not done: no CSS pair test — the element has no rule that depends on cascade specificity over another; every
+    rule in its `static styles` is scoped to `:host` or a class this element alone defines.
 
 ### S7.8 People on the plan
 - Outcome: a `person` device: an icon placed where the person usually is (their desk, their bed). Its entity is `person.*` or `device_tracker.*`. When the person is home the icon is full; away it is dimmed to 35 % with a small "away" mark; unknown as every other unavailable device. Optionally a `room` entity names the room the person is in right now (a BLE room-presence sensor: state, or an `area_id` or `area` attribute, that matches a room's `area` or name); then the icon moves to that room's centroid with a 600 ms CSS transition, and several people in one room spread on a ring. This is the answer to "is lighting up motion sensors enough?": motion shows that somebody is there, a person icon shows who and where.
