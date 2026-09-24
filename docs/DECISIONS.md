@@ -2,6 +2,26 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-24 S7.1 Label placement: three details the brief left open
+
+The S7.1 brief places room names, room labels, zone labels and sensor values
+against one `placed` list. Three choices went past it.
+
+- A sensor value's first spot moved from 24k to about 26k below its icon
+  (16k disc, 2k gap, then the text's ascent). With the brief's own box (size
+  tall, baseline 0.75 of the size down) the old spot overlapped the disc by a
+  sliver, so "no text on an icon" could not hold. Above and right use the
+  same 2k gap.
+- Extras' names go through the same candidates, after zone labels and before
+  values, and unlinked appliances count as icons. Leaving either out would
+  let a text land on them with the rule claiming it could not.
+- Device names (the editor's Names toggle, a selected device's name) are not
+  placed. They sit on their own icon by design, and only in the editor.
+
+Walls, doors and zone edges are not obstacles: a name can still cross a
+line. "23.5" on the demo sits on the Reading corner's dashed edge, clear of
+its name.
+
 ## 2026-09-24 S6.7 File, Export carries an entity snapshot (`Layout.available`), for an agent working with no HA connection
 
 Diego asked how an agent (Claude Code, local or a stranger's) could automate

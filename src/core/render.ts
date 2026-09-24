@@ -178,6 +178,9 @@ const COLOR = /^#[0-9a-fA-F]{6}$/;
 const num = (n: number) => String(Math.round(n * 100) / 100);
 const pts = (p: Pt[]) => p.map((q) => `${num(q[0])},${num(q[1])}`).join(" ");
 const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+/** x, y, w, h. */
+type Box = [number, number, number, number];
+const meets = (a: Box, b: Box) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 
 /** `p` turned clockwise by `deg` degrees about `pivot` (y points down, so this is the direction SVG's rotate() turns). */
 export function rotateAbout(p: Pt, deg: number, pivot: Pt): Pt {
@@ -391,6 +394,43 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<polygon class="room on ring" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
   });
 
+  // S7.1: no text overprints another text or a device icon. Every text is placed against one list of boxes, in the screen
+  // frame (text is drawn upright, so on screen every box is axis-aligned; a turned plan is turned into that frame first).
+  // A text box is len x 0.6 x size wide and size tall, its baseline 0.75 of the size below its top (text-anchor middle).
+  // The icons go in first, so nothing may hide one; then room names (what a person reads), room labels, zone labels,
+  // extras' names, and last the sensor values, in the device loop below. A text takes the first free candidate; with
+  // none free it keeps its first one regardless, so nothing is ever dropped (a name longer than its room, say).
+  const placed: Box[] = [];
+  const toScreen = (p: Pt): Pt => (turn ? rotateAbout(p, turn.deg, turn.pivot) : p);
+  const cs = Math.cos((planDeg * Math.PI) / 180), sn = Math.sin((planDeg * Math.PI) / 180);
+  /** The plan point that shows `dx` right of and `dy` below `a` on the screen: the screen vector turned back into the plan. */
+  const screenOff = (a: Pt, dx: number, dy: number): Pt => (planDeg ? [a[0] + dx * cs + dy * sn, a[1] - dx * sn + dy * cs] : [a[0] + dx, a[1] + dy]);
+  const textBox = (a: Pt, size: number, len: number): Box => { const [x, y] = toScreen(a), w = len * 0.6 * size; return [x - w / 2, y - 0.75 * size, w, size]; };
+  const place = (cands: Pt[], size: number, text: unknown): Pt => {
+    const len = String(text).length, at = cands.find((c) => !placed.some((q) => meets(textBox(c, size, len), q))) ?? cands[0];
+    placed.push(textBox(at, size, len));
+    return at;
+  };
+  /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 14k name either way. */
+  const rows = (a: Pt): Pt[] => [a, screenOff(a, 0, 32 * k), screenOff(a, 0, -32 * k), screenOff(a, 0, 64 * k), screenOff(a, 0, -64 * k)];
+  const disc = (c: Pt, r: number) => { const [x, y] = toScreen(c); placed.push([x - r, y - r, 2 * r, 2 * r]); };
+  f.devices.forEach((d, i) => {
+    const sel = o.selection?.t === "dev" && o.selection.i === i;
+    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
+    if (c.every(Number.isFinite)) disc(c, 16 * k);
+  });
+  for (const u of f.unlinked ?? []) {
+    const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1;
+    if (Number.isFinite(u.x) && Number.isFinite(u.y)) disc([u.x, u.y], 16 * k * scale);
+  }
+  const centroid = (p: Pt[]): Pt => [p.reduce((s, q) => s + q[0], 0) / p.length, p.reduce((s, q) => s + q[1], 0) / p.length];
+  const named = (r: Floor["rooms"][number]) => !!r.name && r.kind !== "fill";
+  const nameAt: Pt[] = [], labelAt: Pt[] = [], zoneAt: Pt[] = [];
+  f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = place(rows(centroid(r.pts)), 14 * k, r.name); });
+  f.rooms.forEach((r, i) => { if (nameAt[i] && r.label) labelAt[i] = place(rows(screenOff(nameAt[i], 0, 16 * k)), 11 * k, r.label); });
+  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = place(rows(centroid(r.pts)), 10 * k, r.name); });
+
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
   f.openings.forEach((op) => out.push(`<line class="opening" x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}"/>`));
   f.extras.forEach((x, i) => {
@@ -398,7 +438,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(w && h
       ? `<rect class="extra" data-ex="${i}" x="${num(mx)}" y="${num(my)}" width="${num(w)}" height="${num(h)}"/>`
       : `<line class="extra" data-ex="${i}" x1="${num(x.a[0])}" y1="${num(x.a[1])}" x2="${num(x.b[0])}" y2="${num(x.b[1])}"/>`);
-    out.push(`<text class="lbl" x="${num(mx + w / 2)}" y="${num(my + h / 2)}"${up(mx + w / 2, my + h / 2)} text-anchor="middle" font-size="${num(11 * k)}">${esc(x.name)}</text>`);
+    const [tx, ty] = place(rows([mx + w / 2, my + h / 2]), 11 * k, x.name);
+    out.push(`<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * k)}">${esc(x.name)}</text>`);
   });
 
   f.furniture.forEach((m, i) => {
@@ -416,32 +457,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 30 : 22}"><title>${esc(d.name ?? "")}</title></line>`);
   });
 
-  // Room names first, then devices: nothing may hide a device icon, so a name that would sit under one moves down, then up.
-  const spots: Pt[] = [];
-  f.devices.forEach((d, i) => {
-    const sel = o.selection?.t === "dev" && o.selection.i === i;
-    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
-    const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
-    if (c.every(Number.isFinite)) spots.push(c);
-  });
-  // A name is drawn upright on the screen, so a collision is tested in the screen frame: the plan turns by planDeg, a plan vector
-  // (anchor to device) turns with it, and "down one line" is screen-down, which in plan units is the vector turned back.
-  // The text y is the baseline: the box runs about 0.95 of the size above it and 0.25 below. 32k clears a 16k disc either way.
-  const cs = Math.cos((planDeg * Math.PI) / 180), sn = Math.sin((planDeg * Math.PI) / 180);
-  const screenDown = (a: Pt, d: number): Pt => (planDeg ? [a[0] + d * sn, a[1] + d * cs] : [a[0], a[1] + d]); // a plan point d units below a, on the screen
-  const hit = (a: Pt, size: number, len: number) => spots.some((p) => {
-    const vx = p[0] - a[0], vy = p[1] - a[1];
-    const sx = planDeg ? vx * cs - vy * sn : vx, sy = planDeg ? vx * sn + vy * cs : vy; // the same vector on the screen
-    return Math.abs(sy + 0.35 * size) < 16 * k + 0.6 * size && Math.abs(sx) < 16 * k + 0.3 * size * len;
-  });
-  const nameAt = (a: Pt, size: number, len: number): Pt => [a, screenDown(a, 32 * k), screenDown(a, -32 * k)].find((v) => !hit(v, size, len)) ?? a;
-  f.rooms.forEach((r) => {
+  f.rooms.forEach((r, i) => {
     if (!r.name || r.kind === "fill") return;
-    const c: Pt = [r.pts.reduce((s, p) => s + p[0], 0) / r.pts.length, r.pts.reduce((s, p) => s + p[1], 0) / r.pts.length];
-    if (r.kind === "zone") { const [x, y] = nameAt(c, 10 * k, r.name.length); out.push(`<text class="lbl zone" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
-    const [x, y] = nameAt(c, 14 * k, r.name.length);
+    if (r.kind === "zone") { const [x, y] = zoneAt[i]; out.push(`<text class="lbl zone" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
+    const [x, y] = nameAt[i];
     out.push(`<text class="lbl" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
-    if (r.label) { const [lx, ly] = screenDown([x, y], 16 * k); out.push(`<text class="lbl" x="${num(lx)}" y="${num(ly)}"${up(lx, ly)} text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`); }
+    if (labelAt[i]) { const [lx, ly] = labelAt[i]; out.push(`<text class="lbl" x="${num(lx)}" y="${num(ly)}"${up(lx, ly)} text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`); }
   });
 
   // S2.8: every lit lamp's aura, drawn as one flat pass before any device group. One pass, not interleaved with the
@@ -512,7 +533,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       // an integration can report an empty string, a comma decimal or a word, and printing "not-a-number °C" is worse than saying nothing.
       const bad = !/^-?\d+(\.\d+)?$/.test(s.state.trim()) || !Number.isFinite(Number(s.state));
       const unit = typeof s.attributes.unit_of_measurement === "string" ? ` ${s.attributes.unit_of_measurement}` : "";
-      out.push(`<text class="val" x="${num(c[0])}" y="${num(c[1] + 24 * k)}"${up(c[0], c[1] + 24 * k)} text-anchor="middle" font-size="${num(11 * k)}">${bad ? "–" : esc(s.state + unit)}</text>`);
+      const text = bad ? "–" : s.state + unit, vs = 11 * k, gap = 16 * k + 2 * k; // 2k clear of the 16k disc
+      // S7.1: below the icon, then above, then to the right (the box centred on the icon's centre line).
+      const [vx, vy] = place([screenOff(c, 0, gap + 0.75 * vs), screenOff(c, 0, -gap - 0.25 * vs), screenOff(c, gap + (text.length * 0.6 * vs) / 2, 0.25 * vs)], vs, text);
+      out.push(`<text class="val" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
     }
     if (o.showNames || sel) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
   });
