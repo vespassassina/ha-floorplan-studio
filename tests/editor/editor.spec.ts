@@ -6315,3 +6315,87 @@ test("View menu: the grid-snap row is labelled Snap, and its chips are half widt
   expect(boxes[0].top).toBeCloseTo(boxes[1].top, 0); // first two chips share a row
   expect(boxes[0].left).toBeLessThan(boxes[1].left);
 });
+
+// S7.2: the snapping manual lives in Help, not under every panel; the status line lives in the toolbar.
+test("S7.2: no panel repeats the Alt/Shift/Ctrl manual — nothing selected, a device, a piece of furniture", async ({ page }) => {
+  const aside = page.locator(`${EDITOR} aside`);
+  await expect(aside).toBeVisible();
+  await expect(aside).not.toContainText("Hold Alt");
+  await expect(aside).not.toContainText(/\bAlt\b/);
+  await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
+  await expect(page.locator("#panel strong").first()).not.toHaveText("Floor"); // a device panel, not the floor panel
+  await expect(aside).not.toContainText(/\bAlt\b/);
+  await page.mouse.click(...Object.values(await centre(page, 'g[data-f="0"]')) as [number, number]);
+  await expect(page.locator("#fr90")).toBeVisible(); // the furniture panel
+  await expect(aside).not.toContainText(/\bAlt\b/);
+});
+
+test("S7.2: Help has the snapping step, and it carries the Alt, Shift and Ctrl manual", async ({ page }) => {
+  expect(GUIDE_STEPS.map((s) => s.title)).toContain("Moving things and snapping");
+  await page.locator("#help").click();
+  const step = page.locator("#panel .guide > li", { hasText: "Moving things and snapping" });
+  await expect(step).toHaveCount(1);
+  await step.locator("summary").click();
+  await expect(step.locator("p")).toBeVisible();
+  await expect(step).toContainText("Hold Alt");
+  await expect(step).toContainText("Shift");
+  await expect(step).toContainText("Ctrl/Cmd+Z");
+});
+
+test("S7.2: the floor panel says Need help and its button opens Help", async ({ page }) => {
+  await expect(page.locator("#panel")).toContainText("Need help? Open Help.");
+  await page.locator("#floorHelp").click();
+  await expect(page.locator("#help")).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#panel .guide")).toBeVisible();
+});
+
+test("S7.2: the status line sits in the toolbar, right of Redo, and Save still writes Saved there", async ({ page }) => {
+  const status = page.locator(".bar #status");
+  await expect(status).toHaveCount(1);
+  await expect(status).toBeVisible();
+  await expect(status).toHaveAttribute("role", "status");
+  await expect(page.locator(`${EDITOR} aside #status`)).toHaveCount(0);
+  const redo = await page.locator("#redo").boundingBox(), box = await status.boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(redo!.x + redo!.width);
+  await menu(page, "File");
+  const dl = page.waitForEvent("download");
+  await page.locator("#save").click();
+  await dl;
+  await expect(status).toHaveText("Saved");
+});
+
+test("S7.2: an open menu draws above the Device colours panel, so File, Save is still the top element under the mouse", async ({ page }) => {
+  await menu(page, "View");
+  await page.locator("#devcols").click();
+  await expect(page.locator(".devcols-panel")).toBeVisible();
+  await menu(page, "File");
+  const c = await centre(page, "#save");
+  const top = await page.evaluate(([tag, x, y]) => ((document.querySelector(tag as string) as any).shadowRoot as ShadowRoot).elementFromPoint(x as number, y as number)?.id ?? null, [EDITOR, c.x, c.y] as const);
+  expect(top).toBe("save");
+});
+
+test("S7.2 break it: a 200-character status ellipsises, keeps the full text in title, and the toolbar does not grow", async ({ page }) => {
+  const bar = page.locator(`${EDITOR} .bar`);
+  const before = (await bar.boundingBox())!;
+  const long = ("Could not create the automation: the server said no " + "x".repeat(200)).slice(0, 200);
+  expect(long).toHaveLength(200);
+  await page.evaluate(([tag, m]) => (document.querySelector(tag) as any).saveDone(false, m), [EDITOR, long] as const);
+  const status = page.locator(".bar #status");
+  await expect(status).toHaveText(long);
+  await expect(status).toHaveAttribute("title", long);
+  const after = (await bar.boundingBox())!;
+  expect(after.height).toBe(before.height);
+  const got = await status.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { overflow: s.textOverflow, ws: s.whiteSpace, clipped: el.scrollWidth > el.clientWidth, right: el.getBoundingClientRect().right };
+  });
+  expect(got.overflow).toBe("ellipsis");
+  expect(got.ws).toBe("nowrap");
+  expect(got.clipped).toBe(true);
+  expect(got.right).toBeLessThanOrEqual(after.x + after.width + 0.5);
+  // one row at 1280: the status, Redo and the first floor chip share a vertical centre
+  const mid = async (sel: string) => { const b = (await page.locator(sel).first().boundingBox())!; return b.y + b.height / 2; };
+  const row = await mid("#redo");
+  expect(Math.abs((await mid(".bar #status")) - row)).toBeLessThan(2);
+  expect(Math.abs((await mid(".bar [data-f]")) - row)).toBeLessThan(2);
+});

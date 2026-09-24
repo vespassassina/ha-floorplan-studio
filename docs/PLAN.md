@@ -1306,6 +1306,27 @@ Shared rules for the sprint, on top of `CLAUDE.md`:
 - Test (first): Playwright asserts the aside contains no text "Hold Alt"; the Help panel contains it; `#status` is a descendant of the toolbar (`header`/`.toolbar`) and visible; Save still writes "Saved" there.
 - Done when: the tests pass; the 15 panel screenshots in `npm run shots` look right at 1280 wide; nothing in `editor.spec.ts` regresses.
 - Break it: the status text is 200 characters (an error message). It ellipsises with `text-overflow`, the full text in `title`, and the toolbar does not wrap.
+- Done, 2026-09-24. The side panel lost its snapping paragraph; the status line sits in the toolbar.
+  - `src/editor/guide.ts`: new step "Moving things and snapping", fourth, after the walls step. It carries the
+    old paragraph in plain words, plus Ctrl/Cmd+Shift+Z for redo.
+  - `src/editor/editor-app.ts`: the `<p class="hint">Snapping…` and the `#status` span left `<aside>`. `#status`
+    (same id, `role="status"`, now with `title` = the full text) sits after `#redo` in `.bar`. `.status` is
+    `flex:1 1 12em; min-width:6em; max-width:36em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis`:
+    a fixed basis, not the text, sets its width, so a long message never wraps the toolbar. Menu `.box` z-index
+    20 → 40, see DECISIONS.
+  - `src/editor/panels.ts`: `PanelCtx.help()`; the floor panel gains "Need help? Open Help." with `#floorHelp`.
+    "Alt disables the grid" dropped from the device, furniture and unlinked panels.
+  - TDD: five Playwright tests written first and seen failing, all five for the right reason (aside had "Hold
+    Alt"; no guide step; no "Need help"; no `.bar #status`; no status to ellipsise). The full suite then caught a
+    real regression (S1.36: File, Save covered by the Device colours panel once the menus moved left); a sixth
+    test pins it. Both fixes reverted once to see their tests fail: `flex:0 1 auto` grew the toolbar from 41.6
+    to 64.3 px; z-index 20 put the panel over Save.
+  - Gate: lint 0; `npm test` 866/866; build 0; Playwright 454 passed, 1 skipped (was 448 + 1); the six new tests
+    `--repeat-each=10` 60/60; `npm run shots` 0. Looked at `editor-blueprint.png`, `editor-light.png`,
+    `editor-ha.png`, plus a scratch render at 1280 with a 200-character status and the new Help step open, and
+    one at 700 wide.
+  - Not done: `npm run shots` renders 3 editor PNGs, not 15 panels. `docs/img/editor-*.png` (from
+    `scripts/doc-shots.mjs`) still show the status under the panel; S7.3 can regenerate them.
 
 ### S7.3 Docs are true; shots baseline accepted
 - Outcome: the README status table says what shipped (Organise shipped in 0.10.0; the card is in daily use; Sprint 5 docs exist); `shots/baseline` is re-accepted after S7.1; `docs/REVIEW-2026-09-24.md` is committed.

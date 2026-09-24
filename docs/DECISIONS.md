@@ -2,6 +2,25 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-24 S7.2 Status line in the toolbar; open menus draw above floating panels
+
+S7.2 moved `#status` from the side panel into the toolbar, right of Redo, and
+the snapping manual into Help. Three departures from the brief:
+
+- The toolbar is `.bar`, not `header`/`.toolbar`. No such element exists; the
+  tests target `.bar #status`.
+- The status line takes toolbar width, so the menus moved left. File's box
+  then opened under the centred Device colours panel (`position:fixed`,
+  z-index 30) and Save could not be clicked. The same was already true on a
+  narrower window. Menu boxes now use z-index 40: a menu just opened is on
+  top. A test checks Save is the top element with Device colours open.
+- "One short hint each at most" is not forced on the floor panel. It keeps
+  its two floor hints (a test pins one) and gains "Need help? Open Help.".
+  Only hints that restate Alt were cut: the device, furniture and unlinked
+  panels no longer say "Alt disables the grid". "Shift+click more lights" in
+  the multi-select panel stays: it is the only place that says how to build a
+  group.
+
 ## 2026-09-24 S7.1 Label placement: three details the brief left open
 
 The S7.1 brief places room names, room labels, zone labels and sensor values
