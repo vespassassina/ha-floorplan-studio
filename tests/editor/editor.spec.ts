@@ -6222,6 +6222,15 @@ test("S5.5: each guide step is a collapsible section, closed by default, with a 
   await expect(first).toHaveJSProperty("open", true);
 });
 
+// Opus review CSS pair (S7.13): the step drew two chevrons, the browser's own list marker and ours. Chromium stopped
+// honouring ::-webkit-details-marker; only list-style:none hides the native one.
+test("S7.13 CSS pair: a guide step shows one chevron, ours; the native summary marker is off", async ({ page }) => {
+  await page.locator("#help").click();
+  const summary = page.locator("#panel .guide > li").first().locator("summary");
+  expect(await summary.evaluate((el) => getComputedStyle(el).listStyleType)).toBe("none");
+  expect(await summary.evaluate((el) => getComputedStyle(el, "::before").content)).toBe('"\u25b8"');
+});
+
 test("S5.5: Help is reachable and toggled from the keyboard, and Close in the panel also returns focus to the button", async ({ page }) => {
   await page.locator("#help").focus();
   await page.keyboard.press("Enter");
