@@ -266,7 +266,7 @@ export class FloorplanStudioEditor extends LitElement {
     .sub>summary::-webkit-details-marker{display:none}
     .sub>summary::after{content:" \\25B8"}
     .sub>.btn:not(summary){padding-left:20px}
-    .guide summary{cursor:pointer;font-weight:600}
+    .guide summary{cursor:pointer;font-weight:600;list-style:none}
     .guide summary::-webkit-details-marker{display:none}
     .guide summary::before{content:"\\25B8";display:inline-block;width:1em;transition:transform .15s ease}
     .guide details[open] summary::before{transform:rotate(90deg)}
