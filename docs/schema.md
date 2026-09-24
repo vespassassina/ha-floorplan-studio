@@ -90,10 +90,10 @@ export type Device = { id: string; type: DeviceType; entity: string; name?: stri
 
 ## Furniture
 
-`name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional.
+`name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply.
 
 ```ts
-export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string }
+export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean }
 ```
 
 ## Unlinked
@@ -101,7 +101,7 @@ export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: 
 S4.25: an appliance placed on the plan with a fixed icon (by `type`, from `UNLINKED_TYPES`), not tied to a single entity's state. `attached` is zero or more HA entities linked to it for reference only — it never drives the icon's colour or the card's tap behaviour, unlike a `Device`. `color` overrides the idle grey; `scale` (0.25-4) resizes the icon, `rot` turns it. Furniture reused a swappable symbol; this reuses the device icon set instead because the point is "this is a heater", not "this is shaped like one".
 
 ```ts
-export interface Unlinked { id: string; type: DeviceType; name?: string; x: number; y: number; rot: number; scale: number; color?: string; attached?: string[] }
+export interface Unlinked { id: string; type: DeviceType; name?: string; x: number; y: number; rot: number; scale: number; color?: string; attached?: string[]; locked?: boolean }
 ```
 
 ## Floor
@@ -121,12 +121,20 @@ export interface Floor {
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
 ```
 
+## AvailableEntity
+
+S6.7: one HA entity as it stood the moment the editor wrote `Layout.available` — File, Export's own snapshot, so an agent working from the downloaded file can add and position devices with no HA connection of its own. `area`/`areaName` are this entity's HA area, when it has one; `room` is this plan's own room name, only when that area already has a drawn room. `placed` is whether the entity already has its own device icon on some floor (`placedEntities`) — an agent should not place it a second time.
+
+```ts
+export interface AvailableEntity { entity: string; name: string; domain: string; area?: string; areaName?: string; room?: string; dc?: string; placed: boolean }
+```
+
 ## Layout
 
 `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned.
 
 ```ts
-export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; floors: Record<string, Floor>; catalog: CatalogEntry[] }
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
 ```
 
 ## UNLINKED_TYPES

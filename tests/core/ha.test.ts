@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { applyHaNames, roomHaBox, typeForEntity, unplacedHaEntities, type HaData } from "../../src/core/ha";
+import { applyHaNames, availableEntities, roomHaBox, typeForEntity, unplacedHaEntities, type HaData } from "../../src/core/ha";
 import { migrate } from "../../src/core/migrate";
 import v1 from "../../demo/layout.v1.json";
 import type { Layout } from "../../src/core/schema";
@@ -91,6 +91,55 @@ describe("unplacedHaEntities (S4.14): the palette's source list", () => {
   it("an empty or hostile entity list never throws", () => {
     expect(unplacedHaEntities(layout(), { floors: [], areas: [], entities: [] })).toEqual([]);
     expect(unplacedHaEntities(layout(), { floors: null, areas: null, entities: null } as any)).toEqual([]);
+  });
+});
+
+describe("availableEntities (S6.7): a snapshot of every HA entity, for the exported JSON to carry with no live connection", () => {
+  const layout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      ground: {
+        title: "Ground", outline: [], walls: [], stairs: [], doors: [], openings: [], extras: [], furniture: [],
+        rooms: [{ id: "r-1", name: "Kitchen", area: "kitchen", label: "", kind: "room", pts: [], wk: [] }],
+        devices: [{ id: "l-1", name: "Lamp", type: "light", entity: "light.lamp", x: 0, y: 0 }],
+      },
+    },
+    catalog: [],
+  } as unknown as Layout);
+  const has: HaData = {
+    floors: [],
+    areas: [{ id: "kitchen", name: "The Kitchen" }],
+    entities: [
+      { id: "light.lamp", name: "Lamp", domain: "light" }, // already placed
+      { id: "sensor.kitchen_temp", name: "Kitchen temp", domain: "sensor", dc: "temperature", area: "kitchen" }, // area has a drawn room
+      { id: "switch.garage", name: "Garage switch", domain: "switch", area: "garage" }, // area with no drawn room
+      { id: "light.spare", name: "", domain: "light" }, // no friendly name: falls back to its id
+    ],
+  };
+
+  it("carries entity, name, domain, area/areaName/room when the area matches a drawn room, and placed", () => {
+    const out = availableEntities(layout(), has);
+    expect(out.find((e) => e.entity === "light.lamp")).toEqual({ entity: "light.lamp", name: "Lamp", domain: "light", placed: true });
+    expect(out.find((e) => e.entity === "sensor.kitchen_temp")).toEqual({
+      entity: "sensor.kitchen_temp", name: "Kitchen temp", domain: "sensor", dc: "temperature",
+      area: "kitchen", areaName: "The Kitchen", room: "Kitchen", placed: false,
+    });
+  });
+
+  it("an area with no drawn room carries area/areaName but no room", () => {
+    const out = availableEntities(layout(), has).find((e) => e.entity === "switch.garage")!;
+    expect(out.area).toBe("garage");
+    expect("room" in out).toBe(false);
+  });
+
+  it("falls back to the entity id when it has no friendly name", () => {
+    expect(availableEntities(layout(), has).find((e) => e.entity === "light.spare")?.name).toBe("light.spare");
+  });
+
+  it("break it: hostile or missing entities never throws", () => {
+    expect(availableEntities(layout(), { floors: [], areas: [], entities: [] })).toEqual([]);
+    expect(availableEntities(layout(), { floors: null, areas: null, entities: null } as any)).toEqual([]);
+    expect(availableEntities(layout(), { floors: [], areas: [], entities: [null, { id: 5 }, "junk"] } as any)).toEqual([]);
   });
 });
 

@@ -1262,3 +1262,11 @@ config). No write ever runs on load or on save.
 - Per-room presence heat map over a day.
 - Import from ha-floorplan SVGs.
 - Multiple layouts (several houses).
+
+- ~~Export entity catalog, for an agent placing devices.~~ **Done as S6.7**
+  (2026-09-24): `Layout.available` (`src/core/schema.ts`), built by
+  `availableEntities()` (`src/core/ha.ts`), baked directly into File → Export's
+  own download when `hass` is connected — not a separate button, and not part
+  of Save or the live editor state. See `docs/DECISIONS.md` for why the
+  earlier "keep it separate, not in `layout.json`" idea (below, struck
+  through) was reversed.

@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, placedEntities, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedHaEntities, validate } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, placedEntities, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedHaEntities, validate } from "../core";
 import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, WallKind } from "../core";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
@@ -1614,9 +1614,15 @@ export class FloorplanStudioEditor extends LitElement {
    * (`save-request`), no host is involved and nothing is asked to persist it — this is the only way to get the JSON
    * out of the HA panel, where Save writes to `.storage` instead of downloading (the standalone host's Save already
    * downloads, so this duplicates it there, which is fine: the button means the same thing everywhere).
+   *
+   * S6.7: when HA is connected, the download also carries `available` — a snapshot of every entity HA knows about,
+   * so an agent working from the file alone can add and position devices with no live connection of its own. Save
+   * and the live editor state never get this field, only this one download, since a snapshot goes stale the moment
+   * anything changes in HA; `migrate()` drops it again if the file is re-opened.
    */
   private exportJson() {
-    const blob = new Blob([JSON.stringify(this.st.layout, null, 1)], { type: "application/json" });
+    const layout = this.ha ? { ...this.st.layout, available: availableEntities(this.st.layout, this.ha) } : this.st.layout;
+    const blob = new Blob([JSON.stringify(layout, null, 1)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

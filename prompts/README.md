@@ -19,7 +19,11 @@ Two finished examples sit in [`examples/`](examples/): a flat, and a house with 
 4. **Save what it gives you** as `layout.json`.
 5. **Open the editor** (`dist/editor.html`, or the Floorplan Studio panel in Home Assistant), then **File → Open**, choose `layout.json`.
 6. **Fix what is off.** Drag a corner, move a door. The assistant lists everything it guessed; check those first.
-7. **Attach your devices** in the editor. The assistant does not touch them, on purpose: a drawing does not know which lamp is which.
+7. **Attach your devices** in the editor. The assistant does not touch them here, on purpose: a drawing does not know which lamp is which.
+
+## Placing devices with an assistant, once the plan exists
+
+Tracing a drawing and placing devices are different jobs, done at different times. Once your plan is drawn and connected to Home Assistant in the editor, **File → Export** downloads a `layout.json` that also carries `available`: every entity Home Assistant knows about, with its name, area and room. Give that file to an assistant with `SCHEMA.md`'s "Placing devices from an export" section, and it can add and position devices for you — using only entity ids that are actually in `available`, never invented ones — with no Home Assistant connection of its own. Re-open the result with **File → Open** and check it before **Save**.
 
 ## Getting the files into each assistant
 

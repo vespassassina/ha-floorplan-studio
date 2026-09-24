@@ -65,8 +65,16 @@ export interface Floor {
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[];
 }
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
+/**
+ * S6.7: one HA entity as it stood the moment the editor wrote `Layout.available` — File, Export's own snapshot,
+ * so an agent working from the downloaded file can add and position devices with no HA connection of its own.
+ * `area`/`areaName` are this entity's HA area, when it has one; `room` is this plan's own room name, only when
+ * that area already has a drawn room. `placed` is whether the entity already has its own device icon on some
+ * floor (`placedEntities`) — an agent should not place it a second time.
+ */
+export interface AvailableEntity { entity: string; name: string; domain: string; area?: string; areaName?: string; room?: string; dc?: string; placed: boolean }
 /** `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned. */
-export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; floors: Record<string, Floor>; catalog: CatalogEntry[] }
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
 
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x);
 const isEntity = (x: unknown) => typeof x === "string" && x.includes(".");
