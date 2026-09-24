@@ -53,6 +53,8 @@ const STATES = {
     "sensor.demo_living_temperature": 0, "sensor.demo_bedroom_temperature": 0, "sensor.demo_bathroom_humidity": 0,
   }).map((k) => [k, "unavailable"])),
 };
+// S7.6: after sunset, every device at rest but the kitchen light, so one room stays bright and the rest go dark.
+STATES.night = { ...STATES.off, "light.demo_kitchen": ["on", { rgb_color: [255, 170, 60] }], "sun.sun": "below_horizon" };
 function hassFor(which, dark) {
   const states = {};
   for (const [id, v] of Object.entries(STATES[which])) states[id] = Array.isArray(v) ? st(v[0], v[1]) : st(v);
@@ -85,8 +87,11 @@ try {
   ];
   const cardShots = [];
   for (const floor of Object.keys(layout.floors)) for (const which of Object.keys(STATES)) for (const t of THEMES) {
+    if (which === "night") continue; // below: ground floor, two themes
     cardShots.push({ name: `card-${floor}-${which}-${t.id}`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
   }
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
+    cardShots.push({ name: `card-ground-night-${t.id}`, floor: "ground", which: "night", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
   for (const s of cardShots) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });
     const page = await ctx.newPage();

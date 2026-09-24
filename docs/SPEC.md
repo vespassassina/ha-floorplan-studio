@@ -248,8 +248,14 @@ honest metaphor there.
 | room with `entity` | own kind colour, no outline | own kind colour, unmoved, plus an outline when the entity is on, open or playing | `--fp-active` stroke (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | furniture with `entity` | idle grey (`currentColor`) | `--fp-active`, chosen per theme for at least 3:1 contrast against both `--fp-room` and `--fp-bg` | `--fp-active` (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | unavailable / unknown | 45 % opacity, no strikethrough | — | — | more-info |
+| night (S7.6) | day: no overlay | after sunset every room (outdoor kinds too; zones, structures and stairs share their room's) is covered by `--fp-night`; a room with an on light inside it stays clear | `--fp-night` (rgba(4, 10, 30, .45), every theme) | none |
 
-Rooms tint when any light in them is on (`room_glow: true`). Card config:
+Rooms tint when any light in them is on (`room_glow: true`). Night (S7.6):
+`night: auto` darkens the plan while the `sun` entity (default `sun.sun`) is
+`below_horizon`, or `on` for a binary sensor; a missing or `unavailable` sun
+is day. `on` and `off` force it. Walls, names and devices are drawn over the
+overlay, so they stay crisp. The editor previews it under View, Preview night.
+Card config:
 
 ```yaml
 type: custom:floorplan-studio-card
@@ -259,6 +265,8 @@ fade: 300              # motion fade, seconds
 room_glow: true
 theme: blueprint       # blueprint (default), midnight, light, slate, terminal, solarized, or ha
 zoom: true             # pinch, drag, double-tap, Ctrl/Cmd+wheel, +/−/fit buttons; "wheel" also zooms on a plain wheel; false fixes the plan
+night: auto            # auto (default: from the sun), on, off
+sun: sun.sun           # the entity night: auto reads
 ```
 
 `zoom` (S7.4): the plan zooms between fit and 8×. A drag that moves more than 6 px pans and is never a tap; zoomed in, a third of the view always stays on the plan. A double-tap off any device zooms 2× at fit and returns to fit when zoomed. Without Ctrl/Cmd a wheel scrolls the dashboard, unless `zoom: "wheel"`. The view resets on a config change and a floor change, and survives state updates. With zoom on, the plan's `<svg>` has `touch-action: none`, so a swipe that starts on the plan does not scroll the page; `zoom: false` gives the page its touches back.

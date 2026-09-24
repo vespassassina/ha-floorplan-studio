@@ -45,6 +45,13 @@ function readHelp(): boolean {
   try { return localStorage.getItem(HELP_KEY) === "true"; } catch { return false; }
 }
 
+/** localStorage key for View, Preview night (S7.6). A viewer preference, not part of the layout, never an undo step. */
+export const NIGHT_KEY = "floorplan-studio:night";
+/** The stored choice, or day when there is none or storage is blocked. */
+function readNight(): boolean {
+  try { return localStorage.getItem(NIGHT_KEY) === "true"; } catch { return false; }
+}
+
 export interface View { x: number; y: number; w: number; h: number }
 /** A point that is not a polygon corner: the end of a wall, an opening or an extra. */
 export type LooseRef = { k: "walls" | "openings" | "extras"; i: number; end: "a" | "b" };
@@ -145,6 +152,8 @@ export class EditorState {
   theme: ThemeChoice = readTheme();
   /** S5.5: whether the Help panel is open. Kept in localStorage, not in the layout, never an undo step. */
   helpOpen: boolean = readHelp();
+  /** S7.6: whether the plan is drawn as at night. Kept in localStorage, not in the layout, never an undo step. */
+  night: boolean = readNight();
   /** id of the door drawn open in the preview */
   openDoor: string | null = null;
   /** The floor panel is asking "Delete floor ...?". Any change of floor, undo or press on the plan cancels it. */
@@ -574,6 +583,11 @@ export class EditorState {
   setHelp(v: boolean) {
     this.helpOpen = v;
     try { localStorage.setItem(HELP_KEY, String(v)); } catch { /* private mode: the choice lasts until reload */ }
+  }
+  /** View, Preview night (S7.6). A viewer preference: no undo step, never written to the layout. */
+  setNight(v: boolean) {
+    this.night = v;
+    try { localStorage.setItem(NIGHT_KEY, String(v)); } catch { /* private mode: the choice lasts until reload */ }
   }
   /** Writes the autosave. S7.11: a trace image can fill the few MB a browser gives a site; the plan is then saved
    *  without its images rather than not at all, and this returns false. Blocked storage also returns false. */

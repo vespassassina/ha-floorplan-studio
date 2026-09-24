@@ -690,3 +690,56 @@ test.describe("S7.4 touch", () => {
     expect(await viewBox(page)).toEqual(z);
   });
 });
+
+// S7.6: night from the sun. `night: "auto"` (the default) reads `sun.sun`, or the entity `sun` names; `on` and `off` force it.
+test("S7.6: sun.sun below the horizon sets night, above clears it; on and off force it; sun overrides the entity; unavailable is day", async ({ page }) => {
+  await open(page);
+  const s = (state: string) => ({ state, attributes: {}, last_changed: new Date().toISOString() });
+  const night = () => page.locator("floorplan-studio-card").evaluate((el) => {
+    const g = el.shadowRoot!.querySelector("svg g.night");
+    return { on: !!g, overlays: el.shadowRoot!.querySelectorAll("svg polygon.room-night").length };
+  });
+  const cases: [string, Record<string, unknown>, Record<string, unknown>, boolean][] = [
+    ["default, below", {}, { "sun.sun": s("below_horizon") }, true],
+    ["default, above", {}, { "sun.sun": s("above_horizon") }, false],
+    ["auto, below", { night: "auto" }, { "sun.sun": s("below_horizon") }, true],
+    ["no sun entity at all", {}, {}, false],
+    ["sun unavailable", {}, { "sun.sun": s("unavailable") }, false],
+    ["off, below", { night: "off" }, { "sun.sun": s("below_horizon") }, false],
+    ["on, above", { night: "on" }, { "sun.sun": s("above_horizon") }, true],
+    ["on, no sun", { night: "on" }, {}, true],
+    ["sun override below", { sun: "sensor.x" }, { "sensor.x": s("below_horizon"), "sun.sun": s("above_horizon") }, true],
+    ["sun override above", { sun: "sensor.x" }, { "sensor.x": s("above_horizon"), "sun.sun": s("below_horizon") }, false],
+    ["sun override on", { sun: "binary_sensor.dark" }, { "binary_sensor.dark": s("on") }, true],
+    ["unknown night value is auto", { night: "yes" }, { "sun.sun": s("above_horizon") }, false],
+  ];
+  for (const [name, extra, states, want] of cases) {
+    await configure(page, { layout: structuredClone(demo), theme: "light", ...extra }, { states });
+    expect(await night(), name).toEqual({ on: want, overlays: want ? 6 : 0 });
+  }
+});
+
+test("S7.6: the sun flipping on a live card toggles night without a new config", async ({ page }) => {
+  await open(page);
+  const s = (state: string) => ({ state, attributes: {}, last_changed: new Date().toISOString() });
+  await configure(page, { layout: structuredClone(demo), theme: "light" }, { states: { "sun.sun": s("above_horizon") } });
+  const setSun = (state: string) => page.evaluate((st) => {
+    const el = document.getElementById("card") as unknown as { hass: unknown; updateComplete: Promise<unknown> };
+    el.hass = { states: { "sun.sun": { state: st, attributes: {}, last_changed: new Date().toISOString() } } };
+    return el.updateComplete;
+  }, state);
+  const has = () => page.locator("floorplan-studio-card").evaluate((el) => !!el.shadowRoot!.querySelector("svg g.night"));
+  expect(await has()).toBe(false);
+  await setSun("below_horizon");
+  expect(await has()).toBe(true);
+  await setSun("above_horizon");
+  expect(await has()).toBe(false);
+});
+
+test("S7.6 CSS pair: at night an unlit room is covered by --fp-night, a lit one is clear, in the card", async ({ page }) => {
+  await open(page);
+  const s = (state: string) => ({ state, attributes: {}, last_changed: new Date().toISOString() });
+  await configure(page, { layout: structuredClone(demo), theme: "light", night: "on" }, { states: { "light.demo_kitchen": s("on") } });
+  const fills = await page.locator("floorplan-studio-card").evaluate((el) => [0, 1].map((i) => getComputedStyle(el.shadowRoot!.querySelector(`svg polygon[data-night="${i}"]`)!).fill));
+  expect(fills).toEqual(["rgba(4, 10, 30, 0.45)", "none"]);
+});

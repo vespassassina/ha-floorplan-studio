@@ -96,6 +96,9 @@ export function rolesToTokens(roles: ThemeRoles): string {
     `--fp-wall-external:${shades.wallExternal}`, `--fp-wall-fence:${shades.wallFence}`,
     `--fp-wall-edge:${shades.wallEdge}`, `--fp-measure:${roles.line}`, `--fp-glow:${roles.accent}`, `--fp-aura:${roles.accent}`,
     `--fp-active:${roles.accent}`,
+    // S7.6: the night overlay, one value for every theme for now: a deep blue at 45 %, dark enough to read as night on
+    // paper and still leave a dark theme's rooms distinct from its background.
+    `--fp-night:rgba(4,10,30,.45)`,
     `--fp-on-dark:#fff`, `--fp-on-light:#2b2a27`,
   ].join(";");
 }

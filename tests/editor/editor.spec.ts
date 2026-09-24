@@ -6399,3 +6399,55 @@ test("S7.2 break it: a 200-character status ellipsises, keeps the full text in t
   expect(Math.abs((await mid(".bar #status")) - row)).toBeLessThan(2);
   expect(Math.abs((await mid(".bar [data-f]")) - row)).toBeLessThan(2);
 });
+
+test("S7.6: View, Preview night darkens the plan, survives a reload, and is never written to the layout", async ({ page }) => {
+  await expect(page.locator("svg polygon.room-night")).toHaveCount(0);
+  await menu(page, "View");
+  await expect(page.locator("#night")).toHaveAttribute("aria-pressed", "false");
+  await page.locator("#night").click();
+  await menu(page, "View");
+  await expect(page.locator("svg g.night")).toHaveCount(1);
+  await expect(page.locator("svg polygon.room-night")).toHaveCount(6); // seven ground rooms less the zone
+  expect(await page.evaluate(() => localStorage.getItem("floorplan-studio:night"))).toBe("true");
+  expect(JSON.stringify(await layoutOf(page))).not.toContain("night");
+  await page.reload();
+  await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+  await expect(page.locator("svg polygon.room-night")).toHaveCount(6);
+  await menu(page, "View");
+  await expect(page.locator("#night")).toHaveAttribute("aria-pressed", "true");
+  await page.locator("#night").click();
+  await menu(page, "View");
+  await expect(page.locator("svg g.night")).toHaveCount(0);
+  await expect(page.locator("svg polygon.room-night")).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("floorplan-studio:night"))).toBe("false");
+});
+
+test("S7.6: with Preview night on, a click in a room still selects the room under the overlay", async ({ page }) => {
+  await menu(page, "View");
+  await page.locator("#night").click();
+  await menu(page, "View");
+  await expect(page.locator("svg polygon.room-night").first()).toBeAttached();
+  await clickCm(page, 200, 150);
+  await expect(page.locator("#rk")).toHaveValue("room");
+  await expect(page.locator("#ra")).toHaveValue("living");
+});
+
+// CLAUDE.md finding 10: the three S7.6 rules read in Chromium, in the editor's own shadow root, with light pinned.
+test("Opus review CSS pair: S7.6 night fills an unlit room with --fp-night, leaves a lit one clear, and the overlay takes no pointer", async ({ page }) => {
+  await setTheme(page, "light");
+  await menu(page, "View");
+  await page.locator("#night").click();
+  await menu(page, "View");
+  const got = await page.evaluate((tag) => {
+    const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
+    const unlit = root.querySelector('svg polygon[data-night="0"]')!;
+    // the editor has no live state, so no room is lit; a lit twin is added beside the real overlay to read the rule
+    const lit = unlit.cloneNode() as SVGPolygonElement;
+    lit.setAttribute("class", "room-night lit");
+    unlit.after(lit);
+    const out = [getComputedStyle(unlit).fill, getComputedStyle(lit).fill, getComputedStyle(unlit).pointerEvents];
+    lit.remove();
+    return out;
+  }, EDITOR);
+  expect(got).toEqual(["rgba(4, 10, 30, 0.45)", "none", "none"]);
+});
