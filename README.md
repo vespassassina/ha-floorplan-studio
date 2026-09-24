@@ -3,9 +3,9 @@
 Draw your home inside Home Assistant, attach your devices, use it as a live
 dashboard. No external drawing tool, no YAML per element.
 
-Status: usable, still young. The editor, the card and the HA integration are
-built, tested and installable through HACS (see `CHANGELOG.md` for the current
-release). Organising your home from the plan (Sprint 4) is not built yet.
+Status: usable, still young. The editor, the card, the HA integration and the
+organise tools (areas, groups, automations from the plan) are built, tested
+and installable through HACS (see `CHANGELOG.md` for the current release).
 See `docs/SPEC.md` and `docs/PLAN.md`.
 
 ![The demo house, live as a card, then open for editing.](docs/img/demo.gif)
@@ -16,10 +16,10 @@ See `docs/SPEC.md` and `docs/PLAN.md`.
 | Editor (standalone `dist/editor.html`, works from `file://`, offline) | done |
 | Zones, water, wall kinds, floors, draw mode | done |
 | Stairs, gardens, plan rotation, colours, HA names, closed walls to rooms | done |
-| Lovelace card (themes: blueprint, light, Home Assistant) | done; its script is served by the integration, and it is not yet seen on a dashboard by eye |
+| Lovelace card (seven themes, one that follows Home Assistant) | done; its script is served by the integration, on the author's dashboards daily |
 | HA integration, panel, pickers, HACS releases | done, running on the author's Home Assistant |
-| Organise: areas, helpers, groups, automations from the plan | Sprint 4 |
-| Skill and schema for LLMs, validator (`scripts/validate-layout.mjs`) | done, pulled forward from Sprint 5 |
+| Organise: areas, helpers, groups, automations from the plan | done (0.10.0) |
+| Skill and schema for LLMs, validator (`scripts/validate-layout.mjs`) | done |
 | Docs (`docs/schema.md`, [`docs/card.md`](docs/card.md), [`docs/editor.md`](docs/editor.md), `CONTRIBUTING.md`) | done |
 
 ## What you get
