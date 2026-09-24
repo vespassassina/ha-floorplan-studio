@@ -32,6 +32,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `fade` | `300` | seconds a motion sensor takes to fade from red to grey after it last went off |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
 | `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons top right. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). `false` fixes the plan and gives touches back to the page, so a swipe over the plan scrolls it |
+| `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
 
 ```yaml
 type: custom:floorplan-studio-card
@@ -42,6 +43,37 @@ fade: 300
 room_glow: true
 theme: blueprint
 zoom: true
+kiosk: false
+```
+
+## Kiosk mode
+
+`kiosk: true` is for a tablet fixed to a wall: nobody there should be able to
+switch floors, zoom out past what fits, or reach Home Assistant's more-info
+dialog by holding a finger on a device. It hides the floor chips and the
+zoom +/−/fit buttons, and a long press does nothing — a plain tap still
+toggles the device it lands on, exactly as without kiosk mode.
+
+`kiosk: true` together with `floors` or `floor: "all"` shows the first floor
+in the list and draws no switcher, since there is nothing to switch with. For
+several floors on one wall tablet, use one card per floor instead — for
+example a view with a tab per floor:
+
+```yaml
+title: Floorplan
+views:
+  - title: Ground floor
+    path: ground
+    cards:
+      - type: custom:floorplan-studio-card
+        floor: ground
+        kiosk: true
+  - title: First floor
+    path: first
+    cards:
+      - type: custom:floorplan-studio-card
+        floor: first
+        kiosk: true
 ```
 
 ## A premade dashboard

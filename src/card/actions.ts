@@ -50,6 +50,11 @@ export interface DeviceActionsHost extends EventTarget {
  * No debounce: each pointerdown/pointerup pair is independent, so two quick taps toggle twice, not once
  * (S2.2 "Break it"). `openCoverDialog` itself is responsible for ignoring a second call while its dialog is
  * still open (S2.7 "Break it") — this function fires it on every completed tap regardless.
+ *
+ * S7.5: `opts.longPress` (default `true`) governs only the hold-opens-more-info timer on a toggling device. `false`
+ * (kiosk mode) never starts that timer, so holding a light does nothing and releasing it still toggles like a plain
+ * tap — a wall tablet has nobody who should reach a more-info dialog by holding a finger down. Every other gesture
+ * (a plain tap, a door, a camera's always-more-info tap, the cover dialog) is unaffected: kiosk mode still acts.
  */
 export function bindDeviceActions(
   svg: SVGSVGElement,
@@ -57,7 +62,9 @@ export function bindDeviceActions(
   getDevice: (index: number) => Device | undefined,
   getDoor?: (index: number) => Door | undefined,
   openCoverDialog?: (door: Door) => void,
+  opts?: { longPress?: boolean },
 ): () => void {
+  const longPress = opts?.longPress !== false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let held = false;
   let entityId: string | null = null;
@@ -138,11 +145,13 @@ export function bindDeviceActions(
     entityId = d.entity;
     action = "toggle";
     clearTimer();
-    timer = setTimeout(() => {
-      held = true;
-      timer = null;
-      if (entityId) fireEvent(host, "hass-more-info", { entityId });
-    }, HOLD_MS);
+    if (longPress) {
+      timer = setTimeout(() => {
+        held = true;
+        timer = null;
+        if (entityId) fireEvent(host, "hass-more-info", { entityId });
+      }, HOLD_MS);
+    }
   };
 
   const onMove = (e: Event) => {

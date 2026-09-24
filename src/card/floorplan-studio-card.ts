@@ -33,6 +33,11 @@ export interface FloorplanStudioCardConfig {
   /** S7.4: `true` (default) pinch, drag, double-tap, Ctrl/Cmd+wheel and the +/−/fit buttons; `"wheel"` also zooms
    * on a plain wheel; `false` a fixed plan, as before. */
   zoom?: boolean | "wheel";
+  /** S7.5: `true` shows only the plan for a wall tablet — no floor chips, no zoom buttons, no version, no cover
+   * dialog chrome beyond the dialog itself, and holding a device never opens more-info. Taps still act. Default
+   * `false`. With `floors` or `floor: "all"`, the first floor shows and there is no switcher: use one card per
+   * floor instead (see `docs/card.md`). */
+  kiosk?: boolean;
 }
 
 /** Two taps closer than this in time and space are a double-tap. */
@@ -126,7 +131,25 @@ export class FloorplanStudioCard extends LitElement {
     if (!this.hasAttribute("tabindex")) this.tabIndex = -1;
   }
 
+  /**
+   * S7.5: config is untrusted (CLAUDE.md finding 1) — an unrecognised `zoom` used to fall silently back to `true`,
+   * which hid a typo (`zoom: "yes"`) behind the default instead of surfacing it. Both `zoom` and `kiosk` now throw,
+   * the way Home Assistant's own card config errors do, naming the key so the dashboard's error card says what to
+   * fix. Every other key stays permissive (CLAUDE.md finding 1 again: never throw on an unknown floor id, theme,
+   * and so on — those already have documented, harmless fallbacks).
+   */
+  private _validateConfig(config: FloorplanStudioCardConfig): void {
+    const { zoom, kiosk } = config;
+    if (zoom !== undefined && zoom !== true && zoom !== false && zoom !== "wheel") {
+      throw new Error(`floorplan-studio-card: zoom must be true, false or "wheel", got ${JSON.stringify(zoom)}`);
+    }
+    if (kiosk !== undefined && typeof kiosk !== "boolean") {
+      throw new Error(`floorplan-studio-card: kiosk must be true or false, got ${JSON.stringify(kiosk)}`);
+    }
+  }
+
   setConfig(config: FloorplanStudioCardConfig): void {
+    this._validateConfig(config ?? {});
     this._config = config ?? {};
     this._layout = null;
     this._error = null;
@@ -370,7 +393,7 @@ export class FloorplanStudioCard extends LitElement {
       // debounce, but also no double-firing from a stale second listener).
       this._unbindActions?.();
       this._unbindActions = svg
-        ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], (door) => this._openCoverDialog(door))
+        ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], (door) => this._openCoverDialog(door), { longPress: !this._kiosk() })
         : null;
       this._unbindZoom?.();
       this._unbindZoom = svg ? this._bindZoom(svg) : null;
@@ -449,6 +472,7 @@ export class FloorplanStudioCard extends LitElement {
    * draws (CLAUDE.md finding 8, one draw path — the plan is drawn only by `renderFloor`, this is the card's own
    * DOM around it). */
   private _floorChips() {
+    if (this._kiosk()) return null; // S7.5: no switcher in kiosk mode, even with floors or floor: "all" configured
     const list = this._floorList();
     if (!list) return null;
     const current = this._floorKey();
@@ -466,6 +490,7 @@ export class FloorplanStudioCard extends LitElement {
     const fit = viewBoxFor(f, 60, rotate);
     this._fit = fit;
     const zoom = this._zoomMode() !== false;
+    const showZoomButtons = zoom && !this._kiosk(); // S7.5: kiosk still zooms/pans by gesture, just draws no buttons
     const box = zoom && this._view ? clamp(this._view, fit) : fit;
     const body = renderFloor(f, {
       scale: 1,
@@ -479,13 +504,18 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${zoom ? "fp-zoomable" : ""} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${zoom ? this._zoomButtons(box, fit) : null}${this._coverDialogTemplate()}`;
+    return html`${this._floorChips()}<svg class=${zoom ? "fp-zoomable" : ""} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${showZoomButtons ? this._zoomButtons(box, fit) : null}${this._coverDialogTemplate()}`;
   }
 
   /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */
   private _zoomMode(): boolean | "wheel" {
     const z = this._config.zoom;
     return z === false ? false : z === "wheel" ? "wheel" : true;
+  }
+
+  /** S7.5: `config.kiosk`, `false` unless it is exactly `true` — `setConfig` already refuses anything else. */
+  private _kiosk(): boolean {
+    return this._config.kiosk === true;
   }
 
   /** The view on screen now: the zoomed one, clamped, or fit. */

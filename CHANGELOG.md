@@ -3,6 +3,8 @@
 ## 0.11.0
 
 - The card zooms and pans: pinch, drag and double-tap on a phone, Ctrl/Cmd+wheel and drag on a desktop, and +, − and fit buttons in its top-right corner. From fit to 8×. A drag that moves more than 6 px is a pan, never a tap, so it no longer toggles the light it started on. New config key `zoom`: `true` (default), `"wheel"` to zoom on a plain wheel too, `false` for the old fixed plan.
+- New config key `kiosk`: `true` shows only the plan, for a tablet fixed to a wall — no floor chips, no zoom buttons; a long press does nothing, a plain tap still acts. With `floors` or `floor: "all"`, the first floor shows and there is no switcher: use one card per floor instead.
+- `setConfig` now refuses an unrecognised `zoom` value (it used to silently fall back to `true`) and an unrecognised `kiosk` value, naming the key in both cases.
 
 ## 0.10.3
 
