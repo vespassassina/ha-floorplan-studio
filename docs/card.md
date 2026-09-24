@@ -87,9 +87,7 @@ room glow, zoom, kiosk, night and the sun entity. The floor list fills in
 once the card's own layout has loaded (`layout`, `layout_url`, or the plan
 stored in Home Assistant); until then it says so and shows no checkboxes. A
 field left at its default is left out of the saved YAML, so the card config
-stays as short as if you had typed it by hand. Kiosk and night are read by
-the form now and land in the card itself with a later release; see
-`docs/DECISIONS.md`.
+stays as short as if you had typed it by hand.
 
 ## A premade dashboard
 
@@ -150,6 +148,16 @@ differently:
   time the card loads.
 - **Camera** — a dark cone of view, turned to match the device's own
   rotation.
+- **Person** — a green icon at full opacity while home; away (`not_home`, or
+  any zone) it dims to 35% with a small grey "away" mark. Point `entity` at a
+  `person.*` or `device_tracker.*` entity. Optionally point the device panel's
+  Room sensor field at a second entity — a BLE room-presence sensor such as a
+  Bermuda or ESPresense area sensor — whose state, or `area_id`/`area`
+  attribute, names one of your rooms; the icon then glides there over 600 ms
+  each time the sensor changes, and several people in the same room spread on
+  a ring instead of stacking. No room sensor, or one that names no room on
+  the plan, leaves the icon where you placed it. Tap always opens more-info,
+  never a toggle.
 - **Radar (mmWave presence)** — a purple icon while its presence entity is on,
   plus one small dot per tracked target, turned by the device's own `rot` (0
   is "ahead is screen-up"). Point `entity` at the presence binary sensor, and

@@ -52,6 +52,19 @@ more-info — where a writer is configured.
 
 ![The Living light selected: its panel shows type, entity, rotation, and what powers it.](img/editor-device-panel.png)
 
+A device's panel shows one extra field for a few types:
+
+- **Person** — a "Room sensor" field, below the entity field: point it at a
+  second entity (a BLE room-presence sensor) whose state, or `area_id`/`area`
+  attribute, names one of your rooms, and the card glides the icon there. It
+  refuses the person's own entity, since that isn't a room sensor.
+- **mmWave radar** — a "Targets" field: add or remove `x`/`y` entity pairs,
+  one row per tracked target, each pointing at the two sensors an ESPHome
+  LD2450 (or similar) exposes for that target.
+- **Vacuum** — nothing extra; point `entity` at the `vacuum.*` entity. There
+  is no field for the robot's position, since most integrations expose that
+  as a camera or a proprietary blob, not coordinates.
+
 ## Drawing a house
 
 1. **Draw the outline.** `Draw` starts freehand outline drawing; click each
@@ -94,6 +107,14 @@ no free-text angle field: every angle the UI can produce is already wrapped
 into `[0, 360)`. (A hand-edited layout file can still carry an angle outside
 that range — the file loader normalises it on open, same treatment as an
 out-of-range furniture size.)
+
+## Preview night
+
+View, Preview night toggles the same dark overlay the card shows after
+sunset: every room and outdoor area darkens, and a room with a light on
+stays clear. The editor has no live lights, so with the preview on every
+room is dark. It's a browser preference, not part of the layout — it is
+never saved with the plan and never becomes an undo step.
 
 ## Trace over a scan
 
