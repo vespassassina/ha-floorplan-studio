@@ -89,6 +89,27 @@ into `[0, 360)`. (A hand-edited layout file can still carry an angle outside
 that range — the file loader normalises it on open, same treatment as an
 out-of-range furniture size.)
 
+## Trace over a scan
+
+View, Trace image… opens a small panel at the bottom left of the plan.
+
+1. **Load image…** takes a PNG, JPEG or WebP: a scan, a photo of the
+   estate agent's plan, an architect's drawing. It is shrunk to 2000 px on
+   the long side and stored with the floor, then placed over the outline (or
+   the middle of the view on a blank floor) at half opacity.
+2. **Scale…**: click two points on the image whose real distance you know, a
+   wall you have measured, say. Type that distance in cm and Apply. The image
+   is resized so the two points are that far apart; its height follows.
+3. Draw the outline and the rooms over it as usual. While the image is shown,
+   room fills are see-through, so a room you have drawn does not hide the
+   scan under it.
+4. **Opacity** and **Show** change how much of it you see; **Remove image**
+   drops it. Each change is one undo step.
+
+Only the editor shows the image. The card never draws it, though Save keeps it
+with the plan (up to 4 MB). File, Export leaves it out unless you tick
+**Include trace image**, so a file you hand to an assistant stays small.
+
 ## Starting from photos instead
 
 If you'd rather not draw the outline by hand, an AI assistant can trace it

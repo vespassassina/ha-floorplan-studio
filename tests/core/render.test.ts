@@ -1347,3 +1347,44 @@ describe("unlinked appliances (S4.25)", () => {
     expect(contentPoints(fl).some((p) => p[0] === 200 && p[1] === 200)).toBe(true);
   });
 });
+
+describe("renderFloor: trace image (S7.11)", () => {
+  const SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
+  const traced = (t: Partial<NonNullable<Layout["floors"][string]["trace"]>> = {}) =>
+    ({ ...structuredClone(ground), trace: { src: SRC, x: 10, y: -20, w: 500, rot: 90, alpha: 0.3, on: true, ...t } });
+
+  it("with trace: true draws <image class=\"trace\"> first, with href, x, y, width, opacity and transform", () => {
+    const html = renderFloor(traced(), { scale: 0.5, trace: true });
+    expect(html.startsWith('<image class="trace"')).toBe(true);
+    const img = html.slice(0, html.indexOf("/>") + 2);
+    expect(img).toContain(`href="${SRC}"`);
+    expect(img).toContain('x="10"');
+    expect(img).toContain('y="-20"');
+    expect(img).toContain('width="500"');
+    expect(img).toContain('opacity="0.3"');
+    expect(img).toContain('transform="rotate(90 10 -20)"');
+    expect(html.match(/<image/g)).toHaveLength(1);
+  });
+
+  it("stays first inside a turned plan and inside a theme group", () => {
+    const html = renderFloor(traced(), { scale: 0.5, trace: true, theme: "light", rotate: { deg: 90, pivot: [0, 0] } });
+    expect(html).toMatch(/^<g data-theme="light"><g class="plan-turn"[^>]*><image class="trace"/);
+  });
+
+  it("draws nothing without the option, with the option false, or with on: false", () => {
+    expect(renderFloor(traced(), { scale: 0.5 })).not.toContain("<image");
+    expect(renderFloor(traced(), { scale: 0.5, trace: false })).not.toContain("<image");
+    expect(renderFloor(traced({ on: false }), { scale: 0.5, trace: true })).not.toContain("<image");
+    expect(renderFloor(traced(), { scale: 0.5 })).toBe(renderFloor(ground, { scale: 0.5 }));
+  });
+
+  it("draws nothing for an untrusted src that validate would refuse, and never lets a quote out", () => {
+    for (const src of [`${SRC}"><script>alert(1)</script>`, "javascript:alert(1)", "data:image/svg+xml;base64,PHN2Zz4="]) {
+      const html = renderFloor(traced({ src }), { scale: 0.5, trace: true });
+      expect(html, src).not.toContain("<image");
+      expect(html, src).not.toContain("<script");
+    }
+    expect(renderFloor(traced({ w: 0 }), { scale: 0.5, trace: true })).not.toContain("<image");
+    expect(renderFloor(traced({ x: NaN }), { scale: 0.5, trace: true })).not.toContain("<image");
+  });
+});

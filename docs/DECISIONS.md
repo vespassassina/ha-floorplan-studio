@@ -2,6 +2,42 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-24 S7.11 Trace image: where it departs from the brief
+
+Built as the brief says (`Floor.trace`, drawn first only with `opts.trace`,
+View, Trace image…, the Export tick, `setTrace`). Departures, and why:
+
+- **Room fills go see-through while a trace is shown (editor only).** Drawn
+  first, the scan sat under every room fill, which is opaque: the first room
+  traced hid its part of the scan, and a plan with rooms hid it all. Seen in a
+  render, not in a test. `svg.tracing .room { fill-opacity: .4 }` in the
+  editor's stylesheet; the card and `render.ts` are untouched. A CSS pair test
+  holds it.
+- **`src` is PNG, JPEG or WebP only.** No SVG: it is a document that can carry
+  script and links. The base64 alphabet has no quote, so a `src` that passes
+  `TRACE_SRC` goes into the `href` attribute as it is. `render.ts` checks the
+  same rule again; the layout is untrusted.
+- **`rot` turns about `x`, `y`, and is `[0, 360)`.** The brief named the field,
+  not the pivot. The top-left corner is what the editor stores and places, so
+  it is the pivot. No UI sets `rot` yet; a file may.
+- **`on: false` draws nothing.** Not an image at opacity 0, so a hidden scan
+  costs nothing to paint.
+- **Load places the image anew,** fitted into the outline's box (the view on a
+  blank floor) at opacity 0.5. Replacing an image does not keep the old
+  scale: a new scan has its own.
+- **Scale keeps `x`, `y`.** Only `w` changes, as the brief says; the image
+  grows or shrinks from its top-left corner.
+- **Undo history interns the image.** `EditorState` keeps 100 undo steps, each
+  the whole layout as JSON. With a 4 MB image that is 400 MB. The history now
+  stores each distinct `src` once and a token in each step.
+- **Autosave falls back to a plan without traces.** A 4 MB image can exceed
+  the browser's localStorage quota (about 5 MB). `persist()` then saves the
+  plan without `trace` rather than nothing; the live plan and Save keep it.
+- **Risk, not handled: Home Assistant's websocket message size.** Save sends
+  the layout over HA's websocket. aiohttp's default maximum message is 4 MB,
+  so a layout near the trace cap may be refused on Save. Not verified against
+  a real HA. If it bites, lower `MAX_TRACE_BYTES` or cap the JPEG harder.
+
 ## 2026-09-24 S6.7 File, Export carries an entity snapshot (`Layout.available`), for an agent working with no HA connection
 
 Diego asked how an agent (Claude Code, local or a stranger's) could automate

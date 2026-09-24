@@ -104,6 +104,14 @@ S4.25: an appliance placed on the plan with a fixed icon (by `type`, from `UNLIN
 export interface Unlinked { id: string; type: DeviceType; name?: string; x: number; y: number; rot: number; scale: number; color?: string; attached?: string[]; locked?: boolean }
 ```
 
+## Trace
+
+S7.11: a scanned plan drawn under this floor in the editor, to trace walls over. Never drawn by the card, and left out of File, Export unless "Include trace image" is ticked. `src` is a `data:image/png|jpeg|webp;base64,` URL of at most `MAX_TRACE_BYTES`; the editor downscales to 2000 px on the long side before storing it. `x`/`y` is the image's top-left corner in cm, `w` its width in cm (the height follows the image's own aspect ratio), `rot` turns it about `x`/`y` in degrees, `alpha` is its opacity from 0 to 1, `on` false hides it and keeps it. An assistant never writes one.
+
+```ts
+export interface Trace { src: string; x: number; y: number; w: number; rot: number; alpha: number; on: boolean }
+```
+
 ## Floor
 
 `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it.
@@ -111,7 +119,7 @@ export interface Unlinked { id: string; type: DeviceType; name?: string; x: numb
 ```ts
 export interface Floor {
   ha?: string; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
-  openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[];
+  openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[]; trace?: Trace;
 }
 ```
 
@@ -135,6 +143,22 @@ export interface AvailableEntity { entity: string; name: string; domain: string;
 
 ```ts
 export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
+```
+
+## MAX_TRACE_BYTES
+
+S7.11: the most characters a floor's `trace.src` may hold, the whole data URL: 4 MB.
+
+```ts
+export const MAX_TRACE_BYTES = 4 * 1024 * 1024;
+```
+
+## TRACE_SRC
+
+S7.11: a raster data URL and nothing else. SVG is left out (it is a document), and the base64 alphabet has no quote,  so a src that passes can go into an attribute as it is. Linear: no nested quantifier.
+
+```ts
+export const TRACE_SRC = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]*={0,2}$/;
 ```
 
 ## UNLINKED_TYPES

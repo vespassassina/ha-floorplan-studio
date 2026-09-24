@@ -59,10 +59,18 @@ export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: 
  * device icon set instead because the point is "this is a heater", not "this is shaped like one".
  */
 export interface Unlinked { id: string; type: DeviceType; name?: string; x: number; y: number; rot: number; scale: number; color?: string; attached?: string[]; locked?: boolean }
+/**
+ * S7.11: a scanned plan drawn under this floor in the editor, to trace walls over. Never drawn by the card, and left
+ * out of File, Export unless "Include trace image" is ticked. `src` is a `data:image/png|jpeg|webp;base64,` URL of at
+ * most `MAX_TRACE_BYTES`; the editor downscales to 2000 px on the long side before storing it. `x`/`y` is the image's
+ * top-left corner in cm, `w` its width in cm (the height follows the image's own aspect ratio), `rot` turns it about
+ * `x`/`y` in degrees, `alpha` is its opacity from 0 to 1, `on` false hides it and keeps it. An assistant never writes one.
+ */
+export interface Trace { src: string; x: number; y: number; w: number; rot: number; alpha: number; on: boolean }
 /** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. */
 export interface Floor {
   ha?: string; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
-  openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[];
+  openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[]; trace?: Trace;
 }
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
 /**
@@ -75,6 +83,12 @@ export interface CatalogEntry { id: string; floor: string; room: string; type: D
 export interface AvailableEntity { entity: string; name: string; domain: string; area?: string; areaName?: string; room?: string; dc?: string; placed: boolean }
 /** `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned. */
 export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
+
+/** S7.11: the most characters a floor's `trace.src` may hold, the whole data URL: 4 MB. */
+export const MAX_TRACE_BYTES = 4 * 1024 * 1024;
+/** S7.11: a raster data URL and nothing else. SVG is left out (it is a document), and the base64 alphabet has no quote,
+ *  so a src that passes can go into an attribute as it is. Linear: no nested quantifier. */
+export const TRACE_SRC = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]*={0,2}$/;
 
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x);
 const isEntity = (x: unknown) => typeof x === "string" && x.includes(".");
@@ -139,6 +153,21 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       }
     };
     if (f.ha !== undefined && !(typeof f.ha === "string" && f.ha)) errors.push(`${at} ha must be a non-empty text (the HA floor id)`);
+    if (f.trace !== undefined) {
+      const t = f.trace;
+      const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+      if (!isObj(t)) errors.push(`${at} trace must be an object`);
+      else {
+        // Size first, so a huge string never reaches the pattern.
+        if (typeof t.src === "string" && t.src.length > MAX_TRACE_BYTES) errors.push(`${at} trace src is ${(t.src.length / 1048576).toFixed(1)} MB; the limit is 4 MB`);
+        else if (typeof t.src !== "string" || !TRACE_SRC.test(t.src)) errors.push(`${at} trace src must be a data:image/png, jpeg or webp URL`);
+        for (const k of ["x", "y"]) if (!fin(t[k])) errors.push(`${at} trace ${k} must be a number`);
+        if (!(fin(t.w) && t.w > 0)) errors.push(`${at} trace w must be a number above 0`);
+        if (!(fin(t.rot) && t.rot >= 0 && t.rot < 360)) errors.push(`${at} trace rot must be a number in [0, 360)`);
+        if (!(fin(t.alpha) && t.alpha >= 0 && t.alpha <= 1)) errors.push(`${at} trace alpha must be a number from 0 to 1`);
+        if (typeof t.on !== "boolean") errors.push(`${at} trace on must be true or false`);
+      }
+    }
     poly("outline", f.outline);
     // S1.52: owk is optional (migrate fills it), but once present it must match the outline point by point.
     if (f.owk !== undefined) {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.0
+
+- View, Trace image: load a scan or photo of a floor plan under the current floor, scale it with two clicks and a real distance, set its opacity, hide or remove it, then draw over it. Only the editor shows it, never the card. File, Export leaves it out unless Include trace image is ticked.
+
 ## 0.10.3
 
 - File, Export now writes an `available` list into the downloaded JSON when Home Assistant is connected: every entity Home Assistant knows about, with its name, domain, device class, area and the room on the plan that area already has, and whether it is already placed. An AI assistant can add and position devices from that one file, offline, using only entity ids that are actually listed. Save and the stored plan never carry it, and it is dropped again the next time the file is opened. Documented in `prompts/SCHEMA.md` ("Placing devices from an export"), `prompts/README.md` and the README.
