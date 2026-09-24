@@ -1333,6 +1333,11 @@ Shared rules for the sprint, on top of `CLAUDE.md`:
 - Files: `README.md` (rows 19 and 21), `shots/baseline/` (gitignored, `npm run shots -- --accept`), `docs/REVIEW-2026-09-24.md`.
 - Test: `npm run docs:check` clean.
 - Done when: the table has no row that names a sprint as future when it is done.
+- Done, 2026-09-25 (commit `652554c`). The shots baseline was re-accepted and `docs/img/card-overview.png`,
+  `docs/img/editor-add-menu.png`, `docs/img/editor-device-panel.png` and `docs/img/editor-overview.png` were
+  regenerated with `node scripts/doc-shots.mjs`, since the editor had gained zoom buttons, night preview
+  and trace image, and the card had gained zoom buttons and the new device types by that point in the sprint; the
+  old images no longer matched what a user sees. See the commit message for the exact reason.
 
 ### S7.4 Zoom and pan in the card
 - Outcome: a phone user can pinch, drag and double-tap the plan; a desktop user can Ctrl+wheel and drag. The plan never zooms out past fit and never in past 8×. Three small buttons (+, −, fit) sit in the card's top-right corner. Taps and long presses on devices keep working after a pan; a drag that moves more than 6 px is a pan, not a tap.
@@ -1534,6 +1539,48 @@ Shared rules for the sprint, on top of `CLAUDE.md`:
 - Outcome: every new key, type and panel is documented where a user looks: `README.md` (features, status table, card yaml), `docs/card.md`, `docs/editor.md`, `docs/schema.md` (regenerated), `prompts/SCHEMA.md` and `prompts/SKILL.md` (new device types; `trace` and `available` are never written by an assistant), `CHANGELOG.md` 0.11.0, `manifest.json` 0.11.0.
 - Test: `npm run docs:check`; `npm run docs:schema` is a no-op after the commit; the README yaml block is the one `docs/card.md` shows.
 - Done when: green; Diego says yes to push and tag; release finished on his HA per `CLAUDE.md`.
+- Done, 2026-09-25. `README.md`: status table gets rows for person/radar/vacuum, night/zoom/kiosk/config-form and the
+  trace image (all "done (0.11.0)"); the feature bullets under "What you get" name the card's new device types,
+  zoom/pan, kiosk mode, the Edit-card form and the trace image; a card yaml block was added (Install section) that
+  is byte-identical to `docs/card.md`'s own second yaml block. `docs/card.md`: dropped a stale line in "The
+  Edit-card form" claiming kiosk/night "land in the card itself with a later release" — S7.5 and S7.6 had already
+  landed them by the time this task started, so the line was a code bug (see below), not just a doc gap; added a
+  **Person** bullet to "What a device looks like" (it had none: radar and vacuum were documented, person was not).
+  `docs/editor.md`: added a device-panel paragraph for the Room sensor (person) and Targets (radar) fields and a
+  one-line note for vacuum, plus a "Preview night" section (View, Preview night existed in code and `SPEC.md` but
+  had no entry in this file). `docs/schema.md`: `npm run docs:schema` was already a no-op — `git status --short`
+  came back clean before any edit here, so nothing to commit for it. `prompts/SCHEMA.md`: the domain→type guess
+  list now names `person`, `radar`, `vacuum`; two new lines describe `Device.room` and `Device.targets` for the
+  "placing devices from an export" task, saying explicitly not to invent either. `prompts/SKILL.md`: added a line
+  that `trace` is never written by the tracing skill either (it only had the devices/catalog prohibition before).
+  `docs/SPEC.md`: already listed every S7 device type, config key and the `trace` field in full — read closely,
+  no gap found, so no edit made (CLAUDE.md: no rewrites). `CHANGELOG.md`: read against every S7.1–S7.11 "Done"
+  record; wording already matches what shipped, nothing invented or missing — no edit made.
+  `custom_components/floorplan_studio/manifest.json`: `version` → `0.11.0`.
+  - **A real code bug found, not fixed (docs-only scope):** `src/card/config-editor.ts` still carries S7.7's
+    placeholder comment and UI hint ("Kiosk, Night and the sun entity land with S7.5 and S7.6; the card does not
+    read them yet") and an `EditorConfig` interface that redeclares `kiosk`/`night`/`sun` as if
+    `FloorplanStudioCardConfig` didn't already carry them. Both S7.5 and S7.6 landed those three keys onto
+    `FloorplanStudioCardConfig` itself (`src/card/floorplan-studio-card.ts`) after S7.7 was written, so the form's
+    own hint text is now false and shows the user a stale disclaimer for keys the card has read since 2026-09-24.
+    Left as a follow-up task; this task's brief was docs only and forbade touching `src/` without a doc test
+    demanding it.
+  - Cleanup item (S7.12 point 9): the brief named a duplicated consecutive `await open(page);` pair in
+    `tests/card/card.spec.ts` "from S7.6". Searched the file at this branch's base commit (`652554c`) for any two
+    `await open(page);` lines within 3 lines of each other — none found (56 total calls, all singly placed). Either
+    it was fixed by an earlier commit on `sprint/7` or the brief's line reference was stale; no change made since
+    there was nothing to remove. Ran `PW_PORT=5312 npx playwright test tests/card/card.spec.ts --workers=4` anyway,
+    as asked: 53 passed, exit 0.
+  - Suites run fresh, in order, after the last edit: `npm run lint` exit 0. `NODE_OPTIONS=--no-experimental-webstorage
+    npm test` 990 passed / 990, 30 files, exit 0. `npm run build` exit 0. `npm run docs:check` exit 0 (36 links
+    checked across 8 files, 0 broken). `npm run docs:schema` then `git status --short docs/schema.md` empty (no-op,
+    both before and after this task's other edits). `node scripts/validate-layout.mjs demo/layout.json` → `ok` (plus
+    the pre-existing "devices or catalog are not empty" warning, expected since the demo has real devices).
+    `node scripts/validate-layout.mjs prompts/examples/flat.json` → `ok`. `node scripts/validate-layout.mjs
+    prompts/examples/two-floors.json` → `ok`. `PW_PORT=5312 npx playwright test --workers=4` (full suite): 521
+    passed / 1 skipped, exit 0.
+  - Left out: the release itself (push, tag, HACS refresh, HA restart) — not started; needs Diego's yes per this
+    task's own "Done when" line and `CLAUDE.md`'s "Release ends on Diego's HA".
 
 ## Later, not planned
 
