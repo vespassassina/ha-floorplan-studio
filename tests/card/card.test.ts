@@ -540,6 +540,66 @@ describe("FloorplanStudioCard", () => {
     });
   });
 
+  describe("S6.5: floors config (an array of visible floors, first is the default)", () => {
+    it("shows one chip per listed floor, in the given order, defaulting to the first", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floors: ["first", "ground"] });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      const chips = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-floors button")];
+      expect(chips.map((b) => b.textContent)).toEqual([L.floors.first.title, L.floors.ground.title]);
+      expect(chips[0]!.getAttribute("aria-pressed")).toBe("true");
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.first.rooms.length);
+    });
+
+    it("leaves out a floor the layout has but the list doesn't name", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floors: ["ground", "first"] });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      const chips = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-floors button")];
+      expect(chips).toHaveLength(2);
+      expect(chips.some((b) => b.textContent === L.floors.test.title)).toBe(false);
+    });
+
+    it("clicking a chip only ever switches within the listed floors", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floors: ["first", "ground"] });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      const chips = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-floors button")];
+      chips.find((b) => b.textContent === L.floors.ground.title)!.click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.ground.rooms.length);
+    });
+
+    it("floors takes precedence over an explicit floor key", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "ground", floors: ["first"] });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.first.rooms.length);
+    });
+
+    it("Break it: every listed floor unknown falls back to the layout's first floor, no switcher, and throws nothing", async () => {
+      const el = await mount();
+      expect(() => el.setConfig({ layout: structuredClone(L), floors: ["attic", "loft"] })).not.toThrow();
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.ground.rooms.length);
+    });
+
+    it("Break it: an empty floors array falls back to the plain floor/all behaviour and throws nothing", async () => {
+      const el = await mount();
+      expect(() => el.setConfig({ layout: structuredClone(L), floors: [], floor: "first" })).not.toThrow();
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.first.rooms.length);
+    });
+  });
+
   describe("S2.6: unavailable entities carry the unavailable class (already built by S2.2/S2.5's classOf)", () => {
     it("an unavailable light's device group gets the unavailable class", async () => {
       const el = await mount();

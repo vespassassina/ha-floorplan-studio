@@ -19,6 +19,10 @@ export interface Hass {
 export interface FloorplanStudioCardConfig {
   type?: string;
   floor?: string | "all";
+  /** Restricts the floor switcher to these floor ids, in this order; the first one is what shows by default.
+   * Takes precedence over `floor`. An unknown id is dropped; an empty array, or one where every id is unknown,
+   * behaves as if `floors` were not set at all. */
+  floors?: string[];
   fade?: number;
   room_glow?: boolean;
   layout?: Layout;
@@ -234,17 +238,36 @@ export class FloorplanStudioCard extends LitElement {
     return this._hass?.themes?.darkMode === true;
   }
 
-  /** The floor key `_floor()` shows right now: `config.floor` when it names a real floor, `_shownFloor` (defaulting
-   * to the first floor) while `config.floor === "all"`, the first floor for everything else (missing, unknown key).
-   * Untrusted config: an unknown floor key or `floor: "all"` on a single-floor layout never throws, it just falls
+  /** S6.5: the switchable floors and their order — `config.floors`, filtered to the ones the layout actually has,
+   * when it names at least one real floor; every floor, in layout order, for `config.floor === "all"`; `null` for
+   * a single explicit floor or nothing configured. `floors` wins over `floor` when both are set. Untrusted config
+   * (CLAUDE.md finding 1): an unknown id is dropped rather than thrown on, and an empty or all-unknown list is
+   * the same as `floors` not being set. */
+  private _floorList(): [string, Floor][] | null {
+    if (!this._layout) return null;
+    if (this._config.floors?.length) {
+      const entries = this._config.floors.filter((k) => this._layout!.floors[k]).map((k) => [k, this._layout!.floors[k]!] as [string, Floor]);
+      if (entries.length) return entries;
+    }
+    if (this._config.floor === "all") return Object.entries(this._layout.floors);
+    return null;
+  }
+
+  /** The floor key `_floor()` shows right now: the first of `_floorList()` (or `_shownFloor`, once it's been
+   * switched to another entry in that same list) when there is one, else `config.floor` when it names a real
+   * floor, else the layout's first floor. Untrusted config: an unknown floor key never throws, it just falls
    * back (CLAUDE.md finding 1). */
   private _floorKey(): string | null {
     if (!this._layout) return null;
     const keys = Object.keys(this._layout.floors);
     if (!keys.length) return null;
+    const list = this._floorList();
+    if (list) {
+      const listKeys = list.map(([k]) => k);
+      return this._shownFloor && listKeys.includes(this._shownFloor) ? this._shownFloor : listKeys[0]!;
+    }
     const want = this._config.floor;
-    if (want === "all") return this._shownFloor && this._layout.floors[this._shownFloor] ? this._shownFloor : keys[0];
-    return want && this._layout.floors[want] ? want : keys[0];
+    return want && this._layout.floors[want] ? want : keys[0]!;
   }
 
   private _floor(): Floor | null {
@@ -393,14 +416,16 @@ export class FloorplanStudioCard extends LitElement {
     else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
   };
 
-  /** S2.6: `floor: "all"`'s chips, one per floor, or `null` for anything else. Card chrome (like the no-layout
-   * message): drawn outside the `<svg>` renderFloor returns, never inside the plan it draws (CLAUDE.md finding 8,
-   * one draw path — the plan is drawn only by `renderFloor`, this is the card's own DOM around it). */
+  /** S2.6/S6.5: `_floorList()`'s chips, one per switchable floor in its order, or `null` for anything else. Card
+   * chrome (like the no-layout message): drawn outside the `<svg>` renderFloor returns, never inside the plan it
+   * draws (CLAUDE.md finding 8, one draw path — the plan is drawn only by `renderFloor`, this is the card's own
+   * DOM around it). */
   private _floorChips() {
-    if (this._config.floor !== "all" || !this._layout) return null;
+    const list = this._floorList();
+    if (!list) return null;
     const current = this._floorKey();
     return html`<div class="fp-floors">
-      ${Object.entries(this._layout.floors).map(
+      ${list.map(
         ([key, fl]) => html`<button type="button" aria-pressed=${key === current ? "true" : "false"} @click=${() => this._selectFloor(key)}>${fl.title || key}</button>`,
       )}
     </div>`;

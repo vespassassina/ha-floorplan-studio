@@ -2,6 +2,28 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-24 S6.5 card `floors` config, editor Install-code panel emits a whole dashboard
+
+Added `floors` (an ordered array of floor ids) alongside the existing `floor`
+key: it restricts the card's floor switcher to just those floors, in that
+order, first is the default, and it wins over `floor` when at least one of
+its ids matches a real floor — an unknown id is dropped, and if none match
+it behaves as though `floors` were unset (layouts, and by extension a
+hand-written config, are untrusted input; see CLAUDE.md finding 1). Built on
+the existing `_floorChips()`/`floor: "all"` switcher rather than a second
+mechanism.
+
+Diego asked for both "a premade dashboard template with the card installed"
+and "a textbox in the editor with the install code" in the same message.
+Decided these are one feature, not two: File, Install code now generates a
+complete, pasteable Home Assistant dashboard (`title:`/`views:`/`cards:`,
+reflecting the plan's current theme and floor order) rather than a bare card
+config block — a working dashboard is the premade template once pasted. Not
+confirmed with Diego before building (Auto Mode); flagged for review once
+done. If a bare card snippet turns out to be wanted too (e.g. for pasting
+into an existing dashboard), split into two outputs rather than replacing
+this one.
+
 ## 2026-09-23 S5.6 unavailable entities: dimming is right, the spec's strikethrough is wrong
 
 `docs/SPEC.md` said an unavailable device is "struck through, 45 % opacity"; the code (`.dev.unavailable{opacity:.45}`, `src/core/render.ts`) has only ever dimmed it. Decided the code is right and fixed the spec, not the CSS: a literal line drawn across a device icon at this size (roughly 24–32 px in the plan) reads as visual noise, not a clean "this one is unavailable" signal, and Home Assistant's own dashboards dim an unavailable entity rather than strike it through — matching that convention is worth more here than matching a spec line nobody had implemented.
