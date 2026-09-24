@@ -78,6 +78,19 @@ views:
         kiosk: true
 ```
 
+## The Edit-card form
+
+No YAML needed: adding or editing the card in the Lovelace UI (the pencil
+icon, or "Edit" on an existing card) shows a form instead of raw code —
+theme, floors (one checkbox per floor, in the layout's own order), fade,
+room glow, zoom, kiosk, night and the sun entity. The floor list fills in
+once the card's own layout has loaded (`layout`, `layout_url`, or the plan
+stored in Home Assistant); until then it says so and shows no checkboxes. A
+field left at its default is left out of the saved YAML, so the card config
+stays as short as if you had typed it by hand. Kiosk and night are read by
+the form now and land in the card itself with a later release; see
+`docs/DECISIONS.md`.
+
 ## A premade dashboard
 
 To get a whole dashboard rather than one card: in the editor, File, Install

@@ -2,6 +2,26 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-24 S7.7 Card config form: kiosk, night and sun added ahead of their tasks
+
+S7.5 (kiosk) and S7.6 (night, sun) had not landed yet when this task was
+done, so `FloorplanStudioCardConfig` does not carry those three keys. The
+form's own `EditorConfig` extends it locally with `kiosk?: boolean`,
+`night?: "auto" | "on" | "off"` and `sun?: string`, with the defaults those
+tasks' PLAN blocks already commit to (`false`, `"auto"`, `"sun.sun"`), so the
+form does not need a second pass once S7.5 and S7.6 merge. The card itself
+does not read any of the three yet; a hint line in the form says so. `docs/card.md`
+notes it too.
+
+No `ha-form`: it would need Home Assistant's own elements loaded at test
+time, and this repo's Playwright tests run the built card module under plain
+Chromium, not inside HA. The form is a plain Lit element instead
+(`src/card/config-editor.ts`), imported into `floorplan-studio-card.ts` for
+its side effect (registering the custom element) so it ships inside the same
+`dist/floorplan-studio-card.js` the vite config already builds — no second
+built file, no change to `vite.config.ts`.
+
+
 ## 2026-09-24 S7.5 Kiosk mode: how the brief was read
 
 - **"No version"** was already moot: the card has never shown a version
