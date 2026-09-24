@@ -547,3 +547,48 @@ describe("actions: a radar opens more-info on a tap, never toggles (S7.9)", () =
     vi.useRealTimers();
   });
 });
+
+describe("actions: a vacuum opens its own dialog on a tap, never toggles or opens more-info (S7.10)", () => {
+  it("tap calls opts.openVacuumDialog with the vacuum device, fires no hass-more-info and no service", () => {
+    vi.useFakeTimers();
+    const callService = vi.fn();
+    const dev: Device = { id: "v1", type: "vacuum", entity: "vacuum.hall", x: 100, y: 100 };
+    const svg = svgFixture([dev]);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    const openVacuumDialog = vi.fn();
+    const unbind = bindDeviceActions(svg, host, () => dev, undefined, undefined, { openVacuumDialog });
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(600); // longer than HOLD_MS: a hold must not turn this into more-info either
+    pointer(g, "pointerup");
+    expect(openVacuumDialog).toHaveBeenCalledTimes(1);
+    expect(openVacuumDialog.mock.calls[0][0]).toBe(dev);
+    expect(moreInfo).not.toHaveBeenCalled();
+    expect(callService).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("Break it: with no openVacuumDialog callback given, a tap does nothing — never falls back to toggle or more-info", () => {
+    vi.useFakeTimers();
+    const callService = vi.fn();
+    const dev: Device = { id: "v1", type: "vacuum", entity: "vacuum.hall", x: 100, y: 100 };
+    const svg = svgFixture([dev]);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    const unbind = bindDeviceActions(svg, host, () => dev);
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(moreInfo).not.toHaveBeenCalled();
+    expect(callService).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+});

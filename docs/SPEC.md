@@ -163,12 +163,13 @@ in `prompts/`, then fixed in the editor.
   `cover` is a cover entity for doors that HA can open.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
   camera, climate, ac, tv, computer, media, cover, battery, inverter, server,
-  access_point, other, person, radar. Heaters have `a`/`b`
+  access_point, other, person, radar, vacuum. Heaters have `a`/`b`
   (a bar), the rest `x`/`y`. `ac` is an air conditioner, heat pump, fan or air
   cleaner; what it is doing comes from the entity, not from the layout. A
   `person` has a `person.*` or `device_tracker.*` entity. A `radar`'s own
   `entity` is its presence sensor (typically a `binary_sensor.*occupancy`,
-  such as an mmWave sensor's own occupancy binary sensor).
+  such as an mmWave sensor's own occupancy binary sensor). A `vacuum`'s own
+  `entity` is its `vacuum.*` domain entity; it has no field of its own (S7.10).
 - `device.room` (person only, optional, S7.8): an entity whose state, or whose
   `area_id` or `area` attribute, names the room the person is in (a Bermuda or
   ESPresense area sensor). It must differ from `entity`. The card matches the
@@ -264,6 +265,7 @@ honest metaphor there.
 | other | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
 | person (`person.*`, `device_tracker.*`) | away (`not_home` or any zone): 35 % opacity and a small grey away dot on the disc's edge | `home`: green icon and halo, full opacity. With a `room` sensor that names a room, the icon glides (600 ms CSS transform, none under reduced motion) to the room's centroid, or beside it when another icon sits there; several people in one room stand on a ring | `--fp-dev-person` (#1b9e77) | more-info |
 | radar (mmWave presence, `binary_sensor.*occupancy`) | grey icon; no `targets` dots when the pair is not finite or falls outside the floor | purple icon and halo when the presence entity is on; each `targets` pair draws a small dot at its turned, plan-relative position | `--fp-dev-radar` (#6a3fbf) | more-info |
+| vacuum (`vacuum.*`) | `docked`, `idle`, `paused`: grey icon, no brighter than off | `cleaning`: teal icon and halo, slowly spinning; `returning`: teal icon and halo, not spinning; `error`: `--fp-danger` icon, neither on nor off | `--fp-dev-vacuum` (#2f8f8f) / `--fp-danger` (#b02a2a) on error | opens a dialog: Start, Pause, Return to dock, each a `vacuum.*` service call; Cancel closes it. `unavailable`/`unknown` disables the three actions, Cancel stays enabled |
 | room with `entity` | own kind colour, no outline | own kind colour, unmoved, plus an outline when the entity is on, open or playing | `--fp-active` stroke (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | furniture with `entity` | idle grey (`currentColor`) | `--fp-active`, chosen per theme for at least 3:1 contrast against both `--fp-room` and `--fp-bg` | `--fp-active` (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | unavailable / unknown | 45 % opacity, no strikethrough | — | — | more-info |

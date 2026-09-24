@@ -1,8 +1,8 @@
 import type { Device, Door } from "../core";
 import type { Hass } from "./floorplan-studio-card";
 
-/** Device types a tap opens more-info for at once, never a toggle: a camera and a media player have none, and a battery, an inverter, a server or an access point is watched, not switched (S2.13). */
-const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "battery", "inverter", "server", "access_point", "person", "radar"]);
+/** Device types a tap opens more-info for at once, never a toggle: a camera and a media player have none, and a battery, an inverter, a server or an access point is watched, not switched (S2.13). A vacuum is here too (S7.10), but its tap opens its own dialog, not more-info — see the `d.type === "vacuum"` branch below, checked before this set. */
+const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "battery", "inverter", "server", "access_point", "person", "radar", "vacuum"]);
 
 /** A pointer held this long or longer is a hold, opening more-info instead of toggling. */
 export const HOLD_MS = 500;
@@ -42,7 +42,9 @@ export interface DeviceActionsHost extends EventTarget {
  * to, since it is the only gesture here that acts on the real home, and the sensor's own state is still visible
  * on the door line itself (the `open`/`cover-open` classes render.ts already draws) without also needing
  * more-info. A camera or a media player has no toggle: a tap on either opens more-info at once, the same as a
- * sensor door (S2.5).
+ * sensor door (S2.5). A vacuum (S7.10) has no toggle either, but a tap opens `opts.openVacuumDialog` instead of
+ * more-info, the same idea as a cover door's dialog: Start/Pause/Return to dock act on the real robot, so a tap
+ * asks first rather than firing a service blind.
  *
  * S7.4: a press that moves more than `TAP_SLOP_PX` before release is a pan, not a tap: the gesture and its hold
  * timer are dropped. A second pointer down (a pinch) drops it too, and nothing fires until every pointer is up.
@@ -62,14 +64,16 @@ export function bindDeviceActions(
   getDevice: (index: number) => Device | undefined,
   getDoor?: (index: number) => Door | undefined,
   openCoverDialog?: (door: Door) => void,
-  opts?: { longPress?: boolean },
+  opts?: { longPress?: boolean; openVacuumDialog?: (device: Device) => void },
 ): () => void {
   const longPress = opts?.longPress !== false;
+  const openVacuumDialog = opts?.openVacuumDialog;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let held = false;
   let entityId: string | null = null;
-  let action: "toggle" | "more-info" | "cover-dialog" | null = null;
+  let action: "toggle" | "more-info" | "cover-dialog" | "vacuum-dialog" | null = null;
   let coverDoor: Door | null = null;
+  let vacuumDevice: Device | null = null;
   let startX = 0, startY = 0;
   /** Pointers currently down on the svg; more than one is a pinch, which is never a tap. */
   const down = new Set<number | undefined>();
@@ -88,6 +92,7 @@ export function bindDeviceActions(
     entityId = null;
     action = null;
     coverDoor = null;
+    vacuumDevice = null;
   };
 
   const onDown = (e: Event) => {
@@ -132,6 +137,16 @@ export function bindDeviceActions(
     const d = Number.isFinite(i) ? getDevice(i) : undefined;
     if (!d) return;
 
+    if (d.type === "vacuum") {
+      // Checked ahead of NO_TOGGLE (which also lists vacuum, for readers of that set): a vacuum's tap opens its
+      // own dialog, never more-info.
+      held = false;
+      vacuumDevice = d;
+      action = "vacuum-dialog";
+      clearTimer();
+      return;
+    }
+
     if (NO_TOGGLE.has(d.type)) {
       // None of these has a toggle: a tap opens more-info right away, the same as a sensor door above (S2.5, S2.13).
       held = false;
@@ -167,17 +182,19 @@ export function bindDeviceActions(
       reset();
       return;
     }
-    const wasHeld = held, id = entityId, act = action, door = coverDoor;
+    const wasHeld = held, id = entityId, act = action, door = coverDoor, vacuum = vacuumDevice;
     clearTimer();
     if (!wasHeld) {
       if (act === "toggle" && id) toggleEntity(host.hass, id);
       else if (act === "more-info" && id) fireEvent(host, "hass-more-info", { entityId: id });
       else if (act === "cover-dialog" && door) openCoverDialog?.(door);
+      else if (act === "vacuum-dialog" && vacuum) openVacuumDialog?.(vacuum);
     }
     held = false;
     entityId = null;
     action = null;
     coverDoor = null;
+    vacuumDevice = null;
   };
 
   /** A pointer that is cancelled or leaves the svg will not send its pointerup here: forget it along with the gesture. */

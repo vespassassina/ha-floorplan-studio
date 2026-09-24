@@ -33,6 +33,8 @@ const TYPE_RULES: Partial<Record<DeviceType, { domain: string; dcs?: string[]; n
   // S7.9: the radar's own entity is its presence sensor, typically a binary_sensor.*occupancy; the target x/y pairs
   // are picked separately in the editor panel, not offered here (entitiesForType has no notion of a pair).
   radar: [{ domain: "binary_sensor", dcs: ["occupancy"] }],
+  // S7.10: a vacuum's own entity is the vacuum.* domain (docked/cleaning/paused/returning/error states).
+  vacuum: [{ domain: "vacuum" }],
 };
 
 /** The entities that suit `type`, and the rest. A type with no rule matches everything. */
@@ -47,7 +49,7 @@ export function entitiesForType(ha: HaData, type: DeviceType): { match: HaData["
  * S4.18: the reverse guess — which `DeviceType` a raw HA entity is, for placing one from a room's area menu rather than
  * `layout.catalog`. Domain + `device_class` pairs that `TYPE_RULES` already resolve unambiguously (light, lock, camera,
  * cover, a switch's outlet class, a sensor's temperature/humidity/battery class, a binary_sensor's motion/contact/vibration
- * classes, and since S7.8 `person` and `device_tracker`, which are a person) map straight across. A domain that is genuinely ambiguous under the forward rules (`climate` could be a plain
+ * classes, and since S7.8 `person` and `device_tracker`, which are a person, and since S7.10 `vacuum`) map straight across. A domain that is genuinely ambiguous under the forward rules (`climate` could be a plain
  * thermostat, a heater's TRV or an AC; `switch` could be a plug or a switch; `media_player` could be a TV) defaults to its
  * most common, least commital member — `climate`, `switch`, `media` — never `heater`/`ac`/`plug`/`tv`, so a wrong guess
  * never silently turns on heater/AC-only UI. Since S7.9 the same applies to a binary_sensor's `occupancy` class: it stays
@@ -64,6 +66,7 @@ export function typeForEntity(e: HaData["entities"][number]): DeviceType {
     case "climate": return "climate";
     case "media_player": return "media";
     case "person": case "device_tracker": return "person";
+    case "vacuum": return "vacuum";
     case "switch": return e.dc === "outlet" ? "plug" : "switch";
     case "sensor":
       if (e.dc === "temperature") return "temp";

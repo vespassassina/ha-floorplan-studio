@@ -86,6 +86,11 @@ monLayout.floors.ground.devices.push({
 Object.assign(STATES.off, { "binary_sensor.demo_radar_presence": "off", "sensor.demo_radar_t1_x": "unavailable", "sensor.demo_radar_t1_y": "unavailable", "sensor.demo_radar_t2_x": "unavailable", "sensor.demo_radar_t2_y": "unavailable" });
 Object.assign(STATES.on, { "binary_sensor.demo_radar_presence": "on", "sensor.demo_radar_t1_x": "0", "sensor.demo_radar_t1_y": "2000", "sensor.demo_radar_t2_x": "-1000", "sensor.demo_radar_t2_y": "1000" });
 Object.assign(STATES.gone, { "binary_sensor.demo_radar_presence": "unavailable", "sensor.demo_radar_t1_x": "unavailable", "sensor.demo_radar_t1_y": "unavailable", "sensor.demo_radar_t2_x": "unavailable", "sensor.demo_radar_t2_y": "unavailable" });
+// S7.10: a vacuum in the Hall. Off: docked (idle grey, no spin). On: cleaning (active colour, spinning). Gone: unavailable.
+monLayout.floors.ground.devices.push({ id: "mon-vacuum", type: "vacuum", entity: "vacuum.demo_hall", name: "Hall vacuum", x: 440, y: 550 });
+Object.assign(STATES.off, { "vacuum.demo_hall": "docked" });
+Object.assign(STATES.on, { "vacuum.demo_hall": "cleaning" });
+Object.assign(STATES.gone, { "vacuum.demo_hall": "unavailable" });
 
 const shots = [];
 const errors = [];

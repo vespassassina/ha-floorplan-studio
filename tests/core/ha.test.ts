@@ -52,10 +52,19 @@ describe("typeForEntity (S4.18): a reverse domain/device_class guess for placing
     expect(typeForEntity(ent("media_player.x", "media_player"))).toBe("media"); // not tv
   });
   it("falls back to other for a domain with no rule and a sensor/binary_sensor with no recognised device_class", () => {
-    expect(typeForEntity(ent("vacuum.x", "vacuum"))).toBe("other");
+    expect(typeForEntity(ent("fan.x", "fan"))).toBe("other");
     expect(typeForEntity(ent("sensor.x", "sensor", "pressure"))).toBe("other");
     expect(typeForEntity(ent("sensor.x", "sensor"))).toBe("other");
     expect(typeForEntity(ent("binary_sensor.x", "binary_sensor", "moisture"))).toBe("other");
+  });
+  it("S7.10: vacuum.* maps straight to vacuum, not other", () => {
+    expect(typeForEntity(ent("vacuum.hall", "vacuum"))).toBe("vacuum");
+  });
+  it("S7.10: entitiesForType offers a vacuum only its own vacuum.* entities, and leaves everything else in the rest", () => {
+    const data: HaData = { floors: [], areas: [], entities: [ent("vacuum.hall", "vacuum"), ent("switch.hall", "switch"), ent("sensor.hall_battery", "sensor", "battery")] };
+    const { match, rest } = entitiesForType(data, "vacuum");
+    expect(match.map((e) => e.id)).toEqual(["vacuum.hall"]);
+    expect(rest.map((e) => e.id)).toEqual(["switch.hall", "sensor.hall_battery"]);
   });
 });
 

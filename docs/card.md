@@ -183,6 +183,17 @@ differently:
   pair each for more than one tracked person).
 - **Cover on a door** — an open door draws orange; tapping it asks before
   opening or closing.
+- **Vacuum** — grey while docked, idle or paused; a teal icon while cleaning,
+  its icon spinning slowly; teal, not spinning, while returning to dock; and
+  `--fp-danger` red on an error state, neither on nor off. A tap opens a
+  dialog with Start, Pause and Return to dock, each a plain `vacuum.*` service
+  call on the device's own `entity` — no toggle, so a stray tap never starts
+  or stops a robot by accident. Point `entity` at the vacuum's own
+  `vacuum.*` entity; there is no field for its position or map, since most
+  vacuum integrations expose that as a camera entity or a proprietary blob,
+  not a pair of coordinates a plan could place. `unavailable` or `unknown`
+  still opens the dialog, with Start, Pause and Return to dock disabled and
+  Cancel enabled, so an unreachable vacuum can always be dismissed.
 - **Unavailable or unknown** — dims to 45% opacity, in any state, with no
   strikethrough: Home Assistant's own dashboards dim rather than cross out,
   and a struck-through icon this small reads as noise, not signal.
