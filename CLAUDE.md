@@ -125,6 +125,14 @@ Each of these was a real defect. Do not repeat them.
     type is either in `NO_TOGGLE` (`src/card/actions.ts`) or a decision that a
     tap toggles it.
 
+## Findings from the 0.11.1 field report
+
+21. **A mock at a real boundary is copied from the other side of it.** The
+    card's websocket test returned a bare layout; `websocket.py` sends
+    `{ layout }`. The test was green for months while every real dashboard
+    read "No layout". When you stub a reply, open the code that sends it and
+    copy the shape, and say in the test where the shape comes from.
+
 ## Domain notes
 
 - Schema v2 is in `docs/SPEC.md`. A `light` device may have `bound`, the

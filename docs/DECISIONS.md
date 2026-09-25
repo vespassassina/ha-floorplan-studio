@@ -2,6 +2,29 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 S7.16 The card read the websocket reply's wrapper as the plan
+
+Every dashboard card on a real Home Assistant said "No layout: install the
+Floorplan Studio integration or set layout_url" while the plan was there.
+`websocket.py` answers `floorplan_studio/load` with `{ layout }`; the panel
+reads `r.layout`; the card passed the whole reply to `migrate`, which saw no
+`floors` object and threw. The unit test's mock returned a bare layout, so
+the test matched the card and not the boundary. Finding 21 for `CLAUDE.md`:
+**a mock at a real boundary is copied from the other side of it**, here from
+the Python that sends the reply, never from what the caller would like.
+
+- **The card unwraps `r.layout`**, and a `null` (nothing saved) keeps the
+  install hint.
+- **A plan that arrived but failed says why**: "The plan could not be used:
+  <first problem>". Before, an invalid plan and a missing integration read
+  the same, and the message sent the maintainer to reinstall an integration
+  that was fine.
+- **`scripts/validate-layout.mjs` migrates before it validates**, as the
+  editor and the card do. It refused the maintainer's stored plan for a
+  missing `unlinked` that migrate fills in, which cost a wrong turn in the
+  diagnosis. A v1 file now opens there too; the CLI test's "schema error"
+  is a bad `north`, which migrate cannot repair.
+
 ## 2026-09-25 S7.15 The page scrolls over a plan at fit; doors are label obstacles
 
 Two of the items the Sprint 7 review deferred, taken up after the maintainer

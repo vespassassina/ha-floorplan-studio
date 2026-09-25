@@ -34,7 +34,7 @@ try {
 
 const out = await build({
   stdin: {
-    contents: `export { validate } from "./schema"; export { polys, nearestEdge, dist } from "./geometry";`,
+    contents: `export { validate } from "./schema"; export { migrate } from "./migrate"; export { polys, nearestEdge, dist } from "./geometry";`,
     resolveDir: resolve("src/core"),
     loader: "ts",
   },
@@ -42,7 +42,14 @@ const out = await build({
 });
 const core = await import(`data:text/javascript;base64,${Buffer.from(out.outputFiles[0].text).toString("base64")}`);
 
-const res = core.validate(json);
+// S7.16: migrate first, as the editor and the card do. A plan saved before a field existed (`unlinked`, say) is
+// filled in there, not refused here; a plan migrate itself refuses is reported with its reason.
+let res;
+try {
+  res = core.validate(core.migrate(json));
+} catch (e) {
+  res = { ok: false, errors: [e.message] };
+}
 const errors = res.ok ? [] : [...res.errors];
 const warnings = [];
 

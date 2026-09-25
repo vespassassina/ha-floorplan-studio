@@ -185,8 +185,11 @@ describe("FloorplanStudioCard", () => {
     vi.unstubAllGlobals();
   });
 
+  // S7.16: the integration answers `{ layout }`, the wrapper `websocket.py` sends (`panel.ts` reads `r.layout` too).
+  // The mock here used to return a bare layout, so the card passing the whole reply to `validate` went unseen and
+  // every real dashboard read "No layout" while the plan sat one key deeper.
   it("falls back to the websocket floorplan_studio/load when there is no config.layout and no layout_url", async () => {
-    const sendMessagePromise = vi.fn(async () => structuredClone(L));
+    const sendMessagePromise = vi.fn(async () => ({ layout: structuredClone(L) }));
     const el = await mount();
     el.setConfig({});
     el.hass = { ...stubHass(), connection: { sendMessagePromise } } as never;
@@ -195,6 +198,30 @@ describe("FloorplanStudioCard", () => {
     await el.updateComplete;
     expect(sendMessagePromise).toHaveBeenCalledWith({ type: "floorplan_studio/load" });
     expect(el.shadowRoot!.querySelector("svg")).not.toBeNull();
+  });
+
+  it("S7.16: a websocket reply with layout: null (nothing saved yet) shows the no-layout message, not a crash", async () => {
+    const sendMessagePromise = vi.fn(async () => ({ layout: null }));
+    const el = await mount();
+    el.setConfig({});
+    el.hass = { ...stubHass(), connection: { sendMessagePromise } } as never;
+    await el.updateComplete;
+    await Promise.resolve();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector("svg")).toBeNull();
+    expect(el.shadowRoot!.textContent).toContain("No layout: install the Floorplan Studio integration or set layout_url");
+  });
+
+  it("S7.16: a websocket reply whose layout is invalid says why, so the message can be matched to the plan", async () => {
+    const sendMessagePromise = vi.fn(async () => ({ layout: { version: 2, north: "north", floors: {} } }));
+    const el = await mount();
+    el.setConfig({});
+    el.hass = { ...stubHass(), connection: { sendMessagePromise } } as never;
+    await el.updateComplete;
+    await Promise.resolve();
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector("svg")).toBeNull();
+    expect(el.shadowRoot!.textContent).toContain("north must be a number");
   });
 
   it("draws blueprint by default, whatever hass.themes.darkMode says, and takes light or ha from the config", async () => {
