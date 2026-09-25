@@ -289,6 +289,11 @@ export function mainEntitiesByDevice(ha: HaData): Map<string, HaData["entities"]
  * S8.6: `placeableInArea`, grouped by device — one row per HA device (its main entity), plus the area's device-less
  * entities exactly as `placeableInArea` already returns them. A device counts as placed, and a device's row is
  * offered, by its main entity's own `typeForEntity`/`AREA_PLACEABLE_TYPES` rule.
+ *
+ * Opus review, finding 10: a device can be split across HA areas — an entity's own `area` overrides its device's,
+ * so one sibling can sit in a different area than the device's main entity. The main entity is picked from ALL of
+ * the device's entities first (never a subset already filtered to this area), and only then is the device offered
+ * here when that main entity's own area is this one — never a lesser sibling standing in for it.
  */
 export function placeableDevicesInArea(l: Layout, ha: HaData, area: string): HaData["entities"] {
   if (!Array.isArray(ha?.entities) || !area) return [];
@@ -296,10 +301,10 @@ export function placeableDevicesInArea(l: Layout, ha: HaData, area: string): HaD
   const placedDevs = placedDeviceIds(l, ha);
   const nameOf = deviceNames(ha);
   const devRows: HaData["entities"] = [];
-  for (const [devId, ents] of byDevice(ha.entities.filter((e) => e?.area === area))) {
+  for (const [devId, ents] of byDevice(ha.entities)) {
     if (placedDevs.has(devId)) continue;
     const main = mainEntity(ents, nameOf.get(devId));
-    if (main && AREA_PLACEABLE_TYPES.has(typeForEntity(main))) devRows.push(asDeviceRow(main, nameOf));
+    if (main && main.area === area && AREA_PLACEABLE_TYPES.has(typeForEntity(main))) devRows.push(asDeviceRow(main, nameOf));
   }
   return [...devRows, ...deviceless];
 }

@@ -291,8 +291,35 @@ describe("S8.1: placeableInArea", () => {
   });
 });
 
+describe("Opus review finding 10: placeableDevicesInArea picks the main entity across all of a device's entities first, then filters by area", () => {
+  const emptyLayout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: { ground: { title: "Ground", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [], unlinked: [] } },
+    catalog: [],
+  } as unknown as Layout);
+  // One device, split across two HA areas: its main entity (a camera, ranks above binary_sensor) sits in area_b, a
+  // lesser sibling (a motion binary_sensor) sits in area_a. Both entities carry the same `dev`.
+  const splitHa = (): HaData => ({
+    floors: [], areas: [{ id: "area_a", name: "Area A" }, { id: "area_b", name: "Area B" }],
+    entities: [
+      { id: "camera.front", name: "Front camera", domain: "camera", area: "area_b", dev: "d1" },
+      { id: "binary_sensor.front_motion", name: "Front motion", domain: "binary_sensor", dc: "motion", area: "area_a", dev: "d1" },
+    ],
+  });
+
+  it("does not offer the device in area_a: its main entity (the camera) is in area_b, not area_a", () => {
+    expect(placeableDevicesInArea(emptyLayout(), splitHa(), "area_a")).toEqual([]);
+  });
+
+  it("offers the device in area_b, as its main entity (the camera), not the motion sensor", () => {
+    const out = placeableDevicesInArea(emptyLayout(), splitHa(), "area_b");
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe("camera.front");
+  });
+});
+
 // ---- S8.5: the merged Add > Device panel's source list -------------------------------------------------------------
-import { addCandidates } from "../../src/core/ha";
+import { addCandidates, placeableDevicesInArea } from "../../src/core/ha";
 
 describe("S8.5: addCandidates — catalog + HA entities, merged, each located by its HA area", () => {
   const layout = (): Layout => ({
