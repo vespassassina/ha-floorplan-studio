@@ -7010,8 +7010,9 @@ test("S8.7: Link lights to switches links every unbound light on the floor to it
     el.st.edit((f: any) => { f.devices.push({ id: "light-extra", type: "light", entity: "light.demo_extra", name: "Extra utility light", x: 700, y: 300 }); });
     el.requestUpdate();
   }, EDITOR);
+  // Opus review finding 14: "Link lights to switches" moved out of Edit > Group to a top-level Edit item, right
+  // after Group, so it no longer needs the Group submenu opened first.
   await menu(page, "Edit");
-  await page.locator("#mGroup > summary").click();
   await expect(page.locator("#linkLights")).toBeVisible();
   await page.locator("#linkLights").click();
   await expect(page.locator("#status")).toContainText("Linked");
@@ -7150,5 +7151,9 @@ test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assist
   await menu(page, "Edit");
   await withHaMenu(page, { list: LABELLED });
   await menu(page, "Edit");
-  expect(await items(page)).toEqual(["addFloor", "mHA", "mGroup", "rotrow", "devcols", "traceBtn"]);
+  // Opus review finding 14: "Link lights to switches" moved out of Edit > Group to its own top-level item, right
+  // after Group — it acts on every light on the floor at once, not a chosen group, so nesting it under Group read
+  // as if it were scoped to one. This is the deliberate reason the pinned order below now includes "linkLights"
+  // between "mGroup" and "rotrow"; a future order change needs the same deliberate update, not a loosened assertion.
+  expect(await items(page)).toEqual(["addFloor", "mHA", "mGroup", "linkLights", "rotrow", "devcols", "traceBtn"]);
 });

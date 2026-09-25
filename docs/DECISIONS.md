@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 Opus review of S8.4-S8.7: "Link lights to switches" moves out of Edit > Group
+
+Finding 14 of the review: the button lived inside the Group submenu, but it
+acts on every unbound light on the floor at once, not the group chosen
+there — nesting it under Group read as if it were scoped to one. It is now
+a top-level Edit item, right after Group, and closes the menu on click like
+Add's own one-shot items. `tests/editor/editor.spec.ts`'s S8.1 test pinning
+Edit's item order is updated for the new position, with a comment saying
+why, per finding 19 of the Sprint 2 reviews (a pinned order changed on
+purpose needs a deliberate test update, not a loosened assertion). See
+`src/editor/editor-app.ts` (the Edit menu template, `autoLinkLights`).
+
 ## 2026-09-25 Opus review of S8.4-S8.7: switch candidates list every switch entity, not one per device
 
 Findings 5 and 6: `switchChoicesForLight`'s "Controlled by" candidates were
