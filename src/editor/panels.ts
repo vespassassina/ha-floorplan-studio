@@ -646,16 +646,26 @@ function deviceEntity(c: PanelCtx, i: number) {
     </select>${unknown ? hint(NOT_IN_HA) : nothing}${d.entity ? nothing : hint("Not connected to Home Assistant yet. Pick its entity.")}`;
 }
 
-/** "Controlled by": the switch or plug that powers a light. Written as `bound`, the key is deleted for none. */
+/**
+ * "Controlled by": the switch or plug that powers a light. Written as `bound`, the key is deleted for none. S8.7:
+ * restricted to this floor's own switches and plugs (maintainer feedback: "only show the floor related switches"),
+ * via `switchChoicesForLight`, with the one same-area name match, when there is one, shown first and labelled
+ * "(suggested)". The current value always stays offered, even off-floor, so a value set before this floor scoping
+ * existed does not vanish from the select.
+ */
 function boundField(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
-  const choices = c.st.bindChoices(i);
-  const nameOf = (entity: string) => c.st.layout.catalog.find((x) => x.entity === entity)?.name ?? entity;
+  const choices = c.st.switchChoicesForLight(i);
+  const suggested = choices.filter((s) => s.suggested);
+  const rest = choices.filter((s) => !s.suggested).sort((a, b) => a.name.localeCompare(b.name));
+  const nameOf = (entity: string) => choices.find((s) => s.entity === entity)?.name ?? c.st.layout.catalog.find((x) => x.entity === entity)?.name ?? entity;
   const set = (e: Event) => c.commit((f) => { const v = val(e); if (v) f.devices[i].bound = v; else delete f.devices[i].bound; });
+  const opt = (s: { entity: string; name: string }, label: string) => html`<option value=${s.entity} ?selected=${s.entity === d.bound}>${label}</option>`;
   return html`<label for="vbound">Controlled by</label>
     <select id="vbound" .value=${d.bound ?? ""} @change=${set}>
       <option value="" ?selected=${!d.bound}>(none)</option>
-      ${choices.map((s) => html`<option value=${s.entity} ?selected=${s.entity === d.bound}>${s.room ? `${s.room} - ` : ""}${s.name}</option>`)}
+      ${suggested.map((s) => opt(s, `${s.name} (suggested)`))}
+      ${rest.map((s) => opt(s, s.name))}
       ${d.bound && !choices.some((s) => s.entity === d.bound) ? html`<option value=${d.bound} selected>${d.bound}</option>` : nothing}
     </select>
     ${d.bound ? hint(`${d.name ?? nameOf(d.entity)} + ${nameOf(d.bound)}`) : nothing}`;

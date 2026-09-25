@@ -1,5 +1,5 @@
-import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, typeForEntity, unplacedCatalog, validate, viewBoxFor } from "../core";
-import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, Theme, Trace } from "../core";
+import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, validate, viewBoxFor } from "../core";
+import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 
 /** localStorage key for the autosaved edit. */
 export const STORAGE_KEY = "floorplan-studio:layout";
@@ -502,6 +502,33 @@ export class EditorState {
     const d = this.f.devices[devIndex];
     if (!d || d.type !== "light") return [];
     return this.layout.catalog.filter((c) => (c.type === "switch" || c.type === "plug") && c.entity !== d.entity);
+  }
+
+  /** S8.7: `switchChoicesForLight` for the light at `devIndex` of the current floor, with the current floor and HA data already bound in. Empty for anything that is not a light. */
+  switchChoicesForLight(devIndex: number): SwitchChoice[] {
+    const d = this.f.devices[devIndex];
+    if (!d || d.type !== "light") return [];
+    return switchChoicesForLight(this.layout, this.ha ?? null, this.floor, d);
+  }
+
+  /**
+   * S8.7: links every unbound light on floor `floorKey` to its uniquely suggested switch (same rule
+   * `switchChoicesForLight` scores by), one undo step for every light linked. Never touches a light that already
+   * has `bound`, never touches `motion`. Returns how many were linked; 0 records no step (mirrors `resetColours`).
+   */
+  autoLinkLights(floorKey: string): number {
+    const f = this.layout.floors[floorKey];
+    if (!f) return 0;
+    const links: { i: number; entity: string }[] = [];
+    f.devices.forEach((d, i) => {
+      if (d.type !== "light" || d.bound) return;
+      const choice = switchChoicesForLight(this.layout, this.ha ?? null, floorKey, d).find((s) => s.suggested);
+      if (choice) links.push({ i, entity: choice.entity });
+    });
+    if (!links.length) return 0;
+    this.snapshot();
+    for (const { i, entity } of links) this.layout.floors[floorKey].devices[i].bound = entity;
+    return links.length;
   }
 
   /**

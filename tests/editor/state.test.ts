@@ -822,3 +822,63 @@ describe("EditorState.setTrace (S7.11)", () => {
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).floors.ground.trace).toEqual(T);
   });
 });
+
+describe("EditorState.autoLinkLights (S8.7)", () => {
+  /** One floor, one room in area_basement, an unbound light with a uniquely-named same-area switch and an unrelated switch on another floor. */
+  const layoutWithTwoLights = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      basement: {
+        title: "Basement", outline: [], rooms: [{ id: "r1", name: "Basement", area: "area_basement", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }],
+        walls: [], stairs: [], doors: [], openings: [], extras: [],
+        devices: [
+          { id: "d1", type: "light", entity: "light.basement_dumb", name: "Basement dumb light", x: 10, y: 10 },
+          { id: "d2", type: "light", entity: "light.basement_lamp", name: "Basement lamp", x: 20, y: 20 },
+        ],
+        furniture: [], unlinked: [],
+      },
+      attic: { title: "Attic", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] },
+    },
+    catalog: [],
+  });
+  const ha = {
+    floors: [{ id: "floor_basement", name: "Basement" }],
+    areas: [{ id: "area_basement", name: "Basement", floor_id: "floor_basement" }],
+    entities: [
+      { id: "light.basement_dumb", name: "Basement dumb light", domain: "light", area: "area_basement" },
+      { id: "light.basement_lamp", name: "Basement lamp", domain: "light", area: "area_basement" },
+      { id: "switch.basement_light_switch", name: "Basement light switch", domain: "switch", area: "area_basement" },
+      { id: "switch.basement_lamp_switch", name: "Basement lamp switch", domain: "switch", area: "area_basement" },
+      { id: "switch.attic_switch", name: "Attic switch", domain: "switch", area: "area_attic" }, // different floor: never a candidate
+    ],
+  };
+
+  it("links every unbound light on the floor to its suggested switch, in one undo step covering both", () => {
+    const st = new EditorState(layoutWithTwoLights(), "basement");
+    st.ha = ha;
+    expect(st.autoLinkLights("basement")).toBe(2);
+    expect(st.f.devices[0].bound).toBe("switch.basement_light_switch");
+    expect(st.f.devices[1].bound).toBe("switch.basement_lamp_switch");
+    expect(st.undo()).toBe(true);
+    expect(st.f.devices[0].bound).toBeUndefined();
+    expect(st.f.devices[1].bound).toBeUndefined(); // one step reverted both
+  });
+
+  it("never touches a light that already has bound, returns 0 and takes no step when nothing changes", () => {
+    const l = layoutWithTwoLights();
+    l.floors.basement.devices[0].bound = "switch.already";
+    l.floors.basement.devices[1].bound = "switch.already2";
+    const st = new EditorState(l, "basement");
+    st.ha = ha;
+    expect(st.autoLinkLights("basement")).toBe(0);
+    expect(st.canUndo).toBe(false);
+  });
+
+  it("switchChoicesForLight wraps the current floor and ha into the core function", () => {
+    const st = new EditorState(layoutWithTwoLights(), "basement");
+    st.ha = ha;
+    const choices = st.switchChoicesForLight(0);
+    expect(choices.map((c) => c.entity)).not.toContain("switch.attic_switch");
+    expect(choices.find((c) => c.suggested)?.entity).toBe("switch.basement_light_switch");
+  });
+});
