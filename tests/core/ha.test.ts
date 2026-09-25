@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { applyHaNames, availableEntities, entitiesForType, mainEntitiesByDevice, mainEntity, roomHaBox, typeForEntity, unplacedHaEntities, type HaData } from "../../src/core/ha";
+import { applyHaNames, availableEntities, entitiesForType, mainEntitiesByDevice, mainEntity, roomHaBox, switchChoicesForLight, typeForEntity, unplacedHaEntities, type HaData } from "../../src/core/ha";
 import { migrate } from "../../src/core/migrate";
 import v1 from "../../demo/layout.v1.json";
-import type { Layout } from "../../src/core/schema";
+import type { Device, Layout } from "../../src/core/schema";
 
 type Ent = HaData["entities"][number];
 const ent = (id: string, domain: string, dc?: string): Ent => ({ id, name: id, domain, dc });
@@ -456,5 +456,96 @@ describe("S8.6: addCandidates emits one row per HA device, not one per entity", 
     const out = addCandidates(l, plugHa());
     expect(out.find((c) => c.id === "d1")).toBeUndefined();
     expect(out.find((c) => c.entity === "sensor.plug_power")).toBeUndefined(); // no fallback row via the power sensor either
+  });
+});
+
+describe("switchChoicesForLight (S8.7): floor-scoped switches with a same-area name-match suggestion", () => {
+  /** A two-floor layout: "basement" floor has a room in area_basement, "ground" floor has a room in area_kitchen. */
+  const baseLayout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      basement: { title: "Basement", outline: [], rooms: [{ id: "r1", name: "Basement", area: "area_basement", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] },
+      ground: { title: "Ground", outline: [], rooms: [{ id: "r2", name: "Kitchen", area: "area_kitchen", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] },
+    },
+    catalog: [],
+  });
+  const baseHa = (extraEntities: HaData["entities"]): HaData => ({
+    floors: [{ id: "floor_basement", name: "Basement" }, { id: "floor_ground", name: "Ground" }],
+    areas: [
+      { id: "area_basement", name: "Basement", floor_id: "floor_basement" },
+      { id: "area_basement_other", name: "Basement storage", floor_id: "floor_basement" },
+      { id: "area_kitchen", name: "Kitchen", floor_id: "floor_ground" },
+    ],
+    entities: [{ id: "light.basement_dumb", name: "Basement dumb light", domain: "light", area: "area_basement" }, ...extraEntities],
+  });
+  const light: Device = { id: "d1", type: "light", entity: "light.basement_dumb", name: "Basement dumb light", x: 0, y: 0 };
+
+  it("1. a uniquely-named same-area switch (2 shared tokens) is suggested", () => {
+    const ha = baseHa([{ id: "switch.basement_light_switch", name: "Basement light switch", domain: "switch", area: "area_basement" }]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ entity: "switch.basement_light_switch", suggested: true });
+  });
+
+  it("2. two same-area switches tied at the top score: neither suggested", () => {
+    const ha = baseHa([
+      { id: "switch.basement_switch_a", name: "Basement switch A", domain: "switch", area: "area_basement" },
+      { id: "switch.basement_switch_b", name: "Basement switch B", domain: "switch", area: "area_basement" },
+    ]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out).toHaveLength(2);
+    expect(out.every((s) => !s.suggested)).toBe(true);
+  });
+
+  it("3. the only switch in the area is suggested even with zero shared name tokens", () => {
+    const ha = baseHa([{ id: "switch.unrelated_name", name: "Zzz totally unrelated", domain: "switch", area: "area_basement" }]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out).toHaveLength(1);
+    expect(out[0].suggested).toBe(true);
+  });
+
+  it("4. a switch in a different area of the same plan floor is offered but never suggested", () => {
+    const ha = baseHa([{ id: "switch.storage_switch", name: "Basement storage switch", domain: "switch", area: "area_basement_other" }]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out).toHaveLength(1);
+    expect(out[0].suggested).toBe(false);
+  });
+
+  it("5. a switch on a different floor entirely is not offered at all", () => {
+    const ha = baseHa([{ id: "switch.kitchen_switch", name: "Kitchen switch", domain: "switch", area: "area_kitchen" }]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out).toHaveLength(0);
+  });
+
+  it("6. two candidates, different scores in the same area: the higher scorer is uniquely suggested", () => {
+    const ha = baseHa([
+      { id: "switch.basement_light_switch", name: "Basement light switch", domain: "switch", area: "area_basement" }, // shares {basement, light} = 2
+      { id: "switch.basement_other", name: "Basement fan switch", domain: "switch", area: "area_basement" }, // shares {basement} = 1... use unrelated below instead
+    ]);
+    // Replace the second with a zero-overlap name so the scores are unambiguously 2 vs 0.
+    ha.entities[2] = { id: "switch.basement_other", name: "Zzz unrelated", domain: "switch", area: "area_basement" };
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out).toHaveLength(2);
+    const suggested = out.filter((s) => s.suggested);
+    expect(suggested).toHaveLength(1);
+    expect(suggested[0].entity).toBe("switch.basement_light_switch");
+  });
+
+  it("without ha, falls back to catalog switches/plugs on this floor only", () => {
+    const l = baseLayout();
+    l.catalog = [
+      { id: "c1", floor: "basement", room: "Basement", type: "switch", name: "Basement switch", entity: "switch.basement_cat" },
+      { id: "c2", floor: "ground", room: "Kitchen", type: "switch", name: "Kitchen switch", entity: "switch.kitchen_cat" },
+    ];
+    const out = switchChoicesForLight(l, null, "basement", light);
+    expect(out.map((s) => s.entity)).toEqual(["switch.basement_cat"]);
+    expect(out[0].suggested).toBe(false); // no HA area data, so never suggested
+  });
+
+  it("the light's current bound value stays offered even off-floor", () => {
+    const ha = baseHa([{ id: "switch.kitchen_switch", name: "Kitchen switch", domain: "switch", area: "area_kitchen" }]);
+    const boundLight: Device = { ...light, bound: "switch.kitchen_switch" };
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", boundLight);
+    expect(out.map((s) => s.entity)).toContain("switch.kitchen_switch");
   });
 });

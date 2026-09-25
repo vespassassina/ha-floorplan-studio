@@ -1,4 +1,4 @@
-import type { AvailableEntity, DeviceType, Layout } from "./schema";
+import type { AvailableEntity, Device, DeviceType, Layout } from "./schema";
 import { placedEntities, unplacedCatalog } from "./bind";
 
 /** What the host (the HA panel) knows about Home Assistant and hands to the editor. Standalone there is none. */
@@ -383,6 +383,95 @@ export function addCandidates(l: Layout, ha: HaData | null): AddCandidate[] {
       if (placedDevs.has(devId)) continue;
       const name = nameOf.get(devId) || main.name || main.id;
       out.push({ key: `ha-dev:${devId}`, source: "ha", id: devId, entity: main.id, name, type: typeForEntity(main), ...locateEntity(l, ha, main.id) });
+    }
+  }
+  return out;
+}
+
+/**
+ * S8.7: the HA floor id(s) that plan floor `floorKey` maps to — every `floor_id` of an HA area that one of this
+ * floor's own rooms already carries (`room.area`). A plan floor with no room linked to an area, or whose areas are
+ * not themselves on an HA floor, maps to nothing; a candidate is then never offered by area/floor alone (it can
+ * still be offered through the catalog, which is plan-floor-scoped already).
+ */
+function haFloorIdsForPlanFloor(l: Layout, ha: HaData, floorKey: string): Set<string> {
+  const ids = new Set<string>();
+  const floor = l.floors[floorKey];
+  if (!floor) return ids;
+  const floorIdOfArea = new Map((ha.areas ?? []).map((a) => [a.id, a.floor_id]));
+  for (const r of floor.rooms) {
+    const fid = r.area ? floorIdOfArea.get(r.area) : undefined;
+    if (fid) ids.add(fid);
+  }
+  return ids;
+}
+
+/** S8.7: lowercase `name`, split on runs of non-alphanumeric characters, drop generic stopwords. Used to score a switch's name against a light's own. */
+const NAME_STOPWORDS = new Set(["switch", "plug", "socket", "relay", "the", "and", "of"]);
+function nameTokens(name: string): Set<string> {
+  return new Set(name.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t && !NAME_STOPWORDS.has(t)));
+}
+
+/** S8.7: one row of `switchChoicesForLight` — a switch or plug the light panel may bind `bound` to. */
+export interface SwitchChoice { entity: string; name: string; area?: string; suggested: boolean; source: "catalog" | "ha" }
+
+/**
+ * S8.7: the switches and plugs offered to power light `light` on plan floor `floorKey` — restricted to that floor
+ * (maintainer feedback: "only show the floor related switches"), unlike the all-floors `bindChoices` it replaces on
+ * the light panel. Candidates are the union of: this floor's own catalogued switch/plug entries, and, when `ha` is
+ * given, every HA switch-domain entity that is a device's main entity (`mainEntitiesByDevice`, so a plug's siblings
+ * don't each get their own row), has no `entity_category`, and sits in an HA area that is on the HA floor(s)
+ * `haFloorIdsForPlanFloor` maps this plan floor to. Without `ha`, only the catalog half is offered. The light's
+ * current `bound` value, if any, is always included even when it would not otherwise qualify (off-floor or
+ * unplaced) — the field must always be able to show what it is already set to.
+ *
+ * Scoring (folded in here rather than a separate function, so a caller need not re-walk the candidate list to
+ * apply it): a candidate is `suggested` only when its own HA area equals the light's own HA area, and it is the
+ * unique top scorer there — either the only switch/plug candidate in that area (any score, including 0), or the one
+ * with a strictly higher shared-name-token count than every other candidate in that area. A tie at the top, among
+ * more than one candidate, suggests nobody.
+ */
+export function switchChoicesForLight(l: Layout, ha: HaData | null, floorKey: string, light: Device): SwitchChoice[] {
+  const out: SwitchChoice[] = [];
+  const seen = new Set<string>();
+  const areaOf = (entity: string): string | undefined => ha?.entities.find((e) => e?.id === entity)?.area ?? undefined;
+  const nameOf = (entity: string): string => ha?.entities.find((e) => e?.id === entity)?.name || l.catalog.find((c) => c.entity === entity)?.name || entity;
+  const add = (entity: string, name: string, area: string | undefined) => {
+    if (!entity || entity === light.entity || seen.has(entity)) return;
+    seen.add(entity);
+    out.push({ entity, name, area, suggested: false, source: ha?.entities.some((e) => e?.id === entity) ? "ha" : "catalog" });
+  };
+  for (const c of l.catalog) {
+    if (c.floor === floorKey && (c.type === "switch" || c.type === "plug")) add(c.entity, c.name, areaOf(c.entity));
+  }
+  if (ha) {
+    const floorIds = haFloorIdsForPlanFloor(l, ha, floorKey);
+    const floorIdOfArea = new Map((ha.areas ?? []).map((a) => [a.id, a.floor_id]));
+    const onFloor = (main: HaData["entities"][number]) => {
+      if (main.domain !== "switch" || main.cat) return;
+      const areaId = main.area ?? undefined;
+      const fid = areaId ? floorIdOfArea.get(areaId) : undefined;
+      if (!fid || !floorIds.has(fid)) return;
+      add(main.id, main.name || main.id, areaId);
+    };
+    // Device-grouped switches (one row per device, S8.6's mainEntity), plus device-less switch entities — mirrors
+    // addCandidates's own split, since mainEntitiesByDevice only sees entities that carry a `dev` field.
+    for (const main of mainEntitiesByDevice(ha).values()) onFloor(main);
+    for (const e of ha.entities) if (e && !e.dev) onFloor(e);
+  }
+  if (light.bound) add(light.bound, nameOf(light.bound), areaOf(light.bound));
+
+  const lightArea = areaOf(light.entity);
+  if (lightArea) {
+    const group = out.filter((s) => s.area === lightArea);
+    if (group.length === 1) group[0].suggested = true;
+    else if (group.length > 1) {
+      const lightName = light.name || light.entity;
+      const lightTokens = nameTokens(lightName);
+      const scored = group.map((s) => ({ s, score: [...nameTokens(s.name)].filter((t) => lightTokens.has(t)).length }));
+      const max = Math.max(...scored.map((x) => x.score));
+      const top = scored.filter((x) => x.score === max);
+      if (max >= 1 && top.length === 1) top[0].s.suggested = true;
     }
   }
   return out;
