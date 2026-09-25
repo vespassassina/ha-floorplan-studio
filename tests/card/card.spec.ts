@@ -1103,3 +1103,23 @@ test.describe("S8.2: the card fills a fixed-height container instead of cropping
     expect(box.height).toBeLessThan(cardBox.width); // the demo ground floor is wider than it is tall
   });
 });
+
+test.describe("S8.3: in HA's panel view the plan fits the screen", () => {
+  const card = (page: Page) => page.locator("floorplan-studio-card");
+  const svgBox = async (page: Page) => (await card(page).locator("css=svg").first().boundingBox())!;
+
+  // hui-panel-view gives the card no definite height, so `height:100%` fell back to width x aspect: on Diego's
+  // 1454 px wide panel the plan drew 1951 px tall on a 902 px window, and "fit" looked zoomed in.
+  test("layout = panel caps the card at the viewport height below HA's header, and leaving it restores the natural height (S8.3)", async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 400 });
+    await open(page);
+    await configure(page, { layout: structuredClone(demo) }, { states: {}, themes: { darkMode: false } });
+    const before = await svgBox(page);
+    expect(before.height).toBeGreaterThan(400 - 56); // the bug: taller than the screen
+    await card(page).evaluate((el) => { (el as unknown as { layout: string }).layout = "panel"; });
+    await expect.poll(async () => (await svgBox(page)).height).toBeCloseTo(400 - 56, 0);
+    expect((await card(page).boundingBox())!.height).toBeCloseTo(400 - 56, 0);
+    await card(page).evaluate((el) => { (el as unknown as { layout: string }).layout = "grid"; });
+    await expect.poll(async () => (await svgBox(page)).height).toBeCloseTo(before.height, 0);
+  });
+});

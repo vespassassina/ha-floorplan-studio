@@ -2,6 +2,46 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 S8.3 the card loads as a dashboard resource in storage mode
+
+Supersedes how the card is loaded, not the re-define below. Diego asked why the
+registry is replaced and whether the card could load like the other cards.
+Resources (Settings, Dashboards, Resources) load after HA's core, so a define
+there always lands in the polyfilled registry. The integration now adds one
+`module` resource for `/floorplan_studio_static/floorplan-studio-card.js?v=<version>`
+when dashboard resources are in storage mode, and rewrites the `?v=` on the
+same entry after an upgrade so browsers fetch the new file. It never touches a
+resource at another URL. The resource is deleted when the integration is
+removed, not on unload, so a reload or an options change does not churn the
+user's list. With YAML resources (read-only to us) it keeps `add_extra_js_url`,
+and the re-define watch covers the race there. `lovelace` joins the manifest
+dependencies so its data exists before setup.
+
+## 2026-09-25 S8.3 card: re-define after HA swaps the registry; panel view fits the screen
+
+Diego saw "Custom element doesn't exist: floorplan-studio-card" on about half
+of hard reloads. Traced in his browser: the file loaded with a 200 every time
+and evaluated without error, `document.createElement` built our class, yet
+`customElements.get` returned undefined. HA's core installs a
+scoped-custom-element-registry polyfill that replaces `customElements`. The
+integration loads the card with `add_extra_js_url`, in parallel with core, so
+when the card won the race it defined itself only in the native registry.
+Cards loaded as Lovelace resources run after core and never see this.
+
+Fix: `defineElement` (`src/card/define.ts`) defines at once, then checks every
+500 ms for 30 s and defines again if the current registry lacks the name.
+Tried live first: a second define on the polyfilled registry does not throw,
+and HA's own `whenDefined` rebuilds the error card into the real one. Rejected:
+waiting for `home-assistant` to be defined before defining at all, which would
+never define the card outside HA (tests, the harness).
+
+Also: in a panel view the plan drew 1951 px tall on a 902 px window, so "fit"
+looked zoomed in and the zoom-out button was disabled. hui-panel-view gives the
+card no definite height, so S8.2's `height: 100%` fell back to width times
+aspect. HA sets `layout = "panel"` on the card; the card reflects it as a
+`panel` attribute, and `:host([panel])` takes `100vh` minus
+`--header-height` (56 px default).
+
 ## 2026-09-25 S8.2 card sizing: height:100% on host and svg, getGridOptions from the plan's aspect
 
 Diego reported the card cropped in Home Assistant's sections layout dashboard.

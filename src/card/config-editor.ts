@@ -2,6 +2,7 @@ import { LitElement, css, html } from "lit";
 import { THEMES, migrate, validate } from "../core";
 import type { Layout, Theme } from "../core";
 import type { FloorplanStudioCardConfig, Hass } from "./floorplan-studio-card";
+import { defineElement } from "./define";
 
 /** The form edits the card's own config type; every key it shows is one the card reads (S7.5 kiosk, S7.6 night and sun). */
 export type EditorConfig = FloorplanStudioCardConfig;
@@ -245,5 +246,4 @@ export class FloorplanStudioCardEditor extends LitElement {
   }
 }
 
-if (typeof customElements !== "undefined" && !customElements.get("floorplan-studio-card-editor"))
-  customElements.define("floorplan-studio-card-editor", FloorplanStudioCardEditor);
+defineElement("floorplan-studio-card-editor", FloorplanStudioCardEditor);
