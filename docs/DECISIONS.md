@@ -2,6 +2,31 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 S7.15 The page scrolls over a plan at fit; doors are label obstacles
+
+Two of the items the Sprint 7 review deferred, taken up after the maintainer
+tried 0.11.0 on a phone.
+
+- **`touch-action: pan-y` at fit, `none` once zoomed.** This supersedes the
+  S7.4 line "`touch-action: none` on the plan". At fit there is nothing to
+  pan, so a vertical swipe that starts on the plan scrolls the dashboard as
+  it would over any other card. `pan-y` still leaves a pinch and a double-tap
+  to the plan (neither is a vertical pan), so zooming in from fit works as
+  before; once zoomed, `.fp-zoomed` takes every touch so a pan never scrolls
+  the page under the plan. The cost: a two-finger pinch whose fingers move
+  mostly up and down together may start a page scroll instead; the browser
+  decides that, and the + button and a double-tap are the fallback. A
+  horizontal swipe at fit does nothing, as before. `zoom: false` is unchanged.
+- **A door is an obstacle for text placement.** `place()` in `render.ts`
+  saw icons and other texts, not doors, so the demo's "Garden pond" ran
+  across the garage door. A door's box is its line widened by half its
+  stroke, in the screen frame; a turned plan's door box is the box of its
+  turned endpoints, a little generous off-axis, which only pushes a label
+  further off. The demo clash test now counts doors, and the two garden
+  names moved: "Garden pond" above the pond, "Garden" below it. Openings,
+  walls and furniture stay out of it: a name over a wall line is normal on a
+  plan, and furniture sits under names by design (S5.1).
+
 ## 2026-09-25 Sprint 7 review: save size cap, empty radar slots, the rest deferred
 
 The Opus review of the integrated build (`docs/REVIEW-2026-09-25.md`) said

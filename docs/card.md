@@ -31,7 +31,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `theme` | `blueprint` | `blueprint`, `light`, `midnight`, `slate`, `terminal`, `solarized`, or `ha` (see Themes, below) |
 | `fade` | `300` | seconds a motion sensor takes to fade from red to grey after it last went off |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
-| `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons top right. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). `false` fixes the plan and gives touches back to the page, so a swipe over the plan scrolls it |
+| `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons top right. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |

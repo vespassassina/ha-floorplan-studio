@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.1
+
+- On a phone, a vertical swipe over a plan at fit scrolls the dashboard again;
+  once zoomed in, the plan takes the swipe as a pan, as before.
+- A room or zone name no longer runs across a door: doors count as obstacles
+  when names are placed. The demo's "Garden pond" moved above the pond.
+
 ## 0.11.0
 
 - A new `person` device type: an icon placed where the person usually is. Home
