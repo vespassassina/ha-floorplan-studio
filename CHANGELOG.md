@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.1
 
 - The card fills whatever space a dashboard gives it instead of cropping.
   `getGridOptions()` tells Home Assistant's sections layout a starting row
