@@ -724,3 +724,31 @@ describe("S7.10: a vacuum device", () => {
     expect(errorsOf(withDev({ id: "v1", type: "vacuum", entity: "vacuum.hall", x: 100, y: 100 }))).toEqual([]);
   });
 });
+
+describe("S8.7: a light's motion field", () => {
+  const light = (l: any) => l.floors.ground.devices.find((d: any) => d.id === "light-living");
+  const has = (l: any, re: RegExp) => errorsOf(l).some((e) => re.test(e));
+
+  it("accepts a valid motion field on a light", () => {
+    const l = clone(); light(l).motion = "binary_sensor.hall_motion";
+    expect(errorsOf(l)).toEqual([]);
+  });
+  it("accepts motion absent: older layouts stay valid", () => {
+    const l = clone(); delete light(l).motion;
+    expect(errorsOf(l)).toEqual([]);
+  });
+  it("rejects motion on a device that is not a light", () => {
+    const l = clone();
+    const sw = l.floors.ground.devices.find((d: any) => d.type === "switch");
+    sw.motion = "binary_sensor.hall_motion";
+    expect(has(l, /motion is only allowed on a light/)).toBe(true);
+  });
+  it("rejects motion equal to entity", () => {
+    const l = clone(); light(l).motion = light(l).entity;
+    expect(has(l, /motion must differ from entity/)).toBe(true);
+  });
+  it("rejects motion that is not an entity id (no dot)", () => {
+    const l = clone(); light(l).motion = "nodot";
+    expect(has(l, /motion must be an entity id/)).toBe(true);
+  });
+});

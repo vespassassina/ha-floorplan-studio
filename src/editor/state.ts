@@ -1,5 +1,5 @@
-import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, placeableInArea, planPivot, rotateAbout, stairSteps, typeForEntity, unplacedCatalog, validate, viewBoxFor } from "../core";
-import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, Theme, Trace } from "../core";
+import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, validate, viewBoxFor } from "../core";
+import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 
 /** localStorage key for the autosaved edit. */
 export const STORAGE_KEY = "floorplan-studio:layout";
@@ -126,7 +126,17 @@ export class EditorState {
   /** What Home Assistant has, when the host gives it. Undefined standalone: every name is then free text. */
   ha: HaData | undefined = undefined;
   floor: string;
-  sel: Sel = null;
+  private _sel: Sel = null;
+  get sel(): Sel { return this._sel; }
+  /** Opus review finding 3: selecting anything but the device `pendingMotion` was picked for clears the draft for
+   *  good (not merely hides it) — reselecting that same light later starts the Motion pick fresh. */
+  set sel(s: Sel) {
+    this._sel = s;
+    if (this.pendingMotionValue) {
+      const stillSameDevice = s?.t === "dev" && this.f.devices[s.i]?.id === this.pendingMotionDevId;
+      if (!stillSameDevice) { this.pendingMotionValue = ""; this.pendingMotionDevId = null; }
+    }
+  }
   views: Record<string, View> = {};
   /** The toolbar's device-type filter: empty shows every type, several may be checked at once. */
   filter: DeviceType[] = [];
@@ -143,6 +153,23 @@ export class EditorState {
   /** S4.6: the Group menu's "Turns on..." draft — a light group id and the off delay in minutes. Kept for the session, never the layout. */
   motionLightGroup = "";
   motionMinutes = "";
+  /** S8.7: the light panel's own motion-link draft — the motion entity a "Motion" option in Controlled by was just
+   *  picked to (cleared once linked, or once another value is picked), and the off-delay minutes field. Kept for
+   *  the session, never the layout. Opus review finding 3: tied to the device id it was picked for, so selecting a
+   *  different light (or anything else) reads back "" instead of leaking the previous light's pending pick. */
+  private pendingMotionDevId: string | null = null;
+  private pendingMotionValue = "";
+  get pendingMotion(): string {
+    if (!this.pendingMotionValue) return "";
+    const sel = this.sel;
+    return sel?.t === "dev" && this.f.devices[sel.i]?.id === this.pendingMotionDevId ? this.pendingMotionValue : "";
+  }
+  set pendingMotion(v: string) {
+    this.pendingMotionValue = v;
+    const sel = this.sel;
+    this.pendingMotionDevId = v && sel?.t === "dev" ? this.f.devices[sel.i]?.id ?? null : null;
+  }
+  pendingMotionMinutes = "5";
   /** Snap grid in cm; 0 is none. Kept in localStorage, not in the layout. */
   snapGrid: Grid = readGrid();
   showLen = true;
@@ -415,11 +442,11 @@ export class EditorState {
     return this.addHaEntity(e, ctr, room.name);
   }
 
-  /** S4.15: entities of room `roomIndex`'s HA area that are neither drawn nor catalogued. Empty with no HA, no area or no such room. */
+  /** S4.15: entities of room `roomIndex`'s HA area that are neither drawn nor catalogued, one row per device (S8.6). Empty with no HA, no area or no such room. */
   areaToPlace(roomIndex: number): HaData["entities"] {
     const room = this.f.rooms[roomIndex];
     if (!room?.area || !this.ha || room.pts.length < 3) return [];
-    return placeableInArea(this.layout, this.ha, room.area); // S8.1: only what the plan has an icon for
+    return placeableDevicesInArea(this.layout, this.ha, room.area); // S8.1/S8.6: only what the plan has an icon for, devices not entities
   }
 
   /**
@@ -497,11 +524,70 @@ export class EditorState {
   /** Catalog entries not on the plan. A switch that only a light names (`bound`) is still on the list. */
   unplaced(): CatalogEntry[] { return unplacedCatalog(this.layout); }
 
-  /** Switches and plugs the light at `devIndex` of the current floor may be controlled by: every one in the catalog except the light's own entity, placed or bound elsewhere. Several lights may share one. */
-  bindChoices(devIndex: number): CatalogEntry[] {
+  /** S8.7: `switchChoicesForLight` for the light at `devIndex` of the current floor, with the current floor and HA data already bound in. Empty for anything that is not a light. */
+  switchChoicesForLight(devIndex: number): SwitchChoice[] {
     const d = this.f.devices[devIndex];
     if (!d || d.type !== "light") return [];
-    return this.layout.catalog.filter((c) => (c.type === "switch" || c.type === "plug") && c.entity !== d.entity);
+    return switchChoicesForLight(this.layout, this.ha ?? null, this.floor, d);
+  }
+
+  /**
+   * S8.7: the Motion optgroup's own source list for the light at `devIndex` — binary_sensor entities whose device
+   * class is motion, occupancy or presence and are "on this floor", same area as the light first, plus every
+   * `group.*` entity whose members are ALL such sensors and at least one member is on this floor. Empty without HA
+   * data or for anything that is not a light.
+   *
+   * Opus review finding 12: "on this floor" is scoped the same way `switchChoicesForLight` scopes switches — by
+   * the HA floor(s) this plan floor's rooms map to (`haFloorIdsForPlanFloor`), so an area on that HA floor counts
+   * even with no room drawn for it yet. A plan floor with no HA floor mapping at all (no room's area is on any HA
+   * floor) falls back to this floor's own drawn-room areas, the previous behaviour, rather than offering nothing.
+   */
+  motionChoices(devIndex: number): { entity: string; name: string }[] {
+    const d = this.f.devices[devIndex];
+    if (!d || d.type !== "light" || !this.ha) return [];
+    const ha = this.ha;
+    const floorIds = haFloorIdsForPlanFloor(this.layout, ha, this.floor);
+    const floorIdOfArea = new Map((ha.areas ?? []).map((a) => [a.id, a.floor_id]));
+    const floorAreas = new Set(this.f.rooms.map((r) => r.area).filter(Boolean));
+    const lightArea = ha.entities.find((e) => e.id === d.entity)?.area;
+    const isMotion = (e: HaData["entities"][number]) => e.domain === "binary_sensor" && (e.dc === "motion" || e.dc === "occupancy" || e.dc === "presence");
+    const onFloor = (e: HaData["entities"][number]) => {
+      if (!e.area) return false;
+      if (floorIds.size) { const fid = floorIdOfArea.get(e.area); return !!fid && floorIds.has(fid); }
+      return floorAreas.has(e.area); // no HA floor mapping for this plan floor: fall back to drawn rooms
+    };
+    const sensors = ha.entities.filter((e) => isMotion(e) && onFloor(e));
+    const groups = ha.entities.filter((e) =>
+      e.domain === "group" && Array.isArray(e.members) && e.members.length > 0 &&
+      e.members.every((m) => { const x = ha.entities.find((y) => y.id === m); return x && isMotion(x); }) &&
+      e.members.some((m) => { const x = ha.entities.find((y) => y.id === m); return x && onFloor(x); }));
+    return [...sensors, ...groups]
+      .map((e) => ({ entity: e.id, name: e.name || e.id, area: e.area }))
+      .sort((a, b) => Number(b.area === lightArea) - Number(a.area === lightArea)); // same area as the light first, else stable
+  }
+
+  /**
+   * S8.7: links every unbound light on floor `floorKey` to its uniquely suggested switch (same rule
+   * `switchChoicesForLight` scores by), one undo step for every light linked. Never touches a light that already
+   * has `bound`, never touches `motion`. Returns how many were linked; 0 records no step (mirrors `resetColours`).
+   */
+  autoLinkLights(floorKey: string): number {
+    const f = this.layout.floors[floorKey];
+    if (!f) return 0;
+    // Opus review, finding 6: a switch_as_x light is a switch HA wrapped as a light entity, not a light with a
+    // switch of its own to find — linking it would try to bind a switch to itself in spirit. Skipped here, same as
+    // the light panel's own Controlled by field never offers switch_as_x lights as anything but a light.
+    const switchAsX = new Set((this.ha?.entities ?? []).filter((e) => e.domain === "light" && e.platform === "switch_as_x").map((e) => e.id));
+    const links: { i: number; entity: string }[] = [];
+    f.devices.forEach((d, i) => {
+      if (d.type !== "light" || d.bound || switchAsX.has(d.entity)) return;
+      const choice = switchChoicesForLight(this.layout, this.ha ?? null, floorKey, d).find((s) => s.suggested);
+      if (choice) links.push({ i, entity: choice.entity });
+    });
+    if (!links.length) return 0;
+    this.snapshot();
+    for (const { i, entity } of links) this.layout.floors[floorKey].devices[i].bound = entity;
+    return links.length;
   }
 
   /**
@@ -531,7 +617,7 @@ export class EditorState {
    * S4.24: catalog entries a heater's `trvs`/`tempSensors` or an ac's `linked` list may attach, minus the
    * device's own entity. Unlike a door's sensors, these are not excluded elsewhere on the plan — the same
    * temperature sensor, say, may reasonably feed more than one heater, the same way a switch can power several
-   * lights (`bindChoices` above).
+   * lights.
    */
   deviceAttachChoices(devIndex: number, field: "trvs" | "tempSensors" | "linked"): CatalogEntry[] {
     const d = this.f.devices[devIndex];

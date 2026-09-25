@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { applyHaNames, availableEntities, entitiesForType, roomHaBox, typeForEntity, unplacedHaEntities, type HaData } from "../../src/core/ha";
+import { applyHaNames, availableEntities, entitiesForType, mainEntitiesByDevice, mainEntity, roomHaBox, switchChoicesForLight, typeForEntity, unplacedHaEntities, type HaData } from "../../src/core/ha";
 import { migrate } from "../../src/core/migrate";
 import v1 from "../../demo/layout.v1.json";
-import type { Layout } from "../../src/core/schema";
+import type { Device, Layout } from "../../src/core/schema";
 
 type Ent = HaData["entities"][number];
 const ent = (id: string, domain: string, dc?: string): Ent => ({ id, name: id, domain, dc });
@@ -288,5 +288,353 @@ describe("S8.1: placeableInArea", () => {
     ] };
     expect(placeableInArea(l, ha, area).map((e) => e.id)).toEqual(["light.spot", "sensor.t", "binary_sensor.m"]);
     expect(placeableInArea(l, { ...ha, entities: undefined as unknown as HaData["entities"] }, area)).toEqual([]); // hostile data never throws
+  });
+});
+
+describe("Opus review finding 10: placeableDevicesInArea picks the main entity across all of a device's entities first, then filters by area", () => {
+  const emptyLayout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: { ground: { title: "Ground", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [], unlinked: [] } },
+    catalog: [],
+  } as unknown as Layout);
+  // One device, split across two HA areas: its main entity (a camera, ranks above binary_sensor) sits in area_b, a
+  // lesser sibling (a motion binary_sensor) sits in area_a. Both entities carry the same `dev`.
+  const splitHa = (): HaData => ({
+    floors: [], areas: [{ id: "area_a", name: "Area A" }, { id: "area_b", name: "Area B" }],
+    entities: [
+      { id: "camera.front", name: "Front camera", domain: "camera", area: "area_b", dev: "d1" },
+      { id: "binary_sensor.front_motion", name: "Front motion", domain: "binary_sensor", dc: "motion", area: "area_a", dev: "d1" },
+    ],
+  });
+
+  it("does not offer the device in area_a: its main entity (the camera) is in area_b, not area_a", () => {
+    expect(placeableDevicesInArea(emptyLayout(), splitHa(), "area_a")).toEqual([]);
+  });
+
+  it("offers the device in area_b, as its main entity (the camera), not the motion sensor", () => {
+    const out = placeableDevicesInArea(emptyLayout(), splitHa(), "area_b");
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe("camera.front");
+  });
+});
+
+// ---- S8.5: the merged Add > Device panel's source list -------------------------------------------------------------
+import { addCandidates, placeableDevicesInArea } from "../../src/core/ha";
+
+describe("S8.5: addCandidates — catalog + HA entities, merged, each located by its HA area", () => {
+  const layout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      ground: { title: "Ground", outline: [], walls: [], rooms: [{ id: "r-1", name: "Kitchen", area: "kitchen", label: "", kind: "room", pts: [], wk: [] }], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [] },
+      first: { title: "", outline: [], walls: [], rooms: [{ id: "r-2", name: "Bedroom", area: "bedroom", label: "", kind: "room", pts: [], wk: [] }], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [] },
+    },
+    catalog: [],
+  } as unknown as Layout);
+
+  it("catalog only, no HA: area/floor stay unset, room falls back to the catalog entry's own field", () => {
+    const l = layout();
+    l.catalog = [{ id: "c-1", floor: "ground", room: "Kitchen", type: "light", name: "Ceiling light", entity: "light.kitchen" }];
+    expect(addCandidates(l, null)).toEqual([
+      { key: "catalog:c-1", source: "catalog", id: "c-1", entity: "light.kitchen", name: "Ceiling light", type: "light", room: "Kitchen" },
+    ]);
+  });
+
+  it("HA only, no catalog: every unplaced HA entity, guessed type via typeForEntity", () => {
+    const l = layout();
+    const ha: HaData = { floors: [], areas: [{ id: "kitchen", name: "The Kitchen" }], entities: [
+      { id: "light.spare", name: "Spare bulb", domain: "light", area: "kitchen" },
+    ] };
+    expect(addCandidates(l, ha)).toEqual([
+      { key: "ha:light.spare", source: "ha", id: "light.spare", entity: "light.spare", name: "Spare bulb", type: "light", area: "The Kitchen", room: "Kitchen", floor: "Ground", floorKey: "ground" },
+    ]);
+  });
+
+  it("both, with an overlapping entity: the catalog entry wins, no duplicate", () => {
+    const l = layout();
+    l.catalog = [{ id: "c-1", floor: "ground", room: "Kitchen", type: "light", name: "Ceiling light", entity: "light.kitchen" }];
+    const ha: HaData = { floors: [], areas: [{ id: "kitchen", name: "The Kitchen" }], entities: [
+      { id: "light.kitchen", name: "Ceiling light", domain: "light", area: "kitchen" },
+      { id: "light.spare", name: "Spare bulb", domain: "light", area: "kitchen" },
+    ] };
+    const out = addCandidates(l, ha);
+    expect(out.filter((c) => c.entity === "light.kitchen")).toHaveLength(1);
+    expect(out.find((c) => c.entity === "light.kitchen")?.source).toBe("catalog");
+    expect(out.map((c) => c.key).sort()).toEqual(["catalog:c-1", "ha:light.spare"]);
+  });
+
+  it("an entity with no area: no area, no room, no floor", () => {
+    const l = layout();
+    const ha: HaData = { floors: [], areas: [], entities: [{ id: "light.loose", name: "Loose", domain: "light" }] };
+    expect(addCandidates(l, ha)[0]).toEqual({ key: "ha:light.loose", source: "ha", id: "light.loose", entity: "light.loose", name: "Loose", type: "light" });
+  });
+
+  it("an area with no plan room: area is filled, room and floor are not", () => {
+    const l = layout();
+    const ha: HaData = { floors: [], areas: [{ id: "garage", name: "Garage" }], entities: [{ id: "switch.garage", name: "Garage switch", domain: "switch", area: "garage" }] };
+    const c = addCandidates(l, ha)[0];
+    expect(c.area).toBe("Garage");
+    expect("room" in c).toBe(false);
+    expect("floor" in c).toBe(false);
+  });
+
+  it("an area whose room is on floor 2: floor names that floor, not the first", () => {
+    const l = layout();
+    const ha: HaData = { floors: [], areas: [{ id: "bedroom", name: "Bedroom HA" }], entities: [{ id: "light.bed", name: "Bed light", domain: "light", area: "bedroom" }] };
+    const c = addCandidates(l, ha)[0];
+    expect(c.room).toBe("Bedroom");
+    expect(c.floor).toBe("first"); // no title set: falls back to the floor key
+  });
+
+  it("ha null: only the catalog half, never throws", () => {
+    const l = layout();
+    l.catalog = [{ id: "c-1", floor: "ground", room: "", type: "switch", name: "Fan switch", entity: "switch.fan" }];
+    expect(addCandidates(l, null).map((c) => c.key)).toEqual(["catalog:c-1"]);
+  });
+
+  it("empty layout: no candidates, with or without HA", () => {
+    const l = layout();
+    expect(addCandidates(l, null)).toEqual([]);
+    expect(addCandidates(l, { floors: [], areas: [], entities: [] })).toEqual([]);
+  });
+});
+
+// ---- S8.6: "devices, not entities" — mainEntity/mainEntitiesByDevice and addCandidates' device rows --------------
+
+const devEnt = (id: string, domain: string, dc?: string, cat?: string): Ent => ({ id, name: id, domain, dc, dev: "d1", ...(cat ? { cat } : {}) });
+
+describe("S8.6: mainEntity — the one entity that represents an HA device", () => {
+  it("a plug: switch + power sensor + energy sensor + a diagnostic connectivity binary_sensor picks the switch", () => {
+    const entities = [
+      devEnt("sensor.plug_power", "sensor", "power"),
+      devEnt("sensor.plug_energy", "sensor", "energy"),
+      devEnt("binary_sensor.plug_connectivity", "binary_sensor", "connectivity", "diagnostic"),
+      devEnt("switch.plug", "switch", "outlet"),
+    ];
+    expect(mainEntity(entities)?.id).toBe("switch.plug");
+  });
+
+  it("a multisensor: motion + temperature + humidity + a diagnostic battery sensor picks the motion binary_sensor", () => {
+    const entities = [
+      devEnt("sensor.multi_temperature", "sensor", "temperature"),
+      devEnt("sensor.multi_humidity", "sensor", "humidity"),
+      devEnt("sensor.multi_battery", "sensor", "battery", "diagnostic"),
+      devEnt("binary_sensor.multi_motion", "binary_sensor", "motion"),
+    ];
+    expect(mainEntity(entities)?.id).toBe("binary_sensor.multi_motion");
+  });
+
+  it("a light bulb: a single light entity plus a diagnostic signal sensor picks the light", () => {
+    const entities = [devEnt("light.bulb", "light"), devEnt("sensor.bulb_signal", "sensor", "signal_strength", "diagnostic")];
+    expect(mainEntity(entities)?.id).toBe("light.bulb");
+  });
+
+  it("Opus review finding 7: a camera with a floodlight (a light entity) picks the camera, not the light", () => {
+    const entities = [devEnt("light.floodlight", "light"), devEnt("camera.doorbell", "camera")];
+    expect(mainEntity(entities)?.id).toBe("camera.doorbell");
+  });
+
+  it("Opus review finding 7: a climate device with a switch (e.g. a boost relay) picks the climate, not the switch", () => {
+    const entities = [devEnt("switch.boost", "switch"), devEnt("climate.trv", "climate")];
+    expect(mainEntity(entities)?.id).toBe("climate.trv");
+  });
+
+  it("Opus review finding 7: a media_player and a vacuum still outrank a light and a switch", () => {
+    expect(mainEntity([devEnt("light.a", "light"), devEnt("media_player.a", "media_player")])?.id).toBe("media_player.a");
+    expect(mainEntity([devEnt("switch.a", "switch"), devEnt("vacuum.a", "vacuum")])?.id).toBe("vacuum.a");
+  });
+
+  it("a device whose entities are all diagnostic/config: no main entity, and no row in mainEntitiesByDevice", () => {
+    const entities = [devEnt("sensor.gw_uptime", "sensor", undefined, "diagnostic"), devEnt("switch.gw_restart", "switch", undefined, "config")];
+    expect(mainEntity(entities)).toBeUndefined();
+    const ha: HaData = { floors: [], areas: [], entities };
+    expect(mainEntitiesByDevice(ha).has("d1")).toBe(false);
+  });
+
+  it("mainEntitiesByDevice groups by dev and skips device-less entities", () => {
+    const ha: HaData = {
+      floors: [], areas: [],
+      entities: [...[
+        devEnt("switch.plug", "switch", "outlet"),
+        devEnt("sensor.plug_power", "sensor", "power"),
+      ], { id: "light.loose", name: "Loose", domain: "light" }],
+    };
+    const m = mainEntitiesByDevice(ha);
+    expect(m.get("d1")?.id).toBe("switch.plug");
+    expect(m.size).toBe(1);
+  });
+
+  it("break it: hostile or missing entities never throw", () => {
+    expect(mainEntity([])).toBeUndefined();
+    expect(mainEntitiesByDevice({ floors: [], areas: [], entities: null as unknown as Ent[] }).size).toBe(0);
+  });
+});
+
+describe("S8.6: addCandidates emits one row per HA device, not one per entity", () => {
+  const layout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: { ground: { title: "Ground", outline: [], walls: [], rooms: [], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [] } },
+    catalog: [],
+  } as unknown as Layout);
+
+  const plugHa = (): HaData => ({
+    floors: [], areas: [],
+    devices: [{ id: "d1", name: "Kitchen plug" }],
+    entities: [
+      devEnt("switch.plug", "switch", "outlet"),
+      devEnt("sensor.plug_power", "sensor", "power"),
+      devEnt("binary_sensor.plug_connectivity", "binary_sensor", "connectivity", "diagnostic"),
+    ],
+  });
+
+  it("one row for the plug device, named from the device registry, entity is the main (switch)", () => {
+    const out = addCandidates(layout(), plugHa());
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ key: "ha-dev:d1", source: "ha", id: "d1", entity: "switch.plug", name: "Kitchen plug" });
+  });
+
+  it("Opus review finding 8: a device already placed through a sibling entity (the power sensor, not the main switch) does not reappear as its own row", () => {
+    // The catalog names sensor.plug_power, never the device's main entity switch.plug — a weaker test that placed
+    // the main entity itself would pass even if the sibling rule (placedDeviceIds' e.dev walk) were gone, since
+    // the ha-dev row would then just look identical to the catalog row. Placing the sibling instead exercises the
+    // actual rule: the device is still recognised as placed even though its own row would be keyed by switch.plug.
+    const l = layout();
+    l.catalog = [{ id: "c-1", floor: "ground", room: "", type: "other", name: "Plug power", entity: "sensor.plug_power" }];
+    const out = addCandidates(l, plugHa());
+    expect(out.find((c) => c.id === "d1")).toBeUndefined(); // the ha-dev row for the whole device is gone
+    expect(out.find((c) => c.entity === "switch.plug")).toBeUndefined(); // no fallback row via the main entity either
+  });
+});
+
+describe("switchChoicesForLight (S8.7): floor-scoped switches with a same-area name-match suggestion", () => {
+  /** A two-floor layout: "basement" floor has a room in area_basement, "ground" floor has a room in area_kitchen. */
+  const baseLayout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      basement: { title: "Basement", outline: [], rooms: [{ id: "r1", name: "Basement", area: "area_basement", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] },
+      ground: { title: "Ground", outline: [], rooms: [{ id: "r2", name: "Kitchen", area: "area_kitchen", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] },
+    },
+    catalog: [],
+  });
+  const baseHa = (extraEntities: HaData["entities"]): HaData => ({
+    floors: [{ id: "floor_basement", name: "Basement" }, { id: "floor_ground", name: "Ground" }],
+    areas: [
+      { id: "area_basement", name: "Basement", floor_id: "floor_basement" },
+      { id: "area_basement_other", name: "Basement storage", floor_id: "floor_basement" },
+      { id: "area_kitchen", name: "Kitchen", floor_id: "floor_ground" },
+    ],
+    entities: [{ id: "light.basement_dumb", name: "Basement dumb light", domain: "light", area: "area_basement" }, ...extraEntities],
+  });
+  const light: Device = { id: "d1", type: "light", entity: "light.basement_dumb", name: "Basement dumb light", x: 0, y: 0 };
+
+  it("1. a uniquely-named same-area switch (2 shared tokens) is suggested", () => {
+    const ha = baseHa([{ id: "switch.basement_light_switch", name: "Basement light switch", domain: "switch", area: "area_basement" }]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ entity: "switch.basement_light_switch", suggested: true });
+  });
+
+  it("2. two same-area switches tied at the top score: neither suggested", () => {
+    const ha = baseHa([
+      { id: "switch.basement_switch_a", name: "Basement switch A", domain: "switch", area: "area_basement" },
+      { id: "switch.basement_switch_b", name: "Basement switch B", domain: "switch", area: "area_basement" },
+    ]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out).toHaveLength(2);
+    expect(out.every((s) => !s.suggested)).toBe(true);
+  });
+
+  it("3. Opus review: the sole switch in the area is NOT suggested when it shares no name token (score must be >= 1, being the only candidate is not enough)", () => {
+    const ha = baseHa([{ id: "switch.unrelated_name", name: "Zzz totally unrelated", domain: "switch", area: "area_basement" }]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out).toHaveLength(1);
+    expect(out[0].suggested).toBe(false);
+  });
+
+  it("Opus review: a living room with 'Ceiling light' and a 'TV plug' gives no suggestion and auto-links nothing (defect 4: the old sole-candidate rule wrongly bound the plug)", () => {
+    const l: Layout = {
+      version: 2, unit: "cm", north: 0,
+      floors: { ground: { title: "Ground", outline: [], rooms: [{ id: "r1", name: "Living room", area: "area_living", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [{ id: "d1", type: "light", entity: "light.ceiling", name: "Ceiling light", x: 10, y: 10 }], furniture: [], unlinked: [] } },
+      catalog: [],
+    };
+    const ha: HaData = {
+      floors: [{ id: "floor_ground", name: "Ground" }],
+      areas: [{ id: "area_living", name: "Living room", floor_id: "floor_ground" }],
+      entities: [
+        { id: "light.ceiling", name: "Ceiling light", domain: "light", area: "area_living" },
+        { id: "switch.tv_plug", name: "TV plug", domain: "switch", area: "area_living" },
+      ],
+    };
+    const livingLight: Device = { id: "d1", type: "light", entity: "light.ceiling", name: "Ceiling light", x: 10, y: 10 };
+    const out = switchChoicesForLight(l, ha, "ground", livingLight);
+    expect(out).toHaveLength(1);
+    expect(out[0].suggested).toBe(false);
+    // autoLinkLights (EditorState, state.ts) shares this same scoring, so it must link nothing here — see
+    // state.test.ts "Opus review: a living room with Ceiling light and TV plug auto-links nothing".
+  });
+
+  it("4. a switch in a different area of the same plan floor is offered but never suggested", () => {
+    const ha = baseHa([{ id: "switch.storage_switch", name: "Basement storage switch", domain: "switch", area: "area_basement_other" }]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out).toHaveLength(1);
+    expect(out[0].suggested).toBe(false);
+  });
+
+  it("5. a switch on a different floor entirely is not offered at all", () => {
+    const ha = baseHa([{ id: "switch.kitchen_switch", name: "Kitchen switch", domain: "switch", area: "area_kitchen" }]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out).toHaveLength(0);
+  });
+
+  it("6. two candidates, different scores in the same area: the higher scorer is uniquely suggested", () => {
+    const ha = baseHa([
+      { id: "switch.basement_light_switch", name: "Basement light switch", domain: "switch", area: "area_basement" }, // shares {basement, light} = 2
+      { id: "switch.basement_other", name: "Basement fan switch", domain: "switch", area: "area_basement" }, // shares {basement} = 1... use unrelated below instead
+    ]);
+    // Replace the second with a zero-overlap name so the scores are unambiguously 2 vs 0.
+    ha.entities[2] = { id: "switch.basement_other", name: "Zzz unrelated", domain: "switch", area: "area_basement" };
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out).toHaveLength(2);
+    const suggested = out.filter((s) => s.suggested);
+    expect(suggested).toHaveLength(1);
+    expect(suggested[0].entity).toBe("switch.basement_light_switch");
+  });
+
+  it("without ha, falls back to catalog switches/plugs on this floor only", () => {
+    const l = baseLayout();
+    l.catalog = [
+      { id: "c1", floor: "basement", room: "Basement", type: "switch", name: "Basement switch", entity: "switch.basement_cat" },
+      { id: "c2", floor: "ground", room: "Kitchen", type: "switch", name: "Kitchen switch", entity: "switch.kitchen_cat" },
+    ];
+    const out = switchChoicesForLight(l, null, "basement", light);
+    expect(out.map((s) => s.entity)).toEqual(["switch.basement_cat"]);
+    expect(out[0].suggested).toBe(false); // no HA area data, so never suggested
+  });
+
+  it("Opus review finding 6: a switch_as_x light does not hide its sibling switch from switch candidates", () => {
+    // The device's main entity (mainEntity's own domain ranking) is the switch_as_x light, not the switch — but the
+    // switch itself must still be offered here; a light entity is never a switch candidate regardless.
+    const ha = baseHa([
+      { id: "light.basement_helper", name: "Basement helper light", domain: "light", area: "area_basement", dev: "dx", platform: "switch_as_x" },
+      { id: "switch.basement_real", name: "Basement real switch", domain: "switch", area: "area_basement", dev: "dx" },
+    ]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out.map((s) => s.entity)).toContain("switch.basement_real");
+    expect(out.map((s) => s.entity)).not.toContain("light.basement_helper");
+  });
+
+  it("Opus review finding 5: a multi-gang switch device offers every switch entity, not only its main one", () => {
+    const ha = baseHa([
+      { id: "switch.wall_l1", name: "Wall L1", domain: "switch", area: "area_basement", dev: "gang" },
+      { id: "switch.wall_l2", name: "Wall L2", domain: "switch", area: "area_basement", dev: "gang" },
+    ]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out.map((s) => s.entity).sort()).toEqual(["switch.wall_l1", "switch.wall_l2"]);
+  });
+
+  it("the light's current bound value stays offered even off-floor", () => {
+    const ha = baseHa([{ id: "switch.kitchen_switch", name: "Kitchen switch", domain: "switch", area: "area_kitchen" }]);
+    const boundLight: Device = { ...light, bound: "switch.kitchen_switch" };
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", boundLight);
+    expect(out.map((s) => s.entity)).toContain("switch.kitchen_switch");
   });
 });

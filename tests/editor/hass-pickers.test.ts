@@ -43,6 +43,31 @@ describe("haData", () => {
   it("when neither the area nor the entity registry answers, gives nothing so the editor keeps its text fields", async () => {
     expect(await haData(hass({ "config/area_registry/list": boom, "config/entity_registry/list": boom }))).toBeUndefined();
   });
+
+  // S8.6: devices, not entities — the device registry's own name (a user's rename first) and an entity's entity_category.
+  it("carries devices with name_by_user over name, and an entity's entity_category as cat", async () => {
+    const h = hass({
+      "config/device_registry/list": () => [
+        { id: "dev1", area_id: "living", name: "Plug (integration)", name_by_user: "Kitchen plug" },
+        { id: "dev2", area_id: "loft", name: "Sensor (integration)" },
+      ],
+      "config/entity_registry/list": () => [
+        { entity_id: "switch.plug", device_id: "dev1", original_name: "Switch" },
+        { entity_id: "sensor.plug_signal", device_id: "dev1", original_name: "Signal", entity_category: "diagnostic" },
+      ],
+    });
+    const d = (await haData(h))!;
+    expect(d.devices).toEqual([{ id: "dev1", name: "Kitchen plug", area: "living" }, { id: "dev2", name: "Sensor (integration)", area: "loft" }]);
+    const by = Object.fromEntries(d.entities.map((e) => [e.id, e]));
+    expect(by["switch.plug"]).toMatchObject({ dev: "dev1" });
+    expect("cat" in by["switch.plug"]).toBe(false);
+    expect(by["sensor.plug_signal"]).toMatchObject({ dev: "dev1", cat: "diagnostic" });
+  });
+
+  it("an older HA with no device registry: haData still returns, with no devices field", async () => {
+    const d = (await haData(hass({ "config/device_registry/list": boom })))!;
+    expect(d.devices).toBeUndefined();
+  });
 });
 
 describe("entitiesForType", () => {

@@ -1,8 +1,8 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, placedEntities, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedHaEntities, validate } from "../core";
-import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, Trace, WallKind } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate } from "../core";
+import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, Trace, WallKind } from "../core";
 import { traceImage } from "./trace";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
@@ -127,8 +127,6 @@ export class FloorplanStudioEditor extends LitElement {
     errors: { state: true },
     status: { state: true },
     addingFloor: { state: true },
-    devQuery: { state: true },
-    entQuery: { state: true },
     haList: { state: true },
     haListLoading: { state: true },
     haListErr: { state: true },
@@ -140,10 +138,6 @@ export class FloorplanStudioEditor extends LitElement {
   declare errors: string[];
   declare status: string;
   declare addingFloor: boolean;
-  /** The text in the Device menu search field. Cleared when the menu closes. */
-  declare devQuery: string;
-  /** S4.14: the text in the Add > Entities search field. Cleared when the submenu closes. */
-  declare entQuery: string;
   /** S4.10: everything floorplan-studio labelled in Home Assistant, loaded fresh each time the Home Assistant menu opens. `null` before the first load. */
   declare haList: Labelled[] | null;
   declare haListLoading: boolean;
@@ -167,11 +161,19 @@ export class FloorplanStudioEditor extends LitElement {
   private devColsPos: { x: number; y: number } | null = null;
   /** S8.1: Edit, Home Assistant: the popover's screen position; null when closed. Dragged by its head, closed by its X or Escape. */
   private haPos: { x: number; y: number } | null = null;
-  /** S8.1: the room panel's Place popup: the room's id (null when closed), its position, the rows unticked, the type chip pressed. */
+  /** S8.1/S8.4: the room panel's Place popup: the room's id (null when closed), its position, the rows ticked, the type chip pressed. */
   private placeRoom: string | null = null;
   private placePos: { x: number; y: number } | null = null;
-  private placeOff = new Set<string>();
+  private placeOn = new Set<string>();
   private placeType: DeviceType | null = null;
+  /** S8.5: Add > Device's floating panel: position (null when closed), the search text, and the four filter selects
+   * (a value of "" is "All…"; "__none__" is the added "None" option). Reset every time the panel opens. */
+  private addDevPos: { x: number; y: number } | null = null;
+  private addDevQuery = "";
+  private addDevFloor = "";
+  private addDevRoom = "";
+  private addDevArea = "";
+  private addDevType = "";
   /** File, Install code: whether the panel with the ready-to-paste card YAML is open. Fixed, not draggable; closed by its own X or Escape. */
   private installCodeOpen = false;
   /** S7.11: View, Trace image: whether its panel is open; the two points of a Scale step (null when not scaling); the Export tick, for this session only. */
@@ -187,8 +189,6 @@ export class FloorplanStudioEditor extends LitElement {
     this.errors = [];
     this.status = "Ready";
     this.addingFloor = false;
-    this.devQuery = "";
-    this.entQuery = "";
     this.haList = null;
     this.haListLoading = false;
     this.haListErr = "";
@@ -271,6 +271,11 @@ export class FloorplanStudioEditor extends LitElement {
     .fpanel .rows{overflow:auto;padding:6px 10px;display:flex;flex-direction:column;gap:2px}
     .prow{display:flex;align-items:center;gap:6px;cursor:pointer} .prow span{flex:1} .prow small{opacity:.7}
     .fpanel>.btn{margin:8px 10px 10px;width:auto;align-self:flex-start}
+    .add-dev-panel{width:520px}
+    .add-dev-panel>input[type=search]{margin:8px 10px 0;box-sizing:border-box;width:calc(100% - 20px)}
+    .add-dev-filters select{flex:1 1 45%;min-width:140px}
+    .add-dev-panel .rows .btn{display:flex;flex-direction:column;align-items:flex-start;gap:0}
+    .add-dev-panel .rows .btn small{opacity:.7}
     .installcode-panel{position:fixed;left:50%;top:90px;transform:translateX(-50%);z-index:30;width:520px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
     .installcode-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--fp-idle);font-weight:600}
     .installcode-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
@@ -451,7 +456,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.requestUpdate();
   };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------
@@ -846,6 +851,7 @@ export class FloorplanStudioEditor extends LitElement {
   private devColsHead = this.dragHead(() => this.devColsPos, (p) => { this.devColsPos = p; });
   private haHead = this.dragHead(() => this.haPos, (p) => { this.haPos = p; });
   private placeHead = this.dragHead(() => this.placePos, (p) => { this.placePos = p; });
+  private addDevHead = this.dragHead(() => this.addDevPos, (p) => { this.addDevPos = p; });
 
   /** S8.1: Edit, Home Assistant. Opening closes the menu it sits in and reloads the list (HA state moves on its own). */
   private toggleHa() {
@@ -860,7 +866,7 @@ export class FloorplanStudioEditor extends LitElement {
   private openPlace(i: number) {
     const r = this.st.f.rooms[i];
     if (!r) return;
-    this.placeRoom = r.id; this.placeOff = new Set(); this.placeType = null; this.placePos = this.panelPos(440);
+    this.placeRoom = r.id; this.placeOn = new Set(); this.placeType = null; this.placePos = this.panelPos(440);
     this.requestUpdate();
   }
   private closePlace() { this.placeRoom = null; this.placePos = null; this.requestUpdate(); }
@@ -869,6 +875,35 @@ export class FloorplanStudioEditor extends LitElement {
     const n = this.st.placeArea(i, new Set(ids));
     this.closePlace();
     if (n) this.changed(`Placed ${n} device${n === 1 ? "" : "s"}. Drag each to its spot.`);
+  }
+
+  // ---- S8.5: Add > Device — one floating panel over the catalog and HA entities ---------------------------------------
+
+  /** Closes the Add menu and opens the panel, filters reset, search focused. */
+  private openAddDev() {
+    this.closeMenus();
+    this.addDevPos = this.panelPos(520);
+    this.addDevQuery = ""; this.addDevFloor = ""; this.addDevRoom = ""; this.addDevArea = ""; this.addDevType = "";
+    this.requestUpdate();
+    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLInputElement>("#addDevSearch")?.focus({ preventScroll: true }));
+  }
+  private closeAddDev() { this.addDevPos = null; this.requestUpdate(); }
+  /**
+   * Places `c`: a catalog entry through the existing `placeDevice` (which already switches to its own stored floor), or
+   * an HA entity through `addHaEntity`, switching to the candidate's plan floor first when it differs from the current
+   * one — `EditorState.addEntity` only looks at rooms on the current floor. The panel stays open; the row disappears
+   * because `addCandidates` no longer lists a placed entity.
+   */
+  private pickAddDev(c: AddCandidate) {
+    const st = this.st;
+    if (c.source === "catalog") { this.placeDevice(c.id); this.requestUpdate(); return; }
+    const e = st.ha?.entities.find((x) => x.id === c.entity);
+    if (!e) return;
+    if (c.floorKey && c.floorKey !== st.floor) this.setFloor(c.floorKey);
+    // Opus review finding 11: names the placed device (and the "Added …" status) after c.name, the row the user
+    // just clicked — a device row's own name can differ from its main entity's, e.g. the device registry's name.
+    this.addHaEntity(c.name !== e.name ? { ...e, name: c.name } : e);
+    this.requestUpdate();
   }
 
   private toggleInstallCode = () => {
@@ -1180,15 +1215,18 @@ export class FloorplanStudioEditor extends LitElement {
     </div>`;
   }
 
-  /** S8.1: the room panel's Place popup: the area's placeable entities (`areaToPlace`, noise already left out), a chip per
-   * type present to narrow the list, a tick per row, and Place for the ticked rows that are shown. Draggable, X top-left. */
+  /** S8.1/S8.4: the room panel's Place popup: the area's placeable entities (`areaToPlace`, noise already left out), a chip
+   * per type present to narrow the list, a tick per row (none ticked on open), a Select all/Deselect all above the rows
+   * that acts only on the shown rows, and Place for the ticked rows that are shown. Draggable, X top-left. */
   private placeView(st: EditorState, i: number) {
     const room = st.f.rooms[i], p = this.placePos!;
     const all = st.areaToPlace(i);
     const types = TYPE_LABELS.filter(([t]) => all.some((e) => typeForEntity(e) === t));
     const shown = this.placeType ? all.filter((e) => typeForEntity(e) === this.placeType) : all;
-    const picked = shown.filter((e) => !this.placeOff.has(e.id));
-    const tick = (e: HaData["entities"][number]) => (ev: Event) => { if ((ev.target as HTMLInputElement).checked) this.placeOff.delete(e.id); else this.placeOff.add(e.id); this.requestUpdate(); };
+    const picked = shown.filter((e) => this.placeOn.has(e.id));
+    const allShownOn = shown.length > 0 && shown.every((e) => this.placeOn.has(e.id));
+    const tick = (e: HaData["entities"][number]) => (ev: Event) => { if ((ev.target as HTMLInputElement).checked) this.placeOn.add(e.id); else this.placeOn.delete(e.id); this.requestUpdate(); };
+    const toggleAll = () => { for (const e of shown) { if (allShownOn) this.placeOn.delete(e.id); else this.placeOn.add(e.id); } this.requestUpdate(); };
     // Opus review of S8.1: a ticked checkbox keeps focus and `onKey` ignores keys typed in an input, so Escape is handled here too.
     const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); this.closePlace(); } };
     return html`<div class="fpanel place-panel" id="placePanel" role="dialog" aria-label="Place devices" style="left:${p.x}px;top:${p.y}px" @keydown=${esc}>
@@ -1196,10 +1234,78 @@ export class FloorplanStudioEditor extends LitElement {
         <button class="btn keep" id="placeClose" aria-label="Close" @click=${() => this.closePlace()}>&times;</button>
         <span>Place devices of ${room.name}</span>
       </div>
-      <p>What Home Assistant has in this area and the plan does not show yet. Readings with no icon of their own (power, energy, battery…) are left out. Untick what you do not want; each placed device can then be dragged to its spot.</p>
+      <p>What Home Assistant has in this area and the plan does not show yet. Readings with no icon of their own (power, energy, battery…) are left out. Tick what to place; each placed device can then be dragged to its spot.</p>
       <div class="chips">${types.map(([t, label]) => html`<button class="chip keep" data-ptype=${t} aria-pressed=${this.placeType === t ? "true" : "false"} @click=${() => { this.placeType = this.placeType === t ? null : t; this.requestUpdate(); }}>${label}</button>`)}</div>
-      <div class="rows">${shown.map((e) => html`<label class="prow" data-pent=${e.id}><input type="checkbox" .checked=${live(!this.placeOff.has(e.id))} @change=${tick(e)}><span>${e.name}</span><small>${e.id}</small></label>`)}</div>
+      <button class="btn keep" id="placeAll" ?disabled=${!shown.length} @click=${toggleAll}>${allShownOn ? "Deselect all" : "Select all"}</button>
+      <div class="rows">${shown.map((e) => html`<label class="prow" data-pent=${e.id}><input type="checkbox" .checked=${live(this.placeOn.has(e.id))} @change=${tick(e)}><span>${e.name}</span><small>${e.id}</small></label>`)}</div>
       <button class="btn primary keep" id="placeGo" ?disabled=${!picked.length} @click=${() => this.placeGo(i, picked.map((e) => e.id))}>Place ${picked.length}</button>
+    </div>`;
+  }
+
+  /**
+   * S8.5: Add > Device — one floating, draggable panel (X top-left) merging the old Device and Entities submenus:
+   * `addCandidates` for the source list, a search box, and four selects (Floor/Room/Area/Type). Each select's own
+   * options are only the values present among candidates that pass the OTHER active filters and the search, so
+   * picking one narrows the rest; the select's own current value always stays listed, even if it would otherwise
+   * drop out. A select is left out entirely when no candidate in the whole list has a value for it (no Home
+   * Assistant known yet → no Area select). Rows are grouped by type, as the old Device menu grouped its own list.
+   * A pick places at once (switching floor first when the candidate's floor differs, `pickAddDev`); the panel stays
+   * open, since the placed row simply drops out of `addCandidates` on the next render.
+   */
+  private addDevView(st: EditorState) {
+    const p = this.addDevPos!;
+    const all = addCandidates(st.layout, st.ha ?? null);
+    const q = this.addDevQuery.trim().toLowerCase();
+    const bySearch = q ? all.filter((c) => c.name.toLowerCase().includes(q) || c.entity.toLowerCase().includes(q)) : all;
+    const passes = (c: AddCandidate, skip?: "floor" | "room" | "area" | "type") =>
+      (skip === "floor" || !this.addDevFloor || (this.addDevFloor === "__none__" ? !c.floor : c.floor === this.addDevFloor)) &&
+      (skip === "room" || !this.addDevRoom || (this.addDevRoom === "__none__" ? !c.room : c.room === this.addDevRoom)) &&
+      (skip === "area" || !this.addDevArea || (this.addDevArea === "__none__" ? !c.area : c.area === this.addDevArea)) &&
+      (skip === "type" || !this.addDevType || c.type === this.addDevType);
+    const shown = bySearch.filter((c) => passes(c));
+    const selectFor = (field: "floor" | "room" | "area", current: string) => {
+      const pool = bySearch.filter((c) => passes(c, field));
+      let values = [...new Set(pool.map((c) => c[field]).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b));
+      let none = pool.some((c) => !c[field]);
+      if (current && current !== "__none__" && !values.includes(current)) values = [...values, current].sort((a, b) => a.localeCompare(b));
+      if (current === "__none__") none = true;
+      return { values, none };
+    };
+    const selHtml = (id: string, field: "floor" | "room" | "area", allLabel: string, current: string, onSet: (v: string) => void) => {
+      if (!all.some((c) => c[field])) return nothing; // no candidate in the whole list has a value: leave the select out entirely
+      const { values, none } = selectFor(field, current);
+      return html`<select id=${id} aria-label=${allLabel} .value=${live(current)} @change=${(e: Event) => { onSet((e.target as HTMLSelectElement).value); this.requestUpdate(); }}>
+        <option value="">${allLabel}</option>
+        ${values.map((v) => html`<option value=${v}>${v}</option>`)}
+        ${none ? html`<option value="__none__">None</option>` : nothing}
+      </select>`;
+    };
+    const typePool = bySearch.filter((c) => passes(c, "type"));
+    let typeOpts = TYPE_LABELS.filter(([t]) => typePool.some((c) => c.type === t));
+    if (this.addDevType && !typeOpts.some(([t]) => t === this.addDevType)) {
+      const found = TYPE_LABELS.find(([t]) => t === this.addDevType);
+      if (found) typeOpts = [...typeOpts, found];
+    }
+    // Opus review of S8.1's own place popup: an input or select swallows keys before `onKey` sees them, so Escape is handled here too.
+    const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); this.closeAddDev(); } };
+    return html`<div class="fpanel add-dev-panel" id="addDevPanel" role="dialog" aria-label="Add device" style="left:${p.x}px;top:${p.y}px" @keydown=${esc}>
+      <div class="fpanel-head" @pointerdown=${this.addDevHead.down} @pointermove=${this.addDevHead.move} @pointerup=${this.addDevHead.up} @pointercancel=${this.addDevHead.up}>
+        <button class="btn keep" id="addDevClose" aria-label="Close" @click=${() => this.closeAddDev()}>&times;</button>
+        <span>Add device</span>
+      </div>
+      <input id="addDevSearch" type="search" autocomplete="off" aria-label="Search name or entity id" placeholder="Search name or entity" .value=${live(this.addDevQuery)} @input=${(e: Event) => { this.addDevQuery = (e.target as HTMLInputElement).value; this.requestUpdate(); }}>
+      <div class="chips add-dev-filters">
+        ${selHtml("addDevFloor", "floor", "All floors", this.addDevFloor, (v) => { this.addDevFloor = v; })}
+        ${selHtml("addDevRoom", "room", "All rooms", this.addDevRoom, (v) => { this.addDevRoom = v; })}
+        ${selHtml("addDevArea", "area", "All areas", this.addDevArea, (v) => { this.addDevArea = v; })}
+        ${all.length ? html`<select id="addDevType" aria-label="All types" .value=${live(this.addDevType)} @change=${(e: Event) => { this.addDevType = (e.target as HTMLSelectElement).value; this.requestUpdate(); }}>
+          <option value="">All types</option>
+          ${typeOpts.map(([t, label]) => html`<option value=${t}>${label}</option>`)}
+        </select>` : nothing}
+      </div>
+      ${all.length === 0 ? html`<span class="grp" id="addDevNone">Everything is on the plan</span>`
+        : shown.length === 0 ? html`<span class="grp" id="addDevNone">Nothing matches</span>`
+        : html`<div class="rows">${TYPE_LABELS.map(([t, label]) => { const g = shown.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-add=${c.key} @click=${() => this.pickAddDev(c)}>${c.name}<small>${c.room || c.area ? ` ${c.room || c.area}` : ""}</small></button>`)}` : nothing; })}</div>`}
     </div>`;
   }
 
@@ -1223,7 +1329,8 @@ export class FloorplanStudioEditor extends LitElement {
 
   private roomCtxItems(i: number) {
     const st = this.st, r = st.f.rooms[i], ha = st.ha;
-    const unplaced = r?.area && ha ? ha.entities.filter((e) => e.area === r.area && !placedEntities(st.layout).has(e.id)) : [];
+    // S8.6: one row per device (its main entity), not one per raw entity — a plug offers itself, not its power sensor.
+    const unplaced = r?.area ? unplacedDevicesInArea(st.layout, ha, r.area) : [];
     return html`<button class="btn" id="cmColour" @click=${() => this.closeCtxMenu()}>Change colour</button>
       <button class="btn warn" id="cmDelete" @click=${() => this.ctxDelete()}>Delete</button>
       ${unplaced.length ? html`<div class="sep"></div><span class="grp">Add device from ${r!.name}</span>
@@ -1286,6 +1393,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
     if (ev.key === "Escape" && this.haPos) { ev.preventDefault(); this.toggleHa(); return; }
     if (ev.key === "Escape" && this.placeRoom !== null) { ev.preventDefault(); this.closePlace(); return; }
+    if (ev.key === "Escape" && this.addDevPos) { ev.preventDefault(); this.closeAddDev(); return; }
     if (ev.key === "Escape" && this.installCodeOpen) { ev.preventDefault(); this.toggleInstallCode(); return; }
     if (ev.key === "Escape" && this.traceScale) { ev.preventDefault(); this.cancelTraceScale(); return; }
     if (ev.key === "Escape" && this.traceOpen) { ev.preventDefault(); this.toggleTrace(); return; }
@@ -1318,8 +1426,9 @@ export class FloorplanStudioEditor extends LitElement {
   /** A button (panel Delete, a menu item) keeps focus on itself and may vanish or hide: hand focus back so Ctrl+Z and Delete keep working. */
   private onButtonClick = (ev: Event) => {
     const el = ev.composedPath()[0] as Element;
-    // "+" hands focus to its own input; helpClose hands focus to the #help toggle button (toggleHelp).
-    if (el.closest?.("button") && !el.closest("#addFloor") && !el.closest("#helpClose")) this.focus({ preventScroll: true });
+    // "+" hands focus to its own input; helpClose hands focus to the #help toggle button (toggleHelp);
+    // addDevBtn hands focus to the panel's own search box (openAddDev), same reason.
+    if (el.closest?.("button") && !el.closest("#addFloor") && !el.closest("#helpClose") && !el.closest("#addDevBtn")) this.focus({ preventScroll: true });
   };
 
   /** Keys only reach a focused editor, so a highlighted selection must mean Delete works: clear it when focus leaves for good. */
@@ -1358,6 +1467,14 @@ export class FloorplanStudioEditor extends LitElement {
   /** View, Rotate the plan: one undo step. The stored coordinates are not touched; only `layout.rotate` changes. */
   private setColour(t: DeviceType, hex: string | null) {
     if (this.st.setColour(t, hex)) this.changed(hex ? `${t} colour set` : `${t} colour reset`);
+  }
+  /** S8.7: Edit, "Link lights to switches" — links every unbound light on this floor to its uniquely suggested
+   *  same-area switch, one undo step. Needs HA area data to suggest anything, so the button only shows with `ha`. */
+  private autoLinkLights() {
+    const n = this.st.autoLinkLights(this.floor);
+    this.closeMenus(); // Opus review finding 14: a top-level Edit item is a one-shot action, like Add's own; it closes the menu
+    if (n > 0) this.changed(`Linked ${n} light${n === 1 ? "" : "s"}.`);
+    else { this.status = "No light had a clear switch match."; this.requestUpdate(); }
   }
   private rotatePlan(step: number) {
     if (this.st.setRotate((this.st.layout.rotate ?? 0) + step)) this.changed(`Plan rotated to ${this.st.layout.rotate}°`);
@@ -1678,21 +1795,49 @@ export class FloorplanStudioEditor extends LitElement {
     }
   }
 
-  /** S4.6: asks, has Home Assistant build the "turns on..." motion-group automation, then opens it in HA's own editor. */
-  private async motionAutomation(motionGroupId: string, lightGroupId: string, minutes: number) {
+  /**
+   * S4.6/S8.7: asks, has Home Assistant build the "turns on..." motion automation, then opens it in HA's own
+   * editor. Shared by the Group menu's motion-group flow (`deviceIndex` omitted: the plan never changes, as
+   * before) and the light panel's own "Motion" pick (`deviceIndex` given: on success, also records `motion` on
+   * that specific light — a group's own light target may not be one `Device` on the plan, so this side effect
+   * only ever applies to a concrete light).
+   *
+   * Opus review finding 2: `deviceIndex` is only a snapshot from before `askHa` and `createAutomation` — either
+   * await can run for a while, and the user is free to undo, delete the device, redraw the floor, or switch floors
+   * while it is in flight. The device's own id and floor are captured up front and the device is looked up again,
+   * by id, after the automation exists; a light that is gone, or is no longer a light, does not stop the
+   * automation from being reported as created, only from being recorded on the plan.
+   */
+  private async motionAutomation(motionId: string, lightId: string, minutes: number, deviceIndex?: number) {
     const w = this.writer;
-    if (!w || !lightGroupId || !(minutes > 0)) return;
+    if (!w || !lightId || !(minutes > 0)) return;
+    const floorKey = this.st.floor;
+    const devId = deviceIndex !== undefined ? this.st.f.devices[deviceIndex]?.id : undefined;
     const ok = await askHa(this.shadowRoot ?? this, "Create automation", [
-      `Home Assistant will get a new automation: ${lightGroupId} turns on with ${motionGroupId}, off ${minutes} minute${minutes === 1 ? "" : "s"} after motion stops, labelled floorplan-studio.`,
+      `Home Assistant will get a new automation: ${lightId} turns on with ${motionId}, off ${minutes} minute${minutes === 1 ? "" : "s"} after motion stops, labelled floorplan-studio.`,
       "It opens in Home Assistant's own editor once created, to finish or rename."]);
     if (!ok) return;
     this.status = "Creating the automation..."; this.requestUpdate();
     try {
-      const cfg = motionLights(motionGroupId, lightGroupId, Math.round(minutes * 60));
+      const cfg = motionLights(motionId, lightId, Math.round(minutes * 60));
       const id = await w.createAutomation(cfg);
       void this.loadHaList(); // S8.1: the Edit, Home Assistant button lists it
       this.st.motionLightGroup = ""; this.st.motionMinutes = "";
-      this.status = `Created the automation. Opening it in Home Assistant...`; this.requestUpdate();
+      let linked = devId === undefined; // the group-motion flow (no deviceIndex) never tries to link anything
+      if (devId !== undefined) {
+        const floor = this.st.layout.floors[floorKey];
+        const i = floor?.devices.findIndex((d) => d.id === devId) ?? -1;
+        const d = i >= 0 ? floor!.devices[i] : undefined;
+        if (d && d.type === "light") {
+          if (this.st.edit((f) => { f.devices[i].motion = motionId; })) this.changed();
+          this.st.pendingMotion = "";
+          linked = true;
+        }
+      }
+      this.status = linked
+        ? `Created the automation. Opening it in Home Assistant...`
+        : `Created the automation. The light was no longer there to record the link on. Opening it in Home Assistant...`;
+      this.requestUpdate();
       openAutomation(id);
     } catch (err) {
       this.status = `Could not create the automation: ${err instanceof Error ? err.message : String(err)}. Nothing was changed.`; this.requestUpdate();
@@ -2027,13 +2172,6 @@ export class FloorplanStudioEditor extends LitElement {
     const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night }) + turnG(overlay);
     const counts: Record<string, number> = {};
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
-    const unplaced = st.unplaced(), q = this.devQuery.trim().toLowerCase();
-    const matches = q ? unplaced.filter((c) => c.name.toLowerCase().includes(q) || c.entity.toLowerCase().includes(q)) : unplaced;
-    // S4.14: the Add > Entities palette — every HA entity not yet on the plan or in the catalog, filtered the same way the Device menu filters its own list.
-    const palette = ha ? unplacedHaEntities(st.layout, ha) : [];
-    const eq = this.entQuery.trim().toLowerCase();
-    const entMatches = eq ? palette.filter((e) => e.name.toLowerCase().includes(eq) || e.id.toLowerCase().includes(eq)) : palette;
-    const areaName = (id: string | null | undefined) => (id ? ha?.areas.find((a) => a.id === id)?.name : undefined);
     const pressed = (b: boolean) => (b ? "true" : "false");
     return html`
       <div class="bar">
@@ -2060,18 +2198,7 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="addZone" @click=${() => this.addArea("zone")}>Zone</button>
             <button class="btn" id="addStairs" @click=${() => this.addStairs()}>Stairs</button>
           </details>
-          <details class="sub" id="mDev" @toggle=${this.onDevToggle}><summary class="btn">Device</summary>
-            <input id="devSearch" type="search" autocomplete="off" aria-label="Search devices by name or entity id" placeholder="Search name or entity" .value=${live(this.devQuery)} @input=${(e: Event) => { this.devQuery = (e.target as HTMLInputElement).value; }} @keydown=${this.onDevSearchKey}>
-            ${unplaced.length === 0 ? html`<span class="grp" id="devNone">Every device in the catalog is on the plan</span>` : nothing}
-            ${unplaced.length > 0 && matches.length === 0 ? html`<span class="grp" id="devNone">No device matches</span>` : nothing}
-            ${TYPE_LABELS.map(([t, label]) => { const g = matches.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-dev=${c.id} @click=${() => this.placeDevice(c.id)}>${c.name}${c.room ? ` — ${c.room}` : ""}</button>`)}` : nothing; })}
-          </details>
-          ${ha ? html`<details class="sub" id="addEntSub" @toggle=${this.onAddEntToggle}><summary class="btn">Entities</summary>
-            <input id="entSearch" type="search" autocomplete="off" aria-label="Search Home Assistant entities by name or entity id" placeholder="Search name or entity" .value=${live(this.entQuery)} @input=${(e: Event) => { this.entQuery = (e.target as HTMLInputElement).value; }} @keydown=${this.onAddEntSearchKey}>
-            ${palette.length === 0 ? html`<span class="grp" id="addEntNone">Nothing new in Home Assistant</span>` : nothing}
-            ${palette.length > 0 && entMatches.length === 0 ? html`<span class="grp" id="addEntNone">No entity matches</span>` : nothing}
-            ${TYPE_LABELS.map(([t, label]) => { const g = entMatches.filter((e) => typeForEntity(e) === t); return g.length ? html`<span class="grp">${label}</span>${g.map((e) => html`<button class="btn" data-ent=${e.id} @click=${() => this.addHaEntity(e)}>${e.name}${areaName(e.area) ? ` — ${areaName(e.area)}` : ""}</button>`)}` : nothing; })}
-          </details>` : nothing}
+          <button class="btn" id="addDevBtn" @click=${() => this.openAddDev()}>Device…</button>
           <div class="sep"></div>
           <select id="addFurn" aria-label="Add furniture" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addFurniture(el.value); el.value = ""; this.closeMenus(); }}>
             <option value="">Furniture…</option>
@@ -2127,7 +2254,8 @@ export class FloorplanStudioEditor extends LitElement {
               <label for="motMinutes">off after (minutes)</label>
               <input id="motMinutes" type="number" min="1" step="1" .value=${live(st.motionMinutes)} @change=${(e: Event) => { st.motionMinutes = (e.target as HTMLInputElement).value; this.requestUpdate(); }}>
               <p><button class="btn" id="motGo" @click=${() => { const min = Number(st.motionMinutes); if (st.motionLightGroup && min > 0) void this.motionAutomation(activeGroup.id, st.motionLightGroup, min); }}>Create automation</button></p>` : nothing}
-          </details>` : nothing}
+          </details>
+          <button class="btn" id="linkLights" title="Link every unbound light on this floor to its uniquely matched switch" @click=${() => this.autoLinkLights()}>Link lights to switches</button>` : nothing}
           <div class="rotrow"><span id="rotv">Rotate the plan: ${st.layout.rotate ?? 0}°</span>
             <button class="btn keep" id="rotl" aria-label="Rotate the plan 45 degrees left" @click=${() => this.rotatePlan(-45)}>&#8630; 45°</button>
             <button class="btn keep" id="rotr" aria-label="Rotate the plan 45 degrees right" @click=${() => this.rotatePlan(45)}>45° &#8631;</button></div>
@@ -2163,6 +2291,7 @@ export class FloorplanStudioEditor extends LitElement {
           ${this.devColsPos ? this.devColsView(st) : nothing}
           ${this.haPos && this.writer ? this.haView() : nothing}
           ${(() => { const i = this.placeRoom === null ? -1 : st.f.rooms.findIndex((r) => r.id === this.placeRoom); return i >= 0 && this.placePos ? this.placeView(st, i) : nothing; })()}
+          ${this.addDevPos ? this.addDevView(st) : nothing}
           ${this.installCodeOpen ? this.installCodeView() : nothing}
           ${this.traceOpen ? this.traceView() : nothing}
         </div>
@@ -2178,25 +2307,6 @@ export class FloorplanStudioEditor extends LitElement {
   private onOptToggle = (ev: Event) => {
     const m = ev.currentTarget as HTMLDetailsElement;
     if (!m.open) this.closeSubs(m);
-  };
-  /** Opening the Device menu focuses the search; closing it, by any route, forgets the text. */
-  private onDevToggle = (ev: Event) => {
-    const m = ev.currentTarget as HTMLDetailsElement;
-    if (m.open) this.renderRoot.querySelector<HTMLInputElement>("#devSearch")?.focus({ preventScroll: true });
-    else if (this.devQuery) this.devQuery = "";
-  };
-  /** Keys typed in the search field belong to the field (onKey ignores inputs); only Escape is ours: close the menu. */
-  private onDevSearchKey = (ev: KeyboardEvent) => {
-    if (ev.key === "Escape") { ev.preventDefault(); this.closeMenus(); }
-  };
-  /** S4.14: Add > Entities' own search, the same pattern as Device's (`onDevToggle`/`onDevSearchKey`). */
-  private onAddEntToggle = (ev: Event) => {
-    const m = ev.currentTarget as HTMLDetailsElement;
-    if (m.open) this.renderRoot.querySelector<HTMLInputElement>("#entSearch")?.focus({ preventScroll: true });
-    else if (this.entQuery) this.entQuery = "";
-  };
-  private onAddEntSearchKey = (ev: KeyboardEvent) => {
-    if (ev.key === "Escape") { ev.preventDefault(); this.closeMenus(); }
   };
   /**
    * S4.14: places `e` from the Add > Entities palette — the room its HA area names, when one is drawn on the current

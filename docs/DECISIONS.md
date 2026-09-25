@@ -2,6 +2,169 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 Opus review of S8.4-S8.7: "Link lights to switches" moves out of Edit > Group
+
+Finding 14 of the review: the button lived inside the Group submenu, but it
+acts on every unbound light on the floor at once, not the group chosen
+there — nesting it under Group read as if it were scoped to one. It is now
+a top-level Edit item, right after Group, and closes the menu on click like
+Add's own one-shot items. `tests/editor/editor.spec.ts`'s S8.1 test pinning
+Edit's item order is updated for the new position, with a comment saying
+why, per finding 19 of the Sprint 2 reviews (a pinned order changed on
+purpose needs a deliberate test update, not a loosened assertion). See
+`src/editor/editor-app.ts` (the Edit menu template, `autoLinkLights`).
+
+## 2026-09-25 Opus review of S8.4-S8.7: switch candidates list every switch entity, not one per device
+
+Findings 5 and 6: `switchChoicesForLight`'s "Controlled by" candidates were
+built one row per HA device (`mainEntitiesByDevice`'s main entity), so a
+multi-gang wall switch device (`switch.wall_l1`, `switch.wall_l2`) offered
+only one of its two switches, and a `switch_as_x` helper light — ranked
+above a plain switch by `mainEntity`'s own domain order — hid its own
+physical switch sibling entirely. The candidate list now walks every
+switch-domain, non-`entity_category` entity directly, with no device
+grouping: a multi-gang device offers a row per gang, and a switch_as_x
+light (domain `light`) is simply never a candidate, so it can never shadow
+its sibling switch. `EditorState.autoLinkLights` also now skips a light
+whose own HA entity has `platform: "switch_as_x"` — it is a switch wrapped
+as a light, not a light with a switch of its own to find. See
+`src/core/ha.ts` (`switchChoicesForLight`) and `src/editor/state.ts`
+(`autoLinkLights`).
+
+## 2026-09-25 Opus review of S8.4-S8.7: camera/climate/media_player/vacuum outrank light/switch in mainEntity
+
+Finding 7 of the review: `mainEntity`'s domain ranking put light and switch
+above camera, climate, media_player and vacuum, so a camera with a floodlight
+(a `light.*` entity on the same device) showed as a light, and a climate
+device with a boost relay switch showed as a switch — both wrong in the
+device rows the Add panel, Place popup and room menu build. New order:
+camera > climate > media_player > vacuum > light > switch > cover > fan >
+lock > binary_sensor > sensor. See `src/core/ha.ts` (`DOMAIN_PRIORITY`).
+
+## 2026-09-25 Opus review of S8.4-S8.7: drop the sole-candidate suggestion rule
+
+Finding 4 of the review: `switchChoicesForLight`'s suggestion rule offered a
+switch as "(suggested)" whenever it was the *only* switch or plug candidate in
+the light's own HA area, whatever its name, score 0 included. A living room
+with one light and one unrelated switch (a "TV plug" next to a "Ceiling
+light") suggested the plug, and "Link lights to switches" would have bound it.
+Being the sole candidate is no longer sufficient: a candidate is `suggested`
+only when it scores at least 1 shared name token with the light and is the
+unique top scorer in its area, the same rule that already applied when there
+was more than one candidate. `autoLinkLights` uses the same function, so it
+inherits the fix. See `src/core/ha.ts` (`switchChoicesForLight`) and
+`tests/core/ha.test.ts`.
+
+## 2026-09-25 S8.7 linking a light: floor switches, a name-match suggestion, motion
+
+Diego's feedback: "when linking lights, only show the floor related switches,
+add also motion groups and motion sensors, or map them automatically, e.g.
+basement dumb light is managed by basement light switch." Three related
+changes to the light panel's "Controlled by" field.
+
+Floor scoping: `bound`'s select used to offer every switch and plug in the
+whole plan's catalog (`bindChoices`), so a basement light could be bound to an
+attic switch by mistake. `switchChoicesForLight` (`src/core/ha.ts`) restricts
+the candidates to the light's own plan floor: the floor's own catalogued
+switches/plugs, union, with HA connected, every HA switch-domain entity
+(one row per device, `mainEntity`) whose HA area sits on an HA floor this
+plan floor's own rooms map to (via each room's `area`'s own `floor_id` — the
+same room-to-area matching S8.5 already uses, just followed one step further
+to the area's floor). The light's current `bound` value always stays offered
+even off-floor, so a value set before this scoping existed does not vanish.
+
+Suggestion: within the switches offered, one may be marked `suggested` — the
+select shows it first, labelled "(suggested)". A candidate can only be
+suggested when its own HA area equals the light's own HA area (never a
+same-floor, different-room guess), and only when it is the *unique* top
+scorer there by shared name tokens (lowercased, split on non-alphanumeric
+runs, "switch"/"plug"/"socket"/"relay"/"the"/"and"/"of" dropped, then set
+intersection size) — or the sole switch/plug candidate in that area, any
+score including zero. A tie at the top suggests nobody: a wrong guess is
+worse than no guess. Edit, Group holds "Link lights to switches", visible
+whenever HA is connected: it links every unbound light on the current floor
+to its suggested switch, one undo step for the whole floor, so it reverts as
+a single gesture; a light that already has `bound` is never touched, and it
+never touches `motion`.
+
+Motion: the same "Controlled by" select gains a second, `motion:`-prefixed
+optgroup listing this floor's own motion/occupancy/presence binary_sensors
+and any `group.*` entity whose every member is such a sensor with at least
+one on this floor — same area as the light first. Picking one never writes
+`bound`; it opens a small "Turn on with X, off after N min, Create
+automation" row that reuses the existing motion-group automation builder,
+generalised (`EditorApp.motionAutomation`) to take a concrete light entity
+and, only when called from this per-light flow, record `motion` on that
+device in the same undo step the automation write is not part of (HA writes
+are never undoable; the plan edit is). Unlinking removes only `motion`; the
+automation stays in HA, on purpose — same reasoning as `bound` recording a
+link the editor does not own. `device.motion` (`src/core/schema.ts`) is the
+new field, validated exactly like `bound`: light-only, an entity id, must
+differ from `entity`. Without a writer the whole Motion optgroup and row are
+left out — nothing to link to.
+
+## 2026-09-25 S8.6 devices, not entities, in every add list
+
+Diego's own feedback: "in the device list i see plug network indicator and not
+the plug itself. just add the devices not the entities, and this applies
+everywhere." A plug is one physical thing to HA's user, several entities to
+its registry — the switch, a power sensor, an energy sensor, a diagnostic
+connectivity sensor. Every list that adds a new icon to the plan from a raw HA
+entity (Add > Device, the room panel's Place popup, a room's right-click "Add
+device from") now offers one row per HA device, not one per entity.
+
+`mainEntity` (`src/core/ha.ts`) is the ranking that picks which entity stands
+for the device: drop anything with a truthy `entity_category` first (a plug's
+network indicator is exactly this — "config" or "diagnostic"), then rank what
+is left by domain (light > switch > climate > cover > fan > lock >
+media_player > vacuum > camera > binary_sensor > sensor > everything else), a
+device name match or the shortest id breaking a tie. A device whose entities
+are all diagnostic gets no row at all — it has nothing of its own to place. A
+device already placed through any one of its entities does not reappear
+through a sibling (a plug placed via its switch does not resurface via its
+power sensor), so "placed" is now tracked per device, not per entity.
+
+The one picker this does not touch is the already-placed device's own entity
+field (`deviceEntity`, `src/editor/panels.ts`): someone may deliberately want
+the power sensor instead of the switch once the icon already exists, so it
+still lists every entity, only grouped under a `<optgroup>` per device within
+its existing In room/Elsewhere/Everything else tiers.
+
+`HaData` gained `devices` (the HA device registry: id, name, area) and `cat`
+on an entity (its `entity_category`). Both are optional — an older HA with no
+device registry, or a registry call that fails, falls back to grouping by the
+raw `dev` field on each entity and labelling the row with the main entity's
+own name, so the feature degrades rather than disappears.
+
+## 2026-09-25 S8.4/S8.5 Place starts empty; Add > Device is one panel with Floor/Room/Area/Type filters
+
+Two related changes to how a device gets onto the plan, both from a day of use
+on Diego's own house.
+
+S8.4: the room panel's Place popup ticked every entity by default and let a
+user untick what they did not want. Diego place a room and the popup placed
+things he had not meant to. It now opens with nothing ticked (`placeOn`, not
+the old `placeOff`), Place stays disabled at zero, and a single button toggles
+between "Select all" and "Deselect all" for whatever the type chip currently
+shows, so a filtered batch is still one click.
+
+S8.5: Add held two separate submenus, Device (the plan's own catalog) and
+Entities (every other HA entity), because they grew at different times. A user
+placing a device does not care which list it lives in, and the entity they
+want (say the study's temperature sensor) took scanning both. They merge into
+one floating panel, filtered by Floor, Room, Area and Type. Floor and Room are
+plan concepts, not HA's: a candidate's floor and room are found by matching its
+HA entity's area to the plan room that already has that area (any floor), so
+an entity with no room drawn yet has no floor or room to filter by, only an
+Area (HA's own name for it) if HA knows one. Each select lists only the values
+actually present among candidates passing every *other* active filter, so
+picking one narrows the rest instead of showing dead options; a select with no
+value anywhere in the full candidate list (typically Area, with no HA
+connected) does not appear at all. Picking a candidate whose room lives on
+another floor switches to that floor first, so a bedroom sensor lands in the
+Bedroom room, not wherever the editor happened to be looking. The panel stays
+open after a pick, since a HA install has more than one thing to add at once.
+
 ## 2026-09-25 S8.3 the card loads as a dashboard resource in storage mode
 
 Supersedes how the card is loaded, not the re-define below. Diego asked why the

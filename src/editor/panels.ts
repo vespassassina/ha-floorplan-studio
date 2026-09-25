@@ -1,6 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { entitiesForType, groupKind, inside, placedEntities, roomHaBox } from "../core";
+import { entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -47,6 +47,9 @@ export interface PanelCtx {
   controlsAutomation?: (devIndex: number, targets: string[]) => void;
   /** S4.6: build and create the "schedule" automation for the device at `devIndex`, after asking, then open it in HA. Absent without a writer. */
   scheduleAutomation?: (devIndex: number, on: string, off: string) => void;
+  /** S8.7: build and create the "turns on with motion" automation for the light at `devIndex`, off `minutes` after
+   *  motion stops, after asking, then open it in HA and record `motion` on the light — one undo step. Absent without a writer. */
+  linkMotion?: (devIndex: number, motionEntity: string, minutes: number) => void;
   /** S4.7: opens Home Assistant's own more-info dialog for an entity. Always present; harmless when nothing is listening (standalone build). */
   moreInfo(entityId: string): void;
   /** S4.7: runs a scene (`scene.turn_on`) from the room box. Absent without a writer. */
@@ -579,7 +582,7 @@ function deviceTypeField(c: PanelCtx, i: number) {
   const set = (t: string) => c.commit((f) => {
     const dv = f.devices[i];
     dv.type = t as DeviceType;
-    if (t !== "light") delete dv.bound;
+    if (t !== "light") { delete dv.bound; delete dv.motion; }
     if (t !== "heater") { delete dv.trvs; delete dv.tempSensors; }
     if (t !== "ac") delete dv.linked;
     if (t !== "person") delete dv.room;
@@ -600,6 +603,13 @@ function areaDiffField(c: PanelCtx, i: number) {
  * The device's Home Assistant entity. With HA data it is a select: the entities that suit the device's type, those in the room's area first,
  * then everything else, so nothing is out of reach. Entities already placed on the plan are left out. It can attach an unbound device, switch a bound one to another, and go back to
  * "not connected" (entity ""). An id HA does not know stays as the selected option. Without HA data it stays a text field.
+ *
+ * S8.6: this is the one picker that still lists individual entities rather than collapsing to one row per device —
+ * a device icon already exists here, so someone may deliberately want its power sensor rather than its switch. It
+ * groups the options under one `<optgroup>` per device instead, nested within the existing In room/Elsewhere/
+ * Everything else tiers (an HTML `<optgroup>` cannot itself nest, so each device gets its own sibling optgroup,
+ * ordered by device name; the tier's device-less entities keep the tier's own label, in a trailing optgroup). Within
+ * a device's optgroup, a config/diagnostic entity (`cat`) sorts after the device's other entities.
  */
 function deviceEntity(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i], ha = c.st.ha;
@@ -611,32 +621,93 @@ function deviceEntity(c: PanelCtx, i: number) {
   const placed = placedEntities(c.st.layout);
   const { match, rest } = entitiesForType({ ...ha, entities: ha.entities.filter((e) => e.id === d.entity || !placed.has(e.id)) }, d.type);
   const here = room ? match.filter((e) => e.area === room.area) : [], elsewhere = match.filter((e) => !here.includes(e));
-  const opts = (l: HaData["entities"]) => byName(l).map((e) => html`<option value=${e.id} title=${e.id} ?selected=${e.id === d.entity}>${e.name}</option>`);
+  const optsRaw = (l: HaData["entities"]) => l.map((e) => html`<option value=${e.id} title=${e.id} ?selected=${e.id === d.entity}>${e.name}</option>`);
+  const nameOf = new Map((ha.devices ?? []).map((dv) => [dv.id, dv.name]));
+  // Opus review finding 11: a device with no name in Home Assistant's registry (`d.name` can be null) falls back
+  // to its own main entity's name, never the raw device id — the same rule mainEntitiesByDevice/asDeviceRow follow.
+  // The main entity is picked from the device's FULL entity set (`mainEntitiesByDevice`, all of `ha.entities`), not
+  // just the entities in whichever tier is being rendered — a tier can hold only a device's diagnostic sibling,
+  // which `mainEntity` excludes on its own, so a per-tier lookup found no main entity and fell back to the id.
+  const mainOf = mainEntitiesByDevice(ha);
+  const byTier = (tierLabel: string, l: HaData["entities"]) => {
+    const groups = new Map<string, HaData["entities"]>(), loose: HaData["entities"] = [];
+    for (const e of byName(l)) {
+      if (!e.dev) { loose.push(e); continue; }
+      if (!groups.has(e.dev)) groups.set(e.dev, []);
+      groups.get(e.dev)!.push(e);
+    }
+    const devGroups = [...groups.entries()].map(([devId, ents]) => [nameOf.get(devId) || mainOf.get(devId)?.name || devId, ents] as const)
+      .sort(([a], [b]) => a.localeCompare(b)).map(([label, ents]) => {
+      const sorted = [...ents].sort((a, b) => (a.cat ? 1 : 0) - (b.cat ? 1 : 0)); // config/diagnostic entities last, else name order kept (stable)
+      return html`<optgroup label=${label}>${optsRaw(sorted)}</optgroup>`;
+    });
+    return html`${devGroups}${loose.length ? html`<optgroup label=${tierLabel}>${optsRaw(loose)}</optgroup>` : nothing}`;
+  };
   const unknown = !!d.entity && !ha.entities.some((e) => e.id === d.entity);
   const label = TYPE_LABELS.find((t) => t[0] === d.type)?.[1] ?? d.type;
   return html`<label for="ve">Home Assistant entity</label>
     <select id="ve" .value=${live(d.entity)} @change=${(e: Event) => set(val(e))}>
       <option value="" ?selected=${!d.entity}>(not connected)</option>
-      ${here.length ? html`<optgroup label=${`In ${room!.name}`}>${opts(here)}</optgroup>` : nothing}
-      ${elsewhere.length ? html`<optgroup label=${here.length ? "Elsewhere" : label}>${opts(elsewhere)}</optgroup>` : nothing}
-      ${rest.length ? html`<optgroup label="Everything else">${opts(rest)}</optgroup>` : nothing}
+      ${here.length ? byTier(`In ${room!.name}`, here) : nothing}
+      ${elsewhere.length ? byTier(here.length ? "Elsewhere" : label, elsewhere) : nothing}
+      ${rest.length ? byTier("Everything else", rest) : nothing}
       ${unknown ? missingOpt(d.entity) : nothing}
     </select>${unknown ? hint(NOT_IN_HA) : nothing}${d.entity ? nothing : hint("Not connected to Home Assistant yet. Pick its entity.")}`;
 }
 
-/** "Controlled by": the switch or plug that powers a light. Written as `bound`, the key is deleted for none. */
+/**
+ * "Controlled by": the switch or plug that powers a light. Written as `bound`, the key is deleted for none. S8.7:
+ * restricted to this floor's own switches and plugs (maintainer feedback: "only show the floor related switches"),
+ * via `switchChoicesForLight`, with the one same-area name match, when there is one, shown first and labelled
+ * "(suggested)". The current value always stays offered, even off-floor, so a value set before this floor scoping
+ * existed does not vanish from the select.
+ */
 function boundField(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
-  const choices = c.st.bindChoices(i);
-  const nameOf = (entity: string) => c.st.layout.catalog.find((x) => x.entity === entity)?.name ?? entity;
-  const set = (e: Event) => c.commit((f) => { const v = val(e); if (v) f.devices[i].bound = v; else delete f.devices[i].bound; });
+  const choices = c.st.switchChoicesForLight(i);
+  const suggested = choices.filter((s) => s.suggested);
+  const rest = choices.filter((s) => !s.suggested); // catalog order kept, same as the all-floors picker this replaces
+  const nameOf = (entity: string) => choices.find((s) => s.entity === entity)?.name ?? c.st.layout.catalog.find((x) => x.entity === entity)?.name ?? entity;
+  const motionChoices = c.linkMotion ? c.st.motionChoices(i) : [];
+  const set = (e: Event) => {
+    const v = val(e);
+    if (v.startsWith("motion:")) { c.st.pendingMotion = v.slice("motion:".length); c.refresh(); return; }
+    c.commit((f) => { if (v) f.devices[i].bound = v; else delete f.devices[i].bound; });
+  };
+  const label = (s: { room?: string; name: string }, suggest: boolean) => `${s.room ? `${s.room} - ` : ""}${s.name}${suggest ? " (suggested)" : ""}`;
+  const opt = (s: { entity: string; room?: string; name: string }, suggest = false) => html`<option value=${s.entity} ?selected=${s.entity === d.bound}>${label(s, suggest)}</option>`;
   return html`<label for="vbound">Controlled by</label>
-    <select id="vbound" .value=${d.bound ?? ""} @change=${set}>
+    <select id="vbound" .value=${live(d.bound ?? "")} @change=${set}>
       <option value="" ?selected=${!d.bound}>(none)</option>
-      ${choices.map((s) => html`<option value=${s.entity} ?selected=${s.entity === d.bound}>${s.room ? `${s.room} - ` : ""}${s.name}</option>`)}
+      ${suggested.map((s) => opt(s, true))}
+      ${rest.map((s) => opt(s))}
       ${d.bound && !choices.some((s) => s.entity === d.bound) ? html`<option value=${d.bound} selected>${d.bound}</option>` : nothing}
+      ${motionChoices.length ? html`<optgroup label="Motion">${motionChoices.map((s) => html`<option value=${`motion:${s.entity}`}>${s.name}</option>`)}</optgroup>` : nothing}
     </select>
-    ${d.bound ? hint(`${d.name ?? nameOf(d.entity)} + ${nameOf(d.bound)}`) : nothing}`;
+    ${d.bound ? hint(`${d.name ?? nameOf(d.entity)} + ${nameOf(d.bound)}`) : nothing}
+    ${motionField(c, i)}`;
+}
+
+/**
+ * S8.7: the row under "Controlled by" for the motion-link flow. `d.motion` set: shows the link and an Unlink
+ * button (removes only `motion`; the automation stays in Home Assistant). No `motion` but a Motion option was just
+ * picked (`st.pendingMotion`): shows the off-delay field and "Create automation". Neither: nothing. Absent without
+ * a writer (`c.linkMotion` unset).
+ */
+function motionField(c: PanelCtx, i: number) {
+  if (!c.linkMotion) return nothing;
+  const d = c.st.f.devices[i], ha = c.st.ha;
+  const nameOf = (entity: string) => ha?.entities.find((e) => e.id === entity)?.name || entity;
+  if (d.motion) {
+    return html`${hint(`Turns on with motion: ${nameOf(d.motion)}`)}
+      <p>${button("vmotionunlink", "Unlink", () => c.commit((f) => { delete f.devices[i].motion; }))}</p>
+      ${hint("The automation this created in Home Assistant is not deleted.")}`;
+  }
+  const pending = c.st.pendingMotion;
+  if (!pending) return nothing;
+  return html`<label for="vmotionmin">Turn on with ${nameOf(pending)}, off after (minutes)</label>
+    <input id="vmotionmin" type="number" min="1" step="1" .value=${live(c.st.pendingMotionMinutes)} @change=${(e: Event) => { c.st.pendingMotionMinutes = val(e); c.refresh(); }}>
+    <p>${button("vmotiongo", "Create automation", () => { const min = Number(c.st.pendingMotionMinutes); if (min > 0) c.linkMotion!(i, pending, min); })}</p>`;
 }
 
 /** S4.24: a heater attaches several TRV/climate entities and several temperature sensors — design interview,

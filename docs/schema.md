@@ -82,10 +82,10 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
 
 ## Device
 
-`bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor entity attached to this device — several allowed, unlike `bound`. `room` (person only), S7.8: an entity whose state, `area_id` or `area` attribute names the room the person is in (a Bermuda or ESPresense area sensor, say). The card moves the icon to that room; no match keeps the placed spot. The person's own `entity` is `person.*` or `device_tracker.*`. `targets` (radar only), S7.9: up to any number of x/y sensor-entity pairs from an mmWave presence sensor (an ESPHome LD2450, say), each pair's two entities reporting one target's position in millimetres, x to the sensor's right and y ahead of it. `entity` is the radar's own presence entity (typically a `binary_sensor.*occupancy`), which colours the icon; `rot` is which way the sensor points (`0` = ahead is screen-up), the same field a camera already uses for its cone.
+`bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor entity attached to this device — several allowed, unlike `bound`. `room` (person only), S7.8: an entity whose state, `area_id` or `area` attribute names the room the person is in (a Bermuda or ESPresense area sensor, say). The card moves the icon to that room; no match keeps the placed spot. The person's own `entity` is `person.*` or `device_tracker.*`. `targets` (radar only), S7.9: up to any number of x/y sensor-entity pairs from an mmWave presence sensor (an ESPHome LD2450, say), each pair's two entities reporting one target's position in millimetres, x to the sensor's right and y ahead of it. `entity` is the radar's own presence entity (typically a `binary_sensor.*occupancy`), which colours the icon; `rot` is which way the sensor points (`0` = ahead is screen-up), the same field a camera already uses for its cone. `motion` (lights only), S8.7: the motion sensor or motion-group entity that this light was linked to through the editor's "Turn on with... Create automation" flow — the automation the editor created, not this field, is what actually drives the light. Unlinking removes only this field; the automation itself stays in Home Assistant, untouched. Must differ from `entity`, same rule as `bound`.
 
 ```ts
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string } & ({ x: number; y: number } | { a: Pt; b: Pt });
 ```
 
 ## Furniture
@@ -151,6 +151,14 @@ S7.11: the most characters a floor's `trace.src` may hold, the whole data URL: 4
 
 ```ts
 export const MAX_TRACE_BYTES = 4 * 1024 * 1024;
+```
+
+## MAX_LAYOUT_BYTES
+
+Opus review 2026-09-25: Home Assistant's websocket takes 4 MiB in one message, and `floorplan_studio/save` sends the  whole layout in one. Save refuses a plan whose JSON is longer than this, and says which floors carry a trace image.
+
+```ts
+export const MAX_LAYOUT_BYTES = 3_500_000;
 ```
 
 ## TRACE_SRC

@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.12.3
+
+- The room panel's Place popup now opens with nothing ticked instead of
+  everything, so a click on the wrong row can no longer place something by
+  accident; a Select all / Deselect all button ticks or clears every row
+  shown by the current type filter in one click.
+- Add > Device and Add > Entities are now one panel: search by name or
+  entity id, and filter by Floor, Room, Area or Type. Picking a device on
+  another floor switches to that floor and drops it in its own room.
+- Add > Device, the room panel's Place popup, and a room's "Add device from"
+  menu now list a device once, not once per entity — a plug shows itself, not
+  its power sensor or its diagnostic connectivity sensor. A device with
+  nothing but diagnostic entities is not offered at all.
+- A light's "Controlled by" switch list now shows only the switches and plugs
+  on its own floor, with a likely match (same area, matching name) labelled
+  "(suggested)". The Edit menu has a new "Link lights to switches" item that
+  links every unbound light on the floor to its suggested switch in one go.
+  The same select can also link a light to a motion sensor or motion group:
+  pick one, set the off delay, Create automation — it builds the automation
+  in Home Assistant and remembers the link so the panel can show and undo it,
+  without touching the automation itself.
+
 ## 0.12.2
 
 - Fixed "Custom element doesn't exist: floorplan-studio-card" on about half

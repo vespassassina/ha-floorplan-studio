@@ -43,18 +43,6 @@ describe("EditorState", () => {
     expect(st.unplaced().map((c) => c.id)).toEqual(["light-living", "contact-garage", "switch-living-relay"]);
   });
 
-  it("offers a light every switch and plug but its own entity, placed or bound elsewhere (S1.32)", () => {
-    const l = fresh();
-    l.catalog.push({ id: "plug-free", floor: "ground", room: "Living", type: "plug", name: "Free plug", entity: "switch.free_plug" });
-    l.catalog.push({ id: "plug-taken", floor: "ground", room: "Hall", type: "plug", name: "Taken plug", entity: "switch.taken" });
-    l.floors.ground.devices[1].bound = "switch.taken"; // kitchen light
-    l.floors.ground.devices[1].entity = "switch.demo_hall"; // a light whose own entity is a catalog switch: never offered to itself
-    const st = new EditorState(l);
-    expect(st.bindChoices(0).map((c) => c.entity)).toEqual(["switch.demo_hall", "switch.demo_tv_plug", "switch.demo_living_relay", "switch.free_plug", "switch.taken"]);
-    expect(st.bindChoices(1).map((c) => c.entity)).toEqual(["switch.demo_tv_plug", "switch.demo_living_relay", "switch.free_plug", "switch.taken"]);
-    expect(st.bindChoices(2)).toEqual([]); // not a light
-  });
-
   it("offers only contact sensors no other door uses (S4.24: doorAttachChoices)", () => {
     const l = fresh();
     l.catalog.push({ id: "contact-front", floor: "ground", room: "Hall", type: "contact", name: "Front door", entity: "binary_sensor.demo_front_door" });
@@ -820,5 +808,205 @@ describe("EditorState.setTrace (S7.11)", () => {
     expect(st.f.trace).toEqual(T); // the live plan keeps it
     expect(st.persist()).toBe(true);
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).floors.ground.trace).toEqual(T);
+  });
+});
+
+describe("EditorState.autoLinkLights (S8.7)", () => {
+  /** One floor, one room in area_basement, an unbound light with a uniquely-named same-area switch and an unrelated switch on another floor. */
+  const layoutWithTwoLights = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      basement: {
+        title: "Basement", outline: [], rooms: [{ id: "r1", name: "Basement", area: "area_basement", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }],
+        walls: [], stairs: [], doors: [], openings: [], extras: [],
+        devices: [
+          { id: "d1", type: "light", entity: "light.basement_dumb", name: "Basement dumb light", x: 10, y: 10 },
+          { id: "d2", type: "light", entity: "light.basement_lamp", name: "Basement lamp", x: 20, y: 20 },
+        ],
+        furniture: [], unlinked: [],
+      },
+      attic: { title: "Attic", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] },
+    },
+    catalog: [],
+  });
+  const ha = {
+    floors: [{ id: "floor_basement", name: "Basement" }],
+    areas: [{ id: "area_basement", name: "Basement", floor_id: "floor_basement" }],
+    entities: [
+      { id: "light.basement_dumb", name: "Basement dumb light", domain: "light", area: "area_basement" },
+      { id: "light.basement_lamp", name: "Basement lamp", domain: "light", area: "area_basement" },
+      { id: "switch.basement_light_switch", name: "Basement light switch", domain: "switch", area: "area_basement" },
+      { id: "switch.basement_lamp_switch", name: "Basement lamp switch", domain: "switch", area: "area_basement" },
+      { id: "switch.attic_switch", name: "Attic switch", domain: "switch", area: "area_attic" }, // different floor: never a candidate
+    ],
+  };
+
+  it("links every unbound light on the floor to its suggested switch, in one undo step covering both", () => {
+    const st = new EditorState(layoutWithTwoLights(), "basement");
+    st.ha = ha;
+    expect(st.autoLinkLights("basement")).toBe(2);
+    expect(st.f.devices[0].bound).toBe("switch.basement_light_switch");
+    expect(st.f.devices[1].bound).toBe("switch.basement_lamp_switch");
+    expect(st.undo()).toBe(true);
+    expect(st.f.devices[0].bound).toBeUndefined();
+    expect(st.f.devices[1].bound).toBeUndefined(); // one step reverted both
+  });
+
+  it("never touches a light that already has bound, returns 0 and takes no step when nothing changes", () => {
+    const l = layoutWithTwoLights();
+    l.floors.basement.devices[0].bound = "switch.already";
+    l.floors.basement.devices[1].bound = "switch.already2";
+    const st = new EditorState(l, "basement");
+    st.ha = ha;
+    expect(st.autoLinkLights("basement")).toBe(0);
+    expect(st.canUndo).toBe(false);
+  });
+
+  it("switchChoicesForLight wraps the current floor and ha into the core function", () => {
+    const st = new EditorState(layoutWithTwoLights(), "basement");
+    st.ha = ha;
+    const choices = st.switchChoicesForLight(0);
+    expect(choices.map((c) => c.entity)).not.toContain("switch.attic_switch");
+    expect(choices.find((c) => c.suggested)?.entity).toBe("switch.basement_light_switch");
+  });
+
+  it("Opus review finding 6: skips a light whose platform is switch_as_x — it is a wrapped switch, not a light to link", () => {
+    const l = layoutWithTwoLights();
+    const st = new EditorState(l, "basement");
+    st.ha = {
+      ...ha,
+      entities: ha.entities.map((e) => (e.id === "light.basement_dumb" ? { ...e, platform: "switch_as_x" } : e)),
+    };
+    expect(st.autoLinkLights("basement")).toBe(1); // only the lamp links; the switch_as_x light is left alone
+    expect(st.f.devices[0].bound).toBeUndefined();
+    expect(st.f.devices[1].bound).toBe("switch.basement_lamp_switch");
+  });
+
+  it("Opus review: a living room with Ceiling light and TV plug auto-links nothing (finding 4, via autoLinkLights)", () => {
+    const l: Layout = {
+      version: 2, unit: "cm", north: 0,
+      floors: { ground: { title: "Ground", outline: [], rooms: [{ id: "r1", name: "Living room", area: "area_living", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [{ id: "d1", type: "light", entity: "light.ceiling", name: "Ceiling light", x: 10, y: 10 }], furniture: [], unlinked: [] } },
+      catalog: [],
+    };
+    const st = new EditorState(l, "ground");
+    st.ha = {
+      floors: [{ id: "floor_ground", name: "Ground" }],
+      areas: [{ id: "area_living", name: "Living room", floor_id: "floor_ground" }],
+      entities: [
+        { id: "light.ceiling", name: "Ceiling light", domain: "light", area: "area_living" },
+        { id: "switch.tv_plug", name: "TV plug", domain: "switch", area: "area_living" },
+      ],
+    };
+    expect(st.autoLinkLights("ground")).toBe(0);
+    expect(st.canUndo).toBe(false);
+    expect(st.f.devices[0].bound).toBeUndefined();
+  });
+});
+
+describe("EditorState.motionChoices (Opus review finding 12: scoped by HA floor like the switches, drawn rooms as fallback)", () => {
+  /** One plan floor ("ground") with a room drawn only in area_kitchen. area_pantry is on the same HA floor as
+   *  area_kitchen but has no room drawn on this plan floor at all. */
+  const layout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      ground: {
+        title: "Ground", outline: [], rooms: [{ id: "r1", name: "Kitchen", area: "area_kitchen", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }],
+        walls: [], stairs: [], doors: [], openings: [], extras: [],
+        devices: [{ id: "d1", type: "light", entity: "light.kitchen", name: "Kitchen light", x: 10, y: 10 }],
+        furniture: [], unlinked: [],
+      },
+    },
+    catalog: [],
+  });
+  const haWithFloorMapping = {
+    floors: [{ id: "floor_ground", name: "Ground" }, { id: "floor_upstairs", name: "Upstairs" }],
+    areas: [
+      { id: "area_kitchen", name: "Kitchen", floor_id: "floor_ground" },
+      { id: "area_pantry", name: "Pantry", floor_id: "floor_ground" }, // same HA floor, no room drawn for it
+      { id: "area_bedroom", name: "Bedroom", floor_id: "floor_upstairs" },
+    ],
+    entities: [
+      { id: "light.kitchen", name: "Kitchen light", domain: "light", area: "area_kitchen" },
+      { id: "binary_sensor.kitchen_motion", name: "Kitchen motion", domain: "binary_sensor", dc: "motion", area: "area_kitchen" },
+      { id: "binary_sensor.pantry_motion", name: "Pantry motion", domain: "binary_sensor", dc: "motion", area: "area_pantry" },
+      { id: "binary_sensor.bedroom_motion", name: "Bedroom motion", domain: "binary_sensor", dc: "motion", area: "area_bedroom" },
+    ],
+  };
+
+  it("counts an area on the mapped HA floor even with no room drawn for it (Pantry), excludes another HA floor (Bedroom)", () => {
+    const st = new EditorState(layout(), "ground");
+    st.ha = haWithFloorMapping;
+    const names = st.motionChoices(0).map((c) => c.name);
+    expect(names).toContain("Kitchen motion");
+    expect(names).toContain("Pantry motion"); // same HA floor, no drawn room: still counts
+    expect(names).not.toContain("Bedroom motion"); // a different HA floor
+  });
+
+  it("falls back to the drawn-room areas when the plan floor has no HA floor mapping at all", () => {
+    const st = new EditorState(layout(), "ground");
+    st.ha = {
+      floors: [],
+      areas: [{ id: "area_kitchen", name: "Kitchen" }, { id: "area_pantry", name: "Pantry" }], // no floor_id anywhere
+      entities: [
+        { id: "light.kitchen", name: "Kitchen light", domain: "light", area: "area_kitchen" },
+        { id: "binary_sensor.kitchen_motion", name: "Kitchen motion", domain: "binary_sensor", dc: "motion", area: "area_kitchen" },
+        { id: "binary_sensor.pantry_motion", name: "Pantry motion", domain: "binary_sensor", dc: "motion", area: "area_pantry" },
+      ],
+    };
+    const names = st.motionChoices(0).map((c) => c.name);
+    expect(names).toContain("Kitchen motion"); // its area has a drawn room on this floor
+    expect(names).not.toContain("Pantry motion"); // no HA floor mapping and no drawn room either
+  });
+
+  it("a group entity counts when at least one member sensor is on this HA floor", () => {
+    const st = new EditorState(layout(), "ground");
+    st.ha = {
+      ...haWithFloorMapping,
+      entities: [
+        ...haWithFloorMapping.entities,
+        { id: "group.motion_kitchen_bedroom", name: "Kitchen + bedroom motion", domain: "group", members: ["binary_sensor.kitchen_motion", "binary_sensor.bedroom_motion"] },
+        { id: "group.motion_bedroom_only", name: "Bedroom-only group", domain: "group", members: ["binary_sensor.bedroom_motion"] },
+      ],
+    };
+    const names = st.motionChoices(0).map((c) => c.name);
+    expect(names).toContain("Kitchen + bedroom motion"); // one member (kitchen) is on this HA floor
+    expect(names).not.toContain("Bedroom-only group"); // no member is on this HA floor
+  });
+});
+
+describe("EditorState.pendingMotion (Opus review finding 3: tied to the device id, cleared on selection change)", () => {
+  const layout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      ground: {
+        title: "Ground", outline: [], rooms: [],
+        walls: [], stairs: [], doors: [], openings: [], extras: [],
+        devices: [
+          { id: "dA", type: "light", entity: "light.a", name: "Light A", x: 10, y: 10 },
+          { id: "dB", type: "light", entity: "light.b", name: "Light B", x: 20, y: 20 },
+        ],
+        furniture: [], unlinked: [],
+      },
+    },
+    catalog: [],
+  });
+
+  it("reads back empty once a different device is selected", () => {
+    const st = new EditorState(layout(), "ground");
+    st.sel = { t: "dev", i: 0 }; // light A
+    st.pendingMotion = "binary_sensor.motion";
+    expect(st.pendingMotion).toBe("binary_sensor.motion");
+    st.sel = { t: "dev", i: 1 }; // light B
+    expect(st.pendingMotion).toBe(""); // did not leak onto light B
+    st.sel = { t: "dev", i: 0 }; // back to light A
+    expect(st.pendingMotion).toBe(""); // selecting away cleared it, not just hid it
+  });
+
+  it("reads back empty once the selection is cleared entirely", () => {
+    const st = new EditorState(layout(), "ground");
+    st.sel = { t: "dev", i: 0 };
+    st.pendingMotion = "binary_sensor.motion";
+    st.sel = null;
+    expect(st.pendingMotion).toBe("");
   });
 });

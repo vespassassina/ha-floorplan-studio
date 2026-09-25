@@ -21,8 +21,16 @@ async function freeRoom(page: Page, i: number) {
     el.layout = l;
   }, [EDITOR, i] as const);
 }
-const unplaced = (page: Page) => page.locator("#mDev button[data-dev]");
-const devItem = (page: Page, id: string) => page.locator(`#mDev button[data-dev="${id}"]`);
+// S8.5: the merged Add > Device panel; a catalog row's key is "catalog:<id>", an HA entity's is "ha:<entity id>".
+const unplaced = (page: Page) => page.locator('#addDevPanel button[data-add^="catalog:"]');
+const devItem = (page: Page, id: string) => page.locator(`#addDevPanel button[data-add="catalog:${id}"]`);
+/** Counts unplaced catalog entries without needing the panel open (it opens one, counts, and closes it again). */
+async function unplacedCount(page: Page): Promise<number> {
+  await openDevice(page);
+  const n = await unplaced(page).count();
+  await page.locator("#addDevClose").click();
+  return n;
+}
 
 async function centre(page: Page, selector: string) {
   const box = await page.locator(selector).first().boundingBox();
@@ -54,10 +62,11 @@ async function addItem(page: Page, id: string) {
   if (sub) await page.locator(`#mAdd details.sub > summary:text-is("${sub}")`).click();
   await page.locator(id).click();
 }
-/** Opens Add, then its Device submenu (S4.26: Device moved under Add, next to Unlinked device). */
+/** S8.5: opens Add, then Device…, the floating panel merging the old Device and Entities submenus. */
 async function openDevice(page: Page) {
   await menu(page, "Add");
-  await page.locator('#mAdd details.sub > summary:text-is("Device")').click();
+  await page.locator("#addDevBtn").click();
+  await expect(page.locator("#addDevPanel")).toBeVisible();
 }
 /** Chooses the snap grid in View, Grid (0 = none), and closes the menu. */
 async function setGrid(page: Page, g: number) {
@@ -111,15 +120,15 @@ test("clicking a device icon selects that device, not what lies under it", async
 
 test("Device places one and the list shrinks; removing it makes the list grow", async ({ page }) => {
   // the demo catalog holds one contact sensor not on the plan, and the relay: bound to a light, it has no icon (S1.32).
-  await expect(unplaced(page)).toHaveCount(2);
+  expect(await unplacedCount(page)).toBe(2);
   await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
   await page.locator("#vdel").click();
   // the light and its relay come back together
-  await expect(unplaced(page)).toHaveCount(3);
+  expect(await unplacedCount(page)).toBe(3);
   expect((await groundOf(page)).devices).toHaveLength(7);
   await openDevice(page);
   await devItem(page, "light-living").click(); // a real click on the visible item
-  await expect(unplaced(page)).toHaveCount(2);
+  await expect(unplaced(page)).toHaveCount(2); // S8.5: the panel stays open after a pick
   expect((await groundOf(page)).devices).toHaveLength(8);
 });
 
@@ -598,15 +607,15 @@ test("the living light shows its relay; clearing it frees the relay, undo restor
   await selectDev(page, 0);
   await expect(page.locator("#vbound")).toHaveValue(RELAY);
   await expect(page.locator("#panel")).toContainText("Living light + Living lamp relay");
-  await expect(unplaced(page)).toHaveCount(2); // the relay is listed while it is bound: it has no icon
+  expect(await unplacedCount(page)).toBe(2); // the relay is listed while it is bound: it has no icon
   await page.locator("#vbound").selectOption("");
   expect(await bound(page, 0)).toBeUndefined();
   expect("bound" in (await groundOf(page)).devices[0]).toBe(false);
-  await expect(unplaced(page)).toHaveCount(2);
+  expect(await unplacedCount(page)).toBe(2);
   await menu(page, "File");
   await page.locator("#undo").click();
   expect(await bound(page, 0)).toBe(RELAY);
-  await expect(unplaced(page)).toHaveCount(2);
+  expect(await unplacedCount(page)).toBe(2);
   // choosing the same value again records no step
   await selectDev(page, 0);
   await page.locator("#vbound").selectOption(RELAY);
@@ -621,6 +630,7 @@ test("choosing another free switch updates the list and the saved layout validat
   await page.locator("#vbound").selectOption("switch.free_plug");
   expect(await bound(page, 0)).toBe("switch.free_plug");
   // a bound switch is still on the Device list: it has no icon of its own
+  await openDevice(page);
   await expect(devItem(page, "switch-living-relay")).toHaveCount(1);
   await expect(devItem(page, "plug-free")).toHaveCount(1);
   expect(validate(await layoutOf(page)).ok).toBe(true);
@@ -671,6 +681,7 @@ test("a device that is not a light has no Controlled by field", async ({ page })
 test("deleting the light returns its switch to the Add list", async ({ page }) => {
   await selectDev(page, 0);
   await page.locator("#vdel").click();
+  await openDevice(page);
   await expect(devItem(page, "switch-living-relay")).toHaveCount(1);
   expect((await groundOf(page)).devices.some((d) => d.bound)).toBe(false);
 });
@@ -1564,24 +1575,24 @@ test("the plan filter hides device types with no instance on the current floor, 
   await expect(page.locator('#filter [data-filter="tv"]')).toHaveCount(0); // ground has 0
 });
 
-// ---- S1.12 Device menu -------------------------------------------------------
-const search = (page: Page) => page.locator("#devSearch");
-const shown = (page: Page) => page.locator("#mDev button[data-dev]:visible");
+// ---- S1.12/S8.5 Add > Device panel --------------------------------------------
+const search = (page: Page) => page.locator("#addDevSearch");
+const shown = (page: Page) => page.locator("#addDevPanel button[data-add]:visible");
 
-test("the toolbar order is Filter, Add, Draw, View, Edit, File; Device is a submenu of Add, after Areas", async ({ page }) => {
+test("the toolbar order is Filter, Add, Draw, View, Edit, File; Device… is a button of Add, right after Areas", async ({ page }) => {
   await expect(page.locator("details.menu > summary")).toHaveText(["Filter: all (8)", "Add", "Draw", "View", "Edit", "File"]); // S8.1: Filter, and an Edit menu
   await expect(page.locator("#mAdd select")).toHaveCount(2); // furniture and unlinked-device selects (S4.25)
   await menu(page, "Add");
   const subs = await page.locator("#mAdd > .box > *").evaluateAll((els) => els.map((e) => e.id || e.tagName));
   const areasIdx = subs.indexOf("addAreas");
-  expect(subs[areasIdx + 1]).toBe("mDev"); // Device sits right after Areas
+  expect(subs[areasIdx + 1]).toBe("addDevBtn"); // Device… sits right after Areas
 });
 
-test("Device lists the unplaced entries grouped by type; a deleted light and its relay come back, placing the light takes only the light", async ({ page }) => {
+test("Device… lists the unplaced entries grouped by type; a deleted light and its relay come back, placing the light takes only the light", async ({ page }) => {
   await selectDev(page, 0);
   await page.locator("#vdel").click(); // the light and its relay come back
   await openDevice(page);
-  expect(await page.locator("#mDev .grp").allInnerTexts()).toEqual(["Lights", "Wall switches", "Window / door sensor"]);
+  expect(await page.locator("#addDevPanel .grp").allInnerTexts()).toEqual(["Lights", "Wall switches", "Window / door sensor"]);
   await devItem(page, "light-living").click();
   await expect(devItem(page, "light-living")).toHaveCount(0);
   await expect(devItem(page, "switch-living-relay")).toHaveCount(1); // the placed copy has no bound any more
@@ -1599,34 +1610,27 @@ test("the search filters by name and by entity id, ignoring case", async ({ page
   await expect(shown(page)).toContainText("Free plug");
   await search(page).fill("contact");
   await expect(shown(page)).toHaveCount(1);
-  await expect(page.locator("#mDev .grp:visible")).toHaveText(["Window / door sensor"]);
+  await expect(page.locator("#addDevPanel .grp:visible")).toHaveText(["Window / door sensor"]);
   await search(page).fill("");
   await expect(shown(page)).toHaveCount(3);
 });
 
-test("a search with no match says so, and the search is cleared when the menu closes", async ({ page }) => {
+test("a search with no match says so", async ({ page }) => {
   await openDevice(page);
   await search(page).fill("zzz-no-such-thing");
   await expect(shown(page)).toHaveCount(0);
-  await expect(page.locator("#mDev")).toContainText("No device matches");
-  await page.mouse.click(2, 2); // closes the menu
-  await expect(page.locator("#mDev")).not.toHaveAttribute("open", "");
-  await openDevice(page);
-  await expect(search(page)).toHaveValue("");
-  await expect(shown(page)).toHaveCount(2); // contact sensor and the bound relay
-  await expect(page.locator("#mDev")).not.toContainText("No device matches");
+  await expect(page.locator("#addDevNone")).toHaveText("Nothing matches");
 });
 
-test("the search is cleared when the menu closes by choosing an item, and by opening another menu", async ({ page }) => {
+test("S8.5: the search and filters reset every time the panel opens", async ({ page }) => {
   await openDevice(page);
   await search(page).fill("contact");
-  await shown(page).first().click();
-  await openDevice(page);
+  await expect(shown(page)).toHaveCount(1);
+  await page.locator("#addDevClose").click();
+  await openDevice(page); // reopened: the old search is gone
   await expect(search(page)).toHaveValue("");
-  await search(page).fill("x");
-  await menu(page, "View");
-  await openDevice(page);
-  await expect(search(page)).toHaveValue("");
+  await expect(shown(page)).toHaveCount(2); // contact sensor and the bound relay
+  await expect(page.locator("#addDevNone")).toHaveCount(0);
 });
 
 test("typing in the search field does not trigger editor shortcuts", async ({ page }) => {
@@ -1652,20 +1656,20 @@ test("Ctrl+Z in the search field does not undo the plan", async ({ page }) => {
   expect(await layoutOf(page)).toEqual(after);
 });
 
-test("Escape in the search field closes the menu and gives the keys back to the editor", async ({ page }) => {
+test("Escape in the search field closes the panel and gives the keys back to the editor", async ({ page }) => {
   await openDevice(page);
   await search(page).fill("abc");
   await page.keyboard.press("Escape");
-  await expect(page.locator("#mDev")).not.toHaveAttribute("open", "");
+  await expect(page.locator("#addDevPanel")).toHaveCount(0);
   await selectDev(page, 0);
   await page.keyboard.press("Delete");
   expect((await groundOf(page)).devices).toHaveLength(7);
 });
 
-test("a device name with markup is text in the Device menu, and a click on it places that device", async ({ page }) => {
+test("a device name with markup is text in the Device panel, and a click on it places that device", async ({ page }) => {
   await setCatalog(page, [{ id: "evil", floor: "ground", room: "Living", type: "plug", name: '<img src=x onerror="window.__pwn=1">', entity: "switch.evil" }]);
   await openDevice(page);
-  await expect(page.locator("#mDev img")).toHaveCount(0);
+  await expect(page.locator("#addDevPanel img")).toHaveCount(0);
   await expect(devItem(page, "evil")).toContainText("<img");
   await search(page).fill("<img");
   await expect(shown(page)).toHaveCount(1);
@@ -2557,8 +2561,8 @@ const DRAW_IDS_DOM = ["drawOpening", "drawWall-wall", "drawWall-boundary", "draw
 test("the Add menu holds no Draw item and no Water; the Draw menu holds all eleven", async ({ page }) => {
   for (const id of [...DRAW_IDS, "addWater", "addWall"]) await expect(page.locator(`#mAdd #${id}`)).toHaveCount(0);
   await expect(page.locator("#mAdd .grp, #mAdd .sep").filter({ hasText: /Draw/ })).toHaveCount(0);
-  const ids = await page.locator("#mAdd button").evaluateAll((b) => b.filter((x) => !x.closest("#mDev")).map((x) => x.id));
-  expect(ids).toEqual(["addDoor", "addWin", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addStr", "addZone", "addStairs"]);
+  const ids = await page.locator("#mAdd button").evaluateAll((b) => b.map((x) => x.id));
+  expect(ids).toEqual(["addDoor", "addWin", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addStr", "addZone", "addStairs", "addDevBtn"]);
   await expect(page.locator("#mAdd select#addFurn")).toHaveCount(1);
   expect(await page.locator("#mDraw button").evaluateAll((b) => b.map((x) => x.id))).toEqual(DRAW_IDS_DOM);
   expect(new Set(DRAW_IDS_DOM)).toEqual(new Set(DRAW_IDS));
@@ -2610,8 +2614,8 @@ test("S4.11: Tab reaches every Add item in DOM order, submenus included", async 
   await page.locator(`#mAdd details.sub > summary:text-is("Openings")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Wall")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Areas")`).click();
-  const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.filter((e) => !e.closest("#mDev") || (e.tagName === "SUMMARY" && e.parentElement?.id === "mDev")).map((e) => e.id || e.textContent?.trim()));
-  expect(order).toEqual(["Openings", "addDoor", "addWin", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "Device", "addFurn", "addUnlDev"]);
+  const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.map((e) => e.id || e.textContent?.trim()));
+  expect(order).toEqual(["Openings", "addDoor", "addWin", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "addDevBtn", "addFurn", "addUnlDev"]);
 });
 
 test("each Add, Wall item places a 200 cm wall of its kind at the spawn point, selected, in one undo step", async ({ page }) => {
@@ -5196,6 +5200,24 @@ test("S3.3 break it: an entity id HA does not know stays selected and is not cle
   await expect(page.locator("#panel")).toContainText("Home Assistant does not have this one");
 });
 
+// Opus review finding 11: deviceEntity's optgroup label fell straight to the device id (nameOf.get(e.dev) ?? e.dev)
+// when Home Assistant's device registry gives a device no name (a real HA device can have name: null). It must
+// fall back to that device's own main entity's name instead, the way every other device-grouped list already does.
+test("Opus review finding 11: a device's entity picker labels its optgroup from the main entity's name, never the device id, when Home Assistant gives the device no name", async ({ page }) => {
+  await withUnboundLight(page);
+  await setHa(page, { floors: [], areas: [], devices: [{ id: "dev1", name: null }],
+    entities: [
+      { id: "light.free", name: "Study lamp", domain: "light", area: null, dev: "dev1" },
+      { id: "sensor.free_power", name: "Study lamp power", domain: "sensor", dc: "power", area: null, dev: "dev1", cat: "diagnostic" },
+    ] });
+  await page.locator("#unbound button[data-unbound]").click();
+  // The device's two entities (the light and its diagnostic power sensor) sit in different tiers, each with its own
+  // optgroup, so "Study lamp" is expected twice — never once as "dev1".
+  await expect(page.locator('#ve optgroup[label="Study lamp"] option[value="light.free"]')).toHaveCount(1);
+  await expect(page.locator('#ve optgroup[label="Study lamp"] option[value="sensor.free_power"]')).toHaveCount(1);
+  await expect(page.locator('#ve optgroup[label="dev1"]')).toHaveCount(0); // never the raw device id
+});
+
 test("S3.3: the picker does not offer an entity that is already on the plan, except the device's own", async ({ page }) => {
   const i = await withUnboundLight(page);
   const placed = await page.evaluate(([tag]) => { const ed = document.querySelector(tag as string) as any; return ed.layout.floors.ground.devices.filter((d: any) => d.entity && d.type === "light").map((d: any) => d.entity) as string[]; }, [EDITOR]);
@@ -6042,33 +6064,74 @@ test("S4.15/S8.1: the room panel's Place button opens a popup of the area's plac
   await expect(panel.locator("[data-ptype]")).toHaveText(["Lights", "Temperature", "Motion"]);
   await panel.locator('[data-ptype="light"]').click();
   await expect(panel.locator("[data-pent]")).toHaveCount(1);
+  await panel.locator('[data-pent="light.living_spot"] input').check();
   await expect(page.locator("#placeGo")).toHaveText("Place 1");
   await panel.locator('[data-ptype="light"]').click(); // off again: every type
   await expect(panel.locator("[data-pent]")).toHaveCount(3);
-  await panel.locator('[data-pent="light.living_spot"] input').uncheck();
+  await panel.locator('[data-pent="binary_sensor.living_motion"] input').check();
   await expect(page.locator("#placeGo")).toHaveText("Place 2");
   await page.locator("#placeGo").click();
   await expect(panel).toHaveCount(0);
   const devs = (await groundOf(page)).devices;
   expect(devs).toHaveLength(before + 2);
-  const added = devs.filter((d: any) => d.entity === "sensor.living_temp" || d.entity === "binary_sensor.living_motion");
-  expect(added.map((d: any) => d.type).sort()).toEqual(["motion", "temp"]);
+  const added = devs.filter((d: any) => d.entity === "light.living_spot" || d.entity === "binary_sensor.living_motion");
+  expect(added.map((d: any) => d.type).sort()).toEqual(["light", "motion"]);
   expect(new Set(added.map((d: any) => `${d.x},${d.y}`)).size).toBe(2);
-  await expect(page.locator("#rplace")).toHaveText(/Place 1 Home Assistant device$/); // the unchecked light is still there to place
+  await expect(page.locator("#rplace")).toHaveText(/Place 1 Home Assistant device$/); // the unchecked temp sensor is still there to place
 
   await page.keyboard.press("Control+z");
   expect((await groundOf(page)).devices).toHaveLength(before); // one gesture, one step
 });
 
-test("S8.1: the Place popup places everything when nothing is filtered or unchecked, then the button goes; a filter with nothing checked disables Place", async ({ page }) => {
+test("S8.4: the Place popup opens with nothing ticked and Place disabled", async ({ page }) => {
+  await setHa(page, PLACE_HA);
+  await openPlace(page);
+  const panel = page.locator("#placePanel");
+  for (const id of ["sensor.living_temp", "binary_sensor.living_motion", "light.living_spot"]) {
+    await expect(panel.locator(`[data-pent="${id}"] input`)).not.toBeChecked();
+  }
+  await expect(page.locator("#placeGo")).toHaveText("Place 0");
+  await expect(page.locator("#placeGo")).toBeDisabled();
+});
+
+test("S8.4: Select all ticks exactly the shown rows, the label flips to Deselect all and back, and Place places exactly the ticked ones", async ({ page }) => {
   await setHa(page, PLACE_HA);
   const before = (await groundOf(page)).devices.length;
   await openPlace(page);
-  await page.locator('#placePanel [data-pent="light.living_spot"] input').uncheck();
+  const panel = page.locator("#placePanel"), all = page.locator("#placeAll");
+  await expect(all).toHaveText("Select all");
+  await panel.locator('[data-ptype="light"]').click(); // narrow to one shown row
+  await all.click();
+  await expect(panel.locator('[data-pent="light.living_spot"] input')).toBeChecked();
+  await expect(page.locator("#placeGo")).toHaveText("Place 1");
+  await expect(all).toHaveText("Deselect all");
+  await panel.locator('[data-ptype="light"]').click(); // back to every type: the hidden row stayed unticked
+  await expect(panel.locator('[data-pent="sensor.living_temp"] input')).not.toBeChecked();
+  await expect(panel.locator('[data-pent="binary_sensor.living_motion"] input')).not.toBeChecked();
+  await expect(panel.locator('[data-pent="light.living_spot"] input')).toBeChecked();
+  await expect(all).toHaveText("Select all"); // not every shown row is ticked any more
+  await all.click();
+  await expect(all).toHaveText("Deselect all");
+  await expect(page.locator("#placeGo")).toHaveText("Place 3");
+  await all.click();
+  await expect(all).toHaveText("Select all");
+  await expect(page.locator("#placeGo")).toHaveText("Place 0");
+  await panel.locator('[data-pent="binary_sensor.living_motion"] input').check();
+  await page.locator("#placeGo").click();
+  const devs = (await groundOf(page)).devices;
+  expect(devs).toHaveLength(before + 1);
+  expect(devs.some((d: any) => d.entity === "binary_sensor.living_motion")).toBe(true);
+});
+
+test("S8.1: the Place popup places everything when everything is ticked via Select all; a filter with nothing checked disables Place", async ({ page }) => {
+  await setHa(page, PLACE_HA);
+  const before = (await groundOf(page)).devices.length;
+  await openPlace(page);
   await page.locator('#placePanel [data-ptype="light"]').click();
   await expect(page.locator("#placeGo")).toBeDisabled();
-  await page.locator('#placePanel [data-pent="light.living_spot"] input').check();
+  await page.locator("#placeAll").click();
   await page.locator('#placePanel [data-ptype="light"]').click();
+  await page.locator("#placeAll").click();
   await expect(page.locator("#placeGo")).toHaveText("Place 3");
   await page.locator("#placeGo").click();
   expect((await groundOf(page)).devices).toHaveLength(before + 3);
@@ -6113,47 +6176,43 @@ test("S4.15: no Place button without Home Assistant", async ({ page }) => {
   await expect(page.locator("#rplace")).toHaveCount(0);
 });
 
-// ---- S4.14: Add > Entities, a palette of every HA entity not yet on the plan -------------------------------------
+// ---- S4.14/S8.5: Add > Device merges the catalog and every HA entity not yet on the plan into one panel -----------
 
-test("S4.14: Add > Entities lists HA entities not yet placed or catalogued, grouped by type, and is absent without Home Assistant", async ({ page }) => {
-  await menu(page, "Add");
-  await expect(page.locator('#mAdd details.sub > summary:text-is("Entities")')).toHaveCount(0); // no ha: nothing to add from
-  await menu(page, "Add"); // close it again
+test("S4.14/S8.5: Device… merges the catalog and HA entities into one list with no duplicate; an Area filter appears only once Home Assistant is known", async ({ page }) => {
+  await openDevice(page);
+  await expect(page.locator("#addDevArea")).toHaveCount(0); // no HA yet: no candidate has an area
+  await page.locator("#addDevClose").click();
 
   await setHa(page, { ...HA, entities: [...HA.entities, { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" }, { id: "light.demo_kitchen", name: "Kitchen light", domain: "light" }] });
-  await menu(page, "Add");
-  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
-  const sub = page.locator("#addEntSub");
-  await expect(sub).toContainText("Living temp");
-  await expect(sub).toContainText("Pond level"); // HA's own fixture entity, not yet placed or catalogued
-  await expect(sub.locator('button:text-is("Kitchen light")')).toHaveCount(0); // already a device on the demo plan
+  await openDevice(page);
+  const panel = page.locator("#addDevPanel");
+  await expect(panel).toContainText("Living temp");
+  await expect(panel).toContainText("Pond level"); // HA's own fixture entity, not yet placed or catalogued
+  await expect(panel.locator('button:text-is("Kitchen light")')).toHaveCount(0); // already a device on the demo plan
+  await expect(panel.locator('[data-add="catalog:contact-garage"]')).toHaveCount(1); // the catalog half is still there too
 });
 
-test("S4.14: search filters the palette by name or entity id", async ({ page }) => {
+test("S4.14/S8.5: search filters the merged list by name or entity id", async ({ page }) => {
   await setHa(page, HA);
-  await menu(page, "Add");
-  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
-  await page.locator("#entSearch").fill("pond");
-  await expect(page.locator("#addEntSub")).toContainText("Pond level");
-  await page.locator("#entSearch").fill("nothing-matches-this");
-  await expect(page.locator("#addEntNone")).toHaveText("No entity matches");
+  await openDevice(page);
+  await search(page).fill("pond");
+  await expect(page.locator("#addDevPanel")).toContainText("Pond level");
+  await search(page).fill("nothing-matches-this");
+  await expect(page.locator("#addDevNone")).toHaveText("Nothing matches");
 });
 
-test("S4.14: clicking an entity places it — at its area's room centre when one is drawn, else near the plan centre — one undo step", async ({ page }) => {
+test("S4.14/S8.5: clicking an HA entity places it — at its area's room centre when one is drawn, else near the plan centre — one undo step, and the panel stays open", async ({ page }) => {
   await setHa(page, { ...HA, entities: [...HA.entities, { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" }] });
-  await menu(page, "Add");
-  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
-  await page.locator('[data-ent="sensor.living_temp"]').click();
-  await expect(page.locator("#mAdd")).not.toHaveJSProperty("open", true); // the menu closes after placing
+  await openDevice(page);
+  await page.locator('[data-add="ha:sensor.living_temp"]').click();
+  await expect(page.locator("#addDevPanel")).toBeVisible(); // S8.5: stays open after a pick
 
   const devs = (await groundOf(page)).devices;
   const d = devs.find((x: any) => x.entity === "sensor.living_temp");
   expect(d).toMatchObject({ type: "temp", name: "Living temp" });
   expect((await layoutOf(page)).catalog.find((c: any) => c.entity === "sensor.living_temp")).toMatchObject({ room: "Living" });
 
-  await menu(page, "Add");
-  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
-  await page.locator('[data-ent="sensor.pond"]').click(); // no area on this fixture entity: falls back, not refused
+  await page.locator('[data-add="ha:sensor.pond"]').click(); // no area on this fixture entity: falls back, not refused
   const pond = (await groundOf(page)).devices.find((x: any) => x.entity === "sensor.pond");
   expect(pond).toBeTruthy();
   expect((await layoutOf(page)).catalog.find((c: any) => c.entity === "sensor.pond")?.room).toBeFalsy();
@@ -6161,6 +6220,121 @@ test("S4.14: clicking an entity places it — at its area's room centre when one
   await page.keyboard.press("Control+z");
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.pond")).toBe(false);
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.living_temp")).toBe(true);
+});
+
+// S8.6: "devices, not entities" — a plug's device offers one row for the whole device, not one per entity.
+test("S8.6: Add > Device offers a plug device once, not once per entity, and places its switch", async ({ page }) => {
+  await setHa(page, {
+    floors: [], areas: [{ id: "kitchen", name: "Kitchen" }],
+    devices: [{ id: "plugdev", name: "Kitchen plug" }],
+    entities: [
+      { id: "switch.kitchen_plug", name: "Kitchen plug", domain: "switch", dc: "outlet", area: "kitchen", dev: "plugdev" },
+      { id: "sensor.kitchen_plug_power", name: "Kitchen plug power", domain: "sensor", dc: "power", area: "kitchen", dev: "plugdev" },
+      { id: "sensor.kitchen_plug_energy", name: "Kitchen plug energy", domain: "sensor", dc: "energy", area: "kitchen", dev: "plugdev" },
+      { id: "binary_sensor.kitchen_plug_connectivity", name: "Kitchen plug connectivity", domain: "binary_sensor", dc: "connectivity", area: "kitchen", dev: "plugdev", cat: "diagnostic" },
+    ],
+  });
+  await openDevice(page);
+  const panel = page.locator("#addDevPanel");
+  await expect(panel.locator('button:text-is("Kitchen plug")')).toHaveCount(1); // one row for the device, not four
+  await expect(panel.locator('button:text-is("Kitchen plug power")')).toHaveCount(0);
+  await expect(panel.locator('button:text-is("Kitchen plug connectivity")')).toHaveCount(0);
+
+  await panel.locator('[data-add="ha-dev:plugdev"]').click();
+  const d = (await groundOf(page)).devices.find((x: any) => x.entity === "switch.kitchen_plug");
+  expect(d).toMatchObject({ type: "plug", name: "Kitchen plug" });
+  expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.kitchen_plug_power")).toBe(false);
+});
+
+// Opus review finding 11: a device row's own registry name ("Kitchen plug") can differ from its main entity's own
+// name ("Relay 1", HA's default for an unnamed switch); the panel showed the device name but placeAddDev placed the
+// device under the entity's own name, so the icon on the plan read differently from the row the user clicked.
+test("Opus review finding 11: placing a device row names the plan icon after the name shown in the Add panel row, not the main entity's own name", async ({ page }) => {
+  await setHa(page, {
+    floors: [], areas: [{ id: "kitchen", name: "Kitchen" }],
+    devices: [{ id: "plugdev", name: "Kitchen plug" }],
+    entities: [{ id: "switch.raw_relay", name: "Relay 1", domain: "switch", dc: "outlet", area: "kitchen", dev: "plugdev" }],
+  });
+  await openDevice(page);
+  const panel = page.locator("#addDevPanel");
+  await expect(panel.locator('button:text-is("Kitchen plug")')).toHaveCount(1); // the row is shown under the device name
+  await panel.locator('[data-add="ha-dev:plugdev"]').click();
+  const d = (await groundOf(page)).devices.find((x: any) => x.entity === "switch.raw_relay");
+  expect(d?.name).toBe("Kitchen plug"); // not "Relay 1"
+});
+
+test("S8.5: each select lists only values present among the filtered candidates, and narrows as another filter is set", async ({ page }) => {
+  await setHa(page, { floors: [], areas: [{ id: "living", name: "Living" }, { id: "bedroom", name: "Bedroom" }], entities: [
+    { id: "light.new_living", name: "New living light", domain: "light", area: "living" },
+    { id: "climate.new_bedroom", name: "New bedroom heater", domain: "climate", area: "bedroom" },
+  ] });
+  await openDevice(page);
+  // Ground's default demo layout still has two unplaced catalog entries (contact-garage, in Hall; the living relay):
+  // neither has an HA area, so they add no floor (but do add "Hall" via the catalog's own room field, and a "None" floor).
+  await expect(page.locator("#addDevFloor option")).toHaveText(["All floors", "First", "Ground", "None"]);
+  await expect(page.locator("#addDevRoom option")).toHaveText(["All rooms", "Bedroom", "Hall", "Living"]);
+  await expect(page.locator("#addDevType option")).toHaveText(["All types", "Lights", "Wall switches", "Window / door sensor", "Climate"]);
+
+  await page.locator("#addDevFloor").selectOption("First"); // asymmetric: only the bedroom heater sits on First
+  await expect(page.locator("#addDevRoom option")).toHaveText(["All rooms", "Bedroom"]); // Living and Hall drop out
+  await expect(page.locator("#addDevType option")).toHaveText(["All types", "Climate"]); // Lights, Wall switches, Window/door drop out
+});
+
+test("S8.5: a filter's None option appears only when some filtered candidate lacks that field, and picking it isolates those", async ({ page }) => {
+  await setHa(page, { floors: [], areas: [{ id: "living", name: "Living" }], entities: [
+    { id: "light.uniq_area", name: "Uniq area light", domain: "light", area: "living" },
+    { id: "switch.uniq_noarea", name: "Uniq bare switch", domain: "switch" },
+  ] });
+  await openDevice(page);
+  await search(page).fill("uniq");
+  await expect(page.locator("#addDevArea option")).toHaveText(["All areas", "Living", "None"]);
+  await page.locator("#addDevArea").selectOption("__none__");
+  await expect(shown(page)).toHaveCount(1);
+  await expect(shown(page)).toContainText("Uniq bare switch");
+
+  await search(page).fill("uniq_area"); // narrows to the one candidate, which does have an area
+  await page.locator("#addDevArea").selectOption(""); // reset, so the option list reflects only this narrower pool
+  await expect(page.locator("#addDevArea option")).toHaveText(["All areas", "Living"]); // no None: nothing shown lacks one
+});
+
+test("S8.5: picking a candidate whose room is on another floor switches to that floor first and places it there", async ({ page }) => {
+  await setHa(page, { floors: [], areas: [{ id: "bedroom", name: "Bedroom" }], entities: [
+    { id: "climate.spare_bedroom", name: "Spare bedroom heater", domain: "climate", area: "bedroom" },
+  ] });
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.floor, EDITOR)).toBe("ground");
+  await openDevice(page);
+  await page.locator('[data-add="ha:climate.spare_bedroom"]').click();
+  await expect(page.locator("#addDevPanel")).toBeVisible(); // S8.5: stays open after a pick, even across the floor switch
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.floor, EDITOR)).toBe("first");
+  const devs = (await layoutOf(page)).floors.first.devices;
+  expect(devs.some((d: any) => d.entity === "climate.spare_bedroom")).toBe(true);
+  expect((await layoutOf(page)).catalog.find((c: any) => c.entity === "climate.spare_bedroom")).toMatchObject({ room: "Bedroom" });
+});
+
+// Opus review finding 11: pickAddDev matched the candidate's floor by TITLE, which collides when two floors share
+// one (the demo ships "ground"/Ground and "test"/Test as distinct floors — nothing stops a maintainer titling both
+// the same). It must resolve the floor by key, the same key locateEntity already found the room on.
+test("Opus review finding 11: picking a candidate switches to the room's actual floor, even when another floor shares its title", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.title = "Test"; // now collides with the real "test" floor's own title, and sorts first by key order
+    el.layout = l;
+  }, EDITOR);
+  await setHa(page, { floors: [], areas: [{ id: "test", name: "Test area" }], entities: [
+    { id: "sensor.test_room_temp", name: "Test room temp", domain: "sensor", dc: "temperature", area: "test" },
+  ] });
+  await openDevice(page);
+  await page.locator('[data-add="ha:sensor.test_room_temp"]').click();
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.floor, EDITOR)).toBe("test"); // not "ground"
+  const devs = (await layoutOf(page)).floors.test.devices;
+  expect(devs.some((d: any) => d.entity === "sensor.test_room_temp")).toBe(true);
+});
+
+test("S8.5: the panel opens with focus in the search box, and Escape from there closes it", async ({ page }) => {
+  await openDevice(page);
+  await expect(search(page)).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#addDevPanel")).toHaveCount(0);
 });
 
 // ---- S4.5: groups -------------------------------------------------------------------------
@@ -6304,6 +6478,29 @@ const selectHallSwitch2 = (page: Page) => page.locator("svg .dev-switch").first(
 /** A listener on `location-changed`, so a test can tell the navigation actually fired, not only that `history.pushState` ran. */
 async function watchLocationChanged(page: Page) {
   await page.evaluate(() => { (window as any).__locChanged = false; window.addEventListener("location-changed", () => { (window as any).__locChanged = true; }); });
+}
+/** A count of `layout-changed` events the editor element has dispatched, so a test can tell an edit was actually
+ *  committed (autosaved, told to the host), not only that it looks right in the panel. Call `watchLayoutChanged`
+ *  first. */
+const layoutChangedCount = (page: Page) => page.evaluate(() => (window as any).__lcCount as number);
+async function watchLayoutChanged(page: Page) {
+  await page.evaluate((tag) => {
+    (window as any).__lcCount = 0;
+    document.querySelector(tag)!.addEventListener("layout-changed", () => { (window as any).__lcCount++; });
+  }, EDITOR);
+}
+/** Like `withAutomationWriter`, but `createAutomation` does not resolve until the test calls
+ *  `window.__resolveCreate()` — for exercising what happens to a device while the request is still in flight
+ *  (Opus review finding 2). */
+async function withSlowAutomationWriter(page: Page, ha: unknown) {
+  await setHa(page, ha);
+  await page.evaluate((tag) => {
+    const w = window as any; w.__calls = [];
+    (document.querySelector(tag as string) as any).writer = {
+      setDeviceArea: async () => {}, setEntityArea: async () => {},
+      createAutomation: (cfg: unknown) => { w.__calls.push(cfg); return new Promise((res) => { w.__resolveCreate = () => res("fp_test123"); }); },
+    };
+  }, EDITOR);
 }
 
 test("S4.6: switch panel \"Controls...\" picks two lights, confirms, posts the built automation, then opens it in Home Assistant's editor", async ({ page }) => {
@@ -6783,9 +6980,164 @@ test("Opus review CSS pair: S7.6 night fills an unlit room with --fp-night, leav
   expect(got).toEqual(["rgba(4, 10, 30, 0.45)", "none", "none"]);
 });
 
+// ---- S8.7: linking a light to a floor switch, and auto-link --------------------------------------------------
+
+const LINK_HA = {
+  floors: [], areas: [
+    { id: "kitchen", name: "Kitchen", floor_id: "floor_ground" },
+    { id: "bedroom", name: "Bedroom", floor_id: "floor_first" },
+    { id: "utility", name: "Utility", floor_id: "floor_ground" }, // Opus review finding 9: a second ground-floor light+switch pair, so the "links every light" test proves two lights, not one
+  ],
+  entities: [
+    { id: "light.demo_kitchen", name: "Kitchen light", domain: "light", area: "kitchen" },
+    { id: "light.demo_bedroom", name: "Bedroom light", domain: "light", area: "bedroom" },
+    { id: "light.demo_extra", name: "Extra utility light", domain: "light", area: "utility" },
+    { id: "switch.kitchen_switch", name: "Kitchen light switch", domain: "switch", area: "kitchen" },
+    { id: "switch.bedroom_switch", name: "Bedroom light switch", domain: "switch", area: "bedroom" },
+    { id: "switch.hall_switch", name: "Unrelated hall switch", domain: "switch", area: "kitchen" }, // never the unique/top match, since kitchen_switch shares more tokens
+    { id: "switch.extra_switch", name: "Extra utility switch", domain: "switch", area: "utility" },
+  ],
+};
+
+test("S8.7: Link lights to switches links every unbound light on the floor to its suggested switch, one undo step reverts them all", async ({ page }) => {
+  await setHa(page, LINK_HA);
+  // Give the ground floor a second unbound light (kitchen already has one), with its own HA area and suggested
+  // switch in LINK_HA (light.demo_extra / switch.extra_switch, both area "utility") so the test can actually prove
+  // two lights were linked, not just that the click did not blow up (Opus review finding 9: the previous version
+  // added this device but never checked it got bound, so it passed even when only the kitchen light linked).
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any;
+    el.st.edit((f: any) => { f.devices.push({ id: "light-extra", type: "light", entity: "light.demo_extra", name: "Extra utility light", x: 700, y: 300 }); });
+    el.requestUpdate();
+  }, EDITOR);
+  // Opus review finding 14: "Link lights to switches" moved out of Edit > Group to a top-level Edit item, right
+  // after Group, so it no longer needs the Group submenu opened first.
+  await menu(page, "Edit");
+  await expect(page.locator("#linkLights")).toBeVisible();
+  await page.locator("#linkLights").click();
+  await expect(page.locator("#status")).toContainText("Linked");
+
+  await page.locator('g[data-x="0"]').click(); // light-living, already bound before the click: untouched
+  await expect(page.locator("#vbound")).toHaveValue("switch.demo_living_relay");
+
+  await page.locator('g[data-x="1"]').click(); // light-kitchen
+  await expect(page.locator("#vbound")).toHaveValue("switch.kitchen_switch");
+
+  const devices = (await groundOf(page)).devices as any[];
+  const extra = devices.find((d) => d.entity === "light.demo_extra");
+  expect(extra?.bound).toBe("switch.extra_switch"); // the second light really did link, to its own suggested switch
+
+  await page.locator("#undo").click();
+  await page.locator('g[data-x="1"]').click();
+  await expect(page.locator("#vbound")).toHaveValue(""); // one undo step reverted the whole batch
+  const afterUndo = (await groundOf(page)).devices as any[];
+  expect(afterUndo.find((d) => d.entity === "light.demo_extra")?.bound).toBeUndefined(); // ...both lights, not only the kitchen one
+});
+
+test("S8.7: boundField restricts a light's Controlled by select to this floor's own switches, with the same-area match labelled (suggested)", async ({ page }) => {
+  await setHa(page, LINK_HA);
+  await page.locator('g[data-x="1"]').click(); // light-kitchen
+  const opts = await page.locator("#vbound option").allTextContents();
+  expect(opts.some((o) => o.includes("Kitchen light switch") && o.includes("(suggested)"))).toBe(true);
+  expect(opts.some((o) => o.includes("Bedroom light switch"))).toBe(false); // a different floor's switch is never offered
+});
+
+// ---- S8.7: the Motion optgroup and per-light motion-link flow ---------------------------------------------------
+
+const LIGHT_MOTION_HA = {
+  floors: [], areas: [],
+  entities: [
+    { id: "light.demo_kitchen", name: "Kitchen light", domain: "light", area: "kitchen" },
+    { id: "binary_sensor.kitchen_motion", name: "Kitchen motion", domain: "binary_sensor", dc: "motion", area: "kitchen" },
+    { id: "binary_sensor.bedroom_motion", name: "Bedroom motion", domain: "binary_sensor", dc: "motion", area: "bedroom" }, // first floor, not on ground: never offered to the kitchen light
+  ],
+};
+
+test("S8.7: without a writer the Motion optgroup is not shown; with one it lists this floor's own motion sensors", async ({ page }) => {
+  await setHa(page, LIGHT_MOTION_HA); // HA data with no writer stubbed
+  await page.locator('g[data-x="1"]').click(); // light-kitchen
+  await expect(page.locator("#vbound optgroup")).toHaveCount(0);
+
+  await withAutomationWriter(page, LIGHT_MOTION_HA);
+  await page.locator('g[data-x="1"]').click();
+  const opts = await page.locator('#vbound optgroup[label="Motion"] option').allTextContents();
+  expect(opts).toEqual(["Kitchen motion"]); // the bedroom sensor is on another floor
+});
+
+test("S8.7: picking a Motion option leaves Controlled by unchanged and shows the turn-on row; Create automation posts the config, links motion in one undo step, and Unlink clears only motion", async ({ page }) => {
+  await withAutomationWriter(page, LIGHT_MOTION_HA);
+  await watchLocationChanged(page);
+  await watchLayoutChanged(page);
+  await page.locator('g[data-x="1"]').click(); // light-kitchen
+  await page.locator("#vbound").selectOption("motion:binary_sensor.kitchen_motion");
+  await expect(page.locator("#vbound")).toHaveValue(""); // bound was never touched
+  await expect(page.locator("#panel")).toContainText("Turn on with Kitchen motion, off after");
+
+  await page.locator("#vmotionmin").fill("7");
+  await page.locator("#vmotiongo").click();
+  await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
+  expect(await calls(page)).toHaveLength(0);
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual({
+    alias: "binary_sensor.kitchen_motion → light.demo_kitchen",
+    trigger: [
+      { platform: "state", entity_id: "binary_sensor.kitchen_motion", to: "on", id: "on" },
+      { platform: "state", entity_id: "binary_sensor.kitchen_motion", to: "off", for: { seconds: 420 }, id: "off" },
+    ],
+    action: [{ choose: [
+      { conditions: [{ condition: "trigger", id: "on" }], sequence: [{ service: "homeassistant.turn_on", target: { entity_id: "light.demo_kitchen" } }] },
+      { conditions: [{ condition: "trigger", id: "off" }], sequence: [{ service: "homeassistant.turn_off", target: { entity_id: "light.demo_kitchen" } }] },
+    ] }],
+  });
+  await expect(page.locator("#panel")).toContainText("Turns on with motion: Kitchen motion");
+  await expect(page.locator("#panel")).toContainText("is not deleted");
+  await expect.poll(() => page.evaluate(() => location.pathname)).toBe("/config/automation/edit/fp_test123");
+
+  // Opus review finding 1: linking motion is an edit like any other — it fires layout-changed and autosaves.
+  await expect.poll(() => layoutChangedCount(page)).toBeGreaterThan(0);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("floorplan-studio:layout") ?? "{}"));
+  const kitchen = (Object.values(saved.floors ?? {}) as any[]).flatMap((f) => f.devices).find((d: any) => d.entity === "light.demo_kitchen");
+  expect(kitchen?.motion).toBe("binary_sensor.kitchen_motion");
+
+  await page.locator("#undo").click();
+  await page.locator('g[data-x="1"]').click();
+  await expect(page.locator("#panel")).not.toContainText("Turns on with motion");
+
+  // relink, then Unlink: removes only `motion`, one undo step, the plan's bound stays untouched
+  await page.locator("#vbound").selectOption("motion:binary_sensor.kitchen_motion");
+  await page.locator("#vmotiongo").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(2);
+  await page.locator("#vmotionunlink").click();
+  await expect(page.locator("#panel")).not.toContainText("Turns on with motion");
+  await expect(page.locator("#vbound")).toHaveValue("");
+});
+
+test("Opus review finding 2: deleting the light while Create automation is still in flight does not crash and does not silently re-link a gone device", async ({ page }) => {
+  await withSlowAutomationWriter(page, LIGHT_MOTION_HA);
+  await page.locator('g[data-x="1"]').click(); // light-kitchen
+  await page.locator("#vbound").selectOption("motion:binary_sensor.kitchen_motion");
+  await page.locator("#vmotionmin").fill("7");
+  await page.locator("#vmotiongo").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1); // the request is out, awaiting createAutomation
+
+  await page.locator('g[data-x="1"]').click(); // reselect the light (the confirm dialog left focus elsewhere)
+  await expect(page.locator("svg .dev-light")).not.toHaveCount(0);
+  const before = (await groundOf(page)).devices.length;
+  await page.locator("#vdel").click(); // the device is gone while the automation is still being created
+  await expect.poll(async () => (await groundOf(page)).devices.length).toBe(before - 1);
+  expect((await groundOf(page)).devices.some((d: any) => d.entity === "light.demo_kitchen")).toBe(false);
+
+  await page.evaluate(() => (window as any).__resolveCreate());
+  await expect(page.locator("#status")).toContainText("The light was no longer there to record the link on");
+  expect((await groundOf(page)).devices.some((d: any) => d.entity === "light.demo_kitchen")).toBe(false); // not resurrected
+});
+
 // ---- S8.1: the toolbar rework — Names in View, an Edit menu after View ------------------------------------------------
 
-test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assistant, Group, Rotate, Device colours and Trace image, in that order", async ({ page }) => {
+test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assistant, Group, Link lights to switches, Rotate, Device colours and Trace image, in that order", async ({ page }) => {
   await expect(page.locator(".bar > #names")).toHaveCount(0);
   await menu(page, "View");
   await expect(page.locator("#mOpt #names")).toBeVisible();
@@ -6799,5 +7151,9 @@ test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assist
   await menu(page, "Edit");
   await withHaMenu(page, { list: LABELLED });
   await menu(page, "Edit");
-  expect(await items(page)).toEqual(["addFloor", "mHA", "mGroup", "rotrow", "devcols", "traceBtn"]);
+  // Opus review finding 14: "Link lights to switches" moved out of Edit > Group to its own top-level item, right
+  // after Group — it acts on every light on the floor at once, not a chosen group, so nesting it under Group read
+  // as if it were scoped to one. This is the deliberate reason the pinned order below now includes "linkLights"
+  // between "mGroup" and "rotrow"; a future order change needs the same deliberate update, not a loosened assertion.
+  expect(await items(page)).toEqual(["addFloor", "mHA", "mGroup", "linkLights", "rotrow", "devcols", "traceBtn"]);
 });
