@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 Opus review of S8.4-S8.7: camera/climate/media_player/vacuum outrank light/switch in mainEntity
+
+Finding 7 of the review: `mainEntity`'s domain ranking put light and switch
+above camera, climate, media_player and vacuum, so a camera with a floodlight
+(a `light.*` entity on the same device) showed as a light, and a climate
+device with a boost relay switch showed as a switch — both wrong in the
+device rows the Add panel, Place popup and room menu build. New order:
+camera > climate > media_player > vacuum > light > switch > cover > fan >
+lock > binary_sensor > sensor. See `src/core/ha.ts` (`DOMAIN_PRIORITY`).
+
 ## 2026-09-25 Opus review of S8.4-S8.7: drop the sole-candidate suggestion rule
 
 Finding 4 of the review: `switchChoicesForLight`'s suggestion rule offered a

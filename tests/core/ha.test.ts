@@ -401,6 +401,21 @@ describe("S8.6: mainEntity — the one entity that represents an HA device", () 
     expect(mainEntity(entities)?.id).toBe("light.bulb");
   });
 
+  it("Opus review finding 7: a camera with a floodlight (a light entity) picks the camera, not the light", () => {
+    const entities = [devEnt("light.floodlight", "light"), devEnt("camera.doorbell", "camera")];
+    expect(mainEntity(entities)?.id).toBe("camera.doorbell");
+  });
+
+  it("Opus review finding 7: a climate device with a switch (e.g. a boost relay) picks the climate, not the switch", () => {
+    const entities = [devEnt("switch.boost", "switch"), devEnt("climate.trv", "climate")];
+    expect(mainEntity(entities)?.id).toBe("climate.trv");
+  });
+
+  it("Opus review finding 7: a media_player and a vacuum still outrank a light and a switch", () => {
+    expect(mainEntity([devEnt("light.a", "light"), devEnt("media_player.a", "media_player")])?.id).toBe("media_player.a");
+    expect(mainEntity([devEnt("switch.a", "switch"), devEnt("vacuum.a", "vacuum")])?.id).toBe("vacuum.a");
+  });
+
   it("a device whose entities are all diagnostic/config: no main entity, and no row in mainEntitiesByDevice", () => {
     const entities = [devEnt("sensor.gw_uptime", "sensor", undefined, "diagnostic"), devEnt("switch.gw_restart", "switch", undefined, "config")];
     expect(mainEntity(entities)).toBeUndefined();

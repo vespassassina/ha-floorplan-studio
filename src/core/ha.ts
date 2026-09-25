@@ -240,7 +240,10 @@ function byDevice(entities: HaData["entities"]): Map<string, HaData["entities"]>
   return groups;
 }
 
-const DOMAIN_PRIORITY = ["light", "switch", "climate", "cover", "fan", "lock", "media_player", "vacuum", "camera", "binary_sensor", "sensor"];
+// Opus review, finding 7: camera, climate, media_player and vacuum rank above light and switch, so a camera with a
+// floodlight (a light entity on the same device) still reads as a camera, and a climate device with a boost switch
+// still reads as climate — see docs/DECISIONS.md.
+const DOMAIN_PRIORITY = ["camera", "climate", "media_player", "vacuum", "light", "switch", "cover", "fan", "lock", "binary_sensor", "sensor"];
 
 /**
  * S8.6: "devices, not entities" — the one entity that best represents an HA device, for every list that adds a new
@@ -250,9 +253,10 @@ const DOMAIN_PRIORITY = ["light", "switch", "climate", "cover", "fan", "lock", "
  *    hides a plug's network/signal diagnostic sensor and a multisensor's own battery reading.
  * 2. Nothing left: returns undefined. A device whose entities are all diagnostic or config gets no row; it has
  *    nothing of its own to show.
- * 3. The rest are ranked by domain: light > switch > climate > cover > fan > lock > media_player > vacuum > camera >
+ * 3. The rest are ranked by domain: camera > climate > media_player > vacuum > light > switch > cover > fan > lock >
  *    binary_sensor > sensor > everything else (a domain this list does not know sits at the tail, in the order it
- *    is first seen).
+ *    is first seen). Camera, climate, media_player and vacuum outrank light and switch (Opus review, finding 7):
+ *    a camera with a floodlight is a camera first, a climate device with a boost switch is climate first.
  * 4. Tiebreak within the same domain rank: the entity whose `name` equals `deviceName` wins (when given, from the
  *    HA device registry); else the entity with the shortest id; else the first one encountered — every sort here is
  *    stable, so a genuine tie keeps encounter order.
