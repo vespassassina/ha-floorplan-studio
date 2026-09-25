@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.1
 
 - On a phone, a vertical swipe over a plan at fit scrolls the dashboard again;
   once zoomed in, the plan takes the swipe as a pan, as before.
