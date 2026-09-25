@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.12.2
 
 - Fixed "Custom element doesn't exist: floorplan-studio-card" on about half
-  of page loads. Home Assistant swaps its element registry while it starts;
-  the card now registers again when that happens.
+  of page loads. The integration now adds the card to your dashboard
+  resources (Settings, Dashboards, Resources), which load after Home
+  Assistant has started, and updates that entry on each upgrade. Removing
+  the integration removes it. With YAML resources it still loads the card
+  as before, and the card registers again if Home Assistant swaps its
+  element registry while starting.
 - In a panel view the card fits the screen below the header instead of
   drawing the plan taller than the window.
 

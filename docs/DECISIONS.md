@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 S8.3 the card loads as a dashboard resource in storage mode
+
+Supersedes how the card is loaded, not the re-define below. Diego asked why the
+registry is replaced and whether the card could load like the other cards.
+Resources (Settings, Dashboards, Resources) load after HA's core, so a define
+there always lands in the polyfilled registry. The integration now adds one
+`module` resource for `/floorplan_studio_static/floorplan-studio-card.js?v=<version>`
+when dashboard resources are in storage mode, and rewrites the `?v=` on the
+same entry after an upgrade so browsers fetch the new file. It never touches a
+resource at another URL. The resource is deleted when the integration is
+removed, not on unload, so a reload or an options change does not churn the
+user's list. With YAML resources (read-only to us) it keeps `add_extra_js_url`,
+and the re-define watch covers the race there. `lovelace` joins the manifest
+dependencies so its data exists before setup.
+
 ## 2026-09-25 S8.3 card: re-define after HA swaps the registry; panel view fits the screen
 
 Diego saw "Custom element doesn't exist: floorplan-studio-card" on about half
