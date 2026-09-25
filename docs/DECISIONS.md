@@ -2,6 +2,20 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 Opus review of S8.4-S8.7: drop the sole-candidate suggestion rule
+
+Finding 4 of the review: `switchChoicesForLight`'s suggestion rule offered a
+switch as "(suggested)" whenever it was the *only* switch or plug candidate in
+the light's own HA area, whatever its name, score 0 included. A living room
+with one light and one unrelated switch (a "TV plug" next to a "Ceiling
+light") suggested the plug, and "Link lights to switches" would have bound it.
+Being the sole candidate is no longer sufficient: a candidate is `suggested`
+only when it scores at least 1 shared name token with the light and is the
+unique top scorer in its area, the same rule that already applied when there
+was more than one candidate. `autoLinkLights` uses the same function, so it
+inherits the fix. See `src/core/ha.ts` (`switchChoicesForLight`) and
+`tests/core/ha.test.ts`.
+
 ## 2026-09-25 S8.7 linking a light: floor switches, a name-match suggestion, motion
 
 Diego's feedback: "when linking lights, only show the floor related switches,

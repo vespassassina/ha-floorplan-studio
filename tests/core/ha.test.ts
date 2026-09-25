@@ -497,11 +497,33 @@ describe("switchChoicesForLight (S8.7): floor-scoped switches with a same-area n
     expect(out.every((s) => !s.suggested)).toBe(true);
   });
 
-  it("3. the only switch in the area is suggested even with zero shared name tokens", () => {
+  it("3. Opus review: the sole switch in the area is NOT suggested when it shares no name token (score must be >= 1, being the only candidate is not enough)", () => {
     const ha = baseHa([{ id: "switch.unrelated_name", name: "Zzz totally unrelated", domain: "switch", area: "area_basement" }]);
     const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
     expect(out).toHaveLength(1);
-    expect(out[0].suggested).toBe(true);
+    expect(out[0].suggested).toBe(false);
+  });
+
+  it("Opus review: a living room with 'Ceiling light' and a 'TV plug' gives no suggestion and auto-links nothing (defect 4: the old sole-candidate rule wrongly bound the plug)", () => {
+    const l: Layout = {
+      version: 2, unit: "cm", north: 0,
+      floors: { ground: { title: "Ground", outline: [], rooms: [{ id: "r1", name: "Living room", area: "area_living", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [{ id: "d1", type: "light", entity: "light.ceiling", name: "Ceiling light", x: 10, y: 10 }], furniture: [], unlinked: [] } },
+      catalog: [],
+    };
+    const ha: HaData = {
+      floors: [{ id: "floor_ground", name: "Ground" }],
+      areas: [{ id: "area_living", name: "Living room", floor_id: "floor_ground" }],
+      entities: [
+        { id: "light.ceiling", name: "Ceiling light", domain: "light", area: "area_living" },
+        { id: "switch.tv_plug", name: "TV plug", domain: "switch", area: "area_living" },
+      ],
+    };
+    const livingLight: Device = { id: "d1", type: "light", entity: "light.ceiling", name: "Ceiling light", x: 10, y: 10 };
+    const out = switchChoicesForLight(l, ha, "ground", livingLight);
+    expect(out).toHaveLength(1);
+    expect(out[0].suggested).toBe(false);
+    // autoLinkLights (EditorState, state.ts) shares this same scoring, so it must link nothing here — see
+    // state.test.ts "Opus review: a living room with Ceiling light and TV plug auto-links nothing".
   });
 
   it("4. a switch in a different area of the same plan floor is offered but never suggested", () => {

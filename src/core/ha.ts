@@ -426,10 +426,11 @@ export interface SwitchChoice { entity: string; name: string; area?: string; roo
  * unplaced) — the field must always be able to show what it is already set to.
  *
  * Scoring (folded in here rather than a separate function, so a caller need not re-walk the candidate list to
- * apply it): a candidate is `suggested` only when its own HA area equals the light's own HA area, and it is the
- * unique top scorer there — either the only switch/plug candidate in that area (any score, including 0), or the one
- * with a strictly higher shared-name-token count than every other candidate in that area. A tie at the top, among
- * more than one candidate, suggests nobody.
+ * apply it): a candidate is `suggested` only when its own HA area equals the light's own HA area, it scores at
+ * least 1 shared name token with the light (lowercased, split on non-alphanumeric runs, stopwords dropped), and it
+ * is the unique top scorer there. Being the sole switch/plug candidate in the area is never enough by itself
+ * (Opus review, finding 4): a wrong guess is worse than no guess, and a lone candidate with nothing in common with
+ * the light's name is still a guess. A tie at the top, among more than one candidate, suggests nobody.
  */
 export function switchChoicesForLight(l: Layout, ha: HaData | null, floorKey: string, light: Device): SwitchChoice[] {
   const out: SwitchChoice[] = [];
@@ -475,8 +476,9 @@ export function switchChoicesForLight(l: Layout, ha: HaData | null, floorKey: st
   const lightArea = areaOf(light.entity);
   if (lightArea) {
     const group = out.filter((s) => s.area === lightArea);
-    if (group.length === 1) group[0].suggested = true;
-    else if (group.length > 1) {
+    // Opus review (finding 4): being the only candidate in the area is not, on its own, reason to suggest it — a
+    // score of at least 1 shared name token is required even when there is nothing else to compare it to.
+    if (group.length >= 1) {
       const lightName = light.name || light.entity;
       const lightTokens = nameTokens(lightName);
       const scored = group.map((s) => ({ s, score: [...nameTokens(s.name)].filter((t) => lightTokens.has(t)).length }));
