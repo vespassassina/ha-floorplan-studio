@@ -1798,13 +1798,21 @@ export class FloorplanStudioEditor extends LitElement {
   /**
    * S4.6/S8.7: asks, has Home Assistant build the "turns on..." motion automation, then opens it in HA's own
    * editor. Shared by the Group menu's motion-group flow (`deviceIndex` omitted: the plan never changes, as
-   * before) and the light panel's own "Motion" pick (`deviceIndex` given: on success, in the same undo step,
-   * also records `motion` on that specific light — a group's own light target may not be one `Device` on the
-   * plan, so this side effect only ever applies to a concrete light).
+   * before) and the light panel's own "Motion" pick (`deviceIndex` given: on success, also records `motion` on
+   * that specific light — a group's own light target may not be one `Device` on the plan, so this side effect
+   * only ever applies to a concrete light).
+   *
+   * Opus review finding 2: `deviceIndex` is only a snapshot from before `askHa` and `createAutomation` — either
+   * await can run for a while, and the user is free to undo, delete the device, redraw the floor, or switch floors
+   * while it is in flight. The device's own id and floor are captured up front and the device is looked up again,
+   * by id, after the automation exists; a light that is gone, or is no longer a light, does not stop the
+   * automation from being reported as created, only from being recorded on the plan.
    */
   private async motionAutomation(motionId: string, lightId: string, minutes: number, deviceIndex?: number) {
     const w = this.writer;
     if (!w || !lightId || !(minutes > 0)) return;
+    const floorKey = this.st.floor;
+    const devId = deviceIndex !== undefined ? this.st.f.devices[deviceIndex]?.id : undefined;
     const ok = await askHa(this.shadowRoot ?? this, "Create automation", [
       `Home Assistant will get a new automation: ${lightId} turns on with ${motionId}, off ${minutes} minute${minutes === 1 ? "" : "s"} after motion stops, labelled floorplan-studio.`,
       "It opens in Home Assistant's own editor once created, to finish or rename."]);
@@ -1815,11 +1823,21 @@ export class FloorplanStudioEditor extends LitElement {
       const id = await w.createAutomation(cfg);
       void this.loadHaList(); // S8.1: the Edit, Home Assistant button lists it
       this.st.motionLightGroup = ""; this.st.motionMinutes = "";
-      if (deviceIndex !== undefined) {
-        this.st.edit((f) => { f.devices[deviceIndex].motion = motionId; });
-        this.st.pendingMotion = "";
+      let linked = devId === undefined; // the group-motion flow (no deviceIndex) never tries to link anything
+      if (devId !== undefined) {
+        const floor = this.st.layout.floors[floorKey];
+        const i = floor?.devices.findIndex((d) => d.id === devId) ?? -1;
+        const d = i >= 0 ? floor!.devices[i] : undefined;
+        if (d && d.type === "light") {
+          if (this.st.edit((f) => { f.devices[i].motion = motionId; })) this.changed();
+          this.st.pendingMotion = "";
+          linked = true;
+        }
       }
-      this.status = `Created the automation. Opening it in Home Assistant...`; this.requestUpdate();
+      this.status = linked
+        ? `Created the automation. Opening it in Home Assistant...`
+        : `Created the automation. The light was no longer there to record the link on. Opening it in Home Assistant...`;
+      this.requestUpdate();
       openAutomation(id);
     } catch (err) {
       this.status = `Could not create the automation: ${err instanceof Error ? err.message : String(err)}. Nothing was changed.`; this.requestUpdate();

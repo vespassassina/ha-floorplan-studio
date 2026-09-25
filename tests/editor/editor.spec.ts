@@ -6425,6 +6425,29 @@ const selectHallSwitch2 = (page: Page) => page.locator("svg .dev-switch").first(
 async function watchLocationChanged(page: Page) {
   await page.evaluate(() => { (window as any).__locChanged = false; window.addEventListener("location-changed", () => { (window as any).__locChanged = true; }); });
 }
+/** A count of `layout-changed` events the editor element has dispatched, so a test can tell an edit was actually
+ *  committed (autosaved, told to the host), not only that it looks right in the panel. Call `watchLayoutChanged`
+ *  first. */
+const layoutChangedCount = (page: Page) => page.evaluate(() => (window as any).__lcCount as number);
+async function watchLayoutChanged(page: Page) {
+  await page.evaluate((tag) => {
+    (window as any).__lcCount = 0;
+    document.querySelector(tag)!.addEventListener("layout-changed", () => { (window as any).__lcCount++; });
+  }, EDITOR);
+}
+/** Like `withAutomationWriter`, but `createAutomation` does not resolve until the test calls
+ *  `window.__resolveCreate()` — for exercising what happens to a device while the request is still in flight
+ *  (Opus review finding 2). */
+async function withSlowAutomationWriter(page: Page, ha: unknown) {
+  await setHa(page, ha);
+  await page.evaluate((tag) => {
+    const w = window as any; w.__calls = [];
+    (document.querySelector(tag as string) as any).writer = {
+      setDeviceArea: async () => {}, setEntityArea: async () => {},
+      createAutomation: (cfg: unknown) => { w.__calls.push(cfg); return new Promise((res) => { w.__resolveCreate = () => res("fp_test123"); }); },
+    };
+  }, EDITOR);
+}
 
 test("S4.6: switch panel \"Controls...\" picks two lights, confirms, posts the built automation, then opens it in Home Assistant's editor", async ({ page }) => {
   await withAutomationWriter(page, CTRL_HA);
@@ -6974,6 +6997,7 @@ test("S8.7: without a writer the Motion optgroup is not shown; with one it lists
 test("S8.7: picking a Motion option leaves Controlled by unchanged and shows the turn-on row; Create automation posts the config, links motion in one undo step, and Unlink clears only motion", async ({ page }) => {
   await withAutomationWriter(page, LIGHT_MOTION_HA);
   await watchLocationChanged(page);
+  await watchLayoutChanged(page);
   await page.locator('g[data-x="1"]').click(); // light-kitchen
   await page.locator("#vbound").selectOption("motion:binary_sensor.kitchen_motion");
   await expect(page.locator("#vbound")).toHaveValue(""); // bound was never touched
@@ -7000,6 +7024,12 @@ test("S8.7: picking a Motion option leaves Controlled by unchanged and shows the
   await expect(page.locator("#panel")).toContainText("is not deleted");
   await expect.poll(() => page.evaluate(() => location.pathname)).toBe("/config/automation/edit/fp_test123");
 
+  // Opus review finding 1: linking motion is an edit like any other — it fires layout-changed and autosaves.
+  await expect.poll(() => layoutChangedCount(page)).toBeGreaterThan(0);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("floorplan-studio:layout") ?? "{}"));
+  const kitchen = (Object.values(saved.floors ?? {}) as any[]).flatMap((f) => f.devices).find((d: any) => d.entity === "light.demo_kitchen");
+  expect(kitchen?.motion).toBe("binary_sensor.kitchen_motion");
+
   await page.locator("#undo").click();
   await page.locator('g[data-x="1"]').click();
   await expect(page.locator("#panel")).not.toContainText("Turns on with motion");
@@ -7012,6 +7042,27 @@ test("S8.7: picking a Motion option leaves Controlled by unchanged and shows the
   await page.locator("#vmotionunlink").click();
   await expect(page.locator("#panel")).not.toContainText("Turns on with motion");
   await expect(page.locator("#vbound")).toHaveValue("");
+});
+
+test("Opus review finding 2: deleting the light while Create automation is still in flight does not crash and does not silently re-link a gone device", async ({ page }) => {
+  await withSlowAutomationWriter(page, LIGHT_MOTION_HA);
+  await page.locator('g[data-x="1"]').click(); // light-kitchen
+  await page.locator("#vbound").selectOption("motion:binary_sensor.kitchen_motion");
+  await page.locator("#vmotionmin").fill("7");
+  await page.locator("#vmotiongo").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1); // the request is out, awaiting createAutomation
+
+  await page.locator('g[data-x="1"]').click(); // reselect the light (the confirm dialog left focus elsewhere)
+  await expect(page.locator("svg .dev-light")).not.toHaveCount(0);
+  const before = (await groundOf(page)).devices.length;
+  await page.locator("#vdel").click(); // the device is gone while the automation is still being created
+  await expect.poll(async () => (await groundOf(page)).devices.length).toBe(before - 1);
+  expect((await groundOf(page)).devices.some((d: any) => d.entity === "light.demo_kitchen")).toBe(false);
+
+  await page.evaluate(() => (window as any).__resolveCreate());
+  await expect(page.locator("#status")).toContainText("The light was no longer there to record the link on");
+  expect((await groundOf(page)).devices.some((d: any) => d.entity === "light.demo_kitchen")).toBe(false); // not resurrected
 });
 
 // ---- S8.1: the toolbar rework — Names in View, an Edit menu after View ------------------------------------------------
