@@ -7137,7 +7137,7 @@ test("Opus review finding 2: deleting the light while Create automation is still
 
 // ---- S8.1: the toolbar rework — Names in View, an Edit menu after View ------------------------------------------------
 
-test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assistant, Group, Rotate, Device colours and Trace image, in that order", async ({ page }) => {
+test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assistant, Group, Link lights to switches, Rotate, Device colours and Trace image, in that order", async ({ page }) => {
   await expect(page.locator(".bar > #names")).toHaveCount(0);
   await menu(page, "View");
   await expect(page.locator("#mOpt #names")).toBeVisible();
