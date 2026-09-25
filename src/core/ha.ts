@@ -186,6 +186,20 @@ const nameIn = (list: { id: string; name: string }[] | undefined, id: unknown): 
  * the area `room.area` names. A floor with no `ha`, a room with an empty or unknown `area`, and every other field stay as they were.
  * `changed` counts the names that differed. The input is never mutated.
  */
+export function applyHaNames(l: Layout, ha: HaData): { layout: Layout; changed: number } {
+  const layout = structuredClone(l);
+  let changed = 0;
+  for (const f of Object.values(layout.floors)) {
+    const t = nameIn(ha.floors, f.ha);
+    if (t !== undefined && t !== f.title) { f.title = t; changed++; }
+    for (const r of f.rooms) {
+      const n = nameIn(ha.areas, r.area);
+      if (n !== undefined && n !== r.name) { r.name = n; changed++; }
+    }
+  }
+  return { layout, changed };
+}
+
 /**
  * S8.5: one row of the merged Add > Device panel — either an unplaced `layout.catalog` entry or an unplaced HA entity
  * that never entered the plan (`unplacedHaEntities`), the same two sources the old "Device" and "Entities" submenus
@@ -236,18 +250,4 @@ export function addCandidates(l: Layout, ha: HaData | null): AddCandidate[] {
     }
   }
   return out;
-}
-
-export function applyHaNames(l: Layout, ha: HaData): { layout: Layout; changed: number } {
-  const layout = structuredClone(l);
-  let changed = 0;
-  for (const f of Object.values(layout.floors)) {
-    const t = nameIn(ha.floors, f.ha);
-    if (t !== undefined && t !== f.title) { f.title = t; changed++; }
-    for (const r of f.rooms) {
-      const n = nameIn(ha.areas, r.area);
-      if (n !== undefined && n !== r.name) { r.name = n; changed++; }
-    }
-  }
-  return { layout, changed };
 }
