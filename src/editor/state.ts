@@ -126,7 +126,17 @@ export class EditorState {
   /** What Home Assistant has, when the host gives it. Undefined standalone: every name is then free text. */
   ha: HaData | undefined = undefined;
   floor: string;
-  sel: Sel = null;
+  private _sel: Sel = null;
+  get sel(): Sel { return this._sel; }
+  /** Opus review finding 3: selecting anything but the device `pendingMotion` was picked for clears the draft for
+   *  good (not merely hides it) — reselecting that same light later starts the Motion pick fresh. */
+  set sel(s: Sel) {
+    this._sel = s;
+    if (this.pendingMotionValue) {
+      const stillSameDevice = s?.t === "dev" && this.f.devices[s.i]?.id === this.pendingMotionDevId;
+      if (!stillSameDevice) { this.pendingMotionValue = ""; this.pendingMotionDevId = null; }
+    }
+  }
   views: Record<string, View> = {};
   /** The toolbar's device-type filter: empty shows every type, several may be checked at once. */
   filter: DeviceType[] = [];
@@ -145,8 +155,20 @@ export class EditorState {
   motionMinutes = "";
   /** S8.7: the light panel's own motion-link draft — the motion entity a "Motion" option in Controlled by was just
    *  picked to (cleared once linked, or once another value is picked), and the off-delay minutes field. Kept for
-   *  the session, never the layout. */
-  pendingMotion = "";
+   *  the session, never the layout. Opus review finding 3: tied to the device id it was picked for, so selecting a
+   *  different light (or anything else) reads back "" instead of leaking the previous light's pending pick. */
+  private pendingMotionDevId: string | null = null;
+  private pendingMotionValue = "";
+  get pendingMotion(): string {
+    if (!this.pendingMotionValue) return "";
+    const sel = this.sel;
+    return sel?.t === "dev" && this.f.devices[sel.i]?.id === this.pendingMotionDevId ? this.pendingMotionValue : "";
+  }
+  set pendingMotion(v: string) {
+    this.pendingMotionValue = v;
+    const sel = this.sel;
+    this.pendingMotionDevId = v && sel?.t === "dev" ? this.f.devices[sel.i]?.id ?? null : null;
+  }
   pendingMotionMinutes = "5";
   /** Snap grid in cm; 0 is none. Kept in localStorage, not in the layout. */
   snapGrid: Grid = readGrid();

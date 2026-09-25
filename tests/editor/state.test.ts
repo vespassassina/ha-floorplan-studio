@@ -914,3 +914,40 @@ describe("EditorState.autoLinkLights (S8.7)", () => {
     expect(st.f.devices[0].bound).toBeUndefined();
   });
 });
+
+describe("EditorState.pendingMotion (Opus review finding 3: tied to the device id, cleared on selection change)", () => {
+  const layout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      ground: {
+        title: "Ground", outline: [], rooms: [],
+        walls: [], stairs: [], doors: [], openings: [], extras: [],
+        devices: [
+          { id: "dA", type: "light", entity: "light.a", name: "Light A", x: 10, y: 10 },
+          { id: "dB", type: "light", entity: "light.b", name: "Light B", x: 20, y: 20 },
+        ],
+        furniture: [], unlinked: [],
+      },
+    },
+    catalog: [],
+  });
+
+  it("reads back empty once a different device is selected", () => {
+    const st = new EditorState(layout(), "ground");
+    st.sel = { t: "dev", i: 0 }; // light A
+    st.pendingMotion = "binary_sensor.motion";
+    expect(st.pendingMotion).toBe("binary_sensor.motion");
+    st.sel = { t: "dev", i: 1 }; // light B
+    expect(st.pendingMotion).toBe(""); // did not leak onto light B
+    st.sel = { t: "dev", i: 0 }; // back to light A
+    expect(st.pendingMotion).toBe(""); // selecting away cleared it, not just hid it
+  });
+
+  it("reads back empty once the selection is cleared entirely", () => {
+    const st = new EditorState(layout(), "ground");
+    st.sel = { t: "dev", i: 0 };
+    st.pendingMotion = "binary_sensor.motion";
+    st.sel = null;
+    expect(st.pendingMotion).toBe("");
+  });
+});
