@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.2
+
+- The card drew nothing on a real Home Assistant and said "No layout": it
+  read the websocket reply's wrapper as the plan. Fixed; a plan that arrives
+  but fails validation now says which problem, instead of the install hint.
+- `scripts/validate-layout.mjs` migrates before it validates, like the editor
+  and the card, so an older stored plan passes.
+
 ## 0.11.1
 
 - On a phone, a vertical swipe over a plan at fit scrolls the dashboard again;

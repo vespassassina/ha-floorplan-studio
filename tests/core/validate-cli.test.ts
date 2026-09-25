@@ -74,12 +74,27 @@ describe("validate-layout CLI", () => {
     expect(r.out).toMatch(/warning:.*devices/);
   });
 
+  // S7.16: the script migrates before it validates, as the editor and the card do, so a v1 file or a floor
+  // without `unlinked` now opens instead of failing; the error here is one migrate cannot repair.
   it("a plain schema error still fails, once per problem", () => {
     const l = flat();
-    l.version = 1;
+    (l as { north: unknown }).north = "north";
     const r = run(l);
     expect(r.code).toBe(1);
-    expect(r.out).toMatch(/version must be 2/);
+    expect(r.out).toMatch(/north must be a number/);
+  });
+
+  it("S7.16: a floor saved before `unlinked` existed passes, filled in by migrate", () => {
+    const l = flat();
+    for (const f of Object.values(l.floors)) delete (f as { unlinked?: unknown }).unlinked;
+    const r = run(l);
+    expect(r.code).toBe(0);
+  });
+
+  it("S7.16: a plan migrate itself refuses fails with its reason", () => {
+    const r = run({ ...flat(), version: 7 });
+    expect(r.code).toBe(1);
+    expect(r.out).toMatch(/Unknown layout version 7/);
   });
 
   it("no argument is a usage error, exit 2", () => {

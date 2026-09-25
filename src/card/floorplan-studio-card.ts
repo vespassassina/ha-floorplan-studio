@@ -246,20 +246,22 @@ export class FloorplanStudioCard extends LitElement {
     this._actionsSvg = null;
   }
 
-  /** Takes any accepted layout (from config or a fetch), migrates and validates it. Never throws: an unusable one just leaves the message up. */
+  /** Takes any accepted layout (from config or a fetch), migrates and validates it. Never throws: an unusable one
+   * leaves a message up. S7.16: a plan that arrived but failed says why (the first problem), so the message can be
+   * matched to the plan; nothing at all (`null`, `undefined`) keeps the install hint. */
   private _applyLayout(raw: unknown): void {
     try {
+      if (raw == null) throw new Error();
       const v = validate(migrate(raw));
-      if (v.ok && Object.keys(v.layout.floors).length) {
-        this._layout = v.layout;
-        // S2.4 review: every floor, not only the one on show, so a sensor keeps fading across a floor switch (S2.6).
-        this._motionEntities = new Set(Object.values(v.layout.floors).flatMap((f) => f.devices.filter((d) => d.type === "motion").map((d) => d.entity)));
-        this._error = null;
-      } else {
-        this._error = NO_LAYOUT;
-      }
-    } catch {
-      this._error = NO_LAYOUT;
+      if (!v.ok) throw new Error(v.errors[0]);
+      if (!Object.keys(v.layout.floors).length) throw new Error("the plan has no floors");
+      this._layout = v.layout;
+      // S2.4 review: every floor, not only the one on show, so a sensor keeps fading across a floor switch (S2.6).
+      this._motionEntities = new Set(Object.values(v.layout.floors).flatMap((f) => f.devices.filter((d) => d.type === "motion").map((d) => d.entity)));
+      this._error = null;
+    } catch (e) {
+      const why = e instanceof Error ? e.message : "";
+      this._error = why ? `The plan could not be used: ${why}` : NO_LAYOUT;
     }
     this._syncTimer();
     this.requestUpdate();
@@ -284,9 +286,10 @@ export class FloorplanStudioCard extends LitElement {
     if (this._hass?.connection) {
       if (this._wsRequested) return;
       this._wsRequested = true;
+      // S7.16: the integration answers `{ layout }` (websocket.py); `null` when nothing has been saved yet.
       this._hass.connection
-        .sendMessagePromise({ type: "floorplan_studio/load" })
-        .then((layout) => this._applyLayout(layout))
+        .sendMessagePromise<{ layout: unknown }>({ type: "floorplan_studio/load" })
+        .then((r) => this._applyLayout(r?.layout))
         .catch(() => { this._error = NO_LAYOUT; this.requestUpdate(); });
       return;
     }
