@@ -9,6 +9,10 @@
 - Add > Device and Add > Entities are now one panel: search by name or
   entity id, and filter by Floor, Room, Area or Type. Picking a device on
   another floor switches to that floor and drops it in its own room.
+- Add > Device, the room panel's Place popup, and a room's "Add device from"
+  menu now list a device once, not once per entity — a plug shows itself, not
+  its power sensor or its diagnostic connectivity sensor. A device with
+  nothing but diagnostic entities is not offered at all.
 
 ## 0.12.2
 

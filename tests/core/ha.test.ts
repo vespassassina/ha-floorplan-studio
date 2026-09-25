@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { applyHaNames, availableEntities, entitiesForType, roomHaBox, typeForEntity, unplacedHaEntities, type HaData } from "../../src/core/ha";
+import { applyHaNames, availableEntities, entitiesForType, mainEntitiesByDevice, mainEntity, roomHaBox, typeForEntity, unplacedHaEntities, type HaData } from "../../src/core/ha";
 import { migrate } from "../../src/core/migrate";
 import v1 from "../../demo/layout.v1.json";
 import type { Layout } from "../../src/core/schema";
@@ -368,5 +368,93 @@ describe("S8.5: addCandidates — catalog + HA entities, merged, each located by
     const l = layout();
     expect(addCandidates(l, null)).toEqual([]);
     expect(addCandidates(l, { floors: [], areas: [], entities: [] })).toEqual([]);
+  });
+});
+
+// ---- S8.6: "devices, not entities" — mainEntity/mainEntitiesByDevice and addCandidates' device rows --------------
+
+const devEnt = (id: string, domain: string, dc?: string, cat?: string): Ent => ({ id, name: id, domain, dc, dev: "d1", ...(cat ? { cat } : {}) });
+
+describe("S8.6: mainEntity — the one entity that represents an HA device", () => {
+  it("a plug: switch + power sensor + energy sensor + a diagnostic connectivity binary_sensor picks the switch", () => {
+    const entities = [
+      devEnt("sensor.plug_power", "sensor", "power"),
+      devEnt("sensor.plug_energy", "sensor", "energy"),
+      devEnt("binary_sensor.plug_connectivity", "binary_sensor", "connectivity", "diagnostic"),
+      devEnt("switch.plug", "switch", "outlet"),
+    ];
+    expect(mainEntity(entities)?.id).toBe("switch.plug");
+  });
+
+  it("a multisensor: motion + temperature + humidity + a diagnostic battery sensor picks the motion binary_sensor", () => {
+    const entities = [
+      devEnt("sensor.multi_temperature", "sensor", "temperature"),
+      devEnt("sensor.multi_humidity", "sensor", "humidity"),
+      devEnt("sensor.multi_battery", "sensor", "battery", "diagnostic"),
+      devEnt("binary_sensor.multi_motion", "binary_sensor", "motion"),
+    ];
+    expect(mainEntity(entities)?.id).toBe("binary_sensor.multi_motion");
+  });
+
+  it("a light bulb: a single light entity plus a diagnostic signal sensor picks the light", () => {
+    const entities = [devEnt("light.bulb", "light"), devEnt("sensor.bulb_signal", "sensor", "signal_strength", "diagnostic")];
+    expect(mainEntity(entities)?.id).toBe("light.bulb");
+  });
+
+  it("a device whose entities are all diagnostic/config: no main entity, and no row in mainEntitiesByDevice", () => {
+    const entities = [devEnt("sensor.gw_uptime", "sensor", undefined, "diagnostic"), devEnt("switch.gw_restart", "switch", undefined, "config")];
+    expect(mainEntity(entities)).toBeUndefined();
+    const ha: HaData = { floors: [], areas: [], entities };
+    expect(mainEntitiesByDevice(ha).has("d1")).toBe(false);
+  });
+
+  it("mainEntitiesByDevice groups by dev and skips device-less entities", () => {
+    const ha: HaData = {
+      floors: [], areas: [],
+      entities: [...[
+        devEnt("switch.plug", "switch", "outlet"),
+        devEnt("sensor.plug_power", "sensor", "power"),
+      ], { id: "light.loose", name: "Loose", domain: "light" }],
+    };
+    const m = mainEntitiesByDevice(ha);
+    expect(m.get("d1")?.id).toBe("switch.plug");
+    expect(m.size).toBe(1);
+  });
+
+  it("break it: hostile or missing entities never throw", () => {
+    expect(mainEntity([])).toBeUndefined();
+    expect(mainEntitiesByDevice({ floors: [], areas: [], entities: null as unknown as Ent[] }).size).toBe(0);
+  });
+});
+
+describe("S8.6: addCandidates emits one row per HA device, not one per entity", () => {
+  const layout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: { ground: { title: "Ground", outline: [], walls: [], rooms: [], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [] } },
+    catalog: [],
+  } as unknown as Layout);
+
+  const plugHa = (): HaData => ({
+    floors: [], areas: [],
+    devices: [{ id: "d1", name: "Kitchen plug" }],
+    entities: [
+      devEnt("switch.plug", "switch", "outlet"),
+      devEnt("sensor.plug_power", "sensor", "power"),
+      devEnt("binary_sensor.plug_connectivity", "binary_sensor", "connectivity", "diagnostic"),
+    ],
+  });
+
+  it("one row for the plug device, named from the device registry, entity is the main (switch)", () => {
+    const out = addCandidates(layout(), plugHa());
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ key: "ha-dev:d1", source: "ha", id: "d1", entity: "switch.plug", name: "Kitchen plug" });
+  });
+
+  it("a device already placed through one of its entities does not reappear through a sibling", () => {
+    const l = layout();
+    l.catalog = [{ id: "c-1", floor: "ground", room: "", type: "plug", name: "Kitchen plug", entity: "switch.plug" }];
+    const out = addCandidates(l, plugHa());
+    expect(out.find((c) => c.id === "d1")).toBeUndefined();
+    expect(out.find((c) => c.entity === "sensor.plug_power")).toBeUndefined(); // no fallback row via the power sensor either
   });
 });

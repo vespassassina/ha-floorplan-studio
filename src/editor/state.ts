@@ -1,4 +1,4 @@
-import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, placeableInArea, planPivot, rotateAbout, stairSteps, typeForEntity, unplacedCatalog, validate, viewBoxFor } from "../core";
+import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, typeForEntity, unplacedCatalog, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, Theme, Trace } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -415,11 +415,11 @@ export class EditorState {
     return this.addHaEntity(e, ctr, room.name);
   }
 
-  /** S4.15: entities of room `roomIndex`'s HA area that are neither drawn nor catalogued. Empty with no HA, no area or no such room. */
+  /** S4.15: entities of room `roomIndex`'s HA area that are neither drawn nor catalogued, one row per device (S8.6). Empty with no HA, no area or no such room. */
   areaToPlace(roomIndex: number): HaData["entities"] {
     const room = this.f.rooms[roomIndex];
     if (!room?.area || !this.ha || room.pts.length < 3) return [];
-    return placeableInArea(this.layout, this.ha, room.area); // S8.1: only what the plan has an icon for
+    return placeableDevicesInArea(this.layout, this.ha, room.area); // S8.1/S8.6: only what the plan has an icon for, devices not entities
   }
 
   /**

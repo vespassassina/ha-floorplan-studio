@@ -600,6 +600,13 @@ function areaDiffField(c: PanelCtx, i: number) {
  * The device's Home Assistant entity. With HA data it is a select: the entities that suit the device's type, those in the room's area first,
  * then everything else, so nothing is out of reach. Entities already placed on the plan are left out. It can attach an unbound device, switch a bound one to another, and go back to
  * "not connected" (entity ""). An id HA does not know stays as the selected option. Without HA data it stays a text field.
+ *
+ * S8.6: this is the one picker that still lists individual entities rather than collapsing to one row per device —
+ * a device icon already exists here, so someone may deliberately want its power sensor rather than its switch. It
+ * groups the options under one `<optgroup>` per device instead, nested within the existing In room/Elsewhere/
+ * Everything else tiers (an HTML `<optgroup>` cannot itself nest, so each device gets its own sibling optgroup,
+ * ordered by device name; the tier's device-less entities keep the tier's own label, in a trailing optgroup). Within
+ * a device's optgroup, a config/diagnostic entity (`cat`) sorts after the device's other entities.
  */
 function deviceEntity(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i], ha = c.st.ha;
@@ -611,15 +618,30 @@ function deviceEntity(c: PanelCtx, i: number) {
   const placed = placedEntities(c.st.layout);
   const { match, rest } = entitiesForType({ ...ha, entities: ha.entities.filter((e) => e.id === d.entity || !placed.has(e.id)) }, d.type);
   const here = room ? match.filter((e) => e.area === room.area) : [], elsewhere = match.filter((e) => !here.includes(e));
-  const opts = (l: HaData["entities"]) => byName(l).map((e) => html`<option value=${e.id} title=${e.id} ?selected=${e.id === d.entity}>${e.name}</option>`);
+  const optsRaw = (l: HaData["entities"]) => l.map((e) => html`<option value=${e.id} title=${e.id} ?selected=${e.id === d.entity}>${e.name}</option>`);
+  const nameOf = new Map((ha.devices ?? []).map((dv) => [dv.id, dv.name]));
+  const byTier = (tierLabel: string, l: HaData["entities"]) => {
+    const groups = new Map<string, HaData["entities"]>(), loose: HaData["entities"] = [];
+    for (const e of byName(l)) {
+      if (!e.dev) { loose.push(e); continue; }
+      const label = nameOf.get(e.dev) ?? e.dev;
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label)!.push(e);
+    }
+    const devGroups = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([label, ents]) => {
+      const sorted = [...ents].sort((a, b) => (a.cat ? 1 : 0) - (b.cat ? 1 : 0)); // config/diagnostic entities last, else name order kept (stable)
+      return html`<optgroup label=${label}>${optsRaw(sorted)}</optgroup>`;
+    });
+    return html`${devGroups}${loose.length ? html`<optgroup label=${tierLabel}>${optsRaw(loose)}</optgroup>` : nothing}`;
+  };
   const unknown = !!d.entity && !ha.entities.some((e) => e.id === d.entity);
   const label = TYPE_LABELS.find((t) => t[0] === d.type)?.[1] ?? d.type;
   return html`<label for="ve">Home Assistant entity</label>
     <select id="ve" .value=${live(d.entity)} @change=${(e: Event) => set(val(e))}>
       <option value="" ?selected=${!d.entity}>(not connected)</option>
-      ${here.length ? html`<optgroup label=${`In ${room!.name}`}>${opts(here)}</optgroup>` : nothing}
-      ${elsewhere.length ? html`<optgroup label=${here.length ? "Elsewhere" : label}>${opts(elsewhere)}</optgroup>` : nothing}
-      ${rest.length ? html`<optgroup label="Everything else">${opts(rest)}</optgroup>` : nothing}
+      ${here.length ? byTier(`In ${room!.name}`, here) : nothing}
+      ${elsewhere.length ? byTier(here.length ? "Elsewhere" : label, elsewhere) : nothing}
+      ${rest.length ? byTier("Everything else", rest) : nothing}
       ${unknown ? missingOpt(d.entity) : nothing}
     </select>${unknown ? hint(NOT_IN_HA) : nothing}${d.entity ? nothing : hint("Not connected to Home Assistant yet. Pick its entity.")}`;
 }

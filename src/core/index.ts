@@ -4,7 +4,7 @@ export type { Texture } from "./textures";
 export { migrate } from "./migrate";
 export { applyHaNames } from "./ha";
 export type { HaData } from "./ha";
-export { addCandidates, AREA_NOISE_TYPES, AREA_PLACEABLE_TYPES, areaMove, availableEntities, entitiesForType, placeableInArea, roomHaBox, typeForEntity, unplacedHaEntities } from "./ha";
+export { addCandidates, AREA_NOISE_TYPES, AREA_PLACEABLE_TYPES, areaMove, availableEntities, entitiesForType, mainEntitiesByDevice, mainEntity, placeableDevicesInArea, placeableInArea, roomHaBox, typeForEntity, unplacedDevicesInArea, unplacedHaEntities } from "./ha";
 export type { AddCandidate, HaBox, HaBoxRow } from "./ha";
 export * from "./geometry";
 export { DEVICE_ICONS, FURNITURE } from "./icons";

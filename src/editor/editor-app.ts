@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, placedEntities, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, validate } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, Trace, WallKind } from "../core";
 import { traceImage } from "./trace";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
@@ -1330,7 +1330,8 @@ export class FloorplanStudioEditor extends LitElement {
 
   private roomCtxItems(i: number) {
     const st = this.st, r = st.f.rooms[i], ha = st.ha;
-    const unplaced = r?.area && ha ? ha.entities.filter((e) => e.area === r.area && !placedEntities(st.layout).has(e.id)) : [];
+    // S8.6: one row per device (its main entity), not one per raw entity — a plug offers itself, not its power sensor.
+    const unplaced = r?.area ? unplacedDevicesInArea(st.layout, ha, r.area) : [];
     return html`<button class="btn" id="cmColour" @click=${() => this.closeCtxMenu()}>Change colour</button>
       <button class="btn warn" id="cmDelete" @click=${() => this.ctxDelete()}>Delete</button>
       ${unplaced.length ? html`<div class="sep"></div><span class="grp">Add device from ${r!.name}</span>

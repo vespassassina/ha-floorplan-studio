@@ -5,11 +5,17 @@ import { placedEntities, unplacedCatalog } from "./bind";
 export interface HaData {
   floors: { id: string; name: string }[];
   areas: { id: string; name: string; floor_id?: string }[];
+  /** S8.6: the HA device registry, one row per physical device — used to label a device row in the Add list and the
+   * Place popup, and to group an already-placed device's entity picker. Absent on an older HA or a failed registry
+   * call; every device-grouping function then falls back to the entity's own name. */
+  devices?: { id: string; name: string; area?: string | null }[];
   /** `area` is the HA area id the entity sits in (its own, else its device's), null for none. `dc` is its device class, when it has one.
    * `members` (S4.5) is a `group.*` entity's own `entity_id` list, from its state attributes; absent on everything else.
    * `platform` (S4.7) is the integration that owns the entity (from the entity registry), used to tell a `switch_as_x` light
-   * apart from a physical one. `uid` (S4.7) is an automation or script's own registry `unique_id`, the id its HA editor URL takes. */
-  entities: { id: string; name: string; domain: string; area?: string | null; dc?: string; /** the HA device it belongs to */ dev?: string; members?: string[]; platform?: string; uid?: string }[];
+   * apart from a physical one. `uid` (S4.7) is an automation or script's own registry `unique_id`, the id its HA editor URL takes.
+   * `cat` (S8.6) is the entity's `entity_category` — "config" or "diagnostic" for a helper entity a device owns
+   * (a plug's connectivity sensor, a light's signal strength), absent on a device's primary entity. */
+  entities: { id: string; name: string; domain: string; area?: string | null; dc?: string; /** the HA device it belongs to */ dev?: string; members?: string[]; platform?: string; uid?: string; cat?: string | null }[];
 }
 
 /** Which entities suit a device type: [domain, device classes]. A class list of null means any class of that domain; a type with no rule (computer, server...) has none listed here and takes any entity. */
@@ -201,12 +207,135 @@ export function applyHaNames(l: Layout, ha: HaData): { layout: Layout; changed: 
 }
 
 /**
- * S8.5: one row of the merged Add > Device panel — either an unplaced `layout.catalog` entry or an unplaced HA entity
- * that never entered the plan (`unplacedHaEntities`), the same two sources the old "Device" and "Entities" submenus
- * drew from separately. `key` is unique across both sources. `area` is the HA area's own name; `room` is a plan room's
- * name — the room whose `area` matches the entity's HA area, on any floor, else (catalog only) the catalog entry's own
- * `room` field; `floor` is that room's plan floor, filled only when the room was found through the HA area match (a
- * catalog entry's own stored `floor` key is not read here — `placeDevice` already knows it and switches there itself).
+ * S8.6: which HA devices already have an entity on the plan or in the catalog — a device counts as placed when ANY
+ * of its entities does, not only the one `mainEntity` would pick, so a plug placed through its switch does not
+ * reappear through its power sensor once that sensor becomes the ranked "main" of a differently-ordered group.
+ */
+function placedDeviceIds(l: Layout, ha: HaData): Set<string> {
+  const placed = placedEntities(l), catalogued = new Set(l.catalog.map((c) => c.entity));
+  const ids = new Set<string>();
+  for (const e of ha.entities ?? []) if (e?.dev && (placed.has(e.id) || catalogued.has(e.id))) ids.add(e.dev);
+  return ids;
+}
+
+/** S8.6: a device-registry name lookup, `id => name`, for every function that labels a device row. */
+function deviceNames(ha: HaData): Map<string, string> {
+  return new Map((ha.devices ?? []).map((d) => [d.id, d.name]));
+}
+
+/** S8.6: a device row's own display copy of its main entity — same id, `name` swapped for the device registry's name when there is one, so a device row reads "Kitchen plug", not the switch entity's own name, wherever HA happens to differ. */
+function asDeviceRow(main: HaData["entities"][number], nameOf: Map<string, string>): HaData["entities"][number] {
+  const name = (main.dev && nameOf.get(main.dev)) || main.name || main.id;
+  return name === main.name ? main : { ...main, name };
+}
+
+/** S8.6: `entities`, grouped by `dev` ("" for none, kept apart from real ids by the caller never looking it up). */
+function byDevice(entities: HaData["entities"]): Map<string, HaData["entities"]> {
+  const groups = new Map<string, HaData["entities"]>();
+  for (const e of entities) {
+    if (!e?.dev) continue;
+    if (!groups.has(e.dev)) groups.set(e.dev, []);
+    groups.get(e.dev)!.push(e);
+  }
+  return groups;
+}
+
+const DOMAIN_PRIORITY = ["light", "switch", "climate", "cover", "fan", "lock", "media_player", "vacuum", "camera", "binary_sensor", "sensor"];
+
+/**
+ * S8.6: "devices, not entities" — the one entity that best represents an HA device, for every list that adds a new
+ * icon to the plan from a raw HA entity (the Add panel, the Place popup, a room's "Add device from" menu). `entities`
+ * is every entity of ONE device; grouping by `dev` is the caller's job, this never groups.
+ * 1. Any entity with a truthy `cat` (`entity_category`: "config" or "diagnostic") is dropped first — this is what
+ *    hides a plug's network/signal diagnostic sensor and a multisensor's own battery reading.
+ * 2. Nothing left: returns undefined. A device whose entities are all diagnostic or config gets no row; it has
+ *    nothing of its own to show.
+ * 3. The rest are ranked by domain: light > switch > climate > cover > fan > lock > media_player > vacuum > camera >
+ *    binary_sensor > sensor > everything else (a domain this list does not know sits at the tail, in the order it
+ *    is first seen).
+ * 4. Tiebreak within the same domain rank: the entity whose `name` equals `deviceName` wins (when given, from the
+ *    HA device registry); else the entity with the shortest id; else the first one encountered — every sort here is
+ *    stable, so a genuine tie keeps encounter order.
+ */
+export function mainEntity(entities: HaData["entities"], deviceName?: string): HaData["entities"][number] | undefined {
+  const live = entities.filter((e) => e && !e.cat);
+  if (!live.length) return undefined;
+  const rank = (e: HaData["entities"][number]) => { const i = DOMAIN_PRIORITY.indexOf(e.domain); return i === -1 ? DOMAIN_PRIORITY.length : i; };
+  const best = Math.min(...live.map(rank));
+  const tied = live.filter((e) => rank(e) === best);
+  if (tied.length === 1) return tied[0];
+  const named = deviceName ? tied.find((e) => e.name === deviceName) : undefined;
+  if (named) return named;
+  return [...tied].sort((a, b) => a.id.length - b.id.length)[0];
+}
+
+/** S8.6: one main entity per HA device, across the whole of `ha.entities` — the source map every device-grouped list builds from. Devices with no dev field on any entity, or whose every entity is diagnostic/config, have no entry. */
+export function mainEntitiesByDevice(ha: HaData): Map<string, HaData["entities"][number]> {
+  const out = new Map<string, HaData["entities"][number]>();
+  if (!Array.isArray(ha?.entities)) return out;
+  const nameOf = new Map((ha.devices ?? []).map((d) => [d.id, d.name]));
+  for (const [devId, ents] of byDevice(ha.entities)) {
+    const main = mainEntity(ents, nameOf.get(devId));
+    if (main) out.set(devId, main);
+  }
+  return out;
+}
+
+/**
+ * S8.6: `placeableInArea`, grouped by device — one row per HA device (its main entity), plus the area's device-less
+ * entities exactly as `placeableInArea` already returns them. A device counts as placed, and a device's row is
+ * offered, by its main entity's own `typeForEntity`/`AREA_PLACEABLE_TYPES` rule.
+ */
+export function placeableDevicesInArea(l: Layout, ha: HaData, area: string): HaData["entities"] {
+  if (!Array.isArray(ha?.entities) || !area) return [];
+  const deviceless = placeableInArea(l, { ...ha, entities: ha.entities.filter((e) => !e?.dev) }, area);
+  const placedDevs = placedDeviceIds(l, ha);
+  const nameOf = deviceNames(ha);
+  const devRows: HaData["entities"] = [];
+  for (const [devId, ents] of byDevice(ha.entities.filter((e) => e?.area === area))) {
+    if (placedDevs.has(devId)) continue;
+    const main = mainEntity(ents, nameOf.get(devId));
+    if (main && AREA_PLACEABLE_TYPES.has(typeForEntity(main))) devRows.push(asDeviceRow(main, nameOf));
+  }
+  return [...devRows, ...deviceless];
+}
+
+/**
+ * S8.6: every unplaced entity of HA area `area`, one row per device (main entity) plus device-less entities as
+ * themselves — the room right-click "Add device from <room>" menu's own source list, which unlike `placeableInArea`
+ * keeps every type, noise included (that menu has always shown everything the area has, `placeArea`'s popup is the
+ * one that filters noise). Placed is checked against `placedEntities` alone, matching this menu's own history —
+ * unlike the Add panel's device rows, it has never excluded a merely catalogued entity.
+ */
+export function unplacedDevicesInArea(l: Layout, ha: HaData | undefined, area: string | undefined): HaData["entities"] {
+  if (!ha || !Array.isArray(ha.entities) || !area) return [];
+  const placed = placedEntities(l);
+  const loose: HaData["entities"] = [];
+  const withDev: HaData["entities"] = [];
+  for (const e of ha.entities) {
+    if (!e || typeof e.id !== "string" || e.area !== area || placed.has(e.id)) continue;
+    (e.dev ? withDev : loose).push(e);
+  }
+  const nameOf = deviceNames(ha);
+  const devRows: HaData["entities"] = [];
+  for (const [devId, ents] of byDevice(withDev)) {
+    if (ha.entities.some((x) => x?.dev === devId && placed.has(x.id))) continue; // any sibling placed: the device already is
+    const main = mainEntity(ents, nameOf.get(devId));
+    if (main) devRows.push(asDeviceRow(main, nameOf));
+  }
+  return [...loose, ...devRows];
+}
+
+/**
+ * S8.5/S8.6: one row of the merged Add > Device panel — either an unplaced `layout.catalog` entry, an unplaced
+ * device-less HA entity (`unplacedHaEntities`), or one row per unplaced HA device (its main entity, `mainEntity`),
+ * the same "devices, not entities" rule as the Place popup and the room menu. `key` is unique across all three:
+ * `catalog:<id>`, `ha:<entityId>` for a device-less entity, `ha-dev:<deviceId>` for a device row — `id` is the
+ * device id there, `entity` its main entity's id, `name` the device registry's name (its main entity's own name,
+ * failing that). `area` is the HA area's own name; `room` is a plan room's name — the room whose `area` matches the
+ * entity's HA area, on any floor, else (catalog only) the catalog entry's own `room` field; `floor` is that room's
+ * plan floor, filled only when the room was found through the HA area match (a catalog entry's own stored `floor`
+ * key is not read here — `placeDevice` already knows it and switches there itself).
  */
 export interface AddCandidate {
   key: string;
@@ -245,8 +374,15 @@ export function addCandidates(l: Layout, ha: HaData | null): AddCandidate[] {
     out.push({ key: `catalog:${c.id}`, source: "catalog", id: c.id, entity: c.entity, name: c.name, type: c.type, ...locateEntity(l, ha, c.entity, c.room || undefined) });
   }
   if (ha) {
-    for (const e of unplacedHaEntities(l, ha)) {
+    for (const e of unplacedHaEntities(l, ha).filter((e) => !e.dev)) {
       out.push({ key: `ha:${e.id}`, source: "ha", id: e.id, entity: e.id, name: e.name || e.id, type: typeForEntity(e), ...locateEntity(l, ha, e.id) });
+    }
+    const placedDevs = placedDeviceIds(l, ha);
+    const nameOf = new Map((ha.devices ?? []).map((d) => [d.id, d.name]));
+    for (const [devId, main] of mainEntitiesByDevice(ha)) {
+      if (placedDevs.has(devId)) continue;
+      const name = nameOf.get(devId) || main.name || main.id;
+      out.push({ key: `ha-dev:${devId}`, source: "ha", id: devId, entity: main.id, name, type: typeForEntity(main), ...locateEntity(l, ha, main.id) });
     }
   }
   return out;

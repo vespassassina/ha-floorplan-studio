@@ -6204,6 +6204,30 @@ test("S4.14/S8.5: clicking an HA entity places it — at its area's room centre 
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.living_temp")).toBe(true);
 });
 
+// S8.6: "devices, not entities" — a plug's device offers one row for the whole device, not one per entity.
+test("S8.6: Add > Device offers a plug device once, not once per entity, and places its switch", async ({ page }) => {
+  await setHa(page, {
+    floors: [], areas: [{ id: "kitchen", name: "Kitchen" }],
+    devices: [{ id: "plugdev", name: "Kitchen plug" }],
+    entities: [
+      { id: "switch.kitchen_plug", name: "Kitchen plug", domain: "switch", dc: "outlet", area: "kitchen", dev: "plugdev" },
+      { id: "sensor.kitchen_plug_power", name: "Kitchen plug power", domain: "sensor", dc: "power", area: "kitchen", dev: "plugdev" },
+      { id: "sensor.kitchen_plug_energy", name: "Kitchen plug energy", domain: "sensor", dc: "energy", area: "kitchen", dev: "plugdev" },
+      { id: "binary_sensor.kitchen_plug_connectivity", name: "Kitchen plug connectivity", domain: "binary_sensor", dc: "connectivity", area: "kitchen", dev: "plugdev", cat: "diagnostic" },
+    ],
+  });
+  await openDevice(page);
+  const panel = page.locator("#addDevPanel");
+  await expect(panel.locator('button:text-is("Kitchen plug")')).toHaveCount(1); // one row for the device, not four
+  await expect(panel.locator('button:text-is("Kitchen plug power")')).toHaveCount(0);
+  await expect(panel.locator('button:text-is("Kitchen plug connectivity")')).toHaveCount(0);
+
+  await panel.locator('[data-add="ha-dev:plugdev"]').click();
+  const d = (await groundOf(page)).devices.find((x: any) => x.entity === "switch.kitchen_plug");
+  expect(d).toMatchObject({ type: "plug", name: "Kitchen plug" });
+  expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.kitchen_plug_power")).toBe(false);
+});
+
 test("S8.5: each select lists only values present among the filtered candidates, and narrows as another filter is set", async ({ page }) => {
   await setHa(page, { floors: [], areas: [{ id: "living", name: "Living" }, { id: "bedroom", name: "Bedroom" }], entities: [
     { id: "light.new_living", name: "New living light", domain: "light", area: "living" },

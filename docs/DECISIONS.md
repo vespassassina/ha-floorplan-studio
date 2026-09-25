@@ -2,6 +2,39 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 S8.6 devices, not entities, in every add list
+
+Diego's own feedback: "in the device list i see plug network indicator and not
+the plug itself. just add the devices not the entities, and this applies
+everywhere." A plug is one physical thing to HA's user, several entities to
+its registry — the switch, a power sensor, an energy sensor, a diagnostic
+connectivity sensor. Every list that adds a new icon to the plan from a raw HA
+entity (Add > Device, the room panel's Place popup, a room's right-click "Add
+device from") now offers one row per HA device, not one per entity.
+
+`mainEntity` (`src/core/ha.ts`) is the ranking that picks which entity stands
+for the device: drop anything with a truthy `entity_category` first (a plug's
+network indicator is exactly this — "config" or "diagnostic"), then rank what
+is left by domain (light > switch > climate > cover > fan > lock >
+media_player > vacuum > camera > binary_sensor > sensor > everything else), a
+device name match or the shortest id breaking a tie. A device whose entities
+are all diagnostic gets no row at all — it has nothing of its own to place. A
+device already placed through any one of its entities does not reappear
+through a sibling (a plug placed via its switch does not resurface via its
+power sensor), so "placed" is now tracked per device, not per entity.
+
+The one picker this does not touch is the already-placed device's own entity
+field (`deviceEntity`, `src/editor/panels.ts`): someone may deliberately want
+the power sensor instead of the switch once the icon already exists, so it
+still lists every entity, only grouped under a `<optgroup>` per device within
+its existing In room/Elsewhere/Everything else tiers.
+
+`HaData` gained `devices` (the HA device registry: id, name, area) and `cat`
+on an entity (its `entity_category`). Both are optional — an older HA with no
+device registry, or a registry call that fails, falls back to grouping by the
+raw `dev` field on each entity and labelling the row with the main entity's
+own name, so the feature degrades rather than disappears.
+
 ## 2026-09-25 S8.4/S8.5 Place starts empty; Add > Device is one panel with Floor/Room/Area/Type filters
 
 Two related changes to how a device gets onto the plan, both from a day of use
