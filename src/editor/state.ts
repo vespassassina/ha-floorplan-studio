@@ -1,4 +1,4 @@
-import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, planPivot, rotateAbout, stairSteps, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, placeableInArea, planPivot, rotateAbout, stairSteps, typeForEntity, unplacedCatalog, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, Theme, Trace } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -419,17 +419,17 @@ export class EditorState {
   areaToPlace(roomIndex: number): HaData["entities"] {
     const room = this.f.rooms[roomIndex];
     if (!room?.area || !this.ha || room.pts.length < 3) return [];
-    return unplacedHaEntities(this.layout, this.ha).filter((e) => e.area === room.area);
+    return placeableInArea(this.layout, this.ha, room.area); // S8.1: only what the plan has an icon for
   }
 
   /**
-   * S4.15: places every entity `areaToPlace` returns, one undo step, and returns how many. They take the free cells
+   * S4.15: places every entity `areaToPlace` returns (S8.1: those in `only`, when given), one undo step, and returns how many. They take the free cells
    * of a 60 cm grid about the room's centre, nearest first: inside the room, not the centre itself (the room's label
    * is there), not next to a device already on the floor. A room too small for that shrinks the grid; one too small
    * even then stacks the rest on the centre. None to place records no step.
    */
-  placeArea(roomIndex: number): number {
-    const todo = this.areaToPlace(roomIndex);
+  placeArea(roomIndex: number, only?: ReadonlySet<string>): number {
+    const todo = only ? this.areaToPlace(roomIndex).filter((e) => only.has(e.id)) : this.areaToPlace(roomIndex); // S8.1: the popup's ticked rows
     if (!todo.length) return 0;
     const room = this.f.rooms[roomIndex];
     const xs = room.pts.map((p) => p[0]), ys = room.pts.map((p) => p[1]);

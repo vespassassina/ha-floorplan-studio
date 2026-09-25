@@ -83,6 +83,20 @@ export function typeForEntity(e: HaData["entities"][number]): DeviceType {
 }
 
 /**
+ * S8.1: which device types the room panel's Place popup offers from a Home Assistant area, and which it leaves out as
+ * noise. Every `DeviceType` is in exactly one list (a test iterates the union, so a new type fails until it is decided).
+ * Noise: `other` is anything the plan has no icon of its own for (power, energy, illuminance, signal, a group, a
+ * script...); a `battery` is a reading of another device, not a thing in the room; a `person` is not placed by area.
+ */
+export const AREA_PLACEABLE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "inverter", "server", "access_point", "lock", "vibration", "boiler", "car", "ups", "printer", "speaker", "radar", "vacuum"]);
+export const AREA_NOISE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["other", "battery", "person"]);
+
+/** S8.1: the entities of HA area `area` that are not on the plan yet and that the plan has an icon for. Never throws. */
+export function placeableInArea(l: Layout, ha: HaData, area: string): HaData["entities"] {
+  return unplacedHaEntities(l, ha).filter((e) => e.area === area && AREA_PLACEABLE_TYPES.has(typeForEntity(e)));
+}
+
+/**
  * S4.14: the palette's source list — every HA entity that is neither a device on any floor nor already in
  * `layout.catalog`. Both are "already the plan's", whether or not the device is currently placed (`unplacedCatalog`
  * covers the catalogued-but-unplaced case elsewhere); this only surfaces entities that have never entered the plan at all.

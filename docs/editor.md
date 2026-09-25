@@ -16,18 +16,23 @@ rooms, doors, stairs, furniture, devices. Runs two places, same code:
 
 Left to right:
 
-- **Floor tabs** (`Ground`, `First`, ... plus `+`) — switch floors, or add a
-  new one. A new floor starts with an outline and the first flight of stairs.
-- **Devices: all (N)** — filters which device types are drawn, so a crowded
+- **Floor tabs** (`Ground`, `First`, ...) — switch floors. A new floor comes
+  from Edit, Add floor: it starts with the outline and stairs of the first
+  floor.
+- **Filter: all (N)** — filters which device types are drawn, so a crowded
   plan can be thinned out while you work.
-- **Names** — toggles room/device name labels.
 - **Add** — every drawable thing: openings (door, window, gap), a wall of a
   given kind, areas (zone, structure, stairs), furniture, an unlinked
   appliance icon, and (inside Home Assistant) entities from your instance.
+  Device, inside Add, is the catalog of every device on this layout, placed
+  or not.
 - **Draw** — freehand outline/room drawing mode.
-- **Device** — the catalog of every device on this layout, placed or not.
-- **View** — the installed version at the top, then grid, measure marks, plan
-  rotation, theme.
+- **View** — how the plan looks while you work: the installed version at the
+  top, then snap grid, measure grid, lengths, names, Preview night, theme,
+  Re-center and Fit to window.
+- **Edit** — what changes the plan or Home Assistant: Add floor, the Home
+  Assistant popover (inside Home Assistant), Group, plan rotation, Device
+  colours, Trace image…
 - **File** — Save, Open, Export, Reset.
 - **Help** — a step-by-step guide in the side panel, for someone who has
   never used the editor before. It stays open while you work, so you can
@@ -64,6 +69,28 @@ A device's panel shows one extra field for a few types:
 - **Vacuum** — nothing extra; point `entity` at the `vacuum.*` entity. There
   is no field for the robot's position, since most integrations expose that
   as a camera or a proprietary blob, not coordinates.
+
+## What Floorplan Studio made in Home Assistant
+
+Inside Home Assistant, Edit, Home Assistant opens a small popover (drag it
+by its head, close it with the X or Escape) listing every helper,
+automation and area the editor created, labelled `floorplan-studio`, across
+the whole instance. Click a name to open the item where Home Assistant edits
+it: a helper's dialog, the automation editor, the area page. Remove deletes
+it from Home Assistant after a confirmation; the plan is not touched either
+way. The button is disabled while there is nothing to list.
+
+## Placing a room's devices at once
+
+Select a room linked to a Home Assistant area and the panel shows "Place N
+Home Assistant devices" when the area has entities the plan does not show
+yet. It opens a popup: one row per entity with a tick, and a chip per type
+to narrow the list. Only what the plan has an icon for is offered: lights,
+switches, plugs, sensors with a temperature, humidity, motion, contact or
+vibration class, cameras, covers and the like. Power, energy, illuminance
+and battery readings, groups, scripts and people are left out. Untick what
+you do not want and press Place: the ticked rows land on free spots in the
+room, one undo step, ready to drag to their real place.
 
 ## Drawing a house
 
@@ -118,7 +145,7 @@ never saved with the plan and never becomes an undo step.
 
 ## Trace over a scan
 
-View, Trace image… opens a small panel at the bottom left of the plan.
+Edit, Trace image… opens a small panel at the bottom left of the plan.
 
 1. **Load image…** takes a PNG, JPEG or WebP: a scan, a photo of the
    estate agent's plan, an architect's drawing. It is shrunk to 2000 px on

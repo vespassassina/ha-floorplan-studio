@@ -290,6 +290,7 @@ test("a device name with markup is shown as text", async ({ page }) => {
     l.floors.ground.devices[0].name = '<img src=x onerror="window.__pwn=1">';
     el.layout = l;
   }, EDITOR);
+  await menu(page, "View"); // S8.1: Names lives in View
   await page.locator("#names").click();
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => (window as any).__pwn)).toBeUndefined();
@@ -978,19 +979,27 @@ async function addBareFloor(page: Page, title: string) {
   }, [EDITOR, title.toLowerCase()]);
   await expect(page.locator("svg g[data-s]")).toHaveCount(0);
 }
-async function addFloorVia(page: Page, title: string) {
+/** S8.1: Add floor is an item of the Edit menu; the title input still appears after the floor chips. */
+async function clickAddFloor(page: Page) {
+  await menu(page, "Edit");
   const c = await centre(page, "#addFloor");
   await page.mouse.click(c.x, c.y);
+}
+async function addFloorVia(page: Page, title: string) {
+  await clickAddFloor(page);
   await expect(page.locator("#newFloor")).toBeFocused();
   await page.keyboard.type(title);
   await page.keyboard.press("Enter");
 }
 
-test("the + chip sits after the floor chips, opens an input, and Enter adds a floor that is selected and has no rooms", async ({ page }) => {
-  const add = await page.locator("#addFloor").boundingBox(), last = await chips(page).last().boundingBox();
-  expect(add!.x).toBeGreaterThan(last!.x + last!.width - 1);
+test("Edit, Add floor opens an input after the floor chips, and Enter adds a floor that is selected and has no rooms", async ({ page }) => {
+  await expect(page.locator(".bar > #addFloor")).toHaveCount(0); // S8.1: no + chip in the bar any more
   await expect(page.locator("#newFloor")).toHaveCount(0);
-  await addFloorVia(page, "Attic");
+  await clickAddFloor(page);
+  const input = await page.locator("#newFloor").boundingBox(), last = await chips(page).last().boundingBox();
+  expect(input!.x).toBeGreaterThan(last!.x + last!.width - 1);
+  await page.keyboard.type("Attic");
+  await page.keyboard.press("Enter");
   expect(await chipKeys(page)).toEqual(["ground", "first", "test", "attic"]);
   expect(await chipTitles(page)).toEqual(["Ground", "First", "Test", "Attic"]);
   await expect(page.locator('.chip[data-f="attic"]')).toHaveAttribute("aria-pressed", "true");
@@ -1001,12 +1010,12 @@ test("the + chip sits after the floor chips, opens an input, and Enter adds a fl
   expect(l.floors.ground.rooms).toHaveLength(7); // untouched
 });
 
-test("+ then Esc adds nothing and leaves no undo step; Enter on an empty or blank title adds nothing", async ({ page }) => {
-  await page.locator("#addFloor").click();
+test("Add floor then Esc adds nothing and leaves no undo step; Enter on an empty or blank title adds nothing", async ({ page }) => {
+  await clickAddFloor(page);
   await page.keyboard.type("Nope");
   await page.keyboard.press("Escape");
   await expect(page.locator("#newFloor")).toHaveCount(0);
-  await page.locator("#addFloor").click();
+  await clickAddFloor(page);
   await page.keyboard.press("Enter");
   await page.keyboard.type("   ");
   await page.keyboard.press("Enter");
@@ -1526,7 +1535,7 @@ test("the plan filter checks several device types at once, dropping any one un-c
 
   await page.locator('#filter [data-filter="switch"]').click();
   await expect(page.locator("svg .dev:visible")).toHaveCount(lights + switches);
-  await expect(page.locator("#filter summary")).toHaveText("Devices: 2 types");
+  await expect(page.locator("#filter summary")).toHaveText("Filter: 2 types");
 
   await page.locator('#filter [data-filter="light"]').click(); // un-check one, the other stays checked
   await expect(page.locator("svg .dev:visible")).toHaveCount(switches);
@@ -1534,7 +1543,7 @@ test("the plan filter checks several device types at once, dropping any one un-c
 
   await page.locator("#filterAll").click();
   await expect(page.locator("svg .dev:visible")).toHaveCount(total);
-  await expect(page.locator("#filter summary")).toHaveText(`Devices: all (${total})`);
+  await expect(page.locator("#filter summary")).toHaveText(`Filter: all (${total})`);
 });
 
 test("Opus review CSS pair: a pressed filter-menu row is visually highlighted, not just aria-pressed", async ({ page }) => {
@@ -1559,8 +1568,8 @@ test("the plan filter hides device types with no instance on the current floor, 
 const search = (page: Page) => page.locator("#devSearch");
 const shown = (page: Page) => page.locator("#mDev button[data-dev]:visible");
 
-test("the toolbar order is Add, Draw, View, File; Device is a submenu of Add, after Areas", async ({ page }) => {
-  await expect(page.locator("details.menu > summary")).toHaveText(["Devices: all (8)", "Add", "Draw", "View", "File"]);
+test("the toolbar order is Filter, Add, Draw, View, Edit, File; Device is a submenu of Add, after Areas", async ({ page }) => {
+  await expect(page.locator("details.menu > summary")).toHaveText(["Filter: all (8)", "Add", "Draw", "View", "Edit", "File"]); // S8.1: Filter, and an Edit menu
   await expect(page.locator("#mAdd select")).toHaveCount(2); // furniture and unlinked-device selects (S4.25)
   await menu(page, "Add");
   const subs = await page.locator("#mAdd > .box > *").evaluateAll((els) => els.map((e) => e.id || e.tagName));
@@ -3242,16 +3251,16 @@ test("S1.31: only a camera has a cone", async ({ page }) => {
 
 // ---- S1.33 rotate the whole plan ----
 const rotateBy = async (page: Page, steps: number) => {
-  await menu(page, "View");
+  await menu(page, "Edit"); // S8.1: Rotate moved from View to Edit
   for (let n = 0; n < Math.abs(steps); n++) await page.locator(steps > 0 ? "#rotr" : "#rotl").click();
-  await menu(page, "View"); // close it: it would cover the plan
+  await menu(page, "Edit"); // close it: it would cover the plan
 };
 const rotOf = async (page: Page) => (await layoutOf(page)).rotate;
 const withoutRotate = (l: Layout) => { const c = structuredClone(l); delete c.rotate; return c; };
 const rpt = (page: Page) => page.locator(EDITOR);
 
-test("S1.33: View has Rotate the plan; right steps +45, left steps -45, wrapping; one undo step each; the reading follows", async ({ page }) => {
-  await menu(page, "View");
+test("S1.33: Edit has Rotate the plan; right steps +45, left steps -45, wrapping; one undo step each; the reading follows", async ({ page }) => {
+  await menu(page, "Edit");
   await expect(page.locator("#rotv")).toContainText("0°");
   await page.locator("#rotr").click();
   await expect(page.locator("#rotv")).toContainText("45°");
@@ -3389,6 +3398,7 @@ for (const deg of [45, 90]) {
     });
 
     test("names, values and icons stay upright: their screen matrix has no turn", async ({ page }) => {
+      await menu(page, "View"); // S8.1: Names lives in View
       await page.locator("#names").click();
       const turns = await rpt(page).evaluate((host) => {
         const svg = (host as any).shadowRoot.querySelector("svg") as SVGSVGElement;
@@ -3572,7 +3582,7 @@ test("S1.35 break it: a colour typed in the free input still works, and a swatch
 // ---- S1.36 device colours by type ----
 const colourRow = (page: Page, type: string) => page.locator(`${EDITOR} .devcols-panel [data-type="${type}"]`);
 const openDevCols = async (page: Page) => {
-  await menu(page, "View");
+  await menu(page, "Edit"); // S8.1: Device colours moved from View to Edit
   await page.locator(`${EDITOR} #devcols`).click();
 };
 const setColourInput = (page: Page, type: string, hex: string) =>
@@ -3580,7 +3590,7 @@ const setColourInput = (page: Page, type: string, hex: string) =>
 const camFill = (page: Page) => page.locator("svg .dev-camera path:not(.cone):not(.halo)").first().evaluate((el) => getComputedStyle(el).fill);
 const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first().evaluate((el, n) => getComputedStyle(el).getPropertyValue(n).trim(), name);
 
-test("S1.36: View, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
+test("S1.36: Edit, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
   await openDevCols(page);
   await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(30); // S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
@@ -4045,6 +4055,7 @@ test("S1.45: the disc is 3 units wider than the icon and stays white on a dark f
 test("S1.46: room, zone, device and extra names and the edge length are dark grey with a white outline", async ({ page }) => {
   await setTheme(page, "light"); // pins light values; blueprint is the default since S2.12
   await page.evaluate((tag) => { const el = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.extras.push({ id: "x1", name: "Shed", a: [100, 700], b: [200, 760] }); l.floors.ground.rooms[0].color = "#222222"; el.layout = l; }, EDITOR);
+  await menu(page, "View"); // S8.1: Names lives in View
   await page.locator("#names").click();
   await page.mouse.click(...Object.values(await screenOf(page, 500, 200)) as [number, number]); // a click on the shared edge shows its length
   const kinds = ["svg text.lbl:not(.zone)", "svg text.lbl.zone", "svg text.len"];
@@ -5324,29 +5335,81 @@ test("S4.3: 'Don't ask again' moves the next drops without the dialog, and a dev
 // ---- S4.10: the Home Assistant menu lists and removes everything floorplan-studio labelled --------
 
 /** A writer whose list/remove are scripted from the test; `removes` records what Remove was called with. */
-async function withHaMenu(page: Page, opt: { list?: unknown[]; failRemove?: string } = {}) {
+async function withHaMenu(page: Page, opt: { list?: unknown[]; failRemove?: string; failList?: string } = {}) {
   await setHa(page, { floors: [], areas: [], entities: [] });
-  await page.evaluate(([tag, list, failRemove]) => {
+  await page.evaluate(([tag, list, failRemove, failList]) => {
     const w = window as any; w.__removes = [];
     (document.querySelector(tag as string) as any).writer = {
       setDeviceArea: async () => {}, setEntityArea: async () => {}, createHelper: async () => ({ entity_id: "x.y" }),
-      listLabelled: async () => list,
+      listLabelled: async () => { if (failList) throw new Error(failList as string); return list; },
       removeLabelled: async (item: unknown) => { w.__removes.push(item); if (failRemove) throw new Error(failRemove as string); },
     };
-  }, [EDITOR, opt.list ?? [], opt.failRemove ?? ""]);
+  }, [EDITOR, opt.list ?? [], opt.failRemove ?? "", opt.failList ?? ""]);
 }
 const removes = (page: Page) => page.evaluate(() => (window as any).__removes as unknown[]);
 
-test("S4.10: the Home Assistant menu lists what's labelled, grouped by kind, and Remove asks then deletes it there", async ({ page }) => {
-  await withHaMenu(page, { list: [
-    { kind: "helper", id: "E1", name: "Hall light", entityId: "light.hall_switch" },
-    { kind: "automation", id: "A1", name: "Close at night", entityId: "automation.close_at_night" },
-    { kind: "area", id: "attic", name: "Attic" },
-  ] });
-  await page.locator("#mHA summary").click();
-  await expect(page.locator(".harow")).toHaveCount(3);
-  const box = page.locator("#mHA .box");
-  for (const t of ["Helpers", "Hall light", "Automations", "Close at night", "Areas", "Attic"]) await expect(box).toContainText(t);
+const haBtn = (page: Page) => page.locator("#mHA");
+/** S8.1: Edit, Home Assistant is a button that opens a popover; the list loaded when the writer was set. */
+async function openHaPanel(page: Page) {
+  await menu(page, "Edit");
+  await haBtn(page).click();
+  await expect(page.locator("#haPanel")).toBeVisible();
+}
+const LABELLED = [
+  { kind: "helper", id: "E1", name: "Hall light", entityId: "light.hall_switch" },
+  { kind: "automation", id: "A1", name: "Close at night", entityId: "automation.close_at_night" },
+  { kind: "area", id: "attic", name: "Attic" },
+];
+
+test("S8.1: Edit, Home Assistant is disabled until something labelled is listed; it opens a popover with X top-left and an explanation, rows open the item in HA, and the menu closes", async ({ page }) => {
+  await withHaMenu(page, { list: [] });
+  await menu(page, "Edit");
+  await expect(haBtn(page)).toBeDisabled();
+  await menu(page, "Edit");
+  await withHaMenu(page, { list: LABELLED });
+  await menu(page, "Edit");
+  await expect(haBtn(page)).toBeEnabled(); // loaded when the writer was set, before the popover opened
+  await haBtn(page).click();
+  const panel = page.locator("#haPanel");
+  await expect(panel).toBeVisible();
+  expect(await page.locator("#mEdit").evaluate((d) => (d as HTMLDetailsElement).open)).toBe(false); // popover opens: menu closes
+  await expect(panel.locator(".fpanel-head > *").first()).toHaveAttribute("id", "haClose"); // X top-left
+  await expect(panel).toContainText("created in Home Assistant");
+  await expect(panel.locator(".harow")).toHaveCount(3);
+  for (const t of ["Helpers", "Hall light", "Automations", "Close at night", "Areas", "Attic"]) await expect(panel).toContainText(t);
+  await expect(panel.locator('[data-ha="A1"] a.name')).toHaveAttribute("href", "/config/automation/edit/A1");
+  await expect(panel.locator('[data-ha="attic"] a.name')).toHaveAttribute("href", "/config/areas/area/attic");
+  const got = page.evaluate(([tag]) => new Promise<string>((res) => document.querySelector(tag as string)!.addEventListener("hass-more-info", (e) => res((e as CustomEvent).detail.entityId), { once: true })), [EDITOR]);
+  await panel.locator('[data-ha="E1"] button.name').click();
+  expect(await got).toBe("light.hall_switch"); // a helper opens HA's own more-info dialog
+  await expect(panel).toBeVisible(); // still open
+  // A click on the plan leaves it; Escape, with the editor focused, closes it.
+  const at = await screenOf(page, 200, 150);
+  await page.mouse.click(at.x, at.y);
+  await expect(panel).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+});
+
+test("S8.1: the Home Assistant popover drags by its head and closes by its X", async ({ page }) => {
+  await withHaMenu(page, { list: LABELLED });
+  await openHaPanel(page);
+  const panel = page.locator("#haPanel"), head = panel.locator(".fpanel-head");
+  const b0 = (await panel.boundingBox())!, h = (await head.boundingBox())!;
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(h.x + h.width / 2 + 120, h.y + h.height / 2 + 80, { steps: 4 });
+  await page.mouse.up();
+  const b1 = (await panel.boundingBox())!;
+  expect(b1.x - b0.x).toBeCloseTo(120, 0);
+  expect(b1.y - b0.y).toBeCloseTo(80, 0);
+  await page.locator("#haClose").click();
+  await expect(panel).toHaveCount(0);
+});
+
+test("S4.10/S8.1: Remove in the popover asks, deletes it in Home Assistant and refreshes the list; a failing remove changes nothing; no writer means no button", async ({ page }) => {
+  await withHaMenu(page, { list: [LABELLED[2]] });
+  await openHaPanel(page);
   await page.locator('[data-ha="attic"] button.warn').click();
   await expect(page.locator("#fp-confirm")).toContainText("Remove Attic from Home Assistant?");
   expect(await removes(page)).toHaveLength(0);
@@ -5355,24 +5418,68 @@ test("S4.10: the Home Assistant menu lists what's labelled, grouped by kind, and
   await expect.poll(async () => (await removes(page)).length).toBe(1);
   expect((await removes(page))[0]).toMatchObject({ kind: "area", id: "attic" });
   await expect(page.locator("#status")).toContainText("Removed Attic from Home Assistant");
-  await page.locator("#mHA summary").click(); // confirming closed the menu (an outside click); reopen it to see the refreshed list
-  await expect(page.locator("#haNone")).toBeVisible();
-});
+  await expect(page.locator("#haPanel #haNone")).toBeVisible(); // the popover stays open, now empty
+  await expect(page.locator("#haPanel .harow")).toHaveCount(0);
 
-test("S4.10 break it: nothing labelled says so, a failing remove changes nothing, and no writer means no menu", async ({ page }) => {
-  await withHaMenu(page, { list: [] });
-  await page.locator("#mHA summary").click();
-  await expect(page.locator("#haNone")).toBeVisible();
-
-  await page.locator("#mHA summary").click(); // close it first: it opened above
-  await withHaMenu(page, { list: [{ kind: "helper", id: "E1", name: "Hall light", entityId: "light.hall_switch" }], failRemove: "not_allowed" });
-  await page.locator("#mHA summary").click();
+  await withHaMenu(page, { list: [LABELLED[0]], failRemove: "not_allowed" }); // a new writer: the open popover reloads
+  await expect(page.locator('#haPanel [data-ha="E1"]')).toBeVisible();
   await page.locator('[data-ha="E1"] button.warn').click();
   await page.locator("#fp-confirm-yes").click();
   await expect(page.locator("#status")).toContainText("Nothing was changed");
+  await expect(page.locator('#haPanel [data-ha="E1"]')).toBeVisible();
 
   await page.evaluate(([tag]) => { (document.querySelector(tag as string) as any).writer = undefined; }, [EDITOR]);
   await expect(page.locator("#mHA")).toHaveCount(0);
+  await expect(page.locator("#haPanel")).toHaveCount(0);
+});
+
+// Opus review of S8.1: a failed load must not hide its error behind a disabled button.
+test("S8.1: a failed Home Assistant list leaves the button enabled and the popover shows the error", async ({ page }) => {
+  await withHaMenu(page, { failList: "socket closed" });
+  await menu(page, "Edit");
+  await expect(haBtn(page)).toBeEnabled();
+  await expect(haBtn(page)).toHaveAttribute("title", /socket closed/);
+  await haBtn(page).click();
+  await expect(page.locator("#haPanel #haErr")).toContainText("socket closed");
+  await expect(page.locator("#haPanel .harow")).toHaveCount(0);
+});
+
+// Opus review of S8.1: two loads can overlap (the writer setter, then a create's reload); the older reply must not win.
+test("S8.1: a stale Home Assistant list reply that lands last is ignored", async ({ page }) => {
+  await setHa(page, { floors: [], areas: [], entities: [] });
+  await page.evaluate(([tag, item]) => {
+    const w = window as any; w.__lists = [] as ((v: unknown) => void)[];
+    // the first two loads wait for the test; later ones (the popover's reload on open) answer at once
+    const writer = { listLabelled: () => w.__lists.length < 2 ? new Promise((res) => w.__lists.push(res)) : Promise.resolve([item]), removeLabelled: async () => {} };
+    const ed = document.querySelector(tag as string) as any;
+    ed.writer = writer; // load 1 pending
+    ed.writer = writer; // load 2 pending
+    w.__lists[1]([item]); // the newer reply lands first
+    w.__lists[0]([]); // the older, empty one lands last
+  }, [EDITOR, LABELLED[2]]);
+  await menu(page, "Edit");
+  await expect(haBtn(page)).toBeEnabled();
+  await haBtn(page).click();
+  await expect(page.locator("#haPanel .harow")).toHaveCount(1);
+  await expect(page.locator("#haPanel #haLoading")).toHaveCount(0);
+});
+
+// Opus review of S8.1: an id from Home Assistant is data; a slash in it must not change the path.
+test("S8.1: a labelled id is encoded in the row's link", async ({ page }) => {
+  await withHaMenu(page, { list: [{ kind: "area", id: "a/b?c", name: "Odd" }, { kind: "automation", id: "x y", name: "Spaced" }] });
+  await openHaPanel(page);
+  await expect(page.locator('#haPanel [data-ha="a/b?c"] a.name')).toHaveAttribute("href", "/config/areas/area/a%2Fb%3Fc");
+  await expect(page.locator('#haPanel [data-ha="x y"] a.name')).toHaveAttribute("href", "/config/automation/edit/x%20y");
+});
+
+test("Opus review CSS pair: a popover is fixed at z-index 30 (under an open menu's 40) and its head shows the move cursor", async ({ page }) => {
+  await withHaMenu(page, { list: LABELLED });
+  await openHaPanel(page);
+  const panel = page.locator("#haPanel");
+  expect(await panel.evaluate((e) => { const c = getComputedStyle(e); return [c.position, c.zIndex]; })).toEqual(["fixed", "30"]);
+  expect(await panel.locator(".fpanel-head").evaluate((e) => getComputedStyle(e).cursor)).toBe("move");
+  await menu(page, "Edit");
+  expect(await page.locator("#mEdit .box").evaluate((e) => getComputedStyle(e).zIndex)).toBe("40");
 });
 
 // ---- S4.23: Undo/Redo move to the toolbar, after Home Assistant, no menu to open first --------------------------------
@@ -5904,25 +6011,99 @@ test("S4.2: no 'Areas not on the plan' box without Home Assistant", async ({ pag
 
 // ---- S4.15: the room panel places every unplaced entity of the room's HA area ------------------------------------
 
-test("S4.15: the room panel's Place button adds every unplaced entity of the area, one undo step, and is absent when none is left", async ({ page }) => {
-  await setHa(page, { ...HA, areas: [...HA.areas], entities: [...HA.entities,
-    { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" },
-    { id: "binary_sensor.living_motion", name: "Living motion", domain: "binary_sensor", dc: "motion", area: "living" }] });
+const PLACE_HA = { ...HA, areas: [...HA.areas], entities: [...HA.entities,
+  { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" },
+  { id: "binary_sensor.living_motion", name: "Living motion", domain: "binary_sensor", dc: "motion", area: "living" },
+  { id: "light.living_spot", name: "Living spot", domain: "light", area: "living" },
+  { id: "sensor.living_power", name: "Living power", domain: "sensor", dc: "power", area: "living" }, // noise: the plan has no icon for it
+  { id: "sensor.living_battery", name: "Living battery", domain: "sensor", dc: "battery", area: "living" }, // noise: a reading of another device
+] };
+async function openPlace(page: Page) {
+  const c = await screenOf(page, 200, 150); // inside Living
+  await page.mouse.click(c.x, c.y);
+  await page.locator("#rplace").click();
+  await expect(page.locator("#placePanel")).toBeVisible();
+}
+
+test("S4.15/S8.1: the room panel's Place button opens a popup of the area's placeable entities, noise left out; chips filter by type; Place adds the checked ones, one undo step", async ({ page }) => {
+  await setHa(page, PLACE_HA);
   const before = (await groundOf(page)).devices.length;
   const c = await screenOf(page, 200, 150); // inside Living
   await page.mouse.click(c.x, c.y);
   const btn = page.locator("#rplace");
-  await expect(btn).toHaveText(/Place 2 Home Assistant devices/);
+  await expect(btn).toHaveText(/Place 3 Home Assistant devices/); // power and battery are not counted
   await btn.click();
+  const panel = page.locator("#placePanel");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator(".fpanel-head > *").first()).toHaveAttribute("id", "placeClose");
+  await expect(panel.locator("[data-pent]")).toHaveCount(3);
+  await expect(panel.locator('[data-pent="sensor.living_power"]')).toHaveCount(0);
+  await expect(panel.locator('[data-pent="sensor.living_battery"]')).toHaveCount(0);
+  await expect(panel.locator("[data-ptype]")).toHaveText(["Lights", "Temperature", "Motion"]);
+  await panel.locator('[data-ptype="light"]').click();
+  await expect(panel.locator("[data-pent]")).toHaveCount(1);
+  await expect(page.locator("#placeGo")).toHaveText("Place 1");
+  await panel.locator('[data-ptype="light"]').click(); // off again: every type
+  await expect(panel.locator("[data-pent]")).toHaveCount(3);
+  await panel.locator('[data-pent="light.living_spot"] input').uncheck();
+  await expect(page.locator("#placeGo")).toHaveText("Place 2");
+  await page.locator("#placeGo").click();
+  await expect(panel).toHaveCount(0);
   const devs = (await groundOf(page)).devices;
   expect(devs).toHaveLength(before + 2);
   const added = devs.filter((d: any) => d.entity === "sensor.living_temp" || d.entity === "binary_sensor.living_motion");
   expect(added.map((d: any) => d.type).sort()).toEqual(["motion", "temp"]);
   expect(new Set(added.map((d: any) => `${d.x},${d.y}`)).size).toBe(2);
-  await expect(page.locator("#rplace")).toHaveCount(0); // nothing left to place
+  await expect(page.locator("#rplace")).toHaveText(/Place 1 Home Assistant device$/); // the unchecked light is still there to place
 
   await page.keyboard.press("Control+z");
   expect((await groundOf(page)).devices).toHaveLength(before); // one gesture, one step
+});
+
+test("S8.1: the Place popup places everything when nothing is filtered or unchecked, then the button goes; a filter with nothing checked disables Place", async ({ page }) => {
+  await setHa(page, PLACE_HA);
+  const before = (await groundOf(page)).devices.length;
+  await openPlace(page);
+  await page.locator('#placePanel [data-pent="light.living_spot"] input').uncheck();
+  await page.locator('#placePanel [data-ptype="light"]').click();
+  await expect(page.locator("#placeGo")).toBeDisabled();
+  await page.locator('#placePanel [data-pent="light.living_spot"] input').check();
+  await page.locator('#placePanel [data-ptype="light"]').click();
+  await expect(page.locator("#placeGo")).toHaveText("Place 3");
+  await page.locator("#placeGo").click();
+  expect((await groundOf(page)).devices).toHaveLength(before + 3);
+  await expect(page.locator("#rplace")).toHaveCount(0); // nothing left to place
+});
+
+test("S8.1: the Place popup drags by its head, stays on a click elsewhere, and closes by its X or Escape", async ({ page }) => {
+  await setHa(page, PLACE_HA);
+  await openPlace(page);
+  const panel = page.locator("#placePanel"), head = panel.locator(".fpanel-head");
+  const b0 = (await panel.boundingBox())!, h = (await head.boundingBox())!;
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(h.x + h.width / 2 + 90, h.y + h.height / 2 + 60, { steps: 4 });
+  await page.mouse.up();
+  const b1 = (await panel.boundingBox())!;
+  expect(b1.x - b0.x).toBeCloseTo(90, 0);
+  expect(b1.y - b0.y).toBeCloseTo(60, 0);
+  await page.locator("#placeClose").click();
+  await expect(panel).toHaveCount(0);
+  await openPlace(page);
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  // Opus review of S8.1: a ticked checkbox holds focus, and the host's onKey ignores keys typed in an input.
+  await openPlace(page);
+  await panel.locator('[data-pent="light.living_spot"] input').click();
+  await expect(panel.locator('[data-pent="light.living_spot"] input')).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  // Opus review of S8.1: the popup belongs to a room of this floor; switching floors closes it.
+  await openPlace(page);
+  await page.locator('.bar .chip[data-f="first"]').click();
+  await expect(panel).toHaveCount(0);
+  await page.locator('.bar .chip[data-f="ground"]').click();
+  await expect(panel).toHaveCount(0);
 });
 
 test("S4.15: no Place button without Home Assistant", async ({ page }) => {
@@ -6069,22 +6250,28 @@ const GROUP_ON_FLOOR_HA = { floors: [], areas: [], entities: [
   { id: "group.demo_lights", name: "Demo lights", domain: "group", members: ["light.demo_living"] },
 ] };
 
+/** S8.1: Group is a submenu of Edit. Opens Edit when it is closed, then the Group submenu. */
+async function groupMenu(page: Page) {
+  if (!(await page.locator("#mEdit").evaluate((d) => (d as HTMLDetailsElement).open))) await menu(page, "Edit");
+  await page.locator("#mGroup > summary").click();
+}
+
 test("S4.5: the Group menu lists a Home Assistant group with a member on this floor; choosing it dims every other device, All clears it", async ({ page }) => {
   await setHa(page, GROUP_ON_FLOOR_HA);
-  await menu(page, "Group");
+  await groupMenu(page);
   await expect(page.locator("#groupNone")).toHaveCount(0);
   await page.locator('#mGroup [data-group="group.demo_lights"]').click();
   await expect(page.locator('g[data-x="0"]')).not.toHaveClass(/dim/); // Living light: a member
   await expect(page.locator('g[data-x="1"]')).toHaveClass(/dim/); // Kitchen light: not a member
   await expect(page.locator('g[data-x="5"]')).toHaveClass(/dim/); // the motion sensor: not a member
-  await menu(page, "Group");
+  await groupMenu(page);
   await page.locator("#groupAll").click();
   await expect(page.locator('g[data-x="1"]')).not.toHaveClass(/dim/);
 });
 
 test("S4.5: no Home Assistant group with a member on this floor shows the empty note, not a button list", async ({ page }) => {
   await setHa(page, { floors: [], areas: [], entities: [{ id: "group.elsewhere", name: "Elsewhere", domain: "group", members: ["light.not_on_this_floor"] }] });
-  await menu(page, "Group");
+  await groupMenu(page);
   await expect(page.locator("#groupNone")).toContainText("No Home Assistant group has a member on this floor");
   await expect(page.locator("#mGroup [data-group]")).toHaveCount(0);
 });
@@ -6210,9 +6397,9 @@ const MOTION_HA = { floors: [], areas: [], entities: [
 test("S4.6: the Group menu's \"Turns on...\" builds a motion-group automation, minutes converted to seconds", async ({ page }) => {
   await withAutomationWriter(page, MOTION_HA);
   await watchLocationChanged(page);
-  await menu(page, "Group");
+  await groupMenu(page);
   await page.locator('#mGroup [data-group="group.demo_motion"]').click();
-  await menu(page, "Group"); // choosing a group closes the menu (S4.5); reopen it to reach "Turns on..."
+  await groupMenu(page); // choosing a group closes the menu (S4.5); reopen it to reach "Turns on..."
   await expect(page.locator("#motLightGrp")).toBeVisible();
   await page.locator("#motLightGrp").selectOption("group.demo_lights");
   await page.locator("#motMinutes").fill("5");
@@ -6233,7 +6420,7 @@ test("S4.6: the Group menu's \"Turns on...\" builds a motion-group automation, m
   await expect.poll(() => page.evaluate(() => location.pathname)).toBe("/config/automation/edit/fp_test123");
 
   // A light group, selected instead, offers no "Turns on...": only a motion group does.
-  await menu(page, "Group");
+  await groupMenu(page);
   await page.locator('#mGroup [data-group="group.demo_lights"]').click();
   await expect(page.locator("#motLightGrp")).toHaveCount(0);
 });
@@ -6382,7 +6569,7 @@ test("S5.5 break it: the guide stays open, and the selection panel it replaced d
   await this_rotatePlan(page);
   await expect(page.locator("#panel .guide")).toBeVisible();
 
-  await page.locator("#addFloor").click();
+  await clickAddFloor(page);
   await page.locator("#newFloor").fill("Attic");
   await page.keyboard.press("Enter");
   await expect(page.locator("#panel .guide")).toBeVisible();
@@ -6393,9 +6580,9 @@ test("S5.5 break it: the guide stays open, and the selection panel it replaced d
   await expect(page.locator("#panel .guide")).toBeVisible();
 
   async function this_rotatePlan(p: Page) {
-    await menu(p, "View");
+    await menu(p, "Edit");
     await p.locator("#rotr").click();
-    await menu(p, "View");
+    await menu(p, "Edit");
   }
 });
 
@@ -6509,7 +6696,7 @@ test("S7.2: the status line sits in the toolbar, right of Redo, and Save still w
 });
 
 test("S7.2: an open menu draws above the Device colours panel, so File, Save is still the top element under the mouse", async ({ page }) => {
-  await menu(page, "View");
+  await menu(page, "Edit");
   await page.locator("#devcols").click();
   await expect(page.locator(".devcols-panel")).toBeVisible();
   await menu(page, "File");
@@ -6594,4 +6781,23 @@ test("Opus review CSS pair: S7.6 night fills an unlit room with --fp-night, leav
     return out;
   }, EDITOR);
   expect(got).toEqual(["rgba(4, 10, 30, 0.45)", "none", "none"]);
+});
+
+// ---- S8.1: the toolbar rework — Names in View, an Edit menu after View ------------------------------------------------
+
+test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assistant, Group, Rotate, Device colours and Trace image, in that order", async ({ page }) => {
+  await expect(page.locator(".bar > #names")).toHaveCount(0);
+  await menu(page, "View");
+  await expect(page.locator("#mOpt #names")).toBeVisible();
+  await expect(page.locator("#mOpt #thSub")).toBeVisible();
+  for (const id of ["#rotr", "#devcols", "#traceBtn", "#addFloor"]) await expect(page.locator(`#mOpt ${id}`)).toHaveCount(0);
+  await page.locator("#names").click(); // a chip in a menu still toggles the names
+  await expect(page.locator("svg text.lbl")).not.toHaveCount(0);
+  const items = (p: Page) => p.locator("#mEdit > .box > *").evaluateAll((els) => els.map((e) => e.id || e.className));
+  await menu(page, "Edit");
+  expect(await items(page)).toEqual(["addFloor", "rotrow", "devcols", "traceBtn"]);
+  await menu(page, "Edit");
+  await withHaMenu(page, { list: LABELLED });
+  await menu(page, "Edit");
+  expect(await items(page)).toEqual(["addFloor", "mHA", "mGroup", "rotrow", "devcols", "traceBtn"]);
 });

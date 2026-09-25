@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.12.0
+
+- The toolbar has an Edit menu after View: Add floor (the `+` chip is
+  gone), Home Assistant, Group, plan rotation, Device colours and Trace
+  image… moved there. Names moved into View, next to Lengths. The device
+  filter reads "Filter:".
+- Home Assistant is a button that opens a draggable popover, X top-left,
+  saying what the list is: the helpers, automations and areas Floorplan
+  Studio created. A name opens the item where Home Assistant edits it;
+  Remove deletes it from there. The button is disabled while there is
+  nothing to list.
+- The room panel's "Place N Home Assistant devices" opens a popup to pick
+  which: one tick per entity, a chip per type to narrow the list. Power,
+  energy, illuminance and battery readings, groups, scripts and people are
+  no longer placed as grey "other" icons.
+
 ## 0.11.2
 
 - The card drew nothing on a real Home Assistant and said "No layout": it

@@ -80,11 +80,26 @@ describe("placeArea (S4.15): every unplaced entity of a room's HA area, in one s
     }
   });
 
+  // Opus review of S8.1: `only` is the popup's ticked rows. Ids that are noise, already placed, or unknown place
+  // nothing and record no undo step; a mixed set places just the valid ones.
+  it("S8.1: placeArea(i, only) places only the ticked, placeable ids and records no step when none apply", () => {
+    const st = new EditorState(layout());
+    st.ha = ha();
+    st.ha.entities.push({ id: "sensor.kitchen_power", name: "Power", domain: "sensor", dc: "power", area: "kitchen" } as HaData["entities"][number]);
+    expect(st.placeArea(0, new Set(["sensor.kitchen_power", "light.lamp", "light.nope"]))).toBe(0);
+    expect(st.canUndo).toBe(false);
+    expect(st.f.devices).toHaveLength(1);
+    expect(st.placeArea(0, new Set(["light.ceiling", "sensor.kitchen_power", "binary_sensor.kitchen_motion"]))).toBe(2);
+    expect(st.canUndo).toBe(true);
+    expect(st.f.devices.map((d) => d.entity).sort()).toEqual(["binary_sensor.kitchen_motion", "light.ceiling", "light.lamp"]);
+  });
+
   it("keeps a large area inside a small room", () => {
     const l = layout();
     l.floors.ground.rooms[0].pts = [[0, 0], [120, 0], [120, 90], [0, 90]];
     const st = new EditorState(l);
-    st.ha = { areas: [{ id: "kitchen", name: "Kitchen" }], entities: Array.from({ length: 12 }, (_, k) => ({ id: `sensor.s${k}`, name: `S${k}`, domain: "sensor", area: "kitchen" })) } as unknown as HaData;
+    // S8.1: a sensor with no class is noise and is not placed, so the fixture uses lights.
+    st.ha = { areas: [{ id: "kitchen", name: "Kitchen" }], entities: Array.from({ length: 12 }, (_, k) => ({ id: `light.s${k}`, name: `S${k}`, domain: "light", area: "kitchen" })) } as unknown as HaData;
     expect(st.placeArea(0)).toBe(12);
     for (const d of st.f.devices.slice(1)) expect("x" in d && inside([d.x, d.y], st.f.rooms[0].pts)).toBe(true);
   });

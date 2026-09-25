@@ -313,9 +313,13 @@ kiosk: false            # true shows only the plan, for a wall tablet: no floor 
 
 ## Editor
 
-- Toolbar: floor chips (plus "+" to add a floor), device filter, Names toggle,
-  menus Add / Draw / Device / Group / View / File. Group and the organise
-  controls exist only in the HA panel.
+- Toolbar: floor chips, the device filter ("Filter: all (N)"), menus Add /
+  Draw / View / Edit / File, Help, Undo, Redo, the status line. View holds
+  what only changes the look (snap, measure grid, lengths, names, Preview
+  night, theme, Re-center, Fit to window). Edit holds what changes the plan
+  or Home Assistant: Add floor, the Home Assistant popover, Group, plan
+  rotation, Device colours, Trace image…. The Home Assistant button and Group
+  exist only in the HA panel.
 - Add places one finished item: door, window, opening, wall of any of the five
   kinds, structure, zone, stairs, furniture (symbol picker). Water is a room
   kind, not an Add item: draw it, or change a room's kind.
@@ -345,14 +349,14 @@ kiosk: false            # true shows only the plan, for a wall tablet: no floor 
   not a text field: 30, 45, 60 or 90 more degrees, clockwise or counter-
   clockwise (a toggle), and Reset to 0 (not for a room, which has no stored
   angle). Walls, doors and openings keep their angle field.
-- View: rotate the whole plan in 45 degree steps, to line it up with north.
+- Edit: rotate the whole plan in 45 degree steps, to line it up with north.
   View, Re-center: zoom and pan go back to show everything on the floor (rooms,
   stairs, walls, furniture, devices), not only the outline as Fit to window
   does; nothing is written to the layout.
-  View, Device colours: one colour input per device type with a reset, and
+  Edit, Device colours: one colour input per device type with a reset, and
   Reset all; each change is one undo step and is saved in `colors`.
   All floors turn together. Names and icons stay upright.
-  View, Trace image… (S7.11): a panel for this floor's `trace`. Load reads a
+  Edit, Trace image… (S7.11): a panel for this floor's `trace`. Load reads a
   PNG, JPEG or WebP, redraws it at most 2000 px on the long side (a PNG stays
   PNG under 1 MB, else JPEG at 0.85, lower if needed to fit 4 MB) and places
   it over the outline's box, or the view on a blank floor. Scale takes two
@@ -452,12 +456,25 @@ kiosk: false            # true shows only the plan, for a wall tablet: no floor 
 - Room box: for the selected room, everything in its HA area by domain, with
   Run on scenes, Edit in HA on automations and scripts, and "Add to area" for
   entities that have none.
+- Place (S8.1): the room panel's "Place N Home Assistant devices" opens a
+  draggable popup listing the area's entities the plan does not show yet,
+  one tick per row and a chip per type to narrow it; Place puts the ticked
+  rows on free spots in the room, one undo step. Only types the plan has an
+  icon for are offered (`AREA_PLACEABLE_TYPES` in `core/ha.ts`); `other`
+  (power, energy, illuminance, groups, scripts...), `battery` and `person`
+  are noise (`AREA_NOISE_TYPES`). Every device type is in exactly one list.
 - Every write: confirm dialog naming what will be created, label
   `floorplan-studio` on the result, and the note that HA cannot undo it.
-- Home Assistant menu: everything in HA labelled `floorplan-studio` — helpers,
-  areas, automations — whole-instance, not just the current plan, so an item
-  orphaned by a plan edit still shows up. "Remove from Home Assistant" deletes
-  it there; removing something from the plan never touches HA on its own.
+- Home Assistant popover (Edit, Home Assistant; S8.1): a draggable panel, X
+  top-left, with a line saying what it is, then everything in HA labelled
+  `floorplan-studio` — helpers, areas, automations — whole-instance, not just
+  the current plan, so an item orphaned by a plan edit still shows up. A
+  name opens the item where HA edits it (more-info for a helper, the
+  automation editor, the area page); Remove deletes it there; removing
+  something from the plan never touches HA on its own. The button is
+  disabled while the list is empty; the list loads when the writer is set
+  and again after every create or remove. Opening the popover closes the
+  menu.
 - Look: the panel maps `--fp-*` to HA theme variables and uses HA's own form
   elements and pickers, so it follows the user's theme, light or dark.
 
