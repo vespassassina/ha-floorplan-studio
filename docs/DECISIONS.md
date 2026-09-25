@@ -2,6 +2,24 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 Docs clean-up after 0.12.0
+
+Diego: "clean the docs". Housekeeping, no behaviour change:
+
+- `docs/LIVE-TEST.md` removed. It told a tester to copy the card into
+  `www/` and add a Lovelace resource, which was the way before Sprint 3 gave
+  the integration a panel and a resource of its own. The README's install
+  section is the current path; `docs/PLAN.md` S3.0 keeps the pointer.
+- `docs/PLAN.md`: Sprint 8 sat above Sprint 7 (an insertion anchored on the
+  wrong heading); it now follows it. The S7.12 block said the 0.11.0
+  release was "not started"; it says when it went out.
+- `docs/SPEC.md` and `prompts/SCHEMA.md` still named the Group and Trace
+  image controls under their pre-S8.1 menus; they say Edit now.
+- `docs/WORKFLOW.md`'s command table gains `demo-gif`, `docs:schema` and
+  `docs:check`, and says why `npm test` sets `NODE_OPTIONS`.
+- Kept: `docs/REVIEW-2026-09-24.md` and `docs/REVIEW-2026-09-25.md` are the
+  sources Sprint 7 and its decisions cite, so they stay where the links point.
+
 ## 2026-09-25 S8.1 An Edit menu, the Home Assistant popover, a Place popup
 
 Diego, after a day on 0.11.1: the toolbar mixed how the plan looks with what
