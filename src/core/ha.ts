@@ -468,17 +468,19 @@ export function switchChoicesForLight(l: Layout, ha: HaData | null, floorKey: st
   if (ha) {
     const floorIds = haFloorIdsForPlanFloor(l, ha, floorKey);
     const floorIdOfArea = new Map((ha.areas ?? []).map((a) => [a.id, a.floor_id]));
-    const onFloor = (main: HaData["entities"][number]) => {
-      if (main.domain !== "switch" || main.cat) return;
-      const areaId = main.area ?? undefined;
+    // Opus review, findings 5 and 6: every switch-domain entity is its own candidate, not only each device's main
+    // entity (S8.6's mainEntity). A multi-gang wall switch device exposes more than one switch.* entity — each is
+    // its own row here. And a device wrapped by switch_as_x (a light.* entity, ranked above switch by mainEntity)
+    // must never hide its own physical switch entity from this list: walking every entity directly, rather than
+    // going through mainEntitiesByDevice, means the switch_as_x light (domain light) is simply never a candidate,
+    // and its sibling switch always still is.
+    for (const e of ha.entities) {
+      if (!e || e.domain !== "switch" || e.cat) continue;
+      const areaId = e.area ?? undefined;
       const fid = areaId ? floorIdOfArea.get(areaId) : undefined;
-      if (!fid || !floorIds.has(fid)) return;
-      add(main.id, main.name || main.id, areaId, roomOf(areaId));
-    };
-    // Device-grouped switches (one row per device, S8.6's mainEntity), plus device-less switch entities — mirrors
-    // addCandidates's own split, since mainEntitiesByDevice only sees entities that carry a `dev` field.
-    for (const main of mainEntitiesByDevice(ha).values()) onFloor(main);
-    for (const e of ha.entities) if (e && !e.dev) onFloor(e);
+      if (!fid || !floorIds.has(fid)) continue;
+      add(e.id, e.name || e.id, areaId, roomOf(areaId));
+    }
   }
   if (light.bound) add(light.bound, nameOf(light.bound), areaOf(light.bound), roomOf(areaOf(light.bound), l.catalog.find((c) => c.entity === light.bound)?.room));
 

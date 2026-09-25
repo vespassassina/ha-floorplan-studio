@@ -548,9 +548,13 @@ export class EditorState {
   autoLinkLights(floorKey: string): number {
     const f = this.layout.floors[floorKey];
     if (!f) return 0;
+    // Opus review, finding 6: a switch_as_x light is a switch HA wrapped as a light entity, not a light with a
+    // switch of its own to find — linking it would try to bind a switch to itself in spirit. Skipped here, same as
+    // the light panel's own Controlled by field never offers switch_as_x lights as anything but a light.
+    const switchAsX = new Set((this.ha?.entities ?? []).filter((e) => e.domain === "light" && e.platform === "switch_as_x").map((e) => e.id));
     const links: { i: number; entity: string }[] = [];
     f.devices.forEach((d, i) => {
-      if (d.type !== "light" || d.bound) return;
+      if (d.type !== "light" || d.bound || switchAsX.has(d.entity)) return;
       const choice = switchChoicesForLight(this.layout, this.ha ?? null, floorKey, d).find((s) => s.suggested);
       if (choice) links.push({ i, entity: choice.entity });
     });

@@ -606,6 +606,27 @@ describe("switchChoicesForLight (S8.7): floor-scoped switches with a same-area n
     expect(out[0].suggested).toBe(false); // no HA area data, so never suggested
   });
 
+  it("Opus review finding 6: a switch_as_x light does not hide its sibling switch from switch candidates", () => {
+    // The device's main entity (mainEntity's own domain ranking) is the switch_as_x light, not the switch — but the
+    // switch itself must still be offered here; a light entity is never a switch candidate regardless.
+    const ha = baseHa([
+      { id: "light.basement_helper", name: "Basement helper light", domain: "light", area: "area_basement", dev: "dx", platform: "switch_as_x" },
+      { id: "switch.basement_real", name: "Basement real switch", domain: "switch", area: "area_basement", dev: "dx" },
+    ]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out.map((s) => s.entity)).toContain("switch.basement_real");
+    expect(out.map((s) => s.entity)).not.toContain("light.basement_helper");
+  });
+
+  it("Opus review finding 5: a multi-gang switch device offers every switch entity, not only its main one", () => {
+    const ha = baseHa([
+      { id: "switch.wall_l1", name: "Wall L1", domain: "switch", area: "area_basement", dev: "gang" },
+      { id: "switch.wall_l2", name: "Wall L2", domain: "switch", area: "area_basement", dev: "gang" },
+    ]);
+    const out = switchChoicesForLight(baseLayout(), ha, "basement", light);
+    expect(out.map((s) => s.entity).sort()).toEqual(["switch.wall_l1", "switch.wall_l2"]);
+  });
+
   it("the light's current bound value stays offered even off-floor", () => {
     const ha = baseHa([{ id: "switch.kitchen_switch", name: "Kitchen switch", domain: "switch", area: "area_kitchen" }]);
     const boundLight: Device = { ...light, bound: "switch.kitchen_switch" };

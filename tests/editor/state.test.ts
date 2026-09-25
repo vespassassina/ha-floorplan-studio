@@ -881,4 +881,36 @@ describe("EditorState.autoLinkLights (S8.7)", () => {
     expect(choices.map((c) => c.entity)).not.toContain("switch.attic_switch");
     expect(choices.find((c) => c.suggested)?.entity).toBe("switch.basement_light_switch");
   });
+
+  it("Opus review finding 6: skips a light whose platform is switch_as_x — it is a wrapped switch, not a light to link", () => {
+    const l = layoutWithTwoLights();
+    const st = new EditorState(l, "basement");
+    st.ha = {
+      ...ha,
+      entities: ha.entities.map((e) => (e.id === "light.basement_dumb" ? { ...e, platform: "switch_as_x" } : e)),
+    };
+    expect(st.autoLinkLights("basement")).toBe(1); // only the lamp links; the switch_as_x light is left alone
+    expect(st.f.devices[0].bound).toBeUndefined();
+    expect(st.f.devices[1].bound).toBe("switch.basement_lamp_switch");
+  });
+
+  it("Opus review: a living room with Ceiling light and TV plug auto-links nothing (finding 4, via autoLinkLights)", () => {
+    const l: Layout = {
+      version: 2, unit: "cm", north: 0,
+      floors: { ground: { title: "Ground", outline: [], rooms: [{ id: "r1", name: "Living room", area: "area_living", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [{ id: "d1", type: "light", entity: "light.ceiling", name: "Ceiling light", x: 10, y: 10 }], furniture: [], unlinked: [] } },
+      catalog: [],
+    };
+    const st = new EditorState(l, "ground");
+    st.ha = {
+      floors: [{ id: "floor_ground", name: "Ground" }],
+      areas: [{ id: "area_living", name: "Living room", floor_id: "floor_ground" }],
+      entities: [
+        { id: "light.ceiling", name: "Ceiling light", domain: "light", area: "area_living" },
+        { id: "switch.tv_plug", name: "TV plug", domain: "switch", area: "area_living" },
+      ],
+    };
+    expect(st.autoLinkLights("ground")).toBe(0);
+    expect(st.canUndo).toBe(false);
+    expect(st.f.devices[0].bound).toBeUndefined();
+  });
 });

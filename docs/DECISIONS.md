@@ -2,6 +2,23 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 Opus review of S8.4-S8.7: switch candidates list every switch entity, not one per device
+
+Findings 5 and 6: `switchChoicesForLight`'s "Controlled by" candidates were
+built one row per HA device (`mainEntitiesByDevice`'s main entity), so a
+multi-gang wall switch device (`switch.wall_l1`, `switch.wall_l2`) offered
+only one of its two switches, and a `switch_as_x` helper light — ranked
+above a plain switch by `mainEntity`'s own domain order — hid its own
+physical switch sibling entirely. The candidate list now walks every
+switch-domain, non-`entity_category` entity directly, with no device
+grouping: a multi-gang device offers a row per gang, and a switch_as_x
+light (domain `light`) is simply never a candidate, so it can never shadow
+its sibling switch. `EditorState.autoLinkLights` also now skips a light
+whose own HA entity has `platform: "switch_as_x"` — it is a switch wrapped
+as a light, not a light with a switch of its own to find. See
+`src/core/ha.ts` (`switchChoicesForLight`) and `src/editor/state.ts`
+(`autoLinkLights`).
+
 ## 2026-09-25 Opus review of S8.4-S8.7: camera/climate/media_player/vacuum outrank light/switch in mainEntity
 
 Finding 7 of the review: `mainEntity`'s domain ranking put light and switch
