@@ -1627,6 +1627,47 @@ closes the sprint.
 - Outcome: maintainer feedback: "when linking lights, only show the floor related switches, add also motion groups and motion sensors, or map them automatically, e.g. basement dumb light is managed by basement light switch." The light panel's "Controlled by" select is now floor-scoped (`switchChoicesForLight`, `src/core/ha.ts`) instead of listing every switch on the plan, with a unique same-area name-match candidate shown first, labelled "(suggested)". Edit gained a top-level "Link lights to switches" item, right after Group (Opus review finding 14 moved it out of the Group submenu, which it ignores — see `docs/DECISIONS.md`), which links every unbound light on the current floor to its suggested switch (`EditorState.autoLinkLights`) in one undo step. The select's own optgroup gained "Motion": picking a motion sensor or motion group never changes `bound`; it opens a "Turn on with X, off after N min, Create automation" row (the existing motion-group builder, generalised to also record the new `device.motion` field on the specific light, one undo step) and, once linked, an Unlink button that clears only `motion` — the automation itself is left in HA (`docs/DECISIONS.md`, 2026-09-25 S8.7).
 - Done, 2026-09-25. Tests first: `schema.test.ts` "S8.7: a light's motion field" (5 cases, 3 failed with the old schema); `ha.test.ts` "switchChoicesForLight" (9 cases covering every suggestion combination in the brief — the "Basement dumb light"/"Basement light switch" 2-shared-token case, tied scores, sole-candidate, different area same floor, different floor, higher-score-wins, no-HA fallback, off-floor bound kept); `state.test.ts` `autoLinkLights` (links two lights on one floor in one undo step, leaves an already-bound light and a no-match floor untouched). New Playwright tests at `--repeat-each=10`: "Link lights to switches" (one click links every unbound light on the floor, one undo step reverts all of them — this test originally set up only one linkable light, so it never actually exercised "reverts all of them"; Opus review finding 9 caught it and it was strengthened with a second light/switch pair on 2026-09-25, see `docs/DECISIONS.md`), `boundField` floor-scoping and the suggested label, the Motion optgroup's writer gate and floor-only listing, and the full motion-link flow (pick leaves `bound` unchanged, Create automation posts the same config shape `motionLights` already built for the group flow, sets `motion` in one undo step, Unlink clears only `motion`) — all green, all failed first when temporarily disabled. Two existing `editor.spec.ts` tests ("choosing another free switch...", "a switch already bound elsewhere...") initially broke on the floor-scoped rewrite: they expected the old `{room} - {name}` label and catalog insertion order; `SwitchChoice` gained a `room` field and the unsuggested tier kept insertion order (no alphabetical sort) to match, both fixed without editing the tests. Full suites green after the last edit: `npm run lint` exit 0; unit 1041/1041; `npm run build` exit 0; full Playwright suite green (see the task report for the exact count).
 
+### S8.8 A catalogued-but-unplaced device must never disappear
+- Outcome: field bug from Diego's own Home Assistant — 34 real Living Room
+  devices imported into the catalog but never dragged onto a floor vanished
+  entirely from the room's Place popup, and showed only as raw per-entity
+  `catalog:` rows, not device rows, in Add > Device. Cause: `placedDeviceIds`
+  (`src/core/ha.ts`) counted a device as placed when any entity was placed
+  *or* catalogued. "Placed" now means on a floor only. `addCandidates` and
+  `placeableDevicesInArea` (and `unplacedDevicesInArea`) build one row per
+  device via a new `deviceRows` helper: an unplaced catalog entry whose
+  entity belongs to an HA device becomes that device's one row, named by
+  the device, placing the catalog entry itself; multi-gang switches still
+  get one row per gang (S8.4-S8.7). Add panel and Place popup rows now show
+  name on one line (ellipsis, full name in `title`) and a muted subtitle
+  (type · room/area). Both panels are 50% larger in width and list height,
+  clamped to the viewport (`docs/DECISIONS.md`, 2026-09-25 S8.8).
+- Done, 2026-09-25. Tests first, in `ha.test.ts`: a Hue bulb device with a
+  catalogued-but-unplaced light (one device row, named by device); a
+  two-gang switch device with both gangs catalogued (two rows); a plug
+  whose switch is catalogued and power sensor is not (one row); a device
+  placed on a floor (no row) — for both `addCandidates` and
+  `placeableDevicesInArea`; plus a case proving a catalogued sibling merges
+  into the device's row instead of hiding it. Reverting `placedDeviceIds`
+  to the old catalog-checking version failed 6 of these tests (63/69
+  passed), confirming they exercise the real fix; restored, 69/69 passed.
+  New Playwright tests at `--repeat-each=10` (30/30, no flakiness, all
+  confirmed to fail with `editor-app.ts` reverted): a long device name
+  ellipsises with the full name in `title` (CSS pair on
+  `white-space`/`text-overflow`/`overflow`); the Add panel and Place popup
+  are both over 1.4x the S8.5 baseline width; a catalogued-but-unplaced
+  device shows in the room Place popup by its device name (the 0.12.3
+  field bug, reproduced and fixed). Two pre-existing Playwright tests broke
+  on the new row markup (`button:text-is("Kitchen plug")` no longer
+  matched once the button gained a `<small>` subtitle) and on the
+  `ha-dev:` key format change (`${devId}` to `${entity.id}`, needed because
+  a multi-gang device now produces more than one row from one `devId`);
+  both fixed by retargeting to `.devrow-name` and the new keys, not by
+  loosening the assertions. Full suites green after the last edit: `npm run
+  lint` exit 0; unit 1063/1063; `npm run build` exit 0; full Playwright
+  suite 554 passed, 1 skipped, exit 0. `npm run shots` run and the Add
+  panel and Place popup shots looked at directly.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).

@@ -2,6 +2,46 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 S8.8: a catalogued entry does not count as placed; catalog entries with an HA device show as the device's row
+
+Field report from Diego's own Home Assistant: 34 real Living Room devices
+(Hue lights, two-gang wall switches, plugs, RGB spots) that were imported
+into `layout.catalog` but never dragged onto a floor vanished from the
+room's Place popup entirely, and showed only as raw per-entity `catalog:`
+rows — not device rows — in Add > Device. Cause: `placedDeviceIds`
+(`src/core/ha.ts`) counted a device as placed when any of its entities was
+either placed on a floor or merely catalogued. This supersedes the S8.6
+wording above ("A device already placed through any one entity does not
+reappear through a sibling") wherever it implied a catalogued entity counts
+as placed — it never did and never should. "Placed" now means on a floor
+only (`placedEntities`), checked via the entity ids in `placedEntities(l)`,
+never via `layout.catalog` membership.
+
+A catalogued-but-unplaced device is now never hidden. `addCandidates` and
+`placeableDevicesInArea` build one row per device (`deviceRows`,
+`src/core/ha.ts`): an unplaced catalog entry whose entity belongs to an HA
+device becomes that device's row, named by the device, placing the catalog
+entry itself (its id/type/room carried over unchanged). The device gets no
+second row from HA. When several catalog entries share one device, the
+device's main entity's own catalog entry is preferred; if none of the
+catalog entries is the main entity, the first catalogued sibling is used
+instead — either way only one row, unless the device is a multi-gang switch
+(two or more bare `switch.*` entities on one `dev`, no `entity_category`),
+which still gets one row per gang per the S8.4-S8.7 finding above. Standalone
+catalog entries with no matching HA device are unchanged. `unplacedDevicesInArea`
+(room right-click "Add device from") follows the same rule via the same
+`deviceRows` helper. See `src/core/ha.ts` (`placedDeviceIds`, `deviceRows`,
+`gangEntities`) and `tests/core/ha.test.ts` ("S8.8" describe blocks).
+
+Row layout also changed for both the Add > Device panel and the room's
+Place popup: name on its own line, no wrap, ellipsised with the full name in
+`title`; a smaller muted subtitle line below with type label and room/area
+(e.g. "Light · Living Room"). Both panels are 50% larger in width and list
+height (measured at 1280x800 with a 40-row fixture: Add panel 522x642 to
+782x762, rows 520x486.5 to 780x606.5; Place popup 442x642 to 662x762, rows
+440x380.6 to 660x518.8), clamped to the viewport with `min(..., 100vw/100vh - margin)`
+so small screens are not broken.
+
 ## 2026-09-25 Opus review of S8.4-S8.7: "Link lights to switches" moves out of Edit > Group
 
 Finding 14 of the review: the button lived inside the Group submenu, but it

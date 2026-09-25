@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: a device imported into the catalog but never placed on a floor
+  used to vanish from the room's Place popup and from Add > Device (it
+  showed only as a raw entity row there instead of its own device row).
+  Add > Device, the Place popup and a room's "Add device from" now always
+  show one row per device, named by the device, whether or not it has been
+  placed yet.
+- Add > Device rows and Place popup rows now show the name on one line
+  (ellipsised if long, full name on hover) with a smaller type · room
+  subtitle underneath, and both panels are 50% larger.
+
 ## 0.12.3
 
 - The room panel's Place popup now opens with nothing ticked instead of
