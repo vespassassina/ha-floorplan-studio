@@ -269,13 +269,21 @@ export class FloorplanStudioEditor extends LitElement {
     .fpanel .harow .name{flex:1;text-align:left;text-decoration:none}
     .fpanel .chips{display:flex;flex-wrap:wrap;gap:4px;padding:8px 10px 0}
     .fpanel .rows{overflow:auto;padding:6px 10px;display:flex;flex-direction:column;gap:2px}
-    .prow{display:flex;align-items:center;gap:6px;cursor:pointer} .prow span{flex:1} .prow small{opacity:.7}
+    .prow{display:flex;align-items:center;gap:6px;cursor:pointer}
+    /* S8.8: line 1 the name (ellipsis on overflow, title carries the full text), line 2 a smaller muted subtitle. */
+    .prow-text{flex:1;display:flex;flex-direction:column;gap:0;min-width:0}
+    .prow-name{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .prow small{opacity:.7}
     .fpanel>.btn{margin:8px 10px 10px;width:auto;align-self:flex-start}
-    .add-dev-panel{width:520px}
+    /* S8.8: 50% larger than the S8.5 baseline (520x642 / 440x642 measured at an 800px-tall viewport, panel maxed
+       out): width and max-height both grow by half, clamped so a small screen still fits it — see docs/DECISIONS.md. */
+    .add-dev-panel{width:min(780px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
     .add-dev-panel>input[type=search]{margin:8px 10px 0;box-sizing:border-box;width:calc(100% - 20px)}
     .add-dev-filters select{flex:1 1 45%;min-width:140px}
-    .add-dev-panel .rows .btn{display:flex;flex-direction:column;align-items:flex-start;gap:0}
+    .add-dev-panel .rows .btn{display:flex;flex-direction:column;align-items:flex-start;gap:0;min-width:0}
+    .add-dev-panel .rows .btn .devrow-name{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .add-dev-panel .rows .btn small{opacity:.7}
+    .place-panel{width:min(660px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
     .installcode-panel{position:fixed;left:50%;top:90px;transform:translateX(-50%);z-index:30;width:520px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
     .installcode-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--fp-idle);font-weight:600}
     .installcode-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
@@ -1237,7 +1245,7 @@ export class FloorplanStudioEditor extends LitElement {
       <p>What Home Assistant has in this area and the plan does not show yet. Readings with no icon of their own (power, energy, battery…) are left out. Tick what to place; each placed device can then be dragged to its spot.</p>
       <div class="chips">${types.map(([t, label]) => html`<button class="chip keep" data-ptype=${t} aria-pressed=${this.placeType === t ? "true" : "false"} @click=${() => { this.placeType = this.placeType === t ? null : t; this.requestUpdate(); }}>${label}</button>`)}</div>
       <button class="btn keep" id="placeAll" ?disabled=${!shown.length} @click=${toggleAll}>${allShownOn ? "Deselect all" : "Select all"}</button>
-      <div class="rows">${shown.map((e) => html`<label class="prow" data-pent=${e.id}><input type="checkbox" .checked=${live(this.placeOn.has(e.id))} @change=${tick(e)}><span>${e.name}</span><small>${e.id}</small></label>`)}</div>
+      <div class="rows">${shown.map((e) => html`<label class="prow" data-pent=${e.id} title=${e.name}><input type="checkbox" .checked=${live(this.placeOn.has(e.id))} @change=${tick(e)}><span class="prow-text"><span class="prow-name">${e.name}</span><small>${TYPE_LABELS.find((t) => t[0] === typeForEntity(e))?.[1] ?? typeForEntity(e)} · ${room.name}</small></span></label>`)}</div>
       <button class="btn primary keep" id="placeGo" ?disabled=${!picked.length} @click=${() => this.placeGo(i, picked.map((e) => e.id))}>Place ${picked.length}</button>
     </div>`;
   }
@@ -1305,7 +1313,7 @@ export class FloorplanStudioEditor extends LitElement {
       </div>
       ${all.length === 0 ? html`<span class="grp" id="addDevNone">Everything is on the plan</span>`
         : shown.length === 0 ? html`<span class="grp" id="addDevNone">Nothing matches</span>`
-        : html`<div class="rows">${TYPE_LABELS.map(([t, label]) => { const g = shown.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-add=${c.key} @click=${() => this.pickAddDev(c)}>${c.name}<small>${c.room || c.area ? ` ${c.room || c.area}` : ""}</small></button>`)}` : nothing; })}</div>`}
+        : html`<div class="rows">${TYPE_LABELS.map(([t, label]) => { const g = shown.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-add=${c.key} title=${c.name} @click=${() => this.pickAddDev(c)}><span class="devrow-name">${c.name}</span><small>${label}${c.room || c.area ? ` · ${c.room || c.area}` : ""}</small></button>`)}` : nothing; })}</div>`}
     </div>`;
   }
 

@@ -1678,6 +1678,57 @@ test("a device name with markup is text in the Device panel, and a click on it p
   expect(await page.evaluate(() => (window as any).__pwn)).toBeUndefined();
 });
 
+// ---- S8.8: catalogued-but-unplaced HA devices, Add panel and Place popup sizing -----------------------------------
+
+test("Opus review CSS pair: a long device name in the Add panel row is ellipsised on one line; the full name is in the title attribute", async ({ page }) => {
+  const longName = "Living Room Extended Colour Light Strip Behind The Sofa";
+  await setCatalog(page, [{ id: "long-1", floor: "ground", room: "Living", type: "light", name: longName, entity: "light.long" }]);
+  await openDevice(page);
+  const row = devItem(page, "long-1");
+  const nameEl = row.locator(".devrow-name");
+  await expect(nameEl).toHaveText(longName);
+  await expect(row).toHaveAttribute("title", longName);
+  const style = await nameEl.evaluate((el) => { const s = getComputedStyle(el); return { whiteSpace: s.whiteSpace, textOverflow: s.textOverflow, overflow: s.overflowX }; });
+  expect(style).toEqual({ whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" });
+  // Break it: revert to `white-space: normal` and this assertion fails — a wrapped name would keep `whiteSpace: "normal"`.
+  const box = await nameEl.boundingBox();
+  expect(box!.height).toBeLessThan(24); // one line, not wrapped to two or three
+});
+
+test("S8.8: the Add > Device panel and the room Place popup are noticeably larger than the S8.5 baseline (520px/440px wide)", async ({ page }) => {
+  await openDevice(page);
+  const addBox = await page.locator("#addDevPanel").boundingBox();
+  expect(addBox!.width).toBeGreaterThan(520 * 1.4); // was 520/522, now clamped-50%-larger
+  await page.locator("#addDevClose").click();
+  await setHa(page, PLACE_HA_FOR_SIZE);
+  const c = await screenOf(page, 200, 150); // inside Living
+  await page.mouse.click(c.x, c.y);
+  await page.locator("#rplace").click();
+  const placeBox = await page.locator("#placePanel").boundingBox();
+  expect(placeBox!.width).toBeGreaterThan(440 * 1.4); // was 440/442, now clamped-50%-larger
+});
+
+// A minimal HA fixture with one placeable living-room light, just to open the Place popup for the size check above.
+const PLACE_HA_FOR_SIZE = { floors: [{ id: "gf", name: "Ground" }], areas: [{ id: "living", name: "Living" }], entities: [
+  { id: "light.size_check", name: "Size check light", domain: "light", area: "living" },
+] };
+
+test("S8.8: a catalogued-but-unplaced device shows in the room Place popup, by its device name — the 0.12.3 field bug", async ({ page }) => {
+  // The maintainer's real bug: an HA device (a Hue bulb) imported into layout.catalog but never dragged onto a
+  // floor vanished from the room's own Place popup, because placedDeviceIds counted "in the catalog" as placed.
+  await setHa(page, { floors: [{ id: "gf", name: "Ground" }], areas: [{ id: "living", name: "Living" }],
+    devices: [{ id: "hue1", name: "Reading lamp" }],
+    entities: [{ id: "light.reading_lamp", name: "Reading lamp bulb", domain: "light", area: "living", dev: "hue1" }] });
+  await setCatalog(page, [{ id: "c-hue", floor: "ground", room: "Living", type: "light", name: "Reading lamp bulb", entity: "light.reading_lamp" }]);
+  const c = await screenOf(page, 200, 150); // inside Living
+  await page.mouse.click(c.x, c.y);
+  await page.locator("#rplace").click();
+  const panel = page.locator("#placePanel");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator(".prow")).toHaveCount(1);
+  await expect(panel.locator(".prow-name")).toHaveText("Reading lamp"); // named by the HA device, not the raw entity
+});
+
 // ---- S1.13 opening tool ------------------------------------------------------
 const addGap = async (page: Page) => addItem(page, "#addGap");
 const gaps = async (page: Page) => (await groundOf(page)).openings;
@@ -6236,11 +6287,11 @@ test("S8.6: Add > Device offers a plug device once, not once per entity, and pla
   });
   await openDevice(page);
   const panel = page.locator("#addDevPanel");
-  await expect(panel.locator('button:text-is("Kitchen plug")')).toHaveCount(1); // one row for the device, not four
-  await expect(panel.locator('button:text-is("Kitchen plug power")')).toHaveCount(0);
-  await expect(panel.locator('button:text-is("Kitchen plug connectivity")')).toHaveCount(0);
+  await expect(panel.locator('.devrow-name:text-is("Kitchen plug")')).toHaveCount(1); // one row for the device, not four
+  await expect(panel.locator('.devrow-name:text-is("Kitchen plug power")')).toHaveCount(0);
+  await expect(panel.locator('.devrow-name:text-is("Kitchen plug connectivity")')).toHaveCount(0);
 
-  await panel.locator('[data-add="ha-dev:plugdev"]').click();
+  await panel.locator('[data-add="ha-dev:switch.kitchen_plug"]').click();
   const d = (await groundOf(page)).devices.find((x: any) => x.entity === "switch.kitchen_plug");
   expect(d).toMatchObject({ type: "plug", name: "Kitchen plug" });
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.kitchen_plug_power")).toBe(false);
@@ -6257,8 +6308,8 @@ test("Opus review finding 11: placing a device row names the plan icon after the
   });
   await openDevice(page);
   const panel = page.locator("#addDevPanel");
-  await expect(panel.locator('button:text-is("Kitchen plug")')).toHaveCount(1); // the row is shown under the device name
-  await panel.locator('[data-add="ha-dev:plugdev"]').click();
+  await expect(panel.locator('.devrow-name:text-is("Kitchen plug")')).toHaveCount(1); // the row is shown under the device name
+  await panel.locator('[data-add="ha-dev:switch.raw_relay"]').click();
   const d = (await groundOf(page)).devices.find((x: any) => x.entity === "switch.raw_relay");
   expect(d?.name).toBe("Kitchen plug"); // not "Relay 1"
 });
