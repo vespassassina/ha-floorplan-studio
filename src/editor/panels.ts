@@ -666,7 +666,7 @@ function boundField(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
   const choices = c.st.switchChoicesForLight(i);
   const suggested = choices.filter((s) => s.suggested);
-  const rest = choices.filter((s) => !s.suggested); // catalog order kept, same as the all-floors bindChoices this replaces
+  const rest = choices.filter((s) => !s.suggested); // catalog order kept, same as the all-floors picker this replaces
   const nameOf = (entity: string) => choices.find((s) => s.entity === entity)?.name ?? c.st.layout.catalog.find((x) => x.entity === entity)?.name ?? entity;
   const motionChoices = c.linkMotion ? c.st.motionChoices(i) : [];
   const set = (e: Event) => {

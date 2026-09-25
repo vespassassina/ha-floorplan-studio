@@ -432,7 +432,7 @@ export interface SwitchChoice { entity: string; name: string; area?: string; roo
 
 /**
  * S8.7: the switches and plugs offered to power light `light` on plan floor `floorKey` — restricted to that floor
- * (maintainer feedback: "only show the floor related switches"), unlike the all-floors `bindChoices` it replaces on
+ * (maintainer feedback: "only show the floor related switches"), unlike the all-floors picker this replaced on
  * the light panel. Candidates are the union of: this floor's own catalogued switch/plug entries, and, when `ha` is
  * given, every HA switch-domain entity that is a device's main entity (`mainEntitiesByDevice`, so a plug's siblings
  * don't each get their own row), has no `entity_category`, and sits in an HA area that is on the HA floor(s)

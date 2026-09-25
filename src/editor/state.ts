@@ -524,13 +524,6 @@ export class EditorState {
   /** Catalog entries not on the plan. A switch that only a light names (`bound`) is still on the list. */
   unplaced(): CatalogEntry[] { return unplacedCatalog(this.layout); }
 
-  /** Switches and plugs the light at `devIndex` of the current floor may be controlled by: every one in the catalog except the light's own entity, placed or bound elsewhere. Several lights may share one. */
-  bindChoices(devIndex: number): CatalogEntry[] {
-    const d = this.f.devices[devIndex];
-    if (!d || d.type !== "light") return [];
-    return this.layout.catalog.filter((c) => (c.type === "switch" || c.type === "plug") && c.entity !== d.entity);
-  }
-
   /** S8.7: `switchChoicesForLight` for the light at `devIndex` of the current floor, with the current floor and HA data already bound in. Empty for anything that is not a light. */
   switchChoicesForLight(devIndex: number): SwitchChoice[] {
     const d = this.f.devices[devIndex];
@@ -624,7 +617,7 @@ export class EditorState {
    * S4.24: catalog entries a heater's `trvs`/`tempSensors` or an ac's `linked` list may attach, minus the
    * device's own entity. Unlike a door's sensors, these are not excluded elsewhere on the plan — the same
    * temperature sensor, say, may reasonably feed more than one heater, the same way a switch can power several
-   * lights (`bindChoices` above).
+   * lights.
    */
   deviceAttachChoices(devIndex: number, field: "trvs" | "tempSensors" | "linked"): CatalogEntry[] {
     const d = this.f.devices[devIndex];
