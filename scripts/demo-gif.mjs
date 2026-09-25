@@ -45,31 +45,70 @@ const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
 
-// Scene 1: the card, live — a light on, motion active, a camera streaming.
+// Scene 1: the card at fit with a floor switcher, a quiet house by day.
 await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;padding:16px;background:#fff"><floorplan-studio-card id="c"></floorplan-studio-card></body>`);
 await page.addScriptTag({ content: cardJs, type: "module" });
 await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+const quiet = structuredClone(hass);
+for (const e of ["light.demo_kitchen", "light.demo_living", "switch.demo_hall", "binary_sensor.demo_hall_motion"]) quiet.states[e] = st("off");
+quiet.states["sun.sun"] = st("above_horizon");
+const setHass = (h) => page.evaluate((h) => { const el = document.getElementById("c"); el.hass = h; return el.updateComplete; }, h);
 await page.evaluate(([config, h]) => {
   const el = document.getElementById("c");
   el.setConfig(config); el.hass = h;
   return el.updateComplete;
-}, [{ layout, floor: "ground", theme: "blueprint" }, hass]);
-await page.waitForTimeout(2200);
+}, [{ layout, floor: "all", theme: "blueprint" }, quiet]);
+await page.waitForTimeout(1500);
 
-// Scene 2: the editor — open the demo house, open Add, then select a device to show its panel.
+// Scene 2: the house wakes up — two lights on, the hall motion sensor, the front door opens.
+const awake = structuredClone(hass);
+awake.states["sun.sun"] = st("above_horizon");
+awake.states["binary_sensor.demo_front_door"] = st("on");
+await setHass(awake);
+await page.waitForTimeout(1800);
+
+// Scene 3: Ctrl+wheel zooms in about the living room, then the fit button brings the whole floor back.
+const svg = await page.locator("floorplan-studio-card svg").first().boundingBox();
+await page.mouse.move(svg.x + svg.width * 0.3, svg.y + svg.height * 0.35);
+await page.keyboard.down("Control");
+for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, -120); await page.waitForTimeout(120); }
+await page.keyboard.up("Control");
+await page.waitForTimeout(1200);
+await page.locator('floorplan-studio-card .fp-zoom button[aria-label="Fit"]').click();
+await page.waitForTimeout(900);
+
+// Scene 4: the floor chip switches to the first floor.
+await page.locator("floorplan-studio-card .fp-floors button", { hasText: "First" }).click();
+await page.waitForTimeout(1600);
+await page.locator("floorplan-studio-card .fp-floors button", { hasText: "Ground" }).click();
+await page.waitForTimeout(600);
+
+// Scene 5: the sun sets — night darkens the rooms; the lit rooms stay clear.
+const dusk = structuredClone(awake);
+dusk.states["sun.sun"] = st("below_horizon");
+await setHass(dusk);
+await page.waitForTimeout(2000);
+
+// Scene 6: the editor — open the demo house, open Add, select a device and drag it across the room.
 await page.goto(pathToFileURL(resolve(EDITOR)).href);
 await page.locator("floorplan-studio-editor svg polygon[data-r]").first().waitFor();
 await page.waitForTimeout(700);
 await page.locator('details.menu > summary:text-is("Add")').click();
-await page.waitForTimeout(1400);
+await page.waitForTimeout(1200);
 await page.mouse.click(500, 700); // close the menu, same as a user clicking away
 await page.waitForTimeout(300);
 const box = await page.locator('g[data-x="0"]').first().boundingBox();
 if (box) {
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await page.mouse.click(cx, cy);
   await page.locator("#panel").waitFor();
+  await page.waitForTimeout(900);
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  for (let i = 1; i <= 12; i++) { await page.mouse.move(cx - i * 8, cy + i * 6); await page.waitForTimeout(60); }
+  await page.mouse.up();
 }
-await page.waitForTimeout(2000);
+await page.waitForTimeout(1600);
 
 await ctx.close();
 await browser.close();
@@ -82,9 +121,9 @@ const webm = resolve(VIDEO_DIR, videoFile);
 const gif = resolve(OUT_DIR, "demo.gif");
 const palette = resolve(VIDEO_DIR, "palette.png");
 
-const FPS = 8, WIDTH = 640;
-execFileSync("ffmpeg", ["-y", "-i", webm, "-vf", `fps=${FPS},scale=${WIDTH}:-1:flags=lanczos,palettegen=stats_mode=diff`, "-update", "1", palette]);
-execFileSync("ffmpeg", ["-y", "-i", webm, "-i", palette, "-lavfi", `fps=${FPS},scale=${WIDTH}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer`, gif]);
+const FPS = 8, WIDTH = 640, SKIP = "0.6"; // the first frames are the blank page before the card has drawn
+execFileSync("ffmpeg", ["-y", "-ss", SKIP, "-i", webm, "-vf", `fps=${FPS},scale=${WIDTH}:-1:flags=lanczos,palettegen=stats_mode=diff`, "-update", "1", palette]);
+execFileSync("ffmpeg", ["-y", "-ss", SKIP, "-i", webm, "-i", palette, "-lavfi", `fps=${FPS},scale=${WIDTH}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer`, gif]);
 
 rmSync(VIDEO_DIR, { recursive: true, force: true });
 
