@@ -1,4 +1,4 @@
-import type { AvailableEntity, Device, DeviceType, Layout } from "./schema";
+import type { AvailableEntity, CatalogEntry, Device, DeviceType, Layout } from "./schema";
 import { placedEntities, unplacedCatalog } from "./bind";
 
 /** What the host (the HA panel) knows about Home Assistant and hands to the editor. Standalone there is none. */
@@ -207,14 +207,18 @@ export function applyHaNames(l: Layout, ha: HaData): { layout: Layout; changed: 
 }
 
 /**
- * S8.6: which HA devices already have an entity on the plan or in the catalog — a device counts as placed when ANY
- * of its entities does, not only the one `mainEntity` would pick, so a plug placed through its switch does not
- * reappear through its power sensor once that sensor becomes the ranked "main" of a differently-ordered group.
+ * S8.8: which HA devices already have an entity on the plan — a device counts as placed when ANY of its entities
+ * is on a floor, not only the one `mainEntity` would pick, so a plug placed through its switch does not reappear
+ * through its power sensor once that sensor becomes the ranked "main" of a differently-ordered group.
+ *
+ * Being in `layout.catalog` does NOT count (this is the 0.12.3 field bug): a device imported into the catalog but
+ * never dragged onto a floor is not "placed" — see `deviceRows` below, which is what keeps such a device from
+ * disappearing from the Add panel and the room Place popup while still showing it as one row, not a raw entity.
  */
 function placedDeviceIds(l: Layout, ha: HaData): Set<string> {
-  const placed = placedEntities(l), catalogued = new Set(l.catalog.map((c) => c.entity));
+  const placed = placedEntities(l);
   const ids = new Set<string>();
-  for (const e of ha.entities ?? []) if (e?.dev && (placed.has(e.id) || catalogued.has(e.id))) ids.add(e.dev);
+  for (const e of ha.entities ?? []) if (e?.dev && placed.has(e.id)) ids.add(e.dev);
   return ids;
 }
 
@@ -286,9 +290,38 @@ export function mainEntitiesByDevice(ha: HaData): Map<string, HaData["entities"]
 }
 
 /**
- * S8.6: `placeableInArea`, grouped by device — one row per HA device (its main entity), plus the area's device-less
- * entities exactly as `placeableInArea` already returns them. A device counts as placed, and a device's row is
- * offered, by its main entity's own `typeForEntity`/`AREA_PLACEABLE_TYPES` rule.
+ * S8.8: the entities of `ents` (one HA device's own registry rows) that are separate switch "gangs" — a multi-gang
+ * wall switch device exposes more than one `switch.*` entity, and Opus review findings 5/6 already settled that a
+ * gang is never merged into a sibling's row (`switchChoicesForLight`). The same rule applies here: two or more
+ * live (non-`cat`) switch-domain entities on one device each keep their own row; anything else (a plug's single
+ * switch plus its power sensor, a light plus its signal-strength sensor) is one device, one row.
+ */
+function gangEntities(ents: HaData["entities"]): HaData["entities"] {
+  return ents.filter((e) => e.domain === "switch" && !e.cat);
+}
+
+/**
+ * S8.8: the catalog-merged rows to offer one HA device as, for the Add panel and the room Place popup. Normally one
+ * row — its main entity (`mainEntity`), or, when a different sibling is the one already in `layout.catalog`, that
+ * catalogued entity instead, so its id/type/room survive the merge. A multi-gang switch device (`gangEntities`)
+ * instead gets one row per gang, each with its own catalog entry when it has one; every other sibling (a plug's
+ * power sensor, for one) is absorbed into the one device row and shown nowhere else.
+ */
+function deviceRows(ents: HaData["entities"], nameOf: Map<string, string>, deviceId: string, catalogOf: Map<string, CatalogEntry>): { entity: HaData["entities"][number]; catalogEntry?: CatalogEntry }[] {
+  const gangs = gangEntities(ents);
+  if (gangs.length >= 2) return gangs.map((e) => ({ entity: asDeviceRow(e, nameOf), catalogEntry: catalogOf.get(e.id) }));
+  const main = mainEntity(ents, nameOf.get(deviceId));
+  if (!main) return [];
+  const chosen = catalogOf.has(main.id) ? main : (ents.find((e) => catalogOf.has(e.id)) ?? main);
+  return [{ entity: asDeviceRow(chosen, nameOf), catalogEntry: catalogOf.get(chosen.id) }];
+}
+
+/**
+ * S8.6/S8.8: `placeableInArea`, grouped by device — one row per HA device (its main entity, or one row per gang for
+ * a multi-gang switch, `gangEntities`), plus the area's device-less entities exactly as `placeableInArea` already
+ * returns them. A device counts as placed, and a device's row is offered, by its own entity's `typeForEntity`/
+ * `AREA_PLACEABLE_TYPES` rule. Being merely catalogued never hides a device (S8.8 field bug fix) — only
+ * `placedDeviceIds`, which now checks the plan alone, decides that.
  *
  * Opus review, finding 10: a device can be split across HA areas — an entity's own `area` overrides its device's,
  * so one sibling can sit in a different area than the device's main entity. The main entity is picked from ALL of
@@ -300,11 +333,13 @@ export function placeableDevicesInArea(l: Layout, ha: HaData, area: string): HaD
   const deviceless = placeableInArea(l, { ...ha, entities: ha.entities.filter((e) => !e?.dev) }, area);
   const placedDevs = placedDeviceIds(l, ha);
   const nameOf = deviceNames(ha);
+  const catalogOf = new Map(unplacedCatalog(l).map((c) => [c.entity, c]));
   const devRows: HaData["entities"] = [];
   for (const [devId, ents] of byDevice(ha.entities)) {
     if (placedDevs.has(devId)) continue;
-    const main = mainEntity(ents, nameOf.get(devId));
-    if (main && main.area === area && AREA_PLACEABLE_TYPES.has(typeForEntity(main))) devRows.push(asDeviceRow(main, nameOf));
+    for (const row of deviceRows(ents, nameOf, devId, catalogOf)) {
+      if (row.entity.area === area && AREA_PLACEABLE_TYPES.has(typeForEntity(row.entity))) devRows.push(row.entity);
+    }
   }
   return [...devRows, ...deviceless];
 }
@@ -379,27 +414,45 @@ function locateEntity(l: Layout, ha: HaData | null, entityId: string, fallbackRo
 }
 
 /**
- * S8.5: the merged source list for the Add > Device panel — every unplaced catalog entry plus every unplaced HA
- * entity, with no entity twice (a catalog entry wins, matching `unplacedHaEntities`'s own exclusion of catalogued
- * entities). `ha` null (standalone, or before the panel has loaded it) still returns the catalog half.
+ * S8.5/S8.8: the merged source list for the Add > Device panel — every unplaced catalog entry plus every unplaced
+ * HA entity, with no entity twice, and no device twice either: an unplaced catalog entry whose entity belongs to
+ * an HA device becomes that device's own row (`deviceRows`) rather than a separate `catalog:` row, named from the
+ * device registry and still placing the catalog entry itself, so its id/type/room survive. A device with no
+ * catalogued entity at all still gets its usual `ha-dev:` row. `ha` null (standalone, or before the panel has
+ * loaded it) still returns the catalog half, unmerged — there is no device registry to merge against.
  */
 export function addCandidates(l: Layout, ha: HaData | null): AddCandidate[] {
   const out: AddCandidate[] = [];
+  const catalogOf = new Map(unplacedCatalog(l).map((c) => [c.entity, c]));
+  const merged = new Set<string>(); // catalog entry ids folded into a device row below, left out of the plain catalog loop
+  const devCandidates: AddCandidate[] = [];
+
+  if (ha) {
+    const placedDevs = placedDeviceIds(l, ha);
+    const nameOf = deviceNames(ha);
+    for (const [devId, ents] of byDevice(ha.entities)) {
+      if (placedDevs.has(devId)) continue;
+      for (const row of deviceRows(ents, nameOf, devId, catalogOf)) {
+        if (row.catalogEntry) {
+          merged.add(row.catalogEntry.id);
+          devCandidates.push({ key: `catalog:${row.catalogEntry.id}`, source: "catalog", id: row.catalogEntry.id, entity: row.catalogEntry.entity, name: row.entity.name, type: row.catalogEntry.type, ...locateEntity(l, ha, row.catalogEntry.entity, row.catalogEntry.room || undefined) });
+        } else {
+          devCandidates.push({ key: `ha-dev:${row.entity.id}`, source: "ha", id: devId, entity: row.entity.id, name: row.entity.name, type: typeForEntity(row.entity), ...locateEntity(l, ha, row.entity.id) });
+        }
+      }
+    }
+  }
+
   for (const c of unplacedCatalog(l)) {
+    if (merged.has(c.id)) continue;
     out.push({ key: `catalog:${c.id}`, source: "catalog", id: c.id, entity: c.entity, name: c.name, type: c.type, ...locateEntity(l, ha, c.entity, c.room || undefined) });
   }
   if (ha) {
     for (const e of unplacedHaEntities(l, ha).filter((e) => !e.dev)) {
       out.push({ key: `ha:${e.id}`, source: "ha", id: e.id, entity: e.id, name: e.name || e.id, type: typeForEntity(e), ...locateEntity(l, ha, e.id) });
     }
-    const placedDevs = placedDeviceIds(l, ha);
-    const nameOf = new Map((ha.devices ?? []).map((d) => [d.id, d.name]));
-    for (const [devId, main] of mainEntitiesByDevice(ha)) {
-      if (placedDevs.has(devId)) continue;
-      const name = nameOf.get(devId) || main.name || main.id;
-      out.push({ key: `ha-dev:${devId}`, source: "ha", id: devId, entity: main.id, name, type: typeForEntity(main), ...locateEntity(l, ha, main.id) });
-    }
   }
+  out.push(...devCandidates);
   return out;
 }
 
