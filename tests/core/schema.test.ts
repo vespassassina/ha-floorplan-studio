@@ -622,3 +622,105 @@ describe("furniture size bounds (S1.51)", () => {
     expect(errorsOf(l)).toEqual([]);
   });
 });
+
+describe("floor trace image (S7.11)", () => {
+  const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+  const good = () => ({ src: PNG, x: -40, y: 25, w: 1234, rot: 0, alpha: 0.5, on: true });
+  const withTrace = (t: unknown) => { const l = clone(); l.floors.ground.trace = t; return l; };
+
+  it("accepts a valid trace, PNG and JPEG, and a floor with none", () => {
+    expect(errorsOf(withTrace(good()))).toEqual([]);
+    expect(errorsOf(withTrace({ ...good(), src: "data:image/jpeg;base64,/9j/4AAQSkZJRg==", alpha: 0, on: false, rot: 359.5 }))).toEqual([]);
+    expect(errorsOf(clone())).toEqual([]);
+  });
+
+  it("refuses a src that is not a data:image URL: javascript:, http, svg, a quote in the payload", () => {
+    for (const src of ["javascript:alert(1)", "https://example.com/plan.png", "data:image/svg+xml;base64,PHN2Zz4=", `${PNG}"><script>`, "data:text/html;base64,PGI+", "", 5]) {
+      expect(errorsOf(withTrace({ ...good(), src })).join("\n"), String(src)).toMatch(/ground: trace src must be a data:image\/png, jpeg or webp URL/);
+    }
+  });
+
+  it("refuses a src over the 4 MB cap with a message that names the limit", () => {
+    const big = "data:image/jpeg;base64," + "A".repeat(4 * 1024 * 1024);
+    expect(errorsOf(withTrace({ ...good(), src: big })).join("\n")).toMatch(/trace src is 4\.0 MB; the limit is 4 MB/);
+    const justUnder = "data:image/jpeg;base64," + "A".repeat(4 * 1024 * 1024 - 24);
+    expect(errorsOf(withTrace({ ...good(), src: justUnder }))).toEqual([]);
+  });
+
+  it("refuses alpha outside [0, 1], w of 0 or below, and non-finite numbers", () => {
+    expect(errorsOf(withTrace({ ...good(), alpha: 2 })).join()).toMatch(/trace alpha must be a number from 0 to 1/);
+    expect(errorsOf(withTrace({ ...good(), alpha: -0.1 })).join()).toMatch(/trace alpha/);
+    expect(errorsOf(withTrace({ ...good(), w: 0 })).join()).toMatch(/trace w must be a number above 0/);
+    expect(errorsOf(withTrace({ ...good(), w: -5 })).join()).toMatch(/trace w must be a number above 0/);
+    expect(errorsOf(withTrace({ ...good(), x: NaN })).join()).toMatch(/trace x must be a number/);
+    expect(errorsOf(withTrace({ ...good(), y: "3" })).join()).toMatch(/trace y must be a number/);
+    expect(errorsOf(withTrace({ ...good(), rot: 360 })).join()).toMatch(/trace rot must be a number in \[0, 360\)/);
+    expect(errorsOf(withTrace({ ...good(), on: "yes" })).join()).toMatch(/trace on must be true or false/);
+  });
+
+  it("refuses a trace that is not an object, and never throws on one", () => {
+    for (const t of [null, 5, "x", [1, 2]]) expect(errorsOf(withTrace(t)).join(), JSON.stringify(t)).toMatch(/ground: trace must be an object/);
+    expect(() => validate(withTrace({ src: { toString: () => { throw new Error("boom"); } } }))).not.toThrow();
+  });
+});
+
+describe("S7.8: a person device and its room sensor", () => {
+  const person = (extra: Record<string, unknown> = {}) => ({ id: "p1", type: "person", entity: "person.alex", x: 100, y: 100, ...extra });
+  const withDev = (d: unknown) => { const l = clone(); l.floors.ground.devices.push(d); return l; };
+
+  it("accepts a person on person.* or device_tracker.*, with or without a room sensor", () => {
+    expect(errorsOf(withDev(person()))).toEqual([]);
+    expect(errorsOf(withDev(person({ entity: "device_tracker.alex_phone" })))).toEqual([]);
+    expect(errorsOf(withDev(person({ room: "sensor.alex_room" })))).toEqual([]);
+  });
+
+  it("rejects a room that is not an entity id", () => {
+    for (const bad of ["kitchen", 5, "", null]) expect(errorsOf(withDev(person({ room: bad }))).join("\n"), String(bad)).toMatch(/p1 room must be an entity id like sensor\.name/);
+  });
+
+  it("rejects a room on anything but a person", () => {
+    expect(errorsOf(withDev({ id: "l1", type: "light", entity: "light.x", x: 1, y: 1, room: "sensor.r" })).join("\n")).toMatch(/l1 room is only allowed on a person/);
+  });
+
+  it("Break it: a room equal to the device's own entity (a person picking themselves) is refused with a message", () => {
+    expect(errorsOf(withDev(person({ room: "person.alex" }))).join("\n")).toMatch(/p1 room must differ from entity/);
+  });
+});
+
+describe("S7.9: a radar device and its targets", () => {
+  const radar = (extra: Record<string, unknown> = {}) => ({ id: "r1", type: "radar", entity: "binary_sensor.radar", x: 100, y: 100, ...extra });
+  const withDev = (d: unknown) => { const l = clone(); l.floors.ground.devices.push(d); return l; };
+
+  it("accepts a radar with no targets, one target, or twenty", () => {
+    expect(errorsOf(withDev(radar()))).toEqual([]);
+    expect(errorsOf(withDev(radar({ targets: [{ x: "sensor.t1x", y: "sensor.t1y" }] })))).toEqual([]);
+    const twenty = Array.from({ length: 20 }, (_, i) => ({ x: `sensor.t${i}x`, y: `sensor.t${i}y` }));
+    expect(errorsOf(withDev(radar({ targets: twenty })))).toEqual([]); // no cap on how many
+  });
+
+  it("rejects a target pair missing x, missing y, or not an entity id", () => {
+    for (const bad of [{ x: "sensor.a" }, { y: "sensor.b" }, { x: "notanentity", y: "sensor.b" }, { x: "sensor.a", y: 5 }, {}, null, "sensor.a"])
+      expect(errorsOf(withDev(radar({ targets: [bad] }))).join("\n"), JSON.stringify(bad)).toMatch(/r1 targets\[0\] must be \{x, y\}, each an entity id like sensor\.name/);
+  });
+
+  it("rejects targets that is not a list", () => {
+    expect(errorsOf(withDev(radar({ targets: "sensor.a" }))).join("\n")).toMatch(/r1 targets must be a list of \{x, y\} entity pairs/);
+  });
+
+  it("rejects targets on anything but a radar", () => {
+    expect(errorsOf(withDev({ id: "l1", type: "light", entity: "light.x", x: 1, y: 1, targets: [{ x: "sensor.a", y: "sensor.b" }] })).join("\n")).toMatch(/l1 targets is only allowed on a radar/);
+  });
+
+  it("never throws on a hostile targets shape (finding 1)", () => {
+    for (const bad of [5, { x: "__proto__" }, [null, undefined, 5, "x"], [{ x: "a.b", y: "c.d", extra: "><script>" }]])
+      expect(() => errorsOf(withDev(radar({ targets: bad })))).not.toThrow();
+  });
+});
+
+describe("S7.10: a vacuum device", () => {
+  const withDev = (d: unknown) => { const l = clone(); l.floors.ground.devices.push(d); return l; };
+
+  it("accepts a vacuum device with only the fields every device has — no new field of its own", () => {
+    expect(errorsOf(withDev({ id: "v1", type: "vacuum", entity: "vacuum.hall", x: 100, y: 100 }))).toEqual([]);
+  });
+});

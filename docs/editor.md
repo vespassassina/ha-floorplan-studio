@@ -35,6 +35,9 @@ Left to right:
   its own Close button puts the side panel back to normal.
 - **Undo / Redo** — one step per gesture; a drag that ends back where it
   started adds no step.
+- **Status line** — right of Redo: what just happened ("Saved", "Edited",
+  an error). A long message is cut with an ellipsis; hover it for the full
+  text.
 
 ![The Add menu open: Openings, Wall and Areas submenus, then Furniture and Unlinked device selects.](img/editor-add-menu.png)
 
@@ -48,6 +51,19 @@ Home Assistant context — the room's helpers and automations, a device's
 more-info — where a writer is configured.
 
 ![The Living light selected: its panel shows type, entity, rotation, and what powers it.](img/editor-device-panel.png)
+
+A device's panel shows one extra field for a few types:
+
+- **Person** — a "Room sensor" field, below the entity field: point it at a
+  second entity (a BLE room-presence sensor) whose state, or `area_id`/`area`
+  attribute, names one of your rooms, and the card glides the icon there. It
+  refuses the person's own entity, since that isn't a room sensor.
+- **mmWave radar** — a "Targets" field: add or remove `x`/`y` entity pairs,
+  one row per tracked target, each pointing at the two sensors an ESPHome
+  LD2450 (or similar) exposes for that target.
+- **Vacuum** — nothing extra; point `entity` at the `vacuum.*` entity. There
+  is no field for the robot's position, since most integrations expose that
+  as a camera or a proprietary blob, not coordinates.
 
 ## Drawing a house
 
@@ -80,6 +96,9 @@ device, furniture or stairs. **Ctrl/Cmd+Z** undoes, **Ctrl/Cmd+Shift+Z**
 redoes. Scroll to zoom; pan by dragging the background, or drag anywhere with
 the middle button, right button, or Ctrl/Cmd held.
 
+The same text is in the editor under Help, step "Moving things and
+snapping". The side panel no longer repeats it.
+
 ## Rotation
 
 A device or a piece of furniture turns from its panel's rotation buttons —
@@ -88,6 +107,35 @@ no free-text angle field: every angle the UI can produce is already wrapped
 into `[0, 360)`. (A hand-edited layout file can still carry an angle outside
 that range — the file loader normalises it on open, same treatment as an
 out-of-range furniture size.)
+
+## Preview night
+
+View, Preview night toggles the same dark overlay the card shows after
+sunset: every room and outdoor area darkens, and a room with a light on
+stays clear. The editor has no live lights, so with the preview on every
+room is dark. It's a browser preference, not part of the layout — it is
+never saved with the plan and never becomes an undo step.
+
+## Trace over a scan
+
+View, Trace image… opens a small panel at the bottom left of the plan.
+
+1. **Load image…** takes a PNG, JPEG or WebP: a scan, a photo of the
+   estate agent's plan, an architect's drawing. It is shrunk to 2000 px on
+   the long side and stored with the floor, then placed over the outline (or
+   the middle of the view on a blank floor) at half opacity.
+2. **Scale…**: click two points on the image whose real distance you know, a
+   wall you have measured, say. Type that distance in cm and Apply. The image
+   is resized so the two points are that far apart; its height follows.
+3. Draw the outline and the rooms over it as usual. While the image is shown,
+   room fills are see-through, so a room you have drawn does not hide the
+   scan under it.
+4. **Opacity** and **Show** change how much of it you see; **Remove image**
+   drops it. Each change is one undo step.
+
+Only the editor shows the image. The card never draws it, though Save keeps it
+with the plan (up to 4 MB). File, Export leaves it out unless you tick
+**Include trace image**, so a file you hand to an assistant stays small.
 
 ## Starting from photos instead
 

@@ -37,7 +37,9 @@ Do one floor at a time, lowest first. Put `[0, 0]` at the top-left corner of the
 
 Do **not** set `color`, `texture` or `palette`. Floor materials are the person's choice, made in the editor; a drawing's shading is not a colour. If the drawing labels a material (parquet, tiles), say so in the notes you give back and leave the field off.
 
-Do **not** add devices, entities or a catalog. A drawing has no Home Assistant entities in it. Leave `devices` and `catalog` empty. Never invent an entity id. (Placing real devices on an *already-drawn* plan is a separate task, for a file exported from the editor with Home Assistant connected — see "Placing devices from an export" in `SCHEMA.md`.)
+Do **not** add devices, entities or a catalog. A drawing has no Home Assistant entities in it. Leave `devices` and `catalog` empty. Never invent an entity id. (Placing real devices on an *already-drawn* plan — including a `person`'s `room` field or a `radar`'s `targets` pairs — is a separate task, for a file exported from the editor with Home Assistant connected — see "Placing devices from an export" in `SCHEMA.md`.)
+
+Do **not** set `trace` either. That is the owner's own scan or photo, loaded and scaled by hand in the editor (View, Trace image…), never written by you.
 
 ## 4. When you cannot read something
 

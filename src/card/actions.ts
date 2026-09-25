@@ -1,11 +1,14 @@
 import type { Device, Door } from "../core";
 import type { Hass } from "./floorplan-studio-card";
 
-/** Device types a tap opens more-info for at once, never a toggle: a camera and a media player have none, and a battery, an inverter, a server or an access point is watched, not switched (S2.13). */
-const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "battery", "inverter", "server", "access_point"]);
+/** Device types a tap opens more-info for at once, never a toggle: a camera and a media player have none, and a battery, an inverter, a server or an access point is watched, not switched (S2.13). A vacuum is here too (S7.10), but its tap opens its own dialog, not more-info — see the `d.type === "vacuum"` branch below, checked before this set. */
+const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "battery", "inverter", "server", "access_point", "person", "radar", "vacuum"]);
 
 /** A pointer held this long or longer is a hold, opening more-info instead of toggling. */
 export const HOLD_MS = 500;
+
+/** S7.4: a pointer that moves further than this between down and up is a drag (a pan of the plan), not a tap. */
+export const TAP_SLOP_PX = 6;
 
 /** Home Assistant's own `fireEvent` shape: a bubbling, composed CustomEvent so it crosses the card's shadow boundary. */
 export function fireEvent(el: EventTarget, type: string, detail?: unknown): void {
@@ -39,11 +42,21 @@ export interface DeviceActionsHost extends EventTarget {
  * to, since it is the only gesture here that acts on the real home, and the sensor's own state is still visible
  * on the door line itself (the `open`/`cover-open` classes render.ts already draws) without also needing
  * more-info. A camera or a media player has no toggle: a tap on either opens more-info at once, the same as a
- * sensor door (S2.5).
+ * sensor door (S2.5). A vacuum (S7.10) has no toggle either, but a tap opens `opts.openVacuumDialog` instead of
+ * more-info, the same idea as a cover door's dialog: Start/Pause/Return to dock act on the real robot, so a tap
+ * asks first rather than firing a service blind.
+ *
+ * S7.4: a press that moves more than `TAP_SLOP_PX` before release is a pan, not a tap: the gesture and its hold
+ * timer are dropped. A second pointer down (a pinch) drops it too, and nothing fires until every pointer is up.
  *
  * No debounce: each pointerdown/pointerup pair is independent, so two quick taps toggle twice, not once
  * (S2.2 "Break it"). `openCoverDialog` itself is responsible for ignoring a second call while its dialog is
  * still open (S2.7 "Break it") — this function fires it on every completed tap regardless.
+ *
+ * S7.5: `opts.longPress` (default `true`) governs only the hold-opens-more-info timer on a toggling device. `false`
+ * (kiosk mode) never starts that timer, so holding a light does nothing and releasing it still toggles like a plain
+ * tap — a wall tablet has nobody who should reach a more-info dialog by holding a finger down. Every other gesture
+ * (a plain tap, a door, a camera's always-more-info tap, the cover dialog) is unaffected: kiosk mode still acts.
  */
 export function bindDeviceActions(
   svg: SVGSVGElement,
@@ -51,12 +64,20 @@ export function bindDeviceActions(
   getDevice: (index: number) => Device | undefined,
   getDoor?: (index: number) => Door | undefined,
   openCoverDialog?: (door: Door) => void,
+  opts?: { longPress?: boolean; openVacuumDialog?: (device: Device) => void },
 ): () => void {
+  const longPress = opts?.longPress !== false;
+  const openVacuumDialog = opts?.openVacuumDialog;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let held = false;
   let entityId: string | null = null;
-  let action: "toggle" | "more-info" | "cover-dialog" | null = null;
+  let action: "toggle" | "more-info" | "cover-dialog" | "vacuum-dialog" | null = null;
   let coverDoor: Door | null = null;
+  let vacuumDevice: Device | null = null;
+  let startX = 0, startY = 0;
+  /** Pointers currently down on the svg; more than one is a pinch, which is never a tap. */
+  const down = new Set<number | undefined>();
+  let multi = false;
 
   const clearTimer = () => {
     if (timer !== null) {
@@ -71,9 +92,25 @@ export function bindDeviceActions(
     entityId = null;
     action = null;
     coverDoor = null;
+    vacuumDevice = null;
   };
 
   const onDown = (e: Event) => {
+    const pe = e as PointerEvent;
+    // A primary pointer means no other of its kind is down: drop any id whose pointerup never reached us, so
+    // one lost event cannot leave every later tap read as half a pinch.
+    if (pe.isPrimary) {
+      down.clear();
+      multi = false;
+    }
+    down.add(pe.pointerId);
+    if (down.size > 1 || multi) {
+      multi = true;
+      reset();
+      return;
+    }
+    startX = pe.clientX ?? 0;
+    startY = pe.clientY ?? 0;
     const target = (e.target as Element | null)?.closest('g[data-x], line[data-d]');
     if (!target) return;
 
@@ -100,6 +137,16 @@ export function bindDeviceActions(
     const d = Number.isFinite(i) ? getDevice(i) : undefined;
     if (!d) return;
 
+    if (d.type === "vacuum") {
+      // Checked ahead of NO_TOGGLE (which also lists vacuum, for readers of that set): a vacuum's tap opens its
+      // own dialog, never more-info.
+      held = false;
+      vacuumDevice = d;
+      action = "vacuum-dialog";
+      clearTimer();
+      return;
+    }
+
     if (NO_TOGGLE.has(d.type)) {
       // None of these has a toggle: a tap opens more-info right away, the same as a sensor door above (S2.5, S2.13).
       held = false;
@@ -113,37 +160,62 @@ export function bindDeviceActions(
     entityId = d.entity;
     action = "toggle";
     clearTimer();
-    timer = setTimeout(() => {
-      held = true;
-      timer = null;
-      if (entityId) fireEvent(host, "hass-more-info", { entityId });
-    }, HOLD_MS);
+    if (longPress) {
+      timer = setTimeout(() => {
+        held = true;
+        timer = null;
+        if (entityId) fireEvent(host, "hass-more-info", { entityId });
+      }, HOLD_MS);
+    }
   };
 
-  const onUp = () => {
-    const wasHeld = held, id = entityId, act = action, door = coverDoor;
+  const onMove = (e: Event) => {
+    if (action === null && timer === null) return;
+    const pe = e as PointerEvent;
+    if (Math.hypot((pe.clientX ?? 0) - startX, (pe.clientY ?? 0) - startY) > TAP_SLOP_PX) reset();
+  };
+
+  const onUp = (e: Event) => {
+    down.delete((e as PointerEvent).pointerId);
+    if (multi) {
+      if (!down.size) multi = false;
+      reset();
+      return;
+    }
+    const wasHeld = held, id = entityId, act = action, door = coverDoor, vacuum = vacuumDevice;
     clearTimer();
     if (!wasHeld) {
       if (act === "toggle" && id) toggleEntity(host.hass, id);
       else if (act === "more-info" && id) fireEvent(host, "hass-more-info", { entityId: id });
       else if (act === "cover-dialog" && door) openCoverDialog?.(door);
+      else if (act === "vacuum-dialog" && vacuum) openVacuumDialog?.(vacuum);
     }
     held = false;
     entityId = null;
     action = null;
     coverDoor = null;
+    vacuumDevice = null;
+  };
+
+  /** A pointer that is cancelled or leaves the svg will not send its pointerup here: forget it along with the gesture. */
+  const onGone = (e: Event) => {
+    down.delete((e as PointerEvent).pointerId);
+    if (!down.size) multi = false;
+    reset();
   };
 
   svg.addEventListener("pointerdown", onDown);
+  svg.addEventListener("pointermove", onMove);
   svg.addEventListener("pointerup", onUp);
-  svg.addEventListener("pointercancel", reset);
-  svg.addEventListener("pointerleave", reset);
+  svg.addEventListener("pointercancel", onGone);
+  svg.addEventListener("pointerleave", onGone);
 
   return () => {
     reset();
     svg.removeEventListener("pointerdown", onDown);
+    svg.removeEventListener("pointermove", onMove);
     svg.removeEventListener("pointerup", onUp);
-    svg.removeEventListener("pointercancel", reset);
-    svg.removeEventListener("pointerleave", reset);
+    svg.removeEventListener("pointercancel", onGone);
+    svg.removeEventListener("pointerleave", onGone);
   };
 }

@@ -1,0 +1,9 @@
+<!doctype html>
+<!-- S7.7: hosts nothing by itself — tests/card/config-editor.spec.ts injects the built card module (which
+     registers floorplan-studio-card-editor as a side effect of src/card/config-editor.ts) and then creates the
+     editor element itself, the same way card.spec.ts injects dist/floorplan-studio-card.js into harness.html
+     (see the comment there: a plain <script src> fails under file://, so the module's own source is injected). -->
+<html>
+<head><meta charset="utf-8"></head>
+<body></body>
+</html>

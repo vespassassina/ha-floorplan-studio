@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HOLD_MS, bindDeviceActions, fireEvent, toggleEntity } from "../../src/card/actions";
+import { HOLD_MS, TAP_SLOP_PX, bindDeviceActions, fireEvent, toggleEntity } from "../../src/card/actions";
 import type { Device, Door } from "../../src/core";
 import type { Hass } from "../../src/card/floorplan-studio-card";
 
@@ -342,6 +342,250 @@ describe("actions: a battery, inverter, server or access point opens more-info o
     pointer(g, "pointerup");
     expect(moreInfo).toHaveBeenCalledTimes(1);
     expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: `sensor.demo_${type}` });
+    expect(callService).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+});
+
+describe("actions: a drag is a pan, not a tap (S7.4)", () => {
+  let callService: ReturnType<typeof vi.fn>;
+  let moreInfo: ReturnType<typeof vi.fn>;
+  let host: { hass: Hass } & EventTarget;
+  let svg: SVGSVGElement;
+  let unbind: () => void;
+
+  /** A pointer event at client (x, y) with its own pointerId. jsdom has no PointerEvent, so a MouseEvent carries the
+   * coordinates and the id is added on top. */
+  function at(el: Element, type: string, x: number, y: number, id = 1) {
+    const e = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y });
+    Object.defineProperty(e, "pointerId", { value: id });
+    el.dispatchEvent(e);
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    callService = vi.fn();
+    moreInfo = vi.fn();
+    svg = svgFixture([LIGHT, CAMERA]);
+    host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    host.addEventListener("hass-more-info", moreInfo);
+    unbind = bindDeviceActions(svg, host, (i) => [LIGHT, CAMERA][i]);
+  });
+
+  afterEach(() => {
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("TAP_SLOP_PX is 6", () => {
+    expect(TAP_SLOP_PX).toBe(6);
+  });
+
+  it("a press that moves 40 px before release does not toggle", () => {
+    const g = svg.querySelector('[data-x="0"]')!;
+    at(g, "pointerdown", 100, 100);
+    at(g, "pointermove", 120, 100);
+    at(g, "pointermove", 140, 100);
+    at(g, "pointerup", 140, 100);
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it("a press that moves 7 px (just past the slop) does not toggle; 6 px still does", () => {
+    const g = svg.querySelector('[data-x="0"]')!;
+    at(g, "pointerdown", 100, 100);
+    at(g, "pointermove", 100, 107);
+    at(g, "pointerup", 100, 107);
+    expect(callService).not.toHaveBeenCalled();
+    at(g, "pointerdown", 100, 100);
+    at(g, "pointermove", 106, 100);
+    at(g, "pointerup", 106, 100);
+    expect(callService).toHaveBeenCalledTimes(1);
+  });
+
+  it("moving past the slop cancels the hold timer: no more-info after HOLD_MS", () => {
+    const g = svg.querySelector('[data-x="0"]')!;
+    at(g, "pointerdown", 100, 100);
+    at(g, "pointermove", 130, 100);
+    vi.advanceTimersByTime(HOLD_MS + 100);
+    at(g, "pointerup", 130, 100);
+    expect(moreInfo).not.toHaveBeenCalled();
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  it("a drag that starts on a camera does not open more-info either", () => {
+    const g = svg.querySelector('[data-x="1"]')!;
+    at(g, "pointerdown", 100, 100);
+    at(g, "pointermove", 100, 140);
+    at(g, "pointerup", 100, 140);
+    expect(moreInfo).not.toHaveBeenCalled();
+  });
+
+  it("a pointerup that never arrived does not leave every later tap read as a pinch", () => {
+    const g = svg.querySelector('[data-x="0"]')!;
+    const primary = (type: string, id: number) => {
+      const e = new MouseEvent(type, { bubbles: true, clientX: 100, clientY: 100 });
+      Object.defineProperty(e, "pointerId", { value: id });
+      Object.defineProperty(e, "isPrimary", { value: true });
+      g.dispatchEvent(e);
+    };
+    primary("pointerdown", 1); // its pointerup is lost somewhere outside
+    primary("pointerdown", 2);
+    primary("pointerup", 2);
+    expect(callService).toHaveBeenCalledTimes(1);
+  });
+
+  it("a second finger down makes it a pinch: neither finger toggles on release", () => {
+    const g = svg.querySelector('[data-x="0"]')!;
+    at(g, "pointerdown", 100, 100, 1);
+    at(svg, "pointerdown", 300, 300, 2);
+    at(svg, "pointerup", 300, 300, 2);
+    at(g, "pointerup", 100, 100, 1);
+    expect(callService).not.toHaveBeenCalled();
+    // and the next plain tap works again
+    at(g, "pointerdown", 100, 100, 3);
+    at(g, "pointerup", 100, 100, 3);
+    expect(callService).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("actions: longPress option (S7.5 kiosk)", () => {
+  let callService: ReturnType<typeof vi.fn>;
+  let moreInfo: ReturnType<typeof vi.fn>;
+  let host: { hass: Hass } & EventTarget;
+  let svg: SVGSVGElement;
+  let unbind: () => void;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    callService = vi.fn();
+    moreInfo = vi.fn();
+    svg = svgFixture([LIGHT, SWITCH]);
+    host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    host.addEventListener("hass-more-info", moreInfo);
+  });
+
+  afterEach(() => {
+    unbind();
+    document.body.innerHTML = "";
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("longPress: false never fires hass-more-info on a hold, and a plain release still toggles (a hold that removed this would fail)", () => {
+    unbind = bindDeviceActions(svg, host, (i) => [LIGHT, SWITCH][i], undefined, undefined, { longPress: false });
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(HOLD_MS + 100);
+    expect(moreInfo).not.toHaveBeenCalled();
+    pointer(g, "pointerup");
+    expect(callService).toHaveBeenCalledTimes(1);
+    expect(callService).toHaveBeenCalledWith("light", "toggle", { entity_id: "light.demo_living" });
+  });
+
+  it("longPress unset (default) still fires hass-more-info on the same hold, so the test above is not passing for nothing", () => {
+    unbind = bindDeviceActions(svg, host, (i) => [LIGHT, SWITCH][i]);
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(HOLD_MS + 100);
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it("longPress: true is the same as leaving it unset", () => {
+    unbind = bindDeviceActions(svg, host, (i) => [LIGHT, SWITCH][i], undefined, undefined, { longPress: true });
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(HOLD_MS + 100);
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("actions: a person opens more-info on a tap (S7.8)", () => {
+  it.each(["person.alex", "device_tracker.phone"])("%s: tap fires hass-more-info with its own entity and calls no service", (entity) => {
+    vi.useFakeTimers();
+    const callService = vi.fn();
+    const dev: Device = { id: "p1", type: "person", entity, x: 100, y: 100, room: "sensor.alex_room" };
+    const svg = svgFixture([dev]);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    const unbind = bindDeviceActions(svg, host, () => dev);
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: entity });
+    expect(callService).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+});
+
+describe("actions: a radar opens more-info on a tap, never toggles (S7.9)", () => {
+  it("tap fires hass-more-info with the radar's own entity and calls no service", () => {
+    vi.useFakeTimers();
+    const callService = vi.fn();
+    const dev: Device = { id: "r1", type: "radar", entity: "binary_sensor.radar_presence", x: 100, y: 100, targets: [{ x: "sensor.r_tx", y: "sensor.r_ty" }] };
+    const svg = svgFixture([dev]);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    const unbind = bindDeviceActions(svg, host, () => dev);
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "binary_sensor.radar_presence" });
+    expect(callService).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+});
+
+describe("actions: a vacuum opens its own dialog on a tap, never toggles or opens more-info (S7.10)", () => {
+  it("tap calls opts.openVacuumDialog with the vacuum device, fires no hass-more-info and no service", () => {
+    vi.useFakeTimers();
+    const callService = vi.fn();
+    const dev: Device = { id: "v1", type: "vacuum", entity: "vacuum.hall", x: 100, y: 100 };
+    const svg = svgFixture([dev]);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    const openVacuumDialog = vi.fn();
+    const unbind = bindDeviceActions(svg, host, () => dev, undefined, undefined, { openVacuumDialog });
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(600); // longer than HOLD_MS: a hold must not turn this into more-info either
+    pointer(g, "pointerup");
+    expect(openVacuumDialog).toHaveBeenCalledTimes(1);
+    expect(openVacuumDialog.mock.calls[0][0]).toBe(dev);
+    expect(moreInfo).not.toHaveBeenCalled();
+    expect(callService).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("Break it: with no openVacuumDialog callback given, a tap does nothing — never falls back to toggle or more-info", () => {
+    vi.useFakeTimers();
+    const callService = vi.fn();
+    const dev: Device = { id: "v1", type: "vacuum", entity: "vacuum.hall", x: 100, y: 100 };
+    const svg = svgFixture([dev]);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    const unbind = bindDeviceActions(svg, host, () => dev);
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(moreInfo).not.toHaveBeenCalled();
     expect(callService).not.toHaveBeenCalled();
     unbind();
     document.body.innerHTML = "";

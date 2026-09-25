@@ -552,6 +552,29 @@
           "name": "Office speaker",
           "x": 400,
           "y": 450
+        },
+        {
+          "id": "person-alex",
+          "type": "person",
+          "entity": "person.demo_alex",
+          "name": "Alex",
+          "x": 150,
+          "y": 480
+        },
+        {
+          "id": "radar-office",
+          "type": "radar",
+          "entity": "binary_sensor.demo_office_radar_occupancy",
+          "name": "Office radar",
+          "x": 700,
+          "y": 320,
+          "rot": 180,
+          "targets": [
+            {
+              "x": "sensor.demo_office_radar_target_1_x",
+              "y": "sensor.demo_office_radar_target_1_y"
+            }
+          ]
         }
       ]
     },
@@ -759,6 +782,14 @@
       "entity": "media_player.demo_office"
     },
     {
+      "id": "person-alex",
+      "floor": "first",
+      "room": "Office",
+      "type": "person",
+      "name": "Alex",
+      "entity": "person.demo_alex"
+    },
+    {
       "id": "contact-garage",
       "floor": "ground",
       "room": "Hall",
@@ -773,6 +804,14 @@
       "type": "switch",
       "name": "Living lamp relay",
       "entity": "switch.demo_living_relay"
+    },
+    {
+      "id": "radar-office",
+      "floor": "first",
+      "room": "Office",
+      "type": "radar",
+      "name": "Office radar",
+      "entity": "binary_sensor.demo_office_radar_occupancy"
     }
   ]
 }

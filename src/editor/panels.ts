@@ -15,7 +15,8 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["climate", "Climate"], ["ac", "Air conditioning / heat pump"], ["tv", "TV"], ["computer", "Computers"],
   ["media", "Media players"], ["cover", "Covers"], ["battery", "Batteries"], ["inverter", "Inverters"], ["server", "Servers"],
   ["access_point", "Access points"], ["lock", "Door locks"], ["vibration", "Vibration sensors"], ["other", "Other"],
-  ["boiler", "Boiler"], ["car", "Car"], ["ups", "UPS"], ["printer", "3D printer"], ["speaker", "Speaker"],
+  ["boiler", "Boiler"], ["car", "Car"], ["ups", "UPS"], ["printer", "3D printer"], ["speaker", "Speaker"], ["person", "People"],
+  ["radar", "mmWave radar"], ["vacuum", "Vacuums"],
 ];
 
 export const WALL_LABELS: Record<EdgeKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge", none: "Not drawn" };
@@ -59,6 +60,8 @@ export interface PanelCtx {
   say(msg: string): void;
   /** Redraw without an edit. */
   refresh(): void;
+  /** S7.2: opens the Help panel, the same as the toolbar's Help button. */
+  help(): void;
   /** Floor operations of the editor: each is one undo step and reports in the status line. */
   floors: { rename(key: string, title: string): void; move(key: string, delta: number): void; remove(key: string): void };
 }
@@ -219,6 +222,7 @@ function floorPanel(c: PanelCtx) {
       : html`<p><button class="btn danger" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
     ${hint("A new floor starts with the outline and the stairs of the first floor. Delete a floor to start again with a clean one.")}
     ${hint("Devices on a deleted floor stay in the catalog and go back to the Device menu.")}
+    <p class="hint">Need help? Open Help. <button class="btn" id="floorHelp" @click=${() => c.help()}>Help</button></p>
     ${unboundList(c)}
     ${st.ha ? unplacedAreas(c, st.ha) : nothing}`;
 }
@@ -553,19 +557,21 @@ function devicePanel(c: PanelCtx, i: number) {
     ${d.type === "light" ? boundField(c, i) : nothing}
     ${d.type === "heater" ? heaterFields(c, i) : nothing}
     ${d.type === "ac" ? acField(c, i) : nothing}
+    ${d.type === "person" ? roomSensorField(c, i) : nothing}
+    ${d.type === "radar" ? targetsField(c, i) : nothing}
     ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
     ${areaDiffField(c, i)}
     ${c.makeLight && c.st.canMakeLight(i) ? html`<p>${button("vmklight", "Create a light from this switch", () => c.makeLight!(i))}</p>${hint("Home Assistant gets a new light that wraps this switch. The plan then shows the light.")}` : nothing}
     ${c.controlsAutomation && d.type === "switch" ? controlsField(c, i) : nothing}
     ${c.scheduleAutomation && SCHEDULABLE.includes(d.type) ? scheduleField(c, i) : nothing}
     <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); }, "warn")}</p>
-    ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it. Alt disables the grid.") + " Removed devices go back to the Device menu.")}`;
+    ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it.") + " Removed devices go back to the Device menu.")}`;
 }
 
 /**
  * S4.18: corrects a device's type, whatever set it wrong (a guess from the area's entity list, or a bad catalog
  * entry) — there was previously no way to fix one once placed. Changing away from a type drops the fields only that
- * type uses (`bound` for light, `trvs`/`tempSensors` for heater, `linked` for ac), in the same undo step, so the
+ * type uses (`bound` for light, `trvs`/`tempSensors` for heater, `linked` for ac, `room` for person), in the same undo step, so the
  * layout stays valid and the panel never shows a field for the wrong type.
  */
 function deviceTypeField(c: PanelCtx, i: number) {
@@ -576,6 +582,8 @@ function deviceTypeField(c: PanelCtx, i: number) {
     if (t !== "light") delete dv.bound;
     if (t !== "heater") { delete dv.trvs; delete dv.tempSensors; }
     if (t !== "ac") delete dv.linked;
+    if (t !== "person") delete dv.room;
+    if (t !== "radar") delete dv.targets;
   });
   return html`<label for="vtype">type</label><select id="vtype" .value=${d.type} @change=${(e: Event) => set(val(e))}>
     ${TYPE_LABELS.map(([t, lbl]) => html`<option value=${t} ?selected=${t === d.type}>${lbl}</option>`)}
@@ -640,6 +648,46 @@ function heaterFields(c: PanelCtx, i: number) {
     ${multiAttachField(c, "hsens", "temperature sensors", d.tempSensors ?? [], c.st.deviceAttachChoices(i, "tempSensors"), setList("tempSensors"))}`;
 }
 
+/** S7.8: the entity that says which room a person is in. Written as `room`, the key is deleted for none. The person's
+ *  own entity is refused here as `validate` refuses it, so the picker never writes a layout Save would reject. */
+function roomSensorField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  return html`${entityField(c, "vroom", "Room sensor", d.room, "(none: stays where placed)", (v) => {
+    if (v && v === d.entity) { c.say("The room sensor must be another entity than the person: one whose state names a room."); c.refresh(); return; }
+    if (v === d.room) return;
+    c.commit((f) => { if (v) f.devices[i].room = v; else delete f.devices[i].room; });
+  })}${hint("A sensor whose state or area names a room, such as a Bermuda or ESPresense area sensor. The card moves the person there.")}`;
+}
+
+/**
+ * S7.9: a radar's tracked targets, one row of two entities (x, y) per target, add/remove like `multiAttachField`
+ * but for a pair, since there is no single catalog entry that names both sensors of one target at once. A blank
+ * pair is dropped on remove; `validate` — not this field — refuses one with only x or only y filled in, so the
+ * layout can stay in an interim state mid-edit without the writer needing to know that (finding 12).
+ */
+function targetsField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  const cur = d.targets ?? [];
+  const setPair = (k: number, key: "x" | "y") => (v: string | undefined) => c.commit((f) => {
+    const list = [...(f.devices[i].targets ?? [])];
+    list[k] = { x: list[k]?.x ?? "", y: list[k]?.y ?? "", [key]: v ?? "" };
+    f.devices[i].targets = list;
+  });
+  const remove = (k: number) => c.commit((f) => {
+    const list = (f.devices[i].targets ?? []).filter((_, j) => j !== k);
+    if (list.length) f.devices[i].targets = list; else delete f.devices[i].targets;
+  });
+  const add = () => c.commit((f) => { f.devices[i].targets = [...(f.devices[i].targets ?? []), { x: "", y: "" }]; });
+  return html`<label>Targets</label>
+    ${cur.map((t, k) => html`<p class="attach-row target-row">
+      ${entityField(c, `vtgx${k}`, `#${k + 1} x (right, mm)`, t.x || undefined, "(none)", setPair(k, "x"))}
+      ${entityField(c, `vtgy${k}`, `#${k + 1} y (ahead, mm)`, t.y || undefined, "(none)", setPair(k, "y"))}
+      ${button(`vtgrm${k}`, "Remove", () => remove(k), "warn")}
+    </p>`)}
+    <p>${button("vtgadd", "Add target", add)}</p>
+    ${hint("Two sensors per tracked person, from an mmWave radar such as an ESPHome LD2450: x to its right, y ahead of it, in millimetres. rot above turns which way is ahead.")}`;
+}
+
 /** S4.24: an ac attaches several AC-or-TRV entities to one list. */
 function acField(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
@@ -659,7 +707,7 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
     ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}
     <p>${button("fudel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); }, "warn")}</p>
-    ${hint("Drag it to move it. Alt disables the grid.")}`;
+    ${hint("Drag it to move it.")}`;
 }
 
 /**
@@ -681,7 +729,7 @@ function unlinkedPanel(c: PanelCtx, i: number) {
     ${rotateButtons(c, "uurot", (n) => c.commit((f) => { f.unlinked[i].rot = ((u.rot + n) % 360 + 360) % 360; }), { reset: () => { if (u.rot) c.commit((f) => { f.unlinked[i].rot = 0; }); } })}
     ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(), setAttached)}
     <p>${button("uudel", "Delete", () => { c.commit((f) => { f.unlinked.splice(i, 1); }); c.select(null); }, "warn")}</p>
-    ${hint("Drag it to move it. Alt disables the grid.")}`;
+    ${hint("Drag it to move it.")}`;
 }
 
 function stairsPanel(c: PanelCtx, i: number) {

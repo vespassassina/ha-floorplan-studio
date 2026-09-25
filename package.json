@@ -10,7 +10,7 @@
   },
   "scripts": {
     "lint": "eslint . && tsc --noEmit",
-    "test": "vitest run",
+    "test": "NODE_OPTIONS=--no-experimental-webstorage vitest run",
     "test:e2e": "playwright test",
     "build": "node scripts/build.mjs",
     "shots": "node scripts/build.mjs && node scripts/shots.mjs",

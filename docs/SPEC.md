@@ -65,7 +65,8 @@ in `prompts/`, then fixed in the editor.
       "openings":[{"id", "a", "b"}],
       "extras":  [{"id", "name", "a", "b"}],
       "devices": [{"id", "type", "entity", "x", "y", "rot"?, "bound"?} | {"id", "type", "entity", "a", "b"}],
-      "furniture":[{"id", "symbol", "x", "y", "rot", "w", "h", "name"?, "entity"?}]
+      "furniture":[{"id", "symbol", "x", "y", "rot", "w", "h", "name"?, "entity"?}],
+      "trace"?:  {"src", "x", "y", "w", "rot", "alpha", "on"}
     }
   },
   "catalog": [{"id", "floor", "room", "type", "name", "entity"}]
@@ -162,17 +163,43 @@ in `prompts/`, then fixed in the editor.
   `cover` is a cover entity for doors that HA can open.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
   camera, climate, ac, tv, computer, media, cover, battery, inverter, server,
-  access_point, other. Heaters have `a`/`b`
+  access_point, other, person, radar, vacuum. Heaters have `a`/`b`
   (a bar), the rest `x`/`y`. `ac` is an air conditioner, heat pump, fan or air
-  cleaner; what it is doing comes from the entity, not from the layout.
-- `device.rot` (optional, degrees): which way the device faces. Only a camera
-  uses it so far, for its cone of view.
+  cleaner; what it is doing comes from the entity, not from the layout. A
+  `person` has a `person.*` or `device_tracker.*` entity. A `radar`'s own
+  `entity` is its presence sensor (typically a `binary_sensor.*occupancy`,
+  such as an mmWave sensor's own occupancy binary sensor). A `vacuum`'s own
+  `entity` is its `vacuum.*` domain entity; it has no field of its own (S7.10).
+- `device.room` (person only, optional, S7.8): an entity whose state, or whose
+  `area_id` or `area` attribute, names the room the person is in (a Bermuda or
+  ESPresense area sensor). It must differ from `entity`. The card matches the
+  name, ignoring case, against every room's `area`, then every room's `name`,
+  and moves the icon there; no match, `not_home`, `unknown` or `unavailable`
+  keeps the placed spot.
+- `device.targets` (radar only, optional, S7.9): a list of `{x, y}` entity
+  pairs, each two sensor entities of an mmWave radar's own tracked target
+  (millimetres, `x` to the sensor's right, `y` ahead of it — an ESPHome
+  LD2450's own convention). The card turns each pair by the radar's own `rot`
+  and draws a dot at the resulting plan point, skipping a pair that is not
+  finite (unavailable, unknown, or missing) and one that falls outside the
+  floor's own outline. No limit on how many.
+- `device.rot` (optional, degrees): which way the device faces. A camera uses
+  it for its cone of view; a radar uses it to turn its targets (0 is "ahead is
+  screen-up").
 - `device.bound` (lights only, optional): the switch or plug entity that powers
   the same lamp. `entity` stays the primary one. Several lights may name the
   same switch: one wall switch can power several lamps. The switch may also be
   a device of its own on the plan.
 - `furniture.symbol`: table, sofa, bed, cabinet, chair, sink, toilet, shower,
   bathtub, tv, computer, tree, patio-wood, patio-concrete, car.
+- `floor.trace` (optional, S7.11) is a scan to trace over, drawn under the
+  plan in the editor only; the card never draws it. `src` is a
+  `data:image/png`, `jpeg` or `webp` base64 URL of at most 4 MB (`validate`
+  names the limit when it is over). `x`, `y` is the top-left corner in cm, `w`
+  the width in cm (the height follows the image's aspect ratio), `rot` degrees
+  in `[0, 360)` about `x`, `y`, `alpha` the opacity in `[0, 1]`, `on` whether
+  it is shown. File, Export leaves it out unless Include trace image is ticked.
+  An assistant never writes one.
 - v1 files (no `version` or `version: 1`) are migrated on load. So are v2 files
   written by an earlier build: `outdoor` becomes `garden`, `w` becomes `wk`.
 
@@ -236,11 +263,20 @@ honest metaphor there.
 | media (media_player) | grey | blue icon and halo while the player is playing (any other state, including paused, is idle) | `--fp-dev-media` (#2c7fb8) | more-info |
 | cover (device icon, not a door) | grey | orange icon and halo while the cover is open | `--fp-dev-cover` (#f28c28) | more-info |
 | other | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
+| person (`person.*`, `device_tracker.*`) | away (`not_home` or any zone): 35 % opacity and a small grey away dot on the disc's edge | `home`: green icon and halo, full opacity. With a `room` sensor that names a room, the icon glides (600 ms CSS transform, none under reduced motion) to the room's centroid, or beside it when another icon sits there; several people in one room stand on a ring | `--fp-dev-person` (#1b9e77) | more-info |
+| radar (mmWave presence, `binary_sensor.*occupancy`) | grey icon; no `targets` dots when the pair is not finite or falls outside the floor | purple icon and halo when the presence entity is on; each `targets` pair draws a small dot at its turned, plan-relative position | `--fp-dev-radar` (#6a3fbf) | more-info |
+| vacuum (`vacuum.*`) | `docked`, `idle`, `paused`: grey icon, no brighter than off | `cleaning`: teal icon and halo, slowly spinning; `returning`: teal icon and halo, not spinning; `error`: `--fp-danger` icon, neither on nor off | `--fp-dev-vacuum` (#2f8f8f) / `--fp-danger` (#b02a2a) on error | opens a dialog: Start, Pause, Return to dock, each a `vacuum.*` service call; Cancel closes it. `unavailable`/`unknown` disables the three actions, Cancel stays enabled |
 | room with `entity` | own kind colour, no outline | own kind colour, unmoved, plus an outline when the entity is on, open or playing | `--fp-active` stroke (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | furniture with `entity` | idle grey (`currentColor`) | `--fp-active`, chosen per theme for at least 3:1 contrast against both `--fp-room` and `--fp-bg` | `--fp-active` (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | unavailable / unknown | 45 % opacity, no strikethrough | — | — | more-info |
+| night (S7.6) | day: no overlay | after sunset every room (outdoor kinds too; zones, structures and stairs share their room's) is covered by `--fp-night`; a room with an on light inside it stays clear | `--fp-night` (rgba(4, 10, 30, .45), every theme) | none |
 
-Rooms tint when any light in them is on (`room_glow: true`). Card config:
+Rooms tint when any light in them is on (`room_glow: true`). Night (S7.6):
+`night: auto` darkens the plan while the `sun` entity (default `sun.sun`) is
+`below_horizon`, or `on` for a binary sensor; a missing or `unavailable` sun
+is day. `on` and `off` force it. Walls, names and devices are drawn over the
+overlay, so they stay crisp. The editor previews it under View, Preview night.
+Card config:
 
 ```yaml
 type: custom:floorplan-studio-card
@@ -249,7 +285,15 @@ floors: [ground, first]  # or an ordered list of floor ids; a switcher over just
 fade: 300              # motion fade, seconds
 room_glow: true
 theme: blueprint       # blueprint (default), midnight, light, slate, terminal, solarized, or ha
+zoom: true             # pinch, drag, double-tap, Ctrl/Cmd+wheel, +/−/fit buttons; "wheel" also zooms on a plain wheel; false fixes the plan
+night: auto            # auto (default: from the sun), on, off
+sun: sun.sun           # the entity night: auto reads
+kiosk: false            # true shows only the plan, for a wall tablet: no floor chips, no zoom buttons, taps still act, holding a device does nothing
 ```
+
+`zoom` (S7.4): the plan zooms between fit and 8×. A drag that moves more than 6 px pans and is never a tap; zoomed in, a third of the view always stays on the plan. A double-tap off any device zooms 2× at fit and returns to fit when zoomed. Without Ctrl/Cmd a wheel scrolls the dashboard, unless `zoom: "wheel"`. The view resets on a config change and a floor change, and survives state updates. With zoom on, the plan's `<svg>` has `touch-action: none`, so a swipe that starts on the plan does not scroll the page; `zoom: false` gives the page its touches back. An unrecognised value (anything but `true`, `false` or `"wheel"`) is refused by `setConfig`, naming the key, the same as `kiosk` below — S7.4 had it falling back to `true` instead, silently hiding a typo.
+
+`kiosk` (S7.5, default `false`): built for a tablet fixed to a wall, where nobody should be able to reach Home Assistant's more-info dialog by holding a finger on a device, or switch floors, or zoom out past what fits. `true` drops the floor chips and the zoom +/−/fit buttons from the card's own chrome, and `bindDeviceActions`'s hold timer never starts, so a long press does nothing — releasing still fires a plain tap, so every device keeps working by tap. With `floors` or `floor: "all"` set alongside `kiosk: true`, the card shows the first floor in the list and draws no switcher; put one card per floor on the dashboard instead. `kiosk` must be exactly `true` or `false` — anything else, `setConfig` refuses it, naming the key.
 
 `theme` is blueprint unless the dashboard says otherwise. `light` is the paper-and-ink set; `midnight` is the project's first dark theme, kept under its own name once blueprint moved on to a new palette (2026-09-22). `ha` inherits the dashboard's own theme: ground from `--card-background-color`, rooms from `--secondary-background-color`, walls and text from `--primary-text-color`, measure marks from `--secondary-text-color`. Each has the plain light or midnight set as its fallback, chosen by `hass.themes.darkMode`, so a dashboard that defines none of them still draws. Warn, danger and primary (the UI chrome, not a device's own colour) never follow the theme: they and their on-dark/on-light text are the same fixed pair everywhere, because they already clear 4.5:1 against it. The card ignores the OS colour scheme.
 
@@ -308,6 +352,15 @@ theme: blueprint       # blueprint (default), midnight, light, slate, terminal, 
   View, Device colours: one colour input per device type with a reset, and
   Reset all; each change is one undo step and is saved in `colors`.
   All floors turn together. Names and icons stay upright.
+  View, Trace image… (S7.11): a panel for this floor's `trace`. Load reads a
+  PNG, JPEG or WebP, redraws it at most 2000 px on the long side (a PNG stays
+  PNG under 1 MB, else JPEG at 0.85, lower if needed to fit 4 MB) and places
+  it over the outline's box, or the view on a blank floor. Scale takes two
+  clicks on the image and the real distance between them in cm, and sets `w`;
+  the aspect ratio follows. Opacity is a slider, Show a checkbox, Remove drops
+  it. Each is one undo step. While it is shown, room fills are see-through in
+  the editor so traced rooms do not hide the scan. File, Export has an
+  Include trace image tick, off by default and not remembered.
 - Selection panel per kind: corner, edge and wall (length, angle, kind, and on
   a free wall the conversion to an opening), door (name, kind, length, sensor,
   cover), room (name or area, label, kind, colour, unsnap, rotation; the colour

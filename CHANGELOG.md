@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.11.0
+
+- A new `person` device type: an icon placed where the person usually is. Home
+  is full brightness; away dims to 35 % with a small "away" mark. An optional
+  `room` sensor (state, `area_id` or `area` matching a room) moves the icon to
+  that room's centroid, gliding there over 600 ms; several people in one room
+  spread on a ring. Tap opens more-info; the entity is `person.*` or
+  `device_tracker.*`.
+- Save refuses a plan whose JSON is over 3.5 MB, naming the floors that carry
+  a trace image, instead of letting Home Assistant drop the connection. The
+  autosave says when the browser had no room for the trace image.
+- A new `radar` device type for mmWave presence sensors (an ESPHome LD2450, or
+  any sensor exposing target x/y): up to any number of `targets` pairs (two
+  entities each, x right and y ahead of the sensor, in millimetres) draw as
+  small dots turned by the device's own `rot`. The presence entity (a
+  `binary_sensor.*occupancy`) colours the icon. `docs/card.md` has a worked
+  ESPHome snippet.
+- A new `vacuum` device type for `vacuum.*` entities: grey while docked, idle
+  or paused; teal and slowly spinning while cleaning; teal, not spinning,
+  while returning to dock; red on an error state. A tap opens a dialog with
+  Start, Pause and Return to dock, never a toggle; `unavailable`/`unknown`
+  disables the three actions but the dialog still opens, so it can be
+  dismissed. No field for the vacuum's position on the map — most
+  integrations expose that as a camera or a proprietary blob, not coordinates.
+- Help: each step showed two chevrons, the browser's own and ours. One now.
+- The card's Edit-card dialog shows a form instead of raw YAML: theme, floors, fade, room glow, zoom, kiosk, night and the sun entity. The floor list comes from the layout the card already loaded. A field left at its default is left out of the saved config.
+- Night: after sunset the card darkens every room, outdoor areas included, and leaves a room with a light on clear. `night: auto` (default) reads `sun.sun` or the entity `sun` names; `on` and `off` force it. The editor previews it under View, Preview night.
+- View, Trace image: load a scan or photo of a floor plan under the current floor, scale it with two clicks and a real distance, set its opacity, hide or remove it, then draw over it. Only the editor shows it, never the card. File, Export leaves it out unless Include trace image is ticked.
+- The card zooms and pans: pinch, drag and double-tap on a phone, Ctrl/Cmd+wheel and drag on a desktop, and +, − and fit buttons in its top-right corner. From fit to 8×. A drag that moves more than 6 px is a pan, never a tap, so it no longer toggles the light it started on. New config key `zoom`: `true` (default), `"wheel"` to zoom on a plain wheel too, `false` for the old fixed plan.
+- New config key `kiosk`: `true` shows only the plan, for a tablet fixed to a wall — no floor chips, no zoom buttons; a long press does nothing, a plain tap still acts. With `floors` or `floor: "all"`, the first floor shows and there is no switcher: use one card per floor instead.
+- `setConfig` now refuses an unrecognised `zoom` value (it used to silently fall back to `true`) and an unrecognised `kiosk` value, naming the key in both cases.
+
 ## 0.10.3
 
 - File, Export now writes an `available` list into the downloaded JSON when Home Assistant is connected: every entity Home Assistant knows about, with its name, domain, device class, area and the room on the plan that area already has, and whether it is already placed. An AI assistant can add and position devices from that one file, offline, using only entity ids that are actually listed. Save and the stored plan never carry it, and it is dropped again the next time the file is opened. Documented in `prompts/SCHEMA.md` ("Placing devices from an export"), `prompts/README.md` and the README.

@@ -3,9 +3,9 @@
 Draw your home inside Home Assistant, attach your devices, use it as a live
 dashboard. No external drawing tool, no YAML per element.
 
-Status: usable, still young. The editor, the card and the HA integration are
-built, tested and installable through HACS (see `CHANGELOG.md` for the current
-release). Organising your home from the plan (Sprint 4) is not built yet.
+Status: usable, still young. The editor, the card, the HA integration and the
+organise tools (areas, groups, automations from the plan) are built, tested
+and installable through HACS (see `CHANGELOG.md` for the current release).
 See `docs/SPEC.md` and `docs/PLAN.md`.
 
 ![The demo house, live as a card, then open for editing.](docs/img/demo.gif)
@@ -16,10 +16,13 @@ See `docs/SPEC.md` and `docs/PLAN.md`.
 | Editor (standalone `dist/editor.html`, works from `file://`, offline) | done |
 | Zones, water, wall kinds, floors, draw mode | done |
 | Stairs, gardens, plan rotation, colours, HA names, closed walls to rooms | done |
-| Lovelace card (themes: blueprint, light, Home Assistant) | done; its script is served by the integration, and it is not yet seen on a dashboard by eye |
+| Lovelace card (seven themes, one that follows Home Assistant) | done; its script is served by the integration, on the author's dashboards daily |
 | HA integration, panel, pickers, HACS releases | done, running on the author's Home Assistant |
-| Organise: areas, helpers, groups, automations from the plan | Sprint 4 |
-| Skill and schema for LLMs, validator (`scripts/validate-layout.mjs`) | done, pulled forward from Sprint 5 |
+| Organise: areas, helpers, groups, automations from the plan | done (0.10.0) |
+| Person, mmWave radar and vacuum device types | done (0.11.0) |
+| Night fill after sunset, zoom and pan, kiosk mode, card config form | done (0.11.0) |
+| Trace a scan or photo under the plan in the editor | done (0.11.0) |
+| Skill and schema for LLMs, validator (`scripts/validate-layout.mjs`) | done |
 | Docs (`docs/schema.md`, [`docs/card.md`](docs/card.md), [`docs/editor.md`](docs/editor.md), `CONTRIBUTING.md`) | done |
 
 ## What you get
@@ -28,10 +31,19 @@ See `docs/SPEC.md` and `docs/PLAN.md`.
   furniture. Attach rooms to areas and devices to entities from pickers.
 - A dumb light on a smart switch is one icon: bind the switch to the light
   ("Controlled by") and the plan shows both as one lamp.
-- A Lovelace card: lights, switches, sensors, cameras, thermostats and doors
-  shown live. Motion fades from red to grey; open doors turn orange.
+- A Lovelace card: lights, switches, sensors, cameras, thermostats, doors,
+  people, mmWave radar targets and vacuums shown live. Motion fades from red
+  to grey; open doors turn orange; the plan darkens after sunset, and a light
+  keeps its room clear. Pinch, drag and double-tap to zoom and pan on a
+  phone, Ctrl/Cmd+wheel and drag on a desktop; a kiosk mode strips the card
+  down to the plan for a wall tablet.
+- Adding or editing the card shows a form, not raw YAML: theme, floors, fade,
+  room glow, zoom, kiosk, night, all in the Lovelace UI.
 - One click, File, Install code, and it writes you a whole pasteable
   dashboard — not just the card — matching your plan's theme and floors.
+- A scanned or photographed plan can be traced: load it in the editor, scale
+  it to a real measurement, draw over it, then hide or drop it. It never
+  reaches the card.
 - A skill that turns photos of your architect's plans into a first draft.
 - File, Export also hands an AI assistant every entity you have in Home
   Assistant, so it can place and wire up your devices from that one file,
@@ -51,6 +63,21 @@ The button opens HACS on your Home Assistant with this repository ready to add. 
 The sidebar link is on by default. To hide it: Settings → Devices & services → Floorplan Studio → Configure → turn off **Show in the sidebar**. The card and your saved plan keep working; turn it back on any time.
 
 Updates arrive through HACS like any other.
+
+A card config, by hand (the Edit-card form in the Lovelace UI does this for
+you, no YAML needed — see [`docs/card.md`](docs/card.md#the-edit-card-form)):
+
+```yaml
+type: custom:floorplan-studio-card
+floors:
+  - ground
+  - first
+fade: 300
+room_glow: true
+theme: blueprint
+zoom: true
+kiosk: false
+```
 
 ## Start from photos or architect drawings
 

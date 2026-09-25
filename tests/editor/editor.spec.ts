@@ -3582,7 +3582,7 @@ const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first
 
 test("S1.36: View, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
   await openDevCols(page);
-  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(27); // S4.25 added boiler, car, ups, printer, speaker
+  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(30); // S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
   await expect(colourRow(page, "light").locator("button")).toHaveCount(1);
   await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
@@ -5459,6 +5459,141 @@ test("S4.18: the device panel's type selector changes a device's type and drops 
   expect(after.tempSensors).toEqual(["sensor.demo_bedroom_temperature"]);
 });
 
+// ---- S7.8: a person has a Room sensor picker, and only a person ------------------------------------------------
+
+test("S7.8: the Room sensor field shows only for a person, writes room, and changing the type away drops it in one undo step", async ({ page }) => {
+  const p = await screenOf(page, 100, 500); // demo's hall switch
+  await page.mouse.click(p.x, p.y);
+  await expect(page.locator("#vtype")).toHaveValue("switch");
+  await expect(page.locator("#vroom")).toHaveCount(0);
+  await page.locator("#vtype").selectOption("person");
+  await expect(page.locator("#vroom")).toBeVisible();
+  await page.locator("#vroom").fill("sensor.alex_room");
+  await page.locator("#vroom").press("Enter");
+  let d = (await groundOf(page)).devices.find((x: any) => x.id === "switch-hall") as any;
+  expect(d.type).toBe("person");
+  expect(d.room).toBe("sensor.alex_room");
+
+  await page.locator("#vtype").selectOption("light");
+  d = (await groundOf(page)).devices.find((x: any) => x.id === "switch-hall") as any;
+  expect(d.room).toBeUndefined();
+  await expect(page.locator("#vroom")).toHaveCount(0);
+  await page.locator("#panel").click({ position: { x: 2, y: 2 } }); // out of the select: the editor ignores keys typed in a field
+  await page.keyboard.press("Control+z");
+  d = (await groundOf(page)).devices.find((x: any) => x.id === "switch-hall") as any;
+  expect(d.type).toBe("person");
+  expect(d.room).toBe("sensor.alex_room");
+});
+
+test("Opus review CSS pair: S7.8 a person glides (transform .6s), is 35 % when away, and a home person wears its colour", async ({ page }) => {
+  await setTheme(page, "light");
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.devices.push({ id: "css-person", type: "person", entity: "person.css", x: 1900, y: 300 });
+    el.layout = l;
+  }, EDITOR);
+  const got = await page.locator("svg g.dev-person").first().evaluate((e) => {
+    const cs = () => getComputedStyle(e);
+    const path = e.querySelector("path:not(.halo)")!;
+    const glide = { prop: cs().transitionProperty, dur: cs().transitionDuration };
+    const plain = { op: cs().opacity, fill: getComputedStyle(path).fill };
+    e.classList.add("away"); const away = cs().opacity; e.classList.remove("away");
+    e.classList.add("on", "home"); const home = { op: cs().opacity, fill: getComputedStyle(path).fill };
+    e.classList.add("unavailable"); e.classList.remove("on", "home"); const gone = cs().opacity;
+    return { glide, plain, away, home, gone };
+  });
+  expect(got.glide).toEqual({ prop: "transform", dur: "0.6s" });
+  expect(got.plain.op).toBe("1");
+  expect(got.away).toBe("0.35");
+  expect(got.home).toEqual({ op: "1", fill: rgb("#1b9e77") });
+  expect(got.plain.fill).not.toBe(rgb("#1b9e77"));
+  expect(got.gone).toBe("0.45");
+});
+
+test("S7.9: the Targets field shows only for a radar, add/remove writes target pairs, and changing type away drops them", async ({ page }) => {
+  const p = await screenOf(page, 100, 500); // demo's hall switch
+  await page.mouse.click(p.x, p.y);
+  await expect(page.locator("#vtype")).toHaveValue("switch");
+  await expect(page.locator("#vtgadd")).toHaveCount(0);
+  await page.locator("#vtype").selectOption("radar");
+  await expect(page.locator("#vtgadd")).toBeVisible();
+  await expect(page.locator("#vtgx0")).toHaveCount(0); // no pair yet
+
+  await page.locator("#vtgadd").click();
+  await expect(page.locator("#vtgx0")).toBeVisible();
+  await page.locator("#vtgx0").fill("sensor.r_tx");
+  await page.locator("#vtgx0").press("Enter");
+  await page.locator("#vtgy0").fill("sensor.r_ty");
+  await page.locator("#vtgy0").press("Enter");
+  let d = (await groundOf(page)).devices.find((x: any) => x.id === "switch-hall") as any;
+  expect(d.type).toBe("radar");
+  expect(d.targets).toEqual([{ x: "sensor.r_tx", y: "sensor.r_ty" }]);
+
+  await page.locator("#vtgrm0").click();
+  d = (await groundOf(page)).devices.find((x: any) => x.id === "switch-hall") as any;
+  expect(d.targets).toBeUndefined();
+  await expect(page.locator("#vtgx0")).toHaveCount(0);
+
+  await page.locator("#vtype").selectOption("light");
+  d = (await groundOf(page)).devices.find((x: any) => x.id === "switch-hall") as any;
+  expect(d.type).toBe("light");
+  expect(d.targets).toBeUndefined();
+});
+
+test("Opus review CSS pair: S7.9 a radar wears --fp-dev-radar when on, and a target dot is unclickable and outlined", async ({ page }) => {
+  await setTheme(page, "light");
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.devices.push({ id: "css-radar", type: "radar", entity: "binary_sensor.css_radar", x: 1900, y: 300 });
+    el.layout = l;
+  }, EDITOR);
+  const got = await page.locator("svg g.dev-radar").first().evaluate((e) => {
+    const path = e.querySelector("path:not(.halo)")!;
+    e.classList.add("on");
+    const on = { fill: getComputedStyle(path).fill, devVar: getComputedStyle(e).getPropertyValue("--fp-dev").trim() };
+    e.classList.remove("on");
+    const target = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    target.setAttribute("class", "target");
+    target.setAttribute("cx", "0"); target.setAttribute("cy", "0"); target.setAttribute("r", "2");
+    e.closest("svg")!.appendChild(target);
+    const ts = getComputedStyle(target);
+    const dot = { fill: ts.fill, stroke: ts.stroke, strokeWidth: ts.strokeWidth, pointerEvents: ts.pointerEvents };
+    target.remove();
+    return { on, dot };
+  });
+  expect(got.on.devVar).toBe("#6a3fbf"); // a custom property is not colour-resolved by getComputedStyle
+  expect(got.on.fill).toBe(rgb("#6a3fbf"));
+  expect(got.dot.fill).toBe(rgb("#6a3fbf"));
+  expect(got.dot.stroke).toBe(rgb("#ffffff")); // --fp-outline in the light theme
+  expect(got.dot.strokeWidth).toBe("1px");
+  expect(got.dot.pointerEvents).toBe("none");
+});
+
+test("Opus review CSS pair: S7.10 a vacuum wears --fp-dev-vacuum when on, and spins only while its .spin class is present", async ({ page }) => {
+  await setTheme(page, "light");
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.devices.push({ id: "css-vacuum", type: "vacuum", entity: "vacuum.css_test", x: 1900, y: 300 });
+    el.layout = l;
+  }, EDITOR);
+  const got = await page.locator("svg g.dev-vacuum").first().evaluate((e) => {
+    const path = e.querySelector("path:not(.halo)")!;
+    e.classList.add("on");
+    const on = { fill: getComputedStyle(path).fill, devVar: getComputedStyle(e).getPropertyValue("--fp-dev").trim() };
+    const notSpinning = getComputedStyle(path).animationName;
+    e.classList.add("spin");
+    const spinning = { animationName: getComputedStyle(path).animationName, animationDuration: getComputedStyle(path).animationDuration };
+    e.classList.remove("spin");
+    e.classList.remove("on");
+    return { on, notSpinning, spinning };
+  });
+  expect(got.on.devVar).toBe("#2f8f8f"); // a custom property is not colour-resolved by getComputedStyle
+  expect(got.on.fill).toBe(rgb("#2f8f8f"));
+  expect(got.notSpinning).toBe("none"); // no .spin class: no animation at all
+  expect(got.spinning.animationName).toBe("fp-spin");
+  expect(got.spinning.animationDuration).toBe("4s");
+});
+
 // ---- S4.18: right-click context menu on a room, zone or structure -----------------------------------------------
 
 async function rightClickCm(page: Page, x: number, y: number) {
@@ -6222,6 +6357,15 @@ test("S5.5: each guide step is a collapsible section, closed by default, with a 
   await expect(first).toHaveJSProperty("open", true);
 });
 
+// Opus review CSS pair (S7.13): the step drew two chevrons, the browser's own list marker and ours. Chromium stopped
+// honouring ::-webkit-details-marker; only list-style:none hides the native one.
+test("S7.13 CSS pair: a guide step shows one chevron, ours; the native summary marker is off", async ({ page }) => {
+  await page.locator("#help").click();
+  const summary = page.locator("#panel .guide > li").first().locator("summary");
+  expect(await summary.evaluate((el) => getComputedStyle(el).listStyleType)).toBe("none");
+  expect(await summary.evaluate((el) => getComputedStyle(el, "::before").content)).toBe('"\u25b8"');
+});
+
 test("S5.5: Help is reachable and toggled from the keyboard, and Close in the panel also returns focus to the button", async ({ page }) => {
   await page.locator("#help").focus();
   await page.keyboard.press("Enter");
@@ -6314,4 +6458,140 @@ test("View menu: the grid-snap row is labelled Snap, and its chips are half widt
   const boxes = await page.locator("#snap [data-grid]").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()));
   expect(boxes[0].top).toBeCloseTo(boxes[1].top, 0); // first two chips share a row
   expect(boxes[0].left).toBeLessThan(boxes[1].left);
+});
+
+// S7.2: the snapping manual lives in Help, not under every panel; the status line lives in the toolbar.
+test("S7.2: no panel repeats the Alt/Shift/Ctrl manual — nothing selected, a device, a piece of furniture", async ({ page }) => {
+  const aside = page.locator(`${EDITOR} aside`);
+  await expect(aside).toBeVisible();
+  await expect(aside).not.toContainText("Hold Alt");
+  await expect(aside).not.toContainText(/\bAlt\b/);
+  await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
+  await expect(page.locator("#panel strong").first()).not.toHaveText("Floor"); // a device panel, not the floor panel
+  await expect(aside).not.toContainText(/\bAlt\b/);
+  await page.mouse.click(...Object.values(await centre(page, 'g[data-f="0"]')) as [number, number]);
+  await expect(page.locator("#fr90")).toBeVisible(); // the furniture panel
+  await expect(aside).not.toContainText(/\bAlt\b/);
+});
+
+test("S7.2: Help has the snapping step, and it carries the Alt, Shift and Ctrl manual", async ({ page }) => {
+  expect(GUIDE_STEPS.map((s) => s.title)).toContain("Moving things and snapping");
+  await page.locator("#help").click();
+  const step = page.locator("#panel .guide > li", { hasText: "Moving things and snapping" });
+  await expect(step).toHaveCount(1);
+  await step.locator("summary").click();
+  await expect(step.locator("p")).toBeVisible();
+  await expect(step).toContainText("Hold Alt");
+  await expect(step).toContainText("Shift");
+  await expect(step).toContainText("Ctrl/Cmd+Z");
+});
+
+test("S7.2: the floor panel says Need help and its button opens Help", async ({ page }) => {
+  await expect(page.locator("#panel")).toContainText("Need help? Open Help.");
+  await page.locator("#floorHelp").click();
+  await expect(page.locator("#help")).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#panel .guide")).toBeVisible();
+});
+
+test("S7.2: the status line sits in the toolbar, right of Redo, and Save still writes Saved there", async ({ page }) => {
+  const status = page.locator(".bar #status");
+  await expect(status).toHaveCount(1);
+  await expect(status).toBeVisible();
+  await expect(status).toHaveAttribute("role", "status");
+  await expect(page.locator(`${EDITOR} aside #status`)).toHaveCount(0);
+  const redo = await page.locator("#redo").boundingBox(), box = await status.boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(redo!.x + redo!.width);
+  await menu(page, "File");
+  const dl = page.waitForEvent("download");
+  await page.locator("#save").click();
+  await dl;
+  await expect(status).toHaveText("Saved");
+});
+
+test("S7.2: an open menu draws above the Device colours panel, so File, Save is still the top element under the mouse", async ({ page }) => {
+  await menu(page, "View");
+  await page.locator("#devcols").click();
+  await expect(page.locator(".devcols-panel")).toBeVisible();
+  await menu(page, "File");
+  const c = await centre(page, "#save");
+  const top = await page.evaluate(([tag, x, y]) => ((document.querySelector(tag as string) as any).shadowRoot as ShadowRoot).elementFromPoint(x as number, y as number)?.id ?? null, [EDITOR, c.x, c.y] as const);
+  expect(top).toBe("save");
+});
+
+test("S7.2 break it: a 200-character status ellipsises, keeps the full text in title, and the toolbar does not grow", async ({ page }) => {
+  const bar = page.locator(`${EDITOR} .bar`);
+  const before = (await bar.boundingBox())!;
+  const long = ("Could not create the automation: the server said no " + "x".repeat(200)).slice(0, 200);
+  expect(long).toHaveLength(200);
+  await page.evaluate(([tag, m]) => (document.querySelector(tag) as any).saveDone(false, m), [EDITOR, long] as const);
+  const status = page.locator(".bar #status");
+  await expect(status).toHaveText(long);
+  await expect(status).toHaveAttribute("title", long);
+  const after = (await bar.boundingBox())!;
+  expect(after.height).toBe(before.height);
+  const got = await status.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { overflow: s.textOverflow, ws: s.whiteSpace, clipped: el.scrollWidth > el.clientWidth, right: el.getBoundingClientRect().right };
+  });
+  expect(got.overflow).toBe("ellipsis");
+  expect(got.ws).toBe("nowrap");
+  expect(got.clipped).toBe(true);
+  expect(got.right).toBeLessThanOrEqual(after.x + after.width + 0.5);
+  // one row at 1280: the status, Redo and the first floor chip share a vertical centre
+  const mid = async (sel: string) => { const b = (await page.locator(sel).first().boundingBox())!; return b.y + b.height / 2; };
+  const row = await mid("#redo");
+  expect(Math.abs((await mid(".bar #status")) - row)).toBeLessThan(2);
+  expect(Math.abs((await mid(".bar [data-f]")) - row)).toBeLessThan(2);
+});
+
+test("S7.6: View, Preview night darkens the plan, survives a reload, and is never written to the layout", async ({ page }) => {
+  await expect(page.locator("svg polygon.room-night")).toHaveCount(0);
+  await menu(page, "View");
+  await expect(page.locator("#night")).toHaveAttribute("aria-pressed", "false");
+  await page.locator("#night").click();
+  await menu(page, "View");
+  await expect(page.locator("svg g.night")).toHaveCount(1);
+  await expect(page.locator("svg polygon.room-night")).toHaveCount(6); // seven ground rooms less the zone
+  expect(await page.evaluate(() => localStorage.getItem("floorplan-studio:night"))).toBe("true");
+  expect(JSON.stringify(await layoutOf(page))).not.toContain("night");
+  await page.reload();
+  await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+  await expect(page.locator("svg polygon.room-night")).toHaveCount(6);
+  await menu(page, "View");
+  await expect(page.locator("#night")).toHaveAttribute("aria-pressed", "true");
+  await page.locator("#night").click();
+  await menu(page, "View");
+  await expect(page.locator("svg g.night")).toHaveCount(0);
+  await expect(page.locator("svg polygon.room-night")).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("floorplan-studio:night"))).toBe("false");
+});
+
+test("S7.6: with Preview night on, a click in a room still selects the room under the overlay", async ({ page }) => {
+  await menu(page, "View");
+  await page.locator("#night").click();
+  await menu(page, "View");
+  await expect(page.locator("svg polygon.room-night").first()).toBeAttached();
+  await clickCm(page, 200, 150);
+  await expect(page.locator("#rk")).toHaveValue("room");
+  await expect(page.locator("#ra")).toHaveValue("living");
+});
+
+// CLAUDE.md finding 10: the three S7.6 rules read in Chromium, in the editor's own shadow root, with light pinned.
+test("Opus review CSS pair: S7.6 night fills an unlit room with --fp-night, leaves a lit one clear, and the overlay takes no pointer", async ({ page }) => {
+  await setTheme(page, "light");
+  await menu(page, "View");
+  await page.locator("#night").click();
+  await menu(page, "View");
+  const got = await page.evaluate((tag) => {
+    const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
+    const unlit = root.querySelector('svg polygon[data-night="0"]')!;
+    // the editor has no live state, so no room is lit; a lit twin is added beside the real overlay to read the rule
+    const lit = unlit.cloneNode() as SVGPolygonElement;
+    lit.setAttribute("class", "room-night lit");
+    unlit.after(lit);
+    const out = [getComputedStyle(unlit).fill, getComputedStyle(lit).fill, getComputedStyle(unlit).pointerEvents];
+    lit.remove();
+    return out;
+  }, EDITOR);
+  expect(got).toEqual(["rgba(4, 10, 30, 0.45)", "none", "none"]);
 });

@@ -766,3 +766,59 @@ describe("isBlank", () => {
     expect(isBlank(l)).toBe(false);
   });
 });
+
+describe("EditorState.setTrace (S7.11)", () => {
+  beforeEach(() => localStorage.clear());
+  const SRC = "data:image/png;base64,iVBORw0KGgo=";
+  const T = { src: SRC, x: 5, y: 6, w: 300, rot: 0, alpha: 0.5, on: true };
+
+  it("sets, changes and removes the current floor's trace, one undo step each, none when unchanged", () => {
+    const st = new EditorState(fresh());
+    expect(st.setTrace(T)).toBe(true);
+    expect(st.f.trace).toEqual(T);
+    expect(st.setTrace({ ...T })).toBe(false); // same value: no step
+    expect(st.setTrace({ ...T, alpha: 0.3 })).toBe(true);
+    expect(st.setTrace(null)).toBe(true);
+    expect(st.f.trace).toBeUndefined();
+    expect(st.setTrace(null)).toBe(false);
+    st.undo(); expect(st.f.trace?.alpha).toBe(0.3);
+    st.undo(); expect(st.f.trace?.alpha).toBe(0.5);
+    st.undo(); expect(st.f.trace).toBeUndefined();
+    expect(st.canUndo).toBe(false);
+    st.redo(); st.redo(); expect(st.f.trace).toEqual({ ...T, alpha: 0.3 });
+    expect(st.layout.floors.first.trace).toBeUndefined(); // only the current floor
+  });
+
+  it("keeps the image out of each undo step: the history holds it once, not once per step", () => {
+    const st = new EditorState(fresh());
+    const big = "data:image/jpeg;base64," + "A".repeat(200_000);
+    st.setTrace({ ...T, src: big });
+    for (let i = 0; i < 20; i++) st.edit((f) => { f.rooms[0].name = `n${i}`; });
+    const hist = (st as unknown as { hist: string[] }).hist;
+    expect(hist.length).toBe(21);
+    expect(hist.reduce((n, s) => n + s.length, 0)).toBeLessThan(big.length);
+    for (let i = 0; i < 20; i++) st.undo();
+    expect(st.f.trace?.src).toBe(big);
+    st.redo();
+    expect(st.f.trace?.src).toBe(big);
+  });
+
+  it("autosaves the plan without its image when the image does not fit in localStorage", () => {
+    const st = new EditorState(fresh());
+    st.setTrace(T);
+    st.edit((f) => { f.rooms[0].name = "Kept"; });
+    const real = Storage.prototype.setItem;
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, k: string, v: string) {
+      if (v.includes(SRC)) throw new DOMException("full", "QuotaExceededError");
+      real.call(this, k, v);
+    });
+    expect(st.persist()).toBe(false);
+    spy.mockRestore();
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
+    expect(saved.floors.ground.rooms[0].name).toBe("Kept");
+    expect(saved.floors.ground.trace).toBeUndefined();
+    expect(st.f.trace).toEqual(T); // the live plan keeps it
+    expect(st.persist()).toBe(true);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).floors.ground.trace).toEqual(T);
+  });
+});

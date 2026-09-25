@@ -2,6 +2,293 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 Sprint 7 review: save size cap, empty radar slots, the rest deferred
+
+The Opus review of the integrated build (`docs/REVIEW-2026-09-25.md`) said
+"ship after fixes". Fixed before the tag:
+
+- **Save refuses a plan over 3.5 MB** (`MAX_LAYOUT_BYTES`). Home Assistant's
+  websocket takes 4 MiB in one message and `floorplan_studio/save` sends the
+  whole layout in one; one trace image may already be 4 MB. The error names
+  the floors that carry an image and what to do. The per-floor trace cap
+  stays at 4 MB: it bounds what the editor holds, the save cap bounds what
+  Home Assistant will take.
+- **A radar pair at 0/0 draws nothing.** An LD2450 reports 0/0 for an empty
+  slot, and `Number("")` is 0, so an idle radar drew its targets on itself.
+  A blank reading is not a number, and 0/0 is "no target".
+- **The autosave says when it dropped the trace image**, so a reload before
+  Save does not lose the scan silently.
+- **The fade field falls back to its default** when emptied or negative.
+- **The ESPHome snippet uses `has_target`**; `target_count` is a sensor key.
+
+Deferred, on purpose: `touch-action: none` on the card even at fit (phones
+cannot scroll the dashboard from the plan; the S7.4 decision stands until a
+user reports it), kiosk changes reaching the long-press only when the SVG is
+replaced, a `pointer-events` class rule for the trace image, cards
+downloading trace images they never draw, and the "Garden pond" label
+crossing the garden door. Each is in the review with its file and line.
+
+## 2026-09-24 S7.10 vacuum: no map position, dialog instead of toggle
+
+- **No map position field.** Most vacuum integrations expose their current
+  spot, if at all, as a camera entity streaming a proprietary map image, or as
+  attributes with no fixed coordinate system across brands — not a pair of
+  sensors a plan could place a dot from, the way S7.9's radar targets do. A
+  device this schema cannot draw honestly is a device it leaves undrawn: the
+  icon shows state, not position. A later task could read a vendor-specific
+  x/y attribute pair the way S7.9 reads target sensors, if a common enough
+  shape shows up; nothing here forecloses it.
+- **A tap opens a dialog, never toggles.** `vacuum.toggle` does not exist as a
+  clean single action a user would expect from one tap (unlike a light or a
+  switch), and blind service calls on a robot that moves through the house
+  are exactly the case S2.7's cover dialog already exists for. The dialog
+  offers Start, Pause and Return to dock, modelled directly on
+  `_coverDialogTemplate`/`_openCoverDialog` in `floorplan-studio-card.ts`
+  (same focus-in/out-once rule, same "ignore a second tap while open" guard,
+  extended so opening either dialog also checks the other is closed — the
+  two share one keydown handler and query `.fp-dialog-actions button`
+  generically, which only works because exactly one dialog is ever open).
+- **`docked`/`idle`/`paused` are all idle grey, not three shades.** None of
+  the three needs its own colour: what matters to someone glancing at the
+  plan is "doing something" (cleaning, returning) versus "not" (everything
+  else) versus "broken" (error). Collapsing the three saves a decision no one
+  asked for and keeps `--fp-dev-vacuum` meaning one thing: active.
+- **`cleaning` spins the icon; `returning` does not.** Both are the "on"
+  colour (`--fp-dev-vacuum`), but returning-to-dock is not the vacuum doing
+  its job in a room, so the spin — the strongest "look, it's moving" signal
+  the icon has — is reserved for actual cleaning.
+- **`error` is a fourth CSS class, `danger`, not a fourth on/off combination.**
+  `Cls` grew from `"on" | "off" | "unavailable"` to include `"danger"` rather
+  than overloading `on` with a colour swap, so `.dev.danger path{fill:var(--fp-danger)}`
+  reads as its own rule next to `.dev.on`/`.dev.off`, not a special case
+  bolted onto one of them.
+- **`unavailable`/`unknown` disables the three action buttons, not the whole
+  dialog.** Cancel stays clickable so the dialog can always be dismissed —
+  the same reasoning S2.7's cover dialog never needed, since a cover has no
+  disabled state of its own; a vacuum genuinely can be unreachable.
+- **`prompts/SCHEMA.md` needed no edit**, same finding S7.9 already recorded:
+  it has no `DeviceType` enumeration of its own.
+
+## 2026-09-24 S7.8/S7.9 People and radar targets: frame math, drawing path, and one environment fix
+
+Five decisions past the brief, plus a Node/vitest fix that blocked a clean `npm test` and is recorded here since it touches every test file, not this feature alone.
+
+- **Radar target frame.** The brief gives one worked example (x=0, y=2000mm, `rot`
+  90 draws 200 cm screen-right) and leaves the general formula implicit. Derived
+  and checked against SVG's own clockwise `rotate()` convention: with `xl, yl` in
+  centimetres and `rad` the device's `rot` in radians, `dx = xl·cos(rad) +
+  yl·sin(rad)`, `dy = xl·sin(rad) − yl·cos(rad)`, added to the sensor's own
+  `x, y`. At `rot` 0 this keeps "ahead" (positive `yl`) pointing screen-up, matching
+  "0 is ahead is screen-up" in `docs/SPEC.md`.
+- **Targets are drawn as plan-coordinate `<circle>`s, not nested inside the
+  device's own local-frame `<g>`.** The device group is scaled and (for other
+  types) rotated in its own 24×24 icon space; a target's position is already a
+  real plan point once the frame math above runs, so pushing it straight into
+  the same `out` array as rooms and other devices lets it pick up the ambient
+  `plan-turn` wrapper for free, with no double-transform to undo.
+- **`typeForEntity` does not guess `radar`.** An occupancy `binary_sensor` reads
+  as `motion`, same as before S7.9 — nothing in a bare entity id or device class
+  says "this is an mmWave sensor with target sensors, not a plain PIR". The
+  device panel's own type picker is the correction path; guessing wrong here
+  would be worse than not guessing (finding 1: layouts stay untrusted, and a
+  bad auto-type would need to be un-set by hand anyway).
+- **`prompts/SCHEMA.md` needed no edit.** It has no `DeviceType` enumeration of
+  its own — it points at `docs/schema.md`, generated from `src/core/schema.ts`'s
+  own JSDoc by `npm run docs:schema`, which already picked up `room` and
+  `targets` once their doc comments were in place. One of the "eight places" a
+  new type touches turned out to already be covered by generation.
+- **The demo's own radar (`radar-office`, first floor) got explicit on/off/gone
+  states in `scripts/shots.mjs`**, matching the pattern already used for
+  `person.demo_alex`, so the first-floor shots show it doing something instead
+  of sitting permanently idle for want of a state — caught only by looking at
+  the rendered PNG (finding 16), not by any test.
+- **Node 22+'s own global `localStorage`/`sessionStorage`** (gated behind
+  `--localstorage-file`, unset here) shadows jsdom's working implementation:
+  vitest's jsdom environment only patches a global key that is not already `in
+  global` or on its own hardcoded override list, and `localStorage` is neither.
+  Every test touching storage failed with "Cannot read properties of undefined
+  (reading 'clear')" — a version-skew gap between Node and this vitest version,
+  not a bug in this repo. Fixed with `tests/setup-storage.ts` (`setupFiles` in
+  `vitest.config.ts`), which reassigns both globals from jsdom's own `window`
+  once the jsdom environment installs. This was required to get a clean `npm
+  test` run at all, so it is recorded here rather than left as a silent
+  workaround; it touches no product code.
+
+## 2026-09-24 S7.7 Card config form: kiosk, night and sun added ahead of their tasks
+
+S7.5 (kiosk) and S7.6 (night, sun) had not landed yet when this task was
+done, so `FloorplanStudioCardConfig` does not carry those three keys. The
+form's own `EditorConfig` extends it locally with `kiosk?: boolean`,
+`night?: "auto" | "on" | "off"` and `sun?: string`, with the defaults those
+tasks' PLAN blocks already commit to (`false`, `"auto"`, `"sun.sun"`), so the
+form does not need a second pass once S7.5 and S7.6 merge. The card itself
+does not read any of the three yet; a hint line in the form says so. `docs/card.md`
+notes it too.
+
+No `ha-form`: it would need Home Assistant's own elements loaded at test
+time, and this repo's Playwright tests run the built card module under plain
+Chromium, not inside HA. The form is a plain Lit element instead
+(`src/card/config-editor.ts`), imported into `floorplan-studio-card.ts` for
+its side effect (registering the custom element) so it ships inside the same
+`dist/floorplan-studio-card.js` the vite config already builds — no second
+built file, no change to `vite.config.ts`.
+
+
+## 2026-09-24 S7.5 Kiosk mode: how the brief was read
+
+- **"No version"** was already moot: the card has never shown a version
+  anywhere on its own face (that line is in the editor's View menu, not the
+  card — see 0.10.0 in `CHANGELOG.md`). `kiosk` hides nothing there because
+  there was nothing to hide; the phrase stays in the brief's own wording
+  above `FloorplanStudioCardConfig.kiosk` and in `docs/card.md` for whoever
+  adds a card-level version line later.
+- **`bindDeviceActions`'s `opts.longPress`** defaults to `true` (unset or
+  explicit) rather than requiring the card to pass it on every call, so
+  every other caller — tests included — keeps working unchanged. The card
+  passes `{ longPress: !this._kiosk() }` on every bind.
+- **`setConfig` also refuses an unrecognised `zoom`.** S7.4 left an unknown
+  `zoom` value falling back to `true` (recorded in its own entry below,
+  "Four places, not five"); that is exactly the silent-typo failure this
+  block's "Break it" line calls out for `kiosk`. Fixed in the same commit,
+  with its own test, rather than leaving one sibling key sloppy next to a
+  strict one.
+- **Every other config key stays permissive** (CLAUDE.md finding 1): an
+  unknown floor id, theme or fade value still falls back quietly, as
+  documented. Only `zoom` and `kiosk` throw, because both have a small,
+  closed set of valid values where a stray string is almost certainly a
+  typo, not an intentional new value.
+- **Four places, not five,** for `kiosk`, same reason as `zoom` in S7.4: the
+  config form (S7.7) does not exist yet.
+
+
+## 2026-09-24 S7.6 Night: four departures from the brief
+
+- The overlay is a `<polygon class="room-night">` with the room's own points,
+  not a `<rect>`. A rect is the room's bounding box: on an L-shaped room it
+  would darken the neighbour's corner, and a lit room would be clear over
+  ground that is not its own. Each overlay carries `data-night="<room index>"`
+  for tests, never `data-r`, so it is not a pick target.
+- It is drawn after the room fills and the stairs, before walls, names and
+  devices, so lines, text and icons stay crisp. Stairs are veiled by their
+  room's overlay; they get none of their own, like zones and structures.
+  `fill` rooms are overlaid (a solid mass darkens too); a `fill` with no name
+  is not drawn, so it gets none.
+- `.room-night` also sets `pointer-events:none` in the stylesheet (finding
+  18). Without it the overlay took the click and the editor could not select
+  a room with Preview night on; a Playwright test proves it with the rule
+  removed.
+- `sun: <entity>` counts `on` as night as well as `below_horizon`. A user who
+  points `sun` at their own "is it dark" binary sensor gets what they meant;
+  `sun.sun` never reports `on`, so the default is untouched.
+
+`--fp-night` is the same `rgba(4,10,30,.45)` in every theme for now. On
+blueprint it turns the grey rooms to a slate grey, on light to a mid grey;
+both read as night next to the lit kitchen in `npm run shots`.
+
+## 2026-09-24 S7.11 Trace image: where it departs from the brief
+
+Built as the brief says (`Floor.trace`, drawn first only with `opts.trace`,
+View, Trace image…, the Export tick, `setTrace`). Departures, and why:
+
+- **Room fills go see-through while a trace is shown (editor only).** Drawn
+  first, the scan sat under every room fill, which is opaque: the first room
+  traced hid its part of the scan, and a plan with rooms hid it all. Seen in a
+  render, not in a test. `svg.tracing .room { fill-opacity: .4 }` in the
+  editor's stylesheet; the card and `render.ts` are untouched. A CSS pair test
+  holds it.
+- **`src` is PNG, JPEG or WebP only.** No SVG: it is a document that can carry
+  script and links. The base64 alphabet has no quote, so a `src` that passes
+  `TRACE_SRC` goes into the `href` attribute as it is. `render.ts` checks the
+  same rule again; the layout is untrusted.
+- **`rot` turns about `x`, `y`, and is `[0, 360)`.** The brief named the field,
+  not the pivot. The top-left corner is what the editor stores and places, so
+  it is the pivot. No UI sets `rot` yet; a file may.
+- **`on: false` draws nothing.** Not an image at opacity 0, so a hidden scan
+  costs nothing to paint.
+- **Load places the image anew,** fitted into the outline's box (the view on a
+  blank floor) at opacity 0.5. Replacing an image does not keep the old
+  scale: a new scan has its own.
+- **Scale keeps `x`, `y`.** Only `w` changes, as the brief says; the image
+  grows or shrinks from its top-left corner.
+- **Undo history interns the image.** `EditorState` keeps 100 undo steps, each
+  the whole layout as JSON. With a 4 MB image that is 400 MB. The history now
+  stores each distinct `src` once and a token in each step.
+- **Autosave falls back to a plan without traces.** A 4 MB image can exceed
+  the browser's localStorage quota (about 5 MB). `persist()` then saves the
+  plan without `trace` rather than nothing; the live plan and Save keep it.
+- **Risk, not handled: Home Assistant's websocket message size.** Save sends
+  the layout over HA's websocket. aiohttp's default maximum message is 4 MB,
+  so a layout near the trace cap may be refused on Save. Not verified against
+  a real HA. If it bites, lower `MAX_TRACE_BYTES` or cap the JPEG harder.
+## 2026-09-24 S7.4 Zoom and pan in the card: how the brief was read
+
+Where the S7.4 block left room, or could not be done as written:
+
+- **Pan bounds.** "At least one third of the plan stays visible" cannot hold
+  past 3×: at 8× the view is an eighth of the plan wide. The rule is a third
+  of the smaller of view and plan, per axis. Zoomed in, that is a third of
+  the view on the plan. At fit there is nothing to pan: `clamp` returns fit.
+  A view within 1e-6 of fit counts as fit, so zooming in and back out does
+  not leave a pannable 1.0000001×.
+- **Double-tap.** At fit it zooms 2× about the tap; zoomed, it returns to
+  fit. Only off a device or a door: two taps on a light still toggle it
+  twice (S2.2 "Break it", no debounce).
+- **The 6 px slop lives in `actions.ts`, for every card.** A press that
+  moves more than `TAP_SLOP_PX` drops its tap and its hold timer, with zoom
+  on or off. A second pointer down drops it too. Before this, the hold timer
+  kept running through a drag and a drag ended in a toggle.
+- **Half a pinch.** "A pinch that starts with one finger outside the svg is
+  ignored" is detected by `isPrimary`: a pointer that goes down on the svg
+  while none is tracked, and is not primary, has a first finger elsewhere.
+  The card ignores it; it neither pans nor zooms.
+- **`touch-action: none`** on the plan, as the block says. The cost: on a
+  phone a swipe that starts on the plan no longer scrolls the dashboard.
+  `zoom: false` gives it back; `docs/card.md` says so.
+- **The zoom buttons follow the plan's `<svg>` in the DOM.** Their fit icon
+  is an `<svg>` too, and every `querySelector("svg")` in the card and its
+  tests must keep finding the plan first.
+- **Four places, not five,** for the `zoom` key: the config form (S7.7) does
+  not exist yet.
+
+## 2026-09-24 S7.2 Status line in the toolbar; open menus draw above floating panels
+
+S7.2 moved `#status` from the side panel into the toolbar, right of Redo, and
+the snapping manual into Help. Three departures from the brief:
+
+- The toolbar is `.bar`, not `header`/`.toolbar`. No such element exists; the
+  tests target `.bar #status`.
+- The status line takes toolbar width, so the menus moved left. File's box
+  then opened under the centred Device colours panel (`position:fixed`,
+  z-index 30) and Save could not be clicked. The same was already true on a
+  narrower window. Menu boxes now use z-index 40: a menu just opened is on
+  top. A test checks Save is the top element with Device colours open.
+- "One short hint each at most" is not forced on the floor panel. It keeps
+  its two floor hints (a test pins one) and gains "Need help? Open Help.".
+  Only hints that restate Alt were cut: the device, furniture and unlinked
+  panels no longer say "Alt disables the grid". "Shift+click more lights" in
+  the multi-select panel stays: it is the only place that says how to build a
+  group.
+
+## 2026-09-24 S7.1 Label placement: three details the brief left open
+
+The S7.1 brief places room names, room labels, zone labels and sensor values
+against one `placed` list. Three choices went past it.
+
+- A sensor value's first spot moved from 24k to about 26k below its icon
+  (16k disc, 2k gap, then the text's ascent). With the brief's own box (size
+  tall, baseline 0.75 of the size down) the old spot overlapped the disc by a
+  sliver, so "no text on an icon" could not hold. Above and right use the
+  same 2k gap.
+- Extras' names go through the same candidates, after zone labels and before
+  values, and unlinked appliances count as icons. Leaving either out would
+  let a text land on them with the rule claiming it could not.
+- Device names (the editor's Names toggle, a selected device's name) are not
+  placed. They sit on their own icon by design, and only in the editor.
+
+Walls, doors and zone edges are not obstacles: a name can still cross a
+line. "23.5" on the demo sits on the Reading corner's dashed edge, clear of
+its name.
+
 ## 2026-09-24 S6.7 File, Export carries an entity snapshot (`Layout.available`), for an agent working with no HA connection
 
 Diego asked how an agent (Claude Code, local or a stranger's) could automate

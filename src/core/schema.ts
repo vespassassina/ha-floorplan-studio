@@ -6,7 +6,7 @@ export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
   | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover"
   | "battery" | "inverter" | "server" | "access_point" | "lock" | "vibration" | "other"
-  | "boiler" | "car" | "ups" | "printer" | "speaker";
+  | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum";
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "tv" | "computer" | "tree" | "patio-wood" | "patio-concrete" | "car";
@@ -46,8 +46,16 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * HA. Several lights may share one switch, and the switch may be an icon too.
  * `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor
  * entity attached to this device — several allowed, unlike `bound`.
+ * `room` (person only), S7.8: an entity whose state, `area_id` or `area` attribute names the room the person is
+ * in (a Bermuda or ESPresense area sensor, say). The card moves the icon to that room; no match keeps the
+ * placed spot. The person's own `entity` is `person.*` or `device_tracker.*`.
+ * `targets` (radar only), S7.9: up to any number of x/y sensor-entity pairs from an mmWave presence sensor (an
+ * ESPHome LD2450, say), each pair's two entities reporting one target's position in millimetres, x to the
+ * sensor's right and y ahead of it. `entity` is the radar's own presence entity (typically a
+ * `binary_sensor.*occupancy`), which colours the icon; `rot` is which way the sensor points (`0` = ahead is
+ * screen-up), the same field a camera already uses for its cone.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
  *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. */
 export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean }
@@ -59,10 +67,18 @@ export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: 
  * device icon set instead because the point is "this is a heater", not "this is shaped like one".
  */
 export interface Unlinked { id: string; type: DeviceType; name?: string; x: number; y: number; rot: number; scale: number; color?: string; attached?: string[]; locked?: boolean }
+/**
+ * S7.11: a scanned plan drawn under this floor in the editor, to trace walls over. Never drawn by the card, and left
+ * out of File, Export unless "Include trace image" is ticked. `src` is a `data:image/png|jpeg|webp;base64,` URL of at
+ * most `MAX_TRACE_BYTES`; the editor downscales to 2000 px on the long side before storing it. `x`/`y` is the image's
+ * top-left corner in cm, `w` its width in cm (the height follows the image's own aspect ratio), `rot` turns it about
+ * `x`/`y` in degrees, `alpha` is its opacity from 0 to 1, `on` false hides it and keeps it. An assistant never writes one.
+ */
+export interface Trace { src: string; x: number; y: number; w: number; rot: number; alpha: number; on: boolean }
 /** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. */
 export interface Floor {
   ha?: string; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
-  openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[];
+  openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[]; trace?: Trace;
 }
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
 /**
@@ -76,6 +92,15 @@ export interface AvailableEntity { entity: string; name: string; domain: string;
 /** `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned. */
 export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
 
+/** S7.11: the most characters a floor's `trace.src` may hold, the whole data URL: 4 MB. */
+export const MAX_TRACE_BYTES = 4 * 1024 * 1024;
+/** Opus review 2026-09-25: Home Assistant's websocket takes 4 MiB in one message, and `floorplan_studio/save` sends the
+ *  whole layout in one. Save refuses a plan whose JSON is longer than this, and says which floors carry a trace image. */
+export const MAX_LAYOUT_BYTES = 3_500_000;
+/** S7.11: a raster data URL and nothing else. SVG is left out (it is a document), and the base64 alphabet has no quote,
+ *  so a src that passes can go into an attribute as it is. Linear: no nested quantifier. */
+export const TRACE_SRC = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]*={0,2}$/;
+
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x);
 const isEntity = (x: unknown) => typeof x === "string" && x.includes(".");
 const isPt = (p: unknown) => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === "number" && Number.isFinite(n));
@@ -85,7 +110,7 @@ export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", 
 export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
 export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed"];
-export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker"];
+export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"];
 /** S4.25: the appliance types offered in the Add > Unlinked device menu — a curated subset of DEVICE_TYPES, each with a fixed icon and no linked-entity state. "heatpump" reuses the "ac" icon and colour; there is no separate type for it. */
 export const UNLINKED_TYPES: readonly DeviceType[] = ["heater", "ac", "boiler", "battery", "computer", "tv", "car", "server", "ups", "inverter", "speaker", "printer", "light"];
@@ -139,6 +164,21 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       }
     };
     if (f.ha !== undefined && !(typeof f.ha === "string" && f.ha)) errors.push(`${at} ha must be a non-empty text (the HA floor id)`);
+    if (f.trace !== undefined) {
+      const t = f.trace;
+      const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+      if (!isObj(t)) errors.push(`${at} trace must be an object`);
+      else {
+        // Size first, so a huge string never reaches the pattern.
+        if (typeof t.src === "string" && t.src.length > MAX_TRACE_BYTES) errors.push(`${at} trace src is ${(t.src.length / 1048576).toFixed(1)} MB; the limit is 4 MB`);
+        else if (typeof t.src !== "string" || !TRACE_SRC.test(t.src)) errors.push(`${at} trace src must be a data:image/png, jpeg or webp URL`);
+        for (const k of ["x", "y"]) if (!fin(t[k])) errors.push(`${at} trace ${k} must be a number`);
+        if (!(fin(t.w) && t.w > 0)) errors.push(`${at} trace w must be a number above 0`);
+        if (!(fin(t.rot) && t.rot >= 0 && t.rot < 360)) errors.push(`${at} trace rot must be a number in [0, 360)`);
+        if (!(fin(t.alpha) && t.alpha >= 0 && t.alpha <= 1)) errors.push(`${at} trace alpha must be a number from 0 to 1`);
+        if (typeof t.on !== "boolean") errors.push(`${at} trace on must be true or false`);
+      }
+    }
     poly("outline", f.outline);
     // S1.52: owk is optional (migrate fills it), but once present it must match the outline point by point.
     if (f.owk !== undefined) {
@@ -244,6 +284,21 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (d.linked !== undefined) {
         entityList(d, "linked", "climate.name");
         if (d.type !== "ac") errors.push(`${at} ${d.id} linked is only allowed on an ac`);
+      }
+      if (d.room !== undefined) {
+        if (!isEntity(d.room)) errors.push(`${at} ${d.id} room must be an entity id like sensor.name`);
+        else {
+          if (d.type !== "person") errors.push(`${at} ${d.id} room is only allowed on a person`);
+          if (d.room === d.entity) errors.push(`${at} ${d.id} room must differ from entity: it names the sensor that says which room the person is in`);
+        }
+      }
+      if (d.targets !== undefined) {
+        if (!Array.isArray(d.targets)) errors.push(`${at} ${d.id} targets must be a list of {x, y} entity pairs`);
+        else d.targets.forEach((tg: unknown, i: number) => {
+          if (!tg || typeof tg !== "object" || !isEntity((tg as any).x) || !isEntity((tg as any).y))
+            errors.push(`${at} ${d.id} targets[${i}] must be {x, y}, each an entity id like sensor.name`);
+        });
+        if (d.type !== "radar") errors.push(`${at} ${d.id} targets is only allowed on a radar`);
       }
     });
     each("furniture", (m) => {

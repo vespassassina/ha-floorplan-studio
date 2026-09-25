@@ -53,6 +53,8 @@ const STATES = {
     "sensor.demo_living_temperature": 0, "sensor.demo_bedroom_temperature": 0, "sensor.demo_bathroom_humidity": 0,
   }).map((k) => [k, "unavailable"])),
 };
+// S7.6: after sunset, every device at rest but the kitchen light, so one room stays bright and the rest go dark.
+STATES.night = { ...STATES.off, "light.demo_kitchen": ["on", { rgb_color: [255, 170, 60] }], "sun.sun": "below_horizon" };
 function hassFor(which, dark) {
   const states = {};
   for (const [id, v] of Object.entries(STATES[which])) states[id] = Array.isArray(v) ? st(v[0], v[1]) : st(v);
@@ -63,6 +65,32 @@ function hassFor(which, dark) {
 const MON = ["battery", "inverter", "server", "access_point"];
 const monLayout = structuredClone(layout);
 MON.forEach((t, i) => monLayout.floors.ground.devices.push({ id: `mon-${t}`, type: t, entity: `sensor.demo_${t}`, x: 500 + i * 70, y: 500 }));
+// S7.8: a person with a room sensor. Off: away, at the placed spot. On: home, and the sensor names the Kitchen, so the
+// icon stands beside the kitchen light, not on it. Gone: unavailable. The demo's own Alex (first floor) has no sensor.
+monLayout.floors.ground.devices.push({ id: "mon-person", type: "person", entity: "person.demo_sam", name: "Sam", x: 770, y: 500, room: "sensor.demo_sam_room" });
+Object.assign(STATES.off, { "person.demo_sam": "not_home", "sensor.demo_sam_room": "not_home", "person.demo_alex": "not_home" });
+Object.assign(STATES.on, { "person.demo_sam": "home", "sensor.demo_sam_room": "Kitchen", "person.demo_alex": "home" });
+Object.assign(STATES.gone, { "person.demo_sam": "unavailable", "sensor.demo_sam_room": "unavailable", "person.demo_alex": "unavailable" });
+// The demo's own radar (first floor, Office) gets the same on/off/gone treatment as the ground floor's mon-radar,
+// so the first-floor shots show it doing something too, not permanently idle for want of a state.
+Object.assign(STATES.off, { "binary_sensor.demo_office_radar_occupancy": "off", "sensor.demo_office_radar_target_1_x": "unavailable", "sensor.demo_office_radar_target_1_y": "unavailable" });
+Object.assign(STATES.on, { "binary_sensor.demo_office_radar_occupancy": "on", "sensor.demo_office_radar_target_1_x": "0", "sensor.demo_office_radar_target_1_y": "1000" });
+Object.assign(STATES.gone, { "binary_sensor.demo_office_radar_occupancy": "unavailable", "sensor.demo_office_radar_target_1_x": "unavailable", "sensor.demo_office_radar_target_1_y": "unavailable" });
+// S7.9: an mmWave radar in Living, rot 180 (facing south into the room), with two tracked targets. Off: no one
+// home, the presence sensor is off and the target sensors read unavailable, so no dot is drawn — the fade rule
+// alone would not show that, only the missing-dot check does. On: presence on, two targets at different spots.
+monLayout.floors.ground.devices.push({
+  id: "mon-radar", type: "radar", entity: "binary_sensor.demo_radar_presence", name: "Living radar", x: 250, y: 60, rot: 180,
+  targets: [{ x: "sensor.demo_radar_t1_x", y: "sensor.demo_radar_t1_y" }, { x: "sensor.demo_radar_t2_x", y: "sensor.demo_radar_t2_y" }],
+});
+Object.assign(STATES.off, { "binary_sensor.demo_radar_presence": "off", "sensor.demo_radar_t1_x": "unavailable", "sensor.demo_radar_t1_y": "unavailable", "sensor.demo_radar_t2_x": "unavailable", "sensor.demo_radar_t2_y": "unavailable" });
+Object.assign(STATES.on, { "binary_sensor.demo_radar_presence": "on", "sensor.demo_radar_t1_x": "0", "sensor.demo_radar_t1_y": "2000", "sensor.demo_radar_t2_x": "-1000", "sensor.demo_radar_t2_y": "1000" });
+Object.assign(STATES.gone, { "binary_sensor.demo_radar_presence": "unavailable", "sensor.demo_radar_t1_x": "unavailable", "sensor.demo_radar_t1_y": "unavailable", "sensor.demo_radar_t2_x": "unavailable", "sensor.demo_radar_t2_y": "unavailable" });
+// S7.10: a vacuum in the Hall. Off: docked (idle grey, no spin). On: cleaning (active colour, spinning). Gone: unavailable.
+monLayout.floors.ground.devices.push({ id: "mon-vacuum", type: "vacuum", entity: "vacuum.demo_hall", name: "Hall vacuum", x: 440, y: 550 });
+Object.assign(STATES.off, { "vacuum.demo_hall": "docked" });
+Object.assign(STATES.on, { "vacuum.demo_hall": "cleaning" });
+Object.assign(STATES.gone, { "vacuum.demo_hall": "unavailable" });
 
 const shots = [];
 const errors = [];
@@ -85,8 +113,11 @@ try {
   ];
   const cardShots = [];
   for (const floor of Object.keys(layout.floors)) for (const which of Object.keys(STATES)) for (const t of THEMES) {
+    if (which === "night") continue; // below: ground floor, two themes
     cardShots.push({ name: `card-${floor}-${which}-${t.id}`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
   }
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
+    cardShots.push({ name: `card-ground-night-${t.id}`, floor: "ground", which: "night", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
   for (const s of cardShots) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });
     const page = await ctx.newPage();

@@ -381,3 +381,14 @@ describe("unlinked appliances (S4.25)", () => {
     expect(() => migrate(l)).toThrow(/unlinked must be an array/);
   });
 });
+
+describe("floor trace image (S7.11)", () => {
+  it("keeps a valid trace through migrate, unchanged, so a saved plan reopens with its scan", () => {
+    const l: any = structuredClone(demo);
+    const trace = { src: "data:image/png;base64,iVBORw0KGgo=", x: 12, y: -3, w: 777, rot: 15, alpha: 0.4, on: false };
+    l.floors.ground.trace = trace;
+    const m = migrate(l);
+    expect(m.floors.ground.trace).toEqual(trace);
+    expect(validate(m).ok).toBe(true);
+  });
+});

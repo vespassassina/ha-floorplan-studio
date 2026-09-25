@@ -2,8 +2,13 @@ import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { FLOORPLAN_CSS, THEMES, migrate, planPivot, renderFloor, validate, viewBoxFor } from "../core";
 import type { Theme } from "../core";
-import type { Door, Floor, Layout } from "../core";
-import { bindDeviceActions } from "./actions";
+import type { Device, Door, Floor, Layout } from "../core";
+import { TAP_SLOP_PX, bindDeviceActions } from "./actions";
+// S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
+// one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
+// second built file (PLAN block interface).
+import "./config-editor";
+import { MAX_ZOOM, clamp, panBy, pinch, zoomAt, type Pt, type View } from "./viewport";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
 
@@ -29,7 +34,25 @@ export interface FloorplanStudioCardConfig {
   layout_url?: string;
   /** `blueprint` (default), `midnight`, `light`, `slate`, `terminal`, `solarized`, or `ha` to take the neutrals from Home Assistant's own theme variables. */
   theme?: Theme;
+  /** S7.4: `true` (default) pinch, drag, double-tap, Ctrl/Cmd+wheel and the +/−/fit buttons; `"wheel"` also zooms
+   * on a plain wheel; `false` a fixed plan, as before. */
+  zoom?: boolean | "wheel";
+  /** S7.6: `auto` (default) darkens the plan while the sun entity is `below_horizon` (or `on`); `on` always, `off` never. */
+  night?: "auto" | "on" | "off";
+  /** S7.6: the entity `night: auto` reads; default `sun.sun`. */
+  sun?: string;
+  /** S7.5: `true` shows only the plan for a wall tablet — no floor chips, no zoom buttons, no version, no cover
+   * dialog chrome beyond the dialog itself, and holding a device never opens more-info. Taps still act. Default
+   * `false`. With `floors` or `floor: "all"`, the first floor shows and there is no switcher: use one card per
+   * floor instead (see `docs/card.md`). */
+  kiosk?: boolean;
 }
+
+/** Two taps closer than this in time and space are a double-tap. */
+const DOUBLE_TAP_MS = 350;
+const DOUBLE_TAP_PX = 24;
+/** One click of a zoom button. */
+const BUTTON_ZOOM = 1.5;
 
 declare global {
   interface Window {
@@ -58,7 +81,18 @@ export class FloorplanStudioCard extends LitElement {
     .fp-dialog p { margin: 0 0 14px; font: 14px/1.3 system-ui, sans-serif; }
     .fp-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
     .fp-dialog-actions button { font: 13px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 6px 14px; cursor: pointer; }
+    /* S7.4: the zoom buttons are card chrome, the same colours as the floor chips, in the other top corner. */
+    .fp-zoom { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; gap: 4px; }
+    .fp-zoom button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
+    .fp-zoom button:disabled { opacity: 0.45; cursor: default; }
+    .fp-zoom svg { width: 14px; height: 14px; }
+    /* Only when zoom is on: the plan takes every touch, so the page does not scroll or zoom under a pinch. */
+    svg.fp-zoomable { touch-action: none; }
     .fp-dialog-actions button.confirm { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); }
+    /* S7.10: the vacuum dialog has four buttons where the cover dialog has two; wrap rather than overflow the
+       card on a narrow width, and a disabled action reads as inert (dimmed, no pointer) without a separate class. */
+    .fp-vacuum-dialog .fp-dialog-actions { flex-wrap: wrap; }
+    .fp-dialog-actions button:disabled { opacity: 0.45; cursor: default; }
   `];
 
   private _config: FloorplanStudioCardConfig = {};
@@ -90,9 +124,23 @@ export class FloorplanStudioCard extends LitElement {
   /** Tracks whether the dialog was open on the *previous* render, so `updated()` moves focus into it exactly once
    * per open (not on every unrelated re-render while it stays open) and back out exactly once per close. */
   private _coverDialogWasOpen = false;
+  /** S7.10: the vacuum whose Start/Pause/Return-to-dock dialog is open, or `null` for none. Same "ignore a second
+   * tap while open" rule as `_coverDialog`, and its own was-open flag for the same once-per-open/close focus move. */
+  private _vacuumDialog: Device | null = null;
+  private _vacuumDialogWasOpen = false;
+  /** S7.4: the zoomed viewBox, or `null` for fit. Card state: reset by `setConfig` and a floor change, never by `hass`. */
+  private _view: View | null = null;
+  /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
+  private _fit: View | null = null;
+  private _unbindZoom: (() => void) | null = null;
 
   static getStubConfig(): FloorplanStudioCardConfig {
     return { type: "custom:floorplan-studio-card" };
+  }
+
+  /** S7.7: the Edit-card dialog's own form instead of raw YAML. */
+  static getConfigElement(): HTMLElement {
+    return document.createElement("floorplan-studio-card-editor");
   }
 
   connectedCallback(): void {
@@ -104,13 +152,32 @@ export class FloorplanStudioCard extends LitElement {
     if (!this.hasAttribute("tabindex")) this.tabIndex = -1;
   }
 
+  /**
+   * S7.5: config is untrusted (CLAUDE.md finding 1) — an unrecognised `zoom` used to fall silently back to `true`,
+   * which hid a typo (`zoom: "yes"`) behind the default instead of surfacing it. Both `zoom` and `kiosk` now throw,
+   * the way Home Assistant's own card config errors do, naming the key so the dashboard's error card says what to
+   * fix. Every other key stays permissive (CLAUDE.md finding 1 again: never throw on an unknown floor id, theme,
+   * and so on — those already have documented, harmless fallbacks).
+   */
+  private _validateConfig(config: FloorplanStudioCardConfig): void {
+    const { zoom, kiosk } = config;
+    if (zoom !== undefined && zoom !== true && zoom !== false && zoom !== "wheel") {
+      throw new Error(`floorplan-studio-card: zoom must be true, false or "wheel", got ${JSON.stringify(zoom)}`);
+    }
+    if (kiosk !== undefined && typeof kiosk !== "boolean") {
+      throw new Error(`floorplan-studio-card: kiosk must be true or false, got ${JSON.stringify(kiosk)}`);
+    }
+  }
+
   setConfig(config: FloorplanStudioCardConfig): void {
+    this._validateConfig(config ?? {});
     this._config = config ?? {};
     this._layout = null;
     this._error = null;
     this._urlRequested = false;
     this._wsRequested = false;
     this._shownFloor = null;
+    this._view = null;
     this._loadLayout();
     this.requestUpdate();
   }
@@ -171,6 +238,8 @@ export class FloorplanStudioCard extends LitElement {
     this._stopTimer();
     this._unbindActions?.();
     this._unbindActions = null;
+    this._unbindZoom?.();
+    this._unbindZoom = null;
     this._actionsSvg = null;
   }
 
@@ -282,6 +351,7 @@ export class FloorplanStudioCard extends LitElement {
   private _selectFloor(key: string): void {
     if (this._shownFloor === key) return;
     this._shownFloor = key;
+    this._view = null;
     this.requestUpdate();
   }
 
@@ -330,8 +400,41 @@ export class FloorplanStudioCard extends LitElement {
    * value passed into `renderFloor`, and always set: blueprint unless the config says otherwise. `data-mode` says
    * whether Home Assistant is dark, for `theme: ha` only.
    */
+  /** S7.8: where each person stood before this render, by entity. Read by `_glidePeople`. */
+  private _peopleWere = new Map<string, string>();
+
+  protected willUpdate(changed: PropertyValues): void {
+    super.willUpdate(changed);
+    this._peopleWere = new Map();
+    const devices = this._floor()?.devices;
+    this.shadowRoot?.querySelectorAll<SVGGElement>("g.dev-person[data-x]").forEach((g) => {
+      const e = devices?.[Number(g.dataset.x)]?.entity;
+      if (e) this._peopleWere.set(e, g.style.transform);
+    });
+  }
+
+  /**
+   * S7.8: each render replaces every node under the <svg> (unsafeSVG), so `.dev-person`'s transform transition would
+   * never fire on its own: the new node starts where it ends. For each person that moved, the new node is put back
+   * where the old one stood, its style is flushed, and then it is given its new place, so the class rule animates the
+   * move (a FLIP). Under prefers-reduced-motion the rule has no transition and the person jumps.
+   */
+  private _glidePeople(): void {
+    const devices = this._floor()?.devices;
+    this.shadowRoot?.querySelectorAll<SVGGElement>("g.dev-person[data-x]").forEach((g) => {
+      const e = devices?.[Number(g.dataset.x)]?.entity, was = e ? this._peopleWere.get(e) : undefined, now = g.style.transform;
+      if (!was || was === now) return;
+      g.style.transition = "none";
+      g.style.transform = was;
+      void getComputedStyle(g).transform;
+      g.style.transition = "";
+      g.style.transform = now;
+    });
+  }
+
   protected updated(changed: PropertyValues): void {
     super.updated(changed);
+    this._glidePeople();
     const t = this._theme();
     this.setAttribute("data-theme", t);
     if (t === "ha" && this._haDark()) this.setAttribute("data-mode", "dark");
@@ -344,8 +447,13 @@ export class FloorplanStudioCard extends LitElement {
       // debounce, but also no double-firing from a stale second listener).
       this._unbindActions?.();
       this._unbindActions = svg
-        ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], (door) => this._openCoverDialog(door))
+        ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], (door) => this._openCoverDialog(door), {
+            longPress: !this._kiosk(),
+            openVacuumDialog: (d) => this._openVacuumDialog(d),
+          })
         : null;
+      this._unbindZoom?.();
+      this._unbindZoom = svg ? this._bindZoom(svg) : null;
       this._actionsSvg = svg;
     }
 
@@ -361,6 +469,15 @@ export class FloorplanStudioCard extends LitElement {
       this.focus();
     }
     this._coverDialogWasOpen = dialogOpen;
+
+    // S7.10: same focus-in-once/focus-out-once rule as the cover dialog above, its own dialog, its own flag.
+    const vacuumOpen = this._vacuumDialog !== null;
+    if (vacuumOpen && !this._vacuumDialogWasOpen) {
+      this.shadowRoot?.querySelector<HTMLButtonElement>(".fp-vacuum-dialog button.cancel")?.focus();
+    } else if (!vacuumOpen && this._vacuumDialogWasOpen) {
+      this.focus();
+    }
+    this._vacuumDialogWasOpen = vacuumOpen;
   }
 
   /**
@@ -369,7 +486,7 @@ export class FloorplanStudioCard extends LitElement {
    * second one or swap which door it acts on ("Break it" in the PLAN block).
    */
   private _openCoverDialog(door: Door): void {
-    if (this._coverDialog) return;
+    if (this._coverDialog || this._vacuumDialog) return;
     this._coverDialog = door;
     this.requestUpdate();
   }
@@ -377,6 +494,36 @@ export class FloorplanStudioCard extends LitElement {
   private _closeCoverDialog(): void {
     this._coverDialog = null;
     this.requestUpdate();
+  }
+
+  /**
+   * S7.10: opens the vacuum dialog for `d`, unless a dialog (this one or the cover one) is already open — the
+   * same "ignore a second tap while open" rule as `_openCoverDialog`.
+   */
+  private _openVacuumDialog(d: Device): void {
+    if (this._coverDialog || this._vacuumDialog) return;
+    this._vacuumDialog = d;
+    this.requestUpdate();
+  }
+
+  private _closeVacuumDialog(): void {
+    this._vacuumDialog = null;
+    this.requestUpdate();
+  }
+
+  /** S7.10: Break it — `unavailable`/`unknown` (or no state at all) disables the three action buttons; Cancel
+   *  always stays enabled, so the dialog can still be dismissed. */
+  private _vacuumDisabled(): boolean {
+    const d = this._vacuumDialog;
+    if (!d) return true;
+    const s = this._hass?.states[d.entity]?.state;
+    return !s || s === "unavailable" || s === "unknown";
+  }
+
+  private _vacuumAction(service: "start" | "pause" | "return_to_base"): void {
+    const d = this._vacuumDialog;
+    if (d) this._hass?.callService?.("vacuum", service, { entity_id: d.entity });
+    this._closeVacuumDialog();
   }
 
   /** The one place that reads a cover's live state and decides what pressing the button does — the dialog's text
@@ -398,12 +545,15 @@ export class FloorplanStudioCard extends LitElement {
     this._closeCoverDialog();
   }
 
-  /** Escape cancels; Tab/Shift+Tab cycle only between the dialog's own two buttons, so focus never escapes it into
-   * the rest of the card while it is open. */
+  /** Escape cancels; Tab/Shift+Tab cycle only between the open dialog's own buttons, so focus never escapes it into
+   * the rest of the card while it is open. Shared by the cover dialog (two buttons) and the vacuum dialog (four) —
+   * `_openCoverDialog`/`_openVacuumDialog` never let both be open at once, so exactly one `.fp-dialog-actions` is
+   * ever rendered and this reads it generically rather than picking a dialog by name. */
   private _onDialogKeydown = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {
       e.preventDefault();
-      this._closeCoverDialog();
+      if (this._vacuumDialog) this._closeVacuumDialog();
+      else this._closeCoverDialog();
       return;
     }
     if (e.key !== "Tab") return;
@@ -421,6 +571,7 @@ export class FloorplanStudioCard extends LitElement {
    * draws (CLAUDE.md finding 8, one draw path — the plan is drawn only by `renderFloor`, this is the card's own
    * DOM around it). */
   private _floorChips() {
+    if (this._kiosk()) return null; // S7.5: no switcher in kiosk mode, even with floors or floor: "all" configured
     const list = this._floorList();
     if (!list) return null;
     const current = this._floorKey();
@@ -431,11 +582,26 @@ export class FloorplanStudioCard extends LitElement {
     </div>`;
   }
 
+  /** S7.6: whether the plan is drawn at night. `on`/`off` force it; anything else is `auto`: the sun entity (config
+   * `sun`, default `sun.sun`) is `below_horizon`, or `on` for a binary sensor. Missing or `unavailable` is day. */
+  private _night(): boolean {
+    const mode = this._config.night;
+    if (mode === "on") return true;
+    if (mode === "off") return false;
+    const id = typeof this._config.sun === "string" && this._config.sun ? this._config.sun : "sun.sun";
+    const s = this._hass?.states?.[id]?.state;
+    return s === "below_horizon" || s === "on";
+  }
+
   protected render() {
     const f = this._floor();
     if (!f) return html`<p class="msg">${this._error ?? NO_LAYOUT}</p>`;
     const rotate = this._rotate();
-    const box = viewBoxFor(f, 60, rotate);
+    const fit = viewBoxFor(f, 60, rotate);
+    this._fit = fit;
+    const zoom = this._zoomMode() !== false;
+    const showZoomButtons = zoom && !this._kiosk(); // S7.5: kiosk still zooms/pans by gesture, just draws no buttons
+    const box = zoom && this._view ? clamp(this._view, fit) : fit;
     const body = renderFloor(f, {
       scale: 1,
       state: this._stateForRender(),
@@ -445,8 +611,189 @@ export class FloorplanStudioCard extends LitElement {
       theme: this._theme(),
       dark: this._haDark(),
       rotate,
+      night: this._night(),
     });
-    return html`${this._floorChips()}<svg viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._coverDialogTemplate()}`;
+    // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
+    // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
+    return html`${this._floorChips()}<svg class=${zoom ? "fp-zoomable" : ""} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${showZoomButtons ? this._zoomButtons(box, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}`;
+  }
+
+  /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */
+  private _zoomMode(): boolean | "wheel" {
+    const z = this._config.zoom;
+    return z === false ? false : z === "wheel" ? "wheel" : true;
+  }
+
+  /** S7.5: `config.kiosk`, `false` unless it is exactly `true` — `setConfig` already refuses anything else. */
+  private _kiosk(): boolean {
+    return this._config.kiosk === true;
+  }
+
+  /** The view on screen now: the zoomed one, clamped, or fit. */
+  private _current(): View | null {
+    const fit = this._fit;
+    if (!fit) return null;
+    return this._view ? clamp(this._view, fit) : fit;
+  }
+
+  private _zoomed(): boolean {
+    const v = this._current(), fit = this._fit;
+    return !!v && !!fit && v.w < fit.w * (1 - 1e-6);
+  }
+
+  /** Stores `v`, clamped, as the view; fit is stored as `null`, the same as never zoomed. */
+  private _setView(v: View): void {
+    const fit = this._fit;
+    if (!fit) return;
+    const c = clamp(v, fit);
+    this._view = c.w < fit.w * (1 - 1e-6) ? c : null;
+    this.requestUpdate();
+  }
+
+  /** Zooms by `k` about the centre of what is on screen: the + and − buttons. */
+  private _zoomCentre(k: number): void {
+    const v = this._current();
+    if (v) this._setView(zoomAt(v, k, v.x + v.w / 2, v.y + v.h / 2));
+  }
+
+  private _fitView(): void {
+    this._view = null;
+    this.requestUpdate();
+  }
+
+  /** S7.4: +, − and fit, card chrome in the top-right corner (like `_floorChips`, outside the plan's `<svg>`). */
+  private _zoomButtons(box: View, fit: View) {
+    const atFit = !(box.w < fit.w * (1 - 1e-6));
+    const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
+    return html`<div class="fp-zoom">
+      <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
+      <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atFit} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
+      <button type="button" aria-label="Fit" title="Fit" ?disabled=${atFit} @click=${() => this._fitView()}>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+      </button>
+    </div>`;
+  }
+
+  /**
+   * S7.4: pointer and wheel handlers for zoom and pan on the plan's own `<svg>`, bound once per element like
+   * `bindDeviceActions`. Each handler reads `config.zoom` afresh, so `zoom: false` needs no rebinding.
+   *
+   * One pointer that moves past `TAP_SLOP_PX` pans (`bindDeviceActions` drops its tap at the same threshold); two
+   * pinch. A pointer that goes down while none is tracked and is not the primary one is a second finger whose
+   * first landed outside the svg: it is ignored, so half a pinch never pans the plan. Taps stay with
+   * `bindDeviceActions`, except two quick taps off any device or door: 2x about the tap at fit, back to fit when
+   * zoomed. The wheel zooms only with Ctrl/Cmd, or always under `zoom: "wheel"`; it is bound on the svg, so a
+   * wheel over a floor chip or a zoom button never reaches it and scrolls the page.
+   */
+  private _bindZoom(svg: SVGSVGElement): () => void {
+    const ptrs = new Map<number, { x: number; y: number }>();
+    let start = { x: 0, y: 0 };
+    let panning = false;
+    let pinched = false;
+    let lastTap: { t: number; x: number; y: number } | null = null;
+
+    /** Screen point to plan point under view `v`. */
+    const toPlan = (v: View, cx: number, cy: number): Pt => {
+      const r = svg.getBoundingClientRect();
+      return [v.x + ((cx - r.left) / r.width) * v.w, v.y + ((cy - r.top) / r.height) * v.h];
+    };
+    const capture = (id: number) => {
+      try { svg.setPointerCapture(id); } catch { /* the pointer is already gone */ }
+    };
+
+    const onDown = (e: PointerEvent) => {
+      if (this._zoomMode() === false) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (e.isPrimary) ptrs.clear(); // nothing else of its kind is down: forget any pointer whose up went missing
+      else if (!ptrs.size) return;
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (ptrs.size === 1) {
+        start = { x: e.clientX, y: e.clientY };
+        panning = false;
+        pinched = false;
+      } else {
+        pinched = true;
+        lastTap = null;
+        for (const id of ptrs.keys()) capture(id);
+      }
+    };
+
+    const onMove = (e: PointerEvent) => {
+      const p = ptrs.get(e.pointerId);
+      const v = this._current();
+      if (!p || !v) return;
+      if (ptrs.size === 1) {
+        if (!panning) {
+          if (Math.hypot(e.clientX - start.x, e.clientY - start.y) <= TAP_SLOP_PX) return;
+          panning = true;
+          capture(e.pointerId);
+        }
+        const r = svg.getBoundingClientRect();
+        this._setView(panBy(v, (-(e.clientX - p.x) / r.width) * v.w, (-(e.clientY - p.y) / r.height) * v.h));
+      } else if (ptrs.size === 2) {
+        const o = [...ptrs].find(([id]) => id !== e.pointerId)![1];
+        this._setView(pinch(v, toPlan(v, p.x, p.y), toPlan(v, o.x, o.y), toPlan(v, e.clientX, e.clientY), toPlan(v, o.x, o.y)));
+      }
+      p.x = e.clientX;
+      p.y = e.clientY;
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (!ptrs.delete(e.pointerId)) return;
+      if (ptrs.size) {
+        // One finger of a pinch lifted: the other carries on as a pan from where it is now.
+        panning = true;
+        return;
+      }
+      const tap = !panning && !pinched;
+      panning = false;
+      pinched = false;
+      const onThing = (e.target as Element | null)?.closest?.("g[data-x], line[data-d]");
+      if (!tap || onThing) {
+        lastTap = null;
+        return;
+      }
+      const now = performance.now();
+      if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX) {
+        lastTap = null;
+        const fit = this._fit;
+        if (this._zoomed() || !fit) this._fitView();
+        else this._setView(zoomAt(fit, 2, ...toPlan(fit, e.clientX, e.clientY)));
+        return;
+      }
+      lastTap = { t: now, x: e.clientX, y: e.clientY };
+    };
+
+    const onCancel = (e: PointerEvent) => {
+      ptrs.delete(e.pointerId);
+      if (!ptrs.size) {
+        panning = false;
+        pinched = false;
+      }
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      const mode = this._zoomMode();
+      if (mode === false || (mode !== "wheel" && !e.ctrlKey && !e.metaKey)) return;
+      const v = this._current();
+      if (!v) return;
+      e.preventDefault();
+      const dy = Math.max(-100, Math.min(100, e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY));
+      this._setView(zoomAt(v, Math.exp(-dy * 0.002), ...toPlan(v, e.clientX, e.clientY)));
+    };
+
+    svg.addEventListener("pointerdown", onDown);
+    svg.addEventListener("pointermove", onMove);
+    svg.addEventListener("pointerup", onUp);
+    svg.addEventListener("pointercancel", onCancel);
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      svg.removeEventListener("pointerdown", onDown);
+      svg.removeEventListener("pointermove", onMove);
+      svg.removeEventListener("pointerup", onUp);
+      svg.removeEventListener("pointercancel", onCancel);
+      svg.removeEventListener("wheel", onWheel);
+    };
   }
 
   /** S2.7: the cover confirm dialog, or `null` when none is open. Card chrome (like `_floorChips` above): outside
@@ -467,6 +814,31 @@ export class FloorplanStudioCard extends LitElement {
           <div class="fp-dialog-actions">
             <button type="button" class="cancel" @click=${() => this._closeCoverDialog()}>Cancel</button>
             <button type="button" class="confirm" @click=${() => this._confirmCoverDialog()}>${verb}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /** S7.10: the vacuum dialog, or `null` when none is open — same shape and rules as `_coverDialogTemplate` above
+   * (card chrome outside `<svg>`, `lit-html` escaping the name, `role`/`aria-modal`/`aria-labelledby`), but three
+   * actions instead of one, since a vacuum has no single obvious verb. Start/Pause/Return to dock each read
+   * `_vacuumDisabled()` fresh on every render, so an entity that goes `unavailable` while the dialog is open
+   * (`hass`'s setter calls `requestUpdate()` on every change, same as the cover dialog) disables them at once
+   * rather than leaving a stale, clickable button. Cancel is never disabled, so the dialog can always be dismissed. */
+  private _vacuumDialogTemplate() {
+    const d = this._vacuumDialog;
+    if (!d) return null;
+    const disabled = this._vacuumDisabled();
+    return html`
+      <div class="fp-dialog-backdrop" @keydown=${this._onDialogKeydown}>
+        <div class="fp-dialog fp-vacuum-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-vacuum-dialog-title">
+          <p id="fp-vacuum-dialog-title">${d.name ?? d.id}</p>
+          <div class="fp-dialog-actions">
+            <button type="button" class="cancel" @click=${() => this._closeVacuumDialog()}>Cancel</button>
+            <button type="button" ?disabled=${disabled} @click=${() => this._vacuumAction("start")}>Start</button>
+            <button type="button" ?disabled=${disabled} @click=${() => this._vacuumAction("pause")}>Pause</button>
+            <button type="button" class="confirm" ?disabled=${disabled} @click=${() => this._vacuumAction("return_to_base")}>Return to dock</button>
           </div>
         </div>
       </div>

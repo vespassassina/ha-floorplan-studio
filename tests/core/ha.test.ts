@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { applyHaNames, availableEntities, roomHaBox, typeForEntity, unplacedHaEntities, type HaData } from "../../src/core/ha";
+import { applyHaNames, availableEntities, entitiesForType, roomHaBox, typeForEntity, unplacedHaEntities, type HaData } from "../../src/core/ha";
 import { migrate } from "../../src/core/migrate";
 import v1 from "../../demo/layout.v1.json";
 import type { Layout } from "../../src/core/schema";
@@ -25,15 +25,46 @@ describe("typeForEntity (S4.18): a reverse domain/device_class guess for placing
     expect(typeForEntity(ent("binary_sensor.x", "binary_sensor", "garage_door"))).toBe("contact");
     expect(typeForEntity(ent("binary_sensor.x", "binary_sensor", "vibration"))).toBe("vibration");
   });
+  it("S7.8: person.* and device_tracker.* are a person", () => {
+    expect(typeForEntity(ent("person.alex", "person"))).toBe("person");
+    expect(typeForEntity(ent("device_tracker.alex_phone", "device_tracker"))).toBe("person");
+  });
+  it("S7.8: entitiesForType offers a person its person and device_tracker entities, and leaves a sensor in the rest", () => {
+    const data: HaData = { floors: [], areas: [], entities: [ent("person.alex", "person"), ent("device_tracker.phone", "device_tracker"), ent("sensor.alex_room", "sensor")] };
+    const { match, rest } = entitiesForType(data, "person");
+    expect(match.map((e) => e.id)).toEqual(["person.alex", "device_tracker.phone"]);
+    expect(rest.map((e) => e.id)).toEqual(["sensor.alex_room"]);
+  });
+  it("S7.9: entitiesForType offers a radar its occupancy binary_sensor, and leaves a plain motion one in the rest", () => {
+    const data: HaData = {
+      floors: [], areas: [],
+      entities: [ent("binary_sensor.radar_presence", "binary_sensor", "occupancy"), ent("binary_sensor.pir", "binary_sensor", "motion"), ent("sensor.radar_target_1_x", "sensor")],
+    };
+    const { match, rest } = entitiesForType(data, "radar");
+    expect(match.map((e) => e.id)).toEqual(["binary_sensor.radar_presence"]);
+    expect(rest.map((e) => e.id)).toEqual(["binary_sensor.pir", "sensor.radar_target_1_x"]);
+  });
+  it("S7.9: typeForEntity never guesses radar — an occupancy binary_sensor still reads as motion, correctable in the device panel", () => {
+    expect(typeForEntity(ent("binary_sensor.radar_presence", "binary_sensor", "occupancy"))).toBe("motion");
+  });
   it("defaults a genuinely ambiguous domain to its most common member, correctable afterward via the device panel's type field", () => {
     expect(typeForEntity(ent("climate.x", "climate"))).toBe("climate"); // not ac or heater: those add heater/ac-only UI a guess should not turn on
     expect(typeForEntity(ent("media_player.x", "media_player"))).toBe("media"); // not tv
   });
   it("falls back to other for a domain with no rule and a sensor/binary_sensor with no recognised device_class", () => {
-    expect(typeForEntity(ent("vacuum.x", "vacuum"))).toBe("other");
+    expect(typeForEntity(ent("fan.x", "fan"))).toBe("other");
     expect(typeForEntity(ent("sensor.x", "sensor", "pressure"))).toBe("other");
     expect(typeForEntity(ent("sensor.x", "sensor"))).toBe("other");
     expect(typeForEntity(ent("binary_sensor.x", "binary_sensor", "moisture"))).toBe("other");
+  });
+  it("S7.10: vacuum.* maps straight to vacuum, not other", () => {
+    expect(typeForEntity(ent("vacuum.hall", "vacuum"))).toBe("vacuum");
+  });
+  it("S7.10: entitiesForType offers a vacuum only its own vacuum.* entities, and leaves everything else in the rest", () => {
+    const data: HaData = { floors: [], areas: [], entities: [ent("vacuum.hall", "vacuum"), ent("switch.hall", "switch"), ent("sensor.hall_battery", "sensor", "battery")] };
+    const { match, rest } = entitiesForType(data, "vacuum");
+    expect(match.map((e) => e.id)).toEqual(["vacuum.hall"]);
+    expect(rest.map((e) => e.id)).toEqual(["switch.hall", "sensor.hall_battery"]);
   });
 });
 

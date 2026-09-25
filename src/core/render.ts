@@ -1,6 +1,6 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
 import { stairSteps } from "./geometry";
-import { DEVICE_TYPES } from "./schema";
+import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
@@ -19,6 +19,10 @@ export interface RenderOpts {
   dark?: boolean;
   /** S4.5: entity ids to draw faded (class `dim`) — every device not in the Group menu's chosen group. */
   dimmed?: ReadonlySet<string>;
+  /** S7.11: draw the floor's trace image under everything. Only the editor passes it; the card never does. */
+  trace?: boolean;
+  /** S7.6: after sunset. Every room gets a `room-night` overlay, `lit` when a light inside it is on; the root carries class `night`. */
+  night?: boolean;
 }
 /** blueprint is the default and the look of the project; midnight is the project's first dark theme (2026-09-21), kept under
  * its own name once blueprint moved on to a new palette; light is the same plan on paper; slate and terminal are the other two
@@ -38,13 +42,14 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
   cover: "#f28c28", battery: "#8b8578", inverter: "#8b8578", server: "#8b8578", access_point: "#8b8578",
   lock: "#d64545", vibration: "#d64545", other: "#8b8578",
   boiler: "#8b8578", car: "#8b8578", ups: "#8b8578", printer: "#8b8578", speaker: "#8b8578",
+  person: "#1b9e77", radar: "#6a3fbf", vacuum: "#2f8f8f",
 };
 
 // S1.53: the light and dark (now blueprint) token sets, each written once and interpolated wherever CSS needs it, so a new
 // token can never be added to one selector and forgotten in another. The "ha" theme is built from the same two.
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-room-empty:#d6d6d2;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27`;
 /* Midnight (Diego's call, 2026-09-21, ex-"blueprint"): a deep navy ground, blue linework for walls, cool-white text, from the
    reference screenshot he supplied. It replaced HA's night-blue; light is unchanged. Every accent that carries meaning (device colours, the warn/danger/primary
@@ -55,7 +60,7 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ro
    foreground, a terminal-green line colour and a saturated orange accent). */
 const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp-room-empty:#d6d6d2;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#8fb4f0;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;
+--fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27`;
 
 // The three role-generated themes (2026-09-22, Diego's brief): each is one base hue shaded into every structural token, one
@@ -71,7 +76,7 @@ const TERMINAL_TOKENS = rolesToTokens({ base: "#0c1512", fg: "#35d47a", fgAlpha:
    to one accent, demonstrating the per-type override the theme format supports. */
 const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#d6d6d2;--fp-garden:#586e75;--fp-terrace:#657b83;--fp-pavement:#586e75;--fp-wall:#93a1a1;--fp-idle:#586e75;
 --fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#dc322f;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#2aa198;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#268bd2;--fp-fill:#073642;--fp-fill-line:#586e75;
---fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#6c71c4;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#79766e;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;
+--fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#6c71c4;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#79766e;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fdf6e3;--fp-on-light:#002b36`;
 /* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
    fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
@@ -117,6 +122,10 @@ export const FLOORPLAN_CSS = `
    stays blue, just brighter. 25%, the same fraction as --fp-alpha elsewhere, keeps the kind colour recognisable
    (a lit water room reads pale teal, not pale yellow); 50% washed it out almost to the glow colour alone. */
 .room.glow:not([fill]){fill:color-mix(in srgb,var(--fp-glow) 25%,var(--fp-room-fill))}
+/* S7.6: night. The overlay is its own polygon over the room, so it darkens a room's own colour or texture too, and never
+   competes with the room's fill rules above. Unlit by default (one class), dark under .night (two), clear again when
+   a light in the room is on (three): specificity decides, not source order. Never a pick target (finding 18). */
+.room-night{fill:none;pointer-events:none} .night .room-night{fill:var(--fp-night)} .night .room-night.lit{fill:none}
 /* S1.37: a room with an entity (never one with an area) gets an outline when that entity is on, open or playing.
    This used to be the same fill tint as room_glow above, but a fill has to compete with a colour that already
    carries meaning: --fp-glow is a pale warm yellow, --fp-water is a pale cool blue at nearly the same lightness,
@@ -157,7 +166,9 @@ export const FLOORPLAN_CSS = `
 .dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
-.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)}
+.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)}
+/* S7.10: an error vacuum wears --fp-danger on its icon, two classes ahead of the plain idle-grey .dev path rule above. */
+.dev.danger path{fill:var(--fp-danger)}
 /* S4.25: an unlinked item has no on/off state of its own, so it never carries .on — it stays at the plain .dev
    path idle-grey rule above unless the instance has its own --fp-dev-fill colour override, which this rule
    (three classes, out-specifies the two-class .dev path default) lets through. */
@@ -167,6 +178,19 @@ export const FLOORPLAN_CSS = `
 .aura{fill:var(--fp-aura);fill-opacity:var(--fp-alpha);pointer-events:none}
 .dev.unavailable{opacity:.45}
 .dev.dim{opacity:.3}
+/* S7.8: a person glides to the room its room sensor names. The position is an inline CSS transform, not an attribute, so
+   this rule can animate it; the card replays the old position before the new one (a FLIP), because each render builds new
+   nodes. Away is a person at 35 %, with the away mark in the group; unavailable stays .45 like every device. */
+.dev-person{transition:transform .6s ease} .dev-person.away{opacity:.35} .dev-person .away-mark{fill:var(--fp-idle);stroke:var(--fp-outline);stroke-width:1;vector-effect:non-scaling-stroke}
+@media (prefers-reduced-motion:reduce){.dev-person{transition:none}}
+/* S7.9: a radar target dot, one per tracked person, in the radar's own colour, taking no clicks. */
+.target{fill:var(--fp-dev-radar);stroke:var(--fp-outline);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
+/* S7.10: a cleaning vacuum's icon spins slowly; docked, paused, returning and error do not (the .spin class is only
+   ever added while state is "cleaning" — see vacuumSpinClass). transform-box/-origin keep the spin about the
+   glyph's own centre instead of the SVG viewport's corner, the default CSS transform origin on an SVG shape. */
+.dev-vacuum.spin path{transform-box:fill-box;transform-origin:center;animation:fp-spin 4s linear infinite}
+@keyframes fp-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl.zone{opacity:.75}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
@@ -178,6 +202,9 @@ const COLOR = /^#[0-9a-fA-F]{6}$/;
 const num = (n: number) => String(Math.round(n * 100) / 100);
 const pts = (p: Pt[]) => p.map((q) => `${num(q[0])},${num(q[1])}`).join(" ");
 const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+/** x, y, w, h. */
+type Box = [number, number, number, number];
+const meets = (a: Box, b: Box) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 
 /** `p` turned clockwise by `deg` degrees about `pivot` (y points down, so this is the direction SVG's rotate() turns). */
 export function rotateAbout(p: Pt, deg: number, pivot: Pt): Pt {
@@ -225,7 +252,7 @@ export function contentPoints(f: Floor): Pt[] {
 /** Class of a room edge or free wall: wall is plain, boundary is dotted, the rest carry their kind. */
 const edgeClass = (kind: unknown) => `e${kind === "boundary" ? " nw" : kind === "wall" || kind === undefined ? "" : ` ${esc(String(kind))}`}`;
 const at = (p: Pt) => `${num(p[0])} ${num(p[1])}`;
-type Cls = "on" | "off" | "unavailable";
+type Cls = "on" | "off" | "unavailable" | "danger";
 
 const dead = (s: string) => s === "unavailable" || s === "unknown";
 
@@ -276,7 +303,50 @@ function classOf(d: Device, o: RenderOpts): Cls {
   if (d.type === "ac") return acMode(d, o) ? "on" : "off";
   if (d.type === "climate" || d.type === "heater") return s.attributes.hvac_action === "heating" ? "on" : "off";
   if (d.type === "media") return s.state === "playing" ? "on" : "off";
+  if (d.type === "person") return s.state === "home" ? "on" : "off";
+  // S7.10: docked/idle/paused read idle grey like an off device; cleaning and returning are both active (the
+  // spin class, from vacuumSpinClass below, is what tells them apart); error is its own danger class, not on/off.
+  if (d.type === "vacuum") {
+    if (s.state === "error") return "danger";
+    if (s.state === "cleaning" || s.state === "returning") return "on";
+    return "off";
+  }
   return s.state === "on" || s.state === "open" ? "on" : "off";
+}
+
+/** S7.10: the extra class a vacuum wears while actually cleaning — a slow spin on its icon, dropped the moment it
+ *  starts returning (still active, just not moving in place) or its state is anything else. */
+function vacuumSpinClass(d: Device, o: RenderOpts): string {
+  return d.type === "vacuum" && o.state?.[d.entity]?.state === "cleaning" ? " spin" : "";
+}
+
+/** S7.8: the extra class a person wears. `home` when home; `away` for any other live state (not_home, a zone's name);
+ *  nothing with no state or a dead one, which reads like every other device. */
+function personClass(d: Device, o: RenderOpts, cls: Cls): string {
+  if (d.type !== "person" || !o.state?.[d.entity] || cls === "unavailable") return "";
+  return cls === "on" ? " home" : " away";
+}
+
+/** Room-sensor states that say nothing about a room: the placed spot is kept. */
+const NO_ROOM = new Set(["", "unknown", "unavailable", "not_home"]);
+
+/**
+ * S7.8: the room a person's room sensor names, as an index into `rooms`, or -1. The sensor's state is tried first, then
+ * its `area_id` and `area` attributes; each is matched, ignoring case, against every room's `area` before any room's
+ * `name`. Untrusted state: anything that is not text is skipped, never thrown on.
+ */
+function personRoom(d: Device, rooms: Floor["rooms"], o: RenderOpts): number {
+  if (d.type !== "person" || typeof d.room !== "string") return -1;
+  const s = o.state?.[d.room];
+  if (!s) return -1;
+  const said = [s.state, s.attributes?.area_id, s.attributes?.area].filter((v): v is string => typeof v === "string").map((v) => v.trim().toLowerCase()).filter((v) => !NO_ROOM.has(v));
+  const usable = (r: Floor["rooms"][number]) => Array.isArray(r.pts) && r.pts.length >= 3;
+  for (const v of said) {
+    let i = rooms.findIndex((r) => usable(r) && typeof r.area === "string" && r.area.toLowerCase() === v);
+    if (i < 0) i = rooms.findIndex((r) => usable(r) && typeof r.name === "string" && r.name.toLowerCase() === v);
+    if (i >= 0) return i;
+  }
+  return -1;
 }
 
 /** S1.37: a room or a piece of furniture with an entity carries "on" when that entity is on, open or playing. */
@@ -333,6 +403,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const up = (x: number, y: number) => (turn ? ` transform="rotate(${num(-planDeg)} ${num(x)} ${num(y)})"` : "");
   const out: string[] = [];
   const now = o.now ?? Date.now();
+  // S7.11: the scan to trace over, first so everything draws on top of it. Checked again here: the layout is untrusted.
+  const tr = f.trace;
+  if (o.trace && tr?.on === true && typeof tr.src === "string" && tr.src.length <= MAX_TRACE_BYTES && TRACE_SRC.test(tr.src) && [tr.x, tr.y, tr.w, tr.rot, tr.alpha].every(Number.isFinite) && tr.w > 0)
+    out.push(`<image class="trace" href="${tr.src}" x="${num(tr.x)}" y="${num(tr.y)}" width="${num(tr.w)}" opacity="${num(Math.min(1, Math.max(0, tr.alpha)))}" transform="rotate(${num(tr.rot)} ${num(tr.x)} ${num(tr.y)})"/>`);
 
   // One fixed id: two cards on a page declare the same pattern twice, and both are identical (see DECISIONS).
   const textured = [...f.rooms, ...(f.stairs ?? [])]
@@ -343,8 +417,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // S2.6: room_glow. A room glows when any light "in" it (point-in-polygon of the device's x,y; a light never has
   // a/b, only a heater does, but the same "a" in d guard the rest of the file uses is kept here too) is on. Untrusted
   // layout/state: a non-finite coordinate or a light outside every room's polygon is simply not counted, never thrown.
+  // S7.6: the same set decides which rooms stay bright at night.
   const glowRooms = new Set<number>();
-  if (o.roomGlow)
+  if (o.roomGlow || o.night)
     for (const d of f.devices) {
       if (d.type !== "light" || classOf(d, o) !== "on") continue;
       const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
@@ -356,12 +431,21 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const r = f.rooms[i];
     if (r.kind === "fill" && !r.name) return;
     const own = paintAttr(r);
-    const glow = glowRooms.has(i) ? " glow" : "";
+    const glow = o.roomGlow && glowRooms.has(i) ? " glow" : "";
     const on = !r.area && entityOn(o, r.entity) ? " on" : "";
     out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}${on}"${own} points="${pts(r.pts)}"/>`);
   });
 
   f.stairs.forEach((t, i) => out.push(stairsGroup(t, i)));
+
+  // S7.6: the night overlay, over every room fill and staircase, under walls, names and devices, so lines and icons stay
+  // crisp. Zones and structures sit on a room and share its overlay; a fill with no name is not drawn, so it gets none.
+  // No data-r: the overlay is never a pick target (class room-night carries pointer-events:none, CLAUDE.md finding 18).
+  if (o.night)
+    f.rooms.forEach((r, i) => {
+      if (r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name)) return;
+      out.push(`<polygon data-night="${i}" class="room-night${glowRooms.has(i) ? " lit" : ""}" points="${pts(r.pts)}"/>`);
+    });
 
   const polys: { id: string; pts: Pt[]; wk?: EdgeKind[]; zone?: boolean }[] = [{ id: "o", pts: f.outline, wk: f.owk }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, wk: r.wk, zone: r.kind === "zone" }))];
   // Every edge has a white twin drawn first (the line version of the text outline), so a dark line stays visible on a dark floor.
@@ -391,6 +475,73 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<polygon class="room on ring" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
   });
 
+  // S7.1: no text overprints another text or a device icon. Every text is placed against one list of boxes, in the screen
+  // frame (text is drawn upright, so on screen every box is axis-aligned; a turned plan is turned into that frame first).
+  // A text box is len x 0.6 x size wide and size tall, its baseline 0.75 of the size below its top (text-anchor middle).
+  // The icons go in first, so nothing may hide one; then room names (what a person reads), room labels, zone labels,
+  // extras' names, and last the sensor values, in the device loop below. A text takes the first free candidate; with
+  // none free it keeps its first one regardless, so nothing is ever dropped (a name longer than its room, say).
+  const placed: Box[] = [];
+  const toScreen = (p: Pt): Pt => (turn ? rotateAbout(p, turn.deg, turn.pivot) : p);
+  const cs = Math.cos((planDeg * Math.PI) / 180), sn = Math.sin((planDeg * Math.PI) / 180);
+  /** The plan point that shows `dx` right of and `dy` below `a` on the screen: the screen vector turned back into the plan. */
+  const screenOff = (a: Pt, dx: number, dy: number): Pt => (planDeg ? [a[0] + dx * cs + dy * sn, a[1] - dx * sn + dy * cs] : [a[0] + dx, a[1] + dy]);
+  const textBox = (a: Pt, size: number, len: number): Box => { const [x, y] = toScreen(a), w = len * 0.6 * size; return [x - w / 2, y - 0.75 * size, w, size]; };
+  const place = (cands: Pt[], size: number, text: unknown): Pt => {
+    const len = String(text).length, at = cands.find((c) => !placed.some((q) => meets(textBox(c, size, len), q))) ?? cands[0];
+    placed.push(textBox(at, size, len));
+    return at;
+  };
+  /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 14k name either way. */
+  const rows = (a: Pt): Pt[] => [a, screenOff(a, 0, 32 * k), screenOff(a, 0, -32 * k), screenOff(a, 0, 64 * k), screenOff(a, 0, -64 * k)];
+  const disc = (c: Pt, r: number) => { const [x, y] = toScreen(c); placed.push([x - r, y - r, 2 * r, 2 * r]); };
+  const centroid = (p: Pt[]): Pt => [p.reduce((s, q) => s + q[0], 0) / p.length, p.reduce((s, q) => s + q[1], 0) / p.length];
+  // S7.8: a person whose room sensor names a room stands at that room's centroid, the same point its name is tried at
+  // first. Several in one room stand on a ring round it, in device order, far enough apart that their 16k discs never
+  // touch: the chord between neighbours is 2R sin(pi/n) >= 34k. The icon is placed here, before any text, so the room's
+  // name moves off it like off any other icon.
+  const personAt = new Map<number, Pt>();
+  const byRoom = new Map<number, number[]>();
+  f.devices.forEach((d, i) => {
+    const sel = o.selection?.t === "dev" && o.selection.i === i;
+    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    const r = personRoom(d, f.rooms, o);
+    if (r >= 0) byRoom.set(r, [...(byRoom.get(r) ?? []), i]);
+  });
+  // Demo and real plans put a light at a room's centroid, so the ring's centre moves off any other icon it would cover:
+  // the centroid, then 40k below, above, right and left of it, the first where no person lands on another icon's disc.
+  const others: Pt[] = [];
+  f.devices.forEach((d, i) => {
+    if ([...byRoom.values()].some((who) => who.includes(i))) return;
+    const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
+    if (c.every(Number.isFinite)) others.push(c);
+  });
+  for (const [r, who] of byRoom) {
+    const c0 = centroid(f.rooms[r].pts), n = who.length;
+    if (!c0.every(Number.isFinite)) continue;
+    const R = n > 1 ? Math.max(20 * k, (17 * k) / Math.sin(Math.PI / n)) : 0;
+    const ring = (c: Pt) => who.map((_, j): Pt => { const a = (2 * Math.PI * j) / n - Math.PI / 2; return [c[0] + R * Math.cos(a), c[1] + R * Math.sin(a)]; });
+    const free = (ps: Pt[]) => ps.every((p) => others.every((q) => Math.hypot(p[0] - q[0], p[1] - q[1]) >= 32 * k));
+    const spots = [c0, screenOff(c0, 0, 40 * k), screenOff(c0, 0, -40 * k), screenOff(c0, 40 * k, 0), screenOff(c0, -40 * k, 0)].map(ring);
+    (spots.find(free) ?? spots[0]).forEach((p, j) => personAt.set(who[j], p));
+  }
+  const centreOf = (d: Device, i: number): Pt => personAt.get(i) ?? ("a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt));
+  f.devices.forEach((d, i) => {
+    const sel = o.selection?.t === "dev" && o.selection.i === i;
+    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    const c = centreOf(d, i);
+    if (c.every(Number.isFinite)) disc(c, 16 * k);
+  });
+  for (const u of f.unlinked ?? []) {
+    const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1;
+    if (Number.isFinite(u.x) && Number.isFinite(u.y)) disc([u.x, u.y], 16 * k * scale);
+  }
+  const named = (r: Floor["rooms"][number]) => !!r.name && r.kind !== "fill";
+  const nameAt: Pt[] = [], labelAt: Pt[] = [], zoneAt: Pt[] = [];
+  f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = place(rows(centroid(r.pts)), 14 * k, r.name); });
+  f.rooms.forEach((r, i) => { if (nameAt[i] && r.label) labelAt[i] = place(rows(screenOff(nameAt[i], 0, 16 * k)), 11 * k, r.label); });
+  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = place(rows(centroid(r.pts)), 10 * k, r.name); });
+
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
   f.openings.forEach((op) => out.push(`<line class="opening" x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}"/>`));
   f.extras.forEach((x, i) => {
@@ -398,7 +549,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(w && h
       ? `<rect class="extra" data-ex="${i}" x="${num(mx)}" y="${num(my)}" width="${num(w)}" height="${num(h)}"/>`
       : `<line class="extra" data-ex="${i}" x1="${num(x.a[0])}" y1="${num(x.a[1])}" x2="${num(x.b[0])}" y2="${num(x.b[1])}"/>`);
-    out.push(`<text class="lbl" x="${num(mx + w / 2)}" y="${num(my + h / 2)}"${up(mx + w / 2, my + h / 2)} text-anchor="middle" font-size="${num(11 * k)}">${esc(x.name)}</text>`);
+    const [tx, ty] = place(rows([mx + w / 2, my + h / 2]), 11 * k, x.name);
+    out.push(`<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * k)}">${esc(x.name)}</text>`);
   });
 
   f.furniture.forEach((m, i) => {
@@ -416,32 +568,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 30 : 22}"><title>${esc(d.name ?? "")}</title></line>`);
   });
 
-  // Room names first, then devices: nothing may hide a device icon, so a name that would sit under one moves down, then up.
-  const spots: Pt[] = [];
-  f.devices.forEach((d, i) => {
-    const sel = o.selection?.t === "dev" && o.selection.i === i;
-    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
-    const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
-    if (c.every(Number.isFinite)) spots.push(c);
-  });
-  // A name is drawn upright on the screen, so a collision is tested in the screen frame: the plan turns by planDeg, a plan vector
-  // (anchor to device) turns with it, and "down one line" is screen-down, which in plan units is the vector turned back.
-  // The text y is the baseline: the box runs about 0.95 of the size above it and 0.25 below. 32k clears a 16k disc either way.
-  const cs = Math.cos((planDeg * Math.PI) / 180), sn = Math.sin((planDeg * Math.PI) / 180);
-  const screenDown = (a: Pt, d: number): Pt => (planDeg ? [a[0] + d * sn, a[1] + d * cs] : [a[0], a[1] + d]); // a plan point d units below a, on the screen
-  const hit = (a: Pt, size: number, len: number) => spots.some((p) => {
-    const vx = p[0] - a[0], vy = p[1] - a[1];
-    const sx = planDeg ? vx * cs - vy * sn : vx, sy = planDeg ? vx * sn + vy * cs : vy; // the same vector on the screen
-    return Math.abs(sy + 0.35 * size) < 16 * k + 0.6 * size && Math.abs(sx) < 16 * k + 0.3 * size * len;
-  });
-  const nameAt = (a: Pt, size: number, len: number): Pt => [a, screenDown(a, 32 * k), screenDown(a, -32 * k)].find((v) => !hit(v, size, len)) ?? a;
-  f.rooms.forEach((r) => {
+  f.rooms.forEach((r, i) => {
     if (!r.name || r.kind === "fill") return;
-    const c: Pt = [r.pts.reduce((s, p) => s + p[0], 0) / r.pts.length, r.pts.reduce((s, p) => s + p[1], 0) / r.pts.length];
-    if (r.kind === "zone") { const [x, y] = nameAt(c, 10 * k, r.name.length); out.push(`<text class="lbl zone" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
-    const [x, y] = nameAt(c, 14 * k, r.name.length);
+    if (r.kind === "zone") { const [x, y] = zoneAt[i]; out.push(`<text class="lbl zone" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
+    const [x, y] = nameAt[i];
     out.push(`<text class="lbl" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
-    if (r.label) { const [lx, ly] = screenDown([x, y], 16 * k); out.push(`<text class="lbl" x="${num(lx)}" y="${num(ly)}"${up(lx, ly)} text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`); }
+    if (labelAt[i]) { const [lx, ly] = labelAt[i]; out.push(`<text class="lbl" x="${num(lx)}" y="${num(ly)}"${up(lx, ly)} text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`); }
   });
 
   // S2.8: every lit lamp's aura, drawn as one flat pass before any device group. One pass, not interleaved with the
@@ -463,11 +595,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
-    const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
+    const c = centreOf(d, i);
     if (!c.every(Number.isFinite)) return;
     // Value sensors in a garden room are outdoor sensors. Motion and contact keep their own state colours.
     const outdoor = (d.type === "temp" || d.type === "humidity") && f.rooms.some((r) => r.kind === "garden" && inside(c, r.pts));
-    const cls = classOf(d, o) + (outdoor ? " outdoor" : "");
+    const base = classOf(d, o), person = d.type === "person";
+    const cls = base + (outdoor ? " outdoor" : "") + personClass(d, o, base) + vacuumSpinClass(d, o);
     const s = o.state?.[d.entity];
     const styleParts: string[] = [];
     if (d.type === "motion" && s) {
@@ -486,13 +619,17 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const opacity = lightOpacity(s);
       if (opacity !== null) styleParts.push(`--fp-dev-opacity:${num(opacity)}`);
     }
+    // S7.8: a person's position is a CSS transform, so .dev-person's transition can glide it to a new room. A person
+    // has no facing, so `rot` is not applied.
+    const origin = at([c[0] - 12 * k, c[1] - 12 * k]).replace(" ", "px,") + "px";
+    if (person) styleParts.push(`transform:translate(${origin}) scale(${num(k)})`);
     const style = styleParts.length ? ` style="${styleParts.join(";")}"` : "";
     const label = d.name ?? d.id;
     const bound = d.type === "light" && d.bound ? d.bound : "";
     const bname = bound ? o.state?.[bound]?.attributes.friendly_name : undefined;
     const title = `${esc(d.type)}: ${esc(label)}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
     // The group turns by `rot` about the icon's centre; the icon turns back so the glyph stays upright (only what else is drawn in the group turns).
-    const rot = typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot !== 0 ? d.rot : 0;
+    const rot = !person && typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot !== 0 ? d.rot : 0;
     // A turned plan turns the group again from outside; the icon takes that back too, the cone (in the group's frame) does not.
     const back = (rot + planDeg) % 360 ? rot + planDeg : 0;
     // Camera: a 120 degree, 100 cm cone about "up" (-90 degrees), in plan units (the group is scaled by k). It comes first, so the icon covers its tip.
@@ -501,18 +638,41 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const R = DEVICE_REACH / k, p = (deg: number) => at([12 + R * Math.cos((deg * Math.PI) / 180), 12 + R * Math.sin((deg * Math.PI) / 180)]);
       cone = `<path class="cone" d="M12 12L${p(-150)}A${num(R)} ${num(R)} 0 0 1 ${p(-30)}Z"/>`;
     }
-    const icon = `<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>`;
+    // S7.8: an away person carries a small grey dot on the disc's edge, so away reads without relying on the fade alone.
+    const mark = person && cls.endsWith(" away") ? `<circle class="away-mark" cx="23" cy="1" r="4.5"/>` : "";
+    const icon = `<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
     // The bar draws first so the icon group (fix/heater-bar-under-icon), with its white disc and halo, always paints on top of it.
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
     const dim = o.dimmed?.has(d.entity) ? " dim" : "";
-    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}${dim}"${style} transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}</g>`);
+    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}</g>`);
+    // S7.9: a radar's targets. Each pair's x (mm, right of the sensor) and y (mm, ahead of it) is turned by the
+    // sensor's own `rot` the same way a plan point turns (SVG's own clockwise convention: rot 0 keeps "ahead" up),
+    // converted to centimetres, then added to the sensor's own position — the world point a target dot is drawn
+    // at, unless that point falls outside the floor's own outline, in which case it is skipped, not clamped.
+    // Untrusted state: a non-numeric or missing reading draws nothing for that one pair; nothing caps how many.
+    // Opus review 2026-09-25: Number("") and Number(" ") are 0, and an LD2450 reports 0/0 for an empty slot, so a
+    // blank reading is not a number here and a pair at exactly 0/0 is "no target", never a dot on the sensor itself.
+    if (d.type === "radar" && Array.isArray(d.targets)) {
+      const rad = (rot * Math.PI) / 180;
+      const mm = (e: string) => { const s = String(o.state?.[e]?.state ?? "").trim(); return s === "" ? NaN : Number(s) / 10; }; // mm to cm
+      for (const t of d.targets) {
+        const xl = mm(t.x), yl = mm(t.y);
+        if (!Number.isFinite(xl) || !Number.isFinite(yl) || (xl === 0 && yl === 0)) continue;
+        const p: Pt = [c[0] + xl * Math.cos(rad) + yl * Math.sin(rad), c[1] + xl * Math.sin(rad) - yl * Math.cos(rad)];
+        if (!inside(p, f.outline)) continue;
+        out.push(`<circle class="target" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(6 * k)}"/>`);
+      }
+    }
     if ((d.type === "temp" || d.type === "humidity") && s) {
       // Anything that is not a finite number reads as "–". `unknown` and `unavailable` are only the two HA spells for it;
       // an integration can report an empty string, a comma decimal or a word, and printing "not-a-number °C" is worse than saying nothing.
       const bad = !/^-?\d+(\.\d+)?$/.test(s.state.trim()) || !Number.isFinite(Number(s.state));
       const unit = typeof s.attributes.unit_of_measurement === "string" ? ` ${s.attributes.unit_of_measurement}` : "";
-      out.push(`<text class="val" x="${num(c[0])}" y="${num(c[1] + 24 * k)}"${up(c[0], c[1] + 24 * k)} text-anchor="middle" font-size="${num(11 * k)}">${bad ? "–" : esc(s.state + unit)}</text>`);
+      const text = bad ? "–" : s.state + unit, vs = 11 * k, gap = 16 * k + 2 * k; // 2k clear of the 16k disc
+      // S7.1: below the icon, then above, then to the right (the box centred on the icon's centre line).
+      const [vx, vy] = place([screenOff(c, 0, gap + 0.75 * vs), screenOff(c, 0, -gap - 0.25 * vs), screenOff(c, gap + (text.length * 0.6 * vs) / 2, 0.25 * vs)], vs, text);
+      out.push(`<text class="val" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
     }
     if (o.showNames || sel) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
   });
@@ -546,6 +706,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const coloured = vars.length ? `<g class="dev-colours" style="${vars.join(";")}">${turned}</g>` : turned;
   // A plan-level theme, so one plan can differ from its host. No o.theme writes nothing and inherits the host's. o.theme is checked against THEMES:
   // it lands in an attribute, and a caller's stray string must not.
-  if (!o.theme || !(THEMES as readonly string[]).includes(o.theme)) return coloured;
-  return `<g data-theme="${o.theme}"${o.theme === "ha" && o.dark ? ' data-mode="dark"' : ""}>${coloured}</g>`;
+  const night = o.night ? ' class="night"' : "";
+  if (!o.theme || !(THEMES as readonly string[]).includes(o.theme)) return night ? `<g${night}>${coloured}</g>` : coloured;
+  return `<g data-theme="${o.theme}"${o.theme === "ha" && o.dark ? ' data-mode="dark"' : ""}${night}>${coloured}</g>`;
 }
