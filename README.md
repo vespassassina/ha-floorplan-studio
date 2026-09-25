@@ -3,27 +3,14 @@
 Draw your home inside Home Assistant, attach your devices, use it as a live
 dashboard. No external drawing tool, no YAML per element.
 
-Status: usable, still young. The editor, the card, the HA integration and the
-organise tools (areas, groups, automations from the plan) are built, tested
-and installable through HACS (see `CHANGELOG.md` for the current release).
-See `docs/SPEC.md` and `docs/PLAN.md`.
+Installable through HACS; releases are in `CHANGELOG.md`. The author runs it
+on their own Home Assistant every day.
 
-![The demo house, live as a card, then open for editing.](docs/img/demo.gif)
+![The demo house as a live card: lights come on, a door opens, the plan zooms, switches floor and darkens at dusk; then the editor, dragging a device.](docs/img/demo.gif)
 
-| Part | State |
+| The card, live | The editor |
 |---|---|
-| Core: schema v2, v1 migration, geometry, SVG renderer, icons | done |
-| Editor (standalone `dist/editor.html`, works from `file://`, offline) | done |
-| Zones, water, wall kinds, floors, draw mode | done |
-| Stairs, gardens, plan rotation, colours, HA names, closed walls to rooms | done |
-| Lovelace card (seven themes, one that follows Home Assistant) | done; its script is served by the integration, on the author's dashboards daily |
-| HA integration, panel, pickers, HACS releases | done, running on the author's Home Assistant |
-| Organise: areas, helpers, groups, automations from the plan | done (0.10.0) |
-| Person, mmWave radar and vacuum device types | done (0.11.0) |
-| Night fill after sunset, zoom and pan, kiosk mode, card config form | done (0.11.0) |
-| Trace a scan or photo under the plan in the editor | done (0.11.0) |
-| Skill and schema for LLMs, validator (`scripts/validate-layout.mjs`) | done |
-| Docs (`docs/schema.md`, [`docs/card.md`](docs/card.md), [`docs/editor.md`](docs/editor.md), `CONTRIBUTING.md`) | done |
+| ![The card: the demo ground floor, two lights and the hall motion sensor on.](docs/img/card-overview.png) | ![The editor with the demo house loaded.](docs/img/editor-overview.png) |
 
 ## What you get
 
