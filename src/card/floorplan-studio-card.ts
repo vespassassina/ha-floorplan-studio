@@ -63,8 +63,20 @@ declare global {
 /** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
 export class FloorplanStudioCard extends LitElement {
   static styles = [unsafeCSS(FLOORPLAN_CSS), css`
-    :host { display: block; position: relative; }
-    svg { width: 100%; height: auto; display: block; }
+    /* S8.2: height 100% on both, matching Home Assistant's own cards (thermostat, map). In an "auto" grid row
+       (no numeric height set by getGridOptions/computeCardGridSize) the containing block's height is indefinite,
+       so height:100% computes to auto and the svg sizes by width and its viewBox aspect exactly as before; in a
+       fixed-height row (HA's sections layout, .card.fit-rows) it fills the row instead of overflowing it, and
+       the svg's own default preserveAspectRatio (xMidYMid meet) keeps the whole plan visible, letterboxed rather
+       than cropped or stretched. */
+    /* S8.2: height 100% on both, matching Home Assistant's own cards (thermostat, map). In an "auto" grid row
+       (no numeric height set by getGridOptions/computeCardGridSize) the containing block's height is indefinite,
+       so height:100% computes to auto and the svg sizes by width and its viewBox aspect exactly as before; in a
+       fixed-height row (HA's sections layout, .card.fit-rows) it fills the row instead of overflowing it, and
+       the svg's own default preserveAspectRatio (xMidYMid meet) keeps the whole plan visible, letterboxed rather
+       than cropped or stretched. */
+    :host { display: block; position: relative; height: 100%; }
+    svg { width: 100%; height: 100%; display: block; }
     p.msg { padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
     /* S2.6: the floor switcher is card chrome (like p.msg above), not plan content, so it sits outside the <svg>
        renderFloor draws and is positioned over it instead. */
@@ -229,11 +241,28 @@ export class FloorplanStudioCard extends LitElement {
     return out ?? states;
   }
 
-  getCardSize(): number {
+  /** Row count from the plan's own aspect ratio (60 cm pad, the layout's rotate), shared by getCardSize and
+   * getGridOptions so the masonry view and the sections view agree on how tall the card wants to be. */
+  private _rows(): number {
     const f = this._floor();
     if (!f || !f.outline.length) return 6;
     const box = viewBoxFor(f, 60, this._rotate());
     return Math.max(3, Math.round((box.h / box.w) * 8));
+  }
+
+  getCardSize(): number {
+    return this._rows();
+  }
+
+  /** S8.2: without this, HA's sections layout gives the card `rows: "auto"` and sizes the row to content, which
+   * for a card whose own height tracked its width (`svg{height:auto}`) meant the row grew or shrank with the plan
+   * and a user's manual row resize had nothing to hold onto — the card looked "stuck", cropped at whatever height
+   * the row happened to be. A numeric `rows`, from the same aspect getCardSize already reads, gives the resize
+   * tool a starting height that fits the plan, and the CSS fix above (svg height:100%) means a further manual
+   * resize letterboxes the plan instead of cropping it. `min_columns` keeps a narrow card from squeezing the plan
+   * illegibly thin; `min_rows` keeps a short one from squeezing it illegibly flat. */
+  getGridOptions(): { columns: number; rows: number; min_columns: number; min_rows: number } {
+    return { columns: 12, rows: this._rows(), min_columns: 6, min_rows: 3 };
   }
 
   disconnectedCallback(): void {

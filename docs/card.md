@@ -48,6 +48,19 @@ zoom: true
 kiosk: false
 ```
 
+## Size
+
+The card fills whatever space a dashboard gives it and never crops the plan.
+
+In the sections layout, the card's resize handle starts at a row count taken
+from your plan's own aspect ratio, and dragging it taller or shorter
+letterboxes the plan (empty space above and below, or left and right) rather
+than cutting it off. It won't go narrower than 6 columns or shorter than 3
+rows, so the plan stays legible.
+
+In the masonry layout, the card sizes to the plan's aspect ratio at the
+column's width, as before.
+
 ## Kiosk mode
 
 `kiosk: true` is for a tablet fixed to a wall: nobody there should be able to

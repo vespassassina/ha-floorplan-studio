@@ -9,6 +9,14 @@
 <html>
 <head><meta charset="utf-8"></head>
 <body>
+<!-- S8.2: an unstyled wrapper, not body itself, as the card's parent. :host is `height:100%` (so a fixed-height
+     HA grid row is filled instead of cropped); CSS resolves a percentage height only against a parent that has
+     one of its own, so with this wrapper (height auto, like every real ancestor div up to HA's own sized grid
+     row or column) that degrades to the natural aspect-ratio height, same as before S8.2. Without it, a test
+     that sets `document.body.style.height` for its own reasons (S7.15, to give the page room to scroll) would
+     leak straight into the card and stretch the plan to fill the whole page instead. -->
+<div id="wrap">
 <floorplan-studio-card id="card"></floorplan-studio-card>
+</div>
 </body>
 </html>

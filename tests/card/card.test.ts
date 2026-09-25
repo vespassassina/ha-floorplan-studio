@@ -1086,6 +1086,37 @@ describe("FloorplanStudioCard", () => {
     expect(el.getCardSize()).toBeGreaterThan(0);
   });
 
+  it("S8.2: getGridOptions gives HA's sections layout 12 columns, a numeric rows matching getCardSize, and floors for a narrow or short card", async () => {
+    const el = await mount();
+    el.setConfig({ layout: structuredClone(L) });
+    el.hass = stubHass() as never;
+    await el.updateComplete;
+    const opts = el.getGridOptions();
+    expect(opts.columns).toBe(12);
+    expect(opts.rows).toBe(el.getCardSize()); // same aspect math; a fixed-height row and a masonry card size must not disagree
+    expect(opts.min_columns).toBeGreaterThan(0);
+    expect(opts.min_rows).toBeGreaterThan(0);
+  });
+
+  it("S8.2: getGridOptions.rows changes with layout.rotate, same as getCardSize", async () => {
+    const el = await mount();
+    const unturned = structuredClone(L);
+    el.setConfig({ layout: unturned });
+    el.hass = stubHass() as never;
+    await el.updateComplete;
+    const rowsAt0 = el.getGridOptions().rows;
+
+    const el2 = await mount();
+    const turned = structuredClone(L);
+    turned.rotate = 90;
+    el2.setConfig({ layout: turned });
+    el2.hass = stubHass() as never;
+    await el2.updateComplete;
+    const rowsAt90 = el2.getGridOptions().rows;
+
+    expect(rowsAt90).not.toBe(rowsAt0);
+  });
+
   it("getCardSize accounts for layout.rotate, same as render()'s own viewBoxFor call (Opus review)", async () => {
     const el = await mount();
     const unturned = structuredClone(L);

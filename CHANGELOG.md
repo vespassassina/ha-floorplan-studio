@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- The card fills whatever space a dashboard gives it instead of cropping.
+  `getGridOptions()` tells Home Assistant's sections layout a starting row
+  count from the plan's own aspect ratio, and the plan's `<svg>` now fills
+  the card's full height, so resizing the card by its grid handle
+  letterboxes the plan rather than cutting it off.
+
 ## 0.12.0
 
 - The toolbar has an Edit menu after View: Add floor (the `+` chip is
