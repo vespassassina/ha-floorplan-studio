@@ -167,10 +167,10 @@ export class FloorplanStudioEditor extends LitElement {
   private devColsPos: { x: number; y: number } | null = null;
   /** S8.1: Edit, Home Assistant: the popover's screen position; null when closed. Dragged by its head, closed by its X or Escape. */
   private haPos: { x: number; y: number } | null = null;
-  /** S8.1: the room panel's Place popup: the room's id (null when closed), its position, the rows unticked, the type chip pressed. */
+  /** S8.1/S8.4: the room panel's Place popup: the room's id (null when closed), its position, the rows ticked, the type chip pressed. */
   private placeRoom: string | null = null;
   private placePos: { x: number; y: number } | null = null;
-  private placeOff = new Set<string>();
+  private placeOn = new Set<string>();
   private placeType: DeviceType | null = null;
   /** File, Install code: whether the panel with the ready-to-paste card YAML is open. Fixed, not draggable; closed by its own X or Escape. */
   private installCodeOpen = false;
@@ -860,7 +860,7 @@ export class FloorplanStudioEditor extends LitElement {
   private openPlace(i: number) {
     const r = this.st.f.rooms[i];
     if (!r) return;
-    this.placeRoom = r.id; this.placeOff = new Set(); this.placeType = null; this.placePos = this.panelPos(440);
+    this.placeRoom = r.id; this.placeOn = new Set(); this.placeType = null; this.placePos = this.panelPos(440);
     this.requestUpdate();
   }
   private closePlace() { this.placeRoom = null; this.placePos = null; this.requestUpdate(); }
@@ -1180,15 +1180,18 @@ export class FloorplanStudioEditor extends LitElement {
     </div>`;
   }
 
-  /** S8.1: the room panel's Place popup: the area's placeable entities (`areaToPlace`, noise already left out), a chip per
-   * type present to narrow the list, a tick per row, and Place for the ticked rows that are shown. Draggable, X top-left. */
+  /** S8.1/S8.4: the room panel's Place popup: the area's placeable entities (`areaToPlace`, noise already left out), a chip
+   * per type present to narrow the list, a tick per row (none ticked on open), a Select all/Deselect all above the rows
+   * that acts only on the shown rows, and Place for the ticked rows that are shown. Draggable, X top-left. */
   private placeView(st: EditorState, i: number) {
     const room = st.f.rooms[i], p = this.placePos!;
     const all = st.areaToPlace(i);
     const types = TYPE_LABELS.filter(([t]) => all.some((e) => typeForEntity(e) === t));
     const shown = this.placeType ? all.filter((e) => typeForEntity(e) === this.placeType) : all;
-    const picked = shown.filter((e) => !this.placeOff.has(e.id));
-    const tick = (e: HaData["entities"][number]) => (ev: Event) => { if ((ev.target as HTMLInputElement).checked) this.placeOff.delete(e.id); else this.placeOff.add(e.id); this.requestUpdate(); };
+    const picked = shown.filter((e) => this.placeOn.has(e.id));
+    const allShownOn = shown.length > 0 && shown.every((e) => this.placeOn.has(e.id));
+    const tick = (e: HaData["entities"][number]) => (ev: Event) => { if ((ev.target as HTMLInputElement).checked) this.placeOn.add(e.id); else this.placeOn.delete(e.id); this.requestUpdate(); };
+    const toggleAll = () => { for (const e of shown) { if (allShownOn) this.placeOn.delete(e.id); else this.placeOn.add(e.id); } this.requestUpdate(); };
     // Opus review of S8.1: a ticked checkbox keeps focus and `onKey` ignores keys typed in an input, so Escape is handled here too.
     const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); this.closePlace(); } };
     return html`<div class="fpanel place-panel" id="placePanel" role="dialog" aria-label="Place devices" style="left:${p.x}px;top:${p.y}px" @keydown=${esc}>
@@ -1196,9 +1199,10 @@ export class FloorplanStudioEditor extends LitElement {
         <button class="btn keep" id="placeClose" aria-label="Close" @click=${() => this.closePlace()}>&times;</button>
         <span>Place devices of ${room.name}</span>
       </div>
-      <p>What Home Assistant has in this area and the plan does not show yet. Readings with no icon of their own (power, energy, battery…) are left out. Untick what you do not want; each placed device can then be dragged to its spot.</p>
+      <p>What Home Assistant has in this area and the plan does not show yet. Readings with no icon of their own (power, energy, battery…) are left out. Tick what to place; each placed device can then be dragged to its spot.</p>
       <div class="chips">${types.map(([t, label]) => html`<button class="chip keep" data-ptype=${t} aria-pressed=${this.placeType === t ? "true" : "false"} @click=${() => { this.placeType = this.placeType === t ? null : t; this.requestUpdate(); }}>${label}</button>`)}</div>
-      <div class="rows">${shown.map((e) => html`<label class="prow" data-pent=${e.id}><input type="checkbox" .checked=${live(!this.placeOff.has(e.id))} @change=${tick(e)}><span>${e.name}</span><small>${e.id}</small></label>`)}</div>
+      <button class="btn keep" id="placeAll" ?disabled=${!shown.length} @click=${toggleAll}>${allShownOn ? "Deselect all" : "Select all"}</button>
+      <div class="rows">${shown.map((e) => html`<label class="prow" data-pent=${e.id}><input type="checkbox" .checked=${live(this.placeOn.has(e.id))} @change=${tick(e)}><span>${e.name}</span><small>${e.id}</small></label>`)}</div>
       <button class="btn primary keep" id="placeGo" ?disabled=${!picked.length} @click=${() => this.placeGo(i, picked.map((e) => e.id))}>Place ${picked.length}</button>
     </div>`;
   }

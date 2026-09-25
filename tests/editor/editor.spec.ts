@@ -6042,33 +6042,74 @@ test("S4.15/S8.1: the room panel's Place button opens a popup of the area's plac
   await expect(panel.locator("[data-ptype]")).toHaveText(["Lights", "Temperature", "Motion"]);
   await panel.locator('[data-ptype="light"]').click();
   await expect(panel.locator("[data-pent]")).toHaveCount(1);
+  await panel.locator('[data-pent="light.living_spot"] input').check();
   await expect(page.locator("#placeGo")).toHaveText("Place 1");
   await panel.locator('[data-ptype="light"]').click(); // off again: every type
   await expect(panel.locator("[data-pent]")).toHaveCount(3);
-  await panel.locator('[data-pent="light.living_spot"] input').uncheck();
+  await panel.locator('[data-pent="binary_sensor.living_motion"] input').check();
   await expect(page.locator("#placeGo")).toHaveText("Place 2");
   await page.locator("#placeGo").click();
   await expect(panel).toHaveCount(0);
   const devs = (await groundOf(page)).devices;
   expect(devs).toHaveLength(before + 2);
-  const added = devs.filter((d: any) => d.entity === "sensor.living_temp" || d.entity === "binary_sensor.living_motion");
-  expect(added.map((d: any) => d.type).sort()).toEqual(["motion", "temp"]);
+  const added = devs.filter((d: any) => d.entity === "light.living_spot" || d.entity === "binary_sensor.living_motion");
+  expect(added.map((d: any) => d.type).sort()).toEqual(["light", "motion"]);
   expect(new Set(added.map((d: any) => `${d.x},${d.y}`)).size).toBe(2);
-  await expect(page.locator("#rplace")).toHaveText(/Place 1 Home Assistant device$/); // the unchecked light is still there to place
+  await expect(page.locator("#rplace")).toHaveText(/Place 1 Home Assistant device$/); // the unchecked temp sensor is still there to place
 
   await page.keyboard.press("Control+z");
   expect((await groundOf(page)).devices).toHaveLength(before); // one gesture, one step
 });
 
-test("S8.1: the Place popup places everything when nothing is filtered or unchecked, then the button goes; a filter with nothing checked disables Place", async ({ page }) => {
+test("S8.4: the Place popup opens with nothing ticked and Place disabled", async ({ page }) => {
+  await setHa(page, PLACE_HA);
+  await openPlace(page);
+  const panel = page.locator("#placePanel");
+  for (const id of ["sensor.living_temp", "binary_sensor.living_motion", "light.living_spot"]) {
+    await expect(panel.locator(`[data-pent="${id}"] input`)).not.toBeChecked();
+  }
+  await expect(page.locator("#placeGo")).toHaveText("Place 0");
+  await expect(page.locator("#placeGo")).toBeDisabled();
+});
+
+test("S8.4: Select all ticks exactly the shown rows, the label flips to Deselect all and back, and Place places exactly the ticked ones", async ({ page }) => {
   await setHa(page, PLACE_HA);
   const before = (await groundOf(page)).devices.length;
   await openPlace(page);
-  await page.locator('#placePanel [data-pent="light.living_spot"] input').uncheck();
+  const panel = page.locator("#placePanel"), all = page.locator("#placeAll");
+  await expect(all).toHaveText("Select all");
+  await panel.locator('[data-ptype="light"]').click(); // narrow to one shown row
+  await all.click();
+  await expect(panel.locator('[data-pent="light.living_spot"] input')).toBeChecked();
+  await expect(page.locator("#placeGo")).toHaveText("Place 1");
+  await expect(all).toHaveText("Deselect all");
+  await panel.locator('[data-ptype="light"]').click(); // back to every type: the hidden row stayed unticked
+  await expect(panel.locator('[data-pent="sensor.living_temp"] input')).not.toBeChecked();
+  await expect(panel.locator('[data-pent="binary_sensor.living_motion"] input')).not.toBeChecked();
+  await expect(panel.locator('[data-pent="light.living_spot"] input')).toBeChecked();
+  await expect(all).toHaveText("Select all"); // not every shown row is ticked any more
+  await all.click();
+  await expect(all).toHaveText("Deselect all");
+  await expect(page.locator("#placeGo")).toHaveText("Place 3");
+  await all.click();
+  await expect(all).toHaveText("Select all");
+  await expect(page.locator("#placeGo")).toHaveText("Place 0");
+  await panel.locator('[data-pent="binary_sensor.living_motion"] input').check();
+  await page.locator("#placeGo").click();
+  const devs = (await groundOf(page)).devices;
+  expect(devs).toHaveLength(before + 1);
+  expect(devs.some((d: any) => d.entity === "binary_sensor.living_motion")).toBe(true);
+});
+
+test("S8.1: the Place popup places everything when everything is ticked via Select all; a filter with nothing checked disables Place", async ({ page }) => {
+  await setHa(page, PLACE_HA);
+  const before = (await groundOf(page)).devices.length;
+  await openPlace(page);
   await page.locator('#placePanel [data-ptype="light"]').click();
   await expect(page.locator("#placeGo")).toBeDisabled();
-  await page.locator('#placePanel [data-pent="light.living_spot"] input').check();
+  await page.locator("#placeAll").click();
   await page.locator('#placePanel [data-ptype="light"]').click();
+  await page.locator("#placeAll").click();
   await expect(page.locator("#placeGo")).toHaveText("Place 3");
   await page.locator("#placeGo").click();
   expect((await groundOf(page)).devices).toHaveLength(before + 3);
