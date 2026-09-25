@@ -6929,22 +6929,31 @@ test("Opus review CSS pair: S7.6 night fills an unlit room with --fp-night, leav
 // ---- S8.7: linking a light to a floor switch, and auto-link --------------------------------------------------
 
 const LINK_HA = {
-  floors: [], areas: [{ id: "kitchen", name: "Kitchen", floor_id: "floor_ground" }, { id: "bedroom", name: "Bedroom", floor_id: "floor_first" }],
+  floors: [], areas: [
+    { id: "kitchen", name: "Kitchen", floor_id: "floor_ground" },
+    { id: "bedroom", name: "Bedroom", floor_id: "floor_first" },
+    { id: "utility", name: "Utility", floor_id: "floor_ground" }, // Opus review finding 9: a second ground-floor light+switch pair, so the "links every light" test proves two lights, not one
+  ],
   entities: [
     { id: "light.demo_kitchen", name: "Kitchen light", domain: "light", area: "kitchen" },
     { id: "light.demo_bedroom", name: "Bedroom light", domain: "light", area: "bedroom" },
+    { id: "light.demo_extra", name: "Extra utility light", domain: "light", area: "utility" },
     { id: "switch.kitchen_switch", name: "Kitchen light switch", domain: "switch", area: "kitchen" },
     { id: "switch.bedroom_switch", name: "Bedroom light switch", domain: "switch", area: "bedroom" },
     { id: "switch.hall_switch", name: "Unrelated hall switch", domain: "switch", area: "kitchen" }, // never the unique/top match, since kitchen_switch shares more tokens
+    { id: "switch.extra_switch", name: "Extra utility switch", domain: "switch", area: "utility" },
   ],
 };
 
 test("S8.7: Link lights to switches links every unbound light on the floor to its suggested switch, one undo step reverts them all", async ({ page }) => {
   await setHa(page, LINK_HA);
-  // Give the ground floor a second unbound light (kitchen already has one), so one click proves more than one light.
+  // Give the ground floor a second unbound light (kitchen already has one), with its own HA area and suggested
+  // switch in LINK_HA (light.demo_extra / switch.extra_switch, both area "utility") so the test can actually prove
+  // two lights were linked, not just that the click did not blow up (Opus review finding 9: the previous version
+  // added this device but never checked it got bound, so it passed even when only the kitchen light linked).
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any;
-    el.st.edit((f: any) => { f.devices.push({ id: "light-extra", type: "light", entity: "light.demo_extra", name: "Extra kitchen light", x: 700, y: 300 }); });
+    el.st.edit((f: any) => { f.devices.push({ id: "light-extra", type: "light", entity: "light.demo_extra", name: "Extra utility light", x: 700, y: 300 }); });
     el.requestUpdate();
   }, EDITOR);
   await menu(page, "Edit");
@@ -6959,9 +6968,15 @@ test("S8.7: Link lights to switches links every unbound light on the floor to it
   await page.locator('g[data-x="1"]').click(); // light-kitchen
   await expect(page.locator("#vbound")).toHaveValue("switch.kitchen_switch");
 
+  const devices = (await groundOf(page)).devices as any[];
+  const extra = devices.find((d) => d.entity === "light.demo_extra");
+  expect(extra?.bound).toBe("switch.extra_switch"); // the second light really did link, to its own suggested switch
+
   await page.locator("#undo").click();
   await page.locator('g[data-x="1"]').click();
   await expect(page.locator("#vbound")).toHaveValue(""); // one undo step reverted the whole batch
+  const afterUndo = (await groundOf(page)).devices as any[];
+  expect(afterUndo.find((d) => d.entity === "light.demo_extra")?.bound).toBeUndefined(); // ...both lights, not only the kitchen one
 });
 
 test("S8.7: boundField restricts a light's Controlled by select to this floor's own switches, with the same-area match labelled (suggested)", async ({ page }) => {
