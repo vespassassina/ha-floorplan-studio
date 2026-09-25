@@ -143,6 +143,11 @@ export class EditorState {
   /** S4.6: the Group menu's "Turns on..." draft — a light group id and the off delay in minutes. Kept for the session, never the layout. */
   motionLightGroup = "";
   motionMinutes = "";
+  /** S8.7: the light panel's own motion-link draft — the motion entity a "Motion" option in Controlled by was just
+   *  picked to (cleared once linked, or once another value is picked), and the off-delay minutes field. Kept for
+   *  the session, never the layout. */
+  pendingMotion = "";
+  pendingMotionMinutes = "5";
   /** Snap grid in cm; 0 is none. Kept in localStorage, not in the layout. */
   snapGrid: Grid = readGrid();
   showLen = true;
@@ -509,6 +514,30 @@ export class EditorState {
     const d = this.f.devices[devIndex];
     if (!d || d.type !== "light") return [];
     return switchChoicesForLight(this.layout, this.ha ?? null, this.floor, d);
+  }
+
+  /**
+   * S8.7: the Motion optgroup's own source list for the light at `devIndex` — binary_sensor entities on this floor
+   * whose device class is motion, occupancy or presence (this floor: their HA area matches one of this floor's own
+   * rooms), same area as the light first, plus every `group.*` entity whose members are ALL such sensors and at
+   * least one member is on this floor. Empty without HA data or for anything that is not a light.
+   */
+  motionChoices(devIndex: number): { entity: string; name: string }[] {
+    const d = this.f.devices[devIndex];
+    if (!d || d.type !== "light" || !this.ha) return [];
+    const ha = this.ha;
+    const floorAreas = new Set(this.f.rooms.map((r) => r.area).filter(Boolean));
+    const lightArea = ha.entities.find((e) => e.id === d.entity)?.area;
+    const isMotion = (e: HaData["entities"][number]) => e.domain === "binary_sensor" && (e.dc === "motion" || e.dc === "occupancy" || e.dc === "presence");
+    const onFloor = (e: HaData["entities"][number]) => !!e.area && floorAreas.has(e.area);
+    const sensors = ha.entities.filter((e) => isMotion(e) && onFloor(e));
+    const groups = ha.entities.filter((e) =>
+      e.domain === "group" && Array.isArray(e.members) && e.members.length > 0 &&
+      e.members.every((m) => { const x = ha.entities.find((y) => y.id === m); return x && isMotion(x); }) &&
+      e.members.some((m) => { const x = ha.entities.find((y) => y.id === m); return x && onFloor(x); }));
+    return [...sensors, ...groups]
+      .map((e) => ({ entity: e.id, name: e.name || e.id, area: e.area }))
+      .sort((a, b) => Number(b.area === lightArea) - Number(a.area === lightArea)); // same area as the light first, else stable
   }
 
   /**

@@ -413,7 +413,7 @@ function nameTokens(name: string): Set<string> {
 }
 
 /** S8.7: one row of `switchChoicesForLight` — a switch or plug the light panel may bind `bound` to. */
-export interface SwitchChoice { entity: string; name: string; area?: string; suggested: boolean; source: "catalog" | "ha" }
+export interface SwitchChoice { entity: string; name: string; area?: string; room?: string; suggested: boolean; source: "catalog" | "ha" }
 
 /**
  * S8.7: the switches and plugs offered to power light `light` on plan floor `floorKey` — restricted to that floor
@@ -434,15 +434,26 @@ export interface SwitchChoice { entity: string; name: string; area?: string; sug
 export function switchChoicesForLight(l: Layout, ha: HaData | null, floorKey: string, light: Device): SwitchChoice[] {
   const out: SwitchChoice[] = [];
   const seen = new Set<string>();
+  const f = l.floors[floorKey];
   const areaOf = (entity: string): string | undefined => ha?.entities.find((e) => e?.id === entity)?.area ?? undefined;
   const nameOf = (entity: string): string => ha?.entities.find((e) => e?.id === entity)?.name || l.catalog.find((c) => c.entity === entity)?.name || entity;
-  const add = (entity: string, name: string, area: string | undefined) => {
+  /** The plan room name for an HA area — this floor's own rooms first (the common case), any floor's otherwise (an off-floor `bound` value, so its room still reads sensibly). */
+  const roomOf = (areaId: string | undefined, fallbackCatalogRoom?: string): string | undefined => {
+    if (fallbackCatalogRoom) return fallbackCatalogRoom;
+    if (!areaId) return undefined;
+    for (const fl of [f, ...Object.values(l.floors)]) {
+      const r = fl?.rooms.find((r) => r.area === areaId);
+      if (r) return r.name;
+    }
+    return undefined;
+  };
+  const add = (entity: string, name: string, area: string | undefined, room: string | undefined) => {
     if (!entity || entity === light.entity || seen.has(entity)) return;
     seen.add(entity);
-    out.push({ entity, name, area, suggested: false, source: ha?.entities.some((e) => e?.id === entity) ? "ha" : "catalog" });
+    out.push({ entity, name, area, room, suggested: false, source: ha?.entities.some((e) => e?.id === entity) ? "ha" : "catalog" });
   };
   for (const c of l.catalog) {
-    if (c.floor === floorKey && (c.type === "switch" || c.type === "plug")) add(c.entity, c.name, areaOf(c.entity));
+    if (c.floor === floorKey && (c.type === "switch" || c.type === "plug")) add(c.entity, c.name, areaOf(c.entity), c.room || undefined);
   }
   if (ha) {
     const floorIds = haFloorIdsForPlanFloor(l, ha, floorKey);
@@ -452,14 +463,14 @@ export function switchChoicesForLight(l: Layout, ha: HaData | null, floorKey: st
       const areaId = main.area ?? undefined;
       const fid = areaId ? floorIdOfArea.get(areaId) : undefined;
       if (!fid || !floorIds.has(fid)) return;
-      add(main.id, main.name || main.id, areaId);
+      add(main.id, main.name || main.id, areaId, roomOf(areaId));
     };
     // Device-grouped switches (one row per device, S8.6's mainEntity), plus device-less switch entities — mirrors
     // addCandidates's own split, since mainEntitiesByDevice only sees entities that carry a `dev` field.
     for (const main of mainEntitiesByDevice(ha).values()) onFloor(main);
     for (const e of ha.entities) if (e && !e.dev) onFloor(e);
   }
-  if (light.bound) add(light.bound, nameOf(light.bound), areaOf(light.bound));
+  if (light.bound) add(light.bound, nameOf(light.bound), areaOf(light.bound), roomOf(areaOf(light.bound), l.catalog.find((c) => c.entity === light.bound)?.room));
 
   const lightArea = areaOf(light.entity);
   if (lightArea) {

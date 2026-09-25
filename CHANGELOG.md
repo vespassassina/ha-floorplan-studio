@@ -13,6 +13,14 @@
   menu now list a device once, not once per entity — a plug shows itself, not
   its power sensor or its diagnostic connectivity sensor. A device with
   nothing but diagnostic entities is not offered at all.
+- A light's "Controlled by" switch list now shows only the switches and plugs
+  on its own floor, with a likely match (same area, matching name) labelled
+  "(suggested)". Edit, Group has a new "Link lights to switches" button that
+  links every unbound light on the floor to its suggested switch in one go.
+  The same select can also link a light to a motion sensor or motion group:
+  pick one, set the off delay, Create automation — it builds the automation
+  in Home Assistant and remembers the link so the panel can show and undo it,
+  without touching the automation itself.
 
 ## 0.12.2
 

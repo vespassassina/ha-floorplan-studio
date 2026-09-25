@@ -456,7 +456,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.requestUpdate();
   };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------
@@ -1469,6 +1469,13 @@ export class FloorplanStudioEditor extends LitElement {
   private setColour(t: DeviceType, hex: string | null) {
     if (this.st.setColour(t, hex)) this.changed(hex ? `${t} colour set` : `${t} colour reset`);
   }
+  /** S8.7: Edit, "Link lights to switches" — links every unbound light on this floor to its uniquely suggested
+   *  same-area switch, one undo step. Needs HA area data to suggest anything, so the button only shows with `ha`. */
+  private autoLinkLights() {
+    const n = this.st.autoLinkLights(this.floor);
+    if (n > 0) this.changed(`Linked ${n} light${n === 1 ? "" : "s"}.`);
+    else { this.status = "No light had a clear switch match."; this.requestUpdate(); }
+  }
   private rotatePlan(step: number) {
     if (this.st.setRotate((this.st.layout.rotate ?? 0) + step)) this.changed(`Plan rotated to ${this.st.layout.rotate}°`);
   }
@@ -1788,20 +1795,30 @@ export class FloorplanStudioEditor extends LitElement {
     }
   }
 
-  /** S4.6: asks, has Home Assistant build the "turns on..." motion-group automation, then opens it in HA's own editor. */
-  private async motionAutomation(motionGroupId: string, lightGroupId: string, minutes: number) {
+  /**
+   * S4.6/S8.7: asks, has Home Assistant build the "turns on..." motion automation, then opens it in HA's own
+   * editor. Shared by the Group menu's motion-group flow (`deviceIndex` omitted: the plan never changes, as
+   * before) and the light panel's own "Motion" pick (`deviceIndex` given: on success, in the same undo step,
+   * also records `motion` on that specific light — a group's own light target may not be one `Device` on the
+   * plan, so this side effect only ever applies to a concrete light).
+   */
+  private async motionAutomation(motionId: string, lightId: string, minutes: number, deviceIndex?: number) {
     const w = this.writer;
-    if (!w || !lightGroupId || !(minutes > 0)) return;
+    if (!w || !lightId || !(minutes > 0)) return;
     const ok = await askHa(this.shadowRoot ?? this, "Create automation", [
-      `Home Assistant will get a new automation: ${lightGroupId} turns on with ${motionGroupId}, off ${minutes} minute${minutes === 1 ? "" : "s"} after motion stops, labelled floorplan-studio.`,
+      `Home Assistant will get a new automation: ${lightId} turns on with ${motionId}, off ${minutes} minute${minutes === 1 ? "" : "s"} after motion stops, labelled floorplan-studio.`,
       "It opens in Home Assistant's own editor once created, to finish or rename."]);
     if (!ok) return;
     this.status = "Creating the automation..."; this.requestUpdate();
     try {
-      const cfg = motionLights(motionGroupId, lightGroupId, Math.round(minutes * 60));
+      const cfg = motionLights(motionId, lightId, Math.round(minutes * 60));
       const id = await w.createAutomation(cfg);
       void this.loadHaList(); // S8.1: the Edit, Home Assistant button lists it
       this.st.motionLightGroup = ""; this.st.motionMinutes = "";
+      if (deviceIndex !== undefined) {
+        this.st.edit((f) => { f.devices[deviceIndex].motion = motionId; });
+        this.st.pendingMotion = "";
+      }
       this.status = `Created the automation. Opening it in Home Assistant...`; this.requestUpdate();
       openAutomation(id);
     } catch (err) {
@@ -2208,6 +2225,7 @@ export class FloorplanStudioEditor extends LitElement {
           ${this.writer ? html`<button class="btn" id="mHA" ?disabled=${!this.haList?.length && !this.haListErr} aria-expanded=${pressed(!!this.haPos)} title=${this.haListErr || (this.haList?.length ? "What Floorplan Studio made in Home Assistant" : "Nothing Floorplan Studio made is labelled in Home Assistant yet")} @click=${() => this.toggleHa()}>Home Assistant</button>` : nothing}
           ${ha ? html`<details class="sub" id="mGroup"><summary class="btn">Group</summary>
             <button class="btn" id="groupAll" aria-pressed=${pressed(!st.activeGroup)} @click=${() => { st.activeGroup = null; this.requestUpdate(); }}>All</button>
+            <button class="btn" id="linkLights" title="Link every unbound light on this floor to its uniquely matched switch" @click=${() => this.autoLinkLights()}>Link lights to switches</button>
             ${groups.length === 0 ? html`<span class="grp" id="groupNone">No Home Assistant group has a member on this floor</span>` : nothing}
             ${groups.map((g) => html`<button class="btn" data-group=${g.id} aria-pressed=${pressed(st.activeGroup === g.id)} @click=${() => { st.activeGroup = g.id; this.requestUpdate(); }}>${g.name}</button>`)}
             ${this.writer && activeGroup && groupKindOf(activeGroup) === "motion" ? html`<div class="sep"></div>

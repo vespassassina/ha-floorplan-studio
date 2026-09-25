@@ -2,6 +2,54 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 S8.7 linking a light: floor switches, a name-match suggestion, motion
+
+Diego's feedback: "when linking lights, only show the floor related switches,
+add also motion groups and motion sensors, or map them automatically, e.g.
+basement dumb light is managed by basement light switch." Three related
+changes to the light panel's "Controlled by" field.
+
+Floor scoping: `bound`'s select used to offer every switch and plug in the
+whole plan's catalog (`bindChoices`), so a basement light could be bound to an
+attic switch by mistake. `switchChoicesForLight` (`src/core/ha.ts`) restricts
+the candidates to the light's own plan floor: the floor's own catalogued
+switches/plugs, union, with HA connected, every HA switch-domain entity
+(one row per device, `mainEntity`) whose HA area sits on an HA floor this
+plan floor's own rooms map to (via each room's `area`'s own `floor_id` — the
+same room-to-area matching S8.5 already uses, just followed one step further
+to the area's floor). The light's current `bound` value always stays offered
+even off-floor, so a value set before this scoping existed does not vanish.
+
+Suggestion: within the switches offered, one may be marked `suggested` — the
+select shows it first, labelled "(suggested)". A candidate can only be
+suggested when its own HA area equals the light's own HA area (never a
+same-floor, different-room guess), and only when it is the *unique* top
+scorer there by shared name tokens (lowercased, split on non-alphanumeric
+runs, "switch"/"plug"/"socket"/"relay"/"the"/"and"/"of" dropped, then set
+intersection size) — or the sole switch/plug candidate in that area, any
+score including zero. A tie at the top suggests nobody: a wrong guess is
+worse than no guess. Edit, Group holds "Link lights to switches", visible
+whenever HA is connected: it links every unbound light on the current floor
+to its suggested switch, one undo step for the whole floor, so it reverts as
+a single gesture; a light that already has `bound` is never touched, and it
+never touches `motion`.
+
+Motion: the same "Controlled by" select gains a second, `motion:`-prefixed
+optgroup listing this floor's own motion/occupancy/presence binary_sensors
+and any `group.*` entity whose every member is such a sensor with at least
+one on this floor — same area as the light first. Picking one never writes
+`bound`; it opens a small "Turn on with X, off after N min, Create
+automation" row that reuses the existing motion-group automation builder,
+generalised (`EditorApp.motionAutomation`) to take a concrete light entity
+and, only when called from this per-light flow, record `motion` on that
+device in the same undo step the automation write is not part of (HA writes
+are never undoable; the plan edit is). Unlinking removes only `motion`; the
+automation stays in HA, on purpose — same reasoning as `bound` recording a
+link the editor does not own. `device.motion` (`src/core/schema.ts`) is the
+new field, validated exactly like `bound`: light-only, an entity id, must
+differ from `entity`. Without a writer the whole Motion optgroup and row are
+left out — nothing to link to.
+
 ## 2026-09-25 S8.6 devices, not entities, in every add list
 
 Diego's own feedback: "in the device list i see plug network indicator and not

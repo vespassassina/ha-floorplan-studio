@@ -47,6 +47,9 @@ export interface PanelCtx {
   controlsAutomation?: (devIndex: number, targets: string[]) => void;
   /** S4.6: build and create the "schedule" automation for the device at `devIndex`, after asking, then open it in HA. Absent without a writer. */
   scheduleAutomation?: (devIndex: number, on: string, off: string) => void;
+  /** S8.7: build and create the "turns on with motion" automation for the light at `devIndex`, off `minutes` after
+   *  motion stops, after asking, then open it in HA and record `motion` on the light — one undo step. Absent without a writer. */
+  linkMotion?: (devIndex: number, motionEntity: string, minutes: number) => void;
   /** S4.7: opens Home Assistant's own more-info dialog for an entity. Always present; harmless when nothing is listening (standalone build). */
   moreInfo(entityId: string): void;
   /** S4.7: runs a scene (`scene.turn_on`) from the room box. Absent without a writer. */
@@ -657,18 +660,48 @@ function boundField(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
   const choices = c.st.switchChoicesForLight(i);
   const suggested = choices.filter((s) => s.suggested);
-  const rest = choices.filter((s) => !s.suggested).sort((a, b) => a.name.localeCompare(b.name));
+  const rest = choices.filter((s) => !s.suggested); // catalog order kept, same as the all-floors bindChoices this replaces
   const nameOf = (entity: string) => choices.find((s) => s.entity === entity)?.name ?? c.st.layout.catalog.find((x) => x.entity === entity)?.name ?? entity;
-  const set = (e: Event) => c.commit((f) => { const v = val(e); if (v) f.devices[i].bound = v; else delete f.devices[i].bound; });
-  const opt = (s: { entity: string; name: string }, label: string) => html`<option value=${s.entity} ?selected=${s.entity === d.bound}>${label}</option>`;
+  const motionChoices = c.linkMotion ? c.st.motionChoices(i) : [];
+  const set = (e: Event) => {
+    const v = val(e);
+    if (v.startsWith("motion:")) { c.st.pendingMotion = v.slice("motion:".length); c.refresh(); return; }
+    c.commit((f) => { if (v) f.devices[i].bound = v; else delete f.devices[i].bound; });
+  };
+  const label = (s: { room?: string; name: string }, suggest: boolean) => `${s.room ? `${s.room} - ` : ""}${s.name}${suggest ? " (suggested)" : ""}`;
+  const opt = (s: { entity: string; room?: string; name: string }, suggest = false) => html`<option value=${s.entity} ?selected=${s.entity === d.bound}>${label(s, suggest)}</option>`;
   return html`<label for="vbound">Controlled by</label>
-    <select id="vbound" .value=${d.bound ?? ""} @change=${set}>
+    <select id="vbound" .value=${live(d.bound ?? "")} @change=${set}>
       <option value="" ?selected=${!d.bound}>(none)</option>
-      ${suggested.map((s) => opt(s, `${s.name} (suggested)`))}
-      ${rest.map((s) => opt(s, s.name))}
+      ${suggested.map((s) => opt(s, true))}
+      ${rest.map((s) => opt(s))}
       ${d.bound && !choices.some((s) => s.entity === d.bound) ? html`<option value=${d.bound} selected>${d.bound}</option>` : nothing}
+      ${motionChoices.length ? html`<optgroup label="Motion">${motionChoices.map((s) => html`<option value=${`motion:${s.entity}`}>${s.name}</option>`)}</optgroup>` : nothing}
     </select>
-    ${d.bound ? hint(`${d.name ?? nameOf(d.entity)} + ${nameOf(d.bound)}`) : nothing}`;
+    ${d.bound ? hint(`${d.name ?? nameOf(d.entity)} + ${nameOf(d.bound)}`) : nothing}
+    ${motionField(c, i)}`;
+}
+
+/**
+ * S8.7: the row under "Controlled by" for the motion-link flow. `d.motion` set: shows the link and an Unlink
+ * button (removes only `motion`; the automation stays in Home Assistant). No `motion` but a Motion option was just
+ * picked (`st.pendingMotion`): shows the off-delay field and "Create automation". Neither: nothing. Absent without
+ * a writer (`c.linkMotion` unset).
+ */
+function motionField(c: PanelCtx, i: number) {
+  if (!c.linkMotion) return nothing;
+  const d = c.st.f.devices[i], ha = c.st.ha;
+  const nameOf = (entity: string) => ha?.entities.find((e) => e.id === entity)?.name || entity;
+  if (d.motion) {
+    return html`${hint(`Turns on with motion: ${nameOf(d.motion)}`)}
+      <p>${button("vmotionunlink", "Unlink", () => c.commit((f) => { delete f.devices[i].motion; }))}</p>
+      ${hint("The automation this created in Home Assistant is not deleted.")}`;
+  }
+  const pending = c.st.pendingMotion;
+  if (!pending) return nothing;
+  return html`<label for="vmotionmin">Turn on with ${nameOf(pending)}, off after (minutes)</label>
+    <input id="vmotionmin" type="number" min="1" step="1" .value=${live(c.st.pendingMotionMinutes)} @change=${(e: Event) => { c.st.pendingMotionMinutes = val(e); c.refresh(); }}>
+    <p>${button("vmotiongo", "Create automation", () => { const min = Number(c.st.pendingMotionMinutes); if (min > 0) c.linkMotion!(i, pending, min); })}</p>`;
 }
 
 /** S4.24: a heater attaches several TRV/climate entities and several temperature sensors — design interview,

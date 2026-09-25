@@ -6903,6 +6903,117 @@ test("Opus review CSS pair: S7.6 night fills an unlit room with --fp-night, leav
   expect(got).toEqual(["rgba(4, 10, 30, 0.45)", "none", "none"]);
 });
 
+// ---- S8.7: linking a light to a floor switch, and auto-link --------------------------------------------------
+
+const LINK_HA = {
+  floors: [], areas: [{ id: "kitchen", name: "Kitchen", floor_id: "floor_ground" }, { id: "bedroom", name: "Bedroom", floor_id: "floor_first" }],
+  entities: [
+    { id: "light.demo_kitchen", name: "Kitchen light", domain: "light", area: "kitchen" },
+    { id: "light.demo_bedroom", name: "Bedroom light", domain: "light", area: "bedroom" },
+    { id: "switch.kitchen_switch", name: "Kitchen light switch", domain: "switch", area: "kitchen" },
+    { id: "switch.bedroom_switch", name: "Bedroom light switch", domain: "switch", area: "bedroom" },
+    { id: "switch.hall_switch", name: "Unrelated hall switch", domain: "switch", area: "kitchen" }, // never the unique/top match, since kitchen_switch shares more tokens
+  ],
+};
+
+test("S8.7: Link lights to switches links every unbound light on the floor to its suggested switch, one undo step reverts them all", async ({ page }) => {
+  await setHa(page, LINK_HA);
+  // Give the ground floor a second unbound light (kitchen already has one), so one click proves more than one light.
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any;
+    el.st.edit((f: any) => { f.devices.push({ id: "light-extra", type: "light", entity: "light.demo_extra", name: "Extra kitchen light", x: 700, y: 300 }); });
+    el.requestUpdate();
+  }, EDITOR);
+  await menu(page, "Edit");
+  await page.locator("#mGroup > summary").click();
+  await expect(page.locator("#linkLights")).toBeVisible();
+  await page.locator("#linkLights").click();
+  await expect(page.locator("#status")).toContainText("Linked");
+
+  await page.locator('g[data-x="0"]').click(); // light-living, already bound before the click: untouched
+  await expect(page.locator("#vbound")).toHaveValue("switch.demo_living_relay");
+
+  await page.locator('g[data-x="1"]').click(); // light-kitchen
+  await expect(page.locator("#vbound")).toHaveValue("switch.kitchen_switch");
+
+  await page.locator("#undo").click();
+  await page.locator('g[data-x="1"]').click();
+  await expect(page.locator("#vbound")).toHaveValue(""); // one undo step reverted the whole batch
+});
+
+test("S8.7: boundField restricts a light's Controlled by select to this floor's own switches, with the same-area match labelled (suggested)", async ({ page }) => {
+  await setHa(page, LINK_HA);
+  await page.locator('g[data-x="1"]').click(); // light-kitchen
+  const opts = await page.locator("#vbound option").allTextContents();
+  expect(opts.some((o) => o.includes("Kitchen light switch") && o.includes("(suggested)"))).toBe(true);
+  expect(opts.some((o) => o.includes("Bedroom light switch"))).toBe(false); // a different floor's switch is never offered
+});
+
+// ---- S8.7: the Motion optgroup and per-light motion-link flow ---------------------------------------------------
+
+const LIGHT_MOTION_HA = {
+  floors: [], areas: [],
+  entities: [
+    { id: "light.demo_kitchen", name: "Kitchen light", domain: "light", area: "kitchen" },
+    { id: "binary_sensor.kitchen_motion", name: "Kitchen motion", domain: "binary_sensor", dc: "motion", area: "kitchen" },
+    { id: "binary_sensor.bedroom_motion", name: "Bedroom motion", domain: "binary_sensor", dc: "motion", area: "bedroom" }, // first floor, not on ground: never offered to the kitchen light
+  ],
+};
+
+test("S8.7: without a writer the Motion optgroup is not shown; with one it lists this floor's own motion sensors", async ({ page }) => {
+  await setHa(page, LIGHT_MOTION_HA); // HA data with no writer stubbed
+  await page.locator('g[data-x="1"]').click(); // light-kitchen
+  await expect(page.locator("#vbound optgroup")).toHaveCount(0);
+
+  await withAutomationWriter(page, LIGHT_MOTION_HA);
+  await page.locator('g[data-x="1"]').click();
+  const opts = await page.locator('#vbound optgroup[label="Motion"] option').allTextContents();
+  expect(opts).toEqual(["Kitchen motion"]); // the bedroom sensor is on another floor
+});
+
+test("S8.7: picking a Motion option leaves Controlled by unchanged and shows the turn-on row; Create automation posts the config, links motion in one undo step, and Unlink clears only motion", async ({ page }) => {
+  await withAutomationWriter(page, LIGHT_MOTION_HA);
+  await watchLocationChanged(page);
+  await page.locator('g[data-x="1"]').click(); // light-kitchen
+  await page.locator("#vbound").selectOption("motion:binary_sensor.kitchen_motion");
+  await expect(page.locator("#vbound")).toHaveValue(""); // bound was never touched
+  await expect(page.locator("#panel")).toContainText("Turn on with Kitchen motion, off after");
+
+  await page.locator("#vmotionmin").fill("7");
+  await page.locator("#vmotiongo").click();
+  await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
+  expect(await calls(page)).toHaveLength(0);
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(1);
+  expect((await calls(page))[0]).toEqual({
+    alias: "binary_sensor.kitchen_motion → light.demo_kitchen",
+    trigger: [
+      { platform: "state", entity_id: "binary_sensor.kitchen_motion", to: "on", id: "on" },
+      { platform: "state", entity_id: "binary_sensor.kitchen_motion", to: "off", for: { seconds: 420 }, id: "off" },
+    ],
+    action: [{ choose: [
+      { conditions: [{ condition: "trigger", id: "on" }], sequence: [{ service: "homeassistant.turn_on", target: { entity_id: "light.demo_kitchen" } }] },
+      { conditions: [{ condition: "trigger", id: "off" }], sequence: [{ service: "homeassistant.turn_off", target: { entity_id: "light.demo_kitchen" } }] },
+    ] }],
+  });
+  await expect(page.locator("#panel")).toContainText("Turns on with motion: Kitchen motion");
+  await expect(page.locator("#panel")).toContainText("is not deleted");
+  await expect.poll(() => page.evaluate(() => location.pathname)).toBe("/config/automation/edit/fp_test123");
+
+  await page.locator("#undo").click();
+  await page.locator('g[data-x="1"]').click();
+  await expect(page.locator("#panel")).not.toContainText("Turns on with motion");
+
+  // relink, then Unlink: removes only `motion`, one undo step, the plan's bound stays untouched
+  await page.locator("#vbound").selectOption("motion:binary_sensor.kitchen_motion");
+  await page.locator("#vmotiongo").click();
+  await page.locator("#fp-confirm-yes").click();
+  await expect.poll(async () => (await calls(page)).length).toBe(2);
+  await page.locator("#vmotionunlink").click();
+  await expect(page.locator("#panel")).not.toContainText("Turns on with motion");
+  await expect(page.locator("#vbound")).toHaveValue("");
+});
+
 // ---- S8.1: the toolbar rework — Names in View, an Edit menu after View ------------------------------------------------
 
 test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assistant, Group, Rotate, Device colours and Trace image, in that order", async ({ page }) => {
