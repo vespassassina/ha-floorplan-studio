@@ -54,8 +54,12 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * sensor's right and y ahead of it. `entity` is the radar's own presence entity (typically a
  * `binary_sensor.*occupancy`), which colours the icon; `rot` is which way the sensor points (`0` = ahead is
  * screen-up), the same field a camera already uses for its cone.
+ * `motion` (lights only), S8.7: the motion sensor or motion-group entity that this light was linked to through the
+ * editor's "Turn on with... Create automation" flow — the automation the editor created, not this field, is what
+ * actually drives the light. Unlinking removes only this field; the automation itself stays in Home Assistant,
+ * untouched. Must differ from `entity`, same rule as `bound`.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
  *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. */
 export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean }
@@ -274,6 +278,13 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         else {
           if (d.type !== "light") errors.push(`${at} ${d.id} bound is only allowed on a light`);
           if (d.bound === d.entity) errors.push(`${at} ${d.id} bound must differ from entity`);
+        }
+      }
+      if (d.motion !== undefined) {
+        if (!isEntity(d.motion)) errors.push(`${at} ${d.id} motion must be an entity id like binary_sensor.name`);
+        else {
+          if (d.type !== "light") errors.push(`${at} ${d.id} motion is only allowed on a light`);
+          if (d.motion === d.entity) errors.push(`${at} ${d.id} motion must differ from entity`);
         }
       }
       if (d.trvs !== undefined || d.tempSensors !== undefined) {

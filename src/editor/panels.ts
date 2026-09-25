@@ -579,7 +579,7 @@ function deviceTypeField(c: PanelCtx, i: number) {
   const set = (t: string) => c.commit((f) => {
     const dv = f.devices[i];
     dv.type = t as DeviceType;
-    if (t !== "light") delete dv.bound;
+    if (t !== "light") { delete dv.bound; delete dv.motion; }
     if (t !== "heater") { delete dv.trvs; delete dv.tempSensors; }
     if (t !== "ac") delete dv.linked;
     if (t !== "person") delete dv.room;

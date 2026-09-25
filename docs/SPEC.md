@@ -190,6 +190,12 @@ in `prompts/`, then fixed in the editor.
   the same lamp. `entity` stays the primary one. Several lights may name the
   same switch: one wall switch can power several lamps. The switch may also be
   a device of its own on the plan.
+- `device.motion` (lights only, optional, S8.7): the motion sensor or motion
+  group entity this light was linked to through the editor's own "Turn on
+  with... Create automation" flow. It records the link for the panel to show
+  and unlink; the automation it names does the actual work, and unlinking
+  removes only this field, never the automation in Home Assistant. Must
+  differ from `entity`, same rule as `bound`.
 - `furniture.symbol`: table, sofa, bed, cabinet, chair, sink, toilet, shower,
   bathtub, tv, computer, tree, patio-wood, patio-concrete, car.
 - `floor.trace` (optional, S7.11) is a scan to trace over, drawn under the
