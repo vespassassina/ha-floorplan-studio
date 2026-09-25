@@ -260,3 +260,33 @@ describe("roomHaBox (S4.7): the room box's grouping", () => {
     expect(roomHaBox({ floors: [], areas: [], entities: [null, { id: 5 }, "junk"] } as any, "kitchen", new Set()).devices).toEqual([]);
   });
 });
+
+// ---- S8.1: the room panel's Place popup lists only what the plan has an icon for ------------------------------------
+import { AREA_NOISE_TYPES, AREA_PLACEABLE_TYPES, placeableInArea } from "../../src/core/ha";
+import { DEVICE_TYPES } from "../../src/core/schema";
+
+describe("S8.1: placeableInArea", () => {
+  it("every device type is in exactly one of AREA_PLACEABLE_TYPES and AREA_NOISE_TYPES: a new type fails until someone decides", () => {
+    for (const t of DEVICE_TYPES) expect([AREA_PLACEABLE_TYPES.has(t), AREA_NOISE_TYPES.has(t)], t).toEqual(expect.arrayContaining([true]));
+    for (const t of DEVICE_TYPES) expect(AREA_PLACEABLE_TYPES.has(t) && AREA_NOISE_TYPES.has(t), t).toBe(false);
+    expect(AREA_PLACEABLE_TYPES.size + AREA_NOISE_TYPES.size).toBe(DEVICE_TYPES.length);
+  });
+  it("lists the area's unplaced entities with an icon of their own; power, battery, a group, a person, another area and what is placed stay out", () => {
+    const l = migrate(structuredClone(demo)) as Layout;
+    const placed = l.floors.ground.devices.find((d) => "entity" in d && d.entity)!.entity!;
+    const area = "living";
+    const ha: HaData = { floors: [], areas: [{ id: area, name: "Living" }], entities: [
+      { id: placed, name: "Placed", domain: placed.split(".")[0], area },
+      { id: "light.spot", name: "Spot", domain: "light", area },
+      { id: "sensor.t", name: "Temp", domain: "sensor", dc: "temperature", area },
+      { id: "binary_sensor.m", name: "Motion", domain: "binary_sensor", dc: "motion", area },
+      { id: "sensor.power", name: "Power", domain: "sensor", dc: "power", area },
+      { id: "sensor.batt", name: "Battery", domain: "sensor", dc: "battery", area },
+      { id: "group.lights", name: "Lights", domain: "group", area, members: ["light.spot"] },
+      { id: "person.alex", name: "Alex", domain: "person", area },
+      { id: "light.kitchen", name: "Kitchen", domain: "light", area: "kitchen" },
+    ] };
+    expect(placeableInArea(l, ha, area).map((e) => e.id)).toEqual(["light.spot", "sensor.t", "binary_sensor.m"]);
+    expect(placeableInArea(l, { ...ha, entities: undefined as unknown as HaData["entities"] }, area)).toEqual([]); // hostile data never throws
+  });
+});

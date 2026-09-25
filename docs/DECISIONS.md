@@ -2,6 +2,44 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 S8.1 An Edit menu, the Home Assistant popover, a Place popup
+
+Diego, after a day on 0.11.1: the toolbar mixed how the plan looks with what
+changes it, the Home Assistant menu gave no clue what its rows were, and
+"Place N devices of this area" dumped every sensor of the area on the room,
+power and battery readings included.
+
+- **View keeps the look, Edit holds the changes.** Edit sits after View:
+  Add floor, Home Assistant, Group, Rotate, Device colours, Trace image….
+  Names joined View. The theme stays in View (Diego's call: it is a look).
+  The `+` chip is gone; "Add floor" says what it does.
+- **Home Assistant is a popover, not a menu.** A menu closes on the first
+  click, which is wrong for a list you clean up row by row. The popover is
+  the Device colours pattern (fixed, draggable by its head, above the plan
+  at z-index 30, under an open menu at 40), with the X top-left as asked and
+  one sentence saying what the rows are. A name opens the item where HA
+  edits it, not more-info for everything: the automation editor for an
+  automation, the area page for an area, more-info for a helper (it has no
+  page of its own). The button is disabled while the list is empty, so the
+  list loads when the writer is set and after every create or remove, not
+  only on open.
+- **Place asks which, and offers only what has an icon.** The popup lists
+  the area's unplaced entities with a tick each and a chip per type; Place
+  takes the ticked rows that are shown. `AREA_PLACEABLE_TYPES` and
+  `AREA_NOISE_TYPES` in `core/ha.ts` partition `DEVICE_TYPES` (finding 17:
+  a test iterates the union, so a new type fails until it is decided).
+  Noise is `other` (anything the plan has no icon for: power, energy,
+  illuminance, a group, a script), `battery` (a reading of another device)
+  and `person` (not a thing in a room). Add, Entities still offers
+  everything, one at a time, for the cases the rule gets wrong.
+- **Three draggable panels earned one helper.** `dragHead(get, set)` in
+  `editor-app.ts` replaces the Device colours handlers and serves the two
+  new panels.
+- **The place-area unit fixture changed.** Its twelve classless `sensor.*`
+  entities are noise under the new rule, so the "large area in a small
+  room" test now uses lights. The test's point (every icon inside the room)
+  is unchanged.
+
 ## 2026-09-25 S7.16 The card read the websocket reply's wrapper as the plan
 
 Every dashboard card on a real Home Assistant said "No layout: install the

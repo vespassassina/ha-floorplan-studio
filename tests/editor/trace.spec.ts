@@ -30,7 +30,7 @@ async function png(page: Page, w: number, h: number, noise = false): Promise<Buf
   return Buffer.from(b64, "base64");
 }
 async function openTrace(page: Page) {
-  await menu(page, "View");
+  await menu(page, "Edit"); // S8.1: Trace image moved from View to Edit
   await page.locator("#traceBtn").click();
   await expect(page.locator("#tracePanel")).toBeVisible();
 }

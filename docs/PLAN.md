@@ -1263,6 +1263,15 @@ Recorded in `docs/DECISIONS.md` and `CHANGELOG.md` only: S6.5 card `floors`
 config and the File, Install code panel (0.10.2); S6.7 File, Export carries an
 entity snapshot (0.10.3).
 
+## Sprint 8 — after a day of use (E3, E5)
+
+Diego, 2026-09-25, after 0.11.1 on his own Home Assistant. Release 0.12.0
+closes the sprint.
+
+### S8.1 Toolbar rework: Edit menu, Home Assistant popover, Place popup
+- Outcome: the toolbar reads Filter, Add, Draw, View, Edit, File. View keeps what changes the look (Names joined it; the theme stays). Edit holds Add floor, Home Assistant, Group, Rotate, Device colours and Trace image…. Home Assistant is a button, disabled while nothing is listed, opening a draggable popover (X top-left) that says what its rows are, opens each item where HA edits it, and removes from there; opening it closes the menu. The room panel's Place opens a popup of the area's placeable entities, a tick each, a chip per type; noise (`other`, `battery`, `person`) is never offered (`docs/DECISIONS.md`, 2026-09-25 S8.1).
+- Done, 2026-09-25. Tests first: `ha.test.ts` "every device type is in exactly one of AREA_PLACEABLE_TYPES and AREA_NOISE_TYPES" and the `placeableInArea` case (2 failed against the old core); `editor.spec.ts` three S8.1 Home Assistant popover tests, a CSS pair for `.fpanel`, three Place popup tests and the toolbar-order test; the S4.15, S4.10, S1.33, S1.36, S7.2, floor-add, rotation, Names and Group tests updated for the moved controls, `trace.spec.ts` for Trace image. New Playwright tests at `--repeat-each=10`: 80/80. One Escape step needed the editor focused first (a click on the plan, not off the svg): keyboard shortcuts belong to the editor host, by design. Opus review of the build found four things, all fixed with a test first: Escape did nothing from a ticked checkbox (the popup handles it itself now), a failed list load hid its error behind a disabled button (the button stays enabled and the popover shows the error), two overlapping loads let the older reply win (a sequence counter, proven by removing it), and the filtered `placeArea(i, only)` had no unit test. Also from the review: labelled ids are URL-encoded in the row links, and switching floors closes the Place popup.
+
 ## Sprint 7 — decent before publishing (E3, E2, E5)
 
 Source: `docs/REVIEW-2026-09-24.md`. Diego, 2026-09-24: "it needs to be decent

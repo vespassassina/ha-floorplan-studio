@@ -39,7 +39,7 @@ export interface PanelCtx {
   createArea?: (roomIndex: number) => void;
   /** S4.2: start drawing a room for an HA area no room uses yet. */
   drawArea(area: { id: string; name: string }): void;
-  /** S4.15: place every unplaced entity of room `roomIndex`'s HA area, one undo step. */
+  /** S4.15: place the unplaced entities of room `roomIndex`'s HA area; S8.1: opens a popup to pick which. */
   placeArea(roomIndex: number): void;
   /** S4.5: create an HA group of the devices at `is` (all one kind), named `name`, after asking. Absent without a writer. */
   createGroup?: (is: number[], kind: "light" | "motion", name: string) => void;
@@ -437,10 +437,10 @@ function roomPanel(c: PanelCtx, i: number) {
     ${r.kind === "structure" ? hint("Drag the body to move it. Drag corners to reshape. Select an edge and choose its kind.") : nothing}`;
 }
 
-/** S4.15: one button that places every entity Home Assistant has in the room's area and the plan does not show yet. */
+/** S4.15/S8.1: one button, counting what Home Assistant has in the room's area that the plan can show and does not yet; it opens the Place popup. */
 function placeAreaButton(c: PanelCtx, i: number) {
   const n = c.st.areaToPlace(i).length;
-  return n ? html`<p>${button("rplace", `Place ${n} Home Assistant device${n === 1 ? "" : "s"} of this area`, () => c.placeArea(i))}</p>` : nothing;
+  return n ? html`<p>${button("rplace", `Place ${n} Home Assistant device${n === 1 ? "" : "s"}`, () => c.placeArea(i))}</p>` : nothing;
 }
 
 const setOrDelete = <T extends object, K extends keyof T>(o: T, k: K, v: T[K] | undefined) => { if (v === undefined || v === "") delete o[k]; else o[k] = v; };

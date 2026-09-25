@@ -165,7 +165,13 @@ export class FloorplanStudioEditor extends LitElement {
   private ctxMenu: { x: number; y: number; target: CtxTarget } | null = null;
   /** The Device colours popup's screen position; null when closed. Dragged by its header, closed by its own X or Escape. */
   private devColsPos: { x: number; y: number } | null = null;
-  private dcDrag: { dx: number; dy: number } | null = null;
+  /** S8.1: Edit, Home Assistant: the popover's screen position; null when closed. Dragged by its head, closed by its X or Escape. */
+  private haPos: { x: number; y: number } | null = null;
+  /** S8.1: the room panel's Place popup: the room's id (null when closed), its position, the rows unticked, the type chip pressed. */
+  private placeRoom: string | null = null;
+  private placePos: { x: number; y: number } | null = null;
+  private placeOff = new Set<string>();
+  private placeType: DeviceType | null = null;
   /** File, Install code: whether the panel with the ready-to-paste card YAML is open. Fixed, not draggable; closed by its own X or Escape. */
   private installCodeOpen = false;
   /** S7.11: View, Trace image: whether its panel is open; the two points of a Scale step (null when not scaling); the Export tick, for this session only. */
@@ -191,7 +197,10 @@ export class FloorplanStudioEditor extends LitElement {
   /** What Home Assistant has (floors, areas, entities), set by the host. With it the name fields are dropdowns and linked names are refreshed once, without an undo step. */
   /** Writes to Home Assistant. Set by the panel host only, never imported here, so the standalone build has none and shows no button that needs one. */
   get writer(): HaWriter | undefined { return this._writer; }
-  set writer(v: HaWriter | undefined) { const old = this._writer; this._writer = v; this.requestUpdate("writer", old); }
+  set writer(v: HaWriter | undefined) {
+    const old = this._writer; this._writer = v; this.requestUpdate("writer", old);
+    if (v) void this.loadHaList(); else { this.haList = null; this.haPos = null; } // S8.1: the Edit, Home Assistant button is disabled until the list has something
+  }
   private _writer?: HaWriter;
   get ha(): HaData | undefined { return this.st.ha; }
   set ha(v: HaData | undefined) {
@@ -251,6 +260,17 @@ export class FloorplanStudioEditor extends LitElement {
     .devcols-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
     .devcols-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 14px;padding:10px;overflow:auto}
     .devcols-panel>.btn{margin:0 10px 10px;width:auto;align-self:flex-start}
+    .fpanel{position:fixed;z-index:30;width:440px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+    .fpanel-head{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--fp-idle);font-weight:600;cursor:move;touch-action:none}
+    .fpanel-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
+    .fpanel p{margin:8px 10px 0;font-size:13px}
+    .fpanel .grp{padding:8px 10px 0}
+    .fpanel .harow{padding:2px 10px}
+    .fpanel .harow .name{flex:1;text-align:left;text-decoration:none}
+    .fpanel .chips{display:flex;flex-wrap:wrap;gap:4px;padding:8px 10px 0}
+    .fpanel .rows{overflow:auto;padding:6px 10px;display:flex;flex-direction:column;gap:2px}
+    .prow{display:flex;align-items:center;gap:6px;cursor:pointer} .prow span{flex:1} .prow small{opacity:.7}
+    .fpanel>.btn{margin:8px 10px 10px;width:auto;align-self:flex-start}
     .installcode-panel{position:fixed;left:50%;top:90px;transform:translateX(-50%);z-index:30;width:520px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
     .installcode-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--fp-idle);font-weight:600}
     .installcode-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
@@ -431,7 +451,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.requestUpdate();
   };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => { const n = this.st.placeArea(i); if (n) this.changed(`Placed ${n} device${n === 1 ? "" : "s"}. Drag each to its spot.`); }, makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------
@@ -806,17 +826,50 @@ export class FloorplanStudioEditor extends LitElement {
     this.devColsPos = this.devColsPos ? null : { x: Math.max(20, (window.innerWidth - 560) / 2), y: 90 };
     this.requestUpdate();
   };
-  private onDevColsHeaderDown = (e: PointerEvent) => {
-    if (!this.devColsPos || (e.target as Element).closest("button")) return;
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
-    this.dcDrag = { dx: e.clientX - this.devColsPos.x, dy: e.clientY - this.devColsPos.y };
-  };
-  private onDevColsHeaderMove = (e: PointerEvent) => {
-    if (!this.dcDrag) return;
-    this.devColsPos = { x: e.clientX - this.dcDrag.dx, y: e.clientY - this.dcDrag.dy };
+  /** Where a floating panel of width `w` opens: centred under the toolbar, never off the left edge. */
+  private panelPos(w: number) { return { x: Math.max(20, (window.innerWidth - w) / 2), y: 90 }; }
+  /** S8.1: the pointer handlers that drag a floating panel by its head. `get` reads its position, `set` writes the new one; a
+   * press on a button in the head (its X) is not a drag. Shared by Device colours, Home Assistant and Place. */
+  private dragHead(get: () => { x: number; y: number } | null, set: (p: { x: number; y: number }) => void) {
+    let d: { dx: number; dy: number } | null = null;
+    return {
+      down: (e: PointerEvent) => {
+        const p = get();
+        if (!p || (e.target as Element).closest("button")) return;
+        (e.currentTarget as Element).setPointerCapture(e.pointerId);
+        d = { dx: e.clientX - p.x, dy: e.clientY - p.y };
+      },
+      move: (e: PointerEvent) => { if (!d) return; set({ x: e.clientX - d.dx, y: e.clientY - d.dy }); this.requestUpdate(); },
+      up: () => { d = null; },
+    };
+  }
+  private devColsHead = this.dragHead(() => this.devColsPos, (p) => { this.devColsPos = p; });
+  private haHead = this.dragHead(() => this.haPos, (p) => { this.haPos = p; });
+  private placeHead = this.dragHead(() => this.placePos, (p) => { this.placePos = p; });
+
+  /** S8.1: Edit, Home Assistant. Opening closes the menu it sits in and reloads the list (HA state moves on its own). */
+  private toggleHa() {
+    this.closeMenus();
+    this.haPos = this.haPos ? null : this.panelPos(440);
+    if (this.haPos) void this.loadHaList();
     this.requestUpdate();
-  };
-  private onDevColsHeaderUp = () => { this.dcDrag = null; };
+  }
+
+  // ---- S8.1: the room panel's Place popup ----------------------------------------------------------------------------
+
+  private openPlace(i: number) {
+    const r = this.st.f.rooms[i];
+    if (!r) return;
+    this.placeRoom = r.id; this.placeOff = new Set(); this.placeType = null; this.placePos = this.panelPos(440);
+    this.requestUpdate();
+  }
+  private closePlace() { this.placeRoom = null; this.placePos = null; this.requestUpdate(); }
+  /** Places the ticked rows (one undo step, `EditorState.placeArea`) and closes the popup. */
+  private placeGo(i: number, ids: string[]) {
+    const n = this.st.placeArea(i, new Set(ids));
+    this.closePlace();
+    if (n) this.changed(`Placed ${n} device${n === 1 ? "" : "s"}. Drag each to its spot.`);
+  }
 
   private toggleInstallCode = () => {
     this.installCodeOpen = !this.installCodeOpen;
@@ -1097,7 +1150,7 @@ export class FloorplanStudioEditor extends LitElement {
   private devColsView(st: EditorState) {
     const p = this.devColsPos!;
     return html`<div class="devcols-panel" style="left:${p.x}px;top:${p.y}px">
-      <div class="devcols-head" @pointerdown=${this.onDevColsHeaderDown} @pointermove=${this.onDevColsHeaderMove} @pointerup=${this.onDevColsHeaderUp} @pointercancel=${this.onDevColsHeaderUp}>
+      <div class="devcols-head" @pointerdown=${this.devColsHead.down} @pointermove=${this.devColsHead.move} @pointerup=${this.devColsHead.up} @pointercancel=${this.devColsHead.up}>
         <span>Device colours</span>
         <button class="btn keep" id="devcolsClose" aria-label="Close" @click=${() => this.toggleDevCols()}>&times;</button>
       </div>
@@ -1106,6 +1159,47 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn keep" aria-label=${`Reset ${label}`} ?disabled=${!(st.layout.colors && t in st.layout.colors)} @click=${() => this.setColour(t, null)}>Reset</button></div>`)}
       </div>
       <button class="btn keep" id="devcolsx" ?disabled=${!st.layout.colors} @click=${() => { if (st.resetColours()) this.changed("Device colours reset"); }}>Reset all</button>
+    </div>`;
+  }
+
+  /** S8.1: Edit, Home Assistant: a floating, draggable popover, X top-left, of everything Floorplan Studio made in Home
+   * Assistant (`listLabelled`), with what it is for, a name that opens the item in HA, and Remove. Stays open across a
+   * click elsewhere, like Device colours; Escape closes it. */
+  private haView() {
+    const p = this.haPos!;
+    return html`<div class="fpanel ha-panel" id="haPanel" role="dialog" aria-label="Home Assistant" style="left:${p.x}px;top:${p.y}px">
+      <div class="fpanel-head" @pointerdown=${this.haHead.down} @pointermove=${this.haHead.move} @pointerup=${this.haHead.up} @pointercancel=${this.haHead.up}>
+        <button class="btn keep" id="haClose" aria-label="Close" @click=${() => this.toggleHa()}>&times;</button>
+        <span>Home Assistant</span>
+      </div>
+      <p>These are the helpers, automations and areas Floorplan Studio created in Home Assistant. Click one to open it there, to edit or rename it. Remove deletes it from Home Assistant; the plan is not touched either way.</p>
+      ${this.haListLoading ? html`<span class="grp" id="haLoading">Loading…</span>` : nothing}
+      ${this.haListErr ? html`<span class="grp" id="haErr">${this.haListErr}</span>` : nothing}
+      ${!this.haListLoading && !this.haListErr && this.haList?.length === 0 ? html`<span class="grp" id="haNone">Nothing Floorplan Studio made is labelled in Home Assistant.</span>` : nothing}
+      ${HA_KIND_LABELS.map(([k, label]) => { const g = (this.haList ?? []).filter((x) => x.kind === k); return g.length ? html`<span class="grp">${label}</span>${g.map((it) => this.haRow(it))}` : nothing; })}
+    </div>`;
+  }
+
+  /** S8.1: the room panel's Place popup: the area's placeable entities (`areaToPlace`, noise already left out), a chip per
+   * type present to narrow the list, a tick per row, and Place for the ticked rows that are shown. Draggable, X top-left. */
+  private placeView(st: EditorState, i: number) {
+    const room = st.f.rooms[i], p = this.placePos!;
+    const all = st.areaToPlace(i);
+    const types = TYPE_LABELS.filter(([t]) => all.some((e) => typeForEntity(e) === t));
+    const shown = this.placeType ? all.filter((e) => typeForEntity(e) === this.placeType) : all;
+    const picked = shown.filter((e) => !this.placeOff.has(e.id));
+    const tick = (e: HaData["entities"][number]) => (ev: Event) => { if ((ev.target as HTMLInputElement).checked) this.placeOff.delete(e.id); else this.placeOff.add(e.id); this.requestUpdate(); };
+    // Opus review of S8.1: a ticked checkbox keeps focus and `onKey` ignores keys typed in an input, so Escape is handled here too.
+    const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); this.closePlace(); } };
+    return html`<div class="fpanel place-panel" id="placePanel" role="dialog" aria-label="Place devices" style="left:${p.x}px;top:${p.y}px" @keydown=${esc}>
+      <div class="fpanel-head" @pointerdown=${this.placeHead.down} @pointermove=${this.placeHead.move} @pointerup=${this.placeHead.up} @pointercancel=${this.placeHead.up}>
+        <button class="btn keep" id="placeClose" aria-label="Close" @click=${() => this.closePlace()}>&times;</button>
+        <span>Place devices of ${room.name}</span>
+      </div>
+      <p>What Home Assistant has in this area and the plan does not show yet. Readings with no icon of their own (power, energy, battery…) are left out. Untick what you do not want; each placed device can then be dragged to its spot.</p>
+      <div class="chips">${types.map(([t, label]) => html`<button class="chip keep" data-ptype=${t} aria-pressed=${this.placeType === t ? "true" : "false"} @click=${() => { this.placeType = this.placeType === t ? null : t; this.requestUpdate(); }}>${label}</button>`)}</div>
+      <div class="rows">${shown.map((e) => html`<label class="prow" data-pent=${e.id}><input type="checkbox" .checked=${live(!this.placeOff.has(e.id))} @change=${tick(e)}><span>${e.name}</span><small>${e.id}</small></label>`)}</div>
+      <button class="btn primary keep" id="placeGo" ?disabled=${!picked.length} @click=${() => this.placeGo(i, picked.map((e) => e.id))}>Place ${picked.length}</button>
     </div>`;
   }
 
@@ -1190,6 +1284,8 @@ export class FloorplanStudioEditor extends LitElement {
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); this.undo(!ev.shiftKey); return; }
     if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
+    if (ev.key === "Escape" && this.haPos) { ev.preventDefault(); this.toggleHa(); return; }
+    if (ev.key === "Escape" && this.placeRoom !== null) { ev.preventDefault(); this.closePlace(); return; }
     if (ev.key === "Escape" && this.installCodeOpen) { ev.preventDefault(); this.toggleInstallCode(); return; }
     if (ev.key === "Escape" && this.traceScale) { ev.preventDefault(); this.cancelTraceScale(); return; }
     if (ev.key === "Escape" && this.traceOpen) { ev.preventDefault(); this.toggleTrace(); return; }
@@ -1481,6 +1577,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.status = `Creating area ${name}...`; this.requestUpdate();
     try {
       const a = await w.createArea(name);
+      void this.loadHaList(); // S8.1: the Edit, Home Assistant button lists it
       const ha = st.ha;
       if (ha && !ha.areas.some((x) => x.id === a.id)) this.ha = { ...ha, areas: [...ha.areas, { id: a.id, name: a.name }] };
       // The plan may have changed while HA worked: find the room again by its id.
@@ -1504,6 +1601,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.status = `Creating a light from ${name}...`; this.requestUpdate();
     try {
       const { entity_id } = await w.createHelper("switch_as_x", [{ entity_id: d.entity, target_domain: "light" }]);
+      void this.loadHaList(); // S8.1: the Edit, Home Assistant button lists it
       // The plan may have changed while HA worked: find the switch again by its entity.
       const at = st.f.devices.findIndex((x) => x.entity === d.entity);
       if (at < 0 || !st.lightFromSwitch(at, entity_id, name)) { this.status = `Created ${entity_id} in Home Assistant, but the plan changed meanwhile. Place it from the Device menu.`; this.requestUpdate(); return; }
@@ -1528,6 +1626,7 @@ export class FloorplanStudioEditor extends LitElement {
     try {
       const nextStep = kind === "light" ? "light" : "binary_sensor";
       const { entity_id } = await w.createHelper("group", [{ next_step_id: nextStep }, { name: n, entities, hide_members: false, all: false }]);
+      void this.loadHaList(); // S8.1: the Edit, Home Assistant button lists it
       const ha = st.ha;
       if (ha && !ha.entities.some((e) => e.id === entity_id)) this.ha = { ...ha, entities: [...ha.entities, { id: entity_id, name: n, domain: "group", members: entities }] };
       st.groupDraft = ""; st.sel = null;
@@ -1549,6 +1648,7 @@ export class FloorplanStudioEditor extends LitElement {
     try {
       const cfg = switchControls(d.entity, targets);
       const id = await w.createAutomation(cfg);
+      void this.loadHaList(); // S8.1: the Edit, Home Assistant button lists it
       this.st.controlsDraft = [];
       this.status = `Created the automation. Opening it in Home Assistant...`; this.requestUpdate();
       openAutomation(id);
@@ -1569,6 +1669,7 @@ export class FloorplanStudioEditor extends LitElement {
     try {
       const cfg = schedule(d.entity, on, off);
       const id = await w.createAutomation(cfg);
+      void this.loadHaList(); // S8.1: the Edit, Home Assistant button lists it
       this.st.scheduleOn = ""; this.st.scheduleOff = "";
       this.status = `Created the automation. Opening it in Home Assistant...`; this.requestUpdate();
       openAutomation(id);
@@ -1589,6 +1690,7 @@ export class FloorplanStudioEditor extends LitElement {
     try {
       const cfg = motionLights(motionGroupId, lightGroupId, Math.round(minutes * 60));
       const id = await w.createAutomation(cfg);
+      void this.loadHaList(); // S8.1: the Edit, Home Assistant button lists it
       this.st.motionLightGroup = ""; this.st.motionMinutes = "";
       this.status = `Created the automation. Opening it in Home Assistant...`; this.requestUpdate();
       openAutomation(id);
@@ -1632,21 +1734,22 @@ export class FloorplanStudioEditor extends LitElement {
     }
   }
 
-  /** S4.10: opening the Home Assistant menu loads everything floorplan-studio labelled, fresh each time (HA state moves on its own). */
-  private onHaToggle = (ev: Event) => {
-    if ((ev.currentTarget as HTMLDetailsElement).open) void this.loadHaList();
-  };
-
+  /** Opus review of S8.1: loads overlap (the writer setter, then a create's reload); only the latest reply counts. */
+  private haListSeq = 0;
   private async loadHaList() {
     if (!this.writer) return;
+    const seq = ++this.haListSeq;
     this.haListLoading = true; this.haListErr = ""; this.requestUpdate();
     try {
-      this.haList = await this.writer.listLabelled();
+      const list = await this.writer.listLabelled();
+      if (seq !== this.haListSeq) return;
+      this.haList = list;
     } catch (err) {
+      if (seq !== this.haListSeq) return;
       this.haList = null;
       this.haListErr = `Could not read Home Assistant: ${err instanceof Error ? err.message : String(err)}`;
     } finally {
-      this.haListLoading = false; this.requestUpdate();
+      if (seq === this.haListSeq) { this.haListLoading = false; this.requestUpdate(); }
     }
   }
 
@@ -1667,12 +1770,13 @@ export class FloorplanStudioEditor extends LitElement {
     }
   }
 
-  /** One row of the Home Assistant menu: its name, a link/button to open it in Home Assistant, and Remove. */
+  /** One row of the Home Assistant popover: its name opens the item where HA edits it (a helper's more-info dialog, the
+   * automation editor, the area page), then Remove. */
   private haRow(it: Labelled) {
-    const open = it.entityId
-      ? html`<button class="btn keep" @click=${() => this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: it.entityId }, bubbles: true, composed: true }))}>Open in Home Assistant</button>`
-      : html`<a class="btn keep" href=${`/config/areas/area/${it.id}`} target="_top">Open in Home Assistant</a>`;
-    return html`<div class="harow" data-ha=${it.id}><span>${it.name}</span>${open}<button class="btn warn keep" @click=${() => void this.removeHaItem(it)}>Remove from Home Assistant</button></div>`;
+    const name = it.kind === "helper" && it.entityId
+      ? html`<button class="btn keep name" @click=${() => this.moreInfo(it.entityId!)}>${it.name}</button>`
+      : html`<a class="btn keep name" href=${(it.kind === "automation" ? "/config/automation/edit/" : "/config/areas/area/") + encodeURIComponent(it.id)} target="_top">${it.name}</a>`;
+    return html`<div class="harow" data-ha=${it.id}>${name}<button class="btn warn keep" @click=${() => void this.removeHaItem(it)}>Remove</button></div>`;
   }
 
   /** A floor operation of the state is one undo step; the host hears about it like any other edit. */
@@ -1703,7 +1807,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.addFloor(title)) { this.floorDone(`Added floor ${title}`); this.focus({ preventScroll: true }); }
   };
 
-  private setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.requestUpdate(); }
+  private setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; this.placePos = null; this.requestUpdate(); } // the Place popup belongs to a room of the floor it was opened on
 
   private save() {
     const v = validate(this.st.layout);
@@ -1936,13 +2040,12 @@ export class FloorplanStudioEditor extends LitElement {
         ${Object.entries(st.layout.floors).map(([name, fl]) => html`<button class="chip" data-f=${name} aria-pressed=${pressed(name === st.floor)} @click=${() => this.setFloor(name)}>${fl.title || name}</button>`)}
         ${this.addingFloor
           ? html`<input id="newFloor" type="text" aria-label="Title of the new floor" placeholder="Floor title" @keydown=${this.onNewFloorKey} @blur=${() => { if (document.hasFocus()) this.addingFloor = false; }}>`
-          : html`<button class="chip" id="addFloor" title="Add a floor" aria-label="Add a floor" @click=${() => this.startAddFloor()}>+</button>`}
+          : nothing}
         <span class="grow"></span>
-        <details class="menu" id="filter"><summary class="btn" aria-label="Filter devices">${st.filter.length ? `Devices: ${st.filter.length} type${st.filter.length > 1 ? "s" : ""}` : `Devices: all (${f.devices.length})`}</summary><div class="box">
+        <details class="menu" id="filter"><summary class="btn" aria-label="Filter devices">${st.filter.length ? `Filter: ${st.filter.length} type${st.filter.length > 1 ? "s" : ""}` : `Filter: all (${f.devices.length})`}</summary><div class="box">
           <button class="btn keep" id="filterAll" ?disabled=${!st.filter.length} @click=${() => { st.filter = []; st.sel = null; this.requestUpdate(); }}>All</button>
           ${TYPE_LABELS.filter(([t]) => counts[t]).map(([t, label]) => html`<button class="btn keep" data-filter=${t} aria-pressed=${pressed(st.filter.includes(t))} @click=${() => { st.filter = st.filter.includes(t) ? st.filter.filter((x) => x !== t) : [...st.filter, t]; st.sel = null; this.requestUpdate(); }}>${label} (${counts[t]})</button>`)}
         </div></details>
-        <button class="chip" id="names" aria-pressed=${pressed(st.showNames)} title="Show every visible device's name on the plan" @click=${() => { st.showNames = !st.showNames; this.requestUpdate(); }}>Names</button>
         <details class="menu" id="mAdd"><summary class="btn">Add</summary><div class="box">
           <details class="sub" id="addOpenings"><summary class="btn">Openings</summary>
             <button class="btn" id="addDoor" @click=${() => this.addDoor("door", 90)}>Door</button>
@@ -1994,37 +2097,42 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="drawExtra" @click=${() => this.startDraw("extra")}>Draw structure line</button>
           </details>
         </div></details>
-        ${ha ? html`<details class="menu" id="mGroup"><summary class="btn">Group</summary><div class="box">
-          <button class="btn" id="groupAll" aria-pressed=${pressed(!st.activeGroup)} @click=${() => { st.activeGroup = null; this.requestUpdate(); }}>All</button>
-          ${groups.length === 0 ? html`<span class="grp" id="groupNone">No Home Assistant group has a member on this floor</span>` : nothing}
-          ${groups.map((g) => html`<button class="btn" data-group=${g.id} aria-pressed=${pressed(st.activeGroup === g.id)} @click=${() => { st.activeGroup = g.id; this.requestUpdate(); }}>${g.name}</button>`)}
-          ${this.writer && activeGroup && groupKindOf(activeGroup) === "motion" ? html`<div class="sep"></div>
-            <label for="motLightGrp">Turns on</label>
-            <select id="motLightGrp" .value=${live(st.motionLightGroup)} @change=${(e: Event) => { st.motionLightGroup = (e.target as HTMLSelectElement).value; this.requestUpdate(); }}>
-              <option value="" ?selected=${!st.motionLightGroup}>choose a light group...</option>
-              ${groups.filter((g) => groupKindOf(g) === "light").map((g) => html`<option value=${g.id} ?selected=${g.id === st.motionLightGroup}>${g.name}</option>`)}
-            </select>
-            <label for="motMinutes">off after (minutes)</label>
-            <input id="motMinutes" type="number" min="1" step="1" .value=${live(st.motionMinutes)} @change=${(e: Event) => { st.motionMinutes = (e.target as HTMLInputElement).value; this.requestUpdate(); }}>
-            <p><button class="btn" id="motGo" @click=${() => { const min = Number(st.motionMinutes); if (st.motionLightGroup && min > 0) void this.motionAutomation(activeGroup.id, st.motionLightGroup, min); }}>Create automation</button></p>` : nothing}
-        </div></details>` : nothing}
         <details class="menu" id="mOpt" @toggle=${this.onOptToggle}><summary class="btn">View</summary><div class="box">
           <span class="grp" id="version">Floorplan Studio ${manifest.version}</span>
           <div class="rotrow" id="snap" role="group" aria-label="Snap"><span>Snap</span>
             ${GRID_VALUES.map((g) => html`<button class="chip keep" data-grid=${g} aria-pressed=${pressed(st.snapGrid === g)} @click=${() => { st.setGrid(g); this.requestUpdate(); }}>${g ? `${g} cm` : "None"}</button>`)}</div>
           <button class="chip" id="mgrid" aria-pressed=${pressed(st.measure)} title="A faint 50 cm grid with metre markers, behind the plan" @click=${() => { st.setMeasure(!st.measure); this.requestUpdate(); }}>Measure grid</button>
           <button class="chip" id="lens" aria-pressed=${pressed(st.showLen)} @click=${() => { st.showLen = !st.showLen; this.requestUpdate(); }}>Lengths</button>
+          <button class="chip" id="names" aria-pressed=${pressed(st.showNames)} title="Show every visible device's name on the plan" @click=${() => { st.showNames = !st.showNames; this.requestUpdate(); }}>Names</button>
           <button class="chip" id="night" aria-pressed=${pressed(st.night)} title="Draw the plan as the card does after sunset. The editor has no live lights, so every room is dark." @click=${() => { st.setNight(!st.night); this.requestUpdate(); }}>Preview night</button>
           <details class="sub" id="thSub"><summary class="btn">Theme: ${THEME_LABELS[st.theme]}</summary>
             ${THEME_VALUES.map((t) => html`<button class="btn keep" data-th=${t} aria-pressed=${pressed(st.theme === t)} @click=${() => { st.setTheme(t); this.requestUpdate(); }}>${THEME_LABELS[t]}</button>`)}
           </details>
           <button class="btn" id="recenter" @click=${() => { st.recenter(); this.requestUpdate(); }}>Re-center</button>
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
-          <button class="btn" id="devcols" aria-expanded=${pressed(!!this.devColsPos)} @click=${() => this.toggleDevCols()}>Device colours</button>
-          <button class="btn" id="traceBtn" aria-expanded=${pressed(this.traceOpen)} @click=${() => this.toggleTrace()}>Trace image…</button>
+        </div></details>
+        <details class="menu" id="mEdit"><summary class="btn">Edit</summary><div class="box">
+          <button class="btn" id="addFloor" title="Add a floor" @click=${() => this.startAddFloor()}>Add floor</button>
+          ${this.writer ? html`<button class="btn" id="mHA" ?disabled=${!this.haList?.length && !this.haListErr} aria-expanded=${pressed(!!this.haPos)} title=${this.haListErr || (this.haList?.length ? "What Floorplan Studio made in Home Assistant" : "Nothing Floorplan Studio made is labelled in Home Assistant yet")} @click=${() => this.toggleHa()}>Home Assistant</button>` : nothing}
+          ${ha ? html`<details class="sub" id="mGroup"><summary class="btn">Group</summary>
+            <button class="btn" id="groupAll" aria-pressed=${pressed(!st.activeGroup)} @click=${() => { st.activeGroup = null; this.requestUpdate(); }}>All</button>
+            ${groups.length === 0 ? html`<span class="grp" id="groupNone">No Home Assistant group has a member on this floor</span>` : nothing}
+            ${groups.map((g) => html`<button class="btn" data-group=${g.id} aria-pressed=${pressed(st.activeGroup === g.id)} @click=${() => { st.activeGroup = g.id; this.requestUpdate(); }}>${g.name}</button>`)}
+            ${this.writer && activeGroup && groupKindOf(activeGroup) === "motion" ? html`<div class="sep"></div>
+              <label for="motLightGrp">Turns on</label>
+              <select id="motLightGrp" .value=${live(st.motionLightGroup)} @change=${(e: Event) => { st.motionLightGroup = (e.target as HTMLSelectElement).value; this.requestUpdate(); }}>
+                <option value="" ?selected=${!st.motionLightGroup}>choose a light group...</option>
+                ${groups.filter((g) => groupKindOf(g) === "light").map((g) => html`<option value=${g.id} ?selected=${g.id === st.motionLightGroup}>${g.name}</option>`)}
+              </select>
+              <label for="motMinutes">off after (minutes)</label>
+              <input id="motMinutes" type="number" min="1" step="1" .value=${live(st.motionMinutes)} @change=${(e: Event) => { st.motionMinutes = (e.target as HTMLInputElement).value; this.requestUpdate(); }}>
+              <p><button class="btn" id="motGo" @click=${() => { const min = Number(st.motionMinutes); if (st.motionLightGroup && min > 0) void this.motionAutomation(activeGroup.id, st.motionLightGroup, min); }}>Create automation</button></p>` : nothing}
+          </details>` : nothing}
           <div class="rotrow"><span id="rotv">Rotate the plan: ${st.layout.rotate ?? 0}°</span>
             <button class="btn keep" id="rotl" aria-label="Rotate the plan 45 degrees left" @click=${() => this.rotatePlan(-45)}>&#8630; 45°</button>
             <button class="btn keep" id="rotr" aria-label="Rotate the plan 45 degrees right" @click=${() => this.rotatePlan(45)}>45° &#8631;</button></div>
+          <button class="btn" id="devcols" aria-expanded=${pressed(!!this.devColsPos)} @click=${() => this.toggleDevCols()}>Device colours</button>
+          <button class="btn" id="traceBtn" aria-expanded=${pressed(this.traceOpen)} @click=${() => this.toggleTrace()}>Trace image…</button>
         </div></details>
         <details class="menu" id="mFile"><summary class="btn">File</summary><div class="box">
           <button class="btn" id="imp" @click=${() => this.renderRoot.querySelector<HTMLInputElement>("#file")?.click()}>Open…</button>
@@ -2035,12 +2143,6 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn danger" id="reset" title="Erase everything and start from a blank plan" @click=${() => this.reset()}>Reset</button>
           <button class="btn primary" id="save" @click=${() => this.save()}>Save</button>
         </div></details>
-        ${this.writer ? html`<details class="menu" id="mHA" @toggle=${this.onHaToggle}><summary class="btn">Home Assistant</summary><div class="box">
-          ${this.haListLoading ? html`<span class="grp" id="haLoading">Loading…</span>` : nothing}
-          ${this.haListErr ? html`<span class="grp" id="haErr">${this.haListErr}</span>` : nothing}
-          ${!this.haListLoading && !this.haListErr && this.haList?.length === 0 ? html`<span class="grp" id="haNone">Nothing floorplan-studio made is labelled in Home Assistant.</span>` : nothing}
-          ${HA_KIND_LABELS.map(([k, label]) => { const g = (this.haList ?? []).filter((x) => x.kind === k); return g.length ? html`<span class="grp">${label}</span>${g.map((it) => this.haRow(it))}` : nothing; })}
-        </div></details>` : nothing}
         <button class="btn" id="help" aria-expanded=${pressed(st.helpOpen)} @click=${() => this.toggleHelp()}>Help</button>
         <div class="vsep"></div>
         <button class="btn light" id="undo" ?disabled=${!st.canUndo} @click=${() => this.undo(true)}>Undo</button>
@@ -2059,6 +2161,8 @@ export class FloorplanStudioEditor extends LitElement {
           <svg xmlns="http://www.w3.org/2000/svg" class=${[this.draw ? "drawing" : "", f.trace?.on === true ? "tracing" : ""].filter(Boolean).join(" ")} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
           ${this.ctxMenu ? this.ctxMenuView(this.ctxMenu) : nothing}
           ${this.devColsPos ? this.devColsView(st) : nothing}
+          ${this.haPos && this.writer ? this.haView() : nothing}
+          ${(() => { const i = this.placeRoom === null ? -1 : st.f.rooms.findIndex((r) => r.id === this.placeRoom); return i >= 0 && this.placePos ? this.placeView(st, i) : nothing; })()}
           ${this.installCodeOpen ? this.installCodeView() : nothing}
           ${this.traceOpen ? this.traceView() : nothing}
         </div>
