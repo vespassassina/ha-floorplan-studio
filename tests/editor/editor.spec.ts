@@ -1693,6 +1693,10 @@ test("Opus review CSS pair: a long device name in the Add panel row is ellipsise
   // Break it: revert to `white-space: normal` and this assertion fails — a wrapped name would keep `whiteSpace: "normal"`.
   const box = await nameEl.boundingBox();
   expect(box!.height).toBeLessThan(24); // one line, not wrapped to two or three
+  // The name and the subtitle start at the same left edge; a button's default centring put the name mid-row.
+  const sub = await row.locator("small").boundingBox();
+  const textLeft = await nameEl.evaluate((el) => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect().left; });
+  expect(Math.abs(textLeft - sub!.x)).toBeLessThan(2);
 });
 
 test("S8.8: the Add > Device panel and the room Place popup are noticeably larger than the S8.5 baseline (520px/440px wide)", async ({ page }) => {

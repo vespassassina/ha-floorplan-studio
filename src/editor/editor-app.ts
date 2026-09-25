@@ -280,7 +280,7 @@ export class FloorplanStudioEditor extends LitElement {
     .add-dev-panel{width:min(780px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
     .add-dev-panel>input[type=search]{margin:8px 10px 0;box-sizing:border-box;width:calc(100% - 20px)}
     .add-dev-filters select{flex:1 1 45%;min-width:140px}
-    .add-dev-panel .rows .btn{display:flex;flex-direction:column;align-items:flex-start;gap:0;min-width:0}
+    .add-dev-panel .rows .btn{display:flex;flex-direction:column;align-items:flex-start;gap:0;min-width:0;text-align:left}
     .add-dev-panel .rows .btn .devrow-name{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .add-dev-panel .rows .btn small{opacity:.7}
     .place-panel{width:min(660px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
