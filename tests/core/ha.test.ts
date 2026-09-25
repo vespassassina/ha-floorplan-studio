@@ -498,7 +498,7 @@ describe("S8.6: addCandidates emits one row per HA device, not one per entity", 
     // the ha-dev row would then just look identical to the catalog row. Placing the sibling instead exercises the
     // actual rule: the device is still recognised as placed even though its own row would be keyed by switch.plug.
     const l = layout();
-    l.catalog = [{ id: "c-1", floor: "ground", room: "", type: "sensor", name: "Plug power", entity: "sensor.plug_power" }];
+    l.catalog = [{ id: "c-1", floor: "ground", room: "", type: "other", name: "Plug power", entity: "sensor.plug_power" }];
     const out = addCandidates(l, plugHa());
     expect(out.find((c) => c.id === "d1")).toBeUndefined(); // the ha-dev row for the whole device is gone
     expect(out.find((c) => c.entity === "switch.plug")).toBeUndefined(); // no fallback row via the main entity either
