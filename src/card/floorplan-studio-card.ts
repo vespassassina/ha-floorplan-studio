@@ -86,8 +86,11 @@ export class FloorplanStudioCard extends LitElement {
     .fp-zoom button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     .fp-zoom button:disabled { opacity: 0.45; cursor: default; }
     .fp-zoom svg { width: 14px; height: 14px; }
-    /* Only when zoom is on: the plan takes every touch, so the page does not scroll or zoom under a pinch. */
-    svg.fp-zoomable { touch-action: none; }
+    /* S7.15: with zoom on, the plan takes every touch once it is zoomed in, so the page does not scroll or zoom under
+       a pan or a pinch. At fit there is nothing to pan, so a vertical swipe scrolls the dashboard as it would over
+       any other card; the browser still leaves a pinch and a double-tap to the plan (pan-y allows neither). */
+    svg.fp-zoomable { touch-action: pan-y; }
+    svg.fp-zoomable.fp-zoomed { touch-action: none; }
     .fp-dialog-actions button.confirm { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); }
     /* S7.10: the vacuum dialog has four buttons where the cover dialog has two; wrap rather than overflow the
        card on a narrow width, and a disabled action reads as inert (dimmed, no pointer) without a separate class. */
@@ -602,6 +605,7 @@ export class FloorplanStudioCard extends LitElement {
     const zoom = this._zoomMode() !== false;
     const showZoomButtons = zoom && !this._kiosk(); // S7.5: kiosk still zooms/pans by gesture, just draws no buttons
     const box = zoom && this._view ? clamp(this._view, fit) : fit;
+    const svgClass = !zoom ? "" : box.w < fit.w * (1 - 1e-6) ? "fp-zoomable fp-zoomed" : "fp-zoomable";
     const body = renderFloor(f, {
       scale: 1,
       state: this._stateForRender(),
@@ -615,7 +619,7 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${zoom ? "fp-zoomable" : ""} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${showZoomButtons ? this._zoomButtons(box, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}`;
+    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${showZoomButtons ? this._zoomButtons(box, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}`;
   }
 
   /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */

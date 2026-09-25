@@ -1213,6 +1213,24 @@ describe("S1.42: a device never hides a room name", () => {
   it("stays at the centroid when all five spots are taken, so nothing is dropped", () => {
     expect(nameY(floor("room", [...three, [200, 100 + 64 * k], [200, 100 - 64 * k]]))).toBe(cy);
   });
+  // S7.15: a door is an obstacle too (the demo's "Garden pond" sat across the garage door). A door's box is its
+  // line widened by half its 22-unit stroke on every side. The name skips the centroid (on the door) and the row
+  // below (the door reaches down to y 161), and lands on the row above (its box ends at y 43, the door starts at 49).
+  const withDoor = (a: [number, number], b: [number, number]) => {
+    const f = structuredClone(ground);
+    f.rooms = [{ id: "r", name: "Lounge", kind: "room", area: "", pts: [[0, 0], [400, 0], [400, 200], [0, 200]] } as never];
+    f.devices = []; f.stairs = []; f.walls = []; f.furniture = [];
+    f.doors = [{ id: "d", name: "Door", kind: "door", a, b } as never];
+    return renderFloor(f, { scale: 0.5 });
+  };
+  it("S7.15: moves off a door that runs through the centroid", () => { expect(nameY(withDoor([200, 60], [200, 150]))).toBe(cy - 32 * k); });
+  it("S7.15: a door whose stroke just reaches the name's box counts, one 1 unit further does not", () => {
+    // The name box at the centroid spans y 79..107 (28 tall, baseline 0.75 down). A horizontal door at y 117 with
+    // stroke 22 reaches up to 106 and overlaps; at y 118 its edge only touches the box, which does not count.
+    expect(nameY(withDoor([100, 117], [300, 117]))).toBe(cy + 32 * k);
+    expect(nameY(withDoor([100, 118], [300, 118]))).toBe(cy);
+  });
+  it("S7.15: a door far from the name leaves it at the centroid", () => { expect(nameY(withDoor([50, 190], [350, 190]))).toBe(cy); });
   it("a zone follows the same steps with its smaller size", () => {
     expect(nameY(floor("zone", [[200, 100]]))).toBe(cy + 32 * k);
     expect(nameY(floor("zone", [[200, 100], [200, 100 + 32 * k]]))).toBe(cy - 32 * k);
@@ -1371,15 +1389,22 @@ describe("S7.1: labels never overprint each other", () => {
       const s = Number(m[3]), [x, y] = scr([Number(m[1]) + 12 * s, Number(m[2]) + 12 * s]);
       return [x - 16 * s, y - 16 * s, 32 * s, 32 * s] as Box;
     });
-    return { texts, discs };
+    // S7.15: a door is its line widened by half its stroke, in the screen frame (a turned door's box is the box of its
+    // turned endpoints, so it is a little generous off-axis, which only makes the check stricter).
+    const doors = [...html.matchAll(/<line data-d="\d+"[^>]* x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)" stroke-width="(\d+)"/g)].map((m) => {
+      const [x1, y1] = scr([Number(m[1]), Number(m[2])]), [x2, y2] = scr([Number(m[3]), Number(m[4])]), h = Number(m[5]) / 2;
+      return [Math.min(x1, x2) - h, Math.min(y1, y2) - h, Math.abs(x2 - x1) + 2 * h, Math.abs(y2 - y1) + 2 * h] as Box;
+    });
+    return { texts, discs, doors };
   };
   const EPS = 0.05; // num() rounds every coordinate to 0.01
   const meet = (a: Box, b: Box) => a[0] < b[0] + b[2] - EPS && b[0] < a[0] + a[2] - EPS && a[1] < b[1] + b[3] - EPS && b[1] < a[1] + a[3] - EPS;
   const clashes = (html: string, rotate?: { deg: number; pivot: Pt }) => {
-    const { texts, discs } = boxesOf(html, rotate), out: string[] = [];
+    const { texts, discs, doors } = boxesOf(html, rotate), out: string[] = [];
     texts.forEach((t, i) => {
       for (const u of texts.slice(i + 1)) if (meet(t.box, u.box)) out.push(`"${t.s}" on "${u.s}"`);
       discs.forEach((d, j) => { if (meet(t.box, d)) out.push(`"${t.s}" on icon ${j}`); });
+      doors.forEach((d, j) => { if (meet(t.box, d)) out.push(`"${t.s}" on door ${j}`); });
     });
     return out;
   };
@@ -1397,13 +1422,14 @@ describe("S7.1: labels never overprint each other", () => {
   for (const name of ["ground", "first"] as const)
     for (const scale of [1, 0.5])
       for (const deg of [0, 90])
-        it(`the demo's ${name} floor at scale ${scale}, turned ${deg}: no text on another text or on an icon`, () => {
+        it(`the demo's ${name} floor at scale ${scale}, turned ${deg}: no text on another text, on an icon or on a door`, () => {
           const rotate = deg ? { deg, pivot } : undefined;
           const f = L.floors[name];
           const html = renderFloor(f, { scale, now: NOW, state: STATE, rotate });
-          const { texts, discs } = boxesOf(html, rotate);
+          const { texts, discs, doors } = boxesOf(html, rotate);
           expect(texts.length).toBe(f.rooms.filter((r) => r.name && r.kind !== "fill").length + f.devices.filter((d) => d.type === "temp" || d.type === "humidity").length);
           expect(discs.length).toBe(f.devices.length);
+          expect(doors.length).toBe(f.doors.length);
           expect(clashes(html, rotate)).toEqual([]);
         });
 

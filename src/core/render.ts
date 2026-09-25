@@ -203,6 +203,8 @@ const num = (n: number) => String(Math.round(n * 100) / 100);
 const pts = (p: Pt[]) => p.map((q) => `${num(q[0])},${num(q[1])}`).join(" ");
 const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 /** x, y, w, h. */
+/** A door line's stroke, in plan units; the label placer widens the line by half of it. */
+const DOOR_STROKE = 22;
 type Box = [number, number, number, number];
 const meets = (a: Box, b: Box) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 
@@ -536,6 +538,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1;
     if (Number.isFinite(u.x) && Number.isFinite(u.y)) disc([u.x, u.y], 16 * k * scale);
   }
+  // S7.15: doors are obstacles too, so a name never runs across one (the demo's "Garden pond" sat on the garage
+  // door). A door's box is its line, in the screen frame, widened by half its 22-unit stroke on every side.
+  for (const d of f.doors) {
+    const [ax, ay] = toScreen(d.a), [bx, by] = toScreen(d.b), h = DOOR_STROKE / 2;
+    if ([ax, ay, bx, by].every(Number.isFinite)) placed.push([Math.min(ax, bx) - h, Math.min(ay, by) - h, Math.abs(bx - ax) + 2 * h, Math.abs(by - ay) + 2 * h]);
+  }
   const named = (r: Floor["rooms"][number]) => !!r.name && r.kind !== "fill";
   const nameAt: Pt[] = [], labelAt: Pt[] = [], zoneAt: Pt[] = [];
   f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = place(rows(centroid(r.pts)), 14 * k, r.name); });
@@ -565,7 +573,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const open = (d.sensors ?? []).some((e) => o.state?.[e]?.state === "on"), cover = d.cover ? o.state?.[d.cover] : undefined;
     const cls = ["door", `door-${esc(String(d.kind))}`, open ? "open" : "", cover?.state === "open" ? "cover-open" : ""].filter(Boolean).join(" ");
     const sel = o.selection?.t === "door" && o.selection.i === i;
-    out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 30 : 22}"><title>${esc(d.name ?? "")}</title></line>`);
+    out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 30 : DOOR_STROKE}"><title>${esc(d.name ?? "")}</title></line>`);
   });
 
   f.rooms.forEach((r, i) => {

@@ -541,10 +541,17 @@ test.describe("S7.4 zoom and pan", () => {
     expect(await card(page).evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector("svg")!).touchAction)).toBe("auto");
   });
 
-  test("with zoom on the svg has touch-action: none", async ({ page }) => {
+  // S7.15: at fit the page may scroll under a vertical swipe (there is nothing to pan); zoomed, the plan takes every
+  // touch. Both are computed-style pairs for the two CSS rules, and the pair is read again after fit is restored.
+  test("with zoom on the svg has touch-action: pan-y at fit and none once zoomed", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
-    expect(await card(page).evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector("svg")!).touchAction)).toBe("none");
+    const touchAction = () => card(page).evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector("svg")!).touchAction);
+    expect(await touchAction()).toBe("pan-y");
+    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').click();
+    await expect.poll(touchAction).toBe("none");
+    await card(page).locator('css=.fp-zoom button[aria-label="Fit"]').click();
+    await expect.poll(touchAction).toBe("pan-y");
   });
 
   test("Break it: a wheel over a floor chip leaves the viewBox alone, even with zoom: \"wheel\"", async ({ page }) => {
@@ -671,6 +678,37 @@ test.describe("S7.4 touch", () => {
     await touch("touchEnd", []);
     await expect.poll(async () => (await viewBox(page)).w).toBeCloseTo(fit.w / 2, 0);
     expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
+  });
+
+  // S7.15: the reason for pan-y at fit. A one-finger vertical swipe that starts on the plan scrolls the page, as it
+  // would over any other card; the plan's view does not change. Zoomed in, the same swipe pans the plan and the page
+  // stays put. The page is made tall enough to scroll first.
+  test("S7.15: a vertical swipe on the plan scrolls the page at fit and pans the plan once zoomed", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    await page.evaluate(() => { document.body.style.height = "4000px"; window.scrollTo(0, 0); });
+    const fit = await viewBox(page);
+    const b = await svgBox(page);
+    const x = b.x + b.width / 2, y0 = b.y + b.height - 40;
+    const touch = await toucher(page);
+    const swipeUp = async () => {
+      await touch("touchStart", [{ x, y: y0, id: 1 }]);
+      for (let s = 1; s <= 8; s++) await touch("touchMove", [{ x, y: y0 - s * 30, id: 1 }]);
+      await touch("touchEnd", []);
+    };
+    await swipeUp();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(50);
+    expect(await viewBox(page)).toEqual(fit);
+    expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').tap();
+    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').tap();
+    const z = await viewBox(page);
+    expect(z.w).toBeLessThan(fit.w);
+    await swipeUp();
+    await expect.poll(async () => (await viewBox(page)).y).toBeGreaterThan(z.y);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
   });
 
   test("Break it: a pinch whose first finger starts outside the svg is ignored", async ({ page }) => {
