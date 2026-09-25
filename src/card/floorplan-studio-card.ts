@@ -8,6 +8,7 @@ import { TAP_SLOP_PX, bindDeviceActions } from "./actions";
 // one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
 // second built file (PLAN block interface).
 import "./config-editor";
+import { defineElement } from "./define";
 import { MAX_ZOOM, clamp, panBy, pinch, zoomAt, type Pt, type View } from "./viewport";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
@@ -69,13 +70,10 @@ export class FloorplanStudioCard extends LitElement {
        fixed-height row (HA's sections layout, .card.fit-rows) it fills the row instead of overflowing it, and
        the svg's own default preserveAspectRatio (xMidYMid meet) keeps the whole plan visible, letterboxed rather
        than cropped or stretched. */
-    /* S8.2: height 100% on both, matching Home Assistant's own cards (thermostat, map). In an "auto" grid row
-       (no numeric height set by getGridOptions/computeCardGridSize) the containing block's height is indefinite,
-       so height:100% computes to auto and the svg sizes by width and its viewBox aspect exactly as before; in a
-       fixed-height row (HA's sections layout, .card.fit-rows) it fills the row instead of overflowing it, and
-       the svg's own default preserveAspectRatio (xMidYMid meet) keeps the whole plan visible, letterboxed rather
-       than cropped or stretched. */
     :host { display: block; position: relative; height: 100%; }
+    /* S8.3: hui-panel-view gives the card no definite height either, so the plan grew by width past the bottom of
+       the screen and "fit" looked zoomed in. In panel layout the card takes the screen below HA's header. */
+    :host([panel]) { height: calc(100vh - var(--header-height, 56px)); }
     svg { width: 100%; height: 100%; display: block; }
     p.msg { padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
     /* S2.6: the floor switcher is card chrome (like p.msg above), not plan content, so it sits outside the <svg>
@@ -261,6 +259,14 @@ export class FloorplanStudioCard extends LitElement {
    * tool a starting height that fits the plan, and the CSS fix above (svg height:100%) means a further manual
    * resize letterboxes the plan instead of cropping it. `min_columns` keeps a narrow card from squeezing the plan
    * illegibly thin; `min_rows` keeps a short one from squeezing it illegibly flat. */
+  /** S8.3: HA's hui-card sets `layout` on the card element ("panel" in a panel view, "grid" in sections). */
+  set layout(v: string | undefined) {
+    this.toggleAttribute("panel", v === "panel");
+  }
+  get layout(): string | undefined {
+    return this.hasAttribute("panel") ? "panel" : undefined;
+  }
+
   getGridOptions(): { columns: number; rows: number; min_columns: number; min_rows: number } {
     return { columns: 12, rows: this._rows(), min_columns: 6, min_rows: 3 };
   }
@@ -891,5 +897,4 @@ if (typeof window !== "undefined") {
       description: "Draw your home and use it as a live dashboard.",
     });
 }
-if (typeof customElements !== "undefined" && !customElements.get("floorplan-studio-card"))
-  customElements.define("floorplan-studio-card", FloorplanStudioCard);
+defineElement("floorplan-studio-card", FloorplanStudioCard);

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Fixed "Custom element doesn't exist: floorplan-studio-card" on about half
+  of page loads. Home Assistant swaps its element registry while it starts;
+  the card now registers again when that happens.
+- In a panel view the card fits the screen below the header instead of
+  drawing the plan taller than the window.
+
 ## 0.12.1
 
 - The card fills whatever space a dashboard gives it instead of cropping.
