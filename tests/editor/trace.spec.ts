@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { validate, MAX_TRACE_BYTES, type Layout } from "../../src/core/schema";
+import { validate, MAX_TRACE_BYTES, MAX_LAYOUT_BYTES, type Layout } from "../../src/core/schema";
 
 // S7.11: View, Trace image. Every pointer action goes through page.mouse at real coordinates (finding 3).
 
@@ -199,4 +199,38 @@ test("S7.11: Escape closes the Trace panel", async ({ page }) => {
   await page.locator(EDITOR).focus();
   await page.keyboard.press("Escape");
   await expect(page.locator("#tracePanel")).toHaveCount(0);
+});
+
+// Opus review, 2026-09-25 (M3): Home Assistant's websocket takes 4 MiB in one message, and one trace may already be
+// 4 MB. Save refuses a plan over MAX_LAYOUT_BYTES and says which floors carry an image, before any host is asked.
+test("Save refuses a plan whose JSON is over the save limit and names the traced floors", async ({ page }) => {
+  const big = "data:image/png;base64," + "A".repeat(MAX_LAYOUT_BYTES); // valid by TRACE_SRC, under the per-trace cap only if the cap allows; the sum is what matters
+  expect(MAX_LAYOUT_BYTES).toBeLessThan(MAX_TRACE_BYTES); // otherwise this test would need two floors
+  await page.evaluate(([tag, src]) => {
+    const el = document.querySelector(tag) as any;
+    const l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.trace = { src, x: 0, y: 0, w: 800, rot: 0, alpha: 0.5, on: true };
+    el.layout = l;
+  }, [EDITOR, big] as const);
+  await expect(page.locator(IMG)).toHaveCount(1);
+  await menu(page, "File");
+  await page.locator("#save").click();
+  await expect(page.locator("#errors")).toContainText("Ground");
+  await expect(page.locator("#errors")).toContainText("MB");
+  await expect(page.locator("#status")).not.toHaveText(/Sav/);
+});
+
+// Opus review, 2026-09-25 (m1): when the browser's storage cannot hold the image, the autosave keeps the plan without
+// it. The user must hear that, or a reload before Save loses the scan silently.
+test("when the autosave has no room for the trace image, the status says so", async ({ page }) => {
+  await page.addInitScript(() => {
+    const real = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k: string, v: string) { if (v.includes("data:image")) throw new DOMException("quota", "QuotaExceededError"); return real.call(this, k, v); };
+  });
+  await page.goto("/standalone.html");
+  await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+  await load(page, await png(page, 20, 10));
+  await expect(page.locator("#status")).toContainText("no room for the trace image");
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("floorplan-studio:layout") ?? localStorage.getItem(Object.keys(localStorage).find((k) => (localStorage.getItem(k) ?? "").includes('"floors"')) ?? "") ?? "null"));
+  expect(stored?.floors?.ground && "trace" in stored.floors.ground).toBe(false); // the plan itself is still autosaved, without the image
 });

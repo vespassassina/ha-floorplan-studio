@@ -2,6 +2,32 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 Sprint 7 review: save size cap, empty radar slots, the rest deferred
+
+The Opus review of the integrated build (`docs/REVIEW-2026-09-25.md`) said
+"ship after fixes". Fixed before the tag:
+
+- **Save refuses a plan over 3.5 MB** (`MAX_LAYOUT_BYTES`). Home Assistant's
+  websocket takes 4 MiB in one message and `floorplan_studio/save` sends the
+  whole layout in one; one trace image may already be 4 MB. The error names
+  the floors that carry an image and what to do. The per-floor trace cap
+  stays at 4 MB: it bounds what the editor holds, the save cap bounds what
+  Home Assistant will take.
+- **A radar pair at 0/0 draws nothing.** An LD2450 reports 0/0 for an empty
+  slot, and `Number("")` is 0, so an idle radar drew its targets on itself.
+  A blank reading is not a number, and 0/0 is "no target".
+- **The autosave says when it dropped the trace image**, so a reload before
+  Save does not lose the scan silently.
+- **The fade field falls back to its default** when emptied or negative.
+- **The ESPHome snippet uses `has_target`**; `target_count` is a sensor key.
+
+Deferred, on purpose: `touch-action: none` on the card even at fit (phones
+cannot scroll the dashboard from the plan; the S7.4 decision stands until a
+user reports it), kiosk changes reaching the long-press only when the SVG is
+replaced, a `pointer-events` class rule for the trace image, cards
+downloading trace images they never draw, and the "Garden pond" label
+crossing the garden door. Each is in the review with its file and line.
+
 ## 2026-09-24 S7.10 vacuum: no map position, dialog instead of toggle
 
 - **No map position field.** Most vacuum integrations expose their current

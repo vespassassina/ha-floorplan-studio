@@ -651,11 +651,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // converted to centimetres, then added to the sensor's own position — the world point a target dot is drawn
     // at, unless that point falls outside the floor's own outline, in which case it is skipped, not clamped.
     // Untrusted state: a non-numeric or missing reading draws nothing for that one pair; nothing caps how many.
+    // Opus review 2026-09-25: Number("") and Number(" ") are 0, and an LD2450 reports 0/0 for an empty slot, so a
+    // blank reading is not a number here and a pair at exactly 0/0 is "no target", never a dot on the sensor itself.
     if (d.type === "radar" && Array.isArray(d.targets)) {
       const rad = (rot * Math.PI) / 180;
+      const mm = (e: string) => { const s = String(o.state?.[e]?.state ?? "").trim(); return s === "" ? NaN : Number(s) / 10; }; // mm to cm
       for (const t of d.targets) {
-        const xl = Number(o.state?.[t.x]?.state) / 10, yl = Number(o.state?.[t.y]?.state) / 10; // mm to cm
-        if (!Number.isFinite(xl) || !Number.isFinite(yl)) continue;
+        const xl = mm(t.x), yl = mm(t.y);
+        if (!Number.isFinite(xl) || !Number.isFinite(yl) || (xl === 0 && yl === 0)) continue;
         const p: Pt = [c[0] + xl * Math.cos(rad) + yl * Math.sin(rad), c[1] + xl * Math.sin(rad) - yl * Math.cos(rad)];
         if (!inside(p, f.outline)) continue;
         out.push(`<circle class="target" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(6 * k)}"/>`);

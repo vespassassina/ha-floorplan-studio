@@ -149,8 +149,11 @@ export class FloorplanStudioCardEditor extends LitElement {
   }
 
   private _onFade(e: Event): void {
-    const n = Number((e.target as HTMLInputElement).value);
-    this._set("fade", Number.isFinite(n) ? n : DEFAULT_FADE, DEFAULT_FADE);
+    // Opus review 2026-09-25: an emptied field is not 0 s (no fade), and a negative fade is no fade either; both fall
+    // back to the default, which `_set` then leaves out of the payload.
+    const raw = (e.target as HTMLInputElement).value.trim();
+    const n = Number(raw);
+    this._set("fade", raw !== "" && Number.isFinite(n) && n >= 0 ? n : DEFAULT_FADE, DEFAULT_FADE);
   }
 
   private _onRoomGlow(e: Event): void {

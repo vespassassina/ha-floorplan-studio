@@ -1724,9 +1724,18 @@ describe("S7.9: mmWave radar targets", () => {
     expect(targets(html)).toHaveLength(0);
   });
 
+  it("Opus review 2026-09-25: an empty slot reads 0/0 (what an LD2450 reports for no target) and draws nothing; a blank state draws nothing", () => {
+    const one = (x: string, y: string) => targets(draw([R("r", { targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st(x), "sensor.ty": st(y) }));
+    expect(one("0", "0")).toHaveLength(0); // Number("0") is finite, so without the rule a dot sat on the sensor itself
+    expect(one("", "")).toHaveLength(0); // Number("") is 0, same trap
+    expect(one(" ", "100")).toHaveLength(0); // Number(" ") is 0 too
+    expect(one("0", "100")).toHaveLength(1); // a target straight ahead is a target
+    expect(one("100", "0")).toHaveLength(1);
+  });
+
   it("three targets draw three dots", () => {
     const html = draw([R("r", { targets: [{ x: "sensor.t0x", y: "sensor.t0y" }, { x: "sensor.t1x", y: "sensor.t1y" }, { x: "sensor.t2x", y: "sensor.t2y" }] })], {
-      "sensor.t0x": st("0"), "sensor.t0y": st("0"), "sensor.t1x": st("100"), "sensor.t1y": st("0"), "sensor.t2x": st("-100"), "sensor.t2y": st("0"),
+      "sensor.t0x": st("50"), "sensor.t0y": st("50"), "sensor.t1x": st("100"), "sensor.t1y": st("0"), "sensor.t2x": st("-100"), "sensor.t2y": st("0"),
     });
     expect(targets(html)).toHaveLength(3);
   });
@@ -1734,7 +1743,7 @@ describe("S7.9: mmWave radar targets", () => {
   it("break it: twenty pairs draw twenty dots, nothing caps the count", () => {
     const pairs = Array.from({ length: 20 }, (_, i) => ({ x: `sensor.t${i}x`, y: `sensor.t${i}y` }));
     const state: StateOverlay = {};
-    for (let i = 0; i < 20; i++) { state[`sensor.t${i}x`] = st(String(i * 10)); state[`sensor.t${i}y`] = st(String(i * 5)); }
+    for (let i = 0; i < 20; i++) { state[`sensor.t${i}x`] = st(String((i + 1) * 10)); state[`sensor.t${i}y`] = st(String((i + 1) * 5)); } // i+1: 0/0 is an empty slot since the 2026-09-25 review
     expect(targets(draw([R("r", { targets: pairs })], state))).toHaveLength(20);
   });
 

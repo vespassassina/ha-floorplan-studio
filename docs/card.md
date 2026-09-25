@@ -169,7 +169,7 @@ differently:
   # (1 to 3, one block each), the x/y sensors floorplan-studio's device.targets wants.
   binary_sensor:
     - platform: ld2450
-      target_count:
+      has_target:
         name: "Office radar occupancy"
         id: office_radar_occupancy
 

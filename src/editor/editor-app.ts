@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, placedEntities, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedHaEntities, validate } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, placedEntities, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedHaEntities, validate } from "../core";
 import type { DeviceType, Floor, HaData, Layout, Pt, Stairs, Trace, WallKind } from "../core";
 import { traceImage } from "./trace";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
@@ -389,8 +389,10 @@ export class FloorplanStudioEditor extends LitElement {
   }
   /** After any change: autosave, tell the host, redraw. */
   private changed(status = "Edited") {
-    this.st.persist();
-    this.status = status;
+    // S7.11 / Opus review 2026-09-25: the autosave may have dropped the trace image for lack of room; say so, or a
+    // reload before Save loses the scan without a word.
+    const kept = this.st.persist();
+    this.status = kept ? status : `${status}. The browser has no room for the trace image in the autosave: Save to keep it`;
     this.emit("layout-changed");
     this.requestUpdate();
   }
@@ -1706,6 +1708,12 @@ export class FloorplanStudioEditor extends LitElement {
   private save() {
     const v = validate(this.st.layout);
     if (!v.ok) { this.errors = v.errors; return; }
+    const bytes = JSON.stringify(this.st.layout).length;
+    if (bytes > MAX_LAYOUT_BYTES) {
+      const traced = Object.values(this.st.layout.floors).filter((f) => f.trace).map((f) => f.title).join(", ") || "none";
+      this.errors = [`The plan is ${(bytes / 1048576).toFixed(1)} MB and Home Assistant takes at most ${(MAX_LAYOUT_BYTES / 1048576).toFixed(1)} MB in one save. Floors with a trace image: ${traced}. Remove one (View, Trace image, Remove) or load a smaller scan, then Save again.`];
+      return;
+    }
     this.errors = [];
     this.st.persist();
     this.status = "Saving…";

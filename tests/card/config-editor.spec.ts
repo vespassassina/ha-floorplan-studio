@@ -130,3 +130,20 @@ test("kiosk, night and sun fields exist with their S7.5/S7.6 defaults", async ({
   await expect(editor.locator("select#night")).toHaveValue("auto");
   await expect(editor.locator("#sun")).toHaveValue("sun.sun");
 });
+
+// Opus review, 2026-09-25 (m2): an emptied fade field became 0 (no fade at all) and a negative number was written
+// through. Both now fall back to the default, which is then left out of the payload like any default.
+test("an empty or negative fade falls back to the default and drops from the payload", async ({ page }) => {
+  await open(page);
+  await mount(page, { fade: 45, layout: demo });
+  const editor = page.locator("#editor");
+  for (const bad of ["", "-5"]) {
+    await editor.locator("#fade").fill(bad);
+    await editor.locator("#fade").blur();
+    const all = await events(page) as { config: Record<string, unknown> }[];
+    const detail = all[all.length - 1];
+    expect("fade" in detail.config, JSON.stringify(bad)).toBe(false);
+    await editor.locator("#fade").fill("45");
+    await editor.locator("#fade").blur();
+  }
+});

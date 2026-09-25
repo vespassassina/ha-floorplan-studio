@@ -8,6 +8,9 @@
   that room's centroid, gliding there over 600 ms; several people in one room
   spread on a ring. Tap opens more-info; the entity is `person.*` or
   `device_tracker.*`.
+- Save refuses a plan whose JSON is over 3.5 MB, naming the floors that carry
+  a trace image, instead of letting Home Assistant drop the connection. The
+  autosave says when the browser had no room for the trace image.
 - A new `radar` device type for mmWave presence sensors (an ESPHome LD2450, or
   any sensor exposing target x/y): up to any number of `targets` pairs (two
   entities each, x right and y ahead of the sensor, in millimetres) draw as

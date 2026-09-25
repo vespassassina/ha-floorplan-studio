@@ -94,6 +94,9 @@ export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number
 
 /** S7.11: the most characters a floor's `trace.src` may hold, the whole data URL: 4 MB. */
 export const MAX_TRACE_BYTES = 4 * 1024 * 1024;
+/** Opus review 2026-09-25: Home Assistant's websocket takes 4 MiB in one message, and `floorplan_studio/save` sends the
+ *  whole layout in one. Save refuses a plan whose JSON is longer than this, and says which floors carry a trace image. */
+export const MAX_LAYOUT_BYTES = 3_500_000;
 /** S7.11: a raster data URL and nothing else. SVG is left out (it is a document), and the base64 alphabet has no quote,
  *  so a src that passes can go into an attribute as it is. Linear: no nested quantifier. */
 export const TRACE_SRC = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]*={0,2}$/;
