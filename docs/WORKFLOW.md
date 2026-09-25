@@ -133,9 +133,12 @@ landed, real test counts, what the reviews found, what is carried over), a
 |---|---|
 | `npm ci` | install |
 | `npm run lint` | eslint + tsc --noEmit |
-| `npm test` | vitest, unit |
+| `npm test` | vitest, unit (sets `NODE_OPTIONS=--no-experimental-webstorage`: Node 26 shadows jsdom's `localStorage`) |
 | `npm run test:e2e` | playwright, editor |
 | `npm run shots` | builds, then renders the demo plan (card, both floors, three states, both themes, and the editor) to `shots/current/`; open `index.html` and look. `-- --accept` after you have looked, `-- --strict` to fail on any change |
 | `npm run build` | vite: `dist/floorplan-studio-card.js`, `dist/floorplan-studio-panel.js`, `dist/editor.html` |
 | `npm run dev` | vite dev server for the standalone editor |
+| `npm run demo-gif` | builds, then records the README GIF to `docs/img/demo.gif` (ffmpeg, under 3 MB) |
+| `npm run docs:schema` | regenerates `docs/schema.md` from the schema; a no-op after a commit that kept them in step |
+| `npm run docs:check` | checks every link in `docs/*.md`, `README.md`, `CONTRIBUTING.md` |
 | `pytest` | integration tests (from repo root, `custom_components/` on path). One-time: `uv venv --python 3.13 .venv && uv pip install --python .venv/bin/python -r requirements_test.txt`, then `.venv/bin/pytest` |

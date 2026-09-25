@@ -448,7 +448,7 @@ kiosk: false            # true shows only the plan, for a wall tablet: no floor 
 - Switch or plug: "Create light from this switch" makes a Switch-as-X light
   helper, places it bound to the switch, and removes the switch icon.
 - Groups: several lights or several motion sensors become a group helper. The
-  Group menu dims everything not in the chosen group.
+  Edit, Group dims everything not in the chosen group.
 - Automations: a switch controls many targets; a motion group turns on a light
   group, off after N minutes; a device gets an on/off schedule. Each is created
   in HA, then HA's editor opens on it. One switch to one light is not an

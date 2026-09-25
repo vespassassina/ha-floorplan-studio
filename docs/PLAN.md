@@ -800,7 +800,7 @@ Honest limits: the builder ran this pass, not a separate session; the table show
 ## Sprint 3 — integration, panel, release (E4)
 
 ### S3.0 Dev environment: a real Home Assistant to test against (done 2026-09-21: pytest here, Diego's own HA for live checks)
-- Decision: Diego uses his own HA. Steps in `docs/LIVE-TEST.md`. The dev container stays unused unless a Linux box appears.
+- Decision: Diego uses his own HA. Steps were in `docs/LIVE-TEST.md` (removed 2026-09-25: it described the pre-integration resource install; HACS in the README replaced it). The dev container stays unused unless a Linux box appears.
 - Status: `pytest` half done and green. `.venv` on Python 3.13 via uv, `requirements_test.txt` installed (Home Assistant 2026.2.3), `tests/integration/test_smoke.py` passes, and it passes from another directory too. The real-HA half is NOT done: `hass` run from that venv on this Mac dies with exit 137 (SIGKILL) right after Core Bluetooth fails to start, with a minimal config too; Docker is not installed. `.devcontainer/devcontainer.json` is written but has never been started. The way forward is Diego's own HA (the note below), or a Linux container.
 - Outcome: `pytest` runs green on an empty test, and a Home Assistant instance exists that the panel can be loaded into.
 - Why it is a task: nothing Python in this repo has ever executed. The six files in `custom_components/floorplan_studio/` are one-line stubs, `pytest-homeassistant-custom-component` is named in `requirements_test.txt` but is not installed, and there is no `tests/integration/`. Every later Sprint 3 task's "Done when" assumes a running HA; without this they cannot close.
@@ -1263,15 +1263,6 @@ Recorded in `docs/DECISIONS.md` and `CHANGELOG.md` only: S6.5 card `floors`
 config and the File, Install code panel (0.10.2); S6.7 File, Export carries an
 entity snapshot (0.10.3).
 
-## Sprint 8 — after a day of use (E3, E5)
-
-Diego, 2026-09-25, after 0.11.1 on his own Home Assistant. Release 0.12.0
-closes the sprint.
-
-### S8.1 Toolbar rework: Edit menu, Home Assistant popover, Place popup
-- Outcome: the toolbar reads Filter, Add, Draw, View, Edit, File. View keeps what changes the look (Names joined it; the theme stays). Edit holds Add floor, Home Assistant, Group, Rotate, Device colours and Trace image…. Home Assistant is a button, disabled while nothing is listed, opening a draggable popover (X top-left) that says what its rows are, opens each item where HA edits it, and removes from there; opening it closes the menu. The room panel's Place opens a popup of the area's placeable entities, a tick each, a chip per type; noise (`other`, `battery`, `person`) is never offered (`docs/DECISIONS.md`, 2026-09-25 S8.1).
-- Done, 2026-09-25. Tests first: `ha.test.ts` "every device type is in exactly one of AREA_PLACEABLE_TYPES and AREA_NOISE_TYPES" and the `placeableInArea` case (2 failed against the old core); `editor.spec.ts` three S8.1 Home Assistant popover tests, a CSS pair for `.fpanel`, three Place popup tests and the toolbar-order test; the S4.15, S4.10, S1.33, S1.36, S7.2, floor-add, rotation, Names and Group tests updated for the moved controls, `trace.spec.ts` for Trace image. New Playwright tests at `--repeat-each=10`: 80/80. One Escape step needed the editor focused first (a click on the plan, not off the svg): keyboard shortcuts belong to the editor host, by design. Opus review of the build found four things, all fixed with a test first: Escape did nothing from a ticked checkbox (the popup handles it itself now), a failed list load hid its error behind a disabled button (the button stays enabled and the popover shows the error), two overlapping loads let the older reply win (a sequence counter, proven by removing it), and the filtered `placeArea(i, only)` had no unit test. Also from the review: labelled ids are URL-encoded in the row links, and switching floors closes the Place popup.
-
 ## Sprint 7 — decent before publishing (E3, E2, E5)
 
 Source: `docs/REVIEW-2026-09-24.md`. Diego, 2026-09-24: "it needs to be decent
@@ -1600,8 +1591,17 @@ Shared rules for the sprint, on top of `CLAUDE.md`:
     `node scripts/validate-layout.mjs prompts/examples/flat.json` → `ok`. `node scripts/validate-layout.mjs
     prompts/examples/two-floors.json` → `ok`. `PW_PORT=5312 npx playwright test --workers=4` (full suite): 521
     passed / 1 skipped, exit 0.
-  - Left out: the release itself (push, tag, HACS refresh, HA restart) — not started; needs Diego's yes per this
-    task's own "Done when" line and `CLAUDE.md`'s "Release ends on Diego's HA".
+  - The release itself (push, tag, HACS refresh, HA restart) went out later the same day as 0.11.0, then 0.11.1
+    (S7.15) and 0.11.2 (S7.16), on Diego's yes each time.
+
+## Sprint 8 — after a day of use (E3, E5)
+
+Diego, 2026-09-25, after 0.11.1 on his own Home Assistant. Release 0.12.0
+closes the sprint.
+
+### S8.1 Toolbar rework: Edit menu, Home Assistant popover, Place popup
+- Outcome: the toolbar reads Filter, Add, Draw, View, Edit, File. View keeps what changes the look (Names joined it; the theme stays). Edit holds Add floor, Home Assistant, Group, Rotate, Device colours and Trace image…. Home Assistant is a button, disabled while nothing is listed, opening a draggable popover (X top-left) that says what its rows are, opens each item where HA edits it, and removes from there; opening it closes the menu. The room panel's Place opens a popup of the area's placeable entities, a tick each, a chip per type; noise (`other`, `battery`, `person`) is never offered (`docs/DECISIONS.md`, 2026-09-25 S8.1).
+- Done, 2026-09-25. Tests first: `ha.test.ts` "every device type is in exactly one of AREA_PLACEABLE_TYPES and AREA_NOISE_TYPES" and the `placeableInArea` case (2 failed against the old core); `editor.spec.ts` three S8.1 Home Assistant popover tests, a CSS pair for `.fpanel`, three Place popup tests and the toolbar-order test; the S4.15, S4.10, S1.33, S1.36, S7.2, floor-add, rotation, Names and Group tests updated for the moved controls, `trace.spec.ts` for Trace image. New Playwright tests at `--repeat-each=10`: 80/80. One Escape step needed the editor focused first (a click on the plan, not off the svg): keyboard shortcuts belong to the editor host, by design. Opus review of the build found four things, all fixed with a test first: Escape did nothing from a ticked checkbox (the popup handles it itself now), a failed list load hid its error behind a disabled button (the button stays enabled and the popover shows the error), two overlapping loads let the older reply win (a sequence counter, proven by removing it), and the filtered `placeArea(i, only)` had no unit test. Also from the review: labelled ids are URL-encoded in the row links, and switching floors closes the Place popup.
 
 ## Later, not planned
 

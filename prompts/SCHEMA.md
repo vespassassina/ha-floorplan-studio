@@ -41,7 +41,7 @@ This page lists what you write. Leave everything else out.
 - **`owk`**: one entry per outline point, describing the edge from that point to the next. Use `"external"` for an outside wall. Same length as `outline`.
 - **`devices`** and the top-level **`catalog`**: always empty. A drawing does not know which lamp is which. The owner attaches real Home Assistant entities in the editor afterwards. Never invent an entity id.
 - Every list must be present, even when empty.
-- **`trace`**: a floor may carry one, the owner's scan drawn under the plan in the editor (an image as a `data:` URL, with its position, width, opacity and a show flag). **Never write a `trace` yourself**, and never copy one from an input file into your output. The owner loads their own image in the editor, View, Trace image.
+- **`trace`**: a floor may carry one, the owner's scan drawn under the plan in the editor (an image as a `data:` URL, with its position, width, opacity and a show flag). **Never write a `trace` yourself**, and never copy one from an input file into your output. The owner loads their own image in the editor, Edit, Trace image.
 
 Every object in `rooms`, `walls`, `stairs`, `doors`, `openings`, `extras`, `furniture` needs an **`id`**, unique within its floor. Use `room-<floor>-<n>`, `door-<floor>-<n>` and so on.
 
