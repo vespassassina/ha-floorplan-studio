@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.3
 
 - The room panel's Place popup now opens with nothing ticked instead of
   everything, so a click on the wrong row can no longer place something by
@@ -15,7 +15,7 @@
   nothing but diagnostic entities is not offered at all.
 - A light's "Controlled by" switch list now shows only the switches and plugs
   on its own floor, with a likely match (same area, matching name) labelled
-  "(suggested)". Edit, Group has a new "Link lights to switches" button that
+  "(suggested)". The Edit menu has a new "Link lights to switches" item that
   links every unbound light on the floor to its suggested switch in one go.
   The same select can also link a light to a motion sensor or motion group:
   pick one, set the off delay, Create automation — it builds the automation
