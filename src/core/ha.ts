@@ -1,5 +1,5 @@
 import type { AvailableEntity, DeviceType, Layout } from "./schema";
-import { placedEntities } from "./bind";
+import { placedEntities, unplacedCatalog } from "./bind";
 
 /** What the host (the HA panel) knows about Home Assistant and hands to the editor. Standalone there is none. */
 export interface HaData {
@@ -186,6 +186,58 @@ const nameIn = (list: { id: string; name: string }[] | undefined, id: unknown): 
  * the area `room.area` names. A floor with no `ha`, a room with an empty or unknown `area`, and every other field stay as they were.
  * `changed` counts the names that differed. The input is never mutated.
  */
+/**
+ * S8.5: one row of the merged Add > Device panel — either an unplaced `layout.catalog` entry or an unplaced HA entity
+ * that never entered the plan (`unplacedHaEntities`), the same two sources the old "Device" and "Entities" submenus
+ * drew from separately. `key` is unique across both sources. `area` is the HA area's own name; `room` is a plan room's
+ * name — the room whose `area` matches the entity's HA area, on any floor, else (catalog only) the catalog entry's own
+ * `room` field; `floor` is that room's plan floor, filled only when the room was found through the HA area match (a
+ * catalog entry's own stored `floor` key is not read here — `placeDevice` already knows it and switches there itself).
+ */
+export interface AddCandidate {
+  key: string;
+  source: "catalog" | "ha";
+  id: string;
+  entity: string;
+  name: string;
+  type: DeviceType;
+  floor?: string;
+  room?: string;
+  area?: string;
+}
+
+/** S8.5: where an entity sits on the plan — its HA area's name, the plan room drawn for that area (any floor), and that room's floor. */
+function locateEntity(l: Layout, ha: HaData | null, entityId: string, fallbackRoom?: string): { area?: string; room?: string; floor?: string } {
+  const he = ha?.entities.find((e) => e?.id === entityId);
+  const areaId = typeof he?.area === "string" && he.area ? he.area : undefined;
+  const areaName = areaId ? nameIn(ha?.areas, areaId) : undefined;
+  if (areaId) {
+    for (const [key, f] of Object.entries(l.floors)) {
+      const room = f.rooms.find((r) => r.area === areaId);
+      if (room) return { ...(areaName ? { area: areaName } : {}), room: room.name, floor: f.title || key };
+    }
+  }
+  return { ...(areaName ? { area: areaName } : {}), ...(fallbackRoom ? { room: fallbackRoom } : {}) };
+}
+
+/**
+ * S8.5: the merged source list for the Add > Device panel — every unplaced catalog entry plus every unplaced HA
+ * entity, with no entity twice (a catalog entry wins, matching `unplacedHaEntities`'s own exclusion of catalogued
+ * entities). `ha` null (standalone, or before the panel has loaded it) still returns the catalog half.
+ */
+export function addCandidates(l: Layout, ha: HaData | null): AddCandidate[] {
+  const out: AddCandidate[] = [];
+  for (const c of unplacedCatalog(l)) {
+    out.push({ key: `catalog:${c.id}`, source: "catalog", id: c.id, entity: c.entity, name: c.name, type: c.type, ...locateEntity(l, ha, c.entity, c.room || undefined) });
+  }
+  if (ha) {
+    for (const e of unplacedHaEntities(l, ha)) {
+      out.push({ key: `ha:${e.id}`, source: "ha", id: e.id, entity: e.id, name: e.name || e.id, type: typeForEntity(e), ...locateEntity(l, ha, e.id) });
+    }
+  }
+  return out;
+}
+
 export function applyHaNames(l: Layout, ha: HaData): { layout: Layout; changed: number } {
   const layout = structuredClone(l);
   let changed = 0;

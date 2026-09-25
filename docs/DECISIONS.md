@@ -2,6 +2,35 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 S8.4/S8.5 Place starts empty; Add > Device is one panel with Floor/Room/Area/Type filters
+
+Two related changes to how a device gets onto the plan, both from a day of use
+on Diego's own house.
+
+S8.4: the room panel's Place popup ticked every entity by default and let a
+user untick what they did not want. Diego place a room and the popup placed
+things he had not meant to. It now opens with nothing ticked (`placeOn`, not
+the old `placeOff`), Place stays disabled at zero, and a single button toggles
+between "Select all" and "Deselect all" for whatever the type chip currently
+shows, so a filtered batch is still one click.
+
+S8.5: Add held two separate submenus, Device (the plan's own catalog) and
+Entities (every other HA entity), because they grew at different times. A user
+placing a device does not care which list it lives in, and the entity they
+want (say the study's temperature sensor) took scanning both. They merge into
+one floating panel, filtered by Floor, Room, Area and Type. Floor and Room are
+plan concepts, not HA's: a candidate's floor and room are found by matching its
+HA entity's area to the plan room that already has that area (any floor), so
+an entity with no room drawn yet has no floor or room to filter by, only an
+Area (HA's own name for it) if HA knows one. Each select lists only the values
+actually present among candidates passing every *other* active filter, so
+picking one narrows the rest instead of showing dead options; a select with no
+value anywhere in the full candidate list (typically Area, with no HA
+connected) does not appear at all. Picking a candidate whose room lives on
+another floor switches to that floor first, so a bedroom sensor lands in the
+Bedroom room, not wherever the editor happened to be looking. The panel stays
+open after a pick, since a HA install has more than one thing to add at once.
+
 ## 2026-09-25 S8.3 the card loads as a dashboard resource in storage mode
 
 Supersedes how the card is loaded, not the re-define below. Diego asked why the

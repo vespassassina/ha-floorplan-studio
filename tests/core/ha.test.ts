@@ -290,3 +290,83 @@ describe("S8.1: placeableInArea", () => {
     expect(placeableInArea(l, { ...ha, entities: undefined as unknown as HaData["entities"] }, area)).toEqual([]); // hostile data never throws
   });
 });
+
+// ---- S8.5: the merged Add > Device panel's source list -------------------------------------------------------------
+import { addCandidates } from "../../src/core/ha";
+
+describe("S8.5: addCandidates — catalog + HA entities, merged, each located by its HA area", () => {
+  const layout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      ground: { title: "Ground", outline: [], walls: [], rooms: [{ id: "r-1", name: "Kitchen", area: "kitchen", label: "", kind: "room", pts: [], wk: [] }], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [] },
+      first: { title: "", outline: [], walls: [], rooms: [{ id: "r-2", name: "Bedroom", area: "bedroom", label: "", kind: "room", pts: [], wk: [] }], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [] },
+    },
+    catalog: [],
+  } as unknown as Layout);
+
+  it("catalog only, no HA: area/floor stay unset, room falls back to the catalog entry's own field", () => {
+    const l = layout();
+    l.catalog = [{ id: "c-1", floor: "ground", room: "Kitchen", type: "light", name: "Ceiling light", entity: "light.kitchen" }];
+    expect(addCandidates(l, null)).toEqual([
+      { key: "catalog:c-1", source: "catalog", id: "c-1", entity: "light.kitchen", name: "Ceiling light", type: "light", room: "Kitchen" },
+    ]);
+  });
+
+  it("HA only, no catalog: every unplaced HA entity, guessed type via typeForEntity", () => {
+    const l = layout();
+    const ha: HaData = { floors: [], areas: [{ id: "kitchen", name: "The Kitchen" }], entities: [
+      { id: "light.spare", name: "Spare bulb", domain: "light", area: "kitchen" },
+    ] };
+    expect(addCandidates(l, ha)).toEqual([
+      { key: "ha:light.spare", source: "ha", id: "light.spare", entity: "light.spare", name: "Spare bulb", type: "light", area: "The Kitchen", room: "Kitchen", floor: "Ground" },
+    ]);
+  });
+
+  it("both, with an overlapping entity: the catalog entry wins, no duplicate", () => {
+    const l = layout();
+    l.catalog = [{ id: "c-1", floor: "ground", room: "Kitchen", type: "light", name: "Ceiling light", entity: "light.kitchen" }];
+    const ha: HaData = { floors: [], areas: [{ id: "kitchen", name: "The Kitchen" }], entities: [
+      { id: "light.kitchen", name: "Ceiling light", domain: "light", area: "kitchen" },
+      { id: "light.spare", name: "Spare bulb", domain: "light", area: "kitchen" },
+    ] };
+    const out = addCandidates(l, ha);
+    expect(out.filter((c) => c.entity === "light.kitchen")).toHaveLength(1);
+    expect(out.find((c) => c.entity === "light.kitchen")?.source).toBe("catalog");
+    expect(out.map((c) => c.key).sort()).toEqual(["catalog:c-1", "ha:light.spare"]);
+  });
+
+  it("an entity with no area: no area, no room, no floor", () => {
+    const l = layout();
+    const ha: HaData = { floors: [], areas: [], entities: [{ id: "light.loose", name: "Loose", domain: "light" }] };
+    expect(addCandidates(l, ha)[0]).toEqual({ key: "ha:light.loose", source: "ha", id: "light.loose", entity: "light.loose", name: "Loose", type: "light" });
+  });
+
+  it("an area with no plan room: area is filled, room and floor are not", () => {
+    const l = layout();
+    const ha: HaData = { floors: [], areas: [{ id: "garage", name: "Garage" }], entities: [{ id: "switch.garage", name: "Garage switch", domain: "switch", area: "garage" }] };
+    const c = addCandidates(l, ha)[0];
+    expect(c.area).toBe("Garage");
+    expect("room" in c).toBe(false);
+    expect("floor" in c).toBe(false);
+  });
+
+  it("an area whose room is on floor 2: floor names that floor, not the first", () => {
+    const l = layout();
+    const ha: HaData = { floors: [], areas: [{ id: "bedroom", name: "Bedroom HA" }], entities: [{ id: "light.bed", name: "Bed light", domain: "light", area: "bedroom" }] };
+    const c = addCandidates(l, ha)[0];
+    expect(c.room).toBe("Bedroom");
+    expect(c.floor).toBe("first"); // no title set: falls back to the floor key
+  });
+
+  it("ha null: only the catalog half, never throws", () => {
+    const l = layout();
+    l.catalog = [{ id: "c-1", floor: "ground", room: "", type: "switch", name: "Fan switch", entity: "switch.fan" }];
+    expect(addCandidates(l, null).map((c) => c.key)).toEqual(["catalog:c-1"]);
+  });
+
+  it("empty layout: no candidates, with or without HA", () => {
+    const l = layout();
+    expect(addCandidates(l, null)).toEqual([]);
+    expect(addCandidates(l, { floors: [], areas: [], entities: [] })).toEqual([]);
+  });
+});

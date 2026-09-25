@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- The room panel's Place popup now opens with nothing ticked instead of
+  everything, so a click on the wrong row can no longer place something by
+  accident; a Select all / Deselect all button ticks or clears every row
+  shown by the current type filter in one click.
+- Add > Device and Add > Entities are now one panel: search by name or
+  entity id, and filter by Floor, Room, Area or Type. Picking a device on
+  another floor switches to that floor and drops it in its own room.
+
 ## 0.12.2
 
 - Fixed "Custom element doesn't exist: floorplan-studio-card" on about half

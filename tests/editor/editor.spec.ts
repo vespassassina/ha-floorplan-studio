@@ -21,8 +21,16 @@ async function freeRoom(page: Page, i: number) {
     el.layout = l;
   }, [EDITOR, i] as const);
 }
-const unplaced = (page: Page) => page.locator("#mDev button[data-dev]");
-const devItem = (page: Page, id: string) => page.locator(`#mDev button[data-dev="${id}"]`);
+// S8.5: the merged Add > Device panel; a catalog row's key is "catalog:<id>", an HA entity's is "ha:<entity id>".
+const unplaced = (page: Page) => page.locator('#addDevPanel button[data-add^="catalog:"]');
+const devItem = (page: Page, id: string) => page.locator(`#addDevPanel button[data-add="catalog:${id}"]`);
+/** Counts unplaced catalog entries without needing the panel open (it opens one, counts, and closes it again). */
+async function unplacedCount(page: Page): Promise<number> {
+  await openDevice(page);
+  const n = await unplaced(page).count();
+  await page.locator("#addDevClose").click();
+  return n;
+}
 
 async function centre(page: Page, selector: string) {
   const box = await page.locator(selector).first().boundingBox();
@@ -54,10 +62,11 @@ async function addItem(page: Page, id: string) {
   if (sub) await page.locator(`#mAdd details.sub > summary:text-is("${sub}")`).click();
   await page.locator(id).click();
 }
-/** Opens Add, then its Device submenu (S4.26: Device moved under Add, next to Unlinked device). */
+/** S8.5: opens Add, then Device…, the floating panel merging the old Device and Entities submenus. */
 async function openDevice(page: Page) {
   await menu(page, "Add");
-  await page.locator('#mAdd details.sub > summary:text-is("Device")').click();
+  await page.locator("#addDevBtn").click();
+  await expect(page.locator("#addDevPanel")).toBeVisible();
 }
 /** Chooses the snap grid in View, Grid (0 = none), and closes the menu. */
 async function setGrid(page: Page, g: number) {
@@ -111,15 +120,15 @@ test("clicking a device icon selects that device, not what lies under it", async
 
 test("Device places one and the list shrinks; removing it makes the list grow", async ({ page }) => {
   // the demo catalog holds one contact sensor not on the plan, and the relay: bound to a light, it has no icon (S1.32).
-  await expect(unplaced(page)).toHaveCount(2);
+  expect(await unplacedCount(page)).toBe(2);
   await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
   await page.locator("#vdel").click();
   // the light and its relay come back together
-  await expect(unplaced(page)).toHaveCount(3);
+  expect(await unplacedCount(page)).toBe(3);
   expect((await groundOf(page)).devices).toHaveLength(7);
   await openDevice(page);
   await devItem(page, "light-living").click(); // a real click on the visible item
-  await expect(unplaced(page)).toHaveCount(2);
+  await expect(unplaced(page)).toHaveCount(2); // S8.5: the panel stays open after a pick
   expect((await groundOf(page)).devices).toHaveLength(8);
 });
 
@@ -598,15 +607,15 @@ test("the living light shows its relay; clearing it frees the relay, undo restor
   await selectDev(page, 0);
   await expect(page.locator("#vbound")).toHaveValue(RELAY);
   await expect(page.locator("#panel")).toContainText("Living light + Living lamp relay");
-  await expect(unplaced(page)).toHaveCount(2); // the relay is listed while it is bound: it has no icon
+  expect(await unplacedCount(page)).toBe(2); // the relay is listed while it is bound: it has no icon
   await page.locator("#vbound").selectOption("");
   expect(await bound(page, 0)).toBeUndefined();
   expect("bound" in (await groundOf(page)).devices[0]).toBe(false);
-  await expect(unplaced(page)).toHaveCount(2);
+  expect(await unplacedCount(page)).toBe(2);
   await menu(page, "File");
   await page.locator("#undo").click();
   expect(await bound(page, 0)).toBe(RELAY);
-  await expect(unplaced(page)).toHaveCount(2);
+  expect(await unplacedCount(page)).toBe(2);
   // choosing the same value again records no step
   await selectDev(page, 0);
   await page.locator("#vbound").selectOption(RELAY);
@@ -621,6 +630,7 @@ test("choosing another free switch updates the list and the saved layout validat
   await page.locator("#vbound").selectOption("switch.free_plug");
   expect(await bound(page, 0)).toBe("switch.free_plug");
   // a bound switch is still on the Device list: it has no icon of its own
+  await openDevice(page);
   await expect(devItem(page, "switch-living-relay")).toHaveCount(1);
   await expect(devItem(page, "plug-free")).toHaveCount(1);
   expect(validate(await layoutOf(page)).ok).toBe(true);
@@ -671,6 +681,7 @@ test("a device that is not a light has no Controlled by field", async ({ page })
 test("deleting the light returns its switch to the Add list", async ({ page }) => {
   await selectDev(page, 0);
   await page.locator("#vdel").click();
+  await openDevice(page);
   await expect(devItem(page, "switch-living-relay")).toHaveCount(1);
   expect((await groundOf(page)).devices.some((d) => d.bound)).toBe(false);
 });
@@ -1564,24 +1575,24 @@ test("the plan filter hides device types with no instance on the current floor, 
   await expect(page.locator('#filter [data-filter="tv"]')).toHaveCount(0); // ground has 0
 });
 
-// ---- S1.12 Device menu -------------------------------------------------------
-const search = (page: Page) => page.locator("#devSearch");
-const shown = (page: Page) => page.locator("#mDev button[data-dev]:visible");
+// ---- S1.12/S8.5 Add > Device panel --------------------------------------------
+const search = (page: Page) => page.locator("#addDevSearch");
+const shown = (page: Page) => page.locator("#addDevPanel button[data-add]:visible");
 
-test("the toolbar order is Filter, Add, Draw, View, Edit, File; Device is a submenu of Add, after Areas", async ({ page }) => {
+test("the toolbar order is Filter, Add, Draw, View, Edit, File; Device… is a button of Add, right after Areas", async ({ page }) => {
   await expect(page.locator("details.menu > summary")).toHaveText(["Filter: all (8)", "Add", "Draw", "View", "Edit", "File"]); // S8.1: Filter, and an Edit menu
   await expect(page.locator("#mAdd select")).toHaveCount(2); // furniture and unlinked-device selects (S4.25)
   await menu(page, "Add");
   const subs = await page.locator("#mAdd > .box > *").evaluateAll((els) => els.map((e) => e.id || e.tagName));
   const areasIdx = subs.indexOf("addAreas");
-  expect(subs[areasIdx + 1]).toBe("mDev"); // Device sits right after Areas
+  expect(subs[areasIdx + 1]).toBe("addDevBtn"); // Device… sits right after Areas
 });
 
-test("Device lists the unplaced entries grouped by type; a deleted light and its relay come back, placing the light takes only the light", async ({ page }) => {
+test("Device… lists the unplaced entries grouped by type; a deleted light and its relay come back, placing the light takes only the light", async ({ page }) => {
   await selectDev(page, 0);
   await page.locator("#vdel").click(); // the light and its relay come back
   await openDevice(page);
-  expect(await page.locator("#mDev .grp").allInnerTexts()).toEqual(["Lights", "Wall switches", "Window / door sensor"]);
+  expect(await page.locator("#addDevPanel .grp").allInnerTexts()).toEqual(["Lights", "Wall switches", "Window / door sensor"]);
   await devItem(page, "light-living").click();
   await expect(devItem(page, "light-living")).toHaveCount(0);
   await expect(devItem(page, "switch-living-relay")).toHaveCount(1); // the placed copy has no bound any more
@@ -1599,34 +1610,27 @@ test("the search filters by name and by entity id, ignoring case", async ({ page
   await expect(shown(page)).toContainText("Free plug");
   await search(page).fill("contact");
   await expect(shown(page)).toHaveCount(1);
-  await expect(page.locator("#mDev .grp:visible")).toHaveText(["Window / door sensor"]);
+  await expect(page.locator("#addDevPanel .grp:visible")).toHaveText(["Window / door sensor"]);
   await search(page).fill("");
   await expect(shown(page)).toHaveCount(3);
 });
 
-test("a search with no match says so, and the search is cleared when the menu closes", async ({ page }) => {
+test("a search with no match says so", async ({ page }) => {
   await openDevice(page);
   await search(page).fill("zzz-no-such-thing");
   await expect(shown(page)).toHaveCount(0);
-  await expect(page.locator("#mDev")).toContainText("No device matches");
-  await page.mouse.click(2, 2); // closes the menu
-  await expect(page.locator("#mDev")).not.toHaveAttribute("open", "");
-  await openDevice(page);
-  await expect(search(page)).toHaveValue("");
-  await expect(shown(page)).toHaveCount(2); // contact sensor and the bound relay
-  await expect(page.locator("#mDev")).not.toContainText("No device matches");
+  await expect(page.locator("#addDevNone")).toHaveText("Nothing matches");
 });
 
-test("the search is cleared when the menu closes by choosing an item, and by opening another menu", async ({ page }) => {
+test("S8.5: the search and filters reset every time the panel opens", async ({ page }) => {
   await openDevice(page);
   await search(page).fill("contact");
-  await shown(page).first().click();
-  await openDevice(page);
+  await expect(shown(page)).toHaveCount(1);
+  await page.locator("#addDevClose").click();
+  await openDevice(page); // reopened: the old search is gone
   await expect(search(page)).toHaveValue("");
-  await search(page).fill("x");
-  await menu(page, "View");
-  await openDevice(page);
-  await expect(search(page)).toHaveValue("");
+  await expect(shown(page)).toHaveCount(2); // contact sensor and the bound relay
+  await expect(page.locator("#addDevNone")).toHaveCount(0);
 });
 
 test("typing in the search field does not trigger editor shortcuts", async ({ page }) => {
@@ -1652,20 +1656,20 @@ test("Ctrl+Z in the search field does not undo the plan", async ({ page }) => {
   expect(await layoutOf(page)).toEqual(after);
 });
 
-test("Escape in the search field closes the menu and gives the keys back to the editor", async ({ page }) => {
+test("Escape in the search field closes the panel and gives the keys back to the editor", async ({ page }) => {
   await openDevice(page);
   await search(page).fill("abc");
   await page.keyboard.press("Escape");
-  await expect(page.locator("#mDev")).not.toHaveAttribute("open", "");
+  await expect(page.locator("#addDevPanel")).toHaveCount(0);
   await selectDev(page, 0);
   await page.keyboard.press("Delete");
   expect((await groundOf(page)).devices).toHaveLength(7);
 });
 
-test("a device name with markup is text in the Device menu, and a click on it places that device", async ({ page }) => {
+test("a device name with markup is text in the Device panel, and a click on it places that device", async ({ page }) => {
   await setCatalog(page, [{ id: "evil", floor: "ground", room: "Living", type: "plug", name: '<img src=x onerror="window.__pwn=1">', entity: "switch.evil" }]);
   await openDevice(page);
-  await expect(page.locator("#mDev img")).toHaveCount(0);
+  await expect(page.locator("#addDevPanel img")).toHaveCount(0);
   await expect(devItem(page, "evil")).toContainText("<img");
   await search(page).fill("<img");
   await expect(shown(page)).toHaveCount(1);
@@ -2557,8 +2561,8 @@ const DRAW_IDS_DOM = ["drawOpening", "drawWall-wall", "drawWall-boundary", "draw
 test("the Add menu holds no Draw item and no Water; the Draw menu holds all eleven", async ({ page }) => {
   for (const id of [...DRAW_IDS, "addWater", "addWall"]) await expect(page.locator(`#mAdd #${id}`)).toHaveCount(0);
   await expect(page.locator("#mAdd .grp, #mAdd .sep").filter({ hasText: /Draw/ })).toHaveCount(0);
-  const ids = await page.locator("#mAdd button").evaluateAll((b) => b.filter((x) => !x.closest("#mDev")).map((x) => x.id));
-  expect(ids).toEqual(["addDoor", "addWin", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addStr", "addZone", "addStairs"]);
+  const ids = await page.locator("#mAdd button").evaluateAll((b) => b.map((x) => x.id));
+  expect(ids).toEqual(["addDoor", "addWin", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addStr", "addZone", "addStairs", "addDevBtn"]);
   await expect(page.locator("#mAdd select#addFurn")).toHaveCount(1);
   expect(await page.locator("#mDraw button").evaluateAll((b) => b.map((x) => x.id))).toEqual(DRAW_IDS_DOM);
   expect(new Set(DRAW_IDS_DOM)).toEqual(new Set(DRAW_IDS));
@@ -2610,8 +2614,8 @@ test("S4.11: Tab reaches every Add item in DOM order, submenus included", async 
   await page.locator(`#mAdd details.sub > summary:text-is("Openings")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Wall")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Areas")`).click();
-  const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.filter((e) => !e.closest("#mDev") || (e.tagName === "SUMMARY" && e.parentElement?.id === "mDev")).map((e) => e.id || e.textContent?.trim()));
-  expect(order).toEqual(["Openings", "addDoor", "addWin", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "Device", "addFurn", "addUnlDev"]);
+  const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.map((e) => e.id || e.textContent?.trim()));
+  expect(order).toEqual(["Openings", "addDoor", "addWin", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "addDevBtn", "addFurn", "addUnlDev"]);
 });
 
 test("each Add, Wall item places a 200 cm wall of its kind at the spawn point, selected, in one undo step", async ({ page }) => {
@@ -6154,47 +6158,43 @@ test("S4.15: no Place button without Home Assistant", async ({ page }) => {
   await expect(page.locator("#rplace")).toHaveCount(0);
 });
 
-// ---- S4.14: Add > Entities, a palette of every HA entity not yet on the plan -------------------------------------
+// ---- S4.14/S8.5: Add > Device merges the catalog and every HA entity not yet on the plan into one panel -----------
 
-test("S4.14: Add > Entities lists HA entities not yet placed or catalogued, grouped by type, and is absent without Home Assistant", async ({ page }) => {
-  await menu(page, "Add");
-  await expect(page.locator('#mAdd details.sub > summary:text-is("Entities")')).toHaveCount(0); // no ha: nothing to add from
-  await menu(page, "Add"); // close it again
+test("S4.14/S8.5: Device… merges the catalog and HA entities into one list with no duplicate; an Area filter appears only once Home Assistant is known", async ({ page }) => {
+  await openDevice(page);
+  await expect(page.locator("#addDevArea")).toHaveCount(0); // no HA yet: no candidate has an area
+  await page.locator("#addDevClose").click();
 
   await setHa(page, { ...HA, entities: [...HA.entities, { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" }, { id: "light.demo_kitchen", name: "Kitchen light", domain: "light" }] });
-  await menu(page, "Add");
-  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
-  const sub = page.locator("#addEntSub");
-  await expect(sub).toContainText("Living temp");
-  await expect(sub).toContainText("Pond level"); // HA's own fixture entity, not yet placed or catalogued
-  await expect(sub.locator('button:text-is("Kitchen light")')).toHaveCount(0); // already a device on the demo plan
+  await openDevice(page);
+  const panel = page.locator("#addDevPanel");
+  await expect(panel).toContainText("Living temp");
+  await expect(panel).toContainText("Pond level"); // HA's own fixture entity, not yet placed or catalogued
+  await expect(panel.locator('button:text-is("Kitchen light")')).toHaveCount(0); // already a device on the demo plan
+  await expect(panel.locator('[data-add="catalog:contact-garage"]')).toHaveCount(1); // the catalog half is still there too
 });
 
-test("S4.14: search filters the palette by name or entity id", async ({ page }) => {
+test("S4.14/S8.5: search filters the merged list by name or entity id", async ({ page }) => {
   await setHa(page, HA);
-  await menu(page, "Add");
-  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
-  await page.locator("#entSearch").fill("pond");
-  await expect(page.locator("#addEntSub")).toContainText("Pond level");
-  await page.locator("#entSearch").fill("nothing-matches-this");
-  await expect(page.locator("#addEntNone")).toHaveText("No entity matches");
+  await openDevice(page);
+  await search(page).fill("pond");
+  await expect(page.locator("#addDevPanel")).toContainText("Pond level");
+  await search(page).fill("nothing-matches-this");
+  await expect(page.locator("#addDevNone")).toHaveText("Nothing matches");
 });
 
-test("S4.14: clicking an entity places it — at its area's room centre when one is drawn, else near the plan centre — one undo step", async ({ page }) => {
+test("S4.14/S8.5: clicking an HA entity places it — at its area's room centre when one is drawn, else near the plan centre — one undo step, and the panel stays open", async ({ page }) => {
   await setHa(page, { ...HA, entities: [...HA.entities, { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" }] });
-  await menu(page, "Add");
-  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
-  await page.locator('[data-ent="sensor.living_temp"]').click();
-  await expect(page.locator("#mAdd")).not.toHaveJSProperty("open", true); // the menu closes after placing
+  await openDevice(page);
+  await page.locator('[data-add="ha:sensor.living_temp"]').click();
+  await expect(page.locator("#addDevPanel")).toBeVisible(); // S8.5: stays open after a pick
 
   const devs = (await groundOf(page)).devices;
   const d = devs.find((x: any) => x.entity === "sensor.living_temp");
   expect(d).toMatchObject({ type: "temp", name: "Living temp" });
   expect((await layoutOf(page)).catalog.find((c: any) => c.entity === "sensor.living_temp")).toMatchObject({ room: "Living" });
 
-  await menu(page, "Add");
-  await page.locator('#mAdd details.sub > summary:text-is("Entities")').click();
-  await page.locator('[data-ent="sensor.pond"]').click(); // no area on this fixture entity: falls back, not refused
+  await page.locator('[data-add="ha:sensor.pond"]').click(); // no area on this fixture entity: falls back, not refused
   const pond = (await groundOf(page)).devices.find((x: any) => x.entity === "sensor.pond");
   expect(pond).toBeTruthy();
   expect((await layoutOf(page)).catalog.find((c: any) => c.entity === "sensor.pond")?.room).toBeFalsy();
@@ -6202,6 +6202,61 @@ test("S4.14: clicking an entity places it — at its area's room centre when one
   await page.keyboard.press("Control+z");
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.pond")).toBe(false);
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.living_temp")).toBe(true);
+});
+
+test("S8.5: each select lists only values present among the filtered candidates, and narrows as another filter is set", async ({ page }) => {
+  await setHa(page, { floors: [], areas: [{ id: "living", name: "Living" }, { id: "bedroom", name: "Bedroom" }], entities: [
+    { id: "light.new_living", name: "New living light", domain: "light", area: "living" },
+    { id: "climate.new_bedroom", name: "New bedroom heater", domain: "climate", area: "bedroom" },
+  ] });
+  await openDevice(page);
+  // Ground's default demo layout still has two unplaced catalog entries (contact-garage, in Hall; the living relay):
+  // neither has an HA area, so they add no floor (but do add "Hall" via the catalog's own room field, and a "None" floor).
+  await expect(page.locator("#addDevFloor option")).toHaveText(["All floors", "First", "Ground", "None"]);
+  await expect(page.locator("#addDevRoom option")).toHaveText(["All rooms", "Bedroom", "Hall", "Living"]);
+  await expect(page.locator("#addDevType option")).toHaveText(["All types", "Lights", "Wall switches", "Window / door sensor", "Climate"]);
+
+  await page.locator("#addDevFloor").selectOption("First"); // asymmetric: only the bedroom heater sits on First
+  await expect(page.locator("#addDevRoom option")).toHaveText(["All rooms", "Bedroom"]); // Living and Hall drop out
+  await expect(page.locator("#addDevType option")).toHaveText(["All types", "Climate"]); // Lights, Wall switches, Window/door drop out
+});
+
+test("S8.5: a filter's None option appears only when some filtered candidate lacks that field, and picking it isolates those", async ({ page }) => {
+  await setHa(page, { floors: [], areas: [{ id: "living", name: "Living" }], entities: [
+    { id: "light.uniq_area", name: "Uniq area light", domain: "light", area: "living" },
+    { id: "switch.uniq_noarea", name: "Uniq bare switch", domain: "switch" },
+  ] });
+  await openDevice(page);
+  await search(page).fill("uniq");
+  await expect(page.locator("#addDevArea option")).toHaveText(["All areas", "Living", "None"]);
+  await page.locator("#addDevArea").selectOption("__none__");
+  await expect(shown(page)).toHaveCount(1);
+  await expect(shown(page)).toContainText("Uniq bare switch");
+
+  await search(page).fill("uniq_area"); // narrows to the one candidate, which does have an area
+  await page.locator("#addDevArea").selectOption(""); // reset, so the option list reflects only this narrower pool
+  await expect(page.locator("#addDevArea option")).toHaveText(["All areas", "Living"]); // no None: nothing shown lacks one
+});
+
+test("S8.5: picking a candidate whose room is on another floor switches to that floor first and places it there", async ({ page }) => {
+  await setHa(page, { floors: [], areas: [{ id: "bedroom", name: "Bedroom" }], entities: [
+    { id: "climate.spare_bedroom", name: "Spare bedroom heater", domain: "climate", area: "bedroom" },
+  ] });
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.floor, EDITOR)).toBe("ground");
+  await openDevice(page);
+  await page.locator('[data-add="ha:climate.spare_bedroom"]').click();
+  await expect(page.locator("#addDevPanel")).toBeVisible(); // S8.5: stays open after a pick, even across the floor switch
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.floor, EDITOR)).toBe("first");
+  const devs = (await layoutOf(page)).floors.first.devices;
+  expect(devs.some((d: any) => d.entity === "climate.spare_bedroom")).toBe(true);
+  expect((await layoutOf(page)).catalog.find((c: any) => c.entity === "climate.spare_bedroom")).toMatchObject({ room: "Bedroom" });
+});
+
+test("S8.5: the panel opens with focus in the search box, and Escape from there closes it", async ({ page }) => {
+  await openDevice(page);
+  await expect(search(page)).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#addDevPanel")).toHaveCount(0);
 });
 
 // ---- S4.5: groups -------------------------------------------------------------------------
