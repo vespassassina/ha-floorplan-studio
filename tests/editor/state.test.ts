@@ -915,6 +915,77 @@ describe("EditorState.autoLinkLights (S8.7)", () => {
   });
 });
 
+describe("EditorState.motionChoices (Opus review finding 12: scoped by HA floor like the switches, drawn rooms as fallback)", () => {
+  /** One plan floor ("ground") with a room drawn only in area_kitchen. area_pantry is on the same HA floor as
+   *  area_kitchen but has no room drawn on this plan floor at all. */
+  const layout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      ground: {
+        title: "Ground", outline: [], rooms: [{ id: "r1", name: "Kitchen", area: "area_kitchen", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }],
+        walls: [], stairs: [], doors: [], openings: [], extras: [],
+        devices: [{ id: "d1", type: "light", entity: "light.kitchen", name: "Kitchen light", x: 10, y: 10 }],
+        furniture: [], unlinked: [],
+      },
+    },
+    catalog: [],
+  });
+  const haWithFloorMapping = {
+    floors: [{ id: "floor_ground", name: "Ground" }, { id: "floor_upstairs", name: "Upstairs" }],
+    areas: [
+      { id: "area_kitchen", name: "Kitchen", floor_id: "floor_ground" },
+      { id: "area_pantry", name: "Pantry", floor_id: "floor_ground" }, // same HA floor, no room drawn for it
+      { id: "area_bedroom", name: "Bedroom", floor_id: "floor_upstairs" },
+    ],
+    entities: [
+      { id: "light.kitchen", name: "Kitchen light", domain: "light", area: "area_kitchen" },
+      { id: "binary_sensor.kitchen_motion", name: "Kitchen motion", domain: "binary_sensor", dc: "motion", area: "area_kitchen" },
+      { id: "binary_sensor.pantry_motion", name: "Pantry motion", domain: "binary_sensor", dc: "motion", area: "area_pantry" },
+      { id: "binary_sensor.bedroom_motion", name: "Bedroom motion", domain: "binary_sensor", dc: "motion", area: "area_bedroom" },
+    ],
+  };
+
+  it("counts an area on the mapped HA floor even with no room drawn for it (Pantry), excludes another HA floor (Bedroom)", () => {
+    const st = new EditorState(layout(), "ground");
+    st.ha = haWithFloorMapping;
+    const names = st.motionChoices(0).map((c) => c.name);
+    expect(names).toContain("Kitchen motion");
+    expect(names).toContain("Pantry motion"); // same HA floor, no drawn room: still counts
+    expect(names).not.toContain("Bedroom motion"); // a different HA floor
+  });
+
+  it("falls back to the drawn-room areas when the plan floor has no HA floor mapping at all", () => {
+    const st = new EditorState(layout(), "ground");
+    st.ha = {
+      floors: [],
+      areas: [{ id: "area_kitchen", name: "Kitchen" }, { id: "area_pantry", name: "Pantry" }], // no floor_id anywhere
+      entities: [
+        { id: "light.kitchen", name: "Kitchen light", domain: "light", area: "area_kitchen" },
+        { id: "binary_sensor.kitchen_motion", name: "Kitchen motion", domain: "binary_sensor", dc: "motion", area: "area_kitchen" },
+        { id: "binary_sensor.pantry_motion", name: "Pantry motion", domain: "binary_sensor", dc: "motion", area: "area_pantry" },
+      ],
+    };
+    const names = st.motionChoices(0).map((c) => c.name);
+    expect(names).toContain("Kitchen motion"); // its area has a drawn room on this floor
+    expect(names).not.toContain("Pantry motion"); // no HA floor mapping and no drawn room either
+  });
+
+  it("a group entity counts when at least one member sensor is on this HA floor", () => {
+    const st = new EditorState(layout(), "ground");
+    st.ha = {
+      ...haWithFloorMapping,
+      entities: [
+        ...haWithFloorMapping.entities,
+        { id: "group.motion_kitchen_bedroom", name: "Kitchen + bedroom motion", domain: "group", members: ["binary_sensor.kitchen_motion", "binary_sensor.bedroom_motion"] },
+        { id: "group.motion_bedroom_only", name: "Bedroom-only group", domain: "group", members: ["binary_sensor.bedroom_motion"] },
+      ],
+    };
+    const names = st.motionChoices(0).map((c) => c.name);
+    expect(names).toContain("Kitchen + bedroom motion"); // one member (kitchen) is on this HA floor
+    expect(names).not.toContain("Bedroom-only group"); // no member is on this HA floor
+  });
+});
+
 describe("EditorState.pendingMotion (Opus review finding 3: tied to the device id, cleared on selection change)", () => {
   const layout = (): Layout => ({
     version: 2, unit: "cm", north: 0,

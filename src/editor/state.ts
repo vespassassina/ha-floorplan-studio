@@ -1,4 +1,4 @@
-import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, validate, viewBoxFor } from "../core";
+import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -539,19 +539,30 @@ export class EditorState {
   }
 
   /**
-   * S8.7: the Motion optgroup's own source list for the light at `devIndex` — binary_sensor entities on this floor
-   * whose device class is motion, occupancy or presence (this floor: their HA area matches one of this floor's own
-   * rooms), same area as the light first, plus every `group.*` entity whose members are ALL such sensors and at
-   * least one member is on this floor. Empty without HA data or for anything that is not a light.
+   * S8.7: the Motion optgroup's own source list for the light at `devIndex` — binary_sensor entities whose device
+   * class is motion, occupancy or presence and are "on this floor", same area as the light first, plus every
+   * `group.*` entity whose members are ALL such sensors and at least one member is on this floor. Empty without HA
+   * data or for anything that is not a light.
+   *
+   * Opus review finding 12: "on this floor" is scoped the same way `switchChoicesForLight` scopes switches — by
+   * the HA floor(s) this plan floor's rooms map to (`haFloorIdsForPlanFloor`), so an area on that HA floor counts
+   * even with no room drawn for it yet. A plan floor with no HA floor mapping at all (no room's area is on any HA
+   * floor) falls back to this floor's own drawn-room areas, the previous behaviour, rather than offering nothing.
    */
   motionChoices(devIndex: number): { entity: string; name: string }[] {
     const d = this.f.devices[devIndex];
     if (!d || d.type !== "light" || !this.ha) return [];
     const ha = this.ha;
+    const floorIds = haFloorIdsForPlanFloor(this.layout, ha, this.floor);
+    const floorIdOfArea = new Map((ha.areas ?? []).map((a) => [a.id, a.floor_id]));
     const floorAreas = new Set(this.f.rooms.map((r) => r.area).filter(Boolean));
     const lightArea = ha.entities.find((e) => e.id === d.entity)?.area;
     const isMotion = (e: HaData["entities"][number]) => e.domain === "binary_sensor" && (e.dc === "motion" || e.dc === "occupancy" || e.dc === "presence");
-    const onFloor = (e: HaData["entities"][number]) => !!e.area && floorAreas.has(e.area);
+    const onFloor = (e: HaData["entities"][number]) => {
+      if (!e.area) return false;
+      if (floorIds.size) { const fid = floorIdOfArea.get(e.area); return !!fid && floorIds.has(fid); }
+      return floorAreas.has(e.area); // no HA floor mapping for this plan floor: fall back to drawn rooms
+    };
     const sensors = ha.entities.filter((e) => isMotion(e) && onFloor(e));
     const groups = ha.entities.filter((e) =>
       e.domain === "group" && Array.isArray(e.members) && e.members.length > 0 &&

@@ -403,7 +403,7 @@ export function addCandidates(l: Layout, ha: HaData | null): AddCandidate[] {
  * not themselves on an HA floor, maps to nothing; a candidate is then never offered by area/floor alone (it can
  * still be offered through the catalog, which is plan-floor-scoped already).
  */
-function haFloorIdsForPlanFloor(l: Layout, ha: HaData, floorKey: string): Set<string> {
+export function haFloorIdsForPlanFloor(l: Layout, ha: HaData, floorKey: string): Set<string> {
   const ids = new Set<string>();
   const floor = l.floors[floorKey];
   if (!floor) return ids;
