@@ -492,12 +492,16 @@ describe("S8.6: addCandidates emits one row per HA device, not one per entity", 
     expect(out[0]).toMatchObject({ key: "ha-dev:d1", source: "ha", id: "d1", entity: "switch.plug", name: "Kitchen plug" });
   });
 
-  it("a device already placed through one of its entities does not reappear through a sibling", () => {
+  it("Opus review finding 8: a device already placed through a sibling entity (the power sensor, not the main switch) does not reappear as its own row", () => {
+    // The catalog names sensor.plug_power, never the device's main entity switch.plug — a weaker test that placed
+    // the main entity itself would pass even if the sibling rule (placedDeviceIds' e.dev walk) were gone, since
+    // the ha-dev row would then just look identical to the catalog row. Placing the sibling instead exercises the
+    // actual rule: the device is still recognised as placed even though its own row would be keyed by switch.plug.
     const l = layout();
-    l.catalog = [{ id: "c-1", floor: "ground", room: "", type: "plug", name: "Kitchen plug", entity: "switch.plug" }];
+    l.catalog = [{ id: "c-1", floor: "ground", room: "", type: "sensor", name: "Plug power", entity: "sensor.plug_power" }];
     const out = addCandidates(l, plugHa());
-    expect(out.find((c) => c.id === "d1")).toBeUndefined();
-    expect(out.find((c) => c.entity === "sensor.plug_power")).toBeUndefined(); // no fallback row via the power sensor either
+    expect(out.find((c) => c.id === "d1")).toBeUndefined(); // the ha-dev row for the whole device is gone
+    expect(out.find((c) => c.entity === "switch.plug")).toBeUndefined(); // no fallback row via the main entity either
   });
 });
 
