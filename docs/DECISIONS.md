@@ -2,6 +2,37 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-25 S8.2 card sizing: height:100% on host and svg, getGridOptions from the plan's aspect
+
+Diego reported the card cropped in Home Assistant's sections layout dashboard.
+Cause: the card had no `getGridOptions()`, so a resized row got `.card.fit-rows`
+(a fixed pixel height) while the card's own `svg { height: auto }` still sized
+from its width, so it overflowed the row and was clipped.
+
+Fix: `:host` and `svg` both get `height: 100%`, the pattern Home Assistant's own
+cards (thermostat, map) use. In an "auto" row (no fixed height above the card)
+a percentage height resolves to `auto` by the CSS spec, so nothing changes there;
+in a fixed-height row it fills it, and the svg's default `preserveAspectRatio`
+(`xMidYMid meet`) keeps the whole plan visible, letterboxed rather than cropped
+or stretched. `getGridOptions()` returns `columns: 12`, a numeric `rows` from
+the same aspect math `getCardSize()` already used (so masonry and sections
+views agree), and `min_columns: 6` / `min_rows: 3` so a manual resize can't
+squeeze the plan illegibly.
+
+Found during this: a plain percentage height requires a parent with no height
+of its own to correctly fall back to `auto` — `tests/card/harness.html` had
+`<floorplan-studio-card>` as a direct child of `<body>`, and one Playwright
+test sets `document.body.style.height` to give the page room to scroll. That
+leaked straight into the card and stretched the plan to the whole page. Fixed
+by wrapping the card in a plain, unstyled `<div>` in the harness, matching how
+Home Assistant actually nests a card (several divs, none height-styled, until
+the one HA itself sizes). Also found: two zoom-button taps followed immediately
+by a touch swipe raced Chromium's compositor-thread commit of the new
+`touch-action: none` about 1 swipe in 10, letting a stray pixel of page scroll
+through before it took effect; the S7.15 Playwright test now waits two
+rendered frames after the taps before swiping — a real rendering milestone,
+not a blind sleep.
+
 ## 2026-09-25 Docs clean-up after 0.12.0
 
 Diego: "clean the docs". Housekeeping, no behaviour change:

@@ -706,6 +706,12 @@ test.describe("S7.4 touch", () => {
     await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').tap();
     const z = await viewBox(page);
     expect(z.w).toBeLessThan(fit.w);
+    // S8.2 review: the two taps just added `touch-action: none` to the svg (`.fp-zoomed`); Chromium applies
+    // touch-action on the compositor thread, a frame or two after the main-thread style/class change, so a touch
+    // that starts in the same tick can occasionally scroll the page by a stray pixel before it takes effect. Two
+    // rendered frames is the standard wait for a style change to have actually been committed and painted; it is
+    // not a blind sleep, and its absence was a real, reproducible (about 1 swipe in 10) race, not test flakiness.
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     await swipeUp();
     await expect.poll(async () => (await viewBox(page)).y).toBeGreaterThan(z.y);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
@@ -1055,5 +1061,45 @@ test.describe("S7.10 kiosk mode: the vacuum dialog still opens", () => {
     await configureWithCallServiceSpy(page, { layout, kiosk: true }, { "vacuum.test": live("docked") });
     await tapVacuum(page, idx);
     await expect(page.locator("floorplan-studio-card").locator("css=.fp-vacuum-dialog")).toHaveCount(1);
+  });
+});
+
+test.describe("S8.2: the card fills a fixed-height container instead of cropping", () => {
+  const card = (page: Page) => page.locator("floorplan-studio-card");
+  const svgBox = async (page: Page) => (await card(page).locator("css=svg").first().boundingBox())!;
+
+  /** Wraps `#card` in a fixed-size div, as HA's sections layout does when rows is numeric (`.card.fit-rows`). */
+  async function wrapFixed(page: Page, width: number, height: number) {
+    await page.evaluate(
+      ([width, height]) => {
+        const el = document.getElementById("card")!;
+        const wrap = document.createElement("div");
+        wrap.id = "fixed-wrap";
+        wrap.style.width = `${width}px`;
+        wrap.style.height = `${height}px`;
+        el.parentElement!.insertBefore(wrap, el);
+        wrap.appendChild(el);
+      },
+      [width, height] as const,
+    );
+  }
+
+  test("in a container shorter than the plan's natural height, the plan's svg still fills the container height and never overflows it (S8.2)", async ({ page }) => {
+    await open(page);
+    await wrapFixed(page, 400, 300);
+    await configure(page, { layout: structuredClone(demo) }, { states: {}, themes: { darkMode: false } });
+    const wrapBox = (await page.locator("#fixed-wrap").boundingBox())!;
+    const box = await svgBox(page);
+    expect(box.height).toBeCloseTo(wrapBox.height, 0);
+    expect(box.width).toBeLessThanOrEqual(wrapBox.width + 0.5);
+  });
+
+  test("with no fixed height on its container, the plan still sizes by width and its own aspect ratio, unchanged (S8.2)", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: structuredClone(demo) }, { states: {}, themes: { darkMode: false } });
+    const cardBox = (await card(page).boundingBox())!;
+    const box = await svgBox(page);
+    expect(box.width).toBeCloseTo(cardBox.width, 0);
+    expect(box.height).toBeLessThan(cardBox.width); // the demo ground floor is wider than it is tall
   });
 });
