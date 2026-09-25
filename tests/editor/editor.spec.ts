@@ -5200,6 +5200,24 @@ test("S3.3 break it: an entity id HA does not know stays selected and is not cle
   await expect(page.locator("#panel")).toContainText("Home Assistant does not have this one");
 });
 
+// Opus review finding 11: deviceEntity's optgroup label fell straight to the device id (nameOf.get(e.dev) ?? e.dev)
+// when Home Assistant's device registry gives a device no name (a real HA device can have name: null). It must
+// fall back to that device's own main entity's name instead, the way every other device-grouped list already does.
+test("Opus review finding 11: a device's entity picker labels its optgroup from the main entity's name, never the device id, when Home Assistant gives the device no name", async ({ page }) => {
+  await withUnboundLight(page);
+  await setHa(page, { floors: [], areas: [], devices: [{ id: "dev1", name: null }],
+    entities: [
+      { id: "light.free", name: "Study lamp", domain: "light", area: null, dev: "dev1" },
+      { id: "sensor.free_power", name: "Study lamp power", domain: "sensor", dc: "power", area: null, dev: "dev1", cat: "diagnostic" },
+    ] });
+  await page.locator("#unbound button[data-unbound]").click();
+  // The device's two entities (the light and its diagnostic power sensor) sit in different tiers, each with its own
+  // optgroup, so "Study lamp" is expected twice — never once as "dev1".
+  await expect(page.locator('#ve optgroup[label="Study lamp"] option[value="light.free"]')).toHaveCount(1);
+  await expect(page.locator('#ve optgroup[label="Study lamp"] option[value="sensor.free_power"]')).toHaveCount(1);
+  await expect(page.locator('#ve optgroup[label="dev1"]')).toHaveCount(0); // never the raw device id
+});
+
 test("S3.3: the picker does not offer an entity that is already on the plan, except the device's own", async ({ page }) => {
   const i = await withUnboundLight(page);
   const placed = await page.evaluate(([tag]) => { const ed = document.querySelector(tag as string) as any; return ed.layout.floors.ground.devices.filter((d: any) => d.entity && d.type === "light").map((d: any) => d.entity) as string[]; }, [EDITOR]);
@@ -6228,6 +6246,23 @@ test("S8.6: Add > Device offers a plug device once, not once per entity, and pla
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.kitchen_plug_power")).toBe(false);
 });
 
+// Opus review finding 11: a device row's own registry name ("Kitchen plug") can differ from its main entity's own
+// name ("Relay 1", HA's default for an unnamed switch); the panel showed the device name but placeAddDev placed the
+// device under the entity's own name, so the icon on the plan read differently from the row the user clicked.
+test("Opus review finding 11: placing a device row names the plan icon after the name shown in the Add panel row, not the main entity's own name", async ({ page }) => {
+  await setHa(page, {
+    floors: [], areas: [{ id: "kitchen", name: "Kitchen" }],
+    devices: [{ id: "plugdev", name: "Kitchen plug" }],
+    entities: [{ id: "switch.raw_relay", name: "Relay 1", domain: "switch", dc: "outlet", area: "kitchen", dev: "plugdev" }],
+  });
+  await openDevice(page);
+  const panel = page.locator("#addDevPanel");
+  await expect(panel.locator('button:text-is("Kitchen plug")')).toHaveCount(1); // the row is shown under the device name
+  await panel.locator('[data-add="ha-dev:plugdev"]').click();
+  const d = (await groundOf(page)).devices.find((x: any) => x.entity === "switch.raw_relay");
+  expect(d?.name).toBe("Kitchen plug"); // not "Relay 1"
+});
+
 test("S8.5: each select lists only values present among the filtered candidates, and narrows as another filter is set", async ({ page }) => {
   await setHa(page, { floors: [], areas: [{ id: "living", name: "Living" }, { id: "bedroom", name: "Bedroom" }], entities: [
     { id: "light.new_living", name: "New living light", domain: "light", area: "living" },
@@ -6274,6 +6309,25 @@ test("S8.5: picking a candidate whose room is on another floor switches to that 
   const devs = (await layoutOf(page)).floors.first.devices;
   expect(devs.some((d: any) => d.entity === "climate.spare_bedroom")).toBe(true);
   expect((await layoutOf(page)).catalog.find((c: any) => c.entity === "climate.spare_bedroom")).toMatchObject({ room: "Bedroom" });
+});
+
+// Opus review finding 11: pickAddDev matched the candidate's floor by TITLE, which collides when two floors share
+// one (the demo ships "ground"/Ground and "test"/Test as distinct floors — nothing stops a maintainer titling both
+// the same). It must resolve the floor by key, the same key locateEntity already found the room on.
+test("Opus review finding 11: picking a candidate switches to the room's actual floor, even when another floor shares its title", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.title = "Test"; // now collides with the real "test" floor's own title, and sorts first by key order
+    el.layout = l;
+  }, EDITOR);
+  await setHa(page, { floors: [], areas: [{ id: "test", name: "Test area" }], entities: [
+    { id: "sensor.test_room_temp", name: "Test room temp", domain: "sensor", dc: "temperature", area: "test" },
+  ] });
+  await openDevice(page);
+  await page.locator('[data-add="ha:sensor.test_room_temp"]').click();
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.floor, EDITOR)).toBe("test"); // not "ground"
+  const devs = (await layoutOf(page)).floors.test.devices;
+  expect(devs.some((d: any) => d.entity === "sensor.test_room_temp")).toBe(true);
 });
 
 test("S8.5: the panel opens with focus in the search box, and Escape from there closes it", async ({ page }) => {

@@ -1,6 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { entitiesForType, groupKind, inside, placedEntities, roomHaBox } from "../core";
+import { entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -623,15 +623,21 @@ function deviceEntity(c: PanelCtx, i: number) {
   const here = room ? match.filter((e) => e.area === room.area) : [], elsewhere = match.filter((e) => !here.includes(e));
   const optsRaw = (l: HaData["entities"]) => l.map((e) => html`<option value=${e.id} title=${e.id} ?selected=${e.id === d.entity}>${e.name}</option>`);
   const nameOf = new Map((ha.devices ?? []).map((dv) => [dv.id, dv.name]));
+  // Opus review finding 11: a device with no name in Home Assistant's registry (`d.name` can be null) falls back
+  // to its own main entity's name, never the raw device id — the same rule mainEntitiesByDevice/asDeviceRow follow.
+  // The main entity is picked from the device's FULL entity set (`mainEntitiesByDevice`, all of `ha.entities`), not
+  // just the entities in whichever tier is being rendered — a tier can hold only a device's diagnostic sibling,
+  // which `mainEntity` excludes on its own, so a per-tier lookup found no main entity and fell back to the id.
+  const mainOf = mainEntitiesByDevice(ha);
   const byTier = (tierLabel: string, l: HaData["entities"]) => {
     const groups = new Map<string, HaData["entities"]>(), loose: HaData["entities"] = [];
     for (const e of byName(l)) {
       if (!e.dev) { loose.push(e); continue; }
-      const label = nameOf.get(e.dev) ?? e.dev;
-      if (!groups.has(label)) groups.set(label, []);
-      groups.get(label)!.push(e);
+      if (!groups.has(e.dev)) groups.set(e.dev, []);
+      groups.get(e.dev)!.push(e);
     }
-    const devGroups = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([label, ents]) => {
+    const devGroups = [...groups.entries()].map(([devId, ents]) => [nameOf.get(devId) || mainOf.get(devId)?.name || devId, ents] as const)
+      .sort(([a], [b]) => a.localeCompare(b)).map(([label, ents]) => {
       const sorted = [...ents].sort((a, b) => (a.cat ? 1 : 0) - (b.cat ? 1 : 0)); // config/diagnostic entities last, else name order kept (stable)
       return html`<optgroup label=${label}>${optsRaw(sorted)}</optgroup>`;
     });

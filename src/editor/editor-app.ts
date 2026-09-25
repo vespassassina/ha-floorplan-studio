@@ -899,11 +899,10 @@ export class FloorplanStudioEditor extends LitElement {
     if (c.source === "catalog") { this.placeDevice(c.id); this.requestUpdate(); return; }
     const e = st.ha?.entities.find((x) => x.id === c.entity);
     if (!e) return;
-    if (c.floor) {
-      const key = Object.entries(st.layout.floors).find(([k, f]) => (f.title || k) === c.floor)?.[0];
-      if (key && key !== st.floor) this.setFloor(key);
-    }
-    this.addHaEntity(e);
+    if (c.floorKey && c.floorKey !== st.floor) this.setFloor(c.floorKey);
+    // Opus review finding 11: names the placed device (and the "Added …" status) after c.name, the row the user
+    // just clicked — a device row's own name can differ from its main entity's, e.g. the device registry's name.
+    this.addHaEntity(c.name !== e.name ? { ...e, name: c.name } : e);
     this.requestUpdate();
   }
 

@@ -354,19 +354,25 @@ export interface AddCandidate {
   name: string;
   type: DeviceType;
   floor?: string;
+  floorKey?: string;
   room?: string;
   area?: string;
 }
 
-/** S8.5: where an entity sits on the plan — its HA area's name, the plan room drawn for that area (any floor), and that room's floor. */
-function locateEntity(l: Layout, ha: HaData | null, entityId: string, fallbackRoom?: string): { area?: string; room?: string; floor?: string } {
+/**
+ * S8.5: where an entity sits on the plan — its HA area's name, the plan room drawn for that area (any floor), and
+ * that room's floor: `floor` is its title, for display and the select filters; `floorKey` is the actual key in
+ * `l.floors`, which `pickAddDev` must switch to (Opus review finding 11: two floors can share a title, so matching
+ * back from `floor` to a key by title comparison picks the wrong one — the key found here is unambiguous).
+ */
+function locateEntity(l: Layout, ha: HaData | null, entityId: string, fallbackRoom?: string): { area?: string; room?: string; floor?: string; floorKey?: string } {
   const he = ha?.entities.find((e) => e?.id === entityId);
   const areaId = typeof he?.area === "string" && he.area ? he.area : undefined;
   const areaName = areaId ? nameIn(ha?.areas, areaId) : undefined;
   if (areaId) {
     for (const [key, f] of Object.entries(l.floors)) {
       const room = f.rooms.find((r) => r.area === areaId);
-      if (room) return { ...(areaName ? { area: areaName } : {}), room: room.name, floor: f.title || key };
+      if (room) return { ...(areaName ? { area: areaName } : {}), room: room.name, floor: f.title || key, floorKey: key };
     }
   }
   return { ...(areaName ? { area: areaName } : {}), ...(fallbackRoom ? { room: fallbackRoom } : {}) };

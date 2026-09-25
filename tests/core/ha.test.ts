@@ -345,7 +345,7 @@ describe("S8.5: addCandidates — catalog + HA entities, merged, each located by
       { id: "light.spare", name: "Spare bulb", domain: "light", area: "kitchen" },
     ] };
     expect(addCandidates(l, ha)).toEqual([
-      { key: "ha:light.spare", source: "ha", id: "light.spare", entity: "light.spare", name: "Spare bulb", type: "light", area: "The Kitchen", room: "Kitchen", floor: "Ground" },
+      { key: "ha:light.spare", source: "ha", id: "light.spare", entity: "light.spare", name: "Spare bulb", type: "light", area: "The Kitchen", room: "Kitchen", floor: "Ground", floorKey: "ground" },
     ]);
   });
 
