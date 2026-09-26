@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.7
 
 - A lit lamp's aura is 50% larger (3 m across instead of 2 m). It now draws
   under walls, doors and names, so it never tints them. The plan only gets
