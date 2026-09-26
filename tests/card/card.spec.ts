@@ -1222,21 +1222,48 @@ test("S8.11 fix 1 (card): the mask cut has square ends — 1.5cm inside a is a h
 // This must fail with the round cap restored: reverting src/core/render.ts's opening line back to
 // stroke-linecap="round" erases the "outside a" point too (verified by hand, see the S8.11 report).
 
-test("S8.11 fix 2 (card): the room's own boundary line is cut clean through the opening, at its exact centre", async ({ page }) => {
+// Opus review of S8.11, item 3 (2026-09-26): the seam patch that used to repaint over an opening's centreline is
+// gone (removed from src/core/render.ts). Diego's 4x crops of a test layout, not the demo — one opening on the
+// house's own outline, one between two differently-coloured rooms, all three themes — showed no visible line, and a
+// pixel scan across the full width of each opening (tests/card/zzz-seam-scan.spec.ts, run and deleted, not
+// committed) found the two rooms' polygons already meet exactly at the shared wall centreline with no gap and no
+// blended sliver, once fix 2's wider cut (OPENING_EXTRA, above) is in place: the old patch was covering a seam that
+// this fix already closes as a side effect. This is that test layout's own regression test, replacing the old,
+// patch-dependent "S8.11 fix 2" test above (which sampled the demo's *external*-wall opening at its literal
+// centreline — the boundary between a room and open air, where the far side is correctly blank, not room fill; not
+// a meaningful place to assert "room fill").
+const SEAM_LAYOUT = {
+  version: 2, unit: "cm", north: 0, rotate: 0,
+  floors: {
+    test: {
+      title: "Seam test",
+      outline: [[0, 0], [600, 0], [600, 400], [0, 400]],
+      owk: ["external", "external", "external", "external"],
+      rooms: [
+        { id: "room-a", name: "Blue", label: "", kind: "room", color: "#4a6fa5", pts: [[0, 0], [300, 0], [300, 400], [0, 400]], wk: ["external", "wall", "external", "external"] },
+        { id: "room-b", name: "Green", label: "", kind: "room", color: "#2f8f3f", pts: [[300, 0], [600, 0], [600, 400], [300, 400]], wk: ["external", "external", "external", "wall"] },
+      ],
+      openings: [{ id: "opening-internal", a: [300, 150], b: [300, 250] }],
+    },
+  },
+};
+const GREEN_FILL: [number, number, number] = [0x2f, 0x8f, 0x3f]; // room-b's own colour, SEAM_LAYOUT above
+
+test("S8.11 review (card): the internal opening's centre, between two differently-coloured rooms, is a real room fill — not white, not a blend", async ({ page }) => {
   await open(page);
-  await configure(page, { layout: demo, floor: "first", theme: "light" }, { states: {} });
+  await configure(page, { layout: SEAM_LAYOUT, floor: "test", theme: "light" }, { states: {} });
   const { decodePng, pixelAt } = await import("../core/util/png");
 
-  const centre = await cardScreenOf(page, OPENING_MID_X, 600);
+  const centre = await cardScreenOf(page, 300, 200); // the opening's own centre: wall centreline x, mid-length y
   const png = decodePng(await page.screenshot({ fullPage: true }));
   const centrePx = pixelAt(png, centre.x, centre.y);
 
-  expect(closeToRgb(centrePx, ROOM_FILL_LIGHT), `opening centre (${centrePx}) should be the Office's own room fill`).toBe(true);
+  expect(closeToRgb(centrePx, GREEN_FILL), `opening centre (${centrePx}) should be a real room fill, not background or a blend`).toBe(true);
 });
 
-// This must fail with the seam patch removed: dropping the `f.openings.forEach` seam-patch block in
-// src/core/render.ts leaves the antialiased edge of Office's own polygon as the only thing drawn at y=600, which
-// is not the pure room-fill colour (verified by hand, see the S8.11 report).
+// This must fail with the opening removed (`openings: []` on the same layout): with no hole to cut, this exact
+// point sits dead centre of the solid internal wall and reads its colour, (43,42,39,255), not a room fill —
+// verified by hand, reverting the test layout's own `openings` array once and rerunning, see the S8.11 report.
 
 // ---- Opus review of S8.11: the opening mask has no region, so it defaults to -10%/120% of the viewport measured
 // from the *coordinate system's own* 0,0 — not the viewBox's x/y. Any floor viewed away from the origin (zoomed in,
