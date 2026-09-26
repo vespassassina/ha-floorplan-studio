@@ -7,8 +7,11 @@ Notes for AI assistants working in this repo. Read `docs/SPEC.md`,
 
 - Public repo. Never commit a token, a private HA URL, or the maintainer's
   house layout. The only layout here is `demo/`.
-- Branch `task/<id>`, small commits, imperative subject, body says why. The
-  maintainer merges and pushes; ask before push, PR or merge.
+- Branch `task/<id>`, small commits, imperative subject, body says why. Ask
+  before push, PR, merge or tag; with Diego's yes, Claude does it and finishes
+  the release (below).
+- Process: `docs/WORKFLOW.md`. Coding agents run on Sonnet; Opus reviews the
+  finished, integrated build once and re-checks its fixes.
 - English in files, metric units, ISO dates.
 - A decision that changes the spec goes into `docs/DECISIONS.md` (newest first)
   in the same commit as the work.

@@ -2,6 +2,35 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-26 Process: Sonnet codes, the coordinator checks, Opus reviews the build
+
+Supersedes the three-role flow in `docs/WORKFLOW.md` (2026-09-21: Sonnet
+executes, a separate Sonnet session verifies each sprint, and Opus reviews
+each task). Sprint 8 ran differently, and Diego asked that the process and
+dev guide follow his global rules. The new flow:
+
+- A coordinating session briefs a Sonnet coder per task. Coders work in
+  their own worktree and on their own Playwright port when two run at once.
+- The coordinator re-runs the suites and opens the screenshots itself before
+  anything else happens.
+- One Opus review covers the integrated build. Opus then re-checks only the
+  fixes.
+- With Diego's yes, the coordinator merges, pushes and tags, and finishes
+  the install on Home Assistant.
+
+Why: in Sprint 8, the coordinator's own look at the screenshots caught
+defects that green suites and the coder's report both missed: clipped
+hints, round-capped opening cuts, and a split toolbar. The single Opus pass
+over the integrated build caught the real logic bugs: a duplicated catalog
+entry, a hidden gang, and a recycled id. A per-task Opus review and a
+separate verifier session cost more and found less. `CONTRIBUTING.md`
+gains the evidence rules that apply to everyone:
+
+- run commands bare;
+- run a new Playwright test with `--repeat-each=10`;
+- check any visible change at two widths and in two themes;
+- commit with a no-reply author.
+
 ## 2026-09-26 Opus re-check of task/S8.9: newId ignored the catalog and other floors
 
 A further Opus re-check of task/S8.9 found that `newId` (`src/editor/state.ts`)
