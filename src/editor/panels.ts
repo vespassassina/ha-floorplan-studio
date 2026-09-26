@@ -589,7 +589,9 @@ const SCHEDULABLE: DeviceType[] = ["light", "switch", "plug", "media"];
 
 function devicePanel(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
-  const hasLinks = d.type === "light" || !!c.areaDiff?.(i);
+  // Opus review of S8.9: areaDiffField renders nothing without c.moveArea, so a Links heading over just an
+  // area-diff must not show unless moveArea is also there to fill it.
+  const hasLinks = d.type === "light" || !!(c.areaDiff?.(i) && c.moveArea);
   const hasAutomations = !!(c.makeLight && c.st.canMakeLight(i)) || !!(c.controlsAutomation && d.type === "switch") || !!(c.scheduleAutomation && SCHEDULABLE.includes(d.type));
   return html`<strong>${d.name ?? d.id}</strong>
     ${hint("a" in d ? "Drag to move; it aligns to the wall." : "Drag to move.")}

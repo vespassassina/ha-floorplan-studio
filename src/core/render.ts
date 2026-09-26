@@ -181,7 +181,7 @@ export const FLOORPLAN_CSS = `
 .door.open{stroke:var(--fp-dev-contact)} .door.cover-open{stroke:var(--fp-open)}
 /* S8.9 finding 3: a door's own stroke is now as thin as the internal wall it sits on, so this invisible twin
    (drawn first, same data-d, at the old fixed 22 cm) keeps the click target exactly as wide as it always was. */
-.door-hit{stroke:transparent;pointer-events:stroke}
+.door-hit{stroke:transparent;pointer-events:stroke;cursor:move}
 .dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
@@ -241,7 +241,7 @@ const DOOR_HIT_WIDTH = 22;
  * wins if present anywhere in that set (the only two door widths are "external" and everything else).
  */
 const DOOR_WALL_TOL = 10; // cm
-function wallWidthAt(f: Floor, a: Pt, b: Pt): number {
+export function wallWidthAt(f: Floor, a: Pt, b: Pt): number {
   const len = dist(a, b) || 1;
   const dir: Pt = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
   const kinds = edgeKindsNear(f, mid(a, b), dir, DOOR_WALL_TOL);

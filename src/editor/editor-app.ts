@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, wallWidthAt } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, Trace, WallKind } from "../core";
 import { traceImage } from "./trace";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
@@ -346,7 +346,7 @@ export class FloorplanStudioEditor extends LitElement {
     /* S8.9: a selection panel's section headings (Identity, Home Assistant, Links, Appearance, Automations, Danger),
        a divider above each except the first so the groups read apart without adding a new colour. */
     h4.pnl-h{margin:10px 0 2px;padding-top:8px;border-top:1px solid var(--fp-idle);font-size:.8em;font-weight:600;text-transform:uppercase;letter-spacing:.03em;opacity:.7}
-    h4.pnl-h:first-child,strong+h4.pnl-h,strong+p+h4.pnl-h{margin-top:4px;padding-top:0;border-top:none}
+    h4.pnl-h:first-child,strong+h4.pnl-h,strong+p+h4.pnl-h,strong+p+p+h4.pnl-h{margin-top:4px;padding-top:0;border-top:none}
     .errors{border:1px solid var(--fp-motion);border-radius:4px;padding:6px 10px;margin:6px 0}
     .errors ul{margin:4px 0;padding-left:18px}
     /* S7.2: the status line sits in the toolbar, right of Redo. A fixed flex-basis, not its text, sets its width, so a
@@ -2147,7 +2147,7 @@ export class FloorplanStudioEditor extends LitElement {
     }
     f.stairs.forEach((t, i) => { if (t.shape === "straight" && !t.rot) t.pts.forEach((p, j) => o.push(`<circle class="h" data-h="s${i}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`)); });
     const open = st.openDoor && f.doors.find((d) => d.id === st.openDoor);
-    if (open) o.push(line(open.a, open.b, "door open", 'stroke-width="22" pointer-events="none"'));
+    if (open) o.push(line(open.a, open.b, "door open", `stroke-width="${wallWidthAt(f, open.a, open.b)}" pointer-events="none"`));
     for (const r of looseEnds(f)) { const p = f[r.k][r.i][r.end]; o.push(`<circle class="h" data-hp="${r.k}:${r.i}:${r.end}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(4.5 * k)}"/>`); }
     if (s?.t === "door" && f.doors[s.i]) for (const end of ["a", "b"] as const) { const p = f.doors[s.i][end]; o.push(`<circle class="h" data-dh="${s.i}:${end}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`); }
     if (s?.t === "v") { const p = ptOf(f, s.ref); if (p) o.push(`<circle class="h on" pointer-events="none" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`); }

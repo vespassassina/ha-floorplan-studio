@@ -580,7 +580,8 @@ describe("S8.9 part 2: a door or window takes the thickness of the wall it sits 
     for (const i of [0, 1]) {
       expect(html).toMatch(new RegExp(`<line data-d="${i}" class="door-hit" x1="[^"]+" y1="[^"]+" x2="[^"]+" y2="[^"]+" stroke-width="22"/>`));
     }
-    expect(FLOORPLAN_CSS).toMatch(/\.door-hit\{stroke:transparent;pointer-events:stroke\}/);
+    // Opus review: door-hit is the draggable click target, but nothing said so to the pointer.
+    expect(FLOORPLAN_CSS).toMatch(/\.door-hit\{stroke:transparent;pointer-events:stroke;cursor:move\}/);
   });
   it("a selected door/window is 8 cm wider than its own thickness on either kind of wall", () => {
     const html = renderFloor(floor(), { ...base, selection: { t: "door", i: 0 } });

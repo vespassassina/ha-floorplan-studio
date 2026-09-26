@@ -466,6 +466,29 @@ test("S4.24: the contact sensor picker follows the selected door, several allowe
   await expect(page.locator('#dsens option[value="binary_sensor.demo_garage_door"]')).toHaveCount(1); // free again
 });
 
+// Opus review of S8.9: the "preview open" overlay was a fixed 22 cm regardless of the wall a door sat on, unlike
+// the door's own stroke (S8.9 part 2, wallWidthAt). The Patio door sits on an external wall (20 cm), not the old
+// fixed 22.
+test("Opus review: the door preview-open overlay takes the width of the wall the door sits on, not a fixed 22", async ({ page }) => {
+  const c = await centre(page, 'line[data-d="1"]'); // Patio door: on an external wall
+  await page.mouse.click(c.x, c.y);
+  await page.locator("#dopen").check();
+  await expect(page.locator("line.door.open")).toHaveAttribute("stroke-width", "20");
+});
+
+// Opus review CSS pair of S8.9: h4.pnl-h's "no top border" exemption only covered zero or one leading hint before
+// the first heading (:first-child, strong+h4, strong+p+h4). The stairs panel opens with two leading hints (straight,
+// unrotated: "Drag corners..." then "Click an edge..."), so its first heading, Identity, kept the border meant only
+// for a heading that follows a panel's own content.
+test("Opus review CSS pair: a panel's first heading has no top border even after two leading hints (stairs panel)", async ({ page }) => {
+  await addStairs(page);
+  const heading = page.locator("#panel h4.pnl-h", { hasText: "Identity" }).first();
+  await expect(heading).toBeVisible();
+  const style = await heading.evaluate((el) => { const s = getComputedStyle(el); return { borderTopWidth: s.borderTopWidth, borderTopStyle: s.borderTopStyle }; });
+  // Break it: drop "strong+p+p+h4.pnl-h" from the CSS selector and this reads a real 1px border again.
+  expect(style).toEqual({ borderTopWidth: "0px", borderTopStyle: "none" });
+});
+
 test("File, Save waits for the host: Saving until saveDone, Saved after the download", async ({ page }) => {
   await menu(page, "File");
   const dl = page.waitForEvent("download");
