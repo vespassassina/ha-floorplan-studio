@@ -477,9 +477,14 @@ export class EditorState {
     const f = next.floors[this.floor];
     todo.forEach((e, k) => {
       const at = spots[k] ?? (ctr.map(Math.round) as Pt);
-      const id = newId(f, this.floor, "device"), type = typeForEntity(e);
-      f.devices.push({ id, name: e.name, type, entity: e.id, x: at[0], y: at[1] });
-      next.catalog.push({ id, floor: this.floor, room: room.name, type, name: e.name, entity: e.id });
+      // Opus review, S8.9 defect 1: S8.8 offers a catalogued-but-unplaced device here too (a gang entity grouped by
+      // an HA device id, `placeableDevicesInArea`'s `deviceRows`); reuse its existing catalog entry — id, type and
+      // room — instead of pushing a second one for the same entity (`addHaEntity` never faces this because it only
+      // ever offers entities with no catalog entry at all).
+      const existing = next.catalog.find((c) => c.entity === e.id);
+      const id = existing?.id ?? newId(f, this.floor, "device"), type = existing?.type ?? typeForEntity(e);
+      f.devices.push({ id, name: existing?.name ?? e.name, type, entity: e.id, x: at[0], y: at[1] });
+      if (!existing) next.catalog.push({ id, floor: this.floor, room: room.name, type, name: e.name, entity: e.id });
     });
     this.snapshot();
     this.layout = next;

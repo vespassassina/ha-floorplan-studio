@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type { Layout } from "../../src/core/schema";
 import type { HaData } from "../../src/core";
-import { inside } from "../../src/core";
+import { addCandidates, inside } from "../../src/core";
 import { EditorState } from "../../src/editor/state";
 
 const layout = (): Layout => ({
@@ -92,6 +92,34 @@ describe("placeArea (S4.15): every unplaced entity of a room's HA area, in one s
     expect(st.placeArea(0, new Set(["light.ceiling", "sensor.kitchen_power", "binary_sensor.kitchen_motion"]))).toBe(2);
     expect(st.canUndo).toBe(true);
     expect(st.f.devices.map((d) => d.entity).sort()).toEqual(["binary_sensor.kitchen_motion", "light.ceiling", "light.lamp"]);
+  });
+
+  // Opus review, S8.9 defect 1: S8.8 offers a catalogued-but-unplaced device (its entity grouped by an HA `dev` id)
+  // through the Place popup, but `placeArea` always pushed a fresh catalog entry, duplicating it.
+  it("S8.9 defect 1: placing a catalogued-but-unplaced device reuses its catalog entry instead of duplicating it", () => {
+    const l = layout();
+    l.catalog.push({ id: "bulb-1", floor: "ground", room: "Kitchen", type: "light", name: "Bulb", entity: "light.bulb" });
+    const st = new EditorState(l);
+    st.ha = ha();
+    st.ha.devices = [{ id: "dev-bulb", name: "Bulb" }];
+    st.ha.entities.push({ id: "light.bulb", name: "Bulb", domain: "light", area: "kitchen", dev: "dev-bulb" } as HaData["entities"][number]);
+
+    const before = st.layout.catalog.length;
+    expect(st.areaToPlace(0).map((e) => e.id)).toContain("light.bulb");
+    expect(st.placeArea(0, new Set(["light.bulb"]))).toBe(1);
+
+    expect(st.layout.catalog).toHaveLength(before); // no duplicate entry
+    const placed = st.f.devices.find((d) => d.entity === "light.bulb");
+    expect(placed?.id).toBe("bulb-1"); // reused the existing catalog entry's own id
+
+    // Remove it from the plan again: Add shows exactly one row for it, not two.
+    const idx = st.f.devices.findIndex((d) => d.entity === "light.bulb");
+    st.snapshot();
+    const f = structuredClone(st.f);
+    f.devices.splice(idx, 1);
+    st.replaceFloor(f);
+    const rows = addCandidates(st.layout, st.ha).filter((c) => c.entity === "light.bulb");
+    expect(rows).toHaveLength(1);
   });
 
   it("keeps a large area inside a small room", () => {
