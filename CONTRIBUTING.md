@@ -1,7 +1,7 @@
 # Contributing
 
-This is Diego's project, public and open to pull requests. It's the maintainer
-who merges and pushes to `main` — a PR gets reviewed, not landed automatically.
+This is Diego's project, public and open to pull requests. Nothing lands on
+`main` without his yes: a PR gets reviewed, not merged automatically.
 
 ## Setup
 
@@ -48,8 +48,14 @@ standalone editor after a build.
    that still passes with the fix reverted proves nothing; CLAUDE.md's
    findings list (in this repo's root) is full of examples where that went
    wrong and how it was caught — read it once before your first PR.
-4. Run the full command list above before opening the PR. Don't report a
-   green suite you didn't personally see run.
+4. Run the full command list above before opening the PR. Run each command
+   bare and read its exit code on its own line; `cmd | tail; echo $?` reports
+   `tail`'s code, not the command's. Don't report a green suite you didn't
+   personally see run.
+5. A new Playwright test runs `--repeat-each=10` before you commit it. A
+   flaky test is a bug, not something to retry.
+6. A visible change is checked in the browser, not only in tests: the changed
+   screen at 1280 and 380 px wide, in a light and a dark theme.
 
 ## What never goes in a commit
 
@@ -62,6 +68,7 @@ standalone editor after a build.
 ## Opening the PR
 
 - English in every file, metric units, ISO 8601 dates.
+- Commit with your GitHub no-reply email address, not a personal one.
 - Describe *why*, not a restatement of the diff.
 - Note any test you skipped and why, and any command you couldn't run.
 - If your change is visible in the editor or the card, say what you looked
@@ -78,5 +85,7 @@ behaviour, no network calls at runtime beyond `hass` itself.
 ## Questions
 
 Open an issue. `docs/WORKFLOW.md` describes the AI-assisted process this
-project is built with, if you're curious how the existing code came to be —
-it's background, not a requirement for contributing by hand.
+project is built with: Sonnet writes the code test first, the coordinating
+session checks it like a PR, and Opus reviews the finished build once. It's
+background, not a requirement for contributing by hand; the evidence rules in
+it apply to everyone.
