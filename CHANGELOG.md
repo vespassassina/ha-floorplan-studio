@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.4
 
 - Fixed: placing a device the Place popup or Add > Device offered from a
   stale-but-catalogued entry (its original device deleted from the plan)
