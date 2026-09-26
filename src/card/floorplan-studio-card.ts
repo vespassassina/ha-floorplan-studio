@@ -24,6 +24,10 @@ export interface Hass {
 
 export interface FloorplanStudioCardConfig {
   type?: string;
+  /** Which floor to draw, by its id, or `"all"` to force the switcher. S8.12: with `floor` unset, or naming an id
+   * the layout doesn't have (which now behaves as unset rather than silently pinning the first floor), the card
+   * shows the switcher over every floor when the layout has more than one — a single floor never gets a chip of
+   * its own. `floor: <a real id>` still pins that floor, with no switcher. */
   floor?: string | "all";
   /** Restricts the floor switcher to these floor ids, in this order; the first one is what shows by default.
    * Takes precedence over `floor`. An unknown id is dropped; an empty array, or one where every id is unknown,
@@ -44,8 +48,9 @@ export interface FloorplanStudioCardConfig {
   sun?: string;
   /** S7.5: `true` shows only the plan for a wall tablet — no floor chips, no zoom buttons, no version, no cover
    * dialog chrome beyond the dialog itself, and holding a device never opens more-info. Taps still act. Default
-   * `false`. With `floors` or `floor: "all"`, the first floor shows and there is no switcher: use one card per
-   * floor instead (see `docs/card.md`). */
+   * `false`. Whatever would otherwise produce a switcher — `floors`, `floor: "all"`, or (S8.12) simply a
+   * multi-floor layout with neither key set — instead shows just its first floor, with no switcher: use one card
+   * per floor instead (see `docs/card.md`). */
   kiosk?: boolean;
 }
 
@@ -348,11 +353,16 @@ export class FloorplanStudioCard extends LitElement {
     return this._hass?.themes?.darkMode === true;
   }
 
-  /** S6.5: the switchable floors and their order — `config.floors`, filtered to the ones the layout actually has,
-   * when it names at least one real floor; every floor, in layout order, for `config.floor === "all"`; `null` for
-   * a single explicit floor or nothing configured. `floors` wins over `floor` when both are set. Untrusted config
-   * (CLAUDE.md finding 1): an unknown id is dropped rather than thrown on, and an empty or all-unknown list is
-   * the same as `floors` not being set. */
+  /** S6.5/S8.12: the switchable floors and their order — `config.floors`, filtered to the ones the layout
+   * actually has, when it names at least one real floor; every floor, in layout order, for `config.floor === "all"`;
+   * `null` for a single floor explicitly pinned by a real id. `floors` wins over `floor` when both are set.
+   * Untrusted config (CLAUDE.md finding 1): an unknown id is dropped rather than thrown on, and an empty or
+   * all-unknown list is the same as `floors` not being set.
+   *
+   * S8.12: with neither `floors` nor a `floor` pinned to a real floor id (that includes `floor` unset, `floor:
+   * "all"` — handled above — and an unknown `floor` id, which now counts as unset rather than a silent pin to the
+   * first floor: see docs/DECISIONS.md), every floor becomes the default switcher when the layout has more than
+   * one — a single floor's own chip would be noise, so that case still returns `null`. */
   private _floorList(): [string, Floor][] | null {
     if (!this._layout) return null;
     if (this._config.floors?.length) {
@@ -360,6 +370,12 @@ export class FloorplanStudioCard extends LitElement {
       if (entries.length) return entries;
     }
     if (this._config.floor === "all") return Object.entries(this._layout.floors);
+    const pin = this._config.floor;
+    const pinnedToRealFloor = pin !== undefined && pin !== "all" && !!this._layout.floors[pin];
+    if (!pinnedToRealFloor) {
+      const entries = Object.entries(this._layout.floors);
+      if (entries.length > 1) return entries;
+    }
     return null;
   }
 

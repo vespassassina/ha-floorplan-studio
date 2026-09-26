@@ -147,3 +147,55 @@ test("an empty or negative fade falls back to the default and drops from the pay
     await editor.locator("#fade").blur();
   }
 });
+
+// S8.12: the Floor selector, added alongside the maintainer-reported "I cannot switch floor" fix in the card
+// itself — the Edit-card form had a Floors checkbox list (writes `floors`) but nothing for `floor`.
+test("the Floor select lists All floors plus every layout floor, in layout order", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  const labels = await editor.locator("select#floor option").evaluateAll((els) => els.map((e) => e.textContent));
+  expect(labels).toEqual(["All floors (switcher)", "Ground", "First", "Test"]);
+});
+
+test("before a layout has loaded, the Floor select shows only All floors", async ({ page }) => {
+  await open(page);
+  await mount(page, {});
+  const editor = page.locator("#editor");
+  await expect(editor.locator("select#floor option")).toHaveCount(1);
+  await expect(editor.locator("select#floor")).toHaveValue("");
+});
+
+test("choosing a floor emits config.floor without config.floors, and hides the Switcher-shows checkboxes", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo, floors: ["ground", "first"] });
+  const editor = page.locator("#editor");
+  // One checkbox per layout floor (3), before picking a single floor collapses the row away.
+  await expect(editor.locator('input[type="checkbox"][data-floor]')).toHaveCount(3);
+
+  await editor.locator("select#floor").selectOption("first");
+  const detail = (await events(page)).at(-1) as { config: { floor?: string; floors?: string[] } };
+  expect(detail.config.floor).toBe("first");
+  expect("floors" in detail.config).toBe(false);
+  await expect(editor.locator('input[type="checkbox"][data-floor]')).toHaveCount(0);
+});
+
+test("choosing All floors after a single floor was picked removes config.floor and shows the checkboxes again", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo, floor: "first" });
+  const editor = page.locator("#editor");
+  await expect(editor.locator('input[type="checkbox"][data-floor]')).toHaveCount(0);
+
+  await editor.locator("select#floor").selectOption("");
+  const detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("floor" in detail.config).toBe(false);
+  await expect(editor.locator('input[type="checkbox"][data-floor]')).toHaveCount(3);
+});
+
+test("a starting config of floor: \"all\" shows All floors selected", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo, floor: "all" });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("select#floor")).toHaveValue("");
+  await expect(editor.locator('input[type="checkbox"][data-floor]')).toHaveCount(3);
+});

@@ -15,8 +15,11 @@ dashboard. Add the card by its type:
 type: custom:floorplan-studio-card
 ```
 
-With no other keys it draws your plan's first floor, in the `blueprint` theme,
-motion fading over 300 seconds, `room_glow` off, darker after sunset.
+With no other keys it draws your plan's floors as a switcher — one chip per
+floor, the first one shown — when your plan has more than one; with only one
+floor there is nothing to switch, so it just draws that. Either way: the
+`blueprint` theme, motion fading over 300 seconds, `room_glow` off, darker
+after sunset.
 
 The editor itself can write this for you: File, Install code opens a panel
 with a whole dashboard, matching your plan as it currently stands — theme,
@@ -26,7 +29,7 @@ floors — ready to paste. See "A premade dashboard" below.
 
 | Key | Default | What it does |
 |---|---|---|
-| `floor` | the first floor in the layout | which floor to draw, by its id (`ground`, `first`, ...); `all` shows a floor switcher in the card itself |
+| `floor` | the switcher, if the layout has more than one floor; its only floor otherwise | which floor to pin to, by its id (`ground`, `first`, ...) — no switcher, just that floor; `all` shows the switcher explicitly; an id the layout doesn't have is treated the same as leaving `floor` unset |
 | `floors` | unset | an array of floor ids: shows a switcher over only these floors, in this order, defaulting to the first one. Takes precedence over `floor`. An id the layout doesn't have is dropped; if none of them match, this is the same as leaving `floors` unset |
 | `theme` | `blueprint` | `blueprint`, `light`, `midnight`, `slate`, `terminal`, `solarized`, or `ha` (see Themes, below) |
 | `fade` | `300` | seconds a motion sensor takes to fade from red to grey after it last went off |
@@ -69,10 +72,11 @@ dialog by holding a finger on a device. It hides the floor chips and the
 zoom +/−/fit buttons, and a long press does nothing — a plain tap still
 toggles the device it lands on, exactly as without kiosk mode.
 
-`kiosk: true` together with `floors` or `floor: "all"` shows the first floor
-in the list and draws no switcher, since there is nothing to switch with. For
-several floors on one wall tablet, use one card per floor instead — for
-example a view with a tab per floor:
+`kiosk: true` shows the first floor and draws no switcher whatever would
+otherwise have produced one — `floors`, `floor: "all"`, or simply a
+multi-floor plan with neither key set — since there is nothing to switch
+with. For several floors on one wall tablet, use one card per floor
+instead — for example a view with a tab per floor:
 
 ```yaml
 title: Floorplan
@@ -95,12 +99,17 @@ views:
 
 No YAML needed: adding or editing the card in the Lovelace UI (the pencil
 icon, or "Edit" on an existing card) shows a form instead of raw code —
-theme, floors (one checkbox per floor, in the layout's own order), fade,
-room glow, zoom, kiosk, night and the sun entity. The floor list fills in
-once the card's own layout has loaded (`layout`, `layout_url`, or the plan
-stored in Home Assistant); until then it says so and shows no checkboxes. A
-field left at its default is left out of the saved YAML, so the card config
-stays as short as if you had typed it by hand.
+theme, a Floor selector, fade, room glow, zoom, kiosk, night and the sun
+entity. The Floor selector picks "All floors (switcher)" (the default — it
+writes no `floor` key at all) or one specific floor, by name, once the
+card's own layout has loaded (`layout`, `layout_url`, or the plan stored in
+Home Assistant); until then it offers only "All floors". Choosing a single
+floor there hides the "Switcher shows" checkboxes below it (they would do
+nothing) and drops any `floors` list from the config; choosing "All floors"
+brings them back. The checkboxes themselves narrow the switcher to only the
+ticked floors, in the layout's own order, defaulting to every floor when
+none are ticked. A field left at its default is left out of the saved YAML,
+so the card config stays as short as if you had typed it by hand.
 
 ## A premade dashboard
 

@@ -2,7 +2,53 @@
 
 Newest first. A change supersedes; nothing is edited.
 
-## 2026-09-26 Process: Sonnet codes, the coordinator checks, Opus reviews the build
+## 2026-09-26 S8.12: floor chips by default on a multi-floor layout; a Floor selector in the card form
+
+Maintainer feedback: "in the card i cannot switch floor." / "There are no
+chips. with more the one floor and no setting show all floors with chips.
+add floor selector in the configuration." A card added with the stub config
+(`{ type }` only) drew only the layout's first floor and had no switcher at
+all — `floor: "all"` or a `floors` list were the only ways to get one, and
+neither is set by a card the Lovelace UI adds for you.
+
+What changed: `FloorplanStudioCard._floorList()` (`src/card/floorplan-studio-card.ts`)
+now also returns every floor, in layout order, when `floors` names nothing
+usable, `floor` is not `"all"`, and `floor` is not pinned to a real floor id
+the layout actually has — but only when the layout holds more than one
+floor; a single floor still gets no chip of its own (one chip is noise, not
+a switcher). Everything explicit is unchanged: `floor: <a real id>` still
+pins with no switcher, `floor: "all"` and `floors: [...]` still work as
+before, and `kiosk: true` still hides the switcher outright, whatever would
+otherwise have produced one.
+
+Decision: an unknown `floor` id (a typo, or a floor since deleted from the
+layout) now counts as *unset* rather than a silent pin to the first floor —
+so on a multi-floor layout it now also gets the switcher, not a single
+frozen floor. The old behaviour quietly hid the fact that the configured
+id no longer matched anything; showing the switcher instead is at least as
+safe a fallback and better tells a person that `floor` did not do what they
+typed. `_floorKey()` (unchanged) still resolves to the layout's first floor
+inside that switcher, same as any other unresolved `_shownFloor`.
+
+Edit-card form (`src/card/config-editor.ts`): a new `<select id="floor">`
+sits above the floor checkboxes (renamed "Switcher shows", with a "None
+ticked: every floor" hint) — "All floors (switcher)" (the default, value
+`""`, which removes `floor` from the config rather than writing `floor:
+"all"`, since the card already treats the two the same) or one option per
+loaded floor, by title, which writes `floor: <id>` and drops any `floors`
+list in the same `config-changed` event (a `floors` list only matters to a
+switcher, and this pins to one floor with none). Picking a single floor
+hides the checkboxes, since they would then do nothing.
+
+Tests: 6 new Vitest cases in `tests/card/card.test.ts` (`describe("S8.12: chips
+by default...")`) plus one existing case updated (`floors: ["attic", "loft"]`
+with no `floor` set now falls into the new default, so it was asserting the
+opposite of what the fix is for); 5 new Playwright cases in
+`tests/card/config-editor.spec.ts` for the Floor select; 1 new Playwright
+case in `tests/card/card.spec.ts` driving a real `page.mouse` click on the
+second chip with no floor config at all, at `--repeat-each=10`. All
+confirmed to fail first, and the vitest case and one editor case again after
+reverting just their own source file with `git stash push -- <file>`.
 
 Supersedes the three-role flow in `docs/WORKFLOW.md` (2026-09-21: Sonnet
 executes, a separate Sonnet session verifies each sprint, and Opus reviews

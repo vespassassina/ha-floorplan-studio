@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- The card now shows a floor switcher (a chip per floor) by default whenever
+  your plan has more than one floor and neither `floor` nor `floors` is set
+  in its config — previously a card with no floor config could only ever
+  show its first floor, with no way to switch. A single-floor plan still
+  shows no chips.
+- The Edit-card form gained a Floor selector (theme row and above the
+  Floors checkboxes, now labelled "Switcher shows"): pick "All floors" for
+  the switcher or one specific floor to pin the card to it, with no YAML
+  needed.
+
 ## 0.12.5
 
 - The toolbar's Filter through Redo cluster now sits flush against the
