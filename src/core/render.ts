@@ -196,6 +196,14 @@ export const FLOORPLAN_CSS = `
 .dev .halo{fill:var(--fp-disc);fill-opacity:var(--fp-disc-alpha);stroke:var(--fp-halo);stroke-width:1;vector-effect:non-scaling-stroke}
 .dev.on .halo{fill:var(--fp-dev);fill-opacity:var(--fp-alpha)}
 .aura{fill:var(--fp-aura);fill-opacity:var(--fp-alpha);pointer-events:none}
+/* S8.13: a triggered motion or contact sensor. Its disc is filled harder than any other on disc and ringed in its own
+   colour, and a ring pulses out from under it. An open contact door gets a wide pulsing line under its own. */
+.dev-motion.on .halo,.dev-contact.on .halo{fill-opacity:.6;stroke:var(--fp-dev);stroke-width:2}
+.ping{fill:none;stroke:var(--fp-dev);stroke-width:3;vector-effect:non-scaling-stroke;pointer-events:none;transform-box:fill-box;transform-origin:center;animation:fp-ping 1.6s ease-out infinite}
+@keyframes fp-ping{from{transform:scale(1);opacity:.9}to{transform:scale(2.2);opacity:0}}
+.door-alert{stroke:var(--fp-dev-contact);stroke-opacity:.45;stroke-linecap:butt;pointer-events:none;animation:fp-door 1.6s ease-in-out infinite alternate}
+@keyframes fp-door{from{stroke-opacity:.2}to{stroke-opacity:.6}}
+@media (prefers-reduced-motion:reduce){.ping,.door-alert{animation:none}.ping{transform:scale(1.5);opacity:.6}}
 .dev.unavailable{opacity:.45}
 .dev.dim{opacity:.3}
 /* S7.8: a person glides to the room its room sensor names. The position is an inline CSS transform, not an attribute, so
@@ -282,19 +290,32 @@ export function planPivot(l: Layout): Pt {
   return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
 }
 
-/** cm a lit lamp's aura or a camera's cone reaches from its own centre (also read by the aura circle and the cone radius below, S2.8 and Sprint 1, so the three cannot drift apart). */
+/** cm a camera's cone reaches from its own centre (read by the cone radius below and by `viewBoxFor`). */
 export const DEVICE_REACH = 100;
+/** cm a lit lamp's aura reaches from its own centre. S8.13: 1.5x the camera's, at Diego's request (2026-09-26). */
+export const LIGHT_REACH = 150;
+/** cm an open door's alert line is wider than the door's own line (S8.13). */
+export const DOOR_ALERT_EXTRA = 16;
 
-/** The box that fits the outline, in what the screen shows: turned by `rotate` when there is one. Padded by the greater
- * of `pad` and DEVICE_REACH whenever the floor has a light or camera, so a wall-mounted one's aura or cone is never
- * clipped (S5.7) — a plan with neither keeps `pad` exactly. */
+/** The box that fits the outline plus `pad`, in what the screen shows: turned by `rotate` when there is one. S5.7: a
+ * lamp's aura or a camera's cone is never clipped. S8.13: each one widens the box only where its own circle passes
+ * the padded outline, so a lamp in the middle of the plan costs no space. */
 export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt }): { x: number; y: number; w: number; h: number } {
   if (!f.outline.length) return { x: -pad, y: -pad, w: 1000 + 2 * pad, h: 1000 + 2 * pad };
-  const reach = f.devices.some((d) => d.type === "light" || d.type === "camera") ? Math.max(pad, DEVICE_REACH) : pad;
-  const shown = rotate && rotate.deg % 360 ? f.outline.map((p) => rotateAbout(p, rotate.deg, rotate.pivot)) : f.outline;
-  const xs = shown.map((p) => p[0]), ys = shown.map((p) => p[1]);
-  const x0 = Math.min(...xs) - reach, y0 = Math.min(...ys) - reach;
-  return { x: x0, y: y0, w: Math.max(...xs) + reach - x0, h: Math.max(...ys) + reach - y0 };
+  const turn = (p: Pt) => (rotate && rotate.deg % 360 ? rotateAbout(p, rotate.deg, rotate.pivot) : p);
+  const boxes = f.outline.map((p) => [turn(p), pad] as const);
+  // Only a lamp or camera on or near the plan counts: one far outside it (a stray drag, a layout in mm) stays off
+  // view, as before, instead of shrinking the house to a speck. Its centre is the one the aura is drawn at.
+  const ox = f.outline.map((p) => p[0]), oy = f.outline.map((p) => p[1]);
+  const near = (c: Pt, r: number) => c[0] >= Math.min(...ox) - r && c[0] <= Math.max(...ox) + r && c[1] >= Math.min(...oy) - r && c[1] <= Math.max(...oy) + r;
+  for (const d of f.devices) {
+    const r = d.type === "light" ? LIGHT_REACH : d.type === "camera" ? DEVICE_REACH : 0;
+    const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
+    if (r && c.every(Number.isFinite) && near(c, r)) boxes.push([turn(c), r]);
+  }
+  const x0 = Math.min(...boxes.map(([p, r]) => p[0] - r)), y0 = Math.min(...boxes.map(([p, r]) => p[1] - r));
+  const x1 = Math.max(...boxes.map(([p, r]) => p[0] + r)), y1 = Math.max(...boxes.map(([p, r]) => p[1] + r));
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
 /** Every point that makes up the floor: outline, rooms, stairs, walls, doors, openings, extras, furniture (its centre) and devices (a heater's two ends, else the centre). Only finite points; the editor's Re-center fits them all. */
@@ -535,6 +556,23 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       out.push(`<polygon data-night="${i}" class="room-night${glowRooms.has(i) ? " lit" : ""}" points="${pts(r.pts)}"/>`);
     });
 
+  // S2.8: every lit lamp's aura, drawn as one flat pass before any device group. S8.13: and before walls, doors,
+  // furniture and names, now that it reaches 150 cm and would tint them (an open door's red line most of all). One pass, not interleaved with the
+  // devices loop below, so two overlapping auras never sit between one lamp's icon and the next lamp's icon; the
+  // icons themselves (drawn after every aura) stay on top and legible. The colour is the lamp's own rgb_color, read
+  // the same way as the device group's --fp-dev-fill (S2.2): from the light entity's own state, never the bound switch's.
+  f.devices.forEach((d, i) => {
+    const sel = o.selection?.t === "dev" && o.selection.i === i;
+    if (d.type !== "light") return;
+    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    if (classOf(d, o) !== "on") return;
+    const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
+    if (!c.every(Number.isFinite)) return;
+    const fill = lightFill(o.state?.[d.entity]);
+    const style = fill ? ` style="--fp-aura:${fill}"` : "";
+    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${LIGHT_REACH}"${style}/>`);
+  });
+
   const polys: { id: string; pts: Pt[]; wk?: EdgeKind[]; zone?: boolean }[] = [{ id: "o", pts: f.outline, wk: f.owk }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, wk: r.wk, zone: r.kind === "zone" }))];
   // Every edge has a white twin drawn first (the line version of the text outline), so a dark line stays visible on a dark floor.
   const edgeLines: { cls: string; attr: string; a: Pt; b: Pt }[] = [], guides: typeof edgeLines = [];
@@ -677,6 +715,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S8.9 part 2 + finding 3: the visible line is now as thin as the internal wall it sits on (10 cm, or 20 on an
     // external wall), so a plain transparent line first, at the old fixed 22 cm, keeps the door as easy to click as
     // it always was. It shares data-d with the visible line, so hitOf() (editor-app.ts) finds the same door either way.
+    // S8.13: an open contact door gets a wide pulsing line under its own, so it reads from across the room.
+    if (open) out.push(`<line class="door-alert" ${seg} stroke-width="${w + DOOR_ALERT_EXTRA}"/>`);
     out.push(`<line data-d="${i}" class="door-hit" ${seg} stroke-width="${DOOR_HIT_WIDTH}"/>`);
     out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`);
   });
@@ -687,22 +727,6 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const [x, y] = nameAt[i];
     out.push(`<text class="lbl" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
     if (labelAt[i]) { const [lx, ly] = labelAt[i]; out.push(`<text class="lbl" x="${num(lx)}" y="${num(ly)}"${up(lx, ly)} text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`); }
-  });
-
-  // S2.8: every lit lamp's aura, drawn as one flat pass before any device group. One pass, not interleaved with the
-  // devices loop below, so two overlapping auras never sit between one lamp's icon and the next lamp's icon; the
-  // icons themselves (drawn after every aura) stay on top and legible. The colour is the lamp's own rgb_color, read
-  // the same way as the device group's --fp-dev-fill (S2.2): from the light entity's own state, never the bound switch's.
-  f.devices.forEach((d, i) => {
-    const sel = o.selection?.t === "dev" && o.selection.i === i;
-    if (d.type !== "light") return;
-    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
-    if (classOf(d, o) !== "on") return;
-    const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
-    if (!c.every(Number.isFinite)) return;
-    const fill = lightFill(o.state?.[d.entity]);
-    const style = fill ? ` style="--fp-aura:${fill}"` : "";
-    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${DEVICE_REACH}"${style}/>`);
   });
 
   f.devices.forEach((d, i) => {
@@ -753,7 +777,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     }
     // S7.8: an away person carries a small grey dot on the disc's edge, so away reads without relying on the fade alone.
     const mark = person && cls.endsWith(" away") ? `<circle class="away-mark" cx="23" cy="1" r="4.5"/>` : "";
-    const icon = `<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
+    // S8.13: a triggered motion or contact sensor sends out a ring from under its disc, so it reads at a glance.
+    const ping = (d.type === "motion" || d.type === "contact") && base === "on" ? `<circle class="ping" cx="12" cy="12" r="16"/>` : "";
+    const icon = `${ping}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
     // The bar draws first so the icon group (fix/heater-bar-under-icon), with its white disc and halo, always paints on top of it.
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);

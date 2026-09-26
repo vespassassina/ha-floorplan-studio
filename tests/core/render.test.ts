@@ -3,7 +3,7 @@ import demo from "../../demo/layout.json";
 import { DEVICE_TYPES, UNLINKED_TYPES, FURNITURE_SYMBOLS, ROOM_KINDS, type Layout, type Pt, type RoomKind, type WallKind } from "../../src/core/schema";
 import { stairSteps } from "../../src/core";
 import { DEVICE_ICONS } from "../../src/core/icons";
-import { renderFloor, viewBoxFor, planPivot, rotateAbout, contentPoints, DEVICE_COLOURS, DEVICE_REACH, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
+import { renderFloor, viewBoxFor, planPivot, rotateAbout, contentPoints, DEVICE_COLOURS, DEVICE_REACH, LIGHT_REACH, DOOR_ALERT_EXTRA, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
 
 const L = demo as unknown as Layout;
 const ground = L.floors.ground;
@@ -143,9 +143,9 @@ describe("renderFloor", () => {
   });
 
   describe("S2.8: a lit lamp casts an aura", () => {
-    it("draws one circle.aura of radius 100 at a lit light's centre", () => {
+    it("draws one circle.aura of radius 150 (S8.13: 1.5x the old 100) at a lit light's centre", () => {
       const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
-      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="100"\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"\/>/);
     });
 
     it("draws no aura for a light that is off, unavailable or unknown", () => {
@@ -161,18 +161,18 @@ describe("renderFloor", () => {
 
     it("a light with rgb_color sets --fp-aura on its own circle through style", () => {
       const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0, 0] } }) } });
-      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="100" style="--fp-aura:rgb\(255,0,0\)"\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150" style="--fp-aura:rgb\(255,0,0\)"\/>/);
     });
 
     it("a light with no rgb_color carries no --fp-aura, so the default CSS variable applies", () => {
       const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
-      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="100"\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"\/>/);
       expect(html).not.toContain("--fp-aura");
     });
 
     it("a bound light's aura follows the switch's on state but keeps the default colour (no rgb_color on the light entity itself)", () => {
       const html = renderFloor(ground, { ...base, state: { "switch.demo_living_relay": st("on") } }); // light.demo_living itself missing from state
-      expect(html).toMatch(/<circle class="aura" cx="250" cy="200" r="100"\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="250" cy="200" r="150"\/>/);
     });
 
     it("every aura is drawn before every device group, so overlapping auras never hide an icon", () => {
@@ -381,13 +381,64 @@ describe("zones and water", () => {
   });
 });
 
+describe("S8.13: brighter alerts, wider light", () => {
+  const dev = (type: string, entity: string, x = 400, y = 300) => ({ id: `${type}-x`, type, entity, x, y });
+  const draw = (devices: unknown[], state: StateOverlay) => renderFloor({ ...structuredClone(ground), devices } as never, { ...base, state });
+  const group = (html: string) => html.match(/<g data-x="0"[^>]*>.*?<\/g>/s)![0];
+
+  it("a lit lamp's aura is 1.5 times the old 100 cm, and a camera's cone keeps 100", () => {
+    expect(LIGHT_REACH).toBe(150);
+    expect(DEVICE_REACH).toBe(100);
+    expect(draw([dev("light", "light.l")], { "light.l": st("on") })).toMatch(/<circle class="aura" cx="400" cy="300" r="150"\/>/);
+  });
+
+  it("a triggered motion or contact sensor carries a ping ring under its disc; idle, off, unavailable or another type do not", () => {
+    for (const type of ["motion", "contact"]) {
+      const on = group(draw([dev(type, "binary_sensor.s")], { "binary_sensor.s": st("on") }));
+      expect(on, type).toMatch(/<circle class="ping" cx="12" cy="12" r="16"\/><circle class="halo"/);
+      for (const s of ["off", "unavailable", "unknown"]) expect(group(draw([dev(type, "binary_sensor.s")], { "binary_sensor.s": st(s) })), `${type} ${s}`).not.toContain("ping");
+      expect(group(draw([dev(type, "binary_sensor.s")], {})), `${type} no state`).not.toContain("ping");
+    }
+    for (const type of ["light", "plug", "switch", "person", "radar"]) expect(group(draw([dev(type, "x.y")], { "x.y": st("on") })), type).not.toContain("ping");
+  });
+
+  it("an open door draws a wide alert line under its own line; a closed one or a cover door does not", () => {
+    const open = renderFloor(ground, { ...base, state: { "binary_sensor.demo_front_door": st("on") } });
+    const alert = open.match(/<line class="door-alert"[^>]*>/g) ?? [];
+    expect(alert).toHaveLength(1);
+    const w = Number(open.match(/<line data-d="0" class="door door-[^"]*"[^>]*stroke-width="([\d.]+)"/)![1]);
+    expect(Number(alert[0]!.match(/stroke-width="([\d.]+)"/)![1])).toBe(w + DOOR_ALERT_EXTRA);
+    expect(open.indexOf('class="door-alert"')).toBeLessThan(open.indexOf('<line data-d="0" class="door '));
+    expect(renderFloor(ground, base)).not.toContain("door-alert");
+    expect(renderFloor(ground, { ...base, state: { "cover.demo_garage_door": st("open") } })).not.toContain("door-alert");
+  });
+
+  it("the wider aura draws under walls, doors, furniture and names, so it never tints an open door's red line", () => {
+    const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on"), "binary_sensor.demo_front_door": st("on") } });
+    const aura = html.indexOf('class="aura"');
+    for (const mark of ['class="eh', 'class="door-alert"', "data-d=", "data-f=", 'class="lbl"']) {
+      const at = html.indexOf(mark);
+      expect(at, mark).toBeGreaterThan(-1);
+      expect(aura, mark).toBeLessThan(at);
+    }
+  });
+
+  it("the alert rules: a ping pulses in the sensor's own colour, a triggered disc is stronger than any other on disc, the door alert is contact red, and none take the pointer", () => {
+    expect(FLOORPLAN_CSS).toMatch(/\.ping\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-ping/);
+    expect(FLOORPLAN_CSS).toMatch(/\.dev-motion\.on \.halo,\.dev-contact\.on \.halo\{fill-opacity:\.6;stroke:var\(--fp-dev\);stroke-width:2\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.door-alert\{stroke:var\(--fp-dev-contact\);[^}]*stroke-linecap:butt;[^}]*pointer-events:none/);
+    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert\{animation:none\}/);
+  });
+});
+
 describe("viewBoxFor", () => {
   it("wraps the outline with padding", () => {
-    // The demo ground floor has lights and a camera, so the plain 60 cm pad (S5.7) widens to DEVICE_REACH.
-    expect(viewBoxFor(ground, 60)).toEqual({ x: -100, y: -100, w: 1000, h: 800 });
+    // S8.13: the demo ground floor's camera sits at 20,580, so its 100 cm cone widens the left and bottom past the
+    // plain 60 cm pad; its lamps (250,200 and 650,200) reach 150 cm and stay inside the pad, so nothing else moves.
+    expect(viewBoxFor(ground, 60)).toEqual({ x: -80, y: -60, w: 940, h: 740 });
   });
-  it("defaults to 60 cm of padding, widened when a light or camera is on the floor", () => {
-    expect(viewBoxFor(ground).x).toBe(-100);
+  it("defaults to 60 cm of padding, widened where a light or camera reaches past it", () => {
+    expect(viewBoxFor(ground).x).toBe(-80);
   });
 
   it("S5.7: keeps the plain padding exactly when nothing on the floor reaches further", () => {
@@ -400,7 +451,7 @@ describe("viewBoxFor", () => {
     const f = structuredClone(ground);
     f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 780, y: 300 }];
     const v = viewBoxFor(f, 60);
-    expect(v.x + v.w).toBeGreaterThanOrEqual(780 + DEVICE_REACH);
+    expect(v.x + v.w).toBeGreaterThanOrEqual(780 + LIGHT_REACH);
   });
 
   it("S5.7: widens the padding so a camera's cone, 20 cm inside the top wall, is never clipped", () => {
@@ -410,13 +461,47 @@ describe("viewBoxFor", () => {
     expect(v.y).toBeLessThanOrEqual(20 - DEVICE_REACH);
   });
 
+  it("S8.13: pads only where a reach passes the plain pad: a lamp in the middle of the plan widens nothing", () => {
+    const f = structuredClone(ground);
+    f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 400, y: 300 }];
+    expect(viewBoxFor(f, 60)).toEqual({ x: -60, y: -60, w: 920, h: 720 });
+  });
+
+  it("S8.13: a lamp by the left wall widens only the left side, by its whole 150 cm aura", () => {
+    const f = structuredClone(ground);
+    f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 20, y: 300 }];
+    expect(viewBoxFor(f, 60)).toEqual({ x: -130, y: -60, w: 990, h: 720 });
+  });
+
+  it("S8.13: a turned plan pads the turned lamp, not the unturned one", () => {
+    const f = structuredClone(ground);
+    f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 20, y: 300 }];
+    const pivot: [number, number] = [400, 300];
+    const v = viewBoxFor(f, 60, { deg: 90, pivot });
+    const [lx, ly] = rotateAbout([20, 300], 90, pivot);
+    expect(v.y).toBeLessThanOrEqual(ly - LIGHT_REACH);
+    expect(v.x).toBeLessThanOrEqual(lx - 60);
+  });
+
+  it("S8.13 review: a light placed by a and b pads around the same centre its aura is drawn at", () => {
+    const f = structuredClone(ground);
+    f.devices = [{ id: "l1", type: "light", entity: "light.x", a: [10, 300], b: [30, 300] }] as never;
+    expect(viewBoxFor(f, 60).x).toBeLessThanOrEqual(20 - LIGHT_REACH);
+  });
+
+  it("S8.13 review: a stray lamp far outside the plan does not shrink the house; it stays off view, as before", () => {
+    const f = structuredClone(ground);
+    f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 1e6, y: 300 }];
+    expect(viewBoxFor(f, 60)).toEqual({ x: -60, y: -60, w: 920, h: 720 });
+  });
+
   it("S5.7 break it: a light exactly on the wall, or the plan's only device, still gives a finite box with the whole circle inside", () => {
     const f = structuredClone(ground);
     f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 800, y: 300 }];
     const v = viewBoxFor(f, 60);
     expect(Number.isFinite(v.x) && Number.isFinite(v.w) && Number.isFinite(v.y) && Number.isFinite(v.h)).toBe(true);
-    expect(v.x + v.w).toBeGreaterThanOrEqual(800 + DEVICE_REACH);
-    expect(v.x).toBeLessThanOrEqual(800 - DEVICE_REACH);
+    expect(v.x + v.w).toBeGreaterThanOrEqual(800 + LIGHT_REACH);
+    expect(v.x).toBeLessThanOrEqual(800 - LIGHT_REACH);
   });
 });
 

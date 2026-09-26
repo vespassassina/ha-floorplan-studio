@@ -4652,6 +4652,58 @@ test("Opus review CSS pair: a motion sensor that is on still fades: the fill fol
   expect(half).not.toEqual([214, 69, 69]);
 });
 
+test("Opus review CSS pair: S8.13 a triggered motion sensor pings in its own colour and its disc beats a lit lamp's (render.test.ts:S8.13)", async ({ page }) => {
+  // No live hass in the editor: add .on and a ping by hand, then read the real computed style (CLAUDE.md finding 10).
+  const read = (type: string) => page.locator(`svg g.dev-${type}`).first().evaluate((e) => {
+    e.classList.add("on");
+    const ping = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    ping.setAttribute("class", "ping");
+    e.querySelector(".halo")!.before(ping);
+    const ps = getComputedStyle(ping), hs = getComputedStyle(e.querySelector(".halo")!);
+    return { dev: getComputedStyle(e).getPropertyValue("--fp-dev").trim(), stroke: ps.stroke, fill: ps.fill, pe: ps.pointerEvents, anim: ps.animationName, haloOp: hs.fillOpacity, haloStroke: hs.stroke };
+  });
+  const motion = await read("motion"), light = await read("light");
+  expect(motion.stroke).toBe(rgb(motion.dev));
+  expect(motion.fill).toBe("none");
+  expect(motion.pe).toBe("none");
+  expect(motion.anim).toBe("fp-ping");
+  expect(motion.haloOp).toBe("0.6");
+  expect(motion.haloStroke).toBe(rgb(motion.dev));
+  expect(Number(light.haloOp)).toBeLessThan(Number(motion.haloOp));
+});
+
+test("Opus review CSS pair: S8.13 under reduced motion nothing pulses: the ping holds at 1.5x and 60 %, the door line at 45 %", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const s = await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const g = svg.querySelector("g.dev-motion")!;
+    g.classList.add("on");
+    const ping = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    ping.setAttribute("class", "ping");
+    g.querySelector(".halo")!.before(ping);
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("class", "door-alert");
+    svg.querySelector("line[data-d]")!.before(line);
+    const p = getComputedStyle(ping), l = getComputedStyle(line);
+    return { pAnim: p.animationName, pT: p.transform, pOp: p.opacity, lAnim: l.animationName, lOp: l.strokeOpacity };
+  }, EDITOR);
+  expect(s).toEqual({ pAnim: "none", pT: "matrix(1.5, 0, 0, 1.5, 0, 0)", pOp: "0.6", lAnim: "none", lOp: "0.45" });
+});
+
+test("Opus review CSS pair: S8.13 an open door's alert line is contact red and takes no click", async ({ page }) => {
+  const s = await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("class", "door-alert");
+    svg.querySelector("line[data-d]")!.before(line);
+    const cs = getComputedStyle(line);
+    return { stroke: cs.stroke, want: getComputedStyle(svg).getPropertyValue("--fp-dev-contact").trim(), pe: cs.pointerEvents, anim: cs.animationName };
+  }, EDITOR);
+  expect(s.stroke).toBe(rgb(s.want));
+  expect(s.pe).toBe("none");
+  expect(s.anim).toBe("fp-door");
+});
+
 test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-dev per type, icon and halo)", async ({ page }) => {
   await addCssFixtures(page);
   // The editor has no live hass state, so .on is never set by renderFloor here; toggling it by hand pins the CSS

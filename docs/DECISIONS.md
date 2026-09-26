@@ -2,6 +2,58 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-26 S8.13 review: the viewBox pads only lamps near the plan
+
+Supersedes part of the S8.13 viewBox entry below. The Opus review found
+two gaps. A light placed by `a` and `b` was padded nowhere, while its aura
+is drawn at their midpoint, so the aura was clipped. And a stray lamp far
+outside the plan (a layout in mm, a bad drag) pulled the box out to it and
+shrank the house to a speck. `viewBoxFor` now uses the aura's own centre
+rule, and counts a lamp or camera only when its centre lies within its
+reach of the outline's box. One further out stays off view, as it did
+before S8.13. The door alert line uses butt caps, so it no longer paints
+over the wall past the door's ends.
+
+## 2026-09-26 HACS default list: the HACS action runs with no ignores
+
+Diego asked to submit the repository to the HACS default list. hacs/default
+requires the HACS action to pass "without any errors or ignores", and our
+Validate workflow ignored `brands topics`, which were only needed for a
+custom repository. The repository now has topics, and the integration ships
+its own `brand/icon.png`, which HACS accepts in place of an entry in
+home-assistant/brands. So the ignore is gone, and a failing check now fails
+Validate.
+
+## 2026-09-26 S8.13: a 150 cm light aura; alerts for motion and contact
+
+Maintainer request: "for the lights make the area lighting up 50% larger.
+for motion sensors make it more visible when it triggers, same for contact
+sensors."
+
+Light: the aura radius is now `LIGHT_REACH` = 150 cm, split from
+`DEVICE_REACH` (100 cm), which the camera cone keeps. This supersedes the
+S2.8 radius. At 150 cm the aura reached walls, doors and names and tinted
+an open door's red, so the aura pass moved from just before the devices to
+just after the rooms, stairs and night overlay: it now draws under walls,
+openings, doors, furniture and names, and still under every icon.
+
+`viewBoxFor` (S5.7) used to pad the whole plan by the largest reach
+whenever a light or camera existed. At 150 cm that shrinks every plan with
+a lamp. It now takes the union of the padded outline and each light's or
+camera's own circle, turned with the plan, so the box grows only where an
+aura or cone passes the edge. The demo ground floor's box moves from
+-100,-100,1000x800 to -80,-60,940x740.
+
+Motion and contact: when on, the disc fills at 60 % (other on discs stay at
+`--fp-alpha`, 25 %) with a 2 px ring in the sensor's colour, and a `ping`
+circle under the disc scales to 2.2x and fades out every 1.6 s. An open
+door with a contact sensor draws a `door-alert` line, the door's width plus
+16 cm, in `--fp-dev-contact`, pulsing between 20 % and 60 % opacity, under
+the door's own line. Under `prefers-reduced-motion` nothing animates: the
+ping holds at 1.5x, 60 %, and the door line at 45 %. The ping follows the
+state, not the fade: it stops when the sensor goes off, and the icon then
+fades as before.
+
 ## 2026-09-26 S8.12: floor chips by default on a multi-floor layout; a Floor selector in the card form
 
 Maintainer feedback: "in the card i cannot switch floor." / "There are no
