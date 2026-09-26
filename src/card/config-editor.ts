@@ -145,6 +145,34 @@ export class FloorplanStudioCardEditor extends LitElement {
     this._set("floors", floors.length ? floors : undefined, undefined);
   }
 
+  /** S8.12: the Floor select's own value — a real layout floor id `_config.floor` names, or `""` for "All floors
+   * (switcher)", which covers `floor` unset, `floor: "all"`, and an id the loaded layout doesn't (yet, or ever)
+   * have. Before a layout has loaded, `_floorEntries()` is empty, so this always reads `""` and the select shows
+   * only its one option, per the PLAN block. */
+  private _floorChoice(): string {
+    const f = this._config.floor;
+    return typeof f === "string" && f !== "all" && this._floorEntries().some(([id]) => id === f) ? f : "";
+  }
+
+  /** S8.12: picking a real floor pins `floor` to it and drops `floors` in the same `config-changed` (a single
+   * pinned floor makes the switcher's own floor list moot, and the checkboxes that write it are hidden the same
+   * render — CLAUDE.md finding 12 does not apply, `floor`/`floors` are plain config keys, not schema). Picking
+   * "All floors" removes `floor` outright rather than writing `floor: "all"`: the card already treats the two the
+   * same (S8.12's default), so the shorter, key-absent form is what "minimal emitted YAML" means here. */
+  private _onFloor(e: Event): void {
+    const value = (e.target as HTMLSelectElement).value;
+    const next: EditorConfig = { ...this._config };
+    if (value) {
+      next.floor = value;
+      delete next.floors;
+    } else {
+      delete next.floor;
+    }
+    this._config = next;
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: next }, bubbles: true, composed: true }));
+    this.requestUpdate();
+  }
+
   private _onTheme(e: Event): void {
     this._set("theme", (e.target as HTMLSelectElement).value as Theme, DEFAULT_THEME);
   }
@@ -183,6 +211,7 @@ export class FloorplanStudioCardEditor extends LitElement {
   protected render() {
     const floors = this._floorEntries();
     const checked = new Set(this._config.floors ?? []);
+    const floorChoice = this._floorChoice();
     return html`
       <div class="row">
         <label class="main" for="theme">Theme</label>
@@ -192,17 +221,28 @@ export class FloorplanStudioCardEditor extends LitElement {
       </div>
 
       <div class="row">
-        <label class="main">Floors</label>
-        ${floors.length
-          ? html`<div class="floors">
-              ${floors.map(
-                ([id, title]) => html`<label
-                  ><input type="checkbox" data-floor=${id} .checked=${checked.has(id)} @change=${(e: Event) => this._toggleFloor(id, (e.target as HTMLInputElement).checked)} />${title}</label
-                >`,
-              )}
-            </div>`
-          : html`<p class="hint">No layout loaded yet — the floor list fills in once one has.</p>`}
+        <label class="main" for="floor">Floor</label>
+        <select id="floor" @change=${this._onFloor}>
+          <option value="" ?selected=${floorChoice === ""}>All floors (switcher)</option>
+          ${floors.map(([id, title]) => html`<option value=${id} ?selected=${floorChoice === id}>${title}</option>`)}
+        </select>
       </div>
+
+      ${floorChoice === ""
+        ? html`<div class="row">
+              <label class="main">Switcher shows</label>
+              ${floors.length
+                ? html`<div class="floors">
+                    ${floors.map(
+                      ([id, title]) => html`<label
+                        ><input type="checkbox" data-floor=${id} .checked=${checked.has(id)} @change=${(e: Event) => this._toggleFloor(id, (e.target as HTMLInputElement).checked)} />${title}</label
+                      >`,
+                    )}
+                  </div>`
+                : html`<p class="hint">No layout loaded yet — the floor list fills in once one has.</p>`}
+            </div>
+            ${floors.length ? html`<p class="hint">None ticked: every floor.</p>` : null}`
+        : null}
 
       <div class="row">
         <label class="main" for="fade">Fade (s)</label>
