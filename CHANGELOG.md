@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- A lit lamp's aura is 50% larger (3 m across instead of 2 m). It now draws
+  under walls, doors and names, so it never tints them. The plan only gets
+  extra margin where an aura actually passes the edge.
+- A triggered motion or contact sensor is much easier to spot: a strong red
+  disc and a ring that pulses out from it. An open door or window with a
+  contact sensor gets a wide pulsing red line under it. Nothing pulses when
+  the device asks for reduced motion.
+
 ## 0.12.6
 
 - The card now shows a floor switcher (a chip per floor) by default whenever

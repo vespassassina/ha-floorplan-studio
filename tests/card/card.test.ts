@@ -818,7 +818,7 @@ describe("FloorplanStudioCard", () => {
   describe("S2.8: a lit lamp casts an aura", () => {
     const kitchenIndex = L.floors.ground.devices.findIndex((d) => d.entity === "light.demo_kitchen"); // x:650, y:200, inside room 1 (Kitchen)
 
-    it("one circle.aura of radius 100 at the lamp's coordinates when it is on, none when it is off", async () => {
+    it("one circle.aura of radius 150 at the lamp's coordinates when it is on, none when it is off", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass({ "light.demo_kitchen": st("off") }) as never;
@@ -831,7 +831,7 @@ describe("FloorplanStudioCard", () => {
       expect(auras).toHaveLength(1);
       expect(auras[0].getAttribute("cx")).toBe("650");
       expect(auras[0].getAttribute("cy")).toBe("200");
-      expect(auras[0].getAttribute("r")).toBe("100");
+      expect(auras[0].getAttribute("r")).toBe("150");
     });
 
     it("a light with rgb_color: [255, 0, 0] has --fp-aura:rgb(255,0,0) in its own circle's style", async () => {

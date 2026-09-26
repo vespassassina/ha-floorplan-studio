@@ -249,14 +249,14 @@ honest metaphor there.
 
 | Entity domain / device type | Idle | Active | Colour | Click |
 |---|---|---|---|---|
-| light | grey icon | yellow icon and halo, brightness as opacity, plus a round aura 200 cm across in the same colour at 25 % alpha | `--fp-dev-light` (#e0a800) | toggle; long press: more-info |
+| light | grey icon | yellow icon and halo, brightness as opacity, plus a round aura 300 cm across (S8.13) in the same colour at 25 % alpha, drawn under walls, doors and names | `--fp-dev-light` (#e0a800) | toggle; long press: more-info |
 | smart light (`rgb_color`) | grey icon | icon, halo and aura in the light's own colour from HA, yellow when it reports none | the light's own `rgb_color`, or `--fp-dev-light` | toggle; long press: more-info |
 | light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | as light | toggle the light entity; long press: more-info for it (the switch is reachable from that dialog) |
 | switch (wall switch) | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | toggle |
 | plug | grey | blue icon and halo | `--fp-dev-plug` (#2c7fb8) | toggle |
-| binary_sensor on a door or window | door drawn normally | door drawn red | `--fp-dev-contact` (#d64545) | more-info |
-| contact (device icon) | grey | red icon and halo | `--fp-dev-contact` (#d64545) | more-info |
-| motion (binary_sensor motion/occupancy) | grey | icon red, fading to grey over `fade` seconds from `last_changed`; halo red at once | `--fp-dev-motion` (#d64545) | more-info |
+| binary_sensor on a door or window | door drawn normally | door drawn red, over a wide red line pulsing under it (S8.13; steady under reduced motion) | `--fp-dev-contact` (#d64545) | more-info |
+| contact (device icon) | grey | red icon, halo filled at 60 % and ringed red, and a red ring pulsing out from under the disc (S8.13) | `--fp-dev-contact` (#d64545) | more-info |
+| motion (binary_sensor motion/occupancy) | grey | icon red, fading to grey over `fade` seconds from `last_changed`; halo red at once, filled at 60 % and ringed red, with a red ring pulsing out from under the disc while it is on (S8.13) | `--fp-dev-motion` (#d64545) | more-info |
 | temp, humidity (sensor) | grey icon, value as a label next to it | humidity: grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
 | temp or humidity sensor inside a room of kind garden | green icon (class `outdoor`, from the centre of the icon) | as its type | `--fp-dev-garden` (#3f8f4f) idle, as its type when on | more-info |
 | heater, climate (TRV, thermostat) | heater bar grey with target; icon and halo grey | orange icon and halo when heating | `--fp-dev-heater` / `--fp-dev-climate` (#e8801a) | more-info |

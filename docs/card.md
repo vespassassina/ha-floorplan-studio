@@ -161,13 +161,17 @@ device is grey; an active one takes its type's own colour — one
 differently:
 
 - **Light** — grey when off; on, it turns amber (or the bulb's own colour, if
-  it reports one) and grows a soft aura on the plan. Tap toggles it; a long
+  it reports one) and grows a soft aura, 3 m across, on the plan. Tap toggles it; a long
   press opens Home Assistant's more-info dialog.
 - **Light with a bound switch** — one icon that lights up if either the light
   or its switch is on. Tap always toggles the light itself.
-- **Motion sensor** — red the moment it triggers, fading back to grey over
-  `fade` seconds from when it last went off — even if it's already off by the
-  time the card loads.
+- **Motion sensor** — red the moment it triggers, with a strong red disc and
+  a ring pulsing out from it while it stays on. It then fades back to grey
+  over `fade` seconds from when it last went off — even if it's already off
+  by the time the card loads.
+- **Contact sensor** — open shows the same red disc and pulsing ring. A door
+  or window with a contact sensor turns red when open, over a wide pulsing
+  red line. With reduced motion set on the device, nothing pulses.
 - **Camera** — a dark cone of view, turned to match the device's own
   rotation.
 - **Person** — a green icon at full opacity while home; away (`not_home`, or

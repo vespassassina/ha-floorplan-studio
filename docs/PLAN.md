@@ -1801,6 +1801,23 @@ closes the sprint.
   lint` exit 0; unit 1093/1093; full Playwright suite 565 passed, 1
   skipped, exit 0.
 
+### S8.13 A 150 cm light aura; alerts for motion and contact
+
+- Outcome: maintainer request. A lit lamp's aura is 1.5x larger
+  (`LIGHT_REACH` 150 cm; the camera keeps `DEVICE_REACH` 100) and draws
+  under walls, doors, furniture and names. `viewBoxFor` pads only where a
+  reach passes the outline. A triggered motion or contact sensor gets a
+  60 % disc, a coloured ring and a pulsing `ping`; an open contact door gets
+  a pulsing `door-alert` line. Reduced motion stops every pulse. See
+  `docs/DECISIONS.md`, 2026-09-26.
+- Done, 2026-09-26. Tests first, all watched failing: 5 new
+  `render.test.ts` cases (reach, ping per type and state, door alert, CSS
+  rules, draw order), 3 new `viewBoxFor` cases, 9 existing aura and
+  viewBox cases moved to the new numbers, 2 Playwright computed-style
+  pairs in `editor.spec.ts` (10 repeats clean). `npm run shots` now opens
+  the front door and the bedroom window in the "on" state; looked at
+  light, blueprint and HA dark.
+
 ### S8.12 Floor chips by default on a multi-floor layout; a Floor selector in the card form
 
 - Outcome: maintainer report — a card added with the stub config drew only
