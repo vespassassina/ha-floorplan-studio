@@ -166,12 +166,13 @@ export const FLOORPLAN_CSS = `
 .e.external{stroke:var(--fp-wall-external);stroke-width:${WALL_WIDTH_EXTERNAL};stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
 .eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
 .e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none}
-/* An opening erases the wall under it by painting over it, so its stroke must match a plain room's own fill, not
-   --fp-room: that token is UI chrome (toolbar buttons), shaded near the background in a dark theme, so an opening
-   used to punch a visibly wrong-coloured hole instead of blending away (Opus review). S8.9: the wall under an
-   opening is no longer one fixed width, so its own stroke-width is now an inline attribute (wallWidthAt plus a
-   margin), not this fixed 9 — see the openings loop below. */
-.opening{stroke:var(--fp-room-empty);pointer-events:none}
+/* S8.11 (Diego's field report: "openings must be transparent and make the wall under them transparent too"): an
+   opening no longer paints a band over the wall — renderFloor cuts a real hole in the wall layer with an SVG
+   mask, so whatever is under it (a room's own fill, its texture, the background) shows through. This line still
+   exists in the markup, at the same place in the DOM it always was, because the editor's own hit order relies on
+   it: its .opening rule (pointer-events:stroke, editor-app.ts's stylesheet) and hitOf()'s closest("line.opening")
+   both need a real, hit-testable shape at the gap. It just paints nothing any more. */
+.opening{stroke:transparent;pointer-events:none}
 /* S4.13 (Opus review): was pointer-events:none, so a click on "tech area" or any other structure line always fell
    through to the room under it - the line rendered but took no clicks of its own, ever, on any floor. "all" matches
    .room{pointer-events:all} just above: a fill:none shape still needs the flag or its interior (a rect's, here) and
@@ -249,9 +250,21 @@ export function wallWidthAt(f: Floor, a: Pt, b: Pt): number {
 }
 /** A selected door or window is always 8 cm wider than its own thickness, whichever wall it sits on. */
 const DOOR_SELECT_EXTRA = 8;
-/** An opening's stroke must fully erase the (possibly thicker) wall under it: the wall's own thickness, plus a
- *  couple of cm of margin so no sliver of it shows at the edges (S8.9 part 3). */
-const OPENING_EXTRA = 2;
+/** An opening's stroke must fully erase the (possibly thicker) wall under it: the wall's own thickness, plus enough
+ *  margin so no sliver of it shows at the edges (S8.9 part 3) — and, since S8.11, strictly more than the wall's own
+ *  halo margin (`WALL_HALO_EXTRA`), for internal walls same as external. Opus review (2026-09-26): this used to be
+ *  a flat 2cm, exactly equal to WALL_HALO_EXTRA, so the cut's own edge landed exactly on the halo's edge — two
+ *  independently antialiased edges on the same line do not reliably cancel, leaving a faint blended line along the
+ *  hole (`renderFloor` test "S8.11 fix (halo seam...)" in card.spec.ts). One more cm of margin than the halo's own
+ *  puts the cut's edge a clean centimetre past the halo's, with room to spare. */
+const OPENING_EXTRA = WALL_HALO_EXTRA + 2;
+/** A short, deterministic tag for a string (FNV-1a, 32-bit, base36). Not security-sensitive: only used to keep a
+ *  generated id short while still varying with its content. */
+function tag(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(36);
+}
 type Box = [number, number, number, number];
 const meets = (a: Box, b: Box) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 
@@ -462,7 +475,33 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     .filter((r): r is typeof r & { texture: string } => typeof r.texture === "string" && TEXTURE_IDS.includes(r.texture))
     .map((r) => ({ id: r.texture, rot: normTextureRot(r.textureRot), scale: normTextureScale(r.textureScale) }));
   const hatch = f.rooms.some((r) => r.kind === "fill") ? '<pattern id="fp-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="var(--fp-fill)"/><line x1="0" y1="0" x2="0" y2="12" stroke="var(--fp-fill-line)" stroke-width="2"/></pattern>' : "";
-  if (hatch || textured.length) out.push(`<defs>${hatch}${texturePatterns(textured)}</defs>`);
+  // S8.11: an opening cuts a real hole in the wall layer below (halo and stroke, every kind including external),
+  // instead of painting a band over it, so a room's own fill or texture shows through. `openingWidths[i]` is the
+  // same wallWidthAt(...) + OPENING_EXTRA the opening's own erase-line always used (S8.9 part 3): the widest wall or
+  // halo the opening crosses, so no sliver survives at its sides, its ends, or where it meets a corner. The mask id
+  // is a hash of the openings' own geometry (never anything from a name, so nothing here needs escaping), the same
+  // convention texturePatternId already uses: two cards drawing the same floor mint the identical id and safely
+  // share one `<mask>`, exactly like two cards sharing one `<pattern>`; two floors whose openings actually differ
+  // mint different ids and never collide. This also keeps renderFloor a pure function of its floor and options,
+  // which the rest of this file's tests rely on (byte-identical output for equal input, called any number of times).
+  const openingWidths = f.openings.map((op) => wallWidthAt(f, op.a, op.b) + OPENING_EXTRA);
+  // Mask colours are the SVG keywords "white"/"black" (luminance, not literal hex), matching the codebase's
+  // no-literal-hex-colours convention (a `renderFloor` test enforces it).
+  // Diego's field review (2026-09-26, 4x crops): a round cap erodes a full disc of radius half-width around each
+  // end, in every direction, not only along the wall — the opening's ends read as concave arcs instead of a square
+  // cut, and the erosion reaches past the opening's own span. "butt" cuts exactly at `a` and `b`, wider across only.
+  const openingLines = f.openings.map((op, i) => `<line x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke="black" stroke-width="${openingWidths[i]}" stroke-linecap="butt"/>`);
+  const maskId = f.openings.length ? `fp-open-mask-${tag(openingLines.join(""))}` : "";
+  // Opus review (2026-09-26): `<mask>` itself carries no x/y/width/height, so its region defaults to -10%/120% of
+  // the *viewport*, measured from the coordinate system's own 0,0 — never from the viewBox's own x/y. A floor that
+  // is viewed away from the origin (zoomed in on the card or the editor, or simply drawn somewhere else in plan
+  // space) then has this whole masked wall group erased outright wherever it falls outside that accidental
+  // rectangle: real walls vanish, not just the opening. The inner rect already covered a huge span for the same
+  // reason the mask needs one; the region attributes below are what was actually missing.
+  const openingMask = maskId
+    ? `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="-100000" y="-100000" width="200000" height="200000"><rect x="-100000" y="-100000" width="200000" height="200000" fill="white"/>${openingLines.join("")}</mask>`
+    : "";
+  if (hatch || textured.length || openingMask) out.push(`<defs>${hatch}${texturePatterns(textured)}${openingMask}</defs>`);
   // S2.6: room_glow. A room glows when any light "in" it (point-in-polygon of the device's x,y; a light never has
   // a/b, only a heater does, but the same "a" in d guard the rest of the file uses is kept here too) is on. Untrusted
   // layout/state: a non-finite coordinate or a light outside every room's polygon is simply not counted, never thrown.
@@ -508,8 +547,20 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     });
   f.walls.forEach((w, i) => edgeLines.push({ cls: edgeClass(w.kind), attr: ` data-w="${i}"`, a: w.a, b: w.b }));
   const seg = (a: Pt, b: Pt) => `x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"`;
-  for (const l of edgeLines) out.push(`<line class="eh${l.cls.slice(1)}" ${seg(l.a, l.b)}/>`);
-  for (const l of [...guides, ...edgeLines]) out.push(`<line class="${l.cls}"${l.attr} ${seg(l.a, l.b)}/>`);
+  // S8.11: every halo and stroke line, of every kind (including external and the free-wall/outline lines above),
+  // is what an opening's mask cuts a hole through — collected here instead of pushed straight to `out` so the whole
+  // lot can be wrapped in one `<g mask>` when there is a hole to cut, and left alone (no group, no defs, identical
+  // output to before) when there is not.
+  const wallLines: string[] = [];
+  for (const l of edgeLines) wallLines.push(`<line class="eh${l.cls.slice(1)}" ${seg(l.a, l.b)}/>`);
+  for (const l of [...guides, ...edgeLines]) wallLines.push(`<line class="${l.cls}"${l.attr} ${seg(l.a, l.b)}/>`);
+  if (maskId) out.push(`<g mask="url(#${maskId})">${wallLines.join("")}</g>`);
+  else out.push(...wallLines);
+
+  // S8.11 review (Opus, 2026-09-26): the seam patch this comment used to sit above is gone. Widening the opening's own
+  // cut past the wall halo's edge (OPENING_EXTRA, above) closed the antialiasing gap it was built to hide — checked at
+  // 4x in light, blueprint and ha-dark, on an outline-wall opening and on an opening between two differently-coloured
+  // rooms (a test layout, not the demo), no line survives. See the S8.11 DECISIONS follow-up.
 
   // S2.9 round 3: a room's own boundary is almost always also a wall, and a wall's white halo (3.5-5px) is drawn
   // right on top of the room polygon and fully covers a same-width stroke on it — the .room.on rule above proves
@@ -599,7 +650,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
   // S8.9 part 3: the opening's own stroke must cover whichever wall it is on, now that walls no longer share one width.
-  f.openings.forEach((op) => out.push(`<line class="opening" x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke-width="${wallWidthAt(f, op.a, op.b) + OPENING_EXTRA}"/>`));
+  f.openings.forEach((op, i) => out.push(`<line class="opening" x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke-width="${openingWidths[i]}"/>`));
   f.extras.forEach((x, i) => {
     const mx = Math.min(x.a[0], x.b[0]), my = Math.min(x.a[1], x.b[1]), w = Math.abs(x.a[0] - x.b[0]), h = Math.abs(x.a[1] - x.b[1]);
     out.push(w && h

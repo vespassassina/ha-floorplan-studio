@@ -2,6 +2,259 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-26 Process: Sonnet codes, the coordinator checks, Opus reviews the build
+
+Supersedes the three-role flow in `docs/WORKFLOW.md` (2026-09-21: Sonnet
+executes, a separate Sonnet session verifies each sprint, and Opus reviews
+each task). Sprint 8 ran differently, and Diego asked that the process and
+dev guide follow his global rules. The new flow:
+
+- A coordinating session briefs a Sonnet coder per task. Coders work in
+  their own worktree and on their own Playwright port when two run at once.
+- The coordinator re-runs the suites and opens the screenshots itself before
+  anything else happens.
+- One Opus review covers the integrated build. Opus then re-checks only the
+  fixes.
+- With Diego's yes, the coordinator merges, pushes and tags, and finishes
+  the install on Home Assistant.
+
+Why: in Sprint 8, the coordinator's own look at the screenshots caught
+defects that green suites and the coder's report both missed: clipped
+hints, round-capped opening cuts, and a split toolbar. The single Opus pass
+over the integrated build caught the real logic bugs: a duplicated catalog
+entry, a hidden gang, and a recycled id. A per-task Opus review and a
+separate verifier session cost more and found less. `CONTRIBUTING.md`
+gains the evidence rules that apply to everyone:
+
+- run commands bare;
+- run a new Playwright test with `--repeat-each=10`;
+- check any visible change at two widths and in two themes;
+- commit with a no-reply author.
+
+## 2026-09-26 S8.10 Toolbar right-aligned; Devices list collapsible and typed
+
+Maintainer feedback: the toolbar's Filter through Help cluster "floated in
+the middle" instead of sitting at the right edge, and the room panel's
+Devices list was one flat block, unreadable once an area had more than a
+few entities.
+
+Toolbar: the dead `class="grow"` spacer (a zero-basis flex item whose own
+absence of size let the menu cluster wrap onto its own line with nothing to
+push it right) is gone. Everything from Filter through Help is now one
+`.bar-right` flex item, `flex:1 1 0%;min-width:0;justify-content:flex-end`,
+so it fills whatever room the floor chips leave on the .bar's own line and
+right-aligns its own wrapped rows in turn; a `margin-left:auto` on a
+shrink-to-fit box was tried first and rejected — nesting a flex-wrap
+container as a flex item sized by its own content left Chromium free to
+settle on two different widths (668px vs 740px) for byte-identical content,
+depending only on what triggered the most recent layout pass, which flipped
+the toolbar between one row and two on an unrelated status update. `.status`
+lost its `flex-grow` (now `flex:0 1 12em`, capped `max-width:12em`) so a long
+message can no longer widen the toolbar and push Help onto a new line. Help
+moved to be the cluster's last item, its own right edge is what the
+alignment test pins.
+
+Devices: the room panel's HOME ASSISTANT section is one `<details>` "Devices
+(N)", collapsed by default, holding one `<details>` sub-group per
+`typeForEntity` type (the one existing entity→`DeviceType` mapping, reused
+from `src/core/ha.ts`, not duplicated), each also collapsed, sorted by name
+within a group, unmapped entities in "Other" last, groups in a fixed order
+(`DEVICE_GROUP_ORDER`, `src/editor/panels.ts`). Helpers, Automations,
+Scripts and Scenes get the same collapsible/closed treatment. Open/closed
+state lives in `EditorState.haGroups` (a `Set<string>` keyed
+`grp:<label>`/`dev:<type>`), not in `layout` or undo history, so it survives
+a room switch and a `hass` update (the state instance itself is never
+swapped) without an extra undo step or an unsaved-changes mark.
+
+Done, 2026-09-26. Tests first, real `page.mouse` clicks: a computed-style
+pair over `.bar-right` (`justifyContent`, `flexGrow`, `flexBasis`) at 1280
+and 380, no horizontal scroll at 380 — failed against the pre-fix CSS,
+proved via `git stash` on the src changes alone; a stubbed mixed-entity area
+showing collapsed "Devices (7)", opening it to seven correctly-labelled and
+-counted collapsed sub-groups, opening "Lights" to show only the two light
+rows sorted by name; a persistence test switching room then back and
+calling the test harness's `hass`-update helper, checking both a group's and
+a device-type sub-group's open state survive. All new tests also run at
+`--repeat-each=10`. Two pre-existing S7.2 tests ("status line sits right of
+Redo", "a 200-character status ... toolbar does not grow") pinned the old
+`flex-grow` layout and were updated, not reverted, to the new one (finding
+19) — confirmed via a second `git stash` comparison that they passed on
+pre-S8.10 code and only broke because Help now sits after status by design.
+The dropdown-stays-in-viewport test passes on the pre-fix CSS too — `.box`
+was already `position:absolute;right:0` inside its own `position:relative`
+menu, so it could never overflow the flex-wrapped toolbar regardless of the
+`.bar-right` bug; it is kept as a regression guard, not a red-to-green proof.
+
+Follow-up, same day, from the maintainer's own look at the screenshots above:
+the first pass still left an empty gap after "Ready" before Help (`.status`'s
+fixed `flex:0 1 12em` always reserved 12em even for a short message), and at
+380 the cluster squeezed into a narrow column beside the floor chips instead
+of taking its own row. Fixed: `.status` is now `flex:0 1 auto;max-width:16em`
+(content-sized, capped only for an extreme message) and moved to be the
+cluster's first item — `justify-content:flex-end` anchors the packed block's
+right edge, so every item after status keeps a fixed distance from that right
+edge and growing status moves only its own left edge, never Filter's x. The
+dead `<div class="vsep">` is gone (it was widening the gap before Undo/Redo
+past the flex `gap`). Order is now status, Filter, Add, Draw, View, Edit,
+File, Help, Undo, Redo — Undo/Redo are the cluster's own last items now, so
+Redo's right edge is what the alignment test pins (Help no longer sits alone
+at the end). Below 768px a `@media` rule sets `.bar-right{flex-basis:
+100%}`, forcing it onto its own full-width row instead of shrinking to fit
+beside the chips (a literal percentage, not a shrink-to-fit result, so it
+carries none of the width-instability risk from the first S8.10 pass — a
+determinism check re-ran the render twice at 380 and compared the cluster's
+own width). Tests first, real `page.mouse`: equal 6px gaps between every
+visible cluster item, Redo within a few px of the toolbar's right edge, and
+a status-text change proved to move nothing else — all three failed against
+the first-pass CSS via `git stash`; a 380px test for the cluster's own
+full-width row, right-aligned, chips top-aligned on the first row, no
+horizontal scroll, also failed the same way. Two pre-existing tests (the
+Help-right-edge alignment test, and "status line sits ... right of Redo")
+pinned the superseded order and are updated, not reverted, confirmed via the
+same `git stash` technique that they broke only because of this reorder. All
+new/updated tests green at `--repeat-each=10`.
+
+Second Opus review, same day: two real defects past the two passes above.
+(1) `haDeviceGroups`/`haGroupBlock` (`src/editor/panels.ts`) built each
+`<details>` from an unkeyed `.map`, so switching to a room whose device types
+differ at some index reused another type's DOM node at that position, and the
+reused node kept its old `open` state under the new type's key — Kitchen
+(Switch, Temp) could show "Wall switches" open and record `dev:switch` in
+`haGroups` from having merely displayed it, not opened it. Fixed with
+`repeat(list, (t) => t, ...)` for both the sub-groups and the top-level
+groups, and `.open=${live(...)}` in place of `?open=`, so the binding always
+reads the DOM's real state rather than lit-html's last-committed value.
+(2) `.box{position:absolute;right:0}` anchors a dropdown to its own button,
+not the viewport, so a mid-toolbar button (View, Edit, Filter) carried a box
+that ran off the left edge once the box was wider than the room to that
+button's left — measured at 380 (View -96..128px) and even 600 (Filter
+-10..214px); the previous viewport test only ever opened File, the
+cluster's rightmost and safest item, so it passed throughout. Fixed with
+`onMenuToggle`, wired to every menu's own `toggle` event: it resets to
+`right:0`, measures the box's real `getBoundingClientRect().left`, and when
+that is negative switches to `right:auto` with an inline `left` that pins the
+box's screen position to the viewport's own left edge (0), regardless of the
+box's width or which button opened it. The dropdown-viewport test itself had to move off a plain
+`boundingBox()` read: the `<details>` `toggle` event is a queued task per the
+HTML spec, not synchronous with the click, so Playwright's `click()` can
+resolve a tick before the clamp runs — reading immediately caught the box
+mid-flight for exactly the cases that needed clamping. It now polls the real
+on-screen position (`expect(...).toPass({ timeout: 1000 })`) rather than a
+guessed sleep or a stale style-attribute sentinel (closing a menu already
+leaves `right` non-empty, so that sentinel would read as "already clamped"
+before the next open's own toggle fires). Nits from the same review: Undo and
+Redo are now one `.btnpair` flex item (`flex-wrap:nowrap`) so the pair always
+wraps together instead of splitting across rows; the Device colours and
+Install code panels now open at `panelTop()` (the toolbar's own measured
+`getBoundingClientRect().bottom`, plus a 10px gap) instead of a fixed 90px,
+which the taller narrow toolbar had started to overlap. All four fixes have a
+red-first Playwright test, run at `--repeat-each=10`.
+
+## 2026-09-26 S8.11: an opening cuts a real hole in the wall
+
+Maintainer feedback: an opening (a door-less gap) was a light-grey `.opening`
+band painted over the wall — it happened to read as a hole only because it
+was stroked with `--fp-room-empty`, the same colour a plain uncoloured room
+falls back to. Over any room with its own colour or texture the band was
+visibly wrong: still grey, not the room's own fill.
+
+Fix: `renderFloor` (`src/core/render.ts`) now wraps the wall-lines group
+(`.eh` halo lines and `.e` stroke lines, internal and external alike) in an
+SVG `<mask>` that erases each opening's own footprint —
+`wallWidthAt(f, op.a, op.b) + OPENING_EXTRA` wide, round-capped so no sliver
+survives at the ends. `.opening`'s own stroke is now `transparent`; it keeps
+`pointer-events:none` in the card and `pointer-events:stroke` in the editor,
+unchanged, so it still hit-tests on top of the (now invisible) wall. Whatever
+sits under the cut — a room's fill, texture, or nothing at all outside the
+building — shows straight through.
+
+The mask's `id` is not a counter: `renderFloor` must stay pure (called twice
+on equal input, byte-identical output — many existing tests depend on it), so
+a global incrementing id would have broken it the moment two floors both
+carried an opening. The id is instead a short hash of the mask's own cut-line
+markup (`tag()`, FNV-1a, mirroring `texturePatternId()`'s existing precedent
+in `src/core/textures.ts`): identical opening geometry mints the same id
+(safe — each card or editor instance is its own shadow root, so a `url(#id)`
+reference never resolves outside it), and different geometry mints a
+different one. The mask paints with SVG keyword colours (`white`/`black`),
+not hex, to keep the "no literal hex colours in generated markup" invariant.
+
+The demo's ground floor is exercised by too many fixtures (`render.test.ts`,
+`migrate.test.ts`, `paint.test.ts`, `draw.test.ts`, and roughly a dozen
+Playwright tests in `editor.spec.ts` that assume it starts with zero
+openings) to safely add its first opening there. `demo/layout.json`'s
+**first** floor gets one instead, on the Office's south/outline wall
+(`a:[600,600] b:[700,600]`), and the Office now carries its own colour
+(`#4a6fa5`) so the hole is visibly distinct from the old grey band, not
+coincidentally matching it. Mirrored into `demo/layout.v1.json` (no `id` —
+`migrate()` assigns one).
+
+Tests, each written first and confirmed to fail with the mask removed (or,
+for the two-cards case, with `src/core/render.ts` reverted to its
+pre-S8.11 state): six `render.test.ts` cases (mask presence/content, no mask
+with no openings, same-floor-twice-same-id, different-floors-different-id,
+cut width); an `editor.spec.ts` Playwright test that screenshots the editor,
+decodes the PNG with a new dependency-free reader
+(`tests/core/util/png.ts`, itself round-tripped against a hand-built PNG in
+`tests/core/util/png.test.ts` — no image-decoding dependency existed in the
+repo) and asserts the opening's centre pixel equals the Office's own fill,
+never the wall colour; another confirming a real `page.mouse` click at the
+opening's real screen coordinates still selects it, on top of the masked
+wall; a `card.spec.ts` test mounting two `<floorplan-studio-card>` elements
+with the same layout, confirming they mint the identical (content-derived)
+mask id without interfering with each other's rendering. A pre-existing CSS
+pair (`editor.spec.ts`, "an opening's erase stroke matches a plain room's own
+fill") tested the old design's own premise and is rewritten to the new one:
+the opening's stroke is transparent in every theme, whatever the room's
+colour — proved against a room now given an explicit colour, so a
+regression back to the old grey-matching band cannot pass by coincidence.
+
+Follow-up (2026-09-26, Diego's own 4x crops of the shipped card): two more
+defects. (1) The mask's cut line was round-capped, so each end eroded a
+full disc (radius = half the cut width) around `a`/`b` in every direction,
+not only along the wall — an opening's ends read as concave arcs, and the
+erosion reached past the opening's own span. Now `stroke-linecap="butt"`:
+the cut is exactly `a`-to-`b`, wider across only. (2) A room's own polygon
+edge coincides exactly with an external wall's centreline (that is the
+room's own boundary), so it was always antialiased there; an opaque wall
+used to sit on top of that seam, and the new mask exposed it as a thin
+boundary line running across the hole. `renderFloor` now adds an unmasked
+"seam patch" per opening — found the bordering room the same way
+`room_glow` finds a light's room (`inside()`, probed 5cm off the
+centreline each side) and repaints the seam with that room's own
+`paintAttr()` fill, bled 2cm past the centreline into the hole. Both
+fixed with a failing-first pixel test in `card.spec.ts` (the card, not the
+editor: the editor draws its own measurement-grid line exactly along
+`y=600` at low opacity, which blends the exact pixel these tests need and
+makes the editor an unreliable place to pin them down).
+
+Opus review (2026-09-26) of the follow-up above found a blocker and two more
+defects. (1) BLOCKER: the `<mask>` element carried `maskUnits="userSpaceOnUse"`
+but no `x`/`y`/`width`/`height` of its own, so its region defaulted to
+-10%/120% of the *viewport*, anchored at the coordinate system's own `0,0` —
+never at the viewBox's own `x`/`y`. Any floor viewed away from the origin (the
+editor zoomed in, the card zoomed in, or a floor simply drawn somewhere else
+in plan space) then had its entire masked wall-lines group erased outright
+wherever it fell outside that accidental rectangle: real walls vanished, not
+only the opening. Fixed by giving the `<mask>` its own explicit region
+(`x="-100000" y="-100000" width="200000" height="200000"`, matching the inner
+rect it already carried for the same reason). (2) The cut and the wall's own
+halo (`.eh`) were the same width (`wallWidthAt(...) + 2`), so their two edges
+landed on the identical plan coordinate; two independently antialiased edges
+on one line do not reliably cancel, leaving a faint blended line along the
+hole, reproducible once rendered through a tight enough viewBox. `OPENING_EXTRA`
+is now `WALL_HALO_EXTRA + 2` (4, not 2), putting the cut's edge a clean
+centimetre past the halo's. (3) With that wider cut in place, the seam patch
+above turned out to be papering over a seam that no longer exists: checked at
+4x in light, blueprint and ha-dark, on an outline-wall opening and on an
+opening between two differently-coloured rooms (a test layout, never the
+demo or the repo), and by scanning pixels across the full width of each
+opening, both rooms' polygons already meet exactly at the shared wall
+centreline with no gap and no blended sliver. The patch, its now-orphaned
+`.room.seam` CSS rule and its old pixel test are removed; `card.spec.ts`
+keeps a regression test on the internal-opening case instead (fails, as
+proved by hand, if the opening is removed from that same test layout).
+
 ## 2026-09-26 Opus re-check of task/S8.9: newId ignored the catalog and other floors
 
 A further Opus re-check of task/S8.9 found that `newId` (`src/editor/state.ts`)

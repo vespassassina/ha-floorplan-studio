@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.12.5
+
+- The toolbar's Filter through Redo cluster now sits flush against the
+  toolbar's right edge (floor chips stay left), instead of floating in the
+  middle. It wraps as one block below 769px wide, Undo and Redo always wrap
+  onto their row together, and every dropdown (Filter, Add, Draw, View, Edit,
+  File) clamps itself to stay fully inside the viewport, however narrow.
+- The room panel's Home Assistant Devices list is now one collapsible
+  "Devices (N)" block, collapsed by default, with a collapsed sub-group per
+  device type (Lights, Wall switches, Motion, and so on), sorted by name,
+  unmapped entities last under "Other". Helpers, Automations, Scripts and
+  Scenes get the same treatment. Open/closed state survives switching rooms
+  and a Home Assistant update.
+- Fixed: an opening (a gap in a wall) painted a light-grey band over the
+  wall instead of a real hole, so it looked wrong over any room with its
+  own colour or texture. The wall (and its halo) is now actually cut where
+  an opening sits, in both the card and the editor, whatever is under it.
+
 ## 0.12.4
 
 - Fixed: placing a device the Place popup or Add > Device offered from a

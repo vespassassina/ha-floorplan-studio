@@ -238,7 +238,27 @@ export class FloorplanStudioEditor extends LitElement {
     ${css([FLOORPLAN_CSS] as unknown as TemplateStringsArray)}
     :host{display:block;outline:none;background:var(--fp-bg);color:var(--fp-ink);font:14px/1.4 system-ui,sans-serif}
     .bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 0}
-    .grow{flex:1}
+    /* S8.10: the floor chips stay left (in normal flow, no longer followed by a .grow spacer — that span's own
+       zero flex-basis let the menu cluster after it wrap onto a line of its own with nothing to push it right,
+       "floating in the middle", the maintainer's original report). Everything else — status, Filter through File,
+       Help, Undo/Redo — is one flex item that wraps its OWN contents (never the floor chips) when the toolbar is
+       too narrow, each wrapped row right-aligned in turn (justify-content, since a wrapped row may start with any
+       of its items, not always the same one an auto-margin child could anchor). */
+    /* S8.10: flex:1 1 0 (not margin-left:auto on a shrink-to-fit box) so this fills whatever room is left on its
+       own line, a plain size the outer .bar resolves once. A shrink-to-fit width instead left a flex item that is
+       itself flex-wrap ambiguous — Chromium settled on two different equilibrium widths (668px and 740px) for the
+       same content depending on what triggered the last layout pass, so the toolbar's height (one row or two) and
+       right cluster's own wrapping flipped on a reflow that had nothing to do with its content, such as a status
+       message changing. min-width:0 lets it shrink below its content's natural width instead of overflowing. */
+    .bar-right{flex:1 1 0%;min-width:0;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end}
+    /* S8.10 follow-up: below this width the cluster can no longer fit beside the floor chips on one line without
+       squeezing itself down to a narrow column (min-width:0 lets it shrink that far). A fixed flex-basis forces it
+       onto its own full-width row instead — a plain value the outer .bar resolves once, not a shrink-to-fit result,
+       so it carries none of the width-instability risk the .bar-right rule above already had to design around. */
+    @media (max-width:768px){.bar-right{flex-basis:100%}}
+    /* S8.10 follow-up (Opus review): Undo and Redo as a single flex item of .bar-right, nowrap inside it, so a
+       wrap ever carries the whole pair to the next row together, never splitting them. */
+    .btnpair{display:flex;flex-wrap:nowrap;gap:6px}
     .btn,.chip,select,input{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:4px;padding:4px 8px}
     .btn,.chip,summary{cursor:pointer}
     .chip[aria-pressed="true"],.btn[aria-pressed="true"]{background:var(--fp-ink);color:var(--fp-bg)}
@@ -251,7 +271,11 @@ export class FloorplanStudioEditor extends LitElement {
     .menu>summary::after{content:" \\25BE"}
     /* z-index above the floating panels (Device colours, Install code: 30): a menu just opened is on top, wherever the
        toolbar puts it. S7.2 moved the menus left to make room for the status line, onto the centred panels. */
-    .box{max-height:75vh;overflow:auto;position:absolute;right:0;top:calc(100% + 4px);z-index:40;min-width:210px;display:flex;flex-direction:column;gap:6px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px}
+    /* S8.10 follow-up (Opus review): right:0 anchors the box to its OWN button (.menu is its containing block), not
+       to the viewport. A button in the middle of the toolbar (View, Edit, Filter) can carry a box wide enough to run
+       off the left edge — onMenuToggle below clamps it back on open. max-width is a plain backstop so a box can
+       never exceed the viewport even before that clamp runs. */
+    .box{max-height:75vh;overflow:auto;position:absolute;right:0;top:calc(100% + 4px);z-index:40;min-width:210px;max-width:calc(100vw - 16px);display:flex;flex-direction:column;gap:6px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px}
     .box .btn,.box .chip,.box select{width:100%;text-align:left}
     .ctxmenu{position:fixed;z-index:30;max-height:70vh;overflow:auto;min-width:200px;display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
     .ctxmenu .btn{width:100%;text-align:left}
@@ -284,6 +308,7 @@ export class FloorplanStudioEditor extends LitElement {
     .add-dev-panel .rows .btn .devrow-name{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .add-dev-panel .rows .btn small{opacity:.7}
     .place-panel{width:min(660px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
+    /* top:90px is only the fallback: installCodeView() always sets an inline top from panelTop(), which wins. */
     .installcode-panel{position:fixed;left:50%;top:90px;transform:translateX(-50%);z-index:30;width:520px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
     .installcode-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--fp-idle);font-weight:600}
     .installcode-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
@@ -304,7 +329,6 @@ export class FloorplanStudioEditor extends LitElement {
     .guide summary::before{content:"\\25B8";display:inline-block;width:1em;transition:transform .15s ease}
     .guide details[open] summary::before{transform:rotate(90deg)}
     .sep{border-top:1px solid var(--fp-idle)}
-    .vsep{align-self:stretch;border-left:1px solid var(--fp-idle);margin:2px 0}
     /* Lighter, not lower-contrast: opacity leaves .btn's own colour/background computed values untouched (S1.53's
        contrast pair still passes) and only changes how it blends against the page behind it. */
     .btn.light{opacity:.6}
@@ -330,6 +354,14 @@ export class FloorplanStudioEditor extends LitElement {
     .box input[type=search]{width:100%;box-sizing:border-box}
     .harow{display:flex;align-items:center;gap:4px;flex-wrap:wrap} .harow>span:first-child{flex:1;min-width:80px} .harow .btn{width:auto}
     .habox-h{margin:8px 0 2px;font-size:.85em;font-weight:600;opacity:.8}
+    /* S8.10: the room box's Devices/Helpers/Automations/Scripts/Scenes headings, and the Devices group's own
+       per-type sub-groups, are collapsible <details>, closed by default (findings 2, 10). */
+    .habox-group,.habox-sub{display:flex;flex-direction:column;gap:2px}
+    .habox-group>summary,.habox-sub>summary{list-style:none}
+    .habox-group>summary::-webkit-details-marker,.habox-sub>summary::-webkit-details-marker{display:none}
+    .habox-group>summary::before,.habox-sub>summary::before{content:"\\25B8";display:inline-block;width:1em;transition:transform .15s ease}
+    .habox-group[open]>summary::before,.habox-sub[open]>summary::before{transform:rotate(90deg)}
+    .habox-sub{padding-left:14px}
     .harow2{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:2px 0} .harow2>span:first-child{flex:1;min-width:80px} .harow2 .btn{width:auto}
     aside{display:flex;flex-direction:column;gap:12px}
     aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}
@@ -349,9 +381,16 @@ export class FloorplanStudioEditor extends LitElement {
     h4.pnl-h:first-child,strong+h4.pnl-h,strong+p+h4.pnl-h,strong+p+p+h4.pnl-h{margin-top:4px;padding-top:0;border-top:none}
     .errors{border:1px solid var(--fp-motion);border-radius:4px;padding:6px 10px;margin:6px 0}
     .errors ul{margin:4px 0;padding-left:18px}
-    /* S7.2: the status line sits in the toolbar, right of Redo. A fixed flex-basis, not its text, sets its width, so a
-       long message is cut with an ellipsis (the full text is in title) and never wraps the toolbar. */
-    .status{flex:1 1 12em;min-width:6em;max-width:36em;font-size:.85em;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    /* S7.2: the status line sits in the toolbar. A long message is cut with an ellipsis (the full text is in
+       title) and never wraps the toolbar. */
+    /* S8.10 follow-up: status is the cluster's first item, no flex-grow and no fixed flex-basis reserving space
+       for it — a basis of 12em always held that much room even for "Ready", leaving an empty gap before Help.
+       flex-basis:auto sizes the box to its own text, so there is no reserved space anywhere in the cluster; growing
+       or shrinking that text changes only status's own left edge (justify-content:flex-end on .bar-right anchors
+       the packed block's right edge, and every item after status keeps a fixed distance from that right edge, so
+       Filter's x never moves when the status text changes — see the "moves no button" acceptance test). max-width
+       still caps an extreme message so text-overflow:ellipsis clips it instead of ever forcing a wrap. */
+    .status{flex:0 1 auto;max-width:16em;font-size:.85em;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .room{pointer-events:all}
     .opening{pointer-events:stroke}
     .furn{pointer-events:all}
@@ -847,11 +886,19 @@ export class FloorplanStudioEditor extends LitElement {
   private closeCtxMenu = () => { if (this.ctxMenu) { this.ctxMenu = null; this.requestUpdate(); } };
 
   private toggleDevCols = () => {
-    this.devColsPos = this.devColsPos ? null : { x: Math.max(20, (window.innerWidth - 560) / 2), y: 90 };
+    this.devColsPos = this.devColsPos ? null : { x: Math.max(20, (window.innerWidth - 560) / 2), y: this.panelTop() };
     this.requestUpdate();
   };
   /** Where a floating panel of width `w` opens: centred under the toolbar, never off the left edge. */
-  private panelPos(w: number) { return { x: Math.max(20, (window.innerWidth - w) / 2), y: 90 }; }
+  private panelPos(w: number) { return { x: Math.max(20, (window.innerWidth - w) / 2), y: this.panelTop() }; }
+  /**
+   * S8.10 follow-up (Opus review): a floating panel used to always open at a hardcoded y:90 — fine for the one-row
+   * toolbar this was measured against, but the toolbar's own right-aligned cluster can wrap onto several rows at a
+   * narrow width, reaching well past 90px, and the panel opened underneath it, covered. Measures the toolbar's own
+   * rendered bottom edge instead, so a panel never opens under whatever the toolbar actually is this render. Falls
+   * back to 90 only if `.bar` cannot be found (should not happen; defensive only).
+   */
+  private panelTop() { const r = this.renderRoot.querySelector(".bar")?.getBoundingClientRect(); return r ? Math.round(r.bottom) + 10 : 90; }
   /** S8.1: the pointer handlers that drag a floating panel by its head. `get` reads its position, `set` writes the new one; a
    * press on a button in the head (its X) is not a drag. Shared by Device colours, Home Assistant and Place. */
   private dragHead(get: () => { x: number; y: number } | null, set: (p: { x: number; y: number }) => void) {
@@ -1336,7 +1383,10 @@ export class FloorplanStudioEditor extends LitElement {
    * the moment it opens. */
   private installCodeView() {
     const code = this.installCodeYaml();
-    return html`<div class="installcode-panel" role="dialog" aria-label="Install code">
+    // S8.10 follow-up (Opus review): same fixed-90px overlap as the draggable panels (see panelTop's own comment),
+    // just with a static CSS top instead of a JS position — cleared here with an inline style, which wins over the
+    // class's own top:90px.
+    return html`<div class="installcode-panel" role="dialog" aria-label="Install code" style="top:${this.panelTop()}px">
       <div class="installcode-head"><span>Install this card</span>
         <button class="btn keep" id="installcodeClose" aria-label="Close" @click=${() => this.toggleInstallCode()}>&times;</button>
       </div>
@@ -2205,12 +2255,15 @@ export class FloorplanStudioEditor extends LitElement {
         ${this.addingFloor
           ? html`<input id="newFloor" type="text" aria-label="Title of the new floor" placeholder="Floor title" @keydown=${this.onNewFloorKey} @blur=${() => { if (document.hasFocus()) this.addingFloor = false; }}>`
           : nothing}
-        <span class="grow"></span>
-        <details class="menu" id="filter"><summary class="btn" aria-label="Filter devices">${st.filter.length ? `Filter: ${st.filter.length} type${st.filter.length > 1 ? "s" : ""}` : `Filter: all (${f.devices.length})`}</summary><div class="box">
+        <div class="bar-right">
+        <!-- S8.10 follow-up: status is the cluster's first item; growing it moves only its own left edge, never
+             a button after it (see .status's own comment above). -->
+        <span class="status" id="status" role="status" title=${this.status}>${this.status}</span>
+        <details class="menu" id="filter" @toggle=${this.onMenuToggle}><summary class="btn" aria-label="Filter devices">${st.filter.length ? `Filter: ${st.filter.length} type${st.filter.length > 1 ? "s" : ""}` : `Filter: all (${f.devices.length})`}</summary><div class="box">
           <button class="btn keep" id="filterAll" ?disabled=${!st.filter.length} @click=${() => { st.filter = []; st.sel = null; this.requestUpdate(); }}>All</button>
           ${TYPE_LABELS.filter(([t]) => counts[t]).map(([t, label]) => html`<button class="btn keep" data-filter=${t} aria-pressed=${pressed(st.filter.includes(t))} @click=${() => { st.filter = st.filter.includes(t) ? st.filter.filter((x) => x !== t) : [...st.filter, t]; st.sel = null; this.requestUpdate(); }}>${label} (${counts[t]})</button>`)}
         </div></details>
-        <details class="menu" id="mAdd"><summary class="btn">Add</summary><div class="box">
+        <details class="menu" id="mAdd" @toggle=${this.onMenuToggle}><summary class="btn">Add</summary><div class="box">
           <details class="sub" id="addOpenings"><summary class="btn">Openings</summary>
             <button class="btn" id="addDoor" @click=${() => this.addDoor("door", 90)}>Door</button>
             <button class="btn" id="addWin" @click=${() => this.addDoor("window", 120)}>Window</button>
@@ -2235,7 +2288,7 @@ export class FloorplanStudioEditor extends LitElement {
             ${UNLINKED_TYPES.map((t) => html`<option value=${t}>${TYPE_LABELS.find((x) => x[0] === t)?.[1] ?? t}</option>`)}
           </select>
         </div></details>
-        <details class="menu" id="mDraw"><summary class="btn">Draw</summary><div class="box">
+        <details class="menu" id="mDraw" @toggle=${this.onMenuToggle}><summary class="btn">Draw</summary><div class="box">
           <details class="sub" id="drawOpenings"><summary class="btn">Openings</summary>
             <button class="btn" id="drawOpening" @click=${() => this.startDraw("opening")}>Draw opening</button>
           </details>
@@ -2250,7 +2303,7 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="drawExtra" @click=${() => this.startDraw("extra")}>Draw structure line</button>
           </details>
         </div></details>
-        <details class="menu" id="mOpt" @toggle=${this.onOptToggle}><summary class="btn">View</summary><div class="box">
+        <details class="menu" id="mOpt" @toggle=${this.onMenuToggle}><summary class="btn">View</summary><div class="box">
           <span class="grp" id="version">Floorplan Studio ${manifest.version}</span>
           <div class="rotrow" id="snap" role="group" aria-label="Snap"><span>Snap</span>
             ${GRID_VALUES.map((g) => html`<button class="chip keep" data-grid=${g} aria-pressed=${pressed(st.snapGrid === g)} @click=${() => { st.setGrid(g); this.requestUpdate(); }}>${g ? `${g} cm` : "None"}</button>`)}</div>
@@ -2264,7 +2317,7 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn" id="recenter" @click=${() => { st.recenter(); this.requestUpdate(); }}>Re-center</button>
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
         </div></details>
-        <details class="menu" id="mEdit"><summary class="btn">Edit</summary><div class="box">
+        <details class="menu" id="mEdit" @toggle=${this.onMenuToggle}><summary class="btn">Edit</summary><div class="box">
           <button class="btn" id="addFloor" title="Add a floor" @click=${() => this.startAddFloor()}>Add floor</button>
           ${this.writer ? html`<button class="btn" id="mHA" ?disabled=${!this.haList?.length && !this.haListErr} aria-expanded=${pressed(!!this.haPos)} title=${this.haListErr || (this.haList?.length ? "What Floorplan Studio made in Home Assistant" : "Nothing Floorplan Studio made is labelled in Home Assistant yet")} @click=${() => this.toggleHa()}>Home Assistant</button>` : nothing}
           ${ha ? html`<details class="sub" id="mGroup"><summary class="btn">Group</summary>
@@ -2288,7 +2341,7 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn" id="devcols" aria-expanded=${pressed(!!this.devColsPos)} @click=${() => this.toggleDevCols()}>Device colours</button>
           <button class="btn" id="traceBtn" aria-expanded=${pressed(this.traceOpen)} @click=${() => this.toggleTrace()}>Trace image…</button>
         </div></details>
-        <details class="menu" id="mFile"><summary class="btn">File</summary><div class="box">
+        <details class="menu" id="mFile" @toggle=${this.onMenuToggle}><summary class="btn">File</summary><div class="box">
           <button class="btn" id="imp" @click=${() => this.renderRoot.querySelector<HTMLInputElement>("#file")?.click()}>Open…</button>
           <button class="btn" id="exp" title="Download the current layout as JSON" @click=${() => this.exportJson()}>Export…</button>
           <label class="grp"><input type="checkbox" id="expTrace" .checked=${live(this.exportTrace)} @change=${(e: Event) => { this.exportTrace = (e.target as HTMLInputElement).checked; }}> Include trace image</label>
@@ -2297,11 +2350,17 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn danger" id="reset" title="Erase everything and start from a blank plan" @click=${() => this.reset()}>Reset</button>
           <button class="btn primary" id="save" @click=${() => this.save()}>Save</button>
         </div></details>
+        <!-- S8.10 follow-up: Help, then Undo and Redo as the cluster's last items, so Redo's own right edge is
+             the one the toolbar-alignment acceptance test pins. -->
         <button class="btn" id="help" aria-expanded=${pressed(st.helpOpen)} @click=${() => this.toggleHelp()}>Help</button>
-        <div class="vsep"></div>
+        <!-- S8.10 follow-up (Opus review): Undo and Redo as one flex item (nowrap inside), so wrapping ever moves
+             the pair together onto the next row — two separate items let the row that fit Undo split Redo onto
+             its own row alone. -->
+        <div class="btnpair">
         <button class="btn light" id="undo" ?disabled=${!st.canUndo} @click=${() => this.undo(true)}>Undo</button>
         <button class="btn light" id="redo" ?disabled=${!st.canRedo} @click=${() => this.undo(false)}>Redo</button>
-        <span class="status" id="status" role="status" title=${this.status}>${this.status}</span>
+        </div>
+        </div>
         <input type="file" id="file" accept=".json,application/json" hidden @change=${(e: Event) => this.openFile(e)}>
       </div>
       ${this.errors.length ? html`<div class="errors" id="errors" role="alert"><strong>That layout was not used.</strong><ul>${this.errors.map((e) => html`<li>${e}</li>`)}</ul><button class="btn" id="errclose" @click=${() => { this.errors = []; }}>Dismiss</button></div>` : nothing}
@@ -2327,12 +2386,30 @@ export class FloorplanStudioEditor extends LitElement {
       </div>`;
   }
 
-  /** View's Theme submenu keeps its own open state (S4.11 pattern); a "keep" theme button never closes the menu on
+  /**
+   * S8.10 follow-up (Opus review): every menu's box is `right:0` (anchored to its own button, not the viewport —
+   * see the `.box` comment), so a mid-toolbar button whose box is wider than the room to its left runs off-screen.
+   * On open, clamp it back on: reset to the default first (so a stale clamp from a previous, wider viewport never
+   * compounds), measure, and if the left edge is still negative, shift the box right by exactly that overflow —
+   * `left` is relative to `.menu` (its containing block), so `-menuRect.left` places the box's real left edge at
+   * the viewport's own left edge (0), regardless of the box's width.
+   * Also View's Theme submenu keeps its own open state (S4.11 pattern); a "keep" theme button never closes View on
    * click, so closing View by clicking its own summary again — the one route `onWindowClick` does not cover — must
-   * collapse the submenu itself, or reopening View leaves Theme already open. */
-  private onOptToggle = (ev: Event) => {
-    const m = ev.currentTarget as HTMLDetailsElement;
-    if (!m.open) this.closeSubs(m);
+   * collapse the submenu itself, or reopening View leaves Theme already open.
+   */
+  private onMenuToggle = (ev: Event) => {
+    const details = ev.currentTarget as HTMLDetailsElement;
+    if (details.id === "mOpt" && !details.open) this.closeSubs(details);
+    const box = details.querySelector<HTMLElement>(":scope > .box");
+    if (!box) return;
+    box.style.left = "";
+    box.style.right = "0";
+    if (!details.open) return;
+    const overflowLeft = -box.getBoundingClientRect().left;
+    if (overflowLeft > 0) {
+      box.style.right = "auto";
+      box.style.left = `${-details.getBoundingClientRect().left}px`;
+    }
   };
   /**
    * S4.14: places `e` from the Add > Entities palette — the room its HA area names, when one is drawn on the current

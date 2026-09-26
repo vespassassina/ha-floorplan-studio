@@ -107,7 +107,7 @@ npx playwright test # editor tests; PW_PORT=5400 to run beside another checkout
 ```
 
 Open `dist/editor.html` in a browser to use the editor with no server.
-Work is split in tasks (`docs/PLAN.md`), run with the three-role flow (Sonnet executes and verifies, Opus decides) in
+Work is split in tasks (`docs/PLAN.md`), run with the flow in
 `docs/WORKFLOW.md`. Decisions are in `docs/DECISIONS.md`. Notes for AI
 assistants working on the code are in `CLAUDE.md`. Contributing by hand: see
 [`CONTRIBUTING.md`](CONTRIBUTING.md). The layout format itself:

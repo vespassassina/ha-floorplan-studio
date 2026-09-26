@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { DEVICE_COLOURS } from "../../src/core/render";
 import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
 import { GUIDE_STEPS } from "../../src/editor/guide";
+import { decodePng, pixelAt } from "../core/util/png";
 
 // Every pointer action goes through page.mouse at real screen coordinates, so the
 // real top element decides what is hit (icons, handles, walls), as for a user.
@@ -1624,6 +1625,139 @@ test("the toolbar order is Filter, Add, Draw, View, Edit, File; Device… is a b
   const subs = await page.locator("#mAdd > .box > *").evaluateAll((els) => els.map((e) => e.id || e.tagName));
   const areasIdx = subs.indexOf("addAreas");
   expect(subs[areasIdx + 1]).toBe("addDevBtn"); // Device… sits right after Areas
+});
+
+// ---- S8.10: the toolbar's right-aligned cluster (menus, Undo/Redo, status) --------------------------------------
+
+test("S8.10: the toolbar's Redo button sits flush against the toolbar's right edge; the floor chips stay left; no horizontal scroll at 380", async ({ page }) => {
+  for (const width of [1280, 380]) {
+    await page.setViewportSize({ width, height: 800 });
+    const bar = await page.locator(".bar").first().boundingBox();
+    const chip = await page.locator(".bar .chip").first().boundingBox();
+    // S8.10 follow-up: Undo/Redo moved to be the cluster's last items (after Help), so Redo's own right edge is
+    // now the one pinned to the toolbar's, not Help's.
+    const redo = await page.locator("#redo").boundingBox();
+    if (!bar || !chip || !redo) throw new Error("missing toolbar box");
+    // Break it: put back the old `<span class="grow">` right after the floor chips and this fails — Redo sits
+    // hundreds of px short of the toolbar's own right edge (measured pre-fix: 1256 - 828 ~= 427px at 1280 wide).
+    expect(chip.x - bar.x, `${width}px: floor chip left edge`).toBeLessThan(4);
+    expect(bar.x + bar.width - (redo.x + redo.width), `${width}px: Redo right edge vs toolbar right edge`).toBeLessThanOrEqual(4);
+    // Opus review CSS pair (finding 10): the computed style behind the alignment, not just its presence as a string.
+    // flex:1 1 0 (not a shrink-to-fit box pushed by its own margin-left:auto) is what makes this deterministic: a
+    // shrink-to-fit `.bar-right` sized itself from its own content, and nesting a flex-wrap item inside another
+    // flex-wrap row like that left Chromium free to settle on either of two different widths for identical content,
+    // depending only on what triggered the last layout pass — a real regression this test caught (S8.10 follow-up).
+    // Below 768px (S8.10 follow-up) the media query forces flex-basis:100% so the cluster wraps to its own row
+    // instead of squeezing beside the chips; above it, flex-basis:0% still lets it fill the line it shares with them.
+    const style = await page.locator(".bar-right").evaluate((el) => { const s = getComputedStyle(el); return { justifyContent: s.justifyContent, flexGrow: s.flexGrow, flexBasis: s.flexBasis }; });
+    expect(style.justifyContent, `${width}px`).toBe("flex-end");
+    expect(style.flexGrow, `${width}px: fills the line deterministically, not by shrink-to-fit + margin-left:auto`).toBe("1");
+    expect(style.flexBasis, `${width}px`).toBe(width <= 768 ? "100%" : "0%");
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+    expect(overflow, `${width}px: horizontal scroll`).toBe(false);
+  }
+});
+
+test("S8.10 follow-up: the right-aligned cluster is tight — equal gaps, Redo flush right, a status change moves no button", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // Break it: put back `.status{flex:0 1 12em;min-width:6em;max-width:12em}` (the pre-follow-up rule that always
+  // reserved 12em for "Ready") and this fails — the gap right before Help balloons far past the 6px flex gap.
+  const items = await page.locator(".bar-right > *").evaluateAll((els) => els
+    .filter((el) => (el as HTMLElement).offsetParent !== null || getComputedStyle(el as HTMLElement).display !== "none")
+    .map((el) => { const r = el.getBoundingClientRect(); return { id: (el as HTMLElement).id || el.className, x: r.x, right: r.x + r.width, cy: r.y + r.height / 2 }; }));
+  // Single row at 1280: every visible item shares the same row (align-items:center lines up their vertical
+  // centres, not their tops — items differ in height, a <span> vs a <details>/<button>).
+  const rowCy = items[0].cy;
+  for (const it of items) expect(Math.abs(it.cy - rowCy), it.id).toBeLessThan(3);
+  const sorted = [...items].sort((a, b) => a.x - b.x);
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = sorted[i].x - sorted[i - 1].right;
+    expect(gap, `${sorted[i - 1].id} -> ${sorted[i].id}`).toBeGreaterThanOrEqual(4);
+    expect(gap, `${sorted[i - 1].id} -> ${sorted[i].id}`).toBeLessThanOrEqual(8);
+  }
+  const bar = (await page.locator(".bar").boundingBox())!;
+  const redo = (await page.locator("#redo").boundingBox())!;
+  expect(bar.x + bar.width - (redo.x + redo.width), "Redo right edge vs toolbar right edge").toBeLessThanOrEqual(4);
+  const filterXBefore = (await page.locator("#filter").boundingBox())!.x;
+  await page.evaluate(([tag, m]) => (document.querySelector(tag) as any).saveDone(true, m), [EDITOR, "Saved to Home Assistant"] as const);
+  await expect(page.locator("#status")).toHaveText("Saved to Home Assistant");
+  const filterXAfter = (await page.locator("#filter").boundingBox())!.x;
+  expect(filterXAfter, "Filter's x must not move when the status text changes").toBeCloseTo(filterXBefore, 0);
+});
+
+test("S8.10 follow-up: at 380 wide the right-aligned cluster takes its own full-width row below the floor chips, right-aligned, chips top-aligned", async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 900 });
+  const bar = (await page.locator(".bar").boundingBox())!;
+  const chip = (await page.locator(".bar .chip").first().boundingBox())!;
+  const clusterBox = (await page.locator(".bar-right").boundingBox())!;
+  // Break it: with flex-basis reverted to 0% (no narrow-width override) the cluster squeezes onto the chips' own
+  // row instead of wrapping to its own — this fails because the cluster's row then shares the chips' y and the
+  // cluster is far narrower than the toolbar.
+  expect(clusterBox.y, "cluster starts below the chips' row").toBeGreaterThan(chip.y + chip.height - 2);
+  expect(clusterBox.width, "cluster spans (near) the full toolbar width").toBeGreaterThanOrEqual(bar.width * 0.9);
+  // The chips sit at the toolbar's own top padding, not centred across the combined (chips + wrapped cluster) height.
+  const barPadTop = await page.locator(".bar").evaluate((el) => parseFloat(getComputedStyle(el).paddingTop));
+  expect(Math.abs(chip.y - (bar.y + barPadTop)), "the floor chips are top-aligned on the toolbar's first row").toBeLessThan(2);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow, "no horizontal scroll at 380px").toBe(false);
+  // Determinism check (the Chromium width-instability bug found earlier in S8.10): the cluster's own width must not
+  // change between two renders of the same content, run twice to catch a non-deterministic layout result.
+  const widthsAcrossRenders: number[] = [];
+  for (let i = 0; i < 2; i++) {
+    await page.evaluate(([tag, m]) => (document.querySelector(tag) as any).saveDone(true, m), [EDITOR, "Ready"] as const);
+    widthsAcrossRenders.push((await page.locator(".bar-right").boundingBox())!.width);
+  }
+  expect(Math.abs(widthsAcrossRenders[0] - widthsAcrossRenders[1])).toBeLessThan(1);
+});
+
+// S8.10 follow-up (Opus review): the old version of this test only ever opened File, the rightmost menu — its box's
+// `right:0` anchors flush with File's own button, which already sits near the toolbar's right edge, so the box
+// could never run off-screen there and the test passed on unfixed code. `.box{right:0}` anchors every dropdown's
+// box to its OWN button (the containing `.menu`), not to the viewport, so a mid-toolbar button (View, Edit, Filter)
+// carries a box that can run off the left edge once the box is wider than the space to that button's left — found
+// at 380 (View -96..128px) and even 600 (Filter -10..214px). Every menu, every width the toolbar actually uses.
+test("S8.10 follow-up (Opus review): every menu's dropdown box stays inside the viewport at every toolbar width", async ({ page }) => {
+  const menus = ["filter", "mAdd", "mDraw", "mOpt", "mEdit", "mFile"];
+  for (const width of [380, 600, 769, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    for (const id of menus) {
+      await page.locator(`#${id} > summary`).click();
+      // The clamp runs in the <details> "toggle" event, which the HTML spec fires as a queued task, not
+      // synchronously inside the click that opened it, so Playwright's click() can resolve a tick before the
+      // clamp applies. A sentinel on the box's own inline style does not work as a wait condition here: closing
+      // a menu already leaves `right` non-empty ("0"), so re-opening it would read that stale leftover as "the
+      // clamp already ran" before the new toggle fires. Poll the actual on-screen position instead, with a
+      // short timeout — long enough to cross the one queued task, short enough that a genuinely missing clamp
+      // still fails fast.
+      await expect(async () => {
+        const box = await page.locator(`#${id} .box`).boundingBox();
+        expect(box, `no .box for #${id} at ${width}px`).toBeTruthy();
+        expect(box!.x, `${width}px #${id}: dropdown left edge`).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width, `${width}px #${id}: dropdown right edge`).toBeLessThanOrEqual(width);
+      }).toPass({ timeout: 1000 });
+      await page.locator(`#${id} > summary`).click(); // close it again
+    }
+  }
+});
+
+// S8.10 follow-up (Opus review): at 380 wide, Undo and Redo used to be two separate flex items, so the row that
+// already held View, Edit, File and Help had room for Undo but not Redo, splitting the pair across two rows.
+test("S8.10 follow-up (Opus review): Undo and Redo wrap onto a new row together, the pair never splits", async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 900 });
+  const undo = (await page.locator("#undo").boundingBox())!;
+  const redo = (await page.locator("#redo").boundingBox())!;
+  expect(Math.abs(undo.y - redo.y), "Undo and Redo must land on the same row").toBeLessThan(3);
+});
+
+// S8.10 follow-up (Opus review): a floating panel (Device colours, Home Assistant, Place, Add device) opened at a
+// hardcoded top:90px, which a taller, wrapped narrow toolbar (380px: up to 5 rows) can reach past and cover.
+test("S8.10 follow-up (Opus review): a floating panel opens below the toolbar's real bottom edge, not a fixed 90px", async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 900 });
+  await page.locator("#mEdit > summary").click();
+  await page.locator("#devcols").click();
+  const bar = (await page.locator(".bar").boundingBox())!;
+  const panel = (await page.locator(".devcols-panel").boundingBox())!;
+  expect(panel.y, "the panel's top must be at or below the toolbar's real bottom edge").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
 });
 
 test("Device… lists the unplaced entries grouped by type; a deleted light and its relay come back, placing the light takes only the light", async ({ page }) => {
@@ -4432,18 +4566,22 @@ test("CSS pair: furniture has its own fixed grey token, decoupled from idle devi
   expect(await page.locator("svg g.furn").first().evaluate((e) => getComputedStyle(e).color)).toBe(rgb("#79766e"));
 });
 
-test("CSS pair: an opening's erase stroke matches a plain room's own fill, in light and in a dark theme", async ({ page }) => {
+// S8.11: an opening used to be a grey band stroked to match a plain room's own fill (--fp-room-empty) so it
+// merely looked like a hole; that band showed as a visibly wrong colour over any room with its own colour or
+// texture. Now the hole is real — src/core/render.ts cuts the wall out of a <mask> — so the opening's own
+// stroke paints nothing at all, in every theme, whatever the room under it looks like.
+test("CSS pair: an opening's own stroke is transparent in light and in a dark theme, whatever the room's own colour (S8.11)", async ({ page }) => {
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), g = l.floors.ground;
-    g.openings.push({ id: "css-op", a: [200, 0], b: [300, 0] }); // on Living's plain, uncoloured external wall
+    g.rooms[0].color = "#4a6fa5"; // Living, given a colour of its own so a leftover fill-matching band would visibly clash
+    g.openings.push({ id: "css-op", a: [200, 0], b: [300, 0] }); // on Living's now-coloured external wall
     el.layout = l;
   }, EDITOR);
   const style = () => page.locator("svg line.opening").first().evaluate((e) => getComputedStyle(e).stroke);
-  const roomFill = () => page.locator('svg polygon[data-r="0"]').first().evaluate((e) => getComputedStyle(e).fill); // Living, no colour of its own
   await setTheme(page, "light");
-  expect(await style()).toBe(await roomFill());
+  expect(await style()).toBe("rgba(0, 0, 0, 0)");
   await setTheme(page, "midnight");
-  expect(await style()).toBe(await roomFill());
+  expect(await style()).toBe("rgba(0, 0, 0, 0)");
 });
 
 test("Opus review CSS pair: each room kind has its own fill; fill is hatched; zone is unfilled (render.test.ts:207-210, 371-394)", async ({ page }) => {
@@ -6794,9 +6932,13 @@ test("S4.7: Run calls scene.turn_on, and Open dispatches Home Assistant's more-i
   await withBoxWriter(page);
   await selectLiving(page);
   await page.evaluate((tag) => { (window as any).__moreInfo = null; document.querySelector(tag as string)!.addEventListener("hass-more-info", (e: any) => { (window as any).__moreInfo = e.detail; }); }, EDITOR);
+  // S8.10: Scenes, and the Devices > Lights sub-group, are collapsible and closed by default; open them first.
+  await page.locator('[data-ha-group="scenes"] > summary').click();
   await page.locator('[data-ha-row="scene.living_movie"] button:has-text("Run")').click();
   await expect.poll(async () => (await boxCalls(page)).length).toBe(1);
   expect((await boxCalls(page))[0]).toEqual(["scene", "scene.living_movie"]);
+  await page.locator('[data-ha-group="devices"] > summary').click();
+  await page.locator('[data-ha-devgroup="light"] > summary').click();
   await page.locator('[data-ha-row="light.demo_living"] button:has-text("Open")').click();
   expect(await page.evaluate(() => (window as any).__moreInfo)).toEqual({ entityId: "light.demo_living" });
 });
@@ -6831,6 +6973,120 @@ test("S4.7: a custom room with an entity shows that one row with no headings; wi
   await page.locator("#rent").selectOption("light.demo_living");
   await expect(page.locator(".habox")).toContainText("Living lamp");
   await expect(page.locator(".habox")).not.toContainText("Devices"); // no headings for the single-entity case
+});
+
+// ---- S8.10: the room box's Devices list, collapsible and grouped by type ----------------------------------------
+
+// A mixed bag of types under one area, the shape of the maintainer's real ~35-row room: two lights (out of name
+// order, to prove the sub-group still sorts by name), a switch, a media player, a battery and temperature sensor, a
+// motion binary_sensor. All in "living", so `selectLiving` (200,150) reaches them.
+const MIXED_HA = { floors: [], areas: [{ id: "living", name: "Living" }], entities: [
+  { id: "light.b_lamp", name: "B lamp", domain: "light", area: "living" },
+  { id: "light.a_lamp", name: "A lamp", domain: "light", area: "living" },
+  { id: "switch.fan", name: "Fan switch", domain: "switch", area: "living" },
+  { id: "media_player.tv", name: "Living TV", domain: "media_player", area: "living" },
+  { id: "sensor.phone_battery", name: "Phone battery", domain: "sensor", dc: "battery", area: "living" },
+  { id: "sensor.temp", name: "Room temp", domain: "sensor", dc: "temperature", area: "living" },
+  { id: "binary_sensor.motion", name: "Hall motion", domain: "binary_sensor", dc: "motion", area: "living" },
+] };
+const detailsOpen = (page: Page, sel: string) => page.locator(sel).evaluate((el) => (el as HTMLDetailsElement).open);
+
+test("S8.10: the room box's Devices group is one collapsed block; opening it shows type sub-groups, all collapsed, with the right counts", async ({ page }) => {
+  await setHa(page, MIXED_HA);
+  await selectLiving(page);
+  const devGroup = page.locator('[data-ha-group="devices"]');
+  await expect(devGroup.locator("> summary")).toHaveText("Devices (7)");
+  // Break it: revert to the flat list and this whole test fails at the next line — there is no
+  // [data-ha-group]/[data-ha-devgroup] at all, and every row (light.a_lamp included) is visible right away.
+  expect(await detailsOpen(page, '[data-ha-group="devices"]')).toBe(false);
+  await expect(page.locator('[data-ha-row="light.a_lamp"]')).toBeHidden();
+
+  await devGroup.locator("> summary").click();
+  expect(await detailsOpen(page, '[data-ha-group="devices"]')).toBe(true);
+  const sub = (t: string) => page.locator(`[data-ha-devgroup="${t}"]`);
+  await expect(sub("light").locator("> summary")).toHaveText("Lights (2)");
+  await expect(sub("switch").locator("> summary")).toHaveText("Wall switches (1)");
+  await expect(sub("media").locator("> summary")).toHaveText("Media players (1)");
+  await expect(sub("battery").locator("> summary")).toHaveText("Batteries (1)");
+  await expect(sub("temp").locator("> summary")).toHaveText("Temperature (1)");
+  await expect(sub("motion").locator("> summary")).toHaveText("Motion (1)");
+  for (const t of ["light", "switch", "media", "battery", "temp", "motion"]) {
+    expect(await detailsOpen(page, `[data-ha-devgroup="${t}"]`), t).toBe(false); // every sub-group starts collapsed too
+  }
+  await expect(page.locator('[data-ha-row="light.a_lamp"]')).toBeHidden(); // Devices is open, but Lights is not
+});
+
+test("S8.10: opening the Devices group then Lights shows only the light rows, sorted by name", async ({ page }) => {
+  await setHa(page, MIXED_HA);
+  await selectLiving(page);
+  await page.locator('[data-ha-group="devices"] > summary').click();
+  await page.locator('[data-ha-devgroup="light"] > summary').click();
+  await expect(page.locator('[data-ha-row="light.a_lamp"]')).toBeVisible();
+  await expect(page.locator('[data-ha-row="light.b_lamp"]')).toBeVisible();
+  const order = await page.locator('[data-ha-devgroup="light"] [data-ha-row]').evaluateAll((els) => els.map((e) => e.getAttribute("data-ha-row")));
+  expect(order).toEqual(["light.a_lamp", "light.b_lamp"]); // "A lamp" before "B lamp", not the id order they were declared in
+  // still collapsed: opening Lights did not open its siblings
+  await expect(page.locator('[data-ha-row="switch.fan"]')).toBeHidden();
+  await expect(page.locator('[data-ha-row="media_player.tv"]')).toBeHidden();
+});
+
+
+
+test("S8.10: a group's open state survives selecting another room and back, and a hass update", async ({ page }) => {
+  const TWO_ROOM_HA = { floors: [], areas: [{ id: "living", name: "Living" }, { id: "kitchen", name: "Kitchen" }], entities: [
+    ...MIXED_HA.entities,
+    { id: "light.kitchen_lamp", name: "Kitchen lamp", domain: "light", area: "kitchen" },
+  ] };
+  await setHa(page, TWO_ROOM_HA);
+  await selectLiving(page);
+  await page.locator('[data-ha-group="devices"] > summary').click();
+  await page.locator('[data-ha-devgroup="light"] > summary').click();
+  expect(await detailsOpen(page, '[data-ha-group="devices"]')).toBe(true);
+  expect(await detailsOpen(page, '[data-ha-devgroup="light"]')).toBe(true);
+
+  await clickCm(page, 750, 350); // the kitchen (away from the demo's own light-kitchen device at 650,200)
+  await expect(page.locator(".habox")).toContainText("Kitchen lamp"); // really switched rooms
+  await clickCm(page, 200, 150); // back to the living room
+  // Break it: key the open state by room (or drop it from EditorState into a per-render local) and this fails —
+  // reselecting the living room reads the group closed again.
+  expect(await detailsOpen(page, '[data-ha-group="devices"]')).toBe(true);
+  expect(await detailsOpen(page, '[data-ha-devgroup="light"]')).toBe(true);
+
+  // A `hass` update: Home Assistant sets state repeatedly; here that is a fresh `ha` object with the same content.
+  await setHa(page, { ...TWO_ROOM_HA });
+  expect(await detailsOpen(page, '[data-ha-group="devices"]')).toBe(true);
+  expect(await detailsOpen(page, '[data-ha-devgroup="light"]')).toBe(true);
+});
+
+// S8.10 follow-up (Opus review): TWO_ROOM_HA above never exposed the real defect — Kitchen there only ever had
+// "light", the same type Living had open, so the reused DOM node's key never actually changed. Living here has
+// (light, switch); Kitchen has (switch, temp) — "Wall switches" sits at position 0 in Kitchen (no Lights group
+// exists there), the same DOM position Living's opened "light" sub-group occupied. An unkeyed `.map` reuses that
+// position's `<details>` node for Kitchen's "switch" group; its `?open` binding, compared against Lit's last
+// committed value, keeps the DOM's stale `open` state and the reused node's own `@toggle` then records that stale
+// state under the wrong key.
+const KEY_BUG_HA = { floors: [], areas: [{ id: "living", name: "Living" }, { id: "kitchen", name: "Kitchen" }], entities: [
+  { id: "light.a_lamp", name: "A lamp", domain: "light", area: "living" },
+  { id: "switch.fan", name: "Fan switch", domain: "switch", area: "living" },
+  { id: "switch.kettle", name: "Kettle", domain: "switch", area: "kitchen" },
+  { id: "sensor.k_temp", name: "K temp", domain: "sensor", dc: "temperature", area: "kitchen" },
+] };
+test("S8.10 follow-up (Opus review): a Devices sub-group's open state is keyed by device type, not by its position in the list", async ({ page }) => {
+  await setHa(page, KEY_BUG_HA);
+  await selectLiving(page);
+  await page.locator('[data-ha-group="devices"] > summary').click();
+  await page.locator('[data-ha-devgroup="light"] > summary').click(); // Living: (light, switch) — Lights is position 0
+  expect(await detailsOpen(page, '[data-ha-devgroup="light"]')).toBe(true);
+
+  await clickCm(page, 750, 350); // the kitchen: (switch, temp) — Wall switches is position 0 here, Lights does not exist
+  await expect(page.locator(".habox")).toContainText("Kettle"); // really switched rooms
+  expect(await detailsOpen(page, '[data-ha-devgroup="switch"]'), "Kitchen's Wall switches must start collapsed").toBe(false);
+  const haGroups = await page.evaluate(() => [...(document.querySelector("floorplan-studio-editor") as any).st.haGroups] as string[]);
+  expect(haGroups, "merely switching to Kitchen must not itself record dev:switch as open").not.toContain("dev:switch");
+
+  await clickCm(page, 200, 150); // back to Living
+  expect(await detailsOpen(page, '[data-ha-devgroup="light"]'), "Living's own Lights group must still be open").toBe(true);
+  expect(await detailsOpen(page, '[data-ha-devgroup="switch"]'), "Living's Wall switches was never opened").toBe(false);
 });
 
 test("S5.5: Help opens a step-by-step guide, matching GUIDE_STEPS, and closes with Escape, returning focus to the button", async ({ page }) => {
@@ -7002,14 +7258,18 @@ test("S7.2: the floor panel says Need help and its button opens Help", async ({ 
   await expect(page.locator("#panel .guide")).toBeVisible();
 });
 
-test("S7.2: the status line sits in the toolbar, right of Redo, and Save still writes Saved there", async ({ page }) => {
+test("S7.2: the status line sits in the toolbar's right-aligned cluster, and Save still writes Saved there", async ({ page }) => {
   const status = page.locator(".bar #status");
   await expect(status).toHaveCount(1);
   await expect(status).toBeVisible();
   await expect(status).toHaveAttribute("role", "status");
   await expect(page.locator(`${EDITOR} aside #status`)).toHaveCount(0);
-  const redo = await page.locator("#redo").boundingBox(), box = await status.boundingBox();
-  expect(box!.x).toBeGreaterThanOrEqual(redo!.x + redo!.width);
+  // S8.10 follow-up: status is now the right-aligned cluster's first item (Filter through Redo follow it), so its
+  // own right edge sits at or before Filter's left edge, not after Redo's.
+  const filter = await page.locator("#filter").boundingBox(), box = await status.boundingBox(), bar = await page.locator(".bar").boundingBox();
+  expect(box!.x + box!.width).toBeLessThanOrEqual(filter!.x + 0.5);
+  expect(box!.x).toBeGreaterThanOrEqual(bar!.x);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(bar!.x + bar!.width + 0.5);
   await menu(page, "File");
   const dl = page.waitForEvent("download");
   await page.locator("#save").click();
@@ -7046,11 +7306,15 @@ test("S7.2 break it: a 200-character status ellipsises, keeps the full text in t
   expect(got.ws).toBe("nowrap");
   expect(got.clipped).toBe(true);
   expect(got.right).toBeLessThanOrEqual(after.x + after.width + 0.5);
-  // one row at 1280: the status, Redo and the first floor chip share a vertical centre
+  // At 1280 the floor chips, status, and the whole menu/Undo/Redo cluster all share the toolbar's one row (S8.10
+  // follow-up: status has no fixed flex-basis any more, only a max-width cap, so even a 200-char message stays
+  // capped and ellipsised rather than growing the cluster's total content width past what fits on one line).
   const mid = async (sel: string) => { const b = (await page.locator(sel).first().boundingBox())!; return b.y + b.height / 2; };
-  const row = await mid("#redo");
-  expect(Math.abs((await mid(".bar #status")) - row)).toBeLessThan(2);
-  expect(Math.abs((await mid(".bar [data-f]")) - row)).toBeLessThan(2);
+  const topRow = await mid("#redo");
+  expect(Math.abs((await mid(".bar [data-f]")) - topRow)).toBeLessThan(2);
+  const statusRow = await mid(".bar #status");
+  expect(Math.abs((await mid("#help")) - statusRow)).toBeLessThan(6); // Help is taller than the status text; same line, not same centre to the px
+  expect(Math.abs(statusRow - topRow)).toBeLessThan(2); // status shares that same single row too, not a wrapped line of its own
 });
 
 test("S7.6: View, Preview night darkens the plan, survives a reload, and is never written to the layout", async ({ page }) => {
@@ -7385,3 +7649,65 @@ test("Opus review: a free wall, an opening, an extra, a zone, an unlinked device
   await expect(page.locator("#edelyes")).toBeVisible();
   await assertHintsFit(page, "edge-delete confirm prompt");
 });
+
+// ---- S8.11: an opening cuts a real hole in the wall, not a grey band painted over it ------------------------
+
+// demo/layout.json's first floor carries one opening on its south outline edge, a=[600,600] b=[700,600]:
+// an external wall (stroke width 20, halo 22, so a point 8 cm off the centreline still sits inside either
+// stroke). The Office room (pts include y:300..600) is the room whose fill must show through the hole.
+const FIRST_OPENING_A: [number, number] = [600, 600], FIRST_OPENING_B: [number, number] = [700, 600];
+const OPENING_MID_X = (FIRST_OPENING_A[0] + FIRST_OPENING_B[0]) / 2; // 650
+const OFF_CENTRELINE = 8; // cm north of the wall centreline: inside the room, inside the (un-cut) wall's own width
+// The Office carries its own colour (#4a6fa5), not the default --fp-room-empty grey the old `.opening` band
+// happened to be stroked with (S8.11: a room whose colour matches that grey could not tell a real hole from
+// the old band painted on top of it — CLAUDE.md finding 4).
+const ROOM_FILL_LIGHT: [number, number, number] = [0x4a, 0x6f, 0xa5];
+const WALL_LIGHT: [number, number, number] = [0x1a, 0x19, 0x17]; // --fp-wall-external, light theme
+
+async function pngAt(page: Page): Promise<ReturnType<typeof decodePng>> {
+  const buf = await page.screenshot();
+  return decodePng(buf);
+}
+function closeTo(px: [number, number, number, number], rgb: [number, number, number]) {
+  return Math.abs(px[0] - rgb[0]) <= 2 && Math.abs(px[1] - rgb[1]) <= 2 && Math.abs(px[2] - rgb[2]) <= 2;
+}
+
+test("S8.11: the opening is a real hole — the room fill shows through it, and the wall stays solid just outside its ends", async ({ page }) => {
+  await setTheme(page, "light"); // pins light values; blueprint is the default since S2.12
+  await page.locator('.chip[data-f="first"]').click();
+  await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "light");
+
+  const inHole = await screenOf(page, OPENING_MID_X, 600 - OFF_CENTRELINE);
+  const onWall = await screenOf(page, 760, 600 - OFF_CENTRELINE); // 760: outside the opening's cap radius (711) and inside the outline (800)
+  const png = await pngAt(page);
+  const holePx = pixelAt(png, inHole.x, inHole.y);
+  const wallPx = pixelAt(png, onWall.x, onWall.y);
+
+  expect(closeTo(holePx, ROOM_FILL_LIGHT), `hole pixel ${holePx} should be the Office's room fill`).toBe(true);
+  expect(closeTo(holePx, WALL_LIGHT), `hole pixel ${holePx} must not be the wall colour`).toBe(false);
+  expect(closeTo(wallPx, WALL_LIGHT), `wall pixel ${wallPx} should still be the external wall colour`).toBe(true);
+});
+
+// This must fail with the mask removed: reverting src/core/render.ts's `<g mask="...">` wrap (or reverting
+// `.opening{stroke:transparent}` to its old grey band) makes the "hole" pixel equal the wall or the old grey,
+// never the room fill — verified by hand, see the S8.11 report.
+
+test("S8.11: a real click still selects the opening in the editor, on top of the masked wall", async ({ page }) => {
+  await page.locator('.chip[data-f="first"]').click();
+  const mid = await screenOf(page, OPENING_MID_X, 600);
+  await page.mouse.click(mid.x, mid.y);
+  await expect(page.locator("#ol")).toHaveValue("100"); // FIRST_OPENING_B[0] - FIRST_OPENING_A[0]
+  await expect(page.locator("svg line.hl")).toHaveCount(1);
+});
+
+// Diego's field review of the S8.11 4x crops (opening-light-4x.png, opening-ha-dark-4x.png, 2026-09-26) found two
+// defects in the mask cut, both fixed in src/core/render.ts. Both pixel tests live in tests/card/card.spec.ts,
+// not here: the editor draws its own measurement-grid overlay line exactly along y=600 (a "major" gridline,
+// every 100 cm) at low opacity, on top of everything, which blends the exact centreline pixel this pair needs to
+// sample and makes the assertion depend on exactly where a thin antialiased line falls — flaky by construction,
+// not a product bug (CLAUDE.md finding 13 is about the other kind). The card never draws that overlay and shares
+// the same renderFloor draw path (finding 8), so it is the reliable place to pin these two pixels down.
+
+// Opus review of S8.11 (2026-09-26): the pair's own two card.spec.ts tests were widened along with the mask cut
+// (OPENING_EXTRA) and a since-removed seam patch was checked and found unnecessary once that cut is wide enough —
+// see docs/DECISIONS.md's S8.11 follow-up.

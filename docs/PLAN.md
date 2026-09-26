@@ -1725,6 +1725,82 @@ closes the sprint.
   was reviewed directly against the code and against part 1's own
   `editor-*` baseline shots instead.
 
+### S8.10 Toolbar right-aligned; Devices list collapsible and typed
+- Outcome: maintainer feedback, two items. First, the toolbar's Filter
+  through Help cluster floated in the middle instead of sitting flush
+  against the right edge (floor chips stay left); the dead `.grow` spacer
+  is gone, replaced by `.bar-right{flex:1 1 0%;min-width:0;justify-
+  content:flex-end}` holding Filter through Help as one item, right-aligning
+  its own wrapped rows down to 380px with no horizontal scroll. Second, the
+  room panel's HOME ASSISTANT Devices list is now one collapsed
+  `<details>` "Devices (N)", with one collapsed sub-group per
+  `typeForEntity` type (`src/core/ha.ts`, the existing mapping, not a new
+  one) sorted by name, unmapped entities last under "Other", groups in a
+  fixed order; Helpers, Automations, Scripts and Scenes get the same
+  treatment. Open/closed state lives in `EditorState.haGroups`, not layout
+  or undo history, so it survives a room switch and a `hass` update
+  (`docs/DECISIONS.md`, 2026-09-26 S8.10).
+- Done, 2026-09-26. Tests first, real `page.mouse` clicks: a `.bar-right`
+  computed-style pair (`justifyContent`, `flexGrow`, `flexBasis`) at 1280
+  and 380, no horizontal scroll at 380 — failed against the pre-fix CSS via
+  `git stash`; a stubbed mixed-entity area showing collapsed "Devices (7)",
+  opening it to seven correctly-labelled collapsed sub-groups, opening
+  "Lights" to only its two rows sorted by name; a persistence test across a
+  room switch and a simulated `hass` update, checking both a group's and a
+  device-type sub-group's open state survive. All new tests also run at
+  `--repeat-each=10` (110/110). Investigating a genuine, previously-
+  undetected Chromium layout-stability bug (a shrink-to-fit flex-wrap
+  container nested as a flex item could settle on two different widths for
+  identical content) led to the final `flex:1 1 0%` fix rather than the
+  first `margin-left:auto` attempt. Two pre-existing S7.2 tests were updated
+  (not reverted) for the new, intentional Help-last ordering, confirmed via
+  a second `git stash` comparison that they passed unmodified on pre-S8.10
+  code. The dropdown-viewport test passes either way (`.box` was already
+  `position:absolute;right:0` inside its own `position:relative`), kept as a
+  regression guard rather than claimed as a red-to-green proof. Full suites
+  green after the last edit: `npx tsc --noEmit -p .` clean; `npm run lint`
+  exit 0; `npx vitest run` exit 0; full `PW_PORT=5397 npx playwright test`
+  567 passed, exit 0; `npm run shots` exit 0, all three editor themes
+  reviewed directly. Manual screenshots of the toolbar and the room panel's
+  opened device list, at 1280 and 380, reviewed directly (not committed).
+
+### S8.11 An opening cuts a real hole in the wall
+
+- Outcome: `renderFloor` (`src/core/render.ts`) wraps the wall-lines group
+  (`.eh`, `.e`, internal and external alike) in an SVG `<mask>` that erases
+  each opening's own footprint, round-capped so no sliver survives at the
+  ends; `.opening` itself now paints `transparent` instead of the old
+  light-grey band, which only ever looked like a hole because it happened
+  to match `--fp-room-empty`. The mask's id is a short content hash
+  (`tag()`, FNV-1a — mirroring `texturePatternId()`'s precedent), not a
+  counter, so `renderFloor` stays pure; identical opening geometry safely
+  shares one id (each card or editor is its own shadow root). The demo's
+  first floor gets a new opening on the Office's south wall, the Office
+  given its own colour so the hole is visibly distinct from the old grey.
+  See `docs/DECISIONS.md`, 2026-09-26.
+- Done, 2026-09-26. Tests first: six `render.test.ts` cases (mask
+  presence/content, id determinism and uniqueness, cut width), all
+  confirmed to fail before the mask existed. A Playwright pixel test
+  (`editor.spec.ts`) screenshots the editor and decodes the PNG with a new
+  dependency-free reader (`tests/core/util/png.ts`, round-tripped against a
+  hand-built PNG in its own test) to assert the opening's centre shows the
+  Office's own fill, not the wall colour; a second Playwright test confirms
+  a real `page.mouse` click at the opening's true screen coordinates still
+  selects it; a `card.spec.ts` test mounts two cards on the same layout and
+  confirms they mint the identical id without cross-talk. All three
+  confirmed to fail with `src/core/render.ts` reverted to its pre-S8.11
+  state (via a WIP stash, not a commit). A pre-existing CSS pair whose
+  premise the fix made obsolete ("an opening's erase stroke matches a plain
+  room's own fill") is rewritten to assert the new invariant instead
+  (transparent stroke, any theme, any room colour) rather than left
+  asserting a coincidence. 30/30 at `--repeat-each=10` on the three new
+  Playwright tests. `npm run shots` run and a 4x crop of the opening
+  checked by eye in light, blueprint, ha-light and ha-dark: a real gap,
+  room fill and its own outline continuing straight through, no grey band,
+  no sliver at the ends. Full suites green after the last edit: `npm run
+  lint` exit 0; unit 1093/1093; full Playwright suite 565 passed, 1
+  skipped, exit 0.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).

@@ -1,6 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox } from "../core";
+import { repeat } from "lit/directives/repeat.js";
+import { entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -529,6 +530,72 @@ function haRow(c: PanelCtx, row: HaBoxRow, kind?: "automation" | "script" | "sce
 }
 
 /**
+ * S8.10: fixed display order for the room box's Devices group — reuses `TYPE_LABELS`, the project's one
+ * domain/device_class -> DeviceType -> label mapping (`typeForEntity` in `src/core/ha.ts`); no second mapping is
+ * invented here. "Other" (unmapped entities) always trails, whatever position it holds in `TYPE_LABELS` itself.
+ */
+const DEVICE_GROUP_ORDER: DeviceType[] = [...TYPE_LABELS.map(([t]) => t).filter((t) => t !== "other"), "other"];
+
+/**
+ * S8.10: the maintainer's real room had ~35 flat rows under "Devices" — TV entities, phones, batteries and so on —
+ * "impossible to use". `rows` (already the room's own area, already sorted by name by `roomHaBox`) is split into
+ * one collapsible sub-group per `DeviceType`, in `DEVICE_GROUP_ORDER`, each closed by default. A row whose entity
+ * cannot be found (should not happen; defensive only) falls into "Other".
+ */
+function haDeviceGroups(c: PanelCtx, ha: HaData, rows: HaBoxRow[]) {
+  const byType = new Map<DeviceType, HaBoxRow[]>();
+  for (const row of rows) {
+    const e = ha.entities.find((x) => x.id === row.id);
+    const t: DeviceType = e ? typeForEntity(e) : "other";
+    const list = byType.get(t);
+    if (list) list.push(row); else byType.set(t, [row]);
+  }
+  const labelOf = (t: DeviceType) => TYPE_LABELS.find(([tt]) => tt === t)?.[1] ?? "Other";
+  const shown = DEVICE_GROUP_ORDER.filter((t) => byType.get(t)?.length);
+  // S8.10 follow-up (Opus review): `repeat`, keyed by the type itself, so a room whose type set differs from the
+  // previous one's never reuses another type's DOM node at the same position — an unkeyed `.map` did, and the
+  // reused `<details>` kept its stale `open` state under the new type's key (`docs/DECISIONS.md` has the repro).
+  // `.open=${live(...)}` (not `?open=`) so the binding always compares against the DOM's real current state, not
+  // only lit-html's last-committed value, in case anything else ever changes it outside a render.
+  // The write side is `@click` on the `<summary>`, flipping our own tracked state, not `@toggle` on `<details>`.
+  // The HTML spec fires `toggle` as a queued task, well after the click that caused it, and `<summary>`'s own
+  // click-driven `open` flip happens even later (its "activation behaviour" runs after the click event's own
+  // listeners, confirmed empirically: a `click` listener still reads the pre-toggle value). A second render — a
+  // room switch is one, and it can land in that gap — would then read `haGroups.has(key)` still false, `live()`
+  // would see that mismatch against the DOM's already-true `open`, and force it back closed before the queued
+  // `toggle` task ever got to record the click into `haGroups`, silently discarding it (`docs/DECISIONS.md` has
+  // the repro). `@click` computes the new state synchronously, in the same task as the click, before any later
+  // render can race it.
+  return repeat(shown, (t) => t, (t) => {
+    const list = byType.get(t)!;
+    const key = `dev:${t}`;
+    return html`<details class="habox-sub" data-ha-devgroup=${t} .open=${live(c.st.haGroups.has(key))}>
+      <summary class="habox-h" @click=${() => c.st.setHaGroup(key, !c.st.haGroups.has(key))}>${labelOf(t)} (${list.length})</summary>
+      ${list.map((row) => haRow(c, row))}
+    </details>`;
+  });
+}
+
+/**
+ * S8.10: one collapsible block of the room box (Devices, Helpers, Automations, Scripts, Scenes — see `haBox`),
+ * closed by default. Its open state lives in `EditorState.haGroups`, keyed by the group's own label (`grp:<label>`,
+ * `dev:<type>` for a Devices sub-group) — not by room or by any per-render structure — so it survives selecting
+ * another room and back, and a `hass` update (the editor's own `EditorState` instance never gets swapped for those).
+ */
+function haGroupBlock(c: PanelCtx, ha: HaData, label: string, rows: HaBoxRow[], kind?: "automation" | "script" | "scene") {
+  const key = `grp:${label}`;
+  const body = label === "Devices"
+    ? haDeviceGroups(c, ha, rows)
+    : rows.map((row) => haRow(c, row, kind, kind ? ha.entities.find((e) => e.id === row.id)?.uid : undefined));
+  // S8.10 follow-up (Opus review): `.open=${live(...)}`, same reasoning as `haDeviceGroups` below — this group's
+  // own `<details>` is itself one entry of an unkeyed-turned-`repeat`d list in `haBox`.
+  return html`<details class="habox-group" data-ha-group=${label.toLowerCase()} .open=${live(c.st.haGroups.has(key))}>
+    <summary class="habox-h" @click=${() => c.st.setHaGroup(key, !c.st.haGroups.has(key))}>${label} (${rows.length})</summary>
+    ${body}
+  </details>`;
+}
+
+/**
  * S4.7: below the room panel, everything Home Assistant has in the room's area, grouped under five headings (placed
  * devices marked), plus "Add to area..." for an entity HA has in no area yet. A custom room (no area) with its own
  * `entity` shows that one row instead; with neither, a hint that there is nothing to show.
@@ -549,8 +616,11 @@ function haBox(c: PanelCtx, i: number) {
   ];
   const groups = all.filter(([, rows]) => rows.length);
   const free = byName(ha.entities.filter((e) => !e.area));
+  // S8.10 follow-up (Opus review): keyed by label, same reason as the Devices sub-groups — a room whose set of
+  // non-empty groups differs from the previous one's must never reuse another group's DOM node (and its open
+  // state) at the same position.
   return html`<div class="habox">
-    ${groups.length ? groups.map(([label, rows, kind]) => html`<p class="habox-h">${label}</p>${rows.map((row) => haRow(c, row, kind, kind ? ha.entities.find((e) => e.id === row.id)?.uid : undefined))}`) : hint("Nothing in this area yet.")}
+    ${groups.length ? repeat(groups, ([label]) => label, ([label, rows, kind]) => haGroupBlock(c, ha, label, rows, kind)) : hint("Nothing in this area yet.")}
     ${c.addToArea && free.length ? html`<label for="haadd">Add to area...</label><select id="haadd" .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) c.addToArea!(i, v); }}>
       <option value="" selected>(pick an entity)</option>${free.map((e) => html`<option value=${e.id}>${e.name}</option>`)}</select>` : nothing}</div>`;
 }
