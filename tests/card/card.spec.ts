@@ -1125,3 +1125,115 @@ test.describe("S8.3: in HA's panel view the plan fits the screen", () => {
     await expect.poll(async () => (await svgBox(page)).height).toBeCloseTo(before.height, 0);
   });
 });
+
+// ---- S8.11: opening masks are per-shadow-root, so two cards never wrongly collide -------------------------------
+
+// render.ts derives an opening mask's id from the content of its own cut lines (tag(), FNV-1a — mirroring
+// texturePatternId's precedent), not a global counter, so renderFloor stays pure: called twice on equal input it
+// is byte-identical. Two cards showing the same floor therefore mint the very same mask id — safe only because
+// each card is its own shadow root, where a url(#id) reference resolves against that root alone. This test mounts
+// a second card in the same page (harness.html has only #card) and proves the two never interfere: same content,
+// same id, both cut correctly; then one card's content changes and the other's rendering and mask are untouched.
+async function addSecondCard(page: Page) {
+  await page.evaluate(() => {
+    const el = document.createElement("floorplan-studio-card");
+    el.id = "card2";
+    document.getElementById("wrap")!.appendChild(el);
+  });
+  await page.waitForFunction(() => customElements.get("floorplan-studio-card") !== undefined);
+}
+async function configureId(page: Page, id: string, config: Record<string, unknown>, hass: Record<string, unknown>) {
+  await page.evaluate(
+    ([id, config, hass]) => {
+      const el = document.getElementById(id as string) as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+      el.setConfig(config);
+      el.hass = hass;
+      return el.updateComplete;
+    },
+    [id, config, hass] as const,
+  );
+}
+function svgHtml(page: Page, id: string) {
+  return page.locator(`#${id}`).evaluate((el) => el.shadowRoot!.querySelector("svg")!.outerHTML);
+}
+function maskIdsIn(html: string): string[] {
+  return [...html.matchAll(/<mask id="([^"]+)"/g)].map((m) => m[1]);
+}
+
+test("S8.11: two cards showing the same floor mint the same (content-derived) mask id, each safely scoped to its own shadow root", async ({ page }) => {
+  await open(page);
+  await addSecondCard(page);
+  const layout = structuredClone(demo);
+  await configure(page, { layout, floor: "first" }, { states: {} });
+  await configureId(page, "card2", { layout, floor: "first" }, { states: {} });
+
+  const html1 = await svgHtml(page, "card"), html2 = await svgHtml(page, "card2");
+  const ids1 = maskIdsIn(html1), ids2 = maskIdsIn(html2);
+  expect(ids1, "the first floor's one opening should produce exactly one mask").toHaveLength(1);
+  expect(ids2).toEqual(ids1); // same content -> same deterministic id, in each card's own scope
+  expect(html1).toContain(`mask="url(#${ids1[0]})"`);
+  expect(html2).toContain(`mask="url(#${ids2[0]})"`);
+
+  // Mutate only card2 (a different opening: different content -> a different id, or none at all here) and
+  // confirm card1's own svg — id, mask content, everything — is untouched by whatever card2 now does.
+  const layout2 = structuredClone(demo);
+  layout2.floors.first.openings = [];
+  await configureId(page, "card2", { layout: layout2, floor: "first" }, { states: {} });
+  const html2b = await svgHtml(page, "card2");
+  expect(maskIdsIn(html2b), "card2 now has no openings, so no mask at all").toHaveLength(0);
+  const html1b = await svgHtml(page, "card");
+  expect(html1b).toBe(html1); // card1 rendered nothing new: still the same markup, same mask, same id
+});
+
+// Diego's field review of the S8.11 4x crops was of the plain card, not the editor (opening-light-4x.png,
+// opening-ha-dark-4x.png, 2026-09-26): both defects below are fixed once, in src/core/render.ts, and CLAUDE.md
+// finding 8 says the editor and the card share one draw path — but the crops that found them were card
+// screenshots, so a card-side regression test guards the path that actually shipped the bug.
+const FIRST_OPENING_A: [number, number] = [600, 600], FIRST_OPENING_B: [number, number] = [700, 600];
+const OPENING_MID_X = (FIRST_OPENING_A[0] + FIRST_OPENING_B[0]) / 2; // 650
+const ROOM_FILL_LIGHT: [number, number, number] = [0x4a, 0x6f, 0xa5]; // Office's own colour, demo/layout.json
+const WALL_LIGHT: [number, number, number] = [0x1a, 0x19, 0x17]; // --fp-wall-external, light theme
+function closeToRgb(px: [number, number, number, number], rgb: [number, number, number]) {
+  return Math.abs(px[0] - rgb[0]) <= 2 && Math.abs(px[1] - rgb[1]) <= 2 && Math.abs(px[2] - rgb[2]) <= 2;
+}
+async function cardScreenOf(page: Page, x: number, y: number) {
+  return page.locator("floorplan-studio-card").evaluate((el, [px, py]) => {
+    const svg = (el as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const q = new DOMPoint(px as number, py as number).matrixTransform(svg.getScreenCTM()!);
+    return { x: q.x, y: q.y };
+  }, [x, y] as const);
+}
+
+test("S8.11 fix 1 (card): the mask cut has square ends — 1.5cm inside a is a hole, 1.5cm outside a is still wall", async ({ page }) => {
+  await open(page);
+  await configure(page, { layout: demo, floor: "first", theme: "light" }, { states: {} });
+  const { decodePng, pixelAt } = await import("../core/util/png");
+
+  const insideA = await cardScreenOf(page, FIRST_OPENING_A[0] + 1.5, 600);
+  const outsideA = await cardScreenOf(page, FIRST_OPENING_A[0] - 1.5, 600);
+  const png = decodePng(await page.screenshot({ fullPage: true }));
+  const insidePx = pixelAt(png, insideA.x, insideA.y);
+  const outsidePx = pixelAt(png, outsideA.x, outsideA.y);
+
+  expect(closeToRgb(insidePx, WALL_LIGHT), `1.5cm inside a (${insidePx}) must not be the wall colour`).toBe(false);
+  expect(closeToRgb(outsidePx, WALL_LIGHT), `1.5cm outside a (${outsidePx}) should still be the external wall colour`).toBe(true);
+});
+
+// This must fail with the round cap restored: reverting src/core/render.ts's opening line back to
+// stroke-linecap="round" erases the "outside a" point too (verified by hand, see the S8.11 report).
+
+test("S8.11 fix 2 (card): the room's own boundary line is cut clean through the opening, at its exact centre", async ({ page }) => {
+  await open(page);
+  await configure(page, { layout: demo, floor: "first", theme: "light" }, { states: {} });
+  const { decodePng, pixelAt } = await import("../core/util/png");
+
+  const centre = await cardScreenOf(page, OPENING_MID_X, 600);
+  const png = decodePng(await page.screenshot({ fullPage: true }));
+  const centrePx = pixelAt(png, centre.x, centre.y);
+
+  expect(closeToRgb(centrePx, ROOM_FILL_LIGHT), `opening centre (${centrePx}) should be the Office's own room fill`).toBe(true);
+});
+
+// This must fail with the seam patch removed: dropping the `f.openings.forEach` seam-patch block in
+// src/core/render.ts leaves the antialiased edge of Office's own polygon as the only thing drawn at y=600, which
+// is not the pure room-fill colour (verified by hand, see the S8.11 report).

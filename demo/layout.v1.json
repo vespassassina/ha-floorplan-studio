@@ -498,7 +498,8 @@
             "external",
             "external",
             "external"
-          ]
+          ],
+          "color": "#4a6fa5"
         }
       ],
       "walls": [],
@@ -518,7 +519,18 @@
           "sensor": "binary_sensor.demo_bedroom_window"
         }
       ],
-      "openings": [],
+      "openings": [
+        {
+          "a": [
+            600,
+            600
+          ],
+          "b": [
+            700,
+            600
+          ]
+        }
+      ],
       "extras": [],
       "devices": [
         {

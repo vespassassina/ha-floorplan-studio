@@ -1764,6 +1764,43 @@ closes the sprint.
   reviewed directly. Manual screenshots of the toolbar and the room panel's
   opened device list, at 1280 and 380, reviewed directly (not committed).
 
+### S8.11 An opening cuts a real hole in the wall
+
+- Outcome: `renderFloor` (`src/core/render.ts`) wraps the wall-lines group
+  (`.eh`, `.e`, internal and external alike) in an SVG `<mask>` that erases
+  each opening's own footprint, round-capped so no sliver survives at the
+  ends; `.opening` itself now paints `transparent` instead of the old
+  light-grey band, which only ever looked like a hole because it happened
+  to match `--fp-room-empty`. The mask's id is a short content hash
+  (`tag()`, FNV-1a — mirroring `texturePatternId()`'s precedent), not a
+  counter, so `renderFloor` stays pure; identical opening geometry safely
+  shares one id (each card or editor is its own shadow root). The demo's
+  first floor gets a new opening on the Office's south wall, the Office
+  given its own colour so the hole is visibly distinct from the old grey.
+  See `docs/DECISIONS.md`, 2026-09-26.
+- Done, 2026-09-26. Tests first: six `render.test.ts` cases (mask
+  presence/content, id determinism and uniqueness, cut width), all
+  confirmed to fail before the mask existed. A Playwright pixel test
+  (`editor.spec.ts`) screenshots the editor and decodes the PNG with a new
+  dependency-free reader (`tests/core/util/png.ts`, round-tripped against a
+  hand-built PNG in its own test) to assert the opening's centre shows the
+  Office's own fill, not the wall colour; a second Playwright test confirms
+  a real `page.mouse` click at the opening's true screen coordinates still
+  selects it; a `card.spec.ts` test mounts two cards on the same layout and
+  confirms they mint the identical id without cross-talk. All three
+  confirmed to fail with `src/core/render.ts` reverted to its pre-S8.11
+  state (via a WIP stash, not a commit). A pre-existing CSS pair whose
+  premise the fix made obsolete ("an opening's erase stroke matches a plain
+  room's own fill") is rewritten to assert the new invariant instead
+  (transparent stroke, any theme, any room colour) rather than left
+  asserting a coincidence. 30/30 at `--repeat-each=10` on the three new
+  Playwright tests. `npm run shots` run and a 4x crop of the opening
+  checked by eye in light, blueprint, ha-light and ha-dark: a real gap,
+  room fill and its own outline continuing straight through, no grey band,
+  no sliver at the ends. Full suites green after the last edit: `npm run
+  lint` exit 0; unit 1093/1093; full Playwright suite 565 passed, 1
+  skipped, exit 0.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).

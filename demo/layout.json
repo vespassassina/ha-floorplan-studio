@@ -545,7 +545,8 @@
             "external",
             "external",
             "external"
-          ]
+          ],
+          "color": "#4a6fa5"
         }
       ],
       "walls": [],
@@ -568,7 +569,19 @@
           ]
         }
       ],
-      "openings": [],
+      "openings": [
+        {
+          "id": "opening-first-1",
+          "a": [
+            600,
+            600
+          ],
+          "b": [
+            700,
+            600
+          ]
+        }
+      ],
       "extras": [],
       "devices": [
         {

@@ -85,6 +85,84 @@ pinned the superseded order and are updated, not reverted, confirmed via the
 same `git stash` technique that they broke only because of this reorder. All
 new/updated tests green at `--repeat-each=10`.
 
+## 2026-09-26 S8.11: an opening cuts a real hole in the wall
+
+Maintainer feedback: an opening (a door-less gap) was a light-grey `.opening`
+band painted over the wall — it happened to read as a hole only because it
+was stroked with `--fp-room-empty`, the same colour a plain uncoloured room
+falls back to. Over any room with its own colour or texture the band was
+visibly wrong: still grey, not the room's own fill.
+
+Fix: `renderFloor` (`src/core/render.ts`) now wraps the wall-lines group
+(`.eh` halo lines and `.e` stroke lines, internal and external alike) in an
+SVG `<mask>` that erases each opening's own footprint —
+`wallWidthAt(f, op.a, op.b) + OPENING_EXTRA` wide, round-capped so no sliver
+survives at the ends. `.opening`'s own stroke is now `transparent`; it keeps
+`pointer-events:none` in the card and `pointer-events:stroke` in the editor,
+unchanged, so it still hit-tests on top of the (now invisible) wall. Whatever
+sits under the cut — a room's fill, texture, or nothing at all outside the
+building — shows straight through.
+
+The mask's `id` is not a counter: `renderFloor` must stay pure (called twice
+on equal input, byte-identical output — many existing tests depend on it), so
+a global incrementing id would have broken it the moment two floors both
+carried an opening. The id is instead a short hash of the mask's own cut-line
+markup (`tag()`, FNV-1a, mirroring `texturePatternId()`'s existing precedent
+in `src/core/textures.ts`): identical opening geometry mints the same id
+(safe — each card or editor instance is its own shadow root, so a `url(#id)`
+reference never resolves outside it), and different geometry mints a
+different one. The mask paints with SVG keyword colours (`white`/`black`),
+not hex, to keep the "no literal hex colours in generated markup" invariant.
+
+The demo's ground floor is exercised by too many fixtures (`render.test.ts`,
+`migrate.test.ts`, `paint.test.ts`, `draw.test.ts`, and roughly a dozen
+Playwright tests in `editor.spec.ts` that assume it starts with zero
+openings) to safely add its first opening there. `demo/layout.json`'s
+**first** floor gets one instead, on the Office's south/outline wall
+(`a:[600,600] b:[700,600]`), and the Office now carries its own colour
+(`#4a6fa5`) so the hole is visibly distinct from the old grey band, not
+coincidentally matching it. Mirrored into `demo/layout.v1.json` (no `id` —
+`migrate()` assigns one).
+
+Tests, each written first and confirmed to fail with the mask removed (or,
+for the two-cards case, with `src/core/render.ts` reverted to its
+pre-S8.11 state): six `render.test.ts` cases (mask presence/content, no mask
+with no openings, same-floor-twice-same-id, different-floors-different-id,
+cut width); an `editor.spec.ts` Playwright test that screenshots the editor,
+decodes the PNG with a new dependency-free reader
+(`tests/core/util/png.ts`, itself round-tripped against a hand-built PNG in
+`tests/core/util/png.test.ts` — no image-decoding dependency existed in the
+repo) and asserts the opening's centre pixel equals the Office's own fill,
+never the wall colour; another confirming a real `page.mouse` click at the
+opening's real screen coordinates still selects it, on top of the masked
+wall; a `card.spec.ts` test mounting two `<floorplan-studio-card>` elements
+with the same layout, confirming they mint the identical (content-derived)
+mask id without interfering with each other's rendering. A pre-existing CSS
+pair (`editor.spec.ts`, "an opening's erase stroke matches a plain room's own
+fill") tested the old design's own premise and is rewritten to the new one:
+the opening's stroke is transparent in every theme, whatever the room's
+colour — proved against a room now given an explicit colour, so a
+regression back to the old grey-matching band cannot pass by coincidence.
+
+Follow-up (2026-09-26, Diego's own 4x crops of the shipped card): two more
+defects. (1) The mask's cut line was round-capped, so each end eroded a
+full disc (radius = half the cut width) around `a`/`b` in every direction,
+not only along the wall — an opening's ends read as concave arcs, and the
+erosion reached past the opening's own span. Now `stroke-linecap="butt"`:
+the cut is exactly `a`-to-`b`, wider across only. (2) A room's own polygon
+edge coincides exactly with an external wall's centreline (that is the
+room's own boundary), so it was always antialiased there; an opaque wall
+used to sit on top of that seam, and the new mask exposed it as a thin
+boundary line running across the hole. `renderFloor` now adds an unmasked
+"seam patch" per opening — found the bordering room the same way
+`room_glow` finds a light's room (`inside()`, probed 5cm off the
+centreline each side) and repaints the seam with that room's own
+`paintAttr()` fill, bled 2cm past the centreline into the hole. Both
+fixed with a failing-first pixel test in `card.spec.ts` (the card, not the
+editor: the editor draws its own measurement-grid line exactly along
+`y=600` at low opacity, which blends the exact pixel these tests need and
+makes the editor an unreliable place to pin them down).
+
 ## 2026-09-26 Opus re-check of task/S8.9: newId ignored the catalog and other floors
 
 A further Opus re-check of task/S8.9 found that `newId` (`src/editor/state.ts`)

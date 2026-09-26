@@ -644,6 +644,76 @@ describe("S8.9 defect 4 (Opus review): the widest coincident edge wins, not whic
   });
 });
 
+describe("S8.11: an opening is a real hole, cut from the wall layer with a <mask>", () => {
+  const withOpening = () => {
+    const f = structuredClone(ground);
+    f.openings.push({ id: "o1", a: [100, 400], b: [200, 400] });
+    return f;
+  };
+  /** The id a `<g mask="url(#...)">` names, or undefined when there is none. */
+  const wallGroupMaskId = (html: string) => html.match(/<g mask="url\(#([^")]+)\)">/)?.[1];
+  /** The `<mask id="...">...</mask>` block that id names, or undefined. */
+  const maskBlock = (html: string, id: string) => html.match(new RegExp(`<mask id="${id}"[^>]*>([\\s\\S]*?)</mask>`))?.[1];
+
+  it("a floor with an opening wraps its wall lines in a <g mask> naming a <mask> with one black cut per opening", () => {
+    const f = withOpening();
+    f.openings.push({ id: "o2", a: [500, 0], b: [600, 0] }); // two openings now
+    const html = renderFloor(f, base);
+    const id = wallGroupMaskId(html);
+    expect(id, html).toBeTruthy();
+    const block = maskBlock(html, id!);
+    expect(block, html).toBeTruthy();
+    // A full-cover base (so untouched wall pixels stay visible) plus one black cut line per opening.
+    expect(block).toMatch(/fill="white"/);
+    expect([...block!.matchAll(/<line[^>]*stroke="black"[^>]*\/>/g)]).toHaveLength(f.openings.length);
+  });
+
+  it("every wall halo and stroke line (.eh/.e), including the external outline, sits inside the masked group", () => {
+    const html = renderFloor(withOpening(), base);
+    const id = wallGroupMaskId(html);
+    const groupStart = html.indexOf(`<g mask="url(#${id})">`);
+    const groupEnd = html.indexOf("</g>", groupStart);
+    const group = html.slice(groupStart, groupEnd);
+    expect(group).toContain('class="eh external"'); // the house perimeter
+    expect(group).toContain('class="e external"');
+    expect([...group.matchAll(/class="eh/g)].length).toBeGreaterThan(0);
+    expect([...group.matchAll(/class="e /g)].length).toBeGreaterThan(0);
+  });
+
+  it("a floor with no openings draws its walls with no mask at all", () => {
+    const html = renderFloor(ground, base); // demo ground floor: no openings by default in this fixture
+    expect(wallGroupMaskId(html)).toBeUndefined();
+    expect(html).not.toContain("<mask");
+  });
+
+  it("the same floor rendered twice (two card instances showing one dashboard) mints the identical mask id and safely shares one <mask>, like two cards sharing one texture <pattern>", () => {
+    const f = withOpening();
+    const id1 = wallGroupMaskId(renderFloor(f, base));
+    const id2 = wallGroupMaskId(renderFloor(f, base)); // a second, independent render of the very same floor
+    expect(id1).toBeTruthy();
+    expect(id1).toBe(id2);
+  });
+
+  it("two floors whose openings actually differ mint different mask ids, so one never references the other's cut", () => {
+    const f1 = withOpening();
+    const f2 = withOpening();
+    f2.openings[f2.openings.length - 1].b = [300, 400]; // a different gap: same count, different geometry
+    const id1 = wallGroupMaskId(renderFloor(f1, base));
+    const id2 = wallGroupMaskId(renderFloor(f2, base));
+    expect(id1).toBeTruthy();
+    expect(id2).toBeTruthy();
+    expect(id1).not.toBe(id2);
+  });
+
+  it("the cut's own stroke-width matches the opening's own erase-line width (the widest wall or halo it crosses)", () => {
+    const f = withOpening(); // a plain internal wall: 10 + 2 margin = 12, same as the opening's own line
+    const html = renderFloor(f, base);
+    const id = wallGroupMaskId(html)!;
+    const block = maskBlock(html, id)!;
+    expect(block).toMatch(/stroke="black" stroke-width="12"/);
+  });
+});
+
 describe("renderFloor never throws on a layout that skipped validate (review S1.5, finding 5)", () => {
   for (const bad of [5, { a: 1 }, ["x", 2], null, undefined, true]) {
     it(`name, label and title fields = ${JSON.stringify(bad)}`, () => {
