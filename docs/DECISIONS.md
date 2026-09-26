@@ -56,6 +56,35 @@ was already `position:absolute;right:0` inside its own `position:relative`
 menu, so it could never overflow the flex-wrapped toolbar regardless of the
 `.bar-right` bug; it is kept as a regression guard, not a red-to-green proof.
 
+Follow-up, same day, from the maintainer's own look at the screenshots above:
+the first pass still left an empty gap after "Ready" before Help (`.status`'s
+fixed `flex:0 1 12em` always reserved 12em even for a short message), and at
+380 the cluster squeezed into a narrow column beside the floor chips instead
+of taking its own row. Fixed: `.status` is now `flex:0 1 auto;max-width:16em`
+(content-sized, capped only for an extreme message) and moved to be the
+cluster's first item — `justify-content:flex-end` anchors the packed block's
+right edge, so every item after status keeps a fixed distance from that right
+edge and growing status moves only its own left edge, never Filter's x. The
+dead `<div class="vsep">` is gone (it was widening the gap before Undo/Redo
+past the flex `gap`). Order is now status, Filter, Add, Draw, View, Edit,
+File, Help, Undo, Redo — Undo/Redo are the cluster's own last items now, so
+Redo's right edge is what the alignment test pins (Help no longer sits alone
+at the end). Below 768px a `@media` rule sets `.bar-right{flex-basis:
+100%}`, forcing it onto its own full-width row instead of shrinking to fit
+beside the chips (a literal percentage, not a shrink-to-fit result, so it
+carries none of the width-instability risk from the first S8.10 pass — a
+determinism check re-ran the render twice at 380 and compared the cluster's
+own width). Tests first, real `page.mouse`: equal 6px gaps between every
+visible cluster item, Redo within a few px of the toolbar's right edge, and
+a status-text change proved to move nothing else — all three failed against
+the first-pass CSS via `git stash`; a 380px test for the cluster's own
+full-width row, right-aligned, chips top-aligned on the first row, no
+horizontal scroll, also failed the same way. Two pre-existing tests (the
+Help-right-edge alignment test, and "status line sits ... right of Redo")
+pinned the superseded order and are updated, not reverted, confirmed via the
+same `git stash` technique that they broke only because of this reorder. All
+new/updated tests green at `--repeat-each=10`.
+
 ## 2026-09-26 Opus re-check of task/S8.9: newId ignored the catalog and other floors
 
 A further Opus re-check of task/S8.9 found that `newId` (`src/editor/state.ts`)

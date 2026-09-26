@@ -240,10 +240,10 @@ export class FloorplanStudioEditor extends LitElement {
     .bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 0}
     /* S8.10: the floor chips stay left (in normal flow, no longer followed by a .grow spacer — that span's own
        zero flex-basis let the menu cluster after it wrap onto a line of its own with nothing to push it right,
-       "floating in the middle", the maintainer's original report). Everything else — Filter through File, Help,
-       the vsep, Undo/Redo and the status text — is one flex item that wraps its OWN contents (never the floor
-       chips) when the toolbar is too narrow, each wrapped row right-aligned in turn (justify-content, since a
-       wrapped row may start with any of its items, not always the same one an auto-margin child could anchor). */
+       "floating in the middle", the maintainer's original report). Everything else — status, Filter through File,
+       Help, Undo/Redo — is one flex item that wraps its OWN contents (never the floor chips) when the toolbar is
+       too narrow, each wrapped row right-aligned in turn (justify-content, since a wrapped row may start with any
+       of its items, not always the same one an auto-margin child could anchor). */
     /* S8.10: flex:1 1 0 (not margin-left:auto on a shrink-to-fit box) so this fills whatever room is left on its
        own line, a plain size the outer .bar resolves once. A shrink-to-fit width instead left a flex item that is
        itself flex-wrap ambiguous — Chromium settled on two different equilibrium widths (668px and 740px) for the
@@ -251,6 +251,11 @@ export class FloorplanStudioEditor extends LitElement {
        right cluster's own wrapping flipped on a reflow that had nothing to do with its content, such as a status
        message changing. min-width:0 lets it shrink below its content's natural width instead of overflowing. */
     .bar-right{flex:1 1 0%;min-width:0;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end}
+    /* S8.10 follow-up: below this width the cluster can no longer fit beside the floor chips on one line without
+       squeezing itself down to a narrow column (min-width:0 lets it shrink that far). A fixed flex-basis forces it
+       onto its own full-width row instead — a plain value the outer .bar resolves once, not a shrink-to-fit result,
+       so it carries none of the width-instability risk the .bar-right rule above already had to design around. */
+    @media (max-width:768px){.bar-right{flex-basis:100%}}
     .btn,.chip,select,input{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:4px;padding:4px 8px}
     .btn,.chip,summary{cursor:pointer}
     .chip[aria-pressed="true"],.btn[aria-pressed="true"]{background:var(--fp-ink);color:var(--fp-bg)}
@@ -316,7 +321,6 @@ export class FloorplanStudioEditor extends LitElement {
     .guide summary::before{content:"\\25B8";display:inline-block;width:1em;transition:transform .15s ease}
     .guide details[open] summary::before{transform:rotate(90deg)}
     .sep{border-top:1px solid var(--fp-idle)}
-    .vsep{align-self:stretch;border-left:1px solid var(--fp-idle);margin:2px 0}
     /* Lighter, not lower-contrast: opacity leaves .btn's own colour/background computed values untouched (S1.53's
        contrast pair still passes) and only changes how it blends against the page behind it. */
     .btn.light{opacity:.6}
@@ -369,14 +373,16 @@ export class FloorplanStudioEditor extends LitElement {
     h4.pnl-h:first-child,strong+h4.pnl-h,strong+p+h4.pnl-h,strong+p+p+h4.pnl-h{margin-top:4px;padding-top:0;border-top:none}
     .errors{border:1px solid var(--fp-motion);border-radius:4px;padding:6px 10px;margin:6px 0}
     .errors ul{margin:4px 0;padding-left:18px}
-    /* S7.2: the status line sits in the toolbar, right of Redo. A fixed flex-basis, not its text, sets its width, so a
-       long message is cut with an ellipsis (the full text is in title) and never wraps the toolbar. */
-    /* S8.10: no flex-grow. Help now sits after status, as the right-aligned cluster's last item (its own right
-       edge is the one the toolbar-alignment acceptance test pins) — a status that still grew with flex-grow:1
-       would widen with a long message and push Help onto a new line, growing the toolbar itself, which is exactly
-       what this rule (and the "S7.2 break it" test below) forbids. A fixed flex-basis keeps its box width the same
-       whatever the message length; text-overflow:ellipsis still clips a long one instead of reflowing. */
-    .status{flex:0 1 12em;min-width:6em;max-width:12em;font-size:.85em;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    /* S7.2: the status line sits in the toolbar. A long message is cut with an ellipsis (the full text is in
+       title) and never wraps the toolbar. */
+    /* S8.10 follow-up: status is the cluster's first item, no flex-grow and no fixed flex-basis reserving space
+       for it — a basis of 12em always held that much room even for "Ready", leaving an empty gap before Help.
+       flex-basis:auto sizes the box to its own text, so there is no reserved space anywhere in the cluster; growing
+       or shrinking that text changes only status's own left edge (justify-content:flex-end on .bar-right anchors
+       the packed block's right edge, and every item after status keeps a fixed distance from that right edge, so
+       Filter's x never moves when the status text changes — see the "moves no button" acceptance test). max-width
+       still caps an extreme message so text-overflow:ellipsis clips it instead of ever forcing a wrap. */
+    .status{flex:0 1 auto;max-width:16em;font-size:.85em;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .room{pointer-events:all}
     .opening{pointer-events:stroke}
     .furn{pointer-events:all}
@@ -2231,6 +2237,9 @@ export class FloorplanStudioEditor extends LitElement {
           ? html`<input id="newFloor" type="text" aria-label="Title of the new floor" placeholder="Floor title" @keydown=${this.onNewFloorKey} @blur=${() => { if (document.hasFocus()) this.addingFloor = false; }}>`
           : nothing}
         <div class="bar-right">
+        <!-- S8.10 follow-up: status is the cluster's first item; growing it moves only its own left edge, never
+             a button after it (see .status's own comment above). -->
+        <span class="status" id="status" role="status" title=${this.status}>${this.status}</span>
         <details class="menu" id="filter"><summary class="btn" aria-label="Filter devices">${st.filter.length ? `Filter: ${st.filter.length} type${st.filter.length > 1 ? "s" : ""}` : `Filter: all (${f.devices.length})`}</summary><div class="box">
           <button class="btn keep" id="filterAll" ?disabled=${!st.filter.length} @click=${() => { st.filter = []; st.sel = null; this.requestUpdate(); }}>All</button>
           ${TYPE_LABELS.filter(([t]) => counts[t]).map(([t, label]) => html`<button class="btn keep" data-filter=${t} aria-pressed=${pressed(st.filter.includes(t))} @click=${() => { st.filter = st.filter.includes(t) ? st.filter.filter((x) => x !== t) : [...st.filter, t]; st.sel = null; this.requestUpdate(); }}>${label} (${counts[t]})</button>`)}
@@ -2322,12 +2331,11 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn danger" id="reset" title="Erase everything and start from a blank plan" @click=${() => this.reset()}>Reset</button>
           <button class="btn primary" id="save" @click=${() => this.save()}>Save</button>
         </div></details>
-        <div class="vsep"></div>
+        <!-- S8.10 follow-up: Help, then Undo and Redo as the cluster's last items, so Redo's own right edge is
+             the one the toolbar-alignment acceptance test pins. -->
+        <button class="btn" id="help" aria-expanded=${pressed(st.helpOpen)} @click=${() => this.toggleHelp()}>Help</button>
         <button class="btn light" id="undo" ?disabled=${!st.canUndo} @click=${() => this.undo(true)}>Undo</button>
         <button class="btn light" id="redo" ?disabled=${!st.canRedo} @click=${() => this.undo(false)}>Redo</button>
-        <span class="status" id="status" role="status" title=${this.status}>${this.status}</span>
-        <!-- S8.10: Help is the last item of the right-aligned cluster, so its own right edge is the toolbar's. -->
-        <button class="btn" id="help" aria-expanded=${pressed(st.helpOpen)} @click=${() => this.toggleHelp()}>Help</button>
         </div>
         <input type="file" id="file" accept=".json,application/json" hidden @change=${(e: Event) => this.openFile(e)}>
       </div>
