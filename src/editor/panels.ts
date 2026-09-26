@@ -1,6 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
-import { entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox } from "../core";
+import { entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -529,6 +529,55 @@ function haRow(c: PanelCtx, row: HaBoxRow, kind?: "automation" | "script" | "sce
 }
 
 /**
+ * S8.10: fixed display order for the room box's Devices group — reuses `TYPE_LABELS`, the project's one
+ * domain/device_class -> DeviceType -> label mapping (`typeForEntity` in `src/core/ha.ts`); no second mapping is
+ * invented here. "Other" (unmapped entities) always trails, whatever position it holds in `TYPE_LABELS` itself.
+ */
+const DEVICE_GROUP_ORDER: DeviceType[] = [...TYPE_LABELS.map(([t]) => t).filter((t) => t !== "other"), "other"];
+
+/**
+ * S8.10: the maintainer's real room had ~35 flat rows under "Devices" — TV entities, phones, batteries and so on —
+ * "impossible to use". `rows` (already the room's own area, already sorted by name by `roomHaBox`) is split into
+ * one collapsible sub-group per `DeviceType`, in `DEVICE_GROUP_ORDER`, each closed by default. A row whose entity
+ * cannot be found (should not happen; defensive only) falls into "Other".
+ */
+function haDeviceGroups(c: PanelCtx, ha: HaData, rows: HaBoxRow[]) {
+  const byType = new Map<DeviceType, HaBoxRow[]>();
+  for (const row of rows) {
+    const e = ha.entities.find((x) => x.id === row.id);
+    const t: DeviceType = e ? typeForEntity(e) : "other";
+    const list = byType.get(t);
+    if (list) list.push(row); else byType.set(t, [row]);
+  }
+  const labelOf = (t: DeviceType) => TYPE_LABELS.find(([tt]) => tt === t)?.[1] ?? "Other";
+  return DEVICE_GROUP_ORDER.filter((t) => byType.get(t)?.length).map((t) => {
+    const list = byType.get(t)!;
+    const key = `dev:${t}`;
+    return html`<details class="habox-sub" data-ha-devgroup=${t} ?open=${c.st.haGroups.has(key)} @toggle=${(e: Event) => c.st.setHaGroup(key, (e.target as HTMLDetailsElement).open)}>
+      <summary class="habox-h">${labelOf(t)} (${list.length})</summary>
+      ${list.map((row) => haRow(c, row))}
+    </details>`;
+  });
+}
+
+/**
+ * S8.10: one collapsible block of the room box (Devices, Helpers, Automations, Scripts, Scenes — see `haBox`),
+ * closed by default. Its open state lives in `EditorState.haGroups`, keyed by the group's own label (`grp:<label>`,
+ * `dev:<type>` for a Devices sub-group) — not by room or by any per-render structure — so it survives selecting
+ * another room and back, and a `hass` update (the editor's own `EditorState` instance never gets swapped for those).
+ */
+function haGroupBlock(c: PanelCtx, ha: HaData, label: string, rows: HaBoxRow[], kind?: "automation" | "script" | "scene") {
+  const key = `grp:${label}`;
+  const body = label === "Devices"
+    ? haDeviceGroups(c, ha, rows)
+    : rows.map((row) => haRow(c, row, kind, kind ? ha.entities.find((e) => e.id === row.id)?.uid : undefined));
+  return html`<details class="habox-group" data-ha-group=${label.toLowerCase()} ?open=${c.st.haGroups.has(key)} @toggle=${(e: Event) => c.st.setHaGroup(key, (e.target as HTMLDetailsElement).open)}>
+    <summary class="habox-h">${label} (${rows.length})</summary>
+    ${body}
+  </details>`;
+}
+
+/**
  * S4.7: below the room panel, everything Home Assistant has in the room's area, grouped under five headings (placed
  * devices marked), plus "Add to area..." for an entity HA has in no area yet. A custom room (no area) with its own
  * `entity` shows that one row instead; with neither, a hint that there is nothing to show.
@@ -550,7 +599,7 @@ function haBox(c: PanelCtx, i: number) {
   const groups = all.filter(([, rows]) => rows.length);
   const free = byName(ha.entities.filter((e) => !e.area));
   return html`<div class="habox">
-    ${groups.length ? groups.map(([label, rows, kind]) => html`<p class="habox-h">${label}</p>${rows.map((row) => haRow(c, row, kind, kind ? ha.entities.find((e) => e.id === row.id)?.uid : undefined))}`) : hint("Nothing in this area yet.")}
+    ${groups.length ? groups.map(([label, rows, kind]) => haGroupBlock(c, ha, label, rows, kind)) : hint("Nothing in this area yet.")}
     ${c.addToArea && free.length ? html`<label for="haadd">Add to area...</label><select id="haadd" .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) c.addToArea!(i, v); }}>
       <option value="" selected>(pick an entity)</option>${free.map((e) => html`<option value=${e.id}>${e.name}</option>`)}</select>` : nothing}</div>`;
 }

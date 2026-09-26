@@ -183,6 +183,13 @@ export class EditorState {
   night: boolean = readNight();
   /** id of the door drawn open in the preview */
   openDoor: string | null = null;
+  /** S8.10: which room-box collapsible groups (the panel's "Home Assistant" device list) are open — keyed
+   *  `grp:<label>` for a top heading (Devices, Helpers, Automations, Scripts, Scenes) and `dev:<type>` for one of
+   *  the Devices group's own per-type sub-groups. Keyed by the group itself, not by room: the same key stays open
+   *  across selecting another room and back, and across a `hass` update, because both leave this same `EditorState`
+   *  instance in place. Kept for the session, never the layout or undo history. */
+  haGroups = new Set<string>();
+  setHaGroup(key: string, open: boolean): void { if (open) this.haGroups.add(key); else this.haGroups.delete(key); }
   /** The floor panel is asking "Delete floor ...?". Any change of floor, undo or press on the plan cancels it. */
   /** The direction the rotation buttons turn: 1 clockwise, -1 counter-clockwise. Kept for the session. */
   turnDir: 1 | -1 = 1;
