@@ -22,6 +22,16 @@
 - Add > Device rows and Place popup rows now show the name on one line
   (ellipsised if long, full name on hover) with a smaller type · room
   subtitle underneath, and both panels are 50% larger.
+- Fixed, from an Opus review of the whole branch: placing an area's devices
+  a second time no longer duplicates the catalog entry; a multi-gang switch
+  is offered once per gang, not once per device; a door or opening on a
+  wall that is also, at that point, external now always reads its width as
+  external, whichever edge happened to tie for nearest; the door
+  preview-open overlay takes the wall's own thickness instead of a fixed
+  22 cm; a door's click target shows a move cursor; a panel's first heading
+  no longer keeps a stray top border when it follows two hints instead of
+  zero or one; and a device's Links heading no longer shows over an empty
+  section.
 
 ## 0.12.3
 

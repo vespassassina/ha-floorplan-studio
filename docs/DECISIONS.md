@@ -2,6 +2,48 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-26 Opus review of task/S8.9: seven defects fixed, one on its own contract
+
+An Opus review of the whole S8.9 branch (which includes S8.8) found seven
+issues. Six were fixed here, each with its own commit and a test written
+first and watched fail before the fix:
+
+1. `placeArea` (`src/editor/state.ts`) reused an existing catalog entry for
+   a room instead of always pushing a new one, so placing the same area
+   twice no longer duplicated it.
+2. A multi-gang switch (several gangs, one device) is now placed once per
+   gang, not once per device, in `deviceRows` and `addCandidates`
+   (`src/core/ha.ts`).
+3. Fixed together with 2 (one commit, `25a6fcd`, not two): the two are
+   coupled through the same shared functions (`deviceRows`, `addCandidates`,
+   `placeableDevicesInArea`, `unplacedDevicesInArea`) and splitting the diff
+   would have left one half red on its own. Disclosed here since the review
+   asked for one commit per defect.
+4. `wallWidthAt` (`src/core/render.ts`) now takes the widest of every edge
+   coincident with a door or opening (via the new `edgeKindsNear`,
+   `src/core/geometry.ts`), not whichever edge `nearestEdge` happened to
+   keep on a tie — a door on a wall that is also, at that point, external,
+   now always reads as external.
+5. Sidebar hint clipping is scoped to a dedicated `.hint.fit` class
+   (`editor-app.ts`), not the global `.hint`: a confirm question and the
+   trace-image instructions wrap in full instead of clipping. Restored
+   stairs' rotated-flight hint and NOT_IN_HA's "or leave it".
+6. Four nits: the door preview-open overlay now takes the wall's own
+   thickness via the now-exported `wallWidthAt`, instead of a fixed 22 cm;
+   `.door-hit` gets `cursor:move`; `h4.pnl-h`'s no-top-border exemption now
+   covers two leading hints before a panel's first heading (the stairs
+   panel), not only zero or one; `devicePanel`'s Links heading now also
+   requires `moveArea`, matching what `areaDiffField` already needed to
+   render anything under it.
+
+The seventh — a reported round-cap bump where an internal wall meets an
+external one (demo, top, x≈500) — was investigated and not fixed. Precise
+CTM-mapped pixel inspection of the actual rendered card (`npm run shots`
+output and a fresh screenshot, both checked column-by-column) shows the
+wall's top edge perfectly flat at that junction in every theme (geometry is
+theme-independent). Not reproduced, so left alone, per "fix it only if
+visible" — it was not visible.
+
 ## 2026-09-26 S8.9 follow-up: hints are rewritten short, not clipped
 
 Diego reported the sidebar hints added in S8.9 part 2 were clipped by CSS
