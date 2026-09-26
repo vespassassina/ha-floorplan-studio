@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.6
 
 - The card now shows a floor switcher (a chip per floor) by default whenever
   your plan has more than one floor and neither `floor` nor `floors` is set
