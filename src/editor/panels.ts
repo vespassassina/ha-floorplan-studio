@@ -139,7 +139,7 @@ const angleOf = (a: [number, number], b: [number, number]) => Math.round((((Math
 // S8.9.1: a hint is written short enough to fit the sidebar at its normal width, not clipped to fit. `title`
 // still carries the same text for a hover tooltip. `dyn` marks the few hints built from a live Home Assistant
 // name or a measurement, which may run long; nowrap+ellipsis in the stylesheet is a safety net for those only.
-const hint = (t: string, dyn = false) => html`<p class="hint${dyn ? " dyn" : ""}" title=${t}>${t}</p>`;
+const hint = (t: string, dyn = false) => html`<p class="hint fit${dyn ? " dyn" : ""}" title=${t}>${t}</p>`;
 /**
  * S8.9: a small section heading inside a selection panel. Every panel groups its fields, in this order where they
  * apply: Identity, Home Assistant, Links, Appearance, Automations, Danger (always last, if the panel has one) — so
@@ -152,7 +152,7 @@ const heading = (label: string) => html`<h4 class="pnl-h">${label}</h4>`;
 
 // ---- Home Assistant pickers (S1.38): with HA data a name is chosen, not typed ----
 const byName = <T extends { name: string }>(l: readonly T[]) => [...l].sort((a, b) => a.name.localeCompare(b.name));
-const NOT_IN_HA = "Not in Home Assistant. Pick another entity.";
+const NOT_IN_HA = "Not in Home Assistant. Pick another, or leave it.";
 /** The id the layout holds but HA does not know: kept as the selected option, never cleared. */
 const missingOpt = (id: string) => html`<option value=${id} selected>${id} (not in Home Assistant)</option>`;
 /** A select of "(none)" plus every HA entity, grouped by domain; without HA data, a text field that takes an entity id or nothing. */
@@ -195,14 +195,14 @@ export function selectionPanel(c: PanelCtx): TemplateResult {
     case "v": return cornerPanel(c, s);
     case "edge": return edgePanel(c, s);
     case "wall": return wallPanel(c, s.i);
-    case "extra": return f.extras[s.i] ? extraPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
-    case "opening": return f.openings[s.i] ? openingPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
-    case "door": return f.doors[s.i] ? doorPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
-    case "room": return f.rooms[s.i] ? roomPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
-    case "dev": return f.devices[s.i] ? devicePanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
-    case "furn": return f.furniture[s.i] ? furniturePanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
-    case "stairs": return f.stairs[s.i] ? stairsPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
-    case "unl": return f.unlinked[s.i] ? unlinkedPanel(c, s.i) : html`<p class="hint">Nothing selected.</p>`;
+    case "extra": return f.extras[s.i] ? extraPanel(c, s.i) : html`<p class="hint fit">Nothing selected.</p>`;
+    case "opening": return f.openings[s.i] ? openingPanel(c, s.i) : html`<p class="hint fit">Nothing selected.</p>`;
+    case "door": return f.doors[s.i] ? doorPanel(c, s.i) : html`<p class="hint fit">Nothing selected.</p>`;
+    case "room": return f.rooms[s.i] ? roomPanel(c, s.i) : html`<p class="hint fit">Nothing selected.</p>`;
+    case "dev": return f.devices[s.i] ? devicePanel(c, s.i) : html`<p class="hint fit">Nothing selected.</p>`;
+    case "furn": return f.furniture[s.i] ? furniturePanel(c, s.i) : html`<p class="hint fit">Nothing selected.</p>`;
+    case "stairs": return f.stairs[s.i] ? stairsPanel(c, s.i) : html`<p class="hint fit">Nothing selected.</p>`;
+    case "unl": return f.unlinked[s.i] ? unlinkedPanel(c, s.i) : html`<p class="hint fit">Nothing selected.</p>`;
     case "devs": return devsPanel(c, s.is);
   }
 }
@@ -281,7 +281,7 @@ function floorLink(c: PanelCtx, ha: HaData) {
 
 function cornerPanel(c: PanelCtx, s: Extract<Sel, { t: "v" }>) {
   const p = ptOf(c.st.f, s.ref);
-  if (!p) return html`<p class="hint">Nothing selected.</p>`;
+  if (!p) return html`<p class="hint fit">Nothing selected.</p>`;
   const move = (to: [number, number]) => c.commit((f) => movePointAll(f, p, to, false, s.ref));
   const canDelete = "poly" in s.ref && (polyPts(c.st.f, s.ref.poly)?.length ?? 0) > 3;
   return html`<strong>Corner</strong>
@@ -303,7 +303,7 @@ function edgeDelete(c: PanelCtx, s: Extract<Sel, { t: "edge" }>, a: [number, num
 
 function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
   const pts = polyPts(c.st.f, s.poly);
-  if (!pts) return html`<p class="hint">Nothing selected.</p>`;
+  if (!pts) return html`<p class="hint fit">Nothing selected.</p>`;
   const a = pts[s.i], b = pts[(s.i + 1) % pts.length];
   const ang = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
   const rooms = edgeRooms(c.st.f, s.poly, s.i);
@@ -326,7 +326,7 @@ function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
 
 function wallPanel(c: PanelCtx, i: number) {
   const w = c.st.f.walls[i];
-  if (!w) return html`<p class="hint">Nothing selected.</p>`;
+  if (!w) return html`<p class="hint fit">Nothing selected.</p>`;
   const set = (how: Parameters<typeof setSecondEnd>[3]) => c.commit((f) => {
     const g = setSecondEnd(f, w.a, w.b, how, { k: "walls", i, end: "b" });
     if ("length" in how) g.walls[i].locked = true; // typing a length locks the wall, by default
@@ -354,7 +354,7 @@ function wallPanel(c: PanelCtx, i: number) {
 /** S4.13: a structure line (a free-standing annotation like "boiler + tank" - not a wall, not a room edge). Name and length only; no kind. */
 function extraPanel(c: PanelCtx, i: number) {
   const x = c.st.f.extras[i];
-  if (!x) return html`<p class="hint">Nothing selected.</p>`;
+  if (!x) return html`<p class="hint fit">Nothing selected.</p>`;
   return html`<strong>Structure line</strong>
     ${hint("Drag ends to resize, or middle to move.")}
     ${heading("Identity")}
@@ -877,11 +877,13 @@ function stairsPanel(c: PanelCtx, i: number) {
   };
   const setInner = (n: number) => c.commit((f) => { const o = f.stairs[i]; if (o.shape === "round") o.inner = Math.max(0, Math.min(Math.round(n), (o.dia ?? 40) - 40)); });
   return html`<strong>Stairs</strong>
-    ${round ? hint("Drag to move; set size below.") : html`${hint("Drag corners to reshape.")}${hint("Click an edge to add a point.")}`}
+    ${round ? hint("Drag to move; set size below.")
+      : t.rot ? hint("Rotated: set 0 to reshape.")
+      : html`${hint("Drag corners to reshape.")}${hint("Click an edge to add a point.")}`}
     ${heading("Identity")}
     ${text("name", "sn", t.name, (v) => c.commit((f) => { f.stairs[i].name = v; }))}
     ${select("shape", "ss", t.shape, STAIR_SHAPES, setShape)}
-    <p><span>steps</span> <span id="sstn">${stairSteps(t)}</span> <span class="hint">one every 40 cm</span></p>
+    <p><span>steps</span> <span id="sstn">${stairSteps(t)}</span> <span class="hint fit">one every 40 cm</span></p>
     ${heading("Appearance")}
     ${rotateButtons(c, "srot", (n) => c.commit((f) => { f.stairs[i].rot = ((t.rot + n) % 360 + 360) % 360; }), { reset: () => { if (t.rot) c.commit((f) => { f.stairs[i].rot = 0; }); }, title: round ? undefined : "A rotated flight has no corner handles: set the rotation to 0 to reshape it." })}
     ${round ? html`${number(c, "outer diameter (cm)", "sdia", t.dia ?? 0, setDia)}${number(c, "inner diameter (cm)", "sinner", t.inner ?? 0, setInner)}` : nothing}

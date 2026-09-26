@@ -335,9 +335,12 @@ export class FloorplanStudioEditor extends LitElement {
     aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}
     aside input:not([type=checkbox]),aside select{width:100%;box-sizing:border-box}
     .row{display:flex;gap:6px}
-    /* S8.9.1: hints are written to fit one line at the sidebar's own width; nowrap+ellipsis is a safety net only
-       for a .dyn hint built from a live Home Assistant name or a measurement, which may still run long. */
-    .hint{font-size:.85em;opacity:.75;margin:6px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    /* S8.9.1 / Opus review of S8.9: hints are written to fit one line at the sidebar's own width; nowrap+ellipsis
+       is a safety net only, and only for the sidebar's own static hints (.fit: the hint() helper's output and the
+       fixed "Nothing selected." messages). A confirm prompt or the trace-image instructions build their own <p
+       class="hint"> without .fit, and wrap normally: their text is never a tooltip fallback away from the user. */
+    .hint{font-size:.85em;opacity:.75;margin:6px 0}
+    .hint.fit{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     /* A hint that carries its own button (Help) never clips it: full width, wraps instead of ellipsising. */
     .hint.help-line{white-space:normal;overflow:visible;text-overflow:clip;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
     /* S8.9: a selection panel's section headings (Identity, Home Assistant, Links, Appearance, Automations, Danger),

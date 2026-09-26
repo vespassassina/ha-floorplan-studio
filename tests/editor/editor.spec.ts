@@ -7300,3 +7300,50 @@ test("S8.9 follow-up: no static sidebar hint is clipped, for the floor, a room, 
     await assertHintsFit(page, `device ${i}`);
   }
 });
+
+// Opus review of S8.9: the fix above only scoped nowrap+ellipsis to the sidebar's own static hints (.fit); a
+// confirm prompt and the trace-image instructions are a bare <p class="hint"> and must still fully show their
+// text (wrapping, not clipping). This exercises the elements the first pass never opened: a free wall, an
+// opening, an extra, a zone, an unlinked device, and the edge-delete confirm question.
+test("Opus review: a free wall, an opening, an extra, a zone, an unlinked device and the edge-delete confirm prompt all show their hint text in full", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.walls.push({ id: "wall-ground-1", a: [790, 410], b: [790, 480], kind: "wall" });
+    l.floors.ground.openings.push({ id: "opening-ground-1", a: [100, 400], b: [200, 400] });
+    l.floors.ground.extras.push({ id: "extra-ground-1", name: "Shed", a: [100, 450], b: [200, 520] });
+    l.floors.ground.unlinked.push({ id: "unl-ground-1", type: "heater", name: "Space heater", x: 250, y: 350, rot: 0, scale: 1 });
+    el.layout = l;
+  }, EDITOR);
+
+  const wallCentre = await centre(page, 'line[data-w="0"]');
+  await page.mouse.click(wallCentre.x, wallCentre.y);
+  await expect(page.locator("#wk")).toBeVisible();
+  await assertHintsFit(page, "wall");
+
+  const openingCentre = await centre(page, "svg line.opening");
+  await page.mouse.click(openingCentre.x, openingCentre.y);
+  await expect(page.locator("#ok")).toBeVisible();
+  await assertHintsFit(page, "opening");
+
+  const extraCentre = await centre(page, "svg .extra");
+  await page.mouse.click(extraCentre.x, extraCentre.y);
+  await expect(page.locator("#exn")).toBeVisible();
+  await assertHintsFit(page, "extra");
+
+  const unlCentre = await centre(page, 'g[data-u="0"]');
+  await page.mouse.click(unlCentre.x, unlCentre.y);
+  await expect(page.locator("#uun")).toBeVisible();
+  await assertHintsFit(page, "unlinked device");
+
+  await clickCm(page, 440, 60); // the Reading corner zone
+  await expect(page.locator("#rk")).toHaveValue("zone");
+  await assertHintsFit(page, "zone");
+
+  // The Hall's bottom edge (y=600, x in [0,800]) carries the Front door (a=[300,600], b=[390,600]); Delete
+  // asks first instead of removing it outright.
+  await clickCm(page, 200, 600);
+  await expect(page.locator("#ek")).toBeVisible();
+  await page.locator("#edel").click();
+  await expect(page.locator("#edelyes")).toBeVisible();
+  await assertHintsFit(page, "edge-delete confirm prompt");
+});

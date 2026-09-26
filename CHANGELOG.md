@@ -10,7 +10,9 @@
   headings — Identity, Home Assistant, Links, Appearance, Automations,
   Danger — in that fixed order, a panel showing only the ones it has
   content for. Hints are rewritten short so each fits its own line, not
-  clipped; the full text stays on hover.
+  clipped; a hint built from a live name or measurement keeps the full
+  text on hover. A confirm question and the trace-image instructions
+  wrap instead, in full, rather than clip.
 - Fixed: a device imported into the catalog but never placed on a floor
   used to vanish from the room's Place popup and from Add > Device (it
   showed only as a raw entity row there instead of its own device row).
