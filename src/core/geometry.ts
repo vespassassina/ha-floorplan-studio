@@ -80,6 +80,34 @@ export function nearestEdge(f: Floor, p: Pt, maxd: number, opts: { zones?: boole
   return r && r.d <= maxd ? r : null;
 }
 
+/**
+ * S8.9 defect 4 (Opus review): every non-zone room edge, outline edge and free wall within `maxd` of `p` and
+ * parallel to unit direction `dir` — a door drawn on a corner where two edges coincide (an outline wall behind a
+ * room wall, or two rooms sharing one edge with different kinds) sits on all of them at once, not only the one
+ * `nearestEdge` happens to keep on a tie. Used by `wallWidthAt` to take the widest kind among every coincident
+ * edge, rather than whichever `nearestEdge` returned first. Stairs are skipped; zones are dotted overlays, never a
+ * wall a door can sit on.
+ */
+export function edgeKindsNear(f: Floor, p: Pt, dir: Pt, maxd: number): EdgeKind[] {
+  const [ux, uy] = dir;
+  const out: EdgeKind[] = [];
+  const check = (a: Pt, b: Pt, kind: EdgeKind) => {
+    const edx = b[0] - a[0], edy = b[1] - a[1], elen = Math.hypot(edx, edy);
+    if (elen === 0) return;
+    const eux = edx / elen, euy = edy / elen;
+    if (Math.abs(ux * euy - uy * eux) > 0.05) return; // not parallel to the door
+    const { t, q } = project(p, a, b);
+    const c: Pt = t <= 0 ? a : t >= 1 ? b : q;
+    if (dist(p, c) <= maxd) out.push(kind);
+  };
+  for (const P of polys(f)) {
+    if (P.id[0] === "s" || isZone(P)) continue;
+    edges(P.pts).forEach(({ a, b, i }) => check(a, b, edgeKindAt(f, P.id, i)));
+  }
+  f.walls.forEach((w) => { if (dist(w.a, w.b) > 0) check(w.a, w.b, w.kind); });
+  return out;
+}
+
 export interface SnapOpts { threshold: number; grid: number | 0; exclude: Pt[]; neighbours: Pt[] }
 
 const same = (a: Pt, b: Pt) => a[0] === b[0] && a[1] === b[1];

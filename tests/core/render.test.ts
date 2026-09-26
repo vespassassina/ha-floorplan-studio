@@ -590,6 +590,59 @@ describe("S8.9 part 2: a door or window takes the thickness of the wall it sits 
   });
 });
 
+describe("S8.9 defect 4 (Opus review): the widest coincident edge wins, not whichever nearestEdge kept on a tie", () => {
+  const widthOf = (html: string, i: number) => +(html.match(new RegExp(`data-d="${i}" class="door door-[^"]*"[^>]*stroke-width="(\\d+)"`))?.[1] ?? NaN);
+  const openingWidthOf = (html: string) => +(html.match(/class="opening"[^>]*stroke-width="(\d+)"/)?.[1] ?? NaN);
+
+  it("an outline edge set to none, exactly under a room edge set to external, renders at 20 (the widest, not the first)", () => {
+    // nearestEdge visits the outline before any room (polys() order), so on an exact-distance tie it used to keep
+    // "none" (the outline) and miss the room's "external" sitting on the very same segment.
+    const f = {
+      title: "T", outline: [[0, 0], [200, 0], [200, 100], [0, 100]], owk: ["none", "wall", "wall", "wall"],
+      rooms: [{ id: "r1", name: "R", area: "", label: "", kind: "room", pts: [[0, 0], [200, 0], [200, 50], [0, 50]], wk: ["external", "wall", "wall", "wall"] }],
+      walls: [], doors: [{ id: "d0", name: "Door", kind: "door", a: [50, 0], b: [140, 0] }],
+      stairs: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
+    } as unknown as typeof ground;
+    expect(widthOf(renderFloor(f, base), 0)).toBe(20);
+  });
+
+  it("two rooms sharing one edge, one wall and one external, renders at 20 (the widest of the two)", () => {
+    const f = {
+      title: "T", outline: [], rooms: [
+        { id: "r1", name: "R1", area: "", label: "", kind: "room", pts: [[0, 0], [200, 0], [200, 100], [0, 100]], wk: ["wall", "wall", "wall", "wall"] },
+        { id: "r2", name: "R2", area: "", label: "", kind: "room", pts: [[0, 0], [200, 0], [200, -100], [0, -100]], wk: ["external", "wall", "wall", "wall"] },
+      ],
+      walls: [], doors: [{ id: "d0", name: "Door", kind: "door", a: [50, 0], b: [140, 0] }],
+      stairs: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
+    } as unknown as typeof ground;
+    expect(widthOf(renderFloor(f, base), 0)).toBe(20);
+  });
+
+  it("an outline external edge at y=0 and a room's own (thinner) edge at y=1 both count: a door drawn on the room's edge still renders at 20", () => {
+    // The door sits exactly on the room's own wall (y=1, kind wall, distance 0) -- nearestEdge alone would have
+    // returned "wall" (10). The outline's external edge one cm away is the same physical wall, drawn wider.
+    const f = {
+      title: "T", outline: [[0, 0], [200, 0], [200, 100], [0, 100]], owk: ["external", "wall", "wall", "wall"],
+      rooms: [{ id: "r1", name: "R", area: "", label: "", kind: "room", pts: [[0, 1], [200, 1], [200, 50], [0, 50]], wk: ["wall", "wall", "wall", "wall"] }],
+      walls: [], doors: [{ id: "d0", name: "Door", kind: "door", a: [50, 1], b: [140, 1] }],
+      stairs: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
+    } as unknown as typeof ground;
+    expect(widthOf(renderFloor(f, base), 0)).toBe(20);
+  });
+
+  it("an opening on an external wall renders at 22 (20 + the 2 cm opening margin), even with a narrower edge tied on distance", () => {
+    // Same tie as the first test (outline "none" under a room's "external", exact same segment), but with an
+    // opening instead of a door: the old tie-break kept the outline ("none", width 10, +2 = 12).
+    const f = {
+      title: "T", outline: [[0, 0], [200, 0], [200, 100], [0, 100]], owk: ["none", "wall", "wall", "wall"],
+      rooms: [{ id: "r1", name: "R", area: "", label: "", kind: "room", pts: [[0, 0], [200, 0], [200, 50], [0, 50]], wk: ["external", "wall", "wall", "wall"] }],
+      walls: [], doors: [], stairs: [], extras: [], devices: [], furniture: [], unlinked: [],
+      openings: [{ id: "o0", a: [50, 0], b: [140, 0] }],
+    } as unknown as typeof ground;
+    expect(openingWidthOf(renderFloor(f, base))).toBe(22);
+  });
+});
+
 describe("renderFloor never throws on a layout that skipped validate (review S1.5, finding 5)", () => {
   for (const bad of [5, { a: 1 }, ["x", 2], null, undefined, true]) {
     it(`name, label and title fields = ${JSON.stringify(bad)}`, () => {

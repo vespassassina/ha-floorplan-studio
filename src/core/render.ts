@@ -1,5 +1,5 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
-import { edgeKindAt, nearestEdge, stairSteps } from "./geometry";
+import { dist, edgeKindsNear, stairSteps } from "./geometry";
 import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
@@ -230,13 +230,22 @@ const DOOR_HIT_WIDTH = 22;
  * S8.9 part 2: a door or window's own stroke takes the thickness of the wall segment it lies on. Reuses the same
  * `nearestEdge` lookup the editor already snaps a door to when it is placed or dragged (editor-app.ts's `HOST`,
  * `{ walls: true }`), so rendering and snapping can never disagree about which wall a door is on. A door's
- * midpoint sits right on the wall line once snapped, so `DOOR_WALL_TOL` only covers rounding, not a real search
- * radius. Off every wall, or on a zone/boundary edge, a door is a plain internal one.
+ * midpoint sits right on the wall line once snapped, so `DOOR_WALL_TOL` covers rounding plus real coincident edges
+ * (two rooms sharing a wall, or a room wall drawn over the outline) — never a real search radius beyond that. Off
+ * every wall, or on a zone/boundary edge, a door is a plain internal one.
+ *
+ * Opus review, defect 4: several edges can coincide at a door (an outline edge under a room edge, two rooms sharing
+ * one edge with different kinds each), and every one of them is drawn — so the widest kind among all of them is
+ * what actually shows, not whichever `nearestEdge` kept on a tie. `edgeKindsNear` collects every non-zone room
+ * edge, outline edge and free wall within `DOOR_WALL_TOL` of the door's midpoint that runs parallel to it; "external"
+ * wins if present anywhere in that set (the only two door widths are "external" and everything else).
  */
-const DOOR_WALL_TOL = 5; // cm
+const DOOR_WALL_TOL = 10; // cm
 function wallWidthAt(f: Floor, a: Pt, b: Pt): number {
-  const e = nearestEdge(f, mid(a, b), DOOR_WALL_TOL, { walls: true });
-  return e && edgeKindAt(f, e.poly, e.i) === "external" ? WALL_WIDTH_EXTERNAL : WALL_WIDTH;
+  const len = dist(a, b) || 1;
+  const dir: Pt = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+  const kinds = edgeKindsNear(f, mid(a, b), dir, DOOR_WALL_TOL);
+  return kinds.includes("external") ? WALL_WIDTH_EXTERNAL : WALL_WIDTH;
 }
 /** A selected door or window is always 8 cm wider than its own thickness, whichever wall it sits on. */
 const DOOR_SELECT_EXTRA = 8;
