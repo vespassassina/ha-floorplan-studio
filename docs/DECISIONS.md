@@ -2,6 +2,60 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-26 S8.10 Toolbar right-aligned; Devices list collapsible and typed
+
+Maintainer feedback: the toolbar's Filter through Help cluster "floated in
+the middle" instead of sitting at the right edge, and the room panel's
+Devices list was one flat block, unreadable once an area had more than a
+few entities.
+
+Toolbar: the dead `class="grow"` spacer (a zero-basis flex item whose own
+absence of size let the menu cluster wrap onto its own line with nothing to
+push it right) is gone. Everything from Filter through Help is now one
+`.bar-right` flex item, `flex:1 1 0%;min-width:0;justify-content:flex-end`,
+so it fills whatever room the floor chips leave on the .bar's own line and
+right-aligns its own wrapped rows in turn; a `margin-left:auto` on a
+shrink-to-fit box was tried first and rejected — nesting a flex-wrap
+container as a flex item sized by its own content left Chromium free to
+settle on two different widths (668px vs 740px) for byte-identical content,
+depending only on what triggered the most recent layout pass, which flipped
+the toolbar between one row and two on an unrelated status update. `.status`
+lost its `flex-grow` (now `flex:0 1 12em`, capped `max-width:12em`) so a long
+message can no longer widen the toolbar and push Help onto a new line. Help
+moved to be the cluster's last item, its own right edge is what the
+alignment test pins.
+
+Devices: the room panel's HOME ASSISTANT section is one `<details>` "Devices
+(N)", collapsed by default, holding one `<details>` sub-group per
+`typeForEntity` type (the one existing entity→`DeviceType` mapping, reused
+from `src/core/ha.ts`, not duplicated), each also collapsed, sorted by name
+within a group, unmapped entities in "Other" last, groups in a fixed order
+(`DEVICE_GROUP_ORDER`, `src/editor/panels.ts`). Helpers, Automations,
+Scripts and Scenes get the same collapsible/closed treatment. Open/closed
+state lives in `EditorState.haGroups` (a `Set<string>` keyed
+`grp:<label>`/`dev:<type>`), not in `layout` or undo history, so it survives
+a room switch and a `hass` update (the state instance itself is never
+swapped) without an extra undo step or an unsaved-changes mark.
+
+Done, 2026-09-26. Tests first, real `page.mouse` clicks: a computed-style
+pair over `.bar-right` (`justifyContent`, `flexGrow`, `flexBasis`) at 1280
+and 380, no horizontal scroll at 380 — failed against the pre-fix CSS,
+proved via `git stash` on the src changes alone; a stubbed mixed-entity area
+showing collapsed "Devices (7)", opening it to seven correctly-labelled and
+-counted collapsed sub-groups, opening "Lights" to show only the two light
+rows sorted by name; a persistence test switching room then back and
+calling the test harness's `hass`-update helper, checking both a group's and
+a device-type sub-group's open state survive. All new tests also run at
+`--repeat-each=10`. Two pre-existing S7.2 tests ("status line sits right of
+Redo", "a 200-character status ... toolbar does not grow") pinned the old
+`flex-grow` layout and were updated, not reverted, to the new one (finding
+19) — confirmed via a second `git stash` comparison that they passed on
+pre-S8.10 code and only broke because Help now sits after status by design.
+The dropdown-stays-in-viewport test passes on the pre-fix CSS too — `.box`
+was already `position:absolute;right:0` inside its own `position:relative`
+menu, so it could never overflow the flex-wrapped toolbar regardless of the
+`.bar-right` bug; it is kept as a regression guard, not a red-to-green proof.
+
 ## 2026-09-26 Opus re-check of task/S8.9: newId ignored the catalog and other floors
 
 A further Opus re-check of task/S8.9 found that `newId` (`src/editor/state.ts`)
