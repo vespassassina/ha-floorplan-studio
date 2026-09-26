@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.5
 
 - The toolbar's Filter through Redo cluster now sits flush against the
   toolbar's right edge (floor chips stay left), instead of floating in the
