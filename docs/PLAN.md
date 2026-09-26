@@ -1801,6 +1801,39 @@ closes the sprint.
   lint` exit 0; unit 1093/1093; full Playwright suite 565 passed, 1
   skipped, exit 0.
 
+### S8.12 Floor chips by default on a multi-floor layout; a Floor selector in the card form
+
+- Outcome: maintainer report — a card added with the stub config drew only
+  the first floor and had no switcher, since only `floor: "all"` or a
+  `floors` list ever produced one. `FloorplanStudioCard._floorList()`
+  (`src/card/floorplan-studio-card.ts`) now defaults to the switcher, over
+  every floor in layout order, whenever `floors` names nothing usable,
+  `floor` isn't `"all"`, and `floor` isn't pinned to a real floor id the
+  layout has — but only when the layout holds more than one floor. An
+  unknown `floor` id now counts as unset rather than a silent pin to the
+  first floor, so it too gets the switcher on a multi-floor layout. `kiosk:
+  true` still hides any switcher outright. The Edit-card form
+  (`src/card/config-editor.ts`) gained a `<select id="floor">` — "All
+  floors (switcher)" (the default, writes no `floor` key) or one option per
+  loaded floor, which pins `floor` and drops `floors` in the same event —
+  above the floor checkboxes, renamed "Switcher shows" and hidden once a
+  single floor is picked. See `docs/DECISIONS.md`, 2026-09-26.
+- Done, 2026-09-26. Tests first: 6 new `card.test.ts` cases (all confirmed
+  to fail before the `_floorList()` change) plus one existing case
+  rewritten (`floors: ["attic", "loft"]` with no `floor` set now falls into
+  the new default switcher rather than showing none, so the old assertion
+  was the opposite of the new behaviour); 5 new `config-editor.spec.ts`
+  Playwright cases for the Floor select; 1 new `card.spec.ts` Playwright
+  case driving a real `page.mouse` click on the second chip with no floor
+  config at all. All 12 confirmed to fail first; the vitest case and one
+  editor case again after reverting just their own source file (`git stash
+  push -- <file>`), then restored. The new Playwright cases ran clean at
+  `--repeat-each=10` (90/90). Full suites green after the last edit:
+  `npm run lint` exit 0; unit 1099/1099; full Playwright suite 586 passed,
+  1 skipped, exit 0. Screenshots (card with default config, light and a dark theme;
+  the config form with All floors and with a single floor chosen) taken
+  and looked at — see the report.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).
