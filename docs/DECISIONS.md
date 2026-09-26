@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-26 HACS default list: the HACS action runs with no ignores
+
+Diego asked to submit the repository to the HACS default list. hacs/default
+requires the HACS action to pass "without any errors or ignores", and our
+Validate workflow ignored `brands topics`, which were only needed for a
+custom repository. The repository now has topics, and the integration ships
+its own `brand/icon.png`, which HACS accepts in place of an entry in
+home-assistant/brands. So the ignore is gone, and a failing check now fails
+Validate.
+
 ## 2026-09-26 S8.13: a 150 cm light aura; alerts for motion and contact
 
 Maintainer request: "for the lights make the area lighting up 50% larger.
