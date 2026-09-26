@@ -85,6 +85,42 @@ pinned the superseded order and are updated, not reverted, confirmed via the
 same `git stash` technique that they broke only because of this reorder. All
 new/updated tests green at `--repeat-each=10`.
 
+Second Opus review, same day: two real defects past the two passes above.
+(1) `haDeviceGroups`/`haGroupBlock` (`src/editor/panels.ts`) built each
+`<details>` from an unkeyed `.map`, so switching to a room whose device types
+differ at some index reused another type's DOM node at that position, and the
+reused node kept its old `open` state under the new type's key — Kitchen
+(Switch, Temp) could show "Wall switches" open and record `dev:switch` in
+`haGroups` from having merely displayed it, not opened it. Fixed with
+`repeat(list, (t) => t, ...)` for both the sub-groups and the top-level
+groups, and `.open=${live(...)}` in place of `?open=`, so the binding always
+reads the DOM's real state rather than lit-html's last-committed value.
+(2) `.box{position:absolute;right:0}` anchors a dropdown to its own button,
+not the viewport, so a mid-toolbar button (View, Edit, Filter) carried a box
+that ran off the left edge once the box was wider than the room to that
+button's left — measured at 380 (View -96..128px) and even 600 (Filter
+-10..214px); the previous viewport test only ever opened File, the
+cluster's rightmost and safest item, so it passed throughout. Fixed with
+`onMenuToggle`, wired to every menu's own `toggle` event: it resets to
+`right:0`, measures the box's real `getBoundingClientRect().left`, and when
+that is negative switches to `right:auto` with an inline `left` that pins the
+box's screen position to the viewport's own left edge (0), regardless of the
+box's width or which button opened it. The dropdown-viewport test itself had to move off a plain
+`boundingBox()` read: the `<details>` `toggle` event is a queued task per the
+HTML spec, not synchronous with the click, so Playwright's `click()` can
+resolve a tick before the clamp runs — reading immediately caught the box
+mid-flight for exactly the cases that needed clamping. It now polls the real
+on-screen position (`expect(...).toPass({ timeout: 1000 })`) rather than a
+guessed sleep or a stale style-attribute sentinel (closing a menu already
+leaves `right` non-empty, so that sentinel would read as "already clamped"
+before the next open's own toggle fires). Nits from the same review: Undo and
+Redo are now one `.btnpair` flex item (`flex-wrap:nowrap`) so the pair always
+wraps together instead of splitting across rows; the Device colours and
+Install code panels now open at `panelTop()` (the toolbar's own measured
+`getBoundingClientRect().bottom`, plus a 10px gap) instead of a fixed 90px,
+which the taller narrow toolbar had started to overlap. All four fixes have a
+red-first Playwright test, run at `--repeat-each=10`.
+
 ## 2026-09-26 S8.11: an opening cuts a real hole in the wall
 
 Maintainer feedback: an opening (a door-less gap) was a light-grey `.opening`
