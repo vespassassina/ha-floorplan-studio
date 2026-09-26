@@ -2,6 +2,34 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-26 Opus re-check of task/S8.9: newId ignored the catalog and other floors
+
+A further Opus re-check of task/S8.9 found that `newId` (`src/editor/state.ts`)
+only looked at the current floor's own objects. A device's id survives its own
+delete from the plan in its (still catalogued) `layout.catalog` entry, so
+`newId` could hand that same id to an unrelated device placed afterward.
+`placeArea` (`state.ts`) and `placeDevice` (`editor-app.ts`) then made it worse:
+both reused a catalog entry's stored id unconditionally, so re-placing the
+original device later collided with the one that had recycled its id —
+`validate` then failed with a duplicate device id.
+
+Fix, one commit:
+
+- `newId` takes an optional `layout`; when given, it also avoids every
+  `layout.catalog` id and every device id on every floor (a device can also
+  move floors and keep its id, via `placeDevice`'s own floor switch).
+- `placeArea` and `placeDevice` now reuse a catalog entry's id only when no
+  floor's device already carries it; otherwise they mint a fresh id via
+  `newId` and update the catalog entry to match, in the same undo step already
+  open (both already snapshot before touching anything).
+- Two unit tests run the coordinator's own 4-step repro end to end (via
+  `placeArea` and via `placeDevice`) and assert `validate(layout).ok`; both
+  failed on the prior code. Two Playwright tests fill coverage gaps the
+  review also flagged: the Trace panel's own hint wraps instead of clipping,
+  and a rotated stairs flight shows "Rotated: set 0 to reshape." — both
+  already worked, so these two only needed writing, not a fix; fail-first was
+  proved by reverting the relevant line and re-running each.
+
 ## 2026-09-26 Opus review of task/S8.9: seven defects fixed, one on its own contract
 
 An Opus review of the whole S8.9 branch (which includes S8.8) found seven

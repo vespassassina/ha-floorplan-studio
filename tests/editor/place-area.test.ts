@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type { Layout } from "../../src/core/schema";
 import type { HaData } from "../../src/core";
-import { addCandidates, inside } from "../../src/core";
+import { addCandidates, inside, validate } from "../../src/core";
 import { EditorState } from "../../src/editor/state";
 
 const layout = (): Layout => ({
@@ -120,6 +120,43 @@ describe("placeArea (S4.15): every unplaced entity of a room's HA area, in one s
     st.replaceFloor(f);
     const rows = addCandidates(st.layout, st.ha).filter((c) => c.entity === "light.bulb");
     expect(rows).toHaveLength(1);
+  });
+
+  // Opus re-check of S8.9: newId only looked at the current floor's own objects, so a stale catalog entry (a
+  // device deleted from the plan but still catalogued) could be handed out again to a different device.
+  it("Opus re-check: a device deleted from the plan does not have its id recycled onto a different device", () => {
+    const l = layout();
+    l.floors.ground.outline = [[0, 0], [800, 0], [800, 400], [0, 400]]; // validate requires an outline; the room fixture leaves it empty
+    const st = new EditorState(l);
+    st.ha = ha();
+    st.ha.devices = [{ id: "dev-bulb", name: "Bulb" }];
+    st.ha.entities.push(
+      { id: "light.bulb", name: "Bulb", domain: "light", area: "kitchen", dev: "dev-bulb" } as HaData["entities"][number],
+      { id: "light.other", name: "Other", domain: "light", area: "kitchen" } as HaData["entities"][number],
+    );
+
+    // 1. Place light.bulb from the Place popup.
+    expect(st.placeArea(0, new Set(["light.bulb"]))).toBe(1);
+    const bulbId = st.f.devices.find((d) => d.entity === "light.bulb")!.id;
+
+    // 2. Delete it from the plan. Its catalog entry stays.
+    st.snapshot();
+    const f = structuredClone(st.f);
+    f.devices = f.devices.filter((d) => d.entity !== "light.bulb");
+    st.replaceFloor(f);
+    expect(st.layout.catalog.some((c) => c.entity === "light.bulb" && c.id === bulbId)).toBe(true);
+
+    // 3. Place light.other from the Place popup.
+    expect(st.placeArea(0, new Set(["light.other"]))).toBe(1);
+
+    // 4. Place the bulb again.
+    expect(st.areaToPlace(0).map((e) => e.id)).toContain("light.bulb");
+    expect(st.placeArea(0, new Set(["light.bulb"]))).toBe(1);
+
+    const ids = st.f.devices.map((d) => d.id);
+    expect(new Set(ids).size).toBe(ids.length); // no two devices share an id
+    const result = validate(st.layout);
+    expect(result.ok).toBe(true);
   });
 
   it("keeps a large area inside a small room", () => {

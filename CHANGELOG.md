@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed: placing a device the Place popup or Add > Device offered from a
+  stale-but-catalogued entry (its original device deleted from the plan)
+  could hand it an id a different device had since taken, so re-placing the
+  original later produced a duplicate device id.
 - Walls draw thicker and read more like walls: an internal wall is now
   10 cm, an external one 20 cm (were 3 and 6). A door, window or opening
   now takes the thickness of the wall it actually sits on, instead of one

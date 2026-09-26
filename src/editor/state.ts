@@ -401,7 +401,7 @@ export class EditorState {
     if (Object.values(this.layout.floors).some((f) => f.devices.some((d) => d.entity === entity)) || this.layout.catalog.some((c) => c.entity === entity)) return false;
     const next = structuredClone(this.layout);
     const f = next.floors[this.floor];
-    const id = newId(f, this.floor, "light");
+    const id = newId(f, this.floor, "light", next);
     const room = f.rooms.find((r) => (r.kind === "room" || r.kind === "structure") && inside([sw.x, sw.y], r.pts));
     f.devices.splice(devIndex, 1, { id, name, type: "light", entity, x: sw.x + 30, y: sw.y, bound: sw.entity });
     next.catalog.push({ id, floor: this.floor, room: room?.name ?? "", type: "light", name, entity });
@@ -421,7 +421,7 @@ export class EditorState {
     if (Object.values(this.layout.floors).some((f) => f.devices.some((d) => d.entity === e.id)) || this.layout.catalog.some((c) => c.entity === e.id)) return false;
     const next = structuredClone(this.layout);
     const f = next.floors[this.floor];
-    const id = newId(f, this.floor, "device");
+    const id = newId(f, this.floor, "device", next);
     const type = typeForEntity(e);
     f.devices.push({ id, name: e.name, type, entity: e.id, x: ctr[0], y: ctr[1] });
     next.catalog.push({ id, floor: this.floor, room: room ?? "", type, name: e.name, entity: e.id });
@@ -482,7 +482,13 @@ export class EditorState {
       // room — instead of pushing a second one for the same entity (`addHaEntity` never faces this because it only
       // ever offers entities with no catalog entry at all).
       const existing = next.catalog.find((c) => c.entity === e.id);
-      const id = existing?.id ?? newId(f, this.floor, "device"), type = existing?.type ?? typeForEntity(e);
+      // Opus re-check of S8.9: the catalog entry's id survives a delete from the plan, and `newId` could since have
+      // handed that same id to an unrelated device (the bug this defect is against). Reusing it here regardless
+      // would duplicate it a second time. Reuse only when no floor's device currently carries it; otherwise mint a
+      // fresh id and update the catalog entry to match, in this same undo step.
+      const claimed = existing && Object.values(next.floors).some((fl) => fl.devices.some((d) => d.id === existing.id));
+      const id = existing && !claimed ? existing.id : newId(f, this.floor, "device", next), type = existing?.type ?? typeForEntity(e);
+      if (existing && claimed) existing.id = id;
       f.devices.push({ id, name: existing?.name ?? e.name, type, entity: e.id, x: at[0], y: at[1] });
       if (!existing) next.catalog.push({ id, floor: this.floor, room: room.name, type, name: e.name, entity: e.id });
     });
@@ -710,10 +716,20 @@ export class EditorState {
   }
 }
 
-/** An id that no object of the floor uses yet: `<prefix>-<floor>-<n>`. */
-export function newId(f: Floor, floor: string, prefix: string): string {
+/**
+ * An id that no object of the floor uses yet: `<prefix>-<floor>-<n>`. `layout`, when given, also avoids every
+ * `layout.catalog` id and every device id on every floor — a device's id survives a delete-from-plan in its (still
+ * catalogued) entry, and a device can be moved to another floor keeping its id, so the current floor's own lists
+ * are not enough to keep a freshly minted id unique (Opus re-check of S8.9: `newId` handed out a deleted device's
+ * still-catalogued id to an unrelated device).
+ */
+export function newId(f: Floor, floor: string, prefix: string, layout?: Layout): string {
   const used = new Set<string>();
   for (const list of [f.rooms, f.walls, f.stairs, f.doors, f.openings, f.extras, f.devices, f.furniture, f.unlinked]) for (const o of list) used.add(o.id);
+  if (layout) {
+    for (const c of layout.catalog) used.add(c.id);
+    for (const fl of Object.values(layout.floors)) for (const d of fl.devices) used.add(d.id);
+  }
   let n = 1;
   while (used.has(`${prefix}-${floor}-${n}`)) n++;
   return `${prefix}-${floor}-${n}`;

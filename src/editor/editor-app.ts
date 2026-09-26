@@ -1655,9 +1655,16 @@ export class FloorplanStudioEditor extends LitElement {
     let ctr = spawnPoint(st.f, this.centre(), st.snapGrid);
     if (room) ctr = round([room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length, room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length]);
     const f = structuredClone(st.f);
+    // Opus re-check of S8.9: `c.id` survived a delete from the plan and `newId` could since have handed that same
+    // id to an unrelated device (the bug placeArea's own fix, above, is against). Reuse it only when no floor's
+    // device currently carries it; otherwise mint a fresh id and update the catalog entry in this same undo step
+    // (already open: `st.snapshot()` ran before this method touched anything).
+    const claimed = Object.values(st.layout.floors).some((fl) => fl.devices.some((d) => d.id === c.id));
+    const devId = claimed ? newId(f, target, "device", st.layout) : c.id;
+    if (claimed) c.id = devId;
     f.devices.push(c.type === "heater"
-      ? { id: c.id, name: c.name, type: c.type, entity: c.entity, a: [ctr[0] - 50, ctr[1]], b: [ctr[0] + 50, ctr[1]] }
-      : { id: c.id, name: c.name, type: c.type, entity: c.entity, x: ctr[0], y: ctr[1] });
+      ? { id: devId, name: c.name, type: c.type, entity: c.entity, a: [ctr[0] - 50, ctr[1]], b: [ctr[0] + 50, ctr[1]] }
+      : { id: devId, name: c.name, type: c.type, entity: c.entity, x: ctr[0], y: ctr[1] });
     st.replaceFloor(f);
     st.sel = { t: "dev", i: f.devices.length - 1 };
     const v = st.view;

@@ -3109,6 +3109,21 @@ test("stairs: a real click on a rotated flight, where the unrotated one is not, 
   await expect(page.locator("#sn")).toHaveCount(0);
 });
 
+// Opus re-check of S8.9: stairsPanel's rotated-flight hint (panels.ts) had no test of its own.
+test("stairs: rotating a straight flight shows the \"Rotated: set 0 to reshape.\" hint instead of the reshape hints", async ({ page }) => {
+  const c = await screenOf(page, 740, 500);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#panel").getByText("Drag corners to reshape.")).toBeVisible();
+  await expect(page.locator("#panel").getByText("Rotated: set 0 to reshape.")).toHaveCount(0);
+  await page.locator("#srot90").click();
+  await expect(page.locator("#panel").getByText("Rotated: set 0 to reshape.")).toBeVisible();
+  await expect(page.locator("#panel").getByText("Drag corners to reshape.")).toHaveCount(0);
+  await expect(page.locator("#panel").getByText("Click an edge to add a point.")).toHaveCount(0);
+  await page.locator("#srotreset").click();
+  await expect(page.locator("#panel").getByText("Drag corners to reshape.")).toBeVisible();
+  await expect(page.locator("#panel").getByText("Rotated: set 0 to reshape.")).toHaveCount(0);
+});
+
 test("stairs: a turned flight has no corner handles, and rotation 0 brings them back on the drawn corners", async ({ page }) => {
   const c = await screenOf(page, 740, 500);
   await page.mouse.click(c.x, c.y);

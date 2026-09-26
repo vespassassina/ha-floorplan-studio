@@ -201,6 +201,16 @@ test("S7.11: Escape closes the Trace panel", async ({ page }) => {
   await expect(page.locator("#tracePanel")).toHaveCount(0);
 });
 
+// Opus re-check of S8.9: the sidebar's own static hints got a wrap-not-clip test (editor.spec.ts, "Opus review: a
+// free wall..."), but the trace panel's own <p class="hint"> lives outside #panel and was never checked.
+test("S7.11: the Trace panel's own hint wraps fully visible, not clipped", async ({ page }) => {
+  await openTrace(page);
+  const hint = page.locator("#tracePanel p.hint");
+  await expect(hint).toBeVisible();
+  const [scrollWidth, clientWidth, text] = await hint.evaluate((e) => [e.scrollWidth, e.clientWidth, e.textContent]);
+  expect(scrollWidth as number, `trace panel hint clipped: "${text}"`).toBeLessThanOrEqual(clientWidth as number);
+});
+
 // Opus review, 2026-09-25 (M3): Home Assistant's websocket takes 4 MiB in one message, and one trace may already be
 // 4 MB. Save refuses a plan over MAX_LAYOUT_BYTES and says which floors carry an image, before any host is asked.
 test("Save refuses a plan whose JSON is over the save limit and names the traced floors", async ({ page }) => {
