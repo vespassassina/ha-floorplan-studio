@@ -1627,6 +1627,104 @@ closes the sprint.
 - Outcome: maintainer feedback: "when linking lights, only show the floor related switches, add also motion groups and motion sensors, or map them automatically, e.g. basement dumb light is managed by basement light switch." The light panel's "Controlled by" select is now floor-scoped (`switchChoicesForLight`, `src/core/ha.ts`) instead of listing every switch on the plan, with a unique same-area name-match candidate shown first, labelled "(suggested)". Edit gained a top-level "Link lights to switches" item, right after Group (Opus review finding 14 moved it out of the Group submenu, which it ignores — see `docs/DECISIONS.md`), which links every unbound light on the current floor to its suggested switch (`EditorState.autoLinkLights`) in one undo step. The select's own optgroup gained "Motion": picking a motion sensor or motion group never changes `bound`; it opens a "Turn on with X, off after N min, Create automation" row (the existing motion-group builder, generalised to also record the new `device.motion` field on the specific light, one undo step) and, once linked, an Unlink button that clears only `motion` — the automation itself is left in HA (`docs/DECISIONS.md`, 2026-09-25 S8.7).
 - Done, 2026-09-25. Tests first: `schema.test.ts` "S8.7: a light's motion field" (5 cases, 3 failed with the old schema); `ha.test.ts` "switchChoicesForLight" (9 cases covering every suggestion combination in the brief — the "Basement dumb light"/"Basement light switch" 2-shared-token case, tied scores, sole-candidate, different area same floor, different floor, higher-score-wins, no-HA fallback, off-floor bound kept); `state.test.ts` `autoLinkLights` (links two lights on one floor in one undo step, leaves an already-bound light and a no-match floor untouched). New Playwright tests at `--repeat-each=10`: "Link lights to switches" (one click links every unbound light on the floor, one undo step reverts all of them — this test originally set up only one linkable light, so it never actually exercised "reverts all of them"; Opus review finding 9 caught it and it was strengthened with a second light/switch pair on 2026-09-25, see `docs/DECISIONS.md`), `boundField` floor-scoping and the suggested label, the Motion optgroup's writer gate and floor-only listing, and the full motion-link flow (pick leaves `bound` unchanged, Create automation posts the same config shape `motionLights` already built for the group flow, sets `motion` in one undo step, Unlink clears only `motion`) — all green, all failed first when temporarily disabled. Two existing `editor.spec.ts` tests ("choosing another free switch...", "a switch already bound elsewhere...") initially broke on the floor-scoped rewrite: they expected the old `{room} - {name}` label and catalog insertion order; `SwitchChoice` gained a `room` field and the unsuggested tier kept insertion order (no alphabetical sort) to match, both fixed without editing the tests. Full suites green after the last edit: `npm run lint` exit 0; unit 1041/1041; `npm run build` exit 0; full Playwright suite green (see the task report for the exact count).
 
+### S8.8 A catalogued-but-unplaced device must never disappear
+- Outcome: field bug from Diego's own Home Assistant — 34 real Living Room
+  devices imported into the catalog but never dragged onto a floor vanished
+  entirely from the room's Place popup, and showed only as raw per-entity
+  `catalog:` rows, not device rows, in Add > Device. Cause: `placedDeviceIds`
+  (`src/core/ha.ts`) counted a device as placed when any entity was placed
+  *or* catalogued. "Placed" now means on a floor only. `addCandidates` and
+  `placeableDevicesInArea` (and `unplacedDevicesInArea`) build one row per
+  device via a new `deviceRows` helper: an unplaced catalog entry whose
+  entity belongs to an HA device becomes that device's one row, named by
+  the device, placing the catalog entry itself; multi-gang switches still
+  get one row per gang (S8.4-S8.7). Add panel and Place popup rows now show
+  name on one line (ellipsis, full name in `title`) and a muted subtitle
+  (type · room/area). Both panels are 50% larger in width and list height,
+  clamped to the viewport (`docs/DECISIONS.md`, 2026-09-25 S8.8).
+- Done, 2026-09-25. Tests first, in `ha.test.ts`: a Hue bulb device with a
+  catalogued-but-unplaced light (one device row, named by device); a
+  two-gang switch device with both gangs catalogued (two rows); a plug
+  whose switch is catalogued and power sensor is not (one row); a device
+  placed on a floor (no row) — for both `addCandidates` and
+  `placeableDevicesInArea`; plus a case proving a catalogued sibling merges
+  into the device's row instead of hiding it. Reverting `placedDeviceIds`
+  to the old catalog-checking version failed 6 of these tests (63/69
+  passed), confirming they exercise the real fix; restored, 69/69 passed.
+  New Playwright tests at `--repeat-each=10` (30/30, no flakiness, all
+  confirmed to fail with `editor-app.ts` reverted): a long device name
+  ellipsises with the full name in `title` (CSS pair on
+  `white-space`/`text-overflow`/`overflow`); the Add panel and Place popup
+  are both over 1.4x the S8.5 baseline width; a catalogued-but-unplaced
+  device shows in the room Place popup by its device name (the 0.12.3
+  field bug, reproduced and fixed). Two pre-existing Playwright tests broke
+  on the new row markup (`button:text-is("Kitchen plug")` no longer
+  matched once the button gained a `<small>` subtitle) and on the
+  `ha-dev:` key format change (`${devId}` to `${entity.id}`, needed because
+  a multi-gang device now produces more than one row from one `devId`);
+  both fixed by retargeting to `.devrow-name` and the new keys, not by
+  loosening the assertions. Full suites green after the last edit: `npm run
+  lint` exit 0; unit 1063/1063; `npm run build` exit 0; full Playwright
+  suite 554 passed, 1 skipped, exit 0. `npm run shots` run and the Add
+  panel and Place popup shots looked at directly.
+
+### S8.9 Thicker walls; a door/window/opening takes its own wall's thickness; sidebar section headings
+- Outcome, part 1: a plain internal wall (`.e`) goes from 3 cm to 10 cm
+  (`WALL_WIDTH`), an external wall (`.e.external`) from 6 cm to 20 cm
+  (`WALL_WIDTH_EXTERNAL`), both named in `src/core/render.ts`; each wall's
+  white halo stays 2 cm wider than its own wall. A door, window or opening
+  now takes the thickness of the wall segment it actually sits on (10 cm
+  internal, 20 cm external, 10 cm if off any wall), via a new shared
+  `edgeKindAt()` (`src/core/geometry.ts`) and `wallWidthAt()`
+  (`src/core/render.ts`), reusing the editor's own door-wall-snap tolerance
+  (5 cm) so render and edit logic can never disagree. Every door/window now
+  draws an invisible `.door-hit` twin line at the old fixed 22 cm width so
+  its click target is unchanged. Corner and T-join linecaps (round internal,
+  square external) are unchanged, checked clean at 4x zoom (`docs/DECISIONS.md`,
+  2026-09-26 S8.9 part 1).
+- Outcome, part 2: the editor sidebar groups every selection panel's fields
+  under small section headings, added through one shared `heading(label)`
+  helper in `src/editor/panels.ts` and styled once in `editor-app.ts`
+  (`h4.pnl-h`). The order is fixed: Identity, Home Assistant, Links,
+  Appearance, Automations, Danger (Danger last); a panel renders only the
+  headings it has content for. Every panel was touched: floor, room, wall
+  (both the free-standing `wallPanel` and the room-edge `edgePanel`), door,
+  opening, stairs, furniture, an unlinked entity, a corner, a structure
+  line, and every device type. The room panel's Delete stays next to
+  Unsnap, not at the bottom, an earlier pinned decision kept rather than
+  fought. Every `hint()` now also carries its full text on `title` and caps
+  at one line with an ellipsis; the one hint with its own button (the floor
+  panel's "Need help? Open Help") opts out via `.hint.help-line` so the
+  button is never clipped (`docs/DECISIONS.md`, 2026-09-26 S8.9 part 2).
+- Done, 2026-09-26. Tests first: part 1 — `render.test.ts` pins every
+  `WallKind`'s thickness and the halo's +2cm rule (failed with `WALL_WIDTH`
+  reverted to 3), plus a "door/window takes the thickness of the wall it
+  sits on" block (4 cases); an `editor.spec.ts` CSS pair over a live
+  internal wall, an external wall, and a door on each, confirmed to fail
+  with the old 3/6/22 values. Part 2 — `editor.spec.ts` "the device panel's
+  section headings appear in the stated order for a light": selects the
+  demo's Living light, reads every `h4.pnl-h` in `#panel`, asserts each is
+  one of the six canonical names and that they appear in that relative
+  order, first is Identity, last is Danger; confirmed to fail (headings out
+  of order, "Links" first) when the `heading()` calls were reverted; passed
+  10/10 at `--repeat-each=10` once restored. Fixed along the way: 7
+  Playwright regressions from part 1's two-line doors (`tapDoor()` and two
+  pinned wall-thickness values needed `:not(.door-hit)` / updated numbers);
+  and, caught only by rendering the sidebar and looking, two selection
+  panels the first pass had missed — `edgePanel` (a room-boundary wall,
+  the panel most clicks on a wall actually hit) and `cornerPanel` — both
+  now grouped the same way. Full suites green after the last edit: `npm run
+  lint` exit 0; unit 1069/1069; `npm run build` exit 0; full Playwright
+  suite 556 passed, 1 skipped, exit 0. `npm run shots` run (wall thickness
+  visible in every `card-*`/`editor-*` PNG, differs from baseline as
+  expected); a dedicated ad hoc screenshot pass (not committed, run from
+  `dist/editor.html`) covered every selection kind's sidebar in blueprint
+  and light themes and at a 380px viewport — headings, dividers and the
+  help-line hint all held up, no clipping. No "before" shots exist for part
+  2 (not taken before the code changed, a process slip); the "after" state
+  was reviewed directly against the code and against part 1's own
+  `editor-*` baseline shots instead.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).

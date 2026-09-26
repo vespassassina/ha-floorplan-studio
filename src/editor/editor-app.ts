@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, wallWidthAt } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, Trace, WallKind } from "../core";
 import { traceImage } from "./trace";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
@@ -269,13 +269,21 @@ export class FloorplanStudioEditor extends LitElement {
     .fpanel .harow .name{flex:1;text-align:left;text-decoration:none}
     .fpanel .chips{display:flex;flex-wrap:wrap;gap:4px;padding:8px 10px 0}
     .fpanel .rows{overflow:auto;padding:6px 10px;display:flex;flex-direction:column;gap:2px}
-    .prow{display:flex;align-items:center;gap:6px;cursor:pointer} .prow span{flex:1} .prow small{opacity:.7}
+    .prow{display:flex;align-items:center;gap:6px;cursor:pointer}
+    /* S8.8: line 1 the name (ellipsis on overflow, title carries the full text), line 2 a smaller muted subtitle. */
+    .prow-text{flex:1;display:flex;flex-direction:column;gap:0;min-width:0}
+    .prow-name{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .prow small{opacity:.7}
     .fpanel>.btn{margin:8px 10px 10px;width:auto;align-self:flex-start}
-    .add-dev-panel{width:520px}
+    /* S8.8: 50% larger than the S8.5 baseline (520x642 / 440x642 measured at an 800px-tall viewport, panel maxed
+       out): width and max-height both grow by half, clamped so a small screen still fits it — see docs/DECISIONS.md. */
+    .add-dev-panel{width:min(780px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
     .add-dev-panel>input[type=search]{margin:8px 10px 0;box-sizing:border-box;width:calc(100% - 20px)}
     .add-dev-filters select{flex:1 1 45%;min-width:140px}
-    .add-dev-panel .rows .btn{display:flex;flex-direction:column;align-items:flex-start;gap:0}
+    .add-dev-panel .rows .btn{display:flex;flex-direction:column;align-items:flex-start;gap:0;min-width:0;text-align:left}
+    .add-dev-panel .rows .btn .devrow-name{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .add-dev-panel .rows .btn small{opacity:.7}
+    .place-panel{width:min(660px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
     .installcode-panel{position:fixed;left:50%;top:90px;transform:translateX(-50%);z-index:30;width:520px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
     .installcode-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--fp-idle);font-weight:600}
     .installcode-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
@@ -327,7 +335,18 @@ export class FloorplanStudioEditor extends LitElement {
     aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}
     aside input:not([type=checkbox]),aside select{width:100%;box-sizing:border-box}
     .row{display:flex;gap:6px}
+    /* S8.9.1 / Opus review of S8.9: hints are written to fit one line at the sidebar's own width; nowrap+ellipsis
+       is a safety net only, and only for the sidebar's own static hints (.fit: the hint() helper's output and the
+       fixed "Nothing selected." messages). A confirm prompt or the trace-image instructions build their own <p
+       class="hint"> without .fit, and wrap normally: their text is never a tooltip fallback away from the user. */
     .hint{font-size:.85em;opacity:.75;margin:6px 0}
+    .hint.fit{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    /* A hint that carries its own button (Help) never clips it: full width, wraps instead of ellipsising. */
+    .hint.help-line{white-space:normal;overflow:visible;text-overflow:clip;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+    /* S8.9: a selection panel's section headings (Identity, Home Assistant, Links, Appearance, Automations, Danger),
+       a divider above each except the first so the groups read apart without adding a new colour. */
+    h4.pnl-h{margin:10px 0 2px;padding-top:8px;border-top:1px solid var(--fp-idle);font-size:.8em;font-weight:600;text-transform:uppercase;letter-spacing:.03em;opacity:.7}
+    h4.pnl-h:first-child,strong+h4.pnl-h,strong+p+h4.pnl-h,strong+p+p+h4.pnl-h{margin-top:4px;padding-top:0;border-top:none}
     .errors{border:1px solid var(--fp-motion);border-radius:4px;padding:6px 10px;margin:6px 0}
     .errors ul{margin:4px 0;padding-left:18px}
     /* S7.2: the status line sits in the toolbar, right of Redo. A fixed flex-basis, not its text, sets its width, so a
@@ -1237,7 +1256,7 @@ export class FloorplanStudioEditor extends LitElement {
       <p>What Home Assistant has in this area and the plan does not show yet. Readings with no icon of their own (power, energy, battery…) are left out. Tick what to place; each placed device can then be dragged to its spot.</p>
       <div class="chips">${types.map(([t, label]) => html`<button class="chip keep" data-ptype=${t} aria-pressed=${this.placeType === t ? "true" : "false"} @click=${() => { this.placeType = this.placeType === t ? null : t; this.requestUpdate(); }}>${label}</button>`)}</div>
       <button class="btn keep" id="placeAll" ?disabled=${!shown.length} @click=${toggleAll}>${allShownOn ? "Deselect all" : "Select all"}</button>
-      <div class="rows">${shown.map((e) => html`<label class="prow" data-pent=${e.id}><input type="checkbox" .checked=${live(this.placeOn.has(e.id))} @change=${tick(e)}><span>${e.name}</span><small>${e.id}</small></label>`)}</div>
+      <div class="rows">${shown.map((e) => html`<label class="prow" data-pent=${e.id} title=${e.name}><input type="checkbox" .checked=${live(this.placeOn.has(e.id))} @change=${tick(e)}><span class="prow-text"><span class="prow-name">${e.name}</span><small>${TYPE_LABELS.find((t) => t[0] === typeForEntity(e))?.[1] ?? typeForEntity(e)} · ${room.name}</small></span></label>`)}</div>
       <button class="btn primary keep" id="placeGo" ?disabled=${!picked.length} @click=${() => this.placeGo(i, picked.map((e) => e.id))}>Place ${picked.length}</button>
     </div>`;
   }
@@ -1305,7 +1324,7 @@ export class FloorplanStudioEditor extends LitElement {
       </div>
       ${all.length === 0 ? html`<span class="grp" id="addDevNone">Everything is on the plan</span>`
         : shown.length === 0 ? html`<span class="grp" id="addDevNone">Nothing matches</span>`
-        : html`<div class="rows">${TYPE_LABELS.map(([t, label]) => { const g = shown.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-add=${c.key} @click=${() => this.pickAddDev(c)}>${c.name}<small>${c.room || c.area ? ` ${c.room || c.area}` : ""}</small></button>`)}` : nothing; })}</div>`}
+        : html`<div class="rows">${TYPE_LABELS.map(([t, label]) => { const g = shown.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-add=${c.key} title=${c.name} @click=${() => this.pickAddDev(c)}><span class="devrow-name">${c.name}</span><small>${label}${c.room || c.area ? ` · ${c.room || c.area}` : ""}</small></button>`)}` : nothing; })}</div>`}
     </div>`;
   }
 
@@ -1636,9 +1655,16 @@ export class FloorplanStudioEditor extends LitElement {
     let ctr = spawnPoint(st.f, this.centre(), st.snapGrid);
     if (room) ctr = round([room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length, room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length]);
     const f = structuredClone(st.f);
+    // Opus re-check of S8.9: `c.id` survived a delete from the plan and `newId` could since have handed that same
+    // id to an unrelated device (the bug placeArea's own fix, above, is against). Reuse it only when no floor's
+    // device currently carries it; otherwise mint a fresh id and update the catalog entry in this same undo step
+    // (already open: `st.snapshot()` ran before this method touched anything).
+    const claimed = Object.values(st.layout.floors).some((fl) => fl.devices.some((d) => d.id === c.id));
+    const devId = claimed ? newId(f, target, "device", st.layout) : c.id;
+    if (claimed) c.id = devId;
     f.devices.push(c.type === "heater"
-      ? { id: c.id, name: c.name, type: c.type, entity: c.entity, a: [ctr[0] - 50, ctr[1]], b: [ctr[0] + 50, ctr[1]] }
-      : { id: c.id, name: c.name, type: c.type, entity: c.entity, x: ctr[0], y: ctr[1] });
+      ? { id: devId, name: c.name, type: c.type, entity: c.entity, a: [ctr[0] - 50, ctr[1]], b: [ctr[0] + 50, ctr[1]] }
+      : { id: devId, name: c.name, type: c.type, entity: c.entity, x: ctr[0], y: ctr[1] });
     st.replaceFloor(f);
     st.sel = { t: "dev", i: f.devices.length - 1 };
     const v = st.view;
@@ -2128,7 +2154,7 @@ export class FloorplanStudioEditor extends LitElement {
     }
     f.stairs.forEach((t, i) => { if (t.shape === "straight" && !t.rot) t.pts.forEach((p, j) => o.push(`<circle class="h" data-h="s${i}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`)); });
     const open = st.openDoor && f.doors.find((d) => d.id === st.openDoor);
-    if (open) o.push(line(open.a, open.b, "door open", 'stroke-width="22" pointer-events="none"'));
+    if (open) o.push(line(open.a, open.b, "door open", `stroke-width="${wallWidthAt(f, open.a, open.b)}" pointer-events="none"`));
     for (const r of looseEnds(f)) { const p = f[r.k][r.i][r.end]; o.push(`<circle class="h" data-hp="${r.k}:${r.i}:${r.end}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(4.5 * k)}"/>`); }
     if (s?.t === "door" && f.doors[s.i]) for (const end of ["a", "b"] as const) { const p = f.doors[s.i][end]; o.push(`<circle class="h" data-dh="${s.i}:${end}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`); }
     if (s?.t === "v") { const p = ptOf(f, s.ref); if (p) o.push(`<circle class="h on" pointer-events="none" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`); }

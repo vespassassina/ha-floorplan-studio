@@ -2,6 +2,234 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-26 Opus re-check of task/S8.9: newId ignored the catalog and other floors
+
+A further Opus re-check of task/S8.9 found that `newId` (`src/editor/state.ts`)
+only looked at the current floor's own objects. A device's id survives its own
+delete from the plan in its (still catalogued) `layout.catalog` entry, so
+`newId` could hand that same id to an unrelated device placed afterward.
+`placeArea` (`state.ts`) and `placeDevice` (`editor-app.ts`) then made it worse:
+both reused a catalog entry's stored id unconditionally, so re-placing the
+original device later collided with the one that had recycled its id —
+`validate` then failed with a duplicate device id.
+
+Fix, one commit:
+
+- `newId` takes an optional `layout`; when given, it also avoids every
+  `layout.catalog` id and every device id on every floor (a device can also
+  move floors and keep its id, via `placeDevice`'s own floor switch).
+- `placeArea` and `placeDevice` now reuse a catalog entry's id only when no
+  floor's device already carries it; otherwise they mint a fresh id via
+  `newId` and update the catalog entry to match, in the same undo step already
+  open (both already snapshot before touching anything).
+- Two unit tests run the coordinator's own 4-step repro end to end (via
+  `placeArea` and via `placeDevice`) and assert `validate(layout).ok`; both
+  failed on the prior code. Two Playwright tests fill coverage gaps the
+  review also flagged: the Trace panel's own hint wraps instead of clipping,
+  and a rotated stairs flight shows "Rotated: set 0 to reshape." — both
+  already worked, so these two only needed writing, not a fix; fail-first was
+  proved by reverting the relevant line and re-running each.
+
+## 2026-09-26 Opus review of task/S8.9: seven defects fixed, one on its own contract
+
+An Opus review of the whole S8.9 branch (which includes S8.8) found seven
+issues. Six were fixed here, each with its own commit and a test written
+first and watched fail before the fix:
+
+1. `placeArea` (`src/editor/state.ts`) reused an existing catalog entry for
+   a room instead of always pushing a new one, so placing the same area
+   twice no longer duplicated it.
+2. A multi-gang switch (several gangs, one device) is now placed once per
+   gang, not once per device, in `deviceRows` and `addCandidates`
+   (`src/core/ha.ts`).
+3. Fixed together with 2 (one commit, `25a6fcd`, not two): the two are
+   coupled through the same shared functions (`deviceRows`, `addCandidates`,
+   `placeableDevicesInArea`, `unplacedDevicesInArea`) and splitting the diff
+   would have left one half red on its own. Disclosed here since the review
+   asked for one commit per defect.
+4. `wallWidthAt` (`src/core/render.ts`) now takes the widest of every edge
+   coincident with a door or opening (via the new `edgeKindsNear`,
+   `src/core/geometry.ts`), not whichever edge `nearestEdge` happened to
+   keep on a tie — a door on a wall that is also, at that point, external,
+   now always reads as external.
+5. Sidebar hint clipping is scoped to a dedicated `.hint.fit` class
+   (`editor-app.ts`), not the global `.hint`: a confirm question and the
+   trace-image instructions wrap in full instead of clipping. Restored
+   stairs' rotated-flight hint and NOT_IN_HA's "or leave it".
+6. Four nits: the door preview-open overlay now takes the wall's own
+   thickness via the now-exported `wallWidthAt`, instead of a fixed 22 cm;
+   `.door-hit` gets `cursor:move`; `h4.pnl-h`'s no-top-border exemption now
+   covers two leading hints before a panel's first heading (the stairs
+   panel), not only zero or one; `devicePanel`'s Links heading now also
+   requires `moveArea`, matching what `areaDiffField` already needed to
+   render anything under it.
+
+The seventh — a reported round-cap bump where an internal wall meets an
+external one (demo, top, x≈500) — was investigated and not fixed. Precise
+CTM-mapped pixel inspection of the actual rendered card (`npm run shots`
+output and a fresh screenshot, both checked column-by-column) shows the
+wall's top edge perfectly flat at that junction in every theme (geometry is
+theme-independent). Not reproduced, so left alone, per "fix it only if
+visible" — it was not visible.
+
+## 2026-09-26 S8.9 follow-up: hints are rewritten short, not clipped
+
+Diego reported the sidebar hints added in S8.9 part 2 were clipped by CSS
+ellipsis, cutting sentences mid-word ("Drag it to place it. Removed devices
+go back to the ..."). Clipping hid meaning instead of removing it.
+
+Every static hint in `src/editor/panels.ts` is now a complete sentence,
+about 45 characters or fewer, written to fit the sidebar's own width. Detail
+that mattered but did not fit moved into a `title` attribute on the
+relevant control, or was dropped where it only repeated the UI (the
+device-type line under a device's own name is gone). A hint built from a
+live Home Assistant name or a measurement is marked `dyn` and stays exempt:
+it may still run long, and `white-space:nowrap; text-overflow:ellipsis`
+remains only as its safety net, not the primary way hints are shortened.
+How-to-use hints (drag, resize, reshape) now sit directly under the panel's
+title, never inside or after Danger.
+
+A Playwright test asserts `scrollWidth <= clientWidth` for every non-`dyn`
+`#panel .hint`, across the floor, a room, a wall edge, a door, stairs,
+furniture and every device on the demo ground floor, at the sidebar's
+default 1280x800 width.
+
+## 2026-09-26 S8.9 part 2: the sidebar groups fields under six section headings, in a fixed order
+
+Every selection panel (floor, room, wall, door/window, opening, stairs,
+furniture, an unlinked entity, a corner, a structure line, a device of any
+type) now renders its fields under small headings, added through one shared
+`heading(label)` helper in `src/editor/panels.ts`, styled once in
+`editor-app.ts` (`h4.pnl-h`, a divider above each heading but the first). The
+order is fixed and never varies: Identity, Home Assistant, Links,
+Appearance, Automations, Danger — Danger always last. A panel renders only
+the headings it has content for; a light shows all but Automations in the
+demo (no automation writer wired into `standalone.html`), a plain wall shows
+only Appearance and Danger, and so on. `tests/editor/editor.spec.ts` ("S8.9:
+the device panel's section headings appear in the stated order for a
+light") pins the order for the type with the most sections and checks it
+generically (every heading shown is one of the six names, in that relative
+order), so it holds regardless of which optional sections a given layout
+triggers.
+
+One deliberate exception: the room panel's Delete button stays inside
+`roomTurn()`, next to Unsnap, not moved into a bottom Danger section. This
+was already a pinned decision (`editor.spec.ts` "a room's Delete button sits
+next to Unsnap, not at the bottom of the panel") from an earlier sprint, and
+S8.9 keeps it rather than fighting an existing, deliberate test.
+
+Every hint (`hint()`) now also carries the full text on the element's own
+`title`, and its CSS caps it at one line with an ellipsis
+(`white-space:nowrap;overflow:hidden;text-overflow:ellipsis`) — multi-line
+hints from earlier sprints (the floor panel's texts, in particular) read as
+one line now, the rest reachable on hover or already stated elsewhere. The
+one hint that carries its own interactive control (the floor panel's "Need
+help? Open Help" button) opts out via a second class, `.hint.help-line`,
+so the button is never clipped: it wraps instead of ellipsising.
+
+No before/after screenshot pair exists for this change: the "before" shots
+were not taken before the code was written (a process slip — the diff is
+plain enough to review from the code itself and from
+`shots/current/editor-*.png` after). The "after" state was checked for
+every selection kind, in blueprint, light and the (visually flat, since the
+demo has no live HA vars for the editor) `ha` themes, and at a 380px
+viewport where the sidebar drops below the plan: headings and dividers hold
+up, the help-line hint is not clipped, and the room panel's Delete-next-to-
+Unsnap exception is visibly intact.
+
+## 2026-09-26 S8.9 part 1: thicker walls, and a door or window takes the thickness of its own wall
+
+A plain internal wall (`.e`) goes from 3 cm to 10 cm (`WALL_WIDTH`,
+`src/core/render.ts`); an external wall (`.e.external`) goes from 6 cm to
+20 cm (`WALL_WIDTH_EXTERNAL`). Both were too thin to read as walls once the
+rest of the plan (furniture, device icons) was drawn to scale. Fence,
+boundary/no-wall and deleted-edge lines are unchanged at 1.5. Each wall's
+white halo (`.eh`) stays 2 cm wider than its own wall, on both kinds
+(`WALL_HALO_EXTRA`), same rule as before.
+
+A door, window or opening now takes the thickness of the wall segment it
+actually sits on — 10 on an internal wall, 20 on an external one, 10 if it
+is off any wall (a zone/boundary edge, or free-floating) — instead of a
+fixed value. It finds that wall the same way the editor's own door-snap
+does: `edgeKindAt(f, poly, i)` (new, `src/core/geometry.ts`) is the one
+place that decides an edge's kind from its `wk`/`owk`/free-wall `kind`, and
+both `wallWidthAt` (render) and the editor's drag/place snapping read it, so
+the two can never disagree about which wall a door is on. An opening's
+erase stroke is that wall's thickness plus 2 cm, so it still fully erases
+the wall under it (unchanged rule, now wall-aware). A selected door/window
+draws at its own thickness plus 8.
+
+The old fixed 22 cm click target (`DOOR_HIT_WIDTH`) is kept, but split into
+its own invisible `<line class="door-hit">` twin drawn just under the
+visible door line, `stroke:transparent;pointer-events:stroke` — so Playwright
+and unit tests that click or measure a door by `data-d` must now exclude
+`.door-hit` (`:not(.door-hit)`) to reach the visible one. This keeps the
+existing S7.1 label-avoidance math and hit-test size untouched while the
+visible stroke now varies by wall.
+
+Corner and T-join choice: internal walls (`.e`, `.eh`) keep `stroke-linecap:
+round`, external walls keep `stroke-linecap: square` (both unchanged from
+before). At 10/20 cm this was checked at 4x zoom (`npm run shots`): a round
+cap on the internal 10 cm wall still closes a T-join cleanly against
+whatever it meets, because the crossing wall's own halo/wall paint each
+edge independently at each edge's full thickness, covering the round cap's
+curve; a square cap on the thicker 20 cm external wall keeps its exterior
+corner sharp. No SVG marker or dedicated join element was added — order of
+drawing (each polygon and free wall as its own line) was already enough at
+the new thicknesses.
+
+Pinned tests updated on purpose (values changed, not loosened):
+`tests/core/render.test.ts` (opening stroke-width, wall-kind thickness
+table), `tests/editor/editor.spec.ts` (`S1.52` perimeter-edge external width
+6px→20px, plain-wall width after re-kinding 6px(sic, was mislabelled
+3px)→10px), `tests/card/card.spec.ts` / `tests/card/card.test.ts` (door
+locators disambiguated from the new `.door-hit` twin). New tests: a unit
+test iterating every `WallKind` pinning its own thickness
+(`render.test.ts`), a unit test for a door on an internal vs. external wall
+(`render.test.ts`), and a Playwright computed-style pair for both wall
+kinds' widths, their halos, and a door on each (`editor.spec.ts`, "S8.9 CSS
+pair").
+
+## 2026-09-25 S8.8: a catalogued entry does not count as placed; catalog entries with an HA device show as the device's row
+
+Field report from Diego's own Home Assistant: 34 real Living Room devices
+(Hue lights, two-gang wall switches, plugs, RGB spots) that were imported
+into `layout.catalog` but never dragged onto a floor vanished from the
+room's Place popup entirely, and showed only as raw per-entity `catalog:`
+rows — not device rows — in Add > Device. Cause: `placedDeviceIds`
+(`src/core/ha.ts`) counted a device as placed when any of its entities was
+either placed on a floor or merely catalogued. This supersedes the S8.6
+wording above ("A device already placed through any one entity does not
+reappear through a sibling") wherever it implied a catalogued entity counts
+as placed — it never did and never should. "Placed" now means on a floor
+only (`placedEntities`), checked via the entity ids in `placedEntities(l)`,
+never via `layout.catalog` membership.
+
+A catalogued-but-unplaced device is now never hidden. `addCandidates` and
+`placeableDevicesInArea` build one row per device (`deviceRows`,
+`src/core/ha.ts`): an unplaced catalog entry whose entity belongs to an HA
+device becomes that device's row, named by the device, placing the catalog
+entry itself (its id/type/room carried over unchanged). The device gets no
+second row from HA. When several catalog entries share one device, the
+device's main entity's own catalog entry is preferred; if none of the
+catalog entries is the main entity, the first catalogued sibling is used
+instead — either way only one row, unless the device is a multi-gang switch
+(two or more bare `switch.*` entities on one `dev`, no `entity_category`),
+which still gets one row per gang per the S8.4-S8.7 finding above. Standalone
+catalog entries with no matching HA device are unchanged. `unplacedDevicesInArea`
+(room right-click "Add device from") follows the same rule via the same
+`deviceRows` helper. See `src/core/ha.ts` (`placedDeviceIds`, `deviceRows`,
+`gangEntities`) and `tests/core/ha.test.ts` ("S8.8" describe blocks).
+
+Row layout also changed for both the Add > Device panel and the room's
+Place popup: name on its own line, no wrap, ellipsised with the full name in
+`title`; a smaller muted subtitle line below with type label and room/area
+(e.g. "Light · Living Room"). Both panels are 50% larger in width and list
+height (measured at 1280x800 with a 40-row fixture: Add panel 522x642 to
+782x762, rows 520x486.5 to 780x606.5; Place popup 442x642 to 662x762, rows
+440x380.6 to 660x518.8), clamped to the viewport with `min(..., 100vw/100vh - margin)`
+so small screens are not broken.
+
 ## 2026-09-25 Opus review of S8.4-S8.7: "Link lights to switches" moves out of Edit > Group
 
 Finding 14 of the review: the button lived inside the Group submenu, but it

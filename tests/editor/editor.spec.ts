@@ -118,6 +118,21 @@ test("clicking a device icon selects that device, not what lies under it", async
   await expect(page.locator("#panel")).not.toContainText("Room");
 });
 
+// S8.9: the sidebar groups every selection panel's fields under small section headings, in a fixed order
+// (Identity, Home Assistant, Links, Appearance, Automations, Danger last); a panel renders only the headings
+// it has content for. This pins that order for a light, the type with the most sections.
+test("S8.9: the device panel's section headings appear in the stated order for a light", async ({ page }) => {
+  await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
+  await expect(page.locator("#panel")).toContainText("Living light");
+  const headings = await page.locator("#panel h4.pnl-h").allTextContents();
+  const order = ["Identity", "Home Assistant", "Links", "Appearance", "Automations", "Danger"];
+  const positions = headings.map((h) => order.indexOf(h));
+  expect(positions.every((p) => p >= 0)).toBe(true); // every heading shown is one of the six canonical names
+  expect(positions).toEqual([...positions].sort((a, b) => a - b)); // and they appear in that fixed order
+  expect(headings[0]).toBe("Identity");
+  expect(headings.at(-1)).toBe("Danger");
+});
+
 test("Device places one and the list shrinks; removing it makes the list grow", async ({ page }) => {
   // the demo catalog holds one contact sensor not on the plan, and the relay: bound to a light, it has no icon (S1.32).
   expect(await unplacedCount(page)).toBe(2);
@@ -449,6 +464,29 @@ test("S4.24: the contact sensor picker follows the selected door, several allowe
   await page.locator("#dsens-rm0").click();
   expect((await groundOf(page)).doors[2].sensors).toBeUndefined();
   await expect(page.locator('#dsens option[value="binary_sensor.demo_garage_door"]')).toHaveCount(1); // free again
+});
+
+// Opus review of S8.9: the "preview open" overlay was a fixed 22 cm regardless of the wall a door sat on, unlike
+// the door's own stroke (S8.9 part 2, wallWidthAt). The Patio door sits on an external wall (20 cm), not the old
+// fixed 22.
+test("Opus review: the door preview-open overlay takes the width of the wall the door sits on, not a fixed 22", async ({ page }) => {
+  const c = await centre(page, 'line[data-d="1"]'); // Patio door: on an external wall
+  await page.mouse.click(c.x, c.y);
+  await page.locator("#dopen").check();
+  await expect(page.locator("line.door.open")).toHaveAttribute("stroke-width", "20");
+});
+
+// Opus review CSS pair of S8.9: h4.pnl-h's "no top border" exemption only covered zero or one leading hint before
+// the first heading (:first-child, strong+h4, strong+p+h4). The stairs panel opens with two leading hints (straight,
+// unrotated: "Drag corners..." then "Click an edge..."), so its first heading, Identity, kept the border meant only
+// for a heading that follows a panel's own content.
+test("Opus review CSS pair: a panel's first heading has no top border even after two leading hints (stairs panel)", async ({ page }) => {
+  await addStairs(page);
+  const heading = page.locator("#panel h4.pnl-h", { hasText: "Identity" }).first();
+  await expect(heading).toBeVisible();
+  const style = await heading.evaluate((el) => { const s = getComputedStyle(el); return { borderTopWidth: s.borderTopWidth, borderTopStyle: s.borderTopStyle }; });
+  // Break it: drop "strong+p+p+h4.pnl-h" from the CSS selector and this reads a real 1px border again.
+  expect(style).toEqual({ borderTopWidth: "0px", borderTopStyle: "none" });
 });
 
 test("File, Save waits for the host: Saving until saveDone, Saved after the download", async ({ page }) => {
@@ -1678,6 +1716,61 @@ test("a device name with markup is text in the Device panel, and a click on it p
   expect(await page.evaluate(() => (window as any).__pwn)).toBeUndefined();
 });
 
+// ---- S8.8: catalogued-but-unplaced HA devices, Add panel and Place popup sizing -----------------------------------
+
+test("Opus review CSS pair: a long device name in the Add panel row is ellipsised on one line; the full name is in the title attribute", async ({ page }) => {
+  const longName = "Living Room Extended Colour Light Strip Behind The Sofa";
+  await setCatalog(page, [{ id: "long-1", floor: "ground", room: "Living", type: "light", name: longName, entity: "light.long" }]);
+  await openDevice(page);
+  const row = devItem(page, "long-1");
+  const nameEl = row.locator(".devrow-name");
+  await expect(nameEl).toHaveText(longName);
+  await expect(row).toHaveAttribute("title", longName);
+  const style = await nameEl.evaluate((el) => { const s = getComputedStyle(el); return { whiteSpace: s.whiteSpace, textOverflow: s.textOverflow, overflow: s.overflowX }; });
+  expect(style).toEqual({ whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" });
+  // Break it: revert to `white-space: normal` and this assertion fails — a wrapped name would keep `whiteSpace: "normal"`.
+  const box = await nameEl.boundingBox();
+  expect(box!.height).toBeLessThan(24); // one line, not wrapped to two or three
+  // The name and the subtitle start at the same left edge; a button's default centring put the name mid-row.
+  const sub = await row.locator("small").boundingBox();
+  const textLeft = await nameEl.evaluate((el) => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect().left; });
+  expect(Math.abs(textLeft - sub!.x)).toBeLessThan(2);
+});
+
+test("S8.8: the Add > Device panel and the room Place popup are noticeably larger than the S8.5 baseline (520px/440px wide)", async ({ page }) => {
+  await openDevice(page);
+  const addBox = await page.locator("#addDevPanel").boundingBox();
+  expect(addBox!.width).toBeGreaterThan(520 * 1.4); // was 520/522, now clamped-50%-larger
+  await page.locator("#addDevClose").click();
+  await setHa(page, PLACE_HA_FOR_SIZE);
+  const c = await screenOf(page, 200, 150); // inside Living
+  await page.mouse.click(c.x, c.y);
+  await page.locator("#rplace").click();
+  const placeBox = await page.locator("#placePanel").boundingBox();
+  expect(placeBox!.width).toBeGreaterThan(440 * 1.4); // was 440/442, now clamped-50%-larger
+});
+
+// A minimal HA fixture with one placeable living-room light, just to open the Place popup for the size check above.
+const PLACE_HA_FOR_SIZE = { floors: [{ id: "gf", name: "Ground" }], areas: [{ id: "living", name: "Living" }], entities: [
+  { id: "light.size_check", name: "Size check light", domain: "light", area: "living" },
+] };
+
+test("S8.8: a catalogued-but-unplaced device shows in the room Place popup, by its device name — the 0.12.3 field bug", async ({ page }) => {
+  // The maintainer's real bug: an HA device (a Hue bulb) imported into layout.catalog but never dragged onto a
+  // floor vanished from the room's own Place popup, because placedDeviceIds counted "in the catalog" as placed.
+  await setHa(page, { floors: [{ id: "gf", name: "Ground" }], areas: [{ id: "living", name: "Living" }],
+    devices: [{ id: "hue1", name: "Reading lamp" }],
+    entities: [{ id: "light.reading_lamp", name: "Reading lamp bulb", domain: "light", area: "living", dev: "hue1" }] });
+  await setCatalog(page, [{ id: "c-hue", floor: "ground", room: "Living", type: "light", name: "Reading lamp bulb", entity: "light.reading_lamp" }]);
+  const c = await screenOf(page, 200, 150); // inside Living
+  await page.mouse.click(c.x, c.y);
+  await page.locator("#rplace").click();
+  const panel = page.locator("#placePanel");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator(".prow")).toHaveCount(1);
+  await expect(panel.locator(".prow-name")).toHaveText("Reading lamp"); // named by the HA device, not the raw entity
+});
+
 // ---- S1.13 opening tool ------------------------------------------------------
 const addGap = async (page: Page) => addItem(page, "#addGap");
 const gaps = async (page: Page) => (await groundOf(page)).openings;
@@ -2265,13 +2358,13 @@ test("S1.52: a perimeter edge shows External wall by default, and its kind can b
   await expect(page.locator("#ek")).toHaveValue("external");
   const line = page.locator('svg line[data-e="o:0"]');
   await expect(line).toHaveClass("e external");
-  expect(await line.evaluate((el) => getComputedStyle(el).strokeWidth)).toBe("6px");
+  expect(await line.evaluate((el) => getComputedStyle(el).strokeWidth)).toBe("20px"); // S8.9: external wall thickness 6 -> 20
   await page.locator("#ek").selectOption("wall");
   expect((await groundOf(page)).owk?.[0]).toBe("wall");
   await expect(page.locator("#panel strong").first()).toHaveText("Internal wall");
   await expect(line).toHaveClass("e");
-  // the block's Test section names "8", the halo twin's width (.eh.external); the selectable line itself goes 6 -> 3
-  expect(await line.evaluate((el) => getComputedStyle(el).strokeWidth)).toBe("3px");
+  // changed from an external wall (20 cm) to a plain internal one (10 cm; S8.9)
+  expect(await line.evaluate((el) => getComputedStyle(el).strokeWidth)).toBe("10px");
   await savedValid(page);
 });
 
@@ -2840,7 +2933,7 @@ test("a door's angle field turns it about its midpoint: at 90 the ends swap axis
   expect(Math.abs(len(d1) - len(d0))).toBeLessThanOrEqual(1);
   await expect(page.locator("#drot")).toHaveValue(String(turn));
   // the line drawn in the browser follows it
-  const box = await page.locator(`svg line[data-d="${(await groundOf(page)).doors.length - 1}"]`).boundingBox();
+  const box = await page.locator(`svg line[data-d="${(await groundOf(page)).doors.length - 1}"]:not(.door-hit)`).boundingBox();
   if (d1.a[0] === d1.b[0]) expect(box!.height).toBeGreaterThan(box!.width * 2);
   else expect(box!.width).toBeGreaterThan(box!.height * 2);
   await menu(page, "File");
@@ -2910,7 +3003,7 @@ test("a room that shares corners cannot be rotated until it is unsnapped; unsnap
   await page.locator("#runsnap").click();
   await expect(page.locator("#rrot90")).toBeEnabled();
   await expect(page.locator("#runsnap")).toHaveText("Snap back");
-  await expect(page.locator(".hint", { hasText: "Unsnapped: this room no longer joins its neighbours." })).toBeVisible();
+  await expect(page.locator(".hint", { hasText: "Unsnapped: no longer joins its neighbours." })).toBeVisible();
   const free = await groundOf(page);
   expect(free.rooms[0].free).toBe(true);
   expect(free.rooms[0].pts).toEqual(before.rooms[0].pts); // not one centimetre
@@ -3016,6 +3109,21 @@ test("stairs: a real click on a rotated flight, where the unrotated one is not, 
   await expect(page.locator("#sn")).toHaveCount(0);
 });
 
+// Opus re-check of S8.9: stairsPanel's rotated-flight hint (panels.ts) had no test of its own.
+test("stairs: rotating a straight flight shows the \"Rotated: set 0 to reshape.\" hint instead of the reshape hints", async ({ page }) => {
+  const c = await screenOf(page, 740, 500);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#panel").getByText("Drag corners to reshape.")).toBeVisible();
+  await expect(page.locator("#panel").getByText("Rotated: set 0 to reshape.")).toHaveCount(0);
+  await page.locator("#srot90").click();
+  await expect(page.locator("#panel").getByText("Rotated: set 0 to reshape.")).toBeVisible();
+  await expect(page.locator("#panel").getByText("Drag corners to reshape.")).toHaveCount(0);
+  await expect(page.locator("#panel").getByText("Click an edge to add a point.")).toHaveCount(0);
+  await page.locator("#srotreset").click();
+  await expect(page.locator("#panel").getByText("Drag corners to reshape.")).toBeVisible();
+  await expect(page.locator("#panel").getByText("Rotated: set 0 to reshape.")).toHaveCount(0);
+});
+
 test("stairs: a turned flight has no corner handles, and rotation 0 brings them back on the drawn corners", async ({ page }) => {
   const c = await screenOf(page, 740, 500);
   await page.mouse.click(c.x, c.y);
@@ -3063,7 +3171,7 @@ test("Add, Stairs puts the same stairs on every floor; Delete removes them from 
   expect(u[0].id).toBe("stairs-first-1");
   await expect(page.locator("#status")).toHaveText("Added stairs to every floor");
   await expect(page.locator("#sn")).toBeVisible();
-  await expect(page.locator("#sdel").locator("xpath=following::p[contains(@class,'hint')][1]")).toContainText("added to every floor and deleted from one");
+  await expect(page.locator("#sdel").locator("xpath=following::p[contains(@class,'hint')][1]")).toContainText("Added to every floor; deleted from one only");
   // one undo step for all floors
   await menu(page, "File");
   await expect(page.locator("#undo")).toBeEnabled();
@@ -3106,7 +3214,7 @@ test("a new floor has the outline and the stairs of the ground floor, no rooms, 
   await expect(page.locator("svg g[data-s]")).toHaveCount(1);
   await expect(page.locator('svg line[data-e^="o:"]')).toHaveCount(4);
   await expect(page.locator("#status")).toContainText("Added floor Attic");
-  await expect(page.locator("p.hint").filter({ hasText: "outline and the stairs" })).toBeVisible();
+  await expect(page.locator("p.hint").filter({ hasText: "returns its devices to Add" })).toBeVisible();
   // the inherited outline can be clicked like any other: a real click on an outline edge selects it
   const c = await screenOf(page, 400, 0);
   await page.mouse.click(c.x, c.y);
@@ -3234,7 +3342,7 @@ test("S1.31: the rotation field turns the cone; the panel carries the hint; rot 
   const c = await screenOf(page, CAM.x, CAM.y);
   await page.mouse.click(c.x, c.y);
   await expect(page.locator("#vrot90")).toBeVisible();
-  await expect(page.locator(".hint", { hasText: "The cone shows a 120 degree field of view, 1 m deep." })).toHaveCount(1);
+  await expect(page.locator(".hint", { hasText: "Cone: 120° field of view, 1 m deep." })).toHaveCount(1);
   const centreOf = () => page.locator("svg path.cone").evaluate((el) => { const b = el.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
   const up = await centreOf();
   expect(up.y).toBeLessThan(c.y - 20); // above the camera
@@ -4297,6 +4405,23 @@ test("Opus review CSS pair: wall kinds have their colour, thickness and dash (re
   expect(edge.dash).toBe("none");
 });
 
+test("S8.9 CSS pair: a plain wall is 10cm thick, an external wall 20cm, each halo 2cm wider, and a door/window takes its own wall's thickness", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), g = l.floors.ground;
+    g.walls.push({ id: "s89-wi", a: [1900, 500], b: [2000, 500], kind: "wall" }, { id: "s89-we", a: [1900, 560], b: [2000, 560], kind: "external" });
+    g.doors.push({ id: "s89-di", name: "Internal", kind: "door", a: [1920, 500], b: [1980, 500] }, { id: "s89-de", name: "External", kind: "window", a: [1920, 560], b: [1980, 560] });
+    el.layout = l;
+  }, EDITOR);
+  const w = (sel: string) => page.locator(sel).first().evaluate((e) => parseFloat(getComputedStyle(e).strokeWidth));
+  expect(await w("svg line.e:not(.external):not(.fence):not(.edge):not(.none):not(.se):not(.nw)")).toBe(10);
+  expect(await w("svg line.e.external")).toBe(20);
+  expect(await w("svg line.eh:not(.external):not(.fence):not(.edge):not(.se):not(.nw)")).toBe(12);
+  expect(await w("svg line.eh.external")).toBe(22);
+  const wByTitle = (name: string) => page.locator("svg line[data-d]:not(.door-hit)").filter({ hasText: name }).first().evaluate((e) => parseFloat(getComputedStyle(e).strokeWidth));
+  expect(await wByTitle("Internal")).toBe(10); // s89-di, on the internal wall
+  expect(await wByTitle("External")).toBe(20); // s89-de, on the external wall
+});
+
 test("CSS pair: furniture has its own fixed grey token, decoupled from idle devices", async ({ page }) => {
   await addCssFixtures(page); // adds a "css-gate" furniture piece (patio-wood)
   const furn = await page.locator("svg g.furn").first().evaluate((e) => getComputedStyle(e).color);
@@ -5197,7 +5322,7 @@ test("S3.3 break it: an entity id HA does not know stays selected and is not cle
   await setHa(page, PICK_HA);
   await expect(page.locator("#ve")).toHaveJSProperty("tagName", "SELECT");
   await expect(page.locator("#ve")).toHaveValue("light.gone");
-  await expect(page.locator("#panel")).toContainText("Home Assistant does not have this one");
+  await expect(page.locator("#panel")).toContainText("Not in Home Assistant");
 });
 
 // Opus review finding 11: deviceEntity's optgroup label fell straight to the device id (nameOf.get(e.dev) ?? e.dev)
@@ -6236,11 +6361,11 @@ test("S8.6: Add > Device offers a plug device once, not once per entity, and pla
   });
   await openDevice(page);
   const panel = page.locator("#addDevPanel");
-  await expect(panel.locator('button:text-is("Kitchen plug")')).toHaveCount(1); // one row for the device, not four
-  await expect(panel.locator('button:text-is("Kitchen plug power")')).toHaveCount(0);
-  await expect(panel.locator('button:text-is("Kitchen plug connectivity")')).toHaveCount(0);
+  await expect(panel.locator('.devrow-name:text-is("Kitchen plug")')).toHaveCount(1); // one row for the device, not four
+  await expect(panel.locator('.devrow-name:text-is("Kitchen plug power")')).toHaveCount(0);
+  await expect(panel.locator('.devrow-name:text-is("Kitchen plug connectivity")')).toHaveCount(0);
 
-  await panel.locator('[data-add="ha-dev:plugdev"]').click();
+  await panel.locator('[data-add="ha-dev:switch.kitchen_plug"]').click();
   const d = (await groundOf(page)).devices.find((x: any) => x.entity === "switch.kitchen_plug");
   expect(d).toMatchObject({ type: "plug", name: "Kitchen plug" });
   expect((await groundOf(page)).devices.some((x: any) => x.entity === "sensor.kitchen_plug_power")).toBe(false);
@@ -6257,8 +6382,8 @@ test("Opus review finding 11: placing a device row names the plan icon after the
   });
   await openDevice(page);
   const panel = page.locator("#addDevPanel");
-  await expect(panel.locator('button:text-is("Kitchen plug")')).toHaveCount(1); // the row is shown under the device name
-  await panel.locator('[data-add="ha-dev:plugdev"]').click();
+  await expect(panel.locator('.devrow-name:text-is("Kitchen plug")')).toHaveCount(1); // the row is shown under the device name
+  await panel.locator('[data-add="ha-dev:switch.raw_relay"]').click();
   const d = (await groundOf(page)).devices.find((x: any) => x.entity === "switch.raw_relay");
   expect(d?.name).toBe("Kitchen plug"); // not "Relay 1"
 });
@@ -6414,7 +6539,7 @@ test("S4.5 break it: Cancel writes nothing, a failing Home Assistant leaves the 
   // the panel itself never offers "Create group" for a mixed selection, even if that guard were ever bypassed elsewhere.
   await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any; el.st.sel = { t: "devs", is: [0, 5] }; el.requestUpdate(); }, EDITOR);
   await expect(page.locator("#panel")).toContainText("2 devices selected");
-  await expect(page.locator("#panel")).toContainText("Shift+click more lights, or more motion sensors, all the same kind, to create a group.");
+  await expect(page.locator("#panel")).toContainText("Shift+click more of the same kind to group.");
   await expect(page.locator("#vgroup")).toHaveCount(0);
 });
 
@@ -6508,9 +6633,9 @@ test("S4.6: switch panel \"Controls...\" picks two lights, confirms, posts the b
   await watchLocationChanged(page);
   await selectHallSwitch2(page);
   await page.locator("#vctl").selectOption("light.demo_living");
-  await expect(page.locator("#panel")).toContainText('For one light, "Create a light from this switch" above is simpler than an automation.');
+  await expect(page.locator("#panel")).toContainText('One light? Use "Create a light" instead.');
   await page.locator("#vctl").selectOption("light.demo_kitchen");
-  await expect(page.locator("#panel")).not.toContainText('simpler than an automation');
+  await expect(page.locator("#panel")).not.toContainText('Use "Create a light" instead');
   await page.locator("#vctlgo").click();
   await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
   expect(await calls(page)).toHaveLength(0); // asking is not doing
@@ -7156,4 +7281,107 @@ test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assist
   // as if it were scoped to one. This is the deliberate reason the pinned order below now includes "linkLights"
   // between "mGroup" and "rotrow"; a future order change needs the same deliberate update, not a loosened assertion.
   expect(await items(page)).toEqual(["addFloor", "mHA", "mGroup", "linkLights", "rotrow", "devcols", "traceBtn"]);
+});
+
+// ---- S8.9 follow-up: hints are rewritten short, not clipped ----------------------
+
+/** Every static hint (not `.dyn`, which may embed a live name or measurement) must fit its own line: no
+ *  clipping. A hint clipped by CSS ellipsis still passes a text-content assertion, so this checks the box
+ *  itself, `scrollWidth <= clientWidth`, at the sidebar's real width. */
+async function assertHintsFit(page: Page, where: string) {
+  const hints = page.locator("#panel .hint:not(.dyn)");
+  const n = await hints.count();
+  expect(n, `${where}: no hint elements found`).toBeGreaterThan(0);
+  for (let i = 0; i < n; i++) {
+    const el = hints.nth(i);
+    const [scrollWidth, clientWidth, text] = await el.evaluate((e) => [e.scrollWidth, e.clientWidth, e.textContent]);
+    expect(scrollWidth as number, `${where}: hint clipped: "${text}"`).toBeLessThanOrEqual(clientWidth as number);
+  }
+}
+
+test("S8.9 follow-up: no static sidebar hint is clipped, for the floor, a room, a wall edge, a door, stairs, furniture and every device", async ({ page }) => {
+  await assertHintsFit(page, "floor (nothing selected)");
+
+  await clickCm(page, 200, 150); // the living room
+  await expect(page.locator("#rk")).toHaveValue("room");
+  await assertHintsFit(page, "room");
+
+  await clickCm(page, 500, 300); // the edge Living and Kitchen share
+  await expect(page.locator("#ek")).toBeVisible();
+  await assertHintsFit(page, "wall edge");
+
+  const doorCentre = await centre(page, 'line[data-d="0"]');
+  await page.mouse.click(doorCentre.x, doorCentre.y);
+  await expect(page.locator("#dn")).toBeVisible();
+  await assertHintsFit(page, "door");
+
+  const stairsCentre = await centre(page, 'svg g[data-s="0"]');
+  await page.mouse.click(stairsCentre.x, stairsCentre.y);
+  await expect(page.locator("#sn")).toBeVisible();
+  await assertHintsFit(page, "stairs");
+
+  const furnitureCount = await page.locator("svg g[data-f]").count();
+  for (let i = 0; i < furnitureCount; i++) {
+    const c = await centre(page, `svg g[data-f="${i}"]`);
+    await page.mouse.click(c.x, c.y);
+    await expect(page.locator("#fun")).toBeVisible();
+    await assertHintsFit(page, `furniture ${i}`);
+  }
+
+  const deviceCount = (await groundOf(page)).devices.length;
+  for (let i = 0; i < deviceCount; i++) {
+    // The halo circle is always at the icon's own centre; a camera's cone would otherwise skew the group's
+    // bounding box centre away from any actual shape (Opus review finding 3: hit-test the real top element).
+    const c = await centre(page, `g[data-x="${i}"] circle.halo`);
+    await page.mouse.click(c.x, c.y);
+    await expect(page.locator("#vtype")).toBeVisible();
+    await assertHintsFit(page, `device ${i}`);
+  }
+});
+
+// Opus review of S8.9: the fix above only scoped nowrap+ellipsis to the sidebar's own static hints (.fit); a
+// confirm prompt and the trace-image instructions are a bare <p class="hint"> and must still fully show their
+// text (wrapping, not clipping). This exercises the elements the first pass never opened: a free wall, an
+// opening, an extra, a zone, an unlinked device, and the edge-delete confirm question.
+test("Opus review: a free wall, an opening, an extra, a zone, an unlinked device and the edge-delete confirm prompt all show their hint text in full", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.walls.push({ id: "wall-ground-1", a: [790, 410], b: [790, 480], kind: "wall" });
+    l.floors.ground.openings.push({ id: "opening-ground-1", a: [100, 400], b: [200, 400] });
+    l.floors.ground.extras.push({ id: "extra-ground-1", name: "Shed", a: [100, 450], b: [200, 520] });
+    l.floors.ground.unlinked.push({ id: "unl-ground-1", type: "heater", name: "Space heater", x: 250, y: 350, rot: 0, scale: 1 });
+    el.layout = l;
+  }, EDITOR);
+
+  const wallCentre = await centre(page, 'line[data-w="0"]');
+  await page.mouse.click(wallCentre.x, wallCentre.y);
+  await expect(page.locator("#wk")).toBeVisible();
+  await assertHintsFit(page, "wall");
+
+  const openingCentre = await centre(page, "svg line.opening");
+  await page.mouse.click(openingCentre.x, openingCentre.y);
+  await expect(page.locator("#ok")).toBeVisible();
+  await assertHintsFit(page, "opening");
+
+  const extraCentre = await centre(page, "svg .extra");
+  await page.mouse.click(extraCentre.x, extraCentre.y);
+  await expect(page.locator("#exn")).toBeVisible();
+  await assertHintsFit(page, "extra");
+
+  const unlCentre = await centre(page, 'g[data-u="0"]');
+  await page.mouse.click(unlCentre.x, unlCentre.y);
+  await expect(page.locator("#uun")).toBeVisible();
+  await assertHintsFit(page, "unlinked device");
+
+  await clickCm(page, 440, 60); // the Reading corner zone
+  await expect(page.locator("#rk")).toHaveValue("zone");
+  await assertHintsFit(page, "zone");
+
+  // The Hall's bottom edge (y=600, x in [0,800]) carries the Front door (a=[300,600], b=[390,600]); Delete
+  // asks first instead of removing it outright.
+  await clickCm(page, 200, 600);
+  await expect(page.locator("#ek")).toBeVisible();
+  await page.locator("#edel").click();
+  await expect(page.locator("#edelyes")).toBeVisible();
+  await assertHintsFit(page, "edge-delete confirm prompt");
 });

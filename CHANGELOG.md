@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.12.4
+
+- Fixed: placing a device the Place popup or Add > Device offered from a
+  stale-but-catalogued entry (its original device deleted from the plan)
+  could hand it an id a different device had since taken, so re-placing the
+  original later produced a duplicate device id.
+- Walls draw thicker and read more like walls: an internal wall is now
+  10 cm, an external one 20 cm (were 3 and 6). A door, window or opening
+  now takes the thickness of the wall it actually sits on, instead of one
+  fixed size.
+- The editor sidebar groups every panel's fields under small section
+  headings — Identity, Home Assistant, Links, Appearance, Automations,
+  Danger — in that fixed order, a panel showing only the ones it has
+  content for. Hints are rewritten short so each fits its own line, not
+  clipped; a hint built from a live name or measurement keeps the full
+  text on hover. A confirm question and the trace-image instructions
+  wrap instead, in full, rather than clip.
+- Fixed: a device imported into the catalog but never placed on a floor
+  used to vanish from the room's Place popup and from Add > Device (it
+  showed only as a raw entity row there instead of its own device row).
+  Add > Device, the Place popup and a room's "Add device from" now always
+  show one row per device, named by the device, whether or not it has been
+  placed yet.
+- Add > Device rows and Place popup rows now show the name on one line
+  (ellipsised if long, full name on hover) with a smaller type · room
+  subtitle underneath, and both panels are 50% larger.
+- Fixed, from an Opus review of the whole branch: placing an area's devices
+  a second time no longer duplicates the catalog entry; a multi-gang switch
+  is offered once per gang, not once per device; a door or opening on a
+  wall that is also, at that point, external now always reads its width as
+  external, whichever edge happened to tie for nearest; the door
+  preview-open overlay takes the wall's own thickness instead of a fixed
+  22 cm; a door's click target shows a move cursor; a panel's first heading
+  no longer keeps a stray top border when it follows two hints instead of
+  zero or one; and a device's Links heading no longer shows over an empty
+  section.
+
 ## 0.12.3
 
 - The room panel's Place popup now opens with nothing ticked instead of
