@@ -611,12 +611,15 @@ describe("FloorplanStudioCard", () => {
       expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.first.rooms.length);
     });
 
-    it("Break it: every listed floor unknown falls back to the layout's first floor, no switcher, and throws nothing", async () => {
+    // S8.12 update: an all-unknown `floors` list is the same as `floors` not being set at all (this describe
+    // block's own title). With no `floor` either, and the layout having more than one floor, that now means the
+    // S8.12 default switcher, not "no switcher" — this used to assert the opposite before S8.12 added that default.
+    it("Break it: every listed floor unknown falls back to the S8.12 default (a switcher, the layout has more than one floor), and throws nothing", async () => {
       const el = await mount();
       expect(() => el.setConfig({ layout: structuredClone(L), floors: ["attic", "loft"] })).not.toThrow();
       el.hass = stubHass() as never;
       await el.updateComplete;
-      expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
+      expect(el.shadowRoot!.querySelectorAll(".fp-floors button")).toHaveLength(Object.keys(L.floors).length);
       expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.ground.rooms.length);
     });
 
@@ -627,6 +630,88 @@ describe("FloorplanStudioCard", () => {
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
       expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.first.rooms.length);
+    });
+  });
+
+  describe("S8.12: chips by default with more than one floor and neither floor nor floors set", () => {
+    /** L minus its "first" and "test" floors — the same trim `oneFloor` tests above use. */
+    const oneFloor = () => {
+      const l = structuredClone(L);
+      delete (l.floors as Record<string, unknown>).first;
+      delete (l.floors as Record<string, unknown>).test;
+      return l;
+    };
+    /** L minus its "test" floor: exactly two floors, ground and first, in that order. */
+    const twoFloors = () => {
+      const l = structuredClone(L);
+      delete (l.floors as Record<string, unknown>).test;
+      return l;
+    };
+
+    it("no config at all + a multi-floor layout shows one chip per floor, the first one pressed", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      const chips = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-floors button")];
+      expect(chips).toHaveLength(Object.keys(L.floors).length);
+      expect(chips[0]!.getAttribute("aria-pressed")).toBe("true");
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.ground.rooms.length);
+    });
+
+    it("no config at all + a single-floor layout shows no .fp-floors (one chip is noise)", async () => {
+      const el = await mount();
+      el.setConfig({ layout: oneFloor() });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.ground.rooms.length);
+    });
+
+    it("floor pinned to a real, second floor id still shows no chips and draws that floor", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "first" });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.first.rooms.length);
+    });
+
+    it("Break it: an unknown floor id with more than one floor in the layout now shows the switcher too", async () => {
+      const el = await mount();
+      expect(() => el.setConfig({ layout: twoFloors(), floor: "attic" })).not.toThrow();
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelectorAll(".fp-floors button")).toHaveLength(2);
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.ground.rooms.length);
+    });
+
+    it("kiosk: true with no config still shows no switcher, even with more than one floor", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), kiosk: true });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
+    });
+
+    it("switching floor via the default switcher, then a hass update, keeps the switched floor", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.ground.rooms.length);
+
+      const chips = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-floors button")];
+      const firstChip = chips.find((b) => b.textContent === L.floors.first.title)!;
+      firstChip.click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.first.rooms.length);
+
+      el.hass = stubHass({ "light.demo_kitchen": st("on") }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelectorAll("svg [data-r]")).toHaveLength(L.floors.first.rooms.length);
+      const chips2 = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-floors button")];
+      expect(chips2.find((b) => b.textContent === L.floors.first.title)!.getAttribute("aria-pressed")).toBe("true");
     });
   });
 
