@@ -335,7 +335,8 @@ export class FloorplanStudioEditor extends LitElement {
     aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}
     aside input:not([type=checkbox]),aside select{width:100%;box-sizing:border-box}
     .row{display:flex;gap:6px}
-    /* S8.9: one line always, ellipsised if it doesn't fit; the full text is still on the element's own title attribute. */
+    /* S8.9.1: hints are written to fit one line at the sidebar's own width; nowrap+ellipsis is a safety net only
+       for a .dyn hint built from a live Home Assistant name or a measurement, which may still run long. */
     .hint{font-size:.85em;opacity:.75;margin:6px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     /* A hint that carries its own button (Help) never clips it: full width, wraps instead of ellipsising. */
     .hint.help-line{white-space:normal;overflow:visible;text-overflow:clip;display:flex;flex-wrap:wrap;gap:4px;align-items:center}

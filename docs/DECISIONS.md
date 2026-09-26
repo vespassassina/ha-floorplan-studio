@@ -2,6 +2,28 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-26 S8.9 follow-up: hints are rewritten short, not clipped
+
+Diego reported the sidebar hints added in S8.9 part 2 were clipped by CSS
+ellipsis, cutting sentences mid-word ("Drag it to place it. Removed devices
+go back to the ..."). Clipping hid meaning instead of removing it.
+
+Every static hint in `src/editor/panels.ts` is now a complete sentence,
+about 45 characters or fewer, written to fit the sidebar's own width. Detail
+that mattered but did not fit moved into a `title` attribute on the
+relevant control, or was dropped where it only repeated the UI (the
+device-type line under a device's own name is gone). A hint built from a
+live Home Assistant name or a measurement is marked `dyn` and stays exempt:
+it may still run long, and `white-space:nowrap; text-overflow:ellipsis`
+remains only as its safety net, not the primary way hints are shortened.
+How-to-use hints (drag, resize, reshape) now sit directly under the panel's
+title, never inside or after Danger.
+
+A Playwright test asserts `scrollWidth <= clientWidth` for every non-`dyn`
+`#panel .hint`, across the floor, a room, a wall edge, a door, stairs,
+furniture and every device on the demo ground floor, at the sidebar's
+default 1280x800 width.
+
 ## 2026-09-26 S8.9 part 2: the sidebar groups fields under six section headings, in a fixed order
 
 Every selection panel (floor, room, wall, door/window, opening, stairs,

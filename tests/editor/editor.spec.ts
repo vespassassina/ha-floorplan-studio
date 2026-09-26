@@ -2980,7 +2980,7 @@ test("a room that shares corners cannot be rotated until it is unsnapped; unsnap
   await page.locator("#runsnap").click();
   await expect(page.locator("#rrot90")).toBeEnabled();
   await expect(page.locator("#runsnap")).toHaveText("Snap back");
-  await expect(page.locator(".hint", { hasText: "Unsnapped: this room no longer joins its neighbours." })).toBeVisible();
+  await expect(page.locator(".hint", { hasText: "Unsnapped: no longer joins its neighbours." })).toBeVisible();
   const free = await groundOf(page);
   expect(free.rooms[0].free).toBe(true);
   expect(free.rooms[0].pts).toEqual(before.rooms[0].pts); // not one centimetre
@@ -3133,7 +3133,7 @@ test("Add, Stairs puts the same stairs on every floor; Delete removes them from 
   expect(u[0].id).toBe("stairs-first-1");
   await expect(page.locator("#status")).toHaveText("Added stairs to every floor");
   await expect(page.locator("#sn")).toBeVisible();
-  await expect(page.locator("#sdel").locator("xpath=following::p[contains(@class,'hint')][1]")).toContainText("added to every floor and deleted from one");
+  await expect(page.locator("#sdel").locator("xpath=following::p[contains(@class,'hint')][1]")).toContainText("Added to every floor; deleted from one only");
   // one undo step for all floors
   await menu(page, "File");
   await expect(page.locator("#undo")).toBeEnabled();
@@ -3176,7 +3176,7 @@ test("a new floor has the outline and the stairs of the ground floor, no rooms, 
   await expect(page.locator("svg g[data-s]")).toHaveCount(1);
   await expect(page.locator('svg line[data-e^="o:"]')).toHaveCount(4);
   await expect(page.locator("#status")).toContainText("Added floor Attic");
-  await expect(page.locator("p.hint").filter({ hasText: "outline and the stairs" })).toBeVisible();
+  await expect(page.locator("p.hint").filter({ hasText: "returns its devices to Add" })).toBeVisible();
   // the inherited outline can be clicked like any other: a real click on an outline edge selects it
   const c = await screenOf(page, 400, 0);
   await page.mouse.click(c.x, c.y);
@@ -3304,7 +3304,7 @@ test("S1.31: the rotation field turns the cone; the panel carries the hint; rot 
   const c = await screenOf(page, CAM.x, CAM.y);
   await page.mouse.click(c.x, c.y);
   await expect(page.locator("#vrot90")).toBeVisible();
-  await expect(page.locator(".hint", { hasText: "The cone shows a 120 degree field of view, 1 m deep." })).toHaveCount(1);
+  await expect(page.locator(".hint", { hasText: "Cone: 120° field of view, 1 m deep." })).toHaveCount(1);
   const centreOf = () => page.locator("svg path.cone").evaluate((el) => { const b = el.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
   const up = await centreOf();
   expect(up.y).toBeLessThan(c.y - 20); // above the camera
@@ -5284,7 +5284,7 @@ test("S3.3 break it: an entity id HA does not know stays selected and is not cle
   await setHa(page, PICK_HA);
   await expect(page.locator("#ve")).toHaveJSProperty("tagName", "SELECT");
   await expect(page.locator("#ve")).toHaveValue("light.gone");
-  await expect(page.locator("#panel")).toContainText("Home Assistant does not have this one");
+  await expect(page.locator("#panel")).toContainText("Not in Home Assistant");
 });
 
 // Opus review finding 11: deviceEntity's optgroup label fell straight to the device id (nameOf.get(e.dev) ?? e.dev)
@@ -6501,7 +6501,7 @@ test("S4.5 break it: Cancel writes nothing, a failing Home Assistant leaves the 
   // the panel itself never offers "Create group" for a mixed selection, even if that guard were ever bypassed elsewhere.
   await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any; el.st.sel = { t: "devs", is: [0, 5] }; el.requestUpdate(); }, EDITOR);
   await expect(page.locator("#panel")).toContainText("2 devices selected");
-  await expect(page.locator("#panel")).toContainText("Shift+click more lights, or more motion sensors, all the same kind, to create a group.");
+  await expect(page.locator("#panel")).toContainText("Shift+click more of the same kind to group.");
   await expect(page.locator("#vgroup")).toHaveCount(0);
 });
 
@@ -6595,9 +6595,9 @@ test("S4.6: switch panel \"Controls...\" picks two lights, confirms, posts the b
   await watchLocationChanged(page);
   await selectHallSwitch2(page);
   await page.locator("#vctl").selectOption("light.demo_living");
-  await expect(page.locator("#panel")).toContainText('For one light, "Create a light from this switch" above is simpler than an automation.');
+  await expect(page.locator("#panel")).toContainText('One light? Use "Create a light" instead.');
   await page.locator("#vctl").selectOption("light.demo_kitchen");
-  await expect(page.locator("#panel")).not.toContainText('simpler than an automation');
+  await expect(page.locator("#panel")).not.toContainText('Use "Create a light" instead');
   await page.locator("#vctlgo").click();
   await expect(page.locator("#fp-confirm")).toContainText("Home Assistant cannot undo this.");
   expect(await calls(page)).toHaveLength(0); // asking is not doing
@@ -7243,4 +7243,60 @@ test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assist
   // as if it were scoped to one. This is the deliberate reason the pinned order below now includes "linkLights"
   // between "mGroup" and "rotrow"; a future order change needs the same deliberate update, not a loosened assertion.
   expect(await items(page)).toEqual(["addFloor", "mHA", "mGroup", "linkLights", "rotrow", "devcols", "traceBtn"]);
+});
+
+// ---- S8.9 follow-up: hints are rewritten short, not clipped ----------------------
+
+/** Every static hint (not `.dyn`, which may embed a live name or measurement) must fit its own line: no
+ *  clipping. A hint clipped by CSS ellipsis still passes a text-content assertion, so this checks the box
+ *  itself, `scrollWidth <= clientWidth`, at the sidebar's real width. */
+async function assertHintsFit(page: Page, where: string) {
+  const hints = page.locator("#panel .hint:not(.dyn)");
+  const n = await hints.count();
+  expect(n, `${where}: no hint elements found`).toBeGreaterThan(0);
+  for (let i = 0; i < n; i++) {
+    const el = hints.nth(i);
+    const [scrollWidth, clientWidth, text] = await el.evaluate((e) => [e.scrollWidth, e.clientWidth, e.textContent]);
+    expect(scrollWidth as number, `${where}: hint clipped: "${text}"`).toBeLessThanOrEqual(clientWidth as number);
+  }
+}
+
+test("S8.9 follow-up: no static sidebar hint is clipped, for the floor, a room, a wall edge, a door, stairs, furniture and every device", async ({ page }) => {
+  await assertHintsFit(page, "floor (nothing selected)");
+
+  await clickCm(page, 200, 150); // the living room
+  await expect(page.locator("#rk")).toHaveValue("room");
+  await assertHintsFit(page, "room");
+
+  await clickCm(page, 500, 300); // the edge Living and Kitchen share
+  await expect(page.locator("#ek")).toBeVisible();
+  await assertHintsFit(page, "wall edge");
+
+  const doorCentre = await centre(page, 'line[data-d="0"]');
+  await page.mouse.click(doorCentre.x, doorCentre.y);
+  await expect(page.locator("#dn")).toBeVisible();
+  await assertHintsFit(page, "door");
+
+  const stairsCentre = await centre(page, 'svg g[data-s="0"]');
+  await page.mouse.click(stairsCentre.x, stairsCentre.y);
+  await expect(page.locator("#sn")).toBeVisible();
+  await assertHintsFit(page, "stairs");
+
+  const furnitureCount = await page.locator("svg g[data-f]").count();
+  for (let i = 0; i < furnitureCount; i++) {
+    const c = await centre(page, `svg g[data-f="${i}"]`);
+    await page.mouse.click(c.x, c.y);
+    await expect(page.locator("#fun")).toBeVisible();
+    await assertHintsFit(page, `furniture ${i}`);
+  }
+
+  const deviceCount = (await groundOf(page)).devices.length;
+  for (let i = 0; i < deviceCount; i++) {
+    // The halo circle is always at the icon's own centre; a camera's cone would otherwise skew the group's
+    // bounding box centre away from any actual shape (Opus review finding 3: hit-test the real top element).
+    const c = await centre(page, `g[data-x="${i}"] circle.halo`);
+    await page.mouse.click(c.x, c.y);
+    await expect(page.locator("#vtype")).toBeVisible();
+    await assertHintsFit(page, `device ${i}`);
+  }
 });
