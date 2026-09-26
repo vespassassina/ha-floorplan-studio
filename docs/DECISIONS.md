@@ -2,6 +2,59 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-26 S8.9 part 1: thicker walls, and a door or window takes the thickness of its own wall
+
+A plain internal wall (`.e`) goes from 3 cm to 10 cm (`WALL_WIDTH`,
+`src/core/render.ts`); an external wall (`.e.external`) goes from 6 cm to
+20 cm (`WALL_WIDTH_EXTERNAL`). Both were too thin to read as walls once the
+rest of the plan (furniture, device icons) was drawn to scale. Fence,
+boundary/no-wall and deleted-edge lines are unchanged at 1.5. Each wall's
+white halo (`.eh`) stays 2 cm wider than its own wall, on both kinds
+(`WALL_HALO_EXTRA`), same rule as before.
+
+A door, window or opening now takes the thickness of the wall segment it
+actually sits on — 10 on an internal wall, 20 on an external one, 10 if it
+is off any wall (a zone/boundary edge, or free-floating) — instead of a
+fixed value. It finds that wall the same way the editor's own door-snap
+does: `edgeKindAt(f, poly, i)` (new, `src/core/geometry.ts`) is the one
+place that decides an edge's kind from its `wk`/`owk`/free-wall `kind`, and
+both `wallWidthAt` (render) and the editor's drag/place snapping read it, so
+the two can never disagree about which wall a door is on. An opening's
+erase stroke is that wall's thickness plus 2 cm, so it still fully erases
+the wall under it (unchanged rule, now wall-aware). A selected door/window
+draws at its own thickness plus 8.
+
+The old fixed 22 cm click target (`DOOR_HIT_WIDTH`) is kept, but split into
+its own invisible `<line class="door-hit">` twin drawn just under the
+visible door line, `stroke:transparent;pointer-events:stroke` — so Playwright
+and unit tests that click or measure a door by `data-d` must now exclude
+`.door-hit` (`:not(.door-hit)`) to reach the visible one. This keeps the
+existing S7.1 label-avoidance math and hit-test size untouched while the
+visible stroke now varies by wall.
+
+Corner and T-join choice: internal walls (`.e`, `.eh`) keep `stroke-linecap:
+round`, external walls keep `stroke-linecap: square` (both unchanged from
+before). At 10/20 cm this was checked at 4x zoom (`npm run shots`): a round
+cap on the internal 10 cm wall still closes a T-join cleanly against
+whatever it meets, because the crossing wall's own halo/wall paint each
+edge independently at each edge's full thickness, covering the round cap's
+curve; a square cap on the thicker 20 cm external wall keeps its exterior
+corner sharp. No SVG marker or dedicated join element was added — order of
+drawing (each polygon and free wall as its own line) was already enough at
+the new thicknesses.
+
+Pinned tests updated on purpose (values changed, not loosened):
+`tests/core/render.test.ts` (opening stroke-width, wall-kind thickness
+table), `tests/editor/editor.spec.ts` (`S1.52` perimeter-edge external width
+6px→20px, plain-wall width after re-kinding 6px(sic, was mislabelled
+3px)→10px), `tests/card/card.spec.ts` / `tests/card/card.test.ts` (door
+locators disambiguated from the new `.door-hit` twin). New tests: a unit
+test iterating every `WallKind` pinning its own thickness
+(`render.test.ts`), a unit test for a door on an internal vs. external wall
+(`render.test.ts`), and a Playwright computed-style pair for both wall
+kinds' widths, their halos, and a door on each (`editor.spec.ts`, "S8.9 CSS
+pair").
+
 ## 2026-09-25 S8.8: a catalogued entry does not count as placed; catalog entries with an HA device show as the device's row
 
 Field report from Diego's own Home Assistant: 34 real Living Room devices

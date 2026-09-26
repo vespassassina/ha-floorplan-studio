@@ -97,7 +97,9 @@ describe("FloorplanStudioCard", () => {
       el.hass = stubHass({ [entity]: st("off") }) as never;
       await el.updateComplete;
       const svg = el.shadowRoot!.querySelector("svg")!;
-      const line = svg.querySelector(`line[data-d="${doorIndex()}"]`)!;
+      // S8.9: a door is now two lines sharing data-d — an invisible wider "door-hit" click target (finding 3) drawn
+      // first, then the real, wall-matched-thickness one this test means.
+      const line = svg.querySelector(`line[data-d="${doorIndex()}"]:not(.door-hit)`)!;
       expect(line.getAttribute("class")).not.toMatch(/\bopen\b/);
       // its title identifies which door this is, so an index mix-up across floors is caught here, not silently passed
       expect(line.querySelector("title")!.textContent).toBe(
@@ -107,10 +109,10 @@ describe("FloorplanStudioCard", () => {
       el.hass = stubHass({ [entity]: st("on") }) as never;
       await el.updateComplete;
       const svg2 = el.shadowRoot!.querySelector("svg")!;
-      const line2 = svg2.querySelector(`line[data-d="${doorIndex()}"]`)!;
+      const line2 = svg2.querySelector(`line[data-d="${doorIndex()}"]:not(.door-hit)`)!;
       expect(line2.getAttribute("class")).toMatch(/\bopen\b/);
       // and no other door on the same floor lit up as a side effect
-      const openDoors = [...svg2.querySelectorAll("line[data-d]")].filter((l) => l.getAttribute("class")?.match(/\bopen\b/));
+      const openDoors = [...svg2.querySelectorAll("line[data-d]:not(.door-hit)")].filter((l) => l.getAttribute("class")?.match(/\bopen\b/));
       expect(openDoors).toHaveLength(1);
       expect(openDoors[0]).toBe(line2);
     });

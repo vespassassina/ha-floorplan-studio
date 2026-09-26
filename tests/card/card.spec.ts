@@ -258,7 +258,9 @@ async function configureWithCallServiceSpy(page: Page, config: Record<string, un
 }
 
 async function tapDoor(page: Page, index: number) {
-  const line = page.locator("floorplan-studio-card").locator(`css=line[data-d="${index}"]`);
+  // S8.9: each door is now two <line data-d> elements, an invisible wider "door-hit" click target plus the
+  // visible one; :not(.door-hit) keeps this locator's match count at one, same coordinates either way.
+  const line = page.locator("floorplan-studio-card").locator(`css=line[data-d="${index}"]:not(.door-hit)`);
   await line.scrollIntoViewIfNeeded(); // the demo's garage door sits below the fold at the default viewport size
   const box = (await line.boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);

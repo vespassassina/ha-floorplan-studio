@@ -35,7 +35,8 @@ describe("renderFloor", () => {
     f.openings.push({ id: "o1", a: [100, 400], b: [200, 400] });
     f.extras.push({ id: "x1", name: "<b>shed</b>", a: [100, 450], b: [200, 520] }, { id: "x2", name: "path", a: [0, 0], b: [50, 0] });
     const html = renderFloor(f, base);
-    expect(html).toMatch(/<line class="opening" x1="100" y1="400" x2="200" y2="400"\/>/);
+    // S8.9: an opening's stroke now matches the wall it erases (here a plain internal wall, 10 + 2 margin).
+    expect(html).toMatch(/<line class="opening" x1="100" y1="400" x2="200" y2="400" stroke-width="12"\/>/);
     expect(html).toMatch(/<rect class="extra" data-ex="\d+" x="100" y="450" width="100" height="70"\/>/);
     expect(html).toMatch(/<line class="extra" data-ex="\d+" x1="0" y1="0" x2="50" y2="0"\/>/);
     expect(html).toContain("&lt;b&gt;shed&lt;/b&gt;");
@@ -71,11 +72,11 @@ describe("renderFloor", () => {
     expect(html.indexOf('data-d="0"')).toBeGreaterThan(o[1]); // and under the doors
   });
 
-  it("draws one polygon per room, one group per device, one line per door", () => {
+  it("draws one polygon per room, one group per device, two lines per door (S8.9: an invisible wider hit line, finding 3, plus the visible one)", () => {
     const html = renderFloor(ground, base);
     expect(html.match(/<polygon[^>]*data-r="/g)).toHaveLength(ground.rooms.length);
     expect(html.match(/<g[^>]*data-x="/g)).toHaveLength(ground.devices.length);
-    expect(html.match(/<line[^>]*data-d="/g)).toHaveLength(ground.doors.length);
+    expect(html.match(/<line[^>]*data-d="/g)).toHaveLength(ground.doors.length * 2);
   });
 
   it("marks a door open when its contact sensor is on", () => {
@@ -521,6 +522,71 @@ describe("wall kinds", () => {
     const html = renderFloor(f, base);
     expect(html).not.toContain("<script>");
     expect(html).toContain("&quot;&gt;&lt;script&gt;");
+  });
+
+  // S8.9 part 1 (Opus review finding 17: an enumeration is a list of decisions, not a default). A plain internal wall
+  // and the external wall got thicker (10 / 20 cm); boundary (drawn "nw"), fence and edge are unaffected (1.5 cm,
+  // same as before) — pinning every kind here means a future kind fails until someone writes down its own thickness,
+  // the same guard the review asked for on DEVICE_TYPES/RoomKind.
+  it("S8.9: pins every WallKind's own line thickness", () => {
+    const THICKNESS: Record<(typeof kinds)[number], number> = { wall: 10, boundary: 1.5, external: 20, fence: 1.5, edge: 1.5 };
+    const html = renderFloor(withWalls(), base);
+    kinds.forEach((k, i) => {
+      const cls = line(html, i)!; // "e", "e nw", "e external", "e fence", "e edge"
+      const w = +(FLOORPLAN_CSS.match(new RegExp(`\\.${cls.split(" ").join("\\.")}\\{[^}]*stroke-width:([\\d.]+)`))?.[1] ?? NaN);
+      expect(w, k).toBe(THICKNESS[k]);
+    });
+  });
+  it("S8.9: each wall's white halo (.eh) stays 2 cm wider than the wall itself, for both the plain and the external width", () => {
+    const wall = +(FLOORPLAN_CSS.match(/\.e\{[^}]*stroke-width:([\d.]+)/)?.[1] ?? NaN);
+    const ext = +(FLOORPLAN_CSS.match(/\.e\.external\{[^}]*stroke-width:([\d.]+)/)?.[1] ?? NaN);
+    const halo = +(FLOORPLAN_CSS.match(/\.eh\{[^}]*stroke-width:([\d.]+)/)?.[1] ?? NaN);
+    const haloExt = +(FLOORPLAN_CSS.match(/\.eh\.external\{[^}]*stroke-width:([\d.]+)/)?.[1] ?? NaN);
+    expect(halo - wall).toBe(2);
+    expect(haloExt - ext).toBe(2);
+  });
+});
+
+describe("S8.9 part 2: a door or window takes the thickness of the wall it sits on", () => {
+  // A tiny, walls-only floor (empty outline: renderFloor draws nothing for it, and it sits far enough from
+  // nothing to ever tie with a real wall) so the wall a door snaps to is never ambiguous.
+  const floor = () => ({
+    title: "T", outline: [], rooms: [], stairs: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
+    walls: [
+      { id: "wi", a: [0, 0], b: [200, 0], kind: "wall" },
+      { id: "we", a: [0, 200], b: [200, 200], kind: "external" },
+    ],
+    doors: [
+      { id: "di", name: "Internal door", kind: "door", a: [50, 0], b: [140, 0] },
+      { id: "de", name: "External door", kind: "door", a: [50, 200], b: [140, 200] },
+    ],
+  } as unknown as typeof ground);
+  const widthOf = (html: string, i: number) => +(html.match(new RegExp(`data-d="${i}" class="door door-[^"]*"[^>]*stroke-width="(\\d+)"`))?.[1] ?? NaN);
+
+  it("renders at 10 on an internal wall, at 20 on an external one", () => {
+    const html = renderFloor(floor(), base);
+    expect(widthOf(html, 0)).toBe(10);
+    expect(widthOf(html, 1)).toBe(20);
+  });
+  it("a door on no wall at all is a plain internal one (10)", () => {
+    const f = floor();
+    f.walls = [];
+    const html = renderFloor(f, base);
+    expect(widthOf(html, 0)).toBe(10);
+    expect(widthOf(html, 1)).toBe(10);
+  });
+  it("keeps the old fixed 22 cm click target regardless (finding 3): an invisible, same-position door-hit twin", () => {
+    const html = renderFloor(floor(), base);
+    for (const i of [0, 1]) {
+      expect(html).toMatch(new RegExp(`<line data-d="${i}" class="door-hit" x1="[^"]+" y1="[^"]+" x2="[^"]+" y2="[^"]+" stroke-width="22"/>`));
+    }
+    expect(FLOORPLAN_CSS).toMatch(/\.door-hit\{stroke:transparent;pointer-events:stroke\}/);
+  });
+  it("a selected door/window is 8 cm wider than its own thickness on either kind of wall", () => {
+    const html = renderFloor(floor(), { ...base, selection: { t: "door", i: 0 } });
+    expect(widthOf(html, 0)).toBe(18); // 10 + 8
+    const html2 = renderFloor(floor(), { ...base, selection: { t: "door", i: 1 } });
+    expect(widthOf(html2, 1)).toBe(28); // 20 + 8
   });
 });
 
@@ -1390,8 +1456,10 @@ describe("S7.1: labels never overprint each other", () => {
       return [x - 16 * s, y - 16 * s, 32 * s, 32 * s] as Box;
     });
     // S7.15: a door is its line widened by half its stroke, in the screen frame (a turned door's box is the box of its
-    // turned endpoints, so it is a little generous off-axis, which only makes the check stricter).
-    const doors = [...html.matchAll(/<line data-d="\d+"[^>]* x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)" stroke-width="(\d+)"/g)].map((m) => {
+    // turned endpoints, so it is a little generous off-axis, which only makes the check stricter). S8.9: only the
+    // visible door line, not its invisible wider "door-hit" click-target twin (finding 3) — same position, so
+    // counting both would only double-count, not change any answer, but the length assertions below want one each.
+    const doors = [...html.matchAll(/<line data-d="\d+" class="(?!door-hit")[^"]*"[^>]* x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)" stroke-width="(\d+)"/g)].map((m) => {
       const [x1, y1] = scr([Number(m[1]), Number(m[2])]), [x2, y2] = scr([Number(m[3]), Number(m[4])]), h = Number(m[5]) / 2;
       return [Math.min(x1, x2) - h, Math.min(y1, y2) - h, Math.abs(x2 - x1) + 2 * h, Math.abs(y2 - y1) + 2 * h] as Box;
     });

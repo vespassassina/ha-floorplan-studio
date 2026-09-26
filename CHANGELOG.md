@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Walls draw thicker and read more like walls: an internal wall is now
+  10 cm, an external one 20 cm (were 3 and 6). A door, window or opening
+  now takes the thickness of the wall it actually sits on, instead of one
+  fixed size.
 - Fixed: a device imported into the catalog but never placed on a floor
   used to vanish from the room's Place popup and from Add > Device (it
   showed only as a raw entity row there instead of its own device row).

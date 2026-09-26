@@ -1,5 +1,23 @@
 import type { EdgeKind, Floor, Pt, Room, Stairs } from "./schema";
 
+/**
+ * The `EdgeKind` of edge `i` of polygon `poly` ("o" the outline, "r<n>" a room, "w" a free wall), the same rule
+ * `renderFloor` uses to pick each edge's CSS class: a zone edge is always "boundary" (never drawn as a plain wall),
+ * a room or the outline defaults to "wall"/"external" while it still has no `wk`/`owk` of its own (S1.52), and a
+ * free wall carries its own `kind`. Shared with door/window/opening thickness (S8.9 part 2), so the two can never
+ * disagree about which wall a door sits on.
+ */
+export function edgeKindAt(f: Floor, poly: string, i: number): EdgeKind {
+  if (poly === "w") return f.walls[i]?.kind ?? "wall";
+  if (poly === "o") return f.owk?.[i] ?? "external";
+  const m = /^r(\d+)$/.exec(poly);
+  if (!m) return "wall";
+  const r = f.rooms[+m[1]];
+  if (!r) return "wall";
+  if (r.kind === "zone") return "boundary";
+  return r.wk?.[i] ?? "wall";
+}
+
 // Everything here is pure: functions return a new Floor and never touch the DOM.
 
 const TOUCH = 2; // cm: points this close count as the same point

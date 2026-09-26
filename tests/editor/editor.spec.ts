@@ -2320,13 +2320,13 @@ test("S1.52: a perimeter edge shows External wall by default, and its kind can b
   await expect(page.locator("#ek")).toHaveValue("external");
   const line = page.locator('svg line[data-e="o:0"]');
   await expect(line).toHaveClass("e external");
-  expect(await line.evaluate((el) => getComputedStyle(el).strokeWidth)).toBe("6px");
+  expect(await line.evaluate((el) => getComputedStyle(el).strokeWidth)).toBe("20px"); // S8.9: external wall thickness 6 -> 20
   await page.locator("#ek").selectOption("wall");
   expect((await groundOf(page)).owk?.[0]).toBe("wall");
   await expect(page.locator("#panel strong").first()).toHaveText("Internal wall");
   await expect(line).toHaveClass("e");
-  // the block's Test section names "8", the halo twin's width (.eh.external); the selectable line itself goes 6 -> 3
-  expect(await line.evaluate((el) => getComputedStyle(el).strokeWidth)).toBe("3px");
+  // changed from an external wall (20 cm) to a plain internal one (10 cm; S8.9)
+  expect(await line.evaluate((el) => getComputedStyle(el).strokeWidth)).toBe("10px");
   await savedValid(page);
 });
 
@@ -2895,7 +2895,7 @@ test("a door's angle field turns it about its midpoint: at 90 the ends swap axis
   expect(Math.abs(len(d1) - len(d0))).toBeLessThanOrEqual(1);
   await expect(page.locator("#drot")).toHaveValue(String(turn));
   // the line drawn in the browser follows it
-  const box = await page.locator(`svg line[data-d="${(await groundOf(page)).doors.length - 1}"]`).boundingBox();
+  const box = await page.locator(`svg line[data-d="${(await groundOf(page)).doors.length - 1}"]:not(.door-hit)`).boundingBox();
   if (d1.a[0] === d1.b[0]) expect(box!.height).toBeGreaterThan(box!.width * 2);
   else expect(box!.width).toBeGreaterThan(box!.height * 2);
   await menu(page, "File");
@@ -4350,6 +4350,23 @@ test("Opus review CSS pair: wall kinds have their colour, thickness and dash (re
   expect(fence.w).toBeLessThan(wall);
   expect(fence.dash.split(",").length).toBe(4); // dash-dot
   expect(edge.dash).toBe("none");
+});
+
+test("S8.9 CSS pair: a plain wall is 10cm thick, an external wall 20cm, each halo 2cm wider, and a door/window takes its own wall's thickness", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), g = l.floors.ground;
+    g.walls.push({ id: "s89-wi", a: [1900, 500], b: [2000, 500], kind: "wall" }, { id: "s89-we", a: [1900, 560], b: [2000, 560], kind: "external" });
+    g.doors.push({ id: "s89-di", name: "Internal", kind: "door", a: [1920, 500], b: [1980, 500] }, { id: "s89-de", name: "External", kind: "window", a: [1920, 560], b: [1980, 560] });
+    el.layout = l;
+  }, EDITOR);
+  const w = (sel: string) => page.locator(sel).first().evaluate((e) => parseFloat(getComputedStyle(e).strokeWidth));
+  expect(await w("svg line.e:not(.external):not(.fence):not(.edge):not(.none):not(.se):not(.nw)")).toBe(10);
+  expect(await w("svg line.e.external")).toBe(20);
+  expect(await w("svg line.eh:not(.external):not(.fence):not(.edge):not(.se):not(.nw)")).toBe(12);
+  expect(await w("svg line.eh.external")).toBe(22);
+  const wByTitle = (name: string) => page.locator("svg line[data-d]:not(.door-hit)").filter({ hasText: name }).first().evaluate((e) => parseFloat(getComputedStyle(e).strokeWidth));
+  expect(await wByTitle("Internal")).toBe(10); // s89-di, on the internal wall
+  expect(await wByTitle("External")).toBe(20); // s89-de, on the external wall
 });
 
 test("CSS pair: furniture has its own fixed grey token, decoupled from idle devices", async ({ page }) => {

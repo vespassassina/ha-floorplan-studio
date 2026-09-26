@@ -1,5 +1,5 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
-import { stairSteps } from "./geometry";
+import { edgeKindAt, nearestEdge, stairSteps } from "./geometry";
 import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
@@ -88,6 +88,17 @@ const HA_LIGHT = haTokens(LIGHT_TOKENS, { ink: "#2b2a27", text: "#3a3a3a", bg: "
 const HA_DARK = haTokens(MIDNIGHT_TOKENS, { ink: "#d8e2f2", text: "#d8e2f2", bg: "#0d1522", room: "#14213a", wall: "#8fb4f0", wallExternal: "#b4cdf7", outline: "#0d1522", disc: "#14213a", measure: "#8fb4f0" });
 
 
+/**
+ * S8.9 (Diego, 2026-09-26): internal walls thicker than before, external walls thicker still, in plan cm. Named
+ * once so the stylesheet below, a door or window's own stroke (`wallWidthAt`) and the unit test that pins every
+ * `WallKind`'s thickness can never drift apart. Fence, edge, the dashed no-wall ("boundary") and "none" edges are
+ * unaffected — only a plain wall and an external wall changed.
+ */
+export const WALL_WIDTH = 10;
+export const WALL_WIDTH_EXTERNAL = 20;
+/** Each wall's white halo (`.eh`) stays this many cm wider than the wall it outlines, both kinds, same as before. */
+const WALL_HALO_EXTRA = 2;
+
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
 export const FLOORPLAN_CSS = `
 :host,.fp{${BLUEPRINT_TOKENS}}
@@ -148,14 +159,19 @@ export const FLOORPLAN_CSS = `
    under it in either theme (Opus review). --fp-active is its own token, amber like --fp-on, chosen per theme for
    at least 3:1 contrast against both --fp-room and --fp-bg (measured: light 5.0:1 / 5.6:1, dark 6.8:1 / 8.0:1). */
 .furn.on{color:var(--fp-active)}
-.e{stroke:var(--fp-wall);stroke-width:3;stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5}
-.e.external{stroke:var(--fp-wall-external);stroke-width:6;stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
-.eh{stroke:var(--fp-outline);stroke-width:5;stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.external{stroke-width:8;stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
+/* S8.9: internal corners and T-joins at the new 10-20 cm thickness are kept gap-free by the round linecap already
+   here (each segment's rounded end overlaps its neighbour's whatever the angle between them); only the numbers
+   changed. External walls keep the square cap they always had (a mitred, not rounded, look for the house perimeter). */
+.e{stroke:var(--fp-wall);stroke-width:${WALL_WIDTH};stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5}
+.e.external{stroke:var(--fp-wall-external);stroke-width:${WALL_WIDTH_EXTERNAL};stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
+.eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
 .e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none}
 /* An opening erases the wall under it by painting over it, so its stroke must match a plain room's own fill, not
    --fp-room: that token is UI chrome (toolbar buttons), shaded near the background in a dark theme, so an opening
-   used to punch a visibly wrong-coloured hole instead of blending away (Opus review). */
-.opening{stroke:var(--fp-room-empty);stroke-width:9;pointer-events:none}
+   used to punch a visibly wrong-coloured hole instead of blending away (Opus review). S8.9: the wall under an
+   opening is no longer one fixed width, so its own stroke-width is now an inline attribute (wallWidthAt plus a
+   margin), not this fixed 9 — see the openings loop below. */
+.opening{stroke:var(--fp-room-empty);pointer-events:none}
 /* S4.13 (Opus review): was pointer-events:none, so a click on "tech area" or any other structure line always fell
    through to the room under it - the line rendered but took no clicks of its own, ever, on any floor. "all" matches
    .room{pointer-events:all} just above: a fill:none shape still needs the flag or its interior (a rect's, here) and
@@ -163,6 +179,9 @@ export const FLOORPLAN_CSS = `
 .extra{fill:none;stroke:var(--fp-idle);stroke-dasharray:6 4;stroke-width:1.2;vector-effect:non-scaling-stroke;pointer-events:all}
 .door{stroke:var(--fp-door)} .door-glass{stroke:var(--fp-glass)} .door-window{stroke:var(--fp-window)} .door-sealed{stroke:var(--fp-sealed);stroke-dasharray:10 6}
 .door.open{stroke:var(--fp-dev-contact)} .door.cover-open{stroke:var(--fp-open)}
+/* S8.9 finding 3: a door's own stroke is now as thin as the internal wall it sits on, so this invisible twin
+   (drawn first, same data-d, at the old fixed 22 cm) keeps the click target exactly as wide as it always was. */
+.door-hit{stroke:transparent;pointer-events:stroke}
 .dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
@@ -203,8 +222,27 @@ const num = (n: number) => String(Math.round(n * 100) / 100);
 const pts = (p: Pt[]) => p.map((q) => `${num(q[0])},${num(q[1])}`).join(" ");
 const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 /** x, y, w, h. */
-/** A door line's stroke, in plan units; the label placer widens the line by half of it. */
-const DOOR_STROKE = 22;
+/** Fixed regardless of a door's own visible stroke (S8.9): the box a door blocks room/zone names from (S7.15) and
+ *  its invisible click target below, so a thinner internal door stays exactly as easy to hit and as good an
+ *  obstacle as it always was. The label placer widens the door's line by half of it. */
+const DOOR_HIT_WIDTH = 22;
+/**
+ * S8.9 part 2: a door or window's own stroke takes the thickness of the wall segment it lies on. Reuses the same
+ * `nearestEdge` lookup the editor already snaps a door to when it is placed or dragged (editor-app.ts's `HOST`,
+ * `{ walls: true }`), so rendering and snapping can never disagree about which wall a door is on. A door's
+ * midpoint sits right on the wall line once snapped, so `DOOR_WALL_TOL` only covers rounding, not a real search
+ * radius. Off every wall, or on a zone/boundary edge, a door is a plain internal one.
+ */
+const DOOR_WALL_TOL = 5; // cm
+function wallWidthAt(f: Floor, a: Pt, b: Pt): number {
+  const e = nearestEdge(f, mid(a, b), DOOR_WALL_TOL, { walls: true });
+  return e && edgeKindAt(f, e.poly, e.i) === "external" ? WALL_WIDTH_EXTERNAL : WALL_WIDTH;
+}
+/** A selected door or window is always 8 cm wider than its own thickness, whichever wall it sits on. */
+const DOOR_SELECT_EXTRA = 8;
+/** An opening's stroke must fully erase the (possibly thicker) wall under it: the wall's own thickness, plus a
+ *  couple of cm of margin so no sliver of it shows at the edges (S8.9 part 3). */
+const OPENING_EXTRA = 2;
 type Box = [number, number, number, number];
 const meets = (a: Box, b: Box) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 
@@ -541,7 +579,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // S7.15: doors are obstacles too, so a name never runs across one (the demo's "Garden pond" sat on the garage
   // door). A door's box is its line, in the screen frame, widened by half its 22-unit stroke on every side.
   for (const d of f.doors) {
-    const [ax, ay] = toScreen(d.a), [bx, by] = toScreen(d.b), h = DOOR_STROKE / 2;
+    const [ax, ay] = toScreen(d.a), [bx, by] = toScreen(d.b), h = DOOR_HIT_WIDTH / 2;
     if ([ax, ay, bx, by].every(Number.isFinite)) placed.push([Math.min(ax, bx) - h, Math.min(ay, by) - h, Math.abs(bx - ax) + 2 * h, Math.abs(by - ay) + 2 * h]);
   }
   const named = (r: Floor["rooms"][number]) => !!r.name && r.kind !== "fill";
@@ -551,7 +589,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = place(rows(centroid(r.pts)), 10 * k, r.name); });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
-  f.openings.forEach((op) => out.push(`<line class="opening" x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}"/>`));
+  // S8.9 part 3: the opening's own stroke must cover whichever wall it is on, now that walls no longer share one width.
+  f.openings.forEach((op) => out.push(`<line class="opening" x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke-width="${wallWidthAt(f, op.a, op.b) + OPENING_EXTRA}"/>`));
   f.extras.forEach((x, i) => {
     const mx = Math.min(x.a[0], x.b[0]), my = Math.min(x.a[1], x.b[1]), w = Math.abs(x.a[0] - x.b[0]), h = Math.abs(x.a[1] - x.b[1]);
     out.push(w && h
@@ -573,7 +612,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const open = (d.sensors ?? []).some((e) => o.state?.[e]?.state === "on"), cover = d.cover ? o.state?.[d.cover] : undefined;
     const cls = ["door", `door-${esc(String(d.kind))}`, open ? "open" : "", cover?.state === "open" ? "cover-open" : ""].filter(Boolean).join(" ");
     const sel = o.selection?.t === "door" && o.selection.i === i;
-    out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 30 : DOOR_STROKE}"><title>${esc(d.name ?? "")}</title></line>`);
+    const w = wallWidthAt(f, d.a, d.b);
+    const seg = `x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}"`;
+    // S8.9 part 2 + finding 3: the visible line is now as thin as the internal wall it sits on (10 cm, or 20 on an
+    // external wall), so a plain transparent line first, at the old fixed 22 cm, keeps the door as easy to click as
+    // it always was. It shares data-d with the visible line, so hitOf() (editor-app.ts) finds the same door either way.
+    out.push(`<line data-d="${i}" class="door-hit" ${seg} stroke-width="${DOOR_HIT_WIDTH}"/>`);
+    out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`);
   });
 
   f.rooms.forEach((r, i) => {
