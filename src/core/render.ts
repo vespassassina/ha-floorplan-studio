@@ -201,7 +201,7 @@ export const FLOORPLAN_CSS = `
 .dev-motion.on .halo,.dev-contact.on .halo{fill-opacity:.6;stroke:var(--fp-dev);stroke-width:2}
 .ping{fill:none;stroke:var(--fp-dev);stroke-width:3;vector-effect:non-scaling-stroke;pointer-events:none;transform-box:fill-box;transform-origin:center;animation:fp-ping 1.6s ease-out infinite}
 @keyframes fp-ping{from{transform:scale(1);opacity:.9}to{transform:scale(2.2);opacity:0}}
-.door-alert{stroke:var(--fp-dev-contact);stroke-opacity:.45;stroke-linecap:round;pointer-events:none;animation:fp-door 1.6s ease-in-out infinite alternate}
+.door-alert{stroke:var(--fp-dev-contact);stroke-opacity:.45;stroke-linecap:butt;pointer-events:none;animation:fp-door 1.6s ease-in-out infinite alternate}
 @keyframes fp-door{from{stroke-opacity:.2}to{stroke-opacity:.6}}
 @media (prefers-reduced-motion:reduce){.ping,.door-alert{animation:none}.ping{transform:scale(1.5);opacity:.6}}
 .dev.unavailable{opacity:.45}
@@ -304,9 +304,14 @@ export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt
   if (!f.outline.length) return { x: -pad, y: -pad, w: 1000 + 2 * pad, h: 1000 + 2 * pad };
   const turn = (p: Pt) => (rotate && rotate.deg % 360 ? rotateAbout(p, rotate.deg, rotate.pivot) : p);
   const boxes = f.outline.map((p) => [turn(p), pad] as const);
+  // Only a lamp or camera on or near the plan counts: one far outside it (a stray drag, a layout in mm) stays off
+  // view, as before, instead of shrinking the house to a speck. Its centre is the one the aura is drawn at.
+  const ox = f.outline.map((p) => p[0]), oy = f.outline.map((p) => p[1]);
+  const near = (c: Pt, r: number) => c[0] >= Math.min(...ox) - r && c[0] <= Math.max(...ox) + r && c[1] >= Math.min(...oy) - r && c[1] <= Math.max(...oy) + r;
   for (const d of f.devices) {
     const r = d.type === "light" ? LIGHT_REACH : d.type === "camera" ? DEVICE_REACH : 0;
-    if (r && "x" in d && Number.isFinite(d.x) && Number.isFinite(d.y)) boxes.push([turn([d.x, d.y]), r]);
+    const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
+    if (r && c.every(Number.isFinite) && near(c, r)) boxes.push([turn(c), r]);
   }
   const x0 = Math.min(...boxes.map(([p, r]) => p[0] - r)), y0 = Math.min(...boxes.map(([p, r]) => p[1] - r));
   const x1 = Math.max(...boxes.map(([p, r]) => p[0] + r)), y1 = Math.max(...boxes.map(([p, r]) => p[1] + r));

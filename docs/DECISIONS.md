@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-26 S8.13 review: the viewBox pads only lamps near the plan
+
+Supersedes part of the S8.13 viewBox entry below. The Opus review found
+two gaps. A light placed by `a` and `b` was padded nowhere, while its aura
+is drawn at their midpoint, so the aura was clipped. And a stray lamp far
+outside the plan (a layout in mm, a bad drag) pulled the box out to it and
+shrank the house to a speck. `viewBoxFor` now uses the aura's own centre
+rule, and counts a lamp or camera only when its centre lies within its
+reach of the outline's box. One further out stays off view, as it did
+before S8.13. The door alert line uses butt caps, so it no longer paints
+over the wall past the door's ends.
+
 ## 2026-09-26 HACS default list: the HACS action runs with no ignores
 
 Diego asked to submit the repository to the HACS default list. hacs/default

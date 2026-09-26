@@ -4672,6 +4672,24 @@ test("Opus review CSS pair: S8.13 a triggered motion sensor pings in its own col
   expect(Number(light.haloOp)).toBeLessThan(Number(motion.haloOp));
 });
 
+test("Opus review CSS pair: S8.13 under reduced motion nothing pulses: the ping holds at 1.5x and 60 %, the door line at 45 %", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const s = await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const g = svg.querySelector("g.dev-motion")!;
+    g.classList.add("on");
+    const ping = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    ping.setAttribute("class", "ping");
+    g.querySelector(".halo")!.before(ping);
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("class", "door-alert");
+    svg.querySelector("line[data-d]")!.before(line);
+    const p = getComputedStyle(ping), l = getComputedStyle(line);
+    return { pAnim: p.animationName, pT: p.transform, pOp: p.opacity, lAnim: l.animationName, lOp: l.strokeOpacity };
+  }, EDITOR);
+  expect(s).toEqual({ pAnim: "none", pT: "matrix(1.5, 0, 0, 1.5, 0, 0)", pOp: "0.6", lAnim: "none", lOp: "0.45" });
+});
+
 test("Opus review CSS pair: S8.13 an open door's alert line is contact red and takes no click", async ({ page }) => {
   const s = await page.evaluate((tag) => {
     const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;

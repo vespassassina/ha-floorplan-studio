@@ -426,7 +426,7 @@ describe("S8.13: brighter alerts, wider light", () => {
   it("the alert rules: a ping pulses in the sensor's own colour, a triggered disc is stronger than any other on disc, the door alert is contact red, and none take the pointer", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.ping\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-ping/);
     expect(FLOORPLAN_CSS).toMatch(/\.dev-motion\.on \.halo,\.dev-contact\.on \.halo\{fill-opacity:\.6;stroke:var\(--fp-dev\);stroke-width:2\}/);
-    expect(FLOORPLAN_CSS).toMatch(/\.door-alert\{stroke:var\(--fp-dev-contact\);[^}]*pointer-events:none/);
+    expect(FLOORPLAN_CSS).toMatch(/\.door-alert\{stroke:var\(--fp-dev-contact\);[^}]*stroke-linecap:butt;[^}]*pointer-events:none/);
     expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert\{animation:none\}/);
   });
 });
@@ -481,6 +481,18 @@ describe("viewBoxFor", () => {
     const [lx, ly] = rotateAbout([20, 300], 90, pivot);
     expect(v.y).toBeLessThanOrEqual(ly - LIGHT_REACH);
     expect(v.x).toBeLessThanOrEqual(lx - 60);
+  });
+
+  it("S8.13 review: a light placed by a and b pads around the same centre its aura is drawn at", () => {
+    const f = structuredClone(ground);
+    f.devices = [{ id: "l1", type: "light", entity: "light.x", a: [10, 300], b: [30, 300] }] as never;
+    expect(viewBoxFor(f, 60).x).toBeLessThanOrEqual(20 - LIGHT_REACH);
+  });
+
+  it("S8.13 review: a stray lamp far outside the plan does not shrink the house; it stays off view, as before", () => {
+    const f = structuredClone(ground);
+    f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 1e6, y: 300 }];
+    expect(viewBoxFor(f, 60)).toEqual({ x: -60, y: -60, w: 920, h: 720 });
   });
 
   it("S5.7 break it: a light exactly on the wall, or the plan's only device, still gives a finite box with the whole circle inside", () => {
