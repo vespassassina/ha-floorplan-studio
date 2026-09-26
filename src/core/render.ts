@@ -255,9 +255,14 @@ export function wallWidthAt(f: Floor, a: Pt, b: Pt): number {
 }
 /** A selected door or window is always 8 cm wider than its own thickness, whichever wall it sits on. */
 const DOOR_SELECT_EXTRA = 8;
-/** An opening's stroke must fully erase the (possibly thicker) wall under it: the wall's own thickness, plus a
- *  couple of cm of margin so no sliver of it shows at the edges (S8.9 part 3). */
-const OPENING_EXTRA = 2;
+/** An opening's stroke must fully erase the (possibly thicker) wall under it: the wall's own thickness, plus enough
+ *  margin so no sliver of it shows at the edges (S8.9 part 3) — and, since S8.11, strictly more than the wall's own
+ *  halo margin (`WALL_HALO_EXTRA`), for internal walls same as external. Opus review (2026-09-26): this used to be
+ *  a flat 2cm, exactly equal to WALL_HALO_EXTRA, so the cut's own edge landed exactly on the halo's edge — two
+ *  independently antialiased edges on the same line do not reliably cancel, leaving a faint blended line along the
+ *  hole (`renderFloor` test "S8.11 fix (halo seam...)" in card.spec.ts). One more cm of margin than the halo's own
+ *  puts the cut's edge a clean centimetre past the halo's, with room to spare. */
+const OPENING_EXTRA = WALL_HALO_EXTRA + 2;
 /** A short, deterministic tag for a string (FNV-1a, 32-bit, base36). Not security-sensitive: only used to keep a
  *  generated id short while still varying with its content. */
 function tag(s: string): string {
@@ -492,8 +497,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // cut, and the erosion reaches past the opening's own span. "butt" cuts exactly at `a` and `b`, wider across only.
   const openingLines = f.openings.map((op, i) => `<line x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke="black" stroke-width="${openingWidths[i]}" stroke-linecap="butt"/>`);
   const maskId = f.openings.length ? `fp-open-mask-${tag(openingLines.join(""))}` : "";
+  // Opus review (2026-09-26): `<mask>` itself carries no x/y/width/height, so its region defaults to -10%/120% of
+  // the *viewport*, measured from the coordinate system's own 0,0 — never from the viewBox's own x/y. A floor that
+  // is viewed away from the origin (zoomed in on the card or the editor, or simply drawn somewhere else in plan
+  // space) then has this whole masked wall group erased outright wherever it falls outside that accidental
+  // rectangle: real walls vanish, not just the opening. The inner rect already covered a huge span for the same
+  // reason the mask needs one; the region attributes below are what was actually missing.
   const openingMask = maskId
-    ? `<mask id="${maskId}" maskUnits="userSpaceOnUse"><rect x="-100000" y="-100000" width="200000" height="200000" fill="white"/>${openingLines.join("")}</mask>`
+    ? `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="-100000" y="-100000" width="200000" height="200000"><rect x="-100000" y="-100000" width="200000" height="200000" fill="white"/>${openingLines.join("")}</mask>`
     : "";
   if (hatch || textured.length || openingMask) out.push(`<defs>${hatch}${texturePatterns(textured)}${openingMask}</defs>`);
   // S2.6: room_glow. A room glows when any light "in" it (point-in-polygon of the device's x,y; a light never has
