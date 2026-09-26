@@ -1626,6 +1626,45 @@ test("the toolbar order is Filter, Add, Draw, View, Edit, File; Device… is a b
   expect(subs[areasIdx + 1]).toBe("addDevBtn"); // Device… sits right after Areas
 });
 
+// ---- S8.10: the toolbar's right-aligned cluster (menus, Undo/Redo, status) --------------------------------------
+
+test("S8.10: the toolbar's Help button sits flush against the toolbar's right edge; the floor chips stay left; no horizontal scroll at 380", async ({ page }) => {
+  for (const width of [1280, 380]) {
+    await page.setViewportSize({ width, height: 800 });
+    const bar = await page.locator(".bar").first().boundingBox();
+    const chip = await page.locator(".bar .chip").first().boundingBox();
+    const help = await page.locator("#help").boundingBox();
+    if (!bar || !chip || !help) throw new Error("missing toolbar box");
+    // Break it: put back the old `<span class="grow">` right after the floor chips and this fails — Help sits
+    // hundreds of px short of the toolbar's own right edge (measured pre-fix: 1256 - 828 ~= 427px at 1280 wide).
+    expect(chip.x - bar.x, `${width}px: floor chip left edge`).toBeLessThan(4);
+    expect(bar.x + bar.width - (help.x + help.width), `${width}px: Help right edge vs toolbar right edge`).toBeLessThanOrEqual(4);
+    // Opus review CSS pair (finding 10): the computed style behind the alignment, not just its presence as a string.
+    // flex:1 1 0 (not a shrink-to-fit box pushed by its own margin-left:auto) is what makes this deterministic: a
+    // shrink-to-fit `.bar-right` sized itself from its own content, and nesting a flex-wrap item inside another
+    // flex-wrap row like that left Chromium free to settle on either of two different widths for identical content,
+    // depending only on what triggered the last layout pass — a real regression this test caught (S8.10 follow-up).
+    const style = await page.locator(".bar-right").evaluate((el) => { const s = getComputedStyle(el); return { justifyContent: s.justifyContent, flexGrow: s.flexGrow, flexBasis: s.flexBasis }; });
+    expect(style.justifyContent, `${width}px`).toBe("flex-end");
+    expect(style.flexGrow, `${width}px: fills the line deterministically, not by shrink-to-fit + margin-left:auto`).toBe("1");
+    expect(style.flexBasis, `${width}px`).toBe("0%");
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+    expect(overflow, `${width}px: horizontal scroll`).toBe(false);
+  }
+});
+
+test("S8.10: the rightmost menu's dropdown (File) stays inside the viewport at 1280 and 380 wide", async ({ page }) => {
+  for (const width of [1280, 380]) {
+    await page.setViewportSize({ width, height: 800 });
+    await menu(page, "File");
+    const box = await page.locator("#mFile .box").boundingBox();
+    if (!box) throw new Error("no File dropdown box");
+    expect(box.x, `${width}px: File dropdown left edge`).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, `${width}px: File dropdown right edge`).toBeLessThanOrEqual(width);
+    await menu(page, "File"); // close it again
+  }
+});
+
 test("Device… lists the unplaced entries grouped by type; a deleted light and its relay come back, placing the light takes only the light", async ({ page }) => {
   await selectDev(page, 0);
   await page.locator("#vdel").click(); // the light and its relay come back
@@ -6794,9 +6833,13 @@ test("S4.7: Run calls scene.turn_on, and Open dispatches Home Assistant's more-i
   await withBoxWriter(page);
   await selectLiving(page);
   await page.evaluate((tag) => { (window as any).__moreInfo = null; document.querySelector(tag as string)!.addEventListener("hass-more-info", (e: any) => { (window as any).__moreInfo = e.detail; }); }, EDITOR);
+  // S8.10: Scenes, and the Devices > Lights sub-group, are collapsible and closed by default; open them first.
+  await page.locator('[data-ha-group="scenes"] > summary').click();
   await page.locator('[data-ha-row="scene.living_movie"] button:has-text("Run")').click();
   await expect.poll(async () => (await boxCalls(page)).length).toBe(1);
   expect((await boxCalls(page))[0]).toEqual(["scene", "scene.living_movie"]);
+  await page.locator('[data-ha-group="devices"] > summary').click();
+  await page.locator('[data-ha-devgroup="light"] > summary').click();
   await page.locator('[data-ha-row="light.demo_living"] button:has-text("Open")').click();
   expect(await page.evaluate(() => (window as any).__moreInfo)).toEqual({ entityId: "light.demo_living" });
 });
@@ -6831,6 +6874,89 @@ test("S4.7: a custom room with an entity shows that one row with no headings; wi
   await page.locator("#rent").selectOption("light.demo_living");
   await expect(page.locator(".habox")).toContainText("Living lamp");
   await expect(page.locator(".habox")).not.toContainText("Devices"); // no headings for the single-entity case
+});
+
+// ---- S8.10: the room box's Devices list, collapsible and grouped by type ----------------------------------------
+
+// A mixed bag of types under one area, the shape of the maintainer's real ~35-row room: two lights (out of name
+// order, to prove the sub-group still sorts by name), a switch, a media player, a battery and temperature sensor, a
+// motion binary_sensor. All in "living", so `selectLiving` (200,150) reaches them.
+const MIXED_HA = { floors: [], areas: [{ id: "living", name: "Living" }], entities: [
+  { id: "light.b_lamp", name: "B lamp", domain: "light", area: "living" },
+  { id: "light.a_lamp", name: "A lamp", domain: "light", area: "living" },
+  { id: "switch.fan", name: "Fan switch", domain: "switch", area: "living" },
+  { id: "media_player.tv", name: "Living TV", domain: "media_player", area: "living" },
+  { id: "sensor.phone_battery", name: "Phone battery", domain: "sensor", dc: "battery", area: "living" },
+  { id: "sensor.temp", name: "Room temp", domain: "sensor", dc: "temperature", area: "living" },
+  { id: "binary_sensor.motion", name: "Hall motion", domain: "binary_sensor", dc: "motion", area: "living" },
+] };
+const detailsOpen = (page: Page, sel: string) => page.locator(sel).evaluate((el) => (el as HTMLDetailsElement).open);
+
+test("S8.10: the room box's Devices group is one collapsed block; opening it shows type sub-groups, all collapsed, with the right counts", async ({ page }) => {
+  await setHa(page, MIXED_HA);
+  await selectLiving(page);
+  const devGroup = page.locator('[data-ha-group="devices"]');
+  await expect(devGroup.locator("> summary")).toHaveText("Devices (7)");
+  // Break it: revert to the flat list and this whole test fails at the next line — there is no
+  // [data-ha-group]/[data-ha-devgroup] at all, and every row (light.a_lamp included) is visible right away.
+  expect(await detailsOpen(page, '[data-ha-group="devices"]')).toBe(false);
+  await expect(page.locator('[data-ha-row="light.a_lamp"]')).toBeHidden();
+
+  await devGroup.locator("> summary").click();
+  expect(await detailsOpen(page, '[data-ha-group="devices"]')).toBe(true);
+  const sub = (t: string) => page.locator(`[data-ha-devgroup="${t}"]`);
+  await expect(sub("light").locator("> summary")).toHaveText("Lights (2)");
+  await expect(sub("switch").locator("> summary")).toHaveText("Wall switches (1)");
+  await expect(sub("media").locator("> summary")).toHaveText("Media players (1)");
+  await expect(sub("battery").locator("> summary")).toHaveText("Batteries (1)");
+  await expect(sub("temp").locator("> summary")).toHaveText("Temperature (1)");
+  await expect(sub("motion").locator("> summary")).toHaveText("Motion (1)");
+  for (const t of ["light", "switch", "media", "battery", "temp", "motion"]) {
+    expect(await detailsOpen(page, `[data-ha-devgroup="${t}"]`), t).toBe(false); // every sub-group starts collapsed too
+  }
+  await expect(page.locator('[data-ha-row="light.a_lamp"]')).toBeHidden(); // Devices is open, but Lights is not
+});
+
+test("S8.10: opening the Devices group then Lights shows only the light rows, sorted by name", async ({ page }) => {
+  await setHa(page, MIXED_HA);
+  await selectLiving(page);
+  await page.locator('[data-ha-group="devices"] > summary').click();
+  await page.locator('[data-ha-devgroup="light"] > summary').click();
+  await expect(page.locator('[data-ha-row="light.a_lamp"]')).toBeVisible();
+  await expect(page.locator('[data-ha-row="light.b_lamp"]')).toBeVisible();
+  const order = await page.locator('[data-ha-devgroup="light"] [data-ha-row]').evaluateAll((els) => els.map((e) => e.getAttribute("data-ha-row")));
+  expect(order).toEqual(["light.a_lamp", "light.b_lamp"]); // "A lamp" before "B lamp", not the id order they were declared in
+  // still collapsed: opening Lights did not open its siblings
+  await expect(page.locator('[data-ha-row="switch.fan"]')).toBeHidden();
+  await expect(page.locator('[data-ha-row="media_player.tv"]')).toBeHidden();
+});
+
+
+
+test("S8.10: a group's open state survives selecting another room and back, and a hass update", async ({ page }) => {
+  const TWO_ROOM_HA = { floors: [], areas: [{ id: "living", name: "Living" }, { id: "kitchen", name: "Kitchen" }], entities: [
+    ...MIXED_HA.entities,
+    { id: "light.kitchen_lamp", name: "Kitchen lamp", domain: "light", area: "kitchen" },
+  ] };
+  await setHa(page, TWO_ROOM_HA);
+  await selectLiving(page);
+  await page.locator('[data-ha-group="devices"] > summary').click();
+  await page.locator('[data-ha-devgroup="light"] > summary').click();
+  expect(await detailsOpen(page, '[data-ha-group="devices"]')).toBe(true);
+  expect(await detailsOpen(page, '[data-ha-devgroup="light"]')).toBe(true);
+
+  await clickCm(page, 750, 350); // the kitchen (away from the demo's own light-kitchen device at 650,200)
+  await expect(page.locator(".habox")).toContainText("Kitchen lamp"); // really switched rooms
+  await clickCm(page, 200, 150); // back to the living room
+  // Break it: key the open state by room (or drop it from EditorState into a per-render local) and this fails —
+  // reselecting the living room reads the group closed again.
+  expect(await detailsOpen(page, '[data-ha-group="devices"]')).toBe(true);
+  expect(await detailsOpen(page, '[data-ha-devgroup="light"]')).toBe(true);
+
+  // A `hass` update: Home Assistant sets state repeatedly; here that is a fresh `ha` object with the same content.
+  await setHa(page, { ...TWO_ROOM_HA });
+  expect(await detailsOpen(page, '[data-ha-group="devices"]')).toBe(true);
+  expect(await detailsOpen(page, '[data-ha-devgroup="light"]')).toBe(true);
 });
 
 test("S5.5: Help opens a step-by-step guide, matching GUIDE_STEPS, and closes with Escape, returning focus to the button", async ({ page }) => {
@@ -7002,14 +7128,19 @@ test("S7.2: the floor panel says Need help and its button opens Help", async ({ 
   await expect(page.locator("#panel .guide")).toBeVisible();
 });
 
-test("S7.2: the status line sits in the toolbar, right of Redo, and Save still writes Saved there", async ({ page }) => {
+test("S7.2: the status line sits in the toolbar's right-aligned cluster, and Save still writes Saved there", async ({ page }) => {
   const status = page.locator(".bar #status");
   await expect(status).toHaveCount(1);
   await expect(status).toBeVisible();
   await expect(status).toHaveAttribute("role", "status");
   await expect(page.locator(`${EDITOR} aside #status`)).toHaveCount(0);
-  const redo = await page.locator("#redo").boundingBox(), box = await status.boundingBox();
-  expect(box!.x).toBeGreaterThanOrEqual(redo!.x + redo!.width);
+  // S8.10: Help joined this cluster after Undo/Redo/status (its own right edge is now the one pinned to the
+  // toolbar's, see the S8.10 toolbar tests above), so status no longer necessarily shares Redo's own line at every
+  // width — it can wrap to a line of its own with Help. It still belongs to the right-aligned cluster, not the
+  // floor-chips row: left of the first chip's own left edge is out of the question, right of Redo's left edge holds.
+  const redo = await page.locator("#redo").boundingBox(), box = await status.boundingBox(), bar = await page.locator(".bar").boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(redo!.x);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(bar!.x + bar!.width + 0.5);
   await menu(page, "File");
   const dl = page.waitForEvent("download");
   await page.locator("#save").click();
@@ -7046,11 +7177,14 @@ test("S7.2 break it: a 200-character status ellipsises, keeps the full text in t
   expect(got.ws).toBe("nowrap");
   expect(got.clipped).toBe(true);
   expect(got.right).toBeLessThanOrEqual(after.x + after.width + 0.5);
-  // one row at 1280: the status, Redo and the first floor chip share a vertical centre
+  // At 1280 the floor chip and Redo share the toolbar's top row (S8.10 did not touch the floor chips or the
+  // menu/Undo/Redo cluster's own row). Status wraps to its own row with Help (S8.10's own right-aligned cluster,
+  // verified above) — a long status must not push that row, or any row, any taller.
   const mid = async (sel: string) => { const b = (await page.locator(sel).first().boundingBox())!; return b.y + b.height / 2; };
-  const row = await mid("#redo");
-  expect(Math.abs((await mid(".bar #status")) - row)).toBeLessThan(2);
-  expect(Math.abs((await mid(".bar [data-f]")) - row)).toBeLessThan(2);
+  const topRow = await mid("#redo");
+  expect(Math.abs((await mid(".bar [data-f]")) - topRow)).toBeLessThan(2);
+  const statusRow = await mid(".bar #status");
+  expect(Math.abs((await mid("#help")) - statusRow)).toBeLessThan(6); // Help is taller than the status text; same line, not same centre to the px
 });
 
 test("S7.6: View, Preview night darkens the plan, survives a reload, and is never written to the layout", async ({ page }) => {
