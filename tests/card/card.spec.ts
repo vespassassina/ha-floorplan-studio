@@ -357,6 +357,30 @@ test("S2.6: floor chips are real, keyboard-reachable buttons outside the <svg>, 
   await expect(chips.nth(1)).toHaveAttribute("aria-pressed", "true");
 });
 
+// S8.12: the maintainer's report ("in the card i cannot switch floor") — no `floor` or `floors` configured at all,
+// the demo layout has three floors, so the switcher must appear on its own and a real page.mouse click on its
+// second chip (finding 3: the real top element, real coordinates) must actually switch the plan.
+test("S8.12: with no floor config and a multi-floor layout, a real click on the second chip switches floor", async ({ page }) => {
+  await open(page);
+  await configure(page, { layout: structuredClone(demo) }, { states: {} });
+
+  const svgText = () => page.locator("floorplan-studio-card").evaluate((el) => el.shadowRoot!.querySelector("svg")!.textContent ?? "");
+  await expect.poll(svgText).toContain("Living"); // ground floor shown by default
+  expect(await svgText()).not.toContain("Bedroom"); // first floor's own room, not on ground
+
+  const chips = page.locator("floorplan-studio-card").locator("css=.fp-floors button");
+  await expect(chips).toHaveCount(3);
+  await expect(chips.nth(0)).toHaveAttribute("aria-pressed", "true");
+  await expect(chips.nth(1)).toHaveAttribute("aria-pressed", "false");
+
+  const box = (await chips.nth(1).boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+  await expect(chips.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect(chips.nth(0)).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(svgText).toContain("Bedroom"); // switched to the first floor
+});
+
 // S2.10 CSS pair: the class names are asserted in render.test.ts; this reads the icon's computed fill in Chromium,
 // because `.dev-ac.cool.on` has to outrank the catch-all `.dev.on` (CLAUDE.md finding 10).
 test("S2.10 CSS pair: an air conditioner's icon is blue cooling, orange heating, idle grey otherwise", async ({ page }) => {
@@ -638,7 +662,10 @@ test.describe("S7.4 touch", () => {
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const fit = await viewBox(page);
     const b = await svgBox(page);
-    const x = b.x + 10, y = b.y + 10; // the padding around the plan: no device, no chip, no button
+    // S8.12: the top-left corner is no longer clear of chrome on its own — with no floor config and the demo's
+    // three floors, the default switcher (S8.12) now sits there. Bottom-left stays clear of it, of every device,
+    // and of the zoom buttons (top-right).
+    const x = b.x + 10, y = b.y + b.height - 10;
     await page.touchscreen.tap(x, y);
     await page.touchscreen.tap(x, y);
     await expect.poll(async () => (await viewBox(page)).w).toBeCloseTo(fit.w / 2, 3);
