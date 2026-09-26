@@ -6,6 +6,12 @@
   wall instead of a real hole, so it looked wrong over any room with its
   own colour or texture. The wall (and its halo) is now actually cut where
   an opening sits, in both the card and the editor, whatever is under it.
+- Fixed: the hole an opening cut had no bounded region of its own, so on any
+  floor viewed away from the origin — the editor or card zoomed in, or a
+  floor simply offset in plan space — real walls outside an accidental
+  rectangle vanished outright, not only the opening. Fixed: a faint blended
+  line could show along an opening's edge once zoomed in, where the cut and
+  the wall's own halo used to land on the same line.
 
 ## 0.12.4
 
