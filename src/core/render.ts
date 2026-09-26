@@ -482,7 +482,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const openingWidths = f.openings.map((op) => wallWidthAt(f, op.a, op.b) + OPENING_EXTRA);
   // Mask colours are the SVG keywords "white"/"black" (luminance, not literal hex), matching the codebase's
   // no-literal-hex-colours convention (a `renderFloor` test enforces it).
-  const openingLines = f.openings.map((op, i) => `<line x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke="black" stroke-width="${openingWidths[i]}" stroke-linecap="round"/>`);
+  // Diego's field review (2026-09-26, 4x crops): a round cap erodes a full disc of radius half-width around each
+  // end, in every direction, not only along the wall — the opening's ends read as concave arcs instead of a square
+  // cut, and the erosion reaches past the opening's own span. "butt" cuts exactly at `a` and `b`, wider across only.
+  const openingLines = f.openings.map((op, i) => `<line x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke="black" stroke-width="${openingWidths[i]}" stroke-linecap="butt"/>`);
   const maskId = f.openings.length ? `fp-open-mask-${tag(openingLines.join(""))}` : "";
   const openingMask = maskId
     ? `<mask id="${maskId}" maskUnits="userSpaceOnUse"><rect x="-100000" y="-100000" width="200000" height="200000" fill="white"/>${openingLines.join("")}</mask>`

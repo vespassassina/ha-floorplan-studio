@@ -1184,3 +1184,38 @@ test("S8.11: two cards showing the same floor mint the same (content-derived) ma
   const html1b = await svgHtml(page, "card");
   expect(html1b).toBe(html1); // card1 rendered nothing new: still the same markup, same mask, same id
 });
+
+// Diego's field review of the S8.11 4x crops was of the plain card, not the editor (opening-light-4x.png,
+// opening-ha-dark-4x.png, 2026-09-26): both defects below are fixed once, in src/core/render.ts, and CLAUDE.md
+// finding 8 says the editor and the card share one draw path — but the crops that found them were card
+// screenshots, so a card-side regression test guards the path that actually shipped the bug.
+const FIRST_OPENING_A: [number, number] = [600, 600];
+const WALL_LIGHT: [number, number, number] = [0x1a, 0x19, 0x17]; // --fp-wall-external, light theme
+function closeToRgb(px: [number, number, number, number], rgb: [number, number, number]) {
+  return Math.abs(px[0] - rgb[0]) <= 2 && Math.abs(px[1] - rgb[1]) <= 2 && Math.abs(px[2] - rgb[2]) <= 2;
+}
+async function cardScreenOf(page: Page, x: number, y: number) {
+  return page.locator("floorplan-studio-card").evaluate((el, [px, py]) => {
+    const svg = (el as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const q = new DOMPoint(px as number, py as number).matrixTransform(svg.getScreenCTM()!);
+    return { x: q.x, y: q.y };
+  }, [x, y] as const);
+}
+
+test("S8.11 fix 1 (card): the mask cut has square ends — 1.5cm inside a is a hole, 1.5cm outside a is still wall", async ({ page }) => {
+  await open(page);
+  await configure(page, { layout: demo, floor: "first", theme: "light" }, { states: {} });
+  const { decodePng, pixelAt } = await import("../core/util/png");
+
+  const insideA = await cardScreenOf(page, FIRST_OPENING_A[0] + 1.5, 600);
+  const outsideA = await cardScreenOf(page, FIRST_OPENING_A[0] - 1.5, 600);
+  const png = decodePng(await page.screenshot({ fullPage: true }));
+  const insidePx = pixelAt(png, insideA.x, insideA.y);
+  const outsidePx = pixelAt(png, outsideA.x, outsideA.y);
+
+  expect(closeToRgb(insidePx, WALL_LIGHT), `1.5cm inside a (${insidePx}) must not be the wall colour`).toBe(false);
+  expect(closeToRgb(outsidePx, WALL_LIGHT), `1.5cm outside a (${outsidePx}) should still be the external wall colour`).toBe(true);
+});
+
+// This must fail with the round cap restored: reverting src/core/render.ts's opening line back to
+// stroke-linecap="round" erases the "outside a" point too (verified by hand, see the S8.11 report).
