@@ -2,15 +2,21 @@
 
 ## Unreleased
 
-- The toolbar's Filter through Help cluster now sits flush against the
+- The toolbar's Filter through Redo cluster now sits flush against the
   toolbar's right edge (floor chips stay left), instead of floating in the
-  middle; it still wraps and stays on screen down to 380px wide.
+  middle. It wraps as one block below 769px wide, Undo and Redo always wrap
+  onto their row together, and every dropdown (Filter, Add, Draw, View, Edit,
+  File) clamps itself to stay fully inside the viewport, however narrow.
 - The room panel's Home Assistant Devices list is now one collapsible
   "Devices (N)" block, collapsed by default, with a collapsed sub-group per
   device type (Lights, Wall switches, Motion, and so on), sorted by name,
   unmapped entities last under "Other". Helpers, Automations, Scripts and
   Scenes get the same treatment. Open/closed state survives switching rooms
   and a Home Assistant update.
+- Fixed: a device sub-group's open/closed state could leak onto the wrong
+  type after switching rooms (open Lights in one room, select another whose
+  first device type is Switch, and Switch showed open). Each sub-group now
+  keeps its own state by device type, not by its position in the list.
 
 ## 0.12.4
 

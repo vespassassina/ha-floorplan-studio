@@ -1709,16 +1709,54 @@ test("S8.10 follow-up: at 380 wide the right-aligned cluster takes its own full-
   expect(Math.abs(widthsAcrossRenders[0] - widthsAcrossRenders[1])).toBeLessThan(1);
 });
 
-test("S8.10: the rightmost menu's dropdown (File) stays inside the viewport at 1280 and 380 wide", async ({ page }) => {
-  for (const width of [1280, 380]) {
+// S8.10 follow-up (Opus review): the old version of this test only ever opened File, the rightmost menu — its box's
+// `right:0` anchors flush with File's own button, which already sits near the toolbar's right edge, so the box
+// could never run off-screen there and the test passed on unfixed code. `.box{right:0}` anchors every dropdown's
+// box to its OWN button (the containing `.menu`), not to the viewport, so a mid-toolbar button (View, Edit, Filter)
+// carries a box that can run off the left edge once the box is wider than the space to that button's left — found
+// at 380 (View -96..128px) and even 600 (Filter -10..214px). Every menu, every width the toolbar actually uses.
+test("S8.10 follow-up (Opus review): every menu's dropdown box stays inside the viewport at every toolbar width", async ({ page }) => {
+  const menus = ["filter", "mAdd", "mDraw", "mOpt", "mEdit", "mFile"];
+  for (const width of [380, 600, 769, 1280]) {
     await page.setViewportSize({ width, height: 800 });
-    await menu(page, "File");
-    const box = await page.locator("#mFile .box").boundingBox();
-    if (!box) throw new Error("no File dropdown box");
-    expect(box.x, `${width}px: File dropdown left edge`).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width, `${width}px: File dropdown right edge`).toBeLessThanOrEqual(width);
-    await menu(page, "File"); // close it again
+    for (const id of menus) {
+      await page.locator(`#${id} > summary`).click();
+      // The clamp runs in the <details> "toggle" event, which the HTML spec fires as a queued task, not
+      // synchronously inside the click that opened it, so Playwright's click() can resolve a tick before the
+      // clamp applies. A sentinel on the box's own inline style does not work as a wait condition here: closing
+      // a menu already leaves `right` non-empty ("0"), so re-opening it would read that stale leftover as "the
+      // clamp already ran" before the new toggle fires. Poll the actual on-screen position instead, with a
+      // short timeout — long enough to cross the one queued task, short enough that a genuinely missing clamp
+      // still fails fast.
+      await expect(async () => {
+        const box = await page.locator(`#${id} .box`).boundingBox();
+        expect(box, `no .box for #${id} at ${width}px`).toBeTruthy();
+        expect(box!.x, `${width}px #${id}: dropdown left edge`).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width, `${width}px #${id}: dropdown right edge`).toBeLessThanOrEqual(width);
+      }).toPass({ timeout: 1000 });
+      await page.locator(`#${id} > summary`).click(); // close it again
+    }
   }
+});
+
+// S8.10 follow-up (Opus review): at 380 wide, Undo and Redo used to be two separate flex items, so the row that
+// already held View, Edit, File and Help had room for Undo but not Redo, splitting the pair across two rows.
+test("S8.10 follow-up (Opus review): Undo and Redo wrap onto a new row together, the pair never splits", async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 900 });
+  const undo = (await page.locator("#undo").boundingBox())!;
+  const redo = (await page.locator("#redo").boundingBox())!;
+  expect(Math.abs(undo.y - redo.y), "Undo and Redo must land on the same row").toBeLessThan(3);
+});
+
+// S8.10 follow-up (Opus review): a floating panel (Device colours, Home Assistant, Place, Add device) opened at a
+// hardcoded top:90px, which a taller, wrapped narrow toolbar (380px: up to 5 rows) can reach past and cover.
+test("S8.10 follow-up (Opus review): a floating panel opens below the toolbar's real bottom edge, not a fixed 90px", async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 900 });
+  await page.locator("#mEdit > summary").click();
+  await page.locator("#devcols").click();
+  const bar = (await page.locator(".bar").boundingBox())!;
+  const panel = (await page.locator(".devcols-panel").boundingBox())!;
+  expect(panel.y, "the panel's top must be at or below the toolbar's real bottom edge").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
 });
 
 test("Device… lists the unplaced entries grouped by type; a deleted light and its relay come back, placing the light takes only the light", async ({ page }) => {
@@ -7013,6 +7051,37 @@ test("S8.10: a group's open state survives selecting another room and back, and 
   await setHa(page, { ...TWO_ROOM_HA });
   expect(await detailsOpen(page, '[data-ha-group="devices"]')).toBe(true);
   expect(await detailsOpen(page, '[data-ha-devgroup="light"]')).toBe(true);
+});
+
+// S8.10 follow-up (Opus review): TWO_ROOM_HA above never exposed the real defect — Kitchen there only ever had
+// "light", the same type Living had open, so the reused DOM node's key never actually changed. Living here has
+// (light, switch); Kitchen has (switch, temp) — "Wall switches" sits at position 0 in Kitchen (no Lights group
+// exists there), the same DOM position Living's opened "light" sub-group occupied. An unkeyed `.map` reuses that
+// position's `<details>` node for Kitchen's "switch" group; its `?open` binding, compared against Lit's last
+// committed value, keeps the DOM's stale `open` state and the reused node's own `@toggle` then records that stale
+// state under the wrong key.
+const KEY_BUG_HA = { floors: [], areas: [{ id: "living", name: "Living" }, { id: "kitchen", name: "Kitchen" }], entities: [
+  { id: "light.a_lamp", name: "A lamp", domain: "light", area: "living" },
+  { id: "switch.fan", name: "Fan switch", domain: "switch", area: "living" },
+  { id: "switch.kettle", name: "Kettle", domain: "switch", area: "kitchen" },
+  { id: "sensor.k_temp", name: "K temp", domain: "sensor", dc: "temperature", area: "kitchen" },
+] };
+test("S8.10 follow-up (Opus review): a Devices sub-group's open state is keyed by device type, not by its position in the list", async ({ page }) => {
+  await setHa(page, KEY_BUG_HA);
+  await selectLiving(page);
+  await page.locator('[data-ha-group="devices"] > summary').click();
+  await page.locator('[data-ha-devgroup="light"] > summary').click(); // Living: (light, switch) — Lights is position 0
+  expect(await detailsOpen(page, '[data-ha-devgroup="light"]')).toBe(true);
+
+  await clickCm(page, 750, 350); // the kitchen: (switch, temp) — Wall switches is position 0 here, Lights does not exist
+  await expect(page.locator(".habox")).toContainText("Kettle"); // really switched rooms
+  expect(await detailsOpen(page, '[data-ha-devgroup="switch"]'), "Kitchen's Wall switches must start collapsed").toBe(false);
+  const haGroups = await page.evaluate(() => [...(document.querySelector("floorplan-studio-editor") as any).st.haGroups] as string[]);
+  expect(haGroups, "merely switching to Kitchen must not itself record dev:switch as open").not.toContain("dev:switch");
+
+  await clickCm(page, 200, 150); // back to Living
+  expect(await detailsOpen(page, '[data-ha-devgroup="light"]'), "Living's own Lights group must still be open").toBe(true);
+  expect(await detailsOpen(page, '[data-ha-devgroup="switch"]'), "Living's Wall switches was never opened").toBe(false);
 });
 
 test("S5.5: Help opens a step-by-step guide, matching GUIDE_STEPS, and closes with Escape, returning focus to the button", async ({ page }) => {
