@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { DEVICE_COLOURS } from "../../src/core/render";
 import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
 import { GUIDE_STEPS } from "../../src/editor/guide";
+import { decodePng, pixelAt } from "../core/util/png";
 
 // Every pointer action goes through page.mouse at real screen coordinates, so the
 // real top element decides what is hit (icons, handles, walls), as for a user.
@@ -4432,18 +4433,22 @@ test("CSS pair: furniture has its own fixed grey token, decoupled from idle devi
   expect(await page.locator("svg g.furn").first().evaluate((e) => getComputedStyle(e).color)).toBe(rgb("#79766e"));
 });
 
-test("CSS pair: an opening's erase stroke matches a plain room's own fill, in light and in a dark theme", async ({ page }) => {
+// S8.11: an opening used to be a grey band stroked to match a plain room's own fill (--fp-room-empty) so it
+// merely looked like a hole; that band showed as a visibly wrong colour over any room with its own colour or
+// texture. Now the hole is real — src/core/render.ts cuts the wall out of a <mask> — so the opening's own
+// stroke paints nothing at all, in every theme, whatever the room under it looks like.
+test("CSS pair: an opening's own stroke is transparent in light and in a dark theme, whatever the room's own colour (S8.11)", async ({ page }) => {
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), g = l.floors.ground;
-    g.openings.push({ id: "css-op", a: [200, 0], b: [300, 0] }); // on Living's plain, uncoloured external wall
+    g.rooms[0].color = "#4a6fa5"; // Living, given a colour of its own so a leftover fill-matching band would visibly clash
+    g.openings.push({ id: "css-op", a: [200, 0], b: [300, 0] }); // on Living's now-coloured external wall
     el.layout = l;
   }, EDITOR);
   const style = () => page.locator("svg line.opening").first().evaluate((e) => getComputedStyle(e).stroke);
-  const roomFill = () => page.locator('svg polygon[data-r="0"]').first().evaluate((e) => getComputedStyle(e).fill); // Living, no colour of its own
   await setTheme(page, "light");
-  expect(await style()).toBe(await roomFill());
+  expect(await style()).toBe("rgba(0, 0, 0, 0)");
   await setTheme(page, "midnight");
-  expect(await style()).toBe(await roomFill());
+  expect(await style()).toBe("rgba(0, 0, 0, 0)");
 });
 
 test("Opus review CSS pair: each room kind has its own fill; fill is hatched; zone is unfilled (render.test.ts:207-210, 371-394)", async ({ page }) => {
@@ -7384,4 +7389,54 @@ test("Opus review: a free wall, an opening, an extra, a zone, an unlinked device
   await page.locator("#edel").click();
   await expect(page.locator("#edelyes")).toBeVisible();
   await assertHintsFit(page, "edge-delete confirm prompt");
+});
+
+// ---- S8.11: an opening cuts a real hole in the wall, not a grey band painted over it ------------------------
+
+// demo/layout.json's first floor carries one opening on its south outline edge, a=[600,600] b=[700,600]:
+// an external wall (stroke width 20, halo 22, so a point 8 cm off the centreline still sits inside either
+// stroke). The Office room (pts include y:300..600) is the room whose fill must show through the hole.
+const FIRST_OPENING_A: [number, number] = [600, 600], FIRST_OPENING_B: [number, number] = [700, 600];
+const OPENING_MID_X = (FIRST_OPENING_A[0] + FIRST_OPENING_B[0]) / 2; // 650
+const OFF_CENTRELINE = 8; // cm north of the wall centreline: inside the room, inside the (un-cut) wall's own width
+// The Office carries its own colour (#4a6fa5), not the default --fp-room-empty grey the old `.opening` band
+// happened to be stroked with (S8.11: a room whose colour matches that grey could not tell a real hole from
+// the old band painted on top of it — CLAUDE.md finding 4).
+const ROOM_FILL_LIGHT: [number, number, number] = [0x4a, 0x6f, 0xa5];
+const WALL_LIGHT: [number, number, number] = [0x1a, 0x19, 0x17]; // --fp-wall-external, light theme
+
+async function pngAt(page: Page): Promise<ReturnType<typeof decodePng>> {
+  const buf = await page.screenshot();
+  return decodePng(buf);
+}
+function closeTo(px: [number, number, number, number], rgb: [number, number, number]) {
+  return Math.abs(px[0] - rgb[0]) <= 2 && Math.abs(px[1] - rgb[1]) <= 2 && Math.abs(px[2] - rgb[2]) <= 2;
+}
+
+test("S8.11: the opening is a real hole — the room fill shows through it, and the wall stays solid just outside its ends", async ({ page }) => {
+  await setTheme(page, "light"); // pins light values; blueprint is the default since S2.12
+  await page.locator('.chip[data-f="first"]').click();
+  await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "light");
+
+  const inHole = await screenOf(page, OPENING_MID_X, 600 - OFF_CENTRELINE);
+  const onWall = await screenOf(page, 760, 600 - OFF_CENTRELINE); // 760: outside the opening's cap radius (711) and inside the outline (800)
+  const png = await pngAt(page);
+  const holePx = pixelAt(png, inHole.x, inHole.y);
+  const wallPx = pixelAt(png, onWall.x, onWall.y);
+
+  expect(closeTo(holePx, ROOM_FILL_LIGHT), `hole pixel ${holePx} should be the Office's room fill`).toBe(true);
+  expect(closeTo(holePx, WALL_LIGHT), `hole pixel ${holePx} must not be the wall colour`).toBe(false);
+  expect(closeTo(wallPx, WALL_LIGHT), `wall pixel ${wallPx} should still be the external wall colour`).toBe(true);
+});
+
+// This must fail with the mask removed: reverting src/core/render.ts's `<g mask="...">` wrap (or reverting
+// `.opening{stroke:transparent}` to its old grey band) makes the "hole" pixel equal the wall or the old grey,
+// never the room fill — verified by hand, see the S8.11 report.
+
+test("S8.11: a real click still selects the opening in the editor, on top of the masked wall", async ({ page }) => {
+  await page.locator('.chip[data-f="first"]').click();
+  const mid = await screenOf(page, OPENING_MID_X, 600);
+  await page.mouse.click(mid.x, mid.y);
+  await expect(page.locator("#ol")).toHaveValue("100"); // FIRST_OPENING_B[0] - FIRST_OPENING_A[0]
+  await expect(page.locator("svg line.hl")).toHaveCount(1);
 });

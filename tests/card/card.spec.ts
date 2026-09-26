@@ -1125,3 +1125,62 @@ test.describe("S8.3: in HA's panel view the plan fits the screen", () => {
     await expect.poll(async () => (await svgBox(page)).height).toBeCloseTo(before.height, 0);
   });
 });
+
+// ---- S8.11: opening masks are per-shadow-root, so two cards never wrongly collide -------------------------------
+
+// render.ts derives an opening mask's id from the content of its own cut lines (tag(), FNV-1a — mirroring
+// texturePatternId's precedent), not a global counter, so renderFloor stays pure: called twice on equal input it
+// is byte-identical. Two cards showing the same floor therefore mint the very same mask id — safe only because
+// each card is its own shadow root, where a url(#id) reference resolves against that root alone. This test mounts
+// a second card in the same page (harness.html has only #card) and proves the two never interfere: same content,
+// same id, both cut correctly; then one card's content changes and the other's rendering and mask are untouched.
+async function addSecondCard(page: Page) {
+  await page.evaluate(() => {
+    const el = document.createElement("floorplan-studio-card");
+    el.id = "card2";
+    document.getElementById("wrap")!.appendChild(el);
+  });
+  await page.waitForFunction(() => customElements.get("floorplan-studio-card") !== undefined);
+}
+async function configureId(page: Page, id: string, config: Record<string, unknown>, hass: Record<string, unknown>) {
+  await page.evaluate(
+    ([id, config, hass]) => {
+      const el = document.getElementById(id as string) as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+      el.setConfig(config);
+      el.hass = hass;
+      return el.updateComplete;
+    },
+    [id, config, hass] as const,
+  );
+}
+function svgHtml(page: Page, id: string) {
+  return page.locator(`#${id}`).evaluate((el) => el.shadowRoot!.querySelector("svg")!.outerHTML);
+}
+function maskIdsIn(html: string): string[] {
+  return [...html.matchAll(/<mask id="([^"]+)"/g)].map((m) => m[1]);
+}
+
+test("S8.11: two cards showing the same floor mint the same (content-derived) mask id, each safely scoped to its own shadow root", async ({ page }) => {
+  await open(page);
+  await addSecondCard(page);
+  const layout = structuredClone(demo);
+  await configure(page, { layout, floor: "first" }, { states: {} });
+  await configureId(page, "card2", { layout, floor: "first" }, { states: {} });
+
+  const html1 = await svgHtml(page, "card"), html2 = await svgHtml(page, "card2");
+  const ids1 = maskIdsIn(html1), ids2 = maskIdsIn(html2);
+  expect(ids1, "the first floor's one opening should produce exactly one mask").toHaveLength(1);
+  expect(ids2).toEqual(ids1); // same content -> same deterministic id, in each card's own scope
+  expect(html1).toContain(`mask="url(#${ids1[0]})"`);
+  expect(html2).toContain(`mask="url(#${ids2[0]})"`);
+
+  // Mutate only card2 (a different opening: different content -> a different id, or none at all here) and
+  // confirm card1's own svg — id, mask content, everything — is untouched by whatever card2 now does.
+  const layout2 = structuredClone(demo);
+  layout2.floors.first.openings = [];
+  await configureId(page, "card2", { layout: layout2, floor: "first" }, { states: {} });
+  const html2b = await svgHtml(page, "card2");
+  expect(maskIdsIn(html2b), "card2 now has no openings, so no mask at all").toHaveLength(0);
+  const html1b = await svgHtml(page, "card");
+  expect(html1b).toBe(html1); // card1 rendered nothing new: still the same markup, same mask, same id
+});
