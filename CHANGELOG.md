@@ -17,10 +17,6 @@
   wall instead of a real hole, so it looked wrong over any room with its
   own colour or texture. The wall (and its halo) is now actually cut where
   an opening sits, in both the card and the editor, whatever is under it.
-- Fixed: a device sub-group's open/closed state could leak onto the wrong
-  type after switching rooms (open Lights in one room, select another whose
-  first device type is Switch, and Switch showed open). Each sub-group now
-  keeps its own state by device type, not by its position in the list.
 
 ## 0.12.4
 

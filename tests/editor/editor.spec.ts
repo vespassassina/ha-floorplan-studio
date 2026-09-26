@@ -7708,6 +7708,6 @@ test("S8.11: a real click still selects the opening in the editor, on top of the
 // not a product bug (CLAUDE.md finding 13 is about the other kind). The card never draws that overlay and shares
 // the same renderFloor draw path (finding 8), so it is the reliable place to pin these two pixels down.
 
-// This must fail with the seam patch removed: dropping the `f.openings.forEach` seam-patch block in
-// src/core/render.ts leaves the antialiased edge of Office's own polygon as the only thing drawn at y=600, which
-// is not the pure room-fill colour (verified by hand, see the S8.11 report).
+// Opus review of S8.11 (2026-09-26): the pair's own two card.spec.ts tests were widened along with the mask cut
+// (OPENING_EXTRA) and a since-removed seam patch was checked and found unnecessary once that cut is wide enough —
+// see docs/DECISIONS.md's S8.11 follow-up.

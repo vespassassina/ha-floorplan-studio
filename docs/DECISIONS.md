@@ -199,6 +199,33 @@ editor: the editor draws its own measurement-grid line exactly along
 `y=600` at low opacity, which blends the exact pixel these tests need and
 makes the editor an unreliable place to pin them down).
 
+Opus review (2026-09-26) of the follow-up above found a blocker and two more
+defects. (1) BLOCKER: the `<mask>` element carried `maskUnits="userSpaceOnUse"`
+but no `x`/`y`/`width`/`height` of its own, so its region defaulted to
+-10%/120% of the *viewport*, anchored at the coordinate system's own `0,0` —
+never at the viewBox's own `x`/`y`. Any floor viewed away from the origin (the
+editor zoomed in, the card zoomed in, or a floor simply drawn somewhere else
+in plan space) then had its entire masked wall-lines group erased outright
+wherever it fell outside that accidental rectangle: real walls vanished, not
+only the opening. Fixed by giving the `<mask>` its own explicit region
+(`x="-100000" y="-100000" width="200000" height="200000"`, matching the inner
+rect it already carried for the same reason). (2) The cut and the wall's own
+halo (`.eh`) were the same width (`wallWidthAt(...) + 2`), so their two edges
+landed on the identical plan coordinate; two independently antialiased edges
+on one line do not reliably cancel, leaving a faint blended line along the
+hole, reproducible once rendered through a tight enough viewBox. `OPENING_EXTRA`
+is now `WALL_HALO_EXTRA + 2` (4, not 2), putting the cut's edge a clean
+centimetre past the halo's. (3) With that wider cut in place, the seam patch
+above turned out to be papering over a seam that no longer exists: checked at
+4x in light, blueprint and ha-dark, on an outline-wall opening and on an
+opening between two differently-coloured rooms (a test layout, never the
+demo or the repo), and by scanning pixels across the full width of each
+opening, both rooms' polygons already meet exactly at the shared wall
+centreline with no gap and no blended sliver. The patch, its now-orphaned
+`.room.seam` CSS rule and its old pixel test are removed; `card.spec.ts`
+keeps a regression test on the internal-opening case instead (fails, as
+proved by hand, if the opening is removed from that same test layout).
+
 ## 2026-09-26 Opus re-check of task/S8.9: newId ignored the catalog and other floors
 
 A further Opus re-check of task/S8.9 found that `newId` (`src/editor/state.ts`)

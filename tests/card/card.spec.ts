@@ -1222,18 +1222,135 @@ test("S8.11 fix 1 (card): the mask cut has square ends — 1.5cm inside a is a h
 // This must fail with the round cap restored: reverting src/core/render.ts's opening line back to
 // stroke-linecap="round" erases the "outside a" point too (verified by hand, see the S8.11 report).
 
-test("S8.11 fix 2 (card): the room's own boundary line is cut clean through the opening, at its exact centre", async ({ page }) => {
+// Opus review of S8.11, item 3 (2026-09-26): the seam patch that used to repaint over an opening's centreline is
+// gone (removed from src/core/render.ts). Diego's 4x crops of a test layout, not the demo — one opening on the
+// house's own outline, one between two differently-coloured rooms, all three themes — showed no visible line, and a
+// pixel scan across the full width of each opening (tests/card/zzz-seam-scan.spec.ts, run and deleted, not
+// committed) found the two rooms' polygons already meet exactly at the shared wall centreline with no gap and no
+// blended sliver, once fix 2's wider cut (OPENING_EXTRA, above) is in place: the old patch was covering a seam that
+// this fix already closes as a side effect. This is that test layout's own regression test, replacing the old,
+// patch-dependent "S8.11 fix 2" test above (which sampled the demo's *external*-wall opening at its literal
+// centreline — the boundary between a room and open air, where the far side is correctly blank, not room fill; not
+// a meaningful place to assert "room fill").
+const SEAM_LAYOUT = {
+  version: 2, unit: "cm", north: 0, rotate: 0,
+  floors: {
+    test: {
+      title: "Seam test",
+      outline: [[0, 0], [600, 0], [600, 400], [0, 400]],
+      owk: ["external", "external", "external", "external"],
+      rooms: [
+        { id: "room-a", name: "Blue", label: "", kind: "room", color: "#4a6fa5", pts: [[0, 0], [300, 0], [300, 400], [0, 400]], wk: ["external", "wall", "external", "external"] },
+        { id: "room-b", name: "Green", label: "", kind: "room", color: "#2f8f3f", pts: [[300, 0], [600, 0], [600, 400], [300, 400]], wk: ["external", "external", "external", "wall"] },
+      ],
+      openings: [{ id: "opening-internal", a: [300, 150], b: [300, 250] }],
+    },
+  },
+};
+const GREEN_FILL: [number, number, number] = [0x2f, 0x8f, 0x3f]; // room-b's own colour, SEAM_LAYOUT above
+
+test("S8.11 review (card): the internal opening's centre, between two differently-coloured rooms, is a real room fill — not white, not a blend", async ({ page }) => {
+  await open(page);
+  await configure(page, { layout: SEAM_LAYOUT, floor: "test", theme: "light" }, { states: {} });
+  const { decodePng, pixelAt } = await import("../core/util/png");
+
+  const centre = await cardScreenOf(page, 300, 200); // the opening's own centre: wall centreline x, mid-length y
+  const png = decodePng(await page.screenshot({ fullPage: true }));
+  const centrePx = pixelAt(png, centre.x, centre.y);
+
+  expect(closeToRgb(centrePx, GREEN_FILL), `opening centre (${centrePx}) should be a real room fill, not background or a blend`).toBe(true);
+});
+
+// This must fail with the opening removed (`openings: []` on the same layout): with no hole to cut, this exact
+// point sits dead centre of the solid internal wall and reads its colour, (43,42,39,255), not a room fill —
+// verified by hand, reverting the test layout's own `openings` array once and rerunning, see the S8.11 report.
+
+// ---- Opus review of S8.11: the opening mask has no region, so it defaults to -10%/120% of the viewport measured
+// from the *coordinate system's own* 0,0 — not the viewBox's x/y. Any floor viewed away from the origin (zoomed in,
+// or simply drawn somewhere else in plan space) then has its walls erased outright, wherever they fall outside that
+// accidental rectangle. Two independent reproductions: a zoomed-in viewBox that excludes 0,0 (mirrors "zoom in twice
+// in the card" from the field report), and a floor whose own content is offset far from 0,0 (mirrors "a floor offset
+// by ±5000"). Both are plain wall-colour checks, not sub-pixel colour blends, so they do not depend on antialiasing.
+function shiftPt(p: [number, number], dx: number, dy: number): [number, number] { return [p[0] + dx, p[1] + dy]; }
+/** Deep-shifts every coordinate a first floor built like the demo's actually carries (outline, rooms, openings). Any
+ * field this floor does not use (devices, walls, stairs, trace) is left as `[]`/absent, on purpose: a minimal
+ * reproduction, not a copy of the demo. */
+function shiftFirstFloor(floor: any, dx: number, dy: number) {
+  const f = structuredClone(floor);
+  f.outline = f.outline.map((p: [number, number]) => shiftPt(p, dx, dy));
+  f.rooms = f.rooms.map((r: any) => ({ ...r, pts: r.pts.map((p: [number, number]) => shiftPt(p, dx, dy)) }));
+  f.openings = (f.openings ?? []).map((op: any) => ({ ...op, a: shiftPt(op.a, dx, dy), b: shiftPt(op.b, dx, dy) }));
+  return f;
+}
+
+test("S8.11 fix (blocker, card): a wall far from the origin, seen through a zoomed viewBox that excludes 0,0, is still wall colour", async ({ page }) => {
   await open(page);
   await configure(page, { layout: demo, floor: "first", theme: "light" }, { states: {} });
   const { decodePng, pixelAt } = await import("../core/util/png");
 
-  const centre = await cardScreenOf(page, OPENING_MID_X, 600);
+  // A small window well away from 0,0, over a stretch of the same external wall as the opening but far from it
+  // (x=450..550, nowhere near the 600-700 opening), so only the missing-mask-region bug — not the opening itself —
+  // can make this pixel not-wall.
+  await page.locator("floorplan-studio-card").evaluate((el) => {
+    const svg = (el as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "450 550 100 100");
+  });
+  const zoomedWall = await cardScreenOf(page, 500, 600);
   const png = decodePng(await page.screenshot({ fullPage: true }));
-  const centrePx = pixelAt(png, centre.x, centre.y);
-
-  expect(closeToRgb(centrePx, ROOM_FILL_LIGHT), `opening centre (${centrePx}) should be the Office's own room fill`).toBe(true);
+  const px = pixelAt(png, zoomedWall.x, zoomedWall.y);
+  expect(closeToRgb(px, WALL_LIGHT), `wall at (500,600), viewed through a viewBox excluding 0,0 (${px}) should still be the external wall colour`).toBe(true);
 });
 
-// This must fail with the seam patch removed: dropping the `f.openings.forEach` seam-patch block in
-// src/core/render.ts leaves the antialiased edge of Office's own polygon as the only thing drawn at y=600, which
-// is not the pure room-fill colour (verified by hand, see the S8.11 report).
+// This must fail with `<mask>`'s own x/y/width/height removed: the mask's default region (-10%/120% of the
+// viewport, measured from the coordinate system's 0,0, not from the viewBox's own x/y) then excludes this whole
+// zoomed-in view, so the entire wall group under the mask is erased and this pixel reads as room fill instead.
+
+test("S8.11 fix (blocker, card): a floor offset by +5000 still shows its walls", async ({ page }) => {
+  await open(page);
+  const layout = structuredClone(demo);
+  layout.floors.first = shiftFirstFloor(layout.floors.first, 5000, 5000);
+  await configure(page, { layout, floor: "first", theme: "light" }, { states: {} });
+  const { decodePng, pixelAt } = await import("../core/util/png");
+
+  // The same far-from-the-opening wall point as above, shifted by the same +5000,+5000.
+  const shiftedWall = await cardScreenOf(page, 5000 + 500, 5000 + 600);
+  const png = decodePng(await page.screenshot({ fullPage: true }));
+  const px = pixelAt(png, shiftedWall.x, shiftedWall.y);
+  expect(closeToRgb(px, WALL_LIGHT), `wall at (5500,5600) on a floor offset by +5000 (${px}) should still be the external wall colour`).toBe(true);
+});
+
+// This must fail the same way: the floor's own fit viewBox sits around (4940,4940), nowhere near the mask's
+// accidental default region, so the whole wall group vanishes and this reads as room fill, not wall.
+
+// ---- Opus review of S8.11: the mask cut and the wall's own halo (.eh) are exactly the same width (both
+// wallWidthAt(...) + 2), so their two edges land on the identical plan coordinate. Two independently antialiased
+// edges landing on the same line do not reliably cancel out — a browser's mask-coverage sampling and its
+// stroke-coverage sampling round sub-pixel coverage slightly differently — and one particular row right on that
+// coincident line renders as a partial blend of the halo's white and the room's own fill, instead of cleanly one or
+// the other: a faint line along the hole (found zoomed in, same as the mask-region blocker above; the demo card's
+// own default fit is coarse enough — about 1.3 device px per cm — that this single-row artifact happens not to
+// land on a sampled pixel there, so the test zooms in, as the field report did, to make it land reliably).
+test("S8.11 fix (halo seam, card): the cut no longer coincides with the wall's own halo edge, so no faint blended line survives along the hole", async ({ page }) => {
+  await open(page);
+  await configure(page, { layout: demo, floor: "first", theme: "light" }, { states: {} });
+  const { decodePng, pixelAt } = await import("../core/util/png");
+
+  // Zoomed in over the opening (empirically confirmed to expose the coincident-edge artifact reliably, unlike the
+  // card's own coarser default fit).
+  await page.locator("floorplan-studio-card").evaluate((el) => {
+    const svg = (el as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "620 580 60 40");
+  });
+  // y=589 is the external wall's own halo edge (600 - (WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA)/2 = 600 - 11): where
+  // the old, too-narrow cut used to end too, coincident with the halo's own edge. Widening the cut moves the hole's
+  // edge a further 2cm out, so this row now sits solidly inside the hole with a real margin, not on a seam.
+  const seamPoint = await cardScreenOf(page, OPENING_MID_X, 589);
+  const png = decodePng(await page.screenshot({ fullPage: true }));
+  const px = pixelAt(png, seamPoint.x, seamPoint.y);
+
+  expect(closeToRgb(px, ROOM_FILL_LIGHT), `the old halo/cut coincidence row (${px}) should be plain room fill, not a blended halo line`).toBe(true);
+});
+
+// This must fail with the cut narrowed back to wallWidthAt(...) + 2 (its old width, exactly the halo's own width):
+// the sampled row then sits precisely on the coincident edge and reads as a blend, e.g. (142,165,199,255) — neither
+// the halo's white nor the room's own fill (verified by hand, see the S8.11 report).

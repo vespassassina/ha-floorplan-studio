@@ -35,8 +35,9 @@ describe("renderFloor", () => {
     f.openings.push({ id: "o1", a: [100, 400], b: [200, 400] });
     f.extras.push({ id: "x1", name: "<b>shed</b>", a: [100, 450], b: [200, 520] }, { id: "x2", name: "path", a: [0, 0], b: [50, 0] });
     const html = renderFloor(f, base);
-    // S8.9: an opening's stroke now matches the wall it erases (here a plain internal wall, 10 + 2 margin).
-    expect(html).toMatch(/<line class="opening" x1="100" y1="400" x2="200" y2="400" stroke-width="12"\/>/);
+    // S8.9: an opening's stroke now matches the wall it erases (here a plain internal wall, 10 + OPENING_EXTRA).
+    // Opus review of S8.11 (2026-09-26): OPENING_EXTRA widened from 2 to WALL_HALO_EXTRA + 2 (4), so 10 + 4 = 14.
+    expect(html).toMatch(/<line class="opening" x1="100" y1="400" x2="200" y2="400" stroke-width="14"\/>/);
     expect(html).toMatch(/<rect class="extra" data-ex="\d+" x="100" y="450" width="100" height="70"\/>/);
     expect(html).toMatch(/<line class="extra" data-ex="\d+" x1="0" y1="0" x2="50" y2="0"\/>/);
     expect(html).toContain("&lt;b&gt;shed&lt;/b&gt;");
@@ -631,16 +632,17 @@ describe("S8.9 defect 4 (Opus review): the widest coincident edge wins, not whic
     expect(widthOf(renderFloor(f, base), 0)).toBe(20);
   });
 
-  it("an opening on an external wall renders at 22 (20 + the 2 cm opening margin), even with a narrower edge tied on distance", () => {
+  it("an opening on an external wall renders at 24 (20 + OPENING_EXTRA), even with a narrower edge tied on distance", () => {
     // Same tie as the first test (outline "none" under a room's "external", exact same segment), but with an
     // opening instead of a door: the old tie-break kept the outline ("none", width 10, +2 = 12).
+    // Opus review of S8.11 (2026-09-26): OPENING_EXTRA widened from 2 to WALL_HALO_EXTRA + 2 (4), so 20 + 4 = 24.
     const f = {
       title: "T", outline: [[0, 0], [200, 0], [200, 100], [0, 100]], owk: ["none", "wall", "wall", "wall"],
       rooms: [{ id: "r1", name: "R", area: "", label: "", kind: "room", pts: [[0, 0], [200, 0], [200, 50], [0, 50]], wk: ["external", "wall", "wall", "wall"] }],
       walls: [], doors: [], stairs: [], extras: [], devices: [], furniture: [], unlinked: [],
       openings: [{ id: "o0", a: [50, 0], b: [140, 0] }],
     } as unknown as typeof ground;
-    expect(openingWidthOf(renderFloor(f, base))).toBe(22);
+    expect(openingWidthOf(renderFloor(f, base))).toBe(24);
   });
 });
 
@@ -706,11 +708,13 @@ describe("S8.11: an opening is a real hole, cut from the wall layer with a <mask
   });
 
   it("the cut's own stroke-width matches the opening's own erase-line width (the widest wall or halo it crosses)", () => {
-    const f = withOpening(); // a plain internal wall: 10 + 2 margin = 12, same as the opening's own line
+    // A plain internal wall: 10 + OPENING_EXTRA = 14 (Opus review of S8.11, 2026-09-26: widened from +2 to +4),
+    // same as the opening's own line.
+    const f = withOpening();
     const html = renderFloor(f, base);
     const id = wallGroupMaskId(html)!;
     const block = maskBlock(html, id)!;
-    expect(block).toMatch(/stroke="black" stroke-width="12"/);
+    expect(block).toMatch(/stroke="black" stroke-width="14"/);
   });
 });
 

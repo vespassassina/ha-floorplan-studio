@@ -150,11 +150,6 @@ export const FLOORPLAN_CSS = `
    .room{pointer-events:all} — a presentation attribute loses to any author rule, so the attribute alone would
    make the ring a click target with no data-r the day the editor renders live state. Two classes beat one. */
 .room.ring{pointer-events:none}
-/* S8.11 fix: a room polygon's own antialiased edge sits exactly on an opening's wall centreline once the mask
-   cuts the wall away from over it (Diego's 4x crops, 2026-09-26) — a seam patch (below) repaints over that seam
-   with the room's own fill, extended a little past the centreline into the hole. Same reasoning as .room.ring:
-   a bare pointer-events="none" attribute loses to the editor's own .room{pointer-events:all}, so it needs a class. */
-.room.seam{pointer-events:none}
 /* .sel is one class (0,1,0); .room.on is two (0,2,0) and would always outrank it on specificity, so a selected
    room that is also on would stop showing its ink selection outline. This three-class override (0,3,0) wins
    regardless of source order and keeps selection on top (Opus review). */
@@ -255,9 +250,14 @@ export function wallWidthAt(f: Floor, a: Pt, b: Pt): number {
 }
 /** A selected door or window is always 8 cm wider than its own thickness, whichever wall it sits on. */
 const DOOR_SELECT_EXTRA = 8;
-/** An opening's stroke must fully erase the (possibly thicker) wall under it: the wall's own thickness, plus a
- *  couple of cm of margin so no sliver of it shows at the edges (S8.9 part 3). */
-const OPENING_EXTRA = 2;
+/** An opening's stroke must fully erase the (possibly thicker) wall under it: the wall's own thickness, plus enough
+ *  margin so no sliver of it shows at the edges (S8.9 part 3) — and, since S8.11, strictly more than the wall's own
+ *  halo margin (`WALL_HALO_EXTRA`), for internal walls same as external. Opus review (2026-09-26): this used to be
+ *  a flat 2cm, exactly equal to WALL_HALO_EXTRA, so the cut's own edge landed exactly on the halo's edge — two
+ *  independently antialiased edges on the same line do not reliably cancel, leaving a faint blended line along the
+ *  hole (`renderFloor` test "S8.11 fix (halo seam...)" in card.spec.ts). One more cm of margin than the halo's own
+ *  puts the cut's edge a clean centimetre past the halo's, with room to spare. */
+const OPENING_EXTRA = WALL_HALO_EXTRA + 2;
 /** A short, deterministic tag for a string (FNV-1a, 32-bit, base36). Not security-sensitive: only used to keep a
  *  generated id short while still varying with its content. */
 function tag(s: string): string {
@@ -492,8 +492,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // cut, and the erosion reaches past the opening's own span. "butt" cuts exactly at `a` and `b`, wider across only.
   const openingLines = f.openings.map((op, i) => `<line x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke="black" stroke-width="${openingWidths[i]}" stroke-linecap="butt"/>`);
   const maskId = f.openings.length ? `fp-open-mask-${tag(openingLines.join(""))}` : "";
+  // Opus review (2026-09-26): `<mask>` itself carries no x/y/width/height, so its region defaults to -10%/120% of
+  // the *viewport*, measured from the coordinate system's own 0,0 — never from the viewBox's own x/y. A floor that
+  // is viewed away from the origin (zoomed in on the card or the editor, or simply drawn somewhere else in plan
+  // space) then has this whole masked wall group erased outright wherever it falls outside that accidental
+  // rectangle: real walls vanish, not just the opening. The inner rect already covered a huge span for the same
+  // reason the mask needs one; the region attributes below are what was actually missing.
   const openingMask = maskId
-    ? `<mask id="${maskId}" maskUnits="userSpaceOnUse"><rect x="-100000" y="-100000" width="200000" height="200000" fill="white"/>${openingLines.join("")}</mask>`
+    ? `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="-100000" y="-100000" width="200000" height="200000"><rect x="-100000" y="-100000" width="200000" height="200000" fill="white"/>${openingLines.join("")}</mask>`
     : "";
   if (hatch || textured.length || openingMask) out.push(`<defs>${hatch}${texturePatterns(textured)}${openingMask}</defs>`);
   // S2.6: room_glow. A room glows when any light "in" it (point-in-polygon of the device's x,y; a light never has
@@ -551,35 +557,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   if (maskId) out.push(`<g mask="url(#${maskId})">${wallLines.join("")}</g>`);
   else out.push(...wallLines);
 
-  // S8.11 fix (Diego's 4x crops, 2026-09-26): a room polygon's own fill edge sits exactly on the opening's wall
-  // centreline, because that is the room's own boundary. It was always antialiased there, but an opaque wall used
-  // to sit on top of the seam; the mask above now cuts a real hole and leaves that antialiased edge as the only
-  // thing drawn across the gap, reading as a thin boundary line. This patch is unmasked (pushed after the masked
-  // wall group, so it always shows) and repaints just the seam with the bordering room's own fill (`paintAttr`,
-  // same class convention as the room polygon so `.room:not([fill])`'s CSS fallback still applies), extended a
-  // little past the centreline into the hole so the exact centreline pixel lands inside solid fill, not on an
-  // edge. Which side (if either) borders a room is found the same way room_glow above finds a light's room: a
-  // point-in-polygon check (`inside`), here probed 5 cm off the centreline on each side. No data-r: like the
-  // room-night overlay, it is never a pick target.
-  f.openings.forEach((op) => {
-    const dx = op.b[0] - op.a[0], dy = op.b[1] - op.a[1], len = Math.hypot(dx, dy);
-    if (!(len > 0)) return;
-    const nx = -(dy / len), ny = dx / len, m = mid(op.a, op.b);
-    for (const sign of [1, -1] as const) {
-      const probe: Pt = [m[0] + nx * sign * 5, m[1] + ny * sign * 5];
-      const ri = f.rooms.findIndex((r) => inside(probe, r.pts));
-      if (ri < 0) continue;
-      const r = f.rooms[ri];
-      if (r.kind === "fill" && !r.name) continue;
-      const inner = 1, bleed = 2; // cm: a small overlap into the room, a small bleed past the centreline into the hole
-      const p1: Pt = [op.a[0] + nx * sign * inner, op.a[1] + ny * sign * inner];
-      const p2: Pt = [op.b[0] + nx * sign * inner, op.b[1] + ny * sign * inner];
-      const p3: Pt = [op.b[0] - nx * sign * bleed, op.b[1] - ny * sign * bleed];
-      const p4: Pt = [op.a[0] - nx * sign * bleed, op.a[1] - ny * sign * bleed];
-      const own = paintAttr(r);
-      out.push(`<polygon class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""} seam"${own} points="${pts([p1, p2, p3, p4])}"/>`);
-    }
-  });
+  // S8.11 review (Opus, 2026-09-26): the seam patch this comment used to sit above is gone. Widening the opening's own
+  // cut past the wall halo's edge (OPENING_EXTRA, above) closed the antialiasing gap it was built to hide — checked at
+  // 4x in light, blueprint and ha-dark, on an outline-wall opening and on an opening between two differently-coloured
+  // rooms (a test layout, not the demo), no line survives. See the S8.11 DECISIONS follow-up.
 
   // S2.9 round 3: a room's own boundary is almost always also a wall, and a wall's white halo (3.5-5px) is drawn
   // right on top of the room polygon and fully covers a same-width stroke on it — the .room.on rule above proves
