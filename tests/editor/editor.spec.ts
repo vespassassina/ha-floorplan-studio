@@ -1628,29 +1628,85 @@ test("the toolbar order is Filter, Add, Draw, View, Edit, File; Device… is a b
 
 // ---- S8.10: the toolbar's right-aligned cluster (menus, Undo/Redo, status) --------------------------------------
 
-test("S8.10: the toolbar's Help button sits flush against the toolbar's right edge; the floor chips stay left; no horizontal scroll at 380", async ({ page }) => {
+test("S8.10: the toolbar's Redo button sits flush against the toolbar's right edge; the floor chips stay left; no horizontal scroll at 380", async ({ page }) => {
   for (const width of [1280, 380]) {
     await page.setViewportSize({ width, height: 800 });
     const bar = await page.locator(".bar").first().boundingBox();
     const chip = await page.locator(".bar .chip").first().boundingBox();
-    const help = await page.locator("#help").boundingBox();
-    if (!bar || !chip || !help) throw new Error("missing toolbar box");
-    // Break it: put back the old `<span class="grow">` right after the floor chips and this fails — Help sits
+    // S8.10 follow-up: Undo/Redo moved to be the cluster's last items (after Help), so Redo's own right edge is
+    // now the one pinned to the toolbar's, not Help's.
+    const redo = await page.locator("#redo").boundingBox();
+    if (!bar || !chip || !redo) throw new Error("missing toolbar box");
+    // Break it: put back the old `<span class="grow">` right after the floor chips and this fails — Redo sits
     // hundreds of px short of the toolbar's own right edge (measured pre-fix: 1256 - 828 ~= 427px at 1280 wide).
     expect(chip.x - bar.x, `${width}px: floor chip left edge`).toBeLessThan(4);
-    expect(bar.x + bar.width - (help.x + help.width), `${width}px: Help right edge vs toolbar right edge`).toBeLessThanOrEqual(4);
+    expect(bar.x + bar.width - (redo.x + redo.width), `${width}px: Redo right edge vs toolbar right edge`).toBeLessThanOrEqual(4);
     // Opus review CSS pair (finding 10): the computed style behind the alignment, not just its presence as a string.
     // flex:1 1 0 (not a shrink-to-fit box pushed by its own margin-left:auto) is what makes this deterministic: a
     // shrink-to-fit `.bar-right` sized itself from its own content, and nesting a flex-wrap item inside another
     // flex-wrap row like that left Chromium free to settle on either of two different widths for identical content,
     // depending only on what triggered the last layout pass — a real regression this test caught (S8.10 follow-up).
+    // Below 768px (S8.10 follow-up) the media query forces flex-basis:100% so the cluster wraps to its own row
+    // instead of squeezing beside the chips; above it, flex-basis:0% still lets it fill the line it shares with them.
     const style = await page.locator(".bar-right").evaluate((el) => { const s = getComputedStyle(el); return { justifyContent: s.justifyContent, flexGrow: s.flexGrow, flexBasis: s.flexBasis }; });
     expect(style.justifyContent, `${width}px`).toBe("flex-end");
     expect(style.flexGrow, `${width}px: fills the line deterministically, not by shrink-to-fit + margin-left:auto`).toBe("1");
-    expect(style.flexBasis, `${width}px`).toBe("0%");
+    expect(style.flexBasis, `${width}px`).toBe(width <= 768 ? "100%" : "0%");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     expect(overflow, `${width}px: horizontal scroll`).toBe(false);
   }
+});
+
+test("S8.10 follow-up: the right-aligned cluster is tight — equal gaps, Redo flush right, a status change moves no button", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // Break it: put back `.status{flex:0 1 12em;min-width:6em;max-width:12em}` (the pre-follow-up rule that always
+  // reserved 12em for "Ready") and this fails — the gap right before Help balloons far past the 6px flex gap.
+  const items = await page.locator(".bar-right > *").evaluateAll((els) => els
+    .filter((el) => (el as HTMLElement).offsetParent !== null || getComputedStyle(el as HTMLElement).display !== "none")
+    .map((el) => { const r = el.getBoundingClientRect(); return { id: (el as HTMLElement).id || el.className, x: r.x, right: r.x + r.width, cy: r.y + r.height / 2 }; }));
+  // Single row at 1280: every visible item shares the same row (align-items:center lines up their vertical
+  // centres, not their tops — items differ in height, a <span> vs a <details>/<button>).
+  const rowCy = items[0].cy;
+  for (const it of items) expect(Math.abs(it.cy - rowCy), it.id).toBeLessThan(3);
+  const sorted = [...items].sort((a, b) => a.x - b.x);
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = sorted[i].x - sorted[i - 1].right;
+    expect(gap, `${sorted[i - 1].id} -> ${sorted[i].id}`).toBeGreaterThanOrEqual(4);
+    expect(gap, `${sorted[i - 1].id} -> ${sorted[i].id}`).toBeLessThanOrEqual(8);
+  }
+  const bar = (await page.locator(".bar").boundingBox())!;
+  const redo = (await page.locator("#redo").boundingBox())!;
+  expect(bar.x + bar.width - (redo.x + redo.width), "Redo right edge vs toolbar right edge").toBeLessThanOrEqual(4);
+  const filterXBefore = (await page.locator("#filter").boundingBox())!.x;
+  await page.evaluate(([tag, m]) => (document.querySelector(tag) as any).saveDone(true, m), [EDITOR, "Saved to Home Assistant"] as const);
+  await expect(page.locator("#status")).toHaveText("Saved to Home Assistant");
+  const filterXAfter = (await page.locator("#filter").boundingBox())!.x;
+  expect(filterXAfter, "Filter's x must not move when the status text changes").toBeCloseTo(filterXBefore, 0);
+});
+
+test("S8.10 follow-up: at 380 wide the right-aligned cluster takes its own full-width row below the floor chips, right-aligned, chips top-aligned", async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 900 });
+  const bar = (await page.locator(".bar").boundingBox())!;
+  const chip = (await page.locator(".bar .chip").first().boundingBox())!;
+  const clusterBox = (await page.locator(".bar-right").boundingBox())!;
+  // Break it: with flex-basis reverted to 0% (no narrow-width override) the cluster squeezes onto the chips' own
+  // row instead of wrapping to its own — this fails because the cluster's row then shares the chips' y and the
+  // cluster is far narrower than the toolbar.
+  expect(clusterBox.y, "cluster starts below the chips' row").toBeGreaterThan(chip.y + chip.height - 2);
+  expect(clusterBox.width, "cluster spans (near) the full toolbar width").toBeGreaterThanOrEqual(bar.width * 0.9);
+  // The chips sit at the toolbar's own top padding, not centred across the combined (chips + wrapped cluster) height.
+  const barPadTop = await page.locator(".bar").evaluate((el) => parseFloat(getComputedStyle(el).paddingTop));
+  expect(Math.abs(chip.y - (bar.y + barPadTop)), "the floor chips are top-aligned on the toolbar's first row").toBeLessThan(2);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow, "no horizontal scroll at 380px").toBe(false);
+  // Determinism check (the Chromium width-instability bug found earlier in S8.10): the cluster's own width must not
+  // change between two renders of the same content, run twice to catch a non-deterministic layout result.
+  const widthsAcrossRenders: number[] = [];
+  for (let i = 0; i < 2; i++) {
+    await page.evaluate(([tag, m]) => (document.querySelector(tag) as any).saveDone(true, m), [EDITOR, "Ready"] as const);
+    widthsAcrossRenders.push((await page.locator(".bar-right").boundingBox())!.width);
+  }
+  expect(Math.abs(widthsAcrossRenders[0] - widthsAcrossRenders[1])).toBeLessThan(1);
 });
 
 test("S8.10: the rightmost menu's dropdown (File) stays inside the viewport at 1280 and 380 wide", async ({ page }) => {
@@ -7134,12 +7190,11 @@ test("S7.2: the status line sits in the toolbar's right-aligned cluster, and Sav
   await expect(status).toBeVisible();
   await expect(status).toHaveAttribute("role", "status");
   await expect(page.locator(`${EDITOR} aside #status`)).toHaveCount(0);
-  // S8.10: Help joined this cluster after Undo/Redo/status (its own right edge is now the one pinned to the
-  // toolbar's, see the S8.10 toolbar tests above), so status no longer necessarily shares Redo's own line at every
-  // width — it can wrap to a line of its own with Help. It still belongs to the right-aligned cluster, not the
-  // floor-chips row: left of the first chip's own left edge is out of the question, right of Redo's left edge holds.
-  const redo = await page.locator("#redo").boundingBox(), box = await status.boundingBox(), bar = await page.locator(".bar").boundingBox();
-  expect(box!.x).toBeGreaterThanOrEqual(redo!.x);
+  // S8.10 follow-up: status is now the right-aligned cluster's first item (Filter through Redo follow it), so its
+  // own right edge sits at or before Filter's left edge, not after Redo's.
+  const filter = await page.locator("#filter").boundingBox(), box = await status.boundingBox(), bar = await page.locator(".bar").boundingBox();
+  expect(box!.x + box!.width).toBeLessThanOrEqual(filter!.x + 0.5);
+  expect(box!.x).toBeGreaterThanOrEqual(bar!.x);
   expect(box!.x + box!.width).toBeLessThanOrEqual(bar!.x + bar!.width + 0.5);
   await menu(page, "File");
   const dl = page.waitForEvent("download");
@@ -7177,14 +7232,15 @@ test("S7.2 break it: a 200-character status ellipsises, keeps the full text in t
   expect(got.ws).toBe("nowrap");
   expect(got.clipped).toBe(true);
   expect(got.right).toBeLessThanOrEqual(after.x + after.width + 0.5);
-  // At 1280 the floor chip and Redo share the toolbar's top row (S8.10 did not touch the floor chips or the
-  // menu/Undo/Redo cluster's own row). Status wraps to its own row with Help (S8.10's own right-aligned cluster,
-  // verified above) — a long status must not push that row, or any row, any taller.
+  // At 1280 the floor chips, status, and the whole menu/Undo/Redo cluster all share the toolbar's one row (S8.10
+  // follow-up: status has no fixed flex-basis any more, only a max-width cap, so even a 200-char message stays
+  // capped and ellipsised rather than growing the cluster's total content width past what fits on one line).
   const mid = async (sel: string) => { const b = (await page.locator(sel).first().boundingBox())!; return b.y + b.height / 2; };
   const topRow = await mid("#redo");
   expect(Math.abs((await mid(".bar [data-f]")) - topRow)).toBeLessThan(2);
   const statusRow = await mid(".bar #status");
   expect(Math.abs((await mid("#help")) - statusRow)).toBeLessThan(6); // Help is taller than the status text; same line, not same centre to the px
+  expect(Math.abs(statusRow - topRow)).toBeLessThan(2); // status shares that same single row too, not a wrapped line of its own
 });
 
 test("S7.6: View, Preview night darkens the plan, survives a reload, and is never written to the layout", async ({ page }) => {
