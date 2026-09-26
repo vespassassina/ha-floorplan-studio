@@ -150,6 +150,11 @@ export const FLOORPLAN_CSS = `
    .room{pointer-events:all} — a presentation attribute loses to any author rule, so the attribute alone would
    make the ring a click target with no data-r the day the editor renders live state. Two classes beat one. */
 .room.ring{pointer-events:none}
+/* S8.11 fix: a room polygon's own antialiased edge sits exactly on an opening's wall centreline once the mask
+   cuts the wall away from over it (Diego's 4x crops, 2026-09-26) — a seam patch (below) repaints over that seam
+   with the room's own fill, extended a little past the centreline into the hole. Same reasoning as .room.ring:
+   a bare pointer-events="none" attribute loses to the editor's own .room{pointer-events:all}, so it needs a class. */
+.room.seam{pointer-events:none}
 /* .sel is one class (0,1,0); .room.on is two (0,2,0) and would always outrank it on specificity, so a selected
    room that is also on would stop showing its ink selection outline. This three-class override (0,3,0) wins
    regardless of source order and keeps selection on top (Opus review). */
@@ -545,6 +550,36 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   for (const l of [...guides, ...edgeLines]) wallLines.push(`<line class="${l.cls}"${l.attr} ${seg(l.a, l.b)}/>`);
   if (maskId) out.push(`<g mask="url(#${maskId})">${wallLines.join("")}</g>`);
   else out.push(...wallLines);
+
+  // S8.11 fix (Diego's 4x crops, 2026-09-26): a room polygon's own fill edge sits exactly on the opening's wall
+  // centreline, because that is the room's own boundary. It was always antialiased there, but an opaque wall used
+  // to sit on top of the seam; the mask above now cuts a real hole and leaves that antialiased edge as the only
+  // thing drawn across the gap, reading as a thin boundary line. This patch is unmasked (pushed after the masked
+  // wall group, so it always shows) and repaints just the seam with the bordering room's own fill (`paintAttr`,
+  // same class convention as the room polygon so `.room:not([fill])`'s CSS fallback still applies), extended a
+  // little past the centreline into the hole so the exact centreline pixel lands inside solid fill, not on an
+  // edge. Which side (if either) borders a room is found the same way room_glow above finds a light's room: a
+  // point-in-polygon check (`inside`), here probed 5 cm off the centreline on each side. No data-r: like the
+  // room-night overlay, it is never a pick target.
+  f.openings.forEach((op) => {
+    const dx = op.b[0] - op.a[0], dy = op.b[1] - op.a[1], len = Math.hypot(dx, dy);
+    if (!(len > 0)) return;
+    const nx = -(dy / len), ny = dx / len, m = mid(op.a, op.b);
+    for (const sign of [1, -1] as const) {
+      const probe: Pt = [m[0] + nx * sign * 5, m[1] + ny * sign * 5];
+      const ri = f.rooms.findIndex((r) => inside(probe, r.pts));
+      if (ri < 0) continue;
+      const r = f.rooms[ri];
+      if (r.kind === "fill" && !r.name) continue;
+      const inner = 1, bleed = 2; // cm: a small overlap into the room, a small bleed past the centreline into the hole
+      const p1: Pt = [op.a[0] + nx * sign * inner, op.a[1] + ny * sign * inner];
+      const p2: Pt = [op.b[0] + nx * sign * inner, op.b[1] + ny * sign * inner];
+      const p3: Pt = [op.b[0] - nx * sign * bleed, op.b[1] - ny * sign * bleed];
+      const p4: Pt = [op.a[0] - nx * sign * bleed, op.a[1] - ny * sign * bleed];
+      const own = paintAttr(r);
+      out.push(`<polygon class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""} seam"${own} points="${pts([p1, p2, p3, p4])}"/>`);
+    }
+  });
 
   // S2.9 round 3: a room's own boundary is almost always also a wall, and a wall's white halo (3.5-5px) is drawn
   // right on top of the room polygon and fully covers a same-width stroke on it — the .room.on rule above proves

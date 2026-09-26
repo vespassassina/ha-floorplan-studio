@@ -1189,7 +1189,9 @@ test("S8.11: two cards showing the same floor mint the same (content-derived) ma
 // opening-ha-dark-4x.png, 2026-09-26): both defects below are fixed once, in src/core/render.ts, and CLAUDE.md
 // finding 8 says the editor and the card share one draw path — but the crops that found them were card
 // screenshots, so a card-side regression test guards the path that actually shipped the bug.
-const FIRST_OPENING_A: [number, number] = [600, 600];
+const FIRST_OPENING_A: [number, number] = [600, 600], FIRST_OPENING_B: [number, number] = [700, 600];
+const OPENING_MID_X = (FIRST_OPENING_A[0] + FIRST_OPENING_B[0]) / 2; // 650
+const ROOM_FILL_LIGHT: [number, number, number] = [0x4a, 0x6f, 0xa5]; // Office's own colour, demo/layout.json
 const WALL_LIGHT: [number, number, number] = [0x1a, 0x19, 0x17]; // --fp-wall-external, light theme
 function closeToRgb(px: [number, number, number, number], rgb: [number, number, number]) {
   return Math.abs(px[0] - rgb[0]) <= 2 && Math.abs(px[1] - rgb[1]) <= 2 && Math.abs(px[2] - rgb[2]) <= 2;
@@ -1219,3 +1221,19 @@ test("S8.11 fix 1 (card): the mask cut has square ends — 1.5cm inside a is a h
 
 // This must fail with the round cap restored: reverting src/core/render.ts's opening line back to
 // stroke-linecap="round" erases the "outside a" point too (verified by hand, see the S8.11 report).
+
+test("S8.11 fix 2 (card): the room's own boundary line is cut clean through the opening, at its exact centre", async ({ page }) => {
+  await open(page);
+  await configure(page, { layout: demo, floor: "first", theme: "light" }, { states: {} });
+  const { decodePng, pixelAt } = await import("../core/util/png");
+
+  const centre = await cardScreenOf(page, OPENING_MID_X, 600);
+  const png = decodePng(await page.screenshot({ fullPage: true }));
+  const centrePx = pixelAt(png, centre.x, centre.y);
+
+  expect(closeToRgb(centrePx, ROOM_FILL_LIGHT), `opening centre (${centrePx}) should be the Office's own room fill`).toBe(true);
+});
+
+// This must fail with the seam patch removed: dropping the `f.openings.forEach` seam-patch block in
+// src/core/render.ts leaves the antialiased edge of Office's own polygon as the only thing drawn at y=600, which
+// is not the pure room-fill colour (verified by hand, see the S8.11 report).

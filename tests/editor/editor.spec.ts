@@ -7440,3 +7440,15 @@ test("S8.11: a real click still selects the opening in the editor, on top of the
   await expect(page.locator("#ol")).toHaveValue("100"); // FIRST_OPENING_B[0] - FIRST_OPENING_A[0]
   await expect(page.locator("svg line.hl")).toHaveCount(1);
 });
+
+// Diego's field review of the S8.11 4x crops (opening-light-4x.png, opening-ha-dark-4x.png, 2026-09-26) found two
+// defects in the mask cut, both fixed in src/core/render.ts. Both pixel tests live in tests/card/card.spec.ts,
+// not here: the editor draws its own measurement-grid overlay line exactly along y=600 (a "major" gridline,
+// every 100 cm) at low opacity, on top of everything, which blends the exact centreline pixel this pair needs to
+// sample and makes the assertion depend on exactly where a thin antialiased line falls — flaky by construction,
+// not a product bug (CLAUDE.md finding 13 is about the other kind). The card never draws that overlay and shares
+// the same renderFloor draw path (finding 8), so it is the reliable place to pin these two pixels down.
+
+// This must fail with the seam patch removed: dropping the `f.openings.forEach` seam-patch block in
+// src/core/render.ts leaves the antialiased edge of Office's own polygon as the only thing drawn at y=600, which
+// is not the pure room-fill colour (verified by hand, see the S8.11 report).

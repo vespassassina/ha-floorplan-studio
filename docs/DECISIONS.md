@@ -61,6 +61,25 @@ the opening's stroke is transparent in every theme, whatever the room's
 colour — proved against a room now given an explicit colour, so a
 regression back to the old grey-matching band cannot pass by coincidence.
 
+Follow-up (2026-09-26, Diego's own 4x crops of the shipped card): two more
+defects. (1) The mask's cut line was round-capped, so each end eroded a
+full disc (radius = half the cut width) around `a`/`b` in every direction,
+not only along the wall — an opening's ends read as concave arcs, and the
+erosion reached past the opening's own span. Now `stroke-linecap="butt"`:
+the cut is exactly `a`-to-`b`, wider across only. (2) A room's own polygon
+edge coincides exactly with an external wall's centreline (that is the
+room's own boundary), so it was always antialiased there; an opaque wall
+used to sit on top of that seam, and the new mask exposed it as a thin
+boundary line running across the hole. `renderFloor` now adds an unmasked
+"seam patch" per opening — found the bordering room the same way
+`room_glow` finds a light's room (`inside()`, probed 5cm off the
+centreline each side) and repaints the seam with that room's own
+`paintAttr()` fill, bled 2cm past the centreline into the hole. Both
+fixed with a failing-first pixel test in `card.spec.ts` (the card, not the
+editor: the editor draws its own measurement-grid line exactly along
+`y=600` at low opacity, which blends the exact pixel these tests need and
+makes the editor an unreliable place to pin them down).
+
 ## 2026-09-26 Opus re-check of task/S8.9: newId ignored the catalog and other floors
 
 A further Opus re-check of task/S8.9 found that `newId` (`src/editor/state.ts`)
