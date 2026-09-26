@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: an opening (a gap in a wall) painted a light-grey band over the
+  wall instead of a real hole, so it looked wrong over any room with its
+  own colour or texture. The wall (and its halo) is now actually cut where
+  an opening sits, in both the card and the editor, whatever is under it.
+
 ## 0.12.4
 
 - Fixed: placing a device the Place popup or Add > Device offered from a
