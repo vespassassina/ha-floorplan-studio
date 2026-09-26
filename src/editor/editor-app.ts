@@ -335,7 +335,14 @@ export class FloorplanStudioEditor extends LitElement {
     aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}
     aside input:not([type=checkbox]),aside select{width:100%;box-sizing:border-box}
     .row{display:flex;gap:6px}
-    .hint{font-size:.85em;opacity:.75;margin:6px 0}
+    /* S8.9: one line always, ellipsised if it doesn't fit; the full text is still on the element's own title attribute. */
+    .hint{font-size:.85em;opacity:.75;margin:6px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    /* A hint that carries its own button (Help) never clips it: full width, wraps instead of ellipsising. */
+    .hint.help-line{white-space:normal;overflow:visible;text-overflow:clip;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+    /* S8.9: a selection panel's section headings (Identity, Home Assistant, Links, Appearance, Automations, Danger),
+       a divider above each except the first so the groups read apart without adding a new colour. */
+    h4.pnl-h{margin:10px 0 2px;padding-top:8px;border-top:1px solid var(--fp-idle);font-size:.8em;font-weight:600;text-transform:uppercase;letter-spacing:.03em;opacity:.7}
+    h4.pnl-h:first-child,strong+h4.pnl-h,strong+p+h4.pnl-h{margin-top:4px;padding-top:0;border-top:none}
     .errors{border:1px solid var(--fp-motion);border-radius:4px;padding:6px 10px;margin:6px 0}
     .errors ul{margin:4px 0;padding-left:18px}
     /* S7.2: the status line sits in the toolbar, right of Redo. A fixed flex-basis, not its text, sets its width, so a

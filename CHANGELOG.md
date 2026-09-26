@@ -6,6 +6,10 @@
   10 cm, an external one 20 cm (were 3 and 6). A door, window or opening
   now takes the thickness of the wall it actually sits on, instead of one
   fixed size.
+- The editor sidebar groups every panel's fields under small section
+  headings — Identity, Home Assistant, Links, Appearance, Automations,
+  Danger — in that fixed order, a panel showing only the ones it has
+  content for. Hints are one line, with the full text on hover.
 - Fixed: a device imported into the catalog but never placed on a floor
   used to vanish from the room's Place popup and from Add > Device (it
   showed only as a raw entity row there instead of its own device row).

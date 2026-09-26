@@ -1668,6 +1668,63 @@ closes the sprint.
   suite 554 passed, 1 skipped, exit 0. `npm run shots` run and the Add
   panel and Place popup shots looked at directly.
 
+### S8.9 Thicker walls; a door/window/opening takes its own wall's thickness; sidebar section headings
+- Outcome, part 1: a plain internal wall (`.e`) goes from 3 cm to 10 cm
+  (`WALL_WIDTH`), an external wall (`.e.external`) from 6 cm to 20 cm
+  (`WALL_WIDTH_EXTERNAL`), both named in `src/core/render.ts`; each wall's
+  white halo stays 2 cm wider than its own wall. A door, window or opening
+  now takes the thickness of the wall segment it actually sits on (10 cm
+  internal, 20 cm external, 10 cm if off any wall), via a new shared
+  `edgeKindAt()` (`src/core/geometry.ts`) and `wallWidthAt()`
+  (`src/core/render.ts`), reusing the editor's own door-wall-snap tolerance
+  (5 cm) so render and edit logic can never disagree. Every door/window now
+  draws an invisible `.door-hit` twin line at the old fixed 22 cm width so
+  its click target is unchanged. Corner and T-join linecaps (round internal,
+  square external) are unchanged, checked clean at 4x zoom (`docs/DECISIONS.md`,
+  2026-09-26 S8.9 part 1).
+- Outcome, part 2: the editor sidebar groups every selection panel's fields
+  under small section headings, added through one shared `heading(label)`
+  helper in `src/editor/panels.ts` and styled once in `editor-app.ts`
+  (`h4.pnl-h`). The order is fixed: Identity, Home Assistant, Links,
+  Appearance, Automations, Danger (Danger last); a panel renders only the
+  headings it has content for. Every panel was touched: floor, room, wall
+  (both the free-standing `wallPanel` and the room-edge `edgePanel`), door,
+  opening, stairs, furniture, an unlinked entity, a corner, a structure
+  line, and every device type. The room panel's Delete stays next to
+  Unsnap, not at the bottom, an earlier pinned decision kept rather than
+  fought. Every `hint()` now also carries its full text on `title` and caps
+  at one line with an ellipsis; the one hint with its own button (the floor
+  panel's "Need help? Open Help") opts out via `.hint.help-line` so the
+  button is never clipped (`docs/DECISIONS.md`, 2026-09-26 S8.9 part 2).
+- Done, 2026-09-26. Tests first: part 1 — `render.test.ts` pins every
+  `WallKind`'s thickness and the halo's +2cm rule (failed with `WALL_WIDTH`
+  reverted to 3), plus a "door/window takes the thickness of the wall it
+  sits on" block (4 cases); an `editor.spec.ts` CSS pair over a live
+  internal wall, an external wall, and a door on each, confirmed to fail
+  with the old 3/6/22 values. Part 2 — `editor.spec.ts` "the device panel's
+  section headings appear in the stated order for a light": selects the
+  demo's Living light, reads every `h4.pnl-h` in `#panel`, asserts each is
+  one of the six canonical names and that they appear in that relative
+  order, first is Identity, last is Danger; confirmed to fail (headings out
+  of order, "Links" first) when the `heading()` calls were reverted; passed
+  10/10 at `--repeat-each=10` once restored. Fixed along the way: 7
+  Playwright regressions from part 1's two-line doors (`tapDoor()` and two
+  pinned wall-thickness values needed `:not(.door-hit)` / updated numbers);
+  and, caught only by rendering the sidebar and looking, two selection
+  panels the first pass had missed — `edgePanel` (a room-boundary wall,
+  the panel most clicks on a wall actually hit) and `cornerPanel` — both
+  now grouped the same way. Full suites green after the last edit: `npm run
+  lint` exit 0; unit 1069/1069; `npm run build` exit 0; full Playwright
+  suite 556 passed, 1 skipped, exit 0. `npm run shots` run (wall thickness
+  visible in every `card-*`/`editor-*` PNG, differs from baseline as
+  expected); a dedicated ad hoc screenshot pass (not committed, run from
+  `dist/editor.html`) covered every selection kind's sidebar in blueprint
+  and light themes and at a 380px viewport — headings, dividers and the
+  help-line hint all held up, no clipping. No "before" shots exist for part
+  2 (not taken before the code changed, a process slip); the "after" state
+  was reviewed directly against the code and against part 1's own
+  `editor-*` baseline shots instead.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).

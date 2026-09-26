@@ -118,6 +118,21 @@ test("clicking a device icon selects that device, not what lies under it", async
   await expect(page.locator("#panel")).not.toContainText("Room");
 });
 
+// S8.9: the sidebar groups every selection panel's fields under small section headings, in a fixed order
+// (Identity, Home Assistant, Links, Appearance, Automations, Danger last); a panel renders only the headings
+// it has content for. This pins that order for a light, the type with the most sections.
+test("S8.9: the device panel's section headings appear in the stated order for a light", async ({ page }) => {
+  await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
+  await expect(page.locator("#panel")).toContainText("Living light");
+  const headings = await page.locator("#panel h4.pnl-h").allTextContents();
+  const order = ["Identity", "Home Assistant", "Links", "Appearance", "Automations", "Danger"];
+  const positions = headings.map((h) => order.indexOf(h));
+  expect(positions.every((p) => p >= 0)).toBe(true); // every heading shown is one of the six canonical names
+  expect(positions).toEqual([...positions].sort((a, b) => a - b)); // and they appear in that fixed order
+  expect(headings[0]).toBe("Identity");
+  expect(headings.at(-1)).toBe("Danger");
+});
+
 test("Device places one and the list shrinks; removing it makes the list grow", async ({ page }) => {
   // the demo catalog holds one contact sensor not on the plan, and the relay: bound to a light, it has no icon (S1.32).
   expect(await unplacedCount(page)).toBe(2);

@@ -135,7 +135,18 @@ const kindSelect = (value: string, on: (v: string) => void) =>
 const button = (id: string, label: string, on: () => void, cls = "") => html`<button class=${cls ? `btn ${cls}` : "btn"} id=${id} @click=${on}>${label}</button>`;
 /** The angle of a segment a-b in degrees, 0 to 360, clockwise on screen, to 0.1. */
 const angleOf = (a: [number, number], b: [number, number]) => Math.round((((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI + 360) % 360) * 10) / 10 % 360;
-const hint = (t: string) => html`<p class="hint">${t}</p>`;
+// S8.9: a hint is always one line, ellipsised if it doesn't fit; `title` keeps the full text reachable on hover,
+// so nothing shortened here is actually lost, only the detail that used to wrap onto a second line.
+const hint = (t: string) => html`<p class="hint" title=${t}>${t}</p>`;
+/**
+ * S8.9: a small section heading inside a selection panel. Every panel groups its fields, in this order where they
+ * apply: Identity, Home Assistant, Links, Appearance, Automations, Danger (always last, if the panel has one) — so
+ * a reader learns one layout for every kind of selection instead of a different field order each time. A section
+ * with nothing in it is simply never rendered (the caller decides), so no heading is ever left floating over an
+ * empty section. The one deliberate exception is the room panel's Delete, which stays next to Unsnap rather than
+ * moving to a Danger section at the bottom — an explicit earlier decision, see docs/DECISIONS.md.
+ */
+const heading = (label: string) => html`<h4 class="pnl-h">${label}</h4>`;
 
 // ---- Home Assistant pickers (S1.38): with HA data a name is chosen, not typed ----
 const byName = <T extends { name: string }>(l: readonly T[]) => [...l].sort((a, b) => a.name.localeCompare(b.name));
@@ -210,24 +221,29 @@ function devsPanel(c: PanelCtx, is: number[]): TemplateResult {
 /** Shown when nothing is selected: the current floor. */
 function floorPanel(c: PanelCtx) {
   const { st } = c, key = st.floor, keys = Object.keys(st.layout.floors), i = keys.indexOf(key), title = st.f.title || key;
+  const hasUnbound = st.f.devices.some((d) => d.entity === "");
   return html`<strong>Floor</strong>
     ${hint("Nothing selected. Click something on the plan to edit it.")}
-    ${st.ha ? floorLink(c, st.ha) : nothing}
+    <p class="hint help-line">Need help? Open Help. <button class="btn" id="floorHelp" @click=${() => c.help()}>Help</button></p>
+    ${heading("Identity")}
     ${!st.ha || !st.f.ha ? html`<label for="ft">floor title</label>
     <input id="ft" type="text" .value=${live(st.f.title)} @change=${(e: Event) => { c.floors.rename(key, val(e)); c.refresh(); }}>` : nothing}
     <div class="row">
       <button class="btn" id="fup" title="Higher floor: later in the chips" ?disabled=${i < 0 || i >= keys.length - 1} @click=${() => c.floors.move(key, 1)}>Move up</button>
       <button class="btn" id="fdown" title="Lower floor: earlier in the chips" ?disabled=${i <= 0} @click=${() => c.floors.move(key, -1)}>Move down</button>
     </div>
+    ${st.ha ? heading("Home Assistant") : nothing}
+    ${st.ha ? floorLink(c, st.ha) : nothing}
+    ${st.ha ? unplacedAreas(c, st.ha) : nothing}
+    ${hasUnbound ? heading("Links") : nothing}
+    ${unboundList(c)}
+    ${heading("Danger")}
     ${st.confirmDelete
       ? html`<p id="fconfirm" role="alert">Delete floor ${title} and everything on it?</p>
         <div class="row">${button("fdelyes", "Delete", () => c.floors.remove(key), "danger")}${button("fdelno", "Cancel", () => { st.confirmDelete = false; c.refresh(); })}</div>`
       : html`<p><button class="btn danger" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
     ${hint("A new floor starts with the outline and the stairs of the first floor. Delete a floor to start again with a clean one.")}
-    ${hint("Devices on a deleted floor stay in the catalog and go back to the Device menu.")}
-    <p class="hint">Need help? Open Help. <button class="btn" id="floorHelp" @click=${() => c.help()}>Help</button></p>
-    ${unboundList(c)}
-    ${st.ha ? unplacedAreas(c, st.ha) : nothing}`;
+    ${hint("Devices on a deleted floor stay in the catalog and go back to the Device menu.")}`;
 }
 
 /** S4.2: HA areas no room or zone on any floor uses, as buttons that start drawing a room for one. Nothing when every area is on the plan. */
@@ -268,9 +284,10 @@ function cornerPanel(c: PanelCtx, s: Extract<Sel, { t: "v" }>) {
   const move = (to: [number, number]) => c.commit((f) => movePointAll(f, p, to, false, s.ref));
   const canDelete = "poly" in s.ref && (polyPts(c.st.f, s.ref.poly)?.length ?? 0) > 3;
   return html`<strong>Corner</strong>
+    ${heading("Appearance")}
     ${number(c, "x (cm)", "px", p[0], (x) => move([x, p[1]]))}
     ${number(c, "y (cm)", "py", p[1], (y) => move([p[0], y]))}
-    ${"poly" in s.ref && canDelete ? html`<p>${button("delv", "Delete corner", () => { const ref = s.ref as { poly: string; j: number }; c.commit((f) => removePoint(f, ref.poly, ref.j)); c.select(null); }, "warn")}</p>` : nothing}`;
+    ${"poly" in s.ref && canDelete ? html`${heading("Danger")}<p>${button("delv", "Delete corner", () => { const ref = s.ref as { poly: string; j: number }; c.commit((f) => removePoint(f, ref.poly, ref.j)); c.select(null); }, "warn")}</p>` : nothing}`;
 }
 
 /** Delete for a room edge: it stops being drawn, on every room that shares it. A door or window on it asks first. */
@@ -295,12 +312,14 @@ function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
   const kind = rooms[0]?.room.wk[rooms[0].i] ?? (isOutline ? (c.st.f.owk?.[s.i] ?? "external") : "wall"); // rooms that disagree show the first one's kind
   const editable = rooms.length > 0 || isOutline;
   return html`<strong>${WALL_LABELS[kind] ?? "Wall"}</strong>
+    ${editable ? heading("Identity") : nothing}
+    ${editable ? html`<label for="ek">kind</label><select id="ek" .value=${kind} @change=${(e: Event) => c.commit((f) => setEdgeKind(f, s.poly, s.i, val(e) as EdgeKind))}>${EDGE_KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${WALL_LABELS[k]}</option>`)}</select>` : nothing}
+    ${heading("Appearance")}
     ${number(c, "length (m)", "elen", (dist(a, b) / 100).toFixed(2), (m) => set({ length: m }))}
     ${hint(`angle ${ang.toFixed(1)}°`)}
     <div class="row">${button("mkh", "Make horizontal", () => set({ axis: "h" }))}${button("mkv", "Make vertical", () => set({ axis: "v" }))}</div>
     <p>${button("addpt", "Add a point in the middle", () => { c.commit((f) => insertPoint(f, s.poly, s.i, [Math.round((a[0] + b[0]) / 2), Math.round((a[1] + b[1]) / 2)])); c.select(null); })}</p>
-    ${editable ? html`<label for="ek">kind</label><select id="ek" .value=${kind} @change=${(e: Event) => c.commit((f) => setEdgeKind(f, s.poly, s.i, val(e) as EdgeKind))}>${EDGE_KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${WALL_LABELS[k]}</option>`)}</select>` : nothing}
-    ${editable && kind !== "none" ? edgeDelete(c, s, a, b) : nothing}
+    ${editable && kind !== "none" ? html`${heading("Danger")}${edgeDelete(c, s, a, b)}` : nothing}
     ${hint("The second end moves. Corners shared with other rooms move with it.")}`;
 }
 
@@ -313,10 +332,7 @@ function wallPanel(c: PanelCtx, i: number) {
     return g;
   });
   return html`<strong>${WALL_LABELS[w.kind] ?? "Wall"}</strong>
-    ${number(c, "length (m)", "wlen", (dist(w.a, w.b) / 100).toFixed(2), (m) => set({ length: m }))}
-    <div class="row">${button("wh", "Make horizontal", () => set({ axis: "h" }))}${button("wv", "Make vertical", () => set({ axis: "v" }))}</div>
-    ${lockField(c, "wlock", "walls", i)}
-    ${angleField(c, "wrot", "walls", i)}
+    ${heading("Identity")}
     <label for="wk">kind</label><select id="wk" .value=${live(w.kind)} @change=${(e: Event) => {
       const v = val(e);
       if (v !== "opening") { c.commit((f) => { f.walls[i].kind = v as WallKind; }); return; }
@@ -324,6 +340,12 @@ function wallPanel(c: PanelCtx, i: number) {
       c.commit((f) => wallToOpening(f, i, c.st.floor));
       c.select({ t: "opening", i: c.st.f.openings.length - 1 });
     }}>${WALL_KINDS.map((k) => html`<option value=${k} ?selected=${k === w.kind}>${WALL_LABELS[k]}</option>`)}<option value="opening">Opening (a gap in the wall)</option></select>
+    ${number(c, "length (m)", "wlen", (dist(w.a, w.b) / 100).toFixed(2), (m) => set({ length: m }))}
+    ${heading("Appearance")}
+    <div class="row">${button("wh", "Make horizontal", () => set({ axis: "h" }))}${button("wv", "Make vertical", () => set({ axis: "v" }))}</div>
+    ${lockField(c, "wlock", "walls", i)}
+    ${angleField(c, "wrot", "walls", i)}
+    ${heading("Danger")}
     <p>${button("wdel", "Delete", () => { c.commit((f) => { f.walls.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag its ends to place it. Ends snap to corners.")}`;
 }
@@ -333,8 +355,10 @@ function extraPanel(c: PanelCtx, i: number) {
   const x = c.st.f.extras[i];
   if (!x) return html`<p class="hint">Nothing selected.</p>`;
   return html`<strong>Structure line</strong>
+    ${heading("Identity")}
     ${text("name", "exn", x.name, (v) => c.commit((f) => { f.extras[i].name = v; }))}
     ${hint(`length ${(dist(x.a, x.b) / 100).toFixed(2)} m`)}
+    ${heading("Danger")}
     <p>${button("exdel", "Delete", () => { c.commit((f) => { f.extras.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag its ends to resize it, or drag the middle to move it.")}`;
 }
@@ -383,11 +407,11 @@ function doorPanel(c: PanelCtx, i: number) {
   // every kind, same as before S4.24 — it doubles as the electric-curtain dropdown on a glass door or window.
   const coverLabel = d.kind === "glass" || d.kind === "window" ? "electric curtain" : "cover";
   return html`<strong>Door / window</strong>
+    ${heading("Identity")}
     ${text("name", "dn", d.name, (v) => c.commit((f) => { f.doors[i].name = v; }))}
     ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }))}
     ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); f.doors[i].locked = true; }))}
-    ${lockField(c, "dlock", "doors", i)}
-    ${angleField(c, "drot", "doors", i)}
+    ${heading("Home Assistant")}
     ${multiAttachField(c, "dsens", "contact sensors", d.sensors ?? [], c.st.doorAttachChoices(d.id, "sensors"), setList("sensors"))}
     ${multiAttachField(c, "dvibr", "vibration sensors", d.vibration ?? [], c.st.doorAttachChoices(d.id, "vibration"), setList("vibration"))}
     ${multiAttachField(c, "dlocks", "smart locks", d.locks ?? [], c.st.doorAttachChoices(d.id, "locks"), setList("locks"))}
@@ -397,7 +421,11 @@ function doorPanel(c: PanelCtx, i: number) {
       ${c.st.coverChoices(d.id).map((s) => html`<option value=${s.entity} ?selected=${s.entity === d.cover}>${s.room ? `${s.room} - ` : ""}${s.name}</option>`)}
       ${d.cover && !c.st.coverChoices(d.id).some((s) => s.entity === d.cover) ? html`<option value=${d.cover} selected>${d.cover}</option>` : nothing}
     </select>
+    ${heading("Appearance")}
+    ${lockField(c, "dlock", "doors", i)}
+    ${angleField(c, "drot", "doors", i)}
     <label><input type="checkbox" id="dopen" .checked=${c.st.openDoor === d.id} @change=${(e: Event) => { c.st.openDoor = (e.target as HTMLInputElement).checked ? d.id : null; c.refresh(); }}> preview open</label>
+    ${heading("Danger")}
     <p>${button("deld", "Delete", () => { c.commit((f) => { f.doors.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag it along a wall. Drag an end to resize.")}`;
 }
@@ -412,21 +440,30 @@ function openingPanel(c: PanelCtx, i: number) {
     c.select({ t: "wall", i: c.st.f.walls.length - 1 });
   };
   return html`<strong>Opening</strong>
+    ${heading("Identity")}
     <label for="ok">kind</label><select id="ok" .value=${live("opening")} @change=${toWall}><option value="opening" selected>Opening</option>${WALL_KINDS.map((k) => html`<option value=${k}>${WALL_LABELS[k]}</option>`)}</select>
     ${number(c, "length (cm)", "ol", Math.round(dist(o.a, o.b)), (n) => c.commit((f) => { Object.assign(f.openings[i], resizeSegment(o.a, o.b, Math.max(20, n))); f.openings[i].locked = true; }))}
+    ${heading("Appearance")}
     ${lockField(c, "olock", "openings", i)}
     ${angleField(c, "orot", "openings", i)}
+    ${heading("Danger")}
     <p>${button("odel", "Delete", () => { c.commit((f) => { f.openings.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag an end to resize or move it. A gap hides the wall under it.")}`;
 }
 
 function roomPanel(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
+  const toPlace = c.st.areaToPlace(i).length;
   return html`<strong>Room</strong>
+    ${heading("Identity")}
     ${c.st.ha ? roomLink(c, c.st.ha, i) : html`${text("name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
     ${text("area id", "ra", r.area, (v) => c.commit((f) => { f.rooms[i].area = v; }), !!r.area)}
     ${r.area ? nothing : entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}
+    ${c.st.ha ? heading("Home Assistant") : nothing}
+    ${haBox(c, i)}
+    ${toPlace ? heading("Links") : nothing}
     ${placeAreaButton(c, i)}
+    ${heading("Appearance")}
     ${kindSelect(r.kind, (v) => c.commit((f) => {
       const room = f.rooms[i];
       if (room.kind === v) return;
@@ -435,9 +472,10 @@ function roomPanel(c: PanelCtx, i: number) {
     }))}
     ${roomTurn(c, i)}
     ${paintControls(c, "rooms", i, "r", r)}
-    ${haBox(c, i)}
     ${r.kind === "zone" ? hint("A zone is a dotted area inside a room. Give it an area id to map it to a Home Assistant area. Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag the body to move it. Drag corners to reshape. Select an edge and choose its kind.") : nothing}`;
+  // roomTurn's own Delete button stays next to Unsnap, not in a Danger section at the bottom — an earlier,
+  // deliberate decision (see docs/DECISIONS.md and editor.spec.ts "a room's Delete button sits next to Unsnap").
 }
 
 /** S4.15/S8.1: one button, counting what Home Assistant has in the room's area that the plan can show and does not yet; it opens the Place popup. */
@@ -501,7 +539,7 @@ function haBox(c: PanelCtx, i: number) {
   if (!r.area) {
     if (!r.entity) return html`${hint("No area: set one above.")}`;
     const e = ha.entities.find((x) => x.id === r.entity);
-    return html`<div class="habox"><strong>In Home Assistant</strong>${haRow(c, { id: r.entity, name: e?.name ?? r.entity, placed: true })}</div>`;
+    return html`<div class="habox">${haRow(c, { id: r.entity, name: e?.name ?? r.entity, placed: true })}</div>`;
   }
   const box = roomHaBox(ha, r.area, placedEntities(c.st.layout));
   const all: [string, HaBoxRow[], "automation" | "script" | "scene" | undefined][] = [
@@ -510,7 +548,7 @@ function haBox(c: PanelCtx, i: number) {
   ];
   const groups = all.filter(([, rows]) => rows.length);
   const free = byName(ha.entities.filter((e) => !e.area));
-  return html`<div class="habox"><strong>In Home Assistant</strong>
+  return html`<div class="habox">
     ${groups.length ? groups.map(([label, rows, kind]) => html`<p class="habox-h">${label}</p>${rows.map((row) => haRow(c, row, kind, kind ? ha.entities.find((e) => e.id === row.id)?.uid : undefined))}`) : hint("Nothing in this area yet.")}
     ${c.addToArea && free.length ? html`<label for="haadd">Add to area...</label><select id="haadd" .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) c.addToArea!(i, v); }}>
       <option value="" selected>(pick an entity)</option>${free.map((e) => html`<option value=${e.id}>${e.name}</option>`)}</select>` : nothing}</div>`;
@@ -551,22 +589,30 @@ const SCHEDULABLE: DeviceType[] = ["light", "switch", "plug", "media"];
 function devicePanel(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
   const label = TYPE_LABELS.find((t) => t[0] === d.type)?.[1] ?? d.type;
+  const hasLinks = d.type === "light" || !!c.areaDiff?.(i);
+  const hasAutomations = !!(c.makeLight && c.st.canMakeLight(i)) || !!(c.controlsAutomation && d.type === "switch") || !!(c.scheduleAutomation && SCHEDULABLE.includes(d.type));
   return html`<strong>${d.name ?? d.id}</strong>
     ${hint(`${label.toLowerCase()}. Its name comes from Home Assistant.`)}
+    ${heading("Identity")}
     ${deviceTypeField(c, i)}
+    ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
+    ${heading("Home Assistant")}
     ${deviceEntity(c, i)}
-    ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}
     ${d.type === "camera" ? hint("The cone shows a 120 degree field of view, 1 m deep.") : nothing}
-    ${d.type === "light" ? boundField(c, i) : nothing}
     ${d.type === "heater" ? heaterFields(c, i) : nothing}
     ${d.type === "ac" ? acField(c, i) : nothing}
     ${d.type === "person" ? roomSensorField(c, i) : nothing}
     ${d.type === "radar" ? targetsField(c, i) : nothing}
-    ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
+    ${hasLinks ? heading("Links") : nothing}
+    ${d.type === "light" ? boundField(c, i) : nothing}
     ${areaDiffField(c, i)}
+    ${heading("Appearance")}
+    ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}
+    ${hasAutomations ? heading("Automations") : nothing}
     ${c.makeLight && c.st.canMakeLight(i) ? html`<p>${button("vmklight", "Create a light from this switch", () => c.makeLight!(i))}</p>${hint("Home Assistant gets a new light that wraps this switch. The plan then shows the light.")}` : nothing}
     ${c.controlsAutomation && d.type === "switch" ? controlsField(c, i) : nothing}
     ${c.scheduleAutomation && SCHEDULABLE.includes(d.type) ? scheduleField(c, i) : nothing}
+    ${heading("Danger")}
     <p>${button("vdel", "Remove from plan", () => { c.commit((f) => { f.devices.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint(("a" in d ? "Drag it next to a wall; it lines up parallel to it." : "Drag it to place it.") + " Removed devices go back to the Device menu.")}`;
 }
@@ -771,12 +817,16 @@ function furniturePanel(c: PanelCtx, i: number) {
   // S1.51: width and depth are clamped to the same 5..2000 cm bounds the corner drag and validate() hold.
   const setSize = (k: "w" | "h") => (n: number) => c.commit((f) => { f.furniture[i][k] = Math.min(2000, Math.max(5, n)); });
   return html`<strong>Furniture</strong>
+    ${heading("Identity")}
     ${text("plan name", "fun", m.name ?? "", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "name", v.trim()); }))}
-    ${entityField(c, "fuent", "shows the state of", m.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "entity", v); }))}
     ${select("symbol", "fs", m.symbol, FURNITURE_SYMBOLS, (v) => c.commit((f) => { f.furniture[i].symbol = v as typeof m.symbol; }))}
+    ${heading("Home Assistant")}
+    ${entityField(c, "fuent", "shows the state of", m.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "entity", v); }))}
+    ${heading("Appearance")}
     ${number(c, "width (cm)", "fw", m.w, setSize("w"))}
     ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
     ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}
+    ${heading("Danger")}
     <p>${button("fudel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag it to move it.")}`;
 }
@@ -792,13 +842,17 @@ function unlinkedPanel(c: PanelCtx, i: number) {
   const setAttached = (next: string[]) => c.commit((f) => { if (next.length) f.unlinked[i].attached = next; else delete f.unlinked[i].attached; });
   return html`<strong>${u.name ?? label}</strong>
     ${hint(`${label.toLowerCase()}. Not connected to a single entity's state.`)}
+    ${heading("Identity")}
     ${text("plan name", "uun", u.name ?? "", (v) => c.commit((f) => { setOrDelete(f.unlinked[i], "name", v.trim()); }))}
+    ${heading("Home Assistant")}
+    ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(), setAttached)}
+    ${heading("Appearance")}
     <label for="uucol">colour</label>
     <input id="uucol" type="color" .value=${u.color ?? "#8b8578"} @change=${(e: Event) => c.commit((f) => { f.unlinked[i].color = val(e); })}>
     ${button("uuclr", "Use default colour", () => c.commit((f) => { delete f.unlinked[i].color; }))}
     ${number(c, "scale", "uusc", u.scale, (n) => c.commit((f) => { f.unlinked[i].scale = Math.min(4, Math.max(0.25, n)); }))}
     ${rotateButtons(c, "uurot", (n) => c.commit((f) => { f.unlinked[i].rot = ((u.rot + n) % 360 + 360) % 360; }), { reset: () => { if (u.rot) c.commit((f) => { f.unlinked[i].rot = 0; }); } })}
-    ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(), setAttached)}
+    ${heading("Danger")}
     <p>${button("uudel", "Delete", () => { c.commit((f) => { f.unlinked.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Drag it to move it.")}`;
 }
@@ -823,12 +877,15 @@ function stairsPanel(c: PanelCtx, i: number) {
   };
   const setInner = (n: number) => c.commit((f) => { const o = f.stairs[i]; if (o.shape === "round") o.inner = Math.max(0, Math.min(Math.round(n), (o.dia ?? 40) - 40)); });
   return html`<strong>Stairs</strong>
+    ${heading("Identity")}
     ${text("name", "sn", t.name, (v) => c.commit((f) => { f.stairs[i].name = v; }))}
     ${select("shape", "ss", t.shape, STAIR_SHAPES, setShape)}
     <p><span>steps</span> <span id="sstn">${stairSteps(t)}</span> <span class="hint">one every 40 cm</span></p>
+    ${heading("Appearance")}
     ${rotateButtons(c, "srot", (n) => c.commit((f) => { f.stairs[i].rot = ((t.rot + n) % 360 + 360) % 360; }), { reset: () => { if (t.rot) c.commit((f) => { f.stairs[i].rot = 0; }); } })}
     ${round ? html`${number(c, "outer diameter (cm)", "sdia", t.dia ?? 0, setDia)}${number(c, "inner diameter (cm)", "sinner", t.inner ?? 0, setInner)}` : nothing}
     ${paintControls(c, "stairs", i, "s", t)}
+    ${heading("Danger")}
     <p>${button("sdel", "Delete", () => { c.commit((f) => { f.stairs.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${hint("Stairs are added to every floor and deleted from one.")}
     ${hint(round ? "Drag it to move it. Set the diameters and the rotation here." : "Drag a corner to reshape. Click an edge to add a point in the middle. A rotated flight has no corner handles: set the rotation to 0 to reshape it.")}`;

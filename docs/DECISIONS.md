@@ -2,6 +2,49 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-26 S8.9 part 2: the sidebar groups fields under six section headings, in a fixed order
+
+Every selection panel (floor, room, wall, door/window, opening, stairs,
+furniture, an unlinked entity, a corner, a structure line, a device of any
+type) now renders its fields under small headings, added through one shared
+`heading(label)` helper in `src/editor/panels.ts`, styled once in
+`editor-app.ts` (`h4.pnl-h`, a divider above each heading but the first). The
+order is fixed and never varies: Identity, Home Assistant, Links,
+Appearance, Automations, Danger — Danger always last. A panel renders only
+the headings it has content for; a light shows all but Automations in the
+demo (no automation writer wired into `standalone.html`), a plain wall shows
+only Appearance and Danger, and so on. `tests/editor/editor.spec.ts` ("S8.9:
+the device panel's section headings appear in the stated order for a
+light") pins the order for the type with the most sections and checks it
+generically (every heading shown is one of the six names, in that relative
+order), so it holds regardless of which optional sections a given layout
+triggers.
+
+One deliberate exception: the room panel's Delete button stays inside
+`roomTurn()`, next to Unsnap, not moved into a bottom Danger section. This
+was already a pinned decision (`editor.spec.ts` "a room's Delete button sits
+next to Unsnap, not at the bottom of the panel") from an earlier sprint, and
+S8.9 keeps it rather than fighting an existing, deliberate test.
+
+Every hint (`hint()`) now also carries the full text on the element's own
+`title`, and its CSS caps it at one line with an ellipsis
+(`white-space:nowrap;overflow:hidden;text-overflow:ellipsis`) — multi-line
+hints from earlier sprints (the floor panel's texts, in particular) read as
+one line now, the rest reachable on hover or already stated elsewhere. The
+one hint that carries its own interactive control (the floor panel's "Need
+help? Open Help" button) opts out via a second class, `.hint.help-line`,
+so the button is never clipped: it wraps instead of ellipsising.
+
+No before/after screenshot pair exists for this change: the "before" shots
+were not taken before the code was written (a process slip — the diff is
+plain enough to review from the code itself and from
+`shots/current/editor-*.png` after). The "after" state was checked for
+every selection kind, in blueprint, light and the (visually flat, since the
+demo has no live HA vars for the editor) `ha` themes, and at a 380px
+viewport where the sidebar drops below the plan: headings and dividers hold
+up, the help-line hint is not clipped, and the room panel's Delete-next-to-
+Unsnap exception is visibly intact.
+
 ## 2026-09-26 S8.9 part 1: thicker walls, and a door or window takes the thickness of its own wall
 
 A plain internal wall (`.e`) goes from 3 cm to 10 cm (`WALL_WIDTH`,
