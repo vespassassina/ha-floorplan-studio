@@ -1103,16 +1103,18 @@ export class FloorplanStudioEditor extends LitElement {
    * editor is showing right now. `viewBoxFor(st.f, 60, ...)` is the card's own fit (pad 60); the editor's own
    * `fit()`/`recenter()` use pad 80 for their own on-screen margin, so this is computed independently rather than
    * read off `st.view`'s resting box, or a card pasting these values would open slightly wider than the editor.
-   * `zoomLevel` comes from the width ratio: a pinned view keeps `fit`'s own aspect (`pinnedView`, `viewport.ts`),
-   * so the height ratio would give the same number for a same-aspect viewport and a different one only when the
-   * editor's own window has a different aspect than the card it is copied into — an inherent limit of a single
-   * number standing in for two dimensions, not a bug. */
+   * S9.6 review (Opus, 2026-09-27): `zoomLevel` used to come from the width ratio alone. A pinned card's box keeps
+   * `fit`'s own aspect (`pinnedView`, `viewport.ts`), but the editor's own `st.view` can have a different aspect —
+   * a wide, short window, say — and `fit.w / v.w` alone then asked for a box no narrower than the editor's, which
+   * left the editor's view taller than the card's aspect allows and cropped what the editor showed top and
+   * bottom. Taking the smaller of the width and height ratios means the card's box is at least as tall and at
+   * least as wide as `v` — it may show a little more on the narrow axis, never less on either. */
   private copyCardView(): void {
     const st = this.st;
     const fit = viewBoxFor(st.f, 60, st.rotation);
     const v = st.view;
     const cx = Math.round(v.x + v.w / 2), cy = Math.round(v.y + v.h / 2);
-    const zoomLevel = Math.min(MAX_ZOOM, Math.max(1, fit.w / v.w));
+    const zoomLevel = Math.min(MAX_ZOOM, Math.max(1, Math.min(fit.w / v.w, fit.h / v.h)));
     const yaml = `center: [${cx}, ${cy}]\nzoom_level: ${zoomLevel.toFixed(2)}`;
     const cb = navigator.clipboard;
     if (!cb) { this.status = "Could not copy — select the text and copy it by hand."; this.requestUpdate(); return; }
