@@ -10,7 +10,7 @@ vi.mock("../../src/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/core")>();
   return { ...actual, renderFloor: vi.fn(actual.renderFloor) };
 });
-import { renderFloor, viewBoxFor } from "../../src/core";
+import { planPivot, renderFloor, rotateAbout, viewBoxFor } from "../../src/core";
 import { FloorplanStudioCard } from "../../src/card/floorplan-studio-card";
 import { HOLD_MS } from "../../src/card/actions";
 import { MAX_ZOOM } from "../../src/card/viewport";
@@ -1602,6 +1602,88 @@ describe("FloorplanStudioCard", () => {
       const el = await withConfig({ center: [300, 700], zoom_level: 3 });
       const svg = el.shadowRoot!.querySelector("svg")!;
       expect(svg.getAttribute("class")).toBe("fp-zoomable");
+    });
+
+    // Opus review, 2026-09-27: `center` is documented as plan cm — the same unrotated coordinates a device sits at
+    // in the layout — but the card's own box (`viewBoxFor`/`renderFloor`) is already in the *rendered* frame once
+    // `rotate` is set (they turn every point themselves, unlike the editor, which draws unrotated coordinates
+    // inside a rotated `<g>`). Passing the raw config centre straight into `pinnedView` pinned the wrong spot on
+    // any rotated layout. `deg: 135` (not a 90°-multiple; schema only allows steps of 45, `validate` in
+    // src/core/schema.ts) rules out a fix that only special-cases plain right angles.
+    it("a rotated layout pins the config's plan-cm centre at the same plan point, not the unrotated one", async () => {
+      const deg = 135;
+      const rotated: Layout = { ...structuredClone(L), rotate: deg };
+      const pivot = planPivot(rotated);
+      const centerPlanCm: [number, number] = [200, 500]; // asymmetric, on the demo's 800x600 outline
+      const expected = rotateAbout(centerPlanCm, deg, pivot);
+      const fit = viewBoxFor(rotated.floors.ground, 60, { deg, pivot });
+
+      const el = await mount();
+      el.setConfig({ layout: rotated, floor: "ground", center: centerPlanCm, zoom_level: 3 });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      const box = viewBox(el);
+      expect(box.w).toBeCloseTo(fit.w / 3, 6);
+      expect(box.x + box.w / 2).toBeCloseTo(expected[0], 6);
+      expect(box.y + box.h / 2).toBeCloseTo(expected[1], 6);
+      // Not the raw, unrotated centre either (finding 4: a version that never rotated at all would otherwise pass
+      // whenever the rotated and unrotated points happen to coincide, which they do not here).
+      expect(Math.abs(box.x + box.w / 2 - centerPlanCm[0])).toBeGreaterThan(5);
+    });
+
+    it("rotate: 0 (or unset) leaves the centre exactly as before — the rotation fix changes nothing for a flat plan", async () => {
+      const el = await withConfig({ center: [300, 700], zoom_level: 3 });
+      const box = viewBox(el);
+      const f = fit();
+      expect(box.x + box.w / 2).toBeCloseTo(300, 6);
+      expect(box.y + box.h / 2).toBeCloseTo(700, 6);
+      expect(box.w).toBeCloseTo(f.w / 3, 6);
+    });
+  });
+
+  // Opus review, 2026-09-27: several cards on one floor, each pinned to a different room via `center`/`zoom_level`,
+  // used to share one `localStorage` key (the seed did not read either), so folding or dragging one card's active
+  // panel moved every other card's panel too, on the next reload.
+  describe("S9.6 review: the active panel's storage key includes center/zoom_level (Opus, 2026-09-27)", () => {
+    beforeEach(() => {
+      try { localStorage.clear(); } catch { /* jsdom always has one; guard anyway */ }
+    });
+
+    async function mountPinned(config: Record<string, unknown>) {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "ground", ...config });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      return el;
+    }
+
+    it("two cards pinned to different rooms on the same floor keep separate panel storage", async () => {
+      const el1 = await mountPinned({ center: [300, 700], zoom_level: 2 });
+      el1.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
+      await el1.updateComplete;
+      expect(el1.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+
+      // A second card, same floor, pinned to a different room: its own key, opens fresh (not collapsed).
+      const el2 = await mountPinned({ center: [123, 456], zoom_level: 3 });
+      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
+
+      // A third card with the same center/zoom_level as the first really does share its key (by design: two
+      // identically-pinned cards are the same "view" as far as the panel is concerned).
+      const el3 = await mountPinned({ center: [300, 700], zoom_level: 2 });
+      expect(el3.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+    });
+
+    it("an unpinned card's storage key is unchanged by this fix, so its stored position still applies", async () => {
+      const el = await mountPinned({});
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+
+      // Same config, fresh instance: reopens already collapsed, from the very same key an unpinned card has
+      // always used (this only fails if appending center/zoom_level to the seed changed the key when neither is
+      // set — the regression this test guards against).
+      const el2 = await mountPinned({});
+      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
     });
   });
 });

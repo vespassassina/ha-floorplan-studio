@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Opus review of the pinned-card feature (S9.6): the "−" button on a pinned
+  card no longer gets stuck disabled at load, after a pan, or after a pinch
+  past home — it now only stops at the whole floor. The reset button now
+  lights back up whenever the view has moved from the pin, and reads
+  "Reset view" instead of "Fit" on a pinned card. "Copy card view" now
+  places the pin correctly on a rotated layout, and no longer crops what the
+  editor was showing when its view had a different aspect than the fit.
+  Several pinned cards on one floor no longer share one Active-panel
+  position. Clearing the Center X field in the Edit-card form no longer
+  wipes Center Y on the next render.
 - A card can now pin a `center: [x, y]` (plan cm) and a `zoom_level` (1 = the
   whole floor, up to 8) to focus on one room, corridor or part of a home. Set
   either or both; the reset button, double-tap and pinch/wheel-zoom all treat

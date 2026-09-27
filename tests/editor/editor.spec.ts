@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { DEVICE_COLOURS, viewBoxFor } from "../../src/core/render";
+import { DEVICE_COLOURS, planPivot, rotateAbout, viewBoxFor } from "../../src/core/render";
 import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
 import { GUIDE_STEPS } from "../../src/editor/guide";
 import { decodePng, pixelAt } from "../core/util/png";
@@ -7917,3 +7917,67 @@ test("S9.6: Copy card view round-trips into a card's center/zoom_level, within 1
   expect(Math.abs(box.w - forced.w)).toBeLessThan(1);
   expect(Math.abs(box.h - forced.h)).toBeLessThan(1);
 });
+
+// S9.6 review (Opus, 2026-09-27): `center` is documented as plan cm — the same unrotated coordinates a device sits
+// at — but the card's own box (`viewBoxFor`/`renderFloor`) is already in the *rendered* frame once `rotate` is set,
+// while the editor's `st.view` (what `copyCardView` reads) stays unrotated throughout. Passing the raw centre
+// straight into the card's `pinnedView` pinned the wrong spot on any rotated layout; fixed in the card
+// (`_rotatedCenter`, floorplan-studio-card.ts) by turning the config's plan-cm point through the layout's own
+// rotation before it reaches `pinnedView`. This is the same round trip as the "same-aspect viewport" test above,
+// with `rotate: 90` on the demo's asymmetric (800x600) outline, and checked against the *actual* plan point the
+// editor was showing (`st.view`'s own centre, turned by hand the same way) rather than a value this test assumes.
+test("S9.6 review: Copy card view round-trips onto the same plan point under a 90° rotation, within 1cm", async ({ page }) => {
+  const deg = 90;
+  const rotated: Layout = { ...demo, rotate: deg };
+  await page.evaluate(([tag, l]) => { (document.querySelector(tag as string) as any).layout = l; }, [EDITOR, rotated] as const);
+  await expect.poll(() => page.locator(`${EDITOR} svg polygon[data-r]`).first().isVisible()).toBe(true);
+
+  // Zoom in and pan off-centre — an asymmetric plan point, not fit's own centre (finding 4: a version that ignored
+  // rotation entirely would still pass a test pinned at the plan's own centre of symmetry).
+  await zoomIn(page, 4);
+  await page.mouse.move(700, 500);
+  await page.mouse.down();
+  await page.mouse.move(760, 440, { steps: 5 });
+  await page.mouse.up();
+
+  const v = await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any; return { ...el.st.view }; }, EDITOR);
+  const pivot = planPivot(rotated);
+  const expected = rotateAbout([v.x + v.w / 2, v.y + v.h / 2], deg, pivot);
+
+  await page.evaluate(() => {
+    (window as any).__copied = null;
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: (t: string) => { (window as any).__copied = t; return Promise.resolve(); } }, configurable: true });
+  });
+  await menu(page, "View");
+  await page.locator(`${EDITOR} #copyCardView`).click();
+  const copied = (await page.evaluate(() => (window as any).__copied as string))!;
+  const m = copied.match(/^center: \[(-?\d+), (-?\d+)\]\nzoom_level: (\d+\.\d\d)$/)!;
+  const [cx, cy, zoomLevel] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  // The copied centre is the plan-cm point the editor showed — unrotated, same as `st.view`'s own centre — not yet
+  // turned by `deg`: that only happens inside the card.
+  expect(cx).toBeCloseTo(v.x + v.w / 2, 0);
+  expect(cy).toBeCloseTo(v.y + v.h / 2, 0);
+
+  const CARD_JS = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  await page.addScriptTag({ content: CARD_JS, type: "module" });
+  await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+  const box = await page.evaluate(
+    ([layout, cx, cy, zoomLevel]) => {
+      const el = document.createElement("floorplan-studio-card") as any;
+      document.body.appendChild(el);
+      el.setConfig({ layout, center: [cx, cy], zoom_level: zoomLevel });
+      el.hass = { states: {} };
+      return el.updateComplete.then(() => {
+        const [x, y, w, h] = el.shadowRoot.querySelector("svg").getAttribute("viewBox").split(/\s+/).map(Number);
+        el.remove();
+        return { x, y, w, h };
+      });
+    },
+    [rotated, cx, cy, zoomLevel] as const,
+  );
+  expect(Math.abs(box.x + box.w / 2 - expected[0])).toBeLessThan(1);
+  expect(Math.abs(box.y + box.h / 2 - expected[1])).toBeLessThan(1);
+});
+
+// A fast, editor-free unit check of the same fix (the card's own home centre for a non-right-angle rotation) lives
+// in tests/card/card.test.ts ("S9.6 review: a rotated layout pins..."), so it does not need a browser at all.

@@ -320,27 +320,65 @@ exactly whenever there is nothing narrower to zoom into.
 
 The pin becomes the card's "home": `_home()` returns
 `pinnedView(fit, center, zoomLevel)`, and every place that used to treat
-`fit` as "at rest" — the `fp-zoomed` class, the zoom buttons' own `atFit`/
-disabled state, the reset button (`_fitView`, sets `_view = null`) and a
-double-tap when already at rest — now reads `_home()` instead. `_setView`'s
-own bounds (what pinch/pan/wheel can reach) still clamp against the whole
-`fit`, so a pinned card can still zoom out to see the rest of the floor; only
-where it rests changes. `_scale` (S9.2's icon sizing) deliberately keeps
-reading the whole-floor `fit`, not the pinned box, so a room card's icons are
-the same size as the equivalent whole-floor card's at the same zoom, not
-inflated by the extra zoom the pin itself adds.
+`fit` as "at rest" — the `fp-zoomed` class, `_zoomed()`, the reset button
+(`_fitView`, sets `_view = null`) and a double-tap when already at rest — now
+reads `_home()` instead. `_setView`'s own bounds (what pinch/pan/wheel can
+reach) still clamp against the whole `fit`, so a pinned card can still zoom
+out to see the rest of the floor; only where it rests changes. `_scale`
+(S9.2's icon sizing) deliberately keeps reading the whole-floor `fit`, not
+the pinned box, so a room card's icons are the same size as the equivalent
+whole-floor card's at the same zoom, not inflated by the extra zoom the pin
+itself adds.
+
+`center` is documented as plan cm — the same unrotated coordinates a room or
+device sits at — but `fit`/`pinnedView` work in the *rendered* frame, which
+`renderFloor`/`viewBoxFor` turn by the layout's own `rotate` themselves
+(unlike the editor, which draws unrotated coordinates inside a rotated
+`<g>`). `_home()` therefore rotates `_center()` by the layout's `rotate`
+(`_rotatedCenter()`, `rotateAbout` about `planPivot(layout)`) before handing
+it to `pinnedView`, so the pin lands on the same plan point the layout itself
+names whether or not it is rotated. `rotate: 0` (or unset) leaves it
+unchanged.
+
+Opus review, 2026-09-27: `_zoomButtons`' single `atFit` used to gate both
+"−" and Fit off `box.w < home.w`, width only, which is right for neither on a
+pinned card — "−" was disabled the moment the card loaded (there was more
+floor to see), and Fit was disabled after a same-width sideways pan or a
+pinch past home, with no button left to bring the room back. The two are now
+separate: "−" is disabled at the whole floor (`box.w >= fit.w*(1-1e-6)`),
+Fit/Reset is disabled exactly when there is nothing to undo (`_view ===
+null`, i.e. `_zoomed()` is false). On a pinned card (`center`/`zoom_level`
+set, so `home` differs from `fit`) the reset button's `aria-label`/`title`
+read "Reset view" instead of "Fit", since it no longer fits the whole floor.
+Unpinned, `home` equals `fit`, so both conditions coincide and nothing
+changes.
 
 The editor's View menu has a "Copy card view" button (`copyCardView`,
 `src/editor/editor-app.ts`) that computes `viewBoxFor(st.f, 60, st.rotation)`
 — the card's own fit, pad 60, not the editor's own pad-80 `fit()`/
 `recenter()` — reads the editor's current view (`st.view`), and writes
-`center: [x, y]` (rounded to whole cm) and `zoom_level: z` (two decimals,
-from the width ratio) to the clipboard, with a "Card view copied." status
-line. A pinned card is meant for one floor; `floor:` picks which one.
+`center: [x, y]` (rounded to whole cm) and `zoom_level: z` (two decimals) to
+the clipboard, with a "Card view copied." status line. `st.view` is already
+unrotated plan cm (the editor's own rotation lives in an outer `<g>`, not in
+`st.view`), so no rotation is applied here — only the card's `_home()` needs
+to rotate it back on the way in. `zoom_level` is `min(fit.w/v.w, fit.h/v.h)`
+(Opus review, 2026-09-27: the width ratio alone could ask for a box narrower
+than `v`'s own aspect after Re-center left `st.view` a different shape than
+`fit`, cropping what the editor showed top and bottom; the smaller ratio
+keeps the card's box at least as tall and as wide as `v`). A pinned card is
+meant for one floor; `floor:` picks which one.
 
 `active_list` (S9.5, default `true`): a floating panel over the plan, open by default in the top-left, listing every active device across every floor of the layout, not only the one the plan is showing. "Active" reuses `classOf` (`src/core/render.ts`, exported for this) — the same function that colours the plan — so the list and the plan can never disagree about a device's on/off state; a `light` with `bound` counts through its switch, the same as on the plan. The one addition beyond `classOf`'s own "on": a `vacuum` is listed only while `cleaning`, narrower than `classOf`'s own on-plan colour (which also covers "returning" to the dock) — a robot heading home is winding down, not something to check. A `camera` is listed whatever its state, since a camera is a view, not an on/off thing — except an `unavailable`/`unknown` one, or any device of any type with an empty `entity`: neither has a real more-info to open, so `isActive` (Opus review finding 9) excludes them regardless of `ACTIVE_LIST_RULE`. `src/core/active.ts`'s `ACTIVE_LIST_RULE` writes down every `DeviceType`'s membership explicitly (`"on"`, `"always"`, `"cleaning"` or `"never"`), tested by iterating `DEVICE_TYPES` (CLAUDE.md finding 17), so a new type is a decision made in the open, not a silent fall-through.
 
 Rows are grouped by type (`DEVICE_TYPES`' own order), each with that type's icon and colour — a `camera` row is the one exception, taking `--fp-ink` (the panel's own text colour) rather than `--fp-dev-camera`, since that token is tuned for the plan's own room background and read illegibly close to the panel's `--fp-room` background in the dark themes (Opus review finding 10) — and its `name ?? friendly_name ?? entity`; a click or Enter fires `hass-more-info` for that entity, the same event the plan's own tap already fires. The header shows "Active", a live count and a collapse toggle; dragging the header repositions the panel. Its position is kept as a fraction of the card's own free space and reapplied after every render and on a `ResizeObserver` of the card's host, not only while dragging (Opus review findings 3 and 4), so it can never be lost off-screen — including after the card itself is resized, or after a collapse/drag-to-bottom/expand cycle. With nothing yet stored and the card narrower than 500px, the panel starts collapsed and takes `min(200px, 45%)` of the width instead of a flat 200px (Opus review finding 5, an assumption: 500px as "phone width" is not tested against a real device, only Chromium's viewport emulation). Position and collapsed state are kept in `localStorage`, wrapped in try/catch, under a key hashed from the layout's *source* — `layout_url`, else `"inline"` for a config `layout`, else `"ws"` for the websocket fetch — plus the card's own `floor`/`floors` (Opus review finding 7: the old key hashed the layout's *content*, so two cards in websocket mode, the default install with no `layout`/`layout_url`, shared one key even when pinned to different floors, and an inline layout's own autosave changed the key on every edit). `kiosk: true` hides the panel too — a wall tablet shows only the plan.
+
+Opus review, 2026-09-27: with the same `floor`, several S9.6 cards pinned to
+different rooms still shared one storage key, so collapsing or dragging one
+card's panel moved every other card's panel on the next reload. `center`/
+`zoom_level` now join the seed, but only when the config actually sets them
+(`this._config.center !== undefined`, pushed conditionally) — an unpinned
+card's key is unchanged from before S9.6, so no existing stored position or
+collapsed state is silently orphaned by this fix.
 
 `zoom` (S7.4): the plan zooms between fit and 8×. A drag that moves more than 6 px pans and is never a tap; zoomed in, a third of the view always stays on the plan. A double-tap off any device zooms 2× at fit and returns to fit when zoomed. Without Ctrl/Cmd a wheel scrolls the dashboard, unless `zoom: "wheel"`. The view resets on a config change and a floor change, and survives state updates. With zoom on, the plan's `<svg>` has `touch-action: none`, so a swipe that starts on the plan does not scroll the page; `zoom: false` gives the page its touches back. An unrecognised value (anything but `true`, `false` or `"wheel"`) is refused by `setConfig`, naming the key, the same as `kiosk` below — S7.4 had it falling back to `true` instead, silently hiding a typo.
 

@@ -1,6 +1,6 @@
 import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, activeDevices, groupActiveByType, migrate, planPivot, renderFloor, tag, validate, viewBoxFor } from "../core";
+import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, activeDevices, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, Theme } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
@@ -229,11 +229,18 @@ export class FloorplanStudioCard extends LitElement {
    * different `floor`, and an inline layout got a *new* key on every edit (autosave rewrites `layout` in place).
    * The seed is now the layout's *source* only — `layout_url`, else `"inline"` for a config `layout`, else `"ws"`
    * for the websocket fetch — which two cards on the same source share, plus the `floor`/`floors` config that
-   * tells otherwise-identical cards apart (S9.5's own two-floors-of-one-layout case, S7's floor switcher). */
+   * tells otherwise-identical cards apart (S9.5's own two-floors-of-one-layout case, S7's floor switcher).
+   * S9.6 review (Opus, 2026-09-27): `center`/`zoom_level` tell two cards on the same floor apart too — several
+   * cards each pinned to a different room shared this key, so folding or dragging one moved the panel on all of
+   * them after a reload. Unlike `floor`/`floors` (always in the seed, `?? null`), these two are appended only when
+   * actually set: putting them in unconditionally, even as `null`, would change the JSON string — and so the
+   * hash — for every card that has neither key, wiping the stored position everyone already has. */
   private _activeStorageKey(): string {
     const source = this._config.layout_url ?? (this._config.layout ? "inline" : "ws");
-    const seed = JSON.stringify([source, this._config.floor ?? null, this._config.floors ?? null]);
-    return `fp-active-panel:${tag(seed)}`;
+    const seed: unknown[] = [source, this._config.floor ?? null, this._config.floors ?? null];
+    if (this._config.center !== undefined) seed.push(this._config.center);
+    if (this._config.zoom_level !== undefined) seed.push(this._config.zoom_level);
+    return `fp-active-panel:${tag(JSON.stringify(seed))}`;
   }
 
   private _loadActiveState(): void {
@@ -943,9 +950,12 @@ export class FloorplanStudioCard extends LitElement {
     // S9.6: `home` is the whole floor unless `center`/`zoom_level` pin the card to part of it — the base the box
     // rests on when there is no explicit `_view`, and what "zoomed" (the fp-zoomed class, below) is measured
     // against, so a pinned card reads as its own resting state, not as permanently zoomed in from the full plan.
-    const home = pinnedView(fit, this._center(), this._zoomLevel());
+    const home = pinnedView(fit, this._rotatedCenter(), this._zoomLevel());
     const box = zoom && this._view ? clamp(this._view, fit) : home;
-    const svgClass = !zoom ? "" : box.w < home.w * (1 - 1e-6) ? "fp-zoomable fp-zoomed" : "fp-zoomable";
+    // Opus review of S9.6: "zoomed" (like `_zoomed()` below) means "not at home", not "narrower than home" — a
+    // sideways pan at home's own width used to read as not-zoomed here, which left `touch-action` at `pan-y` (so
+    // the page's own vertical scroll fought the pan) even while `_view` was already pinning a panned box.
+    const svgClass = !zoom ? "" : this._view !== null ? "fp-zoomable fp-zoomed" : "fp-zoomable";
     const body = renderFloor(f, {
       scale: this._scale(fit),
       state: this._stateForRender(),
@@ -1004,6 +1014,19 @@ export class FloorplanStudioCard extends LitElement {
     return typeof x === "number" && typeof y === "number" && Number.isFinite(x) && Number.isFinite(y) ? [x, y] : null;
   }
 
+  /** Opus review of S9.6: `center` is documented as plan cm — the same unrotated coordinates a room or device sits
+   * at in the layout — but `_home`'s own box (`viewBoxFor(f, 60, rotate)`, `render()` above) is already in the
+   * *rendered* frame: `renderFloor`/`viewBoxFor` turn every point by `rotate` themselves (unlike the editor, which
+   * draws unrotated coordinates inside a rotated `<g>`). Passing `_center()` straight into `pinnedView` therefore
+   * pinned the wrong spot on any layout with `rotate` set. This turns the config's plan-cm point by the same
+   * `rotate` before it reaches `pinnedView`, so it lands on the same plan point the layout itself names. */
+  private _rotatedCenter(): Pt | null {
+    const c = this._center();
+    if (!c) return null;
+    const rotate = this._rotate();
+    return rotate && rotate.deg % 360 ? rotateAbout(c, rotate.deg, rotate.pivot) : c;
+  }
+
   /** S9.6: `config.zoom_level`, clamped to [1, MAX_ZOOM] — same untrusted-config shape as `_iconSize` above, and
    * the same reasoning as `_center`'s comment for why this defaults silently rather than throwing. */
   private _zoomLevel(): number {
@@ -1018,7 +1041,7 @@ export class FloorplanStudioCard extends LitElement {
    * keeps reading `fit` itself, not this — see its own comment — so a room card's icons match the full-plan
    * card's icons at the same zoom, per the S9.6 brief. */
   private _home(): View | null {
-    return this._fit ? pinnedView(this._fit, this._center(), this._zoomLevel()) : null;
+    return this._fit ? pinnedView(this._fit, this._rotatedCenter(), this._zoomLevel()) : null;
   }
 
   /** The view on screen now: the zoomed one, clamped to the whole floor (a pinned card can still pinch/pan out to
@@ -1029,9 +1052,12 @@ export class FloorplanStudioCard extends LitElement {
     return this._view ? clamp(this._view, fit) : this._home();
   }
 
+  /** Opus review of S9.6: this used to compare `_current()`'s width against `_home()`'s, so a sideways pan at
+   * home's own zoom level (same width, different centre) read as "not zoomed" — a double-tap after panning a
+   * pinned card then zoomed in from home instead of returning to it. `_setView` already normalises "back at home"
+   * to `_view === null` (its own comment above), so "zoomed" is exactly "not that": no separate width check. */
   private _zoomed(): boolean {
-    const v = this._current(), home = this._home();
-    return !!v && !!home && v.w < home.w * (1 - 1e-6);
+    return this._view !== null;
   }
 
   /** Stores `v`, clamped to the whole floor, as the view; home itself is stored as `null` (the same "no override"
@@ -1057,17 +1083,25 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** S7.4: +, − and fit, card chrome in the top-right corner (like `_floorChips`, outside the plan's `<svg>`).
-   * S9.6: "atFit" (the fit/reset button's own disabled state, and how deep "−" can zoom back out) is measured
-   * against `home`, not the whole floor, so a room-pinned card reads as already home rather than perpetually
-   * offering to zoom out further; the deepest zoom ("+"/`atMax`) is still measured against the whole-floor `fit`,
-   * unrelated to the pin (`MAX_ZOOM` is a property of the plan, not of what part of it a card shows). */
+   * S9.6 review (Opus, 2026-09-27): a single `atFit` used to gate both "−" and Fit off `box.w < home.w`, width
+   * only. On a pinned card that reads two different things and neither is right for both buttons:
+   *  - "−" widens the box; it must stop only at the whole floor (`fit`), since the docs promise a pinned card can
+   *    still zoom out to see the rest of the house. Gating it at `home` disabled "−" the moment the card loaded,
+   *    even though there was more floor to see.
+   *  - Fit/Reset undoes `_view`; it must be disabled exactly when there is nothing to undo, i.e. `_view === null`
+   *    (`_zoomed()`, above) — not "box is as wide as home", which stayed true after a same-width sideways pan and
+   *    left Fit disabled with no way back to the pinned centre.
+   * Unpinned (`home` equals `fit`): both conditions coincide, so this changes nothing for a plain card. */
   private _zoomButtons(box: View, home: View, fit: View) {
-    const atFit = !(box.w < home.w * (1 - 1e-6));
+    const atWhole = box.w >= fit.w * (1 - 1e-6);
+    const atHome = !this._zoomed();
     const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
+    const pinned = !sameView(home, fit, fit);
+    const resetLabel = pinned ? "Reset view" : "Fit";
     return html`<div class="fp-zoom">
       <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
-      <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atFit} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
-      <button type="button" aria-label="Fit" title="Fit" ?disabled=${atFit} @click=${() => this._fitView()}>
+      <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atWhole} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
+      <button type="button" aria-label=${resetLabel} title=${resetLabel} ?disabled=${atHome} @click=${() => this._fitView()}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
       </button>
     </div>`;

@@ -2,6 +2,39 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 S9.6 review: − reaches the whole floor, Fit becomes Reset view, center is plan cm under rotation
+
+A second Opus review, of S9.6 (the pinned card) on top of the first S9 review,
+found the zoom buttons' disabled state, `center`'s handling under a rotated
+layout, and three smaller bugs. Why each fix is what it is:
+
+- **"−" and Fit/Reset must not share one condition.** The old `atFit` compared
+  only the current box's width against home's, so it answered two different
+  questions ("can I zoom out more?" and "is there anything to reset?") with
+  one number and got both wrong on a pinned card: "−" disabled the moment the
+  card loaded (there was more floor to see), and Fit disabled after a
+  same-width pan or a pinch past home, with no button left to bring the pin
+  back. "−" now stops only at the whole floor; Fit/Reset is disabled only
+  when the view has not moved from home (`_view === null`). A pinned card's
+  reset button reads "Reset view", since "Fit" would claim it shows the whole
+  floor, which it does not.
+- **`center` is plan cm, so it must survive rotation.** The editor keeps
+  `st.view` unrotated and rotates only the drawing; the card bakes rotation
+  into `fit`/`pinnedView` directly. Rotating the config's `center` by the
+  layout's own `rotate` before pinning (in the card, not the editor, since
+  `copyCardView` already emits unrotated plan cm) keeps "plan cm" true on
+  every layout, not only an unrotated one.
+- **`zoom_level` from Copy card view takes the smaller of the width/height
+  ratio**, not the width alone, so a card never shows less of the editor's
+  own view than the editor did, whatever its aspect.
+- **The Active panel's storage key adds `center`/`zoom_level`, only when
+  set**, so several cards pinned to different rooms on one floor stop
+  sharing one panel position, without changing the key — and so the stored
+  state — of any card that does not use the pin.
+- **The Edit-card form keeps a draft of the Center X/Y pair** so clearing one
+  box to retype it does not drop `center` and wipe the other box on the next
+  render.
+
 ## 2026-09-27 Opus review of the integrated Sprint 9 build: nine fixes
 
 An Opus review of the whole `task/S9` branch (S9.1 through S9.5, the entries

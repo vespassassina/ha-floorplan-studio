@@ -724,7 +724,9 @@ test.describe("S9.6 a card pinned to one room", () => {
     }
   });
 
-  test("with zoom on, pinch/wheel zooming out then Fit (and a double-tap reset) return to the pinned view, not the whole floor", async ({ page }) => {
+  // Renamed (Opus review, 2026-09-27): the body zooms IN (a negative wheel deltaY, per `onWheel`'s `k = exp(-dy *
+  // 0.002)`), not out — the old title said the opposite of what this test does.
+  test("with zoom on, zooming in then Fit (and a double-tap reset) return to the pinned view, not the whole floor", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
     const home = await viewBox(page);
@@ -734,7 +736,9 @@ test.describe("S9.6 a card pinned to one room", () => {
     // button to come back — it must land on `home`, not the plan's own `fit` (which is twice as wide).
     await ctrlWheel(page, b.x + b.width / 2, b.y + b.height / 2, -300);
     await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(home.w * 0.95);
-    const fitBtn = card(page).locator('css=.fp-zoom button[aria-label="Fit"]');
+    // Pinned (center/zoom_level set): the Fit button reads "Reset view" (Opus review, 2026-09-27), since it no
+    // longer fits the whole floor.
+    const fitBtn = card(page).locator('css=.fp-zoom button[aria-label="Reset view"]');
     await fitBtn.click();
     expect(await viewBox(page)).toEqual(home);
 
@@ -770,6 +774,79 @@ test.describe("S9.6 a card pinned to one room", () => {
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
     const pinnedScale = await card(page).evaluate((el) => el.shadowRoot!.querySelector('g[data-x="1"]')!.getAttribute("transform"));
     expect(pinnedScale).toBe(plainScale);
+  });
+
+  // Opus review, 2026-09-27: `_zoomButtons` used to gate both "−" and Fit off one `atFit` measured against `home`
+  // (width only). At rest on a pinned card that disabled "−" (the docs promise it can still reach the whole
+  // floor) and, after a same-width sideways pan, left Fit disabled with no way back. The fixes below check each
+  // button's own condition: "−" against the whole floor (`fit`), Fit against whether `_view` is set at all.
+  test.describe("S9.6 review: the zoom buttons' own disabled state (Opus, 2026-09-27)", () => {
+    const minusBtn = (page: Page) => card(page).locator('css=.fp-zoom button[aria-label="Zoom out"]');
+    const fitBtn = (page: Page) => card(page).locator('css=.fp-zoom button[aria-label="Fit"], .fp-zoom button[aria-label="Reset view"]');
+
+    test("a pinned card at home has \"−\" enabled, and clicking it widens the viewBox", async ({ page }) => {
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+      const home = await viewBox(page);
+      await expect(minusBtn(page)).toBeEnabled();
+      await minusBtn(page).click();
+      const after = await viewBox(page);
+      expect(after.w).toBeGreaterThan(home.w * 1.01);
+    });
+
+    test("panning a pinned card enables Fit, and clicking it returns to the pinned viewBox", async ({ page }) => {
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+      const home = await viewBox(page);
+      await expect(fitBtn(page)).toBeDisabled();
+
+      const b = await svgBox(page);
+      const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+      // A real drag, well past TAP_SLOP_PX (6px), so this pans rather than tapping.
+      await page.mouse.move(cx, cy);
+      await page.mouse.down();
+      await page.mouse.move(cx - 60, cy + 40, { steps: 5 });
+      await page.mouse.up();
+      const panned = await viewBox(page);
+      expect(panned.w).toBeCloseTo(home.w, 3); // same zoom level — only the centre moved
+      expect(Math.abs(panned.x - home.x) + Math.abs(panned.y - home.y)).toBeGreaterThan(1);
+
+      await expect(fitBtn(page)).toBeEnabled();
+      await fitBtn(page).click();
+      expect(await viewBox(page)).toEqual(home);
+    });
+
+    test("zooming out past home with Fit returns to home, not the whole floor", async ({ page }) => {
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+      const fit = await viewBox(page);
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+      const home = await viewBox(page);
+      const b = await svgBox(page);
+      // Zoom out (positive wheel deltaY) past home, towards the whole floor.
+      await ctrlWheel(page, b.x + b.width / 2, b.y + b.height / 2, 600);
+      await expect.poll(async () => (await viewBox(page)).w).toBeGreaterThan(home.w * 1.05);
+      await expect.poll(async () => (await viewBox(page)).w).toBeLessThanOrEqual(fit.w * 1.001);
+      await expect(fitBtn(page)).toBeEnabled(); // not at home: Fit must bring it back
+      await fitBtn(page).click();
+      expect(await viewBox(page)).toEqual(home);
+    });
+
+    test("an unpinned card at fit still has \"−\" and Fit disabled, exactly as before S9.6", async ({ page }) => {
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+      await expect(minusBtn(page)).toBeDisabled();
+      await expect(card(page).locator('css=.fp-zoom button[aria-label="Fit"]')).toBeDisabled();
+      await expect(card(page).locator('css=.fp-zoom button[aria-label="Reset view"]')).toHaveCount(0);
+    });
+
+    test("a pinned card's Fit button reads \"Reset view\", not \"Fit\"", async ({ page }) => {
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+      await expect(card(page).locator('css=.fp-zoom button[aria-label="Reset view"]')).toHaveCount(1);
+      await expect(card(page).locator('css=.fp-zoom button[aria-label="Fit"]')).toHaveCount(0);
+    });
   });
 });
 
