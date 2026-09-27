@@ -4520,7 +4520,8 @@ async function addCssFixtures(page: Page) {
     ["wall", "external", "fence", "edge"].forEach((k, i) => g.walls.push({ id: `css-w-${k}`, a: [1000, 200 + i * 40], b: [1200, 200 + i * 40], kind: k }));
     g.devices.push({ id: "css-out", type: "temp", entity: "sensor.css_out", x: 1040, y: 40 }); // inside css-garden
     // S2.9: types with no fixture elsewhere in the demo, so the colour-pair tests below have something to toggle .on.
-    ["contact", "climate", "tv", "computer", "humidity"].forEach((t, i) => g.devices.push({ id: `css-${t}`, type: t, entity: `sensor.css_${t}`, x: 1900 + i * 40, y: 40 }));
+    // S9.4: speaker joins the list for the same reason — ground floor has none, and the wave-arc pair needs one.
+    ["contact", "climate", "tv", "computer", "humidity", "speaker"].forEach((t, i) => g.devices.push({ id: `css-${t}`, type: t, entity: `sensor.css_${t}`, x: 1900 + i * 40, y: 40 }));
     g.rooms.push({ id: "css-pond", name: "pond", area: "", label: "", kind: "water", pts: [[1800, 200], [1880, 200], [1880, 280], [1800, 280]], wk: Array(4).fill("wall"), entity: "switch.css_pond" });
     g.furniture.push({ id: "css-gate", symbol: "patio-wood", x: 1940, y: 240, rot: 0, w: 100, h: 100, entity: "cover.css_gate" });
     el.layout = l;
@@ -4607,9 +4608,9 @@ test("Opus review CSS pair: a deleted edge is a faint dotted guide, stair treads
 
 test("Opus review CSS pair: the palette variables equal DEVICE_COLOURS, camera and garden sensor paint from them (render.test.ts:598-600, 757)", async ({ page }) => {
   await addCssFixtures(page);
-  const vars = await page.locator("svg g.dev").first().evaluate((e) => { const s = getComputedStyle(e), o: Record<string, string> = {}; for (const k of ["light", "motion", "contact", "heater", "climate", "ac-cool", "ac-heat", "tv", "plug", "computer", "camera", "garden"]) o[k] = s.getPropertyValue(`--fp-dev-${k}`).trim(); return o; });
-  expect(vars).toEqual({ light: "#e0a800", motion: "#d64545", contact: "#d64545", heater: "#e8801a", climate: "#e8801a", "ac-cool": "#2c7fb8", "ac-heat": "#e8801a", tv: "#2c7fb8", plug: "#2c7fb8", computer: "#2c7fb8", camera: "#4a4a48", garden: "#3f8f4f" });
-  for (const k of ["light", "motion", "contact", "heater", "climate", "tv", "plug", "computer", "camera"] as const) expect(vars[k], k).toBe((DEVICE_COLOURS as Record<string, string>)[k]);
+  const vars = await page.locator("svg g.dev").first().evaluate((e) => { const s = getComputedStyle(e), o: Record<string, string> = {}; for (const k of ["light", "motion", "contact", "heater", "climate", "ac-cool", "ac-heat", "tv", "plug", "computer", "camera", "garden", "speaker"]) o[k] = s.getPropertyValue(`--fp-dev-${k}`).trim(); return o; });
+  expect(vars).toEqual({ light: "#e0a800", motion: "#d64545", contact: "#d64545", heater: "#e8801a", climate: "#e8801a", "ac-cool": "#2c7fb8", "ac-heat": "#e8801a", tv: "#2c7fb8", plug: "#2c7fb8", computer: "#2c7fb8", camera: "#4a4a48", garden: "#3f8f4f", speaker: "#2c7fb8" });
+  for (const k of ["light", "motion", "contact", "heater", "climate", "tv", "plug", "computer", "camera", "speaker"] as const) expect(vars[k], k).toBe((DEVICE_COLOURS as Record<string, string>)[k]);
   expect(await camFill(page)).toBe(rgb("#4a4a48"));
   const out = await page.locator("svg g.dev.outdoor path:not(.halo)").first().evaluate((e) => getComputedStyle(e).fill);
   expect(out).toBe(rgb("#3f8f4f"));
@@ -4702,6 +4703,48 @@ test("Opus review CSS pair: S8.13 an open door's alert line is contact red and t
   expect(s.stroke).toBe(rgb(s.want));
   expect(s.pe).toBe("none");
   expect(s.anim).toBe("fp-door");
+});
+
+test("Opus review CSS pair: S9.4 a playing speaker's two arcs pulse from its own colour, staggered, and take no click", async ({ page }) => {
+  await addCssFixtures(page);
+  const s = await page.locator("svg g.dev-speaker").first().evaluate((e) => {
+    e.classList.add("on");
+    const ns = "http://www.w3.org/2000/svg";
+    const w1 = document.createElementNS(ns, "path"), w2 = document.createElementNS(ns, "path");
+    w1.setAttribute("class", "wave");
+    w2.setAttribute("class", "wave w2");
+    e.querySelector(".halo")!.before(w1, w2);
+    const s1 = getComputedStyle(w1), s2 = getComputedStyle(w2);
+    return {
+      dev: getComputedStyle(e).getPropertyValue("--fp-dev").trim(),
+      stroke: s1.stroke, fill: s1.fill, pe: s1.pointerEvents, anim1: s1.animationName, delay1: s1.animationDelay,
+      anim2: s2.animationName, delay2: s2.animationDelay,
+    };
+  });
+  expect(s.dev).toBe("#2c7fb8"); // --fp-dev-speaker, fixed in every theme (S9.4, the same exception as tv/S9.3)
+  expect(s.stroke).toBe(rgb(s.dev));
+  expect(s.fill).toBe("none");
+  expect(s.pe).toBe("none");
+  expect(s.anim1).toBe("fp-wave");
+  expect(s.anim2).toBe("fp-wave");
+  expect(s.delay1).toBe("0s");
+  expect(s.delay2).toBe("0.8s"); // staggered, so the two arcs read as one radiating out after the other
+});
+
+test("Opus review CSS pair: S9.4 under reduced motion the speaker's arcs hold still, same as the ping", async ({ page }) => {
+  await addCssFixtures(page);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const s = await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const g = svg.querySelector("g.dev-speaker")!;
+    g.classList.add("on");
+    const wave = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    wave.setAttribute("class", "wave");
+    g.querySelector(".halo")!.before(wave);
+    const w = getComputedStyle(wave);
+    return { anim: w.animationName, transform: w.transform, opacity: w.opacity };
+  }, EDITOR);
+  expect(s).toEqual({ anim: "none", transform: "matrix(1.5, 0, 0, 1.5, 0, 0)", opacity: "0.6" });
 });
 
 test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-dev per type, icon and halo)", async ({ page }) => {
