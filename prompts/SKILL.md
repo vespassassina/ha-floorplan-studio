@@ -76,6 +76,6 @@ from the repository. It prints `ok`, or one line per problem. Fix and run again 
 
 1. The layout: if you can write files, `layout.json`. If not, one code block containing the JSON object and nothing else in the block.
 2. Straight after it, a short **Guessed** list: every number you inferred, every assumption about north or scale, anything you left out. If there is nothing, write `Guessed: nothing.`
-3. One line telling the user what to do next: open `dist/editor.html` (or the Floorplan Studio panel), **File → Open**, choose `layout.json`, fix what is off, **Save**.
+3. One line telling the user what to do next: open **Floorplan Studio** in the Home Assistant sidebar, **File → Open…**, choose `layout.json`, fix what is off, **Save**.
 
 No other commentary. No praise for the drawing, no explanation of what a polygon is.

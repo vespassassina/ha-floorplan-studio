@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { validate, MAX_TRACE_BYTES, MAX_LAYOUT_BYTES, type Layout } from "../../src/core/schema";
 
-// S7.11: View, Trace image. Every pointer action goes through page.mouse at real coordinates (finding 3).
+// S7.11: Edit, Trace image. Every pointer action goes through page.mouse at real coordinates (finding 3).
 
 const EDITOR = "floorplan-studio-editor";
 const IMG = `${EDITOR} svg image.trace`;

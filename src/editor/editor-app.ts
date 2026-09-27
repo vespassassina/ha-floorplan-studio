@@ -176,7 +176,7 @@ export class FloorplanStudioEditor extends LitElement {
   private addDevType = "";
   /** File, Install code: whether the panel with the ready-to-paste card YAML is open. Fixed, not draggable; closed by its own X or Escape. */
   private installCodeOpen = false;
-  /** S7.11: View, Trace image: whether its panel is open; the two points of a Scale step (null when not scaling); the Export tick, for this session only. */
+  /** S7.11: Edit, Trace image: whether its panel is open; the two points of a Scale step (null when not scaling); the Export tick, for this session only. */
   private traceOpen = false;
   private traceScale: Pt[] | null = null;
   private exportTrace = false;
@@ -2036,7 +2036,7 @@ export class FloorplanStudioEditor extends LitElement {
     const bytes = JSON.stringify(this.st.layout).length;
     if (bytes > MAX_LAYOUT_BYTES) {
       const traced = Object.values(this.st.layout.floors).filter((f) => f.trace).map((f) => f.title).join(", ") || "none";
-      this.errors = [`The plan is ${(bytes / 1048576).toFixed(1)} MB and Home Assistant takes at most ${(MAX_LAYOUT_BYTES / 1048576).toFixed(1)} MB in one save. Floors with a trace image: ${traced}. Remove one (View, Trace image, Remove) or load a smaller scan, then Save again.`];
+      this.errors = [`The plan is ${(bytes / 1048576).toFixed(1)} MB and Home Assistant takes at most ${(MAX_LAYOUT_BYTES / 1048576).toFixed(1)} MB in one save. Floors with a trace image: ${traced}. Remove one (Edit, Trace image…, Remove) or load a smaller scan, then Save again.`];
       return;
     }
     this.errors = [];
