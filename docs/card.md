@@ -41,6 +41,8 @@ floors — ready to paste. See "A premade dashboard" below.
 | `open_color` | red | `#rrggbb`: colours an open door or window (and its pulsing alert line) instead of red. An invalid value is ignored |
 | `icon_size` | `1` | grows icons, names, values and radar dots by this factor, on top of the automatic scale-up on a large plan (see Size, below). A number from `0.5` to `3`; anything else clamps into that range, and a missing or non-numeric value is the default, `1` |
 | `active_list` | `true` | `false` hides the floating panel of active devices — see Active list, below |
+| `center` | unset | `[x, y]`, plan cm: the point a pinned card zooms in on — see A card for one room, below. A non-array, wrong length, or non-finite value is ignored, silently, and the card shows the whole floor |
+| `zoom_level` | `1` | how far in a pinned card starts: `1` is the whole floor, `2` is half its width and height, and so on up to `8`. Anything other than a finite number is the default, `1`; an in-range-but-odd number (`0`, negative, past `8`) clamps instead of being refused |
 
 ```yaml
 type: custom:floorplan-studio-card
@@ -55,6 +57,39 @@ kiosk: false
 icon_size: 1
 active_list: true
 ```
+
+## A card for one room
+
+`center` and `zoom_level` pin a card to a room, corridor or part of a home
+instead of the whole floor, so a dashboard can show several cards, each
+zoomed into a different place. `zoom_level` alone zooms in about the plan's
+own centre; `center` alone (or `zoom_level` at `1`) changes nothing — a
+centre with nothing to zoom into has no effect. The pinned view becomes the
+card's own "home": the fit/reset button, a double-tap, and the zoomed-in
+indicator all return here, not to the whole floor, but `zoom` (pinch, wheel,
+the +/− buttons) still works as usual and can still reach the whole floor
+from there.
+
+The demo's kitchen sits around plan `(650, 200)` — two cards, one on the
+whole ground floor and one pinned to just the kitchen:
+
+```yaml
+type: custom:floorplan-studio-card
+floor: ground
+```
+
+```yaml
+type: custom:floorplan-studio-card
+floor: ground
+center: [650, 200]
+zoom_level: 2.5
+```
+
+The easiest way to get the two numbers for your own home: open the editor,
+zoom and pan to the room you want, then View → **Copy card view**. It copies
+the `center:`/`zoom_level:` lines straight from what the editor is showing,
+ready to paste into the card's YAML. A pinned card is meant for one floor —
+set `floor:` alongside `center`/`zoom_level` if the layout has more than one.
 
 ## Size
 

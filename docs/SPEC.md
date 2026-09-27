@@ -298,7 +298,45 @@ sun: sun.sun           # the entity night: auto reads
 kiosk: false            # true shows only the plan, for a wall tablet: no floor chips, no zoom buttons, taps still act, holding a device does nothing
 icon_size: 1            # 0.5 to 3, default 1: grows icons/names/values/radar dots further, on top of the automatic large-plan scale-up below
 active_list: true       # false hides the floating panel of active devices
+center: [650, 200]      # plan cm, unset by default: pins the card to a room instead of the whole floor
+zoom_level: 2.5         # 1 (default, whole floor) up to MAX_ZOOM; zooms about `center`, or fit's own centre without one
 ```
+
+`center`/`zoom_level` (S9.6): a card can pin a "home" view — a room, corridor
+or part of a home — instead of the whole floor, so several cards can each
+point at a different place. `zoom` was already the pinch/wheel switch, so the
+resting zoom needed its own key. `pinnedView(fit, center, zoomLevel)`
+(`src/card/viewport.ts`) is pure maths: a box `fit.w/zoomLevel` ×
+`fit.h/zoomLevel`, centred on `center` (or `fit`'s own centre without one),
+clamped to `fit` the same way pinch/pan already is, so it can never leave the
+plan. Untrusted config (CLAUDE.md finding 1): unlike `zoom`/`kiosk`, a
+malformed `center` or `zoom_level` never throws — a non-array, wrong length,
+non-finite `center`, or a non-finite `zoom_level`, falls back silently to the
+whole floor, the same as `icon_size`/`open_color`, because a bad value here
+is a typo in a coordinate, not a closed enum a card author chose wrong on
+purpose. `zoom_level` alone zooms about `fit`'s own centre; `center` alone
+(or `zoom_level` at `1`) is a no-op, since `pinnedView` hands back `fit`
+exactly whenever there is nothing narrower to zoom into.
+
+The pin becomes the card's "home": `_home()` returns
+`pinnedView(fit, center, zoomLevel)`, and every place that used to treat
+`fit` as "at rest" — the `fp-zoomed` class, the zoom buttons' own `atFit`/
+disabled state, the reset button (`_fitView`, sets `_view = null`) and a
+double-tap when already at rest — now reads `_home()` instead. `_setView`'s
+own bounds (what pinch/pan/wheel can reach) still clamp against the whole
+`fit`, so a pinned card can still zoom out to see the rest of the floor; only
+where it rests changes. `_scale` (S9.2's icon sizing) deliberately keeps
+reading the whole-floor `fit`, not the pinned box, so a room card's icons are
+the same size as the equivalent whole-floor card's at the same zoom, not
+inflated by the extra zoom the pin itself adds.
+
+The editor's View menu has a "Copy card view" button (`copyCardView`,
+`src/editor/editor-app.ts`) that computes `viewBoxFor(st.f, 60, st.rotation)`
+— the card's own fit, pad 60, not the editor's own pad-80 `fit()`/
+`recenter()` — reads the editor's current view (`st.view`), and writes
+`center: [x, y]` (rounded to whole cm) and `zoom_level: z` (two decimals,
+from the width ratio) to the clipboard, with a "Card view copied." status
+line. A pinned card is meant for one floor; `floor:` picks which one.
 
 `active_list` (S9.5, default `true`): a floating panel over the plan, open by default in the top-left, listing every active device across every floor of the layout, not only the one the plan is showing. "Active" reuses `classOf` (`src/core/render.ts`, exported for this) — the same function that colours the plan — so the list and the plan can never disagree about a device's on/off state; a `light` with `bound` counts through its switch, the same as on the plan. The one addition beyond `classOf`'s own "on": a `vacuum` is listed only while `cleaning`, narrower than `classOf`'s own on-plan colour (which also covers "returning" to the dock) — a robot heading home is winding down, not something to check. A `camera` is listed whatever its state, since a camera is a view, not an on/off thing. `src/core/active.ts`'s `ACTIVE_LIST_RULE` writes down every `DeviceType`'s membership explicitly (`"on"`, `"always"`, `"cleaning"` or `"never"`), tested by iterating `DEVICE_TYPES` (CLAUDE.md finding 17), so a new type is a decision made in the open, not a silent fall-through.
 

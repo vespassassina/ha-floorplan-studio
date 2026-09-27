@@ -34,6 +34,10 @@ Assistant every day.
 - Adding or editing the card shows a form, not raw YAML: theme, floors, fade,
   room glow, zoom, kiosk, night, icon size, open-door colour, the Active
   list, all in the Lovelace UI.
+- A card can pin a `center` and `zoom_level` to one room, corridor or part of
+  a home, so a dashboard can show several cards, each zoomed to a different
+  place. The editor's View menu has a "Copy card view" button that writes
+  the two lines for whatever it's currently showing.
 - **File → Install code** in the editor writes a whole dashboard, not just
   the card, ready to paste and matched to your plan's theme and floors.
 - A scanned or photographed plan can be traced: load it in the editor, scale

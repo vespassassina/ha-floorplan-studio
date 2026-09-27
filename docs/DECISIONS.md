@@ -2,6 +2,32 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 S9.6: a card pinned to one room, `center`/`zoom_level`, not a `home:` shorthand
+
+Diego asked for cards that can each pin a different room, corridor or part of
+a home. Two new keys, `center: [x, y]` (plan cm) and `zoom_level` (1 = the
+whole floor, up to `MAX_ZOOM`): `zoom` was already taken by the pinch/wheel
+switch, so a room's "resting" view needed its own name rather than folding
+into it. Untrusted config (CLAUDE.md finding 1): unlike `zoom`/`kiosk`, a
+malformed `center` or `zoom_level` never throws — it falls back silently to
+the whole floor, the same as `icon_size`/`open_color`, because a wrong number
+here is a typo in a coordinate, not a closed enum where a bad value should be
+caught. `zoom_level` alone zooms about the plan's own centre; `center` alone
+(or `zoom_level` at 1) is a no-op, since a centre with nothing to zoom into
+changes nothing to look at.
+
+The pin becomes the card's "home": the fp-zoomed class, the zoom buttons'
+disabled state, the reset button and a double-tap all return here now, not to
+the whole-floor fit, so a pinned card that is pinch-zoomed out to see the rest
+of the house comes back to its own room, not the plan's edge. `zoom` (pinch,
+wheel, buttons) still works on a pinned card and can still reach the whole
+floor — the pin only changes where "home" is. The S9.2 icon scale keeps
+reading the whole-floor fit, not the pinned box, so a room card's icons are
+the same size as the equivalent whole-floor card's, not blown up by the extra
+zoom. The editor's View menu gets a "Copy card view" button that reads the
+same `viewBoxFor` fit the card itself uses (pad 60, not the editor's own pad
+80) so pasting its two YAML lines reproduces exactly what the editor shows.
+
 ## 2026-09-27 Sprint 9 integration: an open door is red in every theme
 
 Supersedes the default in the S9.1 entry below. `--fp-open-door` defaulted to

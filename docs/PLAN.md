@@ -1966,6 +1966,54 @@ One increment: every task ships in the card, tested, with shots looked at.
   light (on-state and off-state, camera still listed with everything
   else off) — see the report.
 
+### S9.6 A card pinned to one room
+
+- Outcome: a card can set `center: [x, y]` (plan cm) and `zoom_level`
+  (1 = whole floor, up to 8) to focus on a room, corridor or part of a home,
+  so a dashboard can hold several cards each zoomed to a different place.
+  This pinned view becomes the card's own "home": the reset button,
+  `fp-zoomed`, double-tap and the zoom buttons' `atFit` all read it, but
+  pinch/pan/wheel still clamp against the whole floor's fit, and S9.2's icon
+  scale still reads the whole floor, not the pin. Either key alone is
+  honoured; a malformed `center` or `zoom_level` never throws and falls back
+  to the whole floor, the same silent-fallback pattern as `icon_size` and
+  `open_color` (not `zoom`/`kiosk`, which throw). The editor's View menu has
+  a "Copy card view" button that writes `center`/`zoom_level` for whatever
+  the editor is currently showing, against the card's own pad-60 fit; the
+  Edit-card form gets matching Center X, Center Y and Zoom level fields.
+  `docs/card.md`, `docs/SPEC.md`, `CHANGELOG.md` and `README.md` cover the
+  feature; `docs/DECISIONS.md` has the why.
+- Test: vitest maths over `pinnedView`/`sameView` (asymmetric values,
+  clamping, zoom_level alone, center alone, each malformed value, icon scale
+  unaffected); Playwright card tests (pinned viewBox on load, zoom_level
+  alone, center alone, malformed values, pinch/wheel/reset/double-tap
+  returning to the pinned view, a real click on a device inside the pinned
+  view, icon scale matching a whole-floor card); Playwright editor tests
+  (Copy card view writes the two YAML lines and the status line, and
+  round-trips within 1cm for a same-aspect viewport); config-editor spec
+  tests for the three new form fields.
+- Done, 2026-09-27. Tests written first and watched fail before the code:
+  the vitest maths tests failed against the original `viewport.ts` (no
+  `pinnedView`/`sameView`); reverting the finished `src/card/viewport.ts`
+  and `src/card/floorplan-studio-card.ts` once (via a tagged stash) failed 2
+  of the 7 new `card.spec.ts` tests meaningfully (the asymmetric-pin and
+  zoom_level-alone maths cases); reverting the finished
+  `src/editor/editor-app.ts` once failed both new `editor.spec.ts` tests
+  (locator timeout on the missing "Copy card view" button), then both were
+  restored and re-verified green. All 9 new Playwright tests green at
+  `--repeat-each=10` (7 card.spec.ts: 70/70; 2 editor.spec.ts: 20/20).
+  Full suites green after the last edit: `npm run lint` exit 0; unit tests
+  1197/1197 (`npm test`); full Playwright suite (`PW_PORT=5330`) 624 passed,
+  1 skipped, exit 0. `npm run shots` run; also rendered a standalone
+  side-by-side of a whole-floor card and a card pinned to `center: [650,
+  200], zoom_level: 2.5` from a scratch script and looked at it: the pinned
+  card shows only the kitchen at the right zoom, the same icon size as the
+  whole-floor card, and the same Active panel and lit-light glow. Skipped,
+  and said so: `center`/`zoom_level` were not added to the editor's
+  File → Install code YAML generator, since that YAML targets one default
+  whole-floor dashboard and a per-floor pin doesn't fit that generator
+  cleanly.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).
