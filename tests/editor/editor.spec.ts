@@ -536,6 +536,58 @@ test("S4.24: the contact sensor picker follows the selected door, several allowe
   expect(await comboOptionValues(page, "#dsens")).toContain("binary_sensor.demo_garage_door"); // free again
 });
 
+// ---- S10.2: attaching a placed sensor pulls its icon off the plan; detaching returns it to Add, not the plan -----
+
+test("S10.2: attaching a placed contact sensor to its door pulls the icon off the plan; Undo/Redo restore both; Remove sends it to Add", async ({ page }) => {
+  const pick = async (i: number) => { const c = await centre(page, `line[data-d="${i}"]`); await page.mouse.click(c.x, c.y); };
+  // The demo's garage contact sensor is catalogued but not placed; place it next to the Garage door first, the
+  // way a user drops a sensor before deciding to attach it.
+  await openDevice(page);
+  await devItem(page, "contact-garage").click();
+  await page.locator("#addDevClose").click();
+  const before = await groundOf(page);
+  expect(before.devices.some((d) => d.id === "contact-garage")).toBe(true);
+  const iconsBefore = await page.locator("g[data-x]").count();
+
+  await pick(2); // Garage door
+  await pickEntity(page, "#dsens", "binary_sensor.demo_garage_door");
+
+  const attached = await groundOf(page);
+  expect(attached.doors[2].sensors).toEqual(["binary_sensor.demo_garage_door"]);
+  expect(attached.devices.some((d) => d.id === "contact-garage")).toBe(false); // the icon is gone...
+  await expect(page.locator("g[data-x]")).toHaveCount(iconsBefore - 1);
+  await expect(page.locator("#dsens-rm0")).toBeVisible(); // ...but the door lists it
+  expect(await page.locator("#status").textContent()).toContain("its icon left the plan");
+
+  // A pointerdown on the canvas re-focuses the editor host (see onDown in editor-app.ts); without it, real DOM
+  // focus is left on the combo's shadow-nested input and Chromium never delivers the Ctrl+Z that follows.
+  await pick(2);
+  await page.keyboard.press("Control+z");
+  const undone = await groundOf(page);
+  expect(undone.doors[2].sensors).toBeUndefined();
+  expect(undone.devices.some((d) => d.id === "contact-garage")).toBe(true); // the icon is back
+  await expect(page.locator("g[data-x]")).toHaveCount(iconsBefore);
+
+  await page.locator("#redo").click();
+  const redone = await groundOf(page);
+  expect(redone.doors[2].sensors).toEqual(["binary_sensor.demo_garage_door"]);
+  expect(redone.devices.some((d) => d.id === "contact-garage")).toBe(false); // gone again
+  await expect(page.locator("g[data-x]")).toHaveCount(iconsBefore - 1);
+
+  // Remove on the row: the attachment goes, no icon reappears, and the entity is offered in Add again.
+  // (undo/redo clear the selection, same as every other undo/redo in this suite, so the door panel needs reselecting.)
+  await pick(2);
+  await page.locator("#dsens-rm0").click();
+  const detached = await groundOf(page);
+  expect(detached.doors[2].sensors).toBeUndefined();
+  expect(detached.devices.some((d) => d.id === "contact-garage")).toBe(false); // still no icon
+  await expect(page.locator("g[data-x]")).toHaveCount(iconsBefore - 1);
+  await expect(devItem(page, "contact-garage")).toHaveCount(0); // not yet: the panel isn't open
+  await openDevice(page);
+  await expect(devItem(page, "contact-garage")).toHaveCount(1); // back in Add
+  await page.locator("#addDevClose").click();
+});
+
 // Opus review of S8.9: the "preview open" overlay was a fixed 22 cm regardless of the wall a door sat on, unlike
 // the door's own stroke (S8.9 part 2, wallWidthAt). The Patio door sits on an external wall (20 cm), not the old
 // fixed 22.
