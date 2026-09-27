@@ -498,6 +498,10 @@ describe("S9.3: a TV is a fixed blue in every theme", () => {
     expect(light).toContain("--fp-dev-tv:#2c7fb8");
     expect(dark).toContain("--fp-dev-tv:#2c7fb8");
   });
+
+  it("Opus review finding 11: solarized's --fp-dev-speaker is its own blue, #268bd2, matching --fp-dev-tv, not the generic #2c7fb8", () => {
+    expect(themeBlock("solarized")).toContain("--fp-dev-speaker:#268bd2");
+  });
 });
 
 describe("viewBoxFor", () => {
