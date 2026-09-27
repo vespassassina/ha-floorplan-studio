@@ -434,6 +434,14 @@ card. The editor is unchanged — it always passed its own zoom, never `1`.
   already drawn; the view scrolls to it. A door, window or opening still lands
   on the wall nearest the middle of the view: it is of no use off the house.
 - Device: entities not yet placed, grouped by type then area, with a search.
+  "Not yet placed" (S10.5) excludes an entity attached to a door's
+  sensors/vibration/locks/cover, a heater's TRVs/temperature sensors, an ac's
+  linked entities, or an unlinked item's attached list: it is in use, not
+  unplaced, even though attaching it removed its own icon (S10.2) and it is
+  no longer in `placedEntities`. Every other list that offers an entity to
+  place (the room's "Add device from &lt;area&gt;" menu, the Place popup) excludes
+  it the same way. A light's `bound` switch and its `motion` link are not
+  attachments in this sense and stay offered normally.
 - Every field that picks a Home Assistant entity (a device's own entity,
   "Controlled by", a door's cover, room/furniture "shows the state of", room
   sensor, radar targets, and every multi-attach list of sensors or locks) is
@@ -442,6 +450,16 @@ card. The editor is unchanged — it always passed its own zoom, never `1`.
   domain); arrow keys move, Enter picks, Escape restores the previous value
   and closes without picking. A pick is one undo step, same as a `<select>`;
   picking the value already set commits nothing.
+- Attaching an entity (S10.2) to a door's contact/vibration/lock list or
+  cover, a heater's TRVs or temperature sensors, an ac's linked entities, or
+  an unlinked item's attached list: if that entity is also placed as an icon
+  on the plan, the icon is removed from every floor in the same undo step —
+  it is now shown through the thing it is attached to, not doubled on the
+  plan. The picker still offers a placed entity, labelled "(on plan)".
+  Detaching (Remove, or clearing a cover) only removes the attachment; the
+  entity stays in the catalog and shows in Add again, but no icon reappears
+  (a placed icon is a deliberate placement the editor does not redo for
+  you). A light's `bound` switch is untouched either way.
 - Floors: add, rename, reorder, delete (never the last one). A new floor
   inherits the outline and the stairs of the first floor in the list. Stairs
   are added to every floor at the same position, and deleted from one floor at

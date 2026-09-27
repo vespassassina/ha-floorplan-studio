@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Attaching a placed sensor to a door, heater, ac or other item now pulls its
+  icon off the plan — it is shown through the thing it is attached to, not
+  doubled. Detaching sends it back to Add, not back onto the plan.
+- Fixed: an entity attached to a door, heater, ac or unlinked item no longer
+  shows in Add (or any other "place this entity" list) while it stays
+  attached, so it can no longer be placed a second time next to what already
+  reads it.
+
 ## 0.12.9
 
 - Every entity picker in the editor is now a filterable combo box: type to

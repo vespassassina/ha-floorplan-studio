@@ -2,6 +2,69 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 S10.5: "in use" beats "unplaced" — an attached entity is never offered in Add either
+
+The field bug: S10.2 pulls an attached entity's icon off the plan (it is now
+shown through the door/heater/ac/unlinked item it is attached to), so the
+entity drops out of `placedEntities`. Every list that offers an entity to
+place ("not yet placed") only ever checked `placedEntities`, so the same
+entity re-appeared in Add, the room's "Add device from &lt;area&gt;" menu and the
+Place popup — a user could place a second icon right next to the door that
+already reads the sensor.
+
+Decided: "not yet placed" means neither placed **nor attached**. A new core
+helper, `attachedEntities(layout)`, collects every entity named in a door's
+`sensors`/`vibration`/`locks`/`cover`, a device's `trvs`/`tempSensors`/
+`linked`, or an unlinked item's `attached` — across every floor — and every
+placing list (`unplacedCatalog`, `unplacedHaEntities`, `placeableDevicesInArea`,
+`unplacedDevicesInArea`, `addCandidates`, and the `placed` flag in
+`availableEntities`, the File > Export snapshot) subtracts it, the same way
+each already subtracts `placedEntities`.
+
+Two fields that look like attachments are deliberately excluded:
+
+- A light's `bound` switch. It never loses its own icon (CLAUDE.md's domain
+  notes: "a switch may keep its own icon") — it was never pulled by
+  `attachEntity` to begin with, so nothing here needs to change for it.
+- A light's `motion` link, a person's `room` sensor, and a radar's `targets`
+  pairs. All three are set through a plain commit, never `EditorState.attachEntity`
+  — none of them removes an icon, so each stays independently placeable, same
+  as before S10.2.
+
+The attach pickers themselves (`doorAttachChoices`, `deviceAttachChoices`,
+`unlinkedAttachChoices`, `coverChoices`) are unchanged: they already handle
+"attached elsewhere on this kind of list" their own way, and still offer a
+placed entity labelled "(on plan)" — that label is informational, not a
+placing list, so S10.5 leaves it alone.
+
+## 2026-09-27 S10.2: detaching an attached sensor returns it to Add, never back onto the plan
+
+Diego's request: attaching a placed sensor to a door (or a heater, ac, or
+unlinked item) pulls its icon off the plan — it is shown through the thing
+it senses, not doubled. The open question was what happens on the way back:
+does Remove put the icon back where it stood, or send the entity to Add like
+any other removed device?
+
+Decided with Diego: **Add**, same as "Remove from plan" on a device panel.
+Reasons:
+
+- The plan has no record of where the icon used to be once it is gone — the
+  device panel's own "Remove from plan" already forgets a device's `x, y`
+  for exactly this reason, and reusing that one behaviour (rather than a
+  second one that reconstructs a position) is the simpler design (CLAUDE.md
+  section 8: KISS, a helper only at a real boundary).
+- A user who detaches a sensor rarely wants it back exactly where it was —
+  they are usually reattaching it elsewhere, or done with it on the plan
+  altogether. Add is one click away either way; guessing a placement wrong
+  costs more than asking again.
+- Symmetry: attach removes an icon the same way delete does (`f.devices`
+  splice), so detach restoring it the same way delete's "returns to Add"
+  does is the one behaviour to test and explain, not two.
+
+The catalog entry itself is never touched by either direction — only
+`f.devices` (or `f.floors[k].devices`) gains or loses an entry, exactly like
+placing and removing any other catalogued device.
+
 ## 2026-09-27 S10.1: a custom `<fp-combo>`, not `<datalist>` or `ha-entity-picker`; device entities lose one level of nesting
 
 Diego asked for a filterable combo box on every entity picker. Two off-the-

@@ -1,5 +1,5 @@
 import type { AvailableEntity, CatalogEntry, Device, DeviceType, Layout } from "./schema";
-import { placedEntities, unplacedCatalog } from "./bind";
+import { attachedEntities, placedEntities, unplacedCatalog } from "./bind";
 
 /** What the host (the HA panel) knows about Home Assistant and hands to the editor. Standalone there is none. */
 export interface HaData {
@@ -106,12 +106,14 @@ export function placeableInArea(l: Layout, ha: HaData, area: string): HaData["en
  * S4.14: the palette's source list — every HA entity that is neither a device on any floor nor already in
  * `layout.catalog`. Both are "already the plan's", whether or not the device is currently placed (`unplacedCatalog`
  * covers the catalogued-but-unplaced case elsewhere); this only surfaces entities that have never entered the plan at all.
+ * S10.5: an entity attached to a door/heater/ac/unlinked item (`attachedEntities`) is "in use", not "unplaced" — left
+ * out here too, even when it has no catalog entry of its own.
  * Hostile or missing `entities` never throws — an empty list, not a crash.
  */
 export function unplacedHaEntities(l: Layout, ha: HaData): HaData["entities"] {
   if (!Array.isArray(ha?.entities)) return [];
-  const placed = placedEntities(l), catalogued = new Set(l.catalog.map((c) => c.entity));
-  return ha.entities.filter((e) => !placed.has(e.id) && !catalogued.has(e.id));
+  const placed = placedEntities(l), catalogued = new Set(l.catalog.map((c) => c.entity)), attached = attachedEntities(l);
+  return ha.entities.filter((e) => !placed.has(e.id) && !catalogued.has(e.id) && !attached.has(e.id));
 }
 
 /**
@@ -120,10 +122,12 @@ export function unplacedHaEntities(l: Layout, ha: HaData): HaData["entities"] {
  * connection of its own. `room` is filled only when the entity's own area already has a drawn room on this
  * plan; a room can have more than one HA area feeding into it in principle, but this takes the first match, the
  * same "first wins" rule `nameIn`'s callers already use elsewhere. Hostile or missing `entities` never throws.
+ * S10.5: `placed` also covers an entity attached to a door/heater/ac/unlinked item (`attachedEntities`) — it has no
+ * icon of its own right now, but an agent must not place it either, same as a genuinely placed one.
  */
 export function availableEntities(l: Layout, ha: HaData): AvailableEntity[] {
   if (!Array.isArray(ha?.entities)) return [];
-  const placed = placedEntities(l);
+  const placed = placedEntities(l), attached = attachedEntities(l);
   const roomByArea = new Map<string, string>();
   for (const f of Object.values(l.floors)) for (const r of f.rooms) if (r.area && !roomByArea.has(r.area)) roomByArea.set(r.area, r.name);
   const out: AvailableEntity[] = [];
@@ -140,7 +144,7 @@ export function availableEntities(l: Layout, ha: HaData): AvailableEntity[] {
       ...(areaName ? { areaName } : {}),
       ...(room ? { room } : {}),
       ...(e.dc ? { dc: e.dc } : {}),
-      placed: placed.has(e.id),
+      placed: placed.has(e.id) || attached.has(e.id),
     });
   }
   return out;
@@ -353,13 +357,16 @@ function deviceRows(ents: HaData["entities"], nameOf: Map<string, string>, devic
  * so one sibling can sit in a different area than the device's main entity. The main entity is picked from ALL of
  * the device's entities first (never a subset already filtered to this area), and only then is the device offered
  * here when that main entity's own area is this one — never a lesser sibling standing in for it.
+ *
+ * S10.5: an entity attached to a door/heater/ac/unlinked item (`attachedEntities`) is excluded the same as a placed
+ * one — it is "in use", not "unplaced", even though attaching it pulled its icon off the plan.
  */
 export function placeableDevicesInArea(l: Layout, ha: HaData, area: string): HaData["entities"] {
   if (!Array.isArray(ha?.entities) || !area) return [];
   const deviceless = placeableInArea(l, { ...ha, entities: ha.entities.filter((e) => !e?.dev) }, area);
   // S8.9 defect 2: placement is decided per gang entity inside deviceRows itself, not by a whole-device pre-check
   // here — `placedEntities` (the plan's own entities), never `placedDeviceIds`, which would hide L2 whenever L1 is placed.
-  const placedIds = placedEntities(l);
+  const placedIds = new Set([...placedEntities(l), ...attachedEntities(l)]);
   const nameOf = deviceNames(ha);
   const catalogOf = new Map(unplacedCatalog(l).map((c) => [c.entity, c]));
   const devRows: HaData["entities"] = [];
@@ -377,10 +384,11 @@ export function placeableDevicesInArea(l: Layout, ha: HaData, area: string): HaD
  * keeps every type, noise included (that menu has always shown everything the area has, `placeArea`'s popup is the
  * one that filters noise). Placed is checked against `placedEntities` alone, matching this menu's own history —
  * unlike the Add panel's device rows, it has never excluded a merely catalogued entity.
+ * S10.5: an attached entity (`attachedEntities`) is excluded here too — "in use", not "unplaced".
  */
 export function unplacedDevicesInArea(l: Layout, ha: HaData | undefined, area: string | undefined): HaData["entities"] {
   if (!ha || !Array.isArray(ha.entities) || !area) return [];
-  const placed = placedEntities(l);
+  const placed = new Set([...placedEntities(l), ...attachedEntities(l)]);
   const loose: HaData["entities"] = [];
   for (const e of ha.entities) {
     if (!e || typeof e.id !== "string" || e.area !== area || e.dev || placed.has(e.id)) continue;
@@ -451,6 +459,8 @@ function locateEntity(l: Layout, ha: HaData | null, entityId: string, fallbackRo
  * device registry and still placing the catalog entry itself, so its id/type/room survive. A device with no
  * catalogued entity at all still gets its usual `ha-dev:` row. `ha` null (standalone, or before the panel has
  * loaded it) still returns the catalog half, unmerged — there is no device registry to merge against.
+ * S10.5: an entity attached to a door/heater/ac/unlinked item (`attachedEntities`) is excluded the same as a placed
+ * one, both from the plain catalog loop (`unplacedCatalog` already does this) and from the device-row loop below.
  */
 export function addCandidates(l: Layout, ha: HaData | null): AddCandidate[] {
   const out: AddCandidate[] = [];
@@ -459,7 +469,7 @@ export function addCandidates(l: Layout, ha: HaData | null): AddCandidate[] {
   const devCandidates: AddCandidate[] = [];
 
   if (ha) {
-    const placedIds = placedEntities(l);
+    const placedIds = new Set([...placedEntities(l), ...attachedEntities(l)]);
     const nameOf = deviceNames(ha);
     for (const [devId, ents] of byDevice(ha.entities)) {
       const gangs = gangEntities(ents);

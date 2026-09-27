@@ -654,6 +654,36 @@ export class EditorState {
   }
 
   /**
+   * S10.2: attaches `entity` to a door, heater, ac or unlinked item (`apply` writes the attachment into the current
+   * floor) and, in the same undo step, pulls its device icon off every floor — a manually placed sensor that is now
+   * attached to what it senses no longer needs its own icon. `keepDeviceId` spares one device (the heater/ac's own),
+   * belt-and-suspenders alongside `deviceAttachChoices` already excluding a device's own entity from its choices.
+   * The catalog entry is untouched either way, so the entity still shows in Add once detached (S10.2 decision,
+   * `docs/DECISIONS.md`). Returns `changed: false` when `apply` wrote nothing (an empty entity, or a no-op);
+   * `pulled: true` when an icon was actually removed, so the caller can tell the difference in its status line.
+   */
+  attachEntity(entity: string, apply: (f: Floor) => void, keepDeviceId?: string): { changed: boolean; pulled: boolean } {
+    if (!entity) return { changed: false, pulled: false };
+    const next = structuredClone(this.layout);
+    apply(next.floors[this.floor]);
+    const selDevId = this.sel?.t === "dev" ? this.f.devices[this.sel.i]?.id : undefined;
+    let pulled = false;
+    for (const fl of Object.values(next.floors)) {
+      const before = fl.devices.length;
+      fl.devices = fl.devices.filter((d) => d.id === keepDeviceId || d.entity !== entity);
+      if (fl.devices.length !== before) pulled = true;
+    }
+    if (JSON.stringify(next) === JSON.stringify(this.layout)) return { changed: false, pulled: false };
+    this.snapshot();
+    this.layout = next;
+    if (selDevId !== undefined) {
+      const ni = this.f.devices.findIndex((d) => d.id === selDevId);
+      this.sel = ni >= 0 ? { t: "dev", i: ni } : null;
+    }
+    return { changed: true, pulled };
+  }
+
+  /**
    * S4.6: what a switch's "Controls..." automation may target — every placed light, switch or plug except the
    * switch's own entity, plus every Home Assistant group (light or motion groups both list here; a group is not
    * a plan device, so it is not in `layout.catalog` and carries no room).
