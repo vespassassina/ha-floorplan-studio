@@ -10,9 +10,10 @@ vi.mock("../../src/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/core")>();
   return { ...actual, renderFloor: vi.fn(actual.renderFloor) };
 });
-import { renderFloor } from "../../src/core";
+import { renderFloor, viewBoxFor } from "../../src/core";
 import { FloorplanStudioCard } from "../../src/card/floorplan-studio-card";
 import { HOLD_MS } from "../../src/card/actions";
+import { MAX_ZOOM } from "../../src/card/viewport";
 
 const L = demo as unknown as Layout;
 const lastRenderState = () => (renderFloor as unknown as Mock).mock.calls.at(-1)![1] as RenderOpts;
@@ -1489,6 +1490,118 @@ describe("FloorplanStudioCard", () => {
       el.hass = stubHass() as never;
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+    });
+  });
+
+  // S9.6: a card pinned to one room, corridor or part of a home via `center`/`zoom_level`. `fit` below is the
+  // ground floor's own real viewBoxFor box (60 cm pad, no rotate), computed the same way render() computes it —
+  // asserting against a literal box here would silently stop meaning anything the day the demo layout changes.
+  describe("S9.6: a card pinned to one room (center, zoom_level)", () => {
+    const viewBox = (el: FloorplanStudioCard) => {
+      const [x, y, w, h] = el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number);
+      return { x: x!, y: y!, w: w!, h: h! };
+    };
+    const fit = () => viewBoxFor(L.floors.ground, 60);
+
+    async function withConfig(config: Record<string, unknown>) {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "ground", ...config });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      return el;
+    }
+
+    it("center and zoom_level together: a box of fit/zoom size, centred on the asymmetric point given, not fit's own centre", async () => {
+      const el = await withConfig({ center: [300, 700], zoom_level: 2.5 });
+      const box = viewBox(el);
+      const f = fit();
+      expect(box.w).toBeCloseTo(f.w / 2.5, 6);
+      expect(box.h).toBeCloseTo(f.h / 2.5, 6);
+      expect(box.x + box.w / 2).toBeCloseTo(300, 6);
+      expect(box.y + box.h / 2).toBeCloseTo(700, 6);
+      // Not fit's own centre — an asymmetric input must give an asymmetric result (finding 4: a version that
+      // silently ignored `center` and only applied `zoom_level` about fit's middle would pass a naive test too).
+      expect(box.x + box.w / 2).not.toBeCloseTo(f.x + f.w / 2, 0);
+    });
+
+    it("clamps a centre near the plan edge to stay on the plan (the same clamp() every zoom gesture uses)", async () => {
+      const f = fit();
+      const el = await withConfig({ center: [f.x - 5000, f.y - 5000], zoom_level: 6 });
+      const box = viewBox(el);
+      expect(box.w).toBeCloseTo(f.w / 6, 6);
+      const ox = Math.min(box.x + box.w, f.x + f.w) - Math.max(box.x, f.x);
+      const oy = Math.min(box.y + box.h, f.y + f.h) - Math.max(box.y, f.y);
+      expect(ox).toBeCloseTo(box.w / 3, 3);
+      expect(oy).toBeCloseTo(box.h / 3, 3);
+    });
+
+    it("zoom_level alone zooms about fit's own centre", async () => {
+      const el = await withConfig({ zoom_level: 4 });
+      const box = viewBox(el);
+      const f = fit();
+      expect(box.w).toBeCloseTo(f.w / 4, 6);
+      expect(box.x + box.w / 2).toBeCloseTo(f.x + f.w / 2, 6);
+      expect(box.y + box.h / 2).toBeCloseTo(f.y + f.h / 2, 6);
+    });
+
+    it("center alone (zoom_level unset) changes nothing: the box is fit exactly", async () => {
+      const el = await withConfig({ center: [123, 456] });
+      expect(viewBox(el)).toEqual(fit());
+    });
+
+    it("center alone with zoom_level explicitly 1 also changes nothing", async () => {
+      const el = await withConfig({ center: [123, 456], zoom_level: 1 });
+      expect(viewBox(el)).toEqual(fit());
+    });
+
+    it("neither key set: fit, exactly as before S9.6", async () => {
+      const el = await withConfig({});
+      expect(viewBox(el)).toEqual(fit());
+    });
+
+    it("zoom_level clamps into [1, MAX_ZOOM]: 0, a negative number and past MAX_ZOOM all clamp rather than being refused", async () => {
+      const f = fit();
+      for (const [given, want] of [[0, 1], [-3, 1], [50, MAX_ZOOM]] as const) {
+        const el = await withConfig({ zoom_level: given });
+        expect(viewBox(el).w, `zoom_level ${given}`).toBeCloseTo(f.w / want, 6);
+      }
+    });
+
+    it("a malformed center is ignored, silently (CLAUDE.md finding 1): never thrown on, box falls back to fit/zoom_level about the centre", async () => {
+      const f = fit();
+      for (const bad of [[1, 2, 3], [1], "nope", 5, null, [Number.NaN, 1], ["a", "b"]] as unknown[]) {
+        const el = await withConfig({ center: bad, zoom_level: 3 });
+        const box = viewBox(el);
+        expect(box.w, `center ${JSON.stringify(bad)}`).toBeCloseTo(f.w / 3, 6);
+        expect(box.x + box.w / 2, `center ${JSON.stringify(bad)}`).toBeCloseTo(f.x + f.w / 2, 6);
+      }
+    });
+
+    it("a malformed zoom_level is ignored, silently: falls back to 1 (fit), never thrown on", async () => {
+      for (const bad of ["big", Number.NaN, null, undefined, [2]] as unknown[]) {
+        const el = await withConfig({ zoom_level: bad });
+        expect(viewBox(el), `zoom_level ${JSON.stringify(bad)}`).toEqual(fit());
+      }
+    });
+
+    it("does not throw setConfig, unlike the typo-throwing zoom/kiosk keys — center/zoom_level always fall back", () => {
+      const el = document.createElement("floorplan-studio-card") as FloorplanStudioCard;
+      expect(() => el.setConfig({ layout: structuredClone(L), center: "nonsense" as never, zoom_level: "nonsense" as never })).not.toThrow();
+    });
+
+    it("the icon scale (S9.2) is unaffected by a pin: same scale with or without center/zoom_level", async () => {
+      const withoutPin = await withConfig({});
+      const scaleWithoutPin = lastRenderState().scale;
+      expect(withoutPin).toBeTruthy();
+      const withPin = await withConfig({ center: [300, 700], zoom_level: 3 });
+      expect(lastRenderState().scale).toBe(scaleWithoutPin);
+      expect(withPin).toBeTruthy();
+    });
+
+    it("the fp-zoomed class reads against the pinned home, not the whole floor: a pinned card is not \"zoomed\" at rest", async () => {
+      const el = await withConfig({ center: [300, 700], zoom_level: 3 });
+      const svg = el.shadowRoot!.querySelector("svg")!;
+      expect(svg.getAttribute("class")).toBe("fp-zoomable");
     });
   });
 });

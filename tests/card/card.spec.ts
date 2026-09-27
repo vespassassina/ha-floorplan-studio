@@ -644,6 +644,135 @@ test.describe("S7.4 zoom and pan", () => {
   });
 });
 
+// S9.6: a card pinned to one room, corridor or part of a home via `center`/`zoom_level`, so several cards can each
+// point at a different place. The demo's kitchen light (`g[data-x="1"]`) sits at plan (650, 200) — see
+// demo/layout.json — so it makes a natural, asymmetric pin: not the plan's own centre, and a room worth aiming a
+// card at.
+test.describe("S9.6 a card pinned to one room", () => {
+  test.use({ viewport: { width: 700, height: 900 } });
+
+  type VB = { x: number; y: number; w: number; h: number };
+  const card = (page: Page) => page.locator("floorplan-studio-card");
+  const viewBox = (page: Page): Promise<VB> =>
+    card(page).evaluate((el) => {
+      const [x, y, w, h] = el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number);
+      return { x: x!, y: y!, w: w!, h: h! };
+    });
+  const svgBox = async (page: Page) => (await card(page).locator("css=svg").first().boundingBox())!;
+  const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+  const states = () => ({ "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+
+  async function ctrlWheel(page: Page, x: number, y: number, dy: number) {
+    await page.mouse.move(x, y);
+    await page.keyboard.down("Control");
+    await page.mouse.wheel(0, dy);
+    await page.keyboard.up("Control");
+  }
+
+  test("a pinned center + zoom_level is the resting viewBox on load, not the whole-floor fit", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+    const home = await viewBox(page);
+    expect(home.w).toBeCloseTo(fit.w / 2, 3);
+    expect(home.h).toBeCloseTo(fit.h / 2, 3);
+    expect(home.x + home.w / 2).toBeCloseTo(650, 0);
+    expect(home.y + home.h / 2).toBeCloseTo(200, 0);
+    // Not fit's own centre (finding 4: a bug that always centred on fit would pass a symmetric-centre test too).
+    expect(Math.abs(home.x + home.w / 2 - (fit.x + fit.w / 2))).toBeGreaterThan(5);
+  });
+
+  test("zoom_level alone (no center) zooms about fit's own centre", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), zoom_level: 2 }, states());
+    const home = await viewBox(page);
+    expect(home.w).toBeCloseTo(fit.w / 2, 3);
+    expect(home.x + home.w / 2).toBeCloseTo(fit.x + fit.w / 2, 1);
+    expect(home.y + home.h / 2).toBeCloseTo(fit.y + fit.h / 2, 1);
+  });
+
+  test("center alone (zoom_level unset, or 1) changes nothing: the viewBox is fit exactly", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200] }, states());
+    expect(await viewBox(page)).toEqual(fit);
+
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 1 }, states());
+    expect(await viewBox(page)).toEqual(fit);
+  });
+
+  test("a malformed center or zoom_level never throws and falls back to the whole floor", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+
+    for (const bad of [{ center: "650,200" }, { center: [650] }, { center: [Number.NaN, 200] }, { center: [650, Number.POSITIVE_INFINITY] }, { zoom_level: "2" }, { zoom_level: Number.NaN }]) {
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), ...bad }, states());
+      expect(await viewBox(page), JSON.stringify(bad)).toEqual(fit);
+    }
+  });
+
+  test("with zoom on, pinch/wheel zooming out then Fit (and a double-tap reset) return to the pinned view, not the whole floor", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+    const home = await viewBox(page);
+    const b = await svgBox(page);
+
+    // Zoom in first (so the pinned card can still reach the whole floor, per the S9.6 spec), then use the Fit
+    // button to come back — it must land on `home`, not the plan's own `fit` (which is twice as wide).
+    await ctrlWheel(page, b.x + b.width / 2, b.y + b.height / 2, -300);
+    await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(home.w * 0.95);
+    const fitBtn = card(page).locator('css=.fp-zoom button[aria-label="Fit"]');
+    await fitBtn.click();
+    expect(await viewBox(page)).toEqual(home);
+
+    // A double-tap resets the same way (S7.4's own reset path, `_fitView`, shared with the pinned "home").
+    const x = b.x + 10, y = b.y + b.height - 10;
+    await page.mouse.dblclick(x, y);
+    await page.waitForTimeout(50);
+    // The first double-tap, at fit already, zooms in 2x about the tap point instead of doing nothing.
+    await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(home.w * 0.95);
+    await page.mouse.dblclick(x, y);
+    await expect.poll(() => viewBox(page)).toEqual(home);
+  });
+
+  test("a real click on a device inside the pinned view still hits g[data-x] and toggles it; the Active panel still works", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+    const light = card(page).locator('css=g[data-x="1"]'); // the kitchen light, right where the card is pinned
+    const lb = (await light.boundingBox())!;
+    // Finding 3: a real mouse click at real coordinates, not a dispatched event on an inner element.
+    await page.mouse.click(lb.x + lb.width / 2, lb.y + lb.height / 2);
+    expect(await calls(page)).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]);
+
+    await expect(card(page).locator("css=.fp-active")).toHaveCount(1);
+    await expect(card(page).locator("css=.fp-active-row")).not.toHaveCount(0);
+  });
+
+  test("the icon scale matches the whole-floor card at the same zoom: S9.2's scale still reads fit, not the pin", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const plainScale = await card(page).evaluate((el) => el.shadowRoot!.querySelector('g[data-x="1"]')!.getAttribute("transform"));
+
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+    const pinnedScale = await card(page).evaluate((el) => el.shadowRoot!.querySelector('g[data-x="1"]')!.getAttribute("transform"));
+    expect(pinnedScale).toBe(plainScale);
+  });
+});
+
 test.describe("S7.4 touch", () => {
   test.use({ viewport: { width: 700, height: 900 }, hasTouch: true });
 

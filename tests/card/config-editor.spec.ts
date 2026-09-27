@@ -287,3 +287,85 @@ test("an out-of-range icon_size clamps into 0.5..3 rather than being refused", a
   detail = (await events(page)).at(-1) as { config: { icon_size?: number } };
   expect(detail.config.icon_size).toBe(3);
 });
+
+// S9.6: the Center X/Y and Zoom level fields — same shape as icon_size above (a key dropped from the payload at
+// its default, an emptied field falling back), but Center is a pair written from two boxes together.
+test("Center X/Y and Zoom level are empty/1 by default", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#center_x")).toHaveValue("");
+  await expect(editor.locator("#center_y")).toHaveValue("");
+  await expect(editor.locator("#zoom_level")).toHaveValue("1");
+});
+
+test("setConfig fills Center X/Y and Zoom level from center/zoom_level", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo, center: [300, 725], zoom_level: 2.5 });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#center_x")).toHaveValue("300");
+  await expect(editor.locator("#center_y")).toHaveValue("725");
+  await expect(editor.locator("#zoom_level")).toHaveValue("2.5");
+});
+
+test("filling both Center fields emits config.center as a pair; either one emptied drops the key", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await editor.locator("#center_x").fill("150");
+  await editor.locator("#center_x").blur();
+  // Only X filled so far: not a valid pair yet, so no center in the payload.
+  let detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("center" in detail.config).toBe(false);
+
+  await editor.locator("#center_y").fill("640");
+  await editor.locator("#center_y").blur();
+  detail = (await events(page)).at(-1) as { config: { center?: [number, number] } };
+  expect(detail.config.center).toEqual([150, 640]);
+
+  await editor.locator("#center_x").fill("");
+  await editor.locator("#center_x").blur();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("center" in detail.config).toBe(false);
+});
+
+test("changing zoom_level fires config-changed, dropped again at its default (1)", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await editor.locator("#zoom_level").fill("3");
+  await editor.locator("#zoom_level").blur();
+  let detail = (await events(page)).at(-1) as { config: { zoom_level?: number } };
+  expect(detail.config.zoom_level).toBe(3);
+
+  await editor.locator("#zoom_level").fill("1");
+  await editor.locator("#zoom_level").blur();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("zoom_level" in detail.config).toBe(false);
+});
+
+test("clearing zoom_level falls back to the default and drops from the payload", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo, zoom_level: 3 });
+  const editor = page.locator("#editor");
+  await editor.locator("#zoom_level").fill("");
+  await editor.locator("#zoom_level").blur();
+  const detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("zoom_level" in detail.config).toBe(false);
+  await expect(editor.locator("#zoom_level")).toHaveValue("1");
+});
+
+test("an out-of-range zoom_level clamps into 1..8 rather than being refused", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await editor.locator("#zoom_level").fill("0");
+  await editor.locator("#zoom_level").blur();
+  let detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("zoom_level" in detail.config).toBe(false); // clamps to 1, the default: dropped, not written as 1
+
+  await editor.locator("#zoom_level").fill("50");
+  await editor.locator("#zoom_level").blur();
+  detail = (await events(page)).at(-1) as { config: { zoom_level?: number } };
+  expect(detail.config.zoom_level).toBe(8);
+});

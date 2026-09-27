@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A card can now pin a `center: [x, y]` (plan cm) and a `zoom_level` (1 = the
+  whole floor, up to 8) to focus on one room, corridor or part of a home. Set
+  either or both; the reset button, double-tap and pinch/wheel-zoom all treat
+  the pinned view as home, but a pinned card can still zoom out to see the
+  rest of the floor. The editor's View menu has a "Copy card view" button
+  that writes the two YAML lines for whatever the editor is currently showing.
 - An open door or window with a contact sensor now draws dashed as well as
   red, and a new `open_color` card option recolours it (and its pulsing
   alert line) to whatever you like. A cover door's own open state is
