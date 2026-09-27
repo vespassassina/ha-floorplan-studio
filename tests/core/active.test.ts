@@ -79,6 +79,18 @@ describe("activeDevices", () => {
     expect(activeDevices(l, { "camera.a": st("idle") }).map((i) => i.entity)).toEqual(["camera.a"]);
   });
 
+  it("Opus review finding 9: a device with an empty entity is never listed, of any type, camera included", () => {
+    const l = layoutOf([dev("camera", ""), dev("light", "")]);
+    expect(activeDevices(l, {}).map((i) => i.entity)).toEqual([]);
+    expect(activeDevices(l, { "": st("on") }).map((i) => i.entity)).toEqual([]);
+  });
+
+  it("Opus review finding 9: an unavailable or unknown camera is not listed", () => {
+    const l = layoutOf([dev("camera", "camera.a")]);
+    expect(activeDevices(l, { "camera.a": st("unavailable") }).map((i) => i.entity)).toEqual([]);
+    expect(activeDevices(l, { "camera.a": st("unknown") }).map((i) => i.entity)).toEqual([]);
+  });
+
   it("lists devices from every floor, not only one shown floor", () => {
     const layout: Layout = {
       version: 2, unit: "cm", north: 0, catalog: [],

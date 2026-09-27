@@ -64,10 +64,15 @@ function colorVarFor(d: Device, state: StateOverlay | undefined): string {
 /** Whether `d` belongs on the active list right now, per `ACTIVE_LIST_RULE`. Untrusted state (CLAUDE.md finding 1):
  *  a missing or malformed entry just reads as off, never thrown on — the same contract `classOf` already keeps. */
 function isActive(d: Device, state: StateOverlay | undefined): boolean {
+  // Opus review finding 9: an empty entity has nothing to open more-info on and nothing HA reports state for —
+  // never list it, whatever ACTIVE_LIST_RULE says for its type.
+  if (typeof d.entity !== "string" || !d.entity) return false;
   const rule = ACTIVE_LIST_RULE[d.type];
+  const s = state?.[d.entity]?.state;
+  if (s === "unavailable" || s === "unknown") return false;
   if (rule === "always") return true;
   if (rule === "never") return false;
-  if (rule === "cleaning") return state?.[d.entity]?.state === "cleaning";
+  if (rule === "cleaning") return s === "cleaning";
   return classOf(d, { scale: 1, state }) === "on";
 }
 
