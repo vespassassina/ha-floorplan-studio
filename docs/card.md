@@ -64,11 +64,17 @@ active_list: true
 instead of the whole floor, so a dashboard can show several cards, each
 zoomed into a different place. `zoom_level` alone zooms in about the plan's
 own centre; `center` alone (or `zoom_level` at `1`) changes nothing — a
-centre with nothing to zoom into has no effect. The pinned view becomes the
-card's own "home": the fit/reset button, a double-tap, and the zoomed-in
-indicator all return here, not to the whole floor, but `zoom` (pinch, wheel,
-the +/− buttons) still works as usual and can still reach the whole floor
-from there.
+centre with nothing to zoom into has no effect. `center` is always the plan's
+own cm, the same coordinates a room or device sits at, whether or not the
+layout is rotated.
+
+The pinned view becomes the card's own "home": a double-tap and the
+zoomed-in indicator both return here, not to the whole floor. The Fit button
+reads **Reset view** on a pinned card, since it no longer fits the whole
+floor, and is disabled only when the view is already home — pan or pinch it
+away and Reset view lights back up. The − button is never gated by the pin:
+it is disabled only once the whole floor is on screen, so a pinned card can
+still zoom all the way out to see the rest of the house.
 
 The demo's kitchen sits around plan `(650, 200)` — two cards, one on the
 whole ground floor and one pinned to just the kitchen:
