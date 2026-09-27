@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- The card now shows a floating "Active" panel, open by default, listing every
+  active device across every floor — lights, motion and contact, TVs and media
+  players, heaters and AC, plugs, covers, persons and vacuums that are
+  cleaning, plus every camera regardless of state. Drag its header to move it,
+  click a row to open more-info, or collapse it; `active_list: false` or
+  `kiosk: true` hides it.
+
 ## 0.12.7
 
 - A lit lamp's aura is 50% larger (3 m across instead of 2 m). It now draws

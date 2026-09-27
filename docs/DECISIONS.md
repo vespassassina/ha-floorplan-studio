@@ -2,6 +2,29 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 S9.5: the active list narrows a vacuum below classOf, and keys its storage to the layout
+
+The brief said two things that pull against each other: "base active on the
+same classOf result the plan uses" and, in the same sentence, "vacuums that
+are cleaning". `classOf` (S7.10) treats "cleaning" and "returning to base" as
+one on-plan colour — a robot on its way home still glows the same as one at
+work. The active list does not: `src/core/active.ts`'s `ACTIVE_LIST_RULE`
+gives `vacuum` its own `"cleaning"`-only membership, reading `state` directly
+rather than through `classOf`, the one deliberate gap between what lights up
+on the plan and what earns a row on the list. Every other type on the list
+(`"on"`) still goes through `classOf` unchanged, so the plan and the list can
+never otherwise disagree, and a light with `bound` is picked up the same way
+on both. Every `DeviceType` is written down in `ACTIVE_LIST_RULE`
+(`"on"`/`"always"`/`"cleaning"`/`"never"`), tested by iterating `DEVICE_TYPES`
+(CLAUDE.md finding 17), so a new type is a decision made on purpose.
+
+The panel's position and collapsed state are kept in `localStorage` under a
+key hashed (`tag()`, already used for mask and pattern ids in render.ts) from
+the card's own `layout_url` or inline `layout`, not from a fixed name — two
+`floorplan-studio-card`s on one dashboard, each with a different plan, keep
+separate panel state rather than one overwriting the other's position every
+time either re-renders.
+
 ## 2026-09-26 S8.13 review: the viewBox pads only lamps near the plan
 
 Supersedes part of the S8.13 viewBox entry below. The Opus review found
