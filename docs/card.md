@@ -172,6 +172,14 @@ differently:
 - **Contact sensor** — open shows the same red disc and pulsing ring. A door
   or window with a contact sensor turns red when open, over a wide pulsing
   red line. With reduced motion set on the device, nothing pulses.
+- **Speaker (media_player)** — blue, the same as `media`, only while the
+  player's state is exactly `playing`: paused, idle, off, on-but-not-playing,
+  unavailable and unknown all stay idle grey. Playing, two arcs pulse out from
+  under its disc in its own colour, so a speaker mid-song reads as radiating
+  sound on the plan. Reduced motion holds the arcs still, the same as a
+  motion sensor's ring. Tap always opens more-info: `media_player.toggle` is
+  play/pause or power, never a clean on/off, so guessing which one you meant
+  would be worse than always asking.
 - **Camera** — a dark cone of view, turned to match the device's own
   rotation.
 - **Person** — a green icon at full opacity while home; away (`not_home`, or
