@@ -9,7 +9,7 @@ import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
 // second built file (PLAN block interface).
 import "./config-editor";
 import { defineElement } from "./define";
-import { MAX_ZOOM, clamp, panBy, pinch, zoomAt, type Pt, type View } from "./viewport";
+import { MAX_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
 
@@ -63,6 +63,16 @@ export interface FloorplanStudioCardConfig {
   icon_size?: number;
   /** S9.5: `false` hides the floating active-devices panel. Default `true` (shown, open, on the left). */
   active_list?: boolean;
+  /** S9.6: the centre of a pinned view, in plan cm — [x, y]. Untrusted config (CLAUDE.md finding 1): anything
+   * other than a two-element array of finite numbers is ignored, silently, the same as `icon_size`/`open_color`
+   * (not thrown on like `zoom`/`kiosk` — see `_center`'s comment for why). Unset, or with `zoom_level` at 1, the
+   * card draws the whole floor as before. */
+  center?: [number, number];
+  /** S9.6: 1 (default) is the whole floor, exactly as `viewBoxFor` fits it today; 2 shows half the width and
+   * height of that box, and so on up to `MAX_ZOOM` (`viewport.ts`). Anything other than a finite number is the
+   * default, 1; an in-range-but-odd number (0, negative, past `MAX_ZOOM`) clamps rather than being refused, the
+   * same as `icon_size`. `zoom` (the pinch/wheel switch) was already taken, so this is a separate key. */
+  zoom_level?: number;
 }
 
 /** Card config is untrusted input (CLAUDE.md finding 1): only a plain `#rrggbb` hex is accepted for open_color. */
@@ -77,6 +87,10 @@ const BUTTON_ZOOM = 1.5;
 const DEFAULT_ICON_SIZE = 1;
 const ICON_SIZE_MIN = 0.5;
 const ICON_SIZE_MAX = 3;
+/** S9.6: `zoom_level` default and clamp range — 1 is the whole floor, `MAX_ZOOM` (viewport.ts) is as deep as the
+ * pinch zoom itself ever goes. */
+const DEFAULT_ZOOM_LEVEL = 1;
+const ZOOM_LEVEL_MIN = 1;
 
 declare global {
   interface Window {
@@ -842,8 +856,12 @@ export class FloorplanStudioCard extends LitElement {
     this._fit = fit;
     const zoom = this._zoomMode() !== false;
     const showZoomButtons = zoom && !this._kiosk(); // S7.5: kiosk still zooms/pans by gesture, just draws no buttons
-    const box = zoom && this._view ? clamp(this._view, fit) : fit;
-    const svgClass = !zoom ? "" : box.w < fit.w * (1 - 1e-6) ? "fp-zoomable fp-zoomed" : "fp-zoomable";
+    // S9.6: `home` is the whole floor unless `center`/`zoom_level` pin the card to part of it — the base the box
+    // rests on when there is no explicit `_view`, and what "zoomed" (the fp-zoomed class, below) is measured
+    // against, so a pinned card reads as its own resting state, not as permanently zoomed in from the full plan.
+    const home = pinnedView(fit, this._center(), this._zoomLevel());
+    const box = zoom && this._view ? clamp(this._view, fit) : home;
+    const svgClass = !zoom ? "" : box.w < home.w * (1 - 1e-6) ? "fp-zoomable fp-zoomed" : "fp-zoomable";
     const body = renderFloor(f, {
       scale: this._scale(fit),
       state: this._stateForRender(),
@@ -857,7 +875,7 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}`;
+    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}`;
   }
 
   /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */
@@ -889,24 +907,57 @@ export class FloorplanStudioCard extends LitElement {
     return 1 / (auto * this._iconSize());
   }
 
-  /** The view on screen now: the zoomed one, clamped, or fit. */
+  /** S9.6: `config.center`, read as untrusted config (CLAUDE.md finding 1) — anything other than a two-element
+   * array of finite numbers is `null` (no pin), silently. Unlike `zoom`/`kiosk` (which throw on a typo, per the
+   * comment on `_validateConfig`, because those are a closed set where a wrong value would otherwise hide behind
+   * a default no one asked for) `center` is a wide-open pair of numbers, the same shape of untrusted input as
+   * `icon_size`: a bad value here has an obviously safe fallback (the whole floor) that a slider or a stray digit
+   * must never break out of. */
+  private _center(): Pt | null {
+    const c = this._config.center;
+    if (!Array.isArray(c) || c.length !== 2) return null;
+    const [x, y] = c;
+    return typeof x === "number" && typeof y === "number" && Number.isFinite(x) && Number.isFinite(y) ? [x, y] : null;
+  }
+
+  /** S9.6: `config.zoom_level`, clamped to [1, MAX_ZOOM] — same untrusted-config shape as `_iconSize` above, and
+   * the same reasoning as `_center`'s comment for why this defaults silently rather than throwing. */
+  private _zoomLevel(): number {
+    const v = this._config.zoom_level;
+    return typeof v === "number" && Number.isFinite(v) ? Math.min(MAX_ZOOM, Math.max(ZOOM_LEVEL_MIN, v)) : DEFAULT_ZOOM_LEVEL;
+  }
+
+  /** S9.6: the card's "home" view — the whole floor (`fit`) unless `center`/`zoom_level` pin it to part of the
+   * plan. Every place that used to treat `fit` as "no zoom" (the `fp-zoomed` class, `_current`, `_zoomed`,
+   * `_setView`, the zoom buttons' own reset) now treats this instead: reset returns here, not to the whole floor,
+   * so a room-pinned card stays pinned across a pinch-zoom-and-reset. `_scale` (icon sizing, S9.2) deliberately
+   * keeps reading `fit` itself, not this — see its own comment — so a room card's icons match the full-plan
+   * card's icons at the same zoom, per the S9.6 brief. */
+  private _home(): View | null {
+    return this._fit ? pinnedView(this._fit, this._center(), this._zoomLevel()) : null;
+  }
+
+  /** The view on screen now: the zoomed one, clamped to the whole floor (a pinned card can still pinch/pan out to
+   * see the rest of the house), or home. */
   private _current(): View | null {
     const fit = this._fit;
     if (!fit) return null;
-    return this._view ? clamp(this._view, fit) : fit;
+    return this._view ? clamp(this._view, fit) : this._home();
   }
 
   private _zoomed(): boolean {
-    const v = this._current(), fit = this._fit;
-    return !!v && !!fit && v.w < fit.w * (1 - 1e-6);
+    const v = this._current(), home = this._home();
+    return !!v && !!home && v.w < home.w * (1 - 1e-6);
   }
 
-  /** Stores `v`, clamped, as the view; fit is stored as `null`, the same as never zoomed. */
+  /** Stores `v`, clamped to the whole floor, as the view; home itself is stored as `null` (the same "no override"
+   * state `_current`/`_zoomed` already read), so a pinch or pan that lands back exactly on home does not pin an
+   * equivalent-but-distinct box that would, say, disable the fit button. */
   private _setView(v: View): void {
-    const fit = this._fit;
-    if (!fit) return;
+    const fit = this._fit, home = this._home();
+    if (!fit || !home) return;
     const c = clamp(v, fit);
-    this._view = c.w < fit.w * (1 - 1e-6) ? c : null;
+    this._view = sameView(c, home, fit) ? null : c;
     this.requestUpdate();
   }
 
@@ -921,9 +972,13 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
-  /** S7.4: +, − and fit, card chrome in the top-right corner (like `_floorChips`, outside the plan's `<svg>`). */
-  private _zoomButtons(box: View, fit: View) {
-    const atFit = !(box.w < fit.w * (1 - 1e-6));
+  /** S7.4: +, − and fit, card chrome in the top-right corner (like `_floorChips`, outside the plan's `<svg>`).
+   * S9.6: "atFit" (the fit/reset button's own disabled state, and how deep "−" can zoom back out) is measured
+   * against `home`, not the whole floor, so a room-pinned card reads as already home rather than perpetually
+   * offering to zoom out further; the deepest zoom ("+"/`atMax`) is still measured against the whole-floor `fit`,
+   * unrelated to the pin (`MAX_ZOOM` is a property of the plan, not of what part of it a card shows). */
+  private _zoomButtons(box: View, home: View, fit: View) {
+    const atFit = !(box.w < home.w * (1 - 1e-6));
     const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
     return html`<div class="fp-zoom">
       <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
@@ -1016,9 +1071,11 @@ export class FloorplanStudioCard extends LitElement {
       const now = performance.now();
       if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX) {
         lastTap = null;
-        const fit = this._fit;
-        if (this._zoomed() || !fit) this._fitView();
-        else this._setView(zoomAt(fit, 2, ...toPlan(fit, e.clientX, e.clientY)));
+        // S9.6: zooms in from `home` (the pinned box, or the whole floor with no pin), not the whole floor — the
+        // screen shows `home` at rest, so the plan point under the tap must be read against that same box.
+        const home = this._home();
+        if (this._zoomed() || !home) this._fitView();
+        else this._setView(zoomAt(home, 2, ...toPlan(home, e.clientX, e.clientY)));
         return;
       }
       lastTap = { t: now, x: e.clientX, y: e.clientY };
