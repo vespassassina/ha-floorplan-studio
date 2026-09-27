@@ -1430,7 +1430,7 @@ describe("FloorplanStudioCard", () => {
       expect(el.shadowRoot!.querySelector(".fp-active")).toBeNull();
     });
 
-    it("collapsed state survives a fresh card instance (localStorage), keyed so a different layout does not share it", async () => {
+    it("collapsed state survives a fresh card instance (localStorage), keyed so a different config does not share it", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass() as never;
@@ -1439,21 +1439,56 @@ describe("FloorplanStudioCard", () => {
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
 
-      // A second card, same config (same layout: same storage key): reopens already collapsed.
+      // A second card, same config (same storage key): reopens already collapsed.
       const el2 = await mount();
       el2.setConfig({ layout: structuredClone(L) });
       el2.hass = stubHass() as never;
       await el2.updateComplete;
       expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
 
-      // A third card with a different layout (different storage key): opens fresh, uncollapsed.
-      const other = structuredClone(L);
-      other.floors.ground.devices = other.floors.ground.devices.slice(1);
+      // A third card pinned to a different floor (different storage key per Opus review finding 7): opens fresh.
       const el3 = await mount();
-      el3.setConfig({ layout: other });
+      el3.setConfig({ layout: structuredClone(L), floor: "first" });
       el3.hass = stubHass() as never;
       await el3.updateComplete;
       expect(el3.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
+    });
+
+    it("Opus review finding 7: two cards in websocket mode (no layout/layout_url, the default install) pinned to different floors keep separate storage, not one shared key", async () => {
+      const sendMessagePromise = vi.fn(async () => ({ layout: structuredClone(L) }));
+      const el = await mount();
+      el.setConfig({ floor: "ground" });
+      el.hass = { ...stubHass(), connection: { sendMessagePromise } } as never;
+      await el.updateComplete;
+      await vi.waitFor(() => expect(el.shadowRoot!.querySelector(".fp-active")).toBeTruthy());
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+
+      const el2 = await mount();
+      el2.setConfig({ floor: "first" });
+      el2.hass = { ...stubHass(), connection: { sendMessagePromise } } as never;
+      await el2.updateComplete;
+      await vi.waitFor(() => expect(el2.shadowRoot!.querySelector(".fp-active")).toBeTruthy());
+      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy(); // its own key: opens fresh, uncollapsed
+    });
+
+    it("Opus review finding 7: an edited inline layout keeps its storage key (the seed is the layout's source, not its content)", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+
+      // Same card, edited layout (autosave-style setConfig with different device content): still collapsed.
+      const edited = structuredClone(L);
+      edited.floors.ground.devices = edited.floors.ground.devices.slice(1);
+      el.setConfig({ layout: edited });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
     });
   });
 });

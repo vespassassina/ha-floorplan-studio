@@ -192,11 +192,16 @@ export class FloorplanStudioCard extends LitElement {
   private _activeCollapsed = false;
   private _activePos: { x: number; y: number } | null = null;
 
-  /** `localStorage` key for this card's panel state, keyed by a hash of its own layout source (`layout_url`, or
-   * the inline `layout` verbatim) so two cards on the same dashboard — each with a different layout — keep their
-   * own position and collapsed state rather than overwriting one another's (S9.5 spec). */
+  /** `localStorage` key for this card's panel state. Opus review finding 7: the seed used to be the layout's own
+   * content (`layout_url`, or the inline `layout` verbatim), which meant two cards in websocket mode — no
+   * `layout`/`layout_url`, the default install — both seeded from `""` and shared one key even though each pins a
+   * different `floor`, and an inline layout got a *new* key on every edit (autosave rewrites `layout` in place).
+   * The seed is now the layout's *source* only — `layout_url`, else `"inline"` for a config `layout`, else `"ws"`
+   * for the websocket fetch — which two cards on the same source share, plus the `floor`/`floors` config that
+   * tells otherwise-identical cards apart (S9.5's own two-floors-of-one-layout case, S7's floor switcher). */
   private _activeStorageKey(): string {
-    const seed = this._config.layout_url ?? (this._config.layout ? JSON.stringify(this._config.layout) : "");
+    const source = this._config.layout_url ?? (this._config.layout ? "inline" : "ws");
+    const seed = JSON.stringify([source, this._config.floor ?? null, this._config.floors ?? null]);
     return `fp-active-panel:${tag(seed)}`;
   }
 
