@@ -249,7 +249,9 @@ differently:
   it reports one) and grows a soft aura, 3 m across, on the plan. Tap toggles it; a long
   press opens Home Assistant's more-info dialog.
 - **Light with a bound switch** — one icon that lights up if either the light
-  or its switch is on. Tap always toggles the light itself.
+  or its switch is on. Tap always toggles the light itself; the switch is
+  never one of the S10.4 chooser's entities (below) — it stays reachable from
+  inside the light's own more-info dialog instead.
 - **Motion sensor** — red the moment it triggers, with a strong red disc and
   a ring pulsing out from it while it stays on. It then fades back to grey
   over `fade` seconds from when it last went off — even if it's already off
@@ -341,6 +343,24 @@ differently:
 - **Unavailable or unknown** — dims to 45% opacity, in any state, with no
   strikethrough: Home Assistant's own dashboards dim rather than cross out,
   and a struck-through icon this small reads as noise, not signal.
+
+## Tapping an object with more than one entity
+
+A heater's `trvs`, an ac's `linked` units, a radar's own `targets`, and a
+door's `sensors`/`vibration`/`locks` can each name more than one entity. A tap
+(or, on a device that also toggles, a long press) that would open more-info
+still does, directly, when the object names exactly one — nothing changes
+from before. Naming two or more opens a chooser dialog instead: a small
+panel listing the object's own name at the top and one button per entity,
+labelled by its Home Assistant `friendly_name` where it has one, its entity
+id otherwise. Picking a row opens that entity's own more-info and closes the
+dialog; Cancel, Escape, or a click on the backdrop outside the dialog itself
+all close it without opening anything. Only one dialog — this one, the cover
+confirm or the vacuum dialog — is ever open at once. A door with a `cover`
+is unaffected either way: tapping it always opens the existing open/close
+confirm dialog, whatever else is attached to the door. A light's `bound`
+switch is deliberately never offered here; see "Light with a bound switch"
+above and docs/DECISIONS.md.
 
 The full type-by-type table — idle look, active look, exact colour token,
 what a tap does — is in [`SPEC.md`, "Card behaviours"](SPEC.md#card-behaviours).

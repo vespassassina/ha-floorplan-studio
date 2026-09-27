@@ -1,4 +1,5 @@
 import type { Device, Door } from "../core";
+import { entitiesOfDevice, entitiesOfDoor } from "../core";
 import type { Hass } from "./floorplan-studio-card";
 
 /** Device types a tap opens more-info for at once, never a toggle: a camera and a media player have none, and a battery, an inverter, a server or an access point is watched, not switched (S2.13). A vacuum is here too (S7.10), but its tap opens its own dialog, not more-info — see the `d.type === "vacuum"` branch below, checked before this set. S9.4: a speaker is a media_player device like `media`, and gets the same decision for the same reason — `media_player.toggle` is play/pause or power, never a clean on/off, so guessing which one the user meant is worse than always opening more-info. */
@@ -57,6 +58,14 @@ export interface DeviceActionsHost extends EventTarget {
  * (kiosk mode) never starts that timer, so holding a light does nothing and releasing it still toggles like a plain
  * tap — a wall tablet has nobody who should reach a more-info dialog by holding a finger down. Every other gesture
  * (a plain tap, a door, a camera's always-more-info tap, the cover dialog) is unaffected: kiosk mode still acts.
+ *
+ * S10.4: wherever this function would have opened more-info for a device or a non-cover door, it now first asks
+ * `entitiesOfDevice`/`entitiesOfDoor` (`../core/attachments.ts`) how many entities that object actually names. One
+ * (the common case, and every case before S10.4 existed) still opens more-info on it directly, unchanged. More than
+ * one calls `opts.openChooser(title, entities)` instead of guessing which one the person meant — a heater with two
+ * TRVs, an ac linked to another unit's thermostat, a radar's own x/y target pair, or a door with both a contact and
+ * a vibration sensor attached. A door with a `cover` is unaffected either way: that branch is checked first and
+ * still always wins on tap, whatever else is attached (an existing rule, S2.7).
  */
 export function bindDeviceActions(
   svg: SVGSVGElement,
@@ -64,16 +73,19 @@ export function bindDeviceActions(
   getDevice: (index: number) => Device | undefined,
   getDoor?: (index: number) => Door | undefined,
   openCoverDialog?: (door: Door) => void,
-  opts?: { longPress?: boolean; openVacuumDialog?: (device: Device) => void },
+  opts?: { longPress?: boolean; openVacuumDialog?: (device: Device) => void; openChooser?: (title: string, entities: string[]) => void },
 ): () => void {
   const longPress = opts?.longPress !== false;
   const openVacuumDialog = opts?.openVacuumDialog;
+  const openChooser = opts?.openChooser;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let held = false;
   let entityId: string | null = null;
-  let action: "toggle" | "more-info" | "cover-dialog" | "vacuum-dialog" | null = null;
+  let action: "toggle" | "more-info" | "cover-dialog" | "vacuum-dialog" | "chooser" | null = null;
   let coverDoor: Door | null = null;
   let vacuumDevice: Device | null = null;
+  let chooserTitle: string | null = null;
+  let chooserEntities: string[] | null = null;
   let startX = 0, startY = 0;
   /** Pointers currently down on the svg; more than one is a pinch, which is never a tap. */
   const down = new Set<number | undefined>();
@@ -93,6 +105,8 @@ export function bindDeviceActions(
     action = null;
     coverDoor = null;
     vacuumDevice = null;
+    chooserTitle = null;
+    chooserEntities = null;
   };
 
   const onDown = (e: Event) => {
@@ -125,10 +139,18 @@ export function bindDeviceActions(
         clearTimer();
         return;
       }
-      if (!door?.sensors?.length) return; // neither sensor nor cover: nothing to do
+      if (!door) return;
+      const doorEnts = entitiesOfDoor(door);
+      if (doorEnts.length === 0) return; // no sensor, vibration or lock, and no cover: nothing to do
       held = false;
-      entityId = door.sensors[0]; // several may be attached (S4.24); more-info opens the first
-      action = "more-info";
+      if (doorEnts.length === 1) {
+        entityId = doorEnts[0]!;
+        action = "more-info";
+      } else {
+        chooserTitle = door.name;
+        chooserEntities = doorEnts;
+        action = "chooser";
+      }
       clearTimer();
       return;
     }
@@ -149,9 +171,17 @@ export function bindDeviceActions(
 
     if (NO_TOGGLE.has(d.type)) {
       // None of these has a toggle: a tap opens more-info right away, the same as a sensor door above (S2.5, S2.13).
+      // S10.4: more than one entity (a radar with targets, say) opens the chooser instead of guessing.
       held = false;
-      entityId = d.entity;
-      action = "more-info";
+      const ents = entitiesOfDevice(d);
+      if (ents.length > 1) {
+        chooserTitle = d.name ?? d.entity;
+        chooserEntities = ents;
+        action = "chooser";
+      } else {
+        entityId = ents[0] ?? d.entity;
+        action = "more-info";
+      }
       clearTimer();
       return;
     }
@@ -161,10 +191,19 @@ export function bindDeviceActions(
     action = "toggle";
     clearTimer();
     if (longPress) {
+      // S10.4: the hold-opens-more-info gesture on a toggling device (a heater, an ac...) opens the chooser
+      // instead when the device names more than one entity; computed once here, at the moment the hold started,
+      // same as entityId above.
+      const ents = entitiesOfDevice(d);
+      const title = d.name ?? d.entity;
       timer = setTimeout(() => {
         held = true;
         timer = null;
-        if (entityId) fireEvent(host, "hass-more-info", { entityId });
+        if (ents.length > 1) openChooser?.(title, ents);
+        else {
+          const id = ents[0] ?? entityId;
+          if (id) fireEvent(host, "hass-more-info", { entityId: id });
+        }
       }, HOLD_MS);
     }
   };
@@ -183,18 +222,22 @@ export function bindDeviceActions(
       return;
     }
     const wasHeld = held, id = entityId, act = action, door = coverDoor, vacuum = vacuumDevice;
+    const cTitle = chooserTitle, cEntities = chooserEntities;
     clearTimer();
     if (!wasHeld) {
       if (act === "toggle" && id) toggleEntity(host.hass, id);
       else if (act === "more-info" && id) fireEvent(host, "hass-more-info", { entityId: id });
       else if (act === "cover-dialog" && door) openCoverDialog?.(door);
       else if (act === "vacuum-dialog" && vacuum) openVacuumDialog?.(vacuum);
+      else if (act === "chooser" && cEntities) openChooser?.(cTitle ?? "", cEntities);
     }
     held = false;
     entityId = null;
     action = null;
     coverDoor = null;
     vacuumDevice = null;
+    chooserTitle = null;
+    chooserEntities = null;
   };
 
   /** A pointer that is cancelled or leaves the svg will not send its pointerup here: forget it along with the gesture. */

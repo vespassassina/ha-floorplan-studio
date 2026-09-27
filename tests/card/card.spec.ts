@@ -1884,3 +1884,238 @@ test.describe("S9.5: the active-devices panel", () => {
     await expect(other).toHaveAttribute("aria-pressed", "true");
   });
 });
+
+// S10.4: tapping an object with more than one attached entity opens a chooser dialog instead of guessing which
+// more-info to show. Real `page.mouse` at real coordinates (CLAUDE.md finding 3), the dialog's presence, focus and
+// cascade read for real in Chromium (finding 10), never from markup alone. The demo's own office radar
+// (first floor, devices[5]) already carries one target pair (x, y) plus its own occupancy entity — three entities,
+// no layout edit needed; a heater's two TRVs and a door's second attachment (vibration) are added by cloning the
+// demo, the same pattern every other test in this file already uses.
+test.describe("S10.4: a device or door naming more than one entity opens a chooser dialog on tap or hold", () => {
+  const states = () => ({ "binary_sensor.demo_office_radar_occupancy": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+
+  /** Same recording pattern as S9.5/S10.3 above: a page-global array of every `hass-more-info` detail. */
+  async function configureRecordingMoreInfo(page: Page, config: Record<string, unknown>, hass: Record<string, unknown>) {
+    await page.evaluate(
+      ([config, hass]) => {
+        (window as unknown as { __moreInfo: unknown[] }).__moreInfo = [];
+        const el = document.getElementById("card") as unknown as EventTarget & { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+        el.addEventListener("hass-more-info", (e) => (window as unknown as { __moreInfo: unknown[] }).__moreInfo.push((e as CustomEvent).detail));
+        el.setConfig(config);
+        el.hass = hass;
+        return el.updateComplete;
+      },
+      [config, hass] as const,
+    );
+  }
+  const moreInfo = (page: Page) => page.evaluate(() => (window as unknown as { __moreInfo: unknown[] }).__moreInfo);
+
+  async function tapDevice(page: Page, idx: number) {
+    const g = page.locator("floorplan-studio-card").locator(`css=g[data-x="${idx}"]`);
+    await g.scrollIntoViewIfNeeded();
+    const box = (await g.boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    return box;
+  }
+
+  const RADAR_IDX = 5; // demo/layout.json: floors.first.devices[5], "Office radar", one target (x, y)
+
+  test("a tap on the office radar opens a chooser naming it, with all three entities listed, Cancel focused by default", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: structuredClone(demo), floor: "first" }, { states: states() });
+
+    await tapDevice(page, RADAR_IDX);
+
+    const card = page.locator("floorplan-studio-card");
+    await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Office radar");
+    const display = await card.evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector(".fp-dialog-backdrop")!).display);
+    expect(display).toBe("flex"); // really laid out and visible, not just present in the DOM
+
+    const rows = card.locator("css=.fp-chooser-list button");
+    await expect(rows).toHaveText([
+      "binary_sensor.demo_office_radar_occupancy", // no friendly_name given: falls back to the entity id itself
+      "sensor.demo_office_radar_target_1_x",
+      "sensor.demo_office_radar_target_1_y",
+    ]);
+
+    const activeIsCancel = await card.evaluate((el) => el.shadowRoot!.activeElement === el.shadowRoot!.querySelector(".fp-chooser-dialog button.cancel"));
+    expect(activeIsCancel).toBe(true);
+
+    const a11y = await card.evaluate((el) => {
+      const dialog = el.shadowRoot!.querySelector(".fp-chooser-dialog")!;
+      const labelledBy = dialog.getAttribute("aria-labelledby")!;
+      return { role: dialog.getAttribute("role"), ariaModal: dialog.getAttribute("aria-modal"), labelText: el.shadowRoot!.getElementById(labelledBy)?.textContent };
+    });
+    expect(a11y).toEqual({ role: "dialog", ariaModal: "true", labelText: "Office radar" });
+  });
+
+  test("a row's own friendly_name is used when hass has one for that entity, the entity id otherwise", async ({ page }) => {
+    await open(page);
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo), floor: "first" }, {
+      states: { "sensor.demo_office_radar_target_1_x": { state: "1.2", attributes: { friendly_name: "Office target 1 X" }, last_changed: new Date().toISOString() } },
+    });
+    await tapDevice(page, RADAR_IDX);
+    const rows = page.locator("floorplan-studio-card").locator("css=.fp-chooser-list button");
+    await expect(rows).toHaveText(["binary_sensor.demo_office_radar_occupancy", "Office target 1 X", "sensor.demo_office_radar_target_1_y"]);
+  });
+
+  test("clicking a row closes the dialog and fires hass-more-info for that row's own entity, not the device's main one", async ({ page }) => {
+    await open(page);
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo), floor: "first" }, { states: states() });
+    await tapDevice(page, RADAR_IDX);
+
+    const card = page.locator("floorplan-studio-card");
+    await card.locator("css=.fp-chooser-list button", { hasText: "sensor.demo_office_radar_target_1_y" }).click();
+
+    expect(await moreInfo(page)).toEqual([{ entityId: "sensor.demo_office_radar_target_1_y" }]);
+    await expect(card.locator("css=.fp-chooser-dialog")).toHaveCount(0);
+  });
+
+  test("Cancel closes the chooser dialog and fires no hass-more-info", async ({ page }) => {
+    await open(page);
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo), floor: "first" }, { states: states() });
+    await tapDevice(page, RADAR_IDX);
+
+    const card = page.locator("floorplan-studio-card");
+    await card.locator("css=.fp-chooser-dialog button.cancel").click();
+
+    expect(await moreInfo(page)).toEqual([]);
+    await expect(card.locator("css=.fp-chooser-dialog")).toHaveCount(0);
+  });
+
+  test("Escape closes the chooser dialog, same as Cancel", async ({ page }) => {
+    await open(page);
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo), floor: "first" }, { states: states() });
+    await tapDevice(page, RADAR_IDX);
+
+    await page.keyboard.press("Escape");
+
+    expect(await moreInfo(page)).toEqual([]);
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-chooser-dialog")).toHaveCount(0);
+  });
+
+  test("clicking the backdrop, outside the dialog box, closes the chooser — the one dialog with this extra close (a deliberate deviation from the cover/vacuum dialogs, which only close on Escape or their own Cancel)", async ({ page }) => {
+    await open(page);
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo), floor: "first" }, { states: states() });
+    await tapDevice(page, RADAR_IDX);
+
+    const card = page.locator("floorplan-studio-card");
+    const backdropBox = (await card.locator("css=.fp-dialog-backdrop").boundingBox())!;
+    // The dialog itself is centred with a comfortable margin (min-width 200px on a much wider demo card); a corner of
+    // the backdrop, a few pixels in, is never inside the dialog's own box.
+    await page.mouse.click(backdropBox.x + 5, backdropBox.y + 5);
+
+    expect(await moreInfo(page)).toEqual([]);
+    await expect(card.locator("css=.fp-chooser-dialog")).toHaveCount(0);
+  });
+
+  // Break it: unlike the cover/vacuum dialogs (S2.7/S7.10, where a second tap at the same spot is a no-op — their
+  // backdrop has no click handler, so the tap never reaches anything), the chooser's backdrop covers the whole card
+  // at a higher z-index than the plan, so a second tap at the icon's own coordinates lands on the backdrop, not the
+  // icon underneath it, and closes the dialog rather than opening a duplicate — one dialog is still never open twice,
+  // just by a different, correct mechanism. A third tap, now that the backdrop is gone, reaches the icon again and
+  // opens a fresh, correctly populated dialog: the guard in `_openChooserDialog` did not leave stale state behind.
+  test("Break it: a second tap at the radar's own spot lands on the backdrop and closes the dialog rather than opening a duplicate; a third tap opens a fresh one", async ({ page }) => {
+    await open(page);
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo), floor: "first" }, { states: states() });
+    await tapDevice(page, RADAR_IDX);
+    await tapDevice(page, RADAR_IDX);
+
+    const card = page.locator("floorplan-studio-card");
+    await expect(card.locator("css=.fp-chooser-dialog")).toHaveCount(0);
+    expect(await moreInfo(page)).toEqual([]); // the closing tap fired no more-info either
+
+    await tapDevice(page, RADAR_IDX);
+    await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Office radar");
+    await expect(card.locator("css=.fp-chooser-list button")).toHaveText([
+      "binary_sensor.demo_office_radar_occupancy",
+      "sensor.demo_office_radar_target_1_x",
+      "sensor.demo_office_radar_target_1_y",
+    ]);
+  });
+
+  test("a heater with two TRVs: a plain tap still toggles the heater entity; a hold opens the chooser naming it, listing the heater then both TRVs", async ({ page }) => {
+    await open(page);
+    const layout = structuredClone(demo);
+    const heater = layout.floors.ground.devices[7];
+    expect(heater.type).toBe("heater"); // demo/layout.json: "Living radiator" — fails loudly if the fixture ever moves
+    heater.trvs = ["climate.demo_trv_1", "climate.demo_trv_2"];
+    await configureWithCallServiceSpy(page, { layout }, { "climate.demo_living": { state: "heat", attributes: { hvac_action: "idle" }, last_changed: new Date().toISOString() } });
+
+    const box = await tapDevice(page, 7); // a plain click: toggle, no chooser
+    const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+    expect(calls).toEqual([["climate", "toggle", { entity_id: "climate.demo_living" }]]);
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-chooser-dialog")).toHaveCount(0);
+
+    const HOLD_MS = 500;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(HOLD_MS + 100);
+    const card = page.locator("floorplan-studio-card");
+    await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Living radiator");
+    await expect(card.locator("css=.fp-chooser-list button")).toHaveText(["climate.demo_living", "climate.demo_trv_1", "climate.demo_trv_2"]);
+    await page.mouse.up();
+    // The hold already consumed the gesture (same rule the S7.5 kiosk hold test above already exercises for
+    // more-info): releasing over an open chooser must not also toggle the entity underneath it.
+    const callsAfter = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+    expect(callsAfter).toEqual([["climate", "toggle", { entity_id: "climate.demo_living" }]]);
+  });
+
+  test("a door with a contact sensor and a vibration sensor: a tap opens a chooser naming the door, not either sensor's own more-info", async ({ page }) => {
+    await open(page);
+    const layout = structuredClone(demo);
+    const door = layout.floors.ground.doors[0];
+    expect(door.name).toBe("Front door"); // fails loudly if the fixture ever moves
+    door.vibration = ["binary_sensor.demo_front_vibration"];
+    await configureRecordingMoreInfo(page, { layout }, { states: {} });
+
+    await tapDoor(page, 0);
+
+    const card = page.locator("floorplan-studio-card");
+    await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Front door");
+    await expect(card.locator("css=.fp-chooser-list button")).toHaveText(["binary_sensor.demo_front_door", "binary_sensor.demo_front_vibration"]);
+
+    await card.locator("css=.fp-chooser-list button", { hasText: "binary_sensor.demo_front_vibration" }).click();
+    expect(await moreInfo(page)).toEqual([{ entityId: "binary_sensor.demo_front_vibration" }]);
+  });
+
+  test("a door with a cover is unaffected: its tap still opens the cover confirm dialog, never the chooser, whatever else is attached", async ({ page }) => {
+    await open(page);
+    const layout = structuredClone(demo);
+    const garage = layout.floors.ground.doors[GARAGE_DOOR_INDEX];
+    garage.vibration = ["binary_sensor.demo_garage_vibration"]; // a second attachment: the cover dialog still wins
+    await configureWithCallServiceSpy(page, { layout }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+
+    await tapDoor(page, GARAGE_DOOR_INDEX);
+
+    const card = page.locator("floorplan-studio-card");
+    await expect(card.locator("css=.fp-dialog p")).toHaveText("Open Garage door?");
+    await expect(card.locator("css=.fp-chooser-dialog")).toHaveCount(0);
+  });
+
+  // CLAUDE.md finding 2: escape every interpolated string, not only a name — this dialog's title and every row label
+  // come straight from the layout (a door/device `name`) or from `hass.states[...].attributes.friendly_name`, both
+  // untrusted (finding 1). lit-html's own text-node binding (`${...}` inside a text position, never `unsafeHTML`)
+  // already escapes this, the same mechanism the existing cover dialog's door-name interpolation already relies on;
+  // this proves it holds for the chooser's own bindings too, with the exact payload finding 2 asks for.
+  test("XSS: a hostile door name and a hostile entity friendly_name render as plain text, never as markup", async ({ page }) => {
+    await open(page);
+    const layout = structuredClone(demo);
+    const door = layout.floors.ground.doors[0];
+    const payload = '"><script>window.__xss = true</script>';
+    door.name = payload;
+    door.vibration = ["binary_sensor.demo_front_vibration"];
+    await configure(page, { layout }, { states: { "binary_sensor.demo_front_vibration": { state: "off", attributes: { friendly_name: payload }, last_changed: new Date().toISOString() } } });
+
+    await tapDoor(page, 0);
+
+    const card = page.locator("floorplan-studio-card");
+    await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText(payload);
+    await expect(card.locator("css=.fp-chooser-list button", { hasText: "binary_sensor.demo_front_vibration" })).toHaveCount(0); // the friendly_name replaced the id in the label
+    await expect(card.locator("css=.fp-chooser-list button").last()).toHaveText(payload);
+    const ran = await page.evaluate(() => (window as unknown as { __xss?: boolean }).__xss);
+    expect(ran).toBeUndefined(); // the payload never executed as a script
+    const scriptCount = await card.evaluate((el) => el.shadowRoot!.querySelectorAll("script").length);
+    expect(scriptCount).toBe(0);
+  });
+});

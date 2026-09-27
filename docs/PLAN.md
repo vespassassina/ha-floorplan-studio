@@ -2138,6 +2138,65 @@ the editor becomes one reusable combo, tested, with shots looked at.
   existing "open" shot, and the Active panel lists the vibration row. See
   `docs/DECISIONS.md` for why solid, not a new dash pattern.
 
+### S10.4 Tapping an object with more than one entity opens a chooser, not a guess
+
+- Outcome: a pure `entitiesOfDevice`/`entitiesOfDoor` (`src/core/attachments.ts`)
+  lists every entity a tap or hold on a device or non-cover door could mean —
+  the object's own `entity` first, then its type's own attachment fields
+  (`trvs`/`tempSensors` for a heater, `linked` for an ac, each `targets`
+  pair's x/y for a radar, `sensors`/`vibration`/`locks` for a door), then any
+  `attached` list, deduplicated. Exactly one still opens more-info directly,
+  unchanged from before this sprint. Two or more opens a new chooser dialog
+  in `floorplan-studio-card.ts` (`.fp-chooser-dialog`), naming the object and
+  listing every entity by its Home Assistant `friendly_name` or its id;
+  picking one fires `hass-more-info` and closes the dialog. The dialog
+  follows the existing cover/vacuum conventions (one at a time, focus on
+  Cancel, Escape closes, `role="dialog"`/`aria-modal`), plus one addition:
+  a click on the backdrop outside the dialog also closes it. A door with a
+  `cover` is unaffected either way — its tap still always opens the existing
+  confirm dialog first (S2.7, unchanged). A light's `bound` switch, a
+  light's `motion` link and a person's `room` sensor are deliberately never
+  listed; see `docs/DECISIONS.md`.
+- Test: `attachments.test.ts` (18 tests) iterates every `DEVICE_TYPES`
+  member (finding 17) plus a dedicated case per type's own attachment field,
+  the `light.bound`/`light.motion`/`person.room` exclusions, dedup, an
+  `Unlinked` object with no own `entity`, and a malformed-layout case per
+  function (finding 1: non-array attachment fields never throw).
+  `actions.test.ts` gained an S10.4 describe block: a radar or door with two
+  attachments opens the chooser, one (after dedup) opens plain more-info, a
+  light with `bound` still opens plain more-info (never the chooser), and a
+  pointercancel abandons a would-be door chooser tap. `card.spec.ts` gained
+  eleven tests, all real `page.mouse` taps at real coordinates (finding 3):
+  the demo's own office radar (one target pair, no layout edit needed) opens
+  a three-row chooser naming it; a row's `friendly_name` is used when hass
+  has one; clicking a row fires `hass-more-info` and closes the dialog;
+  Cancel, Escape and a backdrop click each close it without firing anything;
+  a second tap at the same spot lands on the backdrop (closes it, not a
+  duplicate) and a third tap reopens a fresh one; a heater with two TRVs
+  still toggles on a plain tap and opens the chooser on hold; a door with a
+  contact and a vibration sensor opens the chooser under the door's name; a
+  door with a cover stays unaffected even with a second attachment added;
+  and an XSS test with a `"><script>` payload in a door name and a
+  `friendly_name` (finding 2) confirms both render as plain text, with no
+  `<script>` element in the shadow root.
+- Done, 2026-09-27. Not strictly test-first (finding 5): `attachments.ts`
+  and the `actions.ts` changes were written in the same pass as their unit
+  tests, not test-then-implementation. Compliance with finding 4 (a test
+  must fail with the feature removed) was verified retroactively instead: a
+  `git stash` isolating `actions.ts`/`floorplan-studio-card.ts`/
+  `attachments.ts`/`core/index.ts` together, then running the new
+  `card.spec.ts` tests, showed 10 of the 11 new tests fail without the
+  feature — the 11th, the pre-existing cover-door-unaffected case, correctly
+  still passes on its own, since it predates S10.4. The stash was restored
+  with `git stash apply` (never `pop`, the stash stack is shared across
+  worktrees) and dropped once confirmed. All eleven new `card.spec.ts` tests
+  ran clean at `--repeat-each=10`. `npm run shots` run; the S10.4 chooser
+  dialog was rendered separately (not part of the regular shot set, since it
+  is card chrome outside `renderFloor`'s own `<svg>`) and looked at in
+  blueprint and light themes: legible, centred, Cancel reachable, both
+  themes readable. Full suites green: 1254 unit tests, 658 Playwright tests
+  (1 pre-existing skip, unrelated), lint and `tsc --noEmit` clean.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).

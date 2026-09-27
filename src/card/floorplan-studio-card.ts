@@ -146,6 +146,12 @@ export class FloorplanStudioCard extends LitElement {
        card on a narrow width, and a disabled action reads as inert (dimmed, no pointer) without a separate class. */
     .fp-vacuum-dialog .fp-dialog-actions { flex-wrap: wrap; }
     .fp-dialog-actions button:disabled { opacity: 0.45; cursor: default; }
+    /* S10.4: the chooser lists one button per entity, column layout (unlike the cover/vacuum row of verbs), each
+       row left-aligned since it carries a name, not a short verb; Cancel stays a separate, right-aligned row like
+       every other dialog's own Cancel. */
+    .fp-chooser-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .fp-chooser-list button { text-align: left; }
+    .fp-chooser-dialog .fp-dialog-actions { justify-content: flex-end; }
     /* S9.5: the active-devices panel, card chrome like .fp-floors/.fp-zoom above (CLAUDE.md finding 8 — nothing here
        is drawn inside the plan's <svg>). Default position clears the floor chips' own top-left corner; a drag
        overrides top/left with an inline style, clamped in TS against the card's own box so it can never be lost
@@ -199,6 +205,13 @@ export class FloorplanStudioCard extends LitElement {
    * tap while open" rule as `_coverDialog`, and its own was-open flag for the same once-per-open/close focus move. */
   private _vacuumDialog: Device | null = null;
   private _vacuumDialogWasOpen = false;
+
+  /** S10.4: the chooser dialog, or `null` for none. Opened whenever a tap or hold would have opened more-info but
+   *  the object (a device or a non-cover door) names more than one entity — `entitiesOfDevice`/`entitiesOfDoor`,
+   *  read by `bindDeviceActions`, decide that, not this file. Same "one dialog at a time, once-per-open/close
+   *  focus move" rules as `_coverDialog`/`_vacuumDialog`. */
+  private _chooserDialog: { title: string; entities: string[] } | null = null;
+  private _chooserDialogWasOpen = false;
   /** S7.4: the zoomed viewBox, or `null` for fit. Card state: reset by `setConfig` and a floor change, never by `hass`. */
   private _view: View | null = null;
   /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
@@ -647,6 +660,7 @@ export class FloorplanStudioCard extends LitElement {
         ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], (door) => this._openCoverDialog(door), {
             longPress: !this._kiosk(),
             openVacuumDialog: (d) => this._openVacuumDialog(d),
+            openChooser: (title, entities) => this._openChooserDialog(title, entities),
           })
         : null;
       this._unbindZoom?.();
@@ -675,6 +689,15 @@ export class FloorplanStudioCard extends LitElement {
       this.focus();
     }
     this._vacuumDialogWasOpen = vacuumOpen;
+
+    // S10.4: same focus-in-once/focus-out-once rule as the two dialogs above, its own dialog, its own flag.
+    const chooserOpen = this._chooserDialog !== null;
+    if (chooserOpen && !this._chooserDialogWasOpen) {
+      this.shadowRoot?.querySelector<HTMLButtonElement>(".fp-chooser-dialog button.cancel")?.focus();
+    } else if (!chooserOpen && this._chooserDialogWasOpen) {
+      this.focus();
+    }
+    this._chooserDialogWasOpen = chooserOpen;
   }
 
   /**
@@ -683,7 +706,7 @@ export class FloorplanStudioCard extends LitElement {
    * second one or swap which door it acts on ("Break it" in the PLAN block).
    */
   private _openCoverDialog(door: Door): void {
-    if (this._coverDialog || this._vacuumDialog) return;
+    if (this._coverDialog || this._vacuumDialog || this._chooserDialog) return;
     this._coverDialog = door;
     this.requestUpdate();
   }
@@ -698,7 +721,7 @@ export class FloorplanStudioCard extends LitElement {
    * same "ignore a second tap while open" rule as `_openCoverDialog`.
    */
   private _openVacuumDialog(d: Device): void {
-    if (this._coverDialog || this._vacuumDialog) return;
+    if (this._coverDialog || this._vacuumDialog || this._chooserDialog) return;
     this._vacuumDialog = d;
     this.requestUpdate();
   }
@@ -706,6 +729,37 @@ export class FloorplanStudioCard extends LitElement {
   private _closeVacuumDialog(): void {
     this._vacuumDialog = null;
     this.requestUpdate();
+  }
+
+  /**
+   * S10.4: opens the chooser dialog listing `entities` under `title`, unless a dialog (any of the three) is
+   * already open — the same "ignore a second tap while open" rule as `_openCoverDialog`/`_openVacuumDialog`.
+   * `bindDeviceActions` only ever calls this with two or more entities (one opens more-info directly instead), but
+   * this checks anyway rather than trusting that, so a future caller mistake shows an empty, if odd, dialog rather
+   * than a crash.
+   */
+  private _openChooserDialog(title: string, entities: string[]): void {
+    if (this._coverDialog || this._vacuumDialog || this._chooserDialog) return;
+    this._chooserDialog = { title, entities };
+    this.requestUpdate();
+  }
+
+  private _closeChooserDialog(): void {
+    this._chooserDialog = null;
+    this.requestUpdate();
+  }
+
+  /** The chooser's own row label: HA's `friendly_name` when the entity has state, else the plan id itself — same
+   *  fallback order `active.ts`'s `nameFor` already uses for a device row, so the two never disagree about what an
+   *  entity is called. Untrusted state (finding 1): anything that is not text is skipped. */
+  private _chooserEntityName(entityId: string): string {
+    const friendly = this._hass?.states[entityId]?.attributes?.friendly_name;
+    return typeof friendly === "string" && friendly ? friendly : entityId;
+  }
+
+  private _pickChooserEntity(entityId: string): void {
+    this._closeChooserDialog();
+    fireEvent(this, "hass-more-info", { entityId });
   }
 
   /** S7.10: Break it — `unavailable`/`unknown` (or no state at all) disables the three action buttons; Cancel
@@ -743,19 +797,21 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** Escape cancels; Tab/Shift+Tab cycle only between the open dialog's own buttons, so focus never escapes it into
-   * the rest of the card while it is open. Shared by the cover dialog (two buttons) and the vacuum dialog (four) —
-   * `_openCoverDialog`/`_openVacuumDialog` never let both be open at once, so exactly one `.fp-dialog-actions` is
-   * ever rendered and this reads it generically rather than picking a dialog by name. */
+   * the rest of the card while it is open. Shared by the cover dialog (two buttons), the vacuum dialog (four) and
+   * the S10.4 chooser (its entity rows plus Cancel) — `_openCoverDialog`/`_openVacuumDialog`/`_openChooserDialog`
+   * never let more than one be open at once, so exactly one dialog's buttons are ever on the page and this reads
+   * them generically rather than picking a dialog by name. */
   private _onDialogKeydown = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {
       e.preventDefault();
       if (this._vacuumDialog) this._closeVacuumDialog();
+      else if (this._chooserDialog) this._closeChooserDialog();
       else this._closeCoverDialog();
       return;
     }
     if (e.key !== "Tab") return;
     const root = this.shadowRoot;
-    const buttons = root ? [...root.querySelectorAll<HTMLButtonElement>(".fp-dialog-actions button")] : [];
+    const buttons = root ? [...root.querySelectorAll<HTMLButtonElement>(".fp-dialog-actions button, .fp-chooser-list button")] : [];
     if (buttons.length < 2) return;
     const first = buttons[0]!, last = buttons[buttons.length - 1]!;
     const active = root?.activeElement;
@@ -969,7 +1025,7 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}`;
+    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
   }
 
   /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */
@@ -1274,6 +1330,33 @@ export class FloorplanStudioCard extends LitElement {
             <button type="button" ?disabled=${disabled} @click=${() => this._vacuumAction("start")}>Start</button>
             <button type="button" ?disabled=${disabled} @click=${() => this._vacuumAction("pause")}>Pause</button>
             <button type="button" class="confirm" ?disabled=${disabled} @click=${() => this._vacuumAction("return_to_base")}>Return to dock</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * S10.4: the chooser dialog, or `null` when none is open — a device or a non-cover door that names more than
+   * one entity lists them here (each one's HA `friendly_name`, or its id with none) instead of `bindDeviceActions`
+   * guessing which one the tap or hold meant. Same card-chrome/escaping/aria shape as the two dialogs above.
+   * Clicking a row closes the dialog and opens that entity's own more-info, in one step (`_pickChooserEntity`);
+   * clicking the backdrop itself (outside the dialog box) also closes it — the one dialog of the three where the
+   * chosen action already needs a second click (row, then whatever HA's own more-info offers), so a quick way to
+   * back out of a wrong tap earns its keep here more than it would next to a single Yes/No question.
+   */
+  private _chooserDialogTemplate() {
+    const c = this._chooserDialog;
+    if (!c) return null;
+    return html`
+      <div class="fp-dialog-backdrop" @keydown=${this._onDialogKeydown} @click=${(e: Event) => { if (e.target === e.currentTarget) this._closeChooserDialog(); }}>
+        <div class="fp-dialog fp-chooser-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-chooser-dialog-title">
+          <p id="fp-chooser-dialog-title">${c.title}</p>
+          <div class="fp-chooser-list">
+            ${c.entities.map((id) => html`<button type="button" @click=${() => this._pickChooserEntity(id)}>${this._chooserEntityName(id)}</button>`)}
+          </div>
+          <div class="fp-dialog-actions">
+            <button type="button" class="cancel" @click=${() => this._closeChooserDialog()}>Cancel</button>
           </div>
         </div>
       </div>

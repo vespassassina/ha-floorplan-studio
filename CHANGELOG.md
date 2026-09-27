@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Tapping a heater, an ac, a radar or a door that names more than one entity
+  (two TRVs, a linked climate unit, a radar's own target sensors, or a door
+  with both a contact and a vibration sensor) now opens a small chooser
+  listing all of them, instead of guessing which one you meant. Exactly one
+  entity still opens its more-info directly, same as before. A door with a
+  cover is unaffected: it still opens its own open/close confirm dialog.
 - A door with a vibration sensor attached now turns red — the same colour an
   open contact sensor gets, and `open_color` still applies — with the same
   pulsing alert line, but solid instead of dashed, so dashed keeps meaning
