@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.11
+
+- Fixed: a door's smart sensor/vibration/lock picker only ever listed
+  entities already in the plan's catalog, so one that was never placed as
+  its own icon (a lock straight from Home Assistant, say) could not be
+  attached at all. It now also offers matching entities that exist in Home
+  Assistant but were never placed, catalogued or attached anywhere.
+
 ## 0.12.10
 
 - Attaching a placed sensor to a door, heater, ac or other item now pulls its

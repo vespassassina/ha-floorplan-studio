@@ -2,6 +2,26 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 S10.6: a door's sensor/vibration/lock picker offers live HA entities too, not catalog-only
+
+The field bug: a Yale Linus lock existed in Home Assistant, as domain
+`lock.*`, and never showed in the front door's "smart locks" dropdown.
+`doorAttachChoices` filtered `layout.catalog` only, and nothing put a lock's
+catalog entry there except placing it as its own icon on the plan first — a
+round trip through Add that a switch bound under a light never needed
+(`lightFromSwitch` catalogues that derived light with no icon step).
+
+Decided: `doorAttachChoices` now also offers HA entities of the matching type
+that are neither placed, catalogued nor attached (`unplacedHaEntities`),
+shaped as a placeholder `CatalogEntry` the same way `controlsChoices` already
+does for HA groups. Picking one still goes through `attachEntity`, which now
+creates the real catalog entry at that moment if none exists yet, in the same
+undo step as the attachment — so undoing the attach removes both. This covers
+sensors, vibration and locks, the three fields `doorAttachChoices` serves;
+`coverChoices`, `deviceAttachChoices` (heater trvs/tempSensors, ac linked) and
+`unlinkedAttachChoices` share the same catalog-only gap and are not fixed
+here — a separate task.
+
 ## 2026-09-27 S10.5: "in use" beats "unplaced" — an attached entity is never offered in Add either
 
 The field bug: S10.2 pulls an attached entity's icon off the plan (it is now
