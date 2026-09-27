@@ -8,21 +8,30 @@
   unaffected and stays plain orange, undashed.
 - A TV is now a fixed blue whenever it is on, in every theme, instead of
   matching the theme's one accent colour (which made it read the same as a
-  lit lamp in blueprint, slate and terminal).
+  lit lamp in blueprint, slate and terminal) — including a Cast, Android TV
+  or webOS device that reports `playing`, `paused` or `idle` rather than a
+  plain `on` while genuinely powered on.
 - Icons, names, values and radar dots no longer shrink to nothing on a big
   house: past 1000 cm on the plan's longest side, they stop scaling down
   with it and grow instead. A new `icon_size` option (0.5 to 3, default 1)
   scales them further on top of that.
-- A speaker (media_player) gets its own on colour, blue like a media device,
-  and pulses two arcs out from its disc while it is playing — paused, idle,
-  off or any other state stays idle grey. Reduced motion holds the arcs
-  still. Tapping a speaker always opens more-info, never a toggle.
+- A speaker (media_player) gets its own on colour, a fixed blue in every
+  theme (the same exception a TV is, not the theme's own accent a plain
+  `media` device keeps), and pulses two arcs out from its disc, concentric
+  with its icon, while it is playing — paused, idle, off or any other state
+  stays idle grey. Reduced motion holds the arcs still. Tapping a speaker
+  always opens more-info, never a toggle.
 - The card now shows a floating "Active" panel, open by default, listing every
-  active device across every floor — lights, motion and contact, TVs and media
-  players, heaters and AC, plugs, covers, persons and vacuums that are
-  cleaning, plus every camera regardless of state. Drag its header to move it,
-  click a row to open more-info, or collapse it; `active_list: false` or
-  `kiosk: true` hides it.
+  active device across every floor — lights, motion and contact, TVs, media
+  players and speakers on or playing, heaters and AC, plugs, covers, persons
+  and vacuums that are cleaning, plus every camera regardless of state (an
+  `unavailable`/`unknown` camera, or any device with no entity configured,
+  is never listed). Drag its header to move it, click a row to open
+  more-info, or collapse it; `active_list: false` or `kiosk: true` hides it.
+  Its position always stays inside the card, on a resize as well as a drag,
+  and it starts collapsed and narrower on a card under 500px wide. Position
+  and collapsed state persist per card, keyed to the layout's own source and
+  floor.
 
 ## 0.12.7
 

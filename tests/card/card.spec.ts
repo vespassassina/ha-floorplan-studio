@@ -1473,6 +1473,21 @@ test.describe("S9.5: the active-devices panel", () => {
     expect(await moreInfo(page)).toEqual([{ entityId: "camera.demo_hall" }]);
   });
 
+  // Opus review CSS pair (CLAUDE.md finding 10): the camera row's icon used to take `--fp-dev-camera`, which
+  // `theme-roles.ts` sets to the same shade as `--fp-idle` for every generated theme — in blueprint (the default,
+  // a dark navy base) that read as a dark blue icon on the panel's own `--fp-room` background, hard to make out.
+  // `active.ts`'s `COLOR_VAR.camera` now points the row at `--fp-ink`, the same token the row's own text already
+  // reads by (`.fp-active{color:var(--fp-ink)}`), which is picked precisely so it is never the same shade as the
+  // background it sits on. Reading the resolved `fill`, not just asserting the source string, is what makes this
+  // a real Chromium check and not a text match blind to which rule actually won (CLAUDE.md finding 10 itself).
+  test("S9.5 CSS pair: a camera row's icon resolves to --fp-ink (legible on --fp-room), not --fp-dev-camera", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" });
+    const fill = await row.locator("css=svg").evaluate((el) => getComputedStyle(el).fill);
+    expect(fill).toBe(DARK_INK); // blueprint's --fp-ink/--fp-text, #eef3fb — not --fp-dev-camera's idle navy
+  });
+
   test("a real drag on the header moves the panel and clamps it inside the card, both corners", async ({ page }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo) }, { states: states() });
@@ -1553,5 +1568,93 @@ test.describe("S9.5: the active-devices panel", () => {
 
     await configure(page, { layout: structuredClone(demo), active_list: false }, { states: states() });
     await expect(page.locator("floorplan-studio-card").locator("css=.fp-active")).toHaveCount(0);
+  });
+
+  // Opus review findings 3 & 4: the position was stored in raw px and only clamped mid-drag, so a saved position
+  // could put the panel outside the card the moment the geometry it was clamped against changes — reloading at a
+  // narrower width, or re-expanding a panel that was dragged low while collapsed (its own shorter height at drag
+  // time). The fix re-derives the on-screen position from a stored *fraction* of the free width/height on every
+  // render and on a host resize, so it is inside the card by construction, whatever the current geometry is.
+  test("Opus review finding 3: a position saved at 1000px stays fully inside the card after a reload at 380px", async ({ page }) => {
+    await page.setViewportSize({ width: 1000, height: 700 });
+    await open(page);
+    const config = { layout: structuredClone(demo) };
+    await configure(page, config, { states: states() });
+    const card = page.locator("floorplan-studio-card");
+    const cardBox = (await card.boundingBox())!;
+    const head = card.locator("css=.fp-active-head");
+    const start = (await head.boundingBox())!;
+    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cardBox.x + cardBox.width + 400, cardBox.y + cardBox.height + 400, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(async () => (await card.locator("css=.fp-active").boundingBox())!.x).toBeGreaterThan(cardBox.x + cardBox.width / 2);
+
+    await page.setViewportSize({ width: 380, height: 700 });
+    await page.reload();
+    await page.addScriptTag({ content: CARD_JS, type: "module" });
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await configure(page, config, { states: states() });
+    const narrowCardBox = (await card.boundingBox())!;
+    const panelBox = (await card.locator("css=.fp-active").boundingBox())!;
+    expect(panelBox.x).toBeGreaterThanOrEqual(narrowCardBox.x - 0.5);
+    expect(panelBox.y).toBeGreaterThanOrEqual(narrowCardBox.y - 0.5);
+    expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(narrowCardBox.x + narrowCardBox.width + 0.5);
+    expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(narrowCardBox.y + narrowCardBox.height + 0.5);
+  });
+
+  test("Opus review finding 4: collapse, drag to the bottom, expand — the panel does not hang below the card", async ({ page }) => {
+    await page.setViewportSize({ width: 1000, height: 700 });
+    await open(page);
+    const config = { layout: structuredClone(demo) };
+    await configure(page, config, { states: states() });
+    const card = page.locator("floorplan-studio-card");
+    const cardBox = (await card.boundingBox())!;
+
+    await card.locator("css=.fp-active-collapse").click();
+    const head = card.locator("css=.fp-active-head");
+    const start = (await head.boundingBox())!;
+    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(start.x + start.width / 2, cardBox.y + cardBox.height + 400, { steps: 6 });
+    await page.mouse.up();
+
+    await card.locator("css=.fp-active-collapse").click(); // expand: the panel grows much taller than while collapsed
+    const panelBox = (await card.locator("css=.fp-active").boundingBox())!;
+    expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(cardBox.y + cardBox.height + 0.5);
+  });
+
+  // Opus review finding 5 (phone-width default, an assumption Diego may overrule — see docs/DECISIONS.md): with
+  // nothing stored yet, a card narrower than 500px starts collapsed; a wider one starts open as always.
+  test("Opus review finding 5: a narrow card with nothing stored starts collapsed; a wide one starts open", async ({ page }) => {
+    await page.setViewportSize({ width: 380, height: 700 });
+    await open(page);
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-body")).toHaveCount(0);
+
+    await page.setViewportSize({ width: 1000, height: 700 });
+    await page.reload();
+    await page.addScriptTag({ content: CARD_JS, type: "module" });
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-body")).toHaveCount(1);
+  });
+
+  // Opus review finding 13: the panel must not be able to cover the floor chips and steal their clicks.
+  test("Opus review finding 13: a real click on a floor chip works even with the panel dragged onto it", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    const card = page.locator("floorplan-studio-card");
+    const chips = card.locator("css=.fp-floors button");
+    const other = chips.nth(1); // not the already-active first chip: proves the click reached the chip, not a no-op
+    const chipBox = (await other.boundingBox())!;
+    const head = card.locator("css=.fp-active-head");
+    const start = (await head.boundingBox())!;
+    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(chipBox.x + chipBox.width / 2, chipBox.y + chipBox.height / 2, { steps: 6 });
+    await page.mouse.up();
+    await page.mouse.click(chipBox.x + chipBox.width / 2, chipBox.y + chipBox.height / 2);
+    await expect(other).toHaveAttribute("aria-pressed", "true");
   });
 });

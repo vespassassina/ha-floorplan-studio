@@ -101,7 +101,10 @@ export class FloorplanStudioCard extends LitElement {
     p.msg { padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
     /* S2.6: the floor switcher is card chrome (like p.msg above), not plan content, so it sits outside the <svg>
        renderFloor draws and is positioned over it instead. */
-    .fp-floors { position: absolute; top: 8px; left: 8px; z-index: 1; display: flex; gap: 6px; }
+    /* Opus review finding 13: the active-devices panel below (also z-index: 1, and later in DOM order, so it
+       would otherwise win ties) can be dragged to sit right under this row; the floor chips must still take the
+       click, not the panel behind — or in front of, without this — them. */
+    .fp-floors { position: absolute; top: 8px; left: 8px; z-index: 2; display: flex; gap: 6px; }
     .fp-floors button { font: 12px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
     /* Same combination the editor's floor chips already proved at 4.5:1 (S1.40); the current floor is carried by
        aria-pressed, not by this colour alone (CLAUDE.md finding: a toggle must not state its direction twice —
@@ -133,7 +136,9 @@ export class FloorplanStudioCard extends LitElement {
        is drawn inside the plan's <svg>). Default position clears the floor chips' own top-left corner; a drag
        overrides top/left with an inline style, clamped in TS against the card's own box so it can never be lost
        off-screen (S9.5 spec). */
-    .fp-active { position: absolute; top: 44px; left: 8px; z-index: 1; width: 200px; max-width: calc(100% - 16px); max-height: calc(100% - 52px); display: flex; flex-direction: column; overflow: hidden; background: var(--fp-room); color: var(--fp-ink); border: 1px solid var(--fp-idle); border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
+    /* Opus review finding 5: min(200px, 45%) instead of a flat 200px, so a narrow (phone-width) card gets a panel
+       that fits it rather than one that is most of the card's own width at 200px on a ~380px card. */
+    .fp-active { position: absolute; top: 44px; left: 8px; z-index: 1; width: min(200px, 45%); max-width: calc(100% - 16px); max-height: calc(100% - 52px); display: flex; flex-direction: column; overflow: hidden; background: var(--fp-room); color: var(--fp-ink); border: 1px solid var(--fp-idle); border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
     .fp-active-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: grab; touch-action: none; user-select: none; font: 600 12px/1.2 system-ui, sans-serif; border-bottom: 1px solid var(--fp-idle); }
     .fp-active-title { flex: 1; }
     .fp-active-count { font-weight: 400; color: var(--fp-text); }
@@ -186,30 +191,53 @@ export class FloorplanStudioCard extends LitElement {
   private _fit: View | null = null;
   private _unbindZoom: (() => void) | null = null;
   /** S9.5: the active-devices panel. `_activePos` is `null` for the CSS default position (top-left, below the
-   * floor chips); once dragged it holds the panel's own top/left in px relative to the card. Both are read from,
-   * and written to, `localStorage` (wrapped in try/catch: private browsing or blocked storage just means the
-   * panel forgets between reloads, never a thrown error — CLAUDE.md finding 1's spirit applied to browser state). */
+   * floor chips); once dragged it holds the panel's position as a *fraction* (0..1) of the card's own free width
+   * and height (`hostSize - panelSize`), not raw px (Opus review findings 3/4: a px position stored at one size
+   * and reclamped only mid-drag could end up outside the card the moment the geometry it was clamped against
+   * changes — a reload at a narrower width, or expanding a panel that was dragged low while collapsed and much
+   * shorter). `_positionActivePanel` re-derives the actual px position from this fraction on every render and on
+   * a host resize, so the panel is inside the card by construction. Both fields are read from, and written to,
+   * `localStorage` (wrapped in try/catch: private browsing or blocked storage just means the panel forgets
+   * between reloads, never a thrown error — CLAUDE.md finding 1's spirit applied to browser state). */
   private _activeCollapsed = false;
   private _activePos: { x: number; y: number } | null = null;
+  /** Opus review finding 5 (an assumption Diego may overrule, recorded in docs/DECISIONS.md): whether anything at
+   * all was found in storage for this card the last time `_loadActiveState` ran. When nothing was, and the card
+   * turns out to be narrower than 500px once it has actually rendered, the panel starts collapsed instead of
+   * covering a phone-sized card. Checked once per `setConfig`, in `updated()`, where a real width is available. */
+  private _activeHadStoredState = false;
+  private _activePhoneDefaultChecked = false;
+  private _activeResizeObserver: ResizeObserver | null = null;
 
-  /** `localStorage` key for this card's panel state, keyed by a hash of its own layout source (`layout_url`, or
-   * the inline `layout` verbatim) so two cards on the same dashboard — each with a different layout — keep their
-   * own position and collapsed state rather than overwriting one another's (S9.5 spec). */
+  /** `localStorage` key for this card's panel state. Opus review finding 7: the seed used to be the layout's own
+   * content (`layout_url`, or the inline `layout` verbatim), which meant two cards in websocket mode — no
+   * `layout`/`layout_url`, the default install — both seeded from `""` and shared one key even though each pins a
+   * different `floor`, and an inline layout got a *new* key on every edit (autosave rewrites `layout` in place).
+   * The seed is now the layout's *source* only — `layout_url`, else `"inline"` for a config `layout`, else `"ws"`
+   * for the websocket fetch — which two cards on the same source share, plus the `floor`/`floors` config that
+   * tells otherwise-identical cards apart (S9.5's own two-floors-of-one-layout case, S7's floor switcher). */
   private _activeStorageKey(): string {
-    const seed = this._config.layout_url ?? (this._config.layout ? JSON.stringify(this._config.layout) : "");
+    const source = this._config.layout_url ?? (this._config.layout ? "inline" : "ws");
+    const seed = JSON.stringify([source, this._config.floor ?? null, this._config.floors ?? null]);
     return `fp-active-panel:${tag(seed)}`;
   }
 
   private _loadActiveState(): void {
     this._activeCollapsed = false;
     this._activePos = null;
+    this._activeHadStoredState = false;
+    this._activePhoneDefaultChecked = false;
     try {
       const raw = globalThis.localStorage?.getItem(this._activeStorageKey());
       if (!raw) return;
+      this._activeHadStoredState = true;
       const parsed = JSON.parse(raw) as { collapsed?: unknown; x?: unknown; y?: unknown };
       if (parsed.collapsed === true) this._activeCollapsed = true;
+      // Opus review finding 3: untrusted storage, including an older build's raw-px entry — clamped into the 0..1
+      // fraction range rather than trusted or thrown on. A stale px value just lands at whichever edge it clamps
+      // to (never off-screen); it does not need to reproduce its exact old spot.
       if (typeof parsed.x === "number" && typeof parsed.y === "number" && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
-        this._activePos = { x: parsed.x, y: parsed.y };
+        this._activePos = { x: Math.min(Math.max(parsed.x, 0), 1), y: Math.min(Math.max(parsed.y, 0), 1) };
       }
     } catch {
       /* malformed or unavailable storage: the panel just opens at its default place, uncollapsed */
@@ -240,6 +268,13 @@ export class FloorplanStudioCard extends LitElement {
     // constructor: the custom element spec forbids gaining attributes during construction (jsdom enforces this
     // and throws NotSupportedError; a real browser is more forgiving, but this is the correct place regardless).
     if (!this.hasAttribute("tabindex")) this.tabIndex = -1;
+    // Opus review findings 3/4: a host resize (a dashboard column narrowing, a sidebar opening, a card being
+    // dragged to a new grid size) must re-clamp the panel too, not only a fresh render. jsdom has no
+    // ResizeObserver; the unit suite never needs this path, so it is skipped there rather than polyfilled.
+    if (typeof ResizeObserver !== "undefined") {
+      this._activeResizeObserver = new ResizeObserver(() => this._positionActivePanel());
+      this._activeResizeObserver.observe(this);
+    }
   }
 
   /**
@@ -357,6 +392,8 @@ export class FloorplanStudioCard extends LitElement {
     this._unbindZoom?.();
     this._unbindZoom = null;
     this._actionsSvg = null;
+    this._activeResizeObserver?.disconnect();
+    this._activeResizeObserver = null;
   }
 
   /** Takes any accepted layout (from config or a fetch), migrates and validates it. Never throws: an unusable one
@@ -565,6 +602,8 @@ export class FloorplanStudioCard extends LitElement {
   protected updated(changed: PropertyValues): void {
     super.updated(changed);
     this._glidePeople();
+    this._applyPhoneDefault();
+    this._positionActivePanel();
     const t = this._theme();
     this.setAttribute("data-theme", t);
     if (t === "ha" && this._haDark()) this.setAttribute("data-mode", "dark");
@@ -731,6 +770,44 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
+  /** Opus review findings 3/4: sets the panel's on-screen position directly (bypassing Lit's template, which does
+   * not bind `style` any more — see `_activePanel` — so this survives an unrelated re-render), from `_activePos`'s
+   * fraction and the *current* card/panel geometry. Called from `updated()` on every render and from the
+   * ResizeObserver on a host resize, so a stored fraction always lands inside the card, whatever changed since it
+   * was saved: a narrower viewport, a taller panel after expanding from collapsed, or nothing at all. With
+   * `_activePos` still `null` (never dragged) this clears any inline position, leaving the CSS default in place. */
+  private _positionActivePanel(): void {
+    const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active");
+    if (!panel) return;
+    if (!this._activePos) {
+      panel.style.left = "";
+      panel.style.top = "";
+      return;
+    }
+    const hostRect = this.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const maxX = Math.max(0, hostRect.width - panelRect.width);
+    const maxY = Math.max(0, hostRect.height - panelRect.height);
+    panel.style.left = `${this._activePos.x * maxX}px`;
+    panel.style.top = `${this._activePos.y * maxY}px`;
+  }
+
+  /** Opus review finding 5 (docs/DECISIONS.md: an assumption Diego may overrule): with nothing stored for this
+   * card, and the card narrower than 500px once it has actually rendered, the panel starts collapsed rather than
+   * covering a phone-sized card. Runs once per `setConfig`/mount, from `updated()`, where `getBoundingClientRect`
+   * first reports a real width; a later resize (a phone rotated, a column resized) does not retroactively collapse
+   * or reopen it — only the initial, nothing-stored state is a phone-width decision. */
+  private _applyPhoneDefault(): void {
+    if (this._activePhoneDefaultChecked || this._activeHadStoredState) return;
+    const width = this.getBoundingClientRect().width;
+    if (width === 0) return; // not laid out yet (e.g. detached or display:none); try again on the next render
+    this._activePhoneDefaultChecked = true;
+    if (width < 500 && !this._activeCollapsed) {
+      this._activeCollapsed = true;
+      this.requestUpdate();
+    }
+  }
+
   /**
    * S9.5: drags the panel by its header, pointer-capture based like `_bindZoom`'s pan above, but clamped inside
    * the card's own box on every move so the panel can never end up partly or wholly off-screen (the spec's own
@@ -754,19 +831,24 @@ export class FloorplanStudioCard extends LitElement {
     let moved = false;
     try { head.setPointerCapture(pointerId); } catch { /* the pointer is already gone */ }
 
-    const clampPos = (x: number, y: number) => {
-      const maxX = Math.max(0, hostRect.width - panelRect.width);
-      const maxY = Math.max(0, hostRect.height - panelRect.height);
-      return { x: Math.min(Math.max(0, x), maxX), y: Math.min(Math.max(0, y), maxY) };
-    };
+    // Opus review findings 3/4: the drag itself still clamps in px against the geometry captured at drag-start
+    // (nothing else can resize mid-drag), but the *stored* position is the resulting fraction of that geometry's
+    // free width/height, not the px itself — `_positionActivePanel` is what turns it back into px, against
+    // whatever the geometry is by the time it runs.
+    const maxX = Math.max(0, hostRect.width - panelRect.width);
+    const maxY = Math.max(0, hostRect.height - panelRect.height);
+    const clampFraction = (x: number, y: number) => ({
+      x: maxX > 0 ? Math.min(Math.max(0, x), maxX) / maxX : 0,
+      y: maxY > 0 ? Math.min(Math.max(0, y), maxY) / maxY : 0,
+    });
 
     const onMove = (me: PointerEvent) => {
       if (me.pointerId !== pointerId) return;
       const dx = me.clientX - startX, dy = me.clientY - startY;
       if (!moved && Math.hypot(dx, dy) <= TAP_SLOP_PX) return;
       moved = true;
-      this._activePos = clampPos(originLeft + dx, originTop + dy);
-      this.requestUpdate();
+      this._activePos = clampFraction(originLeft + dx, originTop + dy);
+      this._positionActivePanel();
     };
     const onEnd = (ue: PointerEvent) => {
       if (ue.pointerId !== pointerId) return;
@@ -788,7 +870,6 @@ export class FloorplanStudioCard extends LitElement {
     if (!this._activeListVisible() || !this._layout) return null;
     const groups = groupActiveByType(activeDevices(this._layout, this._stateForRender()));
     const count = groups.reduce((n, [, rows]) => n + rows.length, 0);
-    const posStyle = this._activePos ? `left:${this._activePos.x}px; top:${this._activePos.y}px;` : "";
     const row = (it: ActiveDevice) => html`<button
       type="button"
       class="fp-active-row"
@@ -798,7 +879,10 @@ export class FloorplanStudioCard extends LitElement {
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${DEVICE_ICONS[it.type]}></path></svg>
       <span>${it.name}</span>
     </button>`;
-    return html`<div class="fp-active" style=${posStyle}>
+    // No `style=` binding here on purpose (Opus review findings 3/4): Lit would rewrite the whole `style`
+    // attribute on every render, wiping out the position `_positionActivePanel` sets imperatively after render —
+    // that function is the only thing that ever touches this element's inline position.
+    return html`<div class="fp-active" role="region" aria-label="Active devices">
       <div class="fp-active-head" @pointerdown=${(e: PointerEvent) => this._onActiveDragStart(e)}>
         <span class="fp-active-title">Active</span>
         <span class="fp-active-count">${count}</span>

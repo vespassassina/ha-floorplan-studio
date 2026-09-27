@@ -30,27 +30,36 @@ export interface ActiveDevice {
  *   list membership is narrower than its plan colour, not merely reused from it.
  * - `"never"`: every other type — a sensor with no on/off shape of its own (temp, humidity), a plain switch or
  *   lock (not asked for), or a type the card only ever watches through its own dialog (battery, inverter, server,
- *   access_point, boiler, car, ups, printer, speaker, radar, other).
+ *   access_point, boiler, car, ups, printer, radar, other).
  */
 export const ACTIVE_LIST_RULE: Record<DeviceType, "on" | "always" | "cleaning" | "never"> = {
   light: "on", motion: "on", contact: "on", heater: "on", climate: "on", ac: "on", tv: "on", media: "on",
-  cover: "on", plug: "on", computer: "on", person: "on",
+  cover: "on", plug: "on", computer: "on", person: "on", speaker: "on",
   camera: "always",
   vacuum: "cleaning",
   switch: "never", temp: "never", humidity: "never", battery: "never", inverter: "never", server: "never",
   access_point: "never", lock: "never", vibration: "never", other: "never", boiler: "never", car: "never",
-  ups: "never", printer: "never", speaker: "never", radar: "never",
+  ups: "never", printer: "never", radar: "never",
 };
 
 /** The `--fp-dev-*` token each type's on colour comes from on the plan (render.ts's `FLOORPLAN_CSS`), so the list's
  *  icon is never a colour invented separately from the one the plan already draws. `ac` is resolved by `acMode`
  *  instead, since it alone carries two (cool/heat). A type with no entry here (every "never"/never-reached one)
- *  falls back to `--fp-idle`, the same grey the plan gives a device with no colour rule of its own. */
+ *  falls back to `--fp-idle`, the same grey the plan gives a device with no colour rule of its own.
+ *
+ *  Opus review finding 10: `camera` is deliberately not `--fp-dev-camera` here. On the plan, that token tints a
+ *  camera icon against the room it sits in, and `theme-roles.ts` sets it to the same shade as `--fp-idle`
+ *  (`rolesToTokens`'s `shades.idle`) for every generated theme. The panel row's own background is `--fp-room`
+ *  (`.fp-active` in floorplan-studio-card.ts), and in blueprint (a dark navy base) `--fp-idle` sits close enough
+ *  in lightness to `--fp-room` that the camera row read as a dark blue icon on navy - hard to make out. `--fp-ink`
+ *  is the row's own text colour (`.fp-active{color:var(--fp-ink)}`), already relied on to read against
+ *  `--fp-room` in every theme, so the camera row borrows it instead of a plan token never meant for this
+ *  background. */
 const COLOR_VAR: Partial<Record<DeviceType, string>> = {
   light: "--fp-dev-light", motion: "--fp-dev-motion", contact: "--fp-dev-contact", heater: "--fp-dev-heater",
   climate: "--fp-dev-climate", tv: "--fp-dev-tv", media: "--fp-dev-media", cover: "--fp-dev-cover",
-  plug: "--fp-dev-plug", computer: "--fp-dev-computer", camera: "--fp-dev-camera", person: "--fp-dev-person",
-  vacuum: "--fp-dev-vacuum",
+  plug: "--fp-dev-plug", computer: "--fp-dev-computer", camera: "--fp-ink", person: "--fp-dev-person",
+  vacuum: "--fp-dev-vacuum", speaker: "--fp-dev-speaker",
 };
 
 function colorVarFor(d: Device, state: StateOverlay | undefined): string {
@@ -64,10 +73,15 @@ function colorVarFor(d: Device, state: StateOverlay | undefined): string {
 /** Whether `d` belongs on the active list right now, per `ACTIVE_LIST_RULE`. Untrusted state (CLAUDE.md finding 1):
  *  a missing or malformed entry just reads as off, never thrown on — the same contract `classOf` already keeps. */
 function isActive(d: Device, state: StateOverlay | undefined): boolean {
+  // Opus review finding 9: an empty entity has nothing to open more-info on and nothing HA reports state for —
+  // never list it, whatever ACTIVE_LIST_RULE says for its type.
+  if (typeof d.entity !== "string" || !d.entity) return false;
   const rule = ACTIVE_LIST_RULE[d.type];
+  const s = state?.[d.entity]?.state;
+  if (s === "unavailable" || s === "unknown") return false;
   if (rule === "always") return true;
   if (rule === "never") return false;
-  if (rule === "cleaning") return state?.[d.entity]?.state === "cleaning";
+  if (rule === "cleaning") return s === "cleaning";
   return classOf(d, { scale: 1, state }) === "on";
 }
 

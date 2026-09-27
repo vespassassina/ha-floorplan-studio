@@ -78,7 +78,7 @@ const TERMINAL_TOKENS = rolesToTokens({ base: "#0c1512", fg: "#35d47a", fgAlpha:
    and --fp-dev-ac-cool here) — TV is the one exception to "each type keeps its own hue" too. */
 const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#d6d6d2;--fp-garden:#586e75;--fp-terrace:#657b83;--fp-pavement:#586e75;--fp-wall:#93a1a1;--fp-idle:#586e75;
 --fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#dc322f;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#2aa198;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#268bd2;--fp-fill:#073642;--fp-fill-line:#586e75;
---fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-speaker:#2c7fb8;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#79766e;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-speaker:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#79766e;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact)`;
 /* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
    fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
@@ -213,13 +213,16 @@ export const FLOORPLAN_CSS = `
 /* S9.4: a playing speaker or media device sends out two arcs from under its disc, the same pattern as the ping above
    (a shape in the group, transform-box:fill-box so it scales from its own centre, held still under reduced motion) —
    staggered by animation-delay instead of drawn one on top of the other, so they read as a sound radiating outward.
-   Unlike .ping (a circle) the wave is a <path>, so plain ".wave{fill:none}" loses to ".dev.on path" above (0,2,1
-   beats 0,1,0, CLAUDE.md finding 10) — ".dev.on path.wave" repeats that fill:none at equal-or-higher specificity. */
+   Opus review finding 8: the wave used to be two <path> semicircles, each scaling about its own bbox centre — a
+   semicircle's bbox sits off the disc's own centre, so the two arcs visibly grew from different points, not the
+   halo's. It is a <circle> now, like .ping: a circle's bbox is always the square centred on (cx,cy), so scaling it
+   about "center" is automatically concentric with the halo, whatever arc stroke-dasharray leaves visible — and,
+   like .ping, it needs no tag-qualified specificity repeat any more (CLAUDE.md finding 10's own guard from S9.4,
+   dropped below): the ".dev.on path{fill:...}" rule above only ever matches a <path>, never a <circle>. */
 .wave{fill:none;stroke:var(--fp-dev);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none;transform-box:fill-box;transform-origin:center;animation:fp-wave 1.6s ease-out infinite}
-.dev.on path.wave{fill:none}
 .wave.w2{animation-delay:.8s}
 @keyframes fp-wave{from{transform:scale(1);opacity:.8}to{transform:scale(2.4);opacity:0}}
-@media (prefers-reduced-motion:reduce){.ping,.door-alert,.wave{animation:none}.ping,.wave{transform:scale(1.5);opacity:.6}.dev.on path.wave{opacity:.6}}
+@media (prefers-reduced-motion:reduce){.ping,.door-alert,.wave{animation:none}.ping,.wave{transform:scale(1.5);opacity:.6}}
 .dev.unavailable{opacity:.45}
 .dev.dim{opacity:.3}
 /* S7.8: a person glides to the room its room sensor names. The position is an inline CSS transform, not an attribute, so
@@ -406,6 +409,10 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   if (d.type === "climate" || d.type === "heater") return s.attributes.hvac_action === "heating" ? "on" : "off";
   // S9.4: a speaker is a media_player like any other — playing is the only "on", same as media.
   if (d.type === "media" || d.type === "speaker") return s.state === "playing" ? "on" : "off";
+  // Opus review finding 1: a TV is a media_player too, but Cast/Android TV/webOS report "playing", "paused" and
+  // "idle" while genuinely on, not only the plain "on" a demo switch would use. Anything other than off/standby
+  // (unavailable/unknown are already handled above) counts.
+  if (d.type === "tv") return s.state === "off" || s.state === "standby" ? "off" : "on";
   if (d.type === "person") return s.state === "home" ? "on" : "off";
   // S7.10: docked/idle/paused read idle grey like an off device; cleaning and returning are both active (the
   // spin class, from vacuumSpinClass below, is what tells them apart); error is its own danger class, not on/off.
@@ -804,7 +811,16 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // r=16, the halo's own radius (like .ping): a smaller arc sat entirely inside the halo's fill and never showed
     // even at rest under reduced motion (Opus review, S9.4 shots) — the two together read as one ring, split so
     // each can carry its own animation-delay and pulse out a beat apart.
-    const wave = (d.type === "speaker" || d.type === "media") && s?.state === "playing" ? `<path class="wave" d="M-4,12A16,16 0 0 1 28,12"/><path class="wave w2" d="M-4,12A16,16 0 0 0 28,12"/>` : "";
+    // Opus review finding 8: two <circle> elements, not <path> semicircles — a circle's bounding box is always the
+    // square centred on (cx,cy), so transform-box:fill-box scales it about the halo's own centre, whatever it did
+    // for two independent semicircle paths (each one's bbox sits off to one side). pathLength="100" makes
+    // stroke-dasharray's numbers mean "percent of the circumference" regardless of r; "50 50" is half drawn, half
+    // gap, and the second arc's dashoffset of 50 puts its visible half opposite the first's, so the two read as
+    // two arcs on either side of the ring rather than one drawn twice in the same place.
+    const wave = (d.type === "speaker" || d.type === "media") && s?.state === "playing"
+      ? `<circle class="wave" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
+        `<circle class="wave w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
+      : "";
     const icon = `${ping}${wave}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
     // The bar draws first so the icon group (fix/heater-bar-under-icon), with its white disc and halo, always paints on top of it.
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).
