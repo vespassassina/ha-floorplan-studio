@@ -1381,3 +1381,33 @@ test("S8.11 fix (halo seam, card): the cut no longer coincides with the wall's o
 // This must fail with the cut narrowed back to wallWidthAt(...) + 2 (its old width, exactly the halo's own width):
 // the sampled row then sits precisely on the coincident edge and reads as a blend, e.g. (142,165,199,255) — neither
 // the halo's white nor the room's own fill (verified by hand, see the S8.11 report).
+
+// S9.2: icons stay visible on large plans. On a 2000 cm plan the icon group draws 2x normal size (CLAUDE.md
+// finding 3: a real page.mouse click at the icon's real, scaled screen coordinates must still hit the top
+// element, `g[data-x]` — not a click dispatched on the inner path while the real hit-test was broken).
+function bigLayout() {
+  const layout = structuredClone(demo);
+  const o = 2000 - 120; // pad is 60 cm on every edge, so this outline gives a view box exactly 2000 cm square
+  layout.floors.big = {
+    title: "Big", outline: [[0, 0], [o, 0], [o, o], [0, o]], owk: ["wall", "wall", "wall", "wall"],
+    rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], furniture: [], unlinked: [],
+    devices: [{ id: "light-big", type: "light", entity: "light.demo_big", x: o / 2, y: o / 2 }],
+  };
+  return layout;
+}
+
+test("S9.2: a real click still hits the icon on a 2000 cm plan, drawn at 2x", async ({ page }) => {
+  await open(page);
+  const layout = bigLayout();
+  await configureWithCallServiceSpy(page, { layout, floor: "big" }, { "light.demo_big": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+  const g = page.locator("floorplan-studio-card").locator('css=g[data-x="0"]');
+  const box = (await g.boundingBox())!;
+  // 24 units at scale 0.5 (k = 1/scale = 2) is 48 plan units; at fit (2000 cm view box) that is a sizeable,
+  // easily-clickable on-screen target — asserted here so this test would fail if S9.2's scale ever regressed to 1.
+  // At the old, unscaled size (scale 1) this box is ~21 px wide on this viewport; at S9.2's 2x it is ~41 px —
+  // 30 sits strictly between the two, so this fails if the scale-up ever regresses (confirmed by hand, see report).
+  expect(box.width).toBeGreaterThan(30);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+  expect(calls).toEqual([["light", "toggle", { entity_id: "light.demo_big" }]]);
+});
