@@ -442,6 +442,16 @@ card. The editor is unchanged — it always passed its own zoom, never `1`.
   domain); arrow keys move, Enter picks, Escape restores the previous value
   and closes without picking. A pick is one undo step, same as a `<select>`;
   picking the value already set commits nothing.
+- Attaching an entity (S10.2) to a door's contact/vibration/lock list or
+  cover, a heater's TRVs or temperature sensors, an ac's linked entities, or
+  an unlinked item's attached list: if that entity is also placed as an icon
+  on the plan, the icon is removed from every floor in the same undo step —
+  it is now shown through the thing it is attached to, not doubled on the
+  plan. The picker still offers a placed entity, labelled "(on plan)".
+  Detaching (Remove, or clearing a cover) only removes the attachment; the
+  entity stays in the catalog and shows in Add again, but no icon reappears
+  (a placed icon is a deliberate placement the editor does not redo for
+  you). A light's `bound` switch is untouched either way.
 - Floors: add, rename, reorder, delete (never the last one). A new floor
   inherits the outline and the stairs of the first floor in the list. Stairs
   are added to every floor at the same position, and deleted from one floor at

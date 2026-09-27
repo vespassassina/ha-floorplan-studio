@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Attaching a placed sensor to a door, heater, ac or other item now pulls its
+  icon off the plan — it is shown through the thing it is attached to, not
+  doubled. Detaching sends it back to Add, not back onto the plan.
+
 ## 0.12.9
 
 - Every entity picker in the editor is now a filterable combo box: type to

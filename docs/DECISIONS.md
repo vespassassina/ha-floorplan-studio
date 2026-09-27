@@ -2,6 +2,34 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 S10.2: detaching an attached sensor returns it to Add, never back onto the plan
+
+Diego's request: attaching a placed sensor to a door (or a heater, ac, or
+unlinked item) pulls its icon off the plan — it is shown through the thing
+it senses, not doubled. The open question was what happens on the way back:
+does Remove put the icon back where it stood, or send the entity to Add like
+any other removed device?
+
+Decided with Diego: **Add**, same as "Remove from plan" on a device panel.
+Reasons:
+
+- The plan has no record of where the icon used to be once it is gone — the
+  device panel's own "Remove from plan" already forgets a device's `x, y`
+  for exactly this reason, and reusing that one behaviour (rather than a
+  second one that reconstructs a position) is the simpler design (CLAUDE.md
+  section 8: KISS, a helper only at a real boundary).
+- A user who detaches a sensor rarely wants it back exactly where it was —
+  they are usually reattaching it elsewhere, or done with it on the plan
+  altogether. Add is one click away either way; guessing a placement wrong
+  costs more than asking again.
+- Symmetry: attach removes an icon the same way delete does (`f.devices`
+  splice), so detach restoring it the same way delete's "returns to Add"
+  does is the one behaviour to test and explain, not two.
+
+The catalog entry itself is never touched by either direction — only
+`f.devices` (or `f.floors[k].devices`) gains or loses an entry, exactly like
+placing and removing any other catalogued device.
+
 ## 2026-09-27 S10.1: a custom `<fp-combo>`, not `<datalist>` or `ha-entity-picker`; device entities lose one level of nesting
 
 Diego asked for a filterable combo box on every entity picker. Two off-the-

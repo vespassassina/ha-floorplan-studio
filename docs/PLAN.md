@@ -2099,6 +2099,76 @@ the editor becomes one reusable combo, tested, with shots looked at.
   server and looked at all four: legible text, correct contrast, the active
   row highlighted, group headings in place, in both themes.
 
+### S10.2 Attaching a placed sensor pulls its icon off the plan
+
+- Outcome: Diego, 2026-09-27: "When adding sensors to a door/window or any
+  other object that accepts them, allow pulling them out of the plan if they
+  have been manually assigned." Attaching an entity through a door's
+  sensors/vibration/locks/cover, a heater's TRVs/temperature sensors, an ac's
+  linked entities, or an unlinked item's attached list, in the same undo
+  step: sets the attachment and removes that entity's device icon from every
+  floor, if it had one. Detaching (Remove, or clearing a cover) removes only
+  the attachment; the catalog entry is untouched, so the entity shows in Add
+  again — decided with Diego: it does not return to the plan.
+- Acceptance criteria (all met):
+  - [x] Attaching a placed entity removes its icon on every floor, one undo
+    step; undo restores both the icon and the attachment, redo re-applies
+    both.
+  - [x] Attaching a non-placed entity attaches it and removes no icon.
+  - [x] Every picker still offers a placed entity, labelled "(on plan)", and
+    the filter still matches it by name.
+  - [x] Detaching leaves the catalog entry; no icon reappears.
+  - [x] A light's `bound` switch survives its switch being pulled elsewhere.
+  - [x] The status line names the entity and the door/device/item once,
+    e.g. "Hall contact attached to Front door; its icon left the plan."
+  - [x] `validate()` passes after every combination exercised.
+- Design: `EditorState.attachEntity(entity, apply, keepDeviceId?)` is the one
+  new seam — a whole-layout snapshot (like `lightFromSwitch`/`addHaEntity`),
+  since the pull touches every floor, not just the current one. `apply`
+  writes the attachment; `attachEntity` then strips any device whose
+  `entity` matches, everywhere, sparing `keepDeviceId` (a heater/ac's own
+  icon, belt-and-suspenders alongside `deviceAttachChoices` already excluding
+  a device's own entity from its choices). `panels.ts`'s `multiAttachField`
+  grew an optional `attach` parameter that routes the "add" pick through it;
+  `vctl` (the Controls automation draft, session state, not a layout field)
+  passes none and is unchanged. The single-value `dcover` field got its own
+  small attach/detach split inline. Selection: a door or unlinked selection
+  lives in its own array, untouched by a devices splice; a `dev` selection
+  (heater/ac panels) is re-found by id after the pull, since the splice can
+  shift its index — covered by a dedicated test with the entity placed
+  before the heater in the array, so the index really moves.
+- Test: `tests/editor/attach-pull.test.ts`, table-driven over all 8 in-scope
+  fields (dsens, dvibr, dlocks, htrv, hsens, aclink, uuattach, plus dcover
+  covered directly) — each case is written to fail without the fix (watched:
+  `attachEntity` did not exist, all 27 new cases failed with
+  `TypeError: st.attachEntity is not a function`). Per field: attaching a
+  placed entity pulls it everywhere in one undo step and undo/redo restore
+  it exactly (with a *second* floor also holding the icon, so a
+  current-floor-only bug would fail — finding 4); attaching a non-placed
+  entity removes nothing; the device being attached to never removes its
+  own icon (`keepDeviceId`); the layout validates after attach and after a
+  plain detach. Plus dedicated tests for `attachEntity("", ...)` (no-op),
+  a `door` selection surviving the pull untouched, and a `dev` selection
+  whose index actually shifts. Playwright:
+  `editor.spec.ts` places the demo's unplaced `contact-garage` next to the
+  Garage door, attaches it via `#dsens` with a real click at real
+  coordinates (`pickEntity`), counts `g[data-x]` before and after, checks
+  the door's row and the status line, Undo (restores the icon, `g[data-x]`
+  count back up), Redo (removes it again), then Remove on the row — no icon
+  either way, and the entity is back in `Add`. Watched fail first without
+  the source change (`attached.devices.some(...)` was `true` where the test
+  expected `false`). Reselecting the door with a real canvas click before
+  Ctrl+Z and before Remove was necessary — undo/redo clear the selection,
+  same as everywhere else in this suite (S10.1's own note on `onDown`
+  refocusing the host applies here too). Green at `--repeat-each=10`
+  (10/10).
+- Done, 2026-09-27. `npm run lint` exit 0. Unit tests 1248/1248 (`npm test`,
+  exit 0, read bare). Full Playwright suite (`PW_PORT=5350`): 643 passed, 1
+  skipped, exit 0. New unit tests (31) and the new Playwright test at
+  `--repeat-each=10` (10/10) all green. `npm run shots` run; the editor
+  shots looked at — no visual change, this task touches only `panels.ts`,
+  `state.ts` and `editor-app.ts`'s wiring, no stylesheet or `render.ts`.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).
