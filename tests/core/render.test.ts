@@ -1239,10 +1239,11 @@ describe("S2.9: a device wears its colour when it is on", () => {
     expect(FLOORPLAN_CSS).toContain(".door.cover-open{stroke:var(--fp-open);stroke-dasharray:none}"); // a cover's own open state is unrelated to contact, stays orange, and is never dashed
   });
 
-  it("S9.1: --fp-open-door defaults to --fp-dev-contact in every theme block", () => {
+  it("S9.1: --fp-open-door is red in every theme block: the contact red where it is red, a fixed red where the theme collapses to one accent", () => {
     for (const theme of ["blueprint", "midnight", "light", "slate", "terminal", "solarized"]) {
       const block = FLOORPLAN_CSS.match(new RegExp(`data-theme="${theme}"\\][^{]*\\{([^}]*)\\}`))?.[1];
-      expect(block, theme).toContain("--fp-open-door:var(--fp-dev-contact)");
+      const want = ["blueprint", "slate", "terminal"].includes(theme) ? "--fp-open-door:#d64545" : "--fp-open-door:var(--fp-dev-contact)";
+      expect(block, theme).toContain(want);
     }
   });
 

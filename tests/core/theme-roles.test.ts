@@ -28,11 +28,11 @@ describe("theme-roles (S4.21)", () => {
     for (const k of wanted) expect(got.has(k), k).toBe(true);
   });
 
-  it("S9.1: --fp-open-door defaults to the contact colour, regardless of the roles given", () => {
+  it("S9.1: --fp-open-door is a fixed red, regardless of the roles given (never the accent)", () => {
     const a = tokenPairs(rolesToTokens(BASE));
     const b = tokenPairs(rolesToTokens({ base: "#888888", fg: "#111111", fgAlpha: 0.5, line: "#00ff00", accent: "#ff00ff", dark: false }));
-    expect(a.get("--fp-open-door")).toBe("var(--fp-dev-contact)");
-    expect(b.get("--fp-open-door")).toBe("var(--fp-dev-contact)");
+    expect(a.get("--fp-open-door")).toBe("#d64545");
+    expect(b.get("--fp-open-door")).toBe("#d64545");
   });
 
   it("S9.3: --fp-dev-tv is a fixed blue, not the accent, and a theme cannot override it via devices.tv (the one exception to one accent)", () => {
