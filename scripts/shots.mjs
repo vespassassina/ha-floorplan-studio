@@ -88,6 +88,14 @@ Object.assign(STATES.on, { "binary_sensor.demo_radar_presence": "on", "sensor.de
 Object.assign(STATES.gone, { "binary_sensor.demo_radar_presence": "unavailable", "sensor.demo_radar_t1_x": "unavailable", "sensor.demo_radar_t1_y": "unavailable", "sensor.demo_radar_t2_x": "unavailable", "sensor.demo_radar_t2_y": "unavailable" });
 // S7.10: a vacuum in the Hall. Off: docked (idle grey, no spin). On: cleaning (active colour, spinning). Gone: unavailable.
 monLayout.floors.ground.devices.push({ id: "mon-vacuum", type: "vacuum", entity: "vacuum.demo_hall", name: "Hall vacuum", x: 440, y: 550 });
+// S9.3: a tv device, on/off like a switch (its own entity, distinct from the media_player the demo already draws
+// as type "media" — that one's states are "idle"/"playing", not "on"/"off"). Nothing in the demo layout had a
+// "tv" device before, so the shots never showed one; without this a screen-shot review can never catch a fixed
+// TV blue regressing (CLAUDE.md finding 16).
+monLayout.floors.ground.devices.push({ id: "mon-tv", type: "tv", entity: "media_player.demo_tv", name: "Hall TV", x: 510, y: 550 });
+Object.assign(STATES.off, { "media_player.demo_tv": "off" });
+Object.assign(STATES.on, { "media_player.demo_tv": "on" });
+Object.assign(STATES.gone, { "media_player.demo_tv": "unavailable" });
 // S8.13: an open contact door and window draw their alert line in "on"; closed in "off", unknown in "gone".
 Object.assign(STATES.off, { "binary_sensor.demo_front_door": "off", "binary_sensor.demo_bedroom_window": "off" });
 Object.assign(STATES.on, { "binary_sensor.demo_front_door": "on", "binary_sensor.demo_bedroom_window": "on" });
