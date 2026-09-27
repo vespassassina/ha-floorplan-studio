@@ -20,6 +20,11 @@ const DEFAULT_SUN = "sun.sun";
  * never "unset", so Clear (below) is the only way to remove the key rather than picking this same colour by hand. */
 const DEFAULT_OPEN_COLOR = "#d64545";
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+// S9.2: matches ICON_SIZE_MIN/MAX/DEFAULT_ICON_SIZE in floorplan-studio-card.ts — kept as separate constants
+// (not exported/shared) since the card and its form are each read independently, same as fade above.
+const DEFAULT_ICON_SIZE = 1;
+const ICON_SIZE_MIN = 0.5;
+const ICON_SIZE_MAX = 3;
 
 const NIGHT_CHOICES = ["auto", "on", "off"] as const;
 
@@ -194,6 +199,21 @@ export class FloorplanStudioCardEditor extends LitElement {
     this._set("room_glow", (e.target as HTMLInputElement).checked, DEFAULT_ROOM_GLOW);
   }
 
+  /** S9.2: `config.icon_size`, clamped to [0.5, 3] for display, same as the card itself reads it. */
+  private _iconSize(): number {
+    const v = this._config.icon_size;
+    return typeof v === "number" && Number.isFinite(v) ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, v)) : DEFAULT_ICON_SIZE;
+  }
+
+  private _onIconSize(e: Event): void {
+    // Same shape as _onFade: an emptied or non-numeric field is not 0 (out of range, would silently clamp to
+    // 0.5) — it falls back to the default, which _set then drops from the payload.
+    const raw = (e.target as HTMLInputElement).value.trim();
+    const n = Number(raw);
+    const v = raw !== "" && Number.isFinite(n) ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, n)) : DEFAULT_ICON_SIZE;
+    this._set("icon_size", v, DEFAULT_ICON_SIZE);
+  }
+
   private _onZoom(e: Event): void {
     const choice = (e.target as HTMLSelectElement).value as ZoomChoice;
     const value: EditorConfig["zoom"] = choice === "off" ? false : choice === "wheel" ? "wheel" : true;
@@ -278,6 +298,11 @@ export class FloorplanStudioCardEditor extends LitElement {
       <div class="row">
         <label class="main" for="room_glow">Room glow</label>
         <input id="room_glow" type="checkbox" .checked=${this._config.room_glow ?? DEFAULT_ROOM_GLOW} @change=${this._onRoomGlow} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="icon_size">Icon size</label>
+        <input id="icon_size" type="number" min=${ICON_SIZE_MIN} max=${ICON_SIZE_MAX} step="0.25" .value=${String(this._iconSize())} @change=${this._onIconSize} />
       </div>
 
       <div class="row">

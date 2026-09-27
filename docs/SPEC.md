@@ -295,11 +295,24 @@ zoom: true             # pinch, drag, double-tap, Ctrl/Cmd+wheel, +/−/fit butt
 night: auto            # auto (default: from the sun), on, off
 sun: sun.sun           # the entity night: auto reads
 kiosk: false            # true shows only the plan, for a wall tablet: no floor chips, no zoom buttons, taps still act, holding a device does nothing
+icon_size: 1            # 0.5 to 3, default 1: grows icons/names/values/radar dots further, on top of the automatic large-plan scale-up below
 ```
 
 `zoom` (S7.4): the plan zooms between fit and 8×. A drag that moves more than 6 px pans and is never a tap; zoomed in, a third of the view always stays on the plan. A double-tap off any device zooms 2× at fit and returns to fit when zoomed. Without Ctrl/Cmd a wheel scrolls the dashboard, unless `zoom: "wheel"`. The view resets on a config change and a floor change, and survives state updates. With zoom on, the plan's `<svg>` has `touch-action: none`, so a swipe that starts on the plan does not scroll the page; `zoom: false` gives the page its touches back. An unrecognised value (anything but `true`, `false` or `"wheel"`) is refused by `setConfig`, naming the key, the same as `kiosk` below — S7.4 had it falling back to `true` instead, silently hiding a typo.
 
 `kiosk` (S7.5, default `false`): built for a tablet fixed to a wall, where nobody should be able to reach Home Assistant's more-info dialog by holding a finger on a device, or switch floors, or zoom out past what fits. `true` drops the floor chips and the zoom +/−/fit buttons from the card's own chrome, and `bindDeviceActions`'s hold timer never starts, so a long press does nothing — releasing still fires a plain tap, so every device keeps working by tap. With `floors` or `floor: "all"` set alongside `kiosk: true`, the card shows the first floor in the list and draws no switcher; put one card per floor on the dashboard instead. `kiosk` must be exactly `true` or `false` — anything else, `setConfig` refuses it, naming the key.
+
+`icon_size` (S9.2): `renderFloor` draws icons, names, values and radar dots at
+a fixed size in plan centimetres, scaled by `1/scale`; the editor passes its
+own zoom as `scale`, but the card always passed `1`, so a big house left them
+shrinking with everything else. The card now passes
+`scale = 1 / (auto * icon_size)`, where `auto = max(1, longest side of the
+floor's view box in cm / 1000)` — the same view box the card already draws
+(`viewBoxFor`), so a plan of 1000 cm or less keeps `auto` at `1` and renders
+byte-identical to before this change. `icon_size` is a number from `0.5` to
+`3`, default `1`; anything else (missing, non-numeric, `NaN`) is the default
+rather than refused, since a slider or a stray digit should never break the
+card. The editor is unchanged — it always passed its own zoom, never `1`.
 
 `theme` is blueprint unless the dashboard says otherwise. `light` is the paper-and-ink set; `midnight` is the project's first dark theme, kept under its own name once blueprint moved on to a new palette (2026-09-22). `ha` inherits the dashboard's own theme: ground from `--card-background-color`, rooms from `--secondary-background-color`, walls and text from `--primary-text-color`, measure marks from `--secondary-text-color`. Each has the plain light or midnight set as its fallback, chosen by `hass.themes.darkMode`, so a dashboard that defines none of them still draws. Warn, danger and primary (the UI chrome, not a device's own colour) never follow the theme: they and their on-dark/on-light text are the same fixed pair everywhere, because they already clear 4.5:1 against it. The card ignores the OS colour scheme.
 

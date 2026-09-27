@@ -228,3 +228,62 @@ test("setConfig fills open_color into the colour field", async ({ page }) => {
   await mount(page, { open_color: "#00ff88", layout: demo });
   await expect(page.locator("#editor").locator("#open_color")).toHaveValue("#00ff88");
 });
+
+// S9.2: the Edit-card form's icon_size field, same shape as fade (a number input, default value shown when the
+// key is unset, dropped from the payload once it is set back to that default).
+test("setConfig fills icon_size, default 1 when unset", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#icon_size")).toHaveValue("1");
+});
+
+test("setConfig fills icon_size from the config when set", async ({ page }) => {
+  await open(page);
+  await mount(page, { icon_size: 1.5, layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#icon_size")).toHaveValue("1.5");
+});
+
+test("changing icon_size fires config-changed with detail.config.icon_size, dropped again at the default", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await editor.locator("#icon_size").fill("2");
+  await editor.locator("#icon_size").blur();
+  let detail = (await events(page)).at(-1) as { config: { icon_size?: number } };
+  expect(detail.config.icon_size).toBe(2);
+
+  await editor.locator("#icon_size").fill("1");
+  await editor.locator("#icon_size").blur();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("icon_size" in detail.config).toBe(false);
+});
+
+// Opus-review-style case (CLAUDE.md finding 4): an emptied field is not 0 (out of range, would clamp to 0.5 and
+// silently write a wrong value) — it must fall back to the default 1 and drop from the payload, same as fade.
+test("clearing icon_size falls back to the default and drops from the payload", async ({ page }) => {
+  await open(page);
+  await mount(page, { icon_size: 2, layout: demo });
+  const editor = page.locator("#editor");
+  await editor.locator("#icon_size").fill("");
+  await editor.locator("#icon_size").blur();
+  const detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("icon_size" in detail.config).toBe(false);
+  await expect(editor.locator("#icon_size")).toHaveValue("1");
+});
+
+test("an out-of-range icon_size clamps into 0.5..3 rather than being refused", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await editor.locator("#icon_size").fill("0");
+  await editor.locator("#icon_size").blur();
+  let detail = (await events(page)).at(-1) as { config: { icon_size?: number } };
+  expect(detail.config.icon_size).toBe(0.5);
+
+  await editor.locator("#icon_size").fill("10");
+  await editor.locator("#icon_size").blur();
+  detail = (await events(page)).at(-1) as { config: { icon_size?: number } };
+  expect(detail.config.icon_size).toBe(3);
+});

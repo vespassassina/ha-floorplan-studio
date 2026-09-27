@@ -9,6 +9,10 @@
 - A TV is now a fixed blue whenever it is on, in every theme, instead of
   matching the theme's one accent colour (which made it read the same as a
   lit lamp in blueprint, slate and terminal).
+- Icons, names, values and radar dots no longer shrink to nothing on a big
+  house: past 1000 cm on the plan's longest side, they stop scaling down
+  with it and grow instead. A new `icon_size` option (0.5 to 3, default 1)
+  scales them further on top of that.
 
 ## 0.12.7
 
