@@ -38,6 +38,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
+| `open_color` | the theme's contact colour | `#rrggbb`: colours an open door or window (and its pulsing alert line) instead of the theme's default. An invalid value is ignored |
 
 ```yaml
 type: custom:floorplan-studio-card
@@ -170,8 +171,11 @@ differently:
   over `fade` seconds from when it last went off — even if it's already off
   by the time the card loads.
 - **Contact sensor** — open shows the same red disc and pulsing ring. A door
-  or window with a contact sensor turns red when open, over a wide pulsing
-  red line. With reduced motion set on the device, nothing pulses.
+  or window with a contact sensor turns red and dashed when open, over a wide
+  pulsing red line; `open_color` recolours both to something other than red.
+  With reduced motion set on the device, nothing pulses. A cover door's own
+  open state (see Cover, above) is separate: it stays its plain orange,
+  undashed, whatever `open_color` says.
 - **Camera** — a dark cone of view, turned to match the device's own
   rotation.
 - **Person** — a green icon at full opacity while home; away (`not_home`, or
