@@ -2281,6 +2281,35 @@ the editor becomes one reusable combo, tested, with shots looked at.
   a targeted `card.spec.ts` rerun (1 pre-existing skip, unrelated), lint and
   `tsc --noEmit` clean.
 
+### S10.6 A door's sensor/vibration/lock picker is catalog-only, missing entities never placed
+
+- Outcome: field bug found live — a Yale Linus lock existed in Home
+  Assistant as `lock.*` and never showed in the front door's "smart locks"
+  dropdown. `doorAttachChoices` filters `layout.catalog` only; nothing ever
+  puts a lock's catalog entry there except placing it as its own icon on
+  the plan first, a round trip a switch bound under a light never needs
+  (`lightFromSwitch` catalogues the derived light with no icon step).
+- Acceptance criteria (all met):
+  - [x] `doorAttachChoices` (sensors/vibration/locks) also offers HA
+    entities of the matching type that are neither placed, catalogued nor
+    attached (`unplacedHaEntities`), via a new private
+    `unattachedHaChoices`, shaped as a placeholder `CatalogEntry` the same
+    way `controlsChoices` already does for HA groups.
+  - [x] `attachEntity` creates the real catalog entry for such an entity at
+    pick time, in the same undo step as the attachment, so it has a proper
+    name instead of falling back to its raw entity id, and undoing the
+    attach removes both together.
+  - [x] `coverChoices`, `deviceAttachChoices` and `unlinkedAttachChoices`
+    share the same catalog-only gap and are explicitly NOT fixed here — a
+    separate task, scoped narrower to what was actually reported.
+- Test: `tests/editor/state.test.ts` — two new cases, written to fail first
+  (watched: both failed before the fix, `doorAttachChoices` returning `[]`
+  for an uncatalogued lock and the catalog entry missing its name after
+  attach; reverting just `src/editor/state.ts` and rerunning reproduced
+  both failures, restored after). Full suite green after: `npm run lint`
+  (0), `npm test` (1321 passed), `npx playwright test` (668 passed, 1
+  skipped, unaffected baseline).
+
 ### S10.5 An attached entity is not offered in Add
 
 - Outcome: field bug from S10.2 — attaching a placed sensor to a door,

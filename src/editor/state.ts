@@ -1,4 +1,4 @@
-import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, validate, viewBoxFor } from "../core";
+import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -612,12 +612,30 @@ export class EditorState {
    * S4.24: catalog entries of `type` not already on this door's own `field` list (those stay offered, so a
    * current pick still shows) and not on any *other* door's `field` list — several sensors per door, but one
    * door per sensor, matching the single-sensor behaviour this replaces.
+   * S10.6: also offers HA entities of `type` that were never placed or catalogued at all — a sensor or lock
+   * otherwise required a round trip through Add (drag it onto the plan as its own icon) before it could show up
+   * here; `attachEntity` catalogues it for real the moment it is actually picked, so this is a preview list, not
+   * a promise the entry already exists.
    */
   doorAttachChoices(doorId: string, field: "sensors" | "vibration" | "locks"): CatalogEntry[] {
     const type: DeviceType = field === "sensors" ? "contact" : field === "vibration" ? "vibration" : "lock";
     const used = new Set<string>();
     for (const f of Object.values(this.layout.floors)) for (const d of f.doors) if (d.id !== doorId) for (const e of d[field] ?? []) used.add(e);
-    return this.layout.catalog.filter((c) => c.type === type && !used.has(c.entity));
+    const catalogued = this.layout.catalog.filter((c) => c.type === type && !used.has(c.entity));
+    return [...catalogued, ...this.unattachedHaChoices(type)];
+  }
+
+  /**
+   * S10.6: HA entities of `type` this plan has never placed, catalogued or attached — offered alongside the
+   * catalog so a door/heater/ac/unlinked-item picker can attach one straight from Add, no standalone icon first.
+   * Shaped as a `CatalogEntry` so callers need only one list; `id`/`floor`/`room` are placeholders, the same
+   * trick `controlsChoices` already uses for HA groups, since these have no device of their own until attached.
+   */
+  private unattachedHaChoices(type: DeviceType): CatalogEntry[] {
+    if (!this.ha) return [];
+    return unplacedHaEntities(this.layout, this.ha)
+      .filter((e) => typeForEntity(e) === type)
+      .map((e): CatalogEntry => ({ id: e.id, floor: "", room: "", type, name: e.name || e.id, entity: e.id }));
   }
 
   /**
@@ -658,14 +676,21 @@ export class EditorState {
    * floor) and, in the same undo step, pulls its device icon off every floor — a manually placed sensor that is now
    * attached to what it senses no longer needs its own icon. `keepDeviceId` spares one device (the heater/ac's own),
    * belt-and-suspenders alongside `deviceAttachChoices` already excluding a device's own entity from its choices.
-   * The catalog entry is untouched either way, so the entity still shows in Add once detached (S10.2 decision,
-   * `docs/DECISIONS.md`). Returns `changed: false` when `apply` wrote nothing (an empty entity, or a no-op);
-   * `pulled: true` when an icon was actually removed, so the caller can tell the difference in its status line.
+   * A catalog entry already there is untouched either way, so the entity still shows in Add once detached (S10.2
+   * decision, `docs/DECISIONS.md`). S10.6: an entity with no catalog entry yet (picked via `unattachedHaChoices`)
+   * gets one created here, in the same undo step, so it has a name to show instead of falling back to its raw
+   * entity id — undoing the attach removes that entry again, along with the attachment. Returns `changed: false`
+   * when `apply` wrote nothing (an empty entity, or a no-op); `pulled: true` when an icon was actually removed,
+   * so the caller can tell the difference in its status line.
    */
   attachEntity(entity: string, apply: (f: Floor) => void, keepDeviceId?: string): { changed: boolean; pulled: boolean } {
     if (!entity) return { changed: false, pulled: false };
     const next = structuredClone(this.layout);
     apply(next.floors[this.floor]);
+    if (!next.catalog.some((c) => c.entity === entity)) {
+      const e = this.ha?.entities.find((x) => x.id === entity);
+      if (e) next.catalog.push({ id: e.id, floor: this.floor, room: "", type: typeForEntity(e), name: e.name || e.id, entity: e.id });
+    }
     const selDevId = this.sel?.t === "dev" ? this.f.devices[this.sel.i]?.id : undefined;
     let pulled = false;
     for (const fl of Object.values(next.floors)) {

@@ -54,6 +54,33 @@ describe("EditorState", () => {
     expect(st.doorAttachChoices("door-ground-3", "sensors").map((c) => c.entity)).toContain("binary_sensor.demo_garage_door");
   });
 
+  it("S10.6: offers an HA lock entity that has never been placed or catalogued, so it can attach with no prior placement step", () => {
+    const st = new EditorState(fresh());
+    st.ha = {
+      floors: [], areas: [],
+      entities: [{ id: "lock.front_door_yale", name: "Front door Yale", domain: "lock", area: null }],
+    };
+    // not placed, not catalogued: without S10.6 this list is catalog-only and never sees it
+    expect(st.doorAttachChoices("door-ground-1", "locks").map((c) => c.entity)).toContain("lock.front_door_yale");
+  });
+
+  it("S10.6: attaching an uncatalogued HA entity creates its catalog entry in the same step, so it names itself afterwards instead of falling back to its raw id", () => {
+    const st = new EditorState(fresh());
+    st.ha = {
+      floors: [], areas: [],
+      entities: [{ id: "lock.front_door_yale", name: "Front door Yale", domain: "lock", area: null }],
+    };
+    expect(st.layout.catalog.some((c) => c.entity === "lock.front_door_yale")).toBe(false);
+    const r = st.attachEntity("lock.front_door_yale", (f) => { f.doors[0].locks = ["lock.front_door_yale"]; });
+    expect(r.changed).toBe(true);
+    const entry = st.layout.catalog.find((c) => c.entity === "lock.front_door_yale");
+    expect(entry?.name).toBe("Front door Yale");
+    expect(entry?.type).toBe("lock");
+    // detaching leaves the catalog entry behind, same S10.2 rule as an entity attached from the plan
+    expect(st.undo()).toBe(true);
+    expect(st.layout.catalog.some((c) => c.entity === "lock.front_door_yale")).toBe(false);
+  });
+
   it("autosaves under the documented key and restores it", () => {
     const st = new EditorState(fresh());
     st.edit((f) => { f.rooms[0].name = "Saved"; });
