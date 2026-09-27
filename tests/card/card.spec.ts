@@ -1381,3 +1381,119 @@ test("S8.11 fix (halo seam, card): the cut no longer coincides with the wall's o
 // This must fail with the cut narrowed back to wallWidthAt(...) + 2 (its old width, exactly the halo's own width):
 // the sampled row then sits precisely on the coincident edge and reads as a blend, e.g. (142,165,199,255) — neither
 // the halo's white nor the room's own fill (verified by hand, see the S8.11 report).
+
+// S9.5: the floating active-devices panel. Real page.mouse gestures at real coordinates throughout (CLAUDE.md
+// finding 3): a click on a row, a drag on the header, a click on the plan itself once the panel is up.
+test.describe("S9.5: the active-devices panel", () => {
+  const states = () => ({
+    "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() },
+    "camera.demo_hall": { state: "idle", attributes: {}, last_changed: new Date().toISOString() },
+  });
+
+  /** Same recording pattern as the kiosk section above: a page-global array of every `hass-more-info` detail. */
+  async function configureRecordingMoreInfo(page: Page, config: Record<string, unknown>, hass: Record<string, unknown>) {
+    await page.evaluate(
+      ([config, hass]) => {
+        (window as unknown as { __moreInfo: unknown[] }).__moreInfo = [];
+        const el = document.getElementById("card") as unknown as EventTarget & { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+        el.addEventListener("hass-more-info", (e) => (window as unknown as { __moreInfo: unknown[] }).__moreInfo.push((e as CustomEvent).detail));
+        el.setConfig(config);
+        el.hass = hass;
+        return el.updateComplete;
+      },
+      [config, hass] as const,
+    );
+  }
+  const moreInfo = (page: Page) => page.evaluate(() => (window as unknown as { __moreInfo: unknown[] }).__moreInfo);
+
+  test("a real click on a panel row fires hass-more-info with that row's own entity", async ({ page }) => {
+    await open(page);
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo) }, { states: states() });
+    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" });
+    const box = (await row.boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    expect(await moreInfo(page)).toEqual([{ entityId: "camera.demo_hall" }]);
+  });
+
+  test("a real drag on the header moves the panel and clamps it inside the card, both corners", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    const card = page.locator("floorplan-studio-card");
+    const cardBox = (await card.boundingBox())!;
+    const head = card.locator("css=.fp-active-head");
+
+    // Drag far past the bottom-right corner: the panel must stop at the card's own edge, not follow the pointer off it.
+    const start = (await head.boundingBox())!;
+    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cardBox.x + cardBox.width + 400, cardBox.y + cardBox.height + 400, { steps: 6 });
+    await page.mouse.up();
+    const panelBox = (await card.locator("css=.fp-active").boundingBox())!;
+    expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 0.5);
+    expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(cardBox.y + cardBox.height + 0.5);
+
+    // Drag far past the top-left corner: the same clamp, the other way.
+    const start2 = (await head.boundingBox())!;
+    await page.mouse.move(start2.x + start2.width / 2, start2.y + start2.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cardBox.x - 400, cardBox.y - 400, { steps: 6 });
+    await page.mouse.up();
+    const panelBox2 = (await card.locator("css=.fp-active").boundingBox())!;
+    expect(panelBox2.x).toBeGreaterThanOrEqual(cardBox.x - 0.5);
+    expect(panelBox2.y).toBeGreaterThanOrEqual(cardBox.y - 0.5);
+  });
+
+  test("a drag over a device does not toggle it; a plain click on the plan still reaches a device once the panel is out of the way", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+    const card = page.locator("floorplan-studio-card");
+    const cardBox = (await card.boundingBox())!;
+    const kitchenLight = card.locator('css=g[data-x="1"]');
+    const lightBox = (await kitchenLight.boundingBox())!;
+    const calls = () => page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+
+    const head = card.locator("css=.fp-active-head");
+    const headBox = (await head.boundingBox())!;
+    await page.mouse.move(headBox.x + headBox.width / 2, headBox.y + headBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(lightBox.x + lightBox.width / 2, lightBox.y + lightBox.height / 2, { steps: 6 });
+    await page.mouse.up();
+    expect(await calls()).toEqual([]); // dragging the panel over the light must not toggle it
+
+    // The panel now sits where it was dropped, over the light: drag it away to a corner it cannot reach (bottom-right,
+    // clamped by the same logic the earlier clamp test already proved) before trusting a click at the light's own
+    // coordinates to mean the plan, not the panel, received it.
+    const headBox2 = (await head.boundingBox())!;
+    await page.mouse.move(headBox2.x + headBox2.width / 2, headBox2.y + headBox2.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cardBox.x + cardBox.width - 4, cardBox.y + cardBox.height - 4, { steps: 6 });
+    await page.mouse.up();
+
+    await page.mouse.click(lightBox.x + lightBox.width / 2, lightBox.y + lightBox.height / 2);
+    expect(await calls()).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]); // the plan itself still takes a plain click
+  });
+
+  test("the collapsed state survives a reload", async ({ page }) => {
+    await open(page);
+    const config = { layout: structuredClone(demo) };
+    await configure(page, config, { states: states() });
+    const card = page.locator("floorplan-studio-card");
+    await card.locator("css=.fp-active-collapse").click();
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(0);
+
+    await page.reload();
+    await page.addScriptTag({ content: CARD_JS, type: "module" });
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await configure(page, config, { states: states() });
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(0);
+  });
+
+  test("hidden under kiosk and under active_list: false", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: structuredClone(demo), kiosk: true }, { states: states() });
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-active")).toHaveCount(0);
+
+    await configure(page, { layout: structuredClone(demo), active_list: false }, { states: states() });
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-active")).toHaveCount(0);
+  });
+});

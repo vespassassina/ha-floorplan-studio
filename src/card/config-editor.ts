@@ -13,6 +13,7 @@ const DEFAULT_THEME: Theme = "blueprint";
 const DEFAULT_FADE = 300;
 const DEFAULT_ROOM_GLOW = false;
 const DEFAULT_KIOSK = false;
+const DEFAULT_ACTIVE_LIST = true;
 const DEFAULT_NIGHT = "auto";
 const DEFAULT_SUN = "sun.sun";
 
@@ -199,6 +200,10 @@ export class FloorplanStudioCardEditor extends LitElement {
     this._set("kiosk", (e.target as HTMLInputElement).checked, DEFAULT_KIOSK);
   }
 
+  private _onActiveList(e: Event): void {
+    this._set("active_list", (e.target as HTMLInputElement).checked, DEFAULT_ACTIVE_LIST);
+  }
+
   private _onNight(e: Event): void {
     this._set("night", (e.target as HTMLSelectElement).value as EditorConfig["night"], DEFAULT_NIGHT);
   }
@@ -269,6 +274,11 @@ export class FloorplanStudioCardEditor extends LitElement {
       </div>
 
       <div class="row">
+        <label class="main" for="active_list">Active list</label>
+        <input id="active_list" type="checkbox" .checked=${this._config.active_list ?? DEFAULT_ACTIVE_LIST} @change=${this._onActiveList} />
+      </div>
+
+      <div class="row">
         <label class="main" for="night">Night</label>
         <select id="night" @change=${this._onNight}>
           <option value="auto" ?selected=${this._night() === "auto"}>Auto</option>
@@ -281,7 +291,8 @@ export class FloorplanStudioCardEditor extends LitElement {
         <label class="main" for="sun">Sun entity</label>
         <input id="sun" type="text" .value=${this._config.sun ?? DEFAULT_SUN} @change=${this._onSun} />
       </div>
-      <p class="hint">Night darkens rooms after sunset; Kiosk shows only the plan, for a wall tablet.</p>
+      <p class="hint">Night darkens rooms after sunset; Kiosk shows only the plan, for a wall tablet. Active list is
+        the floating panel of what's on; kiosk hides it too.</p>
     `;
   }
 }
