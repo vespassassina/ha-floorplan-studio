@@ -15,16 +15,16 @@ const ON_STATE: Partial<Record<Device["type"], ReturnType<typeof st>>> = {
   light: st("on"), motion: st("on"), contact: st("on"), tv: st("on"), plug: st("on"), computer: st("on"), cover: st("open"),
   heater: st("heat", { hvac_action: "heating" }), climate: st("heat", { hvac_action: "heating" }),
   ac: st("cool", { hvac_action: "cooling" }), media: st("playing"), person: st("home"),
-  camera: st("idle"), vacuum: st("cleaning"),
+  camera: st("idle"), vacuum: st("cleaning"), speaker: st("playing"),
   switch: st("on"), temp: st("21"), humidity: st("50"), battery: st("on"), inverter: st("on"), server: st("on"),
   access_point: st("on"), lock: st("locked"), vibration: st("on"), other: st("on"), boiler: st("on"), car: st("on"),
-  ups: st("on"), printer: st("on"), speaker: st("on"), radar: st("on"),
+  ups: st("on"), printer: st("on"), radar: st("on"),
 };
 /** The same devices, at rest — never active for an "on" type. */
 const OFF_STATE: Partial<Record<Device["type"], ReturnType<typeof st>>> = {
   light: st("off"), motion: st("off"), contact: st("off"), tv: st("off"), plug: st("off"), computer: st("off"), cover: st("closed"),
   heater: st("heat", { hvac_action: "idle" }), climate: st("heat", { hvac_action: "idle" }),
-  ac: st("off"), media: st("idle"), person: st("not_home"),
+  ac: st("off"), media: st("idle"), person: st("not_home"), speaker: st("idle"),
   camera: st("idle"), vacuum: st("returning"), // "returning" is on-plan-active but off-list (the one deliberate gap)
 };
 
@@ -100,6 +100,13 @@ describe("activeDevices", () => {
     expect(names["light.a"]).toBe("Kitchen"); // plan name wins over friendly_name it never even reads
     expect(names["light.b"]).toBe("Bedroom light");
     expect(names["light.c"]).toBe("light.c");
+  });
+
+  it("Opus review finding 2: a playing speaker is listed (it already pulses on the plan; the list must agree)", () => {
+    const l = layoutOf([dev("speaker", "media_player.speaker")]);
+    expect(activeDevices(l, { "media_player.speaker": st("playing") }).map((i) => i.entity)).toEqual(["media_player.speaker"]);
+    expect(activeDevices(l, { "media_player.speaker": st("idle") }).map((i) => i.entity)).toEqual([]);
+    expect(activeDevices(l, { "media_player.speaker": st("playing") })[0].colorVar).toBe("--fp-dev-speaker");
   });
 
   it("Opus review finding 1: a tv is listed for playing/paused/idle/on, not only 'on'; off/standby are excluded", () => {
