@@ -112,26 +112,39 @@ A floating panel over the plan, open by default in the top-left, lists
 every active device on every floor of the layout — not only the one the
 plan is showing. "Active" is lights on (a light bound to a switch counts
 when the switch is), motion and contact on, TVs and media players on or
-playing, heaters and climate heating, AC running, plugs, computers and
-covers on or open, persons at home, and vacuums that are cleaning (one
-that is only returning to its dock is not). Every camera is listed
-whatever its state — a camera is a view, not an on/off thing.
+playing, a speaker playing, heaters and climate heating, AC running, plugs,
+computers and covers on or open, persons at home, and vacuums that are
+cleaning (one that is only returning to its dock is not). Every camera is
+listed whatever its state — a camera is a view, not an on/off thing —
+except an `unavailable`/`unknown` one, or any device of any type with no
+entity configured: neither has a real more-info dialog to open.
 
-Rows are grouped by type, each with the type's own icon and colour (the
-same ones the plan draws) and its name; a tap, click or Enter opens
-Home Assistant's more-info for that entity. The header shows the count
-and a collapse toggle, and can be dragged to reposition the panel — it is
-clamped inside the card, so it can never end up off-screen. Position and
-collapsed state are kept per browser (`localStorage`), keyed to the
-card's own layout, so two cards on the same dashboard do not share one
-position. `active_list: false` hides it; so does `kiosk: true`.
+Rows are grouped by type, each with the type's own icon and colour — the
+camera row's own icon is the panel's ink colour rather than the plan's
+camera tint, chosen to stay legible against the panel's background in
+every theme — and its name; a tap, click or Enter opens Home Assistant's
+more-info for that entity. The header shows the count and a collapse
+toggle, and can be dragged to reposition the panel — its position is kept
+as a fraction of the card's free space and re-clamped after every render
+and resize, so it can never end up off-screen, including after the card
+itself is resized or the panel is collapsed then expanded again. On a card
+narrower than 500px with nothing yet stored, the panel starts collapsed and
+narrower (`min(200px, 45%)`), so it does not crowd a phone-width plan.
+Position and collapsed state are kept per browser (`localStorage`), keyed
+to the layout's source (its `layout_url`, or "inline" for a config
+`layout`, or the websocket fetch) plus the card's own `floor`/`floors`, so
+two cards on the same dashboard — even two showing different floors of the
+same websocket layout — do not share one position, and an inline layout's
+autosave does not reset it.
 
 ## The Edit-card form
 
 No YAML needed: adding or editing the card in the Lovelace UI (the pencil
 icon, or "Edit" on an existing card) shows a form instead of raw code —
-theme, a Floor selector, fade, room glow, zoom, kiosk, active list, night
-and the sun entity. The Floor selector picks "All floors (switcher)" (the default — it
+theme, a Floor selector, fade, room glow, zoom, kiosk, icon size, the
+open-door colour (with a Clear button, distinct from picking the theme's
+own default colour by hand), the Active list toggle, night and the sun
+entity. The Floor selector picks "All floors (switcher)" (the default — it
 writes no `floor` key at all) or one specific floor, by name, once the
 card's own layout has loaded (`layout`, `layout_url`, or the plan stored in
 Home Assistant); until then it offers only "All floors". Choosing a single
@@ -206,14 +219,21 @@ differently:
   With reduced motion set on the device, nothing pulses. A cover door's own
   open state (see Cover, above) is separate: it stays its plain orange,
   undashed, whatever `open_color` says.
-- **Speaker (media_player)** — blue, the same as `media`, only while the
-  player's state is exactly `playing`: paused, idle, off, on-but-not-playing,
-  unavailable and unknown all stay idle grey. Playing, two arcs pulse out from
-  under its disc in its own colour, so a speaker mid-song reads as radiating
+- **Speaker (media_player)** — a fixed blue in every theme (the same
+  exception a TV is: a TV or speaker's icon turns blue whenever the player
+  reports anything other than off, standby, unavailable or unknown — not
+  only its plain `on`, since a Cast, Android TV or webOS device reports
+  `playing`/`paused`/`idle` while genuinely powered on), the speaker one
+  only while its state is exactly `playing`: paused, idle, off,
+  on-but-not-playing, unavailable and unknown all stay idle grey. A plain
+  `media` device is a separate type: it keeps each theme's own colour (its
+  accent, or Solarized's own magenta — never speaker/TV's fixed blue)
+  rather than being fixed itself. Playing, two arcs pulse out from under
+  its disc in its own colour, so a speaker mid-song reads as radiating
   sound on the plan. Reduced motion holds the arcs still, the same as a
-  motion sensor's ring. Tap always opens more-info: `media_player.toggle` is
-  play/pause or power, never a clean on/off, so guessing which one you meant
-  would be worse than always asking.
+  motion sensor's ring. Tap always opens more-info: `media_player.toggle`
+  is play/pause or power, never a clean on/off, so guessing which one you
+  meant would be worse than always asking.
 - **Camera** — a dark cone of view, turned to match the device's own
   rotation.
 - **Person** — a green icon at full opacity while home; away (`not_home`, or

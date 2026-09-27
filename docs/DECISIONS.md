@@ -2,6 +2,81 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 Opus review of the integrated Sprint 9 build: nine fixes
+
+An Opus review of the whole `task/S9` branch (S9.1 through S9.5, the entries
+below) found nine real defects, fixed on `task/S9-fix`. In finding order:
+
+1. **A TV that is playing was not blue and not listed.** `classOf` treated
+   `tv` like a plain switch — only the literal state `"on"` counted — but a
+   Cast, Android TV or webOS device reports `"playing"`/`"paused"`/`"idle"`
+   while genuinely powered on. `tv` is now on for any state other than
+   `off`/`standby` (`unavailable`/`unknown` were already excluded upstream),
+   the same rule the S9.5 device table already documented in words, just not
+   in code.
+2. **A playing speaker pulsed on the plan but never appeared in the S9.5
+   Active list.** `ACTIVE_LIST_RULE.speaker` was left at `"never"`, a stale
+   default from before S9.4 gave `speaker` its own on-state — `COLOR_VAR` had
+   no entry for it either. Both now match `speaker`'s real S9.4 behaviour.
+3. **A saved panel position could put the panel outside the card.** The old
+   code clamped only while dragging and stored raw pixels, so a resize (the
+   card's own or the window's) after a drag could leave it clipped, and
+   collapsing then re-expanding could leave it below the card entirely (a
+   collapsed panel is shorter, so a position clamped for the tall panel is no
+   longer valid once it grows back). Position is now a fraction (0–1) of the
+   card's free width/height, reapplied imperatively after every render and
+   on a `ResizeObserver` of the host — not only at the end of a drag — so it
+   is always back inside the card's current box, whatever just changed
+   its size.
+4. Same fix as 3: collapse, drag to the bottom, expand no longer leaves the
+   panel hanging off the card — re-clamping after every render catches the
+   size change collapse/expand causes, the same as any other resize.
+5. **Assumption, flagged for Diego to overrule:** with nothing yet stored
+   for a card, and the card narrower than 500px, the panel now starts
+   collapsed and takes `min(200px, 45%)` of the width rather than a flat
+   200px. 500px is a guess at "phone width in a dashboard column", checked
+   only against Chromium's viewport emulation at 380px, not a real device.
+6. (No finding 6 in the review.)
+7. **The storage key could collide or churn.** It used to hash the layout's
+   own *content* (`layout_url`, or the inline `layout` verbatim). In
+   websocket mode — no `layout`/`layout_url` configured, the default
+   install — that content is always `""`, so two cards pinned to different
+   floors of the same layout shared one saved position; an inline layout's
+   own autosave rewrote `layout` on every edit, so the key (and the saved
+   position under it) changed every time. The key now hashes the layout's
+   *source* (`layout_url`, else `"inline"`, else `"ws"`) plus the card's own
+   `floor`/`floors`, which is stable under autosave and distinguishes two
+   cards on one layout by the floor each pins.
+8. **The speaker/media wave's two arcs were not concentric with the halo.**
+   Supersedes part of the S9.4 entry below: the arcs were `<path>`
+   semicircles under `transform-box:fill-box`, and a semicircle's own
+   bounding box sits off to one side of the disc it belongs to, not centred
+   on it — so each arc scaled from a different point than the halo (same
+   `cx`/`cy`/`r`) sharing its group. They are `<circle cx="12" cy="12"
+   r="16">` now, like `.ping`: a circle's bbox is always the square centred
+   on its own centre, so it is concentric with the halo automatically,
+   whatever arc `stroke-dasharray` (with `pathLength="100"`, so "50 50"
+   always means half the circumference regardless of `r`) leaves visible.
+   Because `.wave` is a `<circle>` and not a `<path>` any more, it no longer
+   needs the `.dev.on path.wave` specificity repeat the S9.4 entry describes
+   (that rule only ever matches a `<path>`) — dropped.
+9. **A camera with an empty `entity` was always listed, of every type, and a
+   click fired `hass-more-info` with an empty entity id.** `isActive` now
+   excludes any device (not only `camera`) whose `entity` is empty, and an
+   `unavailable`/`unknown` camera as well — neither has a real more-info to
+   open.
+
+Two more, smaller: Solarized's `--fp-dev-speaker` was `#2c7fb8`, the generic
+fixed blue, while Solarized's own TV already used `#268bd2` — speaker now
+matches TV's own Solarized blue, keeping Solarized's "every type its own
+hue" rule (S9.3's decision) consistent for the one other fixed-blue type.
+And the camera row in the Active list took `--fp-dev-camera`, the token
+`theme-roles.ts` sets to the same shade as `--fp-idle` for a generated
+theme — legible on the plan, against a room's own fill, but the panel's row
+sits on `--fp-room` instead, where in blueprint (a dark navy base) that
+shade read as a dark blue icon on navy. The row now takes `--fp-ink`, the
+same token its own text already reads by.
+
 ## 2026-09-27 Sprint 9 integration: an open door is red in every theme
 
 Supersedes the default in the S9.1 entry below. `--fp-open-door` defaulted to

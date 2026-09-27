@@ -1863,9 +1863,13 @@ One increment: every task ships in the card, tested, with shots looked at.
 
 - Outcome: a door or window whose contact sensor is on draws dashed, and
   its line and the pulsing alert line under it (S8.13) use `--fp-open-door`,
-  which defaults to `--fp-dev-contact`. A new card option `open_color`
-  (`#rrggbb`) sets it. A cover door that is open keeps its own orange and is
-  not dashed. An invalid colour is ignored, with the default applied.
+  a fixed `#d64545` in every generated theme (superseding this entry's
+  original default of `--fp-dev-contact`, which a role-generated theme
+  collapsed to its one accent — orange in blueprint, the default theme, not
+  the red the brief asked for; see `docs/DECISIONS.md`, Sprint 9
+  integration). A new card option `open_color` (`#rrggbb`) overrides it. A
+  cover door that is open keeps its own orange and is not dashed. An invalid
+  colour is ignored, with the default applied.
 - Test: render has the dash in a class rule and one colour variable for both
   lines; card sets the variable from `open_color` and ignores `"red;x"`;
   a computed-style pair in Chromium; the Edit-card form offers a colour.
@@ -1926,6 +1930,17 @@ One increment: every task ships in the card, tested, with shots looked at.
   Paused, idle, off, unavailable: no arcs.
 - Test: arcs per state and type; computed-style pair including reduced
   motion; shots with a playing speaker.
+- Done, 2026-09-27. Tests first, watched failing then reverted-once to
+  confirm: `render.test.ts` cases per state and type (`speaker`/`media`,
+  playing/paused/idle/off/on/unavailable/unknown/no state), the fixed
+  Solarized/theme-block colour strings, a Chromium computed-style pair
+  (`editor.spec.ts`) for stroke/fill/pointer-events/staggered delay and the
+  reduced-motion hold. Opus review of the integrated build found two more
+  defects, fixed on `task/S9-fix` and not part of this entry's own outcome:
+  the arcs were not concentric with the halo (finding 8: rewritten from two
+  `<path>` semicircles to two `<circle>`s), and the S9.5 Active list's
+  `ACTIVE_LIST_RULE` had `speaker` left at a stale `"never"` (finding 2). See
+  `docs/DECISIONS.md`, 2026-09-27 (both entries).
 
 ### S9.5 A floating list of active devices
 
@@ -1965,6 +1980,13 @@ One increment: every task ships in the card, tested, with shots looked at.
   `npm run shots` run and the panel looked at in blueprint, ha-dark and
   light (on-state and off-state, camera still listed with everything
   else off) — see the report.
+- Follow-up, 2026-09-27: an Opus review of the integrated build found nine
+  defects across S9.1-S9.5, five of them in this panel (empty/unavailable
+  entities wrongly listed, the storage key, the position clamp only
+  applying while dragging, the collapsed-panel default on a narrow card,
+  and the camera row's own colour). All fixed on `task/S9-fix`; see
+  `docs/DECISIONS.md`, 2026-09-27, "Opus review of the integrated Sprint 9
+  build".
 
 ## Later, not planned
 
