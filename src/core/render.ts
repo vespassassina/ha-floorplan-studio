@@ -213,13 +213,16 @@ export const FLOORPLAN_CSS = `
 /* S9.4: a playing speaker or media device sends out two arcs from under its disc, the same pattern as the ping above
    (a shape in the group, transform-box:fill-box so it scales from its own centre, held still under reduced motion) —
    staggered by animation-delay instead of drawn one on top of the other, so they read as a sound radiating outward.
-   Unlike .ping (a circle) the wave is a <path>, so plain ".wave{fill:none}" loses to ".dev.on path" above (0,2,1
-   beats 0,1,0, CLAUDE.md finding 10) — ".dev.on path.wave" repeats that fill:none at equal-or-higher specificity. */
+   Opus review finding 8: the wave used to be two <path> semicircles, each scaling about its own bbox centre — a
+   semicircle's bbox sits off the disc's own centre, so the two arcs visibly grew from different points, not the
+   halo's. It is a <circle> now, like .ping: a circle's bbox is always the square centred on (cx,cy), so scaling it
+   about "center" is automatically concentric with the halo, whatever arc stroke-dasharray leaves visible — and,
+   like .ping, it needs no tag-qualified specificity repeat any more (CLAUDE.md finding 10's own guard from S9.4,
+   dropped below): the ".dev.on path{fill:...}" rule above only ever matches a <path>, never a <circle>. */
 .wave{fill:none;stroke:var(--fp-dev);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none;transform-box:fill-box;transform-origin:center;animation:fp-wave 1.6s ease-out infinite}
-.dev.on path.wave{fill:none}
 .wave.w2{animation-delay:.8s}
 @keyframes fp-wave{from{transform:scale(1);opacity:.8}to{transform:scale(2.4);opacity:0}}
-@media (prefers-reduced-motion:reduce){.ping,.door-alert,.wave{animation:none}.ping,.wave{transform:scale(1.5);opacity:.6}.dev.on path.wave{opacity:.6}}
+@media (prefers-reduced-motion:reduce){.ping,.door-alert,.wave{animation:none}.ping,.wave{transform:scale(1.5);opacity:.6}}
 .dev.unavailable{opacity:.45}
 .dev.dim{opacity:.3}
 /* S7.8: a person glides to the room its room sensor names. The position is an inline CSS transform, not an attribute, so
@@ -808,7 +811,16 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // r=16, the halo's own radius (like .ping): a smaller arc sat entirely inside the halo's fill and never showed
     // even at rest under reduced motion (Opus review, S9.4 shots) — the two together read as one ring, split so
     // each can carry its own animation-delay and pulse out a beat apart.
-    const wave = (d.type === "speaker" || d.type === "media") && s?.state === "playing" ? `<path class="wave" d="M-4,12A16,16 0 0 1 28,12"/><path class="wave w2" d="M-4,12A16,16 0 0 0 28,12"/>` : "";
+    // Opus review finding 8: two <circle> elements, not <path> semicircles — a circle's bounding box is always the
+    // square centred on (cx,cy), so transform-box:fill-box scales it about the halo's own centre, whatever it did
+    // for two independent semicircle paths (each one's bbox sits off to one side). pathLength="100" makes
+    // stroke-dasharray's numbers mean "percent of the circumference" regardless of r; "50 50" is half drawn, half
+    // gap, and the second arc's dashoffset of 50 puts its visible half opposite the first's, so the two read as
+    // two arcs on either side of the ring rather than one drawn twice in the same place.
+    const wave = (d.type === "speaker" || d.type === "media") && s?.state === "playing"
+      ? `<circle class="wave" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
+        `<circle class="wave w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
+      : "";
     const icon = `${ping}${wave}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
     // The bar draws first so the icon group (fix/heater-bar-under-icon), with its white disc and halo, always paints on top of it.
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).

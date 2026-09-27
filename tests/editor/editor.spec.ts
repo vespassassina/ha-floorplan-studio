@@ -4736,12 +4736,16 @@ test("Opus review CSS pair: S9.1 a cover door's own open state stays plain orang
   expect(s.dash).toBe("none");
 });
 
+// Opus review finding 8: the wave is a <circle> now, not a <path> semicircle (render.ts). These fixtures build the
+// same element renderFloor now emits, so a regression back to <path> (which would silently lose the finding-8 fix,
+// since .wave{fill:none} etc. apply to either tag by class alone) fails here too, not only in render.test.ts.
 test("Opus review CSS pair: S9.4 a playing speaker's two arcs pulse from its own colour, staggered, and take no click", async ({ page }) => {
   await addCssFixtures(page);
   const s = await page.locator("svg g.dev-speaker").first().evaluate((e) => {
     e.classList.add("on");
     const ns = "http://www.w3.org/2000/svg";
-    const w1 = document.createElementNS(ns, "path"), w2 = document.createElementNS(ns, "path");
+    const w1 = document.createElementNS(ns, "circle"), w2 = document.createElementNS(ns, "circle");
+    for (const w of [w1, w2]) { w.setAttribute("cx", "12"); w.setAttribute("cy", "12"); w.setAttribute("r", "16"); w.setAttribute("pathLength", "100"); w.setAttribute("stroke-dasharray", "50 50"); }
     w1.setAttribute("class", "wave");
     w2.setAttribute("class", "wave w2");
     e.querySelector(".halo")!.before(w1, w2);
@@ -4750,6 +4754,10 @@ test("Opus review CSS pair: S9.4 a playing speaker's two arcs pulse from its own
       dev: getComputedStyle(e).getPropertyValue("--fp-dev").trim(),
       stroke: s1.stroke, fill: s1.fill, pe: s1.pointerEvents, anim1: s1.animationName, delay1: s1.animationDelay,
       anim2: s2.animationName, delay2: s2.animationDelay,
+      // finding 8's own point: a circle's bbox is the square centred on (cx,cy), so it is concentric with the
+      // halo (same cx/cy/r) whatever arc the dasharray leaves visible — unlike the old semicircle path.
+      bbox1: (() => { const b = w1.getBBox(); return { x: b.x, y: b.y, width: b.width, height: b.height }; })(),
+      haloBbox: (() => { const b = (e.querySelector(".halo") as SVGCircleElement).getBBox(); return { x: b.x, y: b.y, width: b.width, height: b.height }; })(),
     };
   });
   expect(s.dev).toBe("#2c7fb8"); // --fp-dev-speaker, fixed in every theme (S9.4, the same exception as tv/S9.3)
@@ -4760,6 +4768,7 @@ test("Opus review CSS pair: S9.4 a playing speaker's two arcs pulse from its own
   expect(s.anim2).toBe("fp-wave");
   expect(s.delay1).toBe("0s");
   expect(s.delay2).toBe("0.8s"); // staggered, so the two arcs read as one radiating out after the other
+  expect(s.bbox1).toEqual(s.haloBbox); // same cx/cy/r as the halo: concentric, not offset like the old semicircle
 });
 
 test("Opus review CSS pair: S9.4 under reduced motion the speaker's arcs hold still, same as the ping", async ({ page }) => {
@@ -4769,7 +4778,8 @@ test("Opus review CSS pair: S9.4 under reduced motion the speaker's arcs hold st
     const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
     const g = svg.querySelector("g.dev-speaker")!;
     g.classList.add("on");
-    const wave = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    const wave = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    wave.setAttribute("cx", "12"); wave.setAttribute("cy", "12"); wave.setAttribute("r", "16");
     wave.setAttribute("class", "wave");
     g.querySelector(".halo")!.before(wave);
     const w = getComputedStyle(wave);

@@ -435,13 +435,22 @@ describe("S9.4: a speaker radiates while it plays", () => {
   const dev = (type: string, entity: string, x = 400, y = 300) => ({ id: `${type}-x`, type, entity, x, y });
   const draw = (devices: unknown[], state: StateOverlay) => renderFloor({ ...structuredClone(ground), devices } as never, { ...base, state });
   const group = (html: string) => html.match(/<g data-x="0"[^>]*>.*?<\/g>/s)![0];
-  const WAVE = /<path class="wave"[^>]*\/><path class="wave w2"[^>]*\/><circle class="halo"/;
+  // Opus review finding 8: the two arcs used to be <path> semicircles under transform-box:fill-box, each scaling
+  // about its own bbox centre — a semicircle's bbox is only half as tall as it is wide, so its centre sits on the
+  // circle's own diameter line, not at (12,12) where the halo and ping are centred. A <circle> at r=16 always has
+  // a square bbox centred on (cx,cy), so scaling it about "center" is automatically concentric with the halo,
+  // whatever arc `stroke-dasharray` (with `pathLength="100"` so "50 50" always means "half the circumference,
+  // half gap" regardless of r) leaves visible.
+  const WAVE = /<circle class="wave" cx="12" cy="12" r="16"[^>]*\/><circle class="wave w2" cx="12" cy="12" r="16"[^>]*\/><circle class="halo"/;
 
-  it("a playing speaker or media device draws two staggered arcs before the halo", () => {
+  it("a playing speaker or media device draws two staggered arcs before the halo, each a circle centred on the halo's own centre", () => {
     for (const type of ["speaker", "media"]) {
       const on = group(draw([dev(type, "media_player.s")], { "media_player.s": st("playing") }));
       expect(on, type).toMatch(WAVE);
       expect((on.match(/class="wave/g) ?? []).length, type).toBe(2);
+      // The two arcs are opposite each other on the ring, not drawn on top of one another (finding 8's own ask).
+      const offsets = [...on.matchAll(/class="wave[^"]*"[^>]*stroke-dashoffset="([^"]*)"/g)].map((m) => m[1]);
+      expect(offsets, type).toEqual(["0", "50"]);
     }
   });
 
@@ -471,14 +480,15 @@ describe("S9.4: a speaker radiates while it plays", () => {
   it("the wave rule pulses from the sensor's own colour, staggered, and holds still under reduced motion", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.wave\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-wave/);
     expect(FLOORPLAN_CSS).toMatch(/\.wave\.w2\{animation-delay:\.8s\}/);
-    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave\{animation:none\}\.ping,\.wave\{transform:scale\(1\.5\);opacity:\.6\}\.dev\.on path\.wave\{opacity:\.6\}\}/);
+    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave\{animation:none\}\.ping,\.wave\{transform:scale\(1\.5\);opacity:\.6\}\}/);
   });
 
-  it("the wave's fill:none and reduced-motion opacity both repeat at the specificity of .dev.on path, so they are not lost to it (CLAUDE.md finding 10)", () => {
-    // .dev.on path{fill:...;opacity:...} is (0,2,1); a bare .wave{fill:none} or .wave{opacity:.6} is only (0,1,0)
-    // because .wave is a <path> like .ping is a <circle> is not — so each needs an equal-or-higher-specificity repeat.
-    expect(FLOORPLAN_CSS).toMatch(/\.dev\.on path\.wave\{fill:none\}/);
-    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{[^]*\.dev\.on path\.wave\{opacity:\.6\}\}/);
+  // Opus review finding 8: the wave is now a <circle>, like .ping — so, like .ping, it needs no ".dev.on path.wave"
+  // specificity repeat any more (CLAUDE.md finding 10's own guard from S9.4): ".dev.on path" only ever matches a
+  // <path> element, so a bare ".wave{fill:none}" at (0,1,0) was never actually competing with it once the tag
+  // changed. The repeat is gone; this test would fail if it crept back in as dead weight or, worse, wrong.
+  it("the wave rule needs no .dev.on path.wave repeat any more: .wave is a <circle>, .dev.on path can never match it", () => {
+    expect(FLOORPLAN_CSS).not.toContain(".dev.on path.wave");
   });
 });
 
