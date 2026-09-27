@@ -1381,3 +1381,31 @@ test("S8.11 fix (halo seam, card): the cut no longer coincides with the wall's o
 // This must fail with the cut narrowed back to wallWidthAt(...) + 2 (its old width, exactly the halo's own width):
 // the sampled row then sits precisely on the coincident edge and reads as a blend, e.g. (142,165,199,255) — neither
 // the halo's white nor the room's own fill (verified by hand, see the S8.11 report).
+
+// S9.1: `open_color` sets --fp-open-door on the card host, so an open contact door/window (and its S8.13 alert
+// line) draws in the configured colour instead of the default contact red. Untrusted config (CLAUDE.md finding 1):
+// a value that is not a plain #rrggbb hex is ignored rather than thrown on, and the CSS custom property is left
+// unset so the theme's own default (var(--fp-dev-contact)) still applies.
+test("S9.1: open_color sets --fp-open-door on the host from a valid #rrggbb hex, and is ignored otherwise", async ({ page }) => {
+  await open(page);
+  // The host's own inline style, not getComputedStyle: --fp-open-door is always defined (the theme's own default,
+  // var(--fp-dev-contact)), so a computed read can never tell "unset" from "set to the same colour as the default".
+  const openDoorVar = () => page.locator("floorplan-studio-card").evaluate((el) => (el as HTMLElement).style.getPropertyValue("--fp-open-door").trim());
+
+  await configure(page, { layout: structuredClone(demo) }, { states: {} });
+  expect(await openDoorVar(), "no open_color: unset, falls back to the theme default").toBe("");
+
+  await configure(page, { layout: structuredClone(demo), open_color: "#123abc" }, { states: {} });
+  expect(await openDoorVar(), "a valid hex is applied").toBe("#123abc");
+
+  await configure(page, { layout: structuredClone(demo), open_color: "red;x" }, { states: {} });
+  expect(await openDoorVar(), "an invalid value (not #rrggbb) is ignored, not applied").toBe("");
+
+  await configure(page, { layout: structuredClone(demo), open_color: "#fff" }, { states: {} });
+  expect(await openDoorVar(), "a 3-digit shorthand is not #rrggbb and is ignored too").toBe("");
+
+  await configure(page, { layout: structuredClone(demo), open_color: "#123abc" }, { states: {} });
+  expect(await openDoorVar()).toBe("#123abc");
+  await configure(page, { layout: structuredClone(demo) }, { states: {} });
+  expect(await openDoorVar(), "clearing open_color removes the property again").toBe("");
+});

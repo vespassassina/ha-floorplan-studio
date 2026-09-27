@@ -2,6 +2,35 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 S9.3: TV is the one exception to one accent
+
+Every role-generated theme (blueprint, slate, terminal) collapses its device
+colours to one accent unless `devices` names an override. A TV kept doing
+that too, so a blueprint TV turned the same orange as a lit lamp — nothing
+told the two apart at a glance, and Solarized's TV was violet, which read as
+blue-ish without being blue. `--fp-dev-tv` is now a fixed `#2c7fb8` in every
+theme (Solarized keeps its own blue, `#268bd2`, since it already gives every
+device type its own hue rather than collapsing to one), read directly rather
+than through `devices`, so no theme — generated or not — can opt out. Warn,
+danger and primary already worked this way; TV joins them as UI meaning, not
+device-on state.
+
+## 2026-09-27 S9.1: an open contact door is dashed, in a colour the card can set
+
+A door or window is glass and a hinge; "open" used to look like nothing more
+than red, the same red a triggered motion sensor wears. Dashing the line on
+`.door.open` (a class rule, not a presentation attribute — finding 18) gives
+open its own silhouette independent of colour, and the colour itself moves
+to a new token, `--fp-open-door` (default `var(--fp-dev-contact)`), so a
+card author can repaint it with the new `open_color` option without also
+overriding the contact sensor's own disc and ping. The S8.13 door-alert line
+moves to the same token, so the two always match. A cover door's own open
+state is unrelated to a contact sensor and keeps its plain orange, undashed
+— `.door.cover-open` sets `stroke-dasharray:none` explicitly, since a door
+with both `sensors` and `cover` set (the schema allows it, even if the demo
+fixture doesn't) would otherwise inherit `.open`'s dash on that property
+alone, CSS resolving per property rather than per rule.
+
 ## 2026-09-26 S8.13 review: the viewBox pads only lamps near the plan
 
 Supersedes part of the S8.13 viewBox entry below. The Opus review found

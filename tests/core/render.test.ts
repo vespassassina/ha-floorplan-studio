@@ -426,8 +426,26 @@ describe("S8.13: brighter alerts, wider light", () => {
   it("the alert rules: a ping pulses in the sensor's own colour, a triggered disc is stronger than any other on disc, the door alert is contact red, and none take the pointer", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.ping\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-ping/);
     expect(FLOORPLAN_CSS).toMatch(/\.dev-motion\.on \.halo,\.dev-contact\.on \.halo\{fill-opacity:\.6;stroke:var\(--fp-dev\);stroke-width:2\}/);
-    expect(FLOORPLAN_CSS).toMatch(/\.door-alert\{stroke:var\(--fp-dev-contact\);[^}]*stroke-linecap:butt;[^}]*pointer-events:none/);
+    expect(FLOORPLAN_CSS).toMatch(/\.door-alert\{stroke:var\(--fp-open-door\);[^}]*stroke-linecap:butt;[^}]*pointer-events:none/);
     expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert\{animation:none\}/);
+  });
+});
+
+describe("S9.3: a TV is a fixed blue in every theme", () => {
+  const themeBlock = (theme: string) => FLOORPLAN_CSS.match(new RegExp(`data-theme="${theme}"\\](?:\\[data-mode="dark"\\])?[^{]*\\{([^}]*)\\}`))?.[1];
+
+  it("every theme's block defines --fp-dev-tv as the same blue, except solarized's own Solarized blue", () => {
+    const want: Record<string, string> = {
+      blueprint: "#2c7fb8", midnight: "#2c7fb8", light: "#2c7fb8", slate: "#2c7fb8", terminal: "#2c7fb8", solarized: "#268bd2",
+    };
+    for (const [theme, hex] of Object.entries(want)) expect(themeBlock(theme), theme).toContain(`--fp-dev-tv:${hex}`);
+  });
+
+  it("the ha theme (light and dark) inherits the same fixed blue from its light/midnight base, since it maps no device colours of its own", () => {
+    const light = FLOORPLAN_CSS.match(/data-theme="ha"\][^[][^{]*\{([^}]*)\}/)?.[1];
+    const dark = FLOORPLAN_CSS.match(/data-theme="ha"\]\[data-mode="dark"\][^{]*\{([^}]*)\}/)?.[1];
+    expect(light).toContain("--fp-dev-tv:#2c7fb8");
+    expect(dark).toContain("--fp-dev-tv:#2c7fb8");
   });
 });
 
@@ -1166,8 +1184,26 @@ describe("S2.9: a device wears its colour when it is on", () => {
   });
 
   it("a door contact sensor (not a device icon) also draws red now, not the old orange --fp-open", () => {
-    expect(FLOORPLAN_CSS).toContain(".door.open{stroke:var(--fp-dev-contact)}");
-    expect(FLOORPLAN_CSS).toContain(".door.cover-open{stroke:var(--fp-open)}"); // a cover's own open state is unrelated to contact and stays orange
+    expect(FLOORPLAN_CSS).toContain(".door.open{stroke:var(--fp-open-door);stroke-dasharray:10 6}");
+    expect(FLOORPLAN_CSS).toContain(".door.cover-open{stroke:var(--fp-open);stroke-dasharray:none}"); // a cover's own open state is unrelated to contact, stays orange, and is never dashed
+  });
+
+  it("S9.1: --fp-open-door defaults to --fp-dev-contact in every theme block", () => {
+    for (const theme of ["blueprint", "midnight", "light", "slate", "terminal", "solarized"]) {
+      const block = FLOORPLAN_CSS.match(new RegExp(`data-theme="${theme}"\\][^{]*\\{([^}]*)\\}`))?.[1];
+      expect(block, theme).toContain("--fp-open-door:var(--fp-dev-contact)");
+    }
+  });
+
+  it("S9.1: a door that is both contact-open and cover-open (both classes) stays solid orange, not dashed — cover-open comes after open in the stylesheet and out-specifies nothing else, so source order decides", () => {
+    const openIdx = FLOORPLAN_CSS.indexOf(".door.open{");
+    const coverOpenIdx = FLOORPLAN_CSS.indexOf(".door.cover-open{");
+    expect(openIdx).toBeGreaterThan(-1);
+    expect(coverOpenIdx).toBeGreaterThan(openIdx);
+  });
+
+  it("S9.1: an open contact door's wide alert line also reads --fp-open-door, not --fp-dev-contact directly", () => {
+    expect(FLOORPLAN_CSS).toContain("stroke:var(--fp-open-door);stroke-opacity:.45");
   });
 
   it("a motion device that is on carries the on class (its icon colour is still the fade rule, checked by its own CSS pair)", () => {

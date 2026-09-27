@@ -199,3 +199,32 @@ test("a starting config of floor: \"all\" shows All floors selected", async ({ p
   await expect(editor.locator("select#floor")).toHaveValue("");
   await expect(editor.locator('input[type="checkbox"][data-floor]')).toHaveCount(3);
 });
+
+// S9.1: the open_color field. A native <input type="color"> can only ever hold a valid #rrggbb, so it cannot
+// represent "unset" — it shows the theme's own default (#d64545, --fp-dev-contact's value) until a colour is
+// picked, and a separate Clear control removes the key rather than the input being set back to that same hex
+// (which config-changed could never tell apart from the user actually choosing #d64545).
+test("open_color: the colour field starts at the contact default, picking a colour emits it, and Clear removes the key", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#open_color")).toHaveValue("#d64545");
+
+  await editor.locator("#open_color").evaluate((el) => {
+    (el as HTMLInputElement).value = "#123abc";
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  let detail = (await events(page)).at(-1) as { config: { open_color?: string } };
+  expect(detail.config.open_color).toBe("#123abc");
+
+  await editor.locator("#open_color_clear").click();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("open_color" in detail.config).toBe(false);
+  await expect(editor.locator("#open_color")).toHaveValue("#d64545");
+});
+
+test("setConfig fills open_color into the colour field", async ({ page }) => {
+  await open(page);
+  await mount(page, { open_color: "#00ff88", layout: demo });
+  await expect(page.locator("#editor").locator("#open_color")).toHaveValue("#00ff88");
+});

@@ -1869,6 +1869,13 @@ One increment: every task ships in the card, tested, with shots looked at.
 - Test: render has the dash in a class rule and one colour variable for both
   lines; card sets the variable from `open_color` and ignores `"red;x"`;
   a computed-style pair in Chromium; the Edit-card form offers a colour.
+- Done, 2026-09-27. Tests first, all watched failing then reverted-once to
+  confirm: `render.test.ts` CSS text (dash, cover-open no-dash, alert-line
+  token, theme-block completeness), two Chromium computed-style pairs
+  (`editor.spec.ts`: dashed open, cover-open undashed even alongside
+  `.open`), a card test for `open_color` (valid hex, `"red;x"`, `"#fff"`,
+  clearing), two config-editor tests (field default/emit/Clear, setConfig
+  fill). See `docs/DECISIONS.md`, 2026-09-27.
 
 ### S9.2 Icons stay visible on large plans
 
@@ -1886,6 +1893,11 @@ One increment: every task ships in the card, tested, with shots looked at.
   single-accent ones (blueprint, slate, terminal) and `ha`. Decision
   recorded: TV is the one exception to "one accent".
 - Test: iterate `THEMES`; the TV's computed fill when on is blue in each.
+- Done, 2026-09-27. Tests first, watched failing then reverted-once to
+  confirm: two `theme-roles.test.ts` cases (fixed value, `devices.tv`
+  override ignored), `render.test.ts` cases for the light/midnight/
+  solarized token strings, a Chromium computed-style pair iterating
+  `THEMES`. See `docs/DECISIONS.md`, 2026-09-27.
 
 ### S9.4 A speaker radiates while it plays
 

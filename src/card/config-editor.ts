@@ -15,6 +15,11 @@ const DEFAULT_ROOM_GLOW = false;
 const DEFAULT_KIOSK = false;
 const DEFAULT_NIGHT = "auto";
 const DEFAULT_SUN = "sun.sun";
+/** S9.1: the theme's own default for an open contact door (--fp-dev-contact's value, render.ts LIGHT_TOKENS)
+ * shown in the colour field until open_color is set — a plain <input type="color"> can only ever hold a real hex,
+ * never "unset", so Clear (below) is the only way to remove the key rather than picking this same colour by hand. */
+const DEFAULT_OPEN_COLOR = "#d64545";
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 const NIGHT_CHOICES = ["auto", "on", "off"] as const;
 
@@ -208,6 +213,27 @@ export class FloorplanStudioCardEditor extends LitElement {
     this._set("sun", v, DEFAULT_SUN);
   }
 
+  /** The colour field's own value: a set, valid open_color, or the theme's default so the field never shows a
+   * value the config doesn't have (CLAUDE.md finding 1: an invalid saved value is dropped, not surfaced as-is). */
+  private _openColor(): string {
+    const c = this._config.open_color;
+    return c && HEX_COLOR.test(c) ? c : DEFAULT_OPEN_COLOR;
+  }
+
+  private _onOpenColor(e: Event): void {
+    this._set("open_color", (e.target as HTMLInputElement).value, DEFAULT_OPEN_COLOR);
+  }
+
+  /** Clear removes open_color outright, distinct from picking the default colour by hand (the field can't tell
+   * those apart on its own — see DEFAULT_OPEN_COLOR's comment). */
+  private _onOpenColorClear(): void {
+    const next: EditorConfig = { ...this._config };
+    delete next.open_color;
+    this._config = next;
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: next }, bubbles: true, composed: true }));
+    this.requestUpdate();
+  }
+
   protected render() {
     const floors = this._floorEntries();
     const checked = new Set(this._config.floors ?? []);
@@ -280,6 +306,12 @@ export class FloorplanStudioCardEditor extends LitElement {
       <div class="row">
         <label class="main" for="sun">Sun entity</label>
         <input id="sun" type="text" .value=${this._config.sun ?? DEFAULT_SUN} @change=${this._onSun} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="open_color">Open door colour</label>
+        <input id="open_color" type="color" .value=${this._openColor()} @change=${this._onOpenColor} />
+        <button id="open_color_clear" type="button" @click=${this._onOpenColorClear}>Clear</button>
       </div>
       <p class="hint">Night darkens rooms after sunset; Kiosk shows only the plan, for a wall tablet.</p>
     `;

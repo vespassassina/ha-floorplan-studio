@@ -4697,11 +4697,42 @@ test("Opus review CSS pair: S8.13 an open door's alert line is contact red and t
     line.setAttribute("class", "door-alert");
     svg.querySelector("line[data-d]")!.before(line);
     const cs = getComputedStyle(line);
-    return { stroke: cs.stroke, want: getComputedStyle(svg).getPropertyValue("--fp-dev-contact").trim(), pe: cs.pointerEvents, anim: cs.animationName };
+    // S9.1: the door-alert line now reads --fp-open-door (which defaults to --fp-dev-contact, so this is still
+    // contact red with no config override, but the token behind it is the one the card's open_color can change).
+    return { stroke: cs.stroke, want: getComputedStyle(svg).getPropertyValue("--fp-open-door").trim(), pe: cs.pointerEvents, anim: cs.animationName };
   }, EDITOR);
   expect(s.stroke).toBe(rgb(s.want));
   expect(s.pe).toBe("none");
   expect(s.anim).toBe("fp-door");
+});
+
+// S9.1 Opus review CSS pair: an open contact door is dashed in --fp-open-door; a cover door's own open state
+// (.cover-open) is unrelated to contact and keeps the plain --fp-open orange, undashed, even on a door that
+// somehow carries both classes (schema.ts allows a door both `sensors` and `cover`) — CSS resolves per property,
+// not per rule block, so .cover-open must clear the dasharray itself (CLAUDE.md finding 18: a class rule, not an
+// attribute, or the editor's own pointer-events:all would win the day it shows live state).
+test("Opus review CSS pair: S9.1 an open contact door is dashed in --fp-open-door", async ({ page }) => {
+  const s = await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const line = svg.querySelector("line[data-d]") as SVGLineElement;
+    line.setAttribute("class", "door open");
+    const cs = getComputedStyle(line);
+    return { stroke: cs.stroke, dash: cs.strokeDasharray, want: getComputedStyle(svg).getPropertyValue("--fp-open-door").trim() };
+  }, EDITOR);
+  expect(s.stroke).toBe(rgb(s.want));
+  expect(s.dash).not.toBe("none");
+});
+
+test("Opus review CSS pair: S9.1 a cover door's own open state stays plain orange and undashed, even alongside .open", async ({ page }) => {
+  const s = await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const line = svg.querySelector("line[data-d]") as SVGLineElement;
+    line.setAttribute("class", "door open cover-open"); // both at once: the schema permits sensors + cover together
+    const cs = getComputedStyle(line);
+    return { stroke: cs.stroke, dash: cs.strokeDasharray, want: getComputedStyle(svg).getPropertyValue("--fp-open").trim() };
+  }, EDITOR);
+  expect(s.stroke).toBe(rgb(s.want));
+  expect(s.dash).toBe("none");
 });
 
 test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-dev per type, icon and halo)", async ({ page }) => {

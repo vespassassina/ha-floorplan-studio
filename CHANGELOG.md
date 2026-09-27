@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- An open door or window with a contact sensor now draws dashed as well as
+  red, and a new `open_color` card option recolours it (and its pulsing
+  alert line) to whatever you like. A cover door's own open state is
+  unaffected and stays plain orange, undashed.
+- A TV is now a fixed blue whenever it is on, in every theme, instead of
+  matching the theme's one accent colour (which made it read the same as a
+  lit lamp in blueprint, slate and terminal).
+
 ## 0.12.7
 
 - A lit lamp's aura is 50% larger (3 m across instead of 2 m). It now draws

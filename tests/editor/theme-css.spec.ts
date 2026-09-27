@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { FLOORPLAN_CSS } from "../../src/core/render";
+import { FLOORPLAN_CSS, THEMES } from "../../src/core/render";
 
 // S1.53 Opus review, finding 3 & 4: the nested `<g data-theme="...">` path (render.ts's RenderOpts.theme, the
 // only new core API of S1.53) had no computed-style test — the old test matched FLOORPLAN_CSS as text, which
@@ -65,4 +65,27 @@ test("S2.12: theme ha reads Home Assistant's variables, falls back to plain ligh
   // The other themes ignore them.
   expect(await stroke(page, "bpWall")).toBe(DARK.wall);
   expect(await bg(page, "lightBg")).toBe(LIGHT.bg);
+});
+
+// S9.3 Opus review CSS pair: a TV is blue when on, in every theme, including the role-generated single-accent ones
+// (blueprint, slate, terminal) where every other device type collapses to the theme's one accent colour. Reads the
+// real computed --fp-dev-tv in Chromium, in every member of THEMES (render.test.ts's own S4.21/S9.3 findings warn
+// that an enumeration left untested silently falls through — CLAUDE.md finding 17), not just a text match on
+// FLOORPLAN_CSS (finding 10).
+const TV_BLUE = "#2c7fb8";
+const SOLARIZED_BLUE = "#268bd2"; // Solarized's own blue
+
+test("S9.3 Opus review CSS pair: --fp-dev-tv is a fixed blue in every theme, not the theme's accent", async ({ page }) => {
+  const page_ = `<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg>${THEMES.map(
+    (t) => `<g data-theme="${t}" data-mode="dark" id="t-${t}"><line/></g>`,
+  ).join("")}</svg></body></html>`;
+  await page.setContent(page_);
+  for (const t of THEMES) {
+    const tv = await page.locator(`#t-${t}`).evaluate((el) => getComputedStyle(el).getPropertyValue("--fp-dev-tv").trim());
+    expect(tv, t).toBe(t === "solarized" ? SOLARIZED_BLUE : TV_BLUE);
+    if (t !== "solarized") {
+      const accent = await page.locator(`#t-${t}`).evaluate((el) => getComputedStyle(el).getPropertyValue("--fp-on").trim());
+      expect(tv, `${t}: tv must not collapse to the theme accent`).not.toBe(accent);
+    }
+  }
 });
