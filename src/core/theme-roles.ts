@@ -66,6 +66,14 @@ function shade(base: string, dark: boolean, t: number): string {
 
 const ON_DEVICES: DeviceType[] = ["light", "motion", "contact", "heater", "climate", "ac", "tv", "media", "cover", "plug", "computer"];
 
+/** S9.3 (Diego's brief, 2026-09-27): a TV is blue when on, in every theme, including the single-accent ones — the
+ * one exception to "collapse to one accent" (theme-roles.ts's own header comment). Fixed, not read from `devices`:
+ * a role-generated theme cannot opt out of it, the same way warn/danger/primary below are fixed regardless of
+ * the roles given. #2c7fb8 is the blue every non-generated theme (light, midnight, ha) already used for it;
+ * solarized keeps its own Solarized blue instead (render.ts, #268bd2), since it deliberately keeps every device
+ * type's own hue rather than collapsing to one. */
+const TV_BLUE = "#2c7fb8";
+
 /** Builds a full `--fp-*` token string from four roles, so a new theme is four colours and a lightness direction, not ~50
  * independent hexes to keep in step by hand. */
 export function rolesToTokens(roles: ThemeRoles): string {
@@ -77,12 +85,15 @@ export function rolesToTokens(roles: ThemeRoles): string {
     `--fp-garden:${shades.garden}`, `--fp-terrace:${shades.terrace}`, `--fp-pavement:${shades.pavement}`,
     `--fp-wall:${shades.wall}`, `--fp-idle:${shades.idle}`,
     `--fp-on:${roles.accent}`, `--fp-open:${roles.accent}`, `--fp-motion:${devFor("motion")}`, `--fp-heater:${devFor("heater")}`,
+    // S9.1: an open door or window's colour and its S8.13 alert line default to the contact colour; `open_color`
+    // (the card's own config, floorplan-studio-card.ts) overrides this on the host, never here.
+    `--fp-open-door:var(--fp-dev-contact)`,
     `--fp-door:${roles.fg}`, `--fp-glass:${roles.fg}`, `--fp-window:${roles.fg}`, `--fp-sealed:${shades.sealed}`,
     `--fp-water:${shades.water}`, `--fp-fill:${shades.fill}`, `--fp-fill-line:${shades.fillLine}`,
     `--fp-tread:${shades.tread}`,
     `--fp-dev-light:${devFor("light")}`, `--fp-dev-motion:${devFor("motion")}`, `--fp-dev-contact:${devFor("contact")}`,
     `--fp-dev-heater:${devFor("heater")}`, `--fp-dev-climate:${devFor("climate")}`, `--fp-dev-ac-cool:${acCool}`,
-    `--fp-dev-ac-heat:${acHeat}`, `--fp-dev-tv:${devFor("tv")}`, `--fp-dev-media:${devFor("media")}`,
+    `--fp-dev-ac-heat:${acHeat}`, `--fp-dev-tv:${TV_BLUE}`, `--fp-dev-media:${devFor("media")}`,
     `--fp-dev-cover:${devFor("cover")}`, `--fp-dev-plug:${devFor("plug")}`, `--fp-dev-computer:${devFor("computer")}`,
     `--fp-dev-camera:${shades.idle}`, `--fp-dev-garden:${shades.idle}`, `--fp-dev-person:${devFor("person")}`, `--fp-dev-radar:${devFor("radar")}`, `--fp-dev-vacuum:${devFor("vacuum")}`,
     `--fp-halo:${roles.fg}`, `--fp-alpha:.25`, `--fp-disc:${roles.fg}`, `--fp-disc-alpha:${roles.fgAlpha}`,
