@@ -131,6 +131,11 @@ describe("activeDevices", () => {
     }
   });
 
+  it("Opus review finding 10: a camera's row colour is --fp-ink, not --fp-dev-camera (that resolves to the same shade as --fp-idle/--fp-room in blueprint, unreadable on the panel's own --fp-room background)", () => {
+    const l = layoutOf([dev("camera", "camera.a")]);
+    expect(activeDevices(l, { "camera.a": st("idle") })[0].colorVar).toBe("--fp-ink");
+  });
+
   it("an ac takes its colour var from acMode: cool or heat, never a flat --fp-dev-ac", () => {
     const l = layoutOf([dev("ac", "climate.cool"), dev("ac", "climate.heat")]);
     const state = { "climate.cool": st("cool", { hvac_action: "cooling" }), "climate.heat": st("heat", { hvac_action: "heating" }) };

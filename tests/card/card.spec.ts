@@ -1473,6 +1473,21 @@ test.describe("S9.5: the active-devices panel", () => {
     expect(await moreInfo(page)).toEqual([{ entityId: "camera.demo_hall" }]);
   });
 
+  // Opus review CSS pair (CLAUDE.md finding 10): the camera row's icon used to take `--fp-dev-camera`, which
+  // `theme-roles.ts` sets to the same shade as `--fp-idle` for every generated theme — in blueprint (the default,
+  // a dark navy base) that read as a dark blue icon on the panel's own `--fp-room` background, hard to make out.
+  // `active.ts`'s `COLOR_VAR.camera` now points the row at `--fp-ink`, the same token the row's own text already
+  // reads by (`.fp-active{color:var(--fp-ink)}`), which is picked precisely so it is never the same shade as the
+  // background it sits on. Reading the resolved `fill`, not just asserting the source string, is what makes this
+  // a real Chromium check and not a text match blind to which rule actually won (CLAUDE.md finding 10 itself).
+  test("S9.5 CSS pair: a camera row's icon resolves to --fp-ink (legible on --fp-room), not --fp-dev-camera", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" });
+    const fill = await row.locator("css=svg").evaluate((el) => getComputedStyle(el).fill);
+    expect(fill).toBe(DARK_INK); // blueprint's --fp-ink/--fp-text, #eef3fb — not --fp-dev-camera's idle navy
+  });
+
   test("a real drag on the header moves the panel and clamps it inside the card, both corners", async ({ page }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo) }, { states: states() });
