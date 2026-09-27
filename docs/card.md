@@ -21,7 +21,7 @@ floor there is nothing to switch, so it just draws that. Either way: the
 `blueprint` theme, motion fading over 300 seconds, `room_glow` off, darker
 after sunset.
 
-The editor itself can write this for you: File, Install code opens a panel
+The editor itself can write this for you: File → Install code opens a panel
 with a whole dashboard, matching your plan as it currently stands — theme,
 floors — ready to paste. See "A premade dashboard" below.
 
