@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 Sprint 9 integration: an open door is red in every theme
+
+Supersedes the default in the S9.1 entry below. `--fp-open-door` defaulted to
+the contact colour, and the role-generated themes collapse that to their one
+accent, so in blueprint, the default theme, an open door was orange. The
+brief asked for red. It is now a fixed `#d64545` in every generated theme;
+light and midnight already resolve to it, Solarized keeps its own red.
+`open_color` still overrides it.
+
 ## 2026-09-27 S9.3: TV is the one exception to one accent
 
 Every role-generated theme (blueprint, slate, terminal) collapses its device

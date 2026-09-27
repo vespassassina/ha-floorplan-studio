@@ -85,9 +85,10 @@ export function rolesToTokens(roles: ThemeRoles): string {
     `--fp-garden:${shades.garden}`, `--fp-terrace:${shades.terrace}`, `--fp-pavement:${shades.pavement}`,
     `--fp-wall:${shades.wall}`, `--fp-idle:${shades.idle}`,
     `--fp-on:${roles.accent}`, `--fp-open:${roles.accent}`, `--fp-motion:${devFor("motion")}`, `--fp-heater:${devFor("heater")}`,
-    // S9.1: an open door or window's colour and its S8.13 alert line default to the contact colour; `open_color`
+    // S9.1: an open door or window and its S8.13 alert line are red, as the brief asks. Fixed, not the contact
+    // colour: here that collapses to the one accent, which made an open door orange in blueprint. `open_color`
     // (the card's own config, floorplan-studio-card.ts) overrides this on the host, never here.
-    `--fp-open-door:var(--fp-dev-contact)`,
+    `--fp-open-door:#d64545`,
     `--fp-door:${roles.fg}`, `--fp-glass:${roles.fg}`, `--fp-window:${roles.fg}`, `--fp-sealed:${shades.sealed}`,
     `--fp-water:${shades.water}`, `--fp-fill:${shades.fill}`, `--fp-fill-line:${shades.fillLine}`,
     `--fp-tread:${shades.tread}`,

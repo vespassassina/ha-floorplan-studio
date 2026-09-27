@@ -89,3 +89,16 @@ test("S9.3 Opus review CSS pair: --fp-dev-tv is a fixed blue in every theme, not
     }
   }
 });
+
+// S9.1 integration: Diego's brief is "dashed and red when open". The role-generated themes (blueprint, the default,
+// slate, terminal) collapse the contact colour to their one accent, so an open door there fell back to orange or
+// green. --fp-open-door is a fixed red in every theme instead: Solarized's own red, the light theme's red elsewhere.
+test("S9.1 Opus review CSS pair: --fp-open-door is red in every theme, never the theme's accent", async ({ page }) => {
+  await page.setContent(`<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg>${THEMES.map(
+    (t) => `<g data-theme="${t}" data-mode="dark" id="t-${t}"><line/></g>`,
+  ).join("")}</svg></body></html>`);
+  for (const t of THEMES) {
+    const door = await page.locator(`#t-${t}`).evaluate((el) => getComputedStyle(el).getPropertyValue("--fp-open-door").trim());
+    expect(door, t).toBe(t === "solarized" ? "#dc322f" : "#d64545");
+  }
+});
