@@ -434,6 +434,14 @@ card. The editor is unchanged — it always passed its own zoom, never `1`.
   already drawn; the view scrolls to it. A door, window or opening still lands
   on the wall nearest the middle of the view: it is of no use off the house.
 - Device: entities not yet placed, grouped by type then area, with a search.
+- Every field that picks a Home Assistant entity (a device's own entity,
+  "Controlled by", a door's cover, room/furniture "shows the state of", room
+  sensor, radar targets, and every multi-attach list of sensors or locks) is
+  a filterable combo box (`<fp-combo>`, S10.1), not a plain `<select>`.
+  Typing narrows the list live by label, entity id or group (room or
+  domain); arrow keys move, Enter picks, Escape restores the previous value
+  and closes without picking. A pick is one undo step, same as a `<select>`;
+  picking the value already set commits nothing.
 - Floors: add, rename, reorder, delete (never the last one). A new floor
   inherits the outline and the stairs of the first floor in the list. Stairs
   are added to every floor at the same position, and deleted from one floor at
