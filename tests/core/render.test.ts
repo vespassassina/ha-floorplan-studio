@@ -471,7 +471,14 @@ describe("S9.4: a speaker radiates while it plays", () => {
   it("the wave rule pulses from the sensor's own colour, staggered, and holds still under reduced motion", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.wave\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-wave/);
     expect(FLOORPLAN_CSS).toMatch(/\.wave\.w2\{animation-delay:\.8s\}/);
-    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave\{animation:none\}\.ping,\.wave\{transform:scale\(1\.5\);opacity:\.6\}\}/);
+    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave\{animation:none\}\.ping,\.wave\{transform:scale\(1\.5\);opacity:\.6\}\.dev\.on path\.wave\{opacity:\.6\}\}/);
+  });
+
+  it("the wave's fill:none and reduced-motion opacity both repeat at the specificity of .dev.on path, so they are not lost to it (CLAUDE.md finding 10)", () => {
+    // .dev.on path{fill:...;opacity:...} is (0,2,1); a bare .wave{fill:none} or .wave{opacity:.6} is only (0,1,0)
+    // because .wave is a <path> like .ping is a <circle> is not — so each needs an equal-or-higher-specificity repeat.
+    expect(FLOORPLAN_CSS).toMatch(/\.dev\.on path\.wave\{fill:none\}/);
+    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{[^]*\.dev\.on path\.wave\{opacity:\.6\}\}/);
   });
 });
 
