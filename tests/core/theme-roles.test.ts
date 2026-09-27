@@ -21,9 +21,26 @@ describe("theme-roles (S4.21)", () => {
       "--fp-dev-light", "--fp-dev-motion", "--fp-dev-contact", "--fp-dev-heater", "--fp-dev-climate", "--fp-dev-ac-cool",
       "--fp-dev-ac-heat", "--fp-dev-tv", "--fp-dev-media", "--fp-dev-cover", "--fp-dev-plug", "--fp-dev-computer",
       "--fp-dev-camera", "--fp-dev-garden", "--fp-dev-person", "--fp-dev-radar",
+      // S9.1: an open door or window's colour, defaulting to the contact colour.
+      "--fp-open-door",
     ];
     const got = tokenPairs(rolesToTokens(BASE));
     for (const k of wanted) expect(got.has(k), k).toBe(true);
+  });
+
+  it("S9.1: --fp-open-door is a fixed red, regardless of the roles given (never the accent)", () => {
+    const a = tokenPairs(rolesToTokens(BASE));
+    const b = tokenPairs(rolesToTokens({ base: "#888888", fg: "#111111", fgAlpha: 0.5, line: "#00ff00", accent: "#ff00ff", dark: false }));
+    expect(a.get("--fp-open-door")).toBe("#d64545");
+    expect(b.get("--fp-open-door")).toBe("#d64545");
+  });
+
+  it("S9.3: --fp-dev-tv is a fixed blue, not the accent, and a theme cannot override it via devices.tv (the one exception to one accent)", () => {
+    const t = tokenPairs(rolesToTokens(BASE));
+    expect(t.get("--fp-dev-tv")).toBe("#2c7fb8");
+    expect(t.get("--fp-dev-tv")).not.toBe(BASE.accent);
+    const withOverride = tokenPairs(rolesToTokens({ ...BASE, devices: { tv: "#ff0000" } }));
+    expect(withOverride.get("--fp-dev-tv")).toBe("#2c7fb8"); // the attempted override is ignored
   });
 
   it("room-empty is the one fixed grey, in every theme, never the base shade (standing decision, 2026-06)", () => {

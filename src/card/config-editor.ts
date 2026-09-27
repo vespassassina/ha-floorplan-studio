@@ -13,8 +13,23 @@ const DEFAULT_THEME: Theme = "blueprint";
 const DEFAULT_FADE = 300;
 const DEFAULT_ROOM_GLOW = false;
 const DEFAULT_KIOSK = false;
+const DEFAULT_ACTIVE_LIST = true;
 const DEFAULT_NIGHT = "auto";
 const DEFAULT_SUN = "sun.sun";
+/** S9.1: the theme's own default for an open contact door (--fp-dev-contact's value, render.ts LIGHT_TOKENS)
+ * shown in the colour field until open_color is set — a plain <input type="color"> can only ever hold a real hex,
+ * never "unset", so Clear (below) is the only way to remove the key rather than picking this same colour by hand. */
+const DEFAULT_OPEN_COLOR = "#d64545";
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+// S9.2: matches ICON_SIZE_MIN/MAX/DEFAULT_ICON_SIZE in floorplan-studio-card.ts — kept as separate constants
+// (not exported/shared) since the card and its form are each read independently, same as fade above.
+const DEFAULT_ICON_SIZE = 1;
+const ICON_SIZE_MIN = 0.5;
+const ICON_SIZE_MAX = 3;
+// S9.6: matches ZOOM_LEVEL_MIN/MAX_ZOOM in floorplan-studio-card.ts/viewport.ts, same reasoning as icon_size above.
+const DEFAULT_ZOOM_LEVEL = 1;
+const ZOOM_LEVEL_MIN = 1;
+const ZOOM_LEVEL_MAX = 8;
 
 const NIGHT_CHOICES = ["auto", "on", "off"] as const;
 
@@ -45,11 +60,19 @@ export class FloorplanStudioCardEditor extends LitElement {
   private _layout: Layout | null = null;
   private _urlRequested = false;
   private _wsRequested = false;
+  /** S9.6 review (Opus, 2026-09-27): the Center X/Y boxes' own draft, held independently of `_config.center` while
+   * the pair is not yet both valid. Both boxes read `.value=${this._centerX()}`/`${this._centerY()}` on every
+   * render; without a draft, clearing X to retype it deleted `center` from the config, and the *next* render then
+   * read Y's box from that same now-`undefined` `center`, wiping whatever the user had just typed into Y — a
+   * field they never touched. `null` means "no draft, follow `_config.center`" (the normal, settled state); it is
+   * set only while the pair is not both empty and not both valid, and cleared the moment it is one or the other. */
+  private _centerDraft: { x: string; y: string } | null = null;
 
   setConfig(config: FloorplanStudioCardConfig): void {
     // CLAUDE.md finding 1: config comes from a saved dashboard, which a person (or an LLM helping them) can hand-edit —
     // never trust its shape further than reading the handful of keys this form understands.
     this._config = { ...((config ?? {}) as EditorConfig) };
+    this._centerDraft = null; // a fresh config (a different card, or a reload) starts from its own settled values
     this._loadLayout();
     this.requestUpdate();
   }
@@ -189,6 +212,82 @@ export class FloorplanStudioCardEditor extends LitElement {
     this._set("room_glow", (e.target as HTMLInputElement).checked, DEFAULT_ROOM_GLOW);
   }
 
+  /** S9.2: `config.icon_size`, clamped to [0.5, 3] for display, same as the card itself reads it. */
+  private _iconSize(): number {
+    const v = this._config.icon_size;
+    return typeof v === "number" && Number.isFinite(v) ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, v)) : DEFAULT_ICON_SIZE;
+  }
+
+  /** S9.6: `config.center`'s two fields, each shown empty until a real pin is set — there is no single numeric
+   * default to fall back to display-wise, unlike `fade`/`icon_size`, since "unset" (the whole floor) is not a
+   * point on the plan. */
+  private _centerX(): string {
+    if (this._centerDraft) return this._centerDraft.x;
+    const c = this._config.center;
+    return Array.isArray(c) && typeof c[0] === "number" && Number.isFinite(c[0]) ? String(c[0]) : "";
+  }
+
+  private _centerY(): string {
+    if (this._centerDraft) return this._centerDraft.y;
+    const c = this._config.center;
+    return Array.isArray(c) && typeof c[1] === "number" && Number.isFinite(c[1]) ? String(c[1]) : "";
+  }
+
+  /** S9.6: Center X and Center Y write one `center` tuple together — reads both fields' live values (not just the
+   * one that changed) so either box editing the other's partner in place still emits a consistent pair.
+   * S9.6 review (Opus, 2026-09-27): a half-filled pair (one box emptied or holding something that is not yet a
+   * finite number) used to drop `center` from the payload immediately, and the *other* box then read that
+   * deletion back on its own next render — the box the user never touched lost its value too. Now a half-filled
+   * pair only updates the local draft (both boxes keep showing exactly what is in them) and neither dispatches nor
+   * touches `_config`, so the untouched box's config value survives until the pair is completed or both are
+   * cleared. `center` is written, or dropped, only on the two settled states: both valid, or both empty. */
+  private _onCenter(): void {
+    const xEl = this.renderRoot.querySelector<HTMLInputElement>("#center_x");
+    const yEl = this.renderRoot.querySelector<HTMLInputElement>("#center_y");
+    const xRaw = xEl?.value.trim() ?? "", yRaw = yEl?.value.trim() ?? "";
+    const x = Number(xRaw), y = Number(yRaw);
+    const bothEmpty = xRaw === "" && yRaw === "";
+    const bothValid = xRaw !== "" && yRaw !== "" && Number.isFinite(x) && Number.isFinite(y);
+    if (!bothEmpty && !bothValid) {
+      // Half-filled, or not-yet-a-number: keep the draft so the next render shows exactly this, and leave
+      // `_config`/the dashboard's saved config alone until the pair is completed.
+      this._centerDraft = { x: xRaw, y: yRaw };
+      this.requestUpdate();
+      return;
+    }
+    this._centerDraft = null;
+    const next: EditorConfig = { ...this._config };
+    if (bothValid) next.center = [x, y];
+    else delete next.center;
+    this._config = next;
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: next }, bubbles: true, composed: true }));
+    this.requestUpdate();
+  }
+
+  /** S9.6: `config.zoom_level`, clamped to [1, 8] for display, same as the card itself reads it (MAX_ZOOM). */
+  private _zoomLevel(): number {
+    const v = this._config.zoom_level;
+    return typeof v === "number" && Number.isFinite(v) ? Math.min(ZOOM_LEVEL_MAX, Math.max(ZOOM_LEVEL_MIN, v)) : DEFAULT_ZOOM_LEVEL;
+  }
+
+  private _onZoomLevel(e: Event): void {
+    // Same shape as _onIconSize: an emptied or non-numeric field is the default, 1 (the whole floor), not a
+    // silent clamp to the range's own bottom.
+    const raw = (e.target as HTMLInputElement).value.trim();
+    const n = Number(raw);
+    const v = raw !== "" && Number.isFinite(n) ? Math.min(ZOOM_LEVEL_MAX, Math.max(ZOOM_LEVEL_MIN, n)) : DEFAULT_ZOOM_LEVEL;
+    this._set("zoom_level", v, DEFAULT_ZOOM_LEVEL);
+  }
+
+  private _onIconSize(e: Event): void {
+    // Same shape as _onFade: an emptied or non-numeric field is not 0 (out of range, would silently clamp to
+    // 0.5) — it falls back to the default, which _set then drops from the payload.
+    const raw = (e.target as HTMLInputElement).value.trim();
+    const n = Number(raw);
+    const v = raw !== "" && Number.isFinite(n) ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, n)) : DEFAULT_ICON_SIZE;
+    this._set("icon_size", v, DEFAULT_ICON_SIZE);
+  }
+
   private _onZoom(e: Event): void {
     const choice = (e.target as HTMLSelectElement).value as ZoomChoice;
     const value: EditorConfig["zoom"] = choice === "off" ? false : choice === "wheel" ? "wheel" : true;
@@ -199,6 +298,10 @@ export class FloorplanStudioCardEditor extends LitElement {
     this._set("kiosk", (e.target as HTMLInputElement).checked, DEFAULT_KIOSK);
   }
 
+  private _onActiveList(e: Event): void {
+    this._set("active_list", (e.target as HTMLInputElement).checked, DEFAULT_ACTIVE_LIST);
+  }
+
   private _onNight(e: Event): void {
     this._set("night", (e.target as HTMLSelectElement).value as EditorConfig["night"], DEFAULT_NIGHT);
   }
@@ -206,6 +309,27 @@ export class FloorplanStudioCardEditor extends LitElement {
   private _onSun(e: Event): void {
     const v = (e.target as HTMLInputElement).value.trim() || DEFAULT_SUN;
     this._set("sun", v, DEFAULT_SUN);
+  }
+
+  /** The colour field's own value: a set, valid open_color, or the theme's default so the field never shows a
+   * value the config doesn't have (CLAUDE.md finding 1: an invalid saved value is dropped, not surfaced as-is). */
+  private _openColor(): string {
+    const c = this._config.open_color;
+    return c && HEX_COLOR.test(c) ? c : DEFAULT_OPEN_COLOR;
+  }
+
+  private _onOpenColor(e: Event): void {
+    this._set("open_color", (e.target as HTMLInputElement).value, DEFAULT_OPEN_COLOR);
+  }
+
+  /** Clear removes open_color outright, distinct from picking the default colour by hand (the field can't tell
+   * those apart on its own — see DEFAULT_OPEN_COLOR's comment). */
+  private _onOpenColorClear(): void {
+    const next: EditorConfig = { ...this._config };
+    delete next.open_color;
+    this._config = next;
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: next }, bubbles: true, composed: true }));
+    this.requestUpdate();
   }
 
   protected render() {
@@ -255,6 +379,22 @@ export class FloorplanStudioCardEditor extends LitElement {
       </div>
 
       <div class="row">
+        <label class="main" for="icon_size">Icon size</label>
+        <input id="icon_size" type="number" min=${ICON_SIZE_MIN} max=${ICON_SIZE_MAX} step="0.25" .value=${String(this._iconSize())} @change=${this._onIconSize} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="center_x">Center X, Y (cm)</label>
+        <input id="center_x" type="number" step="1" placeholder="whole floor" .value=${this._centerX()} @change=${this._onCenter} />
+        <input id="center_y" type="number" step="1" placeholder="whole floor" .value=${this._centerY()} @change=${this._onCenter} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="zoom_level">Zoom level</label>
+        <input id="zoom_level" type="number" min=${ZOOM_LEVEL_MIN} max=${ZOOM_LEVEL_MAX} step="0.1" .value=${String(this._zoomLevel())} @change=${this._onZoomLevel} />
+      </div>
+
+      <div class="row">
         <label class="main" for="zoom">Zoom</label>
         <select id="zoom" @change=${this._onZoom}>
           <option value="on" ?selected=${this._zoomChoice() === "on"}>On</option>
@@ -266,6 +406,11 @@ export class FloorplanStudioCardEditor extends LitElement {
       <div class="row">
         <label class="main" for="kiosk">Kiosk</label>
         <input id="kiosk" type="checkbox" .checked=${this._config.kiosk ?? DEFAULT_KIOSK} @change=${this._onKiosk} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="active_list">Active list</label>
+        <input id="active_list" type="checkbox" .checked=${this._config.active_list ?? DEFAULT_ACTIVE_LIST} @change=${this._onActiveList} />
       </div>
 
       <div class="row">
@@ -281,7 +426,16 @@ export class FloorplanStudioCardEditor extends LitElement {
         <label class="main" for="sun">Sun entity</label>
         <input id="sun" type="text" .value=${this._config.sun ?? DEFAULT_SUN} @change=${this._onSun} />
       </div>
-      <p class="hint">Night darkens rooms after sunset; Kiosk shows only the plan, for a wall tablet.</p>
+
+      <div class="row">
+        <label class="main" for="open_color">Open door colour</label>
+        <input id="open_color" type="color" .value=${this._openColor()} @change=${this._onOpenColor} />
+        <button id="open_color_clear" type="button" @click=${this._onOpenColorClear}>Clear</button>
+      </div>
+      <p class="hint">Night darkens rooms after sunset; Kiosk shows only the plan, for a wall tablet. Active list is
+        the floating panel of what's on; kiosk hides it too. Center and Zoom level pin the card to one room or
+        corridor instead of the whole floor — the editor's View menu has a "Copy card view" button that reads
+        these two values off its own current view.</p>
     `;
   }
 }

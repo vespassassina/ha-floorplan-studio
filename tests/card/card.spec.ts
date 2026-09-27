@@ -644,6 +644,212 @@ test.describe("S7.4 zoom and pan", () => {
   });
 });
 
+// S9.6: a card pinned to one room, corridor or part of a home via `center`/`zoom_level`, so several cards can each
+// point at a different place. The demo's kitchen light (`g[data-x="1"]`) sits at plan (650, 200) — see
+// demo/layout.json — so it makes a natural, asymmetric pin: not the plan's own centre, and a room worth aiming a
+// card at.
+test.describe("S9.6 a card pinned to one room", () => {
+  test.use({ viewport: { width: 700, height: 900 } });
+
+  type VB = { x: number; y: number; w: number; h: number };
+  const card = (page: Page) => page.locator("floorplan-studio-card");
+  const viewBox = (page: Page): Promise<VB> =>
+    card(page).evaluate((el) => {
+      const [x, y, w, h] = el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number);
+      return { x: x!, y: y!, w: w!, h: h! };
+    });
+  const svgBox = async (page: Page) => (await card(page).locator("css=svg").first().boundingBox())!;
+  const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+  const states = () => ({ "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+
+  async function ctrlWheel(page: Page, x: number, y: number, dy: number) {
+    await page.mouse.move(x, y);
+    await page.keyboard.down("Control");
+    await page.mouse.wheel(0, dy);
+    await page.keyboard.up("Control");
+  }
+
+  test("a pinned center + zoom_level is the resting viewBox on load, not the whole-floor fit", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+    const home = await viewBox(page);
+    expect(home.w).toBeCloseTo(fit.w / 2, 3);
+    expect(home.h).toBeCloseTo(fit.h / 2, 3);
+    expect(home.x + home.w / 2).toBeCloseTo(650, 0);
+    expect(home.y + home.h / 2).toBeCloseTo(200, 0);
+    // Not fit's own centre (finding 4: a bug that always centred on fit would pass a symmetric-centre test too).
+    expect(Math.abs(home.x + home.w / 2 - (fit.x + fit.w / 2))).toBeGreaterThan(5);
+  });
+
+  test("zoom_level alone (no center) zooms about fit's own centre", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), zoom_level: 2 }, states());
+    const home = await viewBox(page);
+    expect(home.w).toBeCloseTo(fit.w / 2, 3);
+    expect(home.x + home.w / 2).toBeCloseTo(fit.x + fit.w / 2, 1);
+    expect(home.y + home.h / 2).toBeCloseTo(fit.y + fit.h / 2, 1);
+  });
+
+  test("center alone (zoom_level unset, or 1) changes nothing: the viewBox is fit exactly", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200] }, states());
+    expect(await viewBox(page)).toEqual(fit);
+
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 1 }, states());
+    expect(await viewBox(page)).toEqual(fit);
+  });
+
+  test("a malformed center or zoom_level never throws and falls back to the whole floor", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const fit = await viewBox(page);
+
+    for (const bad of [{ center: "650,200" }, { center: [650] }, { center: [Number.NaN, 200] }, { center: [650, Number.POSITIVE_INFINITY] }, { zoom_level: "2" }, { zoom_level: Number.NaN }]) {
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), ...bad }, states());
+      expect(await viewBox(page), JSON.stringify(bad)).toEqual(fit);
+    }
+  });
+
+  // Renamed (Opus review, 2026-09-27): the body zooms IN (a negative wheel deltaY, per `onWheel`'s `k = exp(-dy *
+  // 0.002)`), not out — the old title said the opposite of what this test does.
+  test("with zoom on, zooming in then Fit (and a double-tap reset) return to the pinned view, not the whole floor", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+    const home = await viewBox(page);
+    const b = await svgBox(page);
+
+    // Zoom in first (so the pinned card can still reach the whole floor, per the S9.6 spec), then use the Fit
+    // button to come back — it must land on `home`, not the plan's own `fit` (which is twice as wide).
+    await ctrlWheel(page, b.x + b.width / 2, b.y + b.height / 2, -300);
+    await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(home.w * 0.95);
+    // Pinned (center/zoom_level set): the Fit button reads "Reset view" (Opus review, 2026-09-27), since it no
+    // longer fits the whole floor.
+    const fitBtn = card(page).locator('css=.fp-zoom button[aria-label="Reset view"]');
+    await fitBtn.click();
+    expect(await viewBox(page)).toEqual(home);
+
+    // A double-tap resets the same way (S7.4's own reset path, `_fitView`, shared with the pinned "home").
+    const x = b.x + 10, y = b.y + b.height - 10;
+    await page.mouse.dblclick(x, y);
+    await page.waitForTimeout(50);
+    // The first double-tap, at fit already, zooms in 2x about the tap point instead of doing nothing.
+    await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(home.w * 0.95);
+    await page.mouse.dblclick(x, y);
+    await expect.poll(() => viewBox(page)).toEqual(home);
+  });
+
+  test("a real click on a device inside the pinned view still hits g[data-x] and toggles it; the Active panel still works", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+    const light = card(page).locator('css=g[data-x="1"]'); // the kitchen light, right where the card is pinned
+    const lb = (await light.boundingBox())!;
+    // Finding 3: a real mouse click at real coordinates, not a dispatched event on an inner element.
+    await page.mouse.click(lb.x + lb.width / 2, lb.y + lb.height / 2);
+    expect(await calls(page)).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]);
+
+    await expect(card(page).locator("css=.fp-active")).toHaveCount(1);
+    await expect(card(page).locator("css=.fp-active-row")).not.toHaveCount(0);
+  });
+
+  test("the icon scale matches the whole-floor card at the same zoom: S9.2's scale still reads fit, not the pin", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const plainScale = await card(page).evaluate((el) => el.shadowRoot!.querySelector('g[data-x="1"]')!.getAttribute("transform"));
+
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+    const pinnedScale = await card(page).evaluate((el) => el.shadowRoot!.querySelector('g[data-x="1"]')!.getAttribute("transform"));
+    expect(pinnedScale).toBe(plainScale);
+  });
+
+  // Opus review, 2026-09-27: `_zoomButtons` used to gate both "−" and Fit off one `atFit` measured against `home`
+  // (width only). At rest on a pinned card that disabled "−" (the docs promise it can still reach the whole
+  // floor) and, after a same-width sideways pan, left Fit disabled with no way back. The fixes below check each
+  // button's own condition: "−" against the whole floor (`fit`), Fit against whether `_view` is set at all.
+  test.describe("S9.6 review: the zoom buttons' own disabled state (Opus, 2026-09-27)", () => {
+    const minusBtn = (page: Page) => card(page).locator('css=.fp-zoom button[aria-label="Zoom out"]');
+    const fitBtn = (page: Page) => card(page).locator('css=.fp-zoom button[aria-label="Fit"], .fp-zoom button[aria-label="Reset view"]');
+
+    test("a pinned card at home has \"−\" enabled, and clicking it widens the viewBox", async ({ page }) => {
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+      const home = await viewBox(page);
+      await expect(minusBtn(page)).toBeEnabled();
+      await minusBtn(page).click();
+      const after = await viewBox(page);
+      expect(after.w).toBeGreaterThan(home.w * 1.01);
+    });
+
+    test("panning a pinned card enables Fit, and clicking it returns to the pinned viewBox", async ({ page }) => {
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+      const home = await viewBox(page);
+      await expect(fitBtn(page)).toBeDisabled();
+
+      const b = await svgBox(page);
+      const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+      // A real drag, well past TAP_SLOP_PX (6px), so this pans rather than tapping.
+      await page.mouse.move(cx, cy);
+      await page.mouse.down();
+      await page.mouse.move(cx - 60, cy + 40, { steps: 5 });
+      await page.mouse.up();
+      const panned = await viewBox(page);
+      expect(panned.w).toBeCloseTo(home.w, 3); // same zoom level — only the centre moved
+      expect(Math.abs(panned.x - home.x) + Math.abs(panned.y - home.y)).toBeGreaterThan(1);
+
+      await expect(fitBtn(page)).toBeEnabled();
+      await fitBtn(page).click();
+      expect(await viewBox(page)).toEqual(home);
+    });
+
+    test("zooming out past home with Fit returns to home, not the whole floor", async ({ page }) => {
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+      const fit = await viewBox(page);
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+      const home = await viewBox(page);
+      const b = await svgBox(page);
+      // Zoom out (positive wheel deltaY) past home, towards the whole floor.
+      await ctrlWheel(page, b.x + b.width / 2, b.y + b.height / 2, 600);
+      await expect.poll(async () => (await viewBox(page)).w).toBeGreaterThan(home.w * 1.05);
+      await expect.poll(async () => (await viewBox(page)).w).toBeLessThanOrEqual(fit.w * 1.001);
+      await expect(fitBtn(page)).toBeEnabled(); // not at home: Fit must bring it back
+      await fitBtn(page).click();
+      expect(await viewBox(page)).toEqual(home);
+    });
+
+    test("an unpinned card at fit still has \"−\" and Fit disabled, exactly as before S9.6", async ({ page }) => {
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+      await expect(minusBtn(page)).toBeDisabled();
+      await expect(card(page).locator('css=.fp-zoom button[aria-label="Fit"]')).toBeDisabled();
+      await expect(card(page).locator('css=.fp-zoom button[aria-label="Reset view"]')).toHaveCount(0);
+    });
+
+    test("a pinned card's Fit button reads \"Reset view\", not \"Fit\"", async ({ page }) => {
+      await open(page);
+      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+      await expect(card(page).locator('css=.fp-zoom button[aria-label="Reset view"]')).toHaveCount(1);
+      await expect(card(page).locator('css=.fp-zoom button[aria-label="Fit"]')).toHaveCount(0);
+    });
+  });
+});
+
 test.describe("S7.4 touch", () => {
   test.use({ viewport: { width: 700, height: 900 }, hasTouch: true });
 
@@ -1381,3 +1587,280 @@ test("S8.11 fix (halo seam, card): the cut no longer coincides with the wall's o
 // This must fail with the cut narrowed back to wallWidthAt(...) + 2 (its old width, exactly the halo's own width):
 // the sampled row then sits precisely on the coincident edge and reads as a blend, e.g. (142,165,199,255) — neither
 // the halo's white nor the room's own fill (verified by hand, see the S8.11 report).
+
+// S9.1: `open_color` sets --fp-open-door on the card host, so an open contact door/window (and its S8.13 alert
+// line) draws in the configured colour instead of the default contact red. Untrusted config (CLAUDE.md finding 1):
+// a value that is not a plain #rrggbb hex is ignored rather than thrown on, and the CSS custom property is left
+// unset so the theme's own default (var(--fp-dev-contact)) still applies.
+test("S9.1: open_color sets --fp-open-door on the host from a valid #rrggbb hex, and is ignored otherwise", async ({ page }) => {
+  await open(page);
+  // The host's own inline style, not getComputedStyle: --fp-open-door is always defined (the theme's own default,
+  // var(--fp-dev-contact)), so a computed read can never tell "unset" from "set to the same colour as the default".
+  const openDoorVar = () => page.locator("floorplan-studio-card").evaluate((el) => (el as HTMLElement).style.getPropertyValue("--fp-open-door").trim());
+
+  await configure(page, { layout: structuredClone(demo) }, { states: {} });
+  expect(await openDoorVar(), "no open_color: unset, falls back to the theme default").toBe("");
+
+  await configure(page, { layout: structuredClone(demo), open_color: "#123abc" }, { states: {} });
+  expect(await openDoorVar(), "a valid hex is applied").toBe("#123abc");
+
+  await configure(page, { layout: structuredClone(demo), open_color: "red;x" }, { states: {} });
+  expect(await openDoorVar(), "an invalid value (not #rrggbb) is ignored, not applied").toBe("");
+
+  await configure(page, { layout: structuredClone(demo), open_color: "#fff" }, { states: {} });
+  expect(await openDoorVar(), "a 3-digit shorthand is not #rrggbb and is ignored too").toBe("");
+
+  await configure(page, { layout: structuredClone(demo), open_color: "#123abc" }, { states: {} });
+  expect(await openDoorVar()).toBe("#123abc");
+  await configure(page, { layout: structuredClone(demo) }, { states: {} });
+  expect(await openDoorVar(), "clearing open_color removes the property again").toBe("");
+});
+
+// S9.2: icons stay visible on large plans. On a 2000 cm plan the icon group draws 2x normal size (CLAUDE.md
+// finding 3: a real page.mouse click at the icon's real, scaled screen coordinates must still hit the top
+// element, `g[data-x]` — not a click dispatched on the inner path while the real hit-test was broken).
+function bigLayout() {
+  const layout = structuredClone(demo);
+  const o = 2000 - 120; // pad is 60 cm on every edge, so this outline gives a view box exactly 2000 cm square
+  layout.floors.big = {
+    title: "Big", outline: [[0, 0], [o, 0], [o, o], [0, o]], owk: ["wall", "wall", "wall", "wall"],
+    rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], furniture: [], unlinked: [],
+    devices: [{ id: "light-big", type: "light", entity: "light.demo_big", x: o / 2, y: o / 2 }],
+  };
+  return layout;
+}
+
+test("S9.2: a real click still hits the icon on a 2000 cm plan, drawn at 2x", async ({ page }) => {
+  await open(page);
+  const layout = bigLayout();
+  await configureWithCallServiceSpy(page, { layout, floor: "big" }, { "light.demo_big": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+  const g = page.locator("floorplan-studio-card").locator('css=g[data-x="0"]');
+  const box = (await g.boundingBox())!;
+  // 24 units at scale 0.5 (k = 1/scale = 2) is 48 plan units; at fit (2000 cm view box) that is a sizeable,
+  // easily-clickable on-screen target — asserted here so this test would fail if S9.2's scale ever regressed to 1.
+  // At the old, unscaled size (scale 1) this box is ~21 px wide on this viewport; at S9.2's 2x it is ~41 px —
+  // 30 sits strictly between the two, so this fails if the scale-up ever regresses (confirmed by hand, see report).
+  expect(box.width).toBeGreaterThan(30);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+  expect(calls).toEqual([["light", "toggle", { entity_id: "light.demo_big" }]]);
+});
+
+// S9.5: the floating active-devices panel. Real page.mouse gestures at real coordinates throughout (CLAUDE.md
+// finding 3): a click on a row, a drag on the header, a click on the plan itself once the panel is up.
+test.describe("S9.5: the active-devices panel", () => {
+  const states = () => ({
+    "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() },
+    "camera.demo_hall": { state: "idle", attributes: {}, last_changed: new Date().toISOString() },
+  });
+
+  /** Same recording pattern as the kiosk section above: a page-global array of every `hass-more-info` detail. */
+  async function configureRecordingMoreInfo(page: Page, config: Record<string, unknown>, hass: Record<string, unknown>) {
+    await page.evaluate(
+      ([config, hass]) => {
+        (window as unknown as { __moreInfo: unknown[] }).__moreInfo = [];
+        const el = document.getElementById("card") as unknown as EventTarget & { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+        el.addEventListener("hass-more-info", (e) => (window as unknown as { __moreInfo: unknown[] }).__moreInfo.push((e as CustomEvent).detail));
+        el.setConfig(config);
+        el.hass = hass;
+        return el.updateComplete;
+      },
+      [config, hass] as const,
+    );
+  }
+  const moreInfo = (page: Page) => page.evaluate(() => (window as unknown as { __moreInfo: unknown[] }).__moreInfo);
+
+  test("a real click on a panel row fires hass-more-info with that row's own entity", async ({ page }) => {
+    await open(page);
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo) }, { states: states() });
+    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" });
+    const box = (await row.boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    expect(await moreInfo(page)).toEqual([{ entityId: "camera.demo_hall" }]);
+  });
+
+  // Opus review CSS pair (CLAUDE.md finding 10): the camera row's icon used to take `--fp-dev-camera`, which
+  // `theme-roles.ts` sets to the same shade as `--fp-idle` for every generated theme — in blueprint (the default,
+  // a dark navy base) that read as a dark blue icon on the panel's own `--fp-room` background, hard to make out.
+  // `active.ts`'s `COLOR_VAR.camera` now points the row at `--fp-ink`, the same token the row's own text already
+  // reads by (`.fp-active{color:var(--fp-ink)}`), which is picked precisely so it is never the same shade as the
+  // background it sits on. Reading the resolved `fill`, not just asserting the source string, is what makes this
+  // a real Chromium check and not a text match blind to which rule actually won (CLAUDE.md finding 10 itself).
+  test("S9.5 CSS pair: a camera row's icon resolves to --fp-ink (legible on --fp-room), not --fp-dev-camera", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" });
+    const fill = await row.locator("css=svg").evaluate((el) => getComputedStyle(el).fill);
+    expect(fill).toBe(DARK_INK); // blueprint's --fp-ink/--fp-text, #eef3fb — not --fp-dev-camera's idle navy
+  });
+
+  test("a real drag on the header moves the panel and clamps it inside the card, both corners", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    const card = page.locator("floorplan-studio-card");
+    const cardBox = (await card.boundingBox())!;
+    const head = card.locator("css=.fp-active-head");
+
+    // Drag far past the bottom-right corner: the panel must stop at the card's own edge, not follow the pointer off it.
+    const start = (await head.boundingBox())!;
+    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cardBox.x + cardBox.width + 400, cardBox.y + cardBox.height + 400, { steps: 6 });
+    await page.mouse.up();
+    const panelBox = (await card.locator("css=.fp-active").boundingBox())!;
+    expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 0.5);
+    expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(cardBox.y + cardBox.height + 0.5);
+
+    // Drag far past the top-left corner: the same clamp, the other way.
+    const start2 = (await head.boundingBox())!;
+    await page.mouse.move(start2.x + start2.width / 2, start2.y + start2.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cardBox.x - 400, cardBox.y - 400, { steps: 6 });
+    await page.mouse.up();
+    const panelBox2 = (await card.locator("css=.fp-active").boundingBox())!;
+    expect(panelBox2.x).toBeGreaterThanOrEqual(cardBox.x - 0.5);
+    expect(panelBox2.y).toBeGreaterThanOrEqual(cardBox.y - 0.5);
+  });
+
+  test("a drag over a device does not toggle it; a plain click on the plan still reaches a device once the panel is out of the way", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+    const card = page.locator("floorplan-studio-card");
+    const cardBox = (await card.boundingBox())!;
+    const kitchenLight = card.locator('css=g[data-x="1"]');
+    const lightBox = (await kitchenLight.boundingBox())!;
+    const calls = () => page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
+
+    const head = card.locator("css=.fp-active-head");
+    const headBox = (await head.boundingBox())!;
+    await page.mouse.move(headBox.x + headBox.width / 2, headBox.y + headBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(lightBox.x + lightBox.width / 2, lightBox.y + lightBox.height / 2, { steps: 6 });
+    await page.mouse.up();
+    expect(await calls()).toEqual([]); // dragging the panel over the light must not toggle it
+
+    // The panel now sits where it was dropped, over the light: drag it away to a corner it cannot reach (bottom-right,
+    // clamped by the same logic the earlier clamp test already proved) before trusting a click at the light's own
+    // coordinates to mean the plan, not the panel, received it.
+    const headBox2 = (await head.boundingBox())!;
+    await page.mouse.move(headBox2.x + headBox2.width / 2, headBox2.y + headBox2.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cardBox.x + cardBox.width - 4, cardBox.y + cardBox.height - 4, { steps: 6 });
+    await page.mouse.up();
+
+    await page.mouse.click(lightBox.x + lightBox.width / 2, lightBox.y + lightBox.height / 2);
+    expect(await calls()).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]); // the plan itself still takes a plain click
+  });
+
+  test("the collapsed state survives a reload", async ({ page }) => {
+    await open(page);
+    const config = { layout: structuredClone(demo) };
+    await configure(page, config, { states: states() });
+    const card = page.locator("floorplan-studio-card");
+    await card.locator("css=.fp-active-collapse").click();
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(0);
+
+    await page.reload();
+    await page.addScriptTag({ content: CARD_JS, type: "module" });
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await configure(page, config, { states: states() });
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(0);
+  });
+
+  test("hidden under kiosk and under active_list: false", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: structuredClone(demo), kiosk: true }, { states: states() });
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-active")).toHaveCount(0);
+
+    await configure(page, { layout: structuredClone(demo), active_list: false }, { states: states() });
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-active")).toHaveCount(0);
+  });
+
+  // Opus review findings 3 & 4: the position was stored in raw px and only clamped mid-drag, so a saved position
+  // could put the panel outside the card the moment the geometry it was clamped against changes — reloading at a
+  // narrower width, or re-expanding a panel that was dragged low while collapsed (its own shorter height at drag
+  // time). The fix re-derives the on-screen position from a stored *fraction* of the free width/height on every
+  // render and on a host resize, so it is inside the card by construction, whatever the current geometry is.
+  test("Opus review finding 3: a position saved at 1000px stays fully inside the card after a reload at 380px", async ({ page }) => {
+    await page.setViewportSize({ width: 1000, height: 700 });
+    await open(page);
+    const config = { layout: structuredClone(demo) };
+    await configure(page, config, { states: states() });
+    const card = page.locator("floorplan-studio-card");
+    const cardBox = (await card.boundingBox())!;
+    const head = card.locator("css=.fp-active-head");
+    const start = (await head.boundingBox())!;
+    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cardBox.x + cardBox.width + 400, cardBox.y + cardBox.height + 400, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(async () => (await card.locator("css=.fp-active").boundingBox())!.x).toBeGreaterThan(cardBox.x + cardBox.width / 2);
+
+    await page.setViewportSize({ width: 380, height: 700 });
+    await page.reload();
+    await page.addScriptTag({ content: CARD_JS, type: "module" });
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await configure(page, config, { states: states() });
+    const narrowCardBox = (await card.boundingBox())!;
+    const panelBox = (await card.locator("css=.fp-active").boundingBox())!;
+    expect(panelBox.x).toBeGreaterThanOrEqual(narrowCardBox.x - 0.5);
+    expect(panelBox.y).toBeGreaterThanOrEqual(narrowCardBox.y - 0.5);
+    expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(narrowCardBox.x + narrowCardBox.width + 0.5);
+    expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(narrowCardBox.y + narrowCardBox.height + 0.5);
+  });
+
+  test("Opus review finding 4: collapse, drag to the bottom, expand — the panel does not hang below the card", async ({ page }) => {
+    await page.setViewportSize({ width: 1000, height: 700 });
+    await open(page);
+    const config = { layout: structuredClone(demo) };
+    await configure(page, config, { states: states() });
+    const card = page.locator("floorplan-studio-card");
+    const cardBox = (await card.boundingBox())!;
+
+    await card.locator("css=.fp-active-collapse").click();
+    const head = card.locator("css=.fp-active-head");
+    const start = (await head.boundingBox())!;
+    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(start.x + start.width / 2, cardBox.y + cardBox.height + 400, { steps: 6 });
+    await page.mouse.up();
+
+    await card.locator("css=.fp-active-collapse").click(); // expand: the panel grows much taller than while collapsed
+    const panelBox = (await card.locator("css=.fp-active").boundingBox())!;
+    expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(cardBox.y + cardBox.height + 0.5);
+  });
+
+  // Opus review finding 5 (phone-width default, an assumption Diego may overrule — see docs/DECISIONS.md): with
+  // nothing stored yet, a card narrower than 500px starts collapsed; a wider one starts open as always.
+  test("Opus review finding 5: a narrow card with nothing stored starts collapsed; a wide one starts open", async ({ page }) => {
+    await page.setViewportSize({ width: 380, height: 700 });
+    await open(page);
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-body")).toHaveCount(0);
+
+    await page.setViewportSize({ width: 1000, height: 700 });
+    await page.reload();
+    await page.addScriptTag({ content: CARD_JS, type: "module" });
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-body")).toHaveCount(1);
+  });
+
+  // Opus review finding 13: the panel must not be able to cover the floor chips and steal their clicks.
+  test("Opus review finding 13: a real click on a floor chip works even with the panel dragged onto it", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    const card = page.locator("floorplan-studio-card");
+    const chips = card.locator("css=.fp-floors button");
+    const other = chips.nth(1); // not the already-active first chip: proves the click reached the chip, not a no-op
+    const chipBox = (await other.boundingBox())!;
+    const head = card.locator("css=.fp-active-head");
+    const start = (await head.boundingBox())!;
+    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(chipBox.x + chipBox.width / 2, chipBox.y + chipBox.height / 2, { steps: 6 });
+    await page.mouse.up();
+    await page.mouse.click(chipBox.x + chipBox.width / 2, chipBox.y + chipBox.height / 2);
+    await expect(other).toHaveAttribute("aria-pressed", "true");
+  });
+});

@@ -21,7 +21,7 @@ floor there is nothing to switch, so it just draws that. Either way: the
 `blueprint` theme, motion fading over 300 seconds, `room_glow` off, darker
 after sunset.
 
-The editor itself can write this for you: File, Install code opens a panel
+The editor itself can write this for you: File → Install code opens a panel
 with a whole dashboard, matching your plan as it currently stands — theme,
 floors — ready to paste. See "A premade dashboard" below.
 
@@ -38,6 +38,11 @@ floors — ready to paste. See "A premade dashboard" below.
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
+| `open_color` | red | `#rrggbb`: colours an open door or window (and its pulsing alert line) instead of red. An invalid value is ignored |
+| `icon_size` | `1` | grows icons, names, values and radar dots by this factor, on top of the automatic scale-up on a large plan (see Size, below). A number from `0.5` to `3`; anything else clamps into that range, and a missing or non-numeric value is the default, `1` |
+| `active_list` | `true` | `false` hides the floating panel of active devices — see Active list, below |
+| `center` | unset | `[x, y]`, plan cm: the point a pinned card zooms in on — see A card for one room, below. A non-array, wrong length, or non-finite value is ignored, silently, and the card shows the whole floor |
+| `zoom_level` | `1` | how far in a pinned card starts: `1` is the whole floor, `2` is half its width and height, and so on up to `8`. Anything other than a finite number is the default, `1`; an in-range-but-odd number (`0`, negative, past `8`) clamps instead of being refused |
 
 ```yaml
 type: custom:floorplan-studio-card
@@ -49,7 +54,48 @@ room_glow: true
 theme: blueprint
 zoom: true
 kiosk: false
+icon_size: 1
+active_list: true
 ```
+
+## A card for one room
+
+`center` and `zoom_level` pin a card to a room, corridor or part of a home
+instead of the whole floor, so a dashboard can show several cards, each
+zoomed into a different place. `zoom_level` alone zooms in about the plan's
+own centre; `center` alone (or `zoom_level` at `1`) changes nothing — a
+centre with nothing to zoom into has no effect. `center` is always the plan's
+own cm, the same coordinates a room or device sits at, whether or not the
+layout is rotated.
+
+The pinned view becomes the card's own "home": a double-tap and the
+zoomed-in indicator both return here, not to the whole floor. The Fit button
+reads **Reset view** on a pinned card, since it no longer fits the whole
+floor, and is disabled only when the view is already home — pan or pinch it
+away and Reset view lights back up. The − button is never gated by the pin:
+it is disabled only once the whole floor is on screen, so a pinned card can
+still zoom all the way out to see the rest of the house.
+
+The demo's kitchen sits around plan `(650, 200)` — two cards, one on the
+whole ground floor and one pinned to just the kitchen:
+
+```yaml
+type: custom:floorplan-studio-card
+floor: ground
+```
+
+```yaml
+type: custom:floorplan-studio-card
+floor: ground
+center: [650, 200]
+zoom_level: 2.5
+```
+
+The easiest way to get the two numbers for your own home: open the editor,
+zoom and pan to the room you want, then View → **Copy card view**. It copies
+the `center:`/`zoom_level:` lines straight from what the editor is showing,
+ready to paste into the card's YAML. A pinned card is meant for one floor —
+set `floor:` alongside `center`/`zoom_level` if the layout has more than one.
 
 ## Size
 
@@ -63,6 +109,12 @@ rows, so the plan stays legible.
 
 In the masonry layout, the card sizes to the plan's aspect ratio at the
 column's width, as before.
+
+On a plan over 1000 cm on its longest side, icons, names, values and radar
+dots stop shrinking with it and grow instead, so they stay legible in a big
+house. `icon_size` scales them further on top of that, from half size to
+three times, for a plan that still reads small, or a tablet viewed from
+across the room.
 
 ## Kiosk mode
 
@@ -95,11 +147,44 @@ views:
         kiosk: true
 ```
 
+## Active list
+
+A floating panel over the plan, open by default in the top-left, lists
+every active device on every floor of the layout — not only the one the
+plan is showing. "Active" is lights on (a light bound to a switch counts
+when the switch is), motion and contact on, TVs and media players on or
+playing, a speaker playing, heaters and climate heating, AC running, plugs,
+computers and covers on or open, persons at home, and vacuums that are
+cleaning (one that is only returning to its dock is not). Every camera is
+listed whatever its state — a camera is a view, not an on/off thing —
+except an `unavailable`/`unknown` one, or any device of any type with no
+entity configured: neither has a real more-info dialog to open.
+
+Rows are grouped by type, each with the type's own icon and colour — the
+camera row's own icon is the panel's ink colour rather than the plan's
+camera tint, chosen to stay legible against the panel's background in
+every theme — and its name; a tap, click or Enter opens Home Assistant's
+more-info for that entity. The header shows the count and a collapse
+toggle, and can be dragged to reposition the panel — its position is kept
+as a fraction of the card's free space and re-clamped after every render
+and resize, so it can never end up off-screen, including after the card
+itself is resized or the panel is collapsed then expanded again. On a card
+narrower than 500px with nothing yet stored, the panel starts collapsed and
+narrower (`min(200px, 45%)`), so it does not crowd a phone-width plan.
+Position and collapsed state are kept per browser (`localStorage`), keyed
+to the layout's source (its `layout_url`, or "inline" for a config
+`layout`, or the websocket fetch) plus the card's own `floor`/`floors`, so
+two cards on the same dashboard — even two showing different floors of the
+same websocket layout — do not share one position, and an inline layout's
+autosave does not reset it.
+
 ## The Edit-card form
 
 No YAML needed: adding or editing the card in the Lovelace UI (the pencil
 icon, or "Edit" on an existing card) shows a form instead of raw code —
-theme, a Floor selector, fade, room glow, zoom, kiosk, night and the sun
+theme, a Floor selector, fade, room glow, zoom, kiosk, icon size, the
+open-door colour (with a Clear button, distinct from picking the theme's
+own default colour by hand), the Active list toggle, night and the sun
 entity. The Floor selector picks "All floors (switcher)" (the default — it
 writes no `floor` key at all) or one specific floor, by name, once the
 card's own layout has loaded (`layout`, `layout_url`, or the plan stored in
@@ -170,8 +255,26 @@ differently:
   over `fade` seconds from when it last went off — even if it's already off
   by the time the card loads.
 - **Contact sensor** — open shows the same red disc and pulsing ring. A door
-  or window with a contact sensor turns red when open, over a wide pulsing
-  red line. With reduced motion set on the device, nothing pulses.
+  or window with a contact sensor turns red and dashed when open, over a wide
+  pulsing red line; `open_color` recolours both to something other than red.
+  With reduced motion set on the device, nothing pulses. A cover door's own
+  open state (see Cover, above) is separate: it stays its plain orange,
+  undashed, whatever `open_color` says.
+- **Speaker (media_player)** — a fixed blue in every theme (the same
+  exception a TV is: a TV or speaker's icon turns blue whenever the player
+  reports anything other than off, standby, unavailable or unknown — not
+  only its plain `on`, since a Cast, Android TV or webOS device reports
+  `playing`/`paused`/`idle` while genuinely powered on), the speaker one
+  only while its state is exactly `playing`: paused, idle, off,
+  on-but-not-playing, unavailable and unknown all stay idle grey. A plain
+  `media` device is a separate type: it keeps each theme's own colour (its
+  accent, or Solarized's own magenta — never speaker/TV's fixed blue)
+  rather than being fixed itself. Playing, two arcs pulse out from under
+  its disc in its own colour, so a speaker mid-song reads as radiating
+  sound on the plan. Reduced motion holds the arcs still, the same as a
+  motion sensor's ring. Tap always opens more-info: `media_player.toggle`
+  is play/pause or power, never a clean on/off, so guessing which one you
+  meant would be worse than always asking.
 - **Camera** — a dark cone of view, turned to match the device's own
   rotation.
 - **Person** — a green icon at full opacity while home; away (`not_home`, or

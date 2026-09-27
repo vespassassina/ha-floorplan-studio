@@ -2,6 +2,261 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 S9.6 review: − reaches the whole floor, Fit becomes Reset view, center is plan cm under rotation
+
+A second Opus review, of S9.6 (the pinned card) on top of the first S9 review,
+found the zoom buttons' disabled state, `center`'s handling under a rotated
+layout, and three smaller bugs. Why each fix is what it is:
+
+- **"−" and Fit/Reset must not share one condition.** The old `atFit` compared
+  only the current box's width against home's, so it answered two different
+  questions ("can I zoom out more?" and "is there anything to reset?") with
+  one number and got both wrong on a pinned card: "−" disabled the moment the
+  card loaded (there was more floor to see), and Fit disabled after a
+  same-width pan or a pinch past home, with no button left to bring the pin
+  back. "−" now stops only at the whole floor; Fit/Reset is disabled only
+  when the view has not moved from home (`_view === null`). A pinned card's
+  reset button reads "Reset view", since "Fit" would claim it shows the whole
+  floor, which it does not.
+- **`center` is plan cm, so it must survive rotation.** The editor keeps
+  `st.view` unrotated and rotates only the drawing; the card bakes rotation
+  into `fit`/`pinnedView` directly. Rotating the config's `center` by the
+  layout's own `rotate` before pinning (in the card, not the editor, since
+  `copyCardView` already emits unrotated plan cm) keeps "plan cm" true on
+  every layout, not only an unrotated one.
+- **`zoom_level` from Copy card view takes the smaller of the width/height
+  ratio**, not the width alone, so a card never shows less of the editor's
+  own view than the editor did, whatever its aspect.
+- **The Active panel's storage key adds `center`/`zoom_level`, only when
+  set**, so several cards pinned to different rooms on one floor stop
+  sharing one panel position, without changing the key — and so the stored
+  state — of any card that does not use the pin.
+- **The Edit-card form keeps a draft of the Center X/Y pair** so clearing one
+  box to retype it does not drop `center` and wipe the other box on the next
+  render.
+
+## 2026-09-27 Opus review of the integrated Sprint 9 build: nine fixes
+
+An Opus review of the whole `task/S9` branch (S9.1 through S9.5, the entries
+below) found nine real defects, fixed on `task/S9-fix`. In finding order:
+
+1. **A TV that is playing was not blue and not listed.** `classOf` treated
+   `tv` like a plain switch — only the literal state `"on"` counted — but a
+   Cast, Android TV or webOS device reports `"playing"`/`"paused"`/`"idle"`
+   while genuinely powered on. `tv` is now on for any state other than
+   `off`/`standby` (`unavailable`/`unknown` were already excluded upstream),
+   the same rule the S9.5 device table already documented in words, just not
+   in code.
+2. **A playing speaker pulsed on the plan but never appeared in the S9.5
+   Active list.** `ACTIVE_LIST_RULE.speaker` was left at `"never"`, a stale
+   default from before S9.4 gave `speaker` its own on-state — `COLOR_VAR` had
+   no entry for it either. Both now match `speaker`'s real S9.4 behaviour.
+3. **A saved panel position could put the panel outside the card.** The old
+   code clamped only while dragging and stored raw pixels, so a resize (the
+   card's own or the window's) after a drag could leave it clipped, and
+   collapsing then re-expanding could leave it below the card entirely (a
+   collapsed panel is shorter, so a position clamped for the tall panel is no
+   longer valid once it grows back). Position is now a fraction (0–1) of the
+   card's free width/height, reapplied imperatively after every render and
+   on a `ResizeObserver` of the host — not only at the end of a drag — so it
+   is always back inside the card's current box, whatever just changed
+   its size.
+4. Same fix as 3: collapse, drag to the bottom, expand no longer leaves the
+   panel hanging off the card — re-clamping after every render catches the
+   size change collapse/expand causes, the same as any other resize.
+5. **Assumption, flagged for Diego to overrule:** with nothing yet stored
+   for a card, and the card narrower than 500px, the panel now starts
+   collapsed and takes `min(200px, 45%)` of the width rather than a flat
+   200px. 500px is a guess at "phone width in a dashboard column", checked
+   only against Chromium's viewport emulation at 380px, not a real device.
+6. (No finding 6 in the review.)
+7. **The storage key could collide or churn.** It used to hash the layout's
+   own *content* (`layout_url`, or the inline `layout` verbatim). In
+   websocket mode — no `layout`/`layout_url` configured, the default
+   install — that content is always `""`, so two cards pinned to different
+   floors of the same layout shared one saved position; an inline layout's
+   own autosave rewrote `layout` on every edit, so the key (and the saved
+   position under it) changed every time. The key now hashes the layout's
+   *source* (`layout_url`, else `"inline"`, else `"ws"`) plus the card's own
+   `floor`/`floors`, which is stable under autosave and distinguishes two
+   cards on one layout by the floor each pins.
+8. **The speaker/media wave's two arcs were not concentric with the halo.**
+   Supersedes part of the S9.4 entry below: the arcs were `<path>`
+   semicircles under `transform-box:fill-box`, and a semicircle's own
+   bounding box sits off to one side of the disc it belongs to, not centred
+   on it — so each arc scaled from a different point than the halo (same
+   `cx`/`cy`/`r`) sharing its group. They are `<circle cx="12" cy="12"
+   r="16">` now, like `.ping`: a circle's bbox is always the square centred
+   on its own centre, so it is concentric with the halo automatically,
+   whatever arc `stroke-dasharray` (with `pathLength="100"`, so "50 50"
+   always means half the circumference regardless of `r`) leaves visible.
+   Because `.wave` is a `<circle>` and not a `<path>` any more, it no longer
+   needs the `.dev.on path.wave` specificity repeat the S9.4 entry describes
+   (that rule only ever matches a `<path>`) — dropped.
+9. **A camera with an empty `entity` was always listed, of every type, and a
+   click fired `hass-more-info` with an empty entity id.** `isActive` now
+   excludes any device (not only `camera`) whose `entity` is empty, and an
+   `unavailable`/`unknown` camera as well — neither has a real more-info to
+   open.
+
+Two more, smaller: Solarized's `--fp-dev-speaker` was `#2c7fb8`, the generic
+fixed blue, while Solarized's own TV already used `#268bd2` — speaker now
+matches TV's own Solarized blue, keeping Solarized's "every type its own
+hue" rule (S9.3's decision) consistent for the one other fixed-blue type.
+And the camera row in the Active list took `--fp-dev-camera`, the token
+`theme-roles.ts` sets to the same shade as `--fp-idle` for a generated
+theme — legible on the plan, against a room's own fill, but the panel's row
+sits on `--fp-room` instead, where in blueprint (a dark navy base) that
+shade read as a dark blue icon on navy. The row now takes `--fp-ink`, the
+same token its own text already reads by.
+
+## 2026-09-27 S9.6: a card pinned to one room, `center`/`zoom_level`, not a `home:` shorthand
+
+Diego asked for cards that can each pin a different room, corridor or part of
+a home. Two new keys, `center: [x, y]` (plan cm) and `zoom_level` (1 = the
+whole floor, up to `MAX_ZOOM`): `zoom` was already taken by the pinch/wheel
+switch, so a room's "resting" view needed its own name rather than folding
+into it. Untrusted config (CLAUDE.md finding 1): unlike `zoom`/`kiosk`, a
+malformed `center` or `zoom_level` never throws — it falls back silently to
+the whole floor, the same as `icon_size`/`open_color`, because a wrong number
+here is a typo in a coordinate, not a closed enum where a bad value should be
+caught. `zoom_level` alone zooms about the plan's own centre; `center` alone
+(or `zoom_level` at 1) is a no-op, since a centre with nothing to zoom into
+changes nothing to look at.
+
+The pin becomes the card's "home": the fp-zoomed class, the zoom buttons'
+disabled state, the reset button and a double-tap all return here now, not to
+the whole-floor fit, so a pinned card that is pinch-zoomed out to see the rest
+of the house comes back to its own room, not the plan's edge. `zoom` (pinch,
+wheel, buttons) still works on a pinned card and can still reach the whole
+floor — the pin only changes where "home" is. The S9.2 icon scale keeps
+reading the whole-floor fit, not the pinned box, so a room card's icons are
+the same size as the equivalent whole-floor card's, not blown up by the extra
+zoom. The editor's View menu gets a "Copy card view" button that reads the
+same `viewBoxFor` fit the card itself uses (pad 60, not the editor's own pad
+80) so pasting its two YAML lines reproduces exactly what the editor shows.
+
+## 2026-09-27 Sprint 9 integration: an open door is red in every theme
+
+Supersedes the default in the S9.1 entry below. `--fp-open-door` defaulted to
+the contact colour, and the role-generated themes collapse that to their one
+accent, so in blueprint, the default theme, an open door was orange. The
+brief asked for red. It is now a fixed `#d64545` in every generated theme;
+light and midnight already resolve to it, Solarized keeps its own red.
+`open_color` still overrides it.
+
+## 2026-09-27 S9.3: TV is the one exception to one accent
+
+Every role-generated theme (blueprint, slate, terminal) collapses its device
+colours to one accent unless `devices` names an override. A TV kept doing
+that too, so a blueprint TV turned the same orange as a lit lamp — nothing
+told the two apart at a glance, and Solarized's TV was violet, which read as
+blue-ish without being blue. `--fp-dev-tv` is now a fixed `#2c7fb8` in every
+theme (Solarized keeps its own blue, `#268bd2`, since it already gives every
+device type its own hue rather than collapsing to one), read directly rather
+than through `devices`, so no theme — generated or not — can opt out. Warn,
+danger and primary already worked this way; TV joins them as UI meaning, not
+device-on state.
+
+## 2026-09-27 S9.1: an open contact door is dashed, in a colour the card can set
+
+A door or window is glass and a hinge; "open" used to look like nothing more
+than red, the same red a triggered motion sensor wears. Dashing the line on
+`.door.open` (a class rule, not a presentation attribute — finding 18) gives
+open its own silhouette independent of colour, and the colour itself moves
+to a new token, `--fp-open-door` (default `var(--fp-dev-contact)`), so a
+card author can repaint it with the new `open_color` option without also
+overriding the contact sensor's own disc and ping. The S8.13 door-alert line
+moves to the same token, so the two always match. A cover door's own open
+state is unrelated to a contact sensor and keeps its plain orange, undashed
+— `.door.cover-open` sets `stroke-dasharray:none` explicitly, since a door
+with both `sensors` and `cover` set (the schema allows it, even if the demo
+fixture doesn't) would otherwise inherit `.open`'s dash on that property
+alone, CSS resolving per property rather than per rule.
+
+## 2026-09-27 S9.2: icons scale by the plan's own view box, plus an `icon_size` option
+
+Icons, names, values and radar dots are drawn at a fixed size in plan
+centimetres, scaled by `renderFloor`'s `scale`/`k`; the editor passes its own
+zoom, but the card always passed `1`, so a big house left them shrinking
+with everything else on screen. The card now computes
+`scale = 1 / (auto * icon_size)`, where `auto = max(1, longest side of the
+view box in cm / 1000)` — reusing `viewBoxFor`, the same box the card
+already draws, rather than reading the layout's own geometry a second way.
+A plan of 1000 cm or less keeps `auto` at 1, so it renders byte-identical to
+before this change (tested). `icon_size` is a new card option, 0.5 to 3,
+default 1; out of that range it clamps rather than being refused, and a
+missing or non-numeric value is the default — a slider or a stray digit
+should never break the card. The editor is unchanged.
+
+## 2026-09-27 S9.4: a speaker radiates while it plays
+
+Ticket: `speaker` gets an on colour (blue, like `media`) and pulses two arcs
+while its entity is exactly `playing`.
+
+`classOf` treats `speaker` exactly like `media`: `playing` is the only "on"
+state, so an idle or on-but-not-playing media_player never lights up its
+icon. `--fp-dev-speaker` is fixed at `#2c7fb8` in every theme, the same
+exception `--fp-dev-tv` already is (S9.3) — a generated theme's `devFor()`
+would otherwise let the role's own accent colour through, and a speaker
+should read the same blue everywhere a `media` device already can.
+
+The arcs are two `<path>` semicircles, class `.wave`/`.wave.w2`, staggered
+by `animation-delay`, following the `.ping` pattern from S8.13 (a shape
+inside the device group, `transform-box:fill-box`, held still under
+`prefers-reduced-motion`). First pass used the arc's own 8px radius (half
+the halo's 16px) and the shots showed nothing: the arc sat entirely inside
+the halo's own fill and never crossed its edge, on or off. Radius now
+matches the halo's 16px, the same radius `.ping` already uses, so the arc
+visibly clears the disc — caught only by rendering the shots and looking at
+them (CLAUDE.md finding 16), not by any test.
+
+`.wave` is a `<path>`, unlike `.ping`'s `<circle>`, so a plain `.wave{fill:
+none}` and the reduced-motion `.wave{opacity:.6}` both lost to `.dev.on
+path{fill:...;opacity:...}` (specificity 0,2,1 beats 0,1,0 — CLAUDE.md
+finding 10). Both properties are repeated at `.dev.on path.wave`, which
+ties or beats that selector.
+
+Tap: `speaker` joins `NO_TOGGLE` (`src/card/actions.ts`), the same reasoning
+as `media` — `media_player.toggle` is play/pause or power, never a clean
+on/off, so a tap opens more-info rather than guessing which one was meant.
+
+Not touched: `src/core/ha.ts`'s `TYPE_RULES` has no domain-mapping entry for
+`speaker` (pre-existing; `media` has none either), so `entitiesForType`
+matches every entity for that type rather than filtering to `media_player.*`
+domain entities. Out of scope for this ticket, which only asked for the
+colour, arcs and tap.
+
+No new demo device: `demo/layout.json`'s existing `media-office` device
+(type `media`, entity `media_player.demo_office`) is already driven to
+`playing` for the "on" shots state, so it exercises the arcs without adding
+a `speaker` fixture. The Playwright CSS-pair tests add their own throwaway
+`speaker` fixture via `addCssFixtures`, same as several other types already
+do, to test the fixed colour and the arcs on the type itself.
+
+## 2026-09-27 S9.5: the active list narrows a vacuum below classOf, and keys its storage to the layout
+
+The brief said two things that pull against each other: "base active on the
+same classOf result the plan uses" and, in the same sentence, "vacuums that
+are cleaning". `classOf` (S7.10) treats "cleaning" and "returning to base" as
+one on-plan colour — a robot on its way home still glows the same as one at
+work. The active list does not: `src/core/active.ts`'s `ACTIVE_LIST_RULE`
+gives `vacuum` its own `"cleaning"`-only membership, reading `state` directly
+rather than through `classOf`, the one deliberate gap between what lights up
+on the plan and what earns a row on the list. Every other type on the list
+(`"on"`) still goes through `classOf` unchanged, so the plan and the list can
+never otherwise disagree, and a light with `bound` is picked up the same way
+on both. Every `DeviceType` is written down in `ACTIVE_LIST_RULE`
+(`"on"`/`"always"`/`"cleaning"`/`"never"`), tested by iterating `DEVICE_TYPES`
+(CLAUDE.md finding 17), so a new type is a decision made on purpose.
+
+The panel's position and collapsed state are kept in `localStorage` under a
+key hashed (`tag()`, already used for mask and pattern ids in render.ts) from
+the card's own `layout_url` or inline `layout`, not from a fixed name — two
+`floorplan-studio-card`s on one dashboard, each with a different plan, keep
+separate panel state rather than one overwriting the other's position every
+time either re-renders.
+
 ## 2026-09-26 S8.13 review: the viewBox pads only lamps near the plan
 
 Supersedes part of the S8.13 viewBox entry below. The Opus review found

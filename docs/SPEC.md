@@ -254,7 +254,7 @@ honest metaphor there.
 | light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | as light | toggle the light entity; long press: more-info for it (the switch is reachable from that dialog) |
 | switch (wall switch) | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | toggle |
 | plug | grey | blue icon and halo | `--fp-dev-plug` (#2c7fb8) | toggle |
-| binary_sensor on a door or window | door drawn normally | door drawn red, over a wide red line pulsing under it (S8.13; steady under reduced motion) | `--fp-dev-contact` (#d64545) | more-info |
+| binary_sensor on a door or window | door drawn normally | door drawn red and dashed, over a wide red line pulsing under it (S8.13 line, S9.1 dash; steady under reduced motion). A cover door's own open state is undashed and keeps its plain orange, even on a door with both | `--fp-open-door`, default `var(--fp-dev-contact)` (#d64545); card's `open_color` overrides both the door and the line (S9.1) | more-info |
 | contact (device icon) | grey | red icon, halo filled at 60 % and ringed red, and a red ring pulsing out from under the disc (S8.13) | `--fp-dev-contact` (#d64545) | more-info |
 | motion (binary_sensor motion/occupancy) | grey | icon red, fading to grey over `fade` seconds from `last_changed`; halo red at once, filled at 60 % and ringed red, with a red ring pulsing out from under the disc while it is on (S8.13) | `--fp-dev-motion` (#d64545) | more-info |
 | temp, humidity (sensor) | grey icon, value as a label next to it | humidity: grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
@@ -267,6 +267,7 @@ honest metaphor there.
 | camera | dark grey icon with a 120° cone of view in dark grey at 25 % alpha, turned by `rot` | — | `--fp-dev-camera` (#4a4a48) | more-info (live view) |
 | cover on a door | door normal | door open state shown, orange | `--fp-open` (#f28c28) | confirm dialog naming the action, then `cover.open_cover`, or `close_cover` when it is already open |
 | media (media_player) | grey | blue icon and halo while the player is playing (any other state, including paused, is idle) | `--fp-dev-media` (#2c7fb8) | more-info |
+| speaker (media_player) | grey | blue icon and halo while the player is exactly `playing` (paused, idle, off, on-but-not-playing, unavailable, unknown or no state stay idle), plus two arcs pulsing out from under the disc in the device's own colour (S9.4; held still at 1.5x, 60 % opacity under reduced motion) | `--fp-dev-speaker` (#2c7fb8, fixed in every theme) | more-info (media_player's own toggle is play/pause or power, never a clean on/off) |
 | cover (device icon, not a door) | grey | orange icon and halo while the cover is open | `--fp-dev-cover` (#f28c28) | more-info |
 | other | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
 | person (`person.*`, `device_tracker.*`) | away (`not_home` or any zone): 35 % opacity and a small grey away dot on the disc's edge | `home`: green icon and halo, full opacity. With a `room` sensor that names a room, the icon glides (600 ms CSS transform, none under reduced motion) to the room's centroid, or beside it when another icon sits there; several people in one room stand on a ring | `--fp-dev-person` (#1b9e77) | more-info |
@@ -295,11 +296,105 @@ zoom: true             # pinch, drag, double-tap, Ctrl/Cmd+wheel, +/−/fit butt
 night: auto            # auto (default: from the sun), on, off
 sun: sun.sun           # the entity night: auto reads
 kiosk: false            # true shows only the plan, for a wall tablet: no floor chips, no zoom buttons, taps still act, holding a device does nothing
+icon_size: 1            # 0.5 to 3, default 1: grows icons/names/values/radar dots further, on top of the automatic large-plan scale-up below
+active_list: true       # false hides the floating panel of active devices
+center: [650, 200]      # plan cm, unset by default: pins the card to a room instead of the whole floor
+zoom_level: 2.5         # 1 (default, whole floor) up to MAX_ZOOM; zooms about `center`, or fit's own centre without one
 ```
+
+`center`/`zoom_level` (S9.6): a card can pin a "home" view — a room, corridor
+or part of a home — instead of the whole floor, so several cards can each
+point at a different place. `zoom` was already the pinch/wheel switch, so the
+resting zoom needed its own key. `pinnedView(fit, center, zoomLevel)`
+(`src/card/viewport.ts`) is pure maths: a box `fit.w/zoomLevel` ×
+`fit.h/zoomLevel`, centred on `center` (or `fit`'s own centre without one),
+clamped to `fit` the same way pinch/pan already is, so it can never leave the
+plan. Untrusted config (CLAUDE.md finding 1): unlike `zoom`/`kiosk`, a
+malformed `center` or `zoom_level` never throws — a non-array, wrong length,
+non-finite `center`, or a non-finite `zoom_level`, falls back silently to the
+whole floor, the same as `icon_size`/`open_color`, because a bad value here
+is a typo in a coordinate, not a closed enum a card author chose wrong on
+purpose. `zoom_level` alone zooms about `fit`'s own centre; `center` alone
+(or `zoom_level` at `1`) is a no-op, since `pinnedView` hands back `fit`
+exactly whenever there is nothing narrower to zoom into.
+
+The pin becomes the card's "home": `_home()` returns
+`pinnedView(fit, center, zoomLevel)`, and every place that used to treat
+`fit` as "at rest" — the `fp-zoomed` class, `_zoomed()`, the reset button
+(`_fitView`, sets `_view = null`) and a double-tap when already at rest — now
+reads `_home()` instead. `_setView`'s own bounds (what pinch/pan/wheel can
+reach) still clamp against the whole `fit`, so a pinned card can still zoom
+out to see the rest of the floor; only where it rests changes. `_scale`
+(S9.2's icon sizing) deliberately keeps reading the whole-floor `fit`, not
+the pinned box, so a room card's icons are the same size as the equivalent
+whole-floor card's at the same zoom, not inflated by the extra zoom the pin
+itself adds.
+
+`center` is documented as plan cm — the same unrotated coordinates a room or
+device sits at — but `fit`/`pinnedView` work in the *rendered* frame, which
+`renderFloor`/`viewBoxFor` turn by the layout's own `rotate` themselves
+(unlike the editor, which draws unrotated coordinates inside a rotated
+`<g>`). `_home()` therefore rotates `_center()` by the layout's `rotate`
+(`_rotatedCenter()`, `rotateAbout` about `planPivot(layout)`) before handing
+it to `pinnedView`, so the pin lands on the same plan point the layout itself
+names whether or not it is rotated. `rotate: 0` (or unset) leaves it
+unchanged.
+
+Opus review, 2026-09-27: `_zoomButtons`' single `atFit` used to gate both
+"−" and Fit off `box.w < home.w`, width only, which is right for neither on a
+pinned card — "−" was disabled the moment the card loaded (there was more
+floor to see), and Fit was disabled after a same-width sideways pan or a
+pinch past home, with no button left to bring the room back. The two are now
+separate: "−" is disabled at the whole floor (`box.w >= fit.w*(1-1e-6)`),
+Fit/Reset is disabled exactly when there is nothing to undo (`_view ===
+null`, i.e. `_zoomed()` is false). On a pinned card (`center`/`zoom_level`
+set, so `home` differs from `fit`) the reset button's `aria-label`/`title`
+read "Reset view" instead of "Fit", since it no longer fits the whole floor.
+Unpinned, `home` equals `fit`, so both conditions coincide and nothing
+changes.
+
+The editor's View menu has a "Copy card view" button (`copyCardView`,
+`src/editor/editor-app.ts`) that computes `viewBoxFor(st.f, 60, st.rotation)`
+— the card's own fit, pad 60, not the editor's own pad-80 `fit()`/
+`recenter()` — reads the editor's current view (`st.view`), and writes
+`center: [x, y]` (rounded to whole cm) and `zoom_level: z` (two decimals) to
+the clipboard, with a "Card view copied." status line. `st.view` is already
+unrotated plan cm (the editor's own rotation lives in an outer `<g>`, not in
+`st.view`), so no rotation is applied here — only the card's `_home()` needs
+to rotate it back on the way in. `zoom_level` is `min(fit.w/v.w, fit.h/v.h)`
+(Opus review, 2026-09-27: the width ratio alone could ask for a box narrower
+than `v`'s own aspect after Re-center left `st.view` a different shape than
+`fit`, cropping what the editor showed top and bottom; the smaller ratio
+keeps the card's box at least as tall and as wide as `v`). A pinned card is
+meant for one floor; `floor:` picks which one.
+
+`active_list` (S9.5, default `true`): a floating panel over the plan, open by default in the top-left, listing every active device across every floor of the layout, not only the one the plan is showing. "Active" reuses `classOf` (`src/core/render.ts`, exported for this) — the same function that colours the plan — so the list and the plan can never disagree about a device's on/off state; a `light` with `bound` counts through its switch, the same as on the plan. The one addition beyond `classOf`'s own "on": a `vacuum` is listed only while `cleaning`, narrower than `classOf`'s own on-plan colour (which also covers "returning" to the dock) — a robot heading home is winding down, not something to check. A `camera` is listed whatever its state, since a camera is a view, not an on/off thing — except an `unavailable`/`unknown` one, or any device of any type with an empty `entity`: neither has a real more-info to open, so `isActive` (Opus review finding 9) excludes them regardless of `ACTIVE_LIST_RULE`. `src/core/active.ts`'s `ACTIVE_LIST_RULE` writes down every `DeviceType`'s membership explicitly (`"on"`, `"always"`, `"cleaning"` or `"never"`), tested by iterating `DEVICE_TYPES` (CLAUDE.md finding 17), so a new type is a decision made in the open, not a silent fall-through.
+
+Rows are grouped by type (`DEVICE_TYPES`' own order), each with that type's icon and colour — a `camera` row is the one exception, taking `--fp-ink` (the panel's own text colour) rather than `--fp-dev-camera`, since that token is tuned for the plan's own room background and read illegibly close to the panel's `--fp-room` background in the dark themes (Opus review finding 10) — and its `name ?? friendly_name ?? entity`; a click or Enter fires `hass-more-info` for that entity, the same event the plan's own tap already fires. The header shows "Active", a live count and a collapse toggle; dragging the header repositions the panel. Its position is kept as a fraction of the card's own free space and reapplied after every render and on a `ResizeObserver` of the card's host, not only while dragging (Opus review findings 3 and 4), so it can never be lost off-screen — including after the card itself is resized, or after a collapse/drag-to-bottom/expand cycle. With nothing yet stored and the card narrower than 500px, the panel starts collapsed and takes `min(200px, 45%)` of the width instead of a flat 200px (Opus review finding 5, an assumption: 500px as "phone width" is not tested against a real device, only Chromium's viewport emulation). Position and collapsed state are kept in `localStorage`, wrapped in try/catch, under a key hashed from the layout's *source* — `layout_url`, else `"inline"` for a config `layout`, else `"ws"` for the websocket fetch — plus the card's own `floor`/`floors` (Opus review finding 7: the old key hashed the layout's *content*, so two cards in websocket mode, the default install with no `layout`/`layout_url`, shared one key even when pinned to different floors, and an inline layout's own autosave changed the key on every edit). `kiosk: true` hides the panel too — a wall tablet shows only the plan.
+
+Opus review, 2026-09-27: with the same `floor`, several S9.6 cards pinned to
+different rooms still shared one storage key, so collapsing or dragging one
+card's panel moved every other card's panel on the next reload. `center`/
+`zoom_level` now join the seed, but only when the config actually sets them
+(`this._config.center !== undefined`, pushed conditionally) — an unpinned
+card's key is unchanged from before S9.6, so no existing stored position or
+collapsed state is silently orphaned by this fix.
 
 `zoom` (S7.4): the plan zooms between fit and 8×. A drag that moves more than 6 px pans and is never a tap; zoomed in, a third of the view always stays on the plan. A double-tap off any device zooms 2× at fit and returns to fit when zoomed. Without Ctrl/Cmd a wheel scrolls the dashboard, unless `zoom: "wheel"`. The view resets on a config change and a floor change, and survives state updates. With zoom on, the plan's `<svg>` has `touch-action: none`, so a swipe that starts on the plan does not scroll the page; `zoom: false` gives the page its touches back. An unrecognised value (anything but `true`, `false` or `"wheel"`) is refused by `setConfig`, naming the key, the same as `kiosk` below — S7.4 had it falling back to `true` instead, silently hiding a typo.
 
 `kiosk` (S7.5, default `false`): built for a tablet fixed to a wall, where nobody should be able to reach Home Assistant's more-info dialog by holding a finger on a device, or switch floors, or zoom out past what fits. `true` drops the floor chips and the zoom +/−/fit buttons from the card's own chrome, and `bindDeviceActions`'s hold timer never starts, so a long press does nothing — releasing still fires a plain tap, so every device keeps working by tap. With `floors` or `floor: "all"` set alongside `kiosk: true`, the card shows the first floor in the list and draws no switcher; put one card per floor on the dashboard instead. `kiosk` must be exactly `true` or `false` — anything else, `setConfig` refuses it, naming the key.
+
+`icon_size` (S9.2): `renderFloor` draws icons, names, values and radar dots at
+a fixed size in plan centimetres, scaled by `1/scale`; the editor passes its
+own zoom as `scale`, but the card always passed `1`, so a big house left them
+shrinking with everything else. The card now passes
+`scale = 1 / (auto * icon_size)`, where `auto = max(1, longest side of the
+floor's view box in cm / 1000)` — the same view box the card already draws
+(`viewBoxFor`), so a plan of 1000 cm or less keeps `auto` at `1` and renders
+byte-identical to before this change. `icon_size` is a number from `0.5` to
+`3`, default `1`; anything else (missing, non-numeric, `NaN`) is the default
+rather than refused, since a slider or a stray digit should never break the
+card. The editor is unchanged — it always passed its own zoom, never `1`.
 
 `theme` is blueprint unless the dashboard says otherwise. `light` is the paper-and-ink set; `midnight` is the project's first dark theme, kept under its own name once blueprint moved on to a new palette (2026-09-22). `ha` inherits the dashboard's own theme: ground from `--card-background-color`, rooms from `--secondary-background-color`, walls and text from `--primary-text-color`, measure marks from `--secondary-text-color`. Each has the plain light or midnight set as its fallback, chosen by `hass.themes.darkMode`, so a dashboard that defines none of them still draws. Warn, danger and primary (the UI chrome, not a device's own colour) never follow the theme: they and their on-dark/on-light text are the same fixed pair everywhere, because they already clear 4.5:1 against it. The card ignores the OS colour scheme.
 

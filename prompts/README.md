@@ -17,7 +17,7 @@ Two finished examples sit in [`examples/`](examples/): a flat, and a house with 
 2. **Attach your drawings**: photos, scans, a PDF, a sketch. One image per floor is best. Say which floor is which.
 3. **Answer its two questions**: one real measurement, and where north is.
 4. **Save what it gives you** as `layout.json`.
-5. **Open the editor** (`dist/editor.html`, or the Floorplan Studio panel in Home Assistant), then **File → Open**, choose `layout.json`.
+5. **Open the editor**: **Floorplan Studio** in the Home Assistant sidebar. Then **File → Open…**, choose `layout.json`.
 6. **Fix what is off.** Drag a corner, move a door. The assistant lists everything it guessed; check those first.
 7. **Attach your devices** in the editor. The assistant does not touch them here, on purpose: a drawing does not know which lamp is which.
 

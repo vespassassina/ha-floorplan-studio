@@ -39,6 +39,26 @@ export function clamp(view: View, fit: View): View {
   return x === v.x && y === v.y ? v : { x, y, w: v.w, h: v.h };
 }
 
+/** S9.6: the card's pinned "home" view — a room, corridor or part of a home instead of the whole floor. `center`
+ * (plan cm) and `zoomLevel` (1 = the whole floor, up to `MAX_ZOOM`) are already validated untrusted config by the
+ * time they reach here (CLAUDE.md finding 1): the card turns anything malformed into `null`/`1` before calling
+ * this, so this function only does the maths. `zoomLevel` alone zooms about `fit`'s own centre; `center` alone (or
+ * `zoomLevel` at 1) is caught by `clamp` itself, which hands back `fit` exactly whenever the box it's given is not
+ * narrower than `fit` — so a centre with no zoom changes nothing, per the S9.6 spec. The result is always clamped
+ * to `fit` (never off the plan) and keeps `fit`'s own aspect ratio, since only `w`/`h` are derived from it. */
+export function pinnedView(fit: View, center: Pt | null, zoomLevel: number): View {
+  const w = fit.w / zoomLevel, h = fit.h / zoomLevel;
+  const [cx, cy] = center ?? [fit.x + fit.w / 2, fit.y + fit.h / 2];
+  return clamp({ x: cx - w / 2, y: cy - h / 2, w, h }, fit);
+}
+
+/** Whether two views are the same box, within a rounding-error tolerance relative to `fit`'s own size — the same
+ * slack `clamp` itself uses so that zooming in and back out lands on a box that still reads as equal. */
+export function sameView(a: View, b: View, fit: View): boolean {
+  const ex = Math.max(1e-6, fit.w * 1e-6), ey = Math.max(1e-6, fit.h * 1e-6);
+  return Math.abs(a.x - b.x) < ex && Math.abs(a.y - b.y) < ey && Math.abs(a.w - b.w) < ex && Math.abs(a.h - b.h) < ey;
+}
+
 /** Two fingers moved from p1, p2 to q1, q2 (plan units under `view`): zooms by the change in their distance and
  * moves the plan point under the old midpoint to the new one. Fingers on one spot are not a pinch. */
 export function pinch(view: View, p1: Pt, p2: Pt, q1: Pt, q2: Pt): View {

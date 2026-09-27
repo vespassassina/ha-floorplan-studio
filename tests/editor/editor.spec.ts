@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { DEVICE_COLOURS } from "../../src/core/render";
+import { DEVICE_COLOURS, planPivot, rotateAbout, viewBoxFor } from "../../src/core/render";
 import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
 import { GUIDE_STEPS } from "../../src/editor/guide";
 import { decodePng, pixelAt } from "../core/util/png";
@@ -4520,7 +4520,8 @@ async function addCssFixtures(page: Page) {
     ["wall", "external", "fence", "edge"].forEach((k, i) => g.walls.push({ id: `css-w-${k}`, a: [1000, 200 + i * 40], b: [1200, 200 + i * 40], kind: k }));
     g.devices.push({ id: "css-out", type: "temp", entity: "sensor.css_out", x: 1040, y: 40 }); // inside css-garden
     // S2.9: types with no fixture elsewhere in the demo, so the colour-pair tests below have something to toggle .on.
-    ["contact", "climate", "tv", "computer", "humidity"].forEach((t, i) => g.devices.push({ id: `css-${t}`, type: t, entity: `sensor.css_${t}`, x: 1900 + i * 40, y: 40 }));
+    // S9.4: speaker joins the list for the same reason — ground floor has none, and the wave-arc pair needs one.
+    ["contact", "climate", "tv", "computer", "humidity", "speaker"].forEach((t, i) => g.devices.push({ id: `css-${t}`, type: t, entity: `sensor.css_${t}`, x: 1900 + i * 40, y: 40 }));
     g.rooms.push({ id: "css-pond", name: "pond", area: "", label: "", kind: "water", pts: [[1800, 200], [1880, 200], [1880, 280], [1800, 280]], wk: Array(4).fill("wall"), entity: "switch.css_pond" });
     g.furniture.push({ id: "css-gate", symbol: "patio-wood", x: 1940, y: 240, rot: 0, w: 100, h: 100, entity: "cover.css_gate" });
     el.layout = l;
@@ -4607,9 +4608,9 @@ test("Opus review CSS pair: a deleted edge is a faint dotted guide, stair treads
 
 test("Opus review CSS pair: the palette variables equal DEVICE_COLOURS, camera and garden sensor paint from them (render.test.ts:598-600, 757)", async ({ page }) => {
   await addCssFixtures(page);
-  const vars = await page.locator("svg g.dev").first().evaluate((e) => { const s = getComputedStyle(e), o: Record<string, string> = {}; for (const k of ["light", "motion", "contact", "heater", "climate", "ac-cool", "ac-heat", "tv", "plug", "computer", "camera", "garden"]) o[k] = s.getPropertyValue(`--fp-dev-${k}`).trim(); return o; });
-  expect(vars).toEqual({ light: "#e0a800", motion: "#d64545", contact: "#d64545", heater: "#e8801a", climate: "#e8801a", "ac-cool": "#2c7fb8", "ac-heat": "#e8801a", tv: "#2c7fb8", plug: "#2c7fb8", computer: "#2c7fb8", camera: "#4a4a48", garden: "#3f8f4f" });
-  for (const k of ["light", "motion", "contact", "heater", "climate", "tv", "plug", "computer", "camera"] as const) expect(vars[k], k).toBe((DEVICE_COLOURS as Record<string, string>)[k]);
+  const vars = await page.locator("svg g.dev").first().evaluate((e) => { const s = getComputedStyle(e), o: Record<string, string> = {}; for (const k of ["light", "motion", "contact", "heater", "climate", "ac-cool", "ac-heat", "tv", "plug", "computer", "camera", "garden", "speaker"]) o[k] = s.getPropertyValue(`--fp-dev-${k}`).trim(); return o; });
+  expect(vars).toEqual({ light: "#e0a800", motion: "#d64545", contact: "#d64545", heater: "#e8801a", climate: "#e8801a", "ac-cool": "#2c7fb8", "ac-heat": "#e8801a", tv: "#2c7fb8", plug: "#2c7fb8", computer: "#2c7fb8", camera: "#4a4a48", garden: "#3f8f4f", speaker: "#2c7fb8" });
+  for (const k of ["light", "motion", "contact", "heater", "climate", "tv", "plug", "computer", "camera", "speaker"] as const) expect(vars[k], k).toBe((DEVICE_COLOURS as Record<string, string>)[k]);
   expect(await camFill(page)).toBe(rgb("#4a4a48"));
   const out = await page.locator("svg g.dev.outdoor path:not(.halo)").first().evaluate((e) => getComputedStyle(e).fill);
   expect(out).toBe(rgb("#3f8f4f"));
@@ -4697,11 +4698,94 @@ test("Opus review CSS pair: S8.13 an open door's alert line is contact red and t
     line.setAttribute("class", "door-alert");
     svg.querySelector("line[data-d]")!.before(line);
     const cs = getComputedStyle(line);
-    return { stroke: cs.stroke, want: getComputedStyle(svg).getPropertyValue("--fp-dev-contact").trim(), pe: cs.pointerEvents, anim: cs.animationName };
+    // S9.1: the door-alert line now reads --fp-open-door (which defaults to --fp-dev-contact, so this is still
+    // contact red with no config override, but the token behind it is the one the card's open_color can change).
+    return { stroke: cs.stroke, want: getComputedStyle(svg).getPropertyValue("--fp-open-door").trim(), pe: cs.pointerEvents, anim: cs.animationName };
   }, EDITOR);
   expect(s.stroke).toBe(rgb(s.want));
   expect(s.pe).toBe("none");
   expect(s.anim).toBe("fp-door");
+});
+
+// S9.1 Opus review CSS pair: an open contact door is dashed in --fp-open-door; a cover door's own open state
+// (.cover-open) is unrelated to contact and keeps the plain --fp-open orange, undashed, even on a door that
+// somehow carries both classes (schema.ts allows a door both `sensors` and `cover`) — CSS resolves per property,
+// not per rule block, so .cover-open must clear the dasharray itself (CLAUDE.md finding 18: a class rule, not an
+// attribute, or the editor's own pointer-events:all would win the day it shows live state).
+test("Opus review CSS pair: S9.1 an open contact door is dashed in --fp-open-door", async ({ page }) => {
+  const s = await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const line = svg.querySelector("line[data-d]") as SVGLineElement;
+    line.setAttribute("class", "door open");
+    const cs = getComputedStyle(line);
+    return { stroke: cs.stroke, dash: cs.strokeDasharray, want: getComputedStyle(svg).getPropertyValue("--fp-open-door").trim() };
+  }, EDITOR);
+  expect(s.stroke).toBe(rgb(s.want));
+  expect(s.dash).not.toBe("none");
+});
+
+test("Opus review CSS pair: S9.1 a cover door's own open state stays plain orange and undashed, even alongside .open", async ({ page }) => {
+  const s = await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const line = svg.querySelector("line[data-d]") as SVGLineElement;
+    line.setAttribute("class", "door open cover-open"); // both at once: the schema permits sensors + cover together
+    const cs = getComputedStyle(line);
+    return { stroke: cs.stroke, dash: cs.strokeDasharray, want: getComputedStyle(svg).getPropertyValue("--fp-open").trim() };
+  }, EDITOR);
+  expect(s.stroke).toBe(rgb(s.want));
+  expect(s.dash).toBe("none");
+});
+
+// Opus review finding 8: the wave is a <circle> now, not a <path> semicircle (render.ts). These fixtures build the
+// same element renderFloor now emits, so a regression back to <path> (which would silently lose the finding-8 fix,
+// since .wave{fill:none} etc. apply to either tag by class alone) fails here too, not only in render.test.ts.
+test("Opus review CSS pair: S9.4 a playing speaker's two arcs pulse from its own colour, staggered, and take no click", async ({ page }) => {
+  await addCssFixtures(page);
+  const s = await page.locator("svg g.dev-speaker").first().evaluate((e) => {
+    e.classList.add("on");
+    const ns = "http://www.w3.org/2000/svg";
+    const w1 = document.createElementNS(ns, "circle"), w2 = document.createElementNS(ns, "circle");
+    for (const w of [w1, w2]) { w.setAttribute("cx", "12"); w.setAttribute("cy", "12"); w.setAttribute("r", "16"); w.setAttribute("pathLength", "100"); w.setAttribute("stroke-dasharray", "50 50"); }
+    w1.setAttribute("class", "wave");
+    w2.setAttribute("class", "wave w2");
+    e.querySelector(".halo")!.before(w1, w2);
+    const s1 = getComputedStyle(w1), s2 = getComputedStyle(w2);
+    return {
+      dev: getComputedStyle(e).getPropertyValue("--fp-dev").trim(),
+      stroke: s1.stroke, fill: s1.fill, pe: s1.pointerEvents, anim1: s1.animationName, delay1: s1.animationDelay,
+      anim2: s2.animationName, delay2: s2.animationDelay,
+      // finding 8's own point: a circle's bbox is the square centred on (cx,cy), so it is concentric with the
+      // halo (same cx/cy/r) whatever arc the dasharray leaves visible — unlike the old semicircle path.
+      bbox1: (() => { const b = w1.getBBox(); return { x: b.x, y: b.y, width: b.width, height: b.height }; })(),
+      haloBbox: (() => { const b = (e.querySelector(".halo") as SVGCircleElement).getBBox(); return { x: b.x, y: b.y, width: b.width, height: b.height }; })(),
+    };
+  });
+  expect(s.dev).toBe("#2c7fb8"); // --fp-dev-speaker, fixed in every theme (S9.4, the same exception as tv/S9.3)
+  expect(s.stroke).toBe(rgb(s.dev));
+  expect(s.fill).toBe("none");
+  expect(s.pe).toBe("none");
+  expect(s.anim1).toBe("fp-wave");
+  expect(s.anim2).toBe("fp-wave");
+  expect(s.delay1).toBe("0s");
+  expect(s.delay2).toBe("0.8s"); // staggered, so the two arcs read as one radiating out after the other
+  expect(s.bbox1).toEqual(s.haloBbox); // same cx/cy/r as the halo: concentric, not offset like the old semicircle
+});
+
+test("Opus review CSS pair: S9.4 under reduced motion the speaker's arcs hold still, same as the ping", async ({ page }) => {
+  await addCssFixtures(page);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const s = await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const g = svg.querySelector("g.dev-speaker")!;
+    g.classList.add("on");
+    const wave = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    wave.setAttribute("cx", "12"); wave.setAttribute("cy", "12"); wave.setAttribute("r", "16");
+    wave.setAttribute("class", "wave");
+    g.querySelector(".halo")!.before(wave);
+    const w = getComputedStyle(wave);
+    return { anim: w.animationName, transform: w.transform, opacity: w.opacity };
+  }, EDITOR);
+  expect(s).toEqual({ anim: "none", transform: "matrix(1.5, 0, 0, 1.5, 0, 0)", opacity: "0.6" });
 });
 
 test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-dev per type, icon and halo)", async ({ page }) => {
@@ -7763,3 +7847,137 @@ test("S8.11: a real click still selects the opening in the editor, on top of the
 // Opus review of S8.11 (2026-09-26): the pair's own two card.spec.ts tests were widened along with the mask cut
 // (OPENING_EXTRA) and a since-removed seam patch was checked and found unnecessary once that cut is wide enough —
 // see docs/DECISIONS.md's S8.11 follow-up.
+
+// ---- S9.6: "Copy card view" (View menu) — center/zoom_level for a card pinned to what the editor shows ----
+
+test("S9.6: Copy card view copies center/zoom_level YAML for the current view and confirms in the status line", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).__copied = null;
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: (t: string) => { (window as any).__copied = t; return Promise.resolve(); } }, configurable: true });
+  });
+  await zoomIn(page, 4); // away from fit, so this is not just testing the zoom_level: 1 default
+  await menu(page, "View");
+  await page.locator(`${EDITOR} #copyCardView`).click();
+  const copied = await page.evaluate(() => (window as any).__copied as string);
+  expect(copied).toMatch(/^center: \[-?\d+, -?\d+\]\nzoom_level: \d+\.\d\d$/);
+  await expect(page.locator("#status")).toHaveText("Card view copied.");
+});
+
+test("S9.6: Copy card view round-trips into a card's center/zoom_level, within 1cm, for a same-aspect viewport", async ({ page }) => {
+  // The card's own fit (pad 60, no rotation) — computed the same way `copyCardView` computes it, and independent
+  // of the editor's own pad-80 fit()/recenter(), so this test would catch either one leaking into the other.
+  const fit = viewBoxFor((JSON.parse(readFileSync("demo/layout.json", "utf8")) as Layout).floors.ground, 60);
+  const zoomLevel = 2.5, center: [number, number] = [650, 200]; // the kitchen light (demo/layout.json), same as card.spec.ts's S9.6 pin
+  const forced = { x: center[0] - fit.w / zoomLevel / 2, y: center[1] - fit.h / zoomLevel / 2, w: fit.w / zoomLevel, h: fit.h / zoomLevel };
+
+  // Poke the editor's own view directly to a box that already has the card's own fit aspect (pad 60) — the
+  // "same-aspect viewport" the round trip is meant to hold under. Driving this through real wheel/pan gestures
+  // would leave the editor's view at its own pad-80 fit's aspect instead, which is a real (small) source of drift
+  // this test deliberately sets aside to isolate the round-trip maths themselves.
+  await page.evaluate(([tag, v]) => {
+    const el = document.querySelector(tag as string) as any;
+    el.st.views[el.st.floor] = v;
+    el.requestUpdate();
+  }, [EDITOR, forced] as const);
+  await expect.poll(() => page.locator(`${EDITOR} svg`).first().getAttribute("viewBox")).not.toBeNull();
+
+  await page.evaluate(() => {
+    (window as any).__copied = null;
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: (t: string) => { (window as any).__copied = t; return Promise.resolve(); } }, configurable: true });
+  });
+  await menu(page, "View");
+  await page.locator(`${EDITOR} #copyCardView`).click();
+  const copied = (await page.evaluate(() => (window as any).__copied as string))!;
+  const m = copied.match(/^center: \[(-?\d+), (-?\d+)\]\nzoom_level: (\d+\.\d\d)$/)!;
+  const [gotCx, gotCy, gotZoom] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  expect(gotCx).toBe(center[0]);
+  expect(gotCy).toBe(center[1]);
+  expect(gotZoom).toBeCloseTo(zoomLevel, 2);
+
+  const CARD_JS = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  const layout = JSON.parse(readFileSync("demo/layout.json", "utf8"));
+  await page.addScriptTag({ content: CARD_JS, type: "module" });
+  await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+  const box = await page.evaluate(
+    ([layout, gotCx, gotCy, gotZoom]) => {
+      const el = document.createElement("floorplan-studio-card") as any;
+      document.body.appendChild(el);
+      el.setConfig({ layout, center: [gotCx, gotCy], zoom_level: gotZoom });
+      el.hass = { states: {} };
+      return el.updateComplete.then(() => {
+        const [x, y, w, h] = el.shadowRoot.querySelector("svg").getAttribute("viewBox").split(/\s+/).map(Number);
+        el.remove();
+        return { x, y, w, h };
+      });
+    },
+    [layout, gotCx, gotCy, gotZoom] as const,
+  );
+  expect(Math.abs(box.x - forced.x)).toBeLessThan(1);
+  expect(Math.abs(box.y - forced.y)).toBeLessThan(1);
+  expect(Math.abs(box.w - forced.w)).toBeLessThan(1);
+  expect(Math.abs(box.h - forced.h)).toBeLessThan(1);
+});
+
+// S9.6 review (Opus, 2026-09-27): `center` is documented as plan cm — the same unrotated coordinates a device sits
+// at — but the card's own box (`viewBoxFor`/`renderFloor`) is already in the *rendered* frame once `rotate` is set,
+// while the editor's `st.view` (what `copyCardView` reads) stays unrotated throughout. Passing the raw centre
+// straight into the card's `pinnedView` pinned the wrong spot on any rotated layout; fixed in the card
+// (`_rotatedCenter`, floorplan-studio-card.ts) by turning the config's plan-cm point through the layout's own
+// rotation before it reaches `pinnedView`. This is the same round trip as the "same-aspect viewport" test above,
+// with `rotate: 90` on the demo's asymmetric (800x600) outline, and checked against the *actual* plan point the
+// editor was showing (`st.view`'s own centre, turned by hand the same way) rather than a value this test assumes.
+test("S9.6 review: Copy card view round-trips onto the same plan point under a 90° rotation, within 1cm", async ({ page }) => {
+  const deg = 90;
+  const rotated: Layout = { ...demo, rotate: deg };
+  await page.evaluate(([tag, l]) => { (document.querySelector(tag as string) as any).layout = l; }, [EDITOR, rotated] as const);
+  await expect.poll(() => page.locator(`${EDITOR} svg polygon[data-r]`).first().isVisible()).toBe(true);
+
+  // Zoom in and pan off-centre — an asymmetric plan point, not fit's own centre (finding 4: a version that ignored
+  // rotation entirely would still pass a test pinned at the plan's own centre of symmetry).
+  await zoomIn(page, 4);
+  await page.mouse.move(700, 500);
+  await page.mouse.down();
+  await page.mouse.move(760, 440, { steps: 5 });
+  await page.mouse.up();
+
+  const v = await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any; return { ...el.st.view }; }, EDITOR);
+  const pivot = planPivot(rotated);
+  const expected = rotateAbout([v.x + v.w / 2, v.y + v.h / 2], deg, pivot);
+
+  await page.evaluate(() => {
+    (window as any).__copied = null;
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: (t: string) => { (window as any).__copied = t; return Promise.resolve(); } }, configurable: true });
+  });
+  await menu(page, "View");
+  await page.locator(`${EDITOR} #copyCardView`).click();
+  const copied = (await page.evaluate(() => (window as any).__copied as string))!;
+  const m = copied.match(/^center: \[(-?\d+), (-?\d+)\]\nzoom_level: (\d+\.\d\d)$/)!;
+  const [cx, cy, zoomLevel] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  // The copied centre is the plan-cm point the editor showed — unrotated, same as `st.view`'s own centre — not yet
+  // turned by `deg`: that only happens inside the card.
+  expect(cx).toBeCloseTo(v.x + v.w / 2, 0);
+  expect(cy).toBeCloseTo(v.y + v.h / 2, 0);
+
+  const CARD_JS = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  await page.addScriptTag({ content: CARD_JS, type: "module" });
+  await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+  const box = await page.evaluate(
+    ([layout, cx, cy, zoomLevel]) => {
+      const el = document.createElement("floorplan-studio-card") as any;
+      document.body.appendChild(el);
+      el.setConfig({ layout, center: [cx, cy], zoom_level: zoomLevel });
+      el.hass = { states: {} };
+      return el.updateComplete.then(() => {
+        const [x, y, w, h] = el.shadowRoot.querySelector("svg").getAttribute("viewBox").split(/\s+/).map(Number);
+        el.remove();
+        return { x, y, w, h };
+      });
+    },
+    [rotated, cx, cy, zoomLevel] as const,
+  );
+  expect(Math.abs(box.x + box.w / 2 - expected[0])).toBeLessThan(1);
+  expect(Math.abs(box.y + box.h / 2 - expected[1])).toBeLessThan(1);
+});
+
+// A fast, editor-free unit check of the same fix (the card's own home centre for a non-right-angle rotation) lives
+// in tests/card/card.test.ts ("S9.6 review: a rotated layout pins..."), so it does not need a browser at all.

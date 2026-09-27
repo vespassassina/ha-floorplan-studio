@@ -1,15 +1,15 @@
 import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { FLOORPLAN_CSS, THEMES, migrate, planPivot, renderFloor, validate, viewBoxFor } from "../core";
-import type { Theme } from "../core";
+import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, activeDevices, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import type { ActiveDevice, Theme } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
-import { TAP_SLOP_PX, bindDeviceActions } from "./actions";
+import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
 // one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
 // second built file (PLAN block interface).
 import "./config-editor";
 import { defineElement } from "./define";
-import { MAX_ZOOM, clamp, panBy, pinch, zoomAt, type Pt, type View } from "./viewport";
+import { MAX_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
 
@@ -52,13 +52,45 @@ export interface FloorplanStudioCardConfig {
    * multi-floor layout with neither key set — instead shows just its first floor, with no switcher: use one card
    * per floor instead (see `docs/card.md`). */
   kiosk?: boolean;
+  /** S9.1: the colour an open contact door or window (and its S8.13 alert line) draws in, as `#rrggbb`; unset
+   * keeps the theme's own default (--fp-dev-contact). A value that is not a plain 6-digit hex is ignored, the
+   * same as any other untrusted config (CLAUDE.md finding 1) — never thrown on. */
+  open_color?: string;
+  /** S9.2: icons, names, values and radar dots grow by this factor on top of the automatic large-plan scale-up
+   * (see `_iconSize`/`_scale` below). A number from 0.5 to 3; anything else (missing, non-numeric, `NaN`) is the
+   * default, 1. Out-of-range numbers clamp rather than being refused, since a slider or a typo should never break
+   * the card. */
+  icon_size?: number;
+  /** S9.5: `false` hides the floating active-devices panel. Default `true` (shown, open, on the left). */
+  active_list?: boolean;
+  /** S9.6: the centre of a pinned view, in plan cm — [x, y]. Untrusted config (CLAUDE.md finding 1): anything
+   * other than a two-element array of finite numbers is ignored, silently, the same as `icon_size`/`open_color`
+   * (not thrown on like `zoom`/`kiosk` — see `_center`'s comment for why). Unset, or with `zoom_level` at 1, the
+   * card draws the whole floor as before. */
+  center?: [number, number];
+  /** S9.6: 1 (default) is the whole floor, exactly as `viewBoxFor` fits it today; 2 shows half the width and
+   * height of that box, and so on up to `MAX_ZOOM` (`viewport.ts`). Anything other than a finite number is the
+   * default, 1; an in-range-but-odd number (0, negative, past `MAX_ZOOM`) clamps rather than being refused, the
+   * same as `icon_size`. `zoom` (the pinch/wheel switch) was already taken, so this is a separate key. */
+  zoom_level?: number;
 }
+
+/** Card config is untrusted input (CLAUDE.md finding 1): only a plain `#rrggbb` hex is accepted for open_color. */
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 /** Two taps closer than this in time and space are a double-tap. */
 const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_PX = 24;
 /** One click of a zoom button. */
 const BUTTON_ZOOM = 1.5;
+/** S9.2: `icon_size` default and clamp range. */
+const DEFAULT_ICON_SIZE = 1;
+const ICON_SIZE_MIN = 0.5;
+const ICON_SIZE_MAX = 3;
+/** S9.6: `zoom_level` default and clamp range — 1 is the whole floor, `MAX_ZOOM` (viewport.ts) is as deep as the
+ * pinch zoom itself ever goes. */
+const DEFAULT_ZOOM_LEVEL = 1;
+const ZOOM_LEVEL_MIN = 1;
 
 declare global {
   interface Window {
@@ -83,7 +115,10 @@ export class FloorplanStudioCard extends LitElement {
     p.msg { padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
     /* S2.6: the floor switcher is card chrome (like p.msg above), not plan content, so it sits outside the <svg>
        renderFloor draws and is positioned over it instead. */
-    .fp-floors { position: absolute; top: 8px; left: 8px; z-index: 1; display: flex; gap: 6px; }
+    /* Opus review finding 13: the active-devices panel below (also z-index: 1, and later in DOM order, so it
+       would otherwise win ties) can be dragged to sit right under this row; the floor chips must still take the
+       click, not the panel behind — or in front of, without this — them. */
+    .fp-floors { position: absolute; top: 8px; left: 8px; z-index: 2; display: flex; gap: 6px; }
     .fp-floors button { font: 12px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
     /* Same combination the editor's floor chips already proved at 4.5:1 (S1.40); the current floor is carried by
        aria-pressed, not by this colour alone (CLAUDE.md finding: a toggle must not state its direction twice —
@@ -111,6 +146,24 @@ export class FloorplanStudioCard extends LitElement {
        card on a narrow width, and a disabled action reads as inert (dimmed, no pointer) without a separate class. */
     .fp-vacuum-dialog .fp-dialog-actions { flex-wrap: wrap; }
     .fp-dialog-actions button:disabled { opacity: 0.45; cursor: default; }
+    /* S9.5: the active-devices panel, card chrome like .fp-floors/.fp-zoom above (CLAUDE.md finding 8 — nothing here
+       is drawn inside the plan's <svg>). Default position clears the floor chips' own top-left corner; a drag
+       overrides top/left with an inline style, clamped in TS against the card's own box so it can never be lost
+       off-screen (S9.5 spec). */
+    /* Opus review finding 5: min(200px, 45%) instead of a flat 200px, so a narrow (phone-width) card gets a panel
+       that fits it rather than one that is most of the card's own width at 200px on a ~380px card. */
+    .fp-active { position: absolute; top: 44px; left: 8px; z-index: 1; width: min(200px, 45%); max-width: calc(100% - 16px); max-height: calc(100% - 52px); display: flex; flex-direction: column; overflow: hidden; background: var(--fp-room); color: var(--fp-ink); border: 1px solid var(--fp-idle); border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
+    .fp-active-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: grab; touch-action: none; user-select: none; font: 600 12px/1.2 system-ui, sans-serif; border-bottom: 1px solid var(--fp-idle); }
+    .fp-active-title { flex: 1; }
+    .fp-active-count { font-weight: 400; color: var(--fp-text); }
+    .fp-active-collapse { border: none; background: transparent; color: inherit; font: inherit; line-height: 1; cursor: pointer; padding: 2px 4px; }
+    .fp-active-body { overflow-y: auto; padding: 4px 8px 8px; }
+    .fp-active-group-label { font: 600 10px/1.6 system-ui, sans-serif; color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 6px; }
+    .fp-active-group-label:first-child { margin-top: 0; }
+    .fp-active-row { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; border: none; background: transparent; color: inherit; font: 12px/1.3 system-ui, sans-serif; padding: 4px 2px; cursor: pointer; border-radius: 4px; }
+    .fp-active-row:hover, .fp-active-row:focus-visible { background: var(--fp-idle); }
+    .fp-active-row svg { width: 16px; height: 16px; flex: 0 0 16px; fill: var(--fp-active-row-color, var(--fp-ink)); }
+    .fp-active-empty { margin: 4px 2px; font: 12px/1.3 system-ui, sans-serif; color: var(--fp-text); }
   `];
 
   private _config: FloorplanStudioCardConfig = {};
@@ -151,6 +204,74 @@ export class FloorplanStudioCard extends LitElement {
   /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
   private _fit: View | null = null;
   private _unbindZoom: (() => void) | null = null;
+  /** S9.5: the active-devices panel. `_activePos` is `null` for the CSS default position (top-left, below the
+   * floor chips); once dragged it holds the panel's position as a *fraction* (0..1) of the card's own free width
+   * and height (`hostSize - panelSize`), not raw px (Opus review findings 3/4: a px position stored at one size
+   * and reclamped only mid-drag could end up outside the card the moment the geometry it was clamped against
+   * changes — a reload at a narrower width, or expanding a panel that was dragged low while collapsed and much
+   * shorter). `_positionActivePanel` re-derives the actual px position from this fraction on every render and on
+   * a host resize, so the panel is inside the card by construction. Both fields are read from, and written to,
+   * `localStorage` (wrapped in try/catch: private browsing or blocked storage just means the panel forgets
+   * between reloads, never a thrown error — CLAUDE.md finding 1's spirit applied to browser state). */
+  private _activeCollapsed = false;
+  private _activePos: { x: number; y: number } | null = null;
+  /** Opus review finding 5 (an assumption Diego may overrule, recorded in docs/DECISIONS.md): whether anything at
+   * all was found in storage for this card the last time `_loadActiveState` ran. When nothing was, and the card
+   * turns out to be narrower than 500px once it has actually rendered, the panel starts collapsed instead of
+   * covering a phone-sized card. Checked once per `setConfig`, in `updated()`, where a real width is available. */
+  private _activeHadStoredState = false;
+  private _activePhoneDefaultChecked = false;
+  private _activeResizeObserver: ResizeObserver | null = null;
+
+  /** `localStorage` key for this card's panel state. Opus review finding 7: the seed used to be the layout's own
+   * content (`layout_url`, or the inline `layout` verbatim), which meant two cards in websocket mode — no
+   * `layout`/`layout_url`, the default install — both seeded from `""` and shared one key even though each pins a
+   * different `floor`, and an inline layout got a *new* key on every edit (autosave rewrites `layout` in place).
+   * The seed is now the layout's *source* only — `layout_url`, else `"inline"` for a config `layout`, else `"ws"`
+   * for the websocket fetch — which two cards on the same source share, plus the `floor`/`floors` config that
+   * tells otherwise-identical cards apart (S9.5's own two-floors-of-one-layout case, S7's floor switcher).
+   * S9.6 review (Opus, 2026-09-27): `center`/`zoom_level` tell two cards on the same floor apart too — several
+   * cards each pinned to a different room shared this key, so folding or dragging one moved the panel on all of
+   * them after a reload. Unlike `floor`/`floors` (always in the seed, `?? null`), these two are appended only when
+   * actually set: putting them in unconditionally, even as `null`, would change the JSON string — and so the
+   * hash — for every card that has neither key, wiping the stored position everyone already has. */
+  private _activeStorageKey(): string {
+    const source = this._config.layout_url ?? (this._config.layout ? "inline" : "ws");
+    const seed: unknown[] = [source, this._config.floor ?? null, this._config.floors ?? null];
+    if (this._config.center !== undefined) seed.push(this._config.center);
+    if (this._config.zoom_level !== undefined) seed.push(this._config.zoom_level);
+    return `fp-active-panel:${tag(JSON.stringify(seed))}`;
+  }
+
+  private _loadActiveState(): void {
+    this._activeCollapsed = false;
+    this._activePos = null;
+    this._activeHadStoredState = false;
+    this._activePhoneDefaultChecked = false;
+    try {
+      const raw = globalThis.localStorage?.getItem(this._activeStorageKey());
+      if (!raw) return;
+      this._activeHadStoredState = true;
+      const parsed = JSON.parse(raw) as { collapsed?: unknown; x?: unknown; y?: unknown };
+      if (parsed.collapsed === true) this._activeCollapsed = true;
+      // Opus review finding 3: untrusted storage, including an older build's raw-px entry — clamped into the 0..1
+      // fraction range rather than trusted or thrown on. A stale px value just lands at whichever edge it clamps
+      // to (never off-screen); it does not need to reproduce its exact old spot.
+      if (typeof parsed.x === "number" && typeof parsed.y === "number" && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
+        this._activePos = { x: Math.min(Math.max(parsed.x, 0), 1), y: Math.min(Math.max(parsed.y, 0), 1) };
+      }
+    } catch {
+      /* malformed or unavailable storage: the panel just opens at its default place, uncollapsed */
+    }
+  }
+
+  private _saveActiveState(): void {
+    try {
+      globalThis.localStorage?.setItem(this._activeStorageKey(), JSON.stringify({ collapsed: this._activeCollapsed, x: this._activePos?.x, y: this._activePos?.y }));
+    } catch {
+      /* private browsing or storage blocked: position/collapse just don't persist */
+    }
+  }
 
   static getStubConfig(): FloorplanStudioCardConfig {
     return { type: "custom:floorplan-studio-card" };
@@ -168,6 +289,13 @@ export class FloorplanStudioCard extends LitElement {
     // constructor: the custom element spec forbids gaining attributes during construction (jsdom enforces this
     // and throws NotSupportedError; a real browser is more forgiving, but this is the correct place regardless).
     if (!this.hasAttribute("tabindex")) this.tabIndex = -1;
+    // Opus review findings 3/4: a host resize (a dashboard column narrowing, a sidebar opening, a card being
+    // dragged to a new grid size) must re-clamp the panel too, not only a fresh render. jsdom has no
+    // ResizeObserver; the unit suite never needs this path, so it is skipped there rather than polyfilled.
+    if (typeof ResizeObserver !== "undefined") {
+      this._activeResizeObserver = new ResizeObserver(() => this._positionActivePanel());
+      this._activeResizeObserver.observe(this);
+    }
   }
 
   /**
@@ -196,6 +324,7 @@ export class FloorplanStudioCard extends LitElement {
     this._wsRequested = false;
     this._shownFloor = null;
     this._view = null;
+    this._loadActiveState();
     this._loadLayout();
     this.requestUpdate();
   }
@@ -284,6 +413,8 @@ export class FloorplanStudioCard extends LitElement {
     this._unbindZoom?.();
     this._unbindZoom = null;
     this._actionsSvg = null;
+    this._activeResizeObserver?.disconnect();
+    this._activeResizeObserver = null;
   }
 
   /** Takes any accepted layout (from config or a fetch), migrates and validates it. Never throws: an unusable one
@@ -492,10 +623,19 @@ export class FloorplanStudioCard extends LitElement {
   protected updated(changed: PropertyValues): void {
     super.updated(changed);
     this._glidePeople();
+    this._applyPhoneDefault();
+    this._positionActivePanel();
     const t = this._theme();
     this.setAttribute("data-theme", t);
     if (t === "ha" && this._haDark()) this.setAttribute("data-mode", "dark");
     else this.removeAttribute("data-mode");
+
+    // S9.1: open_color overrides --fp-open-door on the host itself, which every theme's own [data-theme] rule
+    // already defines (default var(--fp-dev-contact)) — an inline host style always wins the cascade over it. An
+    // invalid value is dropped instead of thrown on (CLAUDE.md finding 1) and leaves the theme's default in place.
+    const openColor = this._config.open_color;
+    if (openColor && HEX_COLOR.test(openColor)) this.style.setProperty("--fp-open-door", openColor);
+    else this.style.removeProperty("--fp-open-door");
 
     const svg = this.shadowRoot?.querySelector("svg") ?? null;
     if (svg !== this._actionsSvg) {
@@ -639,6 +779,155 @@ export class FloorplanStudioCard extends LitElement {
     </div>`;
   }
 
+  /** S9.5: hidden under `kiosk` (a wall tablet shows only the plan) and under `active_list: false`. Untrusted
+   *  config: anything other than the literal `false` counts as the default, shown. */
+  private _activeListVisible(): boolean {
+    return this._config.active_list !== false && !this._kiosk();
+  }
+
+  private _toggleActiveCollapsed(): void {
+    this._activeCollapsed = !this._activeCollapsed;
+    this._saveActiveState();
+    this.requestUpdate();
+  }
+
+  /** Opus review findings 3/4: sets the panel's on-screen position directly (bypassing Lit's template, which does
+   * not bind `style` any more — see `_activePanel` — so this survives an unrelated re-render), from `_activePos`'s
+   * fraction and the *current* card/panel geometry. Called from `updated()` on every render and from the
+   * ResizeObserver on a host resize, so a stored fraction always lands inside the card, whatever changed since it
+   * was saved: a narrower viewport, a taller panel after expanding from collapsed, or nothing at all. With
+   * `_activePos` still `null` (never dragged) this clears any inline position, leaving the CSS default in place. */
+  private _positionActivePanel(): void {
+    const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active");
+    if (!panel) return;
+    if (!this._activePos) {
+      panel.style.left = "";
+      panel.style.top = "";
+      return;
+    }
+    const hostRect = this.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const maxX = Math.max(0, hostRect.width - panelRect.width);
+    const maxY = Math.max(0, hostRect.height - panelRect.height);
+    panel.style.left = `${this._activePos.x * maxX}px`;
+    panel.style.top = `${this._activePos.y * maxY}px`;
+  }
+
+  /** Opus review finding 5 (docs/DECISIONS.md: an assumption Diego may overrule): with nothing stored for this
+   * card, and the card narrower than 500px once it has actually rendered, the panel starts collapsed rather than
+   * covering a phone-sized card. Runs once per `setConfig`/mount, from `updated()`, where `getBoundingClientRect`
+   * first reports a real width; a later resize (a phone rotated, a column resized) does not retroactively collapse
+   * or reopen it — only the initial, nothing-stored state is a phone-width decision. */
+  private _applyPhoneDefault(): void {
+    if (this._activePhoneDefaultChecked || this._activeHadStoredState) return;
+    const width = this.getBoundingClientRect().width;
+    if (width === 0) return; // not laid out yet (e.g. detached or display:none); try again on the next render
+    this._activePhoneDefaultChecked = true;
+    if (width < 500 && !this._activeCollapsed) {
+      this._activeCollapsed = true;
+      this.requestUpdate();
+    }
+  }
+
+  /**
+   * S9.5: drags the panel by its header, pointer-capture based like `_bindZoom`'s pan above, but clamped inside
+   * the card's own box on every move so the panel can never end up partly or wholly off-screen (the spec's own
+   * words). A press on the collapse button itself is left alone — `closest` finds it and this returns before
+   * `setPointerCapture`, so the button's own click still fires instead of being swallowed by a "drag" that never
+   * actually moved the panel. Below `TAP_SLOP_PX` of movement nothing is written, so a plain click on the header
+   * bar (not a button) cannot be mistaken for a drag and does not touch the saved position.
+   */
+  private _onActiveDragStart(e: PointerEvent): void {
+    if ((e.target as Element | null)?.closest?.("button")) return;
+    const head = e.currentTarget as HTMLElement;
+    const panel = head.closest(".fp-active") as HTMLElement | null;
+    if (!panel) return;
+    e.preventDefault();
+    const hostRect = this.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const originLeft = panelRect.left - hostRect.left;
+    const originTop = panelRect.top - hostRect.top;
+    const startX = e.clientX, startY = e.clientY;
+    const pointerId = e.pointerId;
+    let moved = false;
+    try { head.setPointerCapture(pointerId); } catch { /* the pointer is already gone */ }
+
+    // Opus review findings 3/4: the drag itself still clamps in px against the geometry captured at drag-start
+    // (nothing else can resize mid-drag), but the *stored* position is the resulting fraction of that geometry's
+    // free width/height, not the px itself — `_positionActivePanel` is what turns it back into px, against
+    // whatever the geometry is by the time it runs.
+    const maxX = Math.max(0, hostRect.width - panelRect.width);
+    const maxY = Math.max(0, hostRect.height - panelRect.height);
+    const clampFraction = (x: number, y: number) => ({
+      x: maxX > 0 ? Math.min(Math.max(0, x), maxX) / maxX : 0,
+      y: maxY > 0 ? Math.min(Math.max(0, y), maxY) / maxY : 0,
+    });
+
+    const onMove = (me: PointerEvent) => {
+      if (me.pointerId !== pointerId) return;
+      const dx = me.clientX - startX, dy = me.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) <= TAP_SLOP_PX) return;
+      moved = true;
+      this._activePos = clampFraction(originLeft + dx, originTop + dy);
+      this._positionActivePanel();
+    };
+    const onEnd = (ue: PointerEvent) => {
+      if (ue.pointerId !== pointerId) return;
+      head.removeEventListener("pointermove", onMove);
+      head.removeEventListener("pointerup", onEnd);
+      head.removeEventListener("pointercancel", onEnd);
+      if (moved) this._saveActiveState();
+    };
+    head.addEventListener("pointermove", onMove);
+    head.addEventListener("pointerup", onEnd);
+    head.addEventListener("pointercancel", onEnd);
+  }
+
+  /** S9.5: the floating panel of every active device across every floor (`activeDevices`/`groupActiveByType`,
+   *  `src/core/active.ts` — the one place that decides "active", reused here rather than repeated). Card chrome,
+   *  positioned outside the `<svg>` like `_floorChips`/`_zoomButtons` (CLAUDE.md finding 8): nothing here is part
+   *  of the plan `renderFloor` draws, so it never steals a hit-test from a device or door under it. */
+  private _activePanel() {
+    if (!this._activeListVisible() || !this._layout) return null;
+    const groups = groupActiveByType(activeDevices(this._layout, this._stateForRender()));
+    const count = groups.reduce((n, [, rows]) => n + rows.length, 0);
+    const row = (it: ActiveDevice) => html`<button
+      type="button"
+      class="fp-active-row"
+      style="--fp-active-row-color:var(${it.colorVar})"
+      @click=${() => fireEvent(this, "hass-more-info", { entityId: it.entity })}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${DEVICE_ICONS[it.type]}></path></svg>
+      <span>${it.name}</span>
+    </button>`;
+    // No `style=` binding here on purpose (Opus review findings 3/4): Lit would rewrite the whole `style`
+    // attribute on every render, wiping out the position `_positionActivePanel` sets imperatively after render —
+    // that function is the only thing that ever touches this element's inline position.
+    return html`<div class="fp-active" role="region" aria-label="Active devices">
+      <div class="fp-active-head" @pointerdown=${(e: PointerEvent) => this._onActiveDragStart(e)}>
+        <span class="fp-active-title">Active</span>
+        <span class="fp-active-count">${count}</span>
+        <button
+          type="button"
+          class="fp-active-collapse"
+          aria-label=${this._activeCollapsed ? "Expand the active devices list" : "Collapse the active devices list"}
+          aria-expanded=${this._activeCollapsed ? "false" : "true"}
+          @click=${() => this._toggleActiveCollapsed()}
+        >${this._activeCollapsed ? "▸" : "▾"}</button>
+      </div>
+      ${this._activeCollapsed
+        ? null
+        : html`<div class="fp-active-body">
+            ${groups.length
+              ? groups.map(([type, rows]) => html`<div class="fp-active-group">
+                  <div class="fp-active-group-label">${DEVICE_TYPE_LABELS[type]}</div>
+                  ${rows.map(row)}
+                </div>`)
+              : html`<p class="fp-active-empty">Nothing on</p>`}
+          </div>`}
+    </div>`;
+  }
+
   /** S7.6: whether the plan is drawn at night. `on`/`off` force it; anything else is `auto`: the sun entity (config
    * `sun`, default `sun.sun`) is `below_horizon`, or `on` for a binary sensor. Missing or `unavailable` is day. */
   private _night(): boolean {
@@ -658,10 +947,17 @@ export class FloorplanStudioCard extends LitElement {
     this._fit = fit;
     const zoom = this._zoomMode() !== false;
     const showZoomButtons = zoom && !this._kiosk(); // S7.5: kiosk still zooms/pans by gesture, just draws no buttons
-    const box = zoom && this._view ? clamp(this._view, fit) : fit;
-    const svgClass = !zoom ? "" : box.w < fit.w * (1 - 1e-6) ? "fp-zoomable fp-zoomed" : "fp-zoomable";
+    // S9.6: `home` is the whole floor unless `center`/`zoom_level` pin the card to part of it — the base the box
+    // rests on when there is no explicit `_view`, and what "zoomed" (the fp-zoomed class, below) is measured
+    // against, so a pinned card reads as its own resting state, not as permanently zoomed in from the full plan.
+    const home = pinnedView(fit, this._rotatedCenter(), this._zoomLevel());
+    const box = zoom && this._view ? clamp(this._view, fit) : home;
+    // Opus review of S9.6: "zoomed" (like `_zoomed()` below) means "not at home", not "narrower than home" — a
+    // sideways pan at home's own width used to read as not-zoomed here, which left `touch-action` at `pan-y` (so
+    // the page's own vertical scroll fought the pan) even while `_view` was already pinning a panned box.
+    const svgClass = !zoom ? "" : this._view !== null ? "fp-zoomable fp-zoomed" : "fp-zoomable";
     const body = renderFloor(f, {
-      scale: 1,
+      scale: this._scale(fit),
       state: this._stateForRender(),
       now: Date.now(),
       fade: this._config.fade,
@@ -673,7 +969,7 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${showZoomButtons ? this._zoomButtons(box, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}`;
+    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}`;
   }
 
   /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */
@@ -687,24 +983,91 @@ export class FloorplanStudioCard extends LitElement {
     return this._config.kiosk === true;
   }
 
-  /** The view on screen now: the zoomed one, clamped, or fit. */
+  /** S9.2: `config.icon_size`, read as untrusted — a missing key, a non-number, or `NaN` all mean the default,
+   * `1`; a real number clamps to [0.5, 3] rather than being refused, so a slider or a stray digit never breaks
+   * the card. */
+  private _iconSize(): number {
+    const v = this._config.icon_size;
+    return typeof v === "number" && Number.isFinite(v) ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, v)) : DEFAULT_ICON_SIZE;
+  }
+
+  /** S9.2: the `scale` passed to `renderFloor`. Icons, names, values and radar dots are drawn at `24 * (1/scale)`
+   * units, so shrinking `scale` grows them on screen. `auto` keeps a plan of 1000 cm or less exactly as before
+   * (icon_size at its own default too, so today's card is byte-identical); past that, icons stop shrinking with
+   * the plan, growing with its longest side instead — `fit` is the same view box `render()` already draws, per
+   * the S9.2 brief ("the same box the card draws"), so this reads no geometry of its own. */
+  private _scale(fit: { w: number; h: number }): number {
+    const auto = Math.max(1, Math.max(fit.w, fit.h) / 1000);
+    return 1 / (auto * this._iconSize());
+  }
+
+  /** S9.6: `config.center`, read as untrusted config (CLAUDE.md finding 1) — anything other than a two-element
+   * array of finite numbers is `null` (no pin), silently. Unlike `zoom`/`kiosk` (which throw on a typo, per the
+   * comment on `_validateConfig`, because those are a closed set where a wrong value would otherwise hide behind
+   * a default no one asked for) `center` is a wide-open pair of numbers, the same shape of untrusted input as
+   * `icon_size`: a bad value here has an obviously safe fallback (the whole floor) that a slider or a stray digit
+   * must never break out of. */
+  private _center(): Pt | null {
+    const c = this._config.center;
+    if (!Array.isArray(c) || c.length !== 2) return null;
+    const [x, y] = c;
+    return typeof x === "number" && typeof y === "number" && Number.isFinite(x) && Number.isFinite(y) ? [x, y] : null;
+  }
+
+  /** Opus review of S9.6: `center` is documented as plan cm — the same unrotated coordinates a room or device sits
+   * at in the layout — but `_home`'s own box (`viewBoxFor(f, 60, rotate)`, `render()` above) is already in the
+   * *rendered* frame: `renderFloor`/`viewBoxFor` turn every point by `rotate` themselves (unlike the editor, which
+   * draws unrotated coordinates inside a rotated `<g>`). Passing `_center()` straight into `pinnedView` therefore
+   * pinned the wrong spot on any layout with `rotate` set. This turns the config's plan-cm point by the same
+   * `rotate` before it reaches `pinnedView`, so it lands on the same plan point the layout itself names. */
+  private _rotatedCenter(): Pt | null {
+    const c = this._center();
+    if (!c) return null;
+    const rotate = this._rotate();
+    return rotate && rotate.deg % 360 ? rotateAbout(c, rotate.deg, rotate.pivot) : c;
+  }
+
+  /** S9.6: `config.zoom_level`, clamped to [1, MAX_ZOOM] — same untrusted-config shape as `_iconSize` above, and
+   * the same reasoning as `_center`'s comment for why this defaults silently rather than throwing. */
+  private _zoomLevel(): number {
+    const v = this._config.zoom_level;
+    return typeof v === "number" && Number.isFinite(v) ? Math.min(MAX_ZOOM, Math.max(ZOOM_LEVEL_MIN, v)) : DEFAULT_ZOOM_LEVEL;
+  }
+
+  /** S9.6: the card's "home" view — the whole floor (`fit`) unless `center`/`zoom_level` pin it to part of the
+   * plan. Every place that used to treat `fit` as "no zoom" (the `fp-zoomed` class, `_current`, `_zoomed`,
+   * `_setView`, the zoom buttons' own reset) now treats this instead: reset returns here, not to the whole floor,
+   * so a room-pinned card stays pinned across a pinch-zoom-and-reset. `_scale` (icon sizing, S9.2) deliberately
+   * keeps reading `fit` itself, not this — see its own comment — so a room card's icons match the full-plan
+   * card's icons at the same zoom, per the S9.6 brief. */
+  private _home(): View | null {
+    return this._fit ? pinnedView(this._fit, this._rotatedCenter(), this._zoomLevel()) : null;
+  }
+
+  /** The view on screen now: the zoomed one, clamped to the whole floor (a pinned card can still pinch/pan out to
+   * see the rest of the house), or home. */
   private _current(): View | null {
     const fit = this._fit;
     if (!fit) return null;
-    return this._view ? clamp(this._view, fit) : fit;
+    return this._view ? clamp(this._view, fit) : this._home();
   }
 
+  /** Opus review of S9.6: this used to compare `_current()`'s width against `_home()`'s, so a sideways pan at
+   * home's own zoom level (same width, different centre) read as "not zoomed" — a double-tap after panning a
+   * pinned card then zoomed in from home instead of returning to it. `_setView` already normalises "back at home"
+   * to `_view === null` (its own comment above), so "zoomed" is exactly "not that": no separate width check. */
   private _zoomed(): boolean {
-    const v = this._current(), fit = this._fit;
-    return !!v && !!fit && v.w < fit.w * (1 - 1e-6);
+    return this._view !== null;
   }
 
-  /** Stores `v`, clamped, as the view; fit is stored as `null`, the same as never zoomed. */
+  /** Stores `v`, clamped to the whole floor, as the view; home itself is stored as `null` (the same "no override"
+   * state `_current`/`_zoomed` already read), so a pinch or pan that lands back exactly on home does not pin an
+   * equivalent-but-distinct box that would, say, disable the fit button. */
   private _setView(v: View): void {
-    const fit = this._fit;
-    if (!fit) return;
+    const fit = this._fit, home = this._home();
+    if (!fit || !home) return;
     const c = clamp(v, fit);
-    this._view = c.w < fit.w * (1 - 1e-6) ? c : null;
+    this._view = sameView(c, home, fit) ? null : c;
     this.requestUpdate();
   }
 
@@ -719,14 +1082,26 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
-  /** S7.4: +, − and fit, card chrome in the top-right corner (like `_floorChips`, outside the plan's `<svg>`). */
-  private _zoomButtons(box: View, fit: View) {
-    const atFit = !(box.w < fit.w * (1 - 1e-6));
+  /** S7.4: +, − and fit, card chrome in the top-right corner (like `_floorChips`, outside the plan's `<svg>`).
+   * S9.6 review (Opus, 2026-09-27): a single `atFit` used to gate both "−" and Fit off `box.w < home.w`, width
+   * only. On a pinned card that reads two different things and neither is right for both buttons:
+   *  - "−" widens the box; it must stop only at the whole floor (`fit`), since the docs promise a pinned card can
+   *    still zoom out to see the rest of the house. Gating it at `home` disabled "−" the moment the card loaded,
+   *    even though there was more floor to see.
+   *  - Fit/Reset undoes `_view`; it must be disabled exactly when there is nothing to undo, i.e. `_view === null`
+   *    (`_zoomed()`, above) — not "box is as wide as home", which stayed true after a same-width sideways pan and
+   *    left Fit disabled with no way back to the pinned centre.
+   * Unpinned (`home` equals `fit`): both conditions coincide, so this changes nothing for a plain card. */
+  private _zoomButtons(box: View, home: View, fit: View) {
+    const atWhole = box.w >= fit.w * (1 - 1e-6);
+    const atHome = !this._zoomed();
     const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
+    const pinned = !sameView(home, fit, fit);
+    const resetLabel = pinned ? "Reset view" : "Fit";
     return html`<div class="fp-zoom">
       <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
-      <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atFit} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
-      <button type="button" aria-label="Fit" title="Fit" ?disabled=${atFit} @click=${() => this._fitView()}>
+      <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atWhole} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
+      <button type="button" aria-label=${resetLabel} title=${resetLabel} ?disabled=${atHome} @click=${() => this._fitView()}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
       </button>
     </div>`;
@@ -814,9 +1189,11 @@ export class FloorplanStudioCard extends LitElement {
       const now = performance.now();
       if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX) {
         lastTap = null;
-        const fit = this._fit;
-        if (this._zoomed() || !fit) this._fitView();
-        else this._setView(zoomAt(fit, 2, ...toPlan(fit, e.clientX, e.clientY)));
+        // S9.6: zooms in from `home` (the pinned box, or the whole floor with no pin), not the whole floor — the
+        // screen shows `home` at rest, so the plan point under the tap must be read against that same box.
+        const home = this._home();
+        if (this._zoomed() || !home) this._fitView();
+        else this._setView(zoomAt(home, 2, ...toPlan(home, e.clientX, e.clientY)));
         return;
       }
       lastTap = { t: now, x: e.clientX, y: e.clientY };

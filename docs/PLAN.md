@@ -1851,6 +1851,191 @@ closes the sprint.
   the config form with All floors and with a single floor chosen) taken
   and looked at — see the report.
 
+## Sprint 9 — the plan as a live view (E3)
+
+Maintainer brief, 2026-09-27: better integration of sensors and home state.
+Open doors and windows dashed and red, with a custom colour; icons that stay
+visible on large plans; a floating list of active devices; a blue TV; a
+speaker that radiates while it plays. The aura stays at 150 cm (0.12.7).
+One increment: every task ships in the card, tested, with shots looked at.
+
+### S9.1 Open doors and windows: dashed, in a colour the card can set
+
+- Outcome: a door or window whose contact sensor is on draws dashed, and
+  its line and the pulsing alert line under it (S8.13) use `--fp-open-door`,
+  a fixed `#d64545` in every generated theme (superseding this entry's
+  original default of `--fp-dev-contact`, which a role-generated theme
+  collapsed to its one accent — orange in blueprint, the default theme, not
+  the red the brief asked for; see `docs/DECISIONS.md`, Sprint 9
+  integration). A new card option `open_color` (`#rrggbb`) overrides it. A
+  cover door that is open keeps its own orange and is not dashed. An invalid
+  colour is ignored, with the default applied.
+- Test: render has the dash in a class rule and one colour variable for both
+  lines; card sets the variable from `open_color` and ignores `"red;x"`;
+  a computed-style pair in Chromium; the Edit-card form offers a colour.
+- Done, 2026-09-27. Tests first, all watched failing then reverted-once to
+  confirm: `render.test.ts` CSS text (dash, cover-open no-dash, alert-line
+  token, theme-block completeness), two Chromium computed-style pairs
+  (`editor.spec.ts`: dashed open, cover-open undashed even alongside
+  `.open`), a card test for `open_color` (valid hex, `"red;x"`, `"#fff"`,
+  clearing), two config-editor tests (field default/emit/Clear, setConfig
+  fill). See `docs/DECISIONS.md`, 2026-09-27.
+
+### S9.2 Icons stay visible on large plans
+
+- Outcome: the card scales icons, names and values with the plan: factor
+  `max(1, longest side of the view box / 1000 cm)`, times a new option
+  `icon_size` (0.5 to 3, default 1). A plan of 1000 cm or less looks as
+  today. The editor is unchanged.
+- Test: at 2000 cm the icon group is scaled 2x; `icon_size: 1.5` on the demo
+  gives 1.5x; out-of-range values clamp; a real click still hits a scaled
+  icon.
+- Done, 2026-09-27. Tests first, all watched failing then confirmed failing
+  again on a source revert (git stash) and passing once restored: 6 new
+  `card.test.ts` cases (byte-identical at ≤1000 cm and `icon_size` at its
+  own default; 2000 cm → 2x; `icon_size: 1.5` → 1/1.5; `0`/`-1` → clamp to
+  0.5; `10` → clamp to 3; `"big"`/`NaN` → default 1), 5 new
+  `config-editor.spec.ts` Playwright cases for the new form field (50/50
+  clean at `--repeat-each=10`), 1 new `card.spec.ts` Playwright case driving
+  a real `page.mouse` click on a scaled icon on a 2000 cm plan (CLAUDE.md
+  finding 3; threshold tightened from a first, weak version after measuring
+  it would have passed unfixed too — finding 4; 10/10 clean at
+  `--repeat-each=10`). Full suites green after the last edit: `npm run lint`
+  exit 0; unit 1115/1115; full Playwright suite 595 passed, 1 skipped, exit
+  0 (all three read bare, not through a pipe — finding 14). No floor in
+  `demo/layout.json` exceeds 1000 cm, so `npm run shots` alone would not
+  exercise the scale-up: rendered a scratch copy of the demo ground floor at
+  2.5x (2000×1500 cm) through the built card with no `icon_size`,
+  `icon_size: 1.5` and `icon_size: 3`, and looked at all three — icons,
+  names and auras step up visibly larger at each setting, legible up to 1.5,
+  crowding by design at 3 (the clamp's own top end on a very large house).
+
+### S9.3 A TV is blue when on, in every theme
+
+- Outcome: `--fp-dev-tv` is a fixed blue in every theme, including the
+  single-accent ones (blueprint, slate, terminal) and `ha`. Decision
+  recorded: TV is the one exception to "one accent".
+- Test: iterate `THEMES`; the TV's computed fill when on is blue in each.
+- Done, 2026-09-27. Tests first, watched failing then reverted-once to
+  confirm: two `theme-roles.test.ts` cases (fixed value, `devices.tv`
+  override ignored), `render.test.ts` cases for the light/midnight/
+  solarized token strings, a Chromium computed-style pair iterating
+  `THEMES`. See `docs/DECISIONS.md`, 2026-09-27.
+
+### S9.4 A speaker radiates while it plays
+
+- Outcome: a `speaker` or `media` device whose entity is `playing` draws
+  two arcs that pulse out from its disc, in its own colour. A speaker gets
+  an on colour (blue, as media). Under reduced motion the arcs hold still.
+  Paused, idle, off, unavailable: no arcs.
+- Test: arcs per state and type; computed-style pair including reduced
+  motion; shots with a playing speaker.
+- Done, 2026-09-27. Tests first, watched failing then reverted-once to
+  confirm: `render.test.ts` cases per state and type (`speaker`/`media`,
+  playing/paused/idle/off/on/unavailable/unknown/no state), the fixed
+  Solarized/theme-block colour strings, a Chromium computed-style pair
+  (`editor.spec.ts`) for stroke/fill/pointer-events/staggered delay and the
+  reduced-motion hold. Opus review of the integrated build found two more
+  defects, fixed on `task/S9-fix` and not part of this entry's own outcome:
+  the arcs were not concentric with the halo (finding 8: rewritten from two
+  `<path>` semicircles to two `<circle>`s), and the S9.5 Active list's
+  `ACTIVE_LIST_RULE` had `speaker` left at a stale `"never"` (finding 2). See
+  `docs/DECISIONS.md`, 2026-09-27 (both entries).
+
+### S9.5 A floating list of active devices
+
+- Outcome: the card shows a floating panel on the left, open by default,
+  listing the devices that are active on every floor: lights on, motion
+  and contact on, TVs and media players on or playing, heaters heating,
+  plugs on, and every camera (a camera is a view, not an on/off thing).
+  Grouped by type, each row shows the icon and name; a tap opens
+  Home Assistant's more-info. The header drags the panel inside the card
+  and collapses it; position and collapsed state are kept per browser.
+  `active_list: false` hides it; kiosk hides it. It updates live and says
+  "Nothing on" when empty. Keyboard: rows are buttons, Enter opens.
+- Test: rows for exactly the active set; a real click on a row fires
+  `hass-more-info` with its entity; a real drag moves it and stays inside;
+  collapsed survives a reload; hidden under kiosk and `active_list: false`;
+  dark mode shot.
+- Done, 2026-09-27. `src/core/active.ts` is the one place that decides
+  "active" (`ACTIVE_LIST_RULE`, `activeDevices`, `groupActiveByType`),
+  reusing `classOf`/`acMode` (now exported from `render.ts`) so the panel
+  and the plan can never disagree — except a vacuum, deliberately narrowed
+  to `"cleaning"` only; see `docs/DECISIONS.md`, 2026-09-27. Tests first:
+  40 `active.test.ts` cases (including a `DEVICE_TYPES` iteration per
+  CLAUDE.md finding 17), confirmed to fail against a stubbed `active.ts`
+  (38/40 failed, meaningfully — the module was written just ahead of its
+  test file, so this stub-and-revert stood in for watching it fail before
+  the code existed); 8 new `card.test.ts` cases for the panel's DOM
+  integration against a stub `hass` covering both floors of the demo
+  layout, 6 of 8 confirmed to fail with the panel's render stubbed to
+  `null`; 5 new `card.spec.ts` Playwright cases (row click, header drag
+  clamped both corners, a drag over a device not toggling it, collapsed
+  surviving a reload, hidden under kiosk/`active_list: false`), all green
+  at `--repeat-each=10` (50/50). The full existing `card.spec.ts` suite
+  (69 tests) still passes with no coordinate changes needed: the panel's
+  default position never covers a spot an existing test clicks. Full
+  suites green after the last edit: `npm run lint` exit 0; unit
+  1157/1157; full Playwright suite 594 passed, 1 skipped, exit 0.
+  `npm run shots` run and the panel looked at in blueprint, ha-dark and
+  light (on-state and off-state, camera still listed with everything
+  else off) — see the report.
+- Follow-up, 2026-09-27: an Opus review of the integrated build found nine
+  defects across S9.1-S9.5, five of them in this panel (empty/unavailable
+  entities wrongly listed, the storage key, the position clamp only
+  applying while dragging, the collapsed-panel default on a narrow card,
+  and the camera row's own colour). All fixed on `task/S9-fix`; see
+  `docs/DECISIONS.md`, 2026-09-27, "Opus review of the integrated Sprint 9
+  build".
+
+### S9.6 A card pinned to one room
+
+- Outcome: a card can set `center: [x, y]` (plan cm) and `zoom_level`
+  (1 = whole floor, up to 8) to focus on a room, corridor or part of a home,
+  so a dashboard can hold several cards each zoomed to a different place.
+  This pinned view becomes the card's own "home": the reset button,
+  `fp-zoomed`, double-tap and the zoom buttons' `atFit` all read it, but
+  pinch/pan/wheel still clamp against the whole floor's fit, and S9.2's icon
+  scale still reads the whole floor, not the pin. Either key alone is
+  honoured; a malformed `center` or `zoom_level` never throws and falls back
+  to the whole floor, the same silent-fallback pattern as `icon_size` and
+  `open_color` (not `zoom`/`kiosk`, which throw). The editor's View menu has
+  a "Copy card view" button that writes `center`/`zoom_level` for whatever
+  the editor is currently showing, against the card's own pad-60 fit; the
+  Edit-card form gets matching Center X, Center Y and Zoom level fields.
+  `docs/card.md`, `docs/SPEC.md`, `CHANGELOG.md` and `README.md` cover the
+  feature; `docs/DECISIONS.md` has the why.
+- Test: vitest maths over `pinnedView`/`sameView` (asymmetric values,
+  clamping, zoom_level alone, center alone, each malformed value, icon scale
+  unaffected); Playwright card tests (pinned viewBox on load, zoom_level
+  alone, center alone, malformed values, pinch/wheel/reset/double-tap
+  returning to the pinned view, a real click on a device inside the pinned
+  view, icon scale matching a whole-floor card); Playwright editor tests
+  (Copy card view writes the two YAML lines and the status line, and
+  round-trips within 1cm for a same-aspect viewport); config-editor spec
+  tests for the three new form fields.
+- Done, 2026-09-27. Tests written first and watched fail before the code:
+  the vitest maths tests failed against the original `viewport.ts` (no
+  `pinnedView`/`sameView`); reverting the finished `src/card/viewport.ts`
+  and `src/card/floorplan-studio-card.ts` once (via a tagged stash) failed 2
+  of the 7 new `card.spec.ts` tests meaningfully (the asymmetric-pin and
+  zoom_level-alone maths cases); reverting the finished
+  `src/editor/editor-app.ts` once failed both new `editor.spec.ts` tests
+  (locator timeout on the missing "Copy card view" button), then both were
+  restored and re-verified green. All 9 new Playwright tests green at
+  `--repeat-each=10` (7 card.spec.ts: 70/70; 2 editor.spec.ts: 20/20).
+  Full suites green after the last edit: `npm run lint` exit 0; unit tests
+  1197/1197 (`npm test`); full Playwright suite (`PW_PORT=5330`) 624 passed,
+  1 skipped, exit 0. `npm run shots` run; also rendered a standalone
+  side-by-side of a whole-floor card and a card pinned to `center: [650,
+  200], zoom_level: 2.5` from a scratch script and looked at it: the pinned
+  card shows only the kitchen at the right zoom, the same icon size as the
+  whole-floor card, and the same Active panel and lit-light glow. Skipped,
+  and said so: `center`/`zoom_level` were not added to the editor's
+  File → Install code YAML generator, since that YAML targets one default
+  whole-floor dashboard and a per-floor pin doesn't fit that generator
+  cleanly.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).

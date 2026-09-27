@@ -426,8 +426,91 @@ describe("S8.13: brighter alerts, wider light", () => {
   it("the alert rules: a ping pulses in the sensor's own colour, a triggered disc is stronger than any other on disc, the door alert is contact red, and none take the pointer", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.ping\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-ping/);
     expect(FLOORPLAN_CSS).toMatch(/\.dev-motion\.on \.halo,\.dev-contact\.on \.halo\{fill-opacity:\.6;stroke:var\(--fp-dev\);stroke-width:2\}/);
-    expect(FLOORPLAN_CSS).toMatch(/\.door-alert\{stroke:var\(--fp-dev-contact\);[^}]*stroke-linecap:butt;[^}]*pointer-events:none/);
-    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert\{animation:none\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.door-alert\{stroke:var\(--fp-open-door\);[^}]*stroke-linecap:butt;[^}]*pointer-events:none/);
+    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave\{animation:none\}/);
+  });
+});
+
+describe("S9.4: a speaker radiates while it plays", () => {
+  const dev = (type: string, entity: string, x = 400, y = 300) => ({ id: `${type}-x`, type, entity, x, y });
+  const draw = (devices: unknown[], state: StateOverlay) => renderFloor({ ...structuredClone(ground), devices } as never, { ...base, state });
+  const group = (html: string) => html.match(/<g data-x="0"[^>]*>.*?<\/g>/s)![0];
+  // Opus review finding 8: the two arcs used to be <path> semicircles under transform-box:fill-box, each scaling
+  // about its own bbox centre — a semicircle's bbox is only half as tall as it is wide, so its centre sits on the
+  // circle's own diameter line, not at (12,12) where the halo and ping are centred. A <circle> at r=16 always has
+  // a square bbox centred on (cx,cy), so scaling it about "center" is automatically concentric with the halo,
+  // whatever arc `stroke-dasharray` (with `pathLength="100"` so "50 50" always means "half the circumference,
+  // half gap" regardless of r) leaves visible.
+  const WAVE = /<circle class="wave" cx="12" cy="12" r="16"[^>]*\/><circle class="wave w2" cx="12" cy="12" r="16"[^>]*\/><circle class="halo"/;
+
+  it("a playing speaker or media device draws two staggered arcs before the halo, each a circle centred on the halo's own centre", () => {
+    for (const type of ["speaker", "media"]) {
+      const on = group(draw([dev(type, "media_player.s")], { "media_player.s": st("playing") }));
+      expect(on, type).toMatch(WAVE);
+      expect((on.match(/class="wave/g) ?? []).length, type).toBe(2);
+      // The two arcs are opposite each other on the ring, not drawn on top of one another (finding 8's own ask).
+      const offsets = [...on.matchAll(/class="wave[^"]*"[^>]*stroke-dashoffset="([^"]*)"/g)].map((m) => m[1]);
+      expect(offsets, type).toEqual(["0", "50"]);
+    }
+  });
+
+  it("paused, idle, off, on (not playing), unavailable, unknown or no state draws no arcs", () => {
+    for (const type of ["speaker", "media"]) {
+      for (const s of ["paused", "idle", "off", "on", "unavailable", "unknown"]) {
+        expect(group(draw([dev(type, "media_player.s")], { "media_player.s": st(s) })), `${type} ${s}`).not.toContain("wave");
+      }
+      expect(group(draw([dev(type, "media_player.s")], {})), `${type} no state`).not.toContain("wave");
+    }
+  });
+
+  it("no other device type draws arcs even while its entity reports playing", () => {
+    for (const type of ["light", "tv", "plug", "switch", "person", "camera"]) {
+      expect(group(draw([dev(type, "x.y")], { "x.y": st("playing") })), type).not.toContain("wave");
+    }
+  });
+
+  it("a playing speaker or media device carries the on class and its own accent colour, never the idle catch-all", () => {
+    for (const type of ["speaker", "media"]) {
+      const on = group(draw([dev(type, "media_player.s")], { "media_player.s": st("playing") }));
+      expect(on, type).toContain(` ${type === "speaker" ? "dev-speaker" : "dev-media"} on"`);
+    }
+    expect(DEVICE_COLOURS.speaker).toBe("#2c7fb8");
+  });
+
+  it("the wave rule pulses from the sensor's own colour, staggered, and holds still under reduced motion", () => {
+    expect(FLOORPLAN_CSS).toMatch(/\.wave\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-wave/);
+    expect(FLOORPLAN_CSS).toMatch(/\.wave\.w2\{animation-delay:\.8s\}/);
+    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave\{animation:none\}\.ping,\.wave\{transform:scale\(1\.5\);opacity:\.6\}\}/);
+  });
+
+  // Opus review finding 8: the wave is now a <circle>, like .ping — so, like .ping, it needs no ".dev.on path.wave"
+  // specificity repeat any more (CLAUDE.md finding 10's own guard from S9.4): ".dev.on path" only ever matches a
+  // <path> element, so a bare ".wave{fill:none}" at (0,1,0) was never actually competing with it once the tag
+  // changed. The repeat is gone; this test would fail if it crept back in as dead weight or, worse, wrong.
+  it("the wave rule needs no .dev.on path.wave repeat any more: .wave is a <circle>, .dev.on path can never match it", () => {
+    expect(FLOORPLAN_CSS).not.toContain(".dev.on path.wave");
+  });
+});
+
+describe("S9.3: a TV is a fixed blue in every theme", () => {
+  const themeBlock = (theme: string) => FLOORPLAN_CSS.match(new RegExp(`data-theme="${theme}"\\](?:\\[data-mode="dark"\\])?[^{]*\\{([^}]*)\\}`))?.[1];
+
+  it("every theme's block defines --fp-dev-tv as the same blue, except solarized's own Solarized blue", () => {
+    const want: Record<string, string> = {
+      blueprint: "#2c7fb8", midnight: "#2c7fb8", light: "#2c7fb8", slate: "#2c7fb8", terminal: "#2c7fb8", solarized: "#268bd2",
+    };
+    for (const [theme, hex] of Object.entries(want)) expect(themeBlock(theme), theme).toContain(`--fp-dev-tv:${hex}`);
+  });
+
+  it("the ha theme (light and dark) inherits the same fixed blue from its light/midnight base, since it maps no device colours of its own", () => {
+    const light = FLOORPLAN_CSS.match(/data-theme="ha"\][^[][^{]*\{([^}]*)\}/)?.[1];
+    const dark = FLOORPLAN_CSS.match(/data-theme="ha"\]\[data-mode="dark"\][^{]*\{([^}]*)\}/)?.[1];
+    expect(light).toContain("--fp-dev-tv:#2c7fb8");
+    expect(dark).toContain("--fp-dev-tv:#2c7fb8");
+  });
+
+  it("Opus review finding 11: solarized's --fp-dev-speaker is its own blue, #268bd2, matching --fp-dev-tv, not the generic #2c7fb8", () => {
+    expect(themeBlock("solarized")).toContain("--fp-dev-speaker:#268bd2");
   });
 });
 
@@ -1166,8 +1249,27 @@ describe("S2.9: a device wears its colour when it is on", () => {
   });
 
   it("a door contact sensor (not a device icon) also draws red now, not the old orange --fp-open", () => {
-    expect(FLOORPLAN_CSS).toContain(".door.open{stroke:var(--fp-dev-contact)}");
-    expect(FLOORPLAN_CSS).toContain(".door.cover-open{stroke:var(--fp-open)}"); // a cover's own open state is unrelated to contact and stays orange
+    expect(FLOORPLAN_CSS).toContain(".door.open{stroke:var(--fp-open-door);stroke-dasharray:10 6}");
+    expect(FLOORPLAN_CSS).toContain(".door.cover-open{stroke:var(--fp-open);stroke-dasharray:none}"); // a cover's own open state is unrelated to contact, stays orange, and is never dashed
+  });
+
+  it("S9.1: --fp-open-door is red in every theme block: the contact red where it is red, a fixed red where the theme collapses to one accent", () => {
+    for (const theme of ["blueprint", "midnight", "light", "slate", "terminal", "solarized"]) {
+      const block = FLOORPLAN_CSS.match(new RegExp(`data-theme="${theme}"\\][^{]*\\{([^}]*)\\}`))?.[1];
+      const want = ["blueprint", "slate", "terminal"].includes(theme) ? "--fp-open-door:#d64545" : "--fp-open-door:var(--fp-dev-contact)";
+      expect(block, theme).toContain(want);
+    }
+  });
+
+  it("S9.1: a door that is both contact-open and cover-open (both classes) stays solid orange, not dashed — cover-open comes after open in the stylesheet and out-specifies nothing else, so source order decides", () => {
+    const openIdx = FLOORPLAN_CSS.indexOf(".door.open{");
+    const coverOpenIdx = FLOORPLAN_CSS.indexOf(".door.cover-open{");
+    expect(openIdx).toBeGreaterThan(-1);
+    expect(coverOpenIdx).toBeGreaterThan(openIdx);
+  });
+
+  it("S9.1: an open contact door's wide alert line also reads --fp-open-door, not --fp-dev-contact directly", () => {
+    expect(FLOORPLAN_CSS).toContain("stroke:var(--fp-open-door);stroke-opacity:.45");
   });
 
   it("a motion device that is on carries the on class (its icon colour is still the fade rule, checked by its own CSS pair)", () => {
@@ -1182,6 +1284,23 @@ describe("S2.9: a device wears its colour when it is on", () => {
       const off = draw([dev(type, `switch.${type}`)], { [`switch.${type}`]: st("off") });
       expect(classOfDev(off), type).not.toContain("on");
     }
+  });
+
+  it("Opus review finding 1: a tv is on for any state other than off/standby/unavailable/unknown/no-state, not only 'on'", () => {
+    const onStates = ["on", "playing", "paused", "idle"];
+    for (const s of onStates) {
+      const html = draw([dev("tv", "media_player.tv")], { "media_player.tv": st(s) });
+      expect(classOfDev(html), s).toContain("on");
+    }
+    const offStates = ["off", "standby"];
+    for (const s of offStates) {
+      const html = draw([dev("tv", "media_player.tv")], { "media_player.tv": st(s) });
+      expect(classOfDev(html), s).not.toContain("on");
+    }
+    // unavailable/unknown already carry their own "unavailable" class, not "on" — checked elsewhere; a missing
+    // state (no entry in the overlay at all) must read off too.
+    const noState = draw([dev("tv", "media_player.tv")], {});
+    expect(classOfDev(noState)).not.toContain("on");
   });
 
   it("a wall switch that is on carries the on class, but its --fp-dev is --fp-idle, same as off", () => {
@@ -1202,7 +1321,7 @@ describe("S2.9: a device wears its colour when it is on", () => {
 // from a deliberate grey — the S2.9 verifier found media, cover and other sitting there while SPEC promised media
 // an accent. This test makes every member of DEVICE_TYPES a decision someone had to write down.
 describe("S2.9: every device type has a decided active colour", () => {
-  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "battery", "inverter", "server", "access_point", "boiler", "car", "ups", "printer", "speaker"]; // S2.13: these are monitored, not switched; the S4.25 five are unlinked-only types with no entity state to read, so never on
+  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "battery", "inverter", "server", "access_point", "boiler", "car", "ups", "printer"]; // S2.13: these are monitored, not switched; the S4.25 four (speaker moved to its own on colour in S9.4) are unlinked-only types with no entity state to read, so never on
   it.each(DEVICE_TYPES)("%s either names its own --fp-dev or is idle on purpose", (t) => {
     if (t === "ac") return; // ac has two: .dev-ac.cool.on and .dev-ac.heat.on, tested below
     const rule = new RegExp(`\\.dev-${t}\\.on\\{--fp-dev:var\\((--fp-[a-z-]+)\\)\\}`);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_ZOOM, clamp, panBy, pinch, zoomAt, type View } from "../../src/card/viewport";
+import { MAX_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type View } from "../../src/card/viewport";
 
 // An asymmetric plan box (not square, not at the origin), so a swapped x/y or w/h shows up.
 const FIT: View = { x: -60, y: -40, w: 1200, h: 800 };
@@ -114,5 +114,62 @@ describe("viewport: pinch", () => {
 
   it("two fingers on the same spot are not a pinch: the view is unchanged", () => {
     expect(pinch(FIT, [5, 5], [5, 5], [10, 10], [20, 20])).toEqual(FIT);
+  });
+});
+
+// S9.6: a card pinned to one room — the maths behind `center`/`zoom_level`. FIT is asymmetric (not square, not at
+// the origin) so a swapped x/y or w/h, or a box centred on FIT's own middle instead of `center`, would show up.
+describe("viewport: pinnedView", () => {
+  it("zoomLevel 1 with no centre is fit exactly, whatever the aspect", () => {
+    expect(pinnedView(FIT, null, 1)).toEqual(FIT);
+  });
+
+  it("an asymmetric centre and zoom give a box of fit/zoom size, centred on that point, not fit's own centre", () => {
+    const v = pinnedView(FIT, [300, 700], 2.5);
+    expect(v.w).toBeCloseTo(FIT.w / 2.5);
+    expect(v.h).toBeCloseTo(FIT.h / 2.5);
+    expect(v.x + v.w / 2).toBeCloseTo(300);
+    expect(v.y + v.h / 2).toBeCloseTo(700);
+    // Not fit's own centre — asymmetric input, asymmetric result (finding 4: a centred-on-fit bug would pass a
+    // symmetric-centre test too).
+    expect(v.x + v.w / 2).not.toBeCloseTo(FIT.x + FIT.w / 2);
+  });
+
+  it("zoomLevel alone (no centre) zooms about fit's own centre", () => {
+    const v = pinnedView(FIT, null, 4);
+    expect(v.w).toBeCloseTo(FIT.w / 4);
+    expect(v.x + v.w / 2).toBeCloseTo(FIT.x + FIT.w / 2);
+    expect(v.y + v.h / 2).toBeCloseTo(FIT.y + FIT.h / 2);
+  });
+
+  it("a centre alone, zoomLevel 1, changes nothing: clamp hands back fit exactly", () => {
+    expect(pinnedView(FIT, [FIT.x + 40, FIT.y + 700], 1)).toEqual(FIT);
+  });
+
+  it("clamps at a plan edge: a centre far past the corner still keeps at least a third of the box on the plan (clamp's own bound rule)", () => {
+    const v = pinnedView(FIT, [FIT.x - 5000, FIT.y - 5000], 6);
+    expect(v.w).toBeCloseTo(FIT.w / 6);
+    const ox = Math.min(v.x + v.w, FIT.x + FIT.w) - Math.max(v.x, FIT.x);
+    const oy = Math.min(v.y + v.h, FIT.y + FIT.h) - Math.max(v.y, FIT.y);
+    expect(ox).toBeCloseTo(v.w / 3);
+    expect(oy).toBeCloseTo(v.h / 3);
+  });
+
+  it("a zoomLevel past MAX_ZOOM still clamps to MAX_ZOOM width (clamp's own job)", () => {
+    const v = pinnedView(FIT, [300, 700], 50);
+    expect(v.w).toBeCloseTo(FIT.w / MAX_ZOOM);
+  });
+});
+
+describe("viewport: sameView", () => {
+  it("is true for the identical box and false once any one field differs", () => {
+    expect(sameView(FIT, { ...FIT }, FIT)).toBe(true);
+    expect(sameView(FIT, { ...FIT, x: FIT.x + 5 }, FIT)).toBe(false);
+    expect(sameView(FIT, { ...FIT, w: FIT.w * 0.99 }, FIT)).toBe(false);
+  });
+
+  it("a rounding-error difference (in then out again) still reads as the same view", () => {
+    const back = zoomAt(zoomAt(FIT, 3, 17, 29), 1 / 3, 17, 29);
+    expect(sameView(FIT, back, FIT)).toBe(true);
   });
 });

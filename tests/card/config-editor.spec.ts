@@ -199,3 +199,193 @@ test("a starting config of floor: \"all\" shows All floors selected", async ({ p
   await expect(editor.locator("select#floor")).toHaveValue("");
   await expect(editor.locator('input[type="checkbox"][data-floor]')).toHaveCount(3);
 });
+
+// S9.1: the open_color field. A native <input type="color"> can only ever hold a valid #rrggbb, so it cannot
+// represent "unset" — it shows the theme's own default (#d64545, --fp-dev-contact's value) until a colour is
+// picked, and a separate Clear control removes the key rather than the input being set back to that same hex
+// (which config-changed could never tell apart from the user actually choosing #d64545).
+test("open_color: the colour field starts at the contact default, picking a colour emits it, and Clear removes the key", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#open_color")).toHaveValue("#d64545");
+
+  await editor.locator("#open_color").evaluate((el) => {
+    (el as HTMLInputElement).value = "#123abc";
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  let detail = (await events(page)).at(-1) as { config: { open_color?: string } };
+  expect(detail.config.open_color).toBe("#123abc");
+
+  await editor.locator("#open_color_clear").click();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("open_color" in detail.config).toBe(false);
+  await expect(editor.locator("#open_color")).toHaveValue("#d64545");
+});
+
+test("setConfig fills open_color into the colour field", async ({ page }) => {
+  await open(page);
+  await mount(page, { open_color: "#00ff88", layout: demo });
+  await expect(page.locator("#editor").locator("#open_color")).toHaveValue("#00ff88");
+});
+
+// S9.2: the Edit-card form's icon_size field, same shape as fade (a number input, default value shown when the
+// key is unset, dropped from the payload once it is set back to that default).
+test("setConfig fills icon_size, default 1 when unset", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#icon_size")).toHaveValue("1");
+});
+
+test("setConfig fills icon_size from the config when set", async ({ page }) => {
+  await open(page);
+  await mount(page, { icon_size: 1.5, layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#icon_size")).toHaveValue("1.5");
+});
+
+test("changing icon_size fires config-changed with detail.config.icon_size, dropped again at the default", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await editor.locator("#icon_size").fill("2");
+  await editor.locator("#icon_size").blur();
+  let detail = (await events(page)).at(-1) as { config: { icon_size?: number } };
+  expect(detail.config.icon_size).toBe(2);
+
+  await editor.locator("#icon_size").fill("1");
+  await editor.locator("#icon_size").blur();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("icon_size" in detail.config).toBe(false);
+});
+
+// Opus-review-style case (CLAUDE.md finding 4): an emptied field is not 0 (out of range, would clamp to 0.5 and
+// silently write a wrong value) — it must fall back to the default 1 and drop from the payload, same as fade.
+test("clearing icon_size falls back to the default and drops from the payload", async ({ page }) => {
+  await open(page);
+  await mount(page, { icon_size: 2, layout: demo });
+  const editor = page.locator("#editor");
+  await editor.locator("#icon_size").fill("");
+  await editor.locator("#icon_size").blur();
+  const detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("icon_size" in detail.config).toBe(false);
+  await expect(editor.locator("#icon_size")).toHaveValue("1");
+});
+
+test("an out-of-range icon_size clamps into 0.5..3 rather than being refused", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await editor.locator("#icon_size").fill("0");
+  await editor.locator("#icon_size").blur();
+  let detail = (await events(page)).at(-1) as { config: { icon_size?: number } };
+  expect(detail.config.icon_size).toBe(0.5);
+
+  await editor.locator("#icon_size").fill("10");
+  await editor.locator("#icon_size").blur();
+  detail = (await events(page)).at(-1) as { config: { icon_size?: number } };
+  expect(detail.config.icon_size).toBe(3);
+});
+
+// S9.6: the Center X/Y and Zoom level fields — same shape as icon_size above (a key dropped from the payload at
+// its default, an emptied field falling back), but Center is a pair written from two boxes together.
+test("Center X/Y and Zoom level are empty/1 by default", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#center_x")).toHaveValue("");
+  await expect(editor.locator("#center_y")).toHaveValue("");
+  await expect(editor.locator("#zoom_level")).toHaveValue("1");
+});
+
+test("setConfig fills Center X/Y and Zoom level from center/zoom_level", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo, center: [300, 725], zoom_level: 2.5 });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#center_x")).toHaveValue("300");
+  await expect(editor.locator("#center_y")).toHaveValue("725");
+  await expect(editor.locator("#zoom_level")).toHaveValue("2.5");
+});
+
+test("filling both Center fields emits config.center as a pair; a half-filled pair drafts without dispatching, and clearing both drops the key", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await editor.locator("#center_x").fill("150");
+  await editor.locator("#center_x").blur();
+  // Only X filled so far: not a valid pair yet. Opus review 2026-09-27: firing a config-changed here used to drop
+  // `center` mid-edit — now a half-filled pair fires nothing at all, so the dashboard's saved config is untouched.
+  expect(await events(page)).toEqual([]);
+  await expect(editor.locator("#center_x")).toHaveValue("150");
+
+  await editor.locator("#center_y").fill("640");
+  await editor.locator("#center_y").blur();
+  let detail = (await events(page)).at(-1) as { config: { center?: [number, number] } };
+  expect(detail.config.center).toEqual([150, 640]);
+
+  // Clearing X to retype it must not wipe Y's box (the bug Opus found) nor drop `center` — only clearing both
+  // boxes does that. No new event fires: there is nothing settled to report yet.
+  await editor.locator("#center_x").fill("");
+  await editor.locator("#center_x").blur();
+  expect(await events(page)).toHaveLength(1);
+  await expect(editor.locator("#center_y")).toHaveValue("640");
+
+  // Retyping X completes the pair again — back to normal, config-driven display.
+  await editor.locator("#center_x").fill("150");
+  await editor.locator("#center_x").blur();
+  detail = (await events(page)).at(-1) as { config: { center?: [number, number] } };
+  expect(detail.config.center).toEqual([150, 640]);
+
+  // Clearing Y alone is the same half-filled case, the other way round: no event, X's box untouched.
+  await editor.locator("#center_y").fill("");
+  await editor.locator("#center_y").blur();
+  expect(await events(page)).toHaveLength(2);
+  await expect(editor.locator("#center_x")).toHaveValue("150");
+
+  await editor.locator("#center_x").fill("");
+  await editor.locator("#center_x").blur();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("center" in detail.config).toBe(false);
+});
+
+test("changing zoom_level fires config-changed, dropped again at its default (1)", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await editor.locator("#zoom_level").fill("3");
+  await editor.locator("#zoom_level").blur();
+  let detail = (await events(page)).at(-1) as { config: { zoom_level?: number } };
+  expect(detail.config.zoom_level).toBe(3);
+
+  await editor.locator("#zoom_level").fill("1");
+  await editor.locator("#zoom_level").blur();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("zoom_level" in detail.config).toBe(false);
+});
+
+test("clearing zoom_level falls back to the default and drops from the payload", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo, zoom_level: 3 });
+  const editor = page.locator("#editor");
+  await editor.locator("#zoom_level").fill("");
+  await editor.locator("#zoom_level").blur();
+  const detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("zoom_level" in detail.config).toBe(false);
+  await expect(editor.locator("#zoom_level")).toHaveValue("1");
+});
+
+test("an out-of-range zoom_level clamps into 1..8 rather than being refused", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await editor.locator("#zoom_level").fill("0");
+  await editor.locator("#zoom_level").blur();
+  let detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("zoom_level" in detail.config).toBe(false); // clamps to 1, the default: dropped, not written as 1
+
+  await editor.locator("#zoom_level").fill("50");
+  await editor.locator("#zoom_level").blur();
+  detail = (await events(page)).at(-1) as { config: { zoom_level?: number } };
+  expect(detail.config.zoom_level).toBe(8);
+});

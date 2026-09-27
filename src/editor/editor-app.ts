@@ -1,8 +1,9 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, wallWidthAt } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, Trace, WallKind } from "../core";
+import { MAX_ZOOM } from "../card/viewport";
 import { traceImage } from "./trace";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
@@ -176,7 +177,7 @@ export class FloorplanStudioEditor extends LitElement {
   private addDevType = "";
   /** File, Install code: whether the panel with the ready-to-paste card YAML is open. Fixed, not draggable; closed by its own X or Escape. */
   private installCodeOpen = false;
-  /** S7.11: View, Trace image: whether its panel is open; the two points of a Scale step (null when not scaling); the Export tick, for this session only. */
+  /** S7.11: Edit, Trace image: whether its panel is open; the two points of a Scale step (null when not scaling); the Export tick, for this session only. */
   private traceOpen = false;
   private traceScale: Pt[] | null = null;
   private exportTrace = false;
@@ -1094,6 +1095,31 @@ export class FloorplanStudioEditor extends LitElement {
     if (!cb) { this.status = "Could not copy — select the text and copy it by hand."; this.requestUpdate(); return; }
     cb.writeText(code).then(
       () => { this.status = "Install code copied."; this.requestUpdate(); },
+      () => { this.status = "Could not copy — select the text and copy it by hand."; this.requestUpdate(); },
+    );
+  }
+
+  /** S9.6: "Copy card view" (View menu) — the `center`/`zoom_level` a card needs to open on exactly what the
+   * editor is showing right now. `viewBoxFor(st.f, 60, ...)` is the card's own fit (pad 60); the editor's own
+   * `fit()`/`recenter()` use pad 80 for their own on-screen margin, so this is computed independently rather than
+   * read off `st.view`'s resting box, or a card pasting these values would open slightly wider than the editor.
+   * S9.6 review (Opus, 2026-09-27): `zoomLevel` used to come from the width ratio alone. A pinned card's box keeps
+   * `fit`'s own aspect (`pinnedView`, `viewport.ts`), but the editor's own `st.view` can have a different aspect —
+   * a wide, short window, say — and `fit.w / v.w` alone then asked for a box no narrower than the editor's, which
+   * left the editor's view taller than the card's aspect allows and cropped what the editor showed top and
+   * bottom. Taking the smaller of the width and height ratios means the card's box is at least as tall and at
+   * least as wide as `v` — it may show a little more on the narrow axis, never less on either. */
+  private copyCardView(): void {
+    const st = this.st;
+    const fit = viewBoxFor(st.f, 60, st.rotation);
+    const v = st.view;
+    const cx = Math.round(v.x + v.w / 2), cy = Math.round(v.y + v.h / 2);
+    const zoomLevel = Math.min(MAX_ZOOM, Math.max(1, Math.min(fit.w / v.w, fit.h / v.h)));
+    const yaml = `center: [${cx}, ${cy}]\nzoom_level: ${zoomLevel.toFixed(2)}`;
+    const cb = navigator.clipboard;
+    if (!cb) { this.status = "Could not copy — select the text and copy it by hand."; this.requestUpdate(); return; }
+    cb.writeText(yaml).then(
+      () => { this.status = "Card view copied."; this.requestUpdate(); },
       () => { this.status = "Could not copy — select the text and copy it by hand."; this.requestUpdate(); },
     );
   }
@@ -2036,7 +2062,7 @@ export class FloorplanStudioEditor extends LitElement {
     const bytes = JSON.stringify(this.st.layout).length;
     if (bytes > MAX_LAYOUT_BYTES) {
       const traced = Object.values(this.st.layout.floors).filter((f) => f.trace).map((f) => f.title).join(", ") || "none";
-      this.errors = [`The plan is ${(bytes / 1048576).toFixed(1)} MB and Home Assistant takes at most ${(MAX_LAYOUT_BYTES / 1048576).toFixed(1)} MB in one save. Floors with a trace image: ${traced}. Remove one (View, Trace image, Remove) or load a smaller scan, then Save again.`];
+      this.errors = [`The plan is ${(bytes / 1048576).toFixed(1)} MB and Home Assistant takes at most ${(MAX_LAYOUT_BYTES / 1048576).toFixed(1)} MB in one save. Floors with a trace image: ${traced}. Remove one (Edit, Trace image…, Remove) or load a smaller scan, then Save again.`];
       return;
     }
     this.errors = [];
@@ -2316,6 +2342,7 @@ export class FloorplanStudioEditor extends LitElement {
           </details>
           <button class="btn" id="recenter" @click=${() => { st.recenter(); this.requestUpdate(); }}>Re-center</button>
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
+          <button class="btn" id="copyCardView" title="Copies center and zoom_level for a card pinned to what's on screen now" @click=${() => this.copyCardView()}>Copy card view</button>
         </div></details>
         <details class="menu" id="mEdit" @toggle=${this.onMenuToggle}><summary class="btn">Edit</summary><div class="box">
           <button class="btn" id="addFloor" title="Add a floor" @click=${() => this.startAddFloor()}>Add floor</button>

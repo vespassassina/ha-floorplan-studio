@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+- A card can pin a `center: [x, y]` (plan cm) and a `zoom_level` (1 is the
+  whole floor, up to 8) to show one room, corridor or part of the home. Put
+  several such cards on a dashboard, one per room. The pinned view is the
+  card's home: double-tap and the **Reset view** button return to it, and
+  − still zooms out to the whole floor. The editor's **View → Copy card
+  view** copies the two lines for what it is showing, rotated plans included.
+- An open door or window with a contact sensor is dashed and red. The new
+  `open_color` option sets another colour. A cover door is unchanged.
+- A TV is blue whenever it is on, in every theme, also when it reports
+  `playing`, `paused` or `idle`.
+- A speaker is blue and sends out waves while it plays. Paused, idle or off,
+  it is grey. Reduced motion holds the waves still. A tap opens more-info.
+- Icons no longer shrink to nothing on a big house: past 10 m on the plan's
+  longest side they grow with it. `icon_size` (0.5 to 3, default 1) scales
+  them further.
+- A floating **Active** panel lists every device that is on, on every floor:
+  lights, motion and contact sensors, TVs, speakers and media players that
+  play, heaters, climate and AC, plugs, computers, open covers, people at
+  home, vacuums that are cleaning, and every camera. Tap a row for more-info. Drag the header to
+  move it; fold it away. It stays inside the card, starts folded on a card
+  under 500 px wide, and remembers its place per card. `active_list: false`
+  or `kiosk: true` hides it.
+
 ## 0.12.7
 
 - A lit lamp's aura is 50% larger (3 m across instead of 2 m). It now draws

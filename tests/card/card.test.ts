@@ -10,9 +10,10 @@ vi.mock("../../src/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/core")>();
   return { ...actual, renderFloor: vi.fn(actual.renderFloor) };
 });
-import { renderFloor } from "../../src/core";
+import { planPivot, renderFloor, rotateAbout, viewBoxFor } from "../../src/core";
 import { FloorplanStudioCard } from "../../src/card/floorplan-studio-card";
 import { HOLD_MS } from "../../src/card/actions";
+import { MAX_ZOOM } from "../../src/card/viewport";
 
 const L = demo as unknown as Layout;
 const lastRenderState = () => (renderFloor as unknown as Mock).mock.calls.at(-1)![1] as RenderOpts;
@@ -1248,5 +1249,441 @@ describe("FloorplanStudioCard", () => {
   it("the message colour has no hard-coded hex fallback outside FLOORPLAN_CSS (Opus review, CLAUDE.md finding 9)", () => {
     const cssText = (FloorplanStudioCard.styles as unknown as { toString(): string }[]).map((s) => String(s)).join("\n");
     expect(cssText).not.toMatch(/--fp-text\s*,\s*#[0-9a-fA-F]{3,6}/);
+  });
+
+  // S9.2: icons stay visible on large plans. The card scales the icon group by 1 / (auto * icon_size), where
+  // `auto = max(1, longest side of the fit view box / 1000)` — the same box `render()` already computes with
+  // `viewBoxFor`. A synthetic floor whose outline is 1880 cm square gives, after the fixed 60 cm pad on every
+  // side, a view box exactly 2000x2000 — auto = 2 on the nose, so the expected scale is exact, not approximate.
+  describe("S9.2: icons stay visible on large plans", () => {
+    /** A floor whose fit view box (outline + the fixed 60 cm pad) is exactly `side` cm square, so `auto` comes
+     * out as a round number. One light device near the centre, so a Playwright sibling test can click it. */
+    function bigFloor(side: number) {
+      const o = side - 120; // pad is 60 on every edge
+      return {
+        title: "Big", outline: [[0, 0], [o, 0], [o, o], [0, o]], owk: ["wall", "wall", "wall", "wall"],
+        rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], furniture: [], unlinked: [],
+        devices: [{ id: "light-big", type: "light", entity: "light.demo_big", name: "Big light", x: o / 2, y: o / 2 }],
+      };
+    }
+
+    function layoutWithBigFloor(side: number): Layout {
+      const l = structuredClone(L);
+      (l.floors as Record<string, unknown>).big = bigFloor(side);
+      return l;
+    }
+
+    it("the demo (1000 cm or less, no icon_size) renders with scale 1, byte-identical to before S9.2", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "ground" });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(lastRenderState().scale).toBe(1);
+    });
+
+    it("a 2000 cm plan (view box exactly 2000 cm on its longest side) scales the icon group 2x, i.e. scale 0.5", async () => {
+      const el = await mount();
+      el.setConfig({ layout: layoutWithBigFloor(2000), floor: "big" });
+      el.hass = stubHass({ "light.demo_big": st("off") }) as never;
+      await el.updateComplete;
+      expect(lastRenderState().scale).toBeCloseTo(0.5, 10);
+    });
+
+    it("icon_size 1.5 on the demo (auto 1) gives scale 1/1.5", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "ground", icon_size: 1.5 });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(lastRenderState().scale).toBeCloseTo(1 / 1.5, 10);
+    });
+
+    it("icon_size 0 and -1 clamp to 0.5, so scale is 1/0.5 = 2 on the demo", async () => {
+      for (const bad of [0, -1]) {
+        const el = await mount();
+        el.setConfig({ layout: structuredClone(L), floor: "ground", icon_size: bad });
+        el.hass = stubHass() as never;
+        await el.updateComplete;
+        expect(lastRenderState().scale, `icon_size ${bad}`).toBeCloseTo(2, 10);
+      }
+    });
+
+    it("icon_size 10 clamps to 3, so scale is 1/3 on the demo", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "ground", icon_size: 10 });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(lastRenderState().scale).toBeCloseTo(1 / 3, 10);
+    });
+
+    it('icon_size "big" (non-numeric) and NaN fall back to the default 1, so scale is 1 on the demo', async () => {
+      for (const bad of ["big" as unknown as number, NaN] as const) {
+        const el = await mount();
+        el.setConfig({ layout: structuredClone(L), floor: "ground", icon_size: bad });
+        el.hass = stubHass() as never;
+        await el.updateComplete;
+        expect(lastRenderState().scale, `icon_size ${String(bad)}`).toBe(1);
+      }
+    });
+  });
+
+  // S9.5: the floating active-devices panel. `src/core/active.ts` (tests/core/active.test.ts) already covers the
+  // per-DEVICE_TYPE decision table; these tests are the card's own integration of it — the exact set against a
+  // stub hass copying HA's real state shape (CLAUDE.md finding 21), every floor at once (not only the one drawn),
+  // and the config keys that hide it.
+  describe("S9.5: the active-devices panel", () => {
+    beforeEach(() => {
+      try { localStorage.clear(); } catch { /* jsdom always has one; guard anyway, same contract as the card's own reads */ }
+    });
+
+    /** The panel's own rows, as `[groupLabel, [rowNames...]][]`, in DOM order — the same shape `groupActiveByType`
+     *  hands the template, read back out of the rendered shadow DOM rather than assumed. */
+    function panelGroups(el: FloorplanStudioCard): [string, string[]][] {
+      const groups = el.shadowRoot!.querySelectorAll(".fp-active-group");
+      return [...groups].map((g) => [
+        g.querySelector(".fp-active-group-label")!.textContent!,
+        [...g.querySelectorAll(".fp-active-row span")].map((s) => s.textContent!),
+      ]);
+    }
+
+    it("lists exactly the active devices across every floor, not only the one the plan shows, grouped by type with a count", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) }); // floor unset, multiple floors: the plan itself shows "ground" only
+      el.hass = stubHass({
+        "light.demo_living": st("on"),
+        "light.demo_bedroom": st("on"), // "first" floor: never drawn, but must still be listed (S9.5: every floor)
+        "media_player.demo_office": st("playing"),
+        "person.demo_alex": st("home"),
+      }) as never;
+      await el.updateComplete;
+
+      const panel = el.shadowRoot!.querySelector(".fp-active");
+      expect(panel).toBeTruthy();
+      expect(panel!.querySelector(".fp-active-count")!.textContent).toBe("5"); // 2 lights + camera (always) + media + person
+      expect(panelGroups(el)).toEqual([
+        ["Light", ["Living light", "Bedroom light"]],
+        ["Camera", ["Hall camera"]],
+        ["Media player", ["Office speaker"]],
+        ["Person", ["Alex"]],
+      ]);
+    });
+
+    it("a bound light is listed from its switch even with the light entity itself off (reuses classOf, S9.5 spec)", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "light.demo_living": st("off"), "switch.demo_living_relay": st("on") }) as never;
+      await el.updateComplete;
+      const names = [...el.shadowRoot!.querySelectorAll(".fp-active-row span")].map((s) => s.textContent);
+      expect(names).toContain("Living light");
+    });
+
+    it("says 'Nothing on' when nothing is active but the camera still keeps the panel open (a camera is always listed)", async () => {
+      const el = await mount();
+      const noCam = structuredClone(L);
+      noCam.floors.ground.devices = noCam.floors.ground.devices.filter((d) => d.type !== "camera");
+      el.setConfig({ layout: noCam });
+      el.hass = stubHass() as never; // every device off in the stub
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-empty")?.textContent).toBe("Nothing on");
+      expect(el.shadowRoot!.querySelector(".fp-active-count")!.textContent).toBe("0");
+    });
+
+    it("a real click on a row fires hass-more-info with that row's own entity, not another's", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el.updateComplete;
+      const events: CustomEvent[] = [];
+      el.addEventListener("hass-more-info", (e) => events.push(e as CustomEvent));
+      const rows = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-active-row")];
+      const cameraRow = rows.find((r) => r.querySelector("span")?.textContent === "Hall camera")!;
+      cameraRow.click();
+      expect(events).toHaveLength(1);
+      expect(events[0]!.detail).toEqual({ entityId: "camera.demo_hall" });
+    });
+
+    it("the collapse button hides the body but keeps the header and count, and is reachable by keyboard as a real button", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
+      const collapseBtn = el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!;
+      expect(collapseBtn.tagName).toBe("BUTTON"); // Enter/Space activate a real button natively, no key handler needed
+      collapseBtn.click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+      expect(el.shadowRoot!.querySelector(".fp-active-count")!.textContent).toBe("2"); // the light plus the always-listed camera
+    });
+
+    it("kiosk hides the panel even though active_list defaults to shown", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), kiosk: true });
+      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active")).toBeNull();
+    });
+
+    it("active_list: false hides the panel", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), active_list: false });
+      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active")).toBeNull();
+    });
+
+    it("collapsed state survives a fresh card instance (localStorage), keyed so a different config does not share it", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+
+      // A second card, same config (same storage key): reopens already collapsed.
+      const el2 = await mount();
+      el2.setConfig({ layout: structuredClone(L) });
+      el2.hass = stubHass() as never;
+      await el2.updateComplete;
+      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+
+      // A third card pinned to a different floor (different storage key per Opus review finding 7): opens fresh.
+      const el3 = await mount();
+      el3.setConfig({ layout: structuredClone(L), floor: "first" });
+      el3.hass = stubHass() as never;
+      await el3.updateComplete;
+      expect(el3.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
+    });
+
+    it("Opus review finding 7: two cards in websocket mode (no layout/layout_url, the default install) pinned to different floors keep separate storage, not one shared key", async () => {
+      const sendMessagePromise = vi.fn(async () => ({ layout: structuredClone(L) }));
+      const el = await mount();
+      el.setConfig({ floor: "ground" });
+      el.hass = { ...stubHass(), connection: { sendMessagePromise } } as never;
+      await el.updateComplete;
+      await vi.waitFor(() => expect(el.shadowRoot!.querySelector(".fp-active")).toBeTruthy());
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+
+      const el2 = await mount();
+      el2.setConfig({ floor: "first" });
+      el2.hass = { ...stubHass(), connection: { sendMessagePromise } } as never;
+      await el2.updateComplete;
+      await vi.waitFor(() => expect(el2.shadowRoot!.querySelector(".fp-active")).toBeTruthy());
+      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy(); // its own key: opens fresh, uncollapsed
+    });
+
+    it("Opus review finding 7: an edited inline layout keeps its storage key (the seed is the layout's source, not its content)", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+
+      // Same card, edited layout (autosave-style setConfig with different device content): still collapsed.
+      const edited = structuredClone(L);
+      edited.floors.ground.devices = edited.floors.ground.devices.slice(1);
+      el.setConfig({ layout: edited });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+    });
+  });
+
+  // S9.6: a card pinned to one room, corridor or part of a home via `center`/`zoom_level`. `fit` below is the
+  // ground floor's own real viewBoxFor box (60 cm pad, no rotate), computed the same way render() computes it —
+  // asserting against a literal box here would silently stop meaning anything the day the demo layout changes.
+  describe("S9.6: a card pinned to one room (center, zoom_level)", () => {
+    const viewBox = (el: FloorplanStudioCard) => {
+      const [x, y, w, h] = el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number);
+      return { x: x!, y: y!, w: w!, h: h! };
+    };
+    const fit = () => viewBoxFor(L.floors.ground, 60);
+
+    async function withConfig(config: Record<string, unknown>) {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "ground", ...config });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      return el;
+    }
+
+    it("center and zoom_level together: a box of fit/zoom size, centred on the asymmetric point given, not fit's own centre", async () => {
+      const el = await withConfig({ center: [300, 700], zoom_level: 2.5 });
+      const box = viewBox(el);
+      const f = fit();
+      expect(box.w).toBeCloseTo(f.w / 2.5, 6);
+      expect(box.h).toBeCloseTo(f.h / 2.5, 6);
+      expect(box.x + box.w / 2).toBeCloseTo(300, 6);
+      expect(box.y + box.h / 2).toBeCloseTo(700, 6);
+      // Not fit's own centre — an asymmetric input must give an asymmetric result (finding 4: a version that
+      // silently ignored `center` and only applied `zoom_level` about fit's middle would pass a naive test too).
+      expect(box.x + box.w / 2).not.toBeCloseTo(f.x + f.w / 2, 0);
+    });
+
+    it("clamps a centre near the plan edge to stay on the plan (the same clamp() every zoom gesture uses)", async () => {
+      const f = fit();
+      const el = await withConfig({ center: [f.x - 5000, f.y - 5000], zoom_level: 6 });
+      const box = viewBox(el);
+      expect(box.w).toBeCloseTo(f.w / 6, 6);
+      const ox = Math.min(box.x + box.w, f.x + f.w) - Math.max(box.x, f.x);
+      const oy = Math.min(box.y + box.h, f.y + f.h) - Math.max(box.y, f.y);
+      expect(ox).toBeCloseTo(box.w / 3, 3);
+      expect(oy).toBeCloseTo(box.h / 3, 3);
+    });
+
+    it("zoom_level alone zooms about fit's own centre", async () => {
+      const el = await withConfig({ zoom_level: 4 });
+      const box = viewBox(el);
+      const f = fit();
+      expect(box.w).toBeCloseTo(f.w / 4, 6);
+      expect(box.x + box.w / 2).toBeCloseTo(f.x + f.w / 2, 6);
+      expect(box.y + box.h / 2).toBeCloseTo(f.y + f.h / 2, 6);
+    });
+
+    it("center alone (zoom_level unset) changes nothing: the box is fit exactly", async () => {
+      const el = await withConfig({ center: [123, 456] });
+      expect(viewBox(el)).toEqual(fit());
+    });
+
+    it("center alone with zoom_level explicitly 1 also changes nothing", async () => {
+      const el = await withConfig({ center: [123, 456], zoom_level: 1 });
+      expect(viewBox(el)).toEqual(fit());
+    });
+
+    it("neither key set: fit, exactly as before S9.6", async () => {
+      const el = await withConfig({});
+      expect(viewBox(el)).toEqual(fit());
+    });
+
+    it("zoom_level clamps into [1, MAX_ZOOM]: 0, a negative number and past MAX_ZOOM all clamp rather than being refused", async () => {
+      const f = fit();
+      for (const [given, want] of [[0, 1], [-3, 1], [50, MAX_ZOOM]] as const) {
+        const el = await withConfig({ zoom_level: given });
+        expect(viewBox(el).w, `zoom_level ${given}`).toBeCloseTo(f.w / want, 6);
+      }
+    });
+
+    it("a malformed center is ignored, silently (CLAUDE.md finding 1): never thrown on, box falls back to fit/zoom_level about the centre", async () => {
+      const f = fit();
+      for (const bad of [[1, 2, 3], [1], "nope", 5, null, [Number.NaN, 1], ["a", "b"]] as unknown[]) {
+        const el = await withConfig({ center: bad, zoom_level: 3 });
+        const box = viewBox(el);
+        expect(box.w, `center ${JSON.stringify(bad)}`).toBeCloseTo(f.w / 3, 6);
+        expect(box.x + box.w / 2, `center ${JSON.stringify(bad)}`).toBeCloseTo(f.x + f.w / 2, 6);
+      }
+    });
+
+    it("a malformed zoom_level is ignored, silently: falls back to 1 (fit), never thrown on", async () => {
+      for (const bad of ["big", Number.NaN, null, undefined, [2]] as unknown[]) {
+        const el = await withConfig({ zoom_level: bad });
+        expect(viewBox(el), `zoom_level ${JSON.stringify(bad)}`).toEqual(fit());
+      }
+    });
+
+    it("does not throw setConfig, unlike the typo-throwing zoom/kiosk keys — center/zoom_level always fall back", () => {
+      const el = document.createElement("floorplan-studio-card") as FloorplanStudioCard;
+      expect(() => el.setConfig({ layout: structuredClone(L), center: "nonsense" as never, zoom_level: "nonsense" as never })).not.toThrow();
+    });
+
+    it("the icon scale (S9.2) is unaffected by a pin: same scale with or without center/zoom_level", async () => {
+      const withoutPin = await withConfig({});
+      const scaleWithoutPin = lastRenderState().scale;
+      expect(withoutPin).toBeTruthy();
+      const withPin = await withConfig({ center: [300, 700], zoom_level: 3 });
+      expect(lastRenderState().scale).toBe(scaleWithoutPin);
+      expect(withPin).toBeTruthy();
+    });
+
+    it("the fp-zoomed class reads against the pinned home, not the whole floor: a pinned card is not \"zoomed\" at rest", async () => {
+      const el = await withConfig({ center: [300, 700], zoom_level: 3 });
+      const svg = el.shadowRoot!.querySelector("svg")!;
+      expect(svg.getAttribute("class")).toBe("fp-zoomable");
+    });
+
+    // Opus review, 2026-09-27: `center` is documented as plan cm — the same unrotated coordinates a device sits at
+    // in the layout — but the card's own box (`viewBoxFor`/`renderFloor`) is already in the *rendered* frame once
+    // `rotate` is set (they turn every point themselves, unlike the editor, which draws unrotated coordinates
+    // inside a rotated `<g>`). Passing the raw config centre straight into `pinnedView` pinned the wrong spot on
+    // any rotated layout. `deg: 135` (not a 90°-multiple; schema only allows steps of 45, `validate` in
+    // src/core/schema.ts) rules out a fix that only special-cases plain right angles.
+    it("a rotated layout pins the config's plan-cm centre at the same plan point, not the unrotated one", async () => {
+      const deg = 135;
+      const rotated: Layout = { ...structuredClone(L), rotate: deg };
+      const pivot = planPivot(rotated);
+      const centerPlanCm: [number, number] = [200, 500]; // asymmetric, on the demo's 800x600 outline
+      const expected = rotateAbout(centerPlanCm, deg, pivot);
+      const fit = viewBoxFor(rotated.floors.ground, 60, { deg, pivot });
+
+      const el = await mount();
+      el.setConfig({ layout: rotated, floor: "ground", center: centerPlanCm, zoom_level: 3 });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      const box = viewBox(el);
+      expect(box.w).toBeCloseTo(fit.w / 3, 6);
+      expect(box.x + box.w / 2).toBeCloseTo(expected[0], 6);
+      expect(box.y + box.h / 2).toBeCloseTo(expected[1], 6);
+      // Not the raw, unrotated centre either (finding 4: a version that never rotated at all would otherwise pass
+      // whenever the rotated and unrotated points happen to coincide, which they do not here).
+      expect(Math.abs(box.x + box.w / 2 - centerPlanCm[0])).toBeGreaterThan(5);
+    });
+
+    it("rotate: 0 (or unset) leaves the centre exactly as before — the rotation fix changes nothing for a flat plan", async () => {
+      const el = await withConfig({ center: [300, 700], zoom_level: 3 });
+      const box = viewBox(el);
+      const f = fit();
+      expect(box.x + box.w / 2).toBeCloseTo(300, 6);
+      expect(box.y + box.h / 2).toBeCloseTo(700, 6);
+      expect(box.w).toBeCloseTo(f.w / 3, 6);
+    });
+  });
+
+  // Opus review, 2026-09-27: several cards on one floor, each pinned to a different room via `center`/`zoom_level`,
+  // used to share one `localStorage` key (the seed did not read either), so folding or dragging one card's active
+  // panel moved every other card's panel too, on the next reload.
+  describe("S9.6 review: the active panel's storage key includes center/zoom_level (Opus, 2026-09-27)", () => {
+    beforeEach(() => {
+      try { localStorage.clear(); } catch { /* jsdom always has one; guard anyway */ }
+    });
+
+    async function mountPinned(config: Record<string, unknown>) {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "ground", ...config });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      return el;
+    }
+
+    it("two cards pinned to different rooms on the same floor keep separate panel storage", async () => {
+      const el1 = await mountPinned({ center: [300, 700], zoom_level: 2 });
+      el1.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
+      await el1.updateComplete;
+      expect(el1.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+
+      // A second card, same floor, pinned to a different room: its own key, opens fresh (not collapsed).
+      const el2 = await mountPinned({ center: [123, 456], zoom_level: 3 });
+      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
+
+      // A third card with the same center/zoom_level as the first really does share its key (by design: two
+      // identically-pinned cards are the same "view" as far as the panel is concerned).
+      const el3 = await mountPinned({ center: [300, 700], zoom_level: 2 });
+      expect(el3.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+    });
+
+    it("an unpinned card's storage key is unchanged by this fix, so its stored position still applies", async () => {
+      const el = await mountPinned({});
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+
+      // Same config, fresh instance: reopens already collapsed, from the very same key an unpinned card has
+      // always used (this only fails if appending center/zoom_level to the seed changed the key when neither is
+      // set — the regression this test guards against).
+      const el2 = await mountPinned({});
+      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+    });
   });
 });
