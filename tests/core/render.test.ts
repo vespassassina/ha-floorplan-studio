@@ -1272,6 +1272,23 @@ describe("S2.9: a device wears its colour when it is on", () => {
     }
   });
 
+  it("Opus review finding 1: a tv is on for any state other than off/standby/unavailable/unknown/no-state, not only 'on'", () => {
+    const onStates = ["on", "playing", "paused", "idle"];
+    for (const s of onStates) {
+      const html = draw([dev("tv", "media_player.tv")], { "media_player.tv": st(s) });
+      expect(classOfDev(html), s).toContain("on");
+    }
+    const offStates = ["off", "standby"];
+    for (const s of offStates) {
+      const html = draw([dev("tv", "media_player.tv")], { "media_player.tv": st(s) });
+      expect(classOfDev(html), s).not.toContain("on");
+    }
+    // unavailable/unknown already carry their own "unavailable" class, not "on" — checked elsewhere; a missing
+    // state (no entry in the overlay at all) must read off too.
+    const noState = draw([dev("tv", "media_player.tv")], {});
+    expect(classOfDev(noState)).not.toContain("on");
+  });
+
   it("a wall switch that is on carries the on class, but its --fp-dev is --fp-idle, same as off", () => {
     const html = draw([dev("switch", "switch.hall")], { "switch.hall": st("on") });
     expect(classOfDev(html)).toContain("on");

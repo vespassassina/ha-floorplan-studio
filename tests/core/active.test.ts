@@ -102,6 +102,16 @@ describe("activeDevices", () => {
     expect(names["light.c"]).toBe("light.c");
   });
 
+  it("Opus review finding 1: a tv is listed for playing/paused/idle/on, not only 'on'; off/standby are excluded", () => {
+    const l = layoutOf([dev("tv", "media_player.tv")]);
+    for (const s of ["on", "playing", "paused", "idle"]) {
+      expect(activeDevices(l, { "media_player.tv": st(s) }).map((i) => i.entity), s).toEqual(["media_player.tv"]);
+    }
+    for (const s of ["off", "standby"]) {
+      expect(activeDevices(l, { "media_player.tv": st(s) }).map((i) => i.entity), s).toEqual([]);
+    }
+  });
+
   it("an ac takes its colour var from acMode: cool or heat, never a flat --fp-dev-ac", () => {
     const l = layoutOf([dev("ac", "climate.cool"), dev("ac", "climate.heat")]);
     const state = { "climate.cool": st("cool", { hvac_action: "cooling" }), "climate.heat": st("heat", { hvac_action: "heating" }) };

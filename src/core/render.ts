@@ -406,6 +406,10 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   if (d.type === "climate" || d.type === "heater") return s.attributes.hvac_action === "heating" ? "on" : "off";
   // S9.4: a speaker is a media_player like any other — playing is the only "on", same as media.
   if (d.type === "media" || d.type === "speaker") return s.state === "playing" ? "on" : "off";
+  // Opus review finding 1: a TV is a media_player too, but Cast/Android TV/webOS report "playing", "paused" and
+  // "idle" while genuinely on, not only the plain "on" a demo switch would use. Anything other than off/standby
+  // (unavailable/unknown are already handled above) counts.
+  if (d.type === "tv") return s.state === "off" || s.state === "standby" ? "off" : "on";
   if (d.type === "person") return s.state === "home" ? "on" : "off";
   // S7.10: docked/idle/paused read idle grey like an off device; cleaning and returning are both active (the
   // spin class, from vacuumSpinClass below, is what tells them apart); error is its own danger class, not on/off.
