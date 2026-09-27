@@ -1324,4 +1324,136 @@ describe("FloorplanStudioCard", () => {
       }
     });
   });
+
+  // S9.5: the floating active-devices panel. `src/core/active.ts` (tests/core/active.test.ts) already covers the
+  // per-DEVICE_TYPE decision table; these tests are the card's own integration of it — the exact set against a
+  // stub hass copying HA's real state shape (CLAUDE.md finding 21), every floor at once (not only the one drawn),
+  // and the config keys that hide it.
+  describe("S9.5: the active-devices panel", () => {
+    beforeEach(() => {
+      try { localStorage.clear(); } catch { /* jsdom always has one; guard anyway, same contract as the card's own reads */ }
+    });
+
+    /** The panel's own rows, as `[groupLabel, [rowNames...]][]`, in DOM order — the same shape `groupActiveByType`
+     *  hands the template, read back out of the rendered shadow DOM rather than assumed. */
+    function panelGroups(el: FloorplanStudioCard): [string, string[]][] {
+      const groups = el.shadowRoot!.querySelectorAll(".fp-active-group");
+      return [...groups].map((g) => [
+        g.querySelector(".fp-active-group-label")!.textContent!,
+        [...g.querySelectorAll(".fp-active-row span")].map((s) => s.textContent!),
+      ]);
+    }
+
+    it("lists exactly the active devices across every floor, not only the one the plan shows, grouped by type with a count", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) }); // floor unset, multiple floors: the plan itself shows "ground" only
+      el.hass = stubHass({
+        "light.demo_living": st("on"),
+        "light.demo_bedroom": st("on"), // "first" floor: never drawn, but must still be listed (S9.5: every floor)
+        "media_player.demo_office": st("playing"),
+        "person.demo_alex": st("home"),
+      }) as never;
+      await el.updateComplete;
+
+      const panel = el.shadowRoot!.querySelector(".fp-active");
+      expect(panel).toBeTruthy();
+      expect(panel!.querySelector(".fp-active-count")!.textContent).toBe("5"); // 2 lights + camera (always) + media + person
+      expect(panelGroups(el)).toEqual([
+        ["Light", ["Living light", "Bedroom light"]],
+        ["Camera", ["Hall camera"]],
+        ["Media player", ["Office speaker"]],
+        ["Person", ["Alex"]],
+      ]);
+    });
+
+    it("a bound light is listed from its switch even with the light entity itself off (reuses classOf, S9.5 spec)", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "light.demo_living": st("off"), "switch.demo_living_relay": st("on") }) as never;
+      await el.updateComplete;
+      const names = [...el.shadowRoot!.querySelectorAll(".fp-active-row span")].map((s) => s.textContent);
+      expect(names).toContain("Living light");
+    });
+
+    it("says 'Nothing on' when nothing is active but the camera still keeps the panel open (a camera is always listed)", async () => {
+      const el = await mount();
+      const noCam = structuredClone(L);
+      noCam.floors.ground.devices = noCam.floors.ground.devices.filter((d) => d.type !== "camera");
+      el.setConfig({ layout: noCam });
+      el.hass = stubHass() as never; // every device off in the stub
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-empty")?.textContent).toBe("Nothing on");
+      expect(el.shadowRoot!.querySelector(".fp-active-count")!.textContent).toBe("0");
+    });
+
+    it("a real click on a row fires hass-more-info with that row's own entity, not another's", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el.updateComplete;
+      const events: CustomEvent[] = [];
+      el.addEventListener("hass-more-info", (e) => events.push(e as CustomEvent));
+      const rows = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-active-row")];
+      const cameraRow = rows.find((r) => r.querySelector("span")?.textContent === "Hall camera")!;
+      cameraRow.click();
+      expect(events).toHaveLength(1);
+      expect(events[0]!.detail).toEqual({ entityId: "camera.demo_hall" });
+    });
+
+    it("the collapse button hides the body but keeps the header and count, and is reachable by keyboard as a real button", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
+      const collapseBtn = el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!;
+      expect(collapseBtn.tagName).toBe("BUTTON"); // Enter/Space activate a real button natively, no key handler needed
+      collapseBtn.click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+      expect(el.shadowRoot!.querySelector(".fp-active-count")!.textContent).toBe("2"); // the light plus the always-listed camera
+    });
+
+    it("kiosk hides the panel even though active_list defaults to shown", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), kiosk: true });
+      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active")).toBeNull();
+    });
+
+    it("active_list: false hides the panel", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), active_list: false });
+      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active")).toBeNull();
+    });
+
+    it("collapsed state survives a fresh card instance (localStorage), keyed so a different layout does not share it", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+
+      // A second card, same config (same layout: same storage key): reopens already collapsed.
+      const el2 = await mount();
+      el2.setConfig({ layout: structuredClone(L) });
+      el2.hass = stubHass() as never;
+      await el2.updateComplete;
+      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+
+      // A third card with a different layout (different storage key): opens fresh, uncollapsed.
+      const other = structuredClone(L);
+      other.floors.ground.devices = other.floors.ground.devices.slice(1);
+      const el3 = await mount();
+      el3.setConfig({ layout: other });
+      el3.hass = stubHass() as never;
+      await el3.updateComplete;
+      expect(el3.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
+    });
+  });
 });

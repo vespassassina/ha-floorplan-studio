@@ -17,6 +17,12 @@
   and pulses two arcs out from its disc while it is playing — paused, idle,
   off or any other state stays idle grey. Reduced motion holds the arcs
   still. Tapping a speaker always opens more-info, never a toggle.
+- The card now shows a floating "Active" panel, open by default, listing every
+  active device across every floor — lights, motion and contact, TVs and media
+  players, heaters and AC, plugs, covers, persons and vacuums that are
+  cleaning, plus every camera regardless of state. Drag its header to move it,
+  click a row to open more-info, or collapse it; `active_list: false` or
+  `kiosk: true` hides it.
 
 ## 0.12.7
 

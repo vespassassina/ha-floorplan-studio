@@ -1,9 +1,9 @@
 import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { FLOORPLAN_CSS, THEMES, migrate, planPivot, renderFloor, validate, viewBoxFor } from "../core";
-import type { Theme } from "../core";
+import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, activeDevices, groupActiveByType, migrate, planPivot, renderFloor, tag, validate, viewBoxFor } from "../core";
+import type { ActiveDevice, Theme } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
-import { TAP_SLOP_PX, bindDeviceActions } from "./actions";
+import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
 // one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
 // second built file (PLAN block interface).
@@ -61,6 +61,8 @@ export interface FloorplanStudioCardConfig {
    * default, 1. Out-of-range numbers clamp rather than being refused, since a slider or a typo should never break
    * the card. */
   icon_size?: number;
+  /** S9.5: `false` hides the floating active-devices panel. Default `true` (shown, open, on the left). */
+  active_list?: boolean;
 }
 
 /** Card config is untrusted input (CLAUDE.md finding 1): only a plain `#rrggbb` hex is accepted for open_color. */
@@ -127,6 +129,22 @@ export class FloorplanStudioCard extends LitElement {
        card on a narrow width, and a disabled action reads as inert (dimmed, no pointer) without a separate class. */
     .fp-vacuum-dialog .fp-dialog-actions { flex-wrap: wrap; }
     .fp-dialog-actions button:disabled { opacity: 0.45; cursor: default; }
+    /* S9.5: the active-devices panel, card chrome like .fp-floors/.fp-zoom above (CLAUDE.md finding 8 — nothing here
+       is drawn inside the plan's <svg>). Default position clears the floor chips' own top-left corner; a drag
+       overrides top/left with an inline style, clamped in TS against the card's own box so it can never be lost
+       off-screen (S9.5 spec). */
+    .fp-active { position: absolute; top: 44px; left: 8px; z-index: 1; width: 200px; max-width: calc(100% - 16px); max-height: calc(100% - 52px); display: flex; flex-direction: column; overflow: hidden; background: var(--fp-room); color: var(--fp-ink); border: 1px solid var(--fp-idle); border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
+    .fp-active-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: grab; touch-action: none; user-select: none; font: 600 12px/1.2 system-ui, sans-serif; border-bottom: 1px solid var(--fp-idle); }
+    .fp-active-title { flex: 1; }
+    .fp-active-count { font-weight: 400; color: var(--fp-text); }
+    .fp-active-collapse { border: none; background: transparent; color: inherit; font: inherit; line-height: 1; cursor: pointer; padding: 2px 4px; }
+    .fp-active-body { overflow-y: auto; padding: 4px 8px 8px; }
+    .fp-active-group-label { font: 600 10px/1.6 system-ui, sans-serif; color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 6px; }
+    .fp-active-group-label:first-child { margin-top: 0; }
+    .fp-active-row { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; border: none; background: transparent; color: inherit; font: 12px/1.3 system-ui, sans-serif; padding: 4px 2px; cursor: pointer; border-radius: 4px; }
+    .fp-active-row:hover, .fp-active-row:focus-visible { background: var(--fp-idle); }
+    .fp-active-row svg { width: 16px; height: 16px; flex: 0 0 16px; fill: var(--fp-active-row-color, var(--fp-ink)); }
+    .fp-active-empty { margin: 4px 2px; font: 12px/1.3 system-ui, sans-serif; color: var(--fp-text); }
   `];
 
   private _config: FloorplanStudioCardConfig = {};
@@ -167,6 +185,44 @@ export class FloorplanStudioCard extends LitElement {
   /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
   private _fit: View | null = null;
   private _unbindZoom: (() => void) | null = null;
+  /** S9.5: the active-devices panel. `_activePos` is `null` for the CSS default position (top-left, below the
+   * floor chips); once dragged it holds the panel's own top/left in px relative to the card. Both are read from,
+   * and written to, `localStorage` (wrapped in try/catch: private browsing or blocked storage just means the
+   * panel forgets between reloads, never a thrown error — CLAUDE.md finding 1's spirit applied to browser state). */
+  private _activeCollapsed = false;
+  private _activePos: { x: number; y: number } | null = null;
+
+  /** `localStorage` key for this card's panel state, keyed by a hash of its own layout source (`layout_url`, or
+   * the inline `layout` verbatim) so two cards on the same dashboard — each with a different layout — keep their
+   * own position and collapsed state rather than overwriting one another's (S9.5 spec). */
+  private _activeStorageKey(): string {
+    const seed = this._config.layout_url ?? (this._config.layout ? JSON.stringify(this._config.layout) : "");
+    return `fp-active-panel:${tag(seed)}`;
+  }
+
+  private _loadActiveState(): void {
+    this._activeCollapsed = false;
+    this._activePos = null;
+    try {
+      const raw = globalThis.localStorage?.getItem(this._activeStorageKey());
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { collapsed?: unknown; x?: unknown; y?: unknown };
+      if (parsed.collapsed === true) this._activeCollapsed = true;
+      if (typeof parsed.x === "number" && typeof parsed.y === "number" && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
+        this._activePos = { x: parsed.x, y: parsed.y };
+      }
+    } catch {
+      /* malformed or unavailable storage: the panel just opens at its default place, uncollapsed */
+    }
+  }
+
+  private _saveActiveState(): void {
+    try {
+      globalThis.localStorage?.setItem(this._activeStorageKey(), JSON.stringify({ collapsed: this._activeCollapsed, x: this._activePos?.x, y: this._activePos?.y }));
+    } catch {
+      /* private browsing or storage blocked: position/collapse just don't persist */
+    }
+  }
 
   static getStubConfig(): FloorplanStudioCardConfig {
     return { type: "custom:floorplan-studio-card" };
@@ -212,6 +268,7 @@ export class FloorplanStudioCard extends LitElement {
     this._wsRequested = false;
     this._shownFloor = null;
     this._view = null;
+    this._loadActiveState();
     this._loadLayout();
     this.requestUpdate();
   }
@@ -662,6 +719,110 @@ export class FloorplanStudioCard extends LitElement {
     </div>`;
   }
 
+  /** S9.5: hidden under `kiosk` (a wall tablet shows only the plan) and under `active_list: false`. Untrusted
+   *  config: anything other than the literal `false` counts as the default, shown. */
+  private _activeListVisible(): boolean {
+    return this._config.active_list !== false && !this._kiosk();
+  }
+
+  private _toggleActiveCollapsed(): void {
+    this._activeCollapsed = !this._activeCollapsed;
+    this._saveActiveState();
+    this.requestUpdate();
+  }
+
+  /**
+   * S9.5: drags the panel by its header, pointer-capture based like `_bindZoom`'s pan above, but clamped inside
+   * the card's own box on every move so the panel can never end up partly or wholly off-screen (the spec's own
+   * words). A press on the collapse button itself is left alone — `closest` finds it and this returns before
+   * `setPointerCapture`, so the button's own click still fires instead of being swallowed by a "drag" that never
+   * actually moved the panel. Below `TAP_SLOP_PX` of movement nothing is written, so a plain click on the header
+   * bar (not a button) cannot be mistaken for a drag and does not touch the saved position.
+   */
+  private _onActiveDragStart(e: PointerEvent): void {
+    if ((e.target as Element | null)?.closest?.("button")) return;
+    const head = e.currentTarget as HTMLElement;
+    const panel = head.closest(".fp-active") as HTMLElement | null;
+    if (!panel) return;
+    e.preventDefault();
+    const hostRect = this.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const originLeft = panelRect.left - hostRect.left;
+    const originTop = panelRect.top - hostRect.top;
+    const startX = e.clientX, startY = e.clientY;
+    const pointerId = e.pointerId;
+    let moved = false;
+    try { head.setPointerCapture(pointerId); } catch { /* the pointer is already gone */ }
+
+    const clampPos = (x: number, y: number) => {
+      const maxX = Math.max(0, hostRect.width - panelRect.width);
+      const maxY = Math.max(0, hostRect.height - panelRect.height);
+      return { x: Math.min(Math.max(0, x), maxX), y: Math.min(Math.max(0, y), maxY) };
+    };
+
+    const onMove = (me: PointerEvent) => {
+      if (me.pointerId !== pointerId) return;
+      const dx = me.clientX - startX, dy = me.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) <= TAP_SLOP_PX) return;
+      moved = true;
+      this._activePos = clampPos(originLeft + dx, originTop + dy);
+      this.requestUpdate();
+    };
+    const onEnd = (ue: PointerEvent) => {
+      if (ue.pointerId !== pointerId) return;
+      head.removeEventListener("pointermove", onMove);
+      head.removeEventListener("pointerup", onEnd);
+      head.removeEventListener("pointercancel", onEnd);
+      if (moved) this._saveActiveState();
+    };
+    head.addEventListener("pointermove", onMove);
+    head.addEventListener("pointerup", onEnd);
+    head.addEventListener("pointercancel", onEnd);
+  }
+
+  /** S9.5: the floating panel of every active device across every floor (`activeDevices`/`groupActiveByType`,
+   *  `src/core/active.ts` — the one place that decides "active", reused here rather than repeated). Card chrome,
+   *  positioned outside the `<svg>` like `_floorChips`/`_zoomButtons` (CLAUDE.md finding 8): nothing here is part
+   *  of the plan `renderFloor` draws, so it never steals a hit-test from a device or door under it. */
+  private _activePanel() {
+    if (!this._activeListVisible() || !this._layout) return null;
+    const groups = groupActiveByType(activeDevices(this._layout, this._stateForRender()));
+    const count = groups.reduce((n, [, rows]) => n + rows.length, 0);
+    const posStyle = this._activePos ? `left:${this._activePos.x}px; top:${this._activePos.y}px;` : "";
+    const row = (it: ActiveDevice) => html`<button
+      type="button"
+      class="fp-active-row"
+      style="--fp-active-row-color:var(${it.colorVar})"
+      @click=${() => fireEvent(this, "hass-more-info", { entityId: it.entity })}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${DEVICE_ICONS[it.type]}></path></svg>
+      <span>${it.name}</span>
+    </button>`;
+    return html`<div class="fp-active" style=${posStyle}>
+      <div class="fp-active-head" @pointerdown=${(e: PointerEvent) => this._onActiveDragStart(e)}>
+        <span class="fp-active-title">Active</span>
+        <span class="fp-active-count">${count}</span>
+        <button
+          type="button"
+          class="fp-active-collapse"
+          aria-label=${this._activeCollapsed ? "Expand the active devices list" : "Collapse the active devices list"}
+          aria-expanded=${this._activeCollapsed ? "false" : "true"}
+          @click=${() => this._toggleActiveCollapsed()}
+        >${this._activeCollapsed ? "▸" : "▾"}</button>
+      </div>
+      ${this._activeCollapsed
+        ? null
+        : html`<div class="fp-active-body">
+            ${groups.length
+              ? groups.map(([type, rows]) => html`<div class="fp-active-group">
+                  <div class="fp-active-group-label">${DEVICE_TYPE_LABELS[type]}</div>
+                  ${rows.map(row)}
+                </div>`)
+              : html`<p class="fp-active-empty">Nothing on</p>`}
+          </div>`}
+    </div>`;
+  }
+
   /** S7.6: whether the plan is drawn at night. `on`/`off` force it; anything else is `auto`: the sun entity (config
    * `sun`, default `sun.sun`) is `below_horizon`, or `on` for a binary sensor. Missing or `unavailable` is day. */
   private _night(): boolean {
@@ -696,7 +857,7 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${showZoomButtons ? this._zoomButtons(box, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}`;
+    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}`;
   }
 
   /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */

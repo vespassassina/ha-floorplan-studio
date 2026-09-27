@@ -1942,6 +1942,29 @@ One increment: every task ships in the card, tested, with shots looked at.
   `hass-more-info` with its entity; a real drag moves it and stays inside;
   collapsed survives a reload; hidden under kiosk and `active_list: false`;
   dark mode shot.
+- Done, 2026-09-27. `src/core/active.ts` is the one place that decides
+  "active" (`ACTIVE_LIST_RULE`, `activeDevices`, `groupActiveByType`),
+  reusing `classOf`/`acMode` (now exported from `render.ts`) so the panel
+  and the plan can never disagree — except a vacuum, deliberately narrowed
+  to `"cleaning"` only; see `docs/DECISIONS.md`, 2026-09-27. Tests first:
+  40 `active.test.ts` cases (including a `DEVICE_TYPES` iteration per
+  CLAUDE.md finding 17), confirmed to fail against a stubbed `active.ts`
+  (38/40 failed, meaningfully — the module was written just ahead of its
+  test file, so this stub-and-revert stood in for watching it fail before
+  the code existed); 8 new `card.test.ts` cases for the panel's DOM
+  integration against a stub `hass` covering both floors of the demo
+  layout, 6 of 8 confirmed to fail with the panel's render stubbed to
+  `null`; 5 new `card.spec.ts` Playwright cases (row click, header drag
+  clamped both corners, a drag over a device not toggling it, collapsed
+  surviving a reload, hidden under kiosk/`active_list: false`), all green
+  at `--repeat-each=10` (50/50). The full existing `card.spec.ts` suite
+  (69 tests) still passes with no coordinate changes needed: the panel's
+  default position never covers a spot an existing test clicks. Full
+  suites green after the last edit: `npm run lint` exit 0; unit
+  1157/1157; full Playwright suite 594 passed, 1 skipped, exit 0.
+  `npm run shots` run and the panel looked at in blueprint, ha-dark and
+  light (on-state and off-state, camera still listed with everything
+  else off) — see the report.
 
 ## Later, not planned
 

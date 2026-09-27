@@ -40,6 +40,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
 | `open_color` | the theme's contact colour | `#rrggbb`: colours an open door or window (and its pulsing alert line) instead of the theme's default. An invalid value is ignored |
 | `icon_size` | `1` | grows icons, names, values and radar dots by this factor, on top of the automatic scale-up on a large plan (see Size, below). A number from `0.5` to `3`; anything else clamps into that range, and a missing or non-numeric value is the default, `1` |
+| `active_list` | `true` | `false` hides the floating panel of active devices — see Active list, below |
 
 ```yaml
 type: custom:floorplan-studio-card
@@ -52,6 +53,7 @@ theme: blueprint
 zoom: true
 kiosk: false
 icon_size: 1
+active_list: true
 ```
 
 ## Size
@@ -104,12 +106,32 @@ views:
         kiosk: true
 ```
 
+## Active list
+
+A floating panel over the plan, open by default in the top-left, lists
+every active device on every floor of the layout — not only the one the
+plan is showing. "Active" is lights on (a light bound to a switch counts
+when the switch is), motion and contact on, TVs and media players on or
+playing, heaters and climate heating, AC running, plugs, computers and
+covers on or open, persons at home, and vacuums that are cleaning (one
+that is only returning to its dock is not). Every camera is listed
+whatever its state — a camera is a view, not an on/off thing.
+
+Rows are grouped by type, each with the type's own icon and colour (the
+same ones the plan draws) and its name; a tap, click or Enter opens
+Home Assistant's more-info for that entity. The header shows the count
+and a collapse toggle, and can be dragged to reposition the panel — it is
+clamped inside the card, so it can never end up off-screen. Position and
+collapsed state are kept per browser (`localStorage`), keyed to the
+card's own layout, so two cards on the same dashboard do not share one
+position. `active_list: false` hides it; so does `kiosk: true`.
+
 ## The Edit-card form
 
 No YAML needed: adding or editing the card in the Lovelace UI (the pencil
 icon, or "Edit" on an existing card) shows a form instead of raw code —
-theme, a Floor selector, fade, room glow, zoom, kiosk, night and the sun
-entity. The Floor selector picks "All floors (switcher)" (the default — it
+theme, a Floor selector, fade, room glow, zoom, kiosk, active list, night
+and the sun entity. The Floor selector picks "All floors (switcher)" (the default — it
 writes no `floor` key at all) or one specific floor, by name, once the
 card's own layout has loaded (`layout`, `layout_url`, or the plan stored in
 Home Assistant); until then it offers only "All floors". Choosing a single
