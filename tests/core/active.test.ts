@@ -145,6 +145,57 @@ describe("activeDevices", () => {
   });
 });
 
+describe("S10.3: a door's own contact/vibration sensors join the active list under the door's name", () => {
+  /** A layout with one floor ("f") holding one door and no devices. */
+  const layoutWithDoor = (door: Partial<Layout["floors"]["f"]["doors"][number]>): Layout => ({
+    version: 2, unit: "cm", north: 0, catalog: [],
+    floors: { f: { title: "F", outline: [], rooms: [], walls: [], stairs: [], doors: [{ id: "d", name: "Front door", kind: "door", a: [0, 0], b: [1, 0], ...door }], openings: [], extras: [], devices: [], furniture: [], unlinked: [] } },
+  });
+
+  it("a contact sensor attached to a door is listed under the door's name when on, not when off", () => {
+    const l = layoutWithDoor({ sensors: ["binary_sensor.front"] });
+    const on = activeDevices(l, { "binary_sensor.front": st("on") });
+    expect(on).toEqual([{ entity: "binary_sensor.front", name: "Front door", type: "contact", floor: "f", colorVar: "--fp-open-door" }]);
+    expect(activeDevices(l, { "binary_sensor.front": st("off") })).toEqual([]);
+  });
+
+  it("a vibration sensor attached to a door is listed under the door's name, as type vibration", () => {
+    const l = layoutWithDoor({ vibration: ["binary_sensor.shake"] });
+    const on = activeDevices(l, { "binary_sensor.shake": st("on") });
+    expect(on).toEqual([{ entity: "binary_sensor.shake", name: "Front door", type: "vibration", floor: "f", colorVar: "--fp-open-door" }]);
+    expect(activeDevices(l, { "binary_sensor.shake": st("off") })).toEqual([]);
+  });
+
+  it("unavailable/unknown door sensors are excluded, same as any other type", () => {
+    const l = layoutWithDoor({ sensors: ["binary_sensor.front"] });
+    expect(activeDevices(l, { "binary_sensor.front": st("unavailable") })).toEqual([]);
+    expect(activeDevices(l, { "binary_sensor.front": st("unknown") })).toEqual([]);
+    expect(activeDevices(l, {})).toEqual([]);
+  });
+
+  it("a sensor attached to a door is never duplicated when the same entity is also a placed device icon", () => {
+    const layout: Layout = {
+      version: 2, unit: "cm", north: 0, catalog: [],
+      floors: {
+        f: {
+          title: "F", outline: [], rooms: [], walls: [], stairs: [],
+          doors: [{ id: "d", name: "Front door", kind: "door", a: [0, 0], b: [1, 0], sensors: ["binary_sensor.front"] }],
+          openings: [], extras: [], devices: [dev("contact", "binary_sensor.front")], furniture: [], unlinked: [],
+        },
+      },
+    };
+    const items = activeDevices(layout, { "binary_sensor.front": st("on") });
+    expect(items).toEqual([{ entity: "binary_sensor.front", name: "binary_sensor.front", type: "contact", floor: "f", colorVar: "--fp-dev-contact" }]);
+  });
+
+  it("both a contact and a vibration sensor on the same door each get their own row", () => {
+    const l = layoutWithDoor({ sensors: ["binary_sensor.front"], vibration: ["binary_sensor.shake"] });
+    const items = activeDevices(l, { "binary_sensor.front": st("on"), "binary_sensor.shake": st("on") });
+    expect(items.map((i) => i.entity).sort()).toEqual(["binary_sensor.front", "binary_sensor.shake"]);
+    expect(items.every((i) => i.name === "Front door")).toBe(true);
+  });
+});
+
 describe("groupActiveByType", () => {
   it("groups by type in DEVICE_TYPES' own order, dropping empty types", () => {
     const items = activeDevices(layoutOf([dev("camera", "camera.a"), dev("light", "light.a"), dev("light", "light.b"), dev("motion", "motion.a")]), {

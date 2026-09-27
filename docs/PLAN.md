@@ -2229,6 +2229,117 @@ the editor becomes one reusable combo, tested, with shots looked at.
 - Done, 2026-09-27. `npm run lint`, `npm test`, and the full Playwright
   suite all read bare, `$?` checked on its own line — see the report for
   exact counts and exit codes.
+### S10.3 A triggered vibration sensor turns its door red, solid, on contact/vibration/crash
+
+- Outcome: a door whose `vibration` sensor is `on` renders the same colour as
+  an open contact (`--fp-open-door`, so `open_color` still applies) with the
+  same pulsing alert line, but the door itself stays solid — dashed keeps
+  meaning "open" alone. A door that is open and vibrating at once stays
+  dashed (open wins the dash) and shows exactly one alert line, not two. A
+  contact or vibration sensor attached to a door, not placed as its own
+  device icon, now shows on the Active panel under the door's own name,
+  deduped against any copy placed as its own icon; tapping that row opens
+  the sensor's own more-info.
+- Test: `render.test.ts` covers vibration → `alarm` not `open` (on, off,
+  unavailable, unknown, no state), contact → `open` not `alarm`, both at
+  once → both classes and exactly one `door-alert` line, and multiple
+  vibration sensors on one door (any one `on` is enough). `active.test.ts`
+  covers the new attached-sensor rows: contact on/off, vibration, exclusion
+  when unavailable/unknown/absent, dedup against a placed icon, and a door
+  with both a contact and a vibration sensor producing two rows. Two "Opus
+  review CSS pair" `editor.spec.ts` tests assert the real computed stroke —
+  solid in every theme, still dashed when open and vibrating together — plus
+  a third that overrides `--fp-open-door` on `renderFloor`'s own
+  `g[data-theme]` (the nearest ancestor that redeclares the token, closer
+  than the svg) and checks the override reaches a vibrating door's stroke.
+  `card.spec.ts` adds the active-panel row and its more-info tap, with a
+  real `page.mouse` click at the row's coordinates. `npm run shots` gained a
+  ground-floor-only "vibrating" state (blueprint and light themes, mirroring
+  the existing "night" shot), added to `scripts/shots.mjs`'s runtime
+  `monLayout` clone rather than to `demo/layout.json`, whose v1 fixture
+  predates vibration sensors and is compared byte-for-byte against the v2
+  migration output in `migrate.test.ts`.
+- Done, 2026-09-27. Test-first throughout; each new test was watched fail
+  first (the render tests against the class/line logic reverted once, the
+  CSS-pair tests against the rule commented out). The CSS-pair tests ran at
+  `--repeat-each=10`, the card tests at `--repeat-each=5`, both clean.
+  `npm run shots` run and the ground-floor vibrating shot looked at in both
+  themes: the door renders solid red, distinct from the dashed red of the
+  existing "open" shot, and the Active panel lists the vibration row. See
+  `docs/DECISIONS.md` for why solid, not a new dash pattern.
+
+### S10.4 Tapping an object with more than one entity opens a chooser, not a guess
+
+- Outcome: a pure `entitiesOfDevice`/`entitiesOfDoor` (`src/core/attachments.ts`)
+  lists every entity a gesture on a device, a door or an unlinked appliance
+  could mean — the object's own `entity` first when it has one, then its
+  type's own attachment fields (a door's `cover` first among these, then
+  `sensors`/`vibration`/`locks`; `trvs`/`tempSensors` for a heater, `linked`
+  for an ac, each `targets` pair's x/y for a radar), then any `attached`
+  list, deduplicated. Exactly one still opens more-info directly, unchanged
+  from before this sprint. Two or more opens a chooser dialog in
+  `floorplan-studio-card.ts` (`.fp-chooser-dialog`), naming the object and
+  listing every entity by its Home Assistant `friendly_name` or its id;
+  picking one fires `hass-more-info` and closes the dialog. The dialog
+  follows the existing cover/vacuum conventions (one at a time, focus on
+  Cancel, Escape closes, `role="dialog"`/`aria-modal`), plus one addition:
+  a click on the backdrop outside the dialog also closes it. A light's
+  `bound` switch, a light's `motion` link and a person's `room` sensor are
+  deliberately never listed; see `docs/DECISIONS.md`.
+- Which gesture reaches the chooser, after the S10.3 review below: a device
+  that toggles (heater, ac...) opens the chooser on a plain **tap** when it
+  names more than one entity, no longer toggling — a **long press** on it
+  opens more-info for the device's own entity alone. A device with no
+  toggle (camera, radar, person...) and a non-cover door are unaffected: a
+  plain tap alone resolves to more-info or the chooser, no long press
+  involved (never had one). A door with a `cover`: a tap always opens the
+  confirm dialog first (S2.7, unchanged); a **long press** opens the
+  chooser instead, `entitiesOfDoor` now naming the cover entity itself as
+  well. An unlinked appliance (S4.25) has no toggle and no long press: a tap
+  alone resolves its `attached` list.
+- Test: `attachments.test.ts` (21 tests) iterates every `DEVICE_TYPES`
+  member (finding 17) plus a dedicated case per type's own attachment field,
+  the `light.bound`/`light.motion`/`person.room` exclusions, dedup, an
+  `Unlinked` object with no own `entity`, a malformed-layout case per
+  function (finding 1: non-array attachment fields never throw), and (added
+  by the S10.3 review) a door's `cover` entity appearing first in
+  `entitiesOfDoor`'s list. `actions.test.ts`'s S10.4 describe block covers a
+  radar or door with two attachments opening the chooser, one (after dedup)
+  opening plain more-info, a light with `bound` still opening plain
+  more-info (never the chooser), and a pointercancel abandoning a would-be
+  door chooser tap; three further describe blocks, added by the review,
+  cover the tap-opens-chooser/hold-opens-own-more-info split on a toggling
+  device, a cover door's hold opening the chooser (cover included, and the
+  one-cover-only case opening plain more-info), kiosk mode starting no hold
+  timer on a cover door, and an unlinked appliance's tap resolving one
+  entity to more-info, several to the chooser, none to nothing, plus its own
+  pointercancel and hit-test-via-inner-element cases. `card.spec.ts` gained
+  eleven tests in the initial S10.4 pass (finding 3: real `page.mouse` taps
+  at real coordinates) and eleven more in the S10.3 review: a heater with
+  two TRVs opens the chooser on tap and more-info on hold (was the other
+  way around); a cover door's hold opens the chooser with the cover entity
+  among its rows, the cover-only case opens plain more-info, and kiosk mode
+  starts no hold timer at all; four cases for an unlinked appliance's
+  `attached` list (two entities, one, none, and a `getComputedStyle` check,
+  finding 18, that its icon's painted children still accept pointer events).
+- Done, 2026-09-27 (S10.4), reviewed and corrected the same day (the "S10.3
+  review" fixes above — Opus's review of the finished S10.4 build, landed
+  as one more commit on this same branch rather than a new task number). Not
+  strictly test-first for the original S10.4 pass (finding 5):
+  `attachments.ts` and the `actions.ts` changes were written in the same
+  pass as their unit tests. Compliance with finding 4 (a
+  test must fail with the feature removed) was verified twice: once for the
+  original S10.4 build (a stash-equivalent isolation of the changed files,
+  restored without ever running bare `git stash`, showed 10 of 11 new
+  `card.spec.ts` tests fail, the 11th predating the feature), and again for
+  each of the three S10.3 review fixes individually — `actions.ts` copied
+  aside, one fix reverted at a time, `actions.test.ts` run, the file copied
+  back — each reverted fix failing exactly the tests written for it (2, 2,
+  then 3 failures) and nothing else. All new and changed `card.spec.ts`
+  tests ran clean at `--repeat-each=10` (180 runs, 18 distinct tests, no
+  flake). Full suites green: 1268 unit tests, 665 Playwright tests + 108 for
+  a targeted `card.spec.ts` rerun (1 pre-existing skip, unrelated), lint and
+  `tsc --noEmit` clean.
 
 ## Later, not planned
 

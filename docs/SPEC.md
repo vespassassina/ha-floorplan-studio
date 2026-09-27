@@ -251,32 +251,79 @@ honest metaphor there.
 |---|---|---|---|---|
 | light | grey icon | yellow icon and halo, brightness as opacity, plus a round aura 300 cm across (S8.13) in the same colour at 25 % alpha, drawn under walls, doors and names | `--fp-dev-light` (#e0a800) | toggle; long press: more-info |
 | smart light (`rgb_color`) | grey icon | icon, halo and aura in the light's own colour from HA, yellow when it reports none | the light's own `rgb_color`, or `--fp-dev-light` | toggle; long press: more-info |
-| light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | as light | toggle the light entity; long press: more-info for it (the switch is reachable from that dialog) |
+| light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | as light | toggle the light entity; long press: more-info for it (the switch is reachable from that dialog — `bound` is deliberately never one of S10.4's chooser entities, see docs/DECISIONS.md) |
 | switch (wall switch) | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | toggle |
 | plug | grey | blue icon and halo | `--fp-dev-plug` (#2c7fb8) | toggle |
-| binary_sensor on a door or window | door drawn normally | door drawn red and dashed, over a wide red line pulsing under it (S8.13 line, S9.1 dash; steady under reduced motion). A cover door's own open state is undashed and keeps its plain orange, even on a door with both | `--fp-open-door`, default `var(--fp-dev-contact)` (#d64545); card's `open_color` overrides both the door and the line (S9.1) | more-info |
+| binary_sensor on a door or window | door drawn normally | door drawn red and dashed, over a wide red line pulsing under it (S8.13 line, S9.1 dash; steady under reduced motion). A cover door's own open state is undashed and keeps its plain orange, even on a door with both | `--fp-open-door`, default `var(--fp-dev-contact)` (#d64545); card's `open_color` overrides both the door and the line (S9.1) | more-info for its one entity; a door naming more than one (a contact sensor and a vibration sensor, or either plus a `lock`) opens a chooser listing all of them instead (S10.4). Never on a door with a `cover`: a plain tap there always opens its own confirm dialog, but a long press opens the chooser instead, the cover entity included (S10.3 review) |
+| door with a `vibration` sensor triggered | door drawn normally | door drawn the same red as an open contact, over the same pulsing alert line, but solid — dashed still means "open" alone. Open and vibrating together stay dashed (open wins the dash) and share one alert line, not two (S10.3) | `--fp-open-door`, same token and `open_color` override as an open contact | more-info (on the vibration sensor; it also joins the Active panel under the door's name); as above, a chooser instead when the door names more than one entity (S10.4), the long-press chooser on a `cover` door (S10.3 review) |
 | contact (device icon) | grey | red icon, halo filled at 60 % and ringed red, and a red ring pulsing out from under the disc (S8.13) | `--fp-dev-contact` (#d64545) | more-info |
 | motion (binary_sensor motion/occupancy) | grey | icon red, fading to grey over `fade` seconds from `last_changed`; halo red at once, filled at 60 % and ringed red, with a red ring pulsing out from under the disc while it is on (S8.13) | `--fp-dev-motion` (#d64545) | more-info |
 | temp, humidity (sensor) | grey icon, value as a label next to it | humidity: grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
 | temp or humidity sensor inside a room of kind garden | green icon (class `outdoor`, from the centre of the icon) | as its type | `--fp-dev-garden` (#3f8f4f) idle, as its type when on | more-info |
-| heater, climate (TRV, thermostat) | heater bar grey with target; icon and halo grey | orange icon and halo when heating | `--fp-dev-heater` / `--fp-dev-climate` (#e8801a) | more-info |
-| ac (air conditioner, heat pump, fan, air cleaner) | grey | blue while `hvac_action` is cooling, orange while heating, grey otherwise | `--fp-dev-ac-cool` (#2c7fb8) / `--fp-dev-ac-heat` (#e8801a) | more-info |
+| heater, climate (TRV, thermostat) | heater bar grey with target; icon and halo grey | orange icon and halo when heating | `--fp-dev-heater` / `--fp-dev-climate` (#e8801a) | with `trvs`/`tempSensors` attached: tap opens a chooser listing the heater plus all of them, never a guess (S10.4); long press opens more-info for the heater alone (S10.3 review). With none attached: toggle; long press: more-info, unchanged |
+| ac (air conditioner, heat pump, fan, air cleaner) | grey | blue while `hvac_action` is cooling, orange while heating, grey otherwise | `--fp-dev-ac-cool` (#2c7fb8) / `--fp-dev-ac-heat` (#e8801a) | with `linked` climate/TRV entities: tap opens the chooser (S10.4), long press opens more-info for the ac alone (S10.3 review). With none: toggle; long press: more-info, unchanged |
 | tv | grey | blue icon and halo when the player is on or playing | `--fp-dev-tv` (#2c7fb8) | more-info |
 | battery, inverter, server, access_point | grey icon on the round disc, `on` or off | grey, unchanged | — (idle grey `--fp-idle`; `layout.colors` can name one) | more-info |
 | computer | grey | blue icon and halo | `--fp-dev-computer` (#2c7fb8) | more-info |
 | camera | dark grey icon with a 120° cone of view in dark grey at 25 % alpha, turned by `rot` | — | `--fp-dev-camera` (#4a4a48) | more-info (live view) |
-| cover on a door | door normal | door open state shown, orange | `--fp-open` (#f28c28) | confirm dialog naming the action, then `cover.open_cover`, or `close_cover` when it is already open |
+| cover on a door | door normal | door open state shown, orange | `--fp-open` (#f28c28) | tap: confirm dialog naming the action, then `cover.open_cover`, or `close_cover` when it is already open; long press: chooser listing every entity the door names, the cover included (S10.3 review) |
 | media (media_player) | grey | blue icon and halo while the player is playing (any other state, including paused, is idle) | `--fp-dev-media` (#2c7fb8) | more-info |
 | speaker (media_player) | grey | blue icon and halo while the player is exactly `playing` (paused, idle, off, on-but-not-playing, unavailable, unknown or no state stay idle), plus two arcs pulsing out from under the disc in the device's own colour (S9.4; held still at 1.5x, 60 % opacity under reduced motion) | `--fp-dev-speaker` (#2c7fb8, fixed in every theme) | more-info (media_player's own toggle is play/pause or power, never a clean on/off) |
 | cover (device icon, not a door) | grey | orange icon and halo while the cover is open | `--fp-dev-cover` (#f28c28) | more-info |
 | other | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
+| unlinked appliance (Add > Unlinked device, S4.25 — a placed type with no linked entity of its own) | flat idle-grey icon, no on/off state | unchanged — no live state to show | `--fp-dev-fill`/`--fp-idle`, or the item's own colour override | no toggle, no long press. Tap resolves its `attached` list: one entity opens more-info directly, several open the chooser, none does nothing (S10.3 review) |
 | person (`person.*`, `device_tracker.*`) | away (`not_home` or any zone): 35 % opacity and a small grey away dot on the disc's edge | `home`: green icon and halo, full opacity. With a `room` sensor that names a room, the icon glides (600 ms CSS transform, none under reduced motion) to the room's centroid, or beside it when another icon sits there; several people in one room stand on a ring | `--fp-dev-person` (#1b9e77) | more-info |
-| radar (mmWave presence, `binary_sensor.*occupancy`) | grey icon; no `targets` dots when the pair is not finite or falls outside the floor | purple icon and halo when the presence entity is on; each `targets` pair draws a small dot at its turned, plan-relative position | `--fp-dev-radar` (#6a3fbf) | more-info |
+| radar (mmWave presence, `binary_sensor.*occupancy`) | grey icon; no `targets` dots when the pair is not finite or falls outside the floor | purple icon and halo when the presence entity is on; each `targets` pair draws a small dot at its turned, plan-relative position | `--fp-dev-radar` (#6a3fbf) | more-info for the presence entity alone; with one or more `targets` pairs, a tap opens a chooser listing the presence entity then each pair's x then y entity instead (S10.4) |
 | vacuum (`vacuum.*`) | `docked`, `idle`, `paused`: grey icon, no brighter than off | `cleaning`: teal icon and halo, slowly spinning; `returning`: teal icon and halo, not spinning; `error`: `--fp-danger` icon, neither on nor off | `--fp-dev-vacuum` (#2f8f8f) / `--fp-danger` (#b02a2a) on error | opens a dialog: Start, Pause, Return to dock, each a `vacuum.*` service call; Cancel closes it. `unavailable`/`unknown` disables the three actions, Cancel stays enabled |
 | room with `entity` | own kind colour, no outline | own kind colour, unmoved, plus an outline when the entity is on, open or playing | `--fp-active` stroke (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | furniture with `entity` | idle grey (`currentColor`) | `--fp-active`, chosen per theme for at least 3:1 contrast against both `--fp-room` and `--fp-bg` | `--fp-active` (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | unavailable / unknown | 45 % opacity, no strikethrough | — | — | more-info |
 | night (S7.6) | day: no overlay | after sunset every room (outdoor kinds too; zones, structures and stairs share their room's) is covered by `--fp-night`; a room with an on light inside it stays clear | `--fp-night` (rgba(4, 10, 30, .45), every theme) | none |
+
+S10.4: wherever the table above says "more-info" or "chooser" for a device,
+a door or an unlinked appliance, that is really "more-info, or a chooser,
+for the entities this object names" — `entitiesOfDevice`/`entitiesOfDoor`
+(`src/core/attachments.ts`) list every entity a tap or long press on that
+object could mean, in a fixed order (the object's own `entity` first when it
+has one, then its type's own attachment fields — a door's `cover` first
+among these since S10.3's review — then any `attached` list). Exactly one,
+the common case and every case before S10.4 existed, opens more-info on it
+directly, unchanged. More than one — a heater with two `trvs`, an ac
+`linked` to another unit, a radar's own `targets` pairs, a door with both a
+`sensor` and a `vibration` entry, or an unlinked appliance with two
+`attached` entities — opens a chooser dialog instead, naming the object
+(`name ?? entity`/`id`) and listing every entity by its own `friendly_name`,
+falling back to the entity id (the same fallback order `active.ts`'s row
+labels already use). Picking a row fires `hass-more-info` for that entity
+and closes the dialog; Cancel, Escape or a click on the backdrop outside the
+dialog's own box close it without firing anything.
+
+S10.3's review of the first S10.4 build found three defects, each fixed in
+the same commit as this paragraph:
+
+1. A device that toggles (heater, ac...) had this backwards: a plain tap
+   still toggled it and the chooser lived on the long press. The chooser now
+   lives on the tap — the gesture that used to guess which entity was meant
+   — and a long press opens more-info for the device's own entity alone, the
+   same thing a long press always did before S10.4 existed. A device naming
+   exactly one entity is unaffected.
+2. A door with a `cover` returned before starting any long-press timer, so
+   nothing else it named (a sensor, a vibration sensor, a lock) was ever
+   reachable by gesture once it also had a cover — only the tap's own confirm
+   dialog ever opened. A long press on such a door now opens the chooser,
+   `entitiesOfDoor` including the `cover` entity itself precisely because
+   this is the one place that reads it; a plain tap is unaffected and always
+   opens the confirm dialog first (S2.7). In kiosk mode (no long press
+   anywhere) such a door only ever opens the confirm dialog.
+3. An unlinked appliance (S4.25, placed by type with no entity of its own)
+   had no gesture wired to it at all — a tap did nothing, whatever it named
+   in `attached`. A tap now resolves that list the ordinary way: one entity
+   opens more-info, more than one opens the chooser, none does nothing. It
+   has no toggle and no long press, since it names no on/off state to guess
+   at in the first place.
+
+A light's `bound` switch and `motion` link, and a person's `room` sensor, are
+deliberately never listed — see docs/DECISIONS.md.
 
 Rooms tint when any light in them is on (`room_glow: true`). Night (S7.6):
 `night: auto` darkens the plan while the `sun` entity (default `sun.sun`) is

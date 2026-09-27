@@ -64,6 +64,112 @@ Reasons:
 The catalog entry itself is never touched by either direction — only
 `f.devices` (or `f.floors[k].devices`) gains or loses an entry, exactly like
 placing and removing any other catalogued device.
+## 2026-09-27 S10.4: tapping always picks an entity, never guesses; a light's `bound` switch is left out on purpose
+
+The brief: "tapping an object with attachments (heater/ac/etc.) should open
+more-info directly if it has exactly one entity, else open a chooser dialog
+listing all of them." Three decisions followed from applying that literally
+— the third corrects the first build of this feature, reviewed the same day.
+
+**Why a chooser, not the first entity, not a cycling tap.** A heater with
+two TRVs, or a radar's own x/y target pair, has no entity that is obviously
+"the" one — picking the first silently hides the rest, and a second tap
+cycling through them needs the person to already know how many there are
+and to keep tapping to find the one they wanted. A dialog costs one extra
+tap on the two-or-more case and nothing on the overwhelmingly common
+one-entity case, and it is the same shape the project already trusts for a
+"more than one plausible action" moment (S2.7's cover confirm, S7.10's
+vacuum dialog) — Escape, Cancel, one dialog at a time, focus on open.
+
+**Why `entitiesOfDevice` leaves out `light.bound`, `light.motion` and
+`person.room`, even though each is a real, schema-defined attachment
+(finding 17 says every member of a union is a decision, not a default).**
+All three already have an existing, documented path to the same information:
+- `light.bound` — docs/SPEC.md already says a long press on a light opens
+  more-info for the light itself, and the switch is reachable *from inside
+  that dialog* (Home Assistant's own more-info shows related entities). A
+  chooser offering the switch again here would be a second, competing route
+  to the exact same place, and would silently change an existing, working
+  behaviour that nobody asked to change — the brief's own examples were
+  "heater/ac/etc.", not light.
+- `light.motion` and `person.room` — both name the *sensor* an automation or
+  the room-presence feature reacts to, a different real-world device from
+  the light or the person themselves (normally already its own icon on the
+  plan). Listing it here would blur "this is another entity of this light"
+  with "this is the thing that tells this light when to react," which are
+  not the same claim.
+
+Each exclusion is written down at the one place a future device type would
+need to make the same call — `src/core/attachments.ts`'s own doc comment —
+and covered by a dedicated `actions.test.ts`/`attachments.test.ts` test per
+exclusion, so a later change that adds `bound` back in has to delete a test
+that says why it isn't there, not just add a line.
+
+**Why the chooser's backdrop closes on a click, unlike the cover/vacuum
+dialogs' backdrop (no click handler at all).** The chooser is reached by a
+tap or hold that the person did not necessarily intend as "open a dialog" —
+holding a heater to see one TRV's more-info should not trap them behind a
+modal with no low-effort way out if what they actually meant was the
+device sitting right behind it. Escape and Cancel already exist on every
+dialog; adding backdrop-click here (and only here) costs nothing on the
+cover/vacuum dialogs, which stay exactly as they were.
+
+**Review fix, same day: the chooser lived on the wrong gesture for a
+toggling device, and a cover door's other attachments and an unlinked
+appliance were unreachable by any gesture at all.** The first build kept a
+plain tap toggling a heater or an ac and put the chooser on the long press.
+That is backwards: a bare tap is exactly the gesture that guesses which of
+several entities was meant — the thing this whole feature exists to stop —
+so the chooser now lives on the tap for any device that names more than
+one entity, and the long press instead opens more-info for the device's own
+entity, the same thing a long press always did before this feature existed.
+A device naming exactly one entity is untouched either way.
+
+The same review found that a door with a `cover` returned before any
+long-press timer started, so a door's other attachments (a sensor, a
+vibration sensor, a lock) were reachable by no gesture at all once it also
+had a cover — only the tap's own confirm dialog ever opened. `cover` was
+until now deliberately left out of `entitiesOfDoor`'s list, on the reasoning
+that only a tap read that list and a cover door's tap never reaches it. Once
+a long press reads it too, that reasoning no longer holds: `cover` now comes
+first in the list, and a long press on a cover door opens the chooser (the
+cover entity included) instead of doing nothing. A plain tap is unaffected —
+it still always opens the confirm dialog first (S2.7) — and kiosk mode
+(no long press anywhere) still only ever opens that dialog.
+
+Last, an unlinked appliance (S4.25 — a plan icon placed by type, with no
+linked entity of its own, only an optional `attached` list) had no gesture
+wired to it at all: a tap did nothing, whatever it named. It gets the same
+tap resolution as everything else in this feature — one entity opens
+more-info, more than one the chooser, none does nothing — but no toggle and
+no long press, since it names no on/off state of its own to guess at in the
+first place.
+
+## 2026-09-27 S10.3: a vibrating door is solid red, not a new dash pattern
+
+A triggered vibration sensor on a door needed a visual distinct from "open"
+but related to it — Diego's brief named the colour ("whatever colour is
+decided, on contact sensor / vibration / crash") but left the line style
+open. Two options:
+
+- **A second dash pattern** (say, a tighter dash, or dots) for "vibrating".
+  Rejected: the plan already carries one dashed line meaning "open"
+  (S9.1); a second, different dash reads as a subtly broken version of the
+  first at a glance, and a door that is open and vibrating at once would
+  need a third pattern or an arbitrary tie-break between two dash styles.
+- **Solid red**, reusing `--fp-open-door` (so `open_color` still applies to
+  both states) and the same pulsing alert line as an open contact. Solid vs.
+  dashed is the strongest visual contrast the plan already has, needs no new
+  token, and settles the open+vibrating case for free: dashed still means
+  "open" whenever it is present, solid or not.
+
+Implementation follows from the choice: `render.ts` adds one `.door.alarm`
+CSS rule (stroke colour only, no dasharray) placed before the existing
+`.door.open` rule in source order, so when both classes are present,
+`.door.open`'s own dasharray declaration — asserted after, same
+specificity — wins on that one property while the shared stroke colour
+agrees either way; the alert line is drawn once when the door is open,
+vibrating, or both, never twice.
 
 ## 2026-09-27 S10.1: a custom `<fp-combo>`, not `<datalist>` or `ha-entity-picker`; device entities lose one level of nesting
 

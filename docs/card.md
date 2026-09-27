@@ -38,7 +38,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
-| `open_color` | red | `#rrggbb`: colours an open door or window (and its pulsing alert line) instead of red. An invalid value is ignored |
+| `open_color` | red | `#rrggbb`: colours an open door or window, or a door whose vibration sensor triggered (and either one's pulsing alert line), instead of red. An invalid value is ignored |
 | `icon_size` | `1` | grows icons, names, values and radar dots by this factor, on top of the automatic scale-up on a large plan (see Size, below). A number from `0.5` to `3`; anything else clamps into that range, and a missing or non-numeric value is the default, `1` |
 | `active_list` | `true` | `false` hides the floating panel of active devices — see Active list, below |
 | `center` | unset | `[x, y]`, plan cm: the point a pinned card zooms in on — see A card for one room, below. A non-array, wrong length, or non-finite value is ignored, silently, and the card shows the whole floor |
@@ -249,7 +249,9 @@ differently:
   it reports one) and grows a soft aura, 3 m across, on the plan. Tap toggles it; a long
   press opens Home Assistant's more-info dialog.
 - **Light with a bound switch** — one icon that lights up if either the light
-  or its switch is on. Tap always toggles the light itself.
+  or its switch is on. Tap always toggles the light itself; the switch is
+  never one of the S10.4 chooser's entities (below) — it stays reachable from
+  inside the light's own more-info dialog instead.
 - **Motion sensor** — red the moment it triggers, with a strong red disc and
   a ring pulsing out from it while it stays on. It then fades back to grey
   over `fade` seconds from when it last went off — even if it's already off
@@ -260,6 +262,13 @@ differently:
   With reduced motion set on the device, nothing pulses. A cover door's own
   open state (see Cover, above) is separate: it stays its plain orange,
   undashed, whatever `open_color` says.
+- **Vibration sensor** — a door with a vibration sensor attached turns the
+  same colour as an open contact (`open_color` applies here too) and gets
+  the same pulsing alert line, but the door itself stays solid, not dashed:
+  dashed still means "open". A door that is open and vibrating at once
+  stays dashed (open wins the dash) and only ever shows one alert line. A
+  contact or vibration sensor attached to a door — not placed as its own
+  icon — still shows on the Active panel, under the door's own name.
 - **Speaker (media_player)** — a fixed blue in every theme (the same
   exception a TV is: a TV or speaker's icon turns blue whenever the player
   reports anything other than off, standby, unavailable or unknown — not
@@ -334,6 +343,50 @@ differently:
 - **Unavailable or unknown** — dims to 45% opacity, in any state, with no
   strikethrough: Home Assistant's own dashboards dim rather than cross out,
   and a struck-through icon this small reads as noise, not signal.
+
+## Tapping an object with more than one entity
+
+A heater's `trvs`, an ac's `linked` units, a radar's own `targets`, a door's
+`sensors`/`vibration`/`locks`/`cover`, and an unlinked appliance's `attached`
+list can each name more than one entity. Naming exactly one still opens
+more-info for it directly, the same gesture as before this ever existed.
+Naming two or more opens a chooser dialog instead: a small panel listing the
+object's own name at the top and one button per entity, labelled by its Home
+Assistant `friendly_name` where it has one, its entity id otherwise. Picking
+a row opens that entity's own more-info and closes the dialog; Cancel,
+Escape, or a click on the backdrop outside the dialog itself all close it
+without opening anything. Only one dialog — this one, the cover confirm or
+the vacuum dialog — is ever open at once.
+
+Which gesture reaches the chooser depends on what the object would otherwise
+do with a plain tap:
+
+- **A device that toggles** (a heater, an ac, a switch, a plug...): naming
+  more than one entity moves the chooser onto the plain **tap** — a tap no
+  longer toggles such a device, since guessing which of several entities it
+  meant was the exact problem this feature exists to fix. A **long press**
+  on it instead opens more-info for the device's own entity alone, the same
+  thing a long press always did before this feature existed. Naming exactly
+  one entity is untouched: tap toggles, long press opens more-info.
+- **A device with no toggle** (a camera, a radar, a person...) and a
+  non-cover door: unchanged from a device that toggles with one entity — a
+  plain tap resolves straight to more-info or the chooser, with no long
+  press involved (these never had one).
+- **A door with a `cover`**: a tap always opens the existing open/close
+  confirm dialog, whatever else is attached to the door — this is unaffected
+  by any of the above. A **long press** on it opens the chooser instead,
+  listing every entity the door names, the cover included; with only the
+  cover attached, a long press opens the cover's own more-info directly
+  (one entity, the ordinary rule). In kiosk mode (`kiosk: true`, no long
+  press anywhere) such a door only ever opens the cover dialog, since no
+  long press ever starts.
+- **An unlinked appliance** (a plan icon placed by type, with no linked
+  entity of its own — Add → Unlinked device in the editor): has no toggle
+  and no long press. A tap alone resolves through its `attached` list, the
+  ordinary one-entity-more-info/several-entities-chooser rule.
+
+A light's `bound` switch is deliberately never offered here; see "Light with
+a bound switch" above and docs/DECISIONS.md.
 
 The full type-by-type table — idle look, active look, exact colour token,
 what a tap does — is in [`SPEC.md`, "Card behaviours"](SPEC.md#card-behaviours).
