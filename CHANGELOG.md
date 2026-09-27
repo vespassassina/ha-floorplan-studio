@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.9
 
 - Every entity picker in the editor is now a filterable combo box: type to
   narrow by name, entity id or room/domain, arrow keys and Enter to pick,
