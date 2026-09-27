@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Icons, names, values and radar dots no longer shrink to nothing on a big
+  house: past 1000 cm on the plan's longest side, they stop scaling down
+  with it and grow instead. A new `icon_size` option (0.5 to 3, default 1)
+  scales them further on top of that.
+
 ## 0.12.7
 
 - A lit lamp's aura is 50% larger (3 m across instead of 2 m). It now draws

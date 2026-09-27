@@ -38,6 +38,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
+| `icon_size` | `1` | grows icons, names, values and radar dots by this factor, on top of the automatic scale-up on a large plan (see Size, below). A number from `0.5` to `3`; anything else clamps into that range, and a missing or non-numeric value is the default, `1` |
 
 ```yaml
 type: custom:floorplan-studio-card
@@ -49,6 +50,7 @@ room_glow: true
 theme: blueprint
 zoom: true
 kiosk: false
+icon_size: 1
 ```
 
 ## Size
@@ -63,6 +65,12 @@ rows, so the plan stays legible.
 
 In the masonry layout, the card sizes to the plan's aspect ratio at the
 column's width, as before.
+
+On a plan over 1000 cm on its longest side, icons, names, values and radar
+dots stop shrinking with it and grow instead, so they stay legible in a big
+house. `icon_size` scales them further on top of that, from half size to
+three times, for a plan that still reads small, or a tablet viewed from
+across the room.
 
 ## Kiosk mode
 

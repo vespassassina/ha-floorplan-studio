@@ -1879,6 +1879,25 @@ One increment: every task ships in the card, tested, with shots looked at.
 - Test: at 2000 cm the icon group is scaled 2x; `icon_size: 1.5` on the demo
   gives 1.5x; out-of-range values clamp; a real click still hits a scaled
   icon.
+- Done, 2026-09-27. Tests first, all watched failing then confirmed failing
+  again on a source revert (git stash) and passing once restored: 6 new
+  `card.test.ts` cases (byte-identical at ≤1000 cm and `icon_size` at its
+  own default; 2000 cm → 2x; `icon_size: 1.5` → 1/1.5; `0`/`-1` → clamp to
+  0.5; `10` → clamp to 3; `"big"`/`NaN` → default 1), 5 new
+  `config-editor.spec.ts` Playwright cases for the new form field (50/50
+  clean at `--repeat-each=10`), 1 new `card.spec.ts` Playwright case driving
+  a real `page.mouse` click on a scaled icon on a 2000 cm plan (CLAUDE.md
+  finding 3; threshold tightened from a first, weak version after measuring
+  it would have passed unfixed too — finding 4; 10/10 clean at
+  `--repeat-each=10`). Full suites green after the last edit: `npm run lint`
+  exit 0; unit 1115/1115; full Playwright suite 595 passed, 1 skipped, exit
+  0 (all three read bare, not through a pipe — finding 14). No floor in
+  `demo/layout.json` exceeds 1000 cm, so `npm run shots` alone would not
+  exercise the scale-up: rendered a scratch copy of the demo ground floor at
+  2.5x (2000×1500 cm) through the built card with no `icon_size`,
+  `icon_size: 1.5` and `icon_size: 3`, and looked at all three — icons,
+  names and auras step up visibly larger at each setting, legible up to 1.5,
+  crowding by design at 3 (the clamp's own top end on a very large house).
 
 ### S9.3 A TV is blue when on, in every theme
 

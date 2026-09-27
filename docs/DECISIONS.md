@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 S9.2: icons scale by the plan's own view box, plus an `icon_size` option
+
+Icons, names, values and radar dots are drawn at a fixed size in plan
+centimetres, scaled by `renderFloor`'s `scale`/`k`; the editor passes its own
+zoom, but the card always passed `1`, so a big house left them shrinking
+with everything else on screen. The card now computes
+`scale = 1 / (auto * icon_size)`, where `auto = max(1, longest side of the
+view box in cm / 1000)` — reusing `viewBoxFor`, the same box the card
+already draws, rather than reading the layout's own geometry a second way.
+A plan of 1000 cm or less keeps `auto` at 1, so it renders byte-identical to
+before this change (tested). `icon_size` is a new card option, 0.5 to 3,
+default 1; out of that range it clamps rather than being refused, and a
+missing or non-numeric value is the default — a slider or a stray digit
+should never break the card. The editor is unchanged.
+
 ## 2026-09-26 S8.13 review: the viewBox pads only lamps near the plan
 
 Supersedes part of the S8.13 viewBox entry below. The Opus review found
