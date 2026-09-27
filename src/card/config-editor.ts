@@ -60,11 +60,19 @@ export class FloorplanStudioCardEditor extends LitElement {
   private _layout: Layout | null = null;
   private _urlRequested = false;
   private _wsRequested = false;
+  /** S9.6 review (Opus, 2026-09-27): the Center X/Y boxes' own draft, held independently of `_config.center` while
+   * the pair is not yet both valid. Both boxes read `.value=${this._centerX()}`/`${this._centerY()}` on every
+   * render; without a draft, clearing X to retype it deleted `center` from the config, and the *next* render then
+   * read Y's box from that same now-`undefined` `center`, wiping whatever the user had just typed into Y — a
+   * field they never touched. `null` means "no draft, follow `_config.center`" (the normal, settled state); it is
+   * set only while the pair is not both empty and not both valid, and cleared the moment it is one or the other. */
+  private _centerDraft: { x: string; y: string } | null = null;
 
   setConfig(config: FloorplanStudioCardConfig): void {
     // CLAUDE.md finding 1: config comes from a saved dashboard, which a person (or an LLM helping them) can hand-edit —
     // never trust its shape further than reading the handful of keys this form understands.
     this._config = { ...((config ?? {}) as EditorConfig) };
+    this._centerDraft = null; // a fresh config (a different card, or a reload) starts from its own settled values
     this._loadLayout();
     this.requestUpdate();
   }
@@ -214,27 +222,42 @@ export class FloorplanStudioCardEditor extends LitElement {
    * default to fall back to display-wise, unlike `fade`/`icon_size`, since "unset" (the whole floor) is not a
    * point on the plan. */
   private _centerX(): string {
+    if (this._centerDraft) return this._centerDraft.x;
     const c = this._config.center;
     return Array.isArray(c) && typeof c[0] === "number" && Number.isFinite(c[0]) ? String(c[0]) : "";
   }
 
   private _centerY(): string {
+    if (this._centerDraft) return this._centerDraft.y;
     const c = this._config.center;
     return Array.isArray(c) && typeof c[1] === "number" && Number.isFinite(c[1]) ? String(c[1]) : "";
   }
 
   /** S9.6: Center X and Center Y write one `center` tuple together — reads both fields' live values (not just the
-   * one that changed) so either box editing the other's partner in place still emits a consistent pair. Either
-   * field emptied, or holding anything that is not a finite number, drops `center` from the payload outright
-   * (CLAUDE.md finding 1: never write a half-formed pin), same as the card itself then reads no center at all. */
+   * one that changed) so either box editing the other's partner in place still emits a consistent pair.
+   * S9.6 review (Opus, 2026-09-27): a half-filled pair (one box emptied or holding something that is not yet a
+   * finite number) used to drop `center` from the payload immediately, and the *other* box then read that
+   * deletion back on its own next render — the box the user never touched lost its value too. Now a half-filled
+   * pair only updates the local draft (both boxes keep showing exactly what is in them) and neither dispatches nor
+   * touches `_config`, so the untouched box's config value survives until the pair is completed or both are
+   * cleared. `center` is written, or dropped, only on the two settled states: both valid, or both empty. */
   private _onCenter(): void {
     const xEl = this.renderRoot.querySelector<HTMLInputElement>("#center_x");
     const yEl = this.renderRoot.querySelector<HTMLInputElement>("#center_y");
     const xRaw = xEl?.value.trim() ?? "", yRaw = yEl?.value.trim() ?? "";
     const x = Number(xRaw), y = Number(yRaw);
-    const valid = xRaw !== "" && yRaw !== "" && Number.isFinite(x) && Number.isFinite(y);
+    const bothEmpty = xRaw === "" && yRaw === "";
+    const bothValid = xRaw !== "" && yRaw !== "" && Number.isFinite(x) && Number.isFinite(y);
+    if (!bothEmpty && !bothValid) {
+      // Half-filled, or not-yet-a-number: keep the draft so the next render shows exactly this, and leave
+      // `_config`/the dashboard's saved config alone until the pair is completed.
+      this._centerDraft = { x: xRaw, y: yRaw };
+      this.requestUpdate();
+      return;
+    }
+    this._centerDraft = null;
     const next: EditorConfig = { ...this._config };
-    if (valid) next.center = [x, y];
+    if (bothValid) next.center = [x, y];
     else delete next.center;
     this._config = next;
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: next }, bubbles: true, composed: true }));

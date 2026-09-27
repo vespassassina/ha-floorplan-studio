@@ -308,20 +308,40 @@ test("setConfig fills Center X/Y and Zoom level from center/zoom_level", async (
   await expect(editor.locator("#zoom_level")).toHaveValue("2.5");
 });
 
-test("filling both Center fields emits config.center as a pair; either one emptied drops the key", async ({ page }) => {
+test("filling both Center fields emits config.center as a pair; a half-filled pair drafts without dispatching, and clearing both drops the key", async ({ page }) => {
   await open(page);
   await mount(page, { layout: demo });
   const editor = page.locator("#editor");
   await editor.locator("#center_x").fill("150");
   await editor.locator("#center_x").blur();
-  // Only X filled so far: not a valid pair yet, so no center in the payload.
-  let detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
-  expect("center" in detail.config).toBe(false);
+  // Only X filled so far: not a valid pair yet. Opus review 2026-09-27: firing a config-changed here used to drop
+  // `center` mid-edit — now a half-filled pair fires nothing at all, so the dashboard's saved config is untouched.
+  expect(await events(page)).toEqual([]);
+  await expect(editor.locator("#center_x")).toHaveValue("150");
 
   await editor.locator("#center_y").fill("640");
   await editor.locator("#center_y").blur();
+  let detail = (await events(page)).at(-1) as { config: { center?: [number, number] } };
+  expect(detail.config.center).toEqual([150, 640]);
+
+  // Clearing X to retype it must not wipe Y's box (the bug Opus found) nor drop `center` — only clearing both
+  // boxes does that. No new event fires: there is nothing settled to report yet.
+  await editor.locator("#center_x").fill("");
+  await editor.locator("#center_x").blur();
+  expect(await events(page)).toHaveLength(1);
+  await expect(editor.locator("#center_y")).toHaveValue("640");
+
+  // Retyping X completes the pair again — back to normal, config-driven display.
+  await editor.locator("#center_x").fill("150");
+  await editor.locator("#center_x").blur();
   detail = (await events(page)).at(-1) as { config: { center?: [number, number] } };
   expect(detail.config.center).toEqual([150, 640]);
+
+  // Clearing Y alone is the same half-filled case, the other way round: no event, X's box untouched.
+  await editor.locator("#center_y").fill("");
+  await editor.locator("#center_y").blur();
+  expect(await events(page)).toHaveLength(2);
+  await expect(editor.locator("#center_x")).toHaveValue("150");
 
   await editor.locator("#center_x").fill("");
   await editor.locator("#center_x").blur();
