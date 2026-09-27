@@ -64,7 +64,7 @@ function shade(base: string, dark: boolean, t: number): string {
   return hslToHex(h, s, l);
 }
 
-const ON_DEVICES: DeviceType[] = ["light", "motion", "contact", "heater", "climate", "ac", "tv", "media", "cover", "plug", "computer"];
+const ON_DEVICES: DeviceType[] = ["light", "motion", "contact", "heater", "climate", "ac", "tv", "media", "cover", "plug", "computer", "speaker"];
 
 /** Builds a full `--fp-*` token string from four roles, so a new theme is four colours and a lightness direction, not ~50
  * independent hexes to keep in step by hand. */
@@ -85,6 +85,8 @@ export function rolesToTokens(roles: ThemeRoles): string {
     `--fp-dev-ac-heat:${acHeat}`, `--fp-dev-tv:${devFor("tv")}`, `--fp-dev-media:${devFor("media")}`,
     `--fp-dev-cover:${devFor("cover")}`, `--fp-dev-plug:${devFor("plug")}`, `--fp-dev-computer:${devFor("computer")}`,
     `--fp-dev-camera:${shades.idle}`, `--fp-dev-garden:${shades.idle}`, `--fp-dev-person:${devFor("person")}`, `--fp-dev-radar:${devFor("radar")}`, `--fp-dev-vacuum:${devFor("vacuum")}`,
+    // S9.4: speaker is a fixed blue in every theme, the same exception TV is (S9.3) — never derived from the role's own accent.
+    `--fp-dev-speaker:#2c7fb8`,
     `--fp-halo:${roles.fg}`, `--fp-alpha:.25`, `--fp-disc:${roles.fg}`, `--fp-disc-alpha:${roles.fgAlpha}`,
     `--fp-outline:${shades.bg}`, `--fp-text:${roles.fg}`,
     // warn/danger/primary and their on-dark/on-light text stay the same fixed pair in every theme, generated or not

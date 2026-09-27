@@ -1,8 +1,8 @@
 import type { Device, Door } from "../core";
 import type { Hass } from "./floorplan-studio-card";
 
-/** Device types a tap opens more-info for at once, never a toggle: a camera and a media player have none, and a battery, an inverter, a server or an access point is watched, not switched (S2.13). A vacuum is here too (S7.10), but its tap opens its own dialog, not more-info — see the `d.type === "vacuum"` branch below, checked before this set. */
-const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "battery", "inverter", "server", "access_point", "person", "radar", "vacuum"]);
+/** Device types a tap opens more-info for at once, never a toggle: a camera and a media player have none, and a battery, an inverter, a server or an access point is watched, not switched (S2.13). A vacuum is here too (S7.10), but its tap opens its own dialog, not more-info — see the `d.type === "vacuum"` branch below, checked before this set. S9.4: a speaker is a media_player device like `media`, and gets the same decision for the same reason — `media_player.toggle` is play/pause or power, never a clean on/off, so guessing which one the user meant is worse than always opening more-info. */
+const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "speaker", "battery", "inverter", "server", "access_point", "person", "radar", "vacuum"]);
 
 /** A pointer held this long or longer is a hold, opening more-info instead of toggling. */
 export const HOLD_MS = 500;
