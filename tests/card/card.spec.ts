@@ -2034,7 +2034,11 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     ]);
   });
 
-  test("a heater with two TRVs: a plain tap still toggles the heater entity; a hold opens the chooser naming it, listing the heater then both TRVs", async ({ page }) => {
+  // S10.3 review fix 1: the first S10.4 build had this backwards — tap toggled, hold opened the chooser. A tap
+  // is exactly the gesture that used to guess which of the heater's several entities was meant, so the chooser now
+  // lives there instead; a hold opens more-info for the heater's own entity, the same thing a hold always did
+  // before S10.4 existed.
+  test("a heater with two TRVs: a plain tap opens the chooser naming it, listing the heater then both TRVs, and calls no toggle service", async ({ page }) => {
     await open(page);
     const layout = structuredClone(demo);
     const heater = layout.floors.ground.devices[7];
@@ -2042,23 +2046,35 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     heater.trvs = ["climate.demo_trv_1", "climate.demo_trv_2"];
     await configureWithCallServiceSpy(page, { layout }, { "climate.demo_living": { state: "heat", attributes: { hvac_action: "idle" }, last_changed: new Date().toISOString() } });
 
-    const box = await tapDevice(page, 7); // a plain click: toggle, no chooser
+    await tapDevice(page, 7); // a plain click: the chooser, not a toggle
     const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
-    expect(calls).toEqual([["climate", "toggle", { entity_id: "climate.demo_living" }]]);
-    await expect(page.locator("floorplan-studio-card").locator("css=.fp-chooser-dialog")).toHaveCount(0);
+    expect(calls).toEqual([]);
 
+    const card = page.locator("floorplan-studio-card");
+    await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Living radiator");
+    await expect(card.locator("css=.fp-chooser-list button")).toHaveText(["climate.demo_living", "climate.demo_trv_1", "climate.demo_trv_2"]);
+  });
+
+  test("a heater with two TRVs: a HOLD opens more-info for the heater's own entity, not the chooser", async ({ page }) => {
+    await open(page);
+    const layout = structuredClone(demo);
+    const heater = layout.floors.ground.devices[7];
+    heater.trvs = ["climate.demo_trv_1", "climate.demo_trv_2"];
+    await configureRecordingMoreInfo(page, { layout }, { states: { "climate.demo_living": { state: "heat", attributes: { hvac_action: "idle" }, last_changed: new Date().toISOString() } } });
+
+    const g = page.locator("floorplan-studio-card").locator('css=g[data-x="7"]');
+    await g.scrollIntoViewIfNeeded();
+    const box = (await g.boundingBox())!;
     const HOLD_MS = 500;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     await page.waitForTimeout(HOLD_MS + 100);
-    const card = page.locator("floorplan-studio-card");
-    await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Living radiator");
-    await expect(card.locator("css=.fp-chooser-list button")).toHaveText(["climate.demo_living", "climate.demo_trv_1", "climate.demo_trv_2"]);
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-chooser-dialog")).toHaveCount(0);
+    expect(await moreInfo(page)).toEqual([{ entityId: "climate.demo_living" }]);
     await page.mouse.up();
-    // The hold already consumed the gesture (same rule the S7.5 kiosk hold test above already exercises for
-    // more-info): releasing over an open chooser must not also toggle the entity underneath it.
-    const callsAfter = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
-    expect(callsAfter).toEqual([["climate", "toggle", { entity_id: "climate.demo_living" }]]);
+    // The hold already consumed the gesture: releasing must not also toggle the entity underneath it.
+    const calls = await page.evaluate(() => (window as unknown as { __calls?: unknown[] }).__calls ?? []);
+    expect(calls).toEqual([]);
   });
 
   test("a door with a contact sensor and a vibration sensor: a tap opens a chooser naming the door, not either sensor's own more-info", async ({ page }) => {
@@ -2091,6 +2107,122 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-dialog p")).toHaveText("Open Garage door?");
     await expect(card.locator("css=.fp-chooser-dialog")).toHaveCount(0);
+  });
+
+  // S10.3 review fix 2: the first S10.4 build returned before starting any hold timer on a cover door, so nothing
+  // else that door named was reachable by gesture. A hold now opens the chooser instead, entitiesOfDoor listing
+  // the cover entity itself (never reached through a plain tap, which always goes straight to the confirm dialog).
+  test("a door with a cover and a vibration sensor: a HOLD opens the chooser, whose rows include the cover entity, not the cover dialog", async ({ page }) => {
+    await open(page);
+    const layout = structuredClone(demo);
+    const garage = layout.floors.ground.doors[GARAGE_DOOR_INDEX];
+    garage.vibration = ["binary_sensor.demo_garage_vibration"];
+    await configureWithCallServiceSpy(page, { layout }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+
+    const line = page.locator("floorplan-studio-card").locator(`css=line[data-d="${GARAGE_DOOR_INDEX}"]:not(.door-hit)`);
+    await line.scrollIntoViewIfNeeded();
+    const box = (await line.boundingBox())!;
+    const HOLD_MS = 500;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(HOLD_MS + 100);
+
+    const card = page.locator("floorplan-studio-card");
+    await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Garage door");
+    await expect(card.locator("css=.fp-chooser-list button")).toHaveText(["cover.demo_garage_door", "binary_sensor.demo_garage_vibration"]);
+    await expect(card.locator("css=.fp-dialog:not(.fp-chooser-dialog) p")).toHaveCount(0); // the cover confirm dialog never opened
+
+    await page.mouse.up();
+    // The hold consumed the gesture: releasing over the open chooser must not also open the cover dialog underneath.
+    await expect(card.locator("css=.fp-dialog:not(.fp-chooser-dialog) p")).toHaveCount(0);
+  });
+
+  test("kiosk mode: a door with a cover starts no hold timer, so a hold does nothing and only a plain tap opens the cover dialog", async ({ page }) => {
+    await open(page);
+    const layout = structuredClone(demo);
+    const garage = layout.floors.ground.doors[GARAGE_DOOR_INDEX];
+    garage.vibration = ["binary_sensor.demo_garage_vibration"];
+    await configureWithCallServiceSpy(page, { layout, kiosk: true }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+
+    const line = page.locator("floorplan-studio-card").locator(`css=line[data-d="${GARAGE_DOOR_INDEX}"]:not(.door-hit)`);
+    await line.scrollIntoViewIfNeeded();
+    const box = (await line.boundingBox())!;
+    const HOLD_MS = 500;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(HOLD_MS + 100);
+    const card = page.locator("floorplan-studio-card");
+    await expect(card.locator("css=.fp-chooser-dialog")).toHaveCount(0);
+    await page.mouse.up();
+    await expect(card.locator("css=.fp-dialog p")).toHaveText("Open Garage door?"); // release still acts like a plain tap
+  });
+
+  // S10.3 review fix 3: an unlinked appliance (S4.25, `g[data-u]`) had no gesture wired to it before this fix — a
+  // tap did nothing at all, whatever it named in `attached`. Real page.mouse at the icon's real coordinates
+  // (CLAUDE.md finding 3): the hit-test must resolve `closest("g[data-u]")`, not merely exist in markup.
+  test.describe("an unlinked appliance's `attached` entities", () => {
+    function withUnlinked(attached?: string[]) {
+      const layout = structuredClone(demo);
+      layout.floors.ground.unlinked.push({
+        id: "u1", type: "boiler", name: "Spare boiler", x: 300, y: 300, rot: 0, scale: 1,
+        ...(attached ? { attached } : {}),
+      });
+      return layout;
+    }
+
+    async function tapUnlinked(page: Page) {
+      const g = page.locator("floorplan-studio-card").locator('css=g[data-u="0"]');
+      await g.scrollIntoViewIfNeeded();
+      const box = (await g.boundingBox())!;
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    }
+
+    test("two attached entities: a tap opens a chooser naming the unlinked item and listing both", async ({ page }) => {
+      await open(page);
+      await configureRecordingMoreInfo(page, { layout: withUnlinked(["sensor.boiler_temp", "sensor.boiler_pressure"]) }, { states: {} });
+
+      await tapUnlinked(page);
+
+      const card = page.locator("floorplan-studio-card");
+      await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Spare boiler");
+      await expect(card.locator("css=.fp-chooser-list button")).toHaveText(["sensor.boiler_temp", "sensor.boiler_pressure"]);
+      expect(await moreInfo(page)).toEqual([]);
+    });
+
+    test("one attached entity: a tap opens more-info for it directly, never the chooser", async ({ page }) => {
+      await open(page);
+      await configureRecordingMoreInfo(page, { layout: withUnlinked(["sensor.boiler_temp"]) }, { states: {} });
+
+      await tapUnlinked(page);
+
+      expect(await moreInfo(page)).toEqual([{ entityId: "sensor.boiler_temp" }]);
+      await expect(page.locator("floorplan-studio-card").locator("css=.fp-chooser-dialog")).toHaveCount(0);
+    });
+
+    test("no attached entities: a tap does nothing", async ({ page }) => {
+      await open(page);
+      await configureRecordingMoreInfo(page, { layout: withUnlinked() }, { states: {} });
+
+      await tapUnlinked(page);
+
+      expect(await moreInfo(page)).toEqual([]);
+      await expect(page.locator("floorplan-studio-card").locator("css=.fp-chooser-dialog")).toHaveCount(0);
+    });
+
+    // CLAUDE.md finding 18: a presentation attribute loses to any author CSS rule. `.dev` carries no
+    // pointer-events override of its own, so `g[data-u]`'s painted children (the halo, the icon path) already
+    // receive pointer events the same way a device's `g[data-x]` does — read back for real, not assumed.
+    test("the icon's painted children accept pointer events (getComputedStyle, CLAUDE.md finding 10)", async ({ page }) => {
+      await open(page);
+      await configureRecordingMoreInfo(page, { layout: withUnlinked(["sensor.boiler_temp"]) }, { states: {} });
+
+      const card = page.locator("floorplan-studio-card");
+      const pointerEvents = await card.evaluate((el) => {
+        const path = el.shadowRoot!.querySelector('g[data-u="0"] path')!;
+        return getComputedStyle(path).pointerEvents;
+      });
+      expect(pointerEvents).not.toBe("none");
+    });
   });
 
   // CLAUDE.md finding 2: escape every interpolated string, not only a name — this dialog's title and every row label

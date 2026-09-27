@@ -2,12 +2,22 @@
 
 ## Unreleased
 
-- Tapping a heater, an ac, a radar or a door that names more than one entity
-  (two TRVs, a linked climate unit, a radar's own target sensors, or a door
-  with both a contact and a vibration sensor) now opens a small chooser
+- Tapping a heater, an ac, a radar, a door, or an unlinked appliance that
+  names more than one entity (two TRVs, a linked climate unit, a radar's own
+  target sensors, a door with both a contact and a vibration sensor, or an
+  unlinked appliance with two reference entities) now opens a small chooser
   listing all of them, instead of guessing which one you meant. Exactly one
-  entity still opens its more-info directly, same as before. A door with a
-  cover is unaffected: it still opens its own open/close confirm dialog.
+  entity still opens its more-info directly, same as before. On a heater, an
+  ac or any other device that normally toggles, the chooser now lives on the
+  tap itself — such a device no longer toggles once it names more than one
+  entity — and a long press opens more-info for the device's own entity
+  alone, unchanged from before this feature existed. A door with a cover
+  keeps its tap unaffected (it still opens its own open/close confirm
+  dialog first), but a long press on it now opens the chooser too, the
+  cover entity included; kiosk mode has no long press at all, so such a door
+  there only ever opens the confirm dialog. An unlinked appliance (placed by
+  type, with no entity of its own) has no toggle and no long press, only
+  this tap resolution over its reference entities.
 - A door with a vibration sensor attached now turns red — the same colour an
   open contact sensor gets, and `open_color` still applies — with the same
   pulsing alert line, but solid instead of dashed, so dashed keeps meaning

@@ -2141,61 +2141,75 @@ the editor becomes one reusable combo, tested, with shots looked at.
 ### S10.4 Tapping an object with more than one entity opens a chooser, not a guess
 
 - Outcome: a pure `entitiesOfDevice`/`entitiesOfDoor` (`src/core/attachments.ts`)
-  lists every entity a tap or hold on a device or non-cover door could mean —
-  the object's own `entity` first, then its type's own attachment fields
-  (`trvs`/`tempSensors` for a heater, `linked` for an ac, each `targets`
-  pair's x/y for a radar, `sensors`/`vibration`/`locks` for a door), then any
-  `attached` list, deduplicated. Exactly one still opens more-info directly,
-  unchanged from before this sprint. Two or more opens a new chooser dialog
-  in `floorplan-studio-card.ts` (`.fp-chooser-dialog`), naming the object and
+  lists every entity a gesture on a device, a door or an unlinked appliance
+  could mean — the object's own `entity` first when it has one, then its
+  type's own attachment fields (a door's `cover` first among these, then
+  `sensors`/`vibration`/`locks`; `trvs`/`tempSensors` for a heater, `linked`
+  for an ac, each `targets` pair's x/y for a radar), then any `attached`
+  list, deduplicated. Exactly one still opens more-info directly, unchanged
+  from before this sprint. Two or more opens a chooser dialog in
+  `floorplan-studio-card.ts` (`.fp-chooser-dialog`), naming the object and
   listing every entity by its Home Assistant `friendly_name` or its id;
   picking one fires `hass-more-info` and closes the dialog. The dialog
   follows the existing cover/vacuum conventions (one at a time, focus on
   Cancel, Escape closes, `role="dialog"`/`aria-modal`), plus one addition:
-  a click on the backdrop outside the dialog also closes it. A door with a
-  `cover` is unaffected either way — its tap still always opens the existing
-  confirm dialog first (S2.7, unchanged). A light's `bound` switch, a
-  light's `motion` link and a person's `room` sensor are deliberately never
-  listed; see `docs/DECISIONS.md`.
-- Test: `attachments.test.ts` (18 tests) iterates every `DEVICE_TYPES`
+  a click on the backdrop outside the dialog also closes it. A light's
+  `bound` switch, a light's `motion` link and a person's `room` sensor are
+  deliberately never listed; see `docs/DECISIONS.md`.
+- Which gesture reaches the chooser, after the S10.3 review below: a device
+  that toggles (heater, ac...) opens the chooser on a plain **tap** when it
+  names more than one entity, no longer toggling — a **long press** on it
+  opens more-info for the device's own entity alone. A device with no
+  toggle (camera, radar, person...) and a non-cover door are unaffected: a
+  plain tap alone resolves to more-info or the chooser, no long press
+  involved (never had one). A door with a `cover`: a tap always opens the
+  confirm dialog first (S2.7, unchanged); a **long press** opens the
+  chooser instead, `entitiesOfDoor` now naming the cover entity itself as
+  well. An unlinked appliance (S4.25) has no toggle and no long press: a tap
+  alone resolves its `attached` list.
+- Test: `attachments.test.ts` (21 tests) iterates every `DEVICE_TYPES`
   member (finding 17) plus a dedicated case per type's own attachment field,
   the `light.bound`/`light.motion`/`person.room` exclusions, dedup, an
-  `Unlinked` object with no own `entity`, and a malformed-layout case per
-  function (finding 1: non-array attachment fields never throw).
-  `actions.test.ts` gained an S10.4 describe block: a radar or door with two
-  attachments opens the chooser, one (after dedup) opens plain more-info, a
-  light with `bound` still opens plain more-info (never the chooser), and a
-  pointercancel abandons a would-be door chooser tap. `card.spec.ts` gained
-  eleven tests, all real `page.mouse` taps at real coordinates (finding 3):
-  the demo's own office radar (one target pair, no layout edit needed) opens
-  a three-row chooser naming it; a row's `friendly_name` is used when hass
-  has one; clicking a row fires `hass-more-info` and closes the dialog;
-  Cancel, Escape and a backdrop click each close it without firing anything;
-  a second tap at the same spot lands on the backdrop (closes it, not a
-  duplicate) and a third tap reopens a fresh one; a heater with two TRVs
-  still toggles on a plain tap and opens the chooser on hold; a door with a
-  contact and a vibration sensor opens the chooser under the door's name; a
-  door with a cover stays unaffected even with a second attachment added;
-  and an XSS test with a `"><script>` payload in a door name and a
-  `friendly_name` (finding 2) confirms both render as plain text, with no
-  `<script>` element in the shadow root.
-- Done, 2026-09-27. Not strictly test-first (finding 5): `attachments.ts`
-  and the `actions.ts` changes were written in the same pass as their unit
-  tests, not test-then-implementation. Compliance with finding 4 (a test
-  must fail with the feature removed) was verified retroactively instead: a
-  `git stash` isolating `actions.ts`/`floorplan-studio-card.ts`/
-  `attachments.ts`/`core/index.ts` together, then running the new
-  `card.spec.ts` tests, showed 10 of the 11 new tests fail without the
-  feature — the 11th, the pre-existing cover-door-unaffected case, correctly
-  still passes on its own, since it predates S10.4. The stash was restored
-  with `git stash apply` (never `pop`, the stash stack is shared across
-  worktrees) and dropped once confirmed. All eleven new `card.spec.ts` tests
-  ran clean at `--repeat-each=10`. `npm run shots` run; the S10.4 chooser
-  dialog was rendered separately (not part of the regular shot set, since it
-  is card chrome outside `renderFloor`'s own `<svg>`) and looked at in
-  blueprint and light themes: legible, centred, Cancel reachable, both
-  themes readable. Full suites green: 1254 unit tests, 658 Playwright tests
-  (1 pre-existing skip, unrelated), lint and `tsc --noEmit` clean.
+  `Unlinked` object with no own `entity`, a malformed-layout case per
+  function (finding 1: non-array attachment fields never throw), and (added
+  by the S10.3 review) a door's `cover` entity appearing first in
+  `entitiesOfDoor`'s list. `actions.test.ts`'s S10.4 describe block covers a
+  radar or door with two attachments opening the chooser, one (after dedup)
+  opening plain more-info, a light with `bound` still opening plain
+  more-info (never the chooser), and a pointercancel abandoning a would-be
+  door chooser tap; three further describe blocks, added by the review,
+  cover the tap-opens-chooser/hold-opens-own-more-info split on a toggling
+  device, a cover door's hold opening the chooser (cover included, and the
+  one-cover-only case opening plain more-info), kiosk mode starting no hold
+  timer on a cover door, and an unlinked appliance's tap resolving one
+  entity to more-info, several to the chooser, none to nothing, plus its own
+  pointercancel and hit-test-via-inner-element cases. `card.spec.ts` gained
+  eleven tests in the initial S10.4 pass (finding 3: real `page.mouse` taps
+  at real coordinates) and eleven more in the S10.3 review: a heater with
+  two TRVs opens the chooser on tap and more-info on hold (was the other
+  way around); a cover door's hold opens the chooser with the cover entity
+  among its rows, the cover-only case opens plain more-info, and kiosk mode
+  starts no hold timer at all; four cases for an unlinked appliance's
+  `attached` list (two entities, one, none, and a `getComputedStyle` check,
+  finding 18, that its icon's painted children still accept pointer events).
+- Done, 2026-09-27 (S10.4), reviewed and corrected the same day (the "S10.3
+  review" fixes above — Opus's review of the finished S10.4 build, landed
+  as one more commit on this same branch rather than a new task number). Not
+  strictly test-first for the original S10.4 pass (finding 5):
+  `attachments.ts` and the `actions.ts` changes were written in the same
+  pass as their unit tests. Compliance with finding 4 (a
+  test must fail with the feature removed) was verified twice: once for the
+  original S10.4 build (a stash-equivalent isolation of the changed files,
+  restored without ever running bare `git stash`, showed 10 of 11 new
+  `card.spec.ts` tests fail, the 11th predating the feature), and again for
+  each of the three S10.3 review fixes individually — `actions.ts` copied
+  aside, one fix reverted at a time, `actions.test.ts` run, the file copied
+  back — each reverted fix failing exactly the tests written for it (2, 2,
+  then 3 failures) and nothing else. All new and changed `card.spec.ts`
+  tests ran clean at `--repeat-each=10` (180 runs, 18 distinct tests, no
+  flake). Full suites green: 1268 unit tests, 665 Playwright tests + 108 for
+  a targeted `card.spec.ts` rerun (1 pre-existing skip, unrelated), lint and
+  `tsc --noEmit` clean.
 
 ## Later, not planned
 

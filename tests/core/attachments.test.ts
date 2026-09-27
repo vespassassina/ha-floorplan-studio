@@ -93,7 +93,7 @@ describe("S10.4: entitiesOfDevice decides, per device type, which entities a tap
   });
 });
 
-describe("S10.4: entitiesOfDoor lists a door's own sensors, vibration sensors and locks (never its cover)", () => {
+describe("S10.4/S10.3-fix: entitiesOfDoor lists a door's own cover, sensors, vibration sensors and locks", () => {
   function door(extra: Partial<Door> = {}): Door {
     return { id: "door1", name: "Front door", kind: "door", a: [0, 0], b: [100, 0], ...extra };
   }
@@ -118,10 +118,15 @@ describe("S10.4: entitiesOfDoor lists a door's own sensors, vibration sensors an
     ).toEqual(["binary_sensor.contact", "binary_sensor.vibration", "lock.front"]);
   });
 
-  test("a cover entity is never part of this list — the cover dialog handles it on its own", () => {
+  test("a cover entity comes first, ahead of a sensor — a door's hold reaches it now that a door with a cover starts its own hold timer (S10.3 review fix 2); its tap still always goes to the cover dialog, never this list", () => {
     expect(entitiesOfDoor(door({ cover: "cover.front", sensors: ["binary_sensor.contact"] }))).toEqual([
+      "cover.front",
       "binary_sensor.contact",
     ]);
+  });
+
+  test("a door with only a cover: the cover alone", () => {
+    expect(entitiesOfDoor(door({ cover: "cover.front" }))).toEqual(["cover.front"]);
   });
 
   test("a duplicate entity across the three fields is listed once", () => {

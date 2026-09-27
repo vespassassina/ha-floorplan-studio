@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HOLD_MS, TAP_SLOP_PX, bindDeviceActions, fireEvent, toggleEntity } from "../../src/card/actions";
-import type { Device, Door } from "../../src/core";
+import { entitiesOfDoor } from "../../src/core";
+import type { Device, Door, Unlinked } from "../../src/core";
 import type { Hass } from "../../src/card/floorplan-studio-card";
 
 const LIGHT: Device = { id: "l1", type: "light", entity: "light.demo_living", x: 100, y: 100 };
@@ -659,7 +660,30 @@ describe("actions: S10.4 a device or door naming more than one entity opens a ch
     vi.useRealTimers();
   });
 
-  it("a heater with two TRVs: holding it opens the chooser, not more-info for the heater alone; the plain tap still toggles", () => {
+  it("a heater with two TRVs: a plain TAP opens the chooser, and calls no toggle service (S10.3 review fix 1)", () => {
+    vi.useFakeTimers();
+    const callService = vi.fn();
+    const dev: Device = { id: "h1", type: "heater", entity: "climate.demo_heater", name: "Living room heater", a: [0, 0], b: [10, 0], trvs: ["climate.trv1", "climate.trv2"] };
+    const svg = svgFixture([dev]);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    const openChooser = vi.fn();
+    const unbind = bindDeviceActions(svg, host, () => dev, undefined, undefined, { openChooser });
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50); // a plain tap, well under HOLD_MS
+    pointer(g, "pointerup");
+    expect(openChooser).toHaveBeenCalledTimes(1);
+    expect(openChooser).toHaveBeenCalledWith("Living room heater", ["climate.demo_heater", "climate.trv1", "climate.trv2"]);
+    expect(callService).not.toHaveBeenCalled();
+    expect(moreInfo).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("a heater with two TRVs: a HOLD opens more-info for the heater's own entity, not the chooser (S10.3 review fix 1)", () => {
     vi.useFakeTimers();
     const callService = vi.fn();
     const dev: Device = { id: "h1", type: "heater", entity: "climate.demo_heater", name: "Living room heater", a: [0, 0], b: [10, 0], trvs: ["climate.trv1", "climate.trv2"] };
@@ -672,11 +696,30 @@ describe("actions: S10.4 a device or door naming more than one entity opens a ch
     const g = svg.querySelector('[data-x="0"]')!;
     pointer(g, "pointerdown");
     vi.advanceTimersByTime(HOLD_MS);
-    expect(openChooser).toHaveBeenCalledTimes(1);
-    expect(openChooser).toHaveBeenCalledWith("Living room heater", ["climate.demo_heater", "climate.trv1", "climate.trv2"]);
-    expect(moreInfo).not.toHaveBeenCalled();
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "climate.demo_heater" });
+    expect(openChooser).not.toHaveBeenCalled();
     pointer(g, "pointerup");
     expect(callService).not.toHaveBeenCalled(); // the hold consumed the gesture: release does not also toggle
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("a plain light (one entity): a plain tap still toggles, unaffected by the S10.3 review fix", () => {
+    vi.useFakeTimers();
+    const callService = vi.fn();
+    const dev: Device = { id: "l1", type: "light", entity: "light.demo_living", x: 100, y: 100 };
+    const svg = svgFixture([dev]);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    const openChooser = vi.fn();
+    const unbind = bindDeviceActions(svg, host, () => dev, undefined, undefined, { openChooser });
+    const g = svg.querySelector('[data-x="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(callService).toHaveBeenCalledWith("light", "toggle", { entity_id: "light.demo_living" });
+    expect(openChooser).not.toHaveBeenCalled();
     unbind();
     document.body.innerHTML = "";
     vi.useRealTimers();
@@ -784,6 +827,234 @@ describe("actions: S10.4 a device or door naming more than one entity opens a ch
     vi.advanceTimersByTime(50);
     pointer(line, "pointercancel");
     pointer(line, "pointerup");
+    expect(openChooser).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+});
+
+describe("actions: S10.3 review fix 2 — a cover door's hold opens the chooser, cover included", () => {
+  const COVER_AND_SENSOR_DOOR: Door = {
+    id: "d6", name: "Garage door", kind: "door", a: [0, 500], b: [100, 500],
+    cover: "cover.demo_garage_door", sensors: ["binary_sensor.demo_garage_contact"],
+  };
+  const COVER_ONLY_DOOR: Door = { id: "d7", name: "Bay door", kind: "door", a: [0, 600], b: [100, 600], cover: "cover.demo_bay_door" };
+
+  it("entitiesOfDoor includes the cover entity", () => {
+    expect(entitiesOfDoor(COVER_AND_SENSOR_DOOR)).toEqual(["cover.demo_garage_door", "binary_sensor.demo_garage_contact"]);
+  });
+
+  it("a tap on a door with a cover still opens the cover dialog, not the chooser", () => {
+    vi.useFakeTimers();
+    const doors = [COVER_AND_SENSOR_DOOR];
+    const svg = doorSvgFixture(doors);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
+    const openCoverDialog = vi.fn();
+    const openChooser = vi.fn();
+    const unbind = bindDeviceActions(svg, host, () => undefined, (i) => doors[i], openCoverDialog, { openChooser });
+    const line = svg.querySelector('[data-d="0"]')!;
+    pointer(line, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(line, "pointerup");
+    expect(openCoverDialog).toHaveBeenCalledTimes(1);
+    expect(openCoverDialog).toHaveBeenCalledWith(COVER_AND_SENSOR_DOOR);
+    expect(openChooser).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("a HOLD on a door with a cover opens the chooser, whose rows include the cover entity id — not the cover dialog", () => {
+    vi.useFakeTimers();
+    const doors = [COVER_AND_SENSOR_DOOR];
+    const svg = doorSvgFixture(doors);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
+    const openCoverDialog = vi.fn();
+    const openChooser = vi.fn();
+    const unbind = bindDeviceActions(svg, host, () => undefined, (i) => doors[i], openCoverDialog, { openChooser });
+    const line = svg.querySelector('[data-d="0"]')!;
+    pointer(line, "pointerdown");
+    vi.advanceTimersByTime(HOLD_MS);
+    expect(openChooser).toHaveBeenCalledTimes(1);
+    expect(openChooser).toHaveBeenCalledWith("Garage door", ["cover.demo_garage_door", "binary_sensor.demo_garage_contact"]);
+    expect(openCoverDialog).not.toHaveBeenCalled();
+    pointer(line, "pointerup");
+    expect(openCoverDialog).not.toHaveBeenCalled(); // the hold consumed the gesture: release does not also open the dialog
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("a HOLD on a door with only a cover (no other attachment) opens more-info for the cover, not the chooser", () => {
+    vi.useFakeTimers();
+    const doors = [COVER_ONLY_DOOR];
+    const svg = doorSvgFixture(doors);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
+    const openCoverDialog = vi.fn();
+    const openChooser = vi.fn();
+    const unbind = bindDeviceActions(svg, host, () => undefined, (i) => doors[i], openCoverDialog, { openChooser });
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const line = svg.querySelector('[data-d="0"]')!;
+    pointer(line, "pointerdown");
+    vi.advanceTimersByTime(HOLD_MS);
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "cover.demo_bay_door" });
+    expect(openChooser).not.toHaveBeenCalled();
+    expect(openCoverDialog).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("kiosk mode (longPress: false): a door with a cover starts no hold timer, so only the tap's cover dialog ever opens", () => {
+    vi.useFakeTimers();
+    const doors = [COVER_AND_SENSOR_DOOR];
+    const svg = doorSvgFixture(doors);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
+    const openCoverDialog = vi.fn();
+    const openChooser = vi.fn();
+    const unbind = bindDeviceActions(svg, host, () => undefined, (i) => doors[i], openCoverDialog, { longPress: false, openChooser });
+    const line = svg.querySelector('[data-d="0"]')!;
+    pointer(line, "pointerdown");
+    vi.advanceTimersByTime(HOLD_MS * 4);
+    expect(openChooser).not.toHaveBeenCalled();
+    pointer(line, "pointerup");
+    expect(openCoverDialog).toHaveBeenCalledTimes(1);
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+});
+
+describe("actions: S10.3 review fix 3 — an unlinked appliance (g[data-u]) with attached entities", () => {
+  /** A minimal `<svg><g data-u="0">...</g></svg>`, matching what `renderFloor` emits for an Unlinked appliance. */
+  function unlinkedSvgFixture(count: number): SVGSVGElement {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    for (let i = 0; i < count; i++) {
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("data-u", String(i));
+      const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      halo.setAttribute("class", "halo");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      g.append(halo, path);
+      svg.appendChild(g);
+    }
+    document.body.appendChild(svg);
+    return svg;
+  }
+
+  const TWO_ATTACHED: Unlinked = { id: "u1", type: "other", name: "Water heater", x: 100, y: 100, rot: 0, scale: 1, attached: ["sensor.wh_temp", "sensor.wh_pressure"] };
+  const ONE_ATTACHED: Unlinked = { id: "u2", type: "other", name: "Fuse box", x: 200, y: 100, rot: 0, scale: 1, attached: ["sensor.fuse_box"] };
+  const NONE_ATTACHED: Unlinked = { id: "u3", type: "other", name: "Bookshelf", x: 300, y: 100, rot: 0, scale: 1 };
+
+  it("two attachments: tap calls opts.openChooser with the unlinked item's name and both entities", () => {
+    vi.useFakeTimers();
+    const svg = unlinkedSvgFixture(1);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
+    const openChooser = vi.fn();
+    const unbind = bindDeviceActions(svg, host, () => undefined, undefined, undefined, { openChooser, getUnlinked: () => TWO_ATTACHED });
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-u="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(openChooser).toHaveBeenCalledTimes(1);
+    expect(openChooser).toHaveBeenCalledWith("Water heater", ["sensor.wh_temp", "sensor.wh_pressure"]);
+    expect(moreInfo).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("one attachment: tap opens more-info for it directly, not the chooser", () => {
+    vi.useFakeTimers();
+    const svg = unlinkedSvgFixture(1);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
+    const openChooser = vi.fn();
+    const unbind = bindDeviceActions(svg, host, () => undefined, undefined, undefined, { openChooser, getUnlinked: () => ONE_ATTACHED });
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-u="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "sensor.fuse_box" });
+    expect(openChooser).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("no attachments: tap does nothing", () => {
+    vi.useFakeTimers();
+    const svg = unlinkedSvgFixture(1);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
+    const openChooser = vi.fn();
+    const unbind = bindDeviceActions(svg, host, () => undefined, undefined, undefined, { openChooser, getUnlinked: () => NONE_ATTACHED });
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-u="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(moreInfo).not.toHaveBeenCalled();
+    expect(openChooser).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("a tap on the inner path still resolves via closest(\"g[data-u]\") (CLAUDE.md finding 3)", () => {
+    vi.useFakeTimers();
+    const svg = unlinkedSvgFixture(1);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
+    const openChooser = vi.fn();
+    const unbind = bindDeviceActions(svg, host, () => undefined, undefined, undefined, { openChooser, getUnlinked: () => ONE_ATTACHED });
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-u="0"]')!;
+    const path = g.querySelector("path")!;
+    pointer(path, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(path, "pointerup");
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("Break it: two attachments with no openChooser callback given does nothing — never falls back to more-info on the first entity", () => {
+    vi.useFakeTimers();
+    const svg = unlinkedSvgFixture(1);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
+    const unbind = bindDeviceActions(svg, host, () => undefined, undefined, undefined, { getUnlinked: () => TWO_ATTACHED });
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    const g = svg.querySelector('[data-u="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(moreInfo).not.toHaveBeenCalled();
+    unbind();
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("pointercancel abandons an unlinked item's would-be chooser tap: openChooser is never called", () => {
+    vi.useFakeTimers();
+    const svg = unlinkedSvgFixture(1);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
+    const openChooser = vi.fn();
+    const unbind = bindDeviceActions(svg, host, () => undefined, undefined, undefined, { openChooser, getUnlinked: () => TWO_ATTACHED });
+    const g = svg.querySelector('[data-u="0"]')!;
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointercancel");
+    pointer(g, "pointerup");
     expect(openChooser).not.toHaveBeenCalled();
     unbind();
     document.body.innerHTML = "";

@@ -661,6 +661,7 @@ export class FloorplanStudioCard extends LitElement {
             longPress: !this._kiosk(),
             openVacuumDialog: (d) => this._openVacuumDialog(d),
             openChooser: (title, entities) => this._openChooserDialog(title, entities),
+            getUnlinked: (i) => this._floor()?.unlinked[i],
           })
         : null;
       this._unbindZoom?.();
@@ -1237,7 +1238,7 @@ export class FloorplanStudioCard extends LitElement {
       const tap = !panning && !pinched;
       panning = false;
       pinched = false;
-      const onThing = (e.target as Element | null)?.closest?.("g[data-x], line[data-d]");
+      const onThing = (e.target as Element | null)?.closest?.("g[data-x], line[data-d], g[data-u]");
       if (!tap || onThing) {
         lastTap = null;
         return;

@@ -346,21 +346,47 @@ differently:
 
 ## Tapping an object with more than one entity
 
-A heater's `trvs`, an ac's `linked` units, a radar's own `targets`, and a
-door's `sensors`/`vibration`/`locks` can each name more than one entity. A tap
-(or, on a device that also toggles, a long press) that would open more-info
-still does, directly, when the object names exactly one — nothing changes
-from before. Naming two or more opens a chooser dialog instead: a small
-panel listing the object's own name at the top and one button per entity,
-labelled by its Home Assistant `friendly_name` where it has one, its entity
-id otherwise. Picking a row opens that entity's own more-info and closes the
-dialog; Cancel, Escape, or a click on the backdrop outside the dialog itself
-all close it without opening anything. Only one dialog — this one, the cover
-confirm or the vacuum dialog — is ever open at once. A door with a `cover`
-is unaffected either way: tapping it always opens the existing open/close
-confirm dialog, whatever else is attached to the door. A light's `bound`
-switch is deliberately never offered here; see "Light with a bound switch"
-above and docs/DECISIONS.md.
+A heater's `trvs`, an ac's `linked` units, a radar's own `targets`, a door's
+`sensors`/`vibration`/`locks`/`cover`, and an unlinked appliance's `attached`
+list can each name more than one entity. Naming exactly one still opens
+more-info for it directly, the same gesture as before this ever existed.
+Naming two or more opens a chooser dialog instead: a small panel listing the
+object's own name at the top and one button per entity, labelled by its Home
+Assistant `friendly_name` where it has one, its entity id otherwise. Picking
+a row opens that entity's own more-info and closes the dialog; Cancel,
+Escape, or a click on the backdrop outside the dialog itself all close it
+without opening anything. Only one dialog — this one, the cover confirm or
+the vacuum dialog — is ever open at once.
+
+Which gesture reaches the chooser depends on what the object would otherwise
+do with a plain tap:
+
+- **A device that toggles** (a heater, an ac, a switch, a plug...): naming
+  more than one entity moves the chooser onto the plain **tap** — a tap no
+  longer toggles such a device, since guessing which of several entities it
+  meant was the exact problem this feature exists to fix. A **long press**
+  on it instead opens more-info for the device's own entity alone, the same
+  thing a long press always did before this feature existed. Naming exactly
+  one entity is untouched: tap toggles, long press opens more-info.
+- **A device with no toggle** (a camera, a radar, a person...) and a
+  non-cover door: unchanged from a device that toggles with one entity — a
+  plain tap resolves straight to more-info or the chooser, with no long
+  press involved (these never had one).
+- **A door with a `cover`**: a tap always opens the existing open/close
+  confirm dialog, whatever else is attached to the door — this is unaffected
+  by any of the above. A **long press** on it opens the chooser instead,
+  listing every entity the door names, the cover included; with only the
+  cover attached, a long press opens the cover's own more-info directly
+  (one entity, the ordinary rule). In kiosk mode (`kiosk: true`, no long
+  press anywhere) such a door only ever opens the cover dialog, since no
+  long press ever starts.
+- **An unlinked appliance** (a plan icon placed by type, with no linked
+  entity of its own — Add → Unlinked device in the editor): has no toggle
+  and no long press. A tap alone resolves through its `attached` list, the
+  ordinary one-entity-more-info/several-entities-chooser rule.
+
+A light's `bound` switch is deliberately never offered here; see "Light with
+a bound switch" above and docs/DECISIONS.md.
 
 The full type-by-type table — idle look, active look, exact colour token,
 what a tap does — is in [`SPEC.md`, "Card behaviours"](SPEC.md#card-behaviours).

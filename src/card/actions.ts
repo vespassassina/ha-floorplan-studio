@@ -1,4 +1,4 @@
-import type { Device, Door } from "../core";
+import type { Device, Door, Unlinked } from "../core";
 import { entitiesOfDevice, entitiesOfDoor } from "../core";
 import type { Hass } from "./floorplan-studio-card";
 
@@ -33,10 +33,10 @@ export interface DeviceActionsHost extends EventTarget {
  * for that sensor (doors have no toggle; S2.3), never waiting out the hold delay. `getDevice(i)`/`getDoor(i)`
  * read fresh on every pointerdown, so a re-render between gestures is picked up.
  *
- * Device icons are `<g data-x>`, doors are `<line data-d>`; the pointer can land on an inner element (an icon's
- * `<path>`/`<circle>`, a door's `<title>`), so the real target is resolved with
- * `closest("g[data-x], line[data-d]")` (CLAUDE.md finding 3) rather than trusting `e.target` itself. One gesture
- * implementation serves both, so devices and doors never drift apart.
+ * Device icons are `<g data-x>`, doors are `<line data-d>`, unlinked appliances are `<g data-u>` (S4.25); the
+ * pointer can land on an inner element (an icon's `<path>`/`<circle>`, a door's `<title>`), so the real target is
+ * resolved with `closest("g[data-x], line[data-d], g[data-u]")` (CLAUDE.md finding 3) rather than trusting
+ * `e.target` itself. One gesture implementation serves all three, so they never drift apart.
  *
  * A door with a `cover` opens the confirm dialog through `openCoverDialog` (S2.7) instead of firing more-info,
  * even when the same door also carries a `sensor` — the dialog is the one behaviour a door with both resolves
@@ -59,13 +59,34 @@ export interface DeviceActionsHost extends EventTarget {
  * tap — a wall tablet has nobody who should reach a more-info dialog by holding a finger down. Every other gesture
  * (a plain tap, a door, a camera's always-more-info tap, the cover dialog) is unaffected: kiosk mode still acts.
  *
- * S10.4: wherever this function would have opened more-info for a device or a non-cover door, it now first asks
- * `entitiesOfDevice`/`entitiesOfDoor` (`../core/attachments.ts`) how many entities that object actually names. One
- * (the common case, and every case before S10.4 existed) still opens more-info on it directly, unchanged. More than
- * one calls `opts.openChooser(title, entities)` instead of guessing which one the person meant — a heater with two
- * TRVs, an ac linked to another unit's thermostat, a radar's own x/y target pair, or a door with both a contact and
- * a vibration sensor attached. A door with a `cover` is unaffected either way: that branch is checked first and
- * still always wins on tap, whatever else is attached (an existing rule, S2.7).
+ * S10.4: wherever this function would have opened more-info for a device with no toggle (a camera, a radar, a
+ * person...), or for a non-cover door's tap, it first asks `entitiesOfDevice`/`entitiesOfDoor`
+ * (`../core/attachments.ts`) how many entities that object actually names. One (the common case, and every case
+ * before S10.4 existed) still opens more-info on it directly, unchanged. More than one calls
+ * `opts.openChooser(title, entities)` instead of guessing which one the person meant — a radar's own x/y target
+ * pair, or a door with both a contact and a vibration sensor attached.
+ *
+ * S10.3-review fix (three corrections to the first S10.4 build, all from the same review):
+ * 1. A *toggling* device (a heater, an ac, a light...) that names more than one entity now opens the chooser on
+ *    a plain tap instead of toggling — guessing which entity a bare tap meant was exactly the problem S10.4 set
+ *    out to fix, and a first pass left the toggle in place and put the chooser on the hold instead, backwards. A
+ *    hold on such a device now opens more-info for the device's own entity, the same thing a hold did before
+ *    S10.4 existed — the chooser now lives on the gesture that used to guess, not the one that always meant "tell
+ *    me about this one specifically". A device naming exactly one entity is untouched: tap toggles, hold opens
+ *    more-info, as before S10.4 and as still true today.
+ * 2. A door with a `cover` still opens the confirm dialog on a plain tap, unchanged (`entitiesOfDoor` is never
+ *    consulted for that tap, whatever else is attached — S2.7's existing rule). But its *hold* now starts a timer
+ *    too, where a first pass returned before any timer began, so nothing else the door named (a sensor, a
+ *    vibration sensor, a lock) was ever reachable by gesture on a door that also had a cover. The hold opens
+ *    `entitiesOfDoor(door)` through the same one-entity-more-info/many-entities-chooser rule as everywhere else,
+ *    `cover` now included in that list (`../core/attachments.ts`) precisely because this is the one place that
+ *    reads it. In kiosk mode (`opts.longPress: false`) no hold timer ever starts, so such a door only ever opens
+ *    the cover dialog — see docs/card.md.
+ * 3. An unlinked appliance (`g[data-u]`, S4.25) had no gesture wired to it at all: `opts.getUnlinked` supplies it
+ *    the same way `getDevice`/`getDoor` do, and a tap resolves through `entitiesOfDevice` on its `attached` list
+ *    (an `Unlinked` has no `entity` of its own, so this is only ever that list) — one entity opens more-info, more
+ *    than one the chooser, none does nothing. No toggle and no hold: an unlinked appliance names no on/off state
+ *    of its own to guess at, so there is nothing a hold should do differently from a tap.
  */
 export function bindDeviceActions(
   svg: SVGSVGElement,
@@ -73,11 +94,17 @@ export function bindDeviceActions(
   getDevice: (index: number) => Device | undefined,
   getDoor?: (index: number) => Door | undefined,
   openCoverDialog?: (door: Door) => void,
-  opts?: { longPress?: boolean; openVacuumDialog?: (device: Device) => void; openChooser?: (title: string, entities: string[]) => void },
+  opts?: {
+    longPress?: boolean;
+    openVacuumDialog?: (device: Device) => void;
+    openChooser?: (title: string, entities: string[]) => void;
+    getUnlinked?: (index: number) => Unlinked | undefined;
+  },
 ): () => void {
   const longPress = opts?.longPress !== false;
   const openVacuumDialog = opts?.openVacuumDialog;
   const openChooser = opts?.openChooser;
+  const getUnlinked = opts?.getUnlinked;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let held = false;
   let entityId: string | null = null;
@@ -125,23 +152,35 @@ export function bindDeviceActions(
     }
     startX = pe.clientX ?? 0;
     startY = pe.clientY ?? 0;
-    const target = (e.target as Element | null)?.closest('g[data-x], line[data-d]');
+    const target = (e.target as Element | null)?.closest('g[data-x], line[data-d], g[data-u]');
     if (!target) return;
 
     if (target.tagName === "line") {
       const i = Number(target.getAttribute("data-d"));
       const door = Number.isFinite(i) ? getDoor?.(i) : undefined;
-      if (door?.cover) {
+      if (!door) return;
+      if (door.cover) {
         // Dialog wins on tap: see the function doc above for why a door with both sensor and cover goes here.
+        // S10.3-review fix 2: a hold still starts, so the door's other entities (cover included, now that
+        // entitiesOfDoor lists it) are reachable by gesture even though the tap always goes to the dialog.
         held = false;
         coverDoor = door;
         action = "cover-dialog";
         clearTimer();
+        if (longPress) {
+          const ents = entitiesOfDoor(door);
+          const title = door.name;
+          timer = setTimeout(() => {
+            held = true;
+            timer = null;
+            if (ents.length > 1) openChooser?.(title, ents);
+            else if (ents.length === 1) fireEvent(host, "hass-more-info", { entityId: ents[0]! });
+          }, HOLD_MS);
+        }
         return;
       }
-      if (!door) return;
       const doorEnts = entitiesOfDoor(door);
-      if (doorEnts.length === 0) return; // no sensor, vibration or lock, and no cover: nothing to do
+      if (doorEnts.length === 0) return; // no sensor, vibration or lock: nothing to do
       held = false;
       if (doorEnts.length === 1) {
         entityId = doorEnts[0]!;
@@ -149,6 +188,27 @@ export function bindDeviceActions(
       } else {
         chooserTitle = door.name;
         chooserEntities = doorEnts;
+        action = "chooser";
+      }
+      clearTimer();
+      return;
+    }
+
+    if (target.hasAttribute("data-u")) {
+      // S10.3-review fix 3: an unlinked appliance has no toggle and no hold, only a tap resolved the same
+      // one-entity-more-info/many-entities-chooser way as everywhere else in this function.
+      const i = Number(target.getAttribute("data-u"));
+      const u = Number.isFinite(i) ? getUnlinked?.(i) : undefined;
+      if (!u) return;
+      const ents = entitiesOfDevice(u);
+      if (ents.length === 0) return; // nothing attached: nothing to do
+      held = false;
+      if (ents.length === 1) {
+        entityId = ents[0]!;
+        action = "more-info";
+      } else {
+        chooserTitle = u.name ?? u.id;
+        chooserEntities = ents;
         action = "chooser";
       }
       clearTimer();
@@ -186,24 +246,37 @@ export function bindDeviceActions(
       return;
     }
 
+    // S10.3-review fix 1: a toggling device (a heater, an ac...) that names more than one entity opens the
+    // chooser on the plain tap instead of toggling — a bare tap is exactly the gesture that used to guess which
+    // entity was meant, so it is the one S10.4 exists to fix. A hold on such a device opens more-info for the
+    // device's own entity, the same thing a hold always did before S10.4 existed. A device naming exactly one
+    // entity falls through unchanged: tap toggles, hold opens more-info.
     held = false;
+    const ents = entitiesOfDevice(d);
+    if (ents.length > 1) {
+      chooserTitle = d.name ?? d.entity;
+      chooserEntities = ents;
+      action = "chooser";
+      clearTimer();
+      if (longPress) {
+        const ownEntity = d.entity;
+        timer = setTimeout(() => {
+          held = true;
+          timer = null;
+          if (ownEntity) fireEvent(host, "hass-more-info", { entityId: ownEntity });
+        }, HOLD_MS);
+      }
+      return;
+    }
+
     entityId = d.entity;
     action = "toggle";
     clearTimer();
     if (longPress) {
-      // S10.4: the hold-opens-more-info gesture on a toggling device (a heater, an ac...) opens the chooser
-      // instead when the device names more than one entity; computed once here, at the moment the hold started,
-      // same as entityId above.
-      const ents = entitiesOfDevice(d);
-      const title = d.name ?? d.entity;
       timer = setTimeout(() => {
         held = true;
         timer = null;
-        if (ents.length > 1) openChooser?.(title, ents);
-        else {
-          const id = ents[0] ?? entityId;
-          if (id) fireEvent(host, "hass-more-info", { entityId: id });
-        }
+        if (entityId) fireEvent(host, "hass-more-info", { entityId });
       }, HOLD_MS);
     }
   };

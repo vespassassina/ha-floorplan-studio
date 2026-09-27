@@ -58,14 +58,21 @@ export function entitiesOfDevice(d: { type: DeviceType; entity?: string } & Part
 }
 
 /**
- * S10.4: every entity a tap on a non-cover door should offer, same more-info-direct/chooser rule as a device
- * above. `sensors` (contact) first, then `vibration`, then `locks` (S4.24 order) — `cover` is deliberately never
- * included: a door with a `cover` always opens the confirm dialog on tap (an existing, unrelated rule), whatever
- * else is attached, so the cover entity is never reached through this list.
+ * S10.4/S10.3-fix: every entity a hold on a door should offer in its chooser, and (a non-cover door only) what a
+ * plain tap should offer too — one entity opens more-info directly, more than one the chooser. `cover` comes
+ * first when present, then `sensors` (contact), then `vibration`, then `locks` (S4.24 order).
+ *
+ * A door with a `cover` always opens the confirm dialog on tap (an existing, unrelated rule, S2.7) whatever else
+ * is attached, so this list is never consulted for a cover door's tap. It is consulted for that door's *hold*:
+ * the maintainer's call is that a hold should reach every entity a door names, the cover included, rather than
+ * leaving it reachable only through the tap's own dialog. Earlier the cover was deliberately left out of this
+ * list because only tap read it; now that hold reads it too, `cover` belongs in the list it feeds. See
+ * docs/DECISIONS.md.
  */
 export function entitiesOfDoor(door: Partial<Door>): string[] {
   const out: string[] = [];
   const add = (e: string) => { if (!out.includes(e)) out.push(e); };
+  if (typeof door.cover === "string" && door.cover.length > 0) add(door.cover);
   strings(door.sensors).forEach(add);
   strings(door.vibration).forEach(add);
   strings(door.locks).forEach(add);

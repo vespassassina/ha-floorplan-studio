@@ -6,7 +6,8 @@ Newest first. A change supersedes; nothing is edited.
 
 The brief: "tapping an object with attachments (heater/ac/etc.) should open
 more-info directly if it has exactly one entity, else open a chooser dialog
-listing all of them." Two decisions followed from applying that literally.
+listing all of them." Three decisions followed from applying that literally
+— the third corrects the first build of this feature, reviewed the same day.
 
 **Why a chooser, not the first entity, not a cycling tap.** A heater with
 two TRVs, or a radar's own x/y target pair, has no entity that is obviously
@@ -50,6 +51,37 @@ modal with no low-effort way out if what they actually meant was the
 device sitting right behind it. Escape and Cancel already exist on every
 dialog; adding backdrop-click here (and only here) costs nothing on the
 cover/vacuum dialogs, which stay exactly as they were.
+
+**Review fix, same day: the chooser lived on the wrong gesture for a
+toggling device, and a cover door's other attachments and an unlinked
+appliance were unreachable by any gesture at all.** The first build kept a
+plain tap toggling a heater or an ac and put the chooser on the long press.
+That is backwards: a bare tap is exactly the gesture that guesses which of
+several entities was meant — the thing this whole feature exists to stop —
+so the chooser now lives on the tap for any device that names more than
+one entity, and the long press instead opens more-info for the device's own
+entity, the same thing a long press always did before this feature existed.
+A device naming exactly one entity is untouched either way.
+
+The same review found that a door with a `cover` returned before any
+long-press timer started, so a door's other attachments (a sensor, a
+vibration sensor, a lock) were reachable by no gesture at all once it also
+had a cover — only the tap's own confirm dialog ever opened. `cover` was
+until now deliberately left out of `entitiesOfDoor`'s list, on the reasoning
+that only a tap read that list and a cover door's tap never reaches it. Once
+a long press reads it too, that reasoning no longer holds: `cover` now comes
+first in the list, and a long press on a cover door opens the chooser (the
+cover entity included) instead of doing nothing. A plain tap is unaffected —
+it still always opens the confirm dialog first (S2.7) — and kiosk mode
+(no long press anywhere) still only ever opens that dialog.
+
+Last, an unlinked appliance (S4.25 — a plan icon placed by type, with no
+linked entity of its own, only an optional `attached` list) had no gesture
+wired to it at all: a tap did nothing, whatever it named. It gets the same
+tap resolution as everything else in this feature — one entity opens
+more-info, more than one the chooser, none does nothing — but no toggle and
+no long press, since it names no on/off state of its own to guess at in the
+first place.
 
 ## 2026-09-27 S10.3: a vibrating door is solid red, not a new dash pattern
 
