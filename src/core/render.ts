@@ -267,8 +267,9 @@ const DOOR_SELECT_EXTRA = 8;
  *  puts the cut's edge a clean centimetre past the halo's, with room to spare. */
 const OPENING_EXTRA = WALL_HALO_EXTRA + 2;
 /** A short, deterministic tag for a string (FNV-1a, 32-bit, base36). Not security-sensitive: only used to keep a
- *  generated id short while still varying with its content. */
-function tag(s: string): string {
+ *  generated id short while still varying with its content. Exported (S9.5): the active-devices list panel keys
+ *  its localStorage entry off a hash of the card's own config, the same idea as the mask and pattern ids below. */
+export function tag(s: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
   return (h >>> 0).toString(36);
@@ -370,7 +371,7 @@ export function inside(p: Pt, poly: Pt[]): boolean {
 }
 
 /** S2.10: what an air conditioner is doing, read from the entity at render time and never stored. `off`, `unavailable` and `unknown` win over everything; otherwise `hvac_action` decides, and `state` stands in when the attribute is missing. */
-function acMode(d: Device, o: RenderOpts): "cool" | "heat" | null {
+export function acMode(d: Device, o: RenderOpts): "cool" | "heat" | null {
   const s = o.state?.[d.entity];
   if (!s || s.state === "off" || s.state === "unavailable" || s.state === "unknown") return null;
   const a = s.attributes?.hvac_action;
@@ -378,7 +379,9 @@ function acMode(d: Device, o: RenderOpts): "cool" | "heat" | null {
   return v === "cooling" ? "cool" : v === "heating" ? "heat" : null;
 }
 
-function classOf(d: Device, o: RenderOpts): Cls {
+/** Exported (S9.5): the active-devices list panel reuses this same function so the list and the plan can never
+ *  disagree about which devices are "on" (CLAUDE.md finding 17). */
+export function classOf(d: Device, o: RenderOpts): Cls {
   if (d.type === "light" && d.bound) return boundClassOf(d, o);
   const s = o.state?.[d.entity];
   if (!s) return "off";
