@@ -1,9 +1,14 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import type { Layout } from "../../src/core/schema";
-import { groupKind, placedEntities, unplacedCatalog } from "../../src/core/bind";
+import type { Floor, Layout } from "../../src/core/schema";
+import { attachedEntities, groupKind, placedEntities, unplacedCatalog } from "../../src/core/bind";
 
 const clone = () => structuredClone(demo) as unknown as Layout;
+
+const emptyFloor = (): Floor => ({
+  title: "F", outline: [], walls: [], rooms: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
+});
+const baseLayout = (floors: Record<string, Floor>): Layout => ({ version: 2, unit: "cm", north: 0, floors, catalog: [] } as unknown as Layout);
 
 describe("placedEntities", () => {
   it("counts the entity of every device on every floor, and not a bound switch", () => {
@@ -34,6 +39,90 @@ describe("unplacedCatalog", () => {
     const l = clone();
     l.floors.ground.devices.push({ id: "switch-relay", type: "switch", entity: "switch.demo_living_relay", x: 10, y: 10 });
     expect(unplacedCatalog(l).map((c) => c.id)).not.toContain("switch-living-relay");
+  });
+
+  // S10.5: an attached entity has no icon (attaching pulled it off the plan), but its catalog entry must not be
+  // offered again while it stays attached — it is "in use", not "unplaced".
+  it("drops a catalogued entity once it is attached to a door's sensors, and offers it again once detached", () => {
+    const l = clone();
+    l.floors.ground.doors[2].sensors = ["binary_sensor.demo_garage_door"]; // contact-garage, catalogued but unplaced
+    expect(unplacedCatalog(l).map((c) => c.id)).not.toContain("contact-garage");
+    delete l.floors.ground.doors[2].sensors;
+    expect(unplacedCatalog(l).map((c) => c.id)).toContain("contact-garage");
+  });
+});
+
+// S10.5: attachedEntities(layout) — every entity "in use" through an attachment, so unplacedCatalog and every other
+// placing list can exclude it. Table-driven over every attachment field so a new one is decided explicitly, not
+// silently missed (finding 17's "an enumeration is a list of decisions" applied to a field list, not a union).
+describe("attachedEntities", () => {
+  const ATTACH_CASES: { label: string; floor: Floor; entity: string }[] = [
+    { label: "door.sensors", entity: "binary_sensor.contact_1", floor: { ...emptyFloor(), doors: [{ id: "d1", name: "Door", kind: "door", a: [0, 0], b: [1, 0], sensors: ["binary_sensor.contact_1"] }] } },
+    { label: "door.vibration", entity: "binary_sensor.vib_1", floor: { ...emptyFloor(), doors: [{ id: "d1", name: "Door", kind: "door", a: [0, 0], b: [1, 0], vibration: ["binary_sensor.vib_1"] }] } },
+    { label: "door.locks", entity: "lock.front", floor: { ...emptyFloor(), doors: [{ id: "d1", name: "Door", kind: "door", a: [0, 0], b: [1, 0], locks: ["lock.front"] }] } },
+    { label: "door.cover", entity: "cover.garage", floor: { ...emptyFloor(), doors: [{ id: "d1", name: "Door", kind: "door", a: [0, 0], b: [1, 0], cover: "cover.garage" }] } },
+    { label: "device.trvs", entity: "climate.trv_1", floor: { ...emptyFloor(), devices: [{ id: "h1", type: "heater", entity: "climate.heater", trvs: ["climate.trv_1"], x: 0, y: 0 }] } },
+    { label: "device.tempSensors", entity: "sensor.temp_1", floor: { ...emptyFloor(), devices: [{ id: "h1", type: "heater", entity: "climate.heater", tempSensors: ["sensor.temp_1"], x: 0, y: 0 }] } },
+    { label: "device.linked", entity: "climate.linked_1", floor: { ...emptyFloor(), devices: [{ id: "a1", type: "ac", entity: "climate.ac", linked: ["climate.linked_1"], x: 0, y: 0 }] } },
+    { label: "unlinked.attached", entity: "sensor.attached_1", floor: { ...emptyFloor(), unlinked: [{ id: "u1", type: "other", x: 0, y: 0, rot: 0, scale: 1, attached: ["sensor.attached_1"] }] } },
+  ];
+
+  it.each(ATTACH_CASES)("counts $label", ({ floor, entity }) => {
+    const l = baseLayout({ f: floor });
+    expect(attachedEntities(l).has(entity)).toBe(true);
+  });
+
+  it("does NOT count a light's bound switch or motion link — neither goes through attachEntity, neither ever loses its own icon", () => {
+    const floor: Floor = { ...emptyFloor(), devices: [{ id: "l1", type: "light", entity: "light.lamp", bound: "switch.relay", motion: "binary_sensor.hall_motion", x: 0, y: 0 }] };
+    const l = baseLayout({ f: floor });
+    const out = attachedEntities(l);
+    expect(out.has("switch.relay")).toBe(false);
+    expect(out.has("binary_sensor.hall_motion")).toBe(false);
+  });
+
+  it("does NOT count a person's room sensor or a radar's target pairs — set through a plain commit, never attachEntity", () => {
+    const floor: Floor = {
+      ...emptyFloor(),
+      devices: [
+        { id: "p1", type: "person", entity: "person.alex", room: "sensor.alex_room", x: 0, y: 0 },
+        { id: "r1", type: "radar", entity: "binary_sensor.radar_occ", targets: [{ x: "sensor.t1x", y: "sensor.t1y" }], x: 0, y: 0 },
+      ],
+    };
+    const l = baseLayout({ f: floor });
+    const out = attachedEntities(l);
+    expect(out.has("sensor.alex_room")).toBe(false);
+    expect(out.has("sensor.t1x")).toBe(false);
+    expect(out.has("sensor.t1y")).toBe(false);
+  });
+
+  it("collects across every floor and every field at once, no duplicates", () => {
+    const l = clone();
+    l.floors.ground.doors[2].sensors = ["binary_sensor.demo_garage_door"];
+    l.floors.ground.devices.push({ id: "heater-2", type: "heater", entity: "climate.heater_2", trvs: ["climate.trv_x"], tempSensors: ["sensor.temp_x"], x: 5, y: 5 });
+    l.floors.first.devices.push({ id: "unlinked-1", type: "other", entity: "", x: 1, y: 1 } as any);
+    l.floors.first.unlinked = [{ id: "u1", type: "server", x: 0, y: 0, rot: 0, scale: 1, attached: ["sensor.rack_temp"] }];
+    const out = attachedEntities(l);
+    expect(out.has("binary_sensor.demo_garage_door")).toBe(true);
+    expect(out.has("climate.trv_x")).toBe(true);
+    expect(out.has("sensor.temp_x")).toBe(true);
+    expect(out.has("sensor.rack_temp")).toBe(true);
+  });
+
+  it("never throws on hostile input: a non-array list, a non-string member, a missing floors field, floors not an object", () => {
+    expect(() => attachedEntities({} as unknown as Layout)).not.toThrow();
+    expect(attachedEntities({} as unknown as Layout).size).toBe(0);
+    expect(() => attachedEntities({ floors: null } as unknown as Layout)).not.toThrow();
+    expect(() => attachedEntities({ floors: "nope" } as unknown as Layout)).not.toThrow();
+    const hostileFloor = { doors: [{ sensors: 5, cover: 12, locks: [null, 3, "lock.ok"] }], devices: [{ trvs: "not-an-array" }], unlinked: [{ attached: [{}, "sensor.ok"] }] } as unknown as Floor;
+    const l = { floors: { f: hostileFloor } } as unknown as Layout;
+    let out: Set<string> = new Set();
+    expect(() => { out = attachedEntities(l); }).not.toThrow();
+    expect(out.has("lock.ok")).toBe(true);
+    expect(out.has("sensor.ok")).toBe(true);
+    expect(out.size).toBe(2);
+    // __proto__-named floor, rooms: 5 style hostility on floors themselves
+    const l2 = { floors: { __proto__: hostileFloor, normal: hostileFloor } } as unknown as Layout;
+    expect(() => attachedEntities(l2)).not.toThrow();
   });
 });
 

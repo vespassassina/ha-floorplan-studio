@@ -588,6 +588,35 @@ test("S10.2: attaching a placed contact sensor to its door pulls the icon off th
   await page.locator("#addDevClose").click();
 });
 
+// S10.5: attaching an entity must also pull its catalog entry out of Add — S10.2 above only ever checked the icon
+// and the state after Remove, never Add itself while the entity stayed attached. Before the fix, a user could
+// attach the garage contact sensor to its door, then reopen Add and place a second icon for the same sensor.
+test("S10.5: a catalogued entity attached to a door through #dsens is not offered in Add while attached; Remove lists it again", async ({ page }) => {
+  const pick = async (i: number) => { const c = await centre(page, `line[data-d="${i}"]`); await page.mouse.click(c.x, c.y); };
+  // contact-garage is catalogued but unplaced in the demo (its own entity never had an icon), so this exercises
+  // the device-less path (unplacedCatalog), distinct from S10.2's "place it first, then attach" scenario above.
+  await openDevice(page);
+  await expect(devItem(page, "contact-garage")).toHaveCount(1); // unplaced and unattached: offered
+  await page.locator("#addDevClose").click();
+
+  await pick(2); // Garage door: no sensor yet
+  await pickEntity(page, "#dsens", "binary_sensor.demo_garage_door");
+  expect((await groundOf(page)).doors[2].sensors).toEqual(["binary_sensor.demo_garage_door"]);
+
+  await openDevice(page);
+  await expect(devItem(page, "contact-garage")).toHaveCount(0); // attached: no longer offered in Add
+  await page.locator("#addDevClose").click();
+
+  // Detach: the door's own Remove button, not Add — the entity is never on the plan as an icon here.
+  await pick(2);
+  await page.locator("#dsens-rm0").click();
+  expect((await groundOf(page)).doors[2].sensors).toBeUndefined();
+
+  await openDevice(page);
+  await expect(devItem(page, "contact-garage")).toHaveCount(1); // detached: offered again
+  await page.locator("#addDevClose").click();
+});
+
 // Opus review of S8.9: the "preview open" overlay was a fixed 22 cm regardless of the wall a door sat on, unlike
 // the door's own stroke (S8.9 part 2, wallWidthAt). The Patio door sits on an external wall (20 cm), not the old
 // fixed 22.

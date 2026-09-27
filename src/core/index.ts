@@ -9,6 +9,6 @@ export type { AddCandidate, HaBox, HaBoxRow, SwitchChoice } from "./ha";
 export * from "./geometry";
 export { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE } from "./icons";
 export * from "./render";
-export { groupKind, placedEntities, unplacedCatalog } from "./bind";
+export { attachedEntities, groupKind, placedEntities, unplacedCatalog } from "./bind";
 export { ACTIVE_LIST_RULE, activeDevices, groupActiveByType } from "./active";
 export type { ActiveDevice } from "./active";

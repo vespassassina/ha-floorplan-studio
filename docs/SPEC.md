@@ -434,6 +434,14 @@ card. The editor is unchanged — it always passed its own zoom, never `1`.
   already drawn; the view scrolls to it. A door, window or opening still lands
   on the wall nearest the middle of the view: it is of no use off the house.
 - Device: entities not yet placed, grouped by type then area, with a search.
+  "Not yet placed" (S10.5) excludes an entity attached to a door's
+  sensors/vibration/locks/cover, a heater's TRVs/temperature sensors, an ac's
+  linked entities, or an unlinked item's attached list: it is in use, not
+  unplaced, even though attaching it removed its own icon (S10.2) and it is
+  no longer in `placedEntities`. Every other list that offers an entity to
+  place (the room's "Add device from &lt;area&gt;" menu, the Place popup) excludes
+  it the same way. A light's `bound` switch and its `motion` link are not
+  attachments in this sense and stay offered normally.
 - Every field that picks a Home Assistant entity (a device's own entity,
   "Controlled by", a door's cover, room/furniture "shows the state of", room
   sensor, radar targets, and every multi-attach list of sensors or locks) is

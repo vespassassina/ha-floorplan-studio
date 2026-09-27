@@ -111,9 +111,11 @@ room, one undo step, ready to drag to their real place.
    offered twice (its own stays). Attaching a placed entity to a door's
    sensors/locks/cover, a heater's TRVs or temperature sensors, an ac's
    linked entities, or an unlinked item's list pulls its icon off the plan in
-   the same step — it is now shown through what it is attached to. Detach it
-   again (Remove, or clear the cover) and it goes back to `Device`, not back
-   onto the plan.
+   the same step — it is now shown through what it is attached to, and
+   `Device` no longer offers it either: an attached entity is in use, not
+   unplaced, so it can't be placed a second time next to what already reads
+   it. Detach it again (Remove, or clear the cover) and it goes back to
+   `Device`, not back onto the plan.
 7. **Save.** `File → Save` inside Home Assistant writes to `.storage`
    straight away. `File → Export` (either mode) downloads the JSON.
 
