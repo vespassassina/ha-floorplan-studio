@@ -8127,3 +8127,30 @@ test("S10.1: keystrokes typed into a combo's filter box never trigger the editor
   await page.keyboard.press("Control+z"); // would undo something if a delete had actually gone through
   expect((await groundOf(page)).devices.length).toBe(before);
 });
+
+test("S10.1: a hostile entity name from Home Assistant renders as text in the combo, never as markup", async ({ page }) => {
+  const evil = `"><img src=x onerror="window.__xss=1">`;
+  await withUnboundLight(page);
+  await setHa(page, { ...PICK_HA, entities: [...PICK_HA.entities, { id: "sensor.evil", name: evil, domain: "sensor", area: null }] });
+  await page.locator("#unbound button[data-unbound]").click();
+  await openCombo(page, "#ve");
+  await page.locator("#ve input").fill("evil");
+  expect(await page.locator("#ve li[role='option']").allTextContents()).toEqual([evil]);
+  await expect(page.locator("#ve img")).toHaveCount(0);
+  expect(await page.evaluate(() => (window as any).__xss)).toBeUndefined();
+  await closeCombo(page);
+});
+
+// Two layers hold this: fp-combo fires no change for the current value, and EditorState.edit records no step for
+// an edit that changes nothing (state.ts). Removing only the combo's check keeps this green, by design.
+test("S10.1: picking the value that is already set adds no undo step", async ({ page }) => {
+  const i = await withUnboundLight(page);
+  await setHa(page, PICK_HA);
+  await page.locator("#unbound button[data-unbound]").click();
+  await pickEntity(page, "#ve", "light.garage", "garage");
+  await pickEntity(page, "#ve", "light.garage", "garage"); // the same value again
+  expect((await groundOf(page)).devices[i].entity).toBe("light.garage");
+  await menu(page, "File");
+  await page.locator("#undo").click();
+  expect((await groundOf(page)).devices[i].entity).toBe(""); // one undo reaches the start: the re-pick made no step
+});
