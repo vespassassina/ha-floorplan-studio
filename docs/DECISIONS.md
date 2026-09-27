@@ -2,6 +2,51 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 S9.4: a speaker radiates while it plays
+
+Ticket: `speaker` gets an on colour (blue, like `media`) and pulses two arcs
+while its entity is exactly `playing`.
+
+`classOf` treats `speaker` exactly like `media`: `playing` is the only "on"
+state, so an idle or on-but-not-playing media_player never lights up its
+icon. `--fp-dev-speaker` is fixed at `#2c7fb8` in every theme, the same
+exception `--fp-dev-tv` already is (S9.3) — a generated theme's `devFor()`
+would otherwise let the role's own accent colour through, and a speaker
+should read the same blue everywhere a `media` device already can.
+
+The arcs are two `<path>` semicircles, class `.wave`/`.wave.w2`, staggered
+by `animation-delay`, following the `.ping` pattern from S8.13 (a shape
+inside the device group, `transform-box:fill-box`, held still under
+`prefers-reduced-motion`). First pass used the arc's own 8px radius (half
+the halo's 16px) and the shots showed nothing: the arc sat entirely inside
+the halo's own fill and never crossed its edge, on or off. Radius now
+matches the halo's 16px, the same radius `.ping` already uses, so the arc
+visibly clears the disc — caught only by rendering the shots and looking at
+them (CLAUDE.md finding 16), not by any test.
+
+`.wave` is a `<path>`, unlike `.ping`'s `<circle>`, so a plain `.wave{fill:
+none}` and the reduced-motion `.wave{opacity:.6}` both lost to `.dev.on
+path{fill:...;opacity:...}` (specificity 0,2,1 beats 0,1,0 — CLAUDE.md
+finding 10). Both properties are repeated at `.dev.on path.wave`, which
+ties or beats that selector.
+
+Tap: `speaker` joins `NO_TOGGLE` (`src/card/actions.ts`), the same reasoning
+as `media` — `media_player.toggle` is play/pause or power, never a clean
+on/off, so a tap opens more-info rather than guessing which one was meant.
+
+Not touched: `src/core/ha.ts`'s `TYPE_RULES` has no domain-mapping entry for
+`speaker` (pre-existing; `media` has none either), so `entitiesForType`
+matches every entity for that type rather than filtering to `media_player.*`
+domain entities. Out of scope for this ticket, which only asked for the
+colour, arcs and tap.
+
+No new demo device: `demo/layout.json`'s existing `media-office` device
+(type `media`, entity `media_player.demo_office`) is already driven to
+`playing` for the "on" shots state, so it exercises the arcs without adding
+a `speaker` fixture. The Playwright CSS-pair tests add their own throwaway
+`speaker` fixture via `addCssFixtures`, same as several other types already
+do, to test the fixed colour and the arcs on the type itself.
+
 ## 2026-09-26 S8.13 review: the viewBox pads only lamps near the plan
 
 Supersedes part of the S8.13 viewBox entry below. The Opus review found

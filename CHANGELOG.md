@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- A speaker (media_player) gets its own on colour, blue like a media device,
+  and pulses two arcs out from its disc while it is playing — paused, idle,
+  off or any other state stays idle grey. Reduced motion holds the arcs
+  still. Tapping a speaker always opens more-info, never a toggle.
+
 ## 0.12.7
 
 - A lit lamp's aura is 50% larger (3 m across instead of 2 m). It now draws
