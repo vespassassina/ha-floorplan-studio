@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { DEVICE_COLOURS } from "../../src/core/render";
+import { DEVICE_COLOURS, viewBoxFor } from "../../src/core/render";
 import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
 import { GUIDE_STEPS } from "../../src/editor/guide";
 import { decodePng, pixelAt } from "../core/util/png";
@@ -7837,3 +7837,73 @@ test("S8.11: a real click still selects the opening in the editor, on top of the
 // Opus review of S8.11 (2026-09-26): the pair's own two card.spec.ts tests were widened along with the mask cut
 // (OPENING_EXTRA) and a since-removed seam patch was checked and found unnecessary once that cut is wide enough —
 // see docs/DECISIONS.md's S8.11 follow-up.
+
+// ---- S9.6: "Copy card view" (View menu) — center/zoom_level for a card pinned to what the editor shows ----
+
+test("S9.6: Copy card view copies center/zoom_level YAML for the current view and confirms in the status line", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).__copied = null;
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: (t: string) => { (window as any).__copied = t; return Promise.resolve(); } }, configurable: true });
+  });
+  await zoomIn(page, 4); // away from fit, so this is not just testing the zoom_level: 1 default
+  await menu(page, "View");
+  await page.locator(`${EDITOR} #copyCardView`).click();
+  const copied = await page.evaluate(() => (window as any).__copied as string);
+  expect(copied).toMatch(/^center: \[-?\d+, -?\d+\]\nzoom_level: \d+\.\d\d$/);
+  await expect(page.locator("#status")).toHaveText("Card view copied.");
+});
+
+test("S9.6: Copy card view round-trips into a card's center/zoom_level, within 1cm, for a same-aspect viewport", async ({ page }) => {
+  // The card's own fit (pad 60, no rotation) — computed the same way `copyCardView` computes it, and independent
+  // of the editor's own pad-80 fit()/recenter(), so this test would catch either one leaking into the other.
+  const fit = viewBoxFor((JSON.parse(readFileSync("demo/layout.json", "utf8")) as Layout).floors.ground, 60);
+  const zoomLevel = 2.5, center: [number, number] = [650, 200]; // the kitchen light (demo/layout.json), same as card.spec.ts's S9.6 pin
+  const forced = { x: center[0] - fit.w / zoomLevel / 2, y: center[1] - fit.h / zoomLevel / 2, w: fit.w / zoomLevel, h: fit.h / zoomLevel };
+
+  // Poke the editor's own view directly to a box that already has the card's own fit aspect (pad 60) — the
+  // "same-aspect viewport" the round trip is meant to hold under. Driving this through real wheel/pan gestures
+  // would leave the editor's view at its own pad-80 fit's aspect instead, which is a real (small) source of drift
+  // this test deliberately sets aside to isolate the round-trip maths themselves.
+  await page.evaluate(([tag, v]) => {
+    const el = document.querySelector(tag as string) as any;
+    el.st.views[el.st.floor] = v;
+    el.requestUpdate();
+  }, [EDITOR, forced] as const);
+  await expect.poll(() => page.locator(`${EDITOR} svg`).first().getAttribute("viewBox")).not.toBeNull();
+
+  await page.evaluate(() => {
+    (window as any).__copied = null;
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: (t: string) => { (window as any).__copied = t; return Promise.resolve(); } }, configurable: true });
+  });
+  await menu(page, "View");
+  await page.locator(`${EDITOR} #copyCardView`).click();
+  const copied = (await page.evaluate(() => (window as any).__copied as string))!;
+  const m = copied.match(/^center: \[(-?\d+), (-?\d+)\]\nzoom_level: (\d+\.\d\d)$/)!;
+  const [gotCx, gotCy, gotZoom] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  expect(gotCx).toBe(center[0]);
+  expect(gotCy).toBe(center[1]);
+  expect(gotZoom).toBeCloseTo(zoomLevel, 2);
+
+  const CARD_JS = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  const layout = JSON.parse(readFileSync("demo/layout.json", "utf8"));
+  await page.addScriptTag({ content: CARD_JS, type: "module" });
+  await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+  const box = await page.evaluate(
+    ([layout, gotCx, gotCy, gotZoom]) => {
+      const el = document.createElement("floorplan-studio-card") as any;
+      document.body.appendChild(el);
+      el.setConfig({ layout, center: [gotCx, gotCy], zoom_level: gotZoom });
+      el.hass = { states: {} };
+      return el.updateComplete.then(() => {
+        const [x, y, w, h] = el.shadowRoot.querySelector("svg").getAttribute("viewBox").split(/\s+/).map(Number);
+        el.remove();
+        return { x, y, w, h };
+      });
+    },
+    [layout, gotCx, gotCy, gotZoom] as const,
+  );
+  expect(Math.abs(box.x - forced.x)).toBeLessThan(1);
+  expect(Math.abs(box.y - forced.y)).toBeLessThan(1);
+  expect(Math.abs(box.w - forced.w)).toBeLessThan(1);
+  expect(Math.abs(box.h - forced.h)).toBeLessThan(1);
+});

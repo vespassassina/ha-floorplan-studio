@@ -1,8 +1,9 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, wallWidthAt } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, Trace, WallKind } from "../core";
+import { MAX_ZOOM } from "../card/viewport";
 import { traceImage } from "./trace";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
@@ -1094,6 +1095,29 @@ export class FloorplanStudioEditor extends LitElement {
     if (!cb) { this.status = "Could not copy — select the text and copy it by hand."; this.requestUpdate(); return; }
     cb.writeText(code).then(
       () => { this.status = "Install code copied."; this.requestUpdate(); },
+      () => { this.status = "Could not copy — select the text and copy it by hand."; this.requestUpdate(); },
+    );
+  }
+
+  /** S9.6: "Copy card view" (View menu) — the `center`/`zoom_level` a card needs to open on exactly what the
+   * editor is showing right now. `viewBoxFor(st.f, 60, ...)` is the card's own fit (pad 60); the editor's own
+   * `fit()`/`recenter()` use pad 80 for their own on-screen margin, so this is computed independently rather than
+   * read off `st.view`'s resting box, or a card pasting these values would open slightly wider than the editor.
+   * `zoomLevel` comes from the width ratio: a pinned view keeps `fit`'s own aspect (`pinnedView`, `viewport.ts`),
+   * so the height ratio would give the same number for a same-aspect viewport and a different one only when the
+   * editor's own window has a different aspect than the card it is copied into — an inherent limit of a single
+   * number standing in for two dimensions, not a bug. */
+  private copyCardView(): void {
+    const st = this.st;
+    const fit = viewBoxFor(st.f, 60, st.rotation);
+    const v = st.view;
+    const cx = Math.round(v.x + v.w / 2), cy = Math.round(v.y + v.h / 2);
+    const zoomLevel = Math.min(MAX_ZOOM, Math.max(1, fit.w / v.w));
+    const yaml = `center: [${cx}, ${cy}]\nzoom_level: ${zoomLevel.toFixed(2)}`;
+    const cb = navigator.clipboard;
+    if (!cb) { this.status = "Could not copy — select the text and copy it by hand."; this.requestUpdate(); return; }
+    cb.writeText(yaml).then(
+      () => { this.status = "Card view copied."; this.requestUpdate(); },
       () => { this.status = "Could not copy — select the text and copy it by hand."; this.requestUpdate(); },
     );
   }
@@ -2316,6 +2340,7 @@ export class FloorplanStudioEditor extends LitElement {
           </details>
           <button class="btn" id="recenter" @click=${() => { st.recenter(); this.requestUpdate(); }}>Re-center</button>
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
+          <button class="btn" id="copyCardView" title="Copies center and zoom_level for a card pinned to what's on screen now" @click=${() => this.copyCardView()}>Copy card view</button>
         </div></details>
         <details class="menu" id="mEdit" @toggle=${this.onMenuToggle}><summary class="btn">Edit</summary><div class="box">
           <button class="btn" id="addFloor" title="Add a floor" @click=${() => this.startAddFloor()}>Add floor</button>
