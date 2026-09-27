@@ -52,7 +52,14 @@ export interface FloorplanStudioCardConfig {
    * multi-floor layout with neither key set — instead shows just its first floor, with no switcher: use one card
    * per floor instead (see `docs/card.md`). */
   kiosk?: boolean;
+  /** S9.1: the colour an open contact door or window (and its S8.13 alert line) draws in, as `#rrggbb`; unset
+   * keeps the theme's own default (--fp-dev-contact). A value that is not a plain 6-digit hex is ignored, the
+   * same as any other untrusted config (CLAUDE.md finding 1) — never thrown on. */
+  open_color?: string;
 }
+
+/** Card config is untrusted input (CLAUDE.md finding 1): only a plain `#rrggbb` hex is accepted for open_color. */
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 /** Two taps closer than this in time and space are a double-tap. */
 const DOUBLE_TAP_MS = 350;
@@ -496,6 +503,13 @@ export class FloorplanStudioCard extends LitElement {
     this.setAttribute("data-theme", t);
     if (t === "ha" && this._haDark()) this.setAttribute("data-mode", "dark");
     else this.removeAttribute("data-mode");
+
+    // S9.1: open_color overrides --fp-open-door on the host itself, which every theme's own [data-theme] rule
+    // already defines (default var(--fp-dev-contact)) — an inline host style always wins the cascade over it. An
+    // invalid value is dropped instead of thrown on (CLAUDE.md finding 1) and leaves the theme's default in place.
+    const openColor = this._config.open_color;
+    if (openColor && HEX_COLOR.test(openColor)) this.style.setProperty("--fp-open-door", openColor);
+    else this.style.removeProperty("--fp-open-door");
 
     const svg = this.shadowRoot?.querySelector("svg") ?? null;
     if (svg !== this._actionsSvg) {
