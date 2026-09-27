@@ -20,13 +20,20 @@ Assistant every day.
 - A dumb light on a smart switch is one icon: bind the switch to the light
   ("Controlled by") and the plan shows both as one lamp.
 - A Lovelace card: lights, switches, sensors, cameras, thermostats, doors,
-  people, mmWave radar targets and vacuums shown live. Motion fades from red
-  to grey; an open door or window turns red; the plan darkens after sunset, and a light
-  keeps its room clear. Pinch, drag and double-tap to zoom and pan on a
-  phone, Ctrl/Cmd+wheel and drag on a desktop; a kiosk mode strips the card
-  down to the plan for a wall tablet.
+  people, mmWave radar targets and vacuums shown live. A lit lamp throws a
+  pool of light; motion pings and fades from red to grey; an open door or
+  window turns red and dashed; a TV turns blue; a playing speaker sends out
+  waves. The plan darkens after sunset. Icons grow with a large house, and
+  `icon_size` scales them further.
+- A floating **Active** list on the card: every light, sensor, camera, TV and
+  speaker that is on, on any floor. Tap a row for its more-info dialog; drag
+  the list aside or fold it away.
+- Pinch, drag and double-tap to zoom and pan on a phone, Ctrl/Cmd+wheel and
+  drag on a desktop. A kiosk mode strips the card down to the plan for a
+  wall tablet.
 - Adding or editing the card shows a form, not raw YAML: theme, floors, fade,
-  room glow, zoom, kiosk, night, all in the Lovelace UI.
+  room glow, zoom, kiosk, night, icon size, open-door colour, the Active
+  list, all in the Lovelace UI.
 - **File → Install code** in the editor writes a whole dashboard, not just
   the card, ready to paste and matched to your plan's theme and floors.
 - A scanned or photographed plan can be traced: load it in the editor, scale
