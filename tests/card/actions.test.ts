@@ -7,6 +7,7 @@ const LIGHT: Device = { id: "l1", type: "light", entity: "light.demo_living", x:
 const SWITCH: Device = { id: "s1", type: "switch", entity: "switch.demo_hall", x: 200, y: 100 };
 const CAMERA: Device = { id: "c1", type: "camera", entity: "camera.demo_hall", x: 300, y: 100 };
 const MEDIA: Device = { id: "m1", type: "media", entity: "media_player.demo_office", x: 400, y: 100 };
+const SPEAKER: Device = { id: "sp1", type: "speaker", entity: "media_player.demo_kitchen_speaker", x: 500, y: 100 };
 const SENSOR_DOOR: Door = { id: "d1", name: "Front door", kind: "door", a: [0, 0], b: [100, 0], sensors: ["binary_sensor.demo_front_door"] };
 const COVER_DOOR: Door = { id: "d2", name: "Garage door", kind: "door", a: [0, 100], b: [100, 100], cover: "cover.demo_garage_door" };
 
@@ -182,9 +183,9 @@ describe("actions: bindDeviceActions on camera and media (S2.5)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     callService = vi.fn();
-    svg = svgFixture([CAMERA, MEDIA]);
+    svg = svgFixture([CAMERA, MEDIA, SPEAKER]);
     host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    unbind = bindDeviceActions(svg, host, (i) => [CAMERA, MEDIA][i]);
+    unbind = bindDeviceActions(svg, host, (i) => [CAMERA, MEDIA, SPEAKER][i]);
   });
 
   afterEach(() => {
@@ -214,6 +215,21 @@ describe("actions: bindDeviceActions on camera and media (S2.5)", () => {
     pointer(g, "pointerup");
     expect(moreInfo).toHaveBeenCalledTimes(1);
     expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "media_player.demo_office" });
+    expect(callService).not.toHaveBeenCalled();
+  });
+
+  // S9.4: a speaker is a media_player device like MEDIA, and gets the same decision — it has no toggle either
+  // (NO_TOGGLE, src/card/actions.ts), for the same reason: media_player's own toggle is play/pause or power,
+  // never a clean on/off, so a tap opens more-info instead of guessing which one the user meant.
+  it("a tap on a speaker fires hass-more-info with its own entity, not a toggle", () => {
+    const g = svg.querySelector('[data-x="2"]')!;
+    const moreInfo = vi.fn();
+    host.addEventListener("hass-more-info", moreInfo);
+    pointer(g, "pointerdown");
+    vi.advanceTimersByTime(50);
+    pointer(g, "pointerup");
+    expect(moreInfo).toHaveBeenCalledTimes(1);
+    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "media_player.demo_kitchen_speaker" });
     expect(callService).not.toHaveBeenCalled();
   });
 

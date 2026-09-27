@@ -13,6 +13,10 @@
   house: past 1000 cm on the plan's longest side, they stop scaling down
   with it and grow instead. A new `icon_size` option (0.5 to 3, default 1)
   scales them further on top of that.
+- A speaker (media_player) gets its own on colour, blue like a media device,
+  and pulses two arcs out from its disc while it is playing — paused, idle,
+  off or any other state stays idle grey. Reduced motion holds the arcs
+  still. Tapping a speaker always opens more-info, never a toggle.
 
 ## 0.12.7
 

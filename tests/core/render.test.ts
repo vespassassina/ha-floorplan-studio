@@ -427,7 +427,58 @@ describe("S8.13: brighter alerts, wider light", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.ping\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-ping/);
     expect(FLOORPLAN_CSS).toMatch(/\.dev-motion\.on \.halo,\.dev-contact\.on \.halo\{fill-opacity:\.6;stroke:var\(--fp-dev\);stroke-width:2\}/);
     expect(FLOORPLAN_CSS).toMatch(/\.door-alert\{stroke:var\(--fp-open-door\);[^}]*stroke-linecap:butt;[^}]*pointer-events:none/);
-    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert\{animation:none\}/);
+    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave\{animation:none\}/);
+  });
+});
+
+describe("S9.4: a speaker radiates while it plays", () => {
+  const dev = (type: string, entity: string, x = 400, y = 300) => ({ id: `${type}-x`, type, entity, x, y });
+  const draw = (devices: unknown[], state: StateOverlay) => renderFloor({ ...structuredClone(ground), devices } as never, { ...base, state });
+  const group = (html: string) => html.match(/<g data-x="0"[^>]*>.*?<\/g>/s)![0];
+  const WAVE = /<path class="wave"[^>]*\/><path class="wave w2"[^>]*\/><circle class="halo"/;
+
+  it("a playing speaker or media device draws two staggered arcs before the halo", () => {
+    for (const type of ["speaker", "media"]) {
+      const on = group(draw([dev(type, "media_player.s")], { "media_player.s": st("playing") }));
+      expect(on, type).toMatch(WAVE);
+      expect((on.match(/class="wave/g) ?? []).length, type).toBe(2);
+    }
+  });
+
+  it("paused, idle, off, on (not playing), unavailable, unknown or no state draws no arcs", () => {
+    for (const type of ["speaker", "media"]) {
+      for (const s of ["paused", "idle", "off", "on", "unavailable", "unknown"]) {
+        expect(group(draw([dev(type, "media_player.s")], { "media_player.s": st(s) })), `${type} ${s}`).not.toContain("wave");
+      }
+      expect(group(draw([dev(type, "media_player.s")], {})), `${type} no state`).not.toContain("wave");
+    }
+  });
+
+  it("no other device type draws arcs even while its entity reports playing", () => {
+    for (const type of ["light", "tv", "plug", "switch", "person", "camera"]) {
+      expect(group(draw([dev(type, "x.y")], { "x.y": st("playing") })), type).not.toContain("wave");
+    }
+  });
+
+  it("a playing speaker or media device carries the on class and its own accent colour, never the idle catch-all", () => {
+    for (const type of ["speaker", "media"]) {
+      const on = group(draw([dev(type, "media_player.s")], { "media_player.s": st("playing") }));
+      expect(on, type).toContain(` ${type === "speaker" ? "dev-speaker" : "dev-media"} on"`);
+    }
+    expect(DEVICE_COLOURS.speaker).toBe("#2c7fb8");
+  });
+
+  it("the wave rule pulses from the sensor's own colour, staggered, and holds still under reduced motion", () => {
+    expect(FLOORPLAN_CSS).toMatch(/\.wave\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-wave/);
+    expect(FLOORPLAN_CSS).toMatch(/\.wave\.w2\{animation-delay:\.8s\}/);
+    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave\{animation:none\}\.ping,\.wave\{transform:scale\(1\.5\);opacity:\.6\}\.dev\.on path\.wave\{opacity:\.6\}\}/);
+  });
+
+  it("the wave's fill:none and reduced-motion opacity both repeat at the specificity of .dev.on path, so they are not lost to it (CLAUDE.md finding 10)", () => {
+    // .dev.on path{fill:...;opacity:...} is (0,2,1); a bare .wave{fill:none} or .wave{opacity:.6} is only (0,1,0)
+    // because .wave is a <path> like .ping is a <circle> is not — so each needs an equal-or-higher-specificity repeat.
+    expect(FLOORPLAN_CSS).toMatch(/\.dev\.on path\.wave\{fill:none\}/);
+    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{[^]*\.dev\.on path\.wave\{opacity:\.6\}\}/);
   });
 });
 
@@ -1238,7 +1289,7 @@ describe("S2.9: a device wears its colour when it is on", () => {
 // from a deliberate grey — the S2.9 verifier found media, cover and other sitting there while SPEC promised media
 // an accent. This test makes every member of DEVICE_TYPES a decision someone had to write down.
 describe("S2.9: every device type has a decided active colour", () => {
-  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "battery", "inverter", "server", "access_point", "boiler", "car", "ups", "printer", "speaker"]; // S2.13: these are monitored, not switched; the S4.25 five are unlinked-only types with no entity state to read, so never on
+  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "battery", "inverter", "server", "access_point", "boiler", "car", "ups", "printer"]; // S2.13: these are monitored, not switched; the S4.25 four (speaker moved to its own on colour in S9.4) are unlinked-only types with no entity state to read, so never on
   it.each(DEVICE_TYPES)("%s either names its own --fp-dev or is idle on purpose", (t) => {
     if (t === "ac") return; // ac has two: .dev-ac.cool.on and .dev-ac.heat.on, tested below
     const rule = new RegExp(`\\.dev-${t}\\.on\\{--fp-dev:var\\((--fp-[a-z-]+)\\)\\}`);

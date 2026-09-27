@@ -184,6 +184,14 @@ differently:
   With reduced motion set on the device, nothing pulses. A cover door's own
   open state (see Cover, above) is separate: it stays its plain orange,
   undashed, whatever `open_color` says.
+- **Speaker (media_player)** — blue, the same as `media`, only while the
+  player's state is exactly `playing`: paused, idle, off, on-but-not-playing,
+  unavailable and unknown all stay idle grey. Playing, two arcs pulse out from
+  under its disc in its own colour, so a speaker mid-song reads as radiating
+  sound on the plan. Reduced motion holds the arcs still, the same as a
+  motion sensor's ring. Tap always opens more-info: `media_player.toggle` is
+  play/pause or power, never a clean on/off, so guessing which one you meant
+  would be worse than always asking.
 - **Camera** — a dark cone of view, turned to match the device's own
   rotation.
 - **Person** — a green icon at full opacity while home; away (`not_home`, or
