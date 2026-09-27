@@ -2169,66 +2169,6 @@ the editor becomes one reusable combo, tested, with shots looked at.
   shots looked at — no visual change, this task touches only `panels.ts`,
   `state.ts` and `editor-app.ts`'s wiring, no stylesheet or `render.ts`.
 
-### S10.5 An attached entity is not offered in Add
-
-- Outcome: field bug from S10.2 — attaching a placed sensor to a door,
-  heater, ac or unlinked item pulls its icon off the plan (S10.2), but the
-  entity still showed in Add (and every other "place this entity" list),
-  because those lists only ever subtracted `placedEntities`, never checked
-  whether the entity was attached elsewhere. A user could place a second
-  icon right next to the door that already reads the sensor.
-- Acceptance criteria (all met):
-  - [x] A new core helper, `attachedEntities(layout)` (`src/core/bind.ts`,
-    exported via `src/core/index.ts`), collects every entity named in a
-    door's `sensors`/`vibration`/`locks`/`cover`, a device's
-    `trvs`/`tempSensors`/`linked`, or an unlinked item's `attached`, across
-    every floor. Never throws on hostile input (a non-array list, a
-    non-string member, a floor missing a field).
-  - [x] `unplacedCatalog` subtracts it, same as `placedEntities`.
-  - [x] Every other list that offers an entity for placing also excludes it:
-    `unplacedHaEntities` (and `placeableInArea`, which is built from it),
-    `placeableDevicesInArea` (S8.1 Place popup), `unplacedDevicesInArea`
-    (room "Add device from &lt;area&gt;" menu), `addCandidates` (Add > Device).
-  - [x] `availableEntities` (S6.7, the File > Export snapshot) marks an
-    attached entity `placed: true` too — an agent reading the exported file
-    must not place it either.
-  - [x] A light's `bound` switch and `motion` link, a person's `room`
-    sensor and a radar's `targets` pairs are explicitly NOT attachments:
-    none of them goes through `EditorState.attachEntity`, none of them ever
-    loses its own icon, so each stays independently placeable exactly as
-    before.
-  - [x] Detaching (Remove on the row) makes the entity show in Add again —
-    S10.2's own promise, unchanged and covered by both a unit test and a
-    Playwright test.
-  - [x] The attach pickers themselves (`doorAttachChoices`,
-    `deviceAttachChoices`, `unlinkedAttachChoices`, `coverChoices`) are
-    untouched — they already handle "attached elsewhere" their own way.
-- Design: one set-builder, `attachedEntities`, reused everywhere a set of
-  "already placed" ids was being unioned with "already attached" — each call
-  site builds `new Set([...placedEntities(l), ...attachedEntities(l)])` (or,
-  for `availableEntities`, ORs the two membership checks) rather than
-  threading a new parameter through `deviceRows`, keeping the diff to the
-  handful of lines that decide "offered or not" in each function.
-- Test: `tests/core/bind.test.ts` — table-driven over every attachment
-  field (door sensors/vibration/locks/cover, device trvs/tempSensors/linked,
-  unlinked attached), each case written to fail without the fix (watched:
-  reverting `src/core/bind.ts`/`ha.ts` to the pre-fix versions and rerunning
-  failed 19 tests across `bind.test.ts`/`ha.test.ts` before the fix was
-  restored); plus dedicated cases proving `bound`/`motion`/`room`/`targets`
-  are NOT counted, and hostile input (a bare number where a list was
-  expected, a non-string list member, `__proto__`-keyed floors) never
-  throws. `tests/core/ha.test.ts` gets a new "S10.5" describe covering
-  `placeableDevicesInArea`, `unplacedDevicesInArea` and `addCandidates` for
-  both a device-less attached entity and one grouped under an HA device.
-  Playwright: `editor.spec.ts` attaches the demo's catalogued, unplaced
-  `contact-garage` to the Garage door through `#dsens` with a real click at
-  real coordinates, opens Add and checks it is not listed, removes the
-  attachment and checks Add lists it again — watched fail first (reverting
-  the source made the "not offered while attached" assertion see the row
-  where it expected none), green at `--repeat-each=10` (10/10).
-- Done, 2026-09-27. `npm run lint`, `npm test`, and the full Playwright
-  suite all read bare, `$?` checked on its own line — see the report for
-  exact counts and exit codes.
 ### S10.3 A triggered vibration sensor turns its door red, solid, on contact/vibration/crash
 
 - Outcome: a door whose `vibration` sensor is `on` renders the same colour as
@@ -2340,6 +2280,67 @@ the editor becomes one reusable combo, tested, with shots looked at.
   flake). Full suites green: 1268 unit tests, 665 Playwright tests + 108 for
   a targeted `card.spec.ts` rerun (1 pre-existing skip, unrelated), lint and
   `tsc --noEmit` clean.
+
+### S10.5 An attached entity is not offered in Add
+
+- Outcome: field bug from S10.2 — attaching a placed sensor to a door,
+  heater, ac or unlinked item pulls its icon off the plan (S10.2), but the
+  entity still showed in Add (and every other "place this entity" list),
+  because those lists only ever subtracted `placedEntities`, never checked
+  whether the entity was attached elsewhere. A user could place a second
+  icon right next to the door that already reads the sensor.
+- Acceptance criteria (all met):
+  - [x] A new core helper, `attachedEntities(layout)` (`src/core/bind.ts`,
+    exported via `src/core/index.ts`), collects every entity named in a
+    door's `sensors`/`vibration`/`locks`/`cover`, a device's
+    `trvs`/`tempSensors`/`linked`, or an unlinked item's `attached`, across
+    every floor. Never throws on hostile input (a non-array list, a
+    non-string member, a floor missing a field).
+  - [x] `unplacedCatalog` subtracts it, same as `placedEntities`.
+  - [x] Every other list that offers an entity for placing also excludes it:
+    `unplacedHaEntities` (and `placeableInArea`, which is built from it),
+    `placeableDevicesInArea` (S8.1 Place popup), `unplacedDevicesInArea`
+    (room "Add device from &lt;area&gt;" menu), `addCandidates` (Add > Device).
+  - [x] `availableEntities` (S6.7, the File > Export snapshot) marks an
+    attached entity `placed: true` too — an agent reading the exported file
+    must not place it either.
+  - [x] A light's `bound` switch and `motion` link, a person's `room`
+    sensor and a radar's `targets` pairs are explicitly NOT attachments:
+    none of them goes through `EditorState.attachEntity`, none of them ever
+    loses its own icon, so each stays independently placeable exactly as
+    before.
+  - [x] Detaching (Remove on the row) makes the entity show in Add again —
+    S10.2's own promise, unchanged and covered by both a unit test and a
+    Playwright test.
+  - [x] The attach pickers themselves (`doorAttachChoices`,
+    `deviceAttachChoices`, `unlinkedAttachChoices`, `coverChoices`) are
+    untouched — they already handle "attached elsewhere" their own way.
+- Design: one set-builder, `attachedEntities`, reused everywhere a set of
+  "already placed" ids was being unioned with "already attached" — each call
+  site builds `new Set([...placedEntities(l), ...attachedEntities(l)])` (or,
+  for `availableEntities`, ORs the two membership checks) rather than
+  threading a new parameter through `deviceRows`, keeping the diff to the
+  handful of lines that decide "offered or not" in each function.
+- Test: `tests/core/bind.test.ts` — table-driven over every attachment
+  field (door sensors/vibration/locks/cover, device trvs/tempSensors/linked,
+  unlinked attached), each case written to fail without the fix (watched:
+  reverting `src/core/bind.ts`/`ha.ts` to the pre-fix versions and rerunning
+  failed 19 tests across `bind.test.ts`/`ha.test.ts` before the fix was
+  restored); plus dedicated cases proving `bound`/`motion`/`room`/`targets`
+  are NOT counted, and hostile input (a bare number where a list was
+  expected, a non-string list member, `__proto__`-keyed floors) never
+  throws. `tests/core/ha.test.ts` gets a new "S10.5" describe covering
+  `placeableDevicesInArea`, `unplacedDevicesInArea` and `addCandidates` for
+  both a device-less attached entity and one grouped under an HA device.
+  Playwright: `editor.spec.ts` attaches the demo's catalogued, unplaced
+  `contact-garage` to the Garage door through `#dsens` with a real click at
+  real coordinates, opens Add and checks it is not listed, removes the
+  attachment and checks Add lists it again — watched fail first (reverting
+  the source made the "not offered while attached" assertion see the row
+  where it expected none), green at `--repeat-each=10` (10/10).
+- Done, 2026-09-27. `npm run lint`, `npm test`, and the full Playwright
+  suite all read bare, `$?` checked on its own line — see the report for
+  exact counts and exit codes.
 
 ## Later, not planned
 
