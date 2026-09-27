@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Every entity picker in the editor is now a filterable combo box: type to
+  narrow by name, entity id or room/domain, arrow keys and Enter to pick,
+  Escape to back out without picking.
+
 ## 0.12.8
 
 - A card can pin a `center: [x, y]` (plan cm) and a `zoom_level` (1 is the

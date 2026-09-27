@@ -2,6 +2,50 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 S10.1: a custom `<fp-combo>`, not `<datalist>` or `ha-entity-picker`; device entities lose one level of nesting
+
+Diego asked for a filterable combo box on every entity picker. Two off-the-
+shelf options were rejected:
+
+- **`<input list>` / `<datalist>`.** No group headings, no keyboard control
+  over which match Enter commits (the browser's own, inconsistent across
+  engines), and no way to intercept Escape before it reaches the editor's
+  own shortcut handler. It would have looked filterable and behaved like a
+  worse `<select>`.
+- **Home Assistant's own `ha-entity-picker`.** It ships inside `frontend`,
+  which this project deliberately does not depend on (CLAUDE.md finding 9:
+  no runtime lock-ins beyond `--fp-*` variables and inlined icon paths); the
+  standalone editor and the demo run with no Home Assistant frontend at all.
+
+`fp-combo` (`src/editor/combo.ts`) is a small Lit element instead: a plain
+text input, a flat `<ul role="listbox">` of options and group headings, and
+its own keyboard handling. `filterCombo` (the matching itself) is a pure
+function, unit-tested with no DOM; everything DOM-shaped (focus, Escape,
+undo-step timing, the editor's own shortcut guard) is a Playwright test,
+since CLAUDE.md finding 4 rules out DOM behaviour proven only by a pure
+function's test passing.
+
+**Deliberate deviation from the brief's literal shape:** a device's entity
+list (`#ve`, `deviceEntity` in `panels.ts`) used to nest two `<optgroup>`
+levels — a tier (In room / Elsewhere / Everything else), each holding one
+`<optgroup>` per device that owns several entities. `<optgroup>` cannot
+nest, so the original picker faked it with two separate group elements at
+different visual indents; `fp-combo`'s own groups are one flat level by
+design (a group is just an option's `group` string, matched by the filter
+too). Nesting is flattened into one label per row: a device's entities get
+`"<tier> · <device name>"` (for example `"In Kitchen · Kitchen light"`), and
+a tier's own loose entities (no owning device) keep just the tier's label.
+The list still reads top-to-bottom in the same order as before; a user
+loses the visual double-indent, not the information. Migrated tests read
+this via a new `comboGroupOptionLabels` helper that walks the flat list by
+heading text, in place of the old `optgroup[label="X"] option` selector.
+
+A `<select>`'s options are always in the DOM; `fp-combo` only renders its
+`<li>` rows while open (closed, it shows the current value's label, plain
+text). Every helper that used to read `<option>` — count, value, label — now
+opens the combo, reads the `<li>` rows, and closes it again with Escape, so
+a read never leaves a list open behind it for the next assertion.
+
 ## 2026-09-27 S9.6 review: − reaches the whole floor, Fit becomes Reset view, center is plan cm under rotation
 
 A second Opus review, of S9.6 (the pinned card) on top of the first S9 review,

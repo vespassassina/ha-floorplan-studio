@@ -106,8 +106,9 @@ room, one undo step, ready to drag to their real place.
    resize and rotate. `Add → Entities` (inside Home Assistant) or
    `Device → <unplaced item>` places something tied to a real entity.
 6. **Attach an entity.** Select a device, pick it from the entity field in its
-   panel. An entity already on the plan is never offered twice (its own
-   stays).
+   panel — a filterable combo box: type part of a name, entity id or
+   room/domain to narrow the list. An entity already on the plan is never
+   offered twice (its own stays).
 7. **Save.** `File → Save` inside Home Assistant writes to `.storage`
    straight away. `File → Export` (either mode) downloads the JSON.
 

@@ -7,6 +7,8 @@ import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaBoxRow, HaData, Room,
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 import { GUIDE_STEPS } from "./guide";
+import "./combo";
+import type { ComboOption } from "./combo";
 
 /** Selection panels: one function per kind of selection, all pure views over the state. */
 
@@ -70,8 +72,17 @@ export interface PanelCtx {
   floors: { rename(key: string, title: string): void; move(key: string, delta: number): void; remove(key: string): void };
 }
 
-type Input = HTMLInputElement | HTMLSelectElement;
-const val = (e: Event) => (e.target as Input).value;
+type Input = HTMLInputElement | HTMLSelectElement | { value: string };
+// A combo's own change event carries `detail` (see combo.ts's `commit: false`, S8.7's Motion options): the picked
+// value even when the combo's own `.value` property was deliberately left unchanged. A native input/select event
+// has no `detail`, so this falls back to `.value` for every other caller unchanged.
+const val = (e: Event) => ((e as CustomEvent).detail ?? (e.target as Input).value) as string;
+/** A combo box's `id`, `.value` and `@change` wiring, shared by every entity picker below. `options` is flat with
+ *  an optional `group` (see combo.ts); `none` is the label of the "" option when the field allows clearing. */
+function combo(id: string, label: string, cur: string, options: ComboOption[], on: (v: string) => void, none?: string) {
+  const all = none !== undefined ? [{ value: "", label: none }, ...options] : options;
+  return html`<fp-combo id=${id} .label=${label} .options=${all} .value=${live(cur)} @change=${(e: Event) => on(val(e))}></fp-combo>`;
+}
 const numVal = (e: Event): number | null => {
   const v = (e.target as Input).value;
   const n = Number(v);
@@ -167,13 +178,11 @@ function entityField(c: PanelCtx, id: string, label: string, cur: string | undef
       else { c.say("An entity id looks like sensor.pond"); c.refresh(); }
     });
   }
-  const domains = [...new Set(ha.entities.map((e) => e.domain))].sort();
   const unknown = !!cur && !ha.entities.some((e) => e.id === cur);
-  return html`<label for=${id}>${label}</label><select id=${id} .value=${live(cur ?? "")} @change=${(e: Event) => on(val(e) || undefined)}>
-      <option value="" ?selected=${!cur}>${none}</option>
-      ${domains.map((d) => html`<optgroup label=${d}>${byName(ha.entities.filter((e) => e.domain === d)).map((e) => html`<option value=${e.id} title=${e.id} ?selected=${e.id === cur}>${e.name}</option>`)}</optgroup>`)}
-      ${unknown ? missingOpt(cur!) : nothing}
-    </select>${unknown ? hint(NOT_IN_HA) : nothing}`;
+  const options: ComboOption[] = byName(ha.entities).map((e) => ({ value: e.id, label: e.name, group: e.domain }));
+  if (unknown) options.push({ value: cur!, label: `${cur} (not in Home Assistant)` });
+  return html`<label for=${id}>${label}</label>${combo(id, label, cur ?? "", options, (v) => on(v || undefined), none)}
+    ${unknown ? hint(NOT_IN_HA) : nothing}`;
 }
 
 /**
@@ -393,12 +402,12 @@ function angleField(c: PanelCtx, id: string, list: "walls" | "doors" | "openings
 function multiAttachField(c: PanelCtx, id: string, label: string, cur: string[], choices: CatalogEntry[], set: (next: string[]) => void) {
   const nameOf = (entity: string) => { const e = c.st.layout.catalog.find((x) => x.entity === entity); return e ? (e.room ? `${e.room} - ${e.name}` : e.name) : entity; };
   const avail = choices.filter((s) => !cur.includes(s.entity));
-  const add = (e: Event) => { const v = val(e); if (v) set([...cur, v]); };
+  const options: ComboOption[] = avail.map((s) => ({ value: s.entity, label: s.name, group: s.room }));
+  // Picking adds to the list and clears itself: the combo's own value never lingers on the picked entity, unlike a
+  // native `<select>` whose "add..." placeholder simply gets reselected next render.
+  const add = (v: string) => { if (v) set([...cur, v]); };
   return html`<label for=${id}>${label}</label>
-    <select id=${id} .value=${live("")} @change=${add}>
-      <option value="" selected>add...</option>
-      ${avail.map((s) => html`<option value=${s.entity}>${s.room ? `${s.room} - ` : ""}${s.name}</option>`)}
-    </select>
+    ${combo(id, label, "", options, add, "add...")}
     ${cur.map((en, k) => html`<p class="attach-row">${nameOf(en)} ${button(`${id}-rm${k}`, "Remove", () => set(cur.filter((x) => x !== en)), "warn")}</p>`)}`;
 }
 
@@ -419,11 +428,12 @@ function doorPanel(c: PanelCtx, i: number) {
     ${multiAttachField(c, "dvibr", "vibration sensors", d.vibration ?? [], c.st.doorAttachChoices(d.id, "vibration"), setList("vibration"))}
     ${multiAttachField(c, "dlocks", "smart locks", d.locks ?? [], c.st.doorAttachChoices(d.id, "locks"), setList("locks"))}
     <label for="dcover">${coverLabel}</label>
-    <select id="dcover" .value=${d.cover ?? ""} @change=${(e: Event) => c.commit((f) => { const v = val(e); if (v) f.doors[i].cover = v; else delete f.doors[i].cover; })}>
-      <option value="" ?selected=${!d.cover}>none</option>
-      ${c.st.coverChoices(d.id).map((s) => html`<option value=${s.entity} ?selected=${s.entity === d.cover}>${s.room ? `${s.room} - ` : ""}${s.name}</option>`)}
-      ${d.cover && !c.st.coverChoices(d.id).some((s) => s.entity === d.cover) ? html`<option value=${d.cover} selected>${d.cover}</option>` : nothing}
-    </select>
+    ${(() => {
+      const choices = c.st.coverChoices(d.id);
+      const options: ComboOption[] = choices.map((s) => ({ value: s.entity, label: s.name, group: s.room }));
+      if (d.cover && !choices.some((s) => s.entity === d.cover)) options.push({ value: d.cover, label: d.cover });
+      return combo("dcover", coverLabel, d.cover ?? "", options, (v) => c.commit((f) => { if (v) f.doors[i].cover = v; else delete f.doors[i].cover; }), "none");
+    })()}
     ${heading("Appearance")}
     ${lockField(c, "dlock", "doors", i)}
     ${angleField(c, "drot", "doors", i)}
@@ -739,7 +749,6 @@ function deviceEntity(c: PanelCtx, i: number) {
   const placed = placedEntities(c.st.layout);
   const { match, rest } = entitiesForType({ ...ha, entities: ha.entities.filter((e) => e.id === d.entity || !placed.has(e.id)) }, d.type);
   const here = room ? match.filter((e) => e.area === room.area) : [], elsewhere = match.filter((e) => !here.includes(e));
-  const optsRaw = (l: HaData["entities"]) => l.map((e) => html`<option value=${e.id} title=${e.id} ?selected=${e.id === d.entity}>${e.name}</option>`);
   const nameOf = new Map((ha.devices ?? []).map((dv) => [dv.id, dv.name]));
   // Opus review finding 11: a device with no name in Home Assistant's registry (`d.name` can be null) falls back
   // to its own main entity's name, never the raw device id — the same rule mainEntitiesByDevice/asDeviceRow follow.
@@ -747,7 +756,11 @@ function deviceEntity(c: PanelCtx, i: number) {
   // just the entities in whichever tier is being rendered — a tier can hold only a device's diagnostic sibling,
   // which `mainEntity` excludes on its own, so a per-tier lookup found no main entity and fell back to the id.
   const mainOf = mainEntitiesByDevice(ha);
-  const byTier = (tierLabel: string, l: HaData["entities"]) => {
+  // S10.1: a native `<optgroup>` cannot nest, so the original picker gave each device its own sibling optgroup
+  // within a tier. `fp-combo`'s groups are one flat level, so a device's group label carries the tier along with
+  // it ("In Kitchen · Kitchen light"); a tier's device-less entities keep the tier's own label alone, unchanged —
+  // this is the one deliberate difference from the original nesting, noted in docs/DECISIONS.md.
+  const byTier = (tierLabel: string, l: HaData["entities"]): ComboOption[] => {
     const groups = new Map<string, HaData["entities"]>(), loose: HaData["entities"] = [];
     for (const e of byName(l)) {
       if (!e.dev) { loose.push(e); continue; }
@@ -755,22 +768,26 @@ function deviceEntity(c: PanelCtx, i: number) {
       groups.get(e.dev)!.push(e);
     }
     const devGroups = [...groups.entries()].map(([devId, ents]) => [nameOf.get(devId) || mainOf.get(devId)?.name || devId, ents] as const)
-      .sort(([a], [b]) => a.localeCompare(b)).map(([label, ents]) => {
+      .sort(([a], [b]) => a.localeCompare(b));
+    const opts: ComboOption[] = [];
+    for (const [devName, ents] of devGroups) {
       const sorted = [...ents].sort((a, b) => (a.cat ? 1 : 0) - (b.cat ? 1 : 0)); // config/diagnostic entities last, else name order kept (stable)
-      return html`<optgroup label=${label}>${optsRaw(sorted)}</optgroup>`;
-    });
-    return html`${devGroups}${loose.length ? html`<optgroup label=${tierLabel}>${optsRaw(loose)}</optgroup>` : nothing}`;
+      for (const e of sorted) opts.push({ value: e.id, label: e.name, group: `${tierLabel} · ${devName}` });
+    }
+    for (const e of loose) opts.push({ value: e.id, label: e.name, group: tierLabel });
+    return opts;
   };
   const unknown = !!d.entity && !ha.entities.some((e) => e.id === d.entity);
   const label = TYPE_LABELS.find((t) => t[0] === d.type)?.[1] ?? d.type;
+  const options: ComboOption[] = [
+    ...(here.length ? byTier(`In ${room!.name}`, here) : []),
+    ...(elsewhere.length ? byTier(here.length ? "Elsewhere" : label, elsewhere) : []),
+    ...(rest.length ? byTier("Everything else", rest) : []),
+  ];
+  if (unknown) options.push({ value: d.entity, label: `${d.entity} (not in Home Assistant)` });
   return html`<label for="ve">Home Assistant entity</label>
-    <select id="ve" .value=${live(d.entity)} @change=${(e: Event) => set(val(e))}>
-      <option value="" ?selected=${!d.entity}>(not connected)</option>
-      ${here.length ? byTier(`In ${room!.name}`, here) : nothing}
-      ${elsewhere.length ? byTier(here.length ? "Elsewhere" : label, elsewhere) : nothing}
-      ${rest.length ? byTier("Everything else", rest) : nothing}
-      ${unknown ? missingOpt(d.entity) : nothing}
-    </select>${unknown ? hint(NOT_IN_HA) : nothing}${d.entity ? nothing : hint("Not connected yet. Pick its entity.")}`;
+    ${combo("ve", "Home Assistant entity", d.entity, options, set, "(not connected)")}
+    ${unknown ? hint(NOT_IN_HA) : nothing}${d.entity ? nothing : hint("Not connected yet. Pick its entity.")}`;
 }
 
 /**
@@ -787,21 +804,22 @@ function boundField(c: PanelCtx, i: number) {
   const rest = choices.filter((s) => !s.suggested); // catalog order kept, same as the all-floors picker this replaces
   const nameOf = (entity: string) => choices.find((s) => s.entity === entity)?.name ?? c.st.layout.catalog.find((x) => x.entity === entity)?.name ?? entity;
   const motionChoices = c.linkMotion ? c.st.motionChoices(i) : [];
-  const set = (e: Event) => {
-    const v = val(e);
+  const set = (v: string) => {
     if (v.startsWith("motion:")) { c.st.pendingMotion = v.slice("motion:".length); c.refresh(); return; }
     c.commit((f) => { if (v) f.devices[i].bound = v; else delete f.devices[i].bound; });
   };
   const label = (s: { room?: string; name: string }, suggest: boolean) => `${s.room ? `${s.room} - ` : ""}${s.name}${suggest ? " (suggested)" : ""}`;
-  const opt = (s: { entity: string; room?: string; name: string }, suggest = false) => html`<option value=${s.entity} ?selected=${s.entity === d.bound}>${label(s, suggest)}</option>`;
+  const opt = (s: { entity: string; room?: string; name: string }, suggest = false): ComboOption => ({ value: s.entity, label: label(s, suggest), group: s.room });
+  const options: ComboOption[] = [
+    ...suggested.map((s) => opt(s, true)),
+    ...rest.map((s) => opt(s)),
+    ...(d.bound && !choices.some((s) => s.entity === d.bound) ? [{ value: d.bound, label: d.bound }] : []),
+    // S8.7: a Motion entry starts the pending-motion flow instead of committing `bound` directly (`commit: false`,
+    // see combo.ts); its value is namespaced `motion:<entity>` so it never collides with a real switch/plug id.
+    ...motionChoices.map((s): ComboOption => ({ value: `motion:${s.entity}`, label: s.name, group: "Motion", commit: false })),
+  ];
   return html`<label for="vbound">Controlled by</label>
-    <select id="vbound" .value=${live(d.bound ?? "")} @change=${set}>
-      <option value="" ?selected=${!d.bound}>(none)</option>
-      ${suggested.map((s) => opt(s, true))}
-      ${rest.map((s) => opt(s))}
-      ${d.bound && !choices.some((s) => s.entity === d.bound) ? html`<option value=${d.bound} selected>${d.bound}</option>` : nothing}
-      ${motionChoices.length ? html`<optgroup label="Motion">${motionChoices.map((s) => html`<option value=${`motion:${s.entity}`}>${s.name}</option>`)}</optgroup>` : nothing}
-    </select>
+    ${combo("vbound", "Controlled by", d.bound ?? "", options, set, "(none)")}
     ${d.bound ? hint(`${d.name ?? nameOf(d.entity)} + ${nameOf(d.bound)}`, true) : nothing}
     ${motionField(c, i)}`;
 }

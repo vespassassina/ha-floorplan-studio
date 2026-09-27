@@ -2036,6 +2036,69 @@ One increment: every task ships in the card, tested, with shots looked at.
   whole-floor dashboard and a per-floor pin doesn't fit that generator
   cleanly.
 
+## Sprint 10 — a friendlier entity picker (E2)
+
+Diego, 2026-09-27: "When I connect sensors and stuff to objects in the home,
+give me a filterable combo box." One increment: every entity `<select>` in
+the editor becomes one reusable combo, tested, with shots looked at.
+
+### S10.1 A filterable combo box for every entity picker
+
+- Outcome: `<fp-combo>` (`src/editor/combo.ts`) replaces every entity-picking
+  `<select>` in the editor sidebar (device entity, "Controlled by", door
+  cover, room/furniture "shows the state of", room sensor, radar targets,
+  and every multi-attach list — contact/vibration sensors, locks, "Link
+  lights to switches" callers). Typing narrows the list live, by label,
+  entity id or group (room/domain), case-insensitively, every word required
+  (AND). Arrow keys move, Enter picks, Escape restores the previous value
+  and closes without picking. A pick fires one `change` event and one undo
+  step, matching the `<select>` it replaces; an unchanged re-pick commits
+  nothing (CLAUDE.md finding 6). Left native, out of scope: the plain
+  enum selects (`#ra` room kind, `#haadd`, `#vtype` device type, `#theme`,
+  `#floor`) and the furniture/add-device selects in `editor-app.ts` — none
+  of these picks an entity, so a filter box buys nothing.
+- Deviation from the brief: a device's entity list nests by tier (In room /
+  Elsewhere / Everything else) and then by the device that owns several
+  entities. A native `<optgroup>` cannot nest, so the original picker gave
+  each device its own optgroup inside a tier's optgroup. `fp-combo`'s groups
+  are one flat level, so a device's group label now carries its tier with it
+  ("In Kitchen · Kitchen light") instead of nesting two headings. See
+  `docs/DECISIONS.md`.
+- Test: `combo.test.ts` (vitest) covers the pure filter — label, id, group,
+  multi-word AND, no match, no group. `editor.spec.ts` adds real-browser
+  coverage `combo.ts`'s DOM behaviour needs: filter narrows live as you
+  type; a keyboard-only pick (type, arrow, Enter) commits in one undo step;
+  Escape restores the label and picks nothing; a multi-attach combo clears
+  itself after adding; typing inside a combo's filter box never reaches the
+  editor's own keyboard shortcuts (Backspace/Delete would delete the
+  selected device). Every existing `selectOption` call site on a migrated
+  field became a combo-aware read (open, type or arrow, read `.value` or
+  the rendered `<li>` rows) instead, keeping every original assertion.
+- Done, 2026-09-27. `combo.ts` was written before `combo.test.ts` in an
+  earlier session (not test-first); the filter was confirmed to fail
+  without the fix by breaking it once and watching the vitest cases catch
+  it, after the fact. Every new S10.1 Playwright test was written to its own
+  failing run first. Migrating `#hsens` (heater temperature sensor) to a
+  combo surfaced a genuine focus-management regression, not a test
+  artefact: `fp-combo` uses `delegatesFocus`, and Playwright's
+  `selectOption()` on the type selector immediately after left real DOM
+  focus on that native `<select>`, which is exactly what the editor's own
+  `onKey` guard is designed to ignore (CLAUDE.md finding 6) — so Ctrl+Z
+  silently did nothing. Confirmed as a true regression, not pre-existing,
+  by running the same test against the pre-migration baseline commit in an
+  isolated git worktree (passed there, with real focus on the editor host).
+  Fixed by adding a real canvas click before the type change, matching
+  `onDown`'s own `this.focus()` call — a realistic user action, not a
+  test-only workaround. All 5 new S10.1 Playwright tests green at
+  `--repeat-each=10` (50/50). Full suites green after the last edit:
+  `npm run lint` exit 0; unit tests 1217/1217 (`npm test`); full Playwright
+  suite (`PW_PORT=5344`) 640 passed, 1 skipped, exit 0 (read bare, not
+  through a pipe — finding 14). `npm run shots` run and the editor shots
+  looked at; additionally rendered the combo open and filtered, in
+  blueprint and light themes, from a scratch script against the real dev
+  server and looked at all four: legible text, correct contrast, the active
+  row highlighted, group headings in place, in both themes.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).
