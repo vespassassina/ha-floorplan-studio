@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.8
 
 - A card can pin a `center: [x, y]` (plan cm) and a `zoom_level` (1 is the
   whole floor, up to 8) to show one room, corridor or part of the home. Put
