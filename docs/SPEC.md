@@ -293,8 +293,8 @@ directly, unchanged. More than one — a heater with two `trvs`, an ac
 `sensor` and a `vibration` entry, or an unlinked appliance with two
 `attached` entities — opens a chooser dialog instead, naming the object
 (`name ?? entity`/`id`) and listing every entity by its own `friendly_name`,
-falling back to the entity id (the same fallback order `active.ts`'s row
-labels already use). Picking a row fires `hass-more-info` for that entity
+then its catalog name, then the entity id, with its live state and unit on
+the right of the row. Picking a row fires `hass-more-info` for that entity
 and closes the dialog; Cancel, Escape or a click on the backdrop outside the
 dialog's own box close it without firing anything.
 

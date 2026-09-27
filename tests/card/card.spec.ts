@@ -1931,9 +1931,9 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     const display = await card.evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector(".fp-dialog-backdrop")!).display);
     expect(display).toBe("flex"); // really laid out and visible, not just present in the DOM
 
-    const rows = card.locator("css=.fp-chooser-list button");
+    const rows = card.locator("css=.fp-chooser-list button .name");
     await expect(rows).toHaveText([
-      "binary_sensor.demo_office_radar_occupancy", // no friendly_name given: falls back to the entity id itself
+      "Office radar", // no friendly_name given: the plan's catalog name, before the bare id
       "sensor.demo_office_radar_target_1_x",
       "sensor.demo_office_radar_target_1_y",
     ]);
@@ -1955,8 +1955,30 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
       states: { "sensor.demo_office_radar_target_1_x": { state: "1.2", attributes: { friendly_name: "Office target 1 X" }, last_changed: new Date().toISOString() } },
     });
     await tapDevice(page, RADAR_IDX);
-    const rows = page.locator("floorplan-studio-card").locator("css=.fp-chooser-list button");
-    await expect(rows).toHaveText(["binary_sensor.demo_office_radar_occupancy", "Office target 1 X", "sensor.demo_office_radar_target_1_y"]);
+    const rows = page.locator("floorplan-studio-card").locator("css=.fp-chooser-list button .name");
+    await expect(rows).toHaveText(["Office radar", "Office target 1 X", "sensor.demo_office_radar_target_1_y"]);
+  });
+
+  test("a row reads like a row: catalog name when hass has no friendly_name, the state with its unit, and dialog button styling", async ({ page }) => {
+    await open(page);
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo), floor: "first" }, {
+      states: {
+        // the stub's shape copies hass.states, the side that sends it (finding 21): state string, attributes, last_changed
+        "binary_sensor.demo_office_radar_occupancy": { state: "on", attributes: {}, last_changed: new Date().toISOString() },
+        "sensor.demo_office_radar_target_1_x": { state: "1.2", attributes: { friendly_name: "Office target 1 X", unit_of_measurement: "m" }, last_changed: new Date().toISOString() },
+      },
+    });
+    await tapDevice(page, RADAR_IDX);
+    const card = page.locator("floorplan-studio-card");
+    // demo/layout.json catalogues the occupancy entity as "Office radar"; target_1_y has no state and no catalog name
+    await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText(["Office radar", "Office target 1 X", "sensor.demo_office_radar_target_1_y"]);
+    await expect(card.locator("css=.fp-chooser-list button .state")).toHaveText(["on", "1.2 m", ""]);
+    const look = await card.evaluate((el) => {
+      const row = getComputedStyle(el.shadowRoot!.querySelector(".fp-chooser-list button")!);
+      const cancel = getComputedStyle(el.shadowRoot!.querySelector(".fp-chooser-dialog button.cancel")!);
+      return { bg: row.backgroundColor === cancel.backgroundColor, border: row.borderTopColor === cancel.borderTopColor, radius: row.borderTopLeftRadius, font: row.fontSize === cancel.fontSize };
+    });
+    expect(look).toEqual({ bg: true, border: true, radius: "6px", font: true });
   });
 
   test("clicking a row closes the dialog and fires hass-more-info for that row's own entity, not the device's main one", async ({ page }) => {
@@ -2027,8 +2049,8 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
     await tapDevice(page, RADAR_IDX);
     await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Office radar");
-    await expect(card.locator("css=.fp-chooser-list button")).toHaveText([
-      "binary_sensor.demo_office_radar_occupancy",
+    await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText([
+      "Office radar",
       "sensor.demo_office_radar_target_1_x",
       "sensor.demo_office_radar_target_1_y",
     ]);
@@ -2052,7 +2074,7 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Living radiator");
-    await expect(card.locator("css=.fp-chooser-list button")).toHaveText(["climate.demo_living", "climate.demo_trv_1", "climate.demo_trv_2"]);
+    await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText(["Living radiator", "climate.demo_trv_1", "climate.demo_trv_2"]);
   });
 
   test("a heater with two TRVs: a HOLD opens more-info for the heater's own entity, not the chooser", async ({ page }) => {
@@ -2089,7 +2111,7 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Front door");
-    await expect(card.locator("css=.fp-chooser-list button")).toHaveText(["binary_sensor.demo_front_door", "binary_sensor.demo_front_vibration"]);
+    await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText(["binary_sensor.demo_front_door", "binary_sensor.demo_front_vibration"]);
 
     await card.locator("css=.fp-chooser-list button", { hasText: "binary_sensor.demo_front_vibration" }).click();
     expect(await moreInfo(page)).toEqual([{ entityId: "binary_sensor.demo_front_vibration" }]);
@@ -2129,7 +2151,7 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Garage door");
-    await expect(card.locator("css=.fp-chooser-list button")).toHaveText(["cover.demo_garage_door", "binary_sensor.demo_garage_vibration"]);
+    await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText(["cover.demo_garage_door", "binary_sensor.demo_garage_vibration"]);
     await expect(card.locator("css=.fp-dialog:not(.fp-chooser-dialog) p")).toHaveCount(0); // the cover confirm dialog never opened
 
     await page.mouse.up();
@@ -2185,7 +2207,7 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
       const card = page.locator("floorplan-studio-card");
       await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Spare boiler");
-      await expect(card.locator("css=.fp-chooser-list button")).toHaveText(["sensor.boiler_temp", "sensor.boiler_pressure"]);
+      await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText(["sensor.boiler_temp", "sensor.boiler_pressure"]);
       expect(await moreInfo(page)).toEqual([]);
     });
 
@@ -2244,7 +2266,7 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText(payload);
     await expect(card.locator("css=.fp-chooser-list button", { hasText: "binary_sensor.demo_front_vibration" })).toHaveCount(0); // the friendly_name replaced the id in the label
-    await expect(card.locator("css=.fp-chooser-list button").last()).toHaveText(payload);
+    await expect(card.locator("css=.fp-chooser-list button .name").last()).toHaveText(payload);
     const ran = await page.evaluate(() => (window as unknown as { __xss?: boolean }).__xss);
     expect(ran).toBeUndefined(); // the payload never executed as a script
     const scriptCount = await card.evaluate((el) => el.shadowRoot!.querySelectorAll("script").length);

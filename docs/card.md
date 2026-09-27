@@ -352,7 +352,8 @@ list can each name more than one entity. Naming exactly one still opens
 more-info for it directly, the same gesture as before this ever existed.
 Naming two or more opens a chooser dialog instead: a small panel listing the
 object's own name at the top and one button per entity, labelled by its Home
-Assistant `friendly_name` where it has one, its entity id otherwise. Picking
+Assistant `friendly_name`, else its name in the plan's catalog, else its
+entity id, with its current state (and unit) on the right. Picking
 a row opens that entity's own more-info and closes the dialog; Cancel,
 Escape, or a click on the backdrop outside the dialog itself all close it
 without opening anything. Only one dialog — this one, the cover confirm or

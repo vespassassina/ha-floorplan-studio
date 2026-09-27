@@ -150,7 +150,10 @@ export class FloorplanStudioCard extends LitElement {
        row left-aligned since it carries a name, not a short verb; Cancel stays a separate, right-aligned row like
        every other dialog's own Cancel. */
     .fp-chooser-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-    .fp-chooser-list button { text-align: left; }
+    /* Review fix: a row wears the same button look as Cancel (it had the browser's default white box), the name
+       on the left and the live state on the right, muted, so the list reads as "which one, and what is it doing". */
+    .fp-chooser-list button { display: flex; justify-content: space-between; gap: 12px; text-align: left; font: 13px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+    .fp-chooser-list button .state { opacity: 0.7; white-space: nowrap; }
     .fp-chooser-dialog .fp-dialog-actions { justify-content: flex-end; }
     /* S9.5: the active-devices panel, card chrome like .fp-floors/.fp-zoom above (CLAUDE.md finding 8 — nothing here
        is drawn inside the plan's <svg>). Default position clears the floor chips' own top-left corner; a drag
@@ -755,7 +758,18 @@ export class FloorplanStudioCard extends LitElement {
    *  entity is called. Untrusted state (finding 1): anything that is not text is skipped. */
   private _chooserEntityName(entityId: string): string {
     const friendly = this._hass?.states[entityId]?.attributes?.friendly_name;
-    return typeof friendly === "string" && friendly ? friendly : entityId;
+    if (typeof friendly === "string" && friendly) return friendly;
+    // Review fix: the plan's own catalog name before the bare id, the order the S10.4 brief asked for.
+    const cat = Array.isArray(this._layout?.catalog) ? this._layout!.catalog.find((c) => c?.entity === entityId)?.name : undefined;
+    return typeof cat === "string" && cat ? cat : entityId;
+  }
+
+  /** The row's live state, with its unit when HA gives one; empty when HA has no state for it. Untrusted: only text. */
+  private _chooserEntityState(entityId: string): string {
+    const st = this._hass?.states[entityId];
+    if (!st || typeof st.state !== "string") return "";
+    const unit = st.attributes?.unit_of_measurement;
+    return typeof unit === "string" && unit ? `${st.state} ${unit}` : st.state;
   }
 
   private _pickChooserEntity(entityId: string): void {
@@ -1354,7 +1368,7 @@ export class FloorplanStudioCard extends LitElement {
         <div class="fp-dialog fp-chooser-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-chooser-dialog-title">
           <p id="fp-chooser-dialog-title">${c.title}</p>
           <div class="fp-chooser-list">
-            ${c.entities.map((id) => html`<button type="button" @click=${() => this._pickChooserEntity(id)}>${this._chooserEntityName(id)}</button>`)}
+            ${c.entities.map((id) => html`<button type="button" @click=${() => this._pickChooserEntity(id)}><span class="name">${this._chooserEntityName(id)}</span><span class="state">${this._chooserEntityState(id)}</span></button>`)}
           </div>
           <div class="fp-dialog-actions">
             <button type="button" class="cancel" @click=${() => this._closeChooserDialog()}>Cancel</button>
