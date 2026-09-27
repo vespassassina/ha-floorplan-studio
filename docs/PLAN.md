@@ -1851,6 +1851,67 @@ closes the sprint.
   the config form with All floors and with a single floor chosen) taken
   and looked at — see the report.
 
+## Sprint 9 — the plan as a live view (E3)
+
+Maintainer brief, 2026-09-27: better integration of sensors and home state.
+Open doors and windows dashed and red, with a custom colour; icons that stay
+visible on large plans; a floating list of active devices; a blue TV; a
+speaker that radiates while it plays. The aura stays at 150 cm (0.12.7).
+One increment: every task ships in the card, tested, with shots looked at.
+
+### S9.1 Open doors and windows: dashed, in a colour the card can set
+
+- Outcome: a door or window whose contact sensor is on draws dashed, and
+  its line and the pulsing alert line under it (S8.13) use `--fp-open-door`,
+  which defaults to `--fp-dev-contact`. A new card option `open_color`
+  (`#rrggbb`) sets it. A cover door that is open keeps its own orange and is
+  not dashed. An invalid colour is ignored, with the default applied.
+- Test: render has the dash in a class rule and one colour variable for both
+  lines; card sets the variable from `open_color` and ignores `"red;x"`;
+  a computed-style pair in Chromium; the Edit-card form offers a colour.
+
+### S9.2 Icons stay visible on large plans
+
+- Outcome: the card scales icons, names and values with the plan: factor
+  `max(1, longest side of the view box / 1000 cm)`, times a new option
+  `icon_size` (0.5 to 3, default 1). A plan of 1000 cm or less looks as
+  today. The editor is unchanged.
+- Test: at 2000 cm the icon group is scaled 2x; `icon_size: 1.5` on the demo
+  gives 1.5x; out-of-range values clamp; a real click still hits a scaled
+  icon.
+
+### S9.3 A TV is blue when on, in every theme
+
+- Outcome: `--fp-dev-tv` is a fixed blue in every theme, including the
+  single-accent ones (blueprint, slate, terminal) and `ha`. Decision
+  recorded: TV is the one exception to "one accent".
+- Test: iterate `THEMES`; the TV's computed fill when on is blue in each.
+
+### S9.4 A speaker radiates while it plays
+
+- Outcome: a `speaker` or `media` device whose entity is `playing` draws
+  two arcs that pulse out from its disc, in its own colour. A speaker gets
+  an on colour (blue, as media). Under reduced motion the arcs hold still.
+  Paused, idle, off, unavailable: no arcs.
+- Test: arcs per state and type; computed-style pair including reduced
+  motion; shots with a playing speaker.
+
+### S9.5 A floating list of active devices
+
+- Outcome: the card shows a floating panel on the left, open by default,
+  listing the devices that are active on every floor: lights on, motion
+  and contact on, TVs and media players on or playing, heaters heating,
+  plugs on, and every camera (a camera is a view, not an on/off thing).
+  Grouped by type, each row shows the icon and name; a tap opens
+  Home Assistant's more-info. The header drags the panel inside the card
+  and collapses it; position and collapsed state are kept per browser.
+  `active_list: false` hides it; kiosk hides it. It updates live and says
+  "Nothing on" when empty. Keyboard: rows are buttons, Enter opens.
+- Test: rows for exactly the active set; a real click on a row fires
+  `hass-more-info` with its entity; a real drag moves it and stays inside;
+  collapsed survives a reload; hidden under kiosk and `active_list: false`;
+  dark mode shot.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).
