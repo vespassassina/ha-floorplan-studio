@@ -485,6 +485,16 @@ export class FloorplanStudioEditor extends LitElement {
     this.requestUpdate();
   }
   private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); };
+  /** S10.2: `PanelCtx.attachEntity` — names the entity (its catalog name, escaped by lit's own text interpolation)
+   *  and `label` (the door/device/item) in the status line only when an icon was actually pulled off the plan. */
+  private attachEntity = (entity: string, apply: (f: Floor) => void, label: string, keepDeviceId?: string) => {
+    const r = this.st.attachEntity(entity, apply, keepDeviceId);
+    if (!r.changed) return;
+    if (r.pulled) {
+      const name = this.st.layout.catalog.find((c) => c.entity === entity)?.name ?? entity;
+      this.changed(`${name} attached to ${label}; its icon left the plan.`);
+    } else this.changed();
+  };
   private select = (s: Sel) => { this.st.sel = s; this.requestUpdate(); };
   /** S4.22: the paint panel's rotation slider. `live` previews every tick via `replaceFloor` (no undo step, the same
    * pattern a mouse drag uses); `commit`, once at release, records the whole drag as one step — none if it ended back
@@ -519,7 +529,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.requestUpdate();
   };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, attachEntity: this.attachEntity, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------

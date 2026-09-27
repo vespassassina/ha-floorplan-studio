@@ -2099,6 +2099,249 @@ the editor becomes one reusable combo, tested, with shots looked at.
   server and looked at all four: legible text, correct contrast, the active
   row highlighted, group headings in place, in both themes.
 
+### S10.2 Attaching a placed sensor pulls its icon off the plan
+
+- Outcome: Diego, 2026-09-27: "When adding sensors to a door/window or any
+  other object that accepts them, allow pulling them out of the plan if they
+  have been manually assigned." Attaching an entity through a door's
+  sensors/vibration/locks/cover, a heater's TRVs/temperature sensors, an ac's
+  linked entities, or an unlinked item's attached list, in the same undo
+  step: sets the attachment and removes that entity's device icon from every
+  floor, if it had one. Detaching (Remove, or clearing a cover) removes only
+  the attachment; the catalog entry is untouched, so the entity shows in Add
+  again — decided with Diego: it does not return to the plan.
+- Acceptance criteria (all met):
+  - [x] Attaching a placed entity removes its icon on every floor, one undo
+    step; undo restores both the icon and the attachment, redo re-applies
+    both.
+  - [x] Attaching a non-placed entity attaches it and removes no icon.
+  - [x] Every picker still offers a placed entity, labelled "(on plan)", and
+    the filter still matches it by name.
+  - [x] Detaching leaves the catalog entry; no icon reappears.
+  - [x] A light's `bound` switch survives its switch being pulled elsewhere.
+  - [x] The status line names the entity and the door/device/item once,
+    e.g. "Hall contact attached to Front door; its icon left the plan."
+  - [x] `validate()` passes after every combination exercised.
+- Design: `EditorState.attachEntity(entity, apply, keepDeviceId?)` is the one
+  new seam — a whole-layout snapshot (like `lightFromSwitch`/`addHaEntity`),
+  since the pull touches every floor, not just the current one. `apply`
+  writes the attachment; `attachEntity` then strips any device whose
+  `entity` matches, everywhere, sparing `keepDeviceId` (a heater/ac's own
+  icon, belt-and-suspenders alongside `deviceAttachChoices` already excluding
+  a device's own entity from its choices). `panels.ts`'s `multiAttachField`
+  grew an optional `attach` parameter that routes the "add" pick through it;
+  `vctl` (the Controls automation draft, session state, not a layout field)
+  passes none and is unchanged. The single-value `dcover` field got its own
+  small attach/detach split inline. Selection: a door or unlinked selection
+  lives in its own array, untouched by a devices splice; a `dev` selection
+  (heater/ac panels) is re-found by id after the pull, since the splice can
+  shift its index — covered by a dedicated test with the entity placed
+  before the heater in the array, so the index really moves.
+- Test: `tests/editor/attach-pull.test.ts`, table-driven over all 8 in-scope
+  fields (dsens, dvibr, dlocks, htrv, hsens, aclink, uuattach, plus dcover
+  covered directly) — each case is written to fail without the fix (watched:
+  `attachEntity` did not exist, all 27 new cases failed with
+  `TypeError: st.attachEntity is not a function`). Per field: attaching a
+  placed entity pulls it everywhere in one undo step and undo/redo restore
+  it exactly (with a *second* floor also holding the icon, so a
+  current-floor-only bug would fail — finding 4); attaching a non-placed
+  entity removes nothing; the device being attached to never removes its
+  own icon (`keepDeviceId`); the layout validates after attach and after a
+  plain detach. Plus dedicated tests for `attachEntity("", ...)` (no-op),
+  a `door` selection surviving the pull untouched, and a `dev` selection
+  whose index actually shifts. Playwright:
+  `editor.spec.ts` places the demo's unplaced `contact-garage` next to the
+  Garage door, attaches it via `#dsens` with a real click at real
+  coordinates (`pickEntity`), counts `g[data-x]` before and after, checks
+  the door's row and the status line, Undo (restores the icon, `g[data-x]`
+  count back up), Redo (removes it again), then Remove on the row — no icon
+  either way, and the entity is back in `Add`. Watched fail first without
+  the source change (`attached.devices.some(...)` was `true` where the test
+  expected `false`). Reselecting the door with a real canvas click before
+  Ctrl+Z and before Remove was necessary — undo/redo clear the selection,
+  same as everywhere else in this suite (S10.1's own note on `onDown`
+  refocusing the host applies here too). Green at `--repeat-each=10`
+  (10/10).
+- Done, 2026-09-27. `npm run lint` exit 0. Unit tests 1248/1248 (`npm test`,
+  exit 0, read bare). Full Playwright suite (`PW_PORT=5350`): 643 passed, 1
+  skipped, exit 0. New unit tests (31) and the new Playwright test at
+  `--repeat-each=10` (10/10) all green. `npm run shots` run; the editor
+  shots looked at — no visual change, this task touches only `panels.ts`,
+  `state.ts` and `editor-app.ts`'s wiring, no stylesheet or `render.ts`.
+
+### S10.3 A triggered vibration sensor turns its door red, solid, on contact/vibration/crash
+
+- Outcome: a door whose `vibration` sensor is `on` renders the same colour as
+  an open contact (`--fp-open-door`, so `open_color` still applies) with the
+  same pulsing alert line, but the door itself stays solid — dashed keeps
+  meaning "open" alone. A door that is open and vibrating at once stays
+  dashed (open wins the dash) and shows exactly one alert line, not two. A
+  contact or vibration sensor attached to a door, not placed as its own
+  device icon, now shows on the Active panel under the door's own name,
+  deduped against any copy placed as its own icon; tapping that row opens
+  the sensor's own more-info.
+- Test: `render.test.ts` covers vibration → `alarm` not `open` (on, off,
+  unavailable, unknown, no state), contact → `open` not `alarm`, both at
+  once → both classes and exactly one `door-alert` line, and multiple
+  vibration sensors on one door (any one `on` is enough). `active.test.ts`
+  covers the new attached-sensor rows: contact on/off, vibration, exclusion
+  when unavailable/unknown/absent, dedup against a placed icon, and a door
+  with both a contact and a vibration sensor producing two rows. Two "Opus
+  review CSS pair" `editor.spec.ts` tests assert the real computed stroke —
+  solid in every theme, still dashed when open and vibrating together — plus
+  a third that overrides `--fp-open-door` on `renderFloor`'s own
+  `g[data-theme]` (the nearest ancestor that redeclares the token, closer
+  than the svg) and checks the override reaches a vibrating door's stroke.
+  `card.spec.ts` adds the active-panel row and its more-info tap, with a
+  real `page.mouse` click at the row's coordinates. `npm run shots` gained a
+  ground-floor-only "vibrating" state (blueprint and light themes, mirroring
+  the existing "night" shot), added to `scripts/shots.mjs`'s runtime
+  `monLayout` clone rather than to `demo/layout.json`, whose v1 fixture
+  predates vibration sensors and is compared byte-for-byte against the v2
+  migration output in `migrate.test.ts`.
+- Done, 2026-09-27. Test-first throughout; each new test was watched fail
+  first (the render tests against the class/line logic reverted once, the
+  CSS-pair tests against the rule commented out). The CSS-pair tests ran at
+  `--repeat-each=10`, the card tests at `--repeat-each=5`, both clean.
+  `npm run shots` run and the ground-floor vibrating shot looked at in both
+  themes: the door renders solid red, distinct from the dashed red of the
+  existing "open" shot, and the Active panel lists the vibration row. See
+  `docs/DECISIONS.md` for why solid, not a new dash pattern.
+
+### S10.4 Tapping an object with more than one entity opens a chooser, not a guess
+
+- Outcome: a pure `entitiesOfDevice`/`entitiesOfDoor` (`src/core/attachments.ts`)
+  lists every entity a gesture on a device, a door or an unlinked appliance
+  could mean — the object's own `entity` first when it has one, then its
+  type's own attachment fields (a door's `cover` first among these, then
+  `sensors`/`vibration`/`locks`; `trvs`/`tempSensors` for a heater, `linked`
+  for an ac, each `targets` pair's x/y for a radar), then any `attached`
+  list, deduplicated. Exactly one still opens more-info directly, unchanged
+  from before this sprint. Two or more opens a chooser dialog in
+  `floorplan-studio-card.ts` (`.fp-chooser-dialog`), naming the object and
+  listing every entity by its Home Assistant `friendly_name` or its id;
+  picking one fires `hass-more-info` and closes the dialog. The dialog
+  follows the existing cover/vacuum conventions (one at a time, focus on
+  Cancel, Escape closes, `role="dialog"`/`aria-modal`), plus one addition:
+  a click on the backdrop outside the dialog also closes it. A light's
+  `bound` switch, a light's `motion` link and a person's `room` sensor are
+  deliberately never listed; see `docs/DECISIONS.md`.
+- Which gesture reaches the chooser, after the S10.3 review below: a device
+  that toggles (heater, ac...) opens the chooser on a plain **tap** when it
+  names more than one entity, no longer toggling — a **long press** on it
+  opens more-info for the device's own entity alone. A device with no
+  toggle (camera, radar, person...) and a non-cover door are unaffected: a
+  plain tap alone resolves to more-info or the chooser, no long press
+  involved (never had one). A door with a `cover`: a tap always opens the
+  confirm dialog first (S2.7, unchanged); a **long press** opens the
+  chooser instead, `entitiesOfDoor` now naming the cover entity itself as
+  well. An unlinked appliance (S4.25) has no toggle and no long press: a tap
+  alone resolves its `attached` list.
+- Test: `attachments.test.ts` (21 tests) iterates every `DEVICE_TYPES`
+  member (finding 17) plus a dedicated case per type's own attachment field,
+  the `light.bound`/`light.motion`/`person.room` exclusions, dedup, an
+  `Unlinked` object with no own `entity`, a malformed-layout case per
+  function (finding 1: non-array attachment fields never throw), and (added
+  by the S10.3 review) a door's `cover` entity appearing first in
+  `entitiesOfDoor`'s list. `actions.test.ts`'s S10.4 describe block covers a
+  radar or door with two attachments opening the chooser, one (after dedup)
+  opening plain more-info, a light with `bound` still opening plain
+  more-info (never the chooser), and a pointercancel abandoning a would-be
+  door chooser tap; three further describe blocks, added by the review,
+  cover the tap-opens-chooser/hold-opens-own-more-info split on a toggling
+  device, a cover door's hold opening the chooser (cover included, and the
+  one-cover-only case opening plain more-info), kiosk mode starting no hold
+  timer on a cover door, and an unlinked appliance's tap resolving one
+  entity to more-info, several to the chooser, none to nothing, plus its own
+  pointercancel and hit-test-via-inner-element cases. `card.spec.ts` gained
+  eleven tests in the initial S10.4 pass (finding 3: real `page.mouse` taps
+  at real coordinates) and eleven more in the S10.3 review: a heater with
+  two TRVs opens the chooser on tap and more-info on hold (was the other
+  way around); a cover door's hold opens the chooser with the cover entity
+  among its rows, the cover-only case opens plain more-info, and kiosk mode
+  starts no hold timer at all; four cases for an unlinked appliance's
+  `attached` list (two entities, one, none, and a `getComputedStyle` check,
+  finding 18, that its icon's painted children still accept pointer events).
+- Done, 2026-09-27 (S10.4), reviewed and corrected the same day (the "S10.3
+  review" fixes above — Opus's review of the finished S10.4 build, landed
+  as one more commit on this same branch rather than a new task number). Not
+  strictly test-first for the original S10.4 pass (finding 5):
+  `attachments.ts` and the `actions.ts` changes were written in the same
+  pass as their unit tests. Compliance with finding 4 (a
+  test must fail with the feature removed) was verified twice: once for the
+  original S10.4 build (a stash-equivalent isolation of the changed files,
+  restored without ever running bare `git stash`, showed 10 of 11 new
+  `card.spec.ts` tests fail, the 11th predating the feature), and again for
+  each of the three S10.3 review fixes individually — `actions.ts` copied
+  aside, one fix reverted at a time, `actions.test.ts` run, the file copied
+  back — each reverted fix failing exactly the tests written for it (2, 2,
+  then 3 failures) and nothing else. All new and changed `card.spec.ts`
+  tests ran clean at `--repeat-each=10` (180 runs, 18 distinct tests, no
+  flake). Full suites green: 1268 unit tests, 665 Playwright tests + 108 for
+  a targeted `card.spec.ts` rerun (1 pre-existing skip, unrelated), lint and
+  `tsc --noEmit` clean.
+
+### S10.5 An attached entity is not offered in Add
+
+- Outcome: field bug from S10.2 — attaching a placed sensor to a door,
+  heater, ac or unlinked item pulls its icon off the plan (S10.2), but the
+  entity still showed in Add (and every other "place this entity" list),
+  because those lists only ever subtracted `placedEntities`, never checked
+  whether the entity was attached elsewhere. A user could place a second
+  icon right next to the door that already reads the sensor.
+- Acceptance criteria (all met):
+  - [x] A new core helper, `attachedEntities(layout)` (`src/core/bind.ts`,
+    exported via `src/core/index.ts`), collects every entity named in a
+    door's `sensors`/`vibration`/`locks`/`cover`, a device's
+    `trvs`/`tempSensors`/`linked`, or an unlinked item's `attached`, across
+    every floor. Never throws on hostile input (a non-array list, a
+    non-string member, a floor missing a field).
+  - [x] `unplacedCatalog` subtracts it, same as `placedEntities`.
+  - [x] Every other list that offers an entity for placing also excludes it:
+    `unplacedHaEntities` (and `placeableInArea`, which is built from it),
+    `placeableDevicesInArea` (S8.1 Place popup), `unplacedDevicesInArea`
+    (room "Add device from &lt;area&gt;" menu), `addCandidates` (Add > Device).
+  - [x] `availableEntities` (S6.7, the File > Export snapshot) marks an
+    attached entity `placed: true` too — an agent reading the exported file
+    must not place it either.
+  - [x] A light's `bound` switch and `motion` link, a person's `room`
+    sensor and a radar's `targets` pairs are explicitly NOT attachments:
+    none of them goes through `EditorState.attachEntity`, none of them ever
+    loses its own icon, so each stays independently placeable exactly as
+    before.
+  - [x] Detaching (Remove on the row) makes the entity show in Add again —
+    S10.2's own promise, unchanged and covered by both a unit test and a
+    Playwright test.
+  - [x] The attach pickers themselves (`doorAttachChoices`,
+    `deviceAttachChoices`, `unlinkedAttachChoices`, `coverChoices`) are
+    untouched — they already handle "attached elsewhere" their own way.
+- Design: one set-builder, `attachedEntities`, reused everywhere a set of
+  "already placed" ids was being unioned with "already attached" — each call
+  site builds `new Set([...placedEntities(l), ...attachedEntities(l)])` (or,
+  for `availableEntities`, ORs the two membership checks) rather than
+  threading a new parameter through `deviceRows`, keeping the diff to the
+  handful of lines that decide "offered or not" in each function.
+- Test: `tests/core/bind.test.ts` — table-driven over every attachment
+  field (door sensors/vibration/locks/cover, device trvs/tempSensors/linked,
+  unlinked attached), each case written to fail without the fix (watched:
+  reverting `src/core/bind.ts`/`ha.ts` to the pre-fix versions and rerunning
+  failed 19 tests across `bind.test.ts`/`ha.test.ts` before the fix was
+  restored); plus dedicated cases proving `bound`/`motion`/`room`/`targets`
+  are NOT counted, and hostile input (a bare number where a list was
+  expected, a non-string list member, `__proto__`-keyed floors) never
+  throws. `tests/core/ha.test.ts` gets a new "S10.5" describe covering
+  `placeableDevicesInArea`, `unplacedDevicesInArea` and `addCandidates` for
+  both a device-less attached entity and one grouped under an HA device.
+  Playwright: `editor.spec.ts` attaches the demo's catalogued, unplaced
+  `contact-garage` to the Garage door through `#dsens` with a real click at
+  real coordinates, opens Add and checks it is not listed, removes the
+  attachment and checks Add lists it again — watched fail first (reverting
+  the source made the "not offered while attached" assertion see the row
+  where it expected none), green at `--repeat-each=10` (10/10).
+- Done, 2026-09-27. `npm run lint`, `npm test`, and the full Playwright
+  suite all read bare, `$?` checked on its own line — see the report for
+  exact counts and exit codes.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).

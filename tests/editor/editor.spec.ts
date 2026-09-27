@@ -536,6 +536,87 @@ test("S4.24: the contact sensor picker follows the selected door, several allowe
   expect(await comboOptionValues(page, "#dsens")).toContain("binary_sensor.demo_garage_door"); // free again
 });
 
+// ---- S10.2: attaching a placed sensor pulls its icon off the plan; detaching returns it to Add, not the plan -----
+
+test("S10.2: attaching a placed contact sensor to its door pulls the icon off the plan; Undo/Redo restore both; Remove sends it to Add", async ({ page }) => {
+  const pick = async (i: number) => { const c = await centre(page, `line[data-d="${i}"]`); await page.mouse.click(c.x, c.y); };
+  // The demo's garage contact sensor is catalogued but not placed; place it next to the Garage door first, the
+  // way a user drops a sensor before deciding to attach it.
+  await openDevice(page);
+  await devItem(page, "contact-garage").click();
+  await page.locator("#addDevClose").click();
+  const before = await groundOf(page);
+  expect(before.devices.some((d) => d.id === "contact-garage")).toBe(true);
+  const iconsBefore = await page.locator("g[data-x]").count();
+
+  await pick(2); // Garage door
+  await pickEntity(page, "#dsens", "binary_sensor.demo_garage_door");
+
+  const attached = await groundOf(page);
+  expect(attached.doors[2].sensors).toEqual(["binary_sensor.demo_garage_door"]);
+  expect(attached.devices.some((d) => d.id === "contact-garage")).toBe(false); // the icon is gone...
+  await expect(page.locator("g[data-x]")).toHaveCount(iconsBefore - 1);
+  await expect(page.locator("#dsens-rm0")).toBeVisible(); // ...but the door lists it
+  expect(await page.locator("#status").textContent()).toContain("its icon left the plan");
+
+  // A pointerdown on the canvas re-focuses the editor host (see onDown in editor-app.ts); without it, real DOM
+  // focus is left on the combo's shadow-nested input and Chromium never delivers the Ctrl+Z that follows.
+  await pick(2);
+  await page.keyboard.press("Control+z");
+  const undone = await groundOf(page);
+  expect(undone.doors[2].sensors).toBeUndefined();
+  expect(undone.devices.some((d) => d.id === "contact-garage")).toBe(true); // the icon is back
+  await expect(page.locator("g[data-x]")).toHaveCount(iconsBefore);
+
+  await page.locator("#redo").click();
+  const redone = await groundOf(page);
+  expect(redone.doors[2].sensors).toEqual(["binary_sensor.demo_garage_door"]);
+  expect(redone.devices.some((d) => d.id === "contact-garage")).toBe(false); // gone again
+  await expect(page.locator("g[data-x]")).toHaveCount(iconsBefore - 1);
+
+  // Remove on the row: the attachment goes, no icon reappears, and the entity is offered in Add again.
+  // (undo/redo clear the selection, same as every other undo/redo in this suite, so the door panel needs reselecting.)
+  await pick(2);
+  await page.locator("#dsens-rm0").click();
+  const detached = await groundOf(page);
+  expect(detached.doors[2].sensors).toBeUndefined();
+  expect(detached.devices.some((d) => d.id === "contact-garage")).toBe(false); // still no icon
+  await expect(page.locator("g[data-x]")).toHaveCount(iconsBefore - 1);
+  await expect(devItem(page, "contact-garage")).toHaveCount(0); // not yet: the panel isn't open
+  await openDevice(page);
+  await expect(devItem(page, "contact-garage")).toHaveCount(1); // back in Add
+  await page.locator("#addDevClose").click();
+});
+
+// S10.5: attaching an entity must also pull its catalog entry out of Add — S10.2 above only ever checked the icon
+// and the state after Remove, never Add itself while the entity stayed attached. Before the fix, a user could
+// attach the garage contact sensor to its door, then reopen Add and place a second icon for the same sensor.
+test("S10.5: a catalogued entity attached to a door through #dsens is not offered in Add while attached; Remove lists it again", async ({ page }) => {
+  const pick = async (i: number) => { const c = await centre(page, `line[data-d="${i}"]`); await page.mouse.click(c.x, c.y); };
+  // contact-garage is catalogued but unplaced in the demo (its own entity never had an icon), so this exercises
+  // the device-less path (unplacedCatalog), distinct from S10.2's "place it first, then attach" scenario above.
+  await openDevice(page);
+  await expect(devItem(page, "contact-garage")).toHaveCount(1); // unplaced and unattached: offered
+  await page.locator("#addDevClose").click();
+
+  await pick(2); // Garage door: no sensor yet
+  await pickEntity(page, "#dsens", "binary_sensor.demo_garage_door");
+  expect((await groundOf(page)).doors[2].sensors).toEqual(["binary_sensor.demo_garage_door"]);
+
+  await openDevice(page);
+  await expect(devItem(page, "contact-garage")).toHaveCount(0); // attached: no longer offered in Add
+  await page.locator("#addDevClose").click();
+
+  // Detach: the door's own Remove button, not Add — the entity is never on the plan as an icon here.
+  await pick(2);
+  await page.locator("#dsens-rm0").click();
+  expect((await groundOf(page)).doors[2].sensors).toBeUndefined();
+
+  await openDevice(page);
+  await expect(devItem(page, "contact-garage")).toHaveCount(1); // detached: offered again
+  await page.locator("#addDevClose").click();
+});
+
 // Opus review of S8.9: the "preview open" overlay was a fixed 22 cm regardless of the wall a door sat on, unlike
 // the door's own stroke (S8.9 part 2, wallWidthAt). The Patio door sits on an external wall (20 cm), not the old
 // fixed 22.
@@ -4804,6 +4885,56 @@ test("Opus review CSS pair: S9.1 a cover door's own open state stays plain orang
   }, EDITOR);
   expect(s.stroke).toBe(rgb(s.want));
   expect(s.dash).toBe("none");
+});
+
+// S10.3 Opus review CSS pair: a vibrating door (.alarm) reads --fp-open-door same as an open contact, but solid
+// (finding 4: a weak assertion here would still pass with the feature removed, so it checks strokeDasharray is
+// literally "none", not merely "not dashed", and runs in every theme rather than leaning on the default per
+// finding 19). Both classes together (open wins the vote and stays dashed) is its own test right after.
+test("Opus review CSS pair: S10.3 a vibrating door is solid, not dashed, in --fp-open-door, in every theme", async ({ page }) => {
+  for (const t of ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha"] as const) {
+    await setTheme(page, t);
+    const s = await page.evaluate((tag) => {
+      const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+      const line = svg.querySelector("line[data-d]") as SVGLineElement;
+      line.setAttribute("class", "door alarm");
+      const cs = getComputedStyle(line);
+      return { stroke: cs.stroke, dash: cs.strokeDasharray, want: getComputedStyle(svg).getPropertyValue("--fp-open-door").trim() };
+    }, EDITOR);
+    expect(s.stroke, t).toBe(rgb(s.want));
+    expect(s.dash, t).toBe("none");
+  }
+});
+
+test("Opus review CSS pair: S10.3 open and vibrating together stay dashed (open wins the dash), still --fp-open-door", async ({ page }) => {
+  const s = await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const line = svg.querySelector("line[data-d]") as SVGLineElement;
+    line.setAttribute("class", "door alarm open"); // render.ts always emits alarm before open, class order here checks CSS resolves it either way
+    const cs = getComputedStyle(line);
+    return { stroke: cs.stroke, dash: cs.strokeDasharray, want: getComputedStyle(svg).getPropertyValue("--fp-open-door").trim() };
+  }, EDITOR);
+  expect(s.stroke).toBe(rgb(s.want));
+  expect(s.dash).not.toBe("none");
+});
+
+// S10.3 with open_color set: the card's own override reaches a vibrating door exactly as it reaches an open one,
+// since both classes read the same --fp-open-door token (render.ts's FLOORPLAN_CSS, card.spec.ts:1591 sets it).
+test("Opus review CSS pair: S10.3 open_color reaches a vibrating door's solid stroke, same token as an open one", async ({ page }) => {
+  const s = await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    // renderFloor wraps its own output in <g data-theme="..."> (render.ts:903), which re-declares every --fp-*
+    // token right there (FLOORPLAN_CSS's plain `[data-theme="..."]` selector, finding 19) - closer to the door line
+    // than the svg itself, so the override has to land on this g, exactly where the card's real host-level
+    // override (floorplan-studio-card.ts's open_color) would still win from further out, since nothing between the
+    // host and this g redeclares the token there.
+    const themed = svg.querySelector("g[data-theme]") as SVGGElement;
+    themed.style.setProperty("--fp-open-door", "#123abc");
+    const line = svg.querySelector("line[data-d]") as SVGLineElement;
+    line.setAttribute("class", "door alarm");
+    return getComputedStyle(line).stroke;
+  }, EDITOR);
+  expect(s).toBe(rgb("#123abc"));
 });
 
 // Opus review finding 8: the wave is a <circle> now, not a <path> semicircle (render.ts). These fixtures build the

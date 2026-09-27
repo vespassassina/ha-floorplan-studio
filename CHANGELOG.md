@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+- Attaching a placed sensor to a door, heater, ac or other item now pulls its
+  icon off the plan — it is shown through the thing it is attached to, not
+  doubled. Detaching sends it back to Add, not back onto the plan.
+- Fixed: an entity attached to a door, heater, ac or unlinked item no longer
+  shows in Add (or any other "place this entity" list) while it stays
+  attached, so it can no longer be placed a second time next to what already
+  reads it.
+- Tapping something with more than one entity attached (a heater with TRVs,
+  an ac with a linked unit, a door with a contact and a vibration sensor, an
+  unlinked item with attachments) opens a small chooser to pick one. With
+  exactly one entity, a tap opens its more-info as before. Such a heater or
+  ac no longer toggles on tap; a long press opens its own more-info. A door
+  with a cover still opens the cover dialog on tap; a long press opens the
+  chooser (not in kiosk mode, which has no long press).
+- A door with a vibration sensor attached now turns red — the same colour an
+  open contact sensor gets, and `open_color` still applies — with the same
+  pulsing alert line, but solid instead of dashed, so dashed keeps meaning
+  "open". A door that is open and vibrating at the same time stays dashed.
+- A contact or vibration sensor attached to a door now shows on the active
+  devices panel under the door's own name, even when it isn't placed as its
+  own icon on the plan.
+
 ## 0.12.9
 
 - Every entity picker in the editor is now a filterable combo box: type to

@@ -123,6 +123,16 @@ describe("unplacedHaEntities (S4.14): the palette's source list", () => {
     expect(unplacedHaEntities(layout(), { floors: [], areas: [], entities: [] })).toEqual([]);
     expect(unplacedHaEntities(layout(), { floors: null, areas: null, entities: null } as any)).toEqual([]);
   });
+
+  // S10.5: an entity attached to a door/heater/ac/unlinked item is "in use", not "unplaced" — even one that has
+  // never been catalogued at all (unlike switch.fan above, which is catalogued but unplaced).
+  it("drops an entity attached to a door's sensors, even with no catalog entry of its own", () => {
+    const l = layout();
+    l.floors.ground.doors = [{ id: "d1", name: "Front door", kind: "door", a: [0, 0], b: [1, 0], sensors: ["binary_sensor.attached_contact"] }];
+    const withAttached: HaData = { ...has, entities: [...has.entities, { id: "binary_sensor.attached_contact", name: "Attached contact", domain: "binary_sensor" }] };
+    const out = unplacedHaEntities(l, withAttached);
+    expect(out.map((e) => e.id)).not.toContain("binary_sensor.attached_contact");
+  });
 });
 
 describe("availableEntities (S6.7): a snapshot of every HA entity, for the exported JSON to carry with no live connection", () => {
@@ -171,6 +181,16 @@ describe("availableEntities (S6.7): a snapshot of every HA entity, for the expor
     expect(availableEntities(layout(), { floors: [], areas: [], entities: [] })).toEqual([]);
     expect(availableEntities(layout(), { floors: null, areas: null, entities: null } as any)).toEqual([]);
     expect(availableEntities(layout(), { floors: [], areas: [], entities: [null, { id: 5 }, "junk"] } as any)).toEqual([]);
+  });
+
+  // S10.5: an entity attached to a door/heater/ac/unlinked item reads `placed: true` here too — it has no icon of
+  // its own right now (attaching pulled it off), but an agent reading this snapshot must not place it either.
+  it("marks an attached entity placed, even though it has no device icon of its own", () => {
+    const l = layout();
+    l.floors.ground.doors = [{ id: "d1", name: "Front door", kind: "door", a: [0, 0], b: [1, 0], sensors: ["binary_sensor.attached_contact"] }];
+    const withAttached: HaData = { ...has, entities: [...has.entities, { id: "binary_sensor.attached_contact", name: "Attached contact", domain: "binary_sensor" }] };
+    const out = availableEntities(l, withAttached).find((e) => e.entity === "binary_sensor.attached_contact");
+    expect(out?.placed).toBe(true);
   });
 });
 
@@ -703,6 +723,87 @@ describe("S8.8: a catalogued-but-unplaced device is never hidden, and shows as o
     l.floors.ground.devices = [{ id: "p1", type: "light", entity: "light.hallway_spot", name: "Hallway spot", x: 0, y: 0 } as Device];
     const out = unplacedDevicesInArea(l, ha(), "area_living");
     expect(out.find((e) => e.id === "light.hallway_spot")).toBeUndefined();
+  });
+});
+
+// ---- S10.5: an entity attached to a door/heater/ac/unlinked item is "in use", not "unplaced" -----------------------
+// The bug: attaching a placed sensor pulls its own device icon off the plan (EditorState.attachEntity), so it is no
+// longer in placedEntities — but every list below still offered it for placing again, letting a user put a second
+// icon next to the door that already reads it. Every list that offers an entity for placing must also subtract
+// attachedEntities(layout), whether the entity is device-less (a plain HA entity) or grouped under an HA device.
+describe("S10.5: attached entities are excluded from every placing list", () => {
+  const layout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      ground: {
+        title: "Ground", outline: [], walls: [], rooms: [{ id: "r1", name: "Living Room", area: "area_living", label: "", kind: "room", pts: [], wk: [] }],
+        stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [], unlinked: [],
+      },
+    },
+    catalog: [],
+  } as unknown as Layout);
+
+  // A device-less contact sensor (no `dev`), and a device-grouped one (a Hue bulb device with `dev: "hue1"`) — one
+  // of each, so both code paths (the plain HA entity and the device-row) get covered.
+  const looseEnt = (): Ent => ({ id: "binary_sensor.attached_contact", name: "Attached contact", domain: "binary_sensor", dc: "door", area: "area_living" });
+  const groupedEnt = (): Ent => ({ id: "light.study_bulb", name: "Study bulb", domain: "light", area: "area_living", dev: "hue1" });
+  const ha = (): HaData => ({
+    floors: [], areas: [{ id: "area_living", name: "Living Room" }],
+    devices: [{ id: "hue1", name: "Study lamp" }],
+    entities: [looseEnt(), groupedEnt()],
+  });
+
+  it("unplacedHaEntities/placeableInArea drop a device-less entity once its door attaches it", () => {
+    const l = layout();
+    l.floors.ground.doors = [{ id: "d1", name: "Front door", kind: "door", a: [0, 0], b: [1, 0], sensors: ["binary_sensor.attached_contact"] }];
+    expect(placeableInArea(l, ha(), "area_living").map((e) => e.id)).not.toContain("binary_sensor.attached_contact");
+  });
+
+  it("placeableDevicesInArea (S8.1 Place popup) drops a device-less attached entity, and a device-grouped one attached through a heater's tempSensors", () => {
+    const loose = layout();
+    loose.floors.ground.doors = [{ id: "d1", name: "Front door", kind: "door", a: [0, 0], b: [1, 0], sensors: ["binary_sensor.attached_contact"] }];
+    expect(placeableDevicesInArea(loose, ha(), "area_living").find((e) => e.id === "binary_sensor.attached_contact")).toBeUndefined();
+
+    const grouped = layout();
+    grouped.floors.ground.devices = [{ id: "h1", type: "heater", entity: "climate.living", tempSensors: ["light.study_bulb"], x: 0, y: 0 } as Device];
+    expect(placeableDevicesInArea(grouped, ha(), "area_living").find((e) => e.id === "light.study_bulb")).toBeUndefined();
+    // control: with nothing attached, the Hue bulb is offered as usual
+    expect(placeableDevicesInArea(layout(), ha(), "area_living").find((e) => e.id === "light.study_bulb")).toBeDefined();
+  });
+
+  it("unplacedDevicesInArea (\"Add device from <area>\") drops both a device-less attached entity and a device-grouped one", () => {
+    const l = layout();
+    l.floors.ground.doors = [{ id: "d1", name: "Front door", kind: "door", a: [0, 0], b: [1, 0], sensors: ["binary_sensor.attached_contact"] }];
+    l.floors.ground.devices = [{ id: "h1", type: "heater", entity: "climate.living", tempSensors: ["light.study_bulb"], x: 0, y: 0 } as Device];
+    const out = unplacedDevicesInArea(l, ha(), "area_living");
+    expect(out.find((e) => e.id === "binary_sensor.attached_contact")).toBeUndefined();
+    expect(out.find((e) => e.id === "light.study_bulb")).toBeUndefined();
+  });
+
+  it("addCandidates (Add > Device) drops both, whether catalogued or not, and offers them again once detached", () => {
+    const l = layout();
+    l.floors.ground.doors = [{ id: "d1", name: "Front door", kind: "door", a: [0, 0], b: [1, 0], sensors: ["binary_sensor.attached_contact"] }];
+    l.floors.ground.devices = [{ id: "h1", type: "heater", entity: "climate.living", tempSensors: ["light.study_bulb"], x: 0, y: 0 } as Device];
+    l.catalog = [{ id: "c-contact", floor: "ground", room: "Living Room", type: "contact", name: "Attached contact", entity: "binary_sensor.attached_contact" }];
+    let out = addCandidates(l, ha());
+    expect(out.find((c) => c.entity === "binary_sensor.attached_contact")).toBeUndefined();
+    expect(out.find((c) => c.entity === "light.study_bulb")).toBeUndefined();
+
+    // Detach both: back in Add.
+    delete l.floors.ground.doors[0].sensors;
+    l.floors.ground.devices[0] = { id: "h1", type: "heater", entity: "climate.living", x: 0, y: 0 } as Device;
+    out = addCandidates(l, ha());
+    expect(out.find((c) => c.entity === "binary_sensor.attached_contact")).toBeDefined();
+    expect(out.find((c) => c.entity === "light.study_bulb")).toBeDefined();
+  });
+
+  it("does NOT exclude a light bound to a switch, or a light linked to a motion sensor: bound/motion are never attachments", () => {
+    const l = layout();
+    l.floors.ground.devices = [{ id: "l1", type: "light", entity: "light.demo_lamp", bound: "binary_sensor.attached_contact", motion: "light.study_bulb", x: 0, y: 0 } as unknown as Device];
+    l.catalog = [{ id: "c-contact", floor: "ground", room: "Living Room", type: "contact", name: "Attached contact", entity: "binary_sensor.attached_contact" }];
+    const out = addCandidates(l, ha());
+    // binary_sensor.attached_contact is only `bound`, never attached via a door/heater/ac/unlinked list: still offered.
+    expect(out.find((c) => c.entity === "binary_sensor.attached_contact")).toBeDefined();
   });
 });
 

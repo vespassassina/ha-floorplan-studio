@@ -64,6 +64,9 @@ export interface PanelCtx {
   moveArea?: (devIndex: number) => void;
   /** Say something in the status line. */
   say(msg: string): void;
+  /** S10.2: attaches `entity` via `apply` and pulls its device icon off every floor, one undo step; `label` names
+   *  the door/device/item it was attached to, for the status line, and `keepDeviceId` spares that device's own icon. */
+  attachEntity(entity: string, apply: (f: Floor) => void, label: string, keepDeviceId?: string): void;
   /** Redraw without an edit. */
   refresh(): void;
   /** S7.2: opens the Help panel, the same as the toolbar's Help button. */
@@ -399,13 +402,30 @@ function angleField(c: PanelCtx, id: string, list: "walls" | "doors" | "openings
  * one row with a remove button per entity already attached. Shared by door sensors/vibration/locks and the
  * heater/ac bindings below, so this UI is written once and every caller stays in step.
  */
-function multiAttachField(c: PanelCtx, id: string, label: string, cur: string[], choices: CatalogEntry[], set: (next: string[]) => void) {
+/**
+ * S10.2: `attach`, when given, routes a pick through `c.attachEntity` instead of `set` directly, so picking an
+ * entity that is placed as an icon pulls it off the plan in the same undo step (behaviour 1: `apply` writes the
+ * attachment, `attachEntity` does the pulling). `set` still does the Remove button either way — detaching only
+ * ever removes the attachment (behaviour 3), never the icon. `vctl`'s Controls draft (session state, not a layout
+ * field) passes no `attach` and keeps its old direct-`set` behaviour.
+ */
+function multiAttachField(
+  c: PanelCtx, id: string, label: string, cur: string[], choices: CatalogEntry[], set: (next: string[]) => void,
+  attach?: { apply: (f: Floor, next: string[]) => void; targetLabel: string; keepDeviceId?: string },
+) {
+  const placed = placedEntities(c.st.layout);
   const nameOf = (entity: string) => { const e = c.st.layout.catalog.find((x) => x.entity === entity); return e ? (e.room ? `${e.room} - ${e.name}` : e.name) : entity; };
   const avail = choices.filter((s) => !cur.includes(s.entity));
-  const options: ComboOption[] = avail.map((s) => ({ value: s.entity, label: s.name, group: s.room }));
+  // S10.2 behaviour 2: an entity already placed as an icon is still offered, labelled so the user can tell; the
+  // suffix is appended to the label only, so `filterCombo`'s name match (label+value+group) still finds it by name.
+  const options: ComboOption[] = avail.map((s) => ({ value: s.entity, label: placed.has(s.entity) ? `${s.name} (on plan)` : s.name, group: s.room }));
   // Picking adds to the list and clears itself: the combo's own value never lingers on the picked entity, unlike a
   // native `<select>` whose "add..." placeholder simply gets reselected next render.
-  const add = (v: string) => { if (v) set([...cur, v]); };
+  const add = (v: string) => {
+    if (!v) return;
+    if (attach) c.attachEntity(v, (f) => attach.apply(f, [...cur, v]), attach.targetLabel, attach.keepDeviceId);
+    else set([...cur, v]);
+  };
   return html`<label for=${id}>${label}</label>
     ${combo(id, label, "", options, add, "add...")}
     ${cur.map((en, k) => html`<p class="attach-row">${nameOf(en)} ${button(`${id}-rm${k}`, "Remove", () => set(cur.filter((x) => x !== en)), "warn")}</p>`)}`;
@@ -413,7 +433,8 @@ function multiAttachField(c: PanelCtx, id: string, label: string, cur: string[],
 
 function doorPanel(c: PanelCtx, i: number) {
   const d = c.st.f.doors[i];
-  const setList = (field: "sensors" | "vibration" | "locks") => (next: string[]) => c.commit((f) => { if (next.length) f.doors[i][field] = next; else delete f.doors[i][field]; });
+  const mutateList = (field: "sensors" | "vibration" | "locks") => (f: Floor, next: string[]) => { if (next.length) f.doors[i][field] = next; else delete f.doors[i][field]; };
+  const setList = (field: "sensors" | "vibration" | "locks") => (next: string[]) => c.commit((f) => mutateList(field)(f, next));
   // `cover` is general purpose (a garage door's roller shutter is one too, kind "door") and stays offered on
   // every kind, same as before S4.24 — it doubles as the electric-curtain dropdown on a glass door or window.
   const coverLabel = d.kind === "glass" || d.kind === "window" ? "electric curtain" : "cover";
@@ -424,15 +445,20 @@ function doorPanel(c: PanelCtx, i: number) {
     ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }))}
     ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); f.doors[i].locked = true; }))}
     ${heading("Home Assistant")}
-    ${multiAttachField(c, "dsens", "contact sensors", d.sensors ?? [], c.st.doorAttachChoices(d.id, "sensors"), setList("sensors"))}
-    ${multiAttachField(c, "dvibr", "vibration sensors", d.vibration ?? [], c.st.doorAttachChoices(d.id, "vibration"), setList("vibration"))}
-    ${multiAttachField(c, "dlocks", "smart locks", d.locks ?? [], c.st.doorAttachChoices(d.id, "locks"), setList("locks"))}
+    ${multiAttachField(c, "dsens", "contact sensors", d.sensors ?? [], c.st.doorAttachChoices(d.id, "sensors"), setList("sensors"), { apply: mutateList("sensors"), targetLabel: d.name })}
+    ${multiAttachField(c, "dvibr", "vibration sensors", d.vibration ?? [], c.st.doorAttachChoices(d.id, "vibration"), setList("vibration"), { apply: mutateList("vibration"), targetLabel: d.name })}
+    ${multiAttachField(c, "dlocks", "smart locks", d.locks ?? [], c.st.doorAttachChoices(d.id, "locks"), setList("locks"), { apply: mutateList("locks"), targetLabel: d.name })}
     <label for="dcover">${coverLabel}</label>
     ${(() => {
       const choices = c.st.coverChoices(d.id);
-      const options: ComboOption[] = choices.map((s) => ({ value: s.entity, label: s.name, group: s.room }));
+      const placed = placedEntities(c.st.layout);
+      const options: ComboOption[] = choices.map((s) => ({ value: s.entity, label: placed.has(s.entity) ? `${s.name} (on plan)` : s.name, group: s.room }));
       if (d.cover && !choices.some((s) => s.entity === d.cover)) options.push({ value: d.cover, label: d.cover });
-      return combo("dcover", coverLabel, d.cover ?? "", options, (v) => c.commit((f) => { if (v) f.doors[i].cover = v; else delete f.doors[i].cover; }), "none");
+      const setCover = (v: string) => {
+        if (v) c.attachEntity(v, (f) => { f.doors[i].cover = v; }, d.name);
+        else c.commit((f) => { delete f.doors[i].cover; });
+      };
+      return combo("dcover", coverLabel, d.cover ?? "", options, setCover, "none");
     })()}
     ${heading("Appearance")}
     ${lockField(c, "dlock", "doors", i)}
@@ -850,9 +876,10 @@ function motionField(c: PanelCtx, i: number) {
  * 2026-09-22: this is the whole scope, no open-window cutoff. */
 function heaterFields(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
-  const setList = (field: "trvs" | "tempSensors") => (next: string[]) => c.commit((f) => { if (next.length) f.devices[i][field] = next; else delete f.devices[i][field]; });
-  return html`${multiAttachField(c, "htrv", "TRVs", d.trvs ?? [], c.st.deviceAttachChoices(i, "trvs"), setList("trvs"))}
-    ${multiAttachField(c, "hsens", "temperature sensors", d.tempSensors ?? [], c.st.deviceAttachChoices(i, "tempSensors"), setList("tempSensors"))}`;
+  const mutateList = (field: "trvs" | "tempSensors") => (f: Floor, next: string[]) => { if (next.length) f.devices[i][field] = next; else delete f.devices[i][field]; };
+  const setList = (field: "trvs" | "tempSensors") => (next: string[]) => c.commit((f) => mutateList(field)(f, next));
+  return html`${multiAttachField(c, "htrv", "TRVs", d.trvs ?? [], c.st.deviceAttachChoices(i, "trvs"), setList("trvs"), { apply: mutateList("trvs"), targetLabel: d.name ?? d.entity, keepDeviceId: d.id })}
+    ${multiAttachField(c, "hsens", "temperature sensors", d.tempSensors ?? [], c.st.deviceAttachChoices(i, "tempSensors"), setList("tempSensors"), { apply: mutateList("tempSensors"), targetLabel: d.name ?? d.entity, keepDeviceId: d.id })}`;
 }
 
 /** S7.8: the entity that says which room a person is in. Written as `room`, the key is deleted for none. The person's
@@ -898,8 +925,9 @@ function targetsField(c: PanelCtx, i: number) {
 /** S4.24: an ac attaches several AC-or-TRV entities to one list. */
 function acField(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
-  const set = (next: string[]) => c.commit((f) => { if (next.length) f.devices[i].linked = next; else delete f.devices[i].linked; });
-  return multiAttachField(c, "aclink", "AC / TRV entities", d.linked ?? [], c.st.deviceAttachChoices(i, "linked"), set);
+  const mutate = (f: Floor, next: string[]) => { if (next.length) f.devices[i].linked = next; else delete f.devices[i].linked; };
+  const set = (next: string[]) => c.commit((f) => mutate(f, next));
+  return multiAttachField(c, "aclink", "AC / TRV entities", d.linked ?? [], c.st.deviceAttachChoices(i, "linked"), set, { apply: mutate, targetLabel: d.name ?? d.entity, keepDeviceId: d.id });
 }
 
 function furniturePanel(c: PanelCtx, i: number) {
@@ -929,14 +957,15 @@ function furniturePanel(c: PanelCtx, i: number) {
 function unlinkedPanel(c: PanelCtx, i: number) {
   const u = c.st.f.unlinked[i];
   const label = TYPE_LABELS.find((t) => t[0] === u.type)?.[1] ?? u.type;
-  const setAttached = (next: string[]) => c.commit((f) => { if (next.length) f.unlinked[i].attached = next; else delete f.unlinked[i].attached; });
+  const mutateAttached = (f: Floor, next: string[]) => { if (next.length) f.unlinked[i].attached = next; else delete f.unlinked[i].attached; };
+  const setAttached = (next: string[]) => c.commit((f) => mutateAttached(f, next));
   return html`<strong>${u.name ?? label}</strong>
     ${hint("Drag it to move it.")}
     ${hint("No single on/off state; for reference only.")}
     ${heading("Identity")}
     ${text("plan name", "uun", u.name ?? "", (v) => c.commit((f) => { setOrDelete(f.unlinked[i], "name", v.trim()); }))}
     ${heading("Home Assistant")}
-    ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(), setAttached)}
+    ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(), setAttached, { apply: mutateAttached, targetLabel: u.name ?? label })}
     ${heading("Appearance")}
     <label for="uucol">colour</label>
     <input id="uucol" type="color" .value=${u.color ?? "#8b8578"} @change=${(e: Event) => c.commit((f) => { f.unlinked[i].color = val(e); })}>

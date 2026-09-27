@@ -181,6 +181,12 @@ export const FLOORPLAN_CSS = `
    its zero-area line never receive a hit at all. */
 .extra{fill:none;stroke:var(--fp-idle);stroke-dasharray:6 4;stroke-width:1.2;vector-effect:non-scaling-stroke;pointer-events:all}
 .door{stroke:var(--fp-door)} .door-glass{stroke:var(--fp-glass)} .door-window{stroke:var(--fp-window)} .door-sealed{stroke:var(--fp-sealed);stroke-dasharray:10 6}
+/* S10.3: a triggered vibration sensor gives the door the same red as an open contact, but solid - dashed keeps
+   meaning "open" alone. This rule comes before .door.open in source order and sets no dasharray of its own, so a
+   door that is both open and vibrating still ends up dashed: .open's dasharray, asserted after this one, wins on
+   that property (both selectors are two classes each, equal specificity), while the shared stroke colour agrees
+   either way. */
+.door.alarm{stroke:var(--fp-open-door)}
 /* S9.1: an open contact door or window is dashed, in --fp-open-door (default --fp-dev-contact; the card's
    open_color option overrides it — a class rule, not a presentation attribute, per finding 18). A cover door's own
    open state (.cover-open) is unrelated to contact and keeps its plain orange, undashed; it comes after .open in
@@ -735,7 +741,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.doors.forEach((d, i) => {
     // S4.24: several contact sensors may be attached; the door reads open if any one of them does.
     const open = (d.sensors ?? []).some((e) => o.state?.[e]?.state === "on"), cover = d.cover ? o.state?.[d.cover] : undefined;
-    const cls = ["door", `door-${esc(String(d.kind))}`, open ? "open" : "", cover?.state === "open" ? "cover-open" : ""].filter(Boolean).join(" ");
+    // S10.3: a triggered vibration sensor gives the door the same red and the same pulsing alert line as an open
+    // contact, but solid, not dashed - dashed keeps meaning "open" alone. Both at once: dashed (open wins the
+    // dash, class order below puts .open after .alarm so its dasharray is the one asserted last), red, one line.
+    const vibrating = (d.vibration ?? []).some((e) => o.state?.[e]?.state === "on");
+    const cls = ["door", `door-${esc(String(d.kind))}`, vibrating ? "alarm" : "", open ? "open" : "", cover?.state === "open" ? "cover-open" : ""].filter(Boolean).join(" ");
     const sel = o.selection?.t === "door" && o.selection.i === i;
     const w = wallWidthAt(f, d.a, d.b);
     const seg = `x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}"`;
@@ -743,7 +753,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // external wall), so a plain transparent line first, at the old fixed 22 cm, keeps the door as easy to click as
     // it always was. It shares data-d with the visible line, so hitOf() (editor-app.ts) finds the same door either way.
     // S8.13: an open contact door gets a wide pulsing line under its own, so it reads from across the room.
-    if (open) out.push(`<line class="door-alert" ${seg} stroke-width="${w + DOOR_ALERT_EXTRA}"/>`);
+    // S10.3: a vibrating door gets the same line - open or vibrating (or both) is still only ever one alert line.
+    if (open || vibrating) out.push(`<line class="door-alert" ${seg} stroke-width="${w + DOOR_ALERT_EXTRA}"/>`);
     out.push(`<line data-d="${i}" class="door-hit" ${seg} stroke-width="${DOOR_HIT_WIDTH}"/>`);
     out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`);
   });
