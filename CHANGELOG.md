@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.10
 
 - Attaching a placed sensor to a door, heater, ac or other item now pulls its
   icon off the plan — it is shown through the thing it is attached to, not
