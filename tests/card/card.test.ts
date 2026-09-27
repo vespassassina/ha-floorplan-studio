@@ -1249,4 +1249,79 @@ describe("FloorplanStudioCard", () => {
     const cssText = (FloorplanStudioCard.styles as unknown as { toString(): string }[]).map((s) => String(s)).join("\n");
     expect(cssText).not.toMatch(/--fp-text\s*,\s*#[0-9a-fA-F]{3,6}/);
   });
+
+  // S9.2: icons stay visible on large plans. The card scales the icon group by 1 / (auto * icon_size), where
+  // `auto = max(1, longest side of the fit view box / 1000)` — the same box `render()` already computes with
+  // `viewBoxFor`. A synthetic floor whose outline is 1880 cm square gives, after the fixed 60 cm pad on every
+  // side, a view box exactly 2000x2000 — auto = 2 on the nose, so the expected scale is exact, not approximate.
+  describe("S9.2: icons stay visible on large plans", () => {
+    /** A floor whose fit view box (outline + the fixed 60 cm pad) is exactly `side` cm square, so `auto` comes
+     * out as a round number. One light device near the centre, so a Playwright sibling test can click it. */
+    function bigFloor(side: number) {
+      const o = side - 120; // pad is 60 on every edge
+      return {
+        title: "Big", outline: [[0, 0], [o, 0], [o, o], [0, o]], owk: ["wall", "wall", "wall", "wall"],
+        rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], furniture: [], unlinked: [],
+        devices: [{ id: "light-big", type: "light", entity: "light.demo_big", name: "Big light", x: o / 2, y: o / 2 }],
+      };
+    }
+
+    function layoutWithBigFloor(side: number): Layout {
+      const l = structuredClone(L);
+      (l.floors as Record<string, unknown>).big = bigFloor(side);
+      return l;
+    }
+
+    it("the demo (1000 cm or less, no icon_size) renders with scale 1, byte-identical to before S9.2", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "ground" });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(lastRenderState().scale).toBe(1);
+    });
+
+    it("a 2000 cm plan (view box exactly 2000 cm on its longest side) scales the icon group 2x, i.e. scale 0.5", async () => {
+      const el = await mount();
+      el.setConfig({ layout: layoutWithBigFloor(2000), floor: "big" });
+      el.hass = stubHass({ "light.demo_big": st("off") }) as never;
+      await el.updateComplete;
+      expect(lastRenderState().scale).toBeCloseTo(0.5, 10);
+    });
+
+    it("icon_size 1.5 on the demo (auto 1) gives scale 1/1.5", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "ground", icon_size: 1.5 });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(lastRenderState().scale).toBeCloseTo(1 / 1.5, 10);
+    });
+
+    it("icon_size 0 and -1 clamp to 0.5, so scale is 1/0.5 = 2 on the demo", async () => {
+      for (const bad of [0, -1]) {
+        const el = await mount();
+        el.setConfig({ layout: structuredClone(L), floor: "ground", icon_size: bad });
+        el.hass = stubHass() as never;
+        await el.updateComplete;
+        expect(lastRenderState().scale, `icon_size ${bad}`).toBeCloseTo(2, 10);
+      }
+    });
+
+    it("icon_size 10 clamps to 3, so scale is 1/3 on the demo", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "ground", icon_size: 10 });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      expect(lastRenderState().scale).toBeCloseTo(1 / 3, 10);
+    });
+
+    it('icon_size "big" (non-numeric) and NaN fall back to the default 1, so scale is 1 on the demo', async () => {
+      for (const bad of ["big" as unknown as number, NaN] as const) {
+        const el = await mount();
+        el.setConfig({ layout: structuredClone(L), floor: "ground", icon_size: bad });
+        el.hass = stubHass() as never;
+        await el.updateComplete;
+        expect(lastRenderState().scale, `icon_size ${String(bad)}`).toBe(1);
+      }
+    });
+  });
 });

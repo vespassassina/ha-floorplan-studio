@@ -52,6 +52,11 @@ export interface FloorplanStudioCardConfig {
    * multi-floor layout with neither key set — instead shows just its first floor, with no switcher: use one card
    * per floor instead (see `docs/card.md`). */
   kiosk?: boolean;
+  /** S9.2: icons, names, values and radar dots grow by this factor on top of the automatic large-plan scale-up
+   * (see `_iconSize`/`_scale` below). A number from 0.5 to 3; anything else (missing, non-numeric, `NaN`) is the
+   * default, 1. Out-of-range numbers clamp rather than being refused, since a slider or a typo should never break
+   * the card. */
+  icon_size?: number;
 }
 
 /** Two taps closer than this in time and space are a double-tap. */
@@ -59,6 +64,10 @@ const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_PX = 24;
 /** One click of a zoom button. */
 const BUTTON_ZOOM = 1.5;
+/** S9.2: `icon_size` default and clamp range. */
+const DEFAULT_ICON_SIZE = 1;
+const ICON_SIZE_MIN = 0.5;
+const ICON_SIZE_MAX = 3;
 
 declare global {
   interface Window {
@@ -661,7 +670,7 @@ export class FloorplanStudioCard extends LitElement {
     const box = zoom && this._view ? clamp(this._view, fit) : fit;
     const svgClass = !zoom ? "" : box.w < fit.w * (1 - 1e-6) ? "fp-zoomable fp-zoomed" : "fp-zoomable";
     const body = renderFloor(f, {
-      scale: 1,
+      scale: this._scale(fit),
       state: this._stateForRender(),
       now: Date.now(),
       fade: this._config.fade,
@@ -685,6 +694,24 @@ export class FloorplanStudioCard extends LitElement {
   /** S7.5: `config.kiosk`, `false` unless it is exactly `true` — `setConfig` already refuses anything else. */
   private _kiosk(): boolean {
     return this._config.kiosk === true;
+  }
+
+  /** S9.2: `config.icon_size`, read as untrusted — a missing key, a non-number, or `NaN` all mean the default,
+   * `1`; a real number clamps to [0.5, 3] rather than being refused, so a slider or a stray digit never breaks
+   * the card. */
+  private _iconSize(): number {
+    const v = this._config.icon_size;
+    return typeof v === "number" && Number.isFinite(v) ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, v)) : DEFAULT_ICON_SIZE;
+  }
+
+  /** S9.2: the `scale` passed to `renderFloor`. Icons, names, values and radar dots are drawn at `24 * (1/scale)`
+   * units, so shrinking `scale` grows them on screen. `auto` keeps a plan of 1000 cm or less exactly as before
+   * (icon_size at its own default too, so today's card is byte-identical); past that, icons stop shrinking with
+   * the plan, growing with its longest side instead — `fit` is the same view box `render()` already draws, per
+   * the S9.2 brief ("the same box the card draws"), so this reads no geometry of its own. */
+  private _scale(fit: { w: number; h: number }): number {
+    const auto = Math.max(1, Math.max(fit.w, fit.h) / 1000);
+    return 1 / (auto * this._iconSize());
   }
 
   /** The view on screen now: the zoomed one, clamped, or fit. */
