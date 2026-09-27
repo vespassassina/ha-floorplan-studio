@@ -367,6 +367,10 @@ export class FloorplanStudioEditor extends LitElement {
     aside{display:flex;flex-direction:column;gap:12px}
     aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}
     aside input:not([type=checkbox]),aside select{width:100%;box-sizing:border-box}
+    /* S10.1: fp-combo sizes itself (its own :host rule); margin-top here only matches the spacing a select/input
+       gets from the label above it. aside has no overflow of its own, so the combo's dropdown (position:absolute,
+       inside its shadow root) is never clipped. */
+    aside fp-combo{margin-top:2px}
     .row{display:flex;gap:6px}
     /* S8.9.1 / Opus review of S8.9: hints are written to fit one line at the sidebar's own width; nowrap+ellipsis
        is a safety net only, and only for the sidebar's own static hints (.fit: the hint() helper's output and the
