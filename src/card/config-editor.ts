@@ -26,6 +26,10 @@ const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 const DEFAULT_ICON_SIZE = 1;
 const ICON_SIZE_MIN = 0.5;
 const ICON_SIZE_MAX = 3;
+// S9.6: matches ZOOM_LEVEL_MIN/MAX_ZOOM in floorplan-studio-card.ts/viewport.ts, same reasoning as icon_size above.
+const DEFAULT_ZOOM_LEVEL = 1;
+const ZOOM_LEVEL_MIN = 1;
+const ZOOM_LEVEL_MAX = 8;
 
 const NIGHT_CHOICES = ["auto", "on", "off"] as const;
 
@@ -206,6 +210,52 @@ export class FloorplanStudioCardEditor extends LitElement {
     return typeof v === "number" && Number.isFinite(v) ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, v)) : DEFAULT_ICON_SIZE;
   }
 
+  /** S9.6: `config.center`'s two fields, each shown empty until a real pin is set — there is no single numeric
+   * default to fall back to display-wise, unlike `fade`/`icon_size`, since "unset" (the whole floor) is not a
+   * point on the plan. */
+  private _centerX(): string {
+    const c = this._config.center;
+    return Array.isArray(c) && typeof c[0] === "number" && Number.isFinite(c[0]) ? String(c[0]) : "";
+  }
+
+  private _centerY(): string {
+    const c = this._config.center;
+    return Array.isArray(c) && typeof c[1] === "number" && Number.isFinite(c[1]) ? String(c[1]) : "";
+  }
+
+  /** S9.6: Center X and Center Y write one `center` tuple together — reads both fields' live values (not just the
+   * one that changed) so either box editing the other's partner in place still emits a consistent pair. Either
+   * field emptied, or holding anything that is not a finite number, drops `center` from the payload outright
+   * (CLAUDE.md finding 1: never write a half-formed pin), same as the card itself then reads no center at all. */
+  private _onCenter(): void {
+    const xEl = this.renderRoot.querySelector<HTMLInputElement>("#center_x");
+    const yEl = this.renderRoot.querySelector<HTMLInputElement>("#center_y");
+    const xRaw = xEl?.value.trim() ?? "", yRaw = yEl?.value.trim() ?? "";
+    const x = Number(xRaw), y = Number(yRaw);
+    const valid = xRaw !== "" && yRaw !== "" && Number.isFinite(x) && Number.isFinite(y);
+    const next: EditorConfig = { ...this._config };
+    if (valid) next.center = [x, y];
+    else delete next.center;
+    this._config = next;
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: next }, bubbles: true, composed: true }));
+    this.requestUpdate();
+  }
+
+  /** S9.6: `config.zoom_level`, clamped to [1, 8] for display, same as the card itself reads it (MAX_ZOOM). */
+  private _zoomLevel(): number {
+    const v = this._config.zoom_level;
+    return typeof v === "number" && Number.isFinite(v) ? Math.min(ZOOM_LEVEL_MAX, Math.max(ZOOM_LEVEL_MIN, v)) : DEFAULT_ZOOM_LEVEL;
+  }
+
+  private _onZoomLevel(e: Event): void {
+    // Same shape as _onIconSize: an emptied or non-numeric field is the default, 1 (the whole floor), not a
+    // silent clamp to the range's own bottom.
+    const raw = (e.target as HTMLInputElement).value.trim();
+    const n = Number(raw);
+    const v = raw !== "" && Number.isFinite(n) ? Math.min(ZOOM_LEVEL_MAX, Math.max(ZOOM_LEVEL_MIN, n)) : DEFAULT_ZOOM_LEVEL;
+    this._set("zoom_level", v, DEFAULT_ZOOM_LEVEL);
+  }
+
   private _onIconSize(e: Event): void {
     // Same shape as _onFade: an emptied or non-numeric field is not 0 (out of range, would silently clamp to
     // 0.5) — it falls back to the default, which _set then drops from the payload.
@@ -311,6 +361,17 @@ export class FloorplanStudioCardEditor extends LitElement {
       </div>
 
       <div class="row">
+        <label class="main" for="center_x">Center X, Y (cm)</label>
+        <input id="center_x" type="number" step="1" placeholder="whole floor" .value=${this._centerX()} @change=${this._onCenter} />
+        <input id="center_y" type="number" step="1" placeholder="whole floor" .value=${this._centerY()} @change=${this._onCenter} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="zoom_level">Zoom level</label>
+        <input id="zoom_level" type="number" min=${ZOOM_LEVEL_MIN} max=${ZOOM_LEVEL_MAX} step="0.1" .value=${String(this._zoomLevel())} @change=${this._onZoomLevel} />
+      </div>
+
+      <div class="row">
         <label class="main" for="zoom">Zoom</label>
         <select id="zoom" @change=${this._onZoom}>
           <option value="on" ?selected=${this._zoomChoice() === "on"}>On</option>
@@ -349,7 +410,9 @@ export class FloorplanStudioCardEditor extends LitElement {
         <button id="open_color_clear" type="button" @click=${this._onOpenColorClear}>Clear</button>
       </div>
       <p class="hint">Night darkens rooms after sunset; Kiosk shows only the plan, for a wall tablet. Active list is
-        the floating panel of what's on; kiosk hides it too.</p>
+        the floating panel of what's on; kiosk hides it too. Center and Zoom level pin the card to one room or
+        corridor instead of the whole floor — the editor's View menu has a "Copy card view" button that reads
+        these two values off its own current view.</p>
     `;
   }
 }
