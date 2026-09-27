@@ -2099,6 +2099,45 @@ the editor becomes one reusable combo, tested, with shots looked at.
   server and looked at all four: legible text, correct contrast, the active
   row highlighted, group headings in place, in both themes.
 
+### S10.3 A triggered vibration sensor turns its door red, solid, on contact/vibration/crash
+
+- Outcome: a door whose `vibration` sensor is `on` renders the same colour as
+  an open contact (`--fp-open-door`, so `open_color` still applies) with the
+  same pulsing alert line, but the door itself stays solid — dashed keeps
+  meaning "open" alone. A door that is open and vibrating at once stays
+  dashed (open wins the dash) and shows exactly one alert line, not two. A
+  contact or vibration sensor attached to a door, not placed as its own
+  device icon, now shows on the Active panel under the door's own name,
+  deduped against any copy placed as its own icon; tapping that row opens
+  the sensor's own more-info.
+- Test: `render.test.ts` covers vibration → `alarm` not `open` (on, off,
+  unavailable, unknown, no state), contact → `open` not `alarm`, both at
+  once → both classes and exactly one `door-alert` line, and multiple
+  vibration sensors on one door (any one `on` is enough). `active.test.ts`
+  covers the new attached-sensor rows: contact on/off, vibration, exclusion
+  when unavailable/unknown/absent, dedup against a placed icon, and a door
+  with both a contact and a vibration sensor producing two rows. Two "Opus
+  review CSS pair" `editor.spec.ts` tests assert the real computed stroke —
+  solid in every theme, still dashed when open and vibrating together — plus
+  a third that overrides `--fp-open-door` on `renderFloor`'s own
+  `g[data-theme]` (the nearest ancestor that redeclares the token, closer
+  than the svg) and checks the override reaches a vibrating door's stroke.
+  `card.spec.ts` adds the active-panel row and its more-info tap, with a
+  real `page.mouse` click at the row's coordinates. `npm run shots` gained a
+  ground-floor-only "vibrating" state (blueprint and light themes, mirroring
+  the existing "night" shot), added to `scripts/shots.mjs`'s runtime
+  `monLayout` clone rather than to `demo/layout.json`, whose v1 fixture
+  predates vibration sensors and is compared byte-for-byte against the v2
+  migration output in `migrate.test.ts`.
+- Done, 2026-09-27. Test-first throughout; each new test was watched fail
+  first (the render tests against the class/line logic reverted once, the
+  CSS-pair tests against the rule commented out). The CSS-pair tests ran at
+  `--repeat-each=10`, the card tests at `--repeat-each=5`, both clean.
+  `npm run shots` run and the ground-floor vibrating shot looked at in both
+  themes: the door renders solid red, distinct from the dashed red of the
+  existing "open" shot, and the Active panel lists the vibration row. See
+  `docs/DECISIONS.md` for why solid, not a new dash pattern.
+
 ## Later, not planned
 
 - Vacuum position from an integration that exposes coordinates (none of the common ones does today).

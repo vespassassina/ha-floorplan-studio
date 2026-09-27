@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- A door with a vibration sensor attached now turns red — the same colour an
+  open contact sensor gets, and `open_color` still applies — with the same
+  pulsing alert line, but solid instead of dashed, so dashed keeps meaning
+  "open". A door that is open and vibrating at the same time stays dashed.
+- A contact or vibration sensor attached to a door now shows on the active
+  devices panel under the door's own name, even when it isn't placed as its
+  own icon on the plan.
+
 ## 0.12.9
 
 - Every entity picker in the editor is now a filterable combo box: type to

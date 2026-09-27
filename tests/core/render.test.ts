@@ -431,6 +431,73 @@ describe("S8.13: brighter alerts, wider light", () => {
   });
 });
 
+describe("S10.3: a triggered vibration sensor turns its door red, solid, same as an open contact", () => {
+  // Two <line data-d="i"> share the attribute (the invisible door-hit twin, finding 3, and the visible line); this
+  // helper skips the hit line and returns the visible one's own class list.
+  const doorHtml = (html: string, i: number) => [...html.matchAll(new RegExp(`<line data-d="${i}" class="([^"]*)"`, "g"))].map((m) => m[1]).find((c) => c !== "door-hit") ?? "";
+
+  it("a vibration sensor on gives the door .alarm, not .open; unavailable/unknown/off give neither", () => {
+    const f = structuredClone(ground);
+    f.doors[0].vibration = ["binary_sensor.demo_front_vibration"];
+    for (const s of [st("on")]) {
+      const html = renderFloor(f, { ...base, state: { "binary_sensor.demo_front_vibration": s } });
+      const cls = doorHtml(html, 0);
+      expect(cls).toMatch(/\balarm\b/);
+      expect(cls).not.toMatch(/\bopen\b/);
+    }
+    for (const s of [st("off"), st("unavailable"), st("unknown")]) {
+      const html = renderFloor(f, { ...base, state: { "binary_sensor.demo_front_vibration": s } });
+      expect(doorHtml(html, 0)).not.toMatch(/\balarm\b/);
+    }
+    // no state reported at all: still nothing
+    expect(doorHtml(renderFloor(f, base), 0)).not.toMatch(/\balarm\b/);
+  });
+
+  it("a contact sensor on still gives .open, not .alarm, when the door has no vibration sensor", () => {
+    const html = renderFloor(ground, { ...base, state: { "binary_sensor.demo_front_door": st("on") } });
+    const cls = doorHtml(html, 0);
+    expect(cls).toMatch(/\bopen\b/);
+    expect(cls).not.toMatch(/\balarm\b/);
+  });
+
+  it("both a contact and a vibration sensor on: the door carries both classes, dashed (open wins the dash, CSS pair in editor.spec.ts), and only one alert line", () => {
+    const f = structuredClone(ground);
+    f.doors[0].vibration = ["binary_sensor.demo_front_vibration"];
+    const html = renderFloor(f, { ...base, state: { "binary_sensor.demo_front_door": st("on"), "binary_sensor.demo_front_vibration": st("on") } });
+    const cls = doorHtml(html, 0);
+    expect(cls).toMatch(/\bopen\b/);
+    expect(cls).toMatch(/\balarm\b/);
+    expect(html.match(/<line class="door-alert"[^>]*>/g) ?? []).toHaveLength(1);
+  });
+
+  it("a vibrating-only door still draws exactly one pulsing door-alert line, same width rule as an open one", () => {
+    const f = structuredClone(ground);
+    f.doors[0].vibration = ["binary_sensor.demo_front_vibration"];
+    const html = renderFloor(f, { ...base, state: { "binary_sensor.demo_front_vibration": st("on") } });
+    const alert = html.match(/<line class="door-alert"[^>]*>/g) ?? [];
+    expect(alert).toHaveLength(1);
+    const visible = [...html.matchAll(/<line data-d="0" class="([^"]*)"[^>]*stroke-width="([\d.]+)"/g)].find((m) => m[1] !== "door-hit")!;
+    expect(Number(alert[0]!.match(/stroke-width="([\d.]+)"/)![1])).toBe(Number(visible[2]) + DOOR_ALERT_EXTRA);
+  });
+
+  it("a closed, non-vibrating door draws no door-alert line and carries neither class", () => {
+    const f = structuredClone(ground);
+    f.doors[0].vibration = ["binary_sensor.demo_front_vibration"];
+    const html = renderFloor(f, base);
+    expect(html).not.toContain("door-alert");
+    const cls = doorHtml(html, 0);
+    expect(cls).not.toMatch(/\balarm\b/);
+    expect(cls).not.toMatch(/\bopen\b/);
+  });
+
+  it("several vibration sensors on the same door: any one of them on is enough (S4.24's rule extended to vibration)", () => {
+    const f = structuredClone(ground);
+    f.doors[0].vibration = ["binary_sensor.a", "binary_sensor.b"];
+    const html = renderFloor(f, { ...base, state: { "binary_sensor.a": st("off"), "binary_sensor.b": st("on") } });
+    expect(doorHtml(html, 0)).toMatch(/\balarm\b/);
+  });
+});
+
 describe("S9.4: a speaker radiates while it plays", () => {
   const dev = (type: string, entity: string, x = 400, y = 300) => ({ id: `${type}-x`, type, entity, x, y });
   const draw = (devices: unknown[], state: StateOverlay) => renderFloor({ ...structuredClone(ground), devices } as never, { ...base, state });

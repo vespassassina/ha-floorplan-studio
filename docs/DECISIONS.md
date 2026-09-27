@@ -2,6 +2,32 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-27 S10.3: a vibrating door is solid red, not a new dash pattern
+
+A triggered vibration sensor on a door needed a visual distinct from "open"
+but related to it — Diego's brief named the colour ("whatever colour is
+decided, on contact sensor / vibration / crash") but left the line style
+open. Two options:
+
+- **A second dash pattern** (say, a tighter dash, or dots) for "vibrating".
+  Rejected: the plan already carries one dashed line meaning "open"
+  (S9.1); a second, different dash reads as a subtly broken version of the
+  first at a glance, and a door that is open and vibrating at once would
+  need a third pattern or an arbitrary tie-break between two dash styles.
+- **Solid red**, reusing `--fp-open-door` (so `open_color` still applies to
+  both states) and the same pulsing alert line as an open contact. Solid vs.
+  dashed is the strongest visual contrast the plan already has, needs no new
+  token, and settles the open+vibrating case for free: dashed still means
+  "open" whenever it is present, solid or not.
+
+Implementation follows from the choice: `render.ts` adds one `.door.alarm`
+CSS rule (stroke colour only, no dasharray) placed before the existing
+`.door.open` rule in source order, so when both classes are present,
+`.door.open`'s own dasharray declaration — asserted after, same
+specificity — wins on that one property while the shared stroke colour
+agrees either way; the alert line is drawn once when the door is open,
+vibrating, or both, never twice.
+
 ## 2026-09-27 S10.1: a custom `<fp-combo>`, not `<datalist>` or `ha-entity-picker`; device entities lose one level of nesting
 
 Diego asked for a filterable combo box on every entity picker. Two off-the-

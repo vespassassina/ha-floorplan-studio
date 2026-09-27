@@ -38,7 +38,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
-| `open_color` | red | `#rrggbb`: colours an open door or window (and its pulsing alert line) instead of red. An invalid value is ignored |
+| `open_color` | red | `#rrggbb`: colours an open door or window, or a door whose vibration sensor triggered (and either one's pulsing alert line), instead of red. An invalid value is ignored |
 | `icon_size` | `1` | grows icons, names, values and radar dots by this factor, on top of the automatic scale-up on a large plan (see Size, below). A number from `0.5` to `3`; anything else clamps into that range, and a missing or non-numeric value is the default, `1` |
 | `active_list` | `true` | `false` hides the floating panel of active devices — see Active list, below |
 | `center` | unset | `[x, y]`, plan cm: the point a pinned card zooms in on — see A card for one room, below. A non-array, wrong length, or non-finite value is ignored, silently, and the card shows the whole floor |
@@ -260,6 +260,13 @@ differently:
   With reduced motion set on the device, nothing pulses. A cover door's own
   open state (see Cover, above) is separate: it stays its plain orange,
   undashed, whatever `open_color` says.
+- **Vibration sensor** — a door with a vibration sensor attached turns the
+  same colour as an open contact (`open_color` applies here too) and gets
+  the same pulsing alert line, but the door itself stays solid, not dashed:
+  dashed still means "open". A door that is open and vibrating at once
+  stays dashed (open wins the dash) and only ever shows one alert line. A
+  contact or vibration sensor attached to a door — not placed as its own
+  icon — still shows on the Active panel, under the door's own name.
 - **Speaker (media_player)** — a fixed blue in every theme (the same
   exception a TV is: a TV or speaker's icon turns blue whenever the player
   reports anything other than off, standby, unavailable or unknown — not

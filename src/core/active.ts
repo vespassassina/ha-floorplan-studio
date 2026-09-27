@@ -1,5 +1,5 @@
 import { DEVICE_TYPES } from "./schema";
-import type { Device, DeviceType, Layout } from "./schema";
+import type { Device, DeviceType, Door, Layout } from "./schema";
 import { acMode, classOf, type StateOverlay } from "./render";
 
 /**
@@ -93,15 +93,42 @@ function nameFor(d: Device, state: StateOverlay | undefined): string {
   return d.name ?? (typeof friendly === "string" && friendly ? friendly : d.entity);
 }
 
+/** S10.3: a contact or vibration sensor attached to a door (not placed as its own device icon) still belongs on
+ *  the list when it is on, under the door's own name, so pulling a sensor off the plan into a door (S10.3's other
+ *  half) never makes it vanish from here. `field` picks which of the door's own entity lists to read; `placed` is
+ *  every entity that already has a device icon somewhere in the layout, so that one is never listed twice. */
+function doorAttachedRows(door: Door, field: "sensors" | "vibration", state: StateOverlay | undefined, placed: ReadonlySet<string>, floorKey: string): ActiveDevice[] {
+  const type: DeviceType = field === "sensors" ? "contact" : "vibration";
+  const list = door[field];
+  if (!Array.isArray(list)) return [];
+  const out: ActiveDevice[] = [];
+  for (const e of list) {
+    if (typeof e !== "string" || !e || placed.has(e)) continue;
+    if (state?.[e]?.state !== "on") continue;
+    out.push({ entity: e, name: door.name ?? e, type, floor: floorKey, colorVar: "--fp-open-door" });
+  }
+  return out;
+}
+
 /** Every active device across every floor of `layout` (not only one shown floor: the card can switch floors, this
  *  list must not — CLAUDE.md domain notes). Order follows each floor's own device order, floors in the layout's
  *  own key order; `groupActiveByType` is what the panel actually renders from, in `DEVICE_TYPES` order. */
 export function activeDevices(layout: Layout, state: StateOverlay | undefined): ActiveDevice[] {
   const out: ActiveDevice[] = [];
+  // S10.3: an entity already drawn as its own device icon is never repeated as a door row, whichever floor either
+  // one is on - built once, over every floor, before the per-floor loop below reads it.
+  const placed = new Set<string>();
+  for (const floor of Object.values(layout.floors)) {
+    for (const d of floor.devices) if (typeof d.entity === "string" && d.entity) placed.add(d.entity);
+  }
   for (const [floorKey, floor] of Object.entries(layout.floors)) {
     for (const d of floor.devices) {
       if (!isActive(d, state)) continue;
       out.push({ entity: d.entity, name: nameFor(d, state), type: d.type, floor: floorKey, colorVar: colorVarFor(d, state) });
+    }
+    for (const door of floor.doors ?? []) {
+      out.push(...doorAttachedRows(door, "sensors", state, placed, floorKey));
+      out.push(...doorAttachedRows(door, "vibration", state, placed, floorKey));
     }
   }
   return out;

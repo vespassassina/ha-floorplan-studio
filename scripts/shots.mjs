@@ -103,6 +103,13 @@ Object.assign(STATES.gone, { "binary_sensor.demo_front_door": "unavailable", "bi
 Object.assign(STATES.off, { "vacuum.demo_hall": "docked" });
 Object.assign(STATES.on, { "vacuum.demo_hall": "cleaning" });
 Object.assign(STATES.gone, { "vacuum.demo_hall": "unavailable" });
+// S10.3: the front door also carries a vibration sensor, added here rather than to demo/layout.json itself (that
+// fixture is shared with migrate.test.ts's v1-equals-v2 check, which a real schema change would need to touch on
+// both sides — not worth it just to have one more shot). Spread from STATES.off only now, after every assign
+// above, so "vibrating" carries the same full entity set they do; it is otherwise "off", so the alarm state shows
+// solid on its own, distinct from "on"'s dashed+alarm combination (both classes together).
+monLayout.floors.ground.doors[0].vibration = ["binary_sensor.demo_front_vibration"];
+STATES.vibrating = { ...STATES.off, "binary_sensor.demo_front_vibration": "on" };
 
 const shots = [];
 const errors = [];
@@ -125,11 +132,15 @@ try {
   ];
   const cardShots = [];
   for (const floor of Object.keys(layout.floors)) for (const which of Object.keys(STATES)) for (const t of THEMES) {
-    if (which === "night") continue; // below: ground floor, two themes
+    if (which === "night" || which === "vibrating") continue; // below: ground floor only, two themes each
     cardShots.push({ name: `card-${floor}-${which}-${t.id}`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
   }
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
     cardShots.push({ name: `card-ground-night-${t.id}`, floor: "ground", which: "night", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
+  // S10.3: the front door's vibration sensor only exists on the ground floor's monLayout clone, so this shot is
+  // ground-only, same restriction as night above.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
+    cardShots.push({ name: `card-ground-vibrating-${t.id}`, floor: "ground", which: "vibrating", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
   for (const s of cardShots) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });
     const page = await ctx.newPage();

@@ -1694,6 +1694,26 @@ test.describe("S9.5: the active-devices panel", () => {
     expect(fill).toBe(DARK_INK); // blueprint's --fp-ink/--fp-text, #eef3fb — not --fp-dev-camera's idle navy
   });
 
+  // S10.3: the demo's front door (doors[0]) carries a contact sensor (binary_sensor.demo_front_door) that is not
+  // placed anywhere as its own device icon; when it triggers it must still show up on this panel, under the
+  // door's own name, and tapping it must open its own more-info, same as any other row (real page.mouse click,
+  // CLAUDE.md finding 3).
+  test("S10.3: a door's own contact sensor joins the active panel under the door's name, and its row opens its more-info", async ({ page }) => {
+    await open(page);
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo) }, { states: { "binary_sensor.demo_front_door": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Front door" });
+    await expect(row).toHaveCount(1);
+    const box = (await row.boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    expect(await moreInfo(page)).toEqual([{ entityId: "binary_sensor.demo_front_door" }]);
+  });
+
+  test("S10.3: the door's contact sensor row disappears once the sensor goes off, same as any other active row", async ({ page }) => {
+    await open(page);
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo) }, { states: { "binary_sensor.demo_front_door": { state: "off", attributes: {}, last_changed: new Date().toISOString() } } });
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Front door" })).toHaveCount(0);
+  });
+
   test("a real drag on the header moves the panel and clamps it inside the card, both corners", async ({ page }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo) }, { states: states() });

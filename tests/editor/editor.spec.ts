@@ -4806,6 +4806,56 @@ test("Opus review CSS pair: S9.1 a cover door's own open state stays plain orang
   expect(s.dash).toBe("none");
 });
 
+// S10.3 Opus review CSS pair: a vibrating door (.alarm) reads --fp-open-door same as an open contact, but solid
+// (finding 4: a weak assertion here would still pass with the feature removed, so it checks strokeDasharray is
+// literally "none", not merely "not dashed", and runs in every theme rather than leaning on the default per
+// finding 19). Both classes together (open wins the vote and stays dashed) is its own test right after.
+test("Opus review CSS pair: S10.3 a vibrating door is solid, not dashed, in --fp-open-door, in every theme", async ({ page }) => {
+  for (const t of ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha"] as const) {
+    await setTheme(page, t);
+    const s = await page.evaluate((tag) => {
+      const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+      const line = svg.querySelector("line[data-d]") as SVGLineElement;
+      line.setAttribute("class", "door alarm");
+      const cs = getComputedStyle(line);
+      return { stroke: cs.stroke, dash: cs.strokeDasharray, want: getComputedStyle(svg).getPropertyValue("--fp-open-door").trim() };
+    }, EDITOR);
+    expect(s.stroke, t).toBe(rgb(s.want));
+    expect(s.dash, t).toBe("none");
+  }
+});
+
+test("Opus review CSS pair: S10.3 open and vibrating together stay dashed (open wins the dash), still --fp-open-door", async ({ page }) => {
+  const s = await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const line = svg.querySelector("line[data-d]") as SVGLineElement;
+    line.setAttribute("class", "door alarm open"); // render.ts always emits alarm before open, class order here checks CSS resolves it either way
+    const cs = getComputedStyle(line);
+    return { stroke: cs.stroke, dash: cs.strokeDasharray, want: getComputedStyle(svg).getPropertyValue("--fp-open-door").trim() };
+  }, EDITOR);
+  expect(s.stroke).toBe(rgb(s.want));
+  expect(s.dash).not.toBe("none");
+});
+
+// S10.3 with open_color set: the card's own override reaches a vibrating door exactly as it reaches an open one,
+// since both classes read the same --fp-open-door token (render.ts's FLOORPLAN_CSS, card.spec.ts:1591 sets it).
+test("Opus review CSS pair: S10.3 open_color reaches a vibrating door's solid stroke, same token as an open one", async ({ page }) => {
+  const s = await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    // renderFloor wraps its own output in <g data-theme="..."> (render.ts:903), which re-declares every --fp-*
+    // token right there (FLOORPLAN_CSS's plain `[data-theme="..."]` selector, finding 19) - closer to the door line
+    // than the svg itself, so the override has to land on this g, exactly where the card's real host-level
+    // override (floorplan-studio-card.ts's open_color) would still win from further out, since nothing between the
+    // host and this g redeclares the token there.
+    const themed = svg.querySelector("g[data-theme]") as SVGGElement;
+    themed.style.setProperty("--fp-open-door", "#123abc");
+    const line = svg.querySelector("line[data-d]") as SVGLineElement;
+    line.setAttribute("class", "door alarm");
+    return getComputedStyle(line).stroke;
+  }, EDITOR);
+  expect(s).toBe(rgb("#123abc"));
+});
+
 // Opus review finding 8: the wave is a <circle> now, not a <path> semicircle (render.ts). These fixtures build the
 // same element renderFloor now emits, so a regression back to <path> (which would silently lose the finding-8 fix,
 // since .wave{fill:none} etc. apply to either tag by class alone) fails here too, not only in render.test.ts.
