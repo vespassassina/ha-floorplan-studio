@@ -8,7 +8,7 @@ import type { FloorplanStudioEditor } from "../../src/editor/editor-app";
 // object Home Assistant hands a panel, and reads what the editor and the socket saw.
 const L = demo as unknown as Layout;
 
-type State = { state: string; attributes: Record<string, unknown> };
+type State = { state: string; attributes: Record<string, unknown>; last_changed?: string };
 function stubHass(ws: (msg: { type: string; layout?: unknown }) => unknown, darkMode = false, states: Record<string, State> = {}, install: () => unknown = () => undefined) {
   return { callWS: vi.fn(async (msg) => ws(msg)), callService: vi.fn(async () => install()), themes: { darkMode }, states };
 }
