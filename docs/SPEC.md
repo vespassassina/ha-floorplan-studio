@@ -338,7 +338,7 @@ floor: ground          # or "all" with a floor switcher
 floors: [ground, first]  # or an ordered list of floor ids; a switcher over just these, first is the default; wins over `floor`
 fade: 300              # motion fade, seconds
 room_glow: true
-theme: blueprint       # blueprint (default), midnight, light, slate, terminal, solarized, ha, coffee, a-team, space, cyberpunk, or carpenter-brut
+theme: blueprint       # blueprint (default), midnight, light, slate, terminal, solarized, ha, coffee, a-team, space, cyberpunk, carpenter-brut, or beach-house
 zoom: true             # pinch, drag, double-tap, Ctrl/Cmd+wheel, +/−/fit buttons; "wheel" also zooms on a plain wheel; false fixes the plan
 night: auto            # auto (default: from the sun), on, off
 sun: sun.sun           # the entity night: auto reads
@@ -459,6 +459,13 @@ card. The editor is unchanged — it always passed its own zoom, never `1`.
 | `space` | near-black navy | starlight white | cyan | violet |
 | `cyberpunk` | near-black violet | cyan | magenta | acid yellow |
 | `carpenter-brut` | near-black maroon | pale pink | dark crimson | hot pink |
+| `beach-house` | sand (light) | driftwood brown | sea teal | palm green |
+
+A theme's role definition may also override `roomEmpty`, the fill an unpainted room gets (below): left out, every theme
+shares the same light grey; `a-team`, `space`, `cyberpunk` and `carpenter-brut` each set their own dark shade instead, since
+that fixed light grey read as a hole punched through their own dark, saturated walls (Diego, 2026-09-28). `coffee` and
+`beach-house` keep the shared default — coffee's own base already warms the plan enough around it, and beach-house is a
+light theme like `light`/`slate`, where the shared grey was never the problem.
 
 `solarized` is bespoke, not role-generated: the real Solarized dark palette (base03 ground through base3 linework, its eight accent hues), each device type kept in its own Solarized colour rather than collapsed to one accent — Diego's call, 2026-09-22, real Solarized fidelity over reuse.
 
@@ -590,18 +597,18 @@ card. The editor is unchanged — it always passed its own zoom, never `1`.
   On a huge floor the step grows to 100 or 500 cm so no axis needs more than
   400 lines. A chip in the View menu, next to Grid; kept in the browser, not
   in the layout, and never an undo step.
-- Theme (S1.53, reworked S2.12, role system added S4.21, five more added
+- Theme (S1.53, reworked S2.12, role system added S4.21, six more added
   2026-09-28): every colour in `FLOORPLAN_CSS` is a `--fp-*` custom property.
-  Twelve themes: **Blueprint**, the default and the base selector,
+  Thirteen themes: **Blueprint**, the default and the base selector,
   **Midnight** (blueprint's old palette, kept under its own name), **Light**,
   the paper-and-ink set, **Slate**, **Terminal** and **Solarized** (see
   "Role-generated themes" above), **Home Assistant**, whose neutrals are
   `var(--card-background-color)`, `var(--secondary-background-color)`,
   `var(--primary-text-color)` and `var(--secondary-text-color)`, each with
   midnight's plain hexes as its fallback (dark when `data-mode="dark"`), and
-  five more role-generated presets, Diego's picks: **Coffee**, **A-Team**,
-  **Space**, **Cyberpunk** and **Carpenter Brut** (see "Role-generated
-  themes" above for their base/foreground/line/accent). A `data-theme`
+  six more role-generated presets, Diego's picks: **Coffee**, **A-Team**,
+  **Space**, **Cyberpunk**, **Carpenter Brut** and **Beach House** (see
+  "Role-generated themes" above for their base/foreground/line/accent). A `data-theme`
   attribute, on the
   editor's own host or on one plan's root, picks one; none means blueprint. The
   OS colour scheme is not read by the card or the plan. The standalone editor

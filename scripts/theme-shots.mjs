@@ -25,7 +25,7 @@ const hass = {
   themes: { darkMode: false },
 };
 
-const THEMES = ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha", "coffee", "a-team", "space", "cyberpunk", "carpenter-brut"];
+const THEMES = ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha", "coffee", "a-team", "space", "cyberpunk", "carpenter-brut", "beach-house"];
 const errors = [];
 
 const browser = await chromium.launch();

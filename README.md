@@ -50,7 +50,7 @@ Assistant every day.
 
 ## Colours, themes and customization
 
-Twelve built-in themes, picked from the card's Edit-card form or written as
+Thirteen built-in themes, picked from the card's Edit-card form or written as
 `theme:` in YAML. `ha` follows your Home Assistant dashboard's own theme;
 the rest are fixed palettes.
 
@@ -69,6 +69,10 @@ the rest are fixed palettes.
 | `space` | `cyberpunk` | `carpenter-brut` |
 |---|---|---|
 | ![Space theme: near-black navy plan, cyan grid, violet accents.](docs/img/themes/space.png) | ![Cyberpunk theme: near-black violet plan, cyan text, magenta grid, acid-yellow accents.](docs/img/themes/cyberpunk.png) | ![Carpenter Brut theme: near-black maroon plan, crimson grid, hot-pink accents.](docs/img/themes/carpenter-brut.png) |
+
+| `beach-house` |
+|---|
+| ![Beach House theme: sand-coloured plan, sea-teal grid, palm-green accents.](docs/img/themes/beach-house.png) |
 
 Every room keeps its own paint (colour or texture) in every theme — only the
 grid, walls and device icons change. `blueprint`, `slate`, `terminal`,

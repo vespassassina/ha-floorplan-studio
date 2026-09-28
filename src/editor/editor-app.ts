@@ -116,7 +116,7 @@ function hitOf(el: Element | null): Hit {
 /** What each theme is called on its chip. `ha` says what it does rather than what it is. */
 const THEME_LABELS: Record<(typeof THEME_VALUES)[number], string> = {
   blueprint: "Blueprint", midnight: "Midnight", light: "Light", slate: "Light Gray", terminal: "Terminal", solarized: "Solarized", ha: "Home Assistant",
-  coffee: "Coffee", "a-team": "A-Team", space: "Space", cyberpunk: "Cyberpunk", "carpenter-brut": "Carpenter Brut",
+  coffee: "Coffee", "a-team": "A-Team", space: "Space", cyberpunk: "Cyberpunk", "carpenter-brut": "Carpenter Brut", "beach-house": "Beach House",
 };
 /** S4.10: the Home Assistant menu's groups, in the order they are shown. */
 const HA_KIND_LABELS: [Labelled["kind"], string][] = [["helper", "Helpers"], ["automation", "Automations"], ["area", "Areas"]];

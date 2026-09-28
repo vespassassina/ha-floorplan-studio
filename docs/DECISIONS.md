@@ -2,6 +2,32 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-28: `roomEmpty` role override, and a sixth theme, beach-house
+
+The field problem: `a-team`, `space`, `cyberpunk` and `carpenter-brut`
+(below) all render their unpainted rooms in the one fixed light grey every
+theme has shared since 2026-09-21 (`--fp-room-empty`, `#d6d6d2`) — against
+their own dark, saturated walls it read as a hole punched through the plan,
+not a neutral "not yet painted" room (Diego, field review). `terminal` and
+`blueprint` are dark too but never had this complaint; `coffee`'s own warm
+base carries the plan enough that the shared grey still sits fine there.
+
+Decided: `ThemeRoles` (`src/core/theme-roles.ts`) gets an optional
+`roomEmpty` field, defaulting to the classic `#d6d6d2` so every existing
+theme is unchanged. `a-team`, `space`, `cyberpunk` and `carpenter-brut` each
+now set their own dark shade of their own base instead
+(`src/core/render.ts`). `coffee` keeps the default, deliberately, and so do
+every light theme.
+
+Also decided, same request: a sixth new theme, `beach-house` — sand for the
+base (light, not dark), sea teal for the measurement line, palm green as the
+accent. It is a light theme, so the shared `roomEmpty` grey is not a problem
+for it, same as `light`/`slate`.
+
+`docs/SPEC.md`'s theme count, config comment, role table and prose are
+updated in the same commit as the code, and `scripts/theme-shots.mjs` is
+re-run for all thirteen themes.
+
 ## 2026-09-28: five more role-generated themes, Diego's picks
 
 Decided: add `coffee`, `a-team`, `space`, `cyberpunk` and `carpenter-brut` to
