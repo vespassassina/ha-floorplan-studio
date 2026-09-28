@@ -2,7 +2,7 @@ import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
-import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, Trace, WallKind } from "../core";
+import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM } from "../card/viewport";
 import { traceImage } from "./trace";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
@@ -210,6 +210,79 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.ha = v;
     this.refreshNames();
     this.requestUpdate("ha", old);
+  }
+  /** Live Home Assistant device state (on/off, attributes, last_changed), set by the panel host on every state
+   * change, the same way `ha` is. Never a template binding (would need the render `guard` in panel.ts to depend on
+   * it, defeating the point of that guard — see CLAUDE.md's "the panel must never re-run the editor's layout
+   * setter"). Drives the same fade timer as the card (`_syncTimer`) so a motion device keeps fading between pushes. */
+  get hassState(): StateOverlay | undefined { return this._hassStates; }
+  set hassState(v: StateOverlay | undefined) {
+    this._hassStates = v;
+    if (v) this._recordLastOn(v);
+    this.syncFadeTimer();
+    this.requestUpdate();
+  }
+  private _hassStates: StateOverlay | undefined;
+  /** S2.4-equivalent: the last moment each motion entity on any floor was seen `on`, so one that has since gone
+   * `off` keeps fading from that moment rather than snapping to idle the instant a push carries the `off`. */
+  private _lastOn: Record<string, number> = {};
+  private _fadeTimer: ReturnType<typeof setInterval> | null = null;
+  /** Every floor's motion entities, not only the shown one's, so a sensor keeps fading across a floor switch (card's S2.4/S2.6 rule). */
+  private motionEntities(): Set<string> {
+    return new Set(Object.values(this.st.layout.floors).flatMap((f) => f.devices.filter((d) => d.type === "motion").map((d) => d.entity)));
+  }
+  private _recordLastOn(state: StateOverlay): void {
+    for (const id of this.motionEntities()) {
+      const s = state[id];
+      if (!s || s.state !== "on") continue;
+      const t = Date.parse(s.last_changed);
+      if (!Number.isNaN(t)) this._lastOn[id] = t;
+    }
+  }
+  /** Card's `_stateForRender`, mirrored: `_hassStates` with a motion entity's `last_changed` swapped for its recorded `_lastOn` when they differ. */
+  private stateForRender(): StateOverlay | undefined {
+    const state = this._hassStates;
+    if (!state) return state;
+    let out: StateOverlay | undefined;
+    for (const id of this.motionEntities()) {
+      const t = this._lastOn[id];
+      const s = state[id];
+      if (t === undefined || !s) continue;
+      const changed = new Date(t).toISOString();
+      if (s.last_changed === changed) continue;
+      out = out ?? { ...state };
+      out[id] = { ...s, last_changed: changed };
+    }
+    return out ?? state;
+  }
+  private motionFading(): boolean {
+    const state = this._hassStates;
+    if (!state) return false;
+    const now = Date.now();
+    return [...this.motionEntities()].some((id) => {
+      const s = state[id];
+      if (!s) return false;
+      const t = this._lastOn[id] ?? Date.parse(s.last_changed);
+      return !Number.isNaN(t) && now - t < 300_000; // 300 s: render.ts's own default fade window
+    });
+  }
+  private stopFadeTimer(): void {
+    if (this._fadeTimer !== null) {
+      globalThis.clearInterval(this._fadeTimer);
+      this._fadeTimer = null;
+    }
+  }
+  /** Starts a 1 s re-render timer while a motion device is fading, stops it the moment none is (card's `_syncTimer`, mirrored). */
+  private syncFadeTimer(): void {
+    const active = this.motionFading();
+    if (active && this._fadeTimer === null) {
+      this._fadeTimer = globalThis.setInterval(() => {
+        if (this.motionFading()) this.requestUpdate();
+        else this.stopFadeTimer();
+      }, 1000);
+    } else if (!active) {
+      this.stopFadeTimer();
+    }
   }
   /** Copies HA's names into the linked floors and rooms. Not an edit: no undo step. Tells the host and the status line when something changed. */
   private refreshNames() {
@@ -424,6 +497,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.removeEventListener("click", this.onButtonClick);
     window.removeEventListener("click", this.onWindowClick);
     this.ro?.disconnect();
+    this.stopFadeTimer();
   }
 
   /** Whether the `ha` theme should use the dark set: the host's word when it gave one, the OS's otherwise. */
@@ -2286,7 +2360,7 @@ export class FloorplanStudioEditor extends LitElement {
     const groupKindOf = (g: { members?: string[] }) => (g.members ?? [])[0]?.split(".")[0] === "binary_sensor" ? "motion" as const : (g.members ?? [])[0]?.split(".")[0] === "light" ? "light" as const : undefined;
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night }) + turnG(overlay);
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true }) + turnG(overlay);
     const counts: Record<string, number> = {};
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const pressed = (b: boolean) => (b ? "true" : "false");

@@ -8,7 +8,7 @@ import type { FloorplanStudioEditor } from "../../src/editor/editor-app";
 // object Home Assistant hands a panel, and reads what the editor and the socket saw.
 const L = demo as unknown as Layout;
 
-type State = { state: string; attributes: Record<string, unknown> };
+type State = { state: string; attributes: Record<string, unknown>; last_changed?: string };
 function stubHass(ws: (msg: { type: string; layout?: unknown }) => unknown, darkMode = false, states: Record<string, State> = {}, install: () => unknown = () => undefined) {
   return { callWS: vi.fn(async (msg) => ws(msg)), callService: vi.fn(async () => install()), themes: { darkMode }, states };
 }
@@ -147,6 +147,17 @@ describe("<floorplan-studio-panel>", () => {
   it("the editor is given the demo home, so File, Load demo works on an empty plan", async () => {
     const el = await mount(stubHass(() => ({ layout: null })));
     expect(editorOf(el)!.demo?.floors.ground.rooms.length).toBe(L.floors.ground.rooms.length);
+  });
+
+  it("shows live device state on the plan: a device wears its .on class, and turning it off in HA fades it back", async () => {
+    // demo/layout.json's ground floor devices[0] is light-living (entity light.demo_living), so data-x="0".
+    const hass = stubHass(() => ({ layout: L }), false, { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } });
+    const el = await mount(hass);
+    const dev = () => editorOf(el)!.shadowRoot!.querySelector('g[data-x="0"]')!;
+    expect(dev().getAttribute("class")).toMatch(/\bon\b/);
+    el.hass = { ...hass, states: { "light.demo_living": { state: "off", attributes: {}, last_changed: new Date().toISOString() } } } as never;
+    await settle(el);
+    expect(dev().getAttribute("class")).not.toMatch(/\bon\b/);
   });
 
   it("the editor follows Home Assistant's dark mode", async () => {

@@ -40,6 +40,34 @@ theme (`scripts/theme-shots.mjs`), on a neutral grey page background rather
 than white — a light theme's own plan otherwise has no visible edge against
 GitHub's white page and the gallery loses its card framing.
 
+## 2026-09-28 the editor shows live Home Assistant device state, always on
+
+Until now the editor never received `hass.states` at all (`renderFloor` was
+called with no `state:` key), so every device drew idle/off and no room ever
+glowed — deliberate, per the "Preview night" button's own tooltip ("the
+editor has no live lights") and several `editor.spec.ts` CSS-pair tests that
+hand-inject `.on`/`.lit`/`.aura` classes to test the rules in the absence of
+real state. Diego asked to see actual device colours and status while
+editing, not just the layout.
+
+Decided: always-on, not a toggle and not tied to Preview Night — whenever the
+editor runs inside Home Assistant (a live `hass`), studio mode looks exactly
+like the card: lit lights, motion fade, room glow, everything `renderFloor`
+already draws from a `state` overlay. `panel.ts` pushes `hass.states` into
+the editor element imperatively (`ed.hassState = ...`, `panel.ts:100`-ish),
+the same pattern already used for `ed.ha`/`ed.writer` — never through a
+template binding, because the render `guard([layout, dark])` (CLAUDE.md
+finding: "the panel must never re-run the editor's layout setter") must stay
+narrow, and a state-carrying binding inside that guard would either never
+update or defeat the guard's whole purpose. `editor-app.ts` gained its own
+`_lastOn`/`stateForRender`/`motionFading`/`syncFadeTimer`, mirroring the
+card's `_recordLastOn`/`_stateForRender`/`_motionFading`/`_syncTimer`
+exactly, so a motion sensor keeps fading in the editor the same way it does
+on the card. The core render layer needed no change — `RenderOpts.state` and
+`editor: true` already worked together (`tests/core/render.test.ts:330`
+already exercised both). `roomGlow: true` is now always passed by the
+editor, since it has no `room_glow` config to read the way the card does.
+
 ## 2026-09-27 S10.6: a door's sensor/vibration/lock picker offers live HA entities too, not catalog-only
 
 The field bug: a Yale Linus lock existed in Home Assistant, as domain
