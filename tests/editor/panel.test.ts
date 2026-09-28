@@ -149,6 +149,17 @@ describe("<floorplan-studio-panel>", () => {
     expect(editorOf(el)!.demo?.floors.ground.rooms.length).toBe(L.floors.ground.rooms.length);
   });
 
+  it("shows live device state on the plan: a device wears its .on class, and turning it off in HA fades it back", async () => {
+    // demo/layout.json's ground floor devices[0] is light-living (entity light.demo_living), so data-x="0".
+    const hass = stubHass(() => ({ layout: L }), false, { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } });
+    const el = await mount(hass);
+    const dev = () => editorOf(el)!.shadowRoot!.querySelector('g[data-x="0"]')!;
+    expect(dev().getAttribute("class")).toMatch(/\bon\b/);
+    el.hass = { ...hass, states: { "light.demo_living": { state: "off", attributes: {}, last_changed: new Date().toISOString() } } } as never;
+    await settle(el);
+    expect(dev().getAttribute("class")).not.toMatch(/\bon\b/);
+  });
+
   it("the editor follows Home Assistant's dark mode", async () => {
     const hass = stubHass(() => ({ layout: L }), true);
     const el = await mount(hass);

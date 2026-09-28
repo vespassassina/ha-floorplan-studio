@@ -13,7 +13,7 @@ import type { FloorplanStudioEditor } from "./editor-app";
 interface PanelHass {
   callWS<T>(msg: { type: string; [k: string]: unknown }): Promise<T>;
   themes?: { darkMode?: boolean };
-  states?: Record<string, { state: string; attributes: Record<string, unknown> }>;
+  states?: Record<string, { state: string; attributes: Record<string, unknown>; last_changed: string }>;
   callService?(domain: string, service: string, data: Record<string, unknown>): Promise<unknown>;
 }
 
@@ -98,6 +98,10 @@ export class FloorplanStudioPanel extends LitElement {
     const ed = this.renderRoot?.querySelector("floorplan-studio-editor") as FloorplanStudioEditor | null;
     if (ed && this.ha && ed.ha !== this.ha) ed.ha = this.ha;
     if (ed && this.hass && !ed.writer) ed.writer = makeWriter({ callWS: (m) => this.hass!.callWS(m as never), callApi: (m, p, d) => (this.hass as never as { callApi: (...a: unknown[]) => Promise<never> }).callApi(m, p, d) }); // late-bound: hass is replaced on every state change
+    // Live device state, imperative like `ha`/`writer` above, not a template binding: the render `guard` below
+    // deliberately excludes `hass` (it changes on every state update in the house), so a templated binding here
+    // would never reach the editor. `hass.states` is a fresh object on every push, so this always reassigns.
+    if (ed && this.hass?.states) ed.hassState = this.hass.states;
   }
   protected updated() { this.pushHa(); }
 
