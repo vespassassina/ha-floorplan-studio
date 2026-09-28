@@ -64,7 +64,8 @@ export function migrate(x: unknown): Layout {
     if (f.devices !== undefined && !Array.isArray(f.devices)) throw new Error(`Floor "${fname}": devices must be an array`);
     if (f.outline !== undefined && !Array.isArray(f.outline)) throw new Error(`Floor "${fname}": outline must be an array`);
     outlineKinds(f);
-    for (const r of f.rooms) { if (r.kind === "outdoor") r.kind = "garden"; r.area = r.area ?? (r.kind === "water" ? "" : slug(String(r.name ?? ""))); r.name = r.name ?? ""; r.label = r.label ?? ""; edgeKinds(r); }
+    // `label` (S4.29): dropped from the schema, an old file's stray value with it — the editor never had a way to set it.
+    for (const r of f.rooms) { if (r.kind === "outdoor") r.kind = "garden"; r.area = r.area ?? (r.kind === "water" ? "" : slug(String(r.name ?? ""))); r.name = r.name ?? ""; delete r.label; edgeKinds(r); }
     // S4.24: a door's single `sensor` becomes `sensors`, a list. Always drop the old key, whether or not a new
     // list is already present, so a half-migrated file never keeps both.
     for (const d of f.doors) { if (typeof d.sensor === "string" && d.sensor && !Array.isArray(d.sensors)) d.sensors = [d.sensor]; delete d.sensor; }

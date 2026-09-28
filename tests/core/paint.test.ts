@@ -59,7 +59,7 @@ describe("room and stair paint: colours you used, and textures", () => {
     st.paint("stairs", 0, { texture: "stone-grey" });
     const html = renderFloor(st.f, opts);
     expect(html).toMatch(/<(polygon|path) class="stairs room" fill="url\(#fp-tex-stone-grey\)"/);
-    st.edit((f) => { f.rooms.push({ id: "zone-1", name: "Rug", area: "", label: "", kind: "zone", pts: [[10, 10], [60, 10], [60, 60], [10, 60]], wk: ["boundary", "boundary", "boundary", "boundary"] }); });
+    st.edit((f) => { f.rooms.push({ id: "zone-1", name: "Rug", area: "", kind: "zone", pts: [[10, 10], [60, 10], [60, 60], [10, 60]], wk: ["boundary", "boundary", "boundary", "boundary"] }); });
     const z = st.f.rooms.length - 1;
     st.paint("rooms", z, { color: "#336699" });
     expect(renderFloor(st.f, opts)).toContain(`data-r="${z}" class="room room-zone" fill="#336699"`);

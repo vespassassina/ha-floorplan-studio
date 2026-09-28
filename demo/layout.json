@@ -35,7 +35,6 @@
           "id": "room-ground-1",
           "name": "Living",
           "area": "living",
-          "label": "",
           "kind": "room",
           "pts": [
             [
@@ -66,7 +65,6 @@
           "id": "room-ground-2",
           "name": "Kitchen",
           "area": "kitchen",
-          "label": "",
           "kind": "room",
           "pts": [
             [
@@ -97,7 +95,6 @@
           "id": "room-ground-3",
           "name": "Hall",
           "area": "hall",
-          "label": "",
           "kind": "room",
           "pts": [
             [
@@ -128,7 +125,6 @@
           "id": "room-ground-4",
           "name": "Reading corner",
           "area": "reading",
-          "label": "",
           "kind": "zone",
           "pts": [
             [
@@ -157,7 +153,6 @@
         },
         {
           "name": "Garden",
-          "label": "",
           "kind": "garden",
           "pts": [
             [
@@ -188,7 +183,6 @@
         },
         {
           "name": "Pavement",
-          "label": "",
           "kind": "pavement",
           "pts": [
             [
@@ -221,7 +215,6 @@
           "id": "room-ground-7",
           "name": "Garden pond",
           "area": "",
-          "label": "",
           "kind": "water",
           "pts": [
             [
@@ -458,7 +451,6 @@
           "id": "room-first-1",
           "name": "Bedroom",
           "area": "bedroom",
-          "label": "",
           "kind": "room",
           "pts": [
             [
@@ -489,7 +481,6 @@
           "id": "room-first-2",
           "name": "Bathroom",
           "area": "bathroom",
-          "label": "",
           "kind": "room",
           "pts": [
             [
@@ -520,7 +511,6 @@
           "id": "room-first-3",
           "name": "Office",
           "area": "office",
-          "label": "",
           "kind": "room",
           "pts": [
             [
@@ -724,7 +714,6 @@
           "id": "room-test-1",
           "name": "Test room",
           "area": "test",
-          "label": "",
           "kind": "room",
           "pts": [
             [

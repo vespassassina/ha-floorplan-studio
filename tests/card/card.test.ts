@@ -1125,7 +1125,7 @@ describe("FloorplanStudioCard", () => {
   describe("S2.9: a custom room or piece of furniture with an entity carries the on class", () => {
     it("a room with an entity carries on when that entity is on, open or playing; off does not", async () => {
       const l = structuredClone(L);
-      l.floors.ground.rooms.push({ id: "pond", name: "Pond", area: "", label: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60], [10, 60]], wk: ["wall", "wall", "wall", "wall"], entity: "switch.pond_pump" });
+      l.floors.ground.rooms.push({ id: "pond", name: "Pond", area: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60], [10, 60]], wk: ["wall", "wall", "wall", "wall"], entity: "switch.pond_pump" });
       const idx = l.floors.ground.rooms.length - 1;
       const el = await mount();
       el.setConfig({ layout: l });
@@ -1140,7 +1140,7 @@ describe("FloorplanStudioCard", () => {
 
     it("the same room with no entity never carries on, even with the same entity's state on", async () => {
       const l = structuredClone(L);
-      l.floors.ground.rooms.push({ id: "pond2", name: "Pond2", area: "", label: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60], [10, 60]], wk: ["wall", "wall", "wall", "wall"] });
+      l.floors.ground.rooms.push({ id: "pond2", name: "Pond2", area: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60], [10, 60]], wk: ["wall", "wall", "wall", "wall"] });
       const idx = l.floors.ground.rooms.length - 1;
       const el = await mount();
       el.setConfig({ layout: l });

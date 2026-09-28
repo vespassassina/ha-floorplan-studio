@@ -58,7 +58,7 @@ in `prompts/`, then fixed in the editor.
     "ground": {
       "title": "Ground", "ha": "downstairs",
       "outline": [[x, y], ...], "owk": ["external", ...],
-      "rooms":   [{"id", "name", "area", "label", "kind", "pts", "wk", "color"?, "texture"?, "textureRot"?, "free"?, "entity"?}],
+      "rooms":   [{"id", "name", "area", "kind", "pts", "wk", "color"?, "texture"?, "textureRot"?, "free"?, "entity"?}],
       "walls":   [{"id", "a", "b", "kind"}],
       "stairs":  [{"id", "name", "pts", "shape", "steps", "rot", "dia"?, "inner"?, "color"?, "texture"?, "textureRot"?}],
       "doors":   [{"id", "name", "kind", "a", "b", "sensor", "cover"}],
@@ -553,7 +553,7 @@ light theme like `light`/`slate`, where the shared grey was never the problem.
   Include trace image tick, off by default and not remembered.
 - Selection panel per kind: corner, edge and wall (length, angle, kind, and on
   a free wall the conversion to an opening), door (name, kind, length, sensor,
-  cover), room (name or area, label, kind, colour, unsnap, rotation; the colour
+  cover), room (name or area, kind, colour, unsnap, rotation; the colour
   is a swatch of one of twelve floor materials, White ceramic, Marble, Sand,
   Terracotta, Light oak, Warm wood, Dark oak, Walnut, Light grey, Grey floor,
   Belgian stone or Lava, then the custom colours used before, then seven

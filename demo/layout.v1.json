@@ -25,7 +25,6 @@
       "rooms": [
         {
           "name": "Living",
-          "label": "",
           "kind": "room",
           "pts": [
             [
@@ -54,7 +53,6 @@
         },
         {
           "name": "Kitchen",
-          "label": "",
           "kind": "room",
           "pts": [
             [
@@ -83,7 +81,6 @@
         },
         {
           "name": "Hall",
-          "label": "",
           "kind": "room",
           "pts": [
             [
@@ -113,7 +110,6 @@
         {
           "name": "Reading corner",
           "area": "reading",
-          "label": "",
           "kind": "zone",
           "pts": [
             [
@@ -142,7 +138,6 @@
         },
         {
           "name": "Garden",
-          "label": "",
           "kind": "outdoor",
           "pts": [
             [
@@ -171,7 +166,6 @@
         },
         {
           "name": "Pavement",
-          "label": "",
           "kind": "pavement",
           "pts": [
             [
@@ -200,7 +194,6 @@
         },
         {
           "name": "Garden pond",
-          "label": "",
           "kind": "water",
           "pts": [
             [
@@ -415,7 +408,6 @@
       "rooms": [
         {
           "name": "Bedroom",
-          "label": "",
           "kind": "room",
           "pts": [
             [
@@ -444,7 +436,6 @@
         },
         {
           "name": "Bathroom",
-          "label": "",
           "kind": "room",
           "pts": [
             [
@@ -473,7 +464,6 @@
         },
         {
           "name": "Office",
-          "label": "",
           "kind": "room",
           "pts": [
             [
@@ -613,7 +603,6 @@
       "rooms": [
         {
           "name": "Test room",
-          "label": "",
           "kind": "room",
           "area": "test",
           "pts": [

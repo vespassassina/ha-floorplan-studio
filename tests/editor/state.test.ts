@@ -399,7 +399,7 @@ describe("floors", () => {
 describe("a zone corner and a room corner at one spot move apart (review S1.5, finding 2)", () => {
   // zone z has its corner on the shared corner (100, 0) of rooms a and b; the corner is (100, 0) in the demo-free floor below
   const rect = (x0: number, y0: number, x1: number, y1: number): [number, number][] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-  const mk = (id: string, pts: [number, number][], kind: "room" | "zone") => ({ id, name: id, area: id, label: "", kind, pts, wk: pts.map((): WallKind => (kind === "room" ? "wall" : "boundary")) });
+  const mk = (id: string, pts: [number, number][], kind: "room" | "zone") => ({ id, name: id, area: id, kind, pts, wk: pts.map((): WallKind => (kind === "room" ? "wall" : "boundary")) });
   const floor = () => {
     const f = structuredClone(demo.floors.ground) as any;
     f.outline = rect(0, 0, 200, 100);
@@ -844,7 +844,7 @@ describe("EditorState.autoLinkLights (S8.7)", () => {
     version: 2, unit: "cm", north: 0,
     floors: {
       basement: {
-        title: "Basement", outline: [], rooms: [{ id: "r1", name: "Basement", area: "area_basement", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }],
+        title: "Basement", outline: [], rooms: [{ id: "r1", name: "Basement", area: "area_basement", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }],
         walls: [], stairs: [], doors: [], openings: [], extras: [],
         devices: [
           { id: "d1", type: "light", entity: "light.basement_dumb", name: "Basement dumb light", x: 10, y: 10 },
@@ -912,7 +912,7 @@ describe("EditorState.autoLinkLights (S8.7)", () => {
   it("Opus review: a living room with Ceiling light and TV plug auto-links nothing (finding 4, via autoLinkLights)", () => {
     const l: Layout = {
       version: 2, unit: "cm", north: 0,
-      floors: { ground: { title: "Ground", outline: [], rooms: [{ id: "r1", name: "Living room", area: "area_living", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [{ id: "d1", type: "light", entity: "light.ceiling", name: "Ceiling light", x: 10, y: 10 }], furniture: [], unlinked: [] } },
+      floors: { ground: { title: "Ground", outline: [], rooms: [{ id: "r1", name: "Living room", area: "area_living", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [{ id: "d1", type: "light", entity: "light.ceiling", name: "Ceiling light", x: 10, y: 10 }], furniture: [], unlinked: [] } },
       catalog: [],
     };
     const st = new EditorState(l, "ground");
@@ -937,7 +937,7 @@ describe("EditorState.motionChoices (Opus review finding 12: scoped by HA floor 
     version: 2, unit: "cm", north: 0,
     floors: {
       ground: {
-        title: "Ground", outline: [], rooms: [{ id: "r1", name: "Kitchen", area: "area_kitchen", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }],
+        title: "Ground", outline: [], rooms: [{ id: "r1", name: "Kitchen", area: "area_kitchen", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }],
         walls: [], stairs: [], doors: [], openings: [], extras: [],
         devices: [{ id: "d1", type: "light", entity: "light.kitchen", name: "Kitchen light", x: 10, y: 10 }],
         furniture: [], unlinked: [],

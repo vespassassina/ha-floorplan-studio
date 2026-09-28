@@ -38,7 +38,7 @@ describe("migrate", () => {
   });
 
   it("fills missing arrays and builds a catalog from placed devices", () => {
-    const m = migrate({ unit: "cm", north: 0, floors: { g: { title: "G", outline: [[0, 0], [10, 0], [10, 10]], rooms: [{ name: "Hall Way", label: "", kind: "room", pts: [[0, 0], [10, 0], [10, 10]], w: [true, true, true] }], devices: [{ id: "l1", type: "light", entity: "light.a", name: "A", x: 6, y: 2 }] } } });
+    const m = migrate({ unit: "cm", north: 0, floors: { g: { title: "G", outline: [[0, 0], [10, 0], [10, 10]], rooms: [{ name: "Hall Way", kind: "room", pts: [[0, 0], [10, 0], [10, 10]], w: [true, true, true] }], devices: [{ id: "l1", type: "light", entity: "light.a", name: "A", x: 6, y: 2 }] } } });
     expect(m.floors.g.furniture).toEqual([]);
     expect(m.floors.g.rooms[0].area).toBe("hall-way");
     expect(m.catalog).toEqual([{ id: "l1", floor: "g", room: "Hall Way", type: "light", name: "A", entity: "light.a" }]);
@@ -137,8 +137,8 @@ describe("migrate", () => {
     const l: any = structuredClone(demo);
     const pts = [[10, 10], [60, 10], [60, 60]];
     l.floors.ground.rooms.push(
-      { id: "z1", name: "Nook", area: "nook", label: "", kind: "zone", pts, w: [false, false, false] },
-      { id: "w1", name: "Pond", area: "", label: "", kind: "water", pts, w: [false, false, false] },
+      { id: "z1", name: "Nook", area: "nook", kind: "zone", pts, w: [false, false, false] },
+      { id: "w1", name: "Pond", area: "", kind: "water", pts, w: [false, false, false] },
       { id: "r9", name: "Cellar Store", kind: "room", pts, w: [true, true, true] }, // no area: this one is filled
       { id: "w2", name: "Koi Pond", kind: "water", pts, w: [false, false, false] }, // no area: water gets none
     );
@@ -166,14 +166,15 @@ describe("wall kind migration", () => {
   });
 });
 
-describe("room names and labels", () => {
-  it("fills a missing room name and label with empty strings and leaves a bad one for validate", () => {
+describe("room names", () => {
+  it("fills a missing room name with an empty string, drops a stray label, and leaves a bad name for validate", () => {
     const l: any = structuredClone(demo);
     delete l.floors.ground.rooms[0].name;
-    delete l.floors.ground.rooms[0].label;
+    l.floors.ground.rooms[0].label = "BURO";
     l.floors.ground.rooms[1].name = { a: 1 };
     const m = migrate(l);
-    expect([m.floors.ground.rooms[0].name, m.floors.ground.rooms[0].label]).toEqual(["", ""]);
+    expect(m.floors.ground.rooms[0].name).toBe("");
+    expect((m.floors.ground.rooms[0] as any).label).toBeUndefined();
     expect(m.floors.ground.rooms[1].name).toEqual({ a: 1 });
     expect(validate(m).ok).toBe(false);
   });
@@ -209,7 +210,7 @@ describe("an older or hand-written layout still loads (review S1.5 round 2, find
 describe("outdoor is renamed garden (S1.14)", () => {
   const withKinds = (version: number, kinds: string[]) => ({
     version, north: 0,
-    floors: { g: { title: "G", outline: [], rooms: kinds.map((kind, i) => ({ id: `r${i}`, name: "R", area: "r", label: "", kind, pts: [[0, 0], [1, 0], [1, 1]], w: [true, true, true] })) } },
+    floors: { g: { title: "G", outline: [], rooms: kinds.map((kind, i) => ({ id: `r${i}`, name: "R", area: "r", kind, pts: [[0, 0], [1, 0], [1, 1]], w: [true, true, true] })) } },
   });
   for (const v of [1, 2])
     it(`v${v}: outdoor becomes garden, other kinds stay, and a second migrate changes nothing`, () => {
@@ -227,7 +228,7 @@ describe("outdoor is renamed garden (S1.14)", () => {
 });
 
 describe("room edge kinds wk (S1.17)", () => {
-  const rooms = (version: number, r: any) => ({ version, north: 0, floors: { g: { title: "G", outline: [[0, 0], [1, 0], [1, 1]], rooms: [{ id: "r0", name: "R", area: "r", label: "", kind: "room", pts: [[0, 0], [1, 0], [1, 1]], ...r }] } } });
+  const rooms = (version: number, r: any) => ({ version, north: 0, floors: { g: { title: "G", outline: [[0, 0], [1, 0], [1, 1]], rooms: [{ id: "r0", name: "R", area: "r", kind: "room", pts: [[0, 0], [1, 0], [1, 1]], ...r }] } } });
   for (const v of [1, 2])
     it(`v${v}: w [true, false, true] becomes wk [wall, boundary, wall], w is gone, and a second migrate changes nothing`, () => {
       const once = migrate(rooms(v, { w: [true, false, true] }));

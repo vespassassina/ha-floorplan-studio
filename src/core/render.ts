@@ -736,9 +736,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if ([ax, ay, bx, by].every(Number.isFinite)) placed.push([Math.min(ax, bx) - h, Math.min(ay, by) - h, Math.abs(bx - ax) + 2 * h, Math.abs(by - ay) + 2 * h]);
   }
   const named = (r: Floor["rooms"][number]) => !!r.name && r.kind !== "fill";
-  const nameAt: Pt[] = [], labelAt: Pt[] = [], zoneAt: Pt[] = [];
+  const nameAt: Pt[] = [], zoneAt: Pt[] = [];
   f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = place(rows(centroid(r.pts)), 14 * k, r.name); });
-  f.rooms.forEach((r, i) => { if (nameAt[i] && r.label) labelAt[i] = place(rows(screenOff(nameAt[i], 0, 16 * k)), 11 * k, r.label); });
   f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = place(rows(centroid(r.pts)), 10 * k, r.name); });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
@@ -786,7 +785,6 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (r.kind === "zone") { const [x, y] = zoneAt[i]; out.push(`<text class="lbl zone" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
     const [x, y] = nameAt[i];
     out.push(`<text class="lbl" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
-    if (labelAt[i]) { const [lx, ly] = labelAt[i]; out.push(`<text class="lbl" x="${num(lx)}" y="${num(ly)}"${up(lx, ly)} text-anchor="middle" font-size="${num(11 * k)}">${esc(r.label)}</text>`); }
   });
 
   f.devices.forEach((d, i) => {
