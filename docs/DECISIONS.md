@@ -2,6 +2,23 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-28: a new device spawns at the viewport centre, not right of the house
+
+The problem: every "Add device" flow (`Add > Entities`, `Add > Device` from the
+catalog with no matching room, `Add > Unlinked device`) placed the new item
+outside the house's outline, top right (`spawnPoint`) — off in a corner the
+person then had to scroll or zoom out to find, on a plan that already fills
+the screen (Diego).
+
+Decided: a new function, `spawnInView` (`src/editor/ops.ts`), places a device
+at the current viewport's centre instead, snapped to the grid; it still
+nudges right in 40 cm steps to clear a point already on the floor within 20
+cm, so adding several devices in a row without moving the view does not stack
+them past reach — the same anti-stack idea `spawnPoint` already used, just
+anchored to the screen instead of the house. `spawnPoint` itself is
+unchanged and still used for a wall, a structure, a zone, stairs or
+furniture — this only affects a device or an unlinked appliance.
+
 ## 2026-09-28: `roomEmpty` role override, and a sixth theme, beach-house
 
 The field problem: `a-team`, `space`, `cyberpunk` and `carpenter-brut`

@@ -156,6 +156,22 @@ export function spawnPoint(f: Floor, fallback: Pt, grid = 10): Pt {
 }
 
 /**
+ * Where a new device goes (Diego, 2026-09-28: the top-right spot `spawnPoint` picks for everything else was
+ * annoying to find on a plan that fills the screen — a new device should land where you're already looking).
+ * The current viewport's centre, on the grid; nudged right in 40 cm steps only when a point already on the
+ * floor (`contentPoints`, so a wall corner counts too, not just other devices) sits within 20 cm of it, so
+ * adding several devices in a row without moving the view does not stack them past reach.
+ */
+export function spawnInView(f: Floor, centre: Pt, grid = 10): Pt {
+  const g = (n: number) => gridRound(n, grid);
+  let x = g(centre[0]);
+  const y = g(centre[1]);
+  const pts = contentPoints(f);
+  while (pts.some((p) => Math.hypot(p[0] - x, p[1] - y) < 20)) x += 40;
+  return [x, y];
+}
+
+/**
  * After a room was dragged by its body: translate the whole room so the corner pair (one of its own, one of another
  * room's, the outline's or a stairs') that lies closest, within `radius` cm, lands point on point. Then stitch its
  * corners into any edge they touch, so shared walls are shared again. Zones and free rooms neither snap nor are snapped to.
