@@ -2916,19 +2916,19 @@ test("a floor with no outline: an added zone lands at the view centre, as before
   expect(Math.abs(cy - (v[1] + v[3]) / 2)).toBeLessThan(10);
 });
 
-test("a device whose catalog room is not on the floor lands right of the house and is in view", async ({ page }) => {
+test("Diego, 2026-09-28: a device whose catalog room is not on the floor lands at the view centre, not right of the house", async ({ page }) => {
   await page.evaluate((tag) => {
     const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
     l.catalog.find((c: any) => c.id === "contact-garage").room = "Nowhere";
     el.layout = l;
   }, EDITOR);
+  const v = await visible(page);
   await openDevice(page);
   await devItem(page, "contact-garage").click();
   const g = await groundOf(page), d = g.devices[g.devices.length - 1] as { id: string; x: number; y: number };
   expect(d.id).toBe("contact-garage");
-  expect(d.x).toBeGreaterThan(OUTLINE_MAX_X);
-  const v = await visible(page);
-  expect(d.x).toBeGreaterThanOrEqual(v[0]); expect(d.x).toBeLessThanOrEqual(v[2]);
+  expect(Math.abs(d.x - (v[0] + v[2]) / 2)).toBeLessThan(10);
+  expect(Math.abs(d.y - (v[1] + v[3]) / 2)).toBeLessThan(10);
 });
 
 // ---- S1.21 Draw is its own menu ----

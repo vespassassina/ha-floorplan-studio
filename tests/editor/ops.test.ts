@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Floor, Furniture, Layout, Pt } from "../../src/core/schema";
-import { closedLoop, gridRound, pivotOnArc, roundStairs, rotateSegment, scaleFurniture, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "../../src/editor/ops";
+import { closedLoop, gridRound, pivotOnArc, roundStairs, rotateSegment, scaleFurniture, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "../../src/editor/ops";
 
 const ground = () => structuredClone((demo as unknown as Layout).floors.ground);
 const FALLBACK: Pt = [123, 457];
@@ -42,6 +42,33 @@ describe("spawnPoint", () => {
   it("does not change the floor", () => {
     const f = ground(), copy = structuredClone(f);
     spawnPoint(f, FALLBACK);
+    expect(f).toEqual(copy);
+  });
+});
+
+describe("spawnInView (Diego, 2026-09-28: a device spawns where the viewport is centred, not the outline's top right)", () => {
+  it("is the centre point itself, snapped to the grid, when nothing already on the floor is near it", () => {
+    const f = bareFloor([[0, 0], [2000, 0], [2000, 2000], [0, 2000]]);
+    expect(spawnInView(f, [503, 507])).toEqual([500, 510]);
+    expect(spawnInView(f, [503, 507], 5)).toEqual([505, 505]);
+  });
+
+  it("nudges right in 40 cm steps until clear of a point already on the floor within 20 cm, and only then", () => {
+    const f = bareFloor([[0, 0], [2000, 0], [2000, 2000], [0, 2000]]);
+    f.devices = [{ id: "d0", name: "Lamp", type: "light", entity: "light.x", x: 500, y: 500 }];
+    expect(spawnInView(f, [510, 500])).toEqual([550, 500]); // 510 is within 20 cm of the device, one 40 cm step clears it
+    expect(spawnInView(f, [800, 500])).toEqual([800, 500]); // far enough away already: no nudge
+  });
+
+  it("reads every point on the floor, not only devices — a wall corner nudges it too", () => {
+    const f = bareFloor([[0, 0], [2000, 0], [2000, 2000], [0, 2000]]);
+    f.walls = [{ id: "w1", a: [500, 500], b: [700, 500], kind: "wall" }];
+    expect(spawnInView(f, [505, 505])).toEqual([550, 510]);
+  });
+
+  it("does not change the floor", () => {
+    const f = ground(), copy = structuredClone(f);
+    spawnInView(f, [400, 300]);
     expect(f).toEqual(copy);
   });
 });

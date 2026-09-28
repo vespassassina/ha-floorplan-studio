@@ -5,7 +5,7 @@ import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHa
 import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM } from "../card/viewport";
 import { traceImage } from "./trace";
-import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
+import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
@@ -1688,8 +1688,10 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.setRotate((this.st.layout.rotate ?? 0) + step)) this.changed(`Plan rotated to ${this.st.layout.rotate}°`);
   }
   private centre(): Pt { const v = this.st.view; return [Math.round(v.x + v.w / 2), Math.round(v.y + v.h / 2)]; }
-  /** Where a new item goes: outside the house, top right. */
+  /** Where a new item (a wall, a structure, a zone, stairs, furniture) goes: outside the house, top right. */
   private spawn(): Pt { return spawnPoint(this.st.f, this.centre(), this.st.snapGrid); }
+  /** Where a new device or unlinked appliance goes: the middle of the current viewport (Diego, 2026-09-28). */
+  private spawnDevice(): Pt { return spawnInView(this.st.f, this.centre(), this.st.snapGrid); }
   /** Brings all of `pts` into what the svg shows, with a 100 cm margin: pans by the least amount, and zooms out only when they do not fit. */
   private ensureVisible(...plan: Pt[]) {
     const st = this.st, v = st.view, s = this.scale, M = 100, r = st.rotation;
@@ -1824,7 +1826,7 @@ export class FloorplanStudioEditor extends LitElement {
   private addUnlinked(type: string) {
     if (!(UNLINKED_TYPES as readonly string[]).includes(type)) return;
     this.stopDraw();
-    const t = type as DeviceType, p = this.spawn(), [x, y] = p, floor = this.st.floor;
+    const t = type as DeviceType, p = this.spawnDevice(), [x, y] = p, floor = this.st.floor;
     this.commit((f) => { f.unlinked.push({ id: newId(f, floor, "unl"), type: t, x, y, rot: 0, scale: 1 }); });
     this.ensureVisible([x - 30, y - 30], [x + 30, y + 30]);
     this.st.sel = { t: "unl", i: this.st.f.unlinked.length - 1 };
@@ -1841,7 +1843,7 @@ export class FloorplanStudioEditor extends LitElement {
     st.setFloor(target);
     this.floor = target;
     const room = st.f.rooms.find((r) => r.name === c.room);
-    let ctr = spawnPoint(st.f, this.centre(), st.snapGrid);
+    let ctr = spawnInView(st.f, this.centre(), st.snapGrid);
     if (room) ctr = round([room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length, room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length]);
     const f = structuredClone(st.f);
     // Opus re-check of S8.9: `c.id` survived a delete from the plan and `newId` could since have handed that same
@@ -2553,12 +2555,12 @@ export class FloorplanStudioEditor extends LitElement {
   };
   /**
    * S4.14: places `e` from the Add > Entities palette — the room its HA area names, when one is drawn on the current
-   * floor, else a spawn point clear of everything already there (the same fallback `placeDevice`/`addFurniture` use).
-   * One undo step, via `EditorState.addEntity`.
+   * floor, else the middle of the current viewport, clear of everything already there (the same fallback
+   * `placeDevice` uses, `spawnDevice`, 2026-09-28). One undo step, via `EditorState.addEntity`.
    */
   private addHaEntity(e: HaData["entities"][number]) {
     this.focus({ preventScroll: true }); // the clicked item leaves the list on the next render; see placeDevice's own note
-    if (!this.st.addEntity(e, this.spawn())) return;
+    if (!this.st.addEntity(e, this.spawnDevice())) return;
     this.closeMenus();
     this.changed(`Added ${e.name}. Drag it to its spot.`);
   }

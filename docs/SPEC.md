@@ -489,9 +489,13 @@ light theme like `light`/`slate`, where the shared grey was never the problem.
   become a room (wall, external), a zone (dotted) or a garden (fence, edge)
   and the walls go. It has no HA area yet, is selected, and its name field
   has focus. One undo removes it. The perimeter outline is not converted.
-- A new item lands top right, outside the house, so it never hides what is
-  already drawn; the view scrolls to it. A door, window or opening still lands
-  on the wall nearest the middle of the view: it is of no use off the house.
+- A new wall, structure, zone, stairs or piece of furniture lands top right,
+  outside the house, so it never hides what is already drawn; the view
+  scrolls to it. A door, window or opening still lands on the wall nearest
+  the middle of the view: it is of no use off the house. A new device or
+  unlinked appliance lands at the middle of the current viewport instead
+  (2026-09-28), nudged clear of anything already there — already in view, no
+  scroll needed.
 - Device: entities not yet placed, grouped by type then area, with a search.
   "Not yet placed" (S10.5) excludes an entity attached to a door's
   sensors/vibration/locks/cover, a heater's TRVs/temperature sensors, an ac's
