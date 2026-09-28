@@ -4,7 +4,7 @@ Draw your home inside Home Assistant, attach your devices, use it as a live
 dashboard. No external drawing tool, no YAML per element.
 
 Installable through HACS. Needs Home Assistant 2025.6 or later. Releases are
-in [`CHANGELOG.md`](CHANGELOG.md). The author runs it on their own Home
+in [`CHANGELOG.md`](CHANGELOG.md). I run it on my own Home
 Assistant every day.
 
 ![The demo house as a live card: lights come on, a door opens, the plan zooms, switches floor and darkens at dusk; then the editor, dragging a device.](docs/img/demo.gif)
