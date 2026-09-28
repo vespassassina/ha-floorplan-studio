@@ -27,8 +27,9 @@ export interface RenderOpts {
 /** blueprint is the default and the look of the project; midnight is the project's first dark theme (2026-09-21), kept under
  * its own name once blueprint moved on to a new palette; light is the same plan on paper; slate and terminal are the other two
  * role-generated presets; solarized is the bespoke Solarized palette; ha takes its neutrals straight from Home Assistant's own
- * CSS variables. */
-export const THEMES = ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha"] as const;
+ * CSS variables; coffee, a-team, space, cyberpunk and carpenter-brut (2026-09-28, Diego's picks) are five more role-generated
+ * presets, the same `rolesToTokens` four-colour system as blueprint/slate/terminal. */
+export const THEMES = ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha", "coffee", "a-team", "space", "cyberpunk", "carpenter-brut"] as const;
 export type Theme = (typeof THEMES)[number];
 
 /** The `fill` attribute for a room or staircase that carries its own paint: a texture wins over a colour. Both are checked against a fixed list or a strict pattern, because the value goes into an attribute. */
@@ -70,6 +71,13 @@ const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp
 const BLUEPRINT_TOKENS = rolesToTokens({ base: "#1c3f73", fg: "#eef3fb", fgAlpha: .5, line: "#35d47a", accent: "#ff8a1f", dark: true });
 const SLATE_TOKENS = rolesToTokens({ base: "#9a9a96", fg: "#2b2a27", fgAlpha: .5, line: "#2f7a4a", accent: "#cc5500", dark: false });
 const TERMINAL_TOKENS = rolesToTokens({ base: "#0c1512", fg: "#35d47a", fgAlpha: .5, line: "#35d47a", accent: "#ffb000", dark: true });
+
+// Five more role-generated presets (2026-09-28, Diego's picks), the same four-colour system as the three above.
+const COFFEE_TOKENS = rolesToTokens({ base: "#2b1d14", fg: "#f3e5d0", fgAlpha: .5, line: "#a9713c", accent: "#f2a134", dark: true });
+const A_TEAM_TOKENS = rolesToTokens({ base: "#141414", fg: "#e8e8e8", fgAlpha: .5, line: "#cc1f1f", accent: "#d4af37", dark: true });
+const SPACE_TOKENS = rolesToTokens({ base: "#050814", fg: "#eaf2ff", fgAlpha: .5, line: "#4fd8ff", accent: "#b14aff", dark: true });
+const CYBERPUNK_TOKENS = rolesToTokens({ base: "#0b0014", fg: "#00e5ff", fgAlpha: .5, line: "#ff2bd6", accent: "#f9f002", dark: true });
+const CARPENTER_BRUT_TOKENS = rolesToTokens({ base: "#170406", fg: "#ffd9e8", fgAlpha: .5, line: "#8f1022", accent: "#ff2f6e", dark: true });
 
 /* Solarized (bespoke, not role-generated - Diego's call, 2026-09-22: real Solarized fidelity matters more here than reuse).
    The dark variant, base03 background, base1 body text; each device type keeps its own Solarized hue rather than collapsing
@@ -117,6 +125,11 @@ export const FLOORPLAN_CSS = `
 :host([data-theme="solarized"]),:host([data-theme="solarized"]) .fp,[data-theme="solarized"]{${SOLARIZED_TOKENS}}
 :host([data-theme="ha"]),:host([data-theme="ha"]) .fp,[data-theme="ha"]{${HA_LIGHT}}
 :host([data-theme="ha"][data-mode="dark"]),:host([data-theme="ha"][data-mode="dark"]) .fp,[data-theme="ha"][data-mode="dark"]{${HA_DARK}}
+:host([data-theme="coffee"]),:host([data-theme="coffee"]) .fp,[data-theme="coffee"]{${COFFEE_TOKENS}}
+:host([data-theme="a-team"]),:host([data-theme="a-team"]) .fp,[data-theme="a-team"]{${A_TEAM_TOKENS}}
+:host([data-theme="space"]),:host([data-theme="space"]) .fp,[data-theme="space"]{${SPACE_TOKENS}}
+:host([data-theme="cyberpunk"]),:host([data-theme="cyberpunk"]) .fp,[data-theme="cyberpunk"]{${CYBERPUNK_TOKENS}}
+:host([data-theme="carpenter-brut"]),:host([data-theme="carpenter-brut"]) .fp,[data-theme="carpenter-brut"]{${CARPENTER_BRUT_TOKENS}}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
    Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
    or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,
