@@ -1281,6 +1281,28 @@ export class FloorplanStudioEditor extends LitElement {
     this.closeCtxMenu();
   }
 
+  /** Diego, 2026-09-28: moves the ctx menu's room to the end of `f.rooms`, so it paints on top of every other
+   *  room's fill — a garden zone drawn after a garden house was covering the garden house's own pavement, with
+   *  no way to fix it short of redrawing the shape. One undo step; already-last is a no-op. */
+  private ctxBringToFront() {
+    const t = this.ctxMenu?.target;
+    if (!t || t.k !== "room") return;
+    const i = t.i;
+    this.commit((f) => { const [r] = f.rooms.splice(i, 1); f.rooms.push(r); });
+    if (this.st.sel?.t === "room" && this.st.sel.i === i) this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
+    this.closeCtxMenu();
+  }
+
+  /** Same as `ctxBringToFront`, moved to the start of `f.rooms` instead, so it paints under every other room. */
+  private ctxSendToBack() {
+    const t = this.ctxMenu?.target;
+    if (!t || t.k !== "room") return;
+    const i = t.i;
+    this.commit((f) => { const [r] = f.rooms.splice(i, 1); f.rooms.unshift(r); });
+    if (this.st.sel?.t === "room" && this.st.sel.i === i) this.st.sel = { t: "room", i: 0 };
+    this.closeCtxMenu();
+  }
+
   /** Whether the ctx menu's target is currently locked (fixed): false for a room or an edge, neither of which has the field. */
   private lockedOf(t: CtxTarget): boolean {
     const f = this.st.f;
@@ -1516,6 +1538,8 @@ export class FloorplanStudioEditor extends LitElement {
     // S8.6: one row per device (its main entity), not one per raw entity — a plug offers itself, not its power sensor.
     const unplaced = r?.area ? unplacedDevicesInArea(st.layout, ha, r.area) : [];
     return html`<button class="btn" id="cmColour" @click=${() => this.closeCtxMenu()}>Change colour</button>
+      <button class="btn" id="cmToFront" @click=${() => this.ctxBringToFront()}>Bring to front</button>
+      <button class="btn" id="cmToBack" @click=${() => this.ctxSendToBack()}>Send to back</button>
       <button class="btn warn" id="cmDelete" @click=${() => this.ctxDelete()}>Delete</button>
       ${unplaced.length ? html`<div class="sep"></div><span class="grp">Add device from ${r!.name}</span>
         ${unplaced.map((e) => html`<button class="btn" @click=${() => this.addFromArea(e)}>${e.name} (${TYPE_LABELS.find((t) => t[0] === typeForEntity(e))?.[1] ?? typeForEntity(e)})</button>`)}` : nothing}`;

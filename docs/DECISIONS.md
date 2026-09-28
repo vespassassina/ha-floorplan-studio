@@ -2,6 +2,25 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-28: rooms and zones can be sent to back or brought to front
+
+The problem: a room's fill paints in `Floor.rooms` array order (the array
+index doubles as paint order — see `renderFloor`, `src/core/render.ts`), and
+there was no way to change that order from the editor. Diego drew a garden
+zone that landed after the garden house in the array, so its pavement fill
+covered the garden house's own pavement; only the walls (a separate, later
+draw pass) stayed right — the room fills stacked wrong with no fix short of
+deleting and redrawing.
+
+Decided: the room right-click menu (`roomCtxItems`, `src/editor/editor-app.ts`)
+gets two new items, "Bring to front" and "Send to back", next to the
+existing "Change colour" and "Delete". Each moves the room to the end or the
+start of `f.rooms` (`ctxBringToFront`/`ctxSendToBack`), one undo step, a
+no-op when the room is already there. This is a plain array reorder, so a
+`zone`-kind room's own always-paints-last rule (`renderFloor`'s stable sort)
+is untouched — the new items still let two zones (or two non-zone rooms)
+swap order relative to each other, which is what fixed the reported bug.
+
 ## 2026-09-28: `roomEmpty` role override, and a sixth theme, beach-house
 
 The field problem: `a-team`, `space`, `cyberpunk` and `carpenter-brut`
