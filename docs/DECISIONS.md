@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-28: five more role-generated themes, Diego's picks
+
+Decided: add `coffee`, `a-team`, `space`, `cyberpunk` and `carpenter-brut` to
+`THEMES`, each a `rolesToTokens()` preset like `blueprint`/`slate`/`terminal`
+— pick base, foreground, line and accent, get a whole theme. Twelve built-in
+themes now. `docs/SPEC.md`'s theme count, config comment, role table and
+prose are updated in the same commit as the code
+(`378c3e7`/`6c0b2f4`/`fc4e83e`), and the README gets a gallery image per
+theme (`scripts/theme-shots.mjs`), on a neutral grey page background rather
+than white — a light theme's own plan otherwise has no visible edge against
+GitHub's white page and the gallery loses its card framing.
+
 ## 2026-09-27 S10.6: a door's sensor/vibration/lock picker offers live HA entities too, not catalog-only
 
 The field bug: a Yale Linus lock existed in Home Assistant, as domain
