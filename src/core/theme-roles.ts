@@ -7,7 +7,10 @@ import type { DeviceType } from "./schema";
  * "live" - on-state devices, the on-room ring, warnings, the primary action button. `dark` picks which end of the base ramp is
  * the background: true puts the darkest shade at the back (paper is `base`, lines are `fg`), false puts the lightest there.
  * `devices` overrides `accent` for specific device types, for a theme that wants its on-state colours to stay distinct instead
- * of collapsing to one; a type left out uses `accent`. */
+ * of collapsing to one; a type left out uses `accent`. `roomEmpty` overrides the "not yet painted" room fill (Diego's original
+ * call, 2026-09-21: the same light grey `#d6d6d2` in every theme); a saturated dark theme needs its own dark shade there
+ * instead, or the plain grey box reads as a hole against the theme's own dark walls (Diego, 2026-09-28). Left out, the
+ * classic grey still applies — only a theme that asks for it deviates. */
 export interface ThemeRoles {
   base: string;
   fg: string;
@@ -16,6 +19,7 @@ export interface ThemeRoles {
   accent: string;
   dark: boolean;
   devices?: Partial<Record<DeviceType, string>>;
+  roomEmpty?: string;
 }
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -81,7 +85,7 @@ export function rolesToTokens(roles: ThemeRoles): string {
   const devFor = (t: DeviceType) => roles.devices?.[t] ?? roles.accent;
   const acCool = roles.devices?.ac ?? roles.accent, acHeat = roles.devices?.ac ?? roles.accent;
   return [
-    `--fp-ink:${roles.fg}`, `--fp-bg:${shades.bg}`, `--fp-room:${shades.room}`, `--fp-room-empty:#d6d6d2`,
+    `--fp-ink:${roles.fg}`, `--fp-bg:${shades.bg}`, `--fp-room:${shades.room}`, `--fp-room-empty:${roles.roomEmpty ?? "#d6d6d2"}`,
     `--fp-garden:${shades.garden}`, `--fp-terrace:${shades.terrace}`, `--fp-pavement:${shades.pavement}`,
     `--fp-wall:${shades.wall}`, `--fp-idle:${shades.idle}`,
     `--fp-on:${roles.accent}`, `--fp-open:${roles.accent}`, `--fp-motion:${devFor("motion")}`, `--fp-heater:${devFor("heater")}`,

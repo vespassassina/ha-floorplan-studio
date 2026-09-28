@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.12
+
+- Six new themes: `coffee` (rich espresso dark), `a-team` (matte black with red and gold), `space` (deep navy with cyan and purple), `cyberpunk` (neon cyan, magenta and yellow), `carpenter-brut` (blood red, hot pink and dark crimson), and `beach-house` (warm sand, sea-teal and palm green), bringing the total to 13 themes.
+- Saturated dark themes (`a-team`, `space`, `cyberpunk`, `carpenter-brut`) now render unpainted rooms with a theme-matched dark background (`roomEmpty`) instead of shared light grey.
+- Visual theme gallery in the README showcasing all 13 themes.
+
 ## 0.12.11
 
 - Fixed: a door's smart sensor/vibration/lock picker only ever listed

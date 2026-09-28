@@ -48,6 +48,40 @@ Assistant every day.
   Assistant, so it can place and wire up your devices from that one file,
   offline, without inventing an entity id. See below.
 
+## Colours, themes and customization
+
+Thirteen built-in themes, picked from the card's Edit-card form or written as
+`theme:` in YAML. `ha` follows your Home Assistant dashboard's own theme;
+the rest are fixed palettes.
+
+| `blueprint` (default) | `midnight` | `light` |
+|---|---|---|
+| ![Blueprint theme: dark blue plan, terminal-green grid, orange accents.](docs/img/themes/blueprint.png) | ![Midnight theme: blueprint's original dark palette.](docs/img/themes/midnight.png) | ![Light theme: paper-and-ink plan.](docs/img/themes/light.png) |
+
+| `slate` | `terminal` | `solarized` |
+|---|---|---|
+| ![Slate theme: light neutral grey plan, burnt-orange accents.](docs/img/themes/slate.png) | ![Terminal theme: near-black plan, terminal-green text, amber accents.](docs/img/themes/terminal.png) | ![Solarized theme: the real Solarized dark palette, each device kept in its own hue.](docs/img/themes/solarized.png) |
+
+| `ha` | `coffee` | `a-team` |
+|---|---|---|
+| ![Home Assistant theme: colours taken from your own dashboard theme.](docs/img/themes/ha.png) | ![Coffee theme: espresso-brown plan, cream text, caramel-orange accents.](docs/img/themes/coffee.png) | ![A-Team theme: near-black plan, cherry-red grid, gold accents.](docs/img/themes/a-team.png) |
+
+| `space` | `cyberpunk` | `carpenter-brut` |
+|---|---|---|
+| ![Space theme: near-black navy plan, cyan grid, violet accents.](docs/img/themes/space.png) | ![Cyberpunk theme: near-black violet plan, cyan text, magenta grid, acid-yellow accents.](docs/img/themes/cyberpunk.png) | ![Carpenter Brut theme: near-black maroon plan, crimson grid, hot-pink accents.](docs/img/themes/carpenter-brut.png) |
+
+| `beach-house` |
+|---|
+| ![Beach House theme: sand-coloured plan, sea-teal grid, palm-green accents.](docs/img/themes/beach-house.png) |
+
+Every room keeps its own paint (colour or texture) in every theme — only the
+grid, walls and device icons change. `blueprint`, `slate`, `terminal`,
+`coffee`, `a-team`, `space`, `cyberpunk` and `carpenter-brut` are all built
+from the same four-role system (base, foreground, line, accent) in
+[`src/core/theme-roles.ts`](src/core/theme-roles.ts) — pick four colours and
+get a whole theme, no ~50 hexes to hand-tune. See
+[`docs/SPEC.md`](docs/SPEC.md#role-generated-themes-s421-2026-09-22).
+
 ## Install
 
 [![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=vespassassina&repository=ha-floorplan-studio&category=integration)
