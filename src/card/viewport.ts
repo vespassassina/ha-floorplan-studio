@@ -7,6 +7,11 @@ export type Pt = [number, number];
 /** The deepest the card zooms in, relative to fit. */
 export const MAX_ZOOM = 8;
 
+/** The furthest the card zooms out, relative to fit: 0.4 means the view can widen to 2.5x fit's own box, so a
+ * shed or a corner `viewBoxFor` did not bound on stays reachable by zooming out instead of being locked out of view
+ * (Diego field report, 0.12.14: no way to zoom out past the default view at all). */
+export const MIN_ZOOM = 0.4;
+
 const finite = (v: View) => [v.x, v.y, v.w, v.h].every(Number.isFinite) && v.w > 0 && v.h > 0;
 
 /** Zooms by `k` (> 1 in, < 1 out) about plan point (px, py): that point keeps its place on screen. */
@@ -27,12 +32,15 @@ function bound(start: number, size: number, lo: number, span: number): number {
   return Math.min(Math.max(start, lo - size + m), lo + span - m);
 }
 
-/** The view, held between fit and `MAX_ZOOM`, and panned no further than leaves a third on the plan. Anything
- * wider than fit is fit; anything non-finite is fit too. */
+/** The view, held between `MIN_ZOOM` (zoomed out past fit) and `MAX_ZOOM` (zoomed in), and panned no further than
+ * leaves a third on the plan. Anything non-finite is fit. A width within a hair of fit's own snaps to fit exactly,
+ * so zooming in and back out still reads as "at fit" (`sameView`, the zoom-out button's `atWhole` check). */
 export function clamp(view: View, fit: View): View {
-  // The 1e-6 slack: zooming in and back out lands a hair under fit.w, which must still read as fit.
-  if (!finite(view) || !finite(fit) || view.w >= fit.w * (1 - 1e-6)) return fit;
+  if (!finite(view) || !finite(fit)) return fit;
+  if (Math.abs(view.w - fit.w) < fit.w * 1e-6) return fit;
   let v = view;
+  const max = fit.w / MIN_ZOOM;
+  if (v.w > max) v = zoomAt(v, v.w / max, v.x + v.w / 2, v.y + v.h / 2);
   const min = fit.w / MAX_ZOOM;
   if (v.w < min) v = zoomAt(v, v.w / min, v.x + v.w / 2, v.y + v.h / 2);
   const x = bound(v.x, v.w, fit.x, fit.w), y = bound(v.y, v.h, fit.y, fit.h);

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.15
+
+- The card's default view no longer clips content outside the outline (a garden, a shed, a free-standing wall): the default and "fit" view now bound on every structural element, not the outline alone.
+- The card's plan can be dragged even with `zoom: false` set, whenever it is pinned narrower than the fit view (`center`/`zoom_level`); zoom in, zoom out and the zoom buttons are unaffected.
+- Zooming out is no longer capped at the fit view: the "−" button and pinch/wheel zoom-out now go 2.5x past it before holding.
+
 ## 0.12.14
 
 - A window's or glass door's `cover` (electric curtains) no longer turns the opening orange, the security-warning colour meant for a shutter or garage opener; an attached lock left unlocked now shows that alert instead, on doors and windows alike.

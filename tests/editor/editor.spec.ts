@@ -1114,17 +1114,24 @@ test("a thin fence stays clickable a few pixels off its line, and of two walls 6
   await expect(page.locator("#wk")).toHaveValue("fence");
   await page.mouse.click(c.x, c.y - 6);
   await expect(page.locator("#wk")).toHaveValue("fence");
-  // a competing outdoor edge 6 screen px below the fence, both inside the 8 px pick radius of a click between them
-  const perCm = ((await screenOf(page, 60 + 3 * 150, 660)).y - c.y) / 10;
-  await page.evaluate(([tag, dy]) => {
-    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
-    l.floors.ground.walls.push({ id: "wall-ground-6", a: [460, 650 + (dy as number)], b: [560, 650 + (dy as number)], kind: "edge" });
+  // a competing outdoor edge close below the fence (placed at a rough 7 cm offset: exactly how far below barely
+  // matters, since the two walls below are re-measured, on screen, after it lands). Both inside the 8 px pick
+  // radius of a click between them.
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.walls.push({ id: "wall-ground-6", a: [460, 657], b: [560, 657], kind: "edge" });
     el.layout = l;
-  }, [EDITOR, 6 / perCm] as const);
+  }, EDITOR);
   await expect(page.locator("svg line[data-w]")).toHaveCount(6);
-  await page.mouse.click(c.x, c.y + 1.5); // 1.5 px from the fence, 4.5 from the edge wall
+  // 0.12.14: the new wall's own y (657 cm) can widen the floor's fit (`viewBoxFor` now bounds on every free wall,
+  // not only the outline), which re-scales the whole plan the moment `el.layout` is set again (`EditorState.views`
+  // resets on every full-layout assign, S9.6's own `setLayout`) — so `c`, above, no longer points at the fence on
+  // screen. Read both walls' screen position fresh, in the settled frame, instead of carrying the stale one.
+  const fence = await screenOf(page, 60 + 3 * 150, 650), edge = await screenOf(page, 60 + 3 * 150, 657);
+  const third = fence.y + (edge.y - fence.y) / 3;
+  await page.mouse.click(fence.x, third - 1); // nearer the fence
   await expect(page.locator("#wk")).toHaveValue("fence");
-  await page.mouse.click(c.x, c.y + 4.5); // 4.5 px from the fence, 1.5 from the edge wall
+  await page.mouse.click(fence.x, third + 1); // nearer the edge
   await expect(page.locator("#wk")).toHaveValue("edge");
 });
 
@@ -6336,6 +6343,17 @@ async function rightClickCm(page: Page, x: number, y: number) {
   await page.mouse.click(c.x, c.y, { button: "right" });
 }
 
+/**
+ * A screen point outside the editor entirely: the page's own top-left corner. A click on
+ * the plan itself is unsafe here — the editor starts a pan on pointerdown and calls
+ * preventDefault(), which per spec suppresses the browser's own synthetic "click" that
+ * would otherwise follow a same-spot mousedown/mouseup, so a plan point that used to be
+ * background (e.g. a fixed 950,700) can silently stop firing "click" once 0.12.14's wider
+ * fit moves different content under it. A point off the editor's own element has no such
+ * handler and always fires "click".
+ */
+const PAGE_CORNER = { x: 5, y: 5 };
+
 test("S4.18: right-clicking a room selects it and opens a context menu with Change colour and Delete", async ({ page }) => {
   await rightClickCm(page, 200, 150); // inside Living
   await expect(page.locator("#rk")).toHaveValue("room"); // the room panel is already open, per the design decision
@@ -6358,8 +6376,7 @@ test("S4.18: outside click, Escape and scroll all close the context menu", async
 
   await rightClickCm(page, 200, 150);
   await expect(page.locator(".ctxmenu")).toBeVisible();
-  const bg = await screenOf(page, 950, 700);
-  await page.mouse.click(bg.x, bg.y);
+  await page.mouse.click(PAGE_CORNER.x, PAGE_CORNER.y);
   await expect(page.locator(".ctxmenu")).toHaveCount(0);
 
   await rightClickCm(page, 200, 150);

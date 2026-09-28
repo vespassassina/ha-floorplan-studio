@@ -9,7 +9,7 @@ import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
 // second built file (PLAN block interface).
 import "./config-editor";
 import { defineElement } from "./define";
-import { MAX_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
+import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
 
@@ -1022,11 +1022,15 @@ export class FloorplanStudioCard extends LitElement {
     // rests on when there is no explicit `_view`, and what "zoomed" (the fp-zoomed class, below) is measured
     // against, so a pinned card reads as its own resting state, not as permanently zoomed in from the full plan.
     const home = pinnedView(fit, this._rotatedCenter(), this._zoomLevel());
-    const box = zoom && this._view ? clamp(this._view, fit) : home;
+    // Diego field report, 0.12.14: pan must work even under `zoom: false` — that config key only turns off pinch,
+    // wheel and the buttons (`_bindZoom` gates those on `_zoomMode()` itself); a one-finger drag always reaches
+    // `_setView`, so `_view` can be set regardless, and the box here must reflect it regardless too.
+    const box = this._view ? clamp(this._view, fit) : home;
     // Opus review of S9.6: "zoomed" (like `_zoomed()` below) means "not at home", not "narrower than home" — a
     // sideways pan at home's own width used to read as not-zoomed here, which left `touch-action` at `pan-y` (so
     // the page's own vertical scroll fought the pan) even while `_view` was already pinning a panned box.
-    const svgClass = !zoom ? "" : this._view !== null ? "fp-zoomable fp-zoomed" : "fp-zoomable";
+    // `fp-zoomable` (the touch-action override) is unconditional too: it enables the drag gesture, not zoom.
+    const svgClass = this._view !== null ? "fp-zoomable fp-zoomed" : "fp-zoomable";
     const body = renderFloor(f, {
       scale: this._scale(fit),
       state: this._stateForRender(),
@@ -1162,16 +1166,20 @@ export class FloorplanStudioCard extends LitElement {
    *  - Fit/Reset undoes `_view`; it must be disabled exactly when there is nothing to undo, i.e. `_view === null`
    *    (`_zoomed()`, above) — not "box is as wide as home", which stayed true after a same-width sideways pan and
    *    left Fit disabled with no way back to the pinned centre.
-   * Unpinned (`home` equals `fit`): both conditions coincide, so this changes nothing for a plain card. */
+   * Unpinned (`home` equals `fit`): both conditions coincide, so this changes nothing for a plain card.
+   *
+   * Diego field report, 0.12.14: "−" used to disable at `fit` itself, so a shed or a corner `viewBoxFor` did not
+   * bound on had no way to come into view. It now disables only at `MIN_ZOOM` (`viewport.ts`), the same floor
+   * `clamp` itself enforces, so the button and the drag/pinch gesture agree on how far out the card goes. */
   private _zoomButtons(box: View, home: View, fit: View) {
-    const atWhole = box.w >= fit.w * (1 - 1e-6);
+    const atMin = box.w >= (fit.w / MIN_ZOOM) * (1 - 1e-6);
     const atHome = !this._zoomed();
     const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
     const pinned = !sameView(home, fit, fit);
     const resetLabel = pinned ? "Reset view" : "Fit";
     return html`<div class="fp-zoom">
       <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
-      <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atWhole} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
+      <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atMin} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
       <button type="button" aria-label=${resetLabel} title=${resetLabel} ?disabled=${atHome} @click=${() => this._fitView()}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
       </button>
@@ -1206,10 +1214,13 @@ export class FloorplanStudioCard extends LitElement {
     };
 
     const onDown = (e: PointerEvent) => {
-      if (this._zoomMode() === false) return;
       if (e.pointerType === "mouse" && e.button !== 0) return;
       if (e.isPrimary) ptrs.clear(); // nothing else of its kind is down: forget any pointer whose up went missing
       else if (!ptrs.size) return;
+      // Diego field report, 0.12.14: the card must always be draggable, `zoom: false` or not — that config key
+      // turns off zoom, not pan. A first finger always starts a pan; a second finger only joins as a pinch when
+      // zoom is on, so `zoom: false` still blocks pinch-zoom without blocking the one-finger drag that got here.
+      if (ptrs.size === 1 && this._zoomMode() === false) return;
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (ptrs.size === 1) {
         start = { x: e.clientX, y: e.clientY };
@@ -1260,6 +1271,7 @@ export class FloorplanStudioCard extends LitElement {
       const now = performance.now();
       if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX) {
         lastTap = null;
+        if (this._zoomMode() === false) return; // a double tap zooms; pan alone stays on when zoom is off
         // S9.6: zooms in from `home` (the pinned box, or the whole floor with no pin), not the whole floor — the
         // screen shows `home` at rest, so the plan point under the tap must be read against that same box.
         const home = this._home();

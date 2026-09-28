@@ -2,6 +2,36 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-28: card default view, pan and zoom-out fixed (field report, 0.12.14)
+
+Diego's screenshot: the card's default zoom clipped a garden shed, with no
+way to drag or zoom out to see it. Three separate bugs, traced to
+`viewBoxFor` (`src/core/render.ts`) and `src/card/viewport.ts`:
+
+1. **The default view bounded only on `f.outline`.** A garden, a shed, a
+   structure outside the walls — anything a room, wall, stair or piece of
+   furniture drew past the outline — was clipped, with no way back to it.
+   `viewBoxFor` now bounds on a new `structuralPoints(f)` (outline, rooms,
+   stairs, walls/doors/openings/extras, furniture, unlinked). Devices still
+   widen the box only by their own reach (a lit lamp, a camera), and only
+   when already near the rest of the plan — a device dragged or imported far
+   outside stays off view, unchanged from before (S5.7, S8.13's own
+   regression test). `contentPoints` (used by the editor's Re-center) is now
+   `structuralPoints` plus devices, keeping its own wider contract.
+2. **Zooming out never went past `fit`.** `clamp()` (`src/card/viewport.ts`)
+   hard-floored at exactly `fit`'s own width. A new `MIN_ZOOM` (0.4, so the
+   view can widen to 2.5x `fit`'s own box) replaces that floor, the same way
+   `MAX_ZOOM` already bounds zooming in.
+3. **`zoom: false` disabled panning along with zoom.** `_bindZoom`'s
+   `onDown`/`onUp` (`src/card/floorplan-studio-card.ts`) now gate only
+   pinch, wheel and double-tap zoom off `_zoomMode()`; a one-finger drag
+   always reaches `_setView` regardless. Note this only moves the view when
+   there is somewhere to go — a card pinned narrower than `fit` via
+   `center`/`zoom_level` — since `clamp()` correctly snaps a pan straight
+   back to `fit` when the whole floor is already on screen (nothing to
+   reveal, not a bug; see `viewport.test.ts`, "at fit zoom there is nothing
+   to pan").
+
 ## 2026-09-28: `Room.label` removed from the schema
 
 Diego noticed the plan still showing an internal label under a room's name
