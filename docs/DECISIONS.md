@@ -2,6 +2,27 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-28: `Room.label` removed from the schema
+
+Diego noticed the plan still showing an internal label under a room's name
+(office read "BURO") with no way to change or clear it. `Room.label` had no
+editor UI to set or edit it — confirmed by reading `roomPanel()`
+(`src/editor/panels.ts`) — so any value in it came from a hand-edited or
+LLM-written file, or stale data from before the field went dead; the two
+shipped demo layouts (`demo/layout.json`, `demo/layout.v1.json`) carried it
+as an empty string on every room, confirming it was already orphaned.
+
+Decided: drop the field entirely rather than keep hiding it. Removed from
+the `Room` interface and its validation (`src/core/schema.ts`); `migrate`
+now deletes a stray `label` from an old file instead of defaulting it to
+`""` (`src/core/migrate.ts`); `renderFloor` no longer computes or draws a
+second line of text under the room name (`src/core/render.ts`); the editor's
+room-creation paths stopped setting it (`src/editor/draw.ts`,
+`src/editor/editor-app.ts`); `docs/SPEC.md` and the demo layouts were
+updated to match. A layout an LLM or a stranger wrote may still carry the
+field (finding 1, untrusted input) — `migrate` strips it silently rather
+than erroring, so an old file still loads, just without the dead text.
+
 ## 2026-09-28: rooms and zones can be sent to back or brought to front
 
 The problem: a room's fill paints in `Floor.rooms` array order (the array

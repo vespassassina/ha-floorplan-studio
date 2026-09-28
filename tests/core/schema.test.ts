@@ -236,25 +236,25 @@ describe("validate bound", () => {
     it("accepts a zone with no wall edge and a water polygon", () => {
       const l = clone();
       l.floors.ground.rooms.push(
-        { id: "z1", name: "Nook", area: "nook", label: "", kind: "zone", pts: [[10, 10], [60, 10], [60, 60]], wk: ["boundary", "boundary", "boundary"] },
-        { id: "w1", name: "Pond", area: "", label: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60]], wk: ["boundary", "boundary", "boundary"] },
+        { id: "z1", name: "Nook", area: "nook", kind: "zone", pts: [[10, 10], [60, 10], [60, 60]], wk: ["boundary", "boundary", "boundary"] },
+        { id: "w1", name: "Pond", area: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60]], wk: ["boundary", "boundary", "boundary"] },
       );
       expect(errorsOf(l)).toEqual([]);
     });
     it("accepts water with wall flags, like a room", () => {
       const l = clone();
-      l.floors.ground.rooms.push({ id: "w1", name: "Pool", area: "", label: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60]], wk: ["wall", "wall", "wall"] });
+      l.floors.ground.rooms.push({ id: "w1", name: "Pool", area: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60]], wk: ["wall", "wall", "wall"] });
       expect(errorsOf(l)).toEqual([]);
     });
     it("rejects a zone with a wall edge", () => {
       const l = clone();
-      l.floors.ground.rooms.push({ id: "z1", name: "Nook", area: "nook", label: "", kind: "zone", pts: [[10, 10], [60, 10], [60, 60]], wk: ["boundary", "wall", "boundary"] });
+      l.floors.ground.rooms.push({ id: "z1", name: "Nook", area: "nook", kind: "zone", pts: [[10, 10], [60, 10], [60, 60]], wk: ["boundary", "wall", "boundary"] });
       expect(errorsOf(l).join("\n")).toMatch(/z1.*zone.*wall/);
     });
     it("rejects a zone or water polygon with fewer than 3 points", () => {
       for (const kind of ["zone", "water"]) {
         const l = clone();
-        l.floors.ground.rooms.push({ id: "q1", name: "Q", area: "", label: "", kind, pts: [[0, 0], [1, 1]], wk: ["boundary", "boundary"] });
+        l.floors.ground.rooms.push({ id: "q1", name: "Q", area: "", kind, pts: [[0, 0], [1, 1]], wk: ["boundary", "boundary"] });
         expect(errorsOf(l).join("\n")).toMatch(/q1.*at least 3 points/);
       }
     });
@@ -280,13 +280,11 @@ describe("wall kinds", () => {
   });
 });
 
-describe("names and labels are strings (review S1.5, finding 5)", () => {
+describe("names are strings (review S1.5, finding 5)", () => {
   const BAD = [{ a: 1 }, 5, ["x"], null, true];
   const fixtures: [string, (l: any, v: unknown) => void, RegExp][] = [
     ["room.name", (l, v) => { l.floors.ground.rooms[0].name = v; }, /room-ground-1.*name/],
-    ["room.label", (l, v) => { l.floors.ground.rooms[0].label = v; }, /room-ground-1.*label/],
     ["zone.name", (l, v) => { l.floors.ground.rooms[3].name = v; }, /room-ground-4.*name/],
-    ["zone.label", (l, v) => { l.floors.ground.rooms[3].label = v; }, /room-ground-4.*label/],
     ["water.name", (l, v) => { l.floors.ground.rooms[6].name = v; }, /room-ground-7.*name/],
     ["stairs.name", (l, v) => { l.floors.ground.stairs[0].name = v; }, /stairs-ground-1.*name/],
     ["extra.name", (l, v) => { l.floors.ground.extras.push({ id: "x1", name: v, a: [0, 0], b: [10, 10] }); }, /x1.*name/],
@@ -300,10 +298,9 @@ describe("names and labels are strings (review S1.5, finding 5)", () => {
         set(l, bad);
         expect(errorsOf(l).join("\n")).toMatch(re);
       });
-  it("still accepts a device without a name and a room with an empty label", () => {
+  it("still accepts a device without a name", () => {
     const l = clone();
     delete l.floors.ground.devices[0].name;
-    l.floors.ground.rooms[0].label = "";
     expect(errorsOf(l)).toEqual([]);
   });
 });

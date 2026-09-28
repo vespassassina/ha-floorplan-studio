@@ -21,15 +21,6 @@ describe("renderFloor", () => {
     expect(renderFloor(f, { scale: 0.5 })).toMatchSnapshot();
   });
 
-  it("draws room.label under the name, escaped, and nothing when it is empty", () => {
-    const f = structuredClone(ground);
-    f.rooms[0].label = '<i>3 x 4</i> & "co"';
-    const html = renderFloor(f, base);
-    expect(html).toMatch(/<text class="lbl"[^>]*>&lt;i&gt;3 x 4&lt;\/i&gt; &amp; &quot;co&quot;<\/text>/);
-    expect(html).not.toContain("<i>");
-    expect(renderFloor(ground, base).match(/<text class="lbl"/g)).toHaveLength(6); // 3 rooms, garden, pavement and the pond; the zone label has its own class
-  });
-
   it("draws openings as erase lines and extras as dashed shapes with escaped names", () => {
     const f = structuredClone(ground);
     f.openings.push({ id: "o1", a: [100, 400], b: [200, 400] });
@@ -857,7 +848,7 @@ describe("S8.9 defect 4 (Opus review): the widest coincident edge wins, not whic
     // "none" (the outline) and miss the room's "external" sitting on the very same segment.
     const f = {
       title: "T", outline: [[0, 0], [200, 0], [200, 100], [0, 100]], owk: ["none", "wall", "wall", "wall"],
-      rooms: [{ id: "r1", name: "R", area: "", label: "", kind: "room", pts: [[0, 0], [200, 0], [200, 50], [0, 50]], wk: ["external", "wall", "wall", "wall"] }],
+      rooms: [{ id: "r1", name: "R", area: "", kind: "room", pts: [[0, 0], [200, 0], [200, 50], [0, 50]], wk: ["external", "wall", "wall", "wall"] }],
       walls: [], doors: [{ id: "d0", name: "Door", kind: "door", a: [50, 0], b: [140, 0] }],
       stairs: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
     } as unknown as typeof ground;
@@ -867,8 +858,8 @@ describe("S8.9 defect 4 (Opus review): the widest coincident edge wins, not whic
   it("two rooms sharing one edge, one wall and one external, renders at 20 (the widest of the two)", () => {
     const f = {
       title: "T", outline: [], rooms: [
-        { id: "r1", name: "R1", area: "", label: "", kind: "room", pts: [[0, 0], [200, 0], [200, 100], [0, 100]], wk: ["wall", "wall", "wall", "wall"] },
-        { id: "r2", name: "R2", area: "", label: "", kind: "room", pts: [[0, 0], [200, 0], [200, -100], [0, -100]], wk: ["external", "wall", "wall", "wall"] },
+        { id: "r1", name: "R1", area: "", kind: "room", pts: [[0, 0], [200, 0], [200, 100], [0, 100]], wk: ["wall", "wall", "wall", "wall"] },
+        { id: "r2", name: "R2", area: "", kind: "room", pts: [[0, 0], [200, 0], [200, -100], [0, -100]], wk: ["external", "wall", "wall", "wall"] },
       ],
       walls: [], doors: [{ id: "d0", name: "Door", kind: "door", a: [50, 0], b: [140, 0] }],
       stairs: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
@@ -881,7 +872,7 @@ describe("S8.9 defect 4 (Opus review): the widest coincident edge wins, not whic
     // returned "wall" (10). The outline's external edge one cm away is the same physical wall, drawn wider.
     const f = {
       title: "T", outline: [[0, 0], [200, 0], [200, 100], [0, 100]], owk: ["external", "wall", "wall", "wall"],
-      rooms: [{ id: "r1", name: "R", area: "", label: "", kind: "room", pts: [[0, 1], [200, 1], [200, 50], [0, 50]], wk: ["wall", "wall", "wall", "wall"] }],
+      rooms: [{ id: "r1", name: "R", area: "", kind: "room", pts: [[0, 1], [200, 1], [200, 50], [0, 50]], wk: ["wall", "wall", "wall", "wall"] }],
       walls: [], doors: [{ id: "d0", name: "Door", kind: "door", a: [50, 1], b: [140, 1] }],
       stairs: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
     } as unknown as typeof ground;
@@ -894,7 +885,7 @@ describe("S8.9 defect 4 (Opus review): the widest coincident edge wins, not whic
     // Opus review of S8.11 (2026-09-26): OPENING_EXTRA widened from 2 to WALL_HALO_EXTRA + 2 (4), so 20 + 4 = 24.
     const f = {
       title: "T", outline: [[0, 0], [200, 0], [200, 100], [0, 100]], owk: ["none", "wall", "wall", "wall"],
-      rooms: [{ id: "r1", name: "R", area: "", label: "", kind: "room", pts: [[0, 0], [200, 0], [200, 50], [0, 50]], wk: ["external", "wall", "wall", "wall"] }],
+      rooms: [{ id: "r1", name: "R", area: "", kind: "room", pts: [[0, 0], [200, 0], [200, 50], [0, 50]], wk: ["external", "wall", "wall", "wall"] }],
       walls: [], doors: [], stairs: [], extras: [], devices: [], furniture: [], unlinked: [],
       openings: [{ id: "o0", a: [50, 0], b: [140, 0] }],
     } as unknown as typeof ground;
@@ -976,9 +967,9 @@ describe("S8.11: an opening is a real hole, cut from the wall layer with a <mask
 
 describe("renderFloor never throws on a layout that skipped validate (review S1.5, finding 5)", () => {
   for (const bad of [5, { a: 1 }, ["x", 2], null, undefined, true]) {
-    it(`name, label and title fields = ${JSON.stringify(bad)}`, () => {
+    it(`name and title fields = ${JSON.stringify(bad)}`, () => {
       const f: any = structuredClone(ground);
-      f.rooms[0].name = bad; f.rooms[0].label = bad; f.rooms[3].name = bad; f.rooms[3].label = bad;
+      f.rooms[0].name = bad; f.rooms[3].name = bad;
       f.stairs[0].name = bad; f.doors[0].name = bad; f.devices[0].name = bad;
       f.extras.push({ id: "x1", name: bad, a: [0, 0], b: [50, 50] });
       expect(() => renderFloor(f, { ...base, showNames: true })).not.toThrow();
@@ -1009,7 +1000,7 @@ describe("garden and pavement (S1.14)", () => {
 describe("fill is hatched (S1.15)", () => {
   const withFill = (n: number) => {
     const f = structuredClone(ground);
-    for (let i = 0; i < n; i++) f.rooms.push({ id: `fill${i}`, name: `F${i}`, area: "", label: "", kind: "fill", pts: [[0, 0], [50, 0], [50, 50]], wk: ["wall", "wall", "wall"] });
+    for (let i = 0; i < n; i++) f.rooms.push({ id: `fill${i}`, name: `F${i}`, area: "", kind: "fill", pts: [[0, 0], [50, 0], [50, 50]], wk: ["wall", "wall", "wall"] });
     return f;
   };
   it("emits the hatch pattern first, once, and the class points at it", () => {
@@ -1053,7 +1044,7 @@ describe("room colour (S1.16)", () => {
   });
   it("a fill room with a colour renders and still emits the hatch", () => {
     const f = structuredClone(ground);
-    f.rooms.push({ id: "f1", name: "F", area: "", label: "", kind: "fill", pts: [[0, 0], [50, 0], [50, 50]], wk: ["wall", "wall", "wall"], color: "#aabbcc" });
+    f.rooms.push({ id: "f1", name: "F", area: "", kind: "fill", pts: [[0, 0], [50, 0], [50, 50]], wk: ["wall", "wall", "wall"], color: "#aabbcc" });
     const html = renderFloor(f, base);
     expect(html).toContain("<defs>");
     expect(html).toContain('class="room room-fill" fill="#aabbcc"');
@@ -1277,7 +1268,7 @@ describe("devices sit on top (S1.29)", () => {
 });
 
 describe("outdoor sensors and the palette (S1.30)", () => {
-  const room = (kind: string, pts: [number, number][]) => ({ id: kind, name: "", area: "", label: "", kind, pts, wk: pts.map(() => "boundary") });
+  const room = (kind: string, pts: [number, number][]) => ({ id: kind, name: "", area: "", kind, pts, wk: pts.map(() => "boundary") });
   const dev = (type: string, x: number, y: number) => ({ id: `${type}-${x}`, type, entity: "sensor.x", x, y });
   const draw = (rooms: unknown[], devices: unknown[]) =>
     renderFloor({ ...ground, rooms, devices, doors: [], walls: [], openings: [], furniture: [], stairs: [], extras: [] } as unknown as typeof ground, base);
@@ -1421,7 +1412,7 @@ describe("S2.9: every device type has a decided active colour", () => {
 });
 
 describe("S2.9: a room or a piece of furniture with an entity carries the on class", () => {
-  const room = (kind: string, extra: Record<string, unknown> = {}) => ({ id: "r", name: "pond", area: "", label: "", kind, pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: Array(4).fill("wall"), ...extra });
+  const room = (kind: string, extra: Record<string, unknown> = {}) => ({ id: "r", name: "pond", area: "", kind, pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: Array(4).fill("wall"), ...extra });
   const furn = (extra: Record<string, unknown> = {}) => ({ id: "f", symbol: "patio-wood", x: 50, y: 50, rot: 0, w: 100, h: 100, ...extra });
   const draw = (rooms: unknown[], furniture: unknown[], state: StateOverlay) =>
     renderFloor({ ...ground, rooms, devices: [], furniture, doors: [], walls: [], openings: [], stairs: [], extras: [] } as unknown as typeof ground, { ...base, state });
@@ -1723,13 +1714,6 @@ describe("S1.42: a device never hides a room name", () => {
   });
   it("counts only devices the filter draws", () => { expect(nameY(floor("room", [[200, 100]], "heater"))).toBe(cy); });
   it("a device far to the side does not move the name", () => { expect(nameY(floor("room", [[380, 100]]))).toBe(cy); });
-  it("the label follows the name", () => {
-    const f = structuredClone(ground);
-    f.rooms = [{ id: "r", name: "Lounge", label: "3 x 4", kind: "room", area: "", pts: [[0, 0], [400, 0], [400, 200], [0, 200]] } as never];
-    f.devices = [{ id: "d", type: "light", entity: "light.d", x: 200, y: 100 } as never];
-    const html = renderFloor(f, { scale: 0.5 });
-    expect(html).toMatch(new RegExp(`y="${100 + 32 * k + 16 * k}"[^>]*>3 x 4<`));
-  });
 });
 
 describe("S1.46: one text style", () => {
@@ -1936,16 +1920,16 @@ describe("S7.1: labels never overprint each other", () => {
     expect(clashes(html)).toEqual([]);
   });
 
-  it("a room name, its label, a zone label and a sensor value on one spot all get a place of their own", () => {
+  it("a room name, a zone label and a sensor value on one spot all get a place of their own", () => {
     const f = bare(structuredClone(ground));
     f.rooms = [
-      { id: "r", name: "Study", label: "3 x 4", kind: "room", area: "", pts: [[0, 0], [200, 0], [200, 200], [0, 200]], wk: ["wall", "wall", "wall", "wall"] },
+      { id: "r", name: "Study", kind: "room", area: "", pts: [[0, 0], [200, 0], [200, 200], [0, 200]], wk: ["wall", "wall", "wall", "wall"] },
       { id: "z", name: "Desk corner", kind: "zone", area: "", pts: [[0, 0], [200, 0], [200, 200], [0, 200]], wk: ["boundary", "boundary", "boundary", "boundary"] },
     ] as never;
     f.devices = [{ id: "t", type: "temp", entity: "sensor.t", x: 100, y: 150 }] as never;
     const html = renderFloor(f, { scale: 1, now: NOW, state: { "sensor.t": st("21.5", { attributes: { unit_of_measurement: "°C" } }) } });
     expect(html).toMatch(/<text class="lbl" x="100" y="100"[^>]*font-weight="600">Study</); // the name goes first and keeps its centroid
-    for (const t of [">3 x 4<", ">Desk corner<", ">21.5 °C<"]) expect(html).toContain(t);
+    for (const t of [">Desk corner<", ">21.5 °C<"]) expect(html).toContain(t);
     expect(clashes(html)).toEqual([]);
   });
 
@@ -2068,7 +2052,7 @@ describe("S7.6 night", () => {
     const decided: Record<RoomKind, boolean> = { room: true, garden: true, pavement: true, fill: true, terrace: true, water: true, structure: false, zone: false };
     for (const kind of ROOM_KINDS) {
       const f = structuredClone(ground);
-      f.rooms = [{ id: "k", name: "K", area: "", label: "", kind, pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: Array(4).fill(kind === "zone" ? "boundary" : "wall") }];
+      f.rooms = [{ id: "k", name: "K", area: "", kind, pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: Array(4).fill(kind === "zone" ? "boundary" : "wall") }];
       expect(nightRows(renderFloor(f, { ...base, night: true })).length, kind).toBe(decided[kind] ? 1 : 0);
     }
   });

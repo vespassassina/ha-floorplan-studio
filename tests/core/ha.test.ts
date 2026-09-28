@@ -141,7 +141,7 @@ describe("availableEntities (S6.7): a snapshot of every HA entity, for the expor
     floors: {
       ground: {
         title: "Ground", outline: [], walls: [], stairs: [], doors: [], openings: [], extras: [], furniture: [],
-        rooms: [{ id: "r-1", name: "Kitchen", area: "kitchen", label: "", kind: "room", pts: [], wk: [] }],
+        rooms: [{ id: "r-1", name: "Kitchen", area: "kitchen", kind: "room", pts: [], wk: [] }],
         devices: [{ id: "l-1", name: "Lamp", type: "light", entity: "light.lamp", x: 0, y: 0 }],
       },
     },
@@ -345,8 +345,8 @@ describe("S8.5: addCandidates — catalog + HA entities, merged, each located by
   const layout = (): Layout => ({
     version: 2, unit: "cm", north: 0,
     floors: {
-      ground: { title: "Ground", outline: [], walls: [], rooms: [{ id: "r-1", name: "Kitchen", area: "kitchen", label: "", kind: "room", pts: [], wk: [] }], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [] },
-      first: { title: "", outline: [], walls: [], rooms: [{ id: "r-2", name: "Bedroom", area: "bedroom", label: "", kind: "room", pts: [], wk: [] }], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [] },
+      ground: { title: "Ground", outline: [], walls: [], rooms: [{ id: "r-1", name: "Kitchen", area: "kitchen", kind: "room", pts: [], wk: [] }], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [] },
+      first: { title: "", outline: [], walls: [], rooms: [{ id: "r-2", name: "Bedroom", area: "bedroom", kind: "room", pts: [], wk: [] }], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [] },
     },
     catalog: [],
   } as unknown as Layout);
@@ -547,7 +547,7 @@ describe("S8.6: addCandidates emits one row per HA device, not one per entity", 
 describe("S8.8: a catalogued-but-unplaced device is never hidden, and shows as one merged row (or one per gang)", () => {
   const layout = (): Layout => ({
     version: 2, unit: "cm", north: 0,
-    floors: { ground: { title: "Ground", outline: [], walls: [], rooms: [{ id: "r1", name: "Living Room", area: "area_living", label: "", kind: "room", pts: [], wk: [] }], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [], unlinked: [] } },
+    floors: { ground: { title: "Ground", outline: [], walls: [], rooms: [{ id: "r1", name: "Living Room", area: "area_living", kind: "room", pts: [], wk: [] }], stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [], unlinked: [] } },
     catalog: [],
   } as unknown as Layout);
 
@@ -736,7 +736,7 @@ describe("S10.5: attached entities are excluded from every placing list", () => 
     version: 2, unit: "cm", north: 0,
     floors: {
       ground: {
-        title: "Ground", outline: [], walls: [], rooms: [{ id: "r1", name: "Living Room", area: "area_living", label: "", kind: "room", pts: [], wk: [] }],
+        title: "Ground", outline: [], walls: [], rooms: [{ id: "r1", name: "Living Room", area: "area_living", kind: "room", pts: [], wk: [] }],
         stairs: [], doors: [], openings: [], extras: [], furniture: [], devices: [], unlinked: [],
       },
     },
@@ -812,8 +812,8 @@ describe("switchChoicesForLight (S8.7): floor-scoped switches with a same-area n
   const baseLayout = (): Layout => ({
     version: 2, unit: "cm", north: 0,
     floors: {
-      basement: { title: "Basement", outline: [], rooms: [{ id: "r1", name: "Basement", area: "area_basement", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] },
-      ground: { title: "Ground", outline: [], rooms: [{ id: "r2", name: "Kitchen", area: "area_kitchen", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] },
+      basement: { title: "Basement", outline: [], rooms: [{ id: "r1", name: "Basement", area: "area_basement", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] },
+      ground: { title: "Ground", outline: [], rooms: [{ id: "r2", name: "Kitchen", area: "area_kitchen", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] },
     },
     catalog: [],
   });
@@ -855,7 +855,7 @@ describe("switchChoicesForLight (S8.7): floor-scoped switches with a same-area n
   it("Opus review: a living room with 'Ceiling light' and a 'TV plug' gives no suggestion and auto-links nothing (defect 4: the old sole-candidate rule wrongly bound the plug)", () => {
     const l: Layout = {
       version: 2, unit: "cm", north: 0,
-      floors: { ground: { title: "Ground", outline: [], rooms: [{ id: "r1", name: "Living room", area: "area_living", label: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [{ id: "d1", type: "light", entity: "light.ceiling", name: "Ceiling light", x: 10, y: 10 }], furniture: [], unlinked: [] } },
+      floors: { ground: { title: "Ground", outline: [], rooms: [{ id: "r1", name: "Living room", area: "area_living", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [{ id: "d1", type: "light", entity: "light.ceiling", name: "Ceiling light", x: 10, y: 10 }], furniture: [], unlinked: [] } },
       catalog: [],
     };
     const ha: HaData = {

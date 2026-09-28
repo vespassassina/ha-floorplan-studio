@@ -157,7 +157,7 @@ describe("applyShape", () => {
   it("adds a room with defaults and selects it", () => {
     const f = ground(), r = applyShape(f, "ground", { kind: "room", wall: "wall", pts: sq });
     const room = r.floor.rooms[f.rooms.length];
-    expect(room).toEqual({ id: "room-ground-8", name: "New room", area: "new-room", label: "", kind: "room", pts: sq, wk: ["wall", "wall", "wall", "wall"] });
+    expect(room).toEqual({ id: "room-ground-8", name: "New room", area: "new-room", kind: "room", pts: sq, wk: ["wall", "wall", "wall", "wall"] });
     expect(r.sel).toEqual({ t: "room", i: f.rooms.length });
     expect(f.rooms).toHaveLength(7); // input untouched
   });

@@ -2542,7 +2542,7 @@ test("a zone corner dropped on a wall where a third polygon has a corner is not 
   // a small structure whose corner (500, 250) lies on the living / kitchen wall x = 500
   await page.evaluate((tag) => {
     const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
-    l.floors.ground.rooms.push({ id: "room-ground-9", name: "Shed", area: "shed", label: "", kind: "structure", pts: [[500, 250], [540, 250], [540, 290]], wk: ["wall", "wall", "wall"] });
+    l.floors.ground.rooms.push({ id: "room-ground-9", name: "Shed", area: "shed", kind: "structure", pts: [[500, 250], [540, 250], [540, 290]], wk: ["wall", "wall", "wall"] });
     el.layout = l;
   }, EDITOR);
   const g0 = await groundOf(page), zi = g0.rooms.findIndex((r) => r.kind === "zone"), z = g0.rooms[zi];
@@ -4666,14 +4666,14 @@ async function addCssFixtures(page: Page) {
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), g = l.floors.ground;
     const kinds = ["garden", "terrace", "pavement", "fill", "zone", "water"];
-    kinds.forEach((k, i) => g.rooms.push({ id: `css-${k}`, name: k, area: "", label: "", kind: k, pts: [[1000 + i * 100, 0], [1080 + i * 100, 0], [1080 + i * 100, 80], [1000 + i * 100, 80]], wk: Array(4).fill(k === "zone" ? "boundary" : "wall") }));
-    g.rooms.push({ id: "css-none", name: "none", area: "", label: "", kind: "room", pts: [[1700, 0], [1780, 0], [1780, 80], [1700, 80]], wk: ["wall", "none", "wall", "wall"] });
+    kinds.forEach((k, i) => g.rooms.push({ id: `css-${k}`, name: k, area: "", kind: k, pts: [[1000 + i * 100, 0], [1080 + i * 100, 0], [1080 + i * 100, 80], [1000 + i * 100, 80]], wk: Array(4).fill(k === "zone" ? "boundary" : "wall") }));
+    g.rooms.push({ id: "css-none", name: "none", area: "", kind: "room", pts: [[1700, 0], [1780, 0], [1780, 80], [1700, 80]], wk: ["wall", "none", "wall", "wall"] });
     ["wall", "external", "fence", "edge"].forEach((k, i) => g.walls.push({ id: `css-w-${k}`, a: [1000, 200 + i * 40], b: [1200, 200 + i * 40], kind: k }));
     g.devices.push({ id: "css-out", type: "temp", entity: "sensor.css_out", x: 1040, y: 40 }); // inside css-garden
     // S2.9: types with no fixture elsewhere in the demo, so the colour-pair tests below have something to toggle .on.
     // S9.4: speaker joins the list for the same reason — ground floor has none, and the wave-arc pair needs one.
     ["contact", "climate", "tv", "computer", "humidity", "speaker"].forEach((t, i) => g.devices.push({ id: `css-${t}`, type: t, entity: `sensor.css_${t}`, x: 1900 + i * 40, y: 40 }));
-    g.rooms.push({ id: "css-pond", name: "pond", area: "", label: "", kind: "water", pts: [[1800, 200], [1880, 200], [1880, 280], [1800, 280]], wk: Array(4).fill("wall"), entity: "switch.css_pond" });
+    g.rooms.push({ id: "css-pond", name: "pond", area: "", kind: "water", pts: [[1800, 200], [1880, 200], [1880, 280], [1800, 280]], wk: Array(4).fill("wall"), entity: "switch.css_pond" });
     g.furniture.push({ id: "css-gate", symbol: "patio-wood", x: 1940, y: 240, rot: 0, w: 100, h: 100, entity: "cover.css_gate" });
     el.layout = l;
   }, EDITOR);

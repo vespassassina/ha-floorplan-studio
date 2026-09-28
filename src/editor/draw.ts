@@ -80,7 +80,7 @@ export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; s
     sel = { t: "edge", poly: "o", i: 0 };
   } else if (s.kind === "room" || s.kind === "zone" || s.kind === "water") {
     const name = s.area?.name ?? `New ${s.kind}`, dotted = s.kind !== "room";
-    g.rooms.push({ id: newId(g, floor, "room"), name, area: s.kind === "water" ? "" : s.area?.id ?? slug(name), label: "", kind: s.kind, pts, wk: pts.map((): WallKind => (dotted ? "boundary" : "wall")) });
+    g.rooms.push({ id: newId(g, floor, "room"), name, area: s.kind === "water" ? "" : s.area?.id ?? slug(name), kind: s.kind, pts, wk: pts.map((): WallKind => (dotted ? "boundary" : "wall")) });
     sel = { t: "room", i: g.rooms.length - 1 };
   } else if (s.kind === "wall") {
     for (let i = 1; i < pts.length; i++) g.walls.push({ id: newId(g, floor, "wall"), a: pts[i - 1], b: [pts[i][0], pts[i][1]], kind: s.wall });
@@ -93,7 +93,7 @@ export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; s
       const kinds = loop.walls.map((i) => g.walls[i].kind), kind = roomKindFor(kinds);
       // Walls come in walking order, so wall k is the edge from corner k to corner k+1.
       g.walls = g.walls.filter((_, i) => !loop.walls.includes(i));
-      g.rooms.push({ id: newId(g, floor, "room"), name: `New ${kind}`, area: "", label: "", kind, pts: loop.pts, wk: kinds as EdgeKind[] });
+      g.rooms.push({ id: newId(g, floor, "room"), name: `New ${kind}`, area: "", kind, pts: loop.pts, wk: kinds as EdgeKind[] });
       sel = { t: "room", i: g.rooms.length - 1 };
       const note = `${kind === "room" ? "Room" : kind === "zone" ? "Zone" : "Garden"} created from ${kinds.length} walls`;
       const h = kind === "zone" ? g : loop.pts.reduce((x, p) => stitch(x, p), g);
