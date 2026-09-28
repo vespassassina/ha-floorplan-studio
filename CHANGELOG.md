@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.14
+
+- A window's or glass door's `cover` (electric curtains) no longer turns the opening orange, the security-warning colour meant for a shutter or garage opener; an attached lock left unlocked now shows that alert instead, on doors and windows alike.
+- A newly added device now spawns at the current viewport's centre instead of off in the top-right corner of the house.
+- A room or zone can be sent to back or brought to front from its right-click menu, so a shape drawn over another one's fill can be restacked without redrawing it.
+- Removed `Room.label`, a schema field the editor never had a control to set or clear; a stray value from an old or hand-edited file (`office` reading `BURO`, say) is now dropped silently on load instead of being shown.
+
 ## 0.12.13
 
 - The editor now displays live Home Assistant device state while connected: active lights, locks, device states, and room glows render live directly in the editor.
