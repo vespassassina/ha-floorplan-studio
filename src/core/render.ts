@@ -209,11 +209,13 @@ export const FLOORPLAN_CSS = `
    that property (both selectors are two classes each, equal specificity), while the shared stroke colour agrees
    either way. */
 .door.alarm{stroke:var(--fp-open-door)}
-/* S9.1: an open contact door or window is dashed, in --fp-open-door (default --fp-dev-contact; the card's
-   open_color option overrides it — a class rule, not a presentation attribute, per finding 18). A cover door's own
-   open state (.cover-open) is unrelated to contact and keeps its plain orange, undashed; it comes after .open in
-   source order and both selectors are two classes each, so on a door that somehow carries both, .cover-open wins
-   on every property it sets, including the dasharray it explicitly clears back to none. */
+/* S9.1: an open contact door or window (or one left unlocked, S4.24/2026-09-28) is dashed, in --fp-open-door
+   (default --fp-dev-contact; the card's open_color option overrides it — a class rule, not a presentation
+   attribute, per finding 18). A cover door's own open state (.cover-open) is unrelated to contact and keeps its
+   plain orange, undashed; it comes after .open in source order and both selectors are two classes each, so on a
+   door that somehow carries both, .cover-open wins on every property it sets, including the dasharray it
+   explicitly clears back to none. render.ts never sets .cover-open on a window or glass door at all — there
+   cover is curtains, not a security state (Diego, 2026-09-28). */
 .door.open{stroke:var(--fp-open-door);stroke-dasharray:10 6} .door.cover-open{stroke:var(--fp-open);stroke-dasharray:none}
 /* S8.9 finding 3: a door's own stroke is now as thin as the internal wall it sits on, so this invisible twin
    (drawn first, same data-d, at the old fixed 22 cm) keeps the click target exactly as wide as it always was. */
@@ -761,13 +763,20 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   });
 
   f.doors.forEach((d, i) => {
-    // S4.24: several contact sensors may be attached; the door reads open if any one of them does.
-    const open = (d.sensors ?? []).some((e) => o.state?.[e]?.state === "on"), cover = d.cover ? o.state?.[d.cover] : undefined;
+    // S4.24: several contact sensors may be attached; the door reads open if any one does, and the same for an
+    // attached smart lock left unlocked (Diego, 2026-09-28: an unlocked door or window is the same security
+    // state as an open one, so it gets the same alert).
+    const open = (d.sensors ?? []).some((e) => o.state?.[e]?.state === "on") || (d.locks ?? []).some((e) => o.state?.[e]?.state === "unlocked");
+    const cover = d.cover ? o.state?.[d.cover] : undefined;
+    // Diego, 2026-09-28: on a window or glass door, `cover` is curtains/blinds (schema.ts's own doc comment) -
+    // open curtains are not a security state and must never colour the opening. On a plain door or a sealed
+    // opening, `cover` is a shutter or garage opener, which still is.
+    const coverIsCurtain = d.kind === "window" || d.kind === "glass";
     // S10.3: a triggered vibration sensor gives the door the same red and the same pulsing alert line as an open
     // contact, but solid, not dashed - dashed keeps meaning "open" alone. Both at once: dashed (open wins the
     // dash, class order below puts .open after .alarm so its dasharray is the one asserted last), red, one line.
     const vibrating = (d.vibration ?? []).some((e) => o.state?.[e]?.state === "on");
-    const cls = ["door", `door-${esc(String(d.kind))}`, vibrating ? "alarm" : "", open ? "open" : "", cover?.state === "open" ? "cover-open" : ""].filter(Boolean).join(" ");
+    const cls = ["door", `door-${esc(String(d.kind))}`, vibrating ? "alarm" : "", open ? "open" : "", !coverIsCurtain && cover?.state === "open" ? "cover-open" : ""].filter(Boolean).join(" ");
     const sel = o.selection?.t === "door" && o.selection.i === i;
     const w = wallWidthAt(f, d.a, d.b);
     const seg = `x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}"`;
