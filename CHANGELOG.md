@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.13
+
+- The editor now displays live Home Assistant device state while connected: active lights, locks, device states, and room glows render live directly in the editor.
+- Motion sensors in the editor track motion fade with their own timer, mirroring the card's fade behaviour across state updates and floor switches.
+
 ## 0.12.12
 
 - Six new themes: `coffee` (rich espresso dark), `a-team` (matte black with red and gold), `space` (deep navy with cyan and purple), `cyberpunk` (neon cyan, magenta and yellow), `carpenter-brut` (blood red, hot pink and dark crimson), and `beach-house` (warm sand, sea-teal and palm green), bringing the total to 13 themes.
