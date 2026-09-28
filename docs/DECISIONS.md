@@ -2,6 +2,24 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-09-28: a window's or glass door's own `cover` is curtains, not a security state
+
+The field problem: Diego's office window has electric curtains wired as a
+`cover` entity (schema.ts's own field doc: `cover` doubles as the
+electric-curtain field on a glass door or window). Opening the curtains
+turned the window orange (`.cover-open`), reading as a security warning for
+an action that carries none — a plain door's or sealed opening's `cover` is a
+shutter or garage opener, where that colour is earned.
+
+Decided: `renderFloor` (`src/core/render.ts`) only sets `.cover-open` on a
+`door` or `sealed` kind; a `window` or `glass` door's cover state never
+colours the opening, no schema change needed. At the same time, an attached
+`lock` (`Door.locks`) left `unlocked` now marks the opening `open`, the same
+dashed red and pulsing alert line as a triggered contact sensor — an unlocked
+door or window is exactly that kind of security state, and it had no visual
+before this. `docs/SPEC.md`'s device table (binary_sensor/lock row, cover
+rows) documents both.
+
 ## 2026-09-28: `roomEmpty` role override, and a sixth theme, beach-house
 
 The field problem: `a-team`, `space`, `cyberpunk` and `carpenter-brut`

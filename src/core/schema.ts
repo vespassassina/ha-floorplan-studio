@@ -34,9 +34,12 @@ export type StairShape = "straight" | "round";
 export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape; steps: number; rot: number; dia?: number; inner?: number; color?: string; texture?: string; textureRot?: number; textureScale?: number }
 /**
  * `sensors`/`vibration`/`locks` (S4.24): every contact sensor, vibration sensor and smart lock attached to
- * this door or window — several of each allowed. `cover` (a curtain/blind entity) is not restricted by
+ * this door or window — several of each allowed. An unlocked lock reads the opening as open, same as a
+ * triggered contact sensor (Diego, 2026-09-28). `cover` (a curtain/blind entity) is not restricted by
  * kind — a plain door's garage opener is a cover too — it just doubles as the electric-curtain field on a
- * glass door or window.
+ * glass door or window. render.ts only colours the opening from `cover` on a plain `door` or `sealed` kind;
+ * on `window`/`glass` it is curtains, not a security state, and opening them never colours the window
+ * (Diego, 2026-09-28 — the office window's curtains were flipping it orange).
  */
 export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensors?: string[]; vibration?: string[]; locks?: string[]; cover?: string; locked?: boolean }
 export interface Opening { id: string; a: Pt; b: Pt; locked?: boolean }

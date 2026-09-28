@@ -91,6 +91,27 @@ describe("renderFloor", () => {
     expect(html).toMatch(/<line[^>]*data-d="2"[^>]*class="[^"]*cover-open/);
   });
 
+  it("Diego, 2026-09-28: a window's or glass door's own cover is curtains, not a security state, so opening it never colours the opening — only a plain door's or sealed opening's cover (a shutter/garage opener) does", () => {
+    const f = structuredClone(ground);
+    f.doors[1].cover = "cover.demo_patio_curtain"; // door 1 is "glass"
+    const glassOpen = renderFloor(f, { ...base, state: { "cover.demo_patio_curtain": st("open") } });
+    expect(glassOpen).not.toMatch(/data-d="2"[^>]*cover-open/);
+    expect(glassOpen).not.toContain("cover-open");
+    // removing the fix (kind check) would make this fail: the same state on the existing garage door (kind "door") still colours it
+    const garageOpen = renderFloor(ground, { ...base, state: { "cover.demo_garage_door": st("open") } });
+    expect(garageOpen).toMatch(/<line[^>]*data-d="2"[^>]*class="[^"]*cover-open/);
+  });
+
+  it("Diego, 2026-09-28: an unlocked attached smart lock marks the door/window open, same as a triggered contact sensor", () => {
+    const f = structuredClone(ground);
+    f.doors[1].locks = ["lock.demo_patio_door"]; // door 1 is "glass"
+    const unlocked = renderFloor(f, { ...base, state: { "lock.demo_patio_door": st("unlocked") } });
+    expect(unlocked).toMatch(/<line[^>]*data-d="1"[^>]*class="[^"]*\bopen\b/);
+    expect(unlocked.match(/<line class="door-alert"[^>]*>/g)).toHaveLength(1);
+    const locked = renderFloor(f, { ...base, state: { "lock.demo_patio_door": st("locked") } });
+    expect(locked).not.toMatch(/<line[^>]*data-d="1"[^>]*class="[^"]*\bopen\b/);
+  });
+
   it("gives a light that is on the on class", () => {
     const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
     expect(html).toMatch(/<g[^>]*data-x="1"[^>]*class="dev dev-light on"/);
