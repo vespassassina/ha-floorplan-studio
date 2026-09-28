@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type View } from "../../src/card/viewport";
+import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type View } from "../../src/card/viewport";
 
 // An asymmetric plan box (not square, not at the origin), so a swapped x/y or w/h shows up.
 const FIT: View = { x: -60, y: -40, w: 1200, h: 800 };
@@ -37,8 +37,19 @@ describe("viewport: panBy", () => {
 });
 
 describe("viewport: clamp", () => {
-  it("never zooms out past fit: a view wider than fit comes back as fit exactly", () => {
-    expect(clamp(zoomAt(FIT, 0.5, 100, 100), FIT)).toEqual(FIT);
+  it("a view a little wider than fit is left alone, not snapped back to fit (0.12.14: zoom-out must work)", () => {
+    const v = zoomAt(FIT, 0.7, 540, 360); // wider than fit, short of the MIN_ZOOM floor
+    expect(clamp(v, FIT)).toEqual(v);
+  });
+
+  it("never zooms out past MIN_ZOOM (0.4x, so 2.5x fit's own box), keeping the view's centre", () => {
+    expect(MIN_ZOOM).toBe(0.4);
+    const far = zoomAt(FIT, MIN_ZOOM / 2, 540, 360); // the centre of FIT, twice as far out as the floor allows
+    const c = clamp(far, FIT);
+    expect(c.w).toBeCloseTo(FIT.w / MIN_ZOOM);
+    expect(c.h).toBeCloseTo(FIT.h / MIN_ZOOM);
+    expect(c.x + c.w / 2).toBeCloseTo(540);
+    expect(c.y + c.h / 2).toBeCloseTo(360);
   });
 
   it("never zooms in past MAX_ZOOM (8x), keeping the view's centre", () => {

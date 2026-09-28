@@ -597,7 +597,10 @@ describe("viewBoxFor", () => {
   it("wraps the outline with padding", () => {
     // S8.13: the demo ground floor's camera sits at 20,580, so its 100 cm cone widens the left and bottom past the
     // plain 60 cm pad; its lamps (250,200 and 650,200) reach 150 cm and stay inside the pad, so nothing else moves.
-    expect(viewBoxFor(ground, 60)).toEqual({ x: -80, y: -60, w: 940, h: 740 });
+    // 0.12.14: the box is now 1040x750, not 940x740 — the garden and its pond (a `structuralPoints` fixture,
+    // read: `viewBoxFor`'s own comment) sit outside the outline, to the right and below, so they widen the plain
+    // pad on those sides even with no device near them.
+    expect(viewBoxFor(ground, 60)).toEqual({ x: -80, y: -60, w: 1040, h: 750 });
   });
   it("defaults to 60 cm of padding, widened where a light or camera reaches past it", () => {
     expect(viewBoxFor(ground).x).toBe(-80);
@@ -606,7 +609,8 @@ describe("viewBoxFor", () => {
   it("S5.7: keeps the plain padding exactly when nothing on the floor reaches further", () => {
     const f = structuredClone(ground);
     f.devices = [];
-    expect(viewBoxFor(f, 60)).toEqual({ x: -60, y: -60, w: 920, h: 720 });
+    // 0.12.14: 1020x750, not 920x720 — the garden and pond widen the box on their own, with no device involved.
+    expect(viewBoxFor(f, 60)).toEqual({ x: -60, y: -60, w: 1020, h: 750 });
   });
 
   it("S5.7: widens the padding so a lamp's aura, 20 cm inside the right wall, is never clipped", () => {
@@ -626,13 +630,15 @@ describe("viewBoxFor", () => {
   it("S8.13: pads only where a reach passes the plain pad: a lamp in the middle of the plan widens nothing", () => {
     const f = structuredClone(ground);
     f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 400, y: 300 }];
-    expect(viewBoxFor(f, 60)).toEqual({ x: -60, y: -60, w: 920, h: 720 });
+    // 0.12.14: 1020x750 — the garden and pond's own base box (see "S5.7: keeps the plain padding" above), untouched.
+    expect(viewBoxFor(f, 60)).toEqual({ x: -60, y: -60, w: 1020, h: 750 });
   });
 
   it("S8.13: a lamp by the left wall widens only the left side, by its whole 150 cm aura", () => {
     const f = structuredClone(ground);
     f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 20, y: 300 }];
-    expect(viewBoxFor(f, 60)).toEqual({ x: -130, y: -60, w: 990, h: 720 });
+    // 0.12.14: 1090x750 — the same 70 cm the lamp always added to the left, on top of the wider 1020x750 base.
+    expect(viewBoxFor(f, 60)).toEqual({ x: -130, y: -60, w: 1090, h: 750 });
   });
 
   it("S8.13: a turned plan pads the turned lamp, not the unturned one", () => {
@@ -654,7 +660,9 @@ describe("viewBoxFor", () => {
   it("S8.13 review: a stray lamp far outside the plan does not shrink the house; it stays off view, as before", () => {
     const f = structuredClone(ground);
     f.devices = [{ id: "l1", type: "light", entity: "light.x", x: 1e6, y: 300 }];
-    expect(viewBoxFor(f, 60)).toEqual({ x: -60, y: -60, w: 920, h: 720 });
+    // 0.12.14: still the plain 1020x750 base — a stray device is excluded from `structuralPoints` (its own
+    // comment) exactly as it was excluded from the outline before this fix, so it cannot balloon the view either.
+    expect(viewBoxFor(f, 60)).toEqual({ x: -60, y: -60, w: 1020, h: 750 });
   });
 
   it("S5.7 break it: a light exactly on the wall, or the plan's only device, still gives a finite box with the whole circle inside", () => {
@@ -1573,7 +1581,9 @@ describe("plan rotation (S1.33)", () => {
   it("viewBoxFor at 90 on a wide outline is tall, at 45 it is the box of the turned corners, at 0 or none unchanged", () => {
     const f = structuredClone(ground);
     f.outline = [[0, 0], [1000, 0], [1000, 200], [0, 200]];
-    f.devices = []; // pure padding/rotation geometry, not S5.7's device-reach widening
+    // pure padding/rotation geometry: no rooms, walls, furniture or devices of `ground`'s own left over to widen
+    // the box past this outline (0.12.14: `viewBoxFor` now bounds on all of those, not the outline alone).
+    f.rooms = []; f.stairs = []; f.walls = []; f.doors = []; f.openings = []; f.extras = []; f.furniture = []; f.unlinked = []; f.devices = [];
     const flat = viewBoxFor(f, 0);
     expect(flat).toEqual({ x: 0, y: 0, w: 1000, h: 200 });
     const piv: [number, number] = [500, 100];

@@ -347,17 +347,23 @@ export const LIGHT_REACH = 150;
 /** cm an open door's alert line is wider than the door's own line (S8.13). */
 export const DOOR_ALERT_EXTRA = 16;
 
-/** The box that fits the outline plus `pad`, in what the screen shows: turned by `rotate` when there is one. S5.7: a
- * lamp's aura or a camera's cone is never clipped. S8.13: each one widens the box only where its own circle passes
- * the padded outline, so a lamp in the middle of the plan costs no space. */
+/** The box that fits every structural point on the floor plus `pad`, in what the screen shows: turned by `rotate`
+ * when there is one. Bounds on `structuralPoints` (outline, rooms, stairs, walls, furniture, unlinked), not just
+ * the outline (Diego field report, 0.12.14: a garden shed drawn outside the house outline was clipped by the
+ * card's default view with no way to zoom out to it), so anything drawn on the plan — a garden, a shed, a
+ * structure outside the walls — is always in the default view. Devices are not in that unconditional set: only a
+ * lit lamp or a camera widens the box, by its own reach, and only when it is near the rest of the plan already
+ * (S5.7, S8.13) — a device dragged or imported far outside the house must not balloon the view the way a real
+ * garden structure should, so it stays off view exactly as before this fix. */
 export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt }): { x: number; y: number; w: number; h: number } {
-  if (!f.outline.length) return { x: -pad, y: -pad, w: 1000 + 2 * pad, h: 1000 + 2 * pad };
+  const content = structuralPoints(f);
+  if (!content.length) return { x: -pad, y: -pad, w: 1000 + 2 * pad, h: 1000 + 2 * pad };
   const turn = (p: Pt) => (rotate && rotate.deg % 360 ? rotateAbout(p, rotate.deg, rotate.pivot) : p);
-  const boxes = f.outline.map((p) => [turn(p), pad] as const);
+  const boxes = content.map((p) => [turn(p), pad] as const);
   // Only a lamp or camera on or near the plan counts: one far outside it (a stray drag, a layout in mm) stays off
   // view, as before, instead of shrinking the house to a speck. Its centre is the one the aura is drawn at.
-  const ox = f.outline.map((p) => p[0]), oy = f.outline.map((p) => p[1]);
-  const near = (c: Pt, r: number) => c[0] >= Math.min(...ox) - r && c[0] <= Math.max(...ox) + r && c[1] >= Math.min(...oy) - r && c[1] <= Math.max(...oy) + r;
+  const cx = content.map((p) => p[0]), cy = content.map((p) => p[1]);
+  const near = (c: Pt, r: number) => c[0] >= Math.min(...cx) - r && c[0] <= Math.max(...cx) + r && c[1] >= Math.min(...cy) - r && c[1] <= Math.max(...cy) + r;
   for (const d of f.devices) {
     const r = d.type === "light" ? LIGHT_REACH : d.type === "camera" ? DEVICE_REACH : 0;
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
@@ -368,8 +374,10 @@ export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
-/** Every point that makes up the floor: outline, rooms, stairs, walls, doors, openings, extras, furniture (its centre) and devices (a heater's two ends, else the centre). Only finite points; the editor's Re-center fits them all. */
-export function contentPoints(f: Floor): Pt[] {
+/** Every drawn structural point on the floor: outline, rooms, stairs, walls, doors, openings, extras, furniture
+ * (its centre) and unlinked sensors. Devices are deliberately excluded — `viewBoxFor` bounds on their reach, not
+ * their raw position (see its own comment); `contentPoints` below is the wider set that does include them. */
+function structuralPoints(f: Floor): Pt[] {
   const out: Pt[] = [];
   const add = (p: unknown) => { if (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) out.push([p[0], p[1]]); };
   for (const p of f.outline ?? []) add(p);
@@ -377,8 +385,16 @@ export function contentPoints(f: Floor): Pt[] {
   for (const t of f.stairs ?? []) for (const p of t.pts ?? []) add(p);
   for (const k of ["walls", "doors", "openings", "extras"] as const) for (const o of f[k] ?? []) { add(o.a); add(o.b); }
   for (const m of f.furniture ?? []) add([m.x, m.y]);
-  for (const d of f.devices ?? []) { if ("a" in d) { add(d.a); add(d.b); } else add([d.x, d.y]); }
   for (const u of f.unlinked ?? []) add([u.x, u.y]);
+  return out;
+}
+
+/** Every point that makes up the floor: `structuralPoints` plus devices (a heater's two ends, else the centre).
+ * Only finite points; the editor's Re-center fits them all. */
+export function contentPoints(f: Floor): Pt[] {
+  const out = structuralPoints(f);
+  const add = (p: unknown) => { if (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) out.push([p[0], p[1]]); };
+  for (const d of f.devices ?? []) { if ("a" in d) { add(d.a); add(d.b); } else add([d.x, d.y]); }
   return out;
 }
 

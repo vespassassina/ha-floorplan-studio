@@ -483,25 +483,27 @@ test.describe("S7.4 zoom and pan", () => {
     await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(fit.w * 0.95);
   });
 
-  test("the plan never zooms out past fit nor in past 8x", async ({ page }) => {
+  test("the plan zooms out to MIN_ZOOM (past fit) and in to 8x, both ends holding", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const fit = await viewBox(page);
     const b = await svgBox(page);
     for (let i = 0; i < 40; i++) await ctrlWheel(page, b.x + b.width / 2, b.y + b.height / 2, -300);
     await expect.poll(async () => (await viewBox(page)).w).toBeCloseTo(fit.w / 8, 3);
-    for (let i = 0; i < 40; i++) await ctrlWheel(page, b.x + b.width / 2, b.y + b.height / 2, 300);
-    await expect.poll(() => viewBox(page)).toEqual(fit);
+    for (let i = 0; i < 80; i++) await ctrlWheel(page, b.x + b.width / 2, b.y + b.height / 2, 300);
+    // 0.12.14: zooming out no longer stops at fit — it holds at MIN_ZOOM (0.4x, 2.5x fit's own box).
+    await expect.poll(async () => (await viewBox(page)).w).toBeCloseTo(fit.w / 0.4, 3);
   });
 
-  test("zoom buttons: + zooms in, - zooms out, fit goes back; - and fit are disabled at fit", async ({ page }) => {
+  test("zoom buttons: + zooms in, - zooms out past fit, fit goes back; fit alone is disabled at fit", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const fit = await viewBox(page);
     const zoomIn = card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]');
     const zoomOut = card(page).locator('css=.fp-zoom button[aria-label="Zoom out"]');
     const fitBtn = card(page).locator('css=.fp-zoom button[aria-label="Fit"]');
-    await expect(zoomOut).toBeDisabled();
+    // 0.12.14: "−" stays enabled at fit — there is more to zoom out to (MIN_ZOOM) — only Fit (nothing to reset) is.
+    await expect(zoomOut).toBeEnabled();
     await expect(fitBtn).toBeDisabled();
     await zoomIn.click();
     await zoomIn.click();
@@ -554,9 +556,12 @@ test.describe("S7.4 zoom and pan", () => {
     expect(await viewBox(page)).toEqual(fit);
   });
 
-  test("zoom: false keeps the viewBox fixed, shows no buttons and leaves touch-action alone", async ({ page }) => {
+  test("zoom: false blocks wheel and double-tap zoom and shows no buttons, but a drag still pans", async ({ page }) => {
     await open(page);
-    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), zoom: false }, states());
+    // `zoom_level` pins the card narrower than the whole floor: at plain fit there is nothing off screen to pan
+    // to, and `clamp()` correctly snaps any pan straight back (viewport.test.ts, "at fit zoom there is nothing to
+    // pan") — that is not a bug. A pinned card is where "always draggable" actually has somewhere to go.
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), zoom: false, zoom_level: 2 }, states());
     const fit = await viewBox(page);
     const b = await svgBox(page);
     await ctrlWheel(page, b.x + b.width / 2, b.y + b.height / 2, -300);
@@ -564,7 +569,21 @@ test.describe("S7.4 zoom and pan", () => {
     await page.waitForTimeout(50);
     expect(await viewBox(page)).toEqual(fit);
     await expect(card(page).locator("css=.fp-zoom")).toHaveCount(0);
-    expect(await card(page).evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector("svg")!).touchAction)).toBe("auto");
+
+    // Diego field report, 0.12.14: "make the card always draggable" — `zoom: false` turns off pinch, wheel and the
+    // buttons, not the one-finger pan, so `touch-action` stays `pan-y` (the same value the zoomable card starts
+    // at) instead of `auto`, and a plain drag still moves the plan.
+    expect(await card(page).evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector("svg")!).touchAction)).toBe("pan-y");
+    const midX = b.x + b.width / 2, midY = b.y + b.height / 2;
+    await page.mouse.move(midX, midY);
+    await page.mouse.down();
+    await page.mouse.move(midX + 20, midY, { steps: 4 });
+    await page.mouse.move(midX + 40, midY, { steps: 4 });
+    await page.mouse.up();
+    const panned = await viewBox(page);
+    expect(panned.w).toBeCloseTo(fit.w, 5); // panning never zooms
+    expect(panned.x).toBeCloseTo(fit.x - 40 * (fit.w / b.width), 0); // the plan followed the pointer 40 px right
+    expect(panned.y).toBeCloseTo(fit.y, 5);
   });
 
   // S7.15: at fit the page may scroll under a vertical swipe (there is nothing to pan); zoomed, the plan takes every
@@ -614,7 +633,8 @@ test.describe("S7.4 zoom and pan", () => {
     await card(page).locator("css=.fp-floors button").nth(1).click();
     const firstFit = await viewBox(page);
     expect(firstFit.w).toBeGreaterThan(z.w); // a new floor opens at its own fit, not at the old zoom
-    await expect(card(page).locator('css=.fp-zoom button[aria-label="Zoom out"]')).toBeDisabled();
+    // 0.12.14: "−" stays enabled at fit — MIN_ZOOM is further out — only "Fit" is disabled there.
+    await expect(card(page).locator('css=.fp-zoom button[aria-label="Fit"]')).toBeDisabled();
 
     await card(page).locator("css=.fp-floors button").nth(0).click();
     expect(await viewBox(page)).toEqual(fit);
@@ -833,10 +853,12 @@ test.describe("S9.6 a card pinned to one room", () => {
       expect(await viewBox(page)).toEqual(home);
     });
 
-    test("an unpinned card at fit still has \"−\" and Fit disabled, exactly as before S9.6", async ({ page }) => {
+    // 0.12.14: "−" no longer disables at fit — MIN_ZOOM is further out than fit, so zooming out still has
+    // somewhere to go. Fit stays disabled: an unpinned card already at fit has nothing to reset to.
+    test("an unpinned card at fit still has Fit disabled, but \"−\" is not: MIN_ZOOM is further out", async ({ page }) => {
       await open(page);
       await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
-      await expect(minusBtn(page)).toBeDisabled();
+      await expect(minusBtn(page)).toBeEnabled();
       await expect(card(page).locator('css=.fp-zoom button[aria-label="Fit"]')).toBeDisabled();
       await expect(card(page).locator('css=.fp-zoom button[aria-label="Reset view"]')).toHaveCount(0);
     });

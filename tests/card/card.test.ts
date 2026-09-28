@@ -1255,6 +1255,9 @@ describe("FloorplanStudioCard", () => {
   // `auto = max(1, longest side of the fit view box / 1000)` — the same box `render()` already computes with
   // `viewBoxFor`. A synthetic floor whose outline is 1880 cm square gives, after the fixed 60 cm pad on every
   // side, a view box exactly 2000x2000 — auto = 2 on the nose, so the expected scale is exact, not approximate.
+  // The demo's own ground floor gives auto = 1.04, not 1: its garden and pond sit outside the outline (0.12.14
+  // fix, `viewBoxFor` bounds on every point on the floor, not the outline alone), so its fit view box is 1040 cm
+  // on its longest side, not 1000.
   describe("S9.2: icons stay visible on large plans", () => {
     /** A floor whose fit view box (outline + the fixed 60 cm pad) is exactly `side` cm square, so `auto` comes
      * out as a round number. One light device near the centre, so a Playwright sibling test can click it. */
@@ -1273,12 +1276,12 @@ describe("FloorplanStudioCard", () => {
       return l;
     }
 
-    it("the demo (1000 cm or less, no icon_size) renders with scale 1, byte-identical to before S9.2", async () => {
+    it("the demo (auto 1.04, no icon_size) renders with scale 1 / 1.04", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floor: "ground" });
       el.hass = stubHass() as never;
       await el.updateComplete;
-      expect(lastRenderState().scale).toBe(1);
+      expect(lastRenderState().scale).toBeCloseTo(1 / 1.04, 10);
     });
 
     it("a 2000 cm plan (view box exactly 2000 cm on its longest side) scales the icon group 2x, i.e. scale 0.5", async () => {
@@ -1289,39 +1292,39 @@ describe("FloorplanStudioCard", () => {
       expect(lastRenderState().scale).toBeCloseTo(0.5, 10);
     });
 
-    it("icon_size 1.5 on the demo (auto 1) gives scale 1/1.5", async () => {
+    it("icon_size 1.5 on the demo (auto 1.04) gives scale 1/(1.04*1.5)", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floor: "ground", icon_size: 1.5 });
       el.hass = stubHass() as never;
       await el.updateComplete;
-      expect(lastRenderState().scale).toBeCloseTo(1 / 1.5, 10);
+      expect(lastRenderState().scale).toBeCloseTo(1 / (1.04 * 1.5), 10);
     });
 
-    it("icon_size 0 and -1 clamp to 0.5, so scale is 1/0.5 = 2 on the demo", async () => {
+    it("icon_size 0 and -1 clamp to 0.5, so scale is 1/(1.04*0.5) on the demo", async () => {
       for (const bad of [0, -1]) {
         const el = await mount();
         el.setConfig({ layout: structuredClone(L), floor: "ground", icon_size: bad });
         el.hass = stubHass() as never;
         await el.updateComplete;
-        expect(lastRenderState().scale, `icon_size ${bad}`).toBeCloseTo(2, 10);
+        expect(lastRenderState().scale, `icon_size ${bad}`).toBeCloseTo(1 / (1.04 * 0.5), 10);
       }
     });
 
-    it("icon_size 10 clamps to 3, so scale is 1/3 on the demo", async () => {
+    it("icon_size 10 clamps to 3, so scale is 1/(1.04*3) on the demo", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floor: "ground", icon_size: 10 });
       el.hass = stubHass() as never;
       await el.updateComplete;
-      expect(lastRenderState().scale).toBeCloseTo(1 / 3, 10);
+      expect(lastRenderState().scale).toBeCloseTo(1 / (1.04 * 3), 10);
     });
 
-    it('icon_size "big" (non-numeric) and NaN fall back to the default 1, so scale is 1 on the demo', async () => {
+    it('icon_size "big" (non-numeric) and NaN fall back to the default 1, so scale is 1/1.04 on the demo', async () => {
       for (const bad of ["big" as unknown as number, NaN] as const) {
         const el = await mount();
         el.setConfig({ layout: structuredClone(L), floor: "ground", icon_size: bad });
         el.hass = stubHass() as never;
         await el.updateComplete;
-        expect(lastRenderState().scale, `icon_size ${String(bad)}`).toBe(1);
+        expect(lastRenderState().scale, `icon_size ${String(bad)}`).toBeCloseTo(1 / 1.04, 10);
       }
     });
   });
@@ -1684,6 +1687,97 @@ describe("FloorplanStudioCard", () => {
       // set — the regression this test guards against).
       const el2 = await mountPinned({});
       expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+    });
+  });
+
+  // Diego field report, 0.12.14: "make the card always draggable" — `zoom: false` must turn off pinch, wheel and
+  // the zoom buttons without turning off the one-finger pan `_bindZoom` binds regardless. jsdom has no layout
+  // engine, so `getBoundingClientRect` is stubbed on the plan's own `<svg>` (the same trick `actions.test.ts`
+  // documents for pointer events) — without it, `onMove`'s `r.width` is 0 and every drag divides by zero into a
+  // box `clamp` throws away as non-finite, which would pass this test whether pan works or not (finding 4).
+  //
+  // `clamp()` itself (viewport.test.ts, "at fit zoom there is nothing to pan") snaps any pan back to `fit` exactly
+  // once the view is as wide as `fit` — there is nothing off screen to reveal, so that is correct, not a bug. The
+  // pan below therefore needs `zoom_level` to pin the card narrower than `fit` first, the same way a room-pinned
+  // card would be configured; only then does a drag under `zoom: false` have anywhere to go.
+  describe("S7.4 review, 0.12.14: pan is not gated by zoom: false", () => {
+    const box = (el: FloorplanStudioCard) => {
+      const [x, y, w, h] = el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number);
+      return { x: x!, y: y!, w: w!, h: h! };
+    };
+
+    /** A pointer event at client (x, y) with its own pointerId; see actions.test.ts's own copy of this helper.
+     * `_bindZoom`'s own `onDown` reads `isPrimary` to tell a first finger from a second (pointer id 1 is always
+     * the primary one here, matching how a real first touch/click arrives). */
+    function at(el: Element, type: string, x: number, y: number, id = 1) {
+      const e = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y });
+      Object.defineProperty(e, "pointerId", { value: id });
+      Object.defineProperty(e, "isPrimary", { value: id === 1 });
+      el.dispatchEvent(e);
+    }
+
+    async function mountDraggable(config: Record<string, unknown>) {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), floor: "ground", ...config });
+      el.hass = stubHass() as never;
+      await el.updateComplete;
+      const svg = el.shadowRoot!.querySelector("svg")!;
+      svg.getBoundingClientRect = () => ({ x: 0, y: 0, top: 0, left: 0, right: 300, bottom: 300, width: 300, height: 300, toJSON: () => ({}) }) as DOMRect;
+      return el;
+    }
+
+    it("a one-finger drag pans the plan even with zoom: false (TAP_SLOP_PX cleared first)", async () => {
+      const el = await mountDraggable({ zoom: false, zoom_level: 2 }); // pinned narrower than fit: room to pan
+      const fit = box(el);
+      const svg = el.shadowRoot!.querySelector("svg")!;
+      at(svg, "pointerdown", 100, 100);
+      at(svg, "pointermove", 108, 100); // past TAP_SLOP_PX (6)
+      at(svg, "pointermove", 140, 100);
+      at(svg, "pointerup", 140, 100);
+      await el.updateComplete;
+      const panned = box(el);
+      expect(panned.w).toBeCloseTo(fit.w, 6); // a pan never changes the zoom
+      expect(panned.x).toBeCloseTo(fit.x - 40 * (fit.w / 300), 6); // the plan followed the pointer 40 px right
+      expect(panned.y).toBeCloseTo(fit.y, 6);
+    });
+
+    it("with zoom: false a second pointer never joins as a pinch: only the first finger's drag moves the plan", async () => {
+      const el = await mountDraggable({ zoom: false, zoom_level: 2 }); // pinned narrower than fit: room to pan
+      const fit = box(el);
+      const svg = el.shadowRoot!.querySelector("svg")!;
+      at(svg, "pointerdown", 100, 100, 1);
+      at(svg, "pointerdown", 200, 100, 2); // a second finger lands; must not start a pinch
+      at(svg, "pointermove", 300, 100, 2); // moving the (ignored) second finger alone must not zoom
+      await el.updateComplete;
+      expect(box(el)).toEqual(fit);
+      at(svg, "pointermove", 140, 100, 1); // the first finger, still tracked, keeps panning
+      await el.updateComplete;
+      const panned = box(el);
+      expect(panned.w).toBeCloseTo(fit.w, 6);
+      expect(panned.x).toBeCloseTo(fit.x - 40 * (fit.w / 300), 6);
+    });
+
+    it("a plain (zoom: true) card takes the same drag as a pinch source once a second finger joins", async () => {
+      const el = await mountDraggable({});
+      const fit = box(el);
+      const svg = el.shadowRoot!.querySelector("svg")!;
+      at(svg, "pointerdown", 100, 100, 1);
+      at(svg, "pointerdown", 200, 100, 2); // zoom is on: this now IS a pinch start
+      at(svg, "pointermove", 250, 100, 2); // fingers spreading apart: zooms in
+      await el.updateComplete;
+      expect(box(el).w).toBeLessThan(fit.w);
+    });
+
+    it("with no zoom_level pin a drag stays put: the whole floor is already on screen, nothing to reveal", async () => {
+      const el = await mountDraggable({ zoom: false }); // no center/zoom_level: home is the whole floor, i.e. fit
+      const fit = box(el);
+      const svg = el.shadowRoot!.querySelector("svg")!;
+      at(svg, "pointerdown", 100, 100);
+      at(svg, "pointermove", 108, 100);
+      at(svg, "pointermove", 140, 100);
+      at(svg, "pointerup", 140, 100);
+      await el.updateComplete;
+      expect(box(el)).toEqual(fit);
     });
   });
 });
