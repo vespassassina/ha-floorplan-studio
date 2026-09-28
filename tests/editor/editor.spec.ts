@@ -6374,6 +6374,46 @@ test("S4.18: Delete from the menu removes the room, same as the panel's own Dele
   expect((await groundOf(page)).rooms.find((r: any) => r.name === "Living")).toBeUndefined();
 });
 
+test("Diego, 2026-09-28: 'Bring to front' moves the room to the end of the array, one undo step", async ({ page }) => {
+  const before = await groundOf(page);
+  expect(before.rooms[0].name).toBe("Living"); // starts first, so a bring-to-front is observable
+  await rightClickCm(page, 200, 150); // Living
+  await page.locator("#cmToFront").click();
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+  const after = await groundOf(page);
+  expect(after.rooms[after.rooms.length - 1].name).toBe("Living");
+  expect(after.rooms.length).toBe(before.rooms.length);
+
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).rooms.map((r: any) => r.name)).toEqual(before.rooms.map((r: any) => r.name));
+});
+
+test("Diego, 2026-09-28: 'Send to back' moves the room to the start of the array, one undo step", async ({ page }) => {
+  const before = await groundOf(page);
+  expect(before.rooms.findIndex((r: any) => r.name === "Kitchen")).toBe(1); // not already first
+  await rightClickCm(page, 750, 100); // Kitchen, clear of its light and table
+  await page.locator("#cmToBack").click();
+  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+  const after = await groundOf(page);
+  expect(after.rooms[0].name).toBe("Kitchen");
+  expect(after.rooms.length).toBe(before.rooms.length);
+
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).rooms.map((r: any) => r.name)).toEqual(before.rooms.map((r: any) => r.name));
+});
+
+test("Diego, 2026-09-28: a room brought to front paints after an overlapping room that started ahead of it in the array — the reported garden-over-garden-house bug", async ({ page }) => {
+  // Kitchen starts at array index 1, after Living (index 0); bringing it to front must move its paint order past Living's.
+  await rightClickCm(page, 750, 100); // Kitchen, clear of its light and table
+  await page.locator("#cmToFront").click();
+  const html = await page.evaluate((tag) => (document.querySelector(tag) as any).shadowRoot.querySelector("svg").outerHTML as string, EDITOR);
+  const g = await groundOf(page);
+  const livingIdx = g.rooms.findIndex((r: any) => r.name === "Living");
+  const kitchenIdx = g.rooms.findIndex((r: any) => r.name === "Kitchen");
+  const at = (i: number) => html.indexOf(`data-r="${i}"`);
+  expect(at(kitchenIdx)).toBeGreaterThan(at(livingIdx)); // Kitchen paints after Living now
+});
+
 test("S4.18: 'Add device from <area>' lists the room's unplaced HA entities and adds one, one undo step", async ({ page }) => {
   await setHa(page, { ...HA, areas: [...HA.areas], entities: [...HA.entities, { id: "sensor.living_temp", name: "Living temp", domain: "sensor", dc: "temperature", area: "living" }] });
   await rightClickCm(page, 200, 150); // Living, area "living"
