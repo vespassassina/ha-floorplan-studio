@@ -1,7 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";
-import { entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity } from "../core";
+import { DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, DOOR_DEFAULTS, FURNITURE_HEIGHTS, MAX_HEIGHT, UNLINKED_HEIGHTS, wallHeight, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -132,6 +132,30 @@ function text(label: string, id: string, value: string, on: (v: string) => void,
 function number(c: PanelCtx, label: string, id: string, value: number | string, on: (v: number) => void) {
   return html`<label for=${id}>${label}</label><input id=${id} type="number" .value=${live(String(value))} @change=${(e: Event) => { const n = numVal(e); if (n !== null) on(n); c.refresh(); }}>`;
 }
+/**
+ * An optional height in cm (docs/specs/heights-and-2-5d.md). Empty means "not set": the property is removed and the
+ * default, shown as the placeholder, applies again. Text, not a number input, so a stray "tall" reaches us and gets an
+ * answer instead of silently arriving as "". A value outside 0 to 1000 is clamped and says so; anything else is refused
+ * and the field goes back. `apply` gets the number, or undefined to remove it.
+ */
+function heightField(c: PanelCtx, label: string, id: string, cur: unknown, fallback: number, apply: (n: number | undefined) => void) {
+  const shown = typeof cur === "number" && Number.isFinite(cur) ? String(cur) : "";
+  const on = (e: Event) => {
+    const raw = (e.target as Input).value.trim();
+    if (raw === "") apply(undefined);
+    else {
+      const n = Number(raw.replace(",", "."));
+      if (!Number.isFinite(n)) c.say(`"${raw}" is not a height. Use cm from 0 to ${MAX_HEIGHT}, or clear the field for the default ${fallback}. Kept ${shown || `the default ${fallback}`}.`);
+      else {
+        const k = Math.min(MAX_HEIGHT, Math.max(0, n));
+        apply(k);
+        if (k !== n) c.say(`${raw} cm is outside 0 to ${MAX_HEIGHT}; used ${k}.`); // after apply: an edit sets its own "Edited"
+      }
+    }
+    c.refresh();
+  };
+  return html`<label for=${id}>${label}</label><input id=${id} type="text" inputmode="decimal" placeholder=${String(fallback)} .value=${live(shown)} @change=${on}>`;
+}
 /** Rotation as buttons: 30, 45, 60 or 90 more degrees in the chosen direction, and Reset to 0 when `reset` is given. `turn` gets the signed degrees. */
 function rotateButtons(c: PanelCtx, id: string, turn: (deg: number) => void, opts: { reset?: () => void; disabled?: boolean; label?: string; title?: string } = {}) {
   const cw = c.st.turnDir === 1;
@@ -247,6 +271,8 @@ function floorPanel(c: PanelCtx) {
       <button class="btn" id="fup" title="Higher floor: later in the chips" ?disabled=${i < 0 || i >= keys.length - 1} @click=${() => c.floors.move(key, 1)}>Move up</button>
       <button class="btn" id="fdown" title="Lower floor: earlier in the chips" ?disabled=${i <= 0} @click=${() => c.floors.move(key, -1)}>Move down</button>
     </div>
+    ${heightField(c, "floor height (cm)", "fht", st.f.height, DEFAULT_FLOOR_HEIGHT, (n) => c.commit((f) => { setHeight(f, "height", n); }))}
+    ${heightField(c, "slab (cm)", "fslab", st.f.slab, DEFAULT_SLAB, (n) => c.commit((f) => { setHeight(f, "slab", n); }))}
     ${st.ha ? heading("Home Assistant") : nothing}
     ${st.ha ? floorLink(c, st.ha) : nothing}
     ${st.ha ? unplacedAreas(c, st.ha) : nothing}
@@ -356,6 +382,7 @@ function wallPanel(c: PanelCtx, i: number) {
       c.select({ t: "opening", i: c.st.f.openings.length - 1 });
     }}>${WALL_KINDS.map((k) => html`<option value=${k} ?selected=${k === w.kind}>${WALL_LABELS[k]}</option>`)}<option value="opening">Opening (a gap in the wall)</option></select>
     ${number(c, "length (m)", "wlen", (dist(w.a, w.b) / 100).toFixed(2), (m) => set({ length: m }))}
+    ${heightField(c, "height (cm)", "wht", w.height, wallHeight(c.st.f, { ...w, height: undefined }), heightSetter(c, "walls", i, "height"))}
     ${heading("Appearance")}
     <div class="row">${button("wh", "Make horizontal", () => set({ axis: "h" }))}${button("wv", "Make vertical", () => set({ axis: "v" }))}</div>
     ${lockField(c, "wlock", "walls", i)}
@@ -444,6 +471,8 @@ function doorPanel(c: PanelCtx, i: number) {
     ${text("name", "dn", d.name, (v) => c.commit((f) => { f.doors[i].name = v; }))}
     ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }))}
     ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); f.doors[i].locked = true; }))}
+    ${heightField(c, "height (cm)", "dht", d.height, DOOR_DEFAULTS[d.kind]?.height ?? DOOR_DEFAULTS.door.height, heightSetter(c, "doors", i, "height"))}
+    ${d.kind === "window" || d.sill !== undefined ? heightField(c, "sill (cm)", "dsill", d.sill, DOOR_DEFAULTS[d.kind]?.sill ?? 0, heightSetter(c, "doors", i, "sill")) : nothing}
     ${heading("Home Assistant")}
     ${multiAttachField(c, "dsens", "contact sensors", d.sensors ?? [], c.st.doorAttachChoices(d.id, "sensors"), setList("sensors"), { apply: mutateList("sensors"), targetLabel: d.name })}
     ${multiAttachField(c, "dvibr", "vibration sensors", d.vibration ?? [], c.st.doorAttachChoices(d.id, "vibration"), setList("vibration"), { apply: mutateList("vibration"), targetLabel: d.name })}
@@ -482,6 +511,8 @@ function openingPanel(c: PanelCtx, i: number) {
     ${heading("Identity")}
     <label for="ok">kind</label><select id="ok" title="A gap hides the wall behind it, unlike a wall kind." .value=${live("opening")} @change=${toWall}><option value="opening" selected>Opening</option>${WALL_KINDS.map((k) => html`<option value=${k}>${WALL_LABELS[k]}</option>`)}</select>
     ${number(c, "length (cm)", "ol", Math.round(dist(o.a, o.b)), (n) => c.commit((f) => { Object.assign(f.openings[i], resizeSegment(o.a, o.b, Math.max(20, n))); f.openings[i].locked = true; }))}
+    ${heightField(c, "height (cm)", "oht", o.height, 210, heightSetter(c, "openings", i, "height"))}
+    ${heightField(c, "sill (cm)", "osill", o.sill, 0, heightSetter(c, "openings", i, "sill"))}
     ${heading("Appearance")}
     ${lockField(c, "olock", "openings", i)}
     ${angleField(c, "orot", "openings", i)}
@@ -510,6 +541,7 @@ function roomPanel(c: PanelCtx, i: number) {
       room.kind = v as typeof r.kind;
       if (v === "zone") room.wk = room.pts.map((): WallKind => "boundary"); // a zone has no wall edge
     }))}
+    ${heightField(c, "ceiling height (cm)", "rht", r.height, c.st.f.height ?? DEFAULT_FLOOR_HEIGHT, heightSetter(c, "rooms", i, "height"))}
     ${roomTurn(c, i)}
     ${paintControls(c, "rooms", i, "r", r)}`;
   // roomTurn's own Delete button stays next to Unsnap, not in a Danger section at the bottom — an earlier,
@@ -523,6 +555,10 @@ function placeAreaButton(c: PanelCtx, i: number) {
 }
 
 const setOrDelete = <T extends object, K extends keyof T>(o: T, k: K, v: T[K] | undefined) => { if (v === undefined || v === "") delete o[k]; else o[k] = v; };
+/** A height, sill or mount height: set, or removed so the default applies again. */
+const setHeight = (o: object, key: string, n: number | undefined) => { if (n === undefined) delete (o as Record<string, unknown>)[key]; else (o as Record<string, unknown>)[key] = n; };
+const heightSetter = (c: PanelCtx, list: "rooms" | "walls" | "doors" | "openings" | "furniture" | "unlinked" | "devices", i: number, key: string) =>
+  (n: number | undefined) => c.commit((f) => { setHeight(f[list][i], key, n); });
 
 /** Room, zone or water name: an HA area (id and name written together), or a custom shape with a plan name and maybe one entity. */
 function roomLink(c: PanelCtx, ha: HaData, i: number) {
@@ -716,6 +752,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${d.type === "light" ? boundField(c, i) : nothing}
     ${areaDiffField(c, i)}
     ${heading("Appearance")}
+    ${heightField(c, "mount height (cm)", "vz", d.z, DEVICE_Z[d.type] ?? 100, heightSetter(c, "devices", i, "z"))}
     ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}
     ${hasAutomations ? heading("Automations") : nothing}
     ${c.makeLight && c.st.canMakeLight(i) ? html`<p>${button("vmklight", "Create a light from this switch", () => c.makeLight!(i))}</p>${hint("Wraps this switch in a new HA light entity.")}` : nothing}
@@ -944,6 +981,7 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${heading("Appearance")}
     ${number(c, "width (cm)", "fw", m.w, setSize("w"))}
     ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
+    ${heightField(c, "height (cm)", "fuht", m.height, FURNITURE_HEIGHTS[m.symbol] ?? 100, heightSetter(c, "furniture", i, "height"))}
     ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}
     ${heading("Danger")}
     <p>${button("fudel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); }, "warn")}</p>`;
@@ -971,6 +1009,7 @@ function unlinkedPanel(c: PanelCtx, i: number) {
     <input id="uucol" type="color" .value=${u.color ?? "#8b8578"} @change=${(e: Event) => c.commit((f) => { f.unlinked[i].color = val(e); })}>
     ${button("uuclr", "Use default colour", () => c.commit((f) => { delete f.unlinked[i].color; }))}
     ${number(c, "scale", "uusc", u.scale, (n) => c.commit((f) => { f.unlinked[i].scale = Math.min(4, Math.max(0.25, n)); }))}
+    ${heightField(c, "height (cm)", "uuht", u.height, UNLINKED_HEIGHTS[u.type] ?? 100, heightSetter(c, "unlinked", i, "height"))}
     ${rotateButtons(c, "uurot", (n) => c.commit((f) => { f.unlinked[i].rot = ((u.rot + n) % 360 + 360) % 360; }), { reset: () => { if (u.rot) c.commit((f) => { f.unlinked[i].rot = 0; }); } })}
     ${heading("Danger")}
     <p>${button("uudel", "Delete", () => { c.commit((f) => { f.unlinked.splice(i, 1); }); c.select(null); }, "warn")}</p>`;
