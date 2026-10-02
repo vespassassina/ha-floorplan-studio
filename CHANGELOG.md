@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Heights in the model (cm, all optional, schema stays version 2): floor `height` (250) and `slab` (25), room `height` (ceiling), wall `height`, door and opening `height` and `sill` (a window defaults to 120 from 90), furniture and unlinked `height`, device `z` (mount height). Defaults live in `src/core/heights.ts` and are read, never stored. Nothing is drawn differently yet.
+- The editor has a field for each (placeholder shows the default, empty removes it, junk is refused with the reason, out of range is clamped to 0 to 1000).
+- The assistant prompts tell it to read ceiling heights, sills and door heights from sections and notes, and to list which it read and which it defaulted. The two-floor example carries a few.
+
 ## 0.12.16
 
 - Room names are smaller (11 instead of 14, zones 8 instead of 10) and drawn at half opacity.
