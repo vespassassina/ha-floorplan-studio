@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- A room name wider than its room now shrinks to fit (down to 7, zones 6). If it still does not fit, it goes just outside the room on a thin leader line back to the room. A name also keeps off a smaller room drawn inside its own: in the demo, "Garden" and "Garden pond" no longer overprint.
+- The Active list starts folded on a card narrower than 480 px (it was 500 px, and only when nothing was stored, so a list that had merely been dragged stayed open over the plan). The card's width decides until you fold or unfold the list by hand; from then on your choice stays.
+- README and docs images regenerated from the current build (the garden was clipped at the right edge); a phone-width card picture added.
+- docs/WORKFLOW.md: release steps run one at a time, the tag last.
+
 ## 0.12.16
 
 - Room names are smaller (11 instead of 14, zones 8 instead of 10) and drawn at half opacity.

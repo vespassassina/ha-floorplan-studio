@@ -9,9 +9,9 @@ Assistant every day.
 
 ![The demo house as a live card: lights come on, a door opens, the plan zooms, switches floor and darkens at dusk; then the editor, dragging a device.](docs/img/demo.gif)
 
-| The card, live | The editor |
-|---|---|
-| ![The card: the demo ground floor, two lights and the hall motion sensor on.](docs/img/card-overview.png) | ![The editor with the demo house loaded.](docs/img/editor-overview.png) |
+| The card, live | On a phone (375 px) | The editor |
+|---|---|---|
+| ![The card: the demo ground floor, two lights and the hall motion sensor on.](docs/img/card-overview.png) | ![The same card at phone width: the Active list starts folded.](docs/img/card-phone.png) | ![The editor with the demo house loaded.](docs/img/editor-overview.png) |
 
 ## What you get
 
@@ -27,7 +27,8 @@ Assistant every day.
   `icon_size` scales them further.
 - A floating **Active** list on the card: every light, sensor, camera, TV and
   speaker that is on, on any floor. Tap a row for its more-info dialog; drag
-  the list aside or fold it away.
+  the list aside or fold it away. On a card narrower than 480 px it starts
+  folded, so it does not cover the plan.
 - Pinch, drag and double-tap to zoom and pan on a phone, Ctrl/Cmd+wheel and
   drag on a desktop. A kiosk mode strips the card down to the plan for a
   wall tablet.

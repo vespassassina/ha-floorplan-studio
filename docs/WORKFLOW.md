@@ -125,6 +125,12 @@ separately. End with a release verdict.
 Only after Diego's yes. Once the push and the tag are approved, finish every
 step without asking again.
 
+Run the steps one at a time, never chained in one command, and read each
+exit status on its own line. The tag is made, and pushed, last: only after
+the merge commit exists on `main`. On 2026-10-02 a chained command tagged and
+pushed v0.12.16 on the old `main` after the merge had failed with a
+transient git write error.
+
 1. Bump `version` in `custom_components/floorplan_studio/manifest.json`.
    `package.json` stays at 0.1.0.
 2. Rename the CHANGELOG `## Unreleased` heading to the version.
