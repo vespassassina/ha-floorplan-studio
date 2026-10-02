@@ -173,6 +173,8 @@ export class FloorplanStudioCard extends LitElement {
     .fp-zoom, .fp-viewonly { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 16px); }
     .fp-zoom button, .fp-viewonly button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     .fp-zoom button:disabled, .fp-viewonly button:disabled { opacity: 0.45; cursor: default; }
+    /* The two rotate buttons wrap as one, so a narrow card never parts left from right. */
+    .fp-pair { display: flex; gap: 4px; }
     .fp-zoom button[aria-pressed="false"], .fp-viewonly button[aria-pressed="false"] { opacity: 0.6; }
     .fp-zoom svg, .fp-viewonly svg { width: 14px; height: 14px; }
     /* While the plan turns it takes no taps: a tap would land on a device that is moving away from the finger.
@@ -1339,8 +1341,10 @@ export class FloorplanStudioCard extends LitElement {
     const labels = this._labels();
     return html`${this._viewSelect(current)}${current === "2.5d" ? this._tiltSlider() : null}${this._themeSelect()}
       <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>
-      <button type="button" aria-label="Rotate left" title="Rotate left" @click=${() => this._turnBy(-ROTATION_STEP)}>${this._icon(UI_ICONS.rotateLeft)}</button>
-      <button type="button" aria-label="Rotate right" title="Rotate right" @click=${() => this._turnBy(ROTATION_STEP)}>${this._icon(UI_ICONS.rotateRight)}</button>`;
+      <span class="fp-pair">
+        <button type="button" aria-label="Rotate left" title="Rotate left" @click=${() => this._turnBy(-ROTATION_STEP)}>${this._icon(UI_ICONS.rotateLeft)}</button>
+        <button type="button" aria-label="Rotate right" title="Rotate right" @click=${() => this._turnBy(ROTATION_STEP)}>${this._icon(UI_ICONS.rotateRight)}</button>
+      </span>`;
   }
 
   /** A toolbar icon: 24x24 path from the inlined set, drawn in the button's own colour. */
