@@ -35,11 +35,28 @@ Do one floor at a time, lowest first. Put `[0, 0]` at the top-left corner of the
 5. **Furniture**, only if it is drawn clearly. Skip anything you are unsure of.
 6. **Outdoors**, if drawn: a garden, terrace or pavement is a room with that `kind`, and may sit outside the outline.
 
+7. **Heights**, only the ones the drawing states. See the next section.
+
 Do **not** set `color`, `texture` or `palette`. Floor materials are the person's choice, made in the editor; a drawing's shading is not a colour. If the drawing labels a material (parquet, tiles), say so in the notes you give back and leave the field off.
 
 Do **not** add devices, entities or a catalog. A drawing has no Home Assistant entities in it. Leave `devices` and `catalog` empty. Never invent an entity id. (Placing real devices on an *already-drawn* plan — including a `person`'s `room` field or a `radar`'s `targets` pairs — is a separate task, for a file exported from the editor with Home Assistant connected — see "Placing devices from an export" in `SCHEMA.md`.)
 
 Do **not** set `trace` either. That is the owner's own scan or photo, loaded and scaled by hand in the editor (Edit, Trace image…), never written by you.
+
+## 3a. Heights: read them, never invent them
+
+Every height is optional and in **centimetres**. The editor and the card already know a sensible default for each (a storey is 250, a door 210, a window 120 high from 90, a sofa 85 ...), so a file with no height at all is correct. Write one only when the drawing tells you.
+
+Look for them in section drawings, elevations and notes: `h=2.70`, `H 2.40`, `ceiling 2.50`, `h.u. 2.70` (hauteur sous plafond), `lichte Höhe 2.50`, window sills (`parapet 0.90`, `Brüstung 0.90`, `davanzale 90`), door heights (`2.10`, `2.20`), balustrade or fence heights (`1.10`). Convert metres to centimetres: `2.70` is `270`. The commonest mistake is writing `2.7`.
+
+- **`height` on the floor**: the storey's ceiling height, when the drawing gives one for the whole floor.
+- **`height` on a room**: only for a room whose ceiling differs from its floor (a lower bathroom, a double-height hall).
+- **`height` on a wall** or a `fence`/`extras` guard: only for a low wall or a balustrade the drawing dimensions.
+- **`height` and `sill` on a door or window**: `sill` is the bottom edge above the floor, `height` the opening itself. Set them only where they differ from the default (a window defaults to `sill` 90, `height` 120; a door to `sill` 0, `height` 210). A French window that runs to the floor is `sill` 0.
+- **`slab`** (the floor thickness between storeys, default 25): only if a section gives it.
+- Furniture, unlinked appliances and devices: leave their heights out. The defaults are by type.
+
+If the drawing does not say, **leave the field out**. Do not round to a "typical" value and do not copy one floor's height to another floor that has none. A value you write that equals the default adds nothing; skip it.
 
 ## 4. When you cannot read something
 
@@ -60,7 +77,8 @@ Before you answer:
 - Every door and window sits on a wall.
 - Shared walls use identical coordinates on both sides.
 - Every id is unique within its floor.
-- Everything is in centimetres.
+- Everything is in centimetres, heights included.
+- Every height is a number from 0 to 1000 that the drawing actually states.
 
 **If you can run commands**, save the file as `layout.json` and run
 
@@ -76,6 +94,7 @@ from the repository. It prints `ok`, or one line per problem. Fix and run again 
 
 1. The layout: if you can write files, `layout.json`. If not, one code block containing the JSON object and nothing else in the block.
 2. Straight after it, a short **Guessed** list: every number you inferred, every assumption about north or scale, anything you left out. If there is nothing, write `Guessed: nothing.`
-3. One line telling the user what to do next: open **Floorplan Studio** in the Home Assistant sidebar, **File → Open…**, choose `layout.json`, fix what is off, **Save**.
+3. A **Heights** list: which heights you read from the drawing (with where: "section A-A: 2.70 m, so floor `first` `height` 270"), and which you left to the defaults. If the drawing gave none, write `Heights: none given, defaults apply.`
+4. One line telling the user what to do next: open **Floorplan Studio** in the Home Assistant sidebar, **File → Open…**, choose `layout.json`, fix what is off, **Save**.
 
 No other commentary. No praise for the drawing, no explanation of what a polygon is.

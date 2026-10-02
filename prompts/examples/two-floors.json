@@ -180,6 +180,7 @@
     },
     "first": {
       "title": "First",
+      "height": 270,
       "outline": [
         [
           0,
@@ -265,7 +266,8 @@
             "external",
             "external",
             "wall"
-          ]
+          ],
+          "height": 240
         }
       ],
       "walls": [],
@@ -321,7 +323,9 @@
           "b": [
             300,
             0
-          ]
+          ],
+          "sill": 90,
+          "height": 130
         }
       ],
       "openings": [],

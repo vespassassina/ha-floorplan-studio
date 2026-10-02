@@ -2,7 +2,7 @@
 
 A plan is one JSON file. Everything is in **centimetres**. **x grows to the right, y grows downward**, so the top-left corner of the drawing is `[0, 0]` and a point 2 m right and 3 m down is `[200, 300]`. North is up unless `north` says otherwise. Every point is a two-number array `[x, y]`.
 
-This page lists what you write. Leave everything else out.
+This page lists what you write. Leave everything else out. Heights are optional and have their own section below.
 
 ## The whole file
 
@@ -110,6 +110,28 @@ Optional: `"color": "#rrggbb"` sets a floor colour; `"texture"` (`wood-light`, `
 ## Walls, openings, extras
 
 `walls` holds free-standing wall segments `{ "id", "kind": "wall", "a", "b" }` for a wall that is not the edge of any room. `openings` holds a gap in a wall, `{ "id", "a", "b" }`. `extras` holds named lines such as a balustrade, `{ "id", "name", "a", "b" }`. Leave all three `[]` unless the drawing clearly needs one.
+
+## Heights (optional)
+
+All in centimetres, each a number from 0 to 1000. **Leave a field out and the default applies**; the defaults are read when the plan is drawn, never written into the file. Write one only when the drawing states it.
+
+| Where | Field | Default | Meaning |
+|---|---|---|---|
+| floor | `height` | 250 | wall and ceiling height of the storey |
+| floor | `slab` | 25 | floor thickness between this storey and the next |
+| room | `height` | the floor's | ceiling of one room (a lower bathroom) |
+| wall | `height` | the floor's; `fence` 110; `edge` and `boundary` 0 | a low wall |
+| door, window | `height`, `sill` | door and glass 210 from 0; window 120 from 90 | `sill` is the bottom edge above the floor, `height` the opening itself |
+| opening | `height`, `sill` | 210 from 0 | same |
+| furniture, unlinked | `height` | by symbol or type | top of the piece. Leave out when tracing. |
+| device | `z` | by type | mount height. Leave out when tracing. |
+
+```json
+{ "title": "First", "height": 270, "outline": [...], "rooms": [{ "id": "room-first-2", "name": "Bathroom", "height": 240, ... }],
+  "doors": [{ "id": "door-first-2", "name": "Bedroom window", "kind": "window", "sill": 90, "height": 130, "a": [100,0], "b": [300,0] }] }
+```
+
+Read the numbers from section drawings and notes (`h=2.70`, `H 2.40`, `parapet 0.90`), convert metres to centimetres, and list in your closing summary which heights you read and which you left to the defaults. Never invent one.
 
 ## Placing devices from an export — a different task
 

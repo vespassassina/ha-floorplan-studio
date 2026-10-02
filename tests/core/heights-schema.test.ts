@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import demo from "../../demo/layout.json";
 import { migrate } from "../../src/core/migrate";
 import { validate } from "../../src/core/schema";
@@ -79,5 +81,23 @@ describe("height fields in validate", () => {
     expect(f).not.toHaveProperty("slab");
     expect(validate(m)).toMatchObject({ ok: false });
     expect((validate(m) as any).errors.join("\n")).not.toMatch(/height|slab/);
+  });
+});
+
+describe("assistant examples and prompts", () => {
+  const read = (p: string) => readFileSync(resolve(p), "utf8");
+  it("both examples validate; two-floors carries the heights the prompts teach", () => {
+    for (const f of ["flat", "two-floors"]) expect(validate(JSON.parse(read(`prompts/examples/${f}.json`))).ok, f).toBe(true);
+    const first = JSON.parse(read("prompts/examples/two-floors.json")).floors.first;
+    expect(first.height).toBe(270);
+    expect(first.rooms.find((r: any) => r.name === "Bathroom").height).toBe(240);
+    expect(first.doors.find((d: any) => d.kind === "window")).toMatchObject({ sill: 90, height: 130 });
+  });
+  it("SKILL.md tells the assistant to read heights, convert to cm, leave gaps out and report", () => {
+    const s = read("prompts/SKILL.md");
+    expect(s).toMatch(/leave the field out/i);
+    expect(s).toMatch(/2\.70/);
+    expect(s).toMatch(/\*\*Heights\*\* list/);
+    expect(read("prompts/SCHEMA.md")).toMatch(/## Heights/);
   });
 });
