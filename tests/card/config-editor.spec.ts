@@ -423,3 +423,30 @@ test("an out-of-range zoom_level clamps into 1..8 rather than being refused", as
   detail = (await events(page)).at(-1) as { config: { zoom_level?: number } };
   expect(detail.config.zoom_level).toBe(8);
 });
+
+test("labels and tilt fields: defaults shown and dropped from the payload, picks written, junk shows the default", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#labels")).toBeChecked();
+  await expect(editor.locator("#tilt")).toHaveValue("0.5");
+
+  await editor.locator("#labels").uncheck();
+  let detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect(detail.config.labels).toBe(false);
+  await editor.locator("#labels").check();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("labels" in detail.config).toBe(false);
+
+  await editor.locator("#tilt").fill("0.8");
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect(detail.config.tilt).toBe(0.8);
+  await editor.locator("#tilt").fill("0.5");
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("tilt" in detail.config).toBe(false);
+
+  await page.evaluate(() => document.getElementById("editor")!.remove());
+  await mount(page, { labels: "no", tilt: 7, layout: demo });
+  await expect(page.locator("#editor #labels")).toBeChecked();
+  await expect(page.locator("#editor #tilt")).toHaveValue("1");
+});

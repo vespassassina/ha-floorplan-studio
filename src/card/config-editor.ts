@@ -1,5 +1,5 @@
 import { LitElement, css, html } from "lit";
-import { THEMES, migrate, validate } from "../core";
+import { DEFAULT_TILT, THEMES, clampTilt, migrate, validate } from "../core";
 import type { Layout, Theme } from "../core";
 import type { FloorplanStudioCardConfig, Hass } from "./floorplan-studio-card";
 import { defineElement } from "./define";
@@ -35,6 +35,7 @@ const NIGHT_CHOICES = ["auto", "on", "off"] as const;
 const DEFAULT_VIEW = "2d";
 const DEFAULT_VIEW_SWITCH = true;
 // Same two options as VIEW_OPTIONS in floorplan-studio-card.ts, kept apart for the same reason as the defaults above.
+const DEFAULT_LABELS = true;
 const VIEW_CHOICES = [["2d", "2D"], ["2.5d", "2.5D"]] as const;
 
 /**
@@ -148,6 +149,19 @@ export class FloorplanStudioCardEditor extends LitElement {
 
   private _view(): (typeof VIEW_CHOICES)[number][0] {
     return VIEW_CHOICES.find(([v]) => v === this._config.view)?.[0] ?? DEFAULT_VIEW;
+  }
+
+  /** Untrusted like the rest: only a real `false` unticks the box, as on the card. */
+  private _labels(): boolean {
+    return this._config.labels !== false;
+  }
+
+  private _onLabels(e: Event): void {
+    this._set("labels", (e.target as HTMLInputElement).checked, DEFAULT_LABELS);
+  }
+
+  private _onTilt(e: Event): void {
+    this._set("tilt", clampTilt(Number((e.target as HTMLInputElement).value)), DEFAULT_TILT);
   }
 
   private _night(): "auto" | "on" | "off" {
@@ -429,6 +443,16 @@ export class FloorplanStudioCardEditor extends LitElement {
       <div class="row">
         <label class="main" for="view_switch">View switch</label>
         <input id="view_switch" type="checkbox" .checked=${this._config.view_switch ?? DEFAULT_VIEW_SWITCH} @change=${this._onViewSwitch} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="tilt">Tilt (2.5D)</label>
+        <input id="tilt" type="range" min="0" max="1" step="0.01" .value=${String(clampTilt(this._config.tilt))} @change=${this._onTilt} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="labels">Show names and text</label>
+        <input id="labels" type="checkbox" .checked=${this._labels()} @change=${this._onLabels} />
       </div>
 
       <div class="row">
