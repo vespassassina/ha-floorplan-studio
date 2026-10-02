@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2.5D view. The card has `view: 2d | 2.5d` (default `2d`) and `view_switch` (default `true`): a small View dropdown beside the zoom buttons, hidden by `view_switch: false` and by `kiosk`. A pick keeps your zoom and pan and is forgotten when the config changes. The Edit-card form has both. The editor has View, Plan view, where 2.5D is a read-only preview (no handles, no selection, no drag; edit menus and shortcuts inert; selection and zoom come back with 2D).
+- 2.5D draws what the heights say: walls are extruded, the near (south-facing) walls cut down to 90 cm like a doll's house so no room is hidden; doors, windows and openings are cut out of them; furniture and unlinked appliances are boxes with the symbol on the lid; stairs are steps; a device mounted at 100 cm or more gets a stem. Floor-level things (room fills, icons, door lines, taps) keep their plan position, and 2D output is byte for byte what it was.
+- `npm run shots` and the doc images draw the demo in 2.5D. README gets a 2.5D picture.
 - Heights in the model (cm, all optional, schema stays version 2): floor `height` (250) and `slab` (25), room `height` (ceiling), wall `height`, door and opening `height` and `sill` (a window defaults to 120 from 90), furniture and unlinked `height`, device `z` (mount height). Defaults live in `src/core/heights.ts` and are read, never stored. Nothing is drawn differently yet.
 - The editor has a field for each (placeholder shows the default, empty removes it, junk is refused with the reason, out of range is clamped to 0 to 1000).
 - The assistant prompts tell it to read ceiling heights, sills and door heights from sections and notes, and to list which it read and which it defaulted. The two-floor example carries a few.

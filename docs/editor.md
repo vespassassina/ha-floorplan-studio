@@ -28,8 +28,8 @@ Left to right:
   or not.
 - **Draw** — freehand outline/room drawing mode.
 - **View** — how the plan looks while you work: the installed version at the
-  top, then snap grid, measure grid, lengths, names, Preview night, theme,
-  Re-center and Fit to window.
+  top, then Plan view (2D or 2.5D, see below), snap grid, measure grid,
+  lengths, names, Preview night, theme, Re-center and Fit to window.
 - **Edit** — what changes the plan or Home Assistant: Add floor, the Home
   Assistant popover (inside Home Assistant), Group, plan rotation, Device
   colours, Trace image…
@@ -46,6 +46,21 @@ Left to right:
 
 ![The Add menu open: Openings, Wall and Areas submenus, then Furniture and Unlinked device selects.](img/editor-add-menu.png)
 
+## 2.5D preview
+
+View, Plan view switches the editor between `2D` and `2.5D`. 2.5D draws the
+plan as the card does with `view: 2.5d`: walls and furniture rise, the near
+walls are cut down (docs/card.md, "2.5D view"). It is a **preview**. Nothing
+on the plan can be hit, selected, dragged or drawn; the Add, Draw and Edit
+menus, Reset, Undo, Delete and Ctrl/Cmd+Z do nothing, and the side panel reads
+"2.5D is a preview. Switch to 2D to edit." You can still pan and zoom. A
+drawing in progress is dropped.
+
+Switching back to 2D finds the selection and the zoom as you left them. The
+choice is not an undo step, is not saved in the layout and is forgotten on
+reload. Fit to window in 2.5D leaves room for the walls rising above the plan;
+switching view does not refit by itself, so press it if the top is cut.
+
 ## The side panel
 
 Click anything on the plan — a room, a wall, a device, furniture, stairs — and
@@ -56,6 +71,24 @@ Home Assistant context — the room's helpers and automations, a device's
 more-info — where a writer is configured.
 
 ![The Living light selected: its panel shows type, entity, rotation, and what powers it.](img/editor-device-panel.png)
+
+### Heights
+
+Every height is optional, in cm (0 to 1000). The field shows the default as
+its placeholder; clearing it removes the value, so the default applies again.
+Junk is refused with the reason.
+
+- **Floor** — height (storey, 250) and slab (floor thickness, 25).
+- **Room** — ceiling height (the floor's).
+- **Wall** — height (by kind: a fence 110, an edge or boundary 0, a wall the
+  storey).
+- **Door** and **Opening** — height and sill (a door 210 from 0, a window 120
+  from 90, an opening 210 from 0).
+- **Furniture** and **unlinked appliance** — height (by symbol or type).
+- **Device** — mount height, where the real object hangs (by type). A stem to
+  it shows in 2.5D from 100 cm up.
+
+Stairs take the floor's height as their rise, and a structure line is flat.
 
 A device's panel shows one extra field for a few types:
 

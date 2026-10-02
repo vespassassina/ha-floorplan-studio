@@ -2,6 +2,47 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-02: the 2.5D view (docs/specs/heights-and-2-5d.md)
+
+2.5D is drawn by `renderFloor`, the one draw path, for the card and the editor.
+No `view`, or `"2d"`, is byte-identical to before; every 2.5D addition sits
+behind `view === "2.5d"`.
+
+**Projection.** A vertical oblique: a point `(x, y)` at height `h` is drawn at
+`(x + h*rise*skew, y - h*rise)`, with `OBLIQUE = { rise 0.55, skew 0.3, cutaway
+90 }` in one place. Horizontal planes are not distorted, so a floor is still a
+true plan and a distance on it still reads in cm. An isometric or perspective
+view would shear the floor and every icon with it. Back-to-front order is the
+depth `y - skew*x` of the screen position, nearest last. A turned plan turns
+the lift vector back so up stays up on screen. `viewBoxFor` widens the box by
+the tallest thing drawn.
+
+**Cutaway.** A wall whose outward normal points down the screen (`ny > 0.3`) is
+drawn at most 90 cm. Without it every house hides its front rooms behind its
+front wall. Back and side walls keep their height. A free wall has no outside,
+so one that runs mostly across the screen counts as front. A doubled wall is
+drawn once: the taller wins, front is OR-ed, external wins. 90 cm keeps a sill
+(90) just visible; it is a tunable.
+
+**Floor-level things keep their plan position.** Room fills, flat edges,
+device icons, labels and door lines are not lifted. A tap, a hit-test, a drag
+and the plan coordinates all stay true, and the editor needs no inverse
+projection. The cost: an icon for a ceiling light sits on the floor with a stem
+up to the lamp (from 100 cm), not at the ceiling. That is a choice for
+legibility and taps. Solids are drawn between floor-level things and labels and
+take no taps (CSS classes, not presentation attributes, CLAUDE.md finding 18).
+
+**The editor preview is read-only.** Editing a 2.5D picture needs the inverse
+of the projection for every gesture, and a click on a lid or a wall face is
+ambiguous: which height did the user mean? A preview that cannot edit is honest
+and costs one guard per entry point. View mode is session state: no undo step,
+not in the layout, not stored.
+
+**3D is a different renderer.** True 3D needs a depth buffer, perspective and an
+orbiting camera, which SVG does not paint. It will be its own renderer reading
+the same heights, behind the same `view` option as a third entry. Nothing here
+is written to be stretched into it.
+
 ## 2026-10-02: heights are in the model, as optional fields (docs/specs/heights-and-2-5d.md)
 
 First step toward 2.5D: every solid thing can carry a height, with no drawing

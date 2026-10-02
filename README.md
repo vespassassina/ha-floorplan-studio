@@ -19,6 +19,11 @@ Assistant every day.
   furniture. Attach rooms to areas and devices to entities from pickers.
 - A dumb light on a smart switch is one icon: bind the switch to the light
   ("Controlled by") and the plan shows both as one lamp.
+- A 2.5D view, in the card (`view: 2.5d`, or the View dropdown beside the zoom
+  buttons) and as a read-only preview in the editor: walls rise, furniture
+  becomes boxes, the near walls are cut down so every room shows.
+
+  ![The card in 2.5D.](docs/img/card-2-5d.png)
 - A Lovelace card: lights, switches, sensors, cameras, thermostats, doors,
   people, mmWave radar targets and vacuums shown live. A lit lamp throws a
   pool of light; motion pings and fades from red to grey; an open door or
