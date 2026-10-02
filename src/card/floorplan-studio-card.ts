@@ -1,6 +1,6 @@
 import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, activeDevices, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, type PlanView, activeDevices, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, Theme } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
@@ -73,7 +73,20 @@ export interface FloorplanStudioCardConfig {
    * default, 1; an in-range-but-odd number (0, negative, past `MAX_ZOOM`) clamps rather than being refused, the
    * same as `icon_size`. `zoom` (the pinch/wheel switch) was already taken, so this is a separate key. */
   zoom_level?: number;
+  /** `"2d"` (default) draws the flat plan, `"2.5d"` the same plan with walls and furniture drawn up (docs/card.md).
+   * The dropdown (`view_switch`) can change it for as long as the card is on screen. Anything else is `"2d"`. */
+  view?: PlanView;
+  /** `true` (default) shows the View dropdown next to the zoom buttons; `false` hides it, and so does `kiosk`. */
+  view_switch?: boolean;
 }
+
+/** The View dropdown's options, one list for the markup and for reading the choice back (a value that is not here
+ * is refused). 3D joins this list when it exists. */
+const VIEW_OPTIONS: readonly { value: PlanView; label: string }[] = [
+  { value: "2d", label: "2D" },
+  { value: "2.5d", label: "2.5D" },
+];
+const isView = (v: unknown): v is PlanView => VIEW_OPTIONS.some((o) => o.value === v);
 
 /** Card config is untrusted input (CLAUDE.md finding 1): only a plain `#rrggbb` hex is accepted for open_color. */
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -138,6 +151,7 @@ export class FloorplanStudioCard extends LitElement {
     .fp-zoom button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     .fp-zoom button:disabled { opacity: 0.45; cursor: default; }
     .fp-zoom svg { width: 14px; height: 14px; }
+    .fp-zoom select { height: 28px; padding: 0 4px; font: 13px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     /* S7.15: with zoom on, the plan takes every touch once it is zoomed in, so the page does not scroll or zoom under
        a pan or a pinch. At fit there is nothing to pan, so a vertical swipe scrolls the dashboard as it would over
        any other card; the browser still leaves a pinch and a double-tap to the plan (pan-y allows neither). */
@@ -219,6 +233,8 @@ export class FloorplanStudioCard extends LitElement {
   private _chooserDialogWasOpen = false;
   /** S7.4: the zoomed viewBox, or `null` for fit. Card state: reset by `setConfig` and a floor change, never by `hass`. */
   private _view: View | null = null;
+  /** The view picked in the dropdown; `null` means the config's own. Card state like `_view`: reset by `setConfig`, never by `hass`. */
+  private _pickedView: PlanView | null = null;
   /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
   private _fit: View | null = null;
   private _unbindZoom: (() => void) | null = null;
@@ -340,6 +356,7 @@ export class FloorplanStudioCard extends LitElement {
     this._wsRequested = false;
     this._shownFloor = null;
     this._view = null;
+    this._pickedView = null;
     this._loadActiveState();
     this._loadLayout();
     this.requestUpdate();
@@ -394,7 +411,7 @@ export class FloorplanStudioCard extends LitElement {
   private _rows(): number {
     const f = this._floor();
     if (!f || !f.outline.length) return 6;
-    const box = viewBoxFor(f, 60, this._rotate());
+    const box = viewBoxFor(f, 60, this._rotate(), this._planView());
     return Math.max(3, Math.round((box.h / box.w) * 8));
   }
 
@@ -1012,10 +1029,12 @@ export class FloorplanStudioCard extends LitElement {
     const f = this._floor();
     if (!f) return html`<p class="msg">${this._error ?? NO_LAYOUT}</p>`;
     const rotate = this._rotate();
-    const fit = viewBoxFor(f, 60, rotate);
+    const view = this._planView();
+    const fit = viewBoxFor(f, 60, rotate, view);
     this._fit = fit;
     const zoom = this._zoomMode() !== false;
     const showZoomButtons = zoom && !this._kiosk(); // S7.5: kiosk still zooms/pans by gesture, just draws no buttons
+    const showViewSwitch = this._config.view_switch !== false && !this._kiosk();
     // S9.6: `home` is the whole floor unless `center`/`zoom_level` pin the card to part of it — the base the box
     // rests on when there is no explicit `_view`, and what "zoomed" (the fp-zoomed class, below) is measured
     // against, so a pinned card reads as its own resting state, not as permanently zoomed in from the full plan.
@@ -1039,10 +1058,28 @@ export class FloorplanStudioCard extends LitElement {
       dark: this._haDark(),
       rotate,
       night: this._night(),
+      view,
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
+    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit, showViewSwitch) : showViewSwitch ? html`<div class="fp-zoom">${this._viewSelect(view)}</div>` : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
+  }
+
+  /** The view on show: the dropdown's pick, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
+  private _planView(): PlanView {
+    return this._pickedView ?? (isView(this._config.view) ? this._config.view : "2d");
+  }
+
+  /** Compact `<select>` in the card chrome, outside the plan's `<svg>` like the zoom buttons. A pick redraws the
+   * plan only: `_view` (zoom and pan) is left alone, `render` clamps it against the new fit. */
+  private _viewSelect(current: PlanView) {
+    const onChange = (e: Event) => {
+      const v = (e.target as HTMLSelectElement).value;
+      if (!isView(v)) return;
+      this._pickedView = v;
+      this.requestUpdate();
+    };
+    return html`<select aria-label="View" title="View" @change=${onChange}>${VIEW_OPTIONS.map((o) => html`<option value=${o.value} ?selected=${o.value === current}>${o.label}</option>`)}</select>`;
   }
 
   /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */
@@ -1169,13 +1206,14 @@ export class FloorplanStudioCard extends LitElement {
    * Diego field report, 0.12.14: "−" used to disable at `fit` itself, so a shed or a corner `viewBoxFor` did not
    * bound on had no way to come into view. It now disables only at `MIN_ZOOM` (`viewport.ts`), the same floor
    * `clamp` itself enforces, so the button and the drag/pinch gesture agree on how far out the card goes. */
-  private _zoomButtons(box: View, home: View, fit: View) {
+  private _zoomButtons(box: View, home: View, fit: View, withViewSwitch: boolean) {
     const atMin = box.w >= (fit.w / MIN_ZOOM) * (1 - 1e-6);
     const atHome = !this._zoomed();
     const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
     const pinned = !sameView(home, fit, fit);
     const resetLabel = pinned ? "Reset view" : "Fit";
     return html`<div class="fp-zoom">
+      ${withViewSwitch ? this._viewSelect(this._planView()) : null}
       <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
       <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atMin} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
       <button type="button" aria-label=${resetLabel} title=${resetLabel} ?disabled=${atHome} @click=${() => this._fitView()}>

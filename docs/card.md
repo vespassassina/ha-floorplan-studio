@@ -37,6 +37,8 @@ floors — ready to paste. See "A premade dashboard" below.
 | `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons top right. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
+| `view` | `2d` | `2d` draws the flat plan, `2.5d` draws it with depth — see 2.5D view, below. Anything else is `2d` |
+| `view_switch` | `true` | `false` hides the View dropdown next to the zoom buttons. `kiosk` hides it too |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
 | `open_color` | red | `#rrggbb`: colours an open door or window, or a door whose vibration sensor triggered (and either one's pulsing alert line), instead of red. An invalid value is ignored |
 | `icon_size` | `1` | grows icons, names, values and radar dots by this factor, on top of the automatic scale-up on a large plan (see Size, below). A number from `0.5` to `3`; anything else clamps into that range, and a missing or non-numeric value is the default, `1` |
@@ -57,6 +59,31 @@ kiosk: false
 icon_size: 1
 active_list: true
 ```
+
+## 2.5D view
+
+`view: 2.5d` draws the same plan with depth: walls rise, furniture becomes
+boxes, stairs become steps. The floor itself stays true to the plan, so
+rooms, icons and taps sit where they do in 2D; only what stands up is drawn
+up and to the right (a vertical oblique projection, seen from the south-west).
+
+Next to the zoom buttons a small `View` dropdown switches between `2D` and
+`2.5D` for as long as the card is on screen. It keeps your zoom and pan, and a
+reload goes back to `view:`. `view_switch: false` removes the dropdown and
+`kiosk: true` does too; the configured `view` still applies.
+
+- Walls are drawn at their height (250 cm by default). The walls on the
+  near, south-facing side of the house are cut down to 90 cm, like a doll's
+  house with the front taken off, so they never hide the rooms behind them.
+  A fence keeps its own height; kerbs and boundary lines stay flat.
+- A door is a gap in the wall, a window is a band of glass above its sill, a
+  glass door is glass from the floor, a sealed door is a solid panel. The
+  door line at floor level still shows open, closed and alert.
+- Furniture and appliances that no entity runs are boxes with their symbol
+  on the lid. Heights come from the layout (`height`) or a default per kind.
+- A device icon stays where it is on the plan. One mounted at 100 cm or more
+  (a ceiling light, a smoke alarm) gets a thin stem to its real height.
+- Heights are set in the editor's inspector (see `docs/editor.md`).
 
 ## A card for one room
 
@@ -186,7 +213,7 @@ autosave does not reset it.
 
 No YAML needed: adding or editing the card in the Lovelace UI (the pencil
 icon, or "Edit" on an existing card) shows a form instead of raw code —
-theme, a Floor selector, fade, room glow, zoom, kiosk, icon size, the
+theme, a Floor selector, fade, room glow, zoom, view, view switch, kiosk, icon size, the
 open-door colour (with a Clear button, distinct from picking the theme's
 own default colour by hand), the Active list toggle, night and the sun
 entity. The Floor selector picks "All floors (switcher)" (the default — it

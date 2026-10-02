@@ -32,6 +32,10 @@ const ZOOM_LEVEL_MIN = 1;
 const ZOOM_LEVEL_MAX = 8;
 
 const NIGHT_CHOICES = ["auto", "on", "off"] as const;
+const DEFAULT_VIEW = "2d";
+const DEFAULT_VIEW_SWITCH = true;
+// Same two options as VIEW_OPTIONS in floorplan-studio-card.ts, kept apart for the same reason as the defaults above.
+const VIEW_CHOICES = [["2d", "2D"], ["2.5d", "2.5D"]] as const;
 
 /**
  * `floorplan-studio-card-editor`: the form the Home Assistant Edit-card dialog shows instead of raw YAML, per
@@ -140,6 +144,10 @@ export class FloorplanStudioCardEditor extends LitElement {
   private _zoomChoice(): ZoomChoice {
     const z = this._config.zoom;
     return z === false ? "off" : z === "wheel" ? "wheel" : "on";
+  }
+
+  private _view(): (typeof VIEW_CHOICES)[number][0] {
+    return VIEW_CHOICES.find(([v]) => v === this._config.view)?.[0] ?? DEFAULT_VIEW;
   }
 
   private _night(): "auto" | "on" | "off" {
@@ -302,6 +310,14 @@ export class FloorplanStudioCardEditor extends LitElement {
     this._set("active_list", (e.target as HTMLInputElement).checked, DEFAULT_ACTIVE_LIST);
   }
 
+  private _onView(e: Event): void {
+    this._set("view", (e.target as HTMLSelectElement).value as EditorConfig["view"], DEFAULT_VIEW);
+  }
+
+  private _onViewSwitch(e: Event): void {
+    this._set("view_switch", (e.target as HTMLInputElement).checked, DEFAULT_VIEW_SWITCH);
+  }
+
   private _onNight(e: Event): void {
     this._set("night", (e.target as HTMLSelectElement).value as EditorConfig["night"], DEFAULT_NIGHT);
   }
@@ -401,6 +417,18 @@ export class FloorplanStudioCardEditor extends LitElement {
           <option value="wheel" ?selected=${this._zoomChoice() === "wheel"}>On, wheel too</option>
           <option value="off" ?selected=${this._zoomChoice() === "off"}>Off</option>
         </select>
+      </div>
+
+      <div class="row">
+        <label class="main" for="view">View</label>
+        <select id="view" @change=${this._onView}>
+          ${VIEW_CHOICES.map(([v, label]) => html`<option value=${v} ?selected=${this._view() === v}>${label}</option>`)}
+        </select>
+      </div>
+
+      <div class="row">
+        <label class="main" for="view_switch">View switch</label>
+        <input id="view_switch" type="checkbox" .checked=${this._config.view_switch ?? DEFAULT_VIEW_SWITCH} @change=${this._onViewSwitch} />
       </div>
 
       <div class="row">

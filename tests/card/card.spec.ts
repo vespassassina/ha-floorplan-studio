@@ -516,6 +516,29 @@ test.describe("S7.4 zoom and pan", () => {
     expect(await calls(page)).toEqual([]);
   });
 
+  test("the View select sits clear of the zoom buttons, picks 2.5D in a real browser, and a real click on a light still toggles it", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const flat = await viewBox(page);
+    const sel = card(page).locator('css=.fp-zoom select[aria-label="View"]');
+    await expect(sel).toBeVisible();
+    const s = (await sel.boundingBox())!;
+    const z = (await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').boundingBox())!;
+    expect(s.x + s.width).toBeLessThanOrEqual(z.x + 0.5); // beside the buttons, not over them
+    expect(Math.abs(s.height - z.height)).toBeLessThan(2); // same row height
+
+    await sel.selectOption("2.5d");
+    expect(await card(page).locator("css=svg .ws").count()).toBeGreaterThan(0);
+    expect((await viewBox(page)).h).toBeGreaterThan(flat.h); // the lift widened the box
+    const l = await lightAt(page);
+    await page.mouse.click(l.x, l.y);
+    expect((await calls(page)).length).toBe(1); // the icon did not move: a tap where it is drawn still reaches it
+
+    await sel.selectOption("2d");
+    expect(await card(page).locator("css=svg .ws").count()).toBe(0);
+    expect(await viewBox(page)).toEqual(flat);
+  });
+
   test("a 40 px drag that starts on a light pans the plan and does not toggle the light; a plain click still does", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
