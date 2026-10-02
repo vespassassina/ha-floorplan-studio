@@ -78,6 +78,8 @@ export interface FloorplanStudioCardConfig {
 /** Card config is untrusted input (CLAUDE.md finding 1): only a plain `#rrggbb` hex is accepted for open_color. */
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
+/** Below this card width the Active list starts folded: it would cover the plan. */
+const ACTIVE_FOLD_BELOW_PX = 480;
 /** Two taps closer than this in time and space are a double-tap. */
 const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_PX = 24;
@@ -231,12 +233,10 @@ export class FloorplanStudioCard extends LitElement {
    * between reloads, never a thrown error — CLAUDE.md finding 1's spirit applied to browser state). */
   private _activeCollapsed = false;
   private _activePos: { x: number; y: number } | null = null;
-  /** Opus review finding 5 (an assumption Diego may overrule, recorded in docs/DECISIONS.md): whether anything at
-   * all was found in storage for this card the last time `_loadActiveState` ran. When nothing was, and the card
-   * turns out to be narrower than 500px once it has actually rendered, the panel starts collapsed instead of
-   * covering a phone-sized card. Checked once per `setConfig`, in `updated()`, where a real width is available. */
-  private _activeHadStoredState = false;
-  private _activePhoneDefaultChecked = false;
+  /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then the card's
+   * own width decides: folded under `ACTIVE_FOLD_BELOW_PX`, open from there up, followed on every resize (0.12.17;
+   * it was a one-off check at 500px that a stored drag position switched off). After, the choice is theirs. */
+  private _activeUserChose = false;
   private _activeResizeObserver: ResizeObserver | null = null;
 
   /** `localStorage` key for this card's panel state. Opus review finding 7: the seed used to be the layout's own
@@ -262,14 +262,14 @@ export class FloorplanStudioCard extends LitElement {
   private _loadActiveState(): void {
     this._activeCollapsed = false;
     this._activePos = null;
-    this._activeHadStoredState = false;
-    this._activePhoneDefaultChecked = false;
+    this._activeUserChose = false;
     try {
       const raw = globalThis.localStorage?.getItem(this._activeStorageKey());
       if (!raw) return;
-      this._activeHadStoredState = true;
-      const parsed = JSON.parse(raw) as { collapsed?: unknown; x?: unknown; y?: unknown };
-      if (parsed.collapsed === true) this._activeCollapsed = true;
+      const parsed = JSON.parse(raw) as { collapsed?: unknown; chosen?: unknown; x?: unknown; y?: unknown };
+      // An entry from before `chosen` existed that says collapsed was a hand fold (nothing else wrote it as true);
+      // one that says open may only be a dragged position, so the width still decides.
+      if (parsed.chosen === true || parsed.collapsed === true) { this._activeUserChose = true; this._activeCollapsed = parsed.collapsed === true; }
       // Opus review finding 3: untrusted storage, including an older build's raw-px entry — clamped into the 0..1
       // fraction range rather than trusted or thrown on. A stale px value just lands at whichever edge it clamps
       // to (never off-screen); it does not need to reproduce its exact old spot.
@@ -283,7 +283,7 @@ export class FloorplanStudioCard extends LitElement {
 
   private _saveActiveState(): void {
     try {
-      globalThis.localStorage?.setItem(this._activeStorageKey(), JSON.stringify({ collapsed: this._activeCollapsed, x: this._activePos?.x, y: this._activePos?.y }));
+      globalThis.localStorage?.setItem(this._activeStorageKey(), JSON.stringify({ collapsed: this._activeUserChose && this._activeCollapsed, chosen: this._activeUserChose, x: this._activePos?.x, y: this._activePos?.y }));
     } catch {
       /* private browsing or storage blocked: position/collapse just don't persist */
     }
@@ -309,7 +309,7 @@ export class FloorplanStudioCard extends LitElement {
     // dragged to a new grid size) must re-clamp the panel too, not only a fresh render. jsdom has no
     // ResizeObserver; the unit suite never needs this path, so it is skipped there rather than polyfilled.
     if (typeof ResizeObserver !== "undefined") {
-      this._activeResizeObserver = new ResizeObserver(() => this._positionActivePanel());
+      this._activeResizeObserver = new ResizeObserver(() => { this._applyWidthDefault(); this._positionActivePanel(); });
       this._activeResizeObserver.observe(this);
     }
   }
@@ -639,7 +639,7 @@ export class FloorplanStudioCard extends LitElement {
   protected updated(changed: PropertyValues): void {
     super.updated(changed);
     this._glidePeople();
-    this._applyPhoneDefault();
+    this._applyWidthDefault();
     this._positionActivePanel();
     const t = this._theme();
     this.setAttribute("data-theme", t);
@@ -858,6 +858,7 @@ export class FloorplanStudioCard extends LitElement {
 
   private _toggleActiveCollapsed(): void {
     this._activeCollapsed = !this._activeCollapsed;
+    this._activeUserChose = true;
     this._saveActiveState();
     this.requestUpdate();
   }
@@ -884,20 +885,17 @@ export class FloorplanStudioCard extends LitElement {
     panel.style.top = `${this._activePos.y * maxY}px`;
   }
 
-  /** Opus review finding 5 (docs/DECISIONS.md: an assumption Diego may overrule): with nothing stored for this
-   * card, and the card narrower than 500px once it has actually rendered, the panel starts collapsed rather than
-   * covering a phone-sized card. Runs once per `setConfig`/mount, from `updated()`, where `getBoundingClientRect`
-   * first reports a real width; a later resize (a phone rotated, a column resized) does not retroactively collapse
-   * or reopen it — only the initial, nothing-stored state is a phone-width decision. */
-  private _applyPhoneDefault(): void {
-    if (this._activePhoneDefaultChecked || this._activeHadStoredState) return;
+  /** The list floats over the plan, so on a phone-width card it hides the plan: until the user has chosen, it is
+   * folded under 480px and open from there up. Runs from `updated()` and the ResizeObserver; width 0 (detached,
+   * `display:none`, not laid out yet) decides nothing. */
+  private _applyWidthDefault(): void {
+    if (this._activeUserChose) return;
     const width = this.getBoundingClientRect().width;
-    if (width === 0) return; // not laid out yet (e.g. detached or display:none); try again on the next render
-    this._activePhoneDefaultChecked = true;
-    if (width < 500 && !this._activeCollapsed) {
-      this._activeCollapsed = true;
-      this.requestUpdate();
-    }
+    if (width === 0) return;
+    const narrow = width < ACTIVE_FOLD_BELOW_PX;
+    if (narrow === this._activeCollapsed) return;
+    this._activeCollapsed = narrow;
+    this.requestUpdate();
   }
 
   /**

@@ -169,8 +169,12 @@ toggle, and can be dragged to reposition the panel — its position is kept
 as a fraction of the card's free space and re-clamped after every render
 and resize, so it can never end up off-screen, including after the card
 itself is resized or the panel is collapsed then expanded again. On a card
-narrower than 500px with nothing yet stored, the panel starts collapsed and
-narrower (`min(200px, 45%)`), so it does not crowd a phone-width plan.
+narrower than 480px the panel starts folded, so it does not cover a
+phone-width plan; from 480px up it starts open. (It is `min(200px, 45%)`
+wide at any size.) The card's width
+decides, and follows it when the card is resized, until you fold or unfold the
+list by hand. From then on your choice stays, for that card, in this browser.
+A position you only dragged it to does not count as a choice.
 Position and collapsed state are kept per browser (`localStorage`), keyed
 to the layout's source (its `layout_url`, or "inline" for a config
 `layout`, or the websocket fetch) plus the card's own `floor`/`floors`, so
