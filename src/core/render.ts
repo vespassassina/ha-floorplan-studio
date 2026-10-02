@@ -326,6 +326,8 @@ export function wallWidthAt(f: Floor, a: Pt, b: Pt): number {
   const kinds = edgeKindsNear(f, mid(a, b), dir, DOOR_WALL_TOL);
   return kinds.includes("external") ? WALL_WIDTH_EXTERNAL : WALL_WIDTH;
 }
+/** cm wide a door's floor line is drawn in 2.5D (see the doors loop in renderFloor). */
+const DOOR_THRESHOLD_25D = 4;
 /** A selected door or window is always 8 cm wider than its own thickness, whichever wall it sits on. */
 const DOOR_SELECT_EXTRA = 8;
 /** An opening's stroke must fully erase the (possibly thicker) wall under it: the wall's own thickness, plus enough
@@ -882,7 +884,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const vibrating = (d.vibration ?? []).some((e) => o.state?.[e]?.state === "on");
     const cls = ["door", `door-${esc(String(d.kind))}`, vibrating ? "alarm" : "", open ? "open" : "", !coverIsCurtain && cover?.state === "open" ? "cover-open" : ""].filter(Boolean).join(" ");
     const sel = o.selection?.t === "door" && o.selection.i === i;
-    const w = wallWidthAt(f, d.a, d.b);
+    // 2.5D: the wall is already cut open above, so the floor line is only a threshold, thin enough to see through the gap.
+    // It keeps every class (open, alarm, cover-open) and its alert line, so a door's state still shows.
+    const w = x25 ? DOOR_THRESHOLD_25D : wallWidthAt(f, d.a, d.b);
     const seg = `x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}"`;
     // S8.9 part 2 + finding 3: the visible line is now as thin as the internal wall it sits on (10 cm, or 20 on an
     // external wall), so a plain transparent line first, at the old fixed 22 cm, keeps the door as easy to click as

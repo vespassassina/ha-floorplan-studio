@@ -3,7 +3,7 @@
 // numbers: they arrive in a `Proj`, so this file never imports render.ts.
 import { deviceZ, doorSpan, edgeHeight, floorHeight, furnitureHeight, openingSpan, unlinkedHeight, wallHeight } from "./heights";
 import { esc, num, pts } from "./fmt";
-import type { Floor, Pt } from "./schema";
+import type { DoorKind, Floor, Pt } from "./schema";
 
 /** A device mount at or above this height gets a stem up from its icon (a ceiling light yes, a plug no). */
 export const STEM_MIN_Z = 100;
@@ -96,6 +96,14 @@ function collectWalls(f: Floor, px: Proj): WallSeg[] {
   return [...seen.values()];
 }
 
+/**
+ * What fills the hole an opening cuts between its sill and head: nothing (a door stands open, a plain opening is a
+ * gap), a translucent band of glass (a window, a glass door) or a solid panel (sealed, as the 2D plan draws it). One
+ * entry per DoorKind, so a new kind fails the test that walks DOOR_KINDS until someone decides (finding 17).
+ */
+export const OPENING_FILL: Record<DoorKind | "opening", "gap" | "glass" | "panel"> = { door: "gap", opening: "gap", glass: "glass", window: "glass", sealed: "panel" };
+const has = <T extends string>(table: Record<T, unknown>, k: unknown): k is T => typeof k === "string" && Object.prototype.hasOwnProperty.call(table, k);
+
 /** A door, window or opening as the wall sees it: where it lies and between which heights. */
 interface Span { a: Pt; b: Pt; sill: number; head: number; kind: string }
 const spansOf = (f: Floor): Span[] => [
@@ -147,8 +155,9 @@ export function wallSolids(f: Floor, px: Proj): Solid[] {
       if (t0 > cursor) top(cursor, t0);
       const sill = Math.min(s.sill, hh), head = Math.min(s.head, hh);
       faces.push(quad(t0, t1, 0, sill, wall));
-      if (s.kind === "window" || s.kind === "glass") faces.push(quad(t0, t1, sill, head, `glass g-${s.kind}`));
-      else if (s.kind === "sealed") faces.push(quad(t0, t1, sill, head, "ws sealed"));
+      const fill = has(OPENING_FILL, s.kind) ? OPENING_FILL[s.kind] : "gap";
+      if (fill === "glass") faces.push(quad(t0, t1, sill, head, `glass g-${esc(s.kind)}`));
+      else if (fill === "panel") faces.push(quad(t0, t1, sill, head, "ws sealed"));
       faces.push(quad(t0, t1, head, hh, wall));
       if (s.head < hh || s.sill >= hh) top(t0, t1); // a header, or a sill that reaches the top, closes the wall above the gap
       cursor = t1;
