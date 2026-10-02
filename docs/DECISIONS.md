@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-02: room names smaller, half transparent, inside their room (0.12.16)
+
+Diego's screenshot: "Laundry" sat on the edge of the next area. Cause: the
+label anchor was the vertex mean, which is outside an L or U room, and the
+candidate spots were never checked against the room. Now `centroid` falls back
+to the middle of the widest stretch along the mean's row, and `rows` puts spots
+inside the room first; outside spots stay as a last resort, so a name longer
+than a tiny room (the demo's pond) still avoids doors and icons. Sizes 14 to
+11 (zones 10 to 8). Room names get `opacity=".5"` as an attribute (device labels
+share `.lbl` and must not fade); zones use `.lbl.zone{opacity:.5}`. Not
+reproduced on Diego's own layout (private); the fix is tested on an L shape.
+
 ## 2026-09-28: card default view, pan and zoom-out fixed (field report, 0.12.14)
 
 Diego's screenshot: the card's default zoom clipped a garden shed, with no

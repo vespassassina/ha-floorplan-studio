@@ -269,7 +269,7 @@ export const FLOORPLAN_CSS = `
 @keyframes fp-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
-.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl.zone{opacity:.75}
+.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl.zone{opacity:.5}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
 .sel{stroke:var(--fp-ink)} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}`;
 
@@ -703,10 +703,31 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     placed.push(textBox(at, size, len));
     return at;
   };
-  /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 14k name either way. */
-  const rows = (a: Pt): Pt[] => [a, screenOff(a, 0, 32 * k), screenOff(a, 0, -32 * k), screenOff(a, 0, 64 * k), screenOff(a, 0, -64 * k)];
+  const inPoly = (p: Pt, poly: Pt[]): boolean => {
+    let c = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) if ((poly[i][1] > p[1]) !== (poly[j][1] > p[1]) && p[0] < ((poly[j][0] - poly[i][0]) * (p[1] - poly[i][1])) / (poly[j][1] - poly[i][1]) + poly[i][0]) c = !c;
+    return c;
+  };
+  /** The vertex mean, or when that falls outside the room (an L, a U) the middle of the widest stretch of the room along the mean's own row. */
+  const centroid = (p: Pt[]): Pt => {
+    const m: Pt = [p.reduce((s, q) => s + q[0], 0) / p.length, p.reduce((s, q) => s + q[1], 0) / p.length];
+    if (!m.every(Number.isFinite) || inPoly(m, p)) return m;
+    const xs: number[] = [];
+    for (let i = 0, j = p.length - 1; i < p.length; j = i++) if ((p[i][1] > m[1]) !== (p[j][1] > m[1])) xs.push(p[i][0] + ((m[1] - p[i][1]) * (p[j][0] - p[i][0])) / (p[j][1] - p[i][1]));
+    xs.sort((a, b) => a - b);
+    let best: Pt = m, w = 0;
+    for (let i = 0; i + 1 < xs.length; i += 2) if (xs[i + 1] - xs[i] > w) { w = xs[i + 1] - xs[i]; best = [(xs[i] + xs[i + 1]) / 2, m[1]]; }
+    return best;
+  };
+  /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 12k name either way.
+   * The ones inside the room come first: a name goes to the next room only when no spot in its own is free. */
+  const rows = (a: Pt, poly?: Pt[]): Pt[] => {
+    const all = [0, 32, -32, 64, -64].map((dy) => screenOff(a, 0, dy * k));
+    if (!poly) return all;
+    const ins = all.filter((c, i) => i === 0 || inPoly(c, poly));
+    return [...ins, ...all.slice(1).filter((c) => !ins.includes(c))];
+  };
   const disc = (c: Pt, r: number) => { const [x, y] = toScreen(c); placed.push([x - r, y - r, 2 * r, 2 * r]); };
-  const centroid = (p: Pt[]): Pt => [p.reduce((s, q) => s + q[0], 0) / p.length, p.reduce((s, q) => s + q[1], 0) / p.length];
   // S7.8: a person whose room sensor names a room stands at that room's centroid, the same point its name is tried at
   // first. Several in one room stand on a ring round it, in device order, far enough apart that their 16k discs never
   // touch: the chord between neighbours is 2R sin(pi/n) >= 34k. The icon is placed here, before any text, so the room's
@@ -755,8 +776,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   }
   const named = (r: Floor["rooms"][number]) => !!r.name && r.kind !== "fill";
   const nameAt: Pt[] = [], zoneAt: Pt[] = [];
-  f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = place(rows(centroid(r.pts)), 14 * k, r.name); });
-  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = place(rows(centroid(r.pts)), 10 * k, r.name); });
+  f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = place(rows(centroid(r.pts), r.pts), 11 * k, r.name); });
+  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = place(rows(centroid(r.pts), r.pts), 8 * k, r.name); });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
   // S8.9 part 3: the opening's own stroke must cover whichever wall it is on, now that walls no longer share one width.
@@ -807,9 +828,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   f.rooms.forEach((r, i) => {
     if (!r.name || r.kind === "fill") return;
-    if (r.kind === "zone") { const [x, y] = zoneAt[i]; out.push(`<text class="lbl zone" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(10 * k)}">${esc(r.name)}</text>`); return; }
+    if (r.kind === "zone") { const [x, y] = zoneAt[i]; out.push(`<text class="lbl zone" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(8 * k)}">${esc(r.name)}</text>`); return; }
     const [x, y] = nameAt[i];
-    out.push(`<text class="lbl" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(14 * k)}" font-weight="600">${esc(r.name)}</text>`);
+    out.push(`<text class="lbl" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(11 * k)}" font-weight="600" opacity=".5">${esc(r.name)}</text>`);
   });
 
   f.devices.forEach((d, i) => {
