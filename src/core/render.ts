@@ -4,7 +4,8 @@ import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
 import { esc, num, pts } from "./fmt";
-import { tallestDrawn } from "./solids";
+import { tallestDrawn, wallSolids, type Proj, type Solid } from "./solids";
+import { edgeHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
@@ -152,6 +153,9 @@ export const FLOORPLAN_CSS = `
 :host([data-theme="cyberpunk"]),:host([data-theme="cyberpunk"]) .fp,[data-theme="cyberpunk"]{${CYBERPUNK_TOKENS}}
 :host([data-theme="carpenter-brut"]),:host([data-theme="carpenter-brut"]) .fp,[data-theme="carpenter-brut"]{${CARPENTER_BRUT_TOKENS}}
 :host([data-theme="beach-house"]),:host([data-theme="beach-house"]) .fp,[data-theme="beach-house"]{${BEACH_HOUSE_TOKENS}}
+/* 2.5D shades, derived from the theme's own wall colour so every theme has them with no per-theme edit. A custom property
+   that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own. */
+:host,.fp,[data-theme]{--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) 55%,var(--fp-bg))}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
    Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
    or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,
@@ -200,8 +204,16 @@ export const FLOORPLAN_CSS = `
    here (each segment's rounded end overlaps its neighbour's whatever the angle between them); only the numbers
    changed. External walls keep the square cap they always had (a mitred, not rounded, look for the house perimeter). */
 .e{stroke:var(--fp-wall);stroke-width:${WALL_WIDTH};stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5}
+/* 2.5D: the top of a wall. Same stroke as the flat wall, from its own token, and before the .external and .fence rules
+   below so an equal-specificity kind rule still wins. */
+.e.top{stroke:var(--fp-wall-top)}
 .e.external{stroke:var(--fp-wall-external);stroke-width:${WALL_WIDTH_EXTERNAL};stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
 .eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
+/* 2.5D solids take no clicks: a tap or a pick goes through to the floor-level shape under them, as in 2D. */
+.ws,.glass,.eh.top,.e.top{pointer-events:none}
+.ws{fill:var(--fp-wall-side);stroke:var(--fp-wall-top);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.ws.fence{fill:var(--fp-wall-fence);fill-opacity:.4;stroke:var(--fp-wall-fence)} .ws.sealed{fill:var(--fp-sealed);stroke:var(--fp-sealed)}
+.glass{fill:var(--fp-window);fill-opacity:.35;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke} .glass.g-glass{fill:var(--fp-glass);stroke:var(--fp-glass)}
 .e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none}
 /* S8.11 (Diego's field report: "openings must be transparent and make the wall under them transparent too"): an
    opening no longer paints a band over the wall — renderFloor cuts a real hole in the wall layer with an SVG
@@ -571,6 +583,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const up = (x: number, y: number) => (turn ? ` transform="rotate(${num(-planDeg)} ${num(x)} ${num(y)})"` : "");
   const out: string[] = [];
   const now = o.now ?? Date.now();
+  // 2.5D: the projection in the frame of the plan group. The screen-up lift is turned back by the plan's own turn, so
+  // a rotated plan still lifts toward the top of the screen.
+  const x25 = o.view === "2.5d";
+  const scr = (p: Pt): Pt => (turn ? rotateAbout(p, turn.deg, turn.pivot) : p);
+  const lean = rotateAbout([OBLIQUE.rise * OBLIQUE.skew, -OBLIQUE.rise], -planDeg, [0, 0]);
+  const px: Proj = { lift: (p, h) => [p[0] + h * lean[0], p[1] + h * lean[1]], scr, skew: OBLIQUE.skew, cutaway: OBLIQUE.cutaway };
+  const solids: Solid[] = [];
   // S7.11: the scan to trace over, first so everything draws on top of it. Checked again here: the layout is untrusted.
   const tr = f.trace;
   if (o.trace && tr?.on === true && typeof tr.src === "string" && tr.src.length <= MAX_TRACE_BYTES && TRACE_SRC.test(tr.src) && [tr.x, tr.y, tr.w, tr.rot, tr.alpha].every(Number.isFinite) && tr.w > 0)
@@ -666,9 +685,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       // The outline defaults external (the house perimeter, S1.52); a room with no wk yet is never valid, so "wall" is only a defensive fallback.
       const b = P.pts[(i + 1) % P.pts.length], kind = P.zone ? "boundary" : P.wk ? P.wk[i] : P.id === "o" ? "external" : "wall";
       if (kind === "none") { if (o.editor) guides.push({ cls: "e none", attr: ` data-e="${P.id}:${i}"`, a, b }); return; } // not drawn: the editor keeps a faint guide so it can be picked again
+      if (x25 && !P.zone && edgeHeight(f, P.id === "o" ? null : f.rooms[Number(P.id.slice(1))], i) > 0) return; // a wall with height is drawn as a solid below
       edgeLines.push({ cls: edgeClass(kind), attr: ` data-e="${P.id}:${i}"`, a, b });
     });
-  f.walls.forEach((w, i) => edgeLines.push({ cls: edgeClass(w.kind), attr: ` data-w="${i}"`, a: w.a, b: w.b }));
+  f.walls.forEach((w, i) => { if (!(x25 && wallHeight(f, w) > 0)) edgeLines.push({ cls: edgeClass(w.kind), attr: ` data-w="${i}"`, a: w.a, b: w.b }); });
   const seg = (a: Pt, b: Pt) => `x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"`;
   // S8.11: every halo and stroke line, of every kind (including external and the free-wall/outline lines above),
   // is what an opening's mask cuts a hole through — collected here instead of pushed straight to `out` so the whole
@@ -697,6 +717,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (r.area || !entityOn(o, r.entity)) return;
     out.push(`<polygon class="room on ring" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
   });
+
+  // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
+  // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.
+  if (x25) {
+    solids.push(...wallSolids(f, px));
+    out.push(...solids.sort((a, b) => a.key - b.key).map((s) => s.svg));
+  }
 
   // S7.1: no text overprints another text or a device icon. Every text is placed against one list of boxes, in the screen
   // frame (text is drawn upright, so on screen every box is axis-aligned; a turned plan is turned into that frame first).
