@@ -797,7 +797,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!anchor.every(Number.isFinite) || len * 0.6 * size <= room) return { at: place(rows(anchor, r.pts, inner), size, r.name), size };
     const ys = r.pts.map((p) => toScreen(p)[1]), ay = toScreen(anchor)[1];
     const above = screenOff(anchor, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay), below = screenOff(anchor, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay);
-    const at = [below, above].find((c) => !placed.some((q) => meets(textBox(c, size, len), q))) ?? below;
+    // The leader is one more thing that must not run across another text: its own thin box counts too.
+    const leaderBox = (c: Pt): Box => { const [x, y] = toScreen(anchor), cy = toScreen(c)[1]; return [x - k / 2, Math.min(y, cy), k, Math.abs(cy - y)]; };
+    const free = (c: Pt) => !placed.some((q) => meets(textBox(c, size, len), q));
+    const at = [below, above].find((c) => free(c) && !placed.some((q) => meets(leaderBox(c), q))) ?? [below, above].find(free) ?? below;
     placed.push(textBox(at, size, len));
     return { at, size, from: anchor };
   };

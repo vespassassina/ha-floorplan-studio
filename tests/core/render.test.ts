@@ -2008,6 +2008,10 @@ describe("S7.1: labels never overprint each other", () => {
       expect(p.size).toBeCloseTo(7 * k, 5); // shrunk to the floor
       expect(html).toContain('class="lbl-leader"');
       expect(clashes(html)).toEqual([]);
+      // and the leader line does not run across another name
+      const m = html.match(/<line class="lbl-leader"[^>]* x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)"/)!;
+      const seg: Box = [Math.min(+m[1], +m[3]) - 0.5, Math.min(+m[2], +m[4]), 1, Math.abs(+m[4] - +m[2])];
+      for (const t of boxesOf(html).texts) if (t.s !== "Garden pond") expect(meet(seg, t.box), `leader on "${t.s}"`).toBe(false);
     });
 
   it("a name longer than its room shrinks, stays above the floor, draws whole and needs no leader", () => {
