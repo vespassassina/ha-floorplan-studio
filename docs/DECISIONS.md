@@ -2,6 +2,146 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-02: the cutaway follows what a wall covers
+
+Supersedes the "known limit" in the tilt entry below. A wall is cut to
+`cutaway` when it would hide a room, not when its own room is in front of it.
+Rule, in `collectWalls` (`solids.ts`): an edge whose outward normal points up
+the screen (`ny < -0.3`) is also cut when its sweep, the parallelogram from its
+base along the lift `h * (rise * skew, -rise)`, overlaps the floor of any room
+or zone by more than 25 cm squared. Only the outward side counts, so a room
+never cuts itself. Overlap is a Sutherland-Hodgman clip of the room outline
+against the sweep, so an L-shaped room works. The whole segment takes the cut
+when part is covered: a wall that steps along its length reads as a fault.
+Side walls (`|ny| <= 0.3`) and free walls keep today's rule. Why not by edge
+owner: the Hall's north wall and the Living room's south wall are different
+edges of different length, so dedupe never paired them. The default 2.5D output
+changes (walls between a back room and a front room); 2D does not. At tilt 0
+the sweep has no area and nothing is cut, which is invisible. `Proj` gains
+`rise`.
+
+## 2026-10-02: tilt, and labels as a render option
+
+**Tilt.** One function, `obliqueFor(tilt)` in `render.ts`, maps a 0..1 tilt to
+`{ rise, skew, cutaway }`, and `renderFloor`, `viewBoxFor` and the solids all
+read it, so the box cannot disagree with the drawing. `rise = tilt * 1.1`:
+linear, so the default `DEFAULT_TILT = 0.5` gives exactly 0.55 and the old
+`OBLIQUE` (returned as is, so default output is byte for byte what it was).
+Tilt 0 is rise 0: nothing lifts, faces have no area, tops sit on the plan, and
+it reads as 2D. Tilt 1 is rise 1.1: steep, a 250 cm wall is drawn 275 units tall, more than
+most rooms are deep, so the slider stops there. `skew` stays
+0.3; it decides which faces show, not how tall they are. `cutaway` holds what
+a front wall may hide on screen constant: `round(49.5 / rise)` cm (90 at the
+default, 45 at 1), capped at 200 where there is no lift to hide anything.
+`viewBoxFor` widens by `tallest * rise` and `* skew`, the actual lift. Junk
+is the default, a number clamps. The slider is session state in the card and
+the editor; only `tilt` in the card config persists.
+
+Known limit, not changed: a room's back wall that is longer than the front
+wall of the room it borders is a different edge, so it is not de-duplicated
+and keeps its full height. At a steep tilt it hides the front of the rooms
+behind it (the Hall's north wall over the Living room). Fixing it changes the
+default output too.
+
+**Labels.** `labels?: boolean` is a `renderFloor` option, not a card CSS rule
+or an editor filter, because every text on the plan is made in that one
+function (finding 8): the card and the editor then cannot differ, and a test
+can walk every text-producing kind. `false` skips the `<text>` and leader
+elements; the text placer still runs, so nothing else moves. The editor's own
+overlay text (the measure grid numbers and the lengths) is an aid, not plan
+text, and stays; the Names button keeps its meaning. Absent means true.
+
+## 2026-10-02: the 2.5D view (docs/specs/heights-and-2-5d.md)
+
+2.5D is drawn by `renderFloor`, the one draw path, for the card and the editor.
+No `view`, or `"2d"`, is byte-identical to before; every 2.5D addition sits
+behind `view === "2.5d"`.
+
+**Projection.** A vertical oblique: a point `(x, y)` at height `h` is drawn at
+`(x + h*rise*skew, y - h*rise)`, with `OBLIQUE = { rise 0.55, skew 0.3, cutaway
+90 }` in one place. Horizontal planes are not distorted, so a floor is still a
+true plan and a distance on it still reads in cm. An isometric or perspective
+view would shear the floor and every icon with it. Back-to-front order is the
+depth `y - skew*x` of the screen position, nearest last. A turned plan turns
+the lift vector back so up stays up on screen. `viewBoxFor` widens the box by
+the tallest thing drawn.
+
+**Cutaway.** A wall whose outward normal points down the screen (`ny > 0.3`) is
+drawn at most 90 cm. Without it every house hides its front rooms behind its
+front wall. Back and side walls keep their height. A free wall has no outside,
+so one that runs mostly across the screen counts as front. A doubled wall is
+drawn once: the taller wins, front is OR-ed, external wins. 90 cm keeps a sill
+(90) just visible; it is a tunable.
+
+**Floor-level things keep their plan position.** Room fills, flat edges,
+device icons, labels and door lines are not lifted. A tap, a hit-test, a drag
+and the plan coordinates all stay true, and the editor needs no inverse
+projection. The cost: an icon for a ceiling light sits on the floor with a stem
+up to the lamp (from 100 cm), not at the ceiling. That is a choice for
+legibility and taps. Solids are drawn between floor-level things and labels and
+take no taps (CSS classes, not presentation attributes, CLAUDE.md finding 18).
+
+**The editor preview is read-only.** Editing a 2.5D picture needs the inverse
+of the projection for every gesture, and a click on a lid or a wall face is
+ambiguous: which height did the user mean? A preview that cannot edit is honest
+and costs one guard per entry point. View mode is session state: no undo step,
+not in the layout, not stored.
+
+**3D is a different renderer.** True 3D needs a depth buffer, perspective and an
+orbiting camera, which SVG does not paint. It will be its own renderer reading
+the same heights, behind the same `view` option as a third entry. Nothing here
+is written to be stretched into it.
+
+## 2026-10-02: heights are in the model, as optional fields (docs/specs/heights-and-2-5d.md)
+
+First step toward 2.5D: every solid thing can carry a height, with no drawing
+change yet. Fields, all cm, 0 to 1000, all optional: `Floor.height` (250),
+`Floor.slab` (25), `Room.height` (the floor's), `Wall.height` (by kind: fence
+110, edge and boundary 0, wall and external the storey), `Door` and `Opening`
+`height` and `sill` (door 210 from 0, window 120 from 90, opening 210 from 0),
+`Furniture.height` (by symbol), `Unlinked.height` (by type), `Device.z` (by
+type). `Stairs` and `Extra` get none: a rise is the floor's, an extra is flat.
+
+Defaults are read through resolvers in `src/core/heights.ts`, never stored. If
+the editor wrote 250 into every wall, changing the default later would change
+nothing on old plans, and a file from an assistant would be full of numbers it
+never read. A missing field is the honest value for "the drawing does not say".
+The editor therefore removes the property on an empty field and shows the
+default as a placeholder.
+
+Schema stays version 2. Every field is optional, so an old file is a valid new
+file and a new file with no heights is a valid old one; a version bump would
+only force a migration that does nothing. `validate` refuses a value that is not
+a finite number from 0 to 1000; `migrate` drops one so the file still opens.
+Every resolver also falls back to the default on junk, since layouts are
+untrusted input. `DEVICE_Z`, `UNLINKED_HEIGHTS`, `FURNITURE_HEIGHTS`,
+`DOOR_DEFAULTS` and `WALL_KIND_HEIGHT` are tested against their unions, so a new
+member fails until someone decides its height.
+
+## 2026-10-02: small-room names shrink then go outside on a leader; Active list folds under 480 px (0.12.17)
+
+Diego: "fix small room collision". In the demo "Garden" sat on the pond inside
+it and "Garden pond" (72 wide) ran over the garden's edge. The rule now, per
+room name: measure the room's horizontal chord at the anchor row in the screen
+frame; if the text box (len x 0.6 x size) is wider, shrink to a floor of 7k
+(zones 6k), centred. Still too wide: place it just outside the room, below or
+above, on a thin `lbl-leader` line back to the anchor, drawn under the text and
+chosen so the line crosses no other text. The leader exists only in that case.
+A name's spots also skip any smaller named room inside its own. A name that fits
+but finds no free row still keeps its centroid (the documented last resort,
+unchanged). Costs: three old tests pinned superseded values and were adjusted
+(zone label 16 became 14.29 at scale 0.5; the rotation test no longer compares
+label positions, which depend on the screen frame; the two-zones test uses 60
+wide zones, since a 40 wide one now sends its name outside).
+
+Active list: the old default (collapsed under 500 px, once, only with nothing
+stored) left the list open over a phone plan as soon as a drag had written a
+position. Now the card's width decides, under 480 px folded, and follows a
+resize, until the user folds or unfolds it by hand; storage keeps `chosen` and
+a drag alone does not set it. An old entry saying collapsed counts as chosen.
+The 500 px assumption in the 2026-09 entry is superseded; 480 px is the new
+guess (a 375 px phone, a narrow column), checked in Chromium only.
+
 ## 2026-10-02: room names smaller, half transparent, inside their room (0.12.16)
 
 Diego's screenshot: "Laundry" sat on the edge of the next area. Cause: the

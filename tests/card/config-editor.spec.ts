@@ -122,6 +122,40 @@ test("floors come from the layout the card loaded, in layout order", async ({ pa
   expect(ids).toEqual(["ground", "first", "test"]);
 });
 
+test("view and view_switch fields: defaults shown, defaults dropped from the payload, picks written", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("select#view")).toHaveValue("2d");
+  await expect(editor.locator("#view_switch")).toBeChecked();
+  expect(await editor.locator("select#view option").evaluateAll((os) => os.map((o) => [o.getAttribute("value"), o.textContent!.trim()]))).toEqual([["2d", "2D"], ["2.5d", "2.5D"]]);
+
+  await editor.locator("select#view").selectOption("2.5d");
+  let detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect(detail.config.view).toBe("2.5d");
+  await editor.locator("select#view").selectOption("2d");
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("view" in detail.config).toBe(false);
+
+  await editor.locator("#view_switch").uncheck();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect(detail.config.view_switch).toBe(false);
+  await editor.locator("#view_switch").check();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("view_switch" in detail.config).toBe(false);
+});
+
+test("a config with view 2.5d and view_switch false shows both, and a junk view shows 2D without an event", async ({ page }) => {
+  await open(page);
+  await mount(page, { view: "2.5d", view_switch: false, layout: demo });
+  await expect(page.locator("#editor select#view")).toHaveValue("2.5d");
+  await expect(page.locator("#editor #view_switch")).not.toBeChecked();
+  await page.evaluate(() => document.getElementById("editor")!.remove());
+  await mount(page, { view: "3d", layout: demo });
+  await expect(page.locator("#editor select#view")).toHaveValue("2d");
+  expect(await events(page)).toEqual([]);
+});
+
 test("kiosk, night and sun fields exist with their S7.5/S7.6 defaults", async ({ page }) => {
   await open(page);
   await mount(page, { layout: demo });
@@ -388,4 +422,31 @@ test("an out-of-range zoom_level clamps into 1..8 rather than being refused", as
   await editor.locator("#zoom_level").blur();
   detail = (await events(page)).at(-1) as { config: { zoom_level?: number } };
   expect(detail.config.zoom_level).toBe(8);
+});
+
+test("labels and tilt fields: defaults shown and dropped from the payload, picks written, junk shows the default", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#labels")).toBeChecked();
+  await expect(editor.locator("#tilt")).toHaveValue("0.5");
+
+  await editor.locator("#labels").uncheck();
+  let detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect(detail.config.labels).toBe(false);
+  await editor.locator("#labels").check();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("labels" in detail.config).toBe(false);
+
+  await editor.locator("#tilt").fill("0.8");
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect(detail.config.tilt).toBe(0.8);
+  await editor.locator("#tilt").fill("0.5");
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("tilt" in detail.config).toBe(false);
+
+  await page.evaluate(() => document.getElementById("editor")!.remove());
+  await mount(page, { labels: "no", tilt: 7, layout: demo });
+  await expect(page.locator("#editor #labels")).toBeChecked();
+  await expect(page.locator("#editor #tilt")).toHaveValue("1");
 });

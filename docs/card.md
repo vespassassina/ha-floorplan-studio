@@ -37,6 +37,10 @@ floors — ready to paste. See "A premade dashboard" below.
 | `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons top right. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
+| `view` | `2d` | `2d` draws the flat plan, `2.5d` draws it with depth — see 2.5D view, below. Anything else is `2d` |
+| `view_switch` | `true` | `false` hides the View dropdown next to the zoom buttons. `kiosk` hides it too |
+| `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D. See the Tilt slider, below |
+| `labels` | `true` | `false` hides every name and value on the plan (rooms, zones, structures, device names, sensor values), so only icons and state are left. Anything but `false` shows them |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
 | `open_color` | red | `#rrggbb`: colours an open door or window, or a door whose vibration sensor triggered (and either one's pulsing alert line), instead of red. An invalid value is ignored |
 | `icon_size` | `1` | grows icons, names, values and radar dots by this factor, on top of the automatic scale-up on a large plan (see Size, below). A number from `0.5` to `3`; anything else clamps into that range, and a missing or non-numeric value is the default, `1` |
@@ -57,6 +61,51 @@ kiosk: false
 icon_size: 1
 active_list: true
 ```
+
+## 2.5D view
+
+`view: 2.5d` draws the same plan with depth: walls rise, furniture becomes
+boxes, stairs become steps. The floor itself stays true to the plan, so
+rooms, icons and taps sit where they do in 2D; only what stands up is drawn
+up and to the right (a vertical oblique projection, seen from the south-west).
+
+Next to the zoom buttons a small `View` dropdown switches between `2D` and
+`2.5D` for as long as the card is on screen. It keeps your zoom and pan, and a
+reload goes back to `view:`. `view_switch: false` removes the dropdown and
+`kiosk: true` does too; the configured `view` still applies.
+
+A **Tilt** slider sits beside the dropdown while the view is 2.5D, and
+disappears in 2D (and with `view_switch: false` or `kiosk`). Left is top-down,
+right is side-on; the middle is the default look. Dragging redraws the plan
+only: zoom and pan stay, and like the View pick it is forgotten when the
+config changes. The `tilt` key sets where it starts. The near walls are cut
+lower as the tilt grows, so a room is as visible at a steep tilt as at the
+default; at `0` nothing is lifted, so nothing hides anything.
+
+![Tilt 0, top-down.](img/card-2-5d-tilt-0.png)
+![Tilt 1, side-on.](img/card-2-5d-tilt-1.png)
+
+`labels: false` is for a card that should show only what is on: no room names,
+no zone names, no sensor values, no leader lines. Icons, auras, state, fades
+and taps are unchanged. It works in 2D and 2.5D.
+
+![A card with labels: false.](img/card-labels-off.png)
+
+- Walls are drawn at their height (250 cm by default). The walls on the
+  near, south-facing side of the house are cut down to 90 cm, like a doll's
+  house with the front taken off, so they never hide the rooms behind them.
+  So is any wall facing north whose lift would cover another room's floor (the
+  Hall's north wall over the Living room); a back wall with nothing behind it
+  keeps its full height.
+  A fence keeps its own height; kerbs and boundary lines stay flat.
+- A door is a gap in the wall, a window is a band of glass above its sill, a
+  glass door is glass from the floor, a sealed door is a solid panel. The
+  door line at floor level still shows open, closed and alert.
+- Furniture and appliances that no entity runs are boxes with their symbol
+  on the lid. Heights come from the layout (`height`) or a default per kind.
+- A device icon stays where it is on the plan. One mounted at 100 cm or more
+  (a ceiling light, a smoke alarm) gets a thin stem to its real height.
+- Heights are set in the editor's inspector (see `docs/editor.md`).
 
 ## A card for one room
 
@@ -169,8 +218,12 @@ toggle, and can be dragged to reposition the panel — its position is kept
 as a fraction of the card's free space and re-clamped after every render
 and resize, so it can never end up off-screen, including after the card
 itself is resized or the panel is collapsed then expanded again. On a card
-narrower than 500px with nothing yet stored, the panel starts collapsed and
-narrower (`min(200px, 45%)`), so it does not crowd a phone-width plan.
+narrower than 480px the panel starts folded, so it does not cover a
+phone-width plan; from 480px up it starts open. (It is `min(200px, 45%)`
+wide at any size.) The card's width
+decides, and follows it when the card is resized, until you fold or unfold the
+list by hand. From then on your choice stays, for that card, in this browser.
+A position you only dragged it to does not count as a choice.
 Position and collapsed state are kept per browser (`localStorage`), keyed
 to the layout's source (its `layout_url`, or "inline" for a config
 `layout`, or the websocket fetch) plus the card's own `floor`/`floors`, so
@@ -182,7 +235,7 @@ autosave does not reset it.
 
 No YAML needed: adding or editing the card in the Lovelace UI (the pencil
 icon, or "Edit" on an existing card) shows a form instead of raw code —
-theme, a Floor selector, fade, room glow, zoom, kiosk, icon size, the
+theme, a Floor selector, fade, room glow, zoom, view, view switch, kiosk, icon size, the
 open-door colour (with a Clear button, distinct from picking the theme's
 own default colour by hand), the Active list toggle, night and the sun
 entity. The Floor selector picks "All floors (switcher)" (the default — it

@@ -3,6 +3,9 @@ import { dist, edgeKindsNear, stairSteps } from "./geometry";
 import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
+import { esc, num, pts } from "./fmt";
+import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, type Proj, type Solid } from "./solids";
+import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
@@ -23,6 +26,38 @@ export interface RenderOpts {
   trace?: boolean;
   /** S7.6: after sunset. Every room gets a `room-night` overlay, `lit` when a light inside it is on; the root carries class `night`. */
   night?: boolean;
+  /** "2d" (default, also when omitted) is the flat plan, byte for byte as ever; "2.5d" adds depth (see OBLIQUE). */
+  view?: PlanView;
+  /** `false` draws no text at all: room, zone, extra and device names, sensor values and the leader lines. Icons, tap targets and state stay. Default `true`; absent output is byte for byte as before. */
+  labels?: boolean;
+  /** 0..1, how steeply the 2.5D view looks down: 0 is top-down (no lift), 1 is side-on. Only read with `view: "2.5d"`; see `obliqueFor`. Default `DEFAULT_TILT`, today's look. */
+  tilt?: number;
+}
+/** How the plan is drawn. "3d" will be a different renderer (docs/DECISIONS.md), so it is not a member yet. */
+export type PlanView = "2d" | "2.5d";
+/**
+ * The 2.5D projection, the one place to tune it. A vertical oblique: the floor stays true to the plan and a point at
+ * plan (x, y) and height h cm is drawn at (x + h*skew*rise, y - h*rise). `rise` is how far up one cm of height goes on
+ * screen, `skew` how far right per cm of that rise. `cutaway` is the height in cm a wall that would hide a room's
+ * interior is drawn at, like a doll's house with the front taken off (see `solids.ts`).
+ */
+export const OBLIQUE = { rise: 0.55, skew: 0.3, cutaway: 90 };
+/** The tilt at which `obliqueFor` gives exactly `OBLIQUE`. */
+export const DEFAULT_TILT = 0.5;
+/** A tilt from untrusted input: finite numbers clamp to 0..1, anything else is the default. */
+export const clampTilt = (t: unknown): number => (typeof t === "number" && Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : DEFAULT_TILT);
+/** Rise at tilt 1: steep side-on. Rise is linear in tilt, so the default (0.5) lands on OBLIQUE.rise, 0.55. */
+const MAX_RISE = 1.1;
+/** What a cutaway front wall may hide on screen (OBLIQUE.cutaway * OBLIQUE.rise). Held constant so interiors stay as
+ * visible at a steep tilt as at the default; the cm height falls as the lift grows. */
+const HIDDEN_BY_FRONT_WALL = 49.5;
+/** The tilt slider mapped to the projection: one function, so the card, the editor, `viewBoxFor` and the solids agree.
+ * Skew stays put (it fixes which side faces show, not how tall they are). At tilt 0 there is no lift, so no front wall
+ * hides anything and the cutaway is capped at 200 cm to stay finite. */
+export function obliqueFor(tilt: unknown): { rise: number; skew: number; cutaway: number } {
+  const rise = clampTilt(tilt) * MAX_RISE;
+  if (rise === OBLIQUE.rise) return { ...OBLIQUE };
+  return { rise, skew: OBLIQUE.skew, cutaway: Math.min(200, Math.round(HIDDEN_BY_FRONT_WALL / Math.max(rise, 1e-9))) };
 }
 /** blueprint is the default and the look of the project; midnight is the project's first dark theme (2026-09-21), kept under
  * its own name once blueprint moved on to a new palette; light is the same plan on paper; slate and terminal are the other two
@@ -139,6 +174,9 @@ export const FLOORPLAN_CSS = `
 :host([data-theme="cyberpunk"]),:host([data-theme="cyberpunk"]) .fp,[data-theme="cyberpunk"]{${CYBERPUNK_TOKENS}}
 :host([data-theme="carpenter-brut"]),:host([data-theme="carpenter-brut"]) .fp,[data-theme="carpenter-brut"]{${CARPENTER_BRUT_TOKENS}}
 :host([data-theme="beach-house"]),:host([data-theme="beach-house"]) .fp,[data-theme="beach-house"]{${BEACH_HOUSE_TOKENS}}
+/* 2.5D shades, derived from the theme's own wall colour so every theme has them with no per-theme edit. A custom property
+   that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own. */
+:host,.fp,[data-theme]{--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) 55%,var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg))}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
    Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
    or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,
@@ -187,8 +225,21 @@ export const FLOORPLAN_CSS = `
    here (each segment's rounded end overlaps its neighbour's whatever the angle between them); only the numbers
    changed. External walls keep the square cap they always had (a mitred, not rounded, look for the house perimeter). */
 .e{stroke:var(--fp-wall);stroke-width:${WALL_WIDTH};stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5}
+/* 2.5D: the top of a wall. Same stroke as the flat wall, from its own token, and before the .external and .fence rules
+   below so an equal-specificity kind rule still wins. */
+.e.top{stroke:var(--fp-wall-top)}
 .e.external{stroke:var(--fp-wall-external);stroke-width:${WALL_WIDTH_EXTERNAL};stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
 .eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
+/* 2.5D solids take no clicks: a tap or a pick goes through to the floor-level shape under them, as in 2D. Furniture is the
+   exception: its group is data-f, so a tap on the block reaches it as it reaches the flat symbol. */
+.ws,.glass,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk{pointer-events:none}
+.bs,.bt{stroke:var(--fp-furniture);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.bt{fill:var(--fp-box-top)} .bs{fill:var(--fp-box-side)} .bs.w{fill:var(--fp-box-side-w)}
+.trunk{stroke:var(--fp-furniture);stroke-width:8;stroke-linecap:round}
+.stem{stroke:var(--fp-idle);stroke-width:1;stroke-opacity:.7;vector-effect:non-scaling-stroke} .stem-top{fill:var(--fp-idle);fill-opacity:.7}
+.ws{fill:var(--fp-wall-side);stroke:var(--fp-wall-top);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.ws.fence{fill:var(--fp-wall-fence);fill-opacity:.4;stroke:var(--fp-wall-fence)} .ws.sealed{fill:var(--fp-sealed);stroke:var(--fp-sealed)}
+.glass{fill:var(--fp-window);fill-opacity:.35;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke} .glass.g-glass{fill:var(--fp-glass);stroke:var(--fp-glass)}
 .e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none}
 /* S8.11 (Diego's field report: "openings must be transparent and make the wall under them transparent too"): an
    opening no longer paints a band over the wall — renderFloor cuts a real hole in the wall layer with an SVG
@@ -269,15 +320,11 @@ export const FLOORPLAN_CSS = `
 @keyframes fp-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
-.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl.zone{opacity:.5}
+.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl.zone{opacity:.5} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
 .sel{stroke:var(--fp-ink)} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}`;
 
-/** Text for markup. A name that is not text (a layout that skipped `validate`) is shown as text, never thrown on. */
-const esc = (t: unknown) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const COLOR = /^#[0-9a-fA-F]{6}$/;
-const num = (n: number) => String(Math.round(n * 100) / 100);
-const pts = (p: Pt[]) => p.map((q) => `${num(q[0])},${num(q[1])}`).join(" ");
 const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 /** x, y, w, h. */
 /** Fixed regardless of a door's own visible stroke (S8.9): the box a door blocks room/zone names from (S7.15) and
@@ -305,6 +352,8 @@ export function wallWidthAt(f: Floor, a: Pt, b: Pt): number {
   const kinds = edgeKindsNear(f, mid(a, b), dir, DOOR_WALL_TOL);
   return kinds.includes("external") ? WALL_WIDTH_EXTERNAL : WALL_WIDTH;
 }
+/** cm wide a door's floor line is drawn in 2.5D (see the doors loop in renderFloor). */
+const DOOR_THRESHOLD_25D = 4;
 /** A selected door or window is always 8 cm wider than its own thickness, whichever wall it sits on. */
 const DOOR_SELECT_EXTRA = 8;
 /** An opening's stroke must fully erase the (possibly thicker) wall under it: the wall's own thickness, plus enough
@@ -354,8 +403,9 @@ export const DOOR_ALERT_EXTRA = 16;
  * structure outside the walls — is always in the default view. Devices are not in that unconditional set: only a
  * lit lamp or a camera widens the box, by its own reach, and only when it is near the rest of the plan already
  * (S5.7, S8.13) — a device dragged or imported far outside the house must not balloon the view the way a real
- * garden structure should, so it stays off view exactly as before this fix. */
-export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt }): { x: number; y: number; w: number; h: number } {
+ * garden structure should, so it stays off view exactly as before this fix. In "2.5d" the tallest drawn height widens the box
+ * up and to the right too (heights count: a wall drawn 250 cm up must not be clipped). */
+export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt }, view: PlanView = "2d", tilt?: number): { x: number; y: number; w: number; h: number } {
   const content = structuralPoints(f);
   if (!content.length) return { x: -pad, y: -pad, w: 1000 + 2 * pad, h: 1000 + 2 * pad };
   const turn = (p: Pt) => (rotate && rotate.deg % 360 ? rotateAbout(p, rotate.deg, rotate.pivot) : p);
@@ -369,8 +419,10 @@ export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (r && c.every(Number.isFinite) && near(c, r)) boxes.push([turn(c), r]);
   }
-  const x0 = Math.min(...boxes.map(([p, r]) => p[0] - r)), y0 = Math.min(...boxes.map(([p, r]) => p[1] - r));
-  const x1 = Math.max(...boxes.map(([p, r]) => p[0] + r)), y1 = Math.max(...boxes.map(([p, r]) => p[1] + r));
+  // 2.5D: heights draw up and to the right on the screen, whatever the plan's own turn, so the box grows in the screen frame.
+  const ob = obliqueFor(tilt), tall = view === "2.5d" ? tallestDrawn(f) * ob.rise : 0;
+  const x0 = Math.min(...boxes.map(([p, r]) => p[0] - r)), y0 = Math.min(...boxes.map(([p, r]) => p[1] - r)) - tall;
+  const x1 = Math.max(...boxes.map(([p, r]) => p[0] + r)) + tall * ob.skew, y1 = Math.max(...boxes.map(([p, r]) => p[1] + r));
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
@@ -559,6 +611,15 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const up = (x: number, y: number) => (turn ? ` transform="rotate(${num(-planDeg)} ${num(x)} ${num(y)})"` : "");
   const out: string[] = [];
   const now = o.now ?? Date.now();
+  // 2.5D: the projection in the frame of the plan group. The screen-up lift is turned back by the plan's own turn, so
+  // a rotated plan still lifts toward the top of the screen.
+  const x25 = o.view === "2.5d";
+  const scr = (p: Pt): Pt => (turn ? rotateAbout(p, turn.deg, turn.pivot) : p);
+  const ob = obliqueFor(o.tilt);
+  const lean = rotateAbout([ob.rise * ob.skew, -ob.rise], -planDeg, [0, 0]);
+  const px: Proj = { lift: (p, h) => [p[0] + h * lean[0], p[1] + h * lean[1]], scr, rise: ob.rise, skew: ob.skew, cutaway: ob.cutaway };
+  const showText = o.labels !== false; // false skips every <text> and leader below; placement still runs, so nothing else moves
+  const solids: Solid[] = [];
   // S7.11: the scan to trace over, first so everything draws on top of it. Checked again here: the layout is untrusted.
   const tr = f.trace;
   if (o.trace && tr?.on === true && typeof tr.src === "string" && tr.src.length <= MAX_TRACE_BYTES && TRACE_SRC.test(tr.src) && [tr.x, tr.y, tr.w, tr.rot, tr.alpha].every(Number.isFinite) && tr.w > 0)
@@ -654,9 +715,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       // The outline defaults external (the house perimeter, S1.52); a room with no wk yet is never valid, so "wall" is only a defensive fallback.
       const b = P.pts[(i + 1) % P.pts.length], kind = P.zone ? "boundary" : P.wk ? P.wk[i] : P.id === "o" ? "external" : "wall";
       if (kind === "none") { if (o.editor) guides.push({ cls: "e none", attr: ` data-e="${P.id}:${i}"`, a, b }); return; } // not drawn: the editor keeps a faint guide so it can be picked again
+      if (x25 && !P.zone && edgeHeight(f, P.id === "o" ? null : f.rooms[Number(P.id.slice(1))], i) > 0) return; // a wall with height is drawn as a solid below
       edgeLines.push({ cls: edgeClass(kind), attr: ` data-e="${P.id}:${i}"`, a, b });
     });
-  f.walls.forEach((w, i) => edgeLines.push({ cls: edgeClass(w.kind), attr: ` data-w="${i}"`, a: w.a, b: w.b }));
+  f.walls.forEach((w, i) => { if (!(x25 && wallHeight(f, w) > 0)) edgeLines.push({ cls: edgeClass(w.kind), attr: ` data-w="${i}"`, a: w.a, b: w.b }); });
   const seg = (a: Pt, b: Pt) => `x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"`;
   // S8.11: every halo and stroke line, of every kind (including external and the free-wall/outline lines above),
   // is what an opening's mask cuts a hole through — collected here instead of pushed straight to `out` so the whole
@@ -685,6 +747,20 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (r.area || !entityOn(o, r.entity)) return;
     out.push(`<polygon class="room on ring" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
   });
+
+  // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
+  // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.
+  if (x25) {
+    solids.push(...wallSolids(f, px));
+    f.furniture.forEach((m, i) => {
+      const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
+      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, entityOn(o, m.entity), sym.svg, px) : null;
+      if (s) solids.push(s);
+    });
+    for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
+    for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px));
+    out.push(...solids.sort((a, b) => a.key - b.key).map((s) => s.svg));
+  }
 
   // S7.1: no text overprints another text or a device icon. Every text is placed against one list of boxes, in the screen
   // frame (text is drawn upright, so on screen every box is axis-aligned; a turned plan is turned into that frame first).
@@ -720,12 +796,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     return best;
   };
   /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 12k name either way.
-   * The ones inside the room come first: a name goes to the next room only when no spot in its own is free. */
-  const rows = (a: Pt, poly?: Pt[]): Pt[] => {
+   * The ones inside the room come first: a name goes to the next room only when no spot in its own is free.
+   * `avoid` are smaller rooms drawn inside this one (a pond in a garden): a name on one hides under its fill. */
+  const rows = (a: Pt, poly?: Pt[], avoid: Pt[][] = []): Pt[] => {
     const all = [0, 32, -32, 64, -64].map((dy) => screenOff(a, 0, dy * k));
     if (!poly) return all;
-    const ins = all.filter((c, i) => i === 0 || inPoly(c, poly));
-    return [...ins, ...all.slice(1).filter((c) => !ins.includes(c))];
+    const ok = (c: Pt, i: number) => (i === 0 || inPoly(c, poly)) && !avoid.some((q) => inPoly(c, q));
+    const ins = all.filter(ok);
+    return [...ins, ...all.filter((c, i) => !ok(c, i))];
   };
   const disc = (c: Pt, r: number) => { const [x, y] = toScreen(c); placed.push([x - r, y - r, 2 * r, 2 * r]); };
   // S7.8: a person whose room sensor names a room stands at that room's centroid, the same point its name is tried at
@@ -775,9 +853,36 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if ([ax, ay, bx, by].every(Number.isFinite)) placed.push([Math.min(ax, bx) - h, Math.min(ay, by) - h, Math.abs(bx - ax) + 2 * h, Math.abs(by - ay) + 2 * h]);
   }
   const named = (r: Floor["rooms"][number]) => !!r.name && r.kind !== "fill";
-  const nameAt: Pt[] = [], zoneAt: Pt[] = [];
-  f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = place(rows(centroid(r.pts), r.pts), 11 * k, r.name); });
-  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = place(rows(centroid(r.pts), r.pts), 8 * k, r.name); });
+  const area = (p: Pt[]) => Math.abs(p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0)) / 2;
+  /** The width of the room along the screen row through `a`, on the stretch that holds `a`; 0 when the row misses the room. */
+  const chordAt = (poly: Pt[], a: Pt): number => {
+    const sp = poly.map(toScreen), [ax, ay] = toScreen(a), xs: number[] = [];
+    for (let i = 0, j = sp.length - 1; i < sp.length; j = i++) if ((sp[i][1] > ay) !== (sp[j][1] > ay)) xs.push(sp[i][0] + ((ay - sp[i][1]) * (sp[j][0] - sp[i][0])) / (sp[j][1] - sp[i][1]));
+    xs.sort((p, q) => p - q);
+    for (let i = 0; i + 1 < xs.length; i += 2) if (ax >= xs[i] && ax <= xs[i + 1]) return xs[i + 1] - xs[i];
+    return 0;
+  };
+  const GAP = 4; // plan units (times k) between a room and a name put outside it
+  /** Where a room's name goes and at what size. Too wide for the room at its anchor row: shrink to `floor` (centred);
+   * still too wide: just outside the room, above or below, on a leader line back to the anchor. Never dropped. */
+  type Label = { at: Pt; size: number; from?: Pt };
+  const placeName = (r: Floor["rooms"][number], base: number, floor: number): Label => {
+    const mine = area(r.pts), inner = f.rooms.filter((q) => q !== r && named(q) && q.kind !== "zone" && area(q.pts) < mine).map((q) => q.pts);
+    const anchor = centroid(r.pts), len = String(r.name).length, room = chordAt(r.pts, anchor);
+    const size = Math.max(floor, Math.min(base, room / (len * 0.6)));
+    if (!anchor.every(Number.isFinite) || len * 0.6 * size <= room) return { at: place(rows(anchor, r.pts, inner), size, r.name), size };
+    const ys = r.pts.map((p) => toScreen(p)[1]), ay = toScreen(anchor)[1];
+    const above = screenOff(anchor, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay), below = screenOff(anchor, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay);
+    // The leader is one more thing that must not run across another text: its own thin box counts too.
+    const leaderBox = (c: Pt): Box => { const [x, y] = toScreen(anchor), cy = toScreen(c)[1]; return [x - k / 2, Math.min(y, cy), k, Math.abs(cy - y)]; };
+    const free = (c: Pt) => !placed.some((q) => meets(textBox(c, size, len), q));
+    const at = [below, above].find((c) => free(c) && !placed.some((q) => meets(leaderBox(c), q))) ?? [below, above].find(free) ?? below;
+    placed.push(textBox(at, size, len));
+    return { at, size, from: anchor };
+  };
+  const nameAt: Label[] = [], zoneAt: Label[] = [];
+  f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, 11 * k, 7 * k); });
+  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 8 * k, 6 * k); });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
   // S8.9 part 3: the opening's own stroke must cover whichever wall it is on, now that walls no longer share one width.
@@ -788,12 +893,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       ? `<rect class="extra" data-ex="${i}" x="${num(mx)}" y="${num(my)}" width="${num(w)}" height="${num(h)}"/>`
       : `<line class="extra" data-ex="${i}" x1="${num(x.a[0])}" y1="${num(x.a[1])}" x2="${num(x.b[0])}" y2="${num(x.b[1])}"/>`);
     const [tx, ty] = place(rows([mx + w / 2, my + h / 2]), 11 * k, x.name);
-    out.push(`<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * k)}">${esc(x.name)}</text>`);
+    if (showText) out.push(`<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * k)}">${esc(x.name)}</text>`);
   });
 
   f.furniture.forEach((m, i) => {
     const sym = FURNITURE[m.symbol];
-    if (!sym) return;
+    if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
     const on = entityOn(o, m.entity) ? " on" : "";
     out.push(`<g data-f="${i}" class="furn${on}" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
   });
@@ -814,7 +919,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const vibrating = (d.vibration ?? []).some((e) => o.state?.[e]?.state === "on");
     const cls = ["door", `door-${esc(String(d.kind))}`, vibrating ? "alarm" : "", open ? "open" : "", !coverIsCurtain && cover?.state === "open" ? "cover-open" : ""].filter(Boolean).join(" ");
     const sel = o.selection?.t === "door" && o.selection.i === i;
-    const w = wallWidthAt(f, d.a, d.b);
+    // 2.5D: the wall is already cut open above, so the floor line is only a threshold, thin enough to see through the gap.
+    // It keeps every class (open, alarm, cover-open) and its alert line, so a door's state still shows.
+    const w = x25 ? DOOR_THRESHOLD_25D : wallWidthAt(f, d.a, d.b);
     const seg = `x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}"`;
     // S8.9 part 2 + finding 3: the visible line is now as thin as the internal wall it sits on (10 cm, or 20 on an
     // external wall), so a plain transparent line first, at the old fixed 22 cm, keeps the door as easy to click as
@@ -827,10 +934,16 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   });
 
   f.rooms.forEach((r, i) => {
-    if (!r.name || r.kind === "fill") return;
-    if (r.kind === "zone") { const [x, y] = zoneAt[i]; out.push(`<text class="lbl zone" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(8 * k)}">${esc(r.name)}</text>`); return; }
-    const [x, y] = nameAt[i];
-    out.push(`<text class="lbl" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(11 * k)}" font-weight="600" opacity=".5">${esc(r.name)}</text>`);
+    if (!showText || !r.name || r.kind === "fill") return;
+    const zone = r.kind === "zone", { at: [x, y], size, from } = (zone ? zoneAt : nameAt)[i];
+    // The leader runs from the room's anchor to the edge of the text box nearest it, and is drawn under the text.
+    if (from) {
+      const down = toScreen([x, y])[1] > toScreen(from)[1], [ex, ey] = screenOff([x, y], 0, down ? -0.75 * size - 0.5 * k : 0.25 * size + 0.5 * k);
+      out.push(`<line class="lbl-leader" stroke-width="${num(k)}" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(ex)}" y2="${num(ey)}"/>`);
+    }
+    out.push(zone
+      ? `<text class="lbl zone" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(size)}">${esc(r.name)}</text>`
+      : `<text class="lbl" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" font-weight="600" opacity=".5">${esc(r.name)}</text>`);
   });
 
   f.devices.forEach((d, i) => {
@@ -899,6 +1012,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
         `<circle class="wave w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
       : "";
     const icon = `${ping}${wave}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
+    // 2.5D: a device mounted high (a ceiling light, a camera, a thermostat) gets a thin stem from its icon up to where
+    // the real thing hangs. The icon itself never moves, so its tap target and hit-test are the plan's. A person walks
+    // about and a heater bar lies on the floor: neither gets one.
+    if (x25 && !person && !("a" in d)) {
+      const z = deviceZ(d);
+      if (z >= STEM_MIN_Z) { const top = px.lift(c, z); out.push(`<line class="stem" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(top[0])}" y2="${num(top[1])}"/><circle class="stem-top" cx="${num(top[0])}" cy="${num(top[1])}" r="${num(3 * k)}"/>`); }
+    }
     // The bar draws first so the icon group (fix/heater-bar-under-icon), with its white disc and halo, always paints on top of it.
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
@@ -930,9 +1050,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const text = bad ? "–" : s.state + unit, vs = 11 * k, gap = 16 * k + 2 * k; // 2k clear of the 16k disc
       // S7.1: below the icon, then above, then to the right (the box centred on the icon's centre line).
       const [vx, vy] = place([screenOff(c, 0, gap + 0.75 * vs), screenOff(c, 0, -gap - 0.25 * vs), screenOff(c, gap + (text.length * 0.6 * vs) / 2, 0.25 * vs)], vs, text);
-      out.push(`<text class="val" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
+      if (showText) out.push(`<text class="val" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
     }
-    if (o.showNames || sel) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
+    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
   });
 
   // S4.25: an unlinked appliance. Flat idle-grey icon (no on/off state), an optional per-instance colour override,
@@ -952,7 +1072,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // plan is rotated (no counter-rotation) — found by looking at the render (npm run shots), not by the unit
     // test alone: a copy of the device's "icon stays upright" logic left `rot` with no visible effect at all.
     out.push(`<g data-u="${i}" class="dev unl${sel ? " sel" : ""}"${style} transform="translate(${at([u.x - 12 * uk, u.y - 12 * uk])}) scale(${num(uk)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${esc(String(u.type))}: ${esc(label)}</title>${icon}</g>`);
-    if (o.showNames || sel) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
+    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
   });
 
   if (o.editor)

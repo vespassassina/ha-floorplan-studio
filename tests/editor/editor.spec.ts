@@ -4725,6 +4725,16 @@ test("CSS pair: furniture has its own fixed grey token, decoupled from idle devi
   expect(await page.locator("svg g.furn").first().evaluate((e) => getComputedStyle(e).color)).toBe(rgb("#79766e"));
 });
 
+test("CSS pair: a room name's leader line is drawn in the text colour, faint, and takes no clicks", async ({ page }) => {
+  await setTheme(page, "light"); // the demo's "Garden pond" is wider than the pond, so its name sits outside on a leader
+  const leader = page.locator("svg line.lbl-leader").first();
+  await expect(leader).toHaveCount(1);
+  const s = await leader.evaluate((e) => { const c = getComputedStyle(e); return { stroke: c.stroke, opacity: c.opacity, events: c.pointerEvents }; });
+  expect(s).toEqual({ stroke: rgb("#3a3a3a"), opacity: "0.5", events: "none" });
+  await setTheme(page, "midnight");
+  expect(await leader.evaluate((e) => getComputedStyle(e).stroke)).not.toBe(rgb("#3a3a3a"));
+});
+
 // S8.11: an opening used to be a grey band stroked to match a plain room's own fill (--fp-room-empty) so it
 // merely looked like a hole; that band showed as a visibly wrong colour over any room with its own colour or
 // texture. Now the hole is real — src/core/render.ts cuts the wall out of a <mask> — so the opening's own
@@ -8347,4 +8357,94 @@ test("Opus review CSS pair: a room name and a zone name are drawn at half opacit
   const opacity = (sel: string) => page.locator(sel).first().evaluate((el) => Number(getComputedStyle(el).opacity));
   expect(await opacity('svg text.lbl[font-weight="600"]')).toBe(0.5);
   expect(await opacity("svg text.lbl.zone")).toBe(0.5);
+});
+
+// ---- heights (docs/specs/heights-and-2-5d.md): every field is optional; empty means "the default" ----
+
+/** Every height-like value on the ground floor, as "list[i].key=value", so a test sees which item got one and how many. */
+const HEIGHT_KEYS = ["height", "slab", "sill", "z"];
+const heightsOf = async (page: Page) => {
+  const g = await groundOf(page) as any;
+  const out: string[] = [];
+  for (const k of HEIGHT_KEYS) if (g[k] !== undefined) out.push(`floor.${k}=${g[k]}`);
+  for (const list of ["rooms", "walls", "doors", "openings", "furniture", "unlinked", "devices"])
+    g[list].forEach((o: any, i: number) => { for (const k of HEIGHT_KEYS) if (o[k] !== undefined) out.push(`${list}[${i}].${k}=${o[k]}`); });
+  return out;
+};
+const undoOnce = async (page: Page) => { await menu(page, "File"); await page.locator("#undo").click(); };
+
+/** Each case: how to select the item, its field id, and the placeholder (the default the resolver gives). */
+const HEIGHT_CASES: { name: string; open: (p: Page) => Promise<void>; id: string; ph: string; at: string }[] = [
+  { name: "floor height", open: async () => {}, id: "#fht", ph: "250", at: "floor.height" },
+  { name: "floor slab", open: async () => {}, id: "#fslab", ph: "25", at: "floor.slab" },
+  { name: "room ceiling", open: (p) => clickCm(p, 50, 200), id: "#rht", ph: "250", at: "rooms[" },
+  { name: "wall", open: (p) => addItem(p, "#addWall-wall"), id: "#wht", ph: "250", at: "walls[" },
+  { name: "door", open: async (p) => { const c = await centre(p, 'line[data-d="0"]'); await p.mouse.click(c.x, c.y); }, id: "#dht", ph: "210", at: "doors[" },
+  { name: "window height", open: (p) => addItem(p, "#addWin"), id: "#dht", ph: "120", at: "doors[" },
+  { name: "window sill", open: (p) => addItem(p, "#addWin"), id: "#dsill", ph: "90", at: "doors[" },
+  { name: "opening height", open: (p) => addGap(p), id: "#oht", ph: "210", at: "openings[" },
+  { name: "opening sill", open: (p) => addGap(p), id: "#osill", ph: "0", at: "openings[" },
+  { name: "furniture", open: async (p) => { await menu(p, "Add"); await p.locator("#addFurn").selectOption("bed"); }, id: "#fuht", ph: "55", at: "furniture[" },
+  { name: "unlinked", open: async (p) => { await menu(p, "Add"); await p.locator("#addUnlDev").selectOption("heater"); }, id: "#uuht", ph: "60", at: "unlinked[" },
+  { name: "device mount height", open: (p) => selectDev(p, 0), id: "#vz", ph: "250", at: "devices[" },
+];
+
+for (const c of HEIGHT_CASES) {
+  test(`heights: ${c.name} shows the default as a placeholder, a set is one undo step, a repeat adds none, Save accepts it`, async ({ page }) => {
+    await c.open(page);
+    await expect(page.locator(c.id)).toHaveValue("");
+    await expect(page.locator(c.id)).toHaveAttribute("placeholder", c.ph);
+    expect(await heightsOf(page)).toEqual([]);
+    await setField(page, c.id, "123");
+    const set = await heightsOf(page);
+    expect(set).toHaveLength(1);
+    expect(set[0]).toContain(c.at);
+    expect(set[0]).toMatch(/=123$/);
+    await setField(page, c.id, "123"); // the same value again: no step
+    expect(await heightsOf(page)).toEqual(set);
+    await savedValid(page);
+    await undoOnce(page); // one step set it and the repeat added none, so one undo empties it
+    expect(await heightsOf(page)).toEqual([]);
+  });
+
+  test(`heights: ${c.name}: clearing removes the property in one undo step; junk is refused with the reason and the default kept`, async ({ page }) => {
+    await c.open(page);
+    await setField(page, c.id, "123");
+    const back = await heightsOf(page);
+    await setField(page, c.id, "tall");
+    await expect(page.locator("#status")).toContainText('"tall" is not a height');
+    await expect(page.locator("#status")).toContainText("Kept 123");
+    await expect(page.locator(c.id)).toHaveValue("123");
+    expect(await heightsOf(page)).toEqual(back);
+    await setField(page, c.id, "5000");
+    await expect(page.locator("#status")).toContainText("used 1000");
+    expect((await heightsOf(page))[0]).toMatch(/=1000$/);
+    await setField(page, c.id, "-5");
+    await expect(page.locator("#status")).toContainText("used 0");
+    expect((await heightsOf(page))[0]).toMatch(/=0$/);
+    await savedValid(page);
+    await setField(page, c.id, "123");
+    await setField(page, c.id, "");
+    expect(await heightsOf(page)).toEqual([]); // removed, not written as 0 or ""
+    await undoOnce(page); // clearing was one step: one undo brings the 123 back
+    expect(await heightsOf(page)).toEqual(back);
+  });
+}
+
+test("heights: a layout loaded with heights shows them in the fields", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    const g = l.floors.ground;
+    g.height = 270; g.slab = 30; g.rooms[0].height = 240; g.doors[0].height = 200; g.devices[0].z = 215;
+    el.layout = l;
+  }, EDITOR);
+  await expect(page.locator("#fht")).toHaveValue("270");
+  await expect(page.locator("#fslab")).toHaveValue("30");
+  await clickCm(page, 50, 200);
+  await expect(page.locator("#rht")).toHaveValue("240");
+  const c = await centre(page, 'line[data-d="0"]');
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#dht")).toHaveValue("200");
+  await selectDev(page, 0);
+  await expect(page.locator("#vz")).toHaveValue("215");
 });

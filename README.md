@@ -9,9 +9,9 @@ Assistant every day.
 
 ![The demo house as a live card: lights come on, a door opens, the plan zooms, switches floor and darkens at dusk; then the editor, dragging a device.](docs/img/demo.gif)
 
-| The card, live | The editor |
-|---|---|
-| ![The card: the demo ground floor, two lights and the hall motion sensor on.](docs/img/card-overview.png) | ![The editor with the demo house loaded.](docs/img/editor-overview.png) |
+| The card, live | On a phone (375 px) | The editor |
+|---|---|---|
+| ![The card: the demo ground floor, two lights and the hall motion sensor on.](docs/img/card-overview.png) | ![The same card at phone width: the Active list starts folded.](docs/img/card-phone.png) | ![The editor with the demo house loaded.](docs/img/editor-overview.png) |
 
 ## What you get
 
@@ -19,6 +19,14 @@ Assistant every day.
   furniture. Attach rooms to areas and devices to entities from pickers.
 - A dumb light on a smart switch is one icon: bind the switch to the light
   ("Controlled by") and the plan shows both as one lamp.
+- A 2.5D view, in the card (`view: 2.5d`, or the View dropdown beside the zoom
+  buttons) and as a read-only preview in the editor: walls rise, furniture
+  becomes boxes, the near walls are cut down so every room shows. A Tilt
+  slider turns it from top-down to side-on.
+- A switch to hide every name and value (`labels: false` on the card, View,
+  Show names and text in the editor), so only items and sensors are left.
+
+  ![The card in 2.5D.](docs/img/card-2-5d.png)
 - A Lovelace card: lights, switches, sensors, cameras, thermostats, doors,
   people, mmWave radar targets and vacuums shown live. A lit lamp throws a
   pool of light; motion pings and fades from red to grey; an open door or
@@ -27,7 +35,8 @@ Assistant every day.
   `icon_size` scales them further.
 - A floating **Active** list on the card: every light, sensor, camera, TV and
   speaker that is on, on any floor. Tap a row for its more-info dialog; drag
-  the list aside or fold it away.
+  the list aside or fold it away. On a card narrower than 480 px it starts
+  folded, so it does not cover the plan.
 - Pinch, drag and double-tap to zoom and pan on a phone, Ctrl/Cmd+wheel and
   drag on a desktop. A kiosk mode strips the card down to the plan for a
   wall tablet.

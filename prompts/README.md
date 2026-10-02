@@ -18,6 +18,7 @@ Two finished examples sit in [`examples/`](examples/): a flat, and a house with 
 3. **Answer its two questions**: one real measurement, and where north is.
 4. **Save what it gives you** as `layout.json`.
 5. **Open the editor**: **Floorplan Studio** in the Home Assistant sidebar. Then **File → Open…**, choose `layout.json`.
+   If the drawing has sections or notes with ceiling heights (`h=2.70`), window sills or door heights, the assistant reads them into the optional `height` and `sill` fields and lists which it read and which it left to the defaults. A file with no heights is fine.
 6. **Fix what is off.** Drag a corner, move a door. The assistant lists everything it guessed; check those first.
 7. **Attach your devices** in the editor. The assistant does not touch them here, on purpose: a drawing does not know which lamp is which.
 

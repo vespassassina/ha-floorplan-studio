@@ -1,6 +1,6 @@
 import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, activeDevices, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, type PlanView, activeDevices, clampTilt, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, Theme } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
@@ -73,11 +73,30 @@ export interface FloorplanStudioCardConfig {
    * default, 1; an in-range-but-odd number (0, negative, past `MAX_ZOOM`) clamps rather than being refused, the
    * same as `icon_size`. `zoom` (the pinch/wheel switch) was already taken, so this is a separate key. */
   zoom_level?: number;
+  /** `"2d"` (default) draws the flat plan, `"2.5d"` the same plan with walls and furniture drawn up (docs/card.md).
+   * The dropdown (`view_switch`) can change it for as long as the card is on screen. Anything else is `"2d"`. */
+  view?: PlanView;
+  /** `true` (default) shows the View dropdown next to the zoom buttons; `false` hides it, and so does `kiosk`. */
+  view_switch?: boolean;
+  /** `false` hides every name and value on the plan, leaving icons and state. Anything but `false` shows them (default). */
+  labels?: boolean;
+  /** 0..1, how steeply 2.5D looks down: 0 is top-down, 1 side-on. Out-of-range clamps, junk is 0.5 (the look before this key existed). The slider next to the View select moves it for as long as the card is on screen. */
+  tilt?: number;
 }
+
+/** The View dropdown's options, one list for the markup and for reading the choice back (a value that is not here
+ * is refused). 3D joins this list when it exists. */
+const VIEW_OPTIONS: readonly { value: PlanView; label: string }[] = [
+  { value: "2d", label: "2D" },
+  { value: "2.5d", label: "2.5D" },
+];
+const isView = (v: unknown): v is PlanView => VIEW_OPTIONS.some((o) => o.value === v);
 
 /** Card config is untrusted input (CLAUDE.md finding 1): only a plain `#rrggbb` hex is accepted for open_color. */
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
+/** Below this card width the Active list starts folded: it would cover the plan. */
+const ACTIVE_FOLD_BELOW_PX = 480;
 /** Two taps closer than this in time and space are a double-tap. */
 const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_PX = 24;
@@ -132,10 +151,13 @@ export class FloorplanStudioCard extends LitElement {
     .fp-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
     .fp-dialog-actions button { font: 13px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 6px 14px; cursor: pointer; }
     /* S7.4: the zoom buttons are card chrome, the same colours as the floor chips, in the other top corner. */
-    .fp-zoom { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; gap: 4px; }
+    /* .fp-viewonly: the View select alone when zoom is off. Not .fp-zoom, so "zoom: false shows no zoom chrome" holds. */
+    .fp-zoom, .fp-viewonly { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; gap: 4px; }
     .fp-zoom button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     .fp-zoom button:disabled { opacity: 0.45; cursor: default; }
     .fp-zoom svg { width: 14px; height: 14px; }
+    .fp-zoom input[type="range"], .fp-viewonly input[type="range"] { width: 72px; height: 28px; margin: 0; accent-color: var(--fp-primary); cursor: pointer; }
+    .fp-zoom select, .fp-viewonly select { height: 28px; padding: 0 4px; font: 13px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     /* S7.15: with zoom on, the plan takes every touch once it is zoomed in, so the page does not scroll or zoom under
        a pan or a pinch. At fit there is nothing to pan, so a vertical swipe scrolls the dashboard as it would over
        any other card; the browser still leaves a pinch and a double-tap to the plan (pan-y allows neither). */
@@ -217,6 +239,10 @@ export class FloorplanStudioCard extends LitElement {
   private _chooserDialogWasOpen = false;
   /** S7.4: the zoomed viewBox, or `null` for fit. Card state: reset by `setConfig` and a floor change, never by `hass`. */
   private _view: View | null = null;
+  /** The view picked in the dropdown; `null` means the config's own. Card state like `_view`: reset by `setConfig`, never by `hass`. */
+  private _pickedView: PlanView | null = null;
+  /** The tilt dragged on the slider; `null` means the config's own. Card state like `_pickedView`: reset by `setConfig`, never by `hass`. */
+  private _pickedTilt: number | null = null;
   /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
   private _fit: View | null = null;
   private _unbindZoom: (() => void) | null = null;
@@ -231,12 +257,10 @@ export class FloorplanStudioCard extends LitElement {
    * between reloads, never a thrown error — CLAUDE.md finding 1's spirit applied to browser state). */
   private _activeCollapsed = false;
   private _activePos: { x: number; y: number } | null = null;
-  /** Opus review finding 5 (an assumption Diego may overrule, recorded in docs/DECISIONS.md): whether anything at
-   * all was found in storage for this card the last time `_loadActiveState` ran. When nothing was, and the card
-   * turns out to be narrower than 500px once it has actually rendered, the panel starts collapsed instead of
-   * covering a phone-sized card. Checked once per `setConfig`, in `updated()`, where a real width is available. */
-  private _activeHadStoredState = false;
-  private _activePhoneDefaultChecked = false;
+  /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then the card's
+   * own width decides: folded under `ACTIVE_FOLD_BELOW_PX`, open from there up, followed on every resize (0.12.17;
+   * it was a one-off check at 500px that a stored drag position switched off). After, the choice is theirs. */
+  private _activeUserChose = false;
   private _activeResizeObserver: ResizeObserver | null = null;
 
   /** `localStorage` key for this card's panel state. Opus review finding 7: the seed used to be the layout's own
@@ -262,14 +286,14 @@ export class FloorplanStudioCard extends LitElement {
   private _loadActiveState(): void {
     this._activeCollapsed = false;
     this._activePos = null;
-    this._activeHadStoredState = false;
-    this._activePhoneDefaultChecked = false;
+    this._activeUserChose = false;
     try {
       const raw = globalThis.localStorage?.getItem(this._activeStorageKey());
       if (!raw) return;
-      this._activeHadStoredState = true;
-      const parsed = JSON.parse(raw) as { collapsed?: unknown; x?: unknown; y?: unknown };
-      if (parsed.collapsed === true) this._activeCollapsed = true;
+      const parsed = JSON.parse(raw) as { collapsed?: unknown; chosen?: unknown; x?: unknown; y?: unknown };
+      // An entry from before `chosen` existed that says collapsed was a hand fold (nothing else wrote it as true);
+      // one that says open may only be a dragged position, so the width still decides.
+      if (parsed.chosen === true || parsed.collapsed === true) { this._activeUserChose = true; this._activeCollapsed = parsed.collapsed === true; }
       // Opus review finding 3: untrusted storage, including an older build's raw-px entry — clamped into the 0..1
       // fraction range rather than trusted or thrown on. A stale px value just lands at whichever edge it clamps
       // to (never off-screen); it does not need to reproduce its exact old spot.
@@ -283,7 +307,7 @@ export class FloorplanStudioCard extends LitElement {
 
   private _saveActiveState(): void {
     try {
-      globalThis.localStorage?.setItem(this._activeStorageKey(), JSON.stringify({ collapsed: this._activeCollapsed, x: this._activePos?.x, y: this._activePos?.y }));
+      globalThis.localStorage?.setItem(this._activeStorageKey(), JSON.stringify({ collapsed: this._activeUserChose && this._activeCollapsed, chosen: this._activeUserChose, x: this._activePos?.x, y: this._activePos?.y }));
     } catch {
       /* private browsing or storage blocked: position/collapse just don't persist */
     }
@@ -309,7 +333,7 @@ export class FloorplanStudioCard extends LitElement {
     // dragged to a new grid size) must re-clamp the panel too, not only a fresh render. jsdom has no
     // ResizeObserver; the unit suite never needs this path, so it is skipped there rather than polyfilled.
     if (typeof ResizeObserver !== "undefined") {
-      this._activeResizeObserver = new ResizeObserver(() => this._positionActivePanel());
+      this._activeResizeObserver = new ResizeObserver(() => { this._applyWidthDefault(); this._positionActivePanel(); });
       this._activeResizeObserver.observe(this);
     }
   }
@@ -340,6 +364,8 @@ export class FloorplanStudioCard extends LitElement {
     this._wsRequested = false;
     this._shownFloor = null;
     this._view = null;
+    this._pickedView = null;
+    this._pickedTilt = null;
     this._loadActiveState();
     this._loadLayout();
     this.requestUpdate();
@@ -394,7 +420,7 @@ export class FloorplanStudioCard extends LitElement {
   private _rows(): number {
     const f = this._floor();
     if (!f || !f.outline.length) return 6;
-    const box = viewBoxFor(f, 60, this._rotate());
+    const box = viewBoxFor(f, 60, this._rotate(), this._planView(), this._tilt());
     return Math.max(3, Math.round((box.h / box.w) * 8));
   }
 
@@ -639,7 +665,7 @@ export class FloorplanStudioCard extends LitElement {
   protected updated(changed: PropertyValues): void {
     super.updated(changed);
     this._glidePeople();
-    this._applyPhoneDefault();
+    this._applyWidthDefault();
     this._positionActivePanel();
     const t = this._theme();
     this.setAttribute("data-theme", t);
@@ -858,6 +884,7 @@ export class FloorplanStudioCard extends LitElement {
 
   private _toggleActiveCollapsed(): void {
     this._activeCollapsed = !this._activeCollapsed;
+    this._activeUserChose = true;
     this._saveActiveState();
     this.requestUpdate();
   }
@@ -884,20 +911,17 @@ export class FloorplanStudioCard extends LitElement {
     panel.style.top = `${this._activePos.y * maxY}px`;
   }
 
-  /** Opus review finding 5 (docs/DECISIONS.md: an assumption Diego may overrule): with nothing stored for this
-   * card, and the card narrower than 500px once it has actually rendered, the panel starts collapsed rather than
-   * covering a phone-sized card. Runs once per `setConfig`/mount, from `updated()`, where `getBoundingClientRect`
-   * first reports a real width; a later resize (a phone rotated, a column resized) does not retroactively collapse
-   * or reopen it — only the initial, nothing-stored state is a phone-width decision. */
-  private _applyPhoneDefault(): void {
-    if (this._activePhoneDefaultChecked || this._activeHadStoredState) return;
+  /** The list floats over the plan, so on a phone-width card it hides the plan: until the user has chosen, it is
+   * folded under 480px and open from there up. Runs from `updated()` and the ResizeObserver; width 0 (detached,
+   * `display:none`, not laid out yet) decides nothing. */
+  private _applyWidthDefault(): void {
+    if (this._activeUserChose) return;
     const width = this.getBoundingClientRect().width;
-    if (width === 0) return; // not laid out yet (e.g. detached or display:none); try again on the next render
-    this._activePhoneDefaultChecked = true;
-    if (width < 500 && !this._activeCollapsed) {
-      this._activeCollapsed = true;
-      this.requestUpdate();
-    }
+    if (width === 0) return;
+    const narrow = width < ACTIVE_FOLD_BELOW_PX;
+    if (narrow === this._activeCollapsed) return;
+    this._activeCollapsed = narrow;
+    this.requestUpdate();
   }
 
   /**
@@ -1014,10 +1038,12 @@ export class FloorplanStudioCard extends LitElement {
     const f = this._floor();
     if (!f) return html`<p class="msg">${this._error ?? NO_LAYOUT}</p>`;
     const rotate = this._rotate();
-    const fit = viewBoxFor(f, 60, rotate);
+    const view = this._planView();
+    const fit = viewBoxFor(f, 60, rotate, view, this._tilt());
     this._fit = fit;
     const zoom = this._zoomMode() !== false;
     const showZoomButtons = zoom && !this._kiosk(); // S7.5: kiosk still zooms/pans by gesture, just draws no buttons
+    const showViewSwitch = this._config.view_switch !== false && !this._kiosk();
     // S9.6: `home` is the whole floor unless `center`/`zoom_level` pin the card to part of it — the base the box
     // rests on when there is no explicit `_view`, and what "zoomed" (the fp-zoomed class, below) is measured
     // against, so a pinned card reads as its own resting state, not as permanently zoomed in from the full plan.
@@ -1041,10 +1067,49 @@ export class FloorplanStudioCard extends LitElement {
       dark: this._haDark(),
       rotate,
       night: this._night(),
+      view,
+      tilt: this._tilt(),
+      labels: this._config.labels !== false,
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit) : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
+    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit, showViewSwitch) : showViewSwitch ? html`<div class="fp-viewonly">${this._viewControls(view)}</div>` : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
+  }
+
+  /** The view on show: the dropdown's pick, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
+  private _planView(): PlanView {
+    return this._pickedView ?? (isView(this._config.view) ? this._config.view : "2d");
+  }
+
+  /** The tilt on show: the slider's, else `config.tilt`, else the default. Clamped, since config is untrusted. */
+  private _tilt(): number {
+    return clampTilt(this._pickedTilt ?? this._config.tilt);
+  }
+
+  /** The slider is for 2.5D only: in 2D there is no lift to tilt. Dragging redraws the plan only, like the View select. */
+  private _tiltSlider() {
+    const onInput = (e: Event) => {
+      this._pickedTilt = clampTilt(Number((e.target as HTMLInputElement).value));
+      this.requestUpdate();
+    };
+    return html`<input type="range" aria-label="Tilt" title="Tilt" min="0" max="1" step="0.01" .value=${String(this._tilt())} @input=${onInput} />`;
+  }
+
+  /** The View select, plus the Tilt slider while the view is 2.5D. */
+  private _viewControls(current: PlanView) {
+    return html`${this._viewSelect(current)}${current === "2.5d" ? this._tiltSlider() : null}`;
+  }
+
+  /** Compact `<select>` in the card chrome, outside the plan's `<svg>` like the zoom buttons. A pick redraws the
+   * plan only: `_view` (zoom and pan) is left alone, `render` clamps it against the new fit. */
+  private _viewSelect(current: PlanView) {
+    const onChange = (e: Event) => {
+      const v = (e.target as HTMLSelectElement).value;
+      if (!isView(v)) return;
+      this._pickedView = v;
+      this.requestUpdate();
+    };
+    return html`<select aria-label="View" title="View" @change=${onChange}>${VIEW_OPTIONS.map((o) => html`<option value=${o.value} ?selected=${o.value === current}>${o.label}</option>`)}</select>`;
   }
 
   /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */
@@ -1171,13 +1236,14 @@ export class FloorplanStudioCard extends LitElement {
    * Diego field report, 0.12.14: "−" used to disable at `fit` itself, so a shed or a corner `viewBoxFor` did not
    * bound on had no way to come into view. It now disables only at `MIN_ZOOM` (`viewport.ts`), the same floor
    * `clamp` itself enforces, so the button and the drag/pinch gesture agree on how far out the card goes. */
-  private _zoomButtons(box: View, home: View, fit: View) {
+  private _zoomButtons(box: View, home: View, fit: View, withViewSwitch: boolean) {
     const atMin = box.w >= (fit.w / MIN_ZOOM) * (1 - 1e-6);
     const atHome = !this._zoomed();
     const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
     const pinned = !sameView(home, fit, fit);
     const resetLabel = pinned ? "Reset view" : "Fit";
     return html`<div class="fp-zoom">
+      ${withViewSwitch ? this._viewControls(this._planView()) : null}
       <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
       <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atMin} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
       <button type="button" aria-label=${resetLabel} title=${resetLabel} ?disabled=${atHome} @click=${() => this._fitView()}>
