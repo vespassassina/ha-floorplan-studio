@@ -147,11 +147,12 @@ export class FloorplanStudioCard extends LitElement {
     .fp-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
     .fp-dialog-actions button { font: 13px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 6px 14px; cursor: pointer; }
     /* S7.4: the zoom buttons are card chrome, the same colours as the floor chips, in the other top corner. */
-    .fp-zoom { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; gap: 4px; }
+    /* .fp-viewonly: the View select alone when zoom is off. Not .fp-zoom, so "zoom: false shows no zoom chrome" holds. */
+    .fp-zoom, .fp-viewonly { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; gap: 4px; }
     .fp-zoom button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     .fp-zoom button:disabled { opacity: 0.45; cursor: default; }
     .fp-zoom svg { width: 14px; height: 14px; }
-    .fp-zoom select { height: 28px; padding: 0 4px; font: 13px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
+    .fp-zoom select, .fp-viewonly select { height: 28px; padding: 0 4px; font: 13px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     /* S7.15: with zoom on, the plan takes every touch once it is zoomed in, so the page does not scroll or zoom under
        a pan or a pinch. At fit there is nothing to pan, so a vertical swipe scrolls the dashboard as it would over
        any other card; the browser still leaves a pinch and a double-tap to the plan (pan-y allows neither). */
@@ -1062,7 +1063,7 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit, showViewSwitch) : showViewSwitch ? html`<div class="fp-zoom">${this._viewSelect(view)}</div>` : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
+    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit, showViewSwitch) : showViewSwitch ? html`<div class="fp-viewonly">${this._viewSelect(view)}</div>` : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
   }
 
   /** The view on show: the dropdown's pick, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
