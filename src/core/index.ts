@@ -7,7 +7,7 @@ export type { HaData } from "./ha";
 export { addCandidates, AREA_NOISE_TYPES, AREA_PLACEABLE_TYPES, areaMove, availableEntities, entitiesForType, haFloorIdsForPlanFloor, mainEntitiesByDevice, mainEntity, placeableDevicesInArea, placeableInArea, roomHaBox, switchChoicesForLight, typeForEntity, unplacedDevicesInArea, unplacedHaEntities } from "./ha";
 export type { AddCandidate, HaBox, HaBoxRow, SwitchChoice } from "./ha";
 export * from "./geometry";
-export { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE } from "./icons";
+export { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE, UI_ICONS } from "./icons";
 export * from "./render";
 export { attachedEntities, groupKind, placedEntities, unplacedCatalog } from "./bind";
 export { ACTIVE_LIST_RULE, activeDevices, groupActiveByType } from "./active";
