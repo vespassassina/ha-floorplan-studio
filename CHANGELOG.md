@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.18
 
 - A room drawn inside a bigger one now paints after it, whatever the array order, so a garden house no longer sits under its garden. Rooms that are not nested keep their order; zones still paint last.
 
