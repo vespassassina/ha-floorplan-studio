@@ -2,6 +2,41 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-02: the card turns in 45 degree steps and remembers its view
+
+Asked for by Diego: rotation, memory of the view, a reset button. Four calls.
+
+Animation. A requestAnimationFrame loop re-renders the plan with the angle
+eased (cubic in-out), about 350 ms a 45 degree step, scaled 0.4x to 2x by the
+steps outstanding so a tap on a tap does not crawl. Chosen over a CSS
+transform on the SVG because `renderFloor` rotates geometry and keeps text and
+icons upright, and a CSS turn would spin them. Measured in headless Chromium
+on the demo, a 45 degree turn held 60 fps (mean 16.7 ms, worst 16.8 ms) in 2D
+and 2.5D. The loop is skipped under
+`prefers-reduced-motion`. The delta is the short way (315 to 0 is +45).
+Pointer events are off on the plan while it turns, so no tap lands on a moving
+target.
+
+Storage. Key `fp-view:` plus the hash of the Active list's seed, extended with
+`view`, `rotation`, `theme`, `tilt`, `labels` when set in the config. Value
+`{v:1, rotation, view, tilt, theme, labels, zoom, focus}`, each optional.
+Zoom is a ratio to the fit and focus a point in plan cm, so the view survives
+a resize and a rotation. Saves are debounced (400 ms) and flushed on
+`pagehide` and disconnect. It is a separate key from the Active list so a bad
+entry in one costs nothing in the other. Parsing is field by field: a bad
+field drops alone, zoom and focus only as a pair.
+
+Stored wins over config. A remembered pick is the viewer's last word; the
+config is the author's default. When the author edits the config the seed
+changes and the memory starts clean, so a deliberate edit is never hidden by
+an old pick. Cost: editing any seed key forgets viewers' views once.
+
+Reset returns to the config, not to zero. Reset view sets rotation, view,
+tilt, theme and labels back to what the YAML says and clears the memory; the
+floor stays. A card the author turned to 90 resets to 90. On a pinned card
+the Fit button is renamed Home view, since two buttons both named Reset would
+differ in meaning (zoom only against everything).
+
 ## 2026-10-02: a room inside a bigger room paints after it
 
 Diego's garden house was still under the garden: fills paint in `Floor.rooms`

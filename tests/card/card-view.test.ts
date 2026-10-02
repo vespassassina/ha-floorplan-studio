@@ -126,11 +126,13 @@ describe("card view option and dropdown", () => {
     expect(el.shadowRoot!.querySelector('button[aria-label="Zoom in"]')).toBeNull();
   });
 
+  // Since the card remembers its view, the same config set again keeps the pick (card-view-memory.test.ts). A
+  // config that differs in `rotation` is another card to the memory, so it starts from its own config.
   it("a new config puts the view back to the configured one", async () => {
     const el = await mount({ view: "2.5d" });
     await pick(el, "2d");
     expect(lastView()).toBe("2d");
-    el.setConfig({ layout: structuredClone(L), floor: "ground", view: "2.5d" } as FloorplanStudioCardConfig);
+    el.setConfig({ layout: structuredClone(L), floor: "ground", view: "2.5d", rotation: 90 } as FloorplanStudioCardConfig);
     await el.updateComplete;
     expect(lastView()).toBe("2.5d");
     expect(select(el)!.value).toBe("2.5d");

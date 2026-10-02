@@ -3,6 +3,7 @@ import { DEFAULT_TILT, THEMES, clampTilt, migrate, validate } from "../core";
 import type { Layout, Theme } from "../core";
 import type { FloorplanStudioCardConfig, Hass } from "./floorplan-studio-card";
 import { defineElement } from "./define";
+import { ROTATION_STEP, normaliseRotation } from "./view-state";
 
 /** The form edits the card's own config type; every key it shows is one the card reads (S7.5 kiosk, S7.6 night and sun). */
 export type EditorConfig = FloorplanStudioCardConfig;
@@ -158,6 +159,14 @@ export class FloorplanStudioCardEditor extends LitElement {
 
   private _onLabels(e: Event): void {
     this._set("labels", (e.target as HTMLInputElement).checked, DEFAULT_LABELS);
+  }
+
+  private _rotation(): number {
+    return normaliseRotation(this._config.rotation);
+  }
+
+  private _onRotation(e: Event): void {
+    this._set("rotation", Number((e.target as HTMLSelectElement).value), 0);
   }
 
   private _onTilt(e: Event): void {
@@ -449,6 +458,15 @@ export class FloorplanStudioCardEditor extends LitElement {
         <label class="main" for="tilt">Tilt (2.5D)</label>
         <input id="tilt" type="range" min="0" max="1" step="0.01" .value=${String(clampTilt(this._config.tilt))} @change=${this._onTilt} />
       </div>
+
+      <div class="row">
+        <label class="main" for="rotation">Rotation</label>
+        <select id="rotation" @change=${this._onRotation}>
+          ${Array.from({ length: 360 / ROTATION_STEP }, (_, i) => i * ROTATION_STEP).map((d) => html`<option value=${d} ?selected=${this._rotation() === d}>${d}°</option>`)}
+        </select>
+      </div>
+      <p class="hint">The card remembers each viewer's zoom, position, rotation, 2D or 2.5D view and theme in that browser. These
+        settings are the starting view and what Reset view returns to.</p>
 
       <div class="row">
         <label class="main" for="labels">Show names and text</label>

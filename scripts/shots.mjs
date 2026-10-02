@@ -150,8 +150,16 @@ try {
     cardShots.push({ name: `card-${floor}-on-blueprint-tilt-${String(tilt).replace(".", "-")}`, floor, which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", cfg: { tilt } });
   for (const floor of Object.keys(layout.floors)) for (const view of ["2d", "2.5d"])
     cardShots.push({ name: `card-${floor}-on-blueprint-${view.replace(".", "-")}-labels-off`, floor, which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view, cfg: { labels: false } });
+  // The card turned by the user (config `rotation`, the same path the rotate buttons end on): 2D at 45 and 90, 2.5D at
+  // 45 and 180 (the lift must still point up the screen), both floors; and the toolbar on a 375 px card, which wraps.
+  for (const floor of Object.keys(layout.floors)) {
+    for (const rotation of [45, 90]) cardShots.push({ name: `card-${floor}-on-blueprint-rot-${rotation}`, floor, which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, cfg: { rotation } });
+    for (const rotation of [45, 180]) cardShots.push({ name: `card-${floor}-on-blueprint-2-5d-rot-${rotation}`, floor, which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", cfg: { rotation } });
+  }
+  cardShots.push({ name: "card-ground-on-blueprint-2-5d-375px", floor: "ground", which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", width: 375 });
+  cardShots.push({ name: "card-ground-on-blueprint-2-5d-rot-45-375px", floor: "ground", which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", width: 375, cfg: { rotation: 45 } });
   for (const s of cardShots) {
-    const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });
+    const ctx = await browser.newContext({ viewport: { width: s.width ?? 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(`${s.name}: ${e}`));
     page.on("console", (m) => { if (m.type() === "error") errors.push(`${s.name}: console.error ${m.text()}`); });

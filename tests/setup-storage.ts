@@ -6,8 +6,13 @@
 // undefined (reading 'clear')" — not a bug in this repo's code, a version-skew gap between the two. This setup
 // file runs once the jsdom environment is installed (`globalThis.jsdom` is jsdom's own global hook) and points
 // `localStorage`/`sessionStorage` at jsdom's real, working implementation instead of Node's inert one.
+import { afterEach } from "vitest";
 const dom = (globalThis as unknown as { jsdom?: { window: Window } }).jsdom;
 if (dom) {
   Object.defineProperty(globalThis, "localStorage", { configurable: true, get: () => dom.window.localStorage });
   Object.defineProperty(globalThis, "sessionStorage", { configurable: true, get: () => dom.window.sessionStorage });
+  // The card remembers its view in localStorage, so a test that pans or picks a theme would leave that behind for
+  // the next test in the file. Registered here, first, so it runs after every test's own afterEach (a card removed
+  // there writes its memory on the way out).
+  afterEach(() => dom.window.localStorage.clear());
 }

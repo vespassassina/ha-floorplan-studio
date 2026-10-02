@@ -1,6 +1,6 @@
 import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, type PlanView, activeDevices, clampTilt, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, type PlanView, activeDevices, clampTilt, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, Theme } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
@@ -10,6 +10,7 @@ import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
 import "./config-editor";
 import { defineElement } from "./define";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
+import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type StoredView } from "./view-state";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
 
@@ -82,6 +83,8 @@ export interface FloorplanStudioCardConfig {
   labels?: boolean;
   /** 0..1, how steeply 2.5D looks down: 0 is top-down, 1 side-on. Out-of-range clamps, junk is 0.5 (the look before this key existed). The slider next to the View select moves it for as long as the card is on screen. */
   tilt?: number;
+  /** Degrees the plan starts turned, on top of the layout's own `rotate`. Rounded to a multiple of 45 and wrapped to 0..359; junk is 0. The two buttons next to the zoom buttons turn it in steps of 45 for as long as the card is on screen, and the card remembers where it was left. */
+  rotation?: number;
 }
 
 /** The View dropdown's options, one list for the markup and for reading the choice back (a value that is not here
@@ -91,6 +94,19 @@ const VIEW_OPTIONS: readonly { value: PlanView; label: string }[] = [
   { value: "2.5d", label: "2.5D" },
 ];
 const isView = (v: unknown): v is PlanView => VIEW_OPTIONS.some((o) => o.value === v);
+
+/** The Theme dropdown's labels. A Record over `Theme`, so a theme added to core fails the build here until it has a name. */
+const THEME_LABELS: Record<Theme, string> = {
+  blueprint: "Blueprint", midnight: "Midnight", light: "Light", slate: "Slate", terminal: "Terminal", solarized: "Solarized",
+  ha: "Home Assistant", coffee: "Coffee", "a-team": "A-Team", space: "Space", cyberpunk: "Cyberpunk",
+  "carpenter-brut": "Carpenter Brut", "beach-house": "Beach house",
+};
+const isTheme = (v: unknown): v is Theme => typeof v === "string" && (THEMES as readonly string[]).includes(v);
+
+/** A 45 degree turn takes this long; a longer one (Reset from 135 away) takes proportionally more, up to twice. */
+const TURN_MS = 350;
+/** Pan and zoom write to storage once they have been still this long. */
+const SAVE_DEBOUNCE_MS = 400;
 
 /** Card config is untrusted input (CLAUDE.md finding 1): only a plain `#rrggbb` hex is accepted for open_color. */
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -152,10 +168,19 @@ export class FloorplanStudioCard extends LitElement {
     .fp-dialog-actions button { font: 13px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 6px 14px; cursor: pointer; }
     /* S7.4: the zoom buttons are card chrome, the same colours as the floor chips, in the other top corner. */
     /* .fp-viewonly: the View select alone when zoom is off. Not .fp-zoom, so "zoom: false shows no zoom chrome" holds. */
-    .fp-zoom, .fp-viewonly { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; gap: 4px; }
-    .fp-zoom button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
-    .fp-zoom button:disabled { opacity: 0.45; cursor: default; }
-    .fp-zoom svg { width: 14px; height: 14px; }
+    /* The toolbar wraps: on a narrow card (375 px) its ten controls take two rows, right-aligned, rather than running
+       off the left edge. The right-hand 8 px plus the floor chips' room on the left are what max-width leaves. */
+    .fp-zoom, .fp-viewonly { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 16px); }
+    .fp-zoom button, .fp-viewonly button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
+    .fp-zoom button:disabled, .fp-viewonly button:disabled { opacity: 0.45; cursor: default; }
+    /* The two rotate buttons wrap as one, so a narrow card never parts left from right. */
+    .fp-pair { display: flex; gap: 4px; }
+    .fp-zoom button[aria-pressed="false"], .fp-viewonly button[aria-pressed="false"] { opacity: 0.6; }
+    .fp-zoom svg, .fp-viewonly svg { width: 14px; height: 14px; }
+    /* While the plan turns it takes no taps: a tap would land on a device that is moving away from the finger.
+       The star reaches the children that carry their own pointer-events (.room{pointer-events:all} in the editor's
+       rules, .extra, .door-hit), which an inherited value on the svg alone would lose to. */
+    svg.fp-turning, svg.fp-turning * { pointer-events: none; }
     .fp-zoom input[type="range"], .fp-viewonly input[type="range"] { width: 72px; height: 28px; margin: 0; accent-color: var(--fp-primary); cursor: pointer; }
     .fp-zoom select, .fp-viewonly select { height: 28px; padding: 0 4px; font: 13px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     /* S7.15: with zoom on, the plan takes every touch once it is zoomed in, so the page does not scroll or zoom under
@@ -243,6 +268,23 @@ export class FloorplanStudioCard extends LitElement {
   private _pickedView: PlanView | null = null;
   /** The tilt dragged on the slider; `null` means the config's own. Card state like `_pickedView`: reset by `setConfig`, never by `hass`. */
   private _pickedTilt: number | null = null;
+  /** The theme chosen in the Theme select, the labels toggle and the turn the buttons made (a multiple of 45 in
+   * 0..315); each `null` means the config's own. Same rule as `_pickedView`, with one more: these and the view,
+   * tilt, zoom and focus are what the card remembers (see `_saveViewNow`), so a field is only ever stored once the
+   * person has chosen it, and the config stays in charge of the rest. */
+  private _pickedTheme: Theme | null = null;
+  private _pickedLabels: boolean | null = null;
+  private _pickedRot: number | null = null;
+  /** A turn in flight: `from` and `to` are user angles in degrees, unwrapped (`to` may be 360, or -45) so the
+   * interpolation never takes the long way; `anchor` is the plan point and zoom to hold at the centre, or `null`
+   * when the card is at home and home itself follows the angle. */
+  private _turn: { from: number; to: number; t0: number; dur: number; anchor: { focus: Pt; zoom: number } | null; raf: number } | null = null;
+  /** The user angle drawn this frame while `_turn` runs. */
+  private _turnAngle = 0;
+  /** A stored zoom and focus (plan cm) waiting for the first render, the first moment the fit box is known. */
+  private _pendingView: { focus: Pt; zoom: number } | null = null;
+  /** The debounce timer for pan and zoom saves; non-null means there is something unsaved. */
+  private _saveTimer: ReturnType<typeof setTimeout> | null = null;
   /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
   private _fit: View | null = null;
   private _unbindZoom: (() => void) | null = null;
@@ -275,12 +317,108 @@ export class FloorplanStudioCard extends LitElement {
    * them after a reload. Unlike `floor`/`floors` (always in the seed, `?? null`), these two are appended only when
    * actually set: putting them in unconditionally, even as `null`, would change the JSON string — and so the
    * hash — for every card that has neither key, wiping the stored position everyone already has. */
-  private _activeStorageKey(): string {
+  private _storageSeed(): unknown[] {
     const source = this._config.layout_url ?? (this._config.layout ? "inline" : "ws");
     const seed: unknown[] = [source, this._config.floor ?? null, this._config.floors ?? null];
     if (this._config.center !== undefined) seed.push(this._config.center);
     if (this._config.zoom_level !== undefined) seed.push(this._config.zoom_level);
-    return `fp-active-panel:${tag(JSON.stringify(seed))}`;
+    return seed;
+  }
+
+  private _activeStorageKey(): string {
+    return `fp-active-panel:${tag(JSON.stringify(this._storageSeed()))}`;
+  }
+
+  /** The view memory's own key, apart from the Active list's (they change at different moments and a bad entry in
+   * one must not cost the other). Same seed, so two cards tell apart the way the panels do, plus the config keys
+   * that make a card a different view of the same floor: a 2D card and a 2.5D card of one floor, or two turned
+   * differently, must not share a memory. Like `center` above they join the seed only when set. A side effect worth
+   * knowing: editing one of them in the card's YAML starts a card with a clean memory. */
+  private _viewStorageKey(): string {
+    const seed = this._storageSeed();
+    const c = this._config;
+    if (c.view !== undefined) seed.push(["view", c.view]);
+    if (c.rotation !== undefined) seed.push(["rotation", c.rotation]);
+    if (c.theme !== undefined) seed.push(["theme", c.theme]);
+    if (c.tilt !== undefined) seed.push(["tilt", c.tilt]);
+    if (c.labels !== undefined) seed.push(["labels", c.labels]);
+    return `fp-view:${tag(JSON.stringify(seed))}`;
+  }
+
+  /** Reads this card's remembered view into the picked fields, before the first render so there is no flash of the
+   * config's look. Storage is untrusted: `parseStoredView` drops each bad field, and a throwing `localStorage`
+   * (private mode, blocked) is nothing stored. */
+  private _loadViewState(): void {
+    this._pickedView = this._pickedTilt = this._pickedTheme = this._pickedLabels = this._pickedRot = null;
+    this._pendingView = null;
+    let s: StoredView = {};
+    try {
+      const raw = globalThis.localStorage?.getItem(this._viewStorageKey());
+      if (raw) s = parseStoredView(raw, isView, THEMES);
+    } catch {
+      /* storage blocked: the card starts from its config */
+    }
+    if (s.view !== undefined) this._pickedView = s.view as PlanView;
+    if (s.tilt !== undefined) this._pickedTilt = s.tilt;
+    if (s.theme !== undefined) this._pickedTheme = s.theme as Theme;
+    if (s.labels !== undefined) this._pickedLabels = s.labels;
+    if (s.rotation !== undefined && s.rotation !== normaliseRotation(this._config.rotation)) this._pickedRot = s.rotation;
+    if (s.zoom !== undefined && s.focus !== undefined) this._pendingView = { focus: s.focus, zoom: s.zoom };
+  }
+
+  /** Writes what the person has chosen: only the picked fields, and the zoom and focus while zoomed. Nothing to
+   * say removes the entry. A turn in flight writes nothing; its end does. Never throws. */
+  private _saveViewNow(): void {
+    if (this._saveTimer !== null) {
+      globalThis.clearTimeout(this._saveTimer);
+      this._saveTimer = null;
+    }
+    if (this._turn) return;
+    const o: Record<string, unknown> = {};
+    if (this._pickedRot !== null) o.rotation = this._pickedRot;
+    if (this._pickedView !== null) o.view = this._pickedView;
+    if (this._pickedTilt !== null) o.tilt = this._pickedTilt;
+    if (this._pickedTheme !== null) o.theme = this._pickedTheme;
+    if (this._pickedLabels !== null) o.labels = this._pickedLabels;
+    const pending = this._pendingView;
+    const anchor = pending ?? this._anchorOfView();
+    if (anchor) { o.zoom = anchor.zoom; o.focus = anchor.focus; }
+    try {
+      const key = this._viewStorageKey();
+      if (Object.keys(o).length) globalThis.localStorage?.setItem(key, JSON.stringify({ v: 1, ...o }));
+      else globalThis.localStorage?.removeItem(key);
+    } catch {
+      /* private browsing or storage blocked: the view just does not persist */
+    }
+  }
+
+  /** Pan and zoom come in bursts: write once they have been still for a moment. */
+  private _scheduleSave(): void {
+    if (this._saveTimer !== null) globalThis.clearTimeout(this._saveTimer);
+    this._saveTimer = globalThis.setTimeout(() => this._saveViewNow(), SAVE_DEBOUNCE_MS);
+  }
+
+  /** A pending debounced save goes out now (the card is leaving, or the page is). */
+  private _flushSave = (): void => {
+    if (this._saveTimer !== null) this._saveViewNow();
+  };
+
+  /** The zoomed view as what survives a turn and a reload: its zoom against fit and its centre in plan cm, which is
+   * the layout's own coordinates before any rotation. `null` at home. */
+  private _anchorOfView(): { focus: Pt; zoom: number } | null {
+    const fit = this._fitNow(); // fresh: a View or Tilt pick has changed it since the last render
+    if (!this._view || !fit) return null;
+    const v = clamp(this._view, fit);
+    const centre: Pt = [v.x + v.w / 2, v.y + v.h / 2];
+    const rot = this._rotate();
+    return { focus: rot ? rotateAbout(centre, -rot.deg, rot.pivot) : centre, zoom: fit.w / v.w };
+  }
+
+  /** The box that holds `anchor`'s plan point at the centre at the current angle, kept on the plan by `clamp`. */
+  private _boxFromAnchor(anchor: { focus: Pt; zoom: number }, fit: View): View {
+    const rot = this._rotate();
+    const centre = rot ? rotateAbout(anchor.focus, rot.deg, rot.pivot) : anchor.focus;
+    return clamp(viewAround(centre, anchor.zoom, fit), fit);
   }
 
   private _loadActiveState(): void {
@@ -336,6 +474,9 @@ export class FloorplanStudioCard extends LitElement {
       this._activeResizeObserver = new ResizeObserver(() => { this._applyWidthDefault(); this._positionActivePanel(); });
       this._activeResizeObserver.observe(this);
     }
+    // A reload or a closed tab never runs disconnectedCallback; the debounced save must still go out.
+    globalThis.addEventListener?.("pagehide", this._flushSave);
+    this.requestUpdate(); // a turn settled while detached left the last frame on screen
   }
 
   /**
@@ -357,6 +498,8 @@ export class FloorplanStudioCard extends LitElement {
 
   setConfig(config: FloorplanStudioCardConfig): void {
     this._validateConfig(config ?? {});
+    this._flushSave(); // under the old config's key
+    this._settleTurn(false);
     this._config = config ?? {};
     this._layout = null;
     this._error = null;
@@ -364,8 +507,7 @@ export class FloorplanStudioCard extends LitElement {
     this._wsRequested = false;
     this._shownFloor = null;
     this._view = null;
-    this._pickedView = null;
-    this._pickedTilt = null;
+    this._loadViewState();
     this._loadActiveState();
     this._loadLayout();
     this.requestUpdate();
@@ -450,6 +592,9 @@ export class FloorplanStudioCard extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this._stopTimer();
+    globalThis.removeEventListener?.("pagehide", this._flushSave);
+    this._settleTurn(false); // cancels the frame loop; the state lands where the turn was going
+    this._flushSave();
     this._unbindActions?.();
     this._unbindActions = null;
     this._unbindZoom?.();
@@ -509,16 +654,97 @@ export class FloorplanStudioCard extends LitElement {
     this._error = NO_LAYOUT;
   }
 
-  /** The layout's own rotate, if any, turned into the `{ deg, pivot }` renderFloor and viewBoxFor take. Shared so getCardSize sees the same box render() draws. */
+  /** The turn the plan is drawn at: the layout's own rotate plus the user's. Turned into the `{ deg, pivot }`
+   * renderFloor and viewBoxFor take, or `undefined` for none. Shared so getCardSize sees the same box render() draws. */
   private _rotate(): { deg: number; pivot: [number, number] } | undefined {
-    if (!this._layout?.rotate) return undefined;
-    return { deg: this._layout.rotate, pivot: planPivot(this._layout) };
+    if (!this._layout) return undefined;
+    const deg = (this._layout.rotate ?? 0) + this._userAngle();
+    return deg % 360 ? { deg, pivot: planPivot(this._layout) } : undefined;
   }
 
-  /** The configured theme, blueprint when there is none or it is not one of the three. The OS and Home Assistant's dark mode no longer pick it: only `theme: ha` follows Home Assistant. */
+  /** The user's turn in degrees: the settled step, or the frame of a turn in flight. */
+  private _userAngle(): number {
+    return this._turn ? this._turnAngle : this._pickedRot ?? normaliseRotation(this._config.rotation);
+  }
+
+  private _reducedMotion(): boolean {
+    return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+  }
+
+  /** One click of a rotate button: 45 degrees from where the turn in flight is going, or from where the plan is.
+   * The plan point at the centre of the screen stays there (`anchor`), so zoom and focus survive the turn. */
+  private _turnBy(delta: number): void {
+    const to = (this._turn ? this._turn.to : this._userAngle()) + delta;
+    this._startTurn(to, this._turn ? this._turn.anchor : this._anchorOfView());
+  }
+
+  /** Turns the user's angle to `to` (unwrapped degrees). A turn already running is replaced from its current frame,
+   * so a second click neither jumps nor drifts. Reduced motion lands at once. */
+  private _startTurn(to: number, anchor: { focus: Pt; zoom: number } | null): void {
+    const from = this._userAngle();
+    if (to === from && !this._turn) return;
+    if (this._turn) globalThis.cancelAnimationFrame(this._turn.raf);
+    const steps = Math.abs(to - from) / ROTATION_STEP;
+    const dur = TURN_MS * Math.min(2, Math.max(0.4, steps));
+    this._turn = { from, to, t0: globalThis.performance.now(), dur, anchor, raf: 0 };
+    this._turnAngle = from;
+    if (this._reducedMotion()) {
+      this._settleTurn(true);
+      return;
+    }
+    this._turn.raf = globalThis.requestAnimationFrame(this._tick);
+    this.requestUpdate();
+  }
+
+  private _tick = (): void => {
+    const t = this._turn;
+    if (!t) return;
+    const p = (globalThis.performance.now() - t.t0) / t.dur;
+    if (p >= 1) {
+      this._settleTurn(true);
+      return;
+    }
+    this._turnAngle = t.from + (t.to - t.from) * easeInOut(p);
+    t.raf = globalThis.requestAnimationFrame(this._tick);
+    this.requestUpdate();
+  };
+
+  /** Ends a turn in flight at its target: the angle becomes the stored step (wrapped to 0..315, and back to
+   * "config's own" when it is the config's), the zoomed box is rebuilt exactly at the new angle, and the state is
+   * written. The last frame is a plain render at that angle, so it is the same markup a direct render gives.
+   * `render` false is for a card leaving or being reconfigured: nothing to draw. */
+  private _settleTurn(render: boolean): void {
+    const t = this._turn;
+    if (!t) return;
+    globalThis.cancelAnimationFrame(t.raf);
+    const step = normaliseRotation(t.to);
+    this._pickedRot = step === normaliseRotation(this._config.rotation) ? null : step;
+    this._turn = null;
+    const fit = this._fitNow();
+    this._fit = fit;
+    this._view = t.anchor && fit ? this._boxFromAnchor(t.anchor, fit) : null;
+    const home = this._home();
+    if (this._view && fit && home && sameView(this._view, home, fit)) this._view = null;
+    this._saveViewNow();
+    if (render) this.requestUpdate();
+  }
+
+  /** The whole-floor box at the angle, view and tilt on show, or `null` with no floor. */
+  private _fitNow(): View | null {
+    const f = this._floor();
+    return f ? viewBoxFor(f, 60, this._rotate(), this._planView(), this._tilt()) : null;
+  }
+
+  /** The card's theme: the Theme select's pick, else `config.theme`, blueprint when there is none or it is not a theme. The OS and Home Assistant's dark mode no longer pick it: only `theme: ha` follows Home Assistant. */
   private _theme(): Theme {
+    if (this._pickedTheme) return this._pickedTheme;
     const t = this._config.theme;
-    return t && (THEMES as readonly string[]).includes(t) ? t : "blueprint";
+    return isTheme(t) ? t : "blueprint";
+  }
+
+  /** Whether the names and values show: the toggle's pick, else `config.labels` (only a real `false` hides). */
+  private _labels(): boolean {
+    return this._pickedLabels ?? this._config.labels !== false;
   }
 
   /** Home Assistant's dark mode, used only by `theme: ha` to choose the dark set for what its CSS variables do not cover. */
@@ -582,6 +808,9 @@ export class FloorplanStudioCard extends LitElement {
     if (this._shownFloor === key) return;
     this._shownFloor = key;
     this._view = null;
+    this._pendingView = null;
+    if (this._turn) this._turn.anchor = null; // a zoom held for the old floor means nothing on this one
+    this._scheduleSave();
     this.requestUpdate();
   }
 
@@ -900,7 +1129,11 @@ export class FloorplanStudioCard extends LitElement {
     if (!panel) return;
     if (!this._activePos) {
       panel.style.left = "";
-      panel.style.top = "";
+      // The CSS default sits under a one-row toolbar. On a narrow card the toolbar wraps to more rows and would
+      // cover the panel's fold button, so the default moves down to just below it.
+      const bar = this.shadowRoot?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
+      const wrapped = bar !== null && bar !== undefined && bar.offsetHeight > 36;
+      panel.style.top = wrapped ? `${bar.offsetHeight + 16}px` : "";
       return;
     }
     const hostRect = this.getBoundingClientRect();
@@ -1041,6 +1274,7 @@ export class FloorplanStudioCard extends LitElement {
     const view = this._planView();
     const fit = viewBoxFor(f, 60, rotate, view, this._tilt());
     this._fit = fit;
+    const turn = this._turn;
     const zoom = this._zoomMode() !== false;
     const showZoomButtons = zoom && !this._kiosk(); // S7.5: kiosk still zooms/pans by gesture, just draws no buttons
     const showViewSwitch = this._config.view_switch !== false && !this._kiosk();
@@ -1051,12 +1285,20 @@ export class FloorplanStudioCard extends LitElement {
     // Diego field report, 0.12.14: pan must work even under `zoom: false` — that config key only turns off pinch,
     // wheel and the buttons (`_bindZoom` gates those on `_zoomMode()` itself); a one-finger drag always reaches
     // `_setView`, so `_view` can be set regardless, and the box here must reflect it regardless too.
-    const box = this._view ? clamp(this._view, fit) : home;
+    if (this._pendingView && !turn) {
+      // A remembered zoom and focus: the first render is the first time the fit box is known. `clamp` keeps part of
+      // the plan in view whatever the stored focus said.
+      const b = this._boxFromAnchor(this._pendingView, fit);
+      this._view = sameView(b, home, fit) ? null : b;
+      this._pendingView = null;
+    }
+    // While a turn runs the box follows the angle: it holds the anchored plan point at the centre, or is home.
+    const box = turn ? (turn.anchor ? this._boxFromAnchor(turn.anchor, fit) : home) : this._view ? clamp(this._view, fit) : home;
     // Opus review of S9.6: "zoomed" (like `_zoomed()` below) means "not at home", not "narrower than home" — a
     // sideways pan at home's own width used to read as not-zoomed here, which left `touch-action` at `pan-y` (so
     // the page's own vertical scroll fought the pan) even while `_view` was already pinning a panned box.
     // `fp-zoomable` (the touch-action override) is unconditional too: it enables the drag gesture, not zoom.
-    const svgClass = this._view !== null ? "fp-zoomable fp-zoomed" : "fp-zoomable";
+    const svgClass = (this._view !== null ? "fp-zoomable fp-zoomed" : "fp-zoomable") + (turn ? " fp-turning" : "");
     const body = renderFloor(f, {
       scale: this._scale(fit),
       state: this._stateForRender(),
@@ -1069,11 +1311,11 @@ export class FloorplanStudioCard extends LitElement {
       night: this._night(),
       view,
       tilt: this._tilt(),
-      labels: this._config.labels !== false,
+      labels: this._labels(),
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit, showViewSwitch) : showViewSwitch ? html`<div class="fp-viewonly">${this._viewControls(view)}</div>` : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
+    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit, showViewSwitch) : showViewSwitch ? html`<div class="fp-viewonly">${this._viewControls(view)}${this._resetButton()}</div>` : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
   }
 
   /** The view on show: the dropdown's pick, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
@@ -1090,14 +1332,66 @@ export class FloorplanStudioCard extends LitElement {
   private _tiltSlider() {
     const onInput = (e: Event) => {
       this._pickedTilt = clampTilt(Number((e.target as HTMLInputElement).value));
+      this._scheduleSave(); // a drag is a burst of inputs
       this.requestUpdate();
     };
     return html`<input type="range" aria-label="Tilt" title="Tilt" min="0" max="1" step="0.01" .value=${String(this._tilt())} @input=${onInput} />`;
   }
 
-  /** The View select, plus the Tilt slider while the view is 2.5D. */
+  /** Everything that changes how the plan looks, but not where it is zoomed: the View select, the Tilt slider while
+   * the view is 2.5D, the Theme select, the Labels toggle and the two rotate buttons. All hidden together
+   * (`view_switch: false`, kiosk). */
   private _viewControls(current: PlanView) {
-    return html`${this._viewSelect(current)}${current === "2.5d" ? this._tiltSlider() : null}`;
+    const labels = this._labels();
+    return html`${this._viewSelect(current)}${current === "2.5d" ? this._tiltSlider() : null}${this._themeSelect()}
+      <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>
+      <span class="fp-pair">
+        <button type="button" aria-label="Rotate left" title="Rotate left" @click=${() => this._turnBy(-ROTATION_STEP)}>${this._icon(UI_ICONS.rotateLeft)}</button>
+        <button type="button" aria-label="Rotate right" title="Rotate right" @click=${() => this._turnBy(ROTATION_STEP)}>${this._icon(UI_ICONS.rotateRight)}</button>
+      </span>`;
+  }
+
+  /** A toolbar icon: 24x24 path from the inlined set, drawn in the button's own colour. */
+  private _icon(path: string) {
+    return html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d=${path} fill="currentColor"/></svg>`;
+  }
+
+  /** Choosing a theme sets the card's own theme live: the host's `data-theme` follows in `updated`. Remembered at once. */
+  private _themeSelect() {
+    const current = this._theme();
+    const onChange = (e: Event) => {
+      const v = (e.target as HTMLSelectElement).value;
+      if (!isTheme(v)) return;
+      this._pickedTheme = v;
+      this._saveViewNow();
+      this.requestUpdate();
+    };
+    return html`<select aria-label="Theme" title="Theme" @change=${onChange}>${THEMES.map((t) => html`<option value=${t} ?selected=${t === current}>${THEME_LABELS[t]}</option>`)}</select>`;
+  }
+
+  /** Whether anything about the view differs from what the config alone would show: a pick, a zoom, a turn. */
+  private _modified(): boolean {
+    return this._turn !== null || this._view !== null || this._pendingView !== null
+      || [this._pickedView, this._pickedTilt, this._pickedTheme, this._pickedLabels, this._pickedRot].some((v) => v !== null);
+  }
+
+  /** Reset view: every view option back to the config's own, the stored entry cleared, the floor kept. The turn goes
+   * back the short way (315 to 0 is +45). */
+  private _resetView(): void {
+    this._pickedView = this._pickedTilt = this._pickedTheme = this._pickedLabels = null;
+    this._pendingView = null;
+    this._view = null;
+    const from = this._userAngle();
+    this._startTurn(from + shortestDelta(from, normaliseRotation(this._config.rotation)), null);
+    if (!this._turn) {
+      this._pickedRot = null;
+      this._saveViewNow();
+    }
+    this.requestUpdate();
+  }
+
+  private _resetButton() {
+    return html`<button type="button" aria-label="Reset view" title="Reset view" ?disabled=${!this._modified()} @click=${() => this._resetView()}>${this._icon(UI_ICONS.reset)}</button>`;
   }
 
   /** Compact `<select>` in the card chrome, outside the plan's `<svg>` like the zoom buttons. A pick redraws the
@@ -1107,6 +1401,7 @@ export class FloorplanStudioCard extends LitElement {
       const v = (e.target as HTMLSelectElement).value;
       if (!isView(v)) return;
       this._pickedView = v;
+      this._saveViewNow();
       this.requestUpdate();
     };
     return html`<select aria-label="View" title="View" @change=${onChange}>${VIEW_OPTIONS.map((o) => html`<option value=${o.value} ?selected=${o.value === current}>${o.label}</option>`)}</select>`;
@@ -1206,8 +1501,10 @@ export class FloorplanStudioCard extends LitElement {
   private _setView(v: View): void {
     const fit = this._fit, home = this._home();
     if (!fit || !home) return;
+    if (this._turn) return; // the plan is moving: a gesture would be applied to a box that is already leaving
     const c = clamp(v, fit);
     this._view = sameView(c, home, fit) ? null : c;
+    this._scheduleSave();
     this.requestUpdate();
   }
 
@@ -1218,7 +1515,9 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   private _fitView(): void {
+    if (this._turn) return;
     this._view = null;
+    this._scheduleSave();
     this.requestUpdate();
   }
 
@@ -1241,7 +1540,8 @@ export class FloorplanStudioCard extends LitElement {
     const atHome = !this._zoomed();
     const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
     const pinned = !sameView(home, fit, fit);
-    const resetLabel = pinned ? "Reset view" : "Fit";
+    // "Reset view" is the toolbar's own button (every view option back to the config); this one only fits.
+    const resetLabel = pinned ? "Home view" : "Fit";
     return html`<div class="fp-zoom">
       ${withViewSwitch ? this._viewControls(this._planView()) : null}
       <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
@@ -1249,6 +1549,7 @@ export class FloorplanStudioCard extends LitElement {
       <button type="button" aria-label=${resetLabel} title=${resetLabel} ?disabled=${atHome} @click=${() => this._fitView()}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
       </button>
+      ${withViewSwitch ? this._resetButton() : null}
     </div>`;
   }
 

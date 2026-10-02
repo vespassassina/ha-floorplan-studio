@@ -701,7 +701,9 @@ test.describe("S7.4 zoom and pan", () => {
     await card(page).locator("css=.fp-floors button").nth(0).click();
     expect(await viewBox(page)).toEqual(fit);
     await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').click();
-    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), floor: "all" }, states());
+    // A *changed* config: an identical one is the same card and now gets its remembered zoom back (view memory).
+    // `floors` joins the storage key, so this is a fresh card; the switcher and the fit are the same as `floor: "all"`.
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), floors: ["ground", "first"] }, states());
     expect(await viewBox(page)).toEqual(fit);
   });
 
@@ -716,7 +718,9 @@ test.describe("S7.4 zoom and pan", () => {
             return { bg: s.backgroundColor, fg: s.color, vis: s.visibility, disp: s.display };
           }),
         );
-        expect(got.length, `${theme} dark=${dark}`).toBe(3);
+        // Zoom in, out, Fit, plus the rotate pair, the names toggle and Reset view (all share the zoom bar): all
+        // seven must read, so the new ones are held to the same contrast.
+        expect(got.length, `${theme} dark=${dark}`).toBe(7);
         for (const g of got) {
           expect(g.disp).not.toBe("none");
           expect(ratio(rgbOf(g.bg), rgbOf(g.fg)), `${theme} dark=${dark}`).toBeGreaterThanOrEqual(3);
@@ -818,9 +822,9 @@ test.describe("S9.6 a card pinned to one room", () => {
     // button to come back — it must land on `home`, not the plan's own `fit` (which is twice as wide).
     await ctrlWheel(page, b.x + b.width / 2, b.y + b.height / 2, -300);
     await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(home.w * 0.95);
-    // Pinned (center/zoom_level set): the Fit button reads "Reset view" (Opus review, 2026-09-27), since it no
+    // Pinned (center/zoom_level set): the Fit button reads "Home view" (Opus review, 2026-09-27), since it no
     // longer fits the whole floor.
-    const fitBtn = card(page).locator('css=.fp-zoom button[aria-label="Reset view"]');
+    const fitBtn = card(page).locator('css=.fp-zoom button[aria-label="Home view"]');
     await fitBtn.click();
     expect(await viewBox(page)).toEqual(home);
 
@@ -864,7 +868,7 @@ test.describe("S9.6 a card pinned to one room", () => {
   // button's own condition: "−" against the whole floor (`fit`), Fit against whether `_view` is set at all.
   test.describe("S9.6 review: the zoom buttons' own disabled state (Opus, 2026-09-27)", () => {
     const minusBtn = (page: Page) => card(page).locator('css=.fp-zoom button[aria-label="Zoom out"]');
-    const fitBtn = (page: Page) => card(page).locator('css=.fp-zoom button[aria-label="Fit"], .fp-zoom button[aria-label="Reset view"]');
+    const fitBtn = (page: Page) => card(page).locator('css=.fp-zoom button[aria-label="Fit"], .fp-zoom button[aria-label="Home view"]');
 
     test("a pinned card at home has \"−\" enabled, and clicking it widens the viewBox", async ({ page }) => {
       await open(page);
@@ -922,13 +926,13 @@ test.describe("S9.6 a card pinned to one room", () => {
       await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
       await expect(minusBtn(page)).toBeEnabled();
       await expect(card(page).locator('css=.fp-zoom button[aria-label="Fit"]')).toBeDisabled();
-      await expect(card(page).locator('css=.fp-zoom button[aria-label="Reset view"]')).toHaveCount(0);
+      await expect(card(page).locator('css=.fp-zoom button[aria-label="Home view"]')).toHaveCount(0);
     });
 
-    test("a pinned card's Fit button reads \"Reset view\", not \"Fit\"", async ({ page }) => {
+    test("a pinned card's Fit button reads \"Home view\", not \"Fit\"", async ({ page }) => {
       await open(page);
       await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
-      await expect(card(page).locator('css=.fp-zoom button[aria-label="Reset view"]')).toHaveCount(1);
+      await expect(card(page).locator('css=.fp-zoom button[aria-label="Home view"]')).toHaveCount(1);
       await expect(card(page).locator('css=.fp-zoom button[aria-label="Fit"]')).toHaveCount(0);
     });
   });

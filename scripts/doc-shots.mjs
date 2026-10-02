@@ -61,6 +61,10 @@ try {
     ["card-2-5d-tilt-1", { tilt: 1 }],
     ["card-labels-off", { view: "2d", labels: false }],
     ["card-2-5d-labels-off", { labels: false }],
+    // The rotate and reset buttons sit in the toolbar of both; the 45 one is the README picture. Text turns with
+    // the plan only as a position, never as an angle, so it stays readable.
+    ["card-rotated-45", { view: "2d", rotation: 45 }],
+    ["card-rotated-90", { view: "2d", rotation: 90 }],
   ];
   for (const [name, extra] of variants) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });
