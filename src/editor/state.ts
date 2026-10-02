@@ -1,4 +1,4 @@
-import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { DEFAULT_TILT, DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, clampTilt, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, PlanView, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -183,6 +183,19 @@ export class EditorState {
   night: boolean = readNight();
   /** How the plan is drawn: flat, or 2.5D, which is a read-only preview. Session state: no undo step, never in the layout, not even in localStorage. */
   viewMode: PlanView = "2d";
+  /** Whether the plan draws names and values. Session state like `viewMode`: no undo step, never in the layout. */
+  labels = true;
+  setLabels(on: boolean): void { this.labels = on !== false; }
+  /** How steeply 2.5D looks down, 0..1. Session state; only read while the view is 2.5D. */
+  tilt = DEFAULT_TILT;
+  /** Junk is ignored. A view that shows the whole floor is refitted, so a steeper lift is not clipped; a zoomed one stays where it is. */
+  setTilt(t: number): void {
+    if (typeof t !== "number" || !Number.isFinite(t)) return;
+    const was = this.views[this.floor], flat = viewBoxFor(this.f, 80, this.rotation);
+    this.tilt = clampTilt(t);
+    // "Whole floor" is any view at least as wide as the flat fit; the 2.5D fit is wider still, so it is not matched exactly.
+    if (was && was.w >= flat.w - 1e-6) this.fit();
+  }
   /** Anything but 2D only looks: pointer, keys and the edit menus do nothing. */
   get preview(): boolean { return this.viewMode !== "2d"; }
   /** The zoom, pan and selection are left alone, so switching back finds them as they were. */
@@ -341,7 +354,7 @@ export class EditorState {
 
   /** A view is stored in plan coordinates: its centre is the plan point in the middle of the screen, w and h are what the screen shows. Rotating the plan therefore needs no change to it. */
   fit() {
-    const b = viewBoxFor(this.f, 80, this.rotation, this.viewMode), r = this.rotation;
+    const b = viewBoxFor(this.f, 80, this.rotation, this.viewMode, this.tilt), r = this.rotation;
     const c = r ? rotateAbout([b.x + b.w / 2, b.y + b.h / 2], -r.deg, r.pivot) : ([b.x + b.w / 2, b.y + b.h / 2] as Pt);
     this.views[this.floor] = { x: c[0] - b.w / 2, y: c[1] - b.h / 2, w: b.w, h: b.h };
   }

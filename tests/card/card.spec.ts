@@ -548,6 +548,7 @@ test.describe("S7.4 zoom and pan", () => {
     await expect(slider).toBeVisible();
     const s = (await slider.boundingBox())!, sel = (await card(page).locator('css=.fp-zoom select[aria-label="View"]').boundingBox())!;
     expect(s.x).toBeGreaterThanOrEqual(sel.x + sel.width - 0.5); // beside the select, not over it
+    expect(await slider.evaluate((el) => getComputedStyle(el).width)).toBe("72px"); // CSS pair: the rule reaches the pixel, not just the string
     const wall = () => card(page).locator("css=svg .ws").first().getAttribute("points");
     const before = await wall(), boxBefore = await viewBox(page);
     // Real pointer: grab the thumb at its middle (0.5) and drag to the right end.

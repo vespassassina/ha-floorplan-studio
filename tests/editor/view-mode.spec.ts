@@ -146,3 +146,47 @@ test("a drawing in progress is dropped when 2.5D is picked, and the plan can sti
   expect(await viewBox(page)).not.toBe(box); // panning still works in a preview
   expect(await layoutJson(page)).toBe(before);
 });
+
+test("View > Tilt: disabled in 2D, enabled in 2.5D, and a real drag across it redraws the walls, no undo step, layout untouched", async ({ page }) => {
+  const before = await layoutJson(page);
+  await page.locator('details.menu > summary:text-is("View")').click();
+  const slider = page.locator("#tilt");
+  await expect(slider).toBeDisabled();
+  await page.locator("#view-mode").selectOption("2.5d");
+  await expect(slider).toBeEnabled();
+  await expect(slider).toHaveValue("0.5");
+  const wall = () => page.locator("svg .ws").first().getAttribute("points");
+  const w0 = await wall(), vb0 = await viewBox(page);
+  const b = (await slider.boundingBox())!, y = b.y + b.height / 2;
+  await page.mouse.move(b.x + b.width / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width + 10, y, { steps: 5 });
+  await page.mouse.up();
+  expect(Number(await slider.inputValue())).toBeCloseTo(1, 1);
+  expect(await wall()).not.toBe(w0);
+  expect(await viewBox(page)).not.toBe(vb0); // the whole-floor view grew with the lift
+  expect(await layoutJson(page)).toBe(before);
+  await expect(page.locator("#undo")).toBeDisabled();
+});
+
+test("View > Show names and text: off removes every <text> from the plan, icons and clicks stay, it is no undo step", async ({ page }) => {
+  const before = await layoutJson(page);
+  await page.locator('details.menu > summary:text-is("View")').click();
+  const t = page.locator("#labels");
+  await expect(t).toHaveAttribute("aria-pressed", "true");
+  expect(await page.locator("svg text.lbl:not(.mg-n)").count()).toBeGreaterThan(0);
+  await t.click();
+  await expect(t).toHaveAttribute("aria-pressed", "false");
+  expect(await page.locator("svg text.lbl:not(.mg-n), svg text.val").count()).toBe(0);
+  const icons = await page.locator("svg g[data-x]").count();
+  expect(icons).toBeGreaterThan(0);
+  await page.locator('details.menu > summary:text-is("View")').click();
+  await dragOn(page, "svg g[data-x]", 60, 40); // a real drag on the icon still moves it
+  await expect(page.locator("#undo")).toBeEnabled();
+  await page.locator("#undo").click();
+  expect(await layoutJson(page)).toBe(before);
+  expect(await page.locator("svg text.lbl:not(.mg-n), svg text.val").count()).toBe(0); // and undo did not bring the text back
+  await page.locator('details.menu > summary:text-is("View")').click();
+  await t.click();
+  expect(await page.locator("svg text.lbl:not(.mg-n)").count()).toBeGreaterThan(0);
+});

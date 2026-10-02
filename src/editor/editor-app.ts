@@ -2419,7 +2419,7 @@ export class FloorplanStudioEditor extends LitElement {
     const groupKindOf = (g: { members?: string[] }) => (g.members ?? [])[0]?.split(".")[0] === "binary_sensor" ? "motion" as const : (g.members ?? [])[0]?.split(".")[0] === "light" ? "light" as const : undefined;
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: !preview, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, view: st.viewMode }) + turnG(overlay);
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: !preview, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, view: st.viewMode, tilt: st.tilt, labels: st.labels }) + turnG(overlay);
     const counts: Record<string, number> = {};
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const pressed = (b: boolean) => (b ? "true" : "false");
@@ -2481,11 +2481,14 @@ export class FloorplanStudioEditor extends LitElement {
           <span class="grp" id="version">Floorplan Studio ${manifest.version}</span>
           <div class="rotrow"><label for="view-mode">Plan view</label>
             <select id="view-mode" @change=${(e: Event) => this.setViewMode((e.target as HTMLSelectElement).value)}>${VIEW_OPTIONS.map((o) => html`<option value=${o.value} ?selected=${st.viewMode === o.value}>${o.label}</option>`)}</select></div>
+          <div class="rotrow"><label for="tilt">Tilt</label>
+            <input id="tilt" type="range" min="0" max="1" step="0.01" .value=${String(st.tilt)} ?disabled=${st.viewMode !== "2.5d"} title="How steeply 2.5D looks down: flat at the left, side-on at the right" @input=${(e: Event) => { st.setTilt(Number((e.target as HTMLInputElement).value)); this.requestUpdate(); }}></div>
           <div class="rotrow" id="snap" role="group" aria-label="Snap"><span>Snap</span>
             ${GRID_VALUES.map((g) => html`<button class="chip keep" data-grid=${g} aria-pressed=${pressed(st.snapGrid === g)} @click=${() => { st.setGrid(g); this.requestUpdate(); }}>${g ? `${g} cm` : "None"}</button>`)}</div>
           <button class="chip" id="mgrid" aria-pressed=${pressed(st.measure)} title="A faint 50 cm grid with metre markers, behind the plan" @click=${() => { st.setMeasure(!st.measure); this.requestUpdate(); }}>Measure grid</button>
           <button class="chip" id="lens" aria-pressed=${pressed(st.showLen)} @click=${() => { st.showLen = !st.showLen; this.requestUpdate(); }}>Lengths</button>
           <button class="chip" id="names" aria-pressed=${pressed(st.showNames)} title="Show every visible device's name on the plan" @click=${() => { st.showNames = !st.showNames; this.requestUpdate(); }}>Names</button>
+          <button class="chip" id="labels" aria-pressed=${pressed(st.labels)} title="Show the names and values on the plan. Off leaves only the items and sensors." @click=${() => { st.setLabels(!st.labels); this.requestUpdate(); }}>Show names and text</button>
           <button class="chip" id="night" aria-pressed=${pressed(st.night)} title="Draw the plan as the card does after sunset. The editor has no live lights, so every room is dark." @click=${() => { st.setNight(!st.night); this.requestUpdate(); }}>Preview night</button>
           <details class="sub" id="thSub"><summary class="btn">Theme: ${THEME_LABELS[st.theme]}</summary>
             ${THEME_VALUES.map((t) => html`<button class="btn keep" data-th=${t} aria-pressed=${pressed(st.theme === t)} @click=${() => { st.setTheme(t); this.requestUpdate(); }}>${THEME_LABELS[t]}</button>`)}
