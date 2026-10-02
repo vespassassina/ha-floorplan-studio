@@ -28,6 +28,10 @@ export interface RenderOpts {
   night?: boolean;
   /** "2d" (default, also when omitted) is the flat plan, byte for byte as ever; "2.5d" adds depth (see OBLIQUE). */
   view?: PlanView;
+  /** `false` draws no text at all: room, zone, extra and device names, sensor values and the leader lines. Icons, tap targets and state stay. Default `true`; absent output is byte for byte as before. */
+  labels?: boolean;
+  /** 0..1, how steeply the 2.5D view looks down: 0 is top-down (no lift), 1 is side-on. Only read with `view: "2.5d"`; see `obliqueFor`. Default `DEFAULT_TILT`, today's look. */
+  tilt?: number;
 }
 /** How the plan is drawn. "3d" will be a different renderer (docs/DECISIONS.md), so it is not a member yet. */
 export type PlanView = "2d" | "2.5d";
@@ -38,6 +42,23 @@ export type PlanView = "2d" | "2.5d";
  * interior is drawn at, like a doll's house with the front taken off (see `solids.ts`).
  */
 export const OBLIQUE = { rise: 0.55, skew: 0.3, cutaway: 90 };
+/** The tilt at which `obliqueFor` gives exactly `OBLIQUE`. */
+export const DEFAULT_TILT = 0.5;
+/** A tilt from untrusted input: finite numbers clamp to 0..1, anything else is the default. */
+export const clampTilt = (t: unknown): number => (typeof t === "number" && Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : DEFAULT_TILT);
+/** Rise at tilt 1: steep side-on. Rise is linear in tilt, so the default (0.5) lands on OBLIQUE.rise, 0.55. */
+const MAX_RISE = 1.1;
+/** What a cutaway front wall may hide on screen (OBLIQUE.cutaway * OBLIQUE.rise). Held constant so interiors stay as
+ * visible at a steep tilt as at the default; the cm height falls as the lift grows. */
+const HIDDEN_BY_FRONT_WALL = 49.5;
+/** The tilt slider mapped to the projection: one function, so the card, the editor, `viewBoxFor` and the solids agree.
+ * Skew stays put (it fixes which side faces show, not how tall they are). At tilt 0 there is no lift, so no front wall
+ * hides anything and the cutaway is capped at 200 cm to stay finite. */
+export function obliqueFor(tilt: unknown): { rise: number; skew: number; cutaway: number } {
+  const rise = clampTilt(tilt) * MAX_RISE;
+  if (rise === OBLIQUE.rise) return { ...OBLIQUE };
+  return { rise, skew: OBLIQUE.skew, cutaway: Math.min(200, Math.round(HIDDEN_BY_FRONT_WALL / Math.max(rise, 1e-9))) };
+}
 /** blueprint is the default and the look of the project; midnight is the project's first dark theme (2026-09-21), kept under
  * its own name once blueprint moved on to a new palette; light is the same plan on paper; slate and terminal are the other two
  * role-generated presets; solarized is the bespoke Solarized palette; ha takes its neutrals straight from Home Assistant's own
@@ -384,7 +405,7 @@ export const DOOR_ALERT_EXTRA = 16;
  * (S5.7, S8.13) — a device dragged or imported far outside the house must not balloon the view the way a real
  * garden structure should, so it stays off view exactly as before this fix. In "2.5d" the tallest drawn height widens the box
  * up and to the right too (heights count: a wall drawn 250 cm up must not be clipped). */
-export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt }, view: PlanView = "2d"): { x: number; y: number; w: number; h: number } {
+export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt }, view: PlanView = "2d", tilt?: number): { x: number; y: number; w: number; h: number } {
   const content = structuralPoints(f);
   if (!content.length) return { x: -pad, y: -pad, w: 1000 + 2 * pad, h: 1000 + 2 * pad };
   const turn = (p: Pt) => (rotate && rotate.deg % 360 ? rotateAbout(p, rotate.deg, rotate.pivot) : p);
@@ -399,9 +420,9 @@ export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt
     if (r && c.every(Number.isFinite) && near(c, r)) boxes.push([turn(c), r]);
   }
   // 2.5D: heights draw up and to the right on the screen, whatever the plan's own turn, so the box grows in the screen frame.
-  const tall = view === "2.5d" ? tallestDrawn(f) * OBLIQUE.rise : 0;
+  const ob = obliqueFor(tilt), tall = view === "2.5d" ? tallestDrawn(f) * ob.rise : 0;
   const x0 = Math.min(...boxes.map(([p, r]) => p[0] - r)), y0 = Math.min(...boxes.map(([p, r]) => p[1] - r)) - tall;
-  const x1 = Math.max(...boxes.map(([p, r]) => p[0] + r)) + tall * OBLIQUE.skew, y1 = Math.max(...boxes.map(([p, r]) => p[1] + r));
+  const x1 = Math.max(...boxes.map(([p, r]) => p[0] + r)) + tall * ob.skew, y1 = Math.max(...boxes.map(([p, r]) => p[1] + r));
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
@@ -594,8 +615,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // a rotated plan still lifts toward the top of the screen.
   const x25 = o.view === "2.5d";
   const scr = (p: Pt): Pt => (turn ? rotateAbout(p, turn.deg, turn.pivot) : p);
-  const lean = rotateAbout([OBLIQUE.rise * OBLIQUE.skew, -OBLIQUE.rise], -planDeg, [0, 0]);
-  const px: Proj = { lift: (p, h) => [p[0] + h * lean[0], p[1] + h * lean[1]], scr, skew: OBLIQUE.skew, cutaway: OBLIQUE.cutaway };
+  const ob = obliqueFor(o.tilt);
+  const lean = rotateAbout([ob.rise * ob.skew, -ob.rise], -planDeg, [0, 0]);
+  const px: Proj = { lift: (p, h) => [p[0] + h * lean[0], p[1] + h * lean[1]], scr, skew: ob.skew, cutaway: ob.cutaway };
+  const showText = o.labels !== false; // false skips every <text> and leader below; placement still runs, so nothing else moves
   const solids: Solid[] = [];
   // S7.11: the scan to trace over, first so everything draws on top of it. Checked again here: the layout is untrusted.
   const tr = f.trace;
@@ -870,7 +893,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       ? `<rect class="extra" data-ex="${i}" x="${num(mx)}" y="${num(my)}" width="${num(w)}" height="${num(h)}"/>`
       : `<line class="extra" data-ex="${i}" x1="${num(x.a[0])}" y1="${num(x.a[1])}" x2="${num(x.b[0])}" y2="${num(x.b[1])}"/>`);
     const [tx, ty] = place(rows([mx + w / 2, my + h / 2]), 11 * k, x.name);
-    out.push(`<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * k)}">${esc(x.name)}</text>`);
+    if (showText) out.push(`<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * k)}">${esc(x.name)}</text>`);
   });
 
   f.furniture.forEach((m, i) => {
@@ -911,7 +934,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   });
 
   f.rooms.forEach((r, i) => {
-    if (!r.name || r.kind === "fill") return;
+    if (!showText || !r.name || r.kind === "fill") return;
     const zone = r.kind === "zone", { at: [x, y], size, from } = (zone ? zoneAt : nameAt)[i];
     // The leader runs from the room's anchor to the edge of the text box nearest it, and is drawn under the text.
     if (from) {
@@ -1027,9 +1050,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const text = bad ? "–" : s.state + unit, vs = 11 * k, gap = 16 * k + 2 * k; // 2k clear of the 16k disc
       // S7.1: below the icon, then above, then to the right (the box centred on the icon's centre line).
       const [vx, vy] = place([screenOff(c, 0, gap + 0.75 * vs), screenOff(c, 0, -gap - 0.25 * vs), screenOff(c, gap + (text.length * 0.6 * vs) / 2, 0.25 * vs)], vs, text);
-      out.push(`<text class="val" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
+      if (showText) out.push(`<text class="val" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
     }
-    if (o.showNames || sel) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
+    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
   });
 
   // S4.25: an unlinked appliance. Flat idle-grey icon (no on/off state), an optional per-instance colour override,
@@ -1049,7 +1072,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // plan is rotated (no counter-rotation) — found by looking at the render (npm run shots), not by the unit
     // test alone: a copy of the device's "icon stays upright" logic left `rot` with no visible effect at all.
     out.push(`<g data-u="${i}" class="dev unl${sel ? " sel" : ""}"${style} transform="translate(${at([u.x - 12 * uk, u.y - 12 * uk])}) scale(${num(uk)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${esc(String(u.type))}: ${esc(label)}</title>${icon}</g>`);
-    if (o.showNames || sel) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
+    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
   });
 
   if (o.editor)
