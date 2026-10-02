@@ -3,6 +3,8 @@ import { dist, edgeKindsNear, stairSteps } from "./geometry";
 import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
+import { esc, num, pts } from "./fmt";
+import { tallestDrawn } from "./solids";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
@@ -23,7 +25,18 @@ export interface RenderOpts {
   trace?: boolean;
   /** S7.6: after sunset. Every room gets a `room-night` overlay, `lit` when a light inside it is on; the root carries class `night`. */
   night?: boolean;
+  /** "2d" (default, also when omitted) is the flat plan, byte for byte as ever; "2.5d" adds depth (see OBLIQUE). */
+  view?: PlanView;
 }
+/** How the plan is drawn. "3d" will be a different renderer (docs/DECISIONS.md), so it is not a member yet. */
+export type PlanView = "2d" | "2.5d";
+/**
+ * The 2.5D projection, the one place to tune it. A vertical oblique: the floor stays true to the plan and a point at
+ * plan (x, y) and height h cm is drawn at (x + h*skew*rise, y - h*rise). `rise` is how far up one cm of height goes on
+ * screen, `skew` how far right per cm of that rise. `cutaway` is the height in cm a wall that would hide a room's
+ * interior is drawn at, like a doll's house with the front taken off (see `solids.ts`).
+ */
+export const OBLIQUE = { rise: 0.55, skew: 0.3, cutaway: 90 };
 /** blueprint is the default and the look of the project; midnight is the project's first dark theme (2026-09-21), kept under
  * its own name once blueprint moved on to a new palette; light is the same plan on paper; slate and terminal are the other two
  * role-generated presets; solarized is the bespoke Solarized palette; ha takes its neutrals straight from Home Assistant's own
@@ -273,11 +286,7 @@ export const FLOORPLAN_CSS = `
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
 .sel{stroke:var(--fp-ink)} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}`;
 
-/** Text for markup. A name that is not text (a layout that skipped `validate`) is shown as text, never thrown on. */
-const esc = (t: unknown) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const COLOR = /^#[0-9a-fA-F]{6}$/;
-const num = (n: number) => String(Math.round(n * 100) / 100);
-const pts = (p: Pt[]) => p.map((q) => `${num(q[0])},${num(q[1])}`).join(" ");
 const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 /** x, y, w, h. */
 /** Fixed regardless of a door's own visible stroke (S8.9): the box a door blocks room/zone names from (S7.15) and
@@ -354,8 +363,9 @@ export const DOOR_ALERT_EXTRA = 16;
  * structure outside the walls — is always in the default view. Devices are not in that unconditional set: only a
  * lit lamp or a camera widens the box, by its own reach, and only when it is near the rest of the plan already
  * (S5.7, S8.13) — a device dragged or imported far outside the house must not balloon the view the way a real
- * garden structure should, so it stays off view exactly as before this fix. */
-export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt }): { x: number; y: number; w: number; h: number } {
+ * garden structure should, so it stays off view exactly as before this fix. In "2.5d" the tallest drawn height widens the box
+ * up and to the right too (heights count: a wall drawn 250 cm up must not be clipped). */
+export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt }, view: PlanView = "2d"): { x: number; y: number; w: number; h: number } {
   const content = structuralPoints(f);
   if (!content.length) return { x: -pad, y: -pad, w: 1000 + 2 * pad, h: 1000 + 2 * pad };
   const turn = (p: Pt) => (rotate && rotate.deg % 360 ? rotateAbout(p, rotate.deg, rotate.pivot) : p);
@@ -369,8 +379,10 @@ export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (r && c.every(Number.isFinite) && near(c, r)) boxes.push([turn(c), r]);
   }
-  const x0 = Math.min(...boxes.map(([p, r]) => p[0] - r)), y0 = Math.min(...boxes.map(([p, r]) => p[1] - r));
-  const x1 = Math.max(...boxes.map(([p, r]) => p[0] + r)), y1 = Math.max(...boxes.map(([p, r]) => p[1] + r));
+  // 2.5D: heights draw up and to the right on the screen, whatever the plan's own turn, so the box grows in the screen frame.
+  const tall = view === "2.5d" ? tallestDrawn(f) * OBLIQUE.rise : 0;
+  const x0 = Math.min(...boxes.map(([p, r]) => p[0] - r)), y0 = Math.min(...boxes.map(([p, r]) => p[1] - r)) - tall;
+  const x1 = Math.max(...boxes.map(([p, r]) => p[0] + r)) + tall * OBLIQUE.skew, y1 = Math.max(...boxes.map(([p, r]) => p[1] + r));
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
