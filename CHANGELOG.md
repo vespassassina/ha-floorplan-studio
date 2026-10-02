@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2.5D: a wall that faces north is now cut to the cutaway when its lift would cover another room or zone (the Hall's north wall over the Living room, the Office's over the Bedroom and Bathroom). Before, only walls facing south and edges shared with them were cut, so these hid the rooms behind them, badly at tilt 1. A back wall with nothing behind it stays full. 2D output is unchanged; the default 2.5D picture changes.
 - Tilt. The 2.5D view can look down more or less steeply: a Tilt slider beside the card's View dropdown (only in 2.5D), config `tilt` from `0` (top-down, no lift) to `1` (side-on), default `0.5`, which is exactly the 2.5D look of before. The near walls are cut lower as the tilt grows so rooms stay visible. The box widens by the actual lift. The Edit-card form has a slider; the editor has View, Tilt, enabled in 2.5D, session only.
 - Hide text. Card config `labels: false` (form: "Show names and text") and the editor's View, Show names and text draw no names, values or leader lines, leaving icons, auras and state. It is a `renderFloor` option, so the card and the editor cannot differ. Default shown; output with it on is unchanged.
 - Shots and doc images gain tilt 0 and 1 and a no-text card.

@@ -2,6 +2,24 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-02: the cutaway follows what a wall covers
+
+Supersedes the "known limit" in the tilt entry below. A wall is cut to
+`cutaway` when it would hide a room, not when its own room is in front of it.
+Rule, in `collectWalls` (`solids.ts`): an edge whose outward normal points up
+the screen (`ny < -0.3`) is also cut when its sweep, the parallelogram from its
+base along the lift `h * (rise * skew, -rise)`, overlaps the floor of any room
+or zone by more than 25 cm squared. Only the outward side counts, so a room
+never cuts itself. Overlap is a Sutherland-Hodgman clip of the room outline
+against the sweep, so an L-shaped room works. The whole segment takes the cut
+when part is covered: a wall that steps along its length reads as a fault.
+Side walls (`|ny| <= 0.3`) and free walls keep today's rule. Why not by edge
+owner: the Hall's north wall and the Living room's south wall are different
+edges of different length, so dedupe never paired them. The default 2.5D output
+changes (walls between a back room and a front room); 2D does not. At tilt 0
+the sweep has no area and nothing is cut, which is invisible. `Proj` gains
+`rise`.
+
 ## 2026-10-02: tilt, and labels as a render option
 
 **Tilt.** One function, `obliqueFor(tilt)` in `render.ts`, maps a 0..1 tilt to
