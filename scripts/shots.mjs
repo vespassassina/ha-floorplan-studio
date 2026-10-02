@@ -144,6 +144,12 @@ try {
   // 2.5D: both floors, at rest and lit, in the default, a light and a dark theme (the three that read differently).
   for (const floor of Object.keys(layout.floors)) for (const which of ["off", "on"]) for (const t of THEMES.filter((x) => ["blueprint", "light", "ha-dark"].includes(x.id)))
     cardShots.push({ name: `card-${floor}-${which}-${t.id}-2-5d`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view: "2.5d" });
+  // Tilt 0 (top-down), the default and 1 (side-on) on both floors, lit, blueprint; and the cards with no text.
+  const bp = THEMES[0];
+  for (const floor of Object.keys(layout.floors)) for (const tilt of [0, 0.5, 1])
+    cardShots.push({ name: `card-${floor}-on-blueprint-tilt-${String(tilt).replace(".", "-")}`, floor, which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", cfg: { tilt } });
+  for (const floor of Object.keys(layout.floors)) for (const view of ["2d", "2.5d"])
+    cardShots.push({ name: `card-${floor}-on-blueprint-${view.replace(".", "-")}-labels-off`, floor, which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view, cfg: { labels: false } });
   for (const s of cardShots) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });
     const page = await ctx.newPage();
@@ -156,7 +162,7 @@ try {
       const el = document.getElementById("c");
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
-    }, [{ layout: s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme, ...(s.view ? { view: s.view } : {}) }, hassFor(s.which, s.dark)]);
+    }, [{ layout: s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme, ...(s.view ? { view: s.view } : {}), ...(s.cfg ?? {}) }, hassFor(s.which, s.dark)]);
     const nodes = await page.evaluate(() => document.getElementById("c").shadowRoot.querySelectorAll("svg *").length);
     if (nodes < 10) errors.push(`${s.name}: the plan drew ${nodes} nodes; something is wrong before you even look`);
     await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });

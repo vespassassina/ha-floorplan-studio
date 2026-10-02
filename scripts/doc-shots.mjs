@@ -52,12 +52,20 @@ try {
     await ctx.close();
   }
 
-  // card-2-5d.png: the same floor with `view: 2.5d`, the View dropdown showing next to the zoom buttons. The Active
-  // list is off so it does not cover the plan.
-  {
+  // card-2-5d.png: the same floor with `view: 2.5d`, the View dropdown and Tilt slider showing next to the zoom
+  // buttons. The Active list is off so it does not cover the plan. The tilt and labels variants are the same card
+  // with one more key: tilt 0 (top-down) and 1 (side-on), and `labels: false` in 2D and 2.5D.
+  const variants = [
+    ["card-2-5d", {}],
+    ["card-2-5d-tilt-0", { tilt: 0 }],
+    ["card-2-5d-tilt-1", { tilt: 1 }],
+    ["card-labels-off", { view: "2d", labels: false }],
+    ["card-2-5d-labels-off", { labels: false }],
+  ];
+  for (const [name, extra] of variants) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });
     const page = await ctx.newPage();
-    page.on("pageerror", (e) => errors.push(`card-2-5d: ${e}`));
+    page.on("pageerror", (e) => errors.push(`${name}: ${e}`));
     await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:#fff"><floorplan-studio-card id="c"></floorplan-studio-card></body>`);
     await page.addScriptTag({ content: cardJs, type: "module" });
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
@@ -65,10 +73,10 @@ try {
       const el = document.getElementById("c");
       el.setConfig(config); el.hass = h;
       return el.updateComplete;
-    }, [{ layout, floor: "ground", theme: "blueprint", view: "2.5d", active_list: false }, hass]);
+    }, [{ layout, floor: "ground", theme: "blueprint", view: "2.5d", active_list: false, ...extra }, hass]);
     const nodes = await page.evaluate(() => document.getElementById("c").shadowRoot.querySelectorAll("svg *").length);
-    if (nodes < 10) errors.push(`card-2-5d: the plan drew ${nodes} nodes`);
-    await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/card-2-5d.png` });
+    if (nodes < 10) errors.push(`${name}: the plan drew ${nodes} nodes`);
+    await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${name}.png` });
     await ctx.close();
   }
 
