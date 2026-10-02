@@ -29,7 +29,7 @@ Left to right:
 - **Draw** — freehand outline/room drawing mode.
 - **View** — how the plan looks while you work: the installed version at the
   top, then Plan view (2D or 2.5D, see below), snap grid, measure grid,
-  lengths, names, Preview night, theme, Re-center and Fit to window.
+  lengths, names, Show names and text, Tilt (2.5D), Preview night, theme, Re-center and Fit to window.
 - **Edit** — what changes the plan or Home Assistant: Add floor, the Home
   Assistant popover (inside Home Assistant), Group, plan rotation, Device
   colours, Trace image…
@@ -60,6 +60,19 @@ Switching back to 2D finds the selection and the zoom as you left them. The
 choice is not an undo step, is not saved in the layout and is forgotten on
 reload. Fit to window in 2.5D leaves room for the walls rising above the plan;
 switching view does not refit by itself, so press it if the top is cut.
+
+View, Tilt is a slider, enabled only in 2.5D: left is top-down, right is
+side-on, the middle is the card's default. Moving it refits a view that shows
+the whole floor, so a steeper lift is not cut; a view you zoomed into stays.
+
+## Show names and text
+
+View, Show names and text hides every room, zone and structure name and every
+sensor value on the plan, leaving icons and state, in 2D and in 2.5D. It does
+not touch the Names button (device names, off by default), the Lengths and
+the measure grid, which are editor aids rather than plan text. Like Plan view
+and Tilt it is not an undo step, is not saved in the layout and goes back to
+shown on reload. The card's own switch is `labels: false` in its config.
 
 ## The side panel
 

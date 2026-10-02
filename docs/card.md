@@ -39,6 +39,8 @@ floors — ready to paste. See "A premade dashboard" below.
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 | `view` | `2d` | `2d` draws the flat plan, `2.5d` draws it with depth — see 2.5D view, below. Anything else is `2d` |
 | `view_switch` | `true` | `false` hides the View dropdown next to the zoom buttons. `kiosk` hides it too |
+| `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D. See the Tilt slider, below |
+| `labels` | `true` | `false` hides every name and value on the plan (rooms, zones, structures, device names, sensor values), so only icons and state are left. Anything but `false` shows them |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
 | `open_color` | red | `#rrggbb`: colours an open door or window, or a door whose vibration sensor triggered (and either one's pulsing alert line), instead of red. An invalid value is ignored |
 | `icon_size` | `1` | grows icons, names, values and radar dots by this factor, on top of the automatic scale-up on a large plan (see Size, below). A number from `0.5` to `3`; anything else clamps into that range, and a missing or non-numeric value is the default, `1` |
@@ -71,6 +73,23 @@ Next to the zoom buttons a small `View` dropdown switches between `2D` and
 `2.5D` for as long as the card is on screen. It keeps your zoom and pan, and a
 reload goes back to `view:`. `view_switch: false` removes the dropdown and
 `kiosk: true` does too; the configured `view` still applies.
+
+A **Tilt** slider sits beside the dropdown while the view is 2.5D, and
+disappears in 2D (and with `view_switch: false` or `kiosk`). Left is top-down,
+right is side-on; the middle is the default look. Dragging redraws the plan
+only: zoom and pan stay, and like the View pick it is forgotten when the
+config changes. The `tilt` key sets where it starts. The near walls are cut
+lower as the tilt grows, so a room is as visible at a steep tilt as at the
+default; at `0` nothing is lifted, so nothing hides anything.
+
+![Tilt 0, top-down.](img/card-2-5d-tilt-0.png)
+![Tilt 1, side-on.](img/card-2-5d-tilt-1.png)
+
+`labels: false` is for a card that should show only what is on: no room names,
+no zone names, no sensor values, no leader lines. Icons, auras, state, fades
+and taps are unchanged. It works in 2D and 2.5D.
+
+![A card with labels: false.](img/card-labels-off.png)
 
 - Walls are drawn at their height (250 cm by default). The walls on the
   near, south-facing side of the house are cut down to 90 cm, like a doll's

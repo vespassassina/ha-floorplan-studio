@@ -2,6 +2,37 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-02: tilt, and labels as a render option
+
+**Tilt.** One function, `obliqueFor(tilt)` in `render.ts`, maps a 0..1 tilt to
+`{ rise, skew, cutaway }`, and `renderFloor`, `viewBoxFor` and the solids all
+read it, so the box cannot disagree with the drawing. `rise = tilt * 1.1`:
+linear, so the default `DEFAULT_TILT = 0.5` gives exactly 0.55 and the old
+`OBLIQUE` (returned as is, so default output is byte for byte what it was).
+Tilt 0 is rise 0: nothing lifts, faces have no area, tops sit on the plan, and
+it reads as 2D. Tilt 1 is rise 1.1: steep, a 250 cm wall is drawn 275 units tall, more than
+most rooms are deep, so the slider stops there. `skew` stays
+0.3; it decides which faces show, not how tall they are. `cutaway` holds what
+a front wall may hide on screen constant: `round(49.5 / rise)` cm (90 at the
+default, 45 at 1), capped at 200 where there is no lift to hide anything.
+`viewBoxFor` widens by `tallest * rise` and `* skew`, the actual lift. Junk
+is the default, a number clamps. The slider is session state in the card and
+the editor; only `tilt` in the card config persists.
+
+Known limit, not changed: a room's back wall that is longer than the front
+wall of the room it borders is a different edge, so it is not de-duplicated
+and keeps its full height. At a steep tilt it hides the front of the rooms
+behind it (the Hall's north wall over the Living room). Fixing it changes the
+default output too.
+
+**Labels.** `labels?: boolean` is a `renderFloor` option, not a card CSS rule
+or an editor filter, because every text on the plan is made in that one
+function (finding 8): the card and the editor then cannot differ, and a test
+can walk every text-producing kind. `false` skips the `<text>` and leader
+elements; the text placer still runs, so nothing else moves. The editor's own
+overlay text (the measure grid numbers and the lengths) is an aid, not plan
+text, and stays; the Names button keeps its meaning. Absent means true.
+
 ## 2026-10-02: the 2.5D view (docs/specs/heights-and-2-5d.md)
 
 2.5D is drawn by `renderFloor`, the one draw path, for the card and the editor.

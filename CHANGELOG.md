@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Tilt. The 2.5D view can look down more or less steeply: a Tilt slider beside the card's View dropdown (only in 2.5D), config `tilt` from `0` (top-down, no lift) to `1` (side-on), default `0.5`, which is exactly the 2.5D look of before. The near walls are cut lower as the tilt grows so rooms stay visible. The box widens by the actual lift. The Edit-card form has a slider; the editor has View, Tilt, enabled in 2.5D, session only.
+- Hide text. Card config `labels: false` (form: "Show names and text") and the editor's View, Show names and text draw no names, values or leader lines, leaving icons, auras and state. It is a `renderFloor` option, so the card and the editor cannot differ. Default shown; output with it on is unchanged.
+- Shots and doc images gain tilt 0 and 1 and a no-text card.
 - 2.5D view. The card has `view: 2d | 2.5d` (default `2d`) and `view_switch` (default `true`): a small View dropdown beside the zoom buttons, hidden by `view_switch: false` and by `kiosk`. A pick keeps your zoom and pan and is forgotten when the config changes. The Edit-card form has both. The editor has View, Plan view, where 2.5D is a read-only preview (no handles, no selection, no drag; edit menus and shortcuts inert; selection and zoom come back with 2D).
 - 2.5D draws what the heights say: walls are extruded, the near (south-facing) walls cut down to 90 cm like a doll's house so no room is hidden; doors, windows and openings are cut out of them; furniture and unlinked appliances are boxes with the symbol on the lid; stairs are steps; a device mounted at 100 cm or more gets a stem. Floor-level things (room fills, icons, door lines, taps) keep their plan position, and 2D output is byte for byte what it was.
 - `npm run shots` and the doc images draw the demo in 2.5D. README gets a 2.5D picture.

@@ -21,7 +21,10 @@ Assistant every day.
   ("Controlled by") and the plan shows both as one lamp.
 - A 2.5D view, in the card (`view: 2.5d`, or the View dropdown beside the zoom
   buttons) and as a read-only preview in the editor: walls rise, furniture
-  becomes boxes, the near walls are cut down so every room shows.
+  becomes boxes, the near walls are cut down so every room shows. A Tilt
+  slider turns it from top-down to side-on.
+- A switch to hide every name and value (`labels: false` on the card, View,
+  Show names and text in the editor), so only items and sensors are left.
 
   ![The card in 2.5D.](docs/img/card-2-5d.png)
 - A Lovelace card: lights, switches, sensors, cameras, thermostats, doors,
