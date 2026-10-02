@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-02: a room inside a bigger room paints after it
+
+Diego's garden house was still under the garden: fills paint in `Floor.rooms`
+array order, and "Bring to front" (2026-09-28) fixed one file by hand, not the
+cause. Decided: `renderFloor` sorts fills by nesting depth (how many larger
+rooms contain every vertex of this one), after the zone-last rule, stable
+otherwise. Not-nested rooms keep array order, so existing layouts change only
+where a small room was hidden by its parent. A degenerate or non-finite ring
+has depth 0 and never counts as a parent. Bring to front and Send to back stay
+for rooms that overlap without containing each other.
+
 ## 2026-10-02: the cutaway follows what a wall covers
 
 Supersedes the "known limit" in the tilt entry below. A wall is cut to

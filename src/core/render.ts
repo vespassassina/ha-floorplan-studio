@@ -670,7 +670,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       f.rooms.forEach((r, i) => { if (inside(c, r.pts)) glowRooms.add(i); });
     }
   // Zones are painted after every other room so they sit on top whatever the array order (the editor picks the top polygon).
-  [...f.rooms.keys()].sort((a, b) => +(f.rooms[a].kind === "zone") - +(f.rooms[b].kind === "zone")).forEach((i) => {
+  // A room drawn inside a bigger one paints after it, whatever the array order, so a garden house never sits under its garden.
+  const ring = (r: { pts?: unknown }): Pt[] | null => Array.isArray(r.pts) && r.pts.length >= 3 && r.pts.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) ? (r.pts as Pt[]) : null;
+  const ringArea = (p: Pt[]) => Math.abs(p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0)) / 2;
+  const rings = f.rooms.map(ring), areas = rings.map((p) => (p ? ringArea(p) : 0));
+  const depth = rings.map((p, i) => (p ? rings.reduce((n, q, j) => n + +(j !== i && !!q && areas[j] > areas[i] && p.every((v) => inside(v, q))), 0) : 0));
+  [...f.rooms.keys()].sort((a, b) => +(f.rooms[a].kind === "zone") - +(f.rooms[b].kind === "zone") || depth[a] - depth[b]).forEach((i) => {
     const r = f.rooms[i];
     if (r.kind === "fill" && !r.name) return;
     const own = paintAttr(r);
