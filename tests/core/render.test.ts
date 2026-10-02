@@ -372,7 +372,7 @@ describe("zones and water", () => {
     expect(html).toMatch(new RegExp(`<polygon data-r="${wi}" class="[^"]*\\bwater\\b[^"]*"`));
     expect(FLOORPLAN_CSS).toMatch(/--fp-water:#[0-9a-f]{3,8}/i);
     expect(FLOORPLAN_CSS).toMatch(/\.room-water:not\(\[fill\]\)\{[^}]*fill:var\(--fp-water\)/);
-    expect(html).toMatch(/<text class="lbl zone"[^>]*font-size="20"[^>]*>Reading corner<\/text>/);
+    expect(html).toMatch(/<text class="lbl zone"[^>]*font-size="16"[^>]*>Reading corner<\/text>/);
   });
   it("puts no literal colour in the zone and water markup", () => {
     const mine = html.split("\n").filter((l) => new RegExp(`data-(r="(${zi}|${wi})"|e="r(${zi}|${wi}):)`).test(l)).join("\n");
@@ -1712,10 +1712,10 @@ describe("S1.42: a device never hides a room name", () => {
   };
   it("S7.15: moves off a door that runs through the centroid", () => { expect(nameY(withDoor([200, 60], [200, 150]))).toBe(cy - 32 * k); });
   it("S7.15: a door whose stroke just reaches the name's box counts, one 1 unit further does not", () => {
-    // The name box at the centroid spans y 79..107 (28 tall, baseline 0.75 down). A horizontal door at y 117 with
-    // stroke 22 reaches up to 106 and overlaps; at y 118 its edge only touches the box, which does not count.
-    expect(nameY(withDoor([100, 117], [300, 117]))).toBe(cy + 32 * k);
-    expect(nameY(withDoor([100, 118], [300, 118]))).toBe(cy);
+    // The name box at the centroid spans y 83.5..105.5 (22 tall, baseline 0.75 down). A horizontal door at y 116 with
+    // stroke 22 reaches up to 105 and overlaps; at y 117 its edge only touches the box, which does not count.
+    expect(nameY(withDoor([100, 116], [300, 116]))).toBe(cy + 32 * k);
+    expect(nameY(withDoor([100, 117], [300, 117]))).toBe(cy);
   });
   it("S7.15: a door far from the name leaves it at the centroid", () => { expect(nameY(withDoor([50, 190], [350, 190]))).toBe(cy); });
   it("a zone follows the same steps with its smaller size", () => {
@@ -1919,8 +1919,8 @@ describe("S7.1: labels never overprint each other", () => {
     const f = bare(structuredClone(ground));
     const wk = ["boundary", "boundary", "boundary", "boundary"];
     f.rooms = [
-      { id: "a", name: "Reading nook", kind: "zone", area: "", pts: [[0, 0], [60, 0], [60, 40], [0, 40]], wk },
-      { id: "b", name: "Music stand", kind: "zone", area: "", pts: [[60, 0], [120, 0], [120, 40], [60, 40]], wk },
+      { id: "a", name: "Reading nook", kind: "zone", area: "", pts: [[0, 0], [40, 0], [40, 40], [0, 40]], wk },
+      { id: "b", name: "Music stand", kind: "zone", area: "", pts: [[40, 0], [80, 0], [80, 40], [40, 40]], wk },
     ] as never;
     f.devices = [];
     const html = renderFloor(f, { scale: 1 });
@@ -1938,7 +1938,7 @@ describe("S7.1: labels never overprint each other", () => {
     ] as never;
     f.devices = [{ id: "t", type: "temp", entity: "sensor.t", x: 100, y: 150 }] as never;
     const html = renderFloor(f, { scale: 1, now: NOW, state: { "sensor.t": st("21.5", { attributes: { unit_of_measurement: "°C" } }) } });
-    expect(html).toMatch(/<text class="lbl" x="100" y="100"[^>]*font-weight="600">Study</); // the name goes first and keeps its centroid
+    expect(html).toMatch(/<text class="lbl" x="100" y="100"[^>]*font-weight="600" opacity="\.5">Study</); // the name goes first and keeps its centroid
     for (const t of [">Desk corner<", ">21.5 °C<"]) expect(html).toContain(t);
     expect(clashes(html)).toEqual([]);
   });
@@ -2322,5 +2322,27 @@ describe("S7.10: a vacuum's four states", () => {
   it("Break it: cleaning without the fix would read idle grey like docked — asymmetric check that on and spin both fire", () => {
     expect(FLOORPLAN_CSS).toContain(".dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)}");
     expect(FLOORPLAN_CSS).toMatch(/\.dev-vacuum\.spin path\{[^}]*animation:fp-spin 4s linear infinite/);
+  });
+});
+
+describe("0.12.16: room names sit inside their room, small and half transparent", () => {
+  const bare = (f: typeof ground) => { f.doors = []; f.stairs = []; f.walls = []; f.furniture = []; return f; };
+  const inside = (p: Pt, poly: Pt[]) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) if ((poly[i][1] > p[1]) !== (poly[j][1] > p[1]) && p[0] < ((poly[j][0] - poly[i][0]) * (p[1] - poly[i][1])) / (poly[j][1] - poly[i][1]) + poly[i][0]) c = !c; return c; };
+  const ell: Pt[] = [[0, 0], [300, 0], [300, 50], [50, 50], [50, 300], [0, 300]]; // the vertex mean (117, 117) is outside it
+  const at = (html: string, name: string): Pt => { const m = html.match(new RegExp(`<text class="lbl[^"]*" x="([\\d.-]+)" y="([\\d.-]+)"[^>]*>${name}<`))!; return [Number(m[1]), Number(m[2]) - 8]; };
+  const mk = (pts: Pt[], kind: string) => { const f = bare(structuredClone(ground)); f.rooms = [{ id: "r", name: "Laundry", kind, area: "", pts, wk: pts.map(() => "wall") }] as never; f.devices = []; return f; };
+  it("an L-shaped room keeps its name inside the L, with or without an icon in the way", () => {
+    for (const kind of ["room", "zone"]) {
+      const html = renderFloor(mk(ell, kind), { scale: 1 });
+      expect(inside(at(html, "Laundry"), ell), kind).toBe(true);
+    }
+    const f = mk(ell, "room"); f.devices = [{ id: "l", type: "light", entity: "light.a", x: 25, y: 25 }] as never;
+    expect(inside(at(renderFloor(f, { scale: 1 }), "Laundry"), ell)).toBe(true);
+  });
+  it("a room name is 11, a zone name 8 (times the scale), and both are drawn at half opacity", () => {
+    const html = renderFloor(mk([[0, 0], [200, 0], [200, 200], [0, 200]], "room"), { scale: 1 });
+    expect(html).toMatch(/<text class="lbl"[^>]*font-size="11"[^>]*opacity="\.5"[^>]*>Laundry</);
+    expect(renderFloor(mk([[0, 0], [200, 0], [200, 200], [0, 200]], "zone"), { scale: 1 })).toMatch(/<text class="lbl zone"[^>]*font-size="8"[^>]*>Laundry</);
+    expect(FLOORPLAN_CSS).toMatch(/\.lbl\.zone\{opacity:\.5\}/);
   });
 });

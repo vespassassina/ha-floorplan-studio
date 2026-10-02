@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.16
+
+- Room names are smaller (11 instead of 14, zones 8 instead of 10) and drawn at half opacity.
+- A room name now stays inside its own room. The vertex average of an L- or U-shaped room can fall outside it; the name is now anchored on the widest stretch of the room, and a free spot inside the room is tried before any spot outside.
+
 ## 0.12.15
 
 - The card's default view no longer clips content outside the outline (a garden, a shed, a free-standing wall): the default and "fit" view now bound on every structural element, not the outline alone.

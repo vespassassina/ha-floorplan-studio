@@ -8342,3 +8342,9 @@ test("S10.1: picking the value that is already set adds no undo step", async ({ 
   await page.locator("#undo").click();
   expect((await groundOf(page)).devices[i].entity).toBe(""); // one undo reaches the start: the re-pick made no step
 });
+
+test("Opus review CSS pair: a room name and a zone name are drawn at half opacity", async ({ page }) => {
+  const opacity = (sel: string) => page.locator(sel).first().evaluate((el) => Number(getComputedStyle(el).opacity));
+  expect(await opacity('svg text.lbl[font-weight="600"]')).toBe(0.5);
+  expect(await opacity("svg text.lbl.zone")).toBe(0.5);
+});
