@@ -121,6 +121,10 @@ const THEME_LABELS: Record<(typeof THEME_VALUES)[number], string> = {
 /** S4.10: the Home Assistant menu's groups, in the order they are shown. */
 const HA_KIND_LABELS: [Labelled["kind"], string][] = [["helper", "Helpers"], ["automation", "Automations"], ["area", "Areas"]];
 
+/** The Plan view options: one list for the markup and the check. 3D joins it when it exists. */
+const VIEW_OPTIONS = [{ value: "2d", label: "2D" }, { value: "2.5d", label: "2.5D" }] as const;
+const PREVIEW_NOTE = "2.5D is a preview. Switch to 2D to edit.";
+
 export class FloorplanStudioEditor extends LitElement {
   static properties = {
     floor: { type: String },
@@ -657,6 +661,13 @@ export class FloorplanStudioEditor extends LitElement {
     const st = this.st, f = st.f;
     st.confirmDelete = false;
     const capture = () => { try { svg.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ } };
+    if (st.preview) {
+      // A preview only looks: every button pans, nothing is hit, selected or dragged.
+      ev.preventDefault();
+      this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: ev.button, moved: false };
+      capture();
+      return;
+    }
     if (ev.button === 1 || ev.button === 2 || ev.ctrlKey || ev.metaKey) {
       ev.preventDefault();
       this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: ev.button, moved: false };
@@ -927,7 +938,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (d.type === "pan") {
       // A right button pressed and released without a drag: not a pan, the context menu on whatever is under it.
       // (`ev.type === "pointercancel"` carries no useful position and is never this case.)
-      if (d.button === 2 && !d.moved && ev.type === "pointerup") this.openCtxMenuAt(ev.clientX, ev.clientY);
+      if (d.button === 2 && !d.moved && ev.type === "pointerup" && !st.preview) this.openCtxMenuAt(ev.clientX, ev.clientY);
       return;
     }
     if (d.moved) {
@@ -946,6 +957,7 @@ export class FloorplanStudioEditor extends LitElement {
   };
 
   private onDblClick = (ev: MouseEvent) => {
+    if (this.st.preview) return;
     if (this.draw) { this.finishDraw(); return; }
     // The click that finished a shape already did its work; Firefox and Safari still send the dblclick for the pair.
     // The phantom pair is the finishing press plus exactly one more; a deliberate double-click is that press plus two.
@@ -1596,6 +1608,7 @@ export class FloorplanStudioEditor extends LitElement {
   private onKey = (ev: KeyboardEvent) => {
     const t = ev.composedPath()[0] as HTMLElement | undefined;
     if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+    if (this.st.preview && ev.key !== "Escape") return; // a preview has no edit shortcut: not undo, not Delete
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); this.undo(!ev.shiftKey); return; }
     if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
@@ -1669,6 +1682,7 @@ export class FloorplanStudioEditor extends LitElement {
   // ---- actions -------------------------------------------------------------
 
   private undo(back: boolean) {
+    if (this.st.preview) return;
     this.stopDraw();
     if (back ? this.st.undo() : this.st.redo()) { this.floor = this.st.floor; this.refreshNames(); this.changed(back ? "Undone" : "Redone"); }
   }
@@ -1683,6 +1697,23 @@ export class FloorplanStudioEditor extends LitElement {
     this.closeMenus(); // Opus review finding 14: a top-level Edit item is a one-shot action, like Add's own; it closes the menu
     if (n > 0) this.changed(`Linked ${n} light${n === 1 ? "" : "s"}.`);
     else { this.status = "No light had a clear switch match."; this.requestUpdate(); }
+  }
+  /** View, Plan view. 2.5D is a read-only preview, so whatever edits in flight stops here; selection and zoom stay for the way back. */
+  private setViewMode(v: string) {
+    const st = this.st;
+    if (v !== "2d" && v !== "2.5d") return;
+    this.drag = null;
+    if (v !== "2d") {
+      this.stopDraw();
+      this.traceScale = null;
+      this.closeCtxMenu();
+      if (this.devColsPos) this.toggleDevCols();
+      if (this.placeRoom !== null) this.closePlace();
+      if (this.addDevPos) this.closeAddDev();
+      if (this.traceOpen) this.toggleTrace();
+    }
+    st.setViewMode(v);
+    this.requestUpdate();
   }
   private rotatePlan(step: number) {
     if (this.st.setRotate((this.st.layout.rotate ?? 0) + step)) this.changed(`Plan rotated to ${this.st.layout.rotate}°`);
@@ -1718,6 +1749,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   /** Enters draw mode. Whatever was being drawn is dropped; the selection is cleared so no shape looks selected while drawing. */
   private startDraw(kind: DrawKind, wall: WallKind = "wall", area?: AreaPreset) {
+    if (this.st.preview) return;
     this.draw = new Draw(kind, wall, area);
     this.hover = null;
     this.st.sel = null;
@@ -2369,13 +2401,14 @@ export class FloorplanStudioEditor extends LitElement {
     const w = this.rect.w / s, h = this.rect.h / s;
     const rot = st.rotation, vc: Pt = rot ? rotateAbout([v.x + v.w / 2, v.y + v.h / 2], rot.deg, rot.pivot) : [v.x + v.w / 2, v.y + v.h / 2];
     const viewBox = `${num(vc[0] - w / 2)} ${num(vc[1] - h / 2)} ${num(w)} ${num(h)}`;
-    const sel = st.sel && (st.sel.t === "door" || st.sel.t === "dev") ? { t: st.sel.t, i: st.sel.i } : null;
+    const preview = st.preview; // a preview is drawn as the card draws it: no corner handles, no hidden-wall guides
+    const sel = !preview && st.sel && (st.sel.t === "door" || st.sel.t === "dev") ? { t: st.sel.t, i: st.sel.i } : null;
     // The grid covers everything on screen: the shown rectangle, taken back into the plan's own (unturned) space.
     const shown = [[vc[0] - w / 2, vc[1] - h / 2], [vc[0] + w / 2, vc[1] - h / 2], [vc[0] + w / 2, vc[1] + h / 2], [vc[0] - w / 2, vc[1] + h / 2]] as Pt[];
     const back = rot ? shown.map((p) => rotateAbout(p, -rot.deg, rot.pivot)) : shown;
     const bx = back.map((p) => p[0]), by = back.map((p) => p[1]);
     const region = { x: Math.min(...bx), y: Math.min(...by), w: Math.max(...bx) - Math.min(...bx), h: Math.max(...by) - Math.min(...by) };
-    const overlay = this.overlay(k), grid = this.measureGrid(k, region);
+    const overlay = preview ? "" : this.overlay(k), grid = this.measureGrid(k, region);
     const turnG = (svg: string) => (rot ? `<g class="plan-turn" transform="rotate(${num(rot.deg)} ${num(rot.pivot[0])} ${num(rot.pivot[1])})">${svg}</g>` : svg);
     const ha = st.ha;
     // S4.5: HA groups with at least one member on this floor, for the Group menu; the chosen one dims every other device (class "dim").
@@ -2386,7 +2419,7 @@ export class FloorplanStudioEditor extends LitElement {
     const groupKindOf = (g: { members?: string[] }) => (g.members ?? [])[0]?.split(".")[0] === "binary_sensor" ? "motion" as const : (g.members ?? [])[0]?.split(".")[0] === "light" ? "light" as const : undefined;
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true }) + turnG(overlay);
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: !preview, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, view: st.viewMode }) + turnG(overlay);
     const counts: Record<string, number> = {};
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const pressed = (b: boolean) => (b ? "true" : "false");
@@ -2404,7 +2437,7 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn keep" id="filterAll" ?disabled=${!st.filter.length} @click=${() => { st.filter = []; st.sel = null; this.requestUpdate(); }}>All</button>
           ${TYPE_LABELS.filter(([t]) => counts[t]).map(([t, label]) => html`<button class="btn keep" data-filter=${t} aria-pressed=${pressed(st.filter.includes(t))} @click=${() => { st.filter = st.filter.includes(t) ? st.filter.filter((x) => x !== t) : [...st.filter, t]; st.sel = null; this.requestUpdate(); }}>${label} (${counts[t]})</button>`)}
         </div></details>
-        <details class="menu" id="mAdd" @toggle=${this.onMenuToggle}><summary class="btn">Add</summary><div class="box">
+        <details class="menu" id="mAdd" ?inert=${preview} @toggle=${this.onMenuToggle}><summary class="btn">Add</summary><div class="box">
           <details class="sub" id="addOpenings"><summary class="btn">Openings</summary>
             <button class="btn" id="addDoor" @click=${() => this.addDoor("door", 90)}>Door</button>
             <button class="btn" id="addWin" @click=${() => this.addDoor("window", 120)}>Window</button>
@@ -2429,7 +2462,7 @@ export class FloorplanStudioEditor extends LitElement {
             ${UNLINKED_TYPES.map((t) => html`<option value=${t}>${TYPE_LABELS.find((x) => x[0] === t)?.[1] ?? t}</option>`)}
           </select>
         </div></details>
-        <details class="menu" id="mDraw" @toggle=${this.onMenuToggle}><summary class="btn">Draw</summary><div class="box">
+        <details class="menu" id="mDraw" ?inert=${preview} @toggle=${this.onMenuToggle}><summary class="btn">Draw</summary><div class="box">
           <details class="sub" id="drawOpenings"><summary class="btn">Openings</summary>
             <button class="btn" id="drawOpening" @click=${() => this.startDraw("opening")}>Draw opening</button>
           </details>
@@ -2446,6 +2479,8 @@ export class FloorplanStudioEditor extends LitElement {
         </div></details>
         <details class="menu" id="mOpt" @toggle=${this.onMenuToggle}><summary class="btn">View</summary><div class="box">
           <span class="grp" id="version">Floorplan Studio ${manifest.version}</span>
+          <div class="rotrow"><label for="view-mode">Plan view</label>
+            <select id="view-mode" @change=${(e: Event) => this.setViewMode((e.target as HTMLSelectElement).value)}>${VIEW_OPTIONS.map((o) => html`<option value=${o.value} ?selected=${st.viewMode === o.value}>${o.label}</option>`)}</select></div>
           <div class="rotrow" id="snap" role="group" aria-label="Snap"><span>Snap</span>
             ${GRID_VALUES.map((g) => html`<button class="chip keep" data-grid=${g} aria-pressed=${pressed(st.snapGrid === g)} @click=${() => { st.setGrid(g); this.requestUpdate(); }}>${g ? `${g} cm` : "None"}</button>`)}</div>
           <button class="chip" id="mgrid" aria-pressed=${pressed(st.measure)} title="A faint 50 cm grid with metre markers, behind the plan" @click=${() => { st.setMeasure(!st.measure); this.requestUpdate(); }}>Measure grid</button>
@@ -2459,7 +2494,7 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
           <button class="btn" id="copyCardView" title="Copies center and zoom_level for a card pinned to what's on screen now" @click=${() => this.copyCardView()}>Copy card view</button>
         </div></details>
-        <details class="menu" id="mEdit" @toggle=${this.onMenuToggle}><summary class="btn">Edit</summary><div class="box">
+        <details class="menu" id="mEdit" ?inert=${preview} @toggle=${this.onMenuToggle}><summary class="btn">Edit</summary><div class="box">
           <button class="btn" id="addFloor" title="Add a floor" @click=${() => this.startAddFloor()}>Add floor</button>
           ${this.writer ? html`<button class="btn" id="mHA" ?disabled=${!this.haList?.length && !this.haListErr} aria-expanded=${pressed(!!this.haPos)} title=${this.haListErr || (this.haList?.length ? "What Floorplan Studio made in Home Assistant" : "Nothing Floorplan Studio made is labelled in Home Assistant yet")} @click=${() => this.toggleHa()}>Home Assistant</button>` : nothing}
           ${ha ? html`<details class="sub" id="mGroup"><summary class="btn">Group</summary>
@@ -2484,12 +2519,12 @@ export class FloorplanStudioEditor extends LitElement {
           <button class="btn" id="traceBtn" aria-expanded=${pressed(this.traceOpen)} @click=${() => this.toggleTrace()}>Trace image…</button>
         </div></details>
         <details class="menu" id="mFile" @toggle=${this.onMenuToggle}><summary class="btn">File</summary><div class="box">
-          <button class="btn" id="imp" @click=${() => this.renderRoot.querySelector<HTMLInputElement>("#file")?.click()}>Open…</button>
+          <button class="btn" id="imp" ?disabled=${preview} @click=${() => this.renderRoot.querySelector<HTMLInputElement>("#file")?.click()}>Open…</button>
           <button class="btn" id="exp" title="Download the current layout as JSON" @click=${() => this.exportJson()}>Export…</button>
           <label class="grp"><input type="checkbox" id="expTrace" .checked=${live(this.exportTrace)} @change=${(e: Event) => { this.exportTrace = (e.target as HTMLInputElement).checked; }}> Include trace image</label>
           <button class="btn" id="installcode" aria-expanded=${pressed(this.installCodeOpen)} @click=${() => this.toggleInstallCode()}>Install code…</button>
-          ${this.demo ? html`<button class="btn" id="loaddemo" ?disabled=${!isBlank(st.layout)} title=${isBlank(st.layout) ? "Load the demo home" : "Reset first: loading the demo would overwrite your plan."} @click=${() => this.loadDemo()}>Load demo</button>` : nothing}
-          <button class="btn danger" id="reset" title="Erase everything and start from a blank plan" @click=${() => this.reset()}>Reset</button>
+          ${this.demo ? html`<button class="btn" id="loaddemo" ?disabled=${!isBlank(st.layout) || preview} title=${isBlank(st.layout) ? "Load the demo home" : "Reset first: loading the demo would overwrite your plan."} @click=${() => this.loadDemo()}>Load demo</button>` : nothing}
+          <button class="btn danger" id="reset" ?disabled=${preview} title="Erase everything and start from a blank plan" @click=${() => this.reset()}>Reset</button>
           <button class="btn primary" id="save" @click=${() => this.save()}>Save</button>
         </div></details>
         <!-- S8.10 follow-up: Help, then Undo and Redo as the cluster's last items, so Redo's own right edge is
@@ -2499,8 +2534,8 @@ export class FloorplanStudioEditor extends LitElement {
              the pair together onto the next row — two separate items let the row that fit Undo split Redo onto
              its own row alone. -->
         <div class="btnpair">
-        <button class="btn light" id="undo" ?disabled=${!st.canUndo} @click=${() => this.undo(true)}>Undo</button>
-        <button class="btn light" id="redo" ?disabled=${!st.canRedo} @click=${() => this.undo(false)}>Redo</button>
+        <button class="btn light" id="undo" ?disabled=${!st.canUndo || preview} @click=${() => this.undo(true)}>Undo</button>
+        <button class="btn light" id="redo" ?disabled=${!st.canRedo || preview} @click=${() => this.undo(false)}>Redo</button>
         </div>
         </div>
         <input type="file" id="file" accept=".json,application/json" hidden @change=${(e: Event) => this.openFile(e)}>
@@ -2523,7 +2558,7 @@ export class FloorplanStudioEditor extends LitElement {
           ${this.traceOpen ? this.traceView() : nothing}
         </div>
         <aside>
-          <div id="panel">${st.helpOpen ? helpPanel(() => this.toggleHelp()) : selectionPanel(this.ctx())}</div>
+          <div id="panel">${st.helpOpen ? helpPanel(() => this.toggleHelp()) : preview ? html`<p class="grp" id="previewNote">${PREVIEW_NOTE}</p>` : selectionPanel(this.ctx())}</div>
         </aside>
       </div>`;
   }

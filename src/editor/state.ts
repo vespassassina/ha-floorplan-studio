@@ -1,5 +1,5 @@
 import { DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
-import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
+import type { CatalogEntry, DeviceType, Floor, HaData, Layout, PlanView, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 
 /** localStorage key for the autosaved edit. */
 export const STORAGE_KEY = "floorplan-studio:layout";
@@ -181,6 +181,14 @@ export class EditorState {
   helpOpen: boolean = readHelp();
   /** S7.6: whether the plan is drawn as at night. Kept in localStorage, not in the layout, never an undo step. */
   night: boolean = readNight();
+  /** How the plan is drawn: flat, or 2.5D, which is a read-only preview. Session state: no undo step, never in the layout, not even in localStorage. */
+  viewMode: PlanView = "2d";
+  /** Anything but 2D only looks: pointer, keys and the edit menus do nothing. */
+  get preview(): boolean { return this.viewMode !== "2d"; }
+  /** The zoom, pan and selection are left alone, so switching back finds them as they were. */
+  setViewMode(v: PlanView): void {
+    if (v === "2d" || v === "2.5d") this.viewMode = v;
+  }
   /** id of the door drawn open in the preview */
   openDoor: string | null = null;
   /** S8.10: which room-box collapsible groups (the panel's "Home Assistant" device list) are open — keyed
@@ -333,7 +341,7 @@ export class EditorState {
 
   /** A view is stored in plan coordinates: its centre is the plan point in the middle of the screen, w and h are what the screen shows. Rotating the plan therefore needs no change to it. */
   fit() {
-    const b = viewBoxFor(this.f, 80, this.rotation), r = this.rotation;
+    const b = viewBoxFor(this.f, 80, this.rotation, this.viewMode), r = this.rotation;
     const c = r ? rotateAbout([b.x + b.w / 2, b.y + b.h / 2], -r.deg, r.pivot) : ([b.x + b.w / 2, b.y + b.h / 2] as Pt);
     this.views[this.floor] = { x: c[0] - b.w / 2, y: c[1] - b.h / 2, w: b.w, h: b.h };
   }
