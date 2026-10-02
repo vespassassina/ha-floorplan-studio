@@ -28,6 +28,30 @@ untrusted input. `DEVICE_Z`, `UNLINKED_HEIGHTS`, `FURNITURE_HEIGHTS`,
 `DOOR_DEFAULTS` and `WALL_KIND_HEIGHT` are tested against their unions, so a new
 member fails until someone decides its height.
 
+## 2026-10-02: small-room names shrink then go outside on a leader; Active list folds under 480 px (0.12.17)
+
+Diego: "fix small room collision". In the demo "Garden" sat on the pond inside
+it and "Garden pond" (72 wide) ran over the garden's edge. The rule now, per
+room name: measure the room's horizontal chord at the anchor row in the screen
+frame; if the text box (len x 0.6 x size) is wider, shrink to a floor of 7k
+(zones 6k), centred. Still too wide: place it just outside the room, below or
+above, on a thin `lbl-leader` line back to the anchor, drawn under the text and
+chosen so the line crosses no other text. The leader exists only in that case.
+A name's spots also skip any smaller named room inside its own. A name that fits
+but finds no free row still keeps its centroid (the documented last resort,
+unchanged). Costs: three old tests pinned superseded values and were adjusted
+(zone label 16 became 14.29 at scale 0.5; the rotation test no longer compares
+label positions, which depend on the screen frame; the two-zones test uses 60
+wide zones, since a 40 wide one now sends its name outside).
+
+Active list: the old default (collapsed under 500 px, once, only with nothing
+stored) left the list open over a phone plan as soon as a drag had written a
+position. Now the card's width decides, under 480 px folded, and follows a
+resize, until the user folds or unfolds it by hand; storage keeps `chosen` and
+a drag alone does not set it. An old entry saying collapsed counts as chosen.
+The 500 px assumption in the 2026-09 entry is superseded; 480 px is the new
+guess (a 375 px phone, a narrow column), checked in Chromium only.
+
 ## 2026-10-02: room names smaller, half transparent, inside their room (0.12.16)
 
 Diego's screenshot: "Laundry" sat on the edge of the next area. Cause: the

@@ -1888,6 +1888,59 @@ test.describe("S9.5: the active-devices panel", () => {
     await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-body")).toHaveCount(1);
   });
 
+  // 2026-10-02: the list covered the plan on narrow cards. Folded by default under 480px (it was 500px, and only
+  // with nothing stored, so a panel that had merely been dragged once stayed open on a phone); the width is followed
+  // until the user folds or unfolds it by hand, and from then on the choice is theirs.
+  test("under 480px the list starts folded and over 480px it starts open, at the line and not at the old 500", async ({ page }) => {
+    const body = () => page.locator("floorplan-studio-card").locator("css=.fp-active-body");
+    await page.setViewportSize({ width: 500, height: 700 }); // the page body's 8px margins make the card 484
+    await open(page);
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    await expect(body()).toHaveCount(1); // 484 is wide enough now
+    await page.setViewportSize({ width: 480, height: 700 });
+    await expect(body()).toHaveCount(0); // and 464 is not; the width is followed while nobody has chosen
+    await page.setViewportSize({ width: 1000, height: 700 });
+    await expect(body()).toHaveCount(1);
+  });
+
+  test("a panel that was only dragged, never folded by hand, still starts folded on a narrow card", async ({ page }) => {
+    const config = { layout: structuredClone(demo) };
+    await open(page);
+    await configure(page, config, { states: states() });
+    const card = page.locator("floorplan-studio-card");
+    const head = (await card.locator("css=.fp-active-head").boundingBox())!;
+    await page.mouse.move(head.x + head.width / 2, head.y + head.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(head.x + head.width / 2 + 60, head.y + head.height / 2 + 60, { steps: 6 });
+    await page.mouse.up(); // writes a stored position, and nothing else
+    await page.setViewportSize({ width: 400, height: 700 });
+    await page.reload();
+    await page.addScriptTag({ content: CARD_JS, type: "module" });
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await configure(page, config, { states: states() });
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(0);
+  });
+
+  test("once the user unfolds it on a narrow card, or folds it on a wide one, widening or narrowing the card leaves it alone", async ({ page }) => {
+    const card = page.locator("floorplan-studio-card");
+    await page.setViewportSize({ width: 400, height: 700 });
+    await open(page);
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(0);
+    await card.locator("css=.fp-active-collapse").click(); // unfold by hand
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(1);
+    await page.setViewportSize({ width: 420, height: 700 }); // still narrow, but a resize must not refold it
+    await page.setViewportSize({ width: 1000, height: 700 });
+    await page.setViewportSize({ width: 380, height: 700 });
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(1);
+
+    await page.setViewportSize({ width: 1000, height: 700 });
+    await card.locator("css=.fp-active-collapse").click(); // fold by hand on a wide card
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(0);
+    await page.setViewportSize({ width: 1100, height: 700 });
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(0);
+  });
+
   // Opus review finding 13: the panel must not be able to cover the floor chips and steal their clicks.
   test("Opus review finding 13: a real click on a floor chip works even with the panel dragged onto it", async ({ page }) => {
     await open(page);

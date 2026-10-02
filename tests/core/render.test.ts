@@ -372,7 +372,8 @@ describe("zones and water", () => {
     expect(html).toMatch(new RegExp(`<polygon data-r="${wi}" class="[^"]*\\bwater\\b[^"]*"`));
     expect(FLOORPLAN_CSS).toMatch(/--fp-water:#[0-9a-f]{3,8}/i);
     expect(FLOORPLAN_CSS).toMatch(/\.room-water:not\(\[fill\]\)\{[^}]*fill:var\(--fp-water\)/);
-    expect(html).toMatch(/<text class="lbl zone"[^>]*font-size="16"[^>]*>Reading corner<\/text>/);
+    // 134 wide at 16 (scale 0.5) in a 120 zone: shrunk to fit (2026-10-02), 120 / (14 x 0.6)
+    expect(html).toMatch(/<text class="lbl zone"[^>]*font-size="14\.29"[^>]*>Reading corner<\/text>/);
   });
   it("puts no literal colour in the zone and water markup", () => {
     const mine = html.split("\n").filter((l) => new RegExp(`data-(r="(${zi}|${wi})"|e="r(${zi}|${wi}):)`).test(l)).join("\n");
@@ -1573,7 +1574,9 @@ describe("plan rotation (S1.33)", () => {
   });
 
   it("draws the same shapes: every stored coordinate in the markup is the one it is without a turn", () => {
-    const coords = (h: string) => h.match(/ (?:points|x1|y1|x2|y2|cx|cy)="[^"]*"/g);
+    // Label text and leader lines are placed in the screen frame, so a narrow room can send a name outside when turned
+    // and not when flat (2026-10-02); the shapes are what must not move.
+    const coords = (h: string) => h.replace(/<text [^>]*>[^<]*<\/text>|<line class="lbl-leader"[^>]*\/>/g, "").match(/ (?:points|x1|y1|x2|y2|cx|cy)="[^"]*"/g);
     expect(coords(turned(90))).toEqual(coords(renderFloor(ground, base)));
     expect(coords(turned(90))!.length).toBeGreaterThan(50);
   });
@@ -1919,8 +1922,9 @@ describe("S7.1: labels never overprint each other", () => {
     const f = bare(structuredClone(ground));
     const wk = ["boundary", "boundary", "boundary", "boundary"];
     f.rooms = [
-      { id: "a", name: "Reading nook", kind: "zone", area: "", pts: [[0, 0], [40, 0], [40, 40], [0, 40]], wk },
-      { id: "b", name: "Music stand", kind: "zone", area: "", pts: [[40, 0], [80, 0], [80, 40], [40, 40]], wk },
+      // 60 wide each, 40 apart: each name fits its zone (a 40 wide one would send it outside, 2026-10-02) and they meet
+      { id: "a", name: "Reading nook", kind: "zone", area: "", pts: [[0, 0], [60, 0], [60, 40], [0, 40]], wk },
+      { id: "b", name: "Music stand", kind: "zone", area: "", pts: [[40, 0], [100, 0], [100, 40], [40, 40]], wk },
     ] as never;
     f.devices = [];
     const html = renderFloor(f, { scale: 1 });
@@ -1977,6 +1981,75 @@ describe("S7.1: labels never overprint each other", () => {
     const html = renderFloor(f, { scale: 1 });
     expect(html).toMatch(/<text class="lbl" x="50" y="50"[^>]*>Store</);
     expect(clashes(html)).toEqual(['"Store" on icon 0']);
+  });
+
+  // 2026-10-02: small rooms. A name wider than its room shrinks (floor 7k) and, when even that is too wide, goes
+  // outside with a leader line; a name is also kept off a smaller room drawn inside its own (Garden / Garden pond).
+  const sq = (w: number, h = 100): Pt[] => [[0, 0], [w, 0], [w, h], [0, h]];
+  const roomLayout = (name: string, w: number, kind = "room") => {
+    const f = bare(structuredClone(ground));
+    f.rooms = [{ id: "s", name, kind, area: "", pts: sq(w), wk: ["wall", "wall", "wall", "wall"] }] as never;
+    f.devices = [];
+    return f;
+  };
+  const labelOf = (html: string, name: string) => {
+    const m = html.match(new RegExp(`<text class="lbl[^"]*" x="([\\d.-]+)" y="([\\d.-]+)"[^>]* font-size="([\\d.]+)"[^>]*>${name}<`))!;
+    return { x: Number(m[1]), y: Number(m[2]), size: Number(m[3]) };
+  };
+
+  for (const scale of [1, 0.5])
+    it(`the demo's Garden name stays off the pond inside it, and the pond's name, wider than the pond, goes out on a leader (scale ${scale})`, () => {
+      const f = L.floors.ground, k = 1 / scale;
+      const html = renderFloor(f, { scale, now: NOW, state: STATE });
+      const pond = f.rooms.find((r) => r.name === "Garden pond")!;
+      const g = labelOf(html, "Garden"), p = labelOf(html, "Garden pond");
+      const inside = (x: number, y: number, poly: Pt[]) => poly.reduce((c, a, i) => { const b = poly[(i + poly.length - 1) % poly.length]; return (a[1] > y) !== (b[1] > y) && x < ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]) + a[0] ? !c : c; }, false);
+      expect(inside(g.x, g.y, pond.pts as Pt[])).toBe(false);
+      expect(p.size).toBeCloseTo(7 * k, 5); // shrunk to the floor
+      expect(html).toContain('class="lbl-leader"');
+      expect(clashes(html)).toEqual([]);
+      // and the leader line does not run across another name
+      const m = html.match(/<line class="lbl-leader"[^>]* x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)"/)!;
+      const seg: Box = [Math.min(+m[1], +m[3]) - 0.5, Math.min(+m[2], +m[4]), 1, Math.abs(+m[4] - +m[2])];
+      for (const t of boxesOf(html).texts) if (t.s !== "Garden pond") expect(meet(seg, t.box), `leader on "${t.s}"`).toBe(false);
+    });
+
+  it("a name longer than its room shrinks, stays above the floor, draws whole and needs no leader", () => {
+    const html = renderFloor(roomLayout("Utility room", 60), { scale: 1 }); // 12 characters: 79 wide at 11, the room is 60
+    const t = labelOf(html, "Utility room");
+    expect(t.size).toBeLessThan(11);
+    expect(t.size).toBeGreaterThanOrEqual(7);
+    expect(t.x).toBe(30);
+    expect(t.size * 0.6 * 12).toBeLessThanOrEqual(60 + 0.05); // it now fits the room
+    expect(html).not.toContain("lbl-leader");
+  });
+
+  it("a name that fits keeps its full size", () => {
+    const t = labelOf(renderFloor(roomLayout("Store", 100), { scale: 1 }), "Store");
+    expect(t.size).toBe(11);
+  });
+
+  it("a zone label shrinks to 6k at the least", () => {
+    const t = labelOf(renderFloor(roomLayout("Reading nook", 40, "zone"), { scale: 1 }), "Reading nook");
+    expect(t.size).toBe(6);
+  });
+
+  it("a name too wide even at the floor goes just outside its room on a leader line, whole, at the floor size", () => {
+    const html = renderFloor(roomLayout("Utility room", 40), { scale: 1 }); // 12 x 0.6 x 7 = 50 wide in a 40 room
+    const t = labelOf(html, "Utility room");
+    expect(t.size).toBe(7);
+    expect(t.y < 0 || t.y > 100 + 7).toBe(true); // above or below the 100 cm room, not in it
+    const m = html.match(/<line class="lbl-leader"[^>]* x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)"/)!;
+    expect(m).not.toBeNull();
+    expect([Number(m[1]), Number(m[2])]).toEqual([20, 50]); // from the room's anchor
+    expect(html.indexOf("lbl-leader")).toBeLessThan(html.indexOf(">Utility room<")); // under the text
+    expect(clashes(html)).toEqual([]);
+  });
+
+  it("break it: a name wider than its room never carries markup out of the text", () => {
+    const html = renderFloor(roomLayout('"><script>x', 30), { scale: 1 });
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("lbl-leader");
   });
 });
 

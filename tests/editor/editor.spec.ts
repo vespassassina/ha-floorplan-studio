@@ -4725,6 +4725,16 @@ test("CSS pair: furniture has its own fixed grey token, decoupled from idle devi
   expect(await page.locator("svg g.furn").first().evaluate((e) => getComputedStyle(e).color)).toBe(rgb("#79766e"));
 });
 
+test("CSS pair: a room name's leader line is drawn in the text colour, faint, and takes no clicks", async ({ page }) => {
+  await setTheme(page, "light"); // the demo's "Garden pond" is wider than the pond, so its name sits outside on a leader
+  const leader = page.locator("svg line.lbl-leader").first();
+  await expect(leader).toHaveCount(1);
+  const s = await leader.evaluate((e) => { const c = getComputedStyle(e); return { stroke: c.stroke, opacity: c.opacity, events: c.pointerEvents }; });
+  expect(s).toEqual({ stroke: rgb("#3a3a3a"), opacity: "0.5", events: "none" });
+  await setTheme(page, "midnight");
+  expect(await leader.evaluate((e) => getComputedStyle(e).stroke)).not.toBe(rgb("#3a3a3a"));
+});
+
 // S8.11: an opening used to be a grey band stroked to match a plain room's own fill (--fp-room-empty) so it
 // merely looked like a hole; that band showed as a visibly wrong colour over any room with its own colour or
 // texture. Now the hole is real — src/core/render.ts cuts the wall out of a <mask> — so the opening's own

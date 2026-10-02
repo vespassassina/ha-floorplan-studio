@@ -52,6 +52,25 @@ try {
     await ctx.close();
   }
 
+  // card-phone.png: the same card in a 375 px wide column, where the Active list starts folded (0.12.17).
+  {
+    const ctx = await browser.newContext({ viewport: { width: 375, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });
+    const page = await ctx.newPage();
+    page.on("pageerror", (e) => errors.push(`card-phone: ${e}`));
+    await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;background:#fff"><floorplan-studio-card id="c"></floorplan-studio-card></body>`);
+    await page.addScriptTag({ content: cardJs, type: "module" });
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await page.evaluate(([config, h]) => {
+      const el = document.getElementById("c");
+      el.setConfig(config); el.hass = h;
+      return el.updateComplete;
+    }, [{ layout, floor: "ground", theme: "blueprint" }, hass]);
+    const nodes = await page.evaluate(() => document.getElementById("c").shadowRoot.querySelectorAll("svg *").length);
+    if (nodes < 10) errors.push(`card-phone: the plan drew ${nodes} nodes`);
+    await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/card-phone.png` });
+    await ctx.close();
+  }
+
   // editor-overview.png: the full editor, blueprint theme, demo loaded, nothing selected.
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: "light", reducedMotion: "reduce" });
   const page = await ctx.newPage();
@@ -80,4 +99,4 @@ try {
 }
 
 if (errors.length) { for (const e of errors) console.error(e); process.exit(1); }
-console.log(`wrote ${OUT}/card-overview.png, editor-overview.png, editor-add-menu.png, editor-device-panel.png`);
+console.log(`wrote ${OUT}/card-overview.png, card-phone.png, editor-overview.png, editor-add-menu.png, editor-device-panel.png`);
