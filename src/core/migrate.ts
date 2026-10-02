@@ -30,6 +30,15 @@ function outlineKinds(f: any) {
   if (f.owk.length > n) f.owk.length = n;
 }
 
+/** A height, sill or mount height must be a finite number from 0 to 1000. Anything else is dropped, so the default applies
+ *  and the file opens (heights are optional; `validate` still judges a value that reaches it by another road). */
+const HEIGHT_KEYS: [string, string[]][] = [["rooms", ["height"]], ["walls", ["height"]], ["doors", ["height", "sill"]], ["openings", ["height", "sill"]], ["furniture", ["height"]], ["unlinked", ["height"]], ["devices", ["z"]]];
+function dropBadHeights(f: any) {
+  const bad = (v: unknown) => !(typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1000);
+  for (const k of ["height", "slab"]) if (k in f && bad(f[k])) delete f[k];
+  for (const [list, keys] of HEIGHT_KEYS) for (const o of f[list]) for (const k of keys) if (k in o && bad(o[k])) delete o[k];
+}
+
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x);
 
 /** Accepts a v1 or v2 layout and returns a new v2 layout. The input is never changed. Missing arrays and ids are filled in. */
@@ -74,6 +83,7 @@ export function migrate(x: unknown): Layout {
       d.id = d.id ?? `${d.type}-${fname}-${i + 1}`;
       return d;
     });
+    dropBadHeights(f);
     Object.defineProperty(floors, fname, { value: f, enumerable: true, writable: true, configurable: true });
   }
   const out: any = { version: 2, unit: "cm", north: src.north ?? 0, rotate: src.rotate ?? 0, floors, catalog: src.catalog };

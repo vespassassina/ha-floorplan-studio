@@ -33,7 +33,7 @@ export const MAX_PALETTE = 24;
 `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows.
 
 ```ts
-export interface Room { id: string; name: string; area: string; label: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number }
 ```
 
 ## EdgeKind
@@ -49,7 +49,7 @@ export type EdgeKind = WallKind | "none";
 `locked` (S4.9): the segment's length is fixed. Dragging an endpoint then only pivots it, on an arc around the other endpoint.
 
 ```ts
-export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boolean }
+export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boolean; height?: number }
 ```
 
 ## Stairs
@@ -62,16 +62,16 @@ export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape
 
 ## Door
 
-`sensors`/`vibration`/`locks` (S4.24): every contact sensor, vibration sensor and smart lock attached to this door or window — several of each allowed. `cover` (a curtain/blind entity) is not restricted by kind — a plain door's garage opener is a cover too — it just doubles as the electric-curtain field on a glass door or window.
+`sensors`/`vibration`/`locks` (S4.24): every contact sensor, vibration sensor and smart lock attached to this door or window — several of each allowed. An unlocked lock reads the opening as open, same as a triggered contact sensor (Diego, 2026-09-28). `cover` (a curtain/blind entity) is not restricted by kind — a plain door's garage opener is a cover too — it just doubles as the electric-curtain field on a glass door or window. render.ts only colours the opening from `cover` on a plain `door` or `sealed` kind; on `window`/`glass` it is curtains, not a security state, and opening them never colours the window (Diego, 2026-09-28 — the office window's curtains were flipping it orange).
 
 ```ts
-export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensors?: string[]; vibration?: string[]; locks?: string[]; cover?: string; locked?: boolean }
+export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensors?: string[]; vibration?: string[]; locks?: string[]; cover?: string; locked?: boolean; height?: number; sill?: number }
 ```
 
 ## Opening
 
 ```ts
-export interface Opening { id: string; a: Pt; b: Pt; locked?: boolean }
+export interface Opening { id: string; a: Pt; b: Pt; locked?: boolean; height?: number; sill?: number }
 ```
 
 ## Extra
@@ -85,7 +85,7 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
 `bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor entity attached to this device — several allowed, unlike `bound`. `room` (person only), S7.8: an entity whose state, `area_id` or `area` attribute names the room the person is in (a Bermuda or ESPresense area sensor, say). The card moves the icon to that room; no match keeps the placed spot. The person's own `entity` is `person.*` or `device_tracker.*`. `targets` (radar only), S7.9: up to any number of x/y sensor-entity pairs from an mmWave presence sensor (an ESPHome LD2450, say), each pair's two entities reporting one target's position in millimetres, x to the sensor's right and y ahead of it. `entity` is the radar's own presence entity (typically a `binary_sensor.*occupancy`), which colours the icon; `rot` is which way the sensor points (`0` = ahead is screen-up), the same field a camera already uses for its cone. `motion` (lights only), S8.7: the motion sensor or motion-group entity that this light was linked to through the editor's "Turn on with... Create automation" flow — the automation the editor created, not this field, is what actually drives the light. Unlinking removes only this field; the automation itself stays in Home Assistant, untouched. Must differ from `entity`, same rule as `bound`.
 
 ```ts
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; z?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 ```
 
 ## Furniture
@@ -93,7 +93,7 @@ export type Device = { id: string; type: DeviceType; entity: string; name?: stri
 `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply.
 
 ```ts
-export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean }
+export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number }
 ```
 
 ## Unlinked
@@ -101,7 +101,7 @@ export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: 
 S4.25: an appliance placed on the plan with a fixed icon (by `type`, from `UNLINKED_TYPES`), not tied to a single entity's state. `attached` is zero or more HA entities linked to it for reference only — it never drives the icon's colour or the card's tap behaviour, unlike a `Device`. `color` overrides the idle grey; `scale` (0.25-4) resizes the icon, `rot` turns it. Furniture reused a swappable symbol; this reuses the device icon set instead because the point is "this is a heater", not "this is shaped like one".
 
 ```ts
-export interface Unlinked { id: string; type: DeviceType; name?: string; x: number; y: number; rot: number; scale: number; color?: string; attached?: string[]; locked?: boolean }
+export interface Unlinked { id: string; type: DeviceType; name?: string; x: number; y: number; rot: number; scale: number; color?: string; attached?: string[]; locked?: boolean; height?: number }
 ```
 
 ## Trace
@@ -114,11 +114,11 @@ export interface Trace { src: string; x: number; y: number; w: number; rot: numb
 
 ## Floor
 
-`ha` is the HA floor id this floor is; when set, `title` is the name HA gave it.
+`ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. Heights, all optional, in cm, 0 to 1000  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90); `z` on a Device is its mount height.
 
 ```ts
 export interface Floor {
-  ha?: string; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
+  ha?: string; height?: number; slab?: number; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[]; trace?: Trace;
 }
 ```

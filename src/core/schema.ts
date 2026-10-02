@@ -23,12 +23,12 @@ export const FLOOR_COLOURS: { name: string; hex: string }[] = [
 export const MAX_PALETTE = 24;
 
 /** `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows. */
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number }
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
 /** A room edge is a wall kind, or "none": not drawn. The room stays closed for area and snapping. */
 export type EdgeKind = WallKind | "none";
 /** `locked` (S4.9): the segment's length is fixed. Dragging an endpoint then only pivots it, on an arc around the other endpoint. */
-export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boolean }
+export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boolean; height?: number }
 export type StairShape = "straight" | "round";
 /** `dia` (outer) and `inner` (the empty well) exist on a round stair only; `pts` is its outer circle as a polygon. `rot` turns it about the centre of its box. */
 export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape; steps: number; rot: number; dia?: number; inner?: number; color?: string; texture?: string; textureRot?: number; textureScale?: number }
@@ -41,8 +41,8 @@ export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape
  * on `window`/`glass` it is curtains, not a security state, and opening them never colours the window
  * (Diego, 2026-09-28 — the office window's curtains were flipping it orange).
  */
-export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensors?: string[]; vibration?: string[]; locks?: string[]; cover?: string; locked?: boolean }
-export interface Opening { id: string; a: Pt; b: Pt; locked?: boolean }
+export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensors?: string[]; vibration?: string[]; locks?: string[]; cover?: string; locked?: boolean; height?: number; sill?: number }
+export interface Opening { id: string; a: Pt; b: Pt; locked?: boolean; height?: number; sill?: number }
 export interface Extra { id: string; name: string; a: Pt; b: Pt }
 /**
  * `bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in
@@ -62,10 +62,10 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * actually drives the light. Unlinking removes only this field; the automation itself stays in Home Assistant,
  * untouched. Must differ from `entity`, same rule as `bound`.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; z?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
  *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. */
-export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean }
+export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number }
 /**
  * S4.25: an appliance placed on the plan with a fixed icon (by `type`, from `UNLINKED_TYPES`), not tied to a
  * single entity's state. `attached` is zero or more HA entities linked to it for reference only — it never
@@ -73,7 +73,7 @@ export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: 
  * `scale` (0.25-4) resizes the icon, `rot` turns it. Furniture reused a swappable symbol; this reuses the
  * device icon set instead because the point is "this is a heater", not "this is shaped like one".
  */
-export interface Unlinked { id: string; type: DeviceType; name?: string; x: number; y: number; rot: number; scale: number; color?: string; attached?: string[]; locked?: boolean }
+export interface Unlinked { id: string; type: DeviceType; name?: string; x: number; y: number; rot: number; scale: number; color?: string; attached?: string[]; locked?: boolean; height?: number }
 /**
  * S7.11: a scanned plan drawn under this floor in the editor, to trace walls over. Never drawn by the card, and left
  * out of File, Export unless "Include trace image" is ticked. `src` is a `data:image/png|jpeg|webp;base64,` URL of at
@@ -82,9 +82,12 @@ export interface Unlinked { id: string; type: DeviceType; name?: string; x: numb
  * `x`/`y` in degrees, `alpha` is its opacity from 0 to 1, `on` false hides it and keeps it. An assistant never writes one.
  */
 export interface Trace { src: string; x: number; y: number; w: number; rot: number; alpha: number; on: boolean }
-/** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. */
+/** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. Heights, all optional, in cm, 0 to 1000
+ *  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling
+ *  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture
+ *  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90); `z` on a Device is its mount height. */
 export interface Floor {
-  ha?: string; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
+  ha?: string; height?: number; slab?: number; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[]; trace?: Trace;
 }
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
@@ -162,6 +165,11 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     };
     const name = (o: any) => { if (typeof o.name !== "string") errors.push(`${at} ${o.id} needs a name (text)`); };
     const optText = (o: any, k: string) => { if (o[k] !== undefined && typeof o[k] !== "string") errors.push(`${at} ${o.id} ${k} must be text`); };
+    // Heights: optional, finite, 0 to 1000 cm. `o` is a floor or an item of it; a floor has no id of its own.
+    const optHeight = (o: any, k: string) => {
+      if (o[k] !== undefined && !(typeof o[k] === "number" && Number.isFinite(o[k]) && o[k] >= 0 && o[k] <= 1000))
+        errors.push(`${at} ${o === f ? "" : `${o.id} `}${k} must be a number from 0 to 1000 (cm); leave it out for the default`);
+    };
     const each = (k: string, fn: (o: any) => void) => {
       if (!Array.isArray(f[k])) { errors.push(`${at} ${k} must be an array`); return; }
       for (const o of f[k]) {
@@ -186,6 +194,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         if (typeof t.on !== "boolean") errors.push(`${at} trace on must be true or false`);
       }
     }
+    optHeight(f, "height"); optHeight(f, "slab");
     poly("outline", f.outline);
     // S1.52: owk is optional (migrate fills it), but once present it must match the outline point by point.
     if (f.owk !== undefined) {
@@ -196,6 +205,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       poly(`${r.id} pts`, r.pts);
       name(r); // migrate turns a missing name into "", so a name that is still not text is a bad file
       oneOf(`${r.id} kind`, r.kind, ROOM_KINDS);
+      optHeight(r, "height");
       if (r.color !== undefined && !(typeof r.color === "string" && /^#[0-9a-fA-F]{6}$/.test(r.color)))
         errors.push(`${at} ${r.id} color must be a colour like #aabbcc`);
       if (r.texture !== undefined && !TEXTURE_IDS.includes(r.texture as string)) errors.push(`${at} ${r.id} texture must be one of ${TEXTURE_IDS.join(", ")}`);
@@ -217,6 +227,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     });
     each("walls", (w) => {
       oneOf(`${w.id} kind`, w.kind, WALL_KINDS);
+      optHeight(w, "height");
       if (!isPt(w.a) || !isPt(w.b)) errors.push(`${at} ${w.id} needs points a and b`);
       if (w.locked !== undefined && typeof w.locked !== "boolean") errors.push(`${at} ${w.id} locked must be true or false`);
     });
@@ -248,6 +259,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     each("doors", (d) => {
       name(d);
       oneOf(`${d.id} kind`, d.kind, DOOR_KINDS);
+      optHeight(d, "height"); optHeight(d, "sill");
       if (!isPt(d.a) || !isPt(d.b)) errors.push(`${at} ${d.id} needs points a and b`);
       entityList(d, "sensors", "binary_sensor.name");
       entityList(d, "vibration", "binary_sensor.name");
@@ -259,6 +271,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (d.locked !== undefined && typeof d.locked !== "boolean") errors.push(`${at} ${d.id} locked must be true or false`);
     });
     each("openings", (o) => {
+      optHeight(o, "height"); optHeight(o, "sill");
       if (!isPt(o.a) || !isPt(o.b)) errors.push(`${at} ${o.id} needs points a and b`);
       if (o.locked !== undefined && typeof o.locked !== "boolean") errors.push(`${at} ${o.id} locked must be true or false`);
     });
@@ -266,6 +279,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     each("devices", (d) => {
       oneOf(`${d.id} type`, d.type, DEVICE_TYPES);
       optText(d, "name");
+      optHeight(d, "z");
       if (d.entity !== "" && !isEntity(d.entity)) errors.push(`${at} ${d.id} entity must be an entity id like light.name`);
       if (!(typeof d.x === "number" && Number.isFinite(d.x) && typeof d.y === "number" && Number.isFinite(d.y)) && !(isPt(d.a) && isPt(d.b)))
         errors.push(`${at} ${d.id} needs x and y, or a and b`);
@@ -316,6 +330,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     });
     each("furniture", (m) => {
       oneOf(`${m.id} symbol`, m.symbol, FURNITURE_SYMBOLS);
+      optHeight(m, "height");
       optText(m, "name");
       if (m.entity !== undefined && !isEntity(m.entity)) errors.push(`${at} ${m.id} entity must be an entity id like sensor.name`);
       for (const k of ["x", "y", "rot", "w", "h"]) if (typeof m[k] !== "number" || !Number.isFinite(m[k])) errors.push(`${at} ${m.id} ${k} must be a number`);
@@ -326,6 +341,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     each("unlinked", (u) => {
       oneOf(`${u.id} type`, u.type, DEVICE_TYPES);
       optText(u, "name");
+      optHeight(u, "height");
       if (!(typeof u.x === "number" && Number.isFinite(u.x)) || !(typeof u.y === "number" && Number.isFinite(u.y))) errors.push(`${at} ${u.id} needs x and y`);
       if (!(typeof u.rot === "number" && Number.isFinite(u.rot) && u.rot >= 0 && u.rot < 360)) errors.push(`${at} ${u.id} rot must be a number in [0, 360)`);
       if (!(typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale >= 0.25 && u.scale <= 4)) errors.push(`${at} ${u.id} scale must be a number from 0.25 to 4`);

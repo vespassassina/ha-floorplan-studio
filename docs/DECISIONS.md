@@ -2,6 +2,32 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-02: heights are in the model, as optional fields (docs/specs/heights-and-2-5d.md)
+
+First step toward 2.5D: every solid thing can carry a height, with no drawing
+change yet. Fields, all cm, 0 to 1000, all optional: `Floor.height` (250),
+`Floor.slab` (25), `Room.height` (the floor's), `Wall.height` (by kind: fence
+110, edge and boundary 0, wall and external the storey), `Door` and `Opening`
+`height` and `sill` (door 210 from 0, window 120 from 90, opening 210 from 0),
+`Furniture.height` (by symbol), `Unlinked.height` (by type), `Device.z` (by
+type). `Stairs` and `Extra` get none: a rise is the floor's, an extra is flat.
+
+Defaults are read through resolvers in `src/core/heights.ts`, never stored. If
+the editor wrote 250 into every wall, changing the default later would change
+nothing on old plans, and a file from an assistant would be full of numbers it
+never read. A missing field is the honest value for "the drawing does not say".
+The editor therefore removes the property on an empty field and shows the
+default as a placeholder.
+
+Schema stays version 2. Every field is optional, so an old file is a valid new
+file and a new file with no heights is a valid old one; a version bump would
+only force a migration that does nothing. `validate` refuses a value that is not
+a finite number from 0 to 1000; `migrate` drops one so the file still opens.
+Every resolver also falls back to the default on junk, since layouts are
+untrusted input. `DEVICE_Z`, `UNLINKED_HEIGHTS`, `FURNITURE_HEIGHTS`,
+`DOOR_DEFAULTS` and `WALL_KIND_HEIGHT` are tested against their unions, so a new
+member fails until someone decides its height.
+
 ## 2026-10-02: room names smaller, half transparent, inside their room (0.12.16)
 
 Diego's screenshot: "Laundry" sat on the edge of the next area. Cause: the
