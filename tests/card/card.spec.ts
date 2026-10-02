@@ -539,6 +539,44 @@ test.describe("S7.4 zoom and pan", () => {
     expect(await viewBox(page)).toEqual(flat);
   });
 
+  test("the Tilt slider shows only in 2.5D, a real mouse drag across it redraws the walls and the box", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    const slider = card(page).locator('css=.fp-zoom input[aria-label="Tilt"]');
+    await expect(slider).toHaveCount(0);
+    await card(page).locator('css=.fp-zoom select[aria-label="View"]').selectOption("2.5d");
+    await expect(slider).toBeVisible();
+    const s = (await slider.boundingBox())!, sel = (await card(page).locator('css=.fp-zoom select[aria-label="View"]').boundingBox())!;
+    expect(s.x).toBeGreaterThanOrEqual(sel.x + sel.width - 0.5); // beside the select, not over it
+    const wall = () => card(page).locator("css=svg .ws").first().getAttribute("points");
+    const before = await wall(), boxBefore = await viewBox(page);
+    // Real pointer: grab the thumb at its middle (0.5) and drag to the right end.
+    const y = s.y + s.height / 2;
+    await page.mouse.move(s.x + s.width / 2, y);
+    await page.mouse.down();
+    await page.mouse.move(s.x + s.width + 10, y, { steps: 5 });
+    await page.mouse.up();
+    expect(Number(await slider.inputValue())).toBeCloseTo(1, 1);
+    expect(await wall()).not.toBe(before);
+    expect((await viewBox(page)).y).toBeLessThan(boxBefore.y); // steeper: the box reaches higher
+    // And all the way left: no lift, the faces collapse onto their base line.
+    await page.mouse.move(s.x + s.width - 8, y);
+    await page.mouse.down();
+    await page.mouse.move(s.x - 10, y, { steps: 5 });
+    await page.mouse.up();
+    expect(Number(await slider.inputValue())).toBeCloseTo(0, 1);
+    expect(Math.abs((await viewBox(page)).y - boxBefore.y)).toBeGreaterThan(0.5);
+  });
+
+  test("labels: false draws no text in a real browser and a tap on a light still toggles it", async ({ page }) => {
+    await open(page);
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), labels: false }, states());
+    expect(await card(page).locator("css=svg text").count()).toBe(0);
+    const l = await lightAt(page);
+    await page.mouse.click(l.x, l.y);
+    expect((await calls(page)).length).toBe(1);
+  });
+
   test("a 40 px drag that starts on a light pans the plan and does not toggle the light; a plain click still does", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
