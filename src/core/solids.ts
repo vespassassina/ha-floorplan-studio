@@ -3,7 +3,8 @@
 // numbers: they arrive in a `Proj`, so this file never imports render.ts.
 import { deviceZ, doorSpan, edgeHeight, floorHeight, furnitureHeight, openingSpan, unlinkedHeight, wallHeight } from "./heights";
 import { esc, num, pts } from "./fmt";
-import type { DoorKind, Floor, Pt } from "./schema";
+import { stairSteps } from "./geometry";
+import type { DoorKind, Floor, Furniture, FurnitureSymbol, Pt, Stairs, Unlinked } from "./schema";
 
 /** A device mount at or above this height gets a stem up from its icon (a ceiling light yes, a plug no). */
 export const STEM_MIN_Z = 100;
@@ -171,4 +172,100 @@ export function wallSolids(f: Floor, px: Proj): Solid[] {
     });
     return { key: nearest(px, [w.a, w.b]), svg: faces.join("") + lines.join("") };
   });
+}
+
+/** `p` turned clockwise by `deg` about `c` (y points down, the way SVG's rotate() turns). */
+function turnAbout(p: Pt, deg: number, c: Pt): Pt {
+  const a = (deg * Math.PI) / 180, cs = Math.cos(a), sn = Math.sin(a), dx = p[0] - c[0], dy = p[1] - c[1];
+  return [c[0] + dx * cs - dy * sn, c[1] + dx * sn + dy * cs];
+}
+
+/**
+ * A straight-sided block: the side faces the viewer sees, then the lid. A face is seen when its outward normal, in the
+ * screen frame, points toward the camera (south and a little west): ny > skew * nx. The rest are hidden by the lid and
+ * the near faces, so they are not drawn. Returns the markup, or null for a base with no area or a height of zero.
+ */
+function prism(base: Pt[], h: number, px: Proj): string | null {
+  const dir = Math.sign(winding(px, base));
+  if (!dir || !(h > 0) || !base.every(finite)) return null;
+  const faces = base.map((a, i) => {
+    const b = base[(i + 1) % base.length], s = px.scr(a), t = px.scr(b), len = Math.hypot(t[0] - s[0], t[1] - s[1]) || 1;
+    const nx = (dir * (t[1] - s[1])) / len, ny = (dir * -(t[0] - s[0])) / len;
+    return ny > px.skew * nx + 1e-9 ? `<polygon class="bs${Math.abs(nx) > Math.abs(ny) ? " w" : ""}" points="${pts([a, b, px.lift(b, h), px.lift(a, h)])}"/>` : "";
+  });
+  return `${faces.join("")}<polygon class="bt" points="${pts(base.map((p) => px.lift(p, h)))}"/>`;
+}
+
+/**
+ * What each furniture symbol becomes in 2.5D. A box is a block with the symbol on its lid; a pole (a tree) is a trunk
+ * with the symbol, its crown, at the top; flat stays as drawn in 2D (a patio is 5 cm, not a thing to stand behind).
+ * One entry per symbol, so a new FurnitureSymbol fails the test that walks the list until someone decides (finding 17).
+ */
+export const FURNITURE_SOLID: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
+  table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", tv: "box", computer: "box",
+  car: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
+};
+/** How a piece of furniture draws in 2.5D. A piece that is not finite or not known is flat: the 2D path deals with it as ever. */
+export function furnitureMode(m: Furniture): "box" | "pole" | "flat" {
+  const ok = [m.x, m.y, m.w, m.h, m.rot].every((v) => typeof v === "number" && Number.isFinite(v)) && m.w > 0 && m.h > 0 && furnitureHeight(m) > 0;
+  return ok && has(FURNITURE_SOLID, m.symbol) ? FURNITURE_SOLID[m.symbol] : "flat";
+}
+
+/**
+ * One piece of furniture as a block (or a trunk), its symbol drawn at the top. `symbol` is the symbol's own markup, and
+ * the group wraps all of it, so a tap anywhere on the piece still reaches `data-f`.
+ */
+export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on: boolean, symbol: string, px: Proj): Solid | null {
+  const h = furnitureHeight(m), c: Pt = [m.x, m.y];
+  const base = ([[-m.w / 2, -m.h / 2], [m.w / 2, -m.h / 2], [m.w / 2, m.h / 2], [-m.w / 2, m.h / 2]] as Pt[]).map((q) => turnAbout([m.x + q[0], m.y + q[1]], m.rot, c));
+  const top = px.lift(c, h);
+  let body: string;
+  if (mode === "box") { const p = prism(base, h, px); if (!p) return null; body = p; }
+  else body = `<line class="trunk" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(top[0])}" y2="${num(top[1])}"/>`;
+  const sym = `<g transform="translate(${num(top[0])} ${num(top[1])}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)">${symbol}</g>`;
+  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}" color="var(--fp-furniture)">${body}${sym}</g>` };
+}
+
+/** cm across the block under an unlinked appliance, times its own scale: a small thing, the icon says what it is. */
+const UNLINKED_BASE = 40;
+/** A low box at the appliance's own height; the icon (drawn by renderFloor, at the plan position) stays on top. */
+export function unlinkedSolid(u: Unlinked, px: Proj): Solid | null {
+  if (![u.x, u.y].every((v) => typeof v === "number" && Number.isFinite(v))) return null;
+  const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1, r = (UNLINKED_BASE * scale) / 2;
+  const base: Pt[] = [[u.x - r, u.y - r], [u.x + r, u.y - r], [u.x + r, u.y + r], [u.x - r, u.y + r]];
+  const p = prism(base, unlinkedHeight(u), px);
+  return p ? { key: nearest(px, base), svg: `<g class="obj">${p}</g>` } : null;
+}
+
+/**
+ * A staircase as steps, each a block as high as the stairs have climbed by then, the last as high as the storey.
+ * A straight flight climbs toward +x when it runs along x and toward -y when it runs along y, away from the viewer, so
+ * every riser faces it. A round one climbs once round, anticlockwise on screen from the right. The flat group renderFloor
+ * draws stays under, as the click target. `rise` is the storey height; `rot` turns the whole thing about its centre, as in 2D.
+ */
+export function stairSolids(t: Stairs, rise: number, px: Proj): Solid[] {
+  if (!Array.isArray(t.pts) || t.pts.length < 3 || !t.pts.every(finite)) return [];
+  const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), c: Pt = [(x0 + x1) / 2, (y0 + y1) / 2];
+  const rot = typeof t.rot === "number" && Number.isFinite(t.rot) ? t.rot : 0, n = stairSteps(t);
+  const steps: Pt[][] = [];
+  if (t.shape === "round" && typeof t.dia === "number" && t.dia > 0) {
+    const R = t.dia / 2, r = typeof t.inner === "number" && t.inner > 0 ? t.inner / 2 : 0, ARC = 3;
+    for (let k = 0; k < n; k++) {
+      const at = (rad: number, j: number): Pt => { const a = ((k + j / ARC) * 2 * Math.PI) / n; return [c[0] + rad * Math.cos(a), c[1] + rad * Math.sin(a)]; };
+      const outer = Array.from({ length: ARC + 1 }, (_, j) => at(R, j));
+      steps.push([...outer, ...(r ? Array.from({ length: ARC + 1 }, (_, j) => at(r, ARC - j)) : [c])]);
+    }
+  } else {
+    const along = x1 - x0 > y1 - y0, dx = (x1 - x0) / n, dy = (y1 - y0) / n;
+    for (let k = 0; k < n; k++) steps.push(along
+      ? [[x0 + k * dx, y0], [x0 + (k + 1) * dx, y0], [x0 + (k + 1) * dx, y1], [x0 + k * dx, y1]]
+      : [[x0, y1 - (k + 1) * dy], [x1, y1 - (k + 1) * dy], [x1, y1 - k * dy], [x0, y1 - k * dy]]);
+  }
+  const out: Solid[] = [];
+  steps.forEach((base, k) => {
+    const turned = rot ? base.map((p) => turnAbout(p, rot, c)) : base, p = prism(turned, ((k + 1) / n) * rise, px);
+    if (p) out.push({ key: nearest(px, turned), svg: `<g class="obj">${p}</g>` });
+  });
+  return out;
 }

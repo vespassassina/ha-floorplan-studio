@@ -4,8 +4,8 @@ import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
 import { esc, num, pts } from "./fmt";
-import { tallestDrawn, wallSolids, type Proj, type Solid } from "./solids";
-import { edgeHeight, wallHeight } from "./heights";
+import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, type Proj, type Solid } from "./solids";
+import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
@@ -155,7 +155,7 @@ export const FLOORPLAN_CSS = `
 :host([data-theme="beach-house"]),:host([data-theme="beach-house"]) .fp,[data-theme="beach-house"]{${BEACH_HOUSE_TOKENS}}
 /* 2.5D shades, derived from the theme's own wall colour so every theme has them with no per-theme edit. A custom property
    that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own. */
-:host,.fp,[data-theme]{--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) 55%,var(--fp-bg))}
+:host,.fp,[data-theme]{--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) 55%,var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg))}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
    Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
    or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,
@@ -209,8 +209,13 @@ export const FLOORPLAN_CSS = `
 .e.top{stroke:var(--fp-wall-top)}
 .e.external{stroke:var(--fp-wall-external);stroke-width:${WALL_WIDTH_EXTERNAL};stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
 .eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
-/* 2.5D solids take no clicks: a tap or a pick goes through to the floor-level shape under them, as in 2D. */
-.ws,.glass,.eh.top,.e.top{pointer-events:none}
+/* 2.5D solids take no clicks: a tap or a pick goes through to the floor-level shape under them, as in 2D. Furniture is the
+   exception: its group is data-f, so a tap on the block reaches it as it reaches the flat symbol. */
+.ws,.glass,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk{pointer-events:none}
+.bs,.bt{stroke:var(--fp-furniture);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.bt{fill:var(--fp-box-top)} .bs{fill:var(--fp-box-side)} .bs.w{fill:var(--fp-box-side-w)}
+.trunk{stroke:var(--fp-furniture);stroke-width:8;stroke-linecap:round}
+.stem{stroke:var(--fp-idle);stroke-width:1;stroke-opacity:.7;vector-effect:non-scaling-stroke} .stem-top{fill:var(--fp-idle);fill-opacity:.7}
 .ws{fill:var(--fp-wall-side);stroke:var(--fp-wall-top);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .ws.fence{fill:var(--fp-wall-fence);fill-opacity:.4;stroke:var(--fp-wall-fence)} .ws.sealed{fill:var(--fp-sealed);stroke:var(--fp-sealed)}
 .glass{fill:var(--fp-window);fill-opacity:.35;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke} .glass.g-glass{fill:var(--fp-glass);stroke:var(--fp-glass)}
@@ -724,6 +729,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.
   if (x25) {
     solids.push(...wallSolids(f, px));
+    f.furniture.forEach((m, i) => {
+      const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
+      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, entityOn(o, m.entity), sym.svg, px) : null;
+      if (s) solids.push(s);
+    });
+    for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
+    for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px));
     out.push(...solids.sort((a, b) => a.key - b.key).map((s) => s.svg));
   }
 
@@ -863,7 +875,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   f.furniture.forEach((m, i) => {
     const sym = FURNITURE[m.symbol];
-    if (!sym) return;
+    if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
     const on = entityOn(o, m.entity) ? " on" : "";
     out.push(`<g data-f="${i}" class="furn${on}" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
   });
@@ -977,6 +989,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
         `<circle class="wave w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
       : "";
     const icon = `${ping}${wave}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
+    // 2.5D: a device mounted high (a ceiling light, a camera, a thermostat) gets a thin stem from its icon up to where
+    // the real thing hangs. The icon itself never moves, so its tap target and hit-test are the plan's. A person walks
+    // about and a heater bar lies on the floor: neither gets one.
+    if (x25 && !person && !("a" in d)) {
+      const z = deviceZ(d);
+      if (z >= STEM_MIN_Z) { const top = px.lift(c, z); out.push(`<line class="stem" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(top[0])}" y2="${num(top[1])}"/><circle class="stem-top" cx="${num(top[0])}" cy="${num(top[1])}" r="${num(3 * k)}"/>`); }
+    }
     // The bar draws first so the icon group (fix/heater-bar-under-icon), with its white disc and halo, always paints on top of it.
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
