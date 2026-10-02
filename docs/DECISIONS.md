@@ -37,9 +37,6 @@ floor stays. A card the author turned to 90 resets to 90. On a pinned card
 the Fit button is renamed Home view, since two buttons both named Reset would
 differ in meaning (zoom only against everything).
 
-Flag: the coding agent was told not to edit this file and asked to add this
-entry; the entry follows the task, the human should confirm it.
-
 ## 2026-10-02: a room inside a bigger room paints after it
 
 Diego's garden house was still under the garden: fills paint in `Floor.rooms`
