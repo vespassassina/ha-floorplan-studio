@@ -52,6 +52,26 @@ try {
     await ctx.close();
   }
 
+  // card-2-5d.png: the same floor with `view: 2.5d`, the View dropdown showing next to the zoom buttons. The Active
+  // list is off so it does not cover the plan.
+  {
+    const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });
+    const page = await ctx.newPage();
+    page.on("pageerror", (e) => errors.push(`card-2-5d: ${e}`));
+    await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:#fff"><floorplan-studio-card id="c"></floorplan-studio-card></body>`);
+    await page.addScriptTag({ content: cardJs, type: "module" });
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await page.evaluate(([config, h]) => {
+      const el = document.getElementById("c");
+      el.setConfig(config); el.hass = h;
+      return el.updateComplete;
+    }, [{ layout, floor: "ground", theme: "blueprint", view: "2.5d", active_list: false }, hass]);
+    const nodes = await page.evaluate(() => document.getElementById("c").shadowRoot.querySelectorAll("svg *").length);
+    if (nodes < 10) errors.push(`card-2-5d: the plan drew ${nodes} nodes`);
+    await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/card-2-5d.png` });
+    await ctx.close();
+  }
+
   // card-phone.png: the same card in a 375 px wide column, where the Active list starts folded (0.12.17).
   {
     const ctx = await browser.newContext({ viewport: { width: 375, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });

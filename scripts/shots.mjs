@@ -141,6 +141,9 @@ try {
   // ground-only, same restriction as night above.
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
     cardShots.push({ name: `card-ground-vibrating-${t.id}`, floor: "ground", which: "vibrating", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
+  // 2.5D: both floors, at rest and lit, in the default, a light and a dark theme (the three that read differently).
+  for (const floor of Object.keys(layout.floors)) for (const which of ["off", "on"]) for (const t of THEMES.filter((x) => ["blueprint", "light", "ha-dark"].includes(x.id)))
+    cardShots.push({ name: `card-${floor}-${which}-${t.id}-2-5d`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view: "2.5d" });
   for (const s of cardShots) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });
     const page = await ctx.newPage();
@@ -153,11 +156,28 @@ try {
       const el = document.getElementById("c");
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
-    }, [{ layout: s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme }, hassFor(s.which, s.dark)]);
+    }, [{ layout: s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme, ...(s.view ? { view: s.view } : {}) }, hassFor(s.which, s.dark)]);
     const nodes = await page.evaluate(() => document.getElementById("c").shadowRoot.querySelectorAll("svg *").length);
     if (nodes < 10) errors.push(`${s.name}: the plan drew ${nodes} nodes; something is wrong before you even look`);
     await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });
     shots.push(s.name);
+    await ctx.close();
+  }
+  // The editor's 2.5D preview: the same plan, read-only, with the note in the panel.
+  for (const theme of ["blueprint", "light"]) {
+    const name = `editor-${theme}-2-5d`;
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: "light", reducedMotion: "reduce" });
+    const page = await ctx.newPage();
+    page.on("pageerror", (e) => errors.push(`${name}: ${e}`));
+    await page.addInitScript((t) => localStorage.setItem("floorplan-studio:theme", t), theme);
+    await page.goto(pathToFileURL(resolve(EDITOR)).href);
+    await page.locator("floorplan-studio-editor svg polygon[data-r]").first().waitFor();
+    await page.locator('details.menu > summary:text-is("View")').click();
+    await page.locator("#view-mode").selectOption("2.5d");
+    await page.locator('details.menu > summary:text-is("View")').click();
+    await page.locator("#previewNote").waitFor();
+    await page.screenshot({ path: `${OUT}/${name}.png` });
+    shots.push(name);
     await ctx.close();
   }
   for (const theme of ["blueprint", "light", "ha"]) {
