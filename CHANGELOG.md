@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.19
 
 - Rotate. Two toolbar buttons turn the plan 45 degrees a press, left or right, animated (about 0.35 s a step, none under `prefers-reduced-motion`; pan, zoom and taps wait until it settles). Names and icons stay upright. Config `rotation` (0 to 315, rounded to a step) sets the start; the Edit-card form has it.
 - View memory. The card remembers, per browser, zoom, focus point, rotation, 2D or 2.5D, tilt, theme and the names toggle, and restores them before the first draw. A remembered value wins over the config until the config changes (then the card starts clean). Reading is defensive: a bad field is dropped, blocked storage just forgets.
