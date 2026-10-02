@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.18
+
+- A room drawn inside a bigger one now paints after it, whatever the array order, so a garden house no longer sits under its garden. Rooms that are not nested keep their order; zones still paint last.
+
 ## 0.12.17
 
 - 2.5D: a wall that faces north is now cut to the cutaway when its lift would cover another room or zone (the Hall's north wall over the Living room, the Office's over the Bedroom and Bathroom). Before, only walls facing south and edges shared with them were cut, so these hid the rooms behind them, badly at tilt 1. A back wall with nothing behind it stays full. 2D output is unchanged; the default 2.5D picture changes.

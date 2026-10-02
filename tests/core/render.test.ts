@@ -743,6 +743,37 @@ describe("zone paint order", () => {
   });
 });
 
+describe("nested room paint order", () => {
+  const sq = (x: number, y: number, w: number): Pt[] => [[x, y], [x + w, y], [x + w, y + w], [x, y + w]];
+  const lay = (rooms: { name: string; pts: Pt[] }[]) => {
+    const f = structuredClone(ground);
+    f.rooms = rooms.map((r) => ({ kind: "garden" as RoomKind, ...r })) as unknown as typeof f.rooms;
+    f.devices = []; f.stairs = []; f.furniture = []; f.walls = [];
+    return f;
+  };
+  const at = (html: string, i: number) => html.indexOf(`<polygon data-r="${i}"`);
+
+  it("paints a room inside a bigger one after it, even when it comes first in the array", () => {
+    const html = renderFloor(lay([{ name: "House", pts: sq(100, 100, 100) }, { name: "Garden", pts: sq(0, 0, 400) }]), { scale: 0.5 });
+    expect(at(html, 0)).toBeGreaterThan(at(html, 1));
+    expect(at(html, 1)).toBeGreaterThan(-1);
+  });
+  it("keeps array order for rooms that are not nested, and for the already right order", () => {
+    const side = renderFloor(lay([{ name: "A", pts: sq(0, 0, 100) }, { name: "B", pts: sq(200, 0, 100) }]), { scale: 0.5 });
+    expect(at(side, 0)).toBeLessThan(at(side, 1));
+    const ok = renderFloor(lay([{ name: "Garden", pts: sq(0, 0, 400) }, { name: "House", pts: sq(100, 100, 100) }]), { scale: 0.5 });
+    expect(at(ok, 0)).toBeLessThan(at(ok, 1));
+  });
+  it("orders three levels by nesting, and a degenerate polygon does not throw", () => {
+    const f = lay([{ name: "Pond", pts: sq(120, 120, 20) }, { name: "House", pts: sq(100, 100, 100) }, { name: "Garden", pts: sq(0, 0, 400) }]);
+    const html = renderFloor(f, { scale: 0.5 });
+    expect(at(html, 2)).toBeLessThan(at(html, 1));
+    expect(at(html, 1)).toBeLessThan(at(html, 0));
+    f.rooms[1].pts = [[100, 100], [200, 100]]; // a degenerate ring: no area, so it is never a parent or a child
+    expect(() => renderFloor(f, { scale: 0.5 })).not.toThrow();
+  });
+});
+
 describe("wall kinds", () => {
   const kinds = ["wall", "boundary", "external", "fence", "edge"] as const;
   const withWalls = () => {
