@@ -25,6 +25,12 @@ Assistant every day.
   slider turns it from top-down to side-on.
 - A switch to hide every name and value (`labels: false` on the card, View,
   Show names and text in the editor), so only items and sensors are left.
+- Turn the plan in 45 degree steps with two buttons on the card (smooth, text
+  stays upright; `rotation` sets the start). The card remembers each viewer's
+  zoom, position, rotation, 2D or 2.5D and theme in their browser, and a Reset
+  view button returns to the card's config.
+
+  ![The card turned 45 degrees, toolbar showing the rotate and reset buttons.](docs/img/card-rotated-45.png)
 
   ![The card in 2.5D.](docs/img/card-2-5d.png)
 - A Lovelace card: lights, switches, sensors, cameras, thermostats, doors,

@@ -41,6 +41,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `view_switch` | `true` | `false` hides the View dropdown next to the zoom buttons. `kiosk` hides it too |
 | `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D. See the Tilt slider, below |
 | `labels` | `true` | `false` hides every name and value on the plan (rooms, zones, structures, device names, sensor values), so only icons and state are left. Anything but `false` shows them |
+| `rotation` | `0` | degrees the plan starts turned, in steps of 45: `0`, `45`, `90` ... `315`. Any other number rounds to the nearest step; anything that is not a number is `0`. Text and icons stay upright. A viewer's own turn is remembered over this — see View memory and reset, below |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
 | `open_color` | red | `#rrggbb`: colours an open door or window, or a door whose vibration sensor triggered (and either one's pulsing alert line), instead of red. An invalid value is ignored |
 | `icon_size` | `1` | grows icons, names, values and radar dots by this factor, on top of the automatic scale-up on a large plan (see Size, below). A number from `0.5` to `3`; anything else clamps into that range, and a missing or non-numeric value is the default, `1` |
@@ -119,9 +120,11 @@ layout is rotated.
 
 The pinned view becomes the card's own "home": a double-tap and the
 zoomed-in indicator both return here, not to the whole floor. The Fit button
-reads **Reset view** on a pinned card, since it no longer fits the whole
+reads **Home view** on a pinned card, since it no longer fits the whole
 floor, and is disabled only when the view is already home — pan or pinch it
-away and Reset view lights back up. The − button is never gated by the pin:
+away and Home view lights back up. (**Reset view** is a different button, the
+last one in the toolbar: it also drops the remembered turn, view and theme —
+see View memory and reset, below.) The − button is never gated by the pin:
 it is disabled only once the whole floor is on screen, so a pinned card can
 still zoom all the way out to see the rest of the house.
 
@@ -231,11 +234,41 @@ two cards on the same dashboard — even two showing different floors of the
 same websocket layout — do not share one position, and an inline layout's
 autosave does not reset it.
 
+## View memory and reset
+
+Two buttons beside the zoom buttons turn the plan: **Rotate left** and
+**Rotate right**, 45 degrees a press. The plan turns smoothly (about 0.35 s a
+step, longer for several quick presses, none with `prefers-reduced-motion`);
+names and icons stay upright. Pan, zoom and taps wait until it has settled.
+The card also has a Theme dropdown and a names-and-text toggle next to View.
+
+The card remembers, per browser, the viewer's zoom, the spot they zoomed to,
+the rotation, 2D or 2.5D, the tilt, the theme and whether text shows. Come
+back, reload or switch dashboard tab and the plan is as it was left, with no
+flash of the configured look. The floor and the Active list are remembered
+as before.
+
+- **A remembered value wins over the config** for as long as the config is the
+  same. Edit `view`, `rotation`, `theme`, `tilt`, `labels`, `center`,
+  `zoom_level`, the layout source or the floors in the card's YAML and that
+  card starts with a clean memory: the new YAML is what you meant.
+- **Reset view** (the last toolbar button, greyed while nothing differs) puts
+  every one of these back to the card's config and forgets the memory. The
+  turn goes back the short way round. The floor stays. It is not the Fit
+  button: Fit, or Home view on a pinned card, only changes zoom and position.
+- The memory sits in the browser's `localStorage`, under `fp-view:` and a
+  short hash of the card's config. It holds numbers, one 2D/2.5D word, a theme
+  name and a flag, nothing else. Anything in it that does not parse is
+  dropped field by field, and a browser that blocks storage just forgets.
+- It is per browser, not per Home Assistant user, and not synced.
+
+![The demo turned 45 degrees: the toolbar has the View and Theme dropdowns, the names toggle, the two rotate buttons, the zoom buttons, Fit and Reset view.](img/card-rotated-45.png)
+
 ## The Edit-card form
 
 No YAML needed: adding or editing the card in the Lovelace UI (the pencil
 icon, or "Edit" on an existing card) shows a form instead of raw code —
-theme, a Floor selector, fade, room glow, zoom, view, view switch, kiosk, icon size, the
+theme, a Floor selector, fade, room glow, zoom, view, view switch, rotation (with a note that viewers' views are remembered), kiosk, icon size, the
 open-door colour (with a Clear button, distinct from picking the theme's
 own default colour by hand), the Active list toggle, night and the sun
 entity. The Floor selector picks "All floors (switcher)" (the default — it

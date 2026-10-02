@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Rotate. Two toolbar buttons turn the plan 45 degrees a press, left or right, animated (about 0.35 s a step, none under `prefers-reduced-motion`; pan, zoom and taps wait until it settles). Names and icons stay upright. Config `rotation` (0 to 315, rounded to a step) sets the start; the Edit-card form has it.
+- View memory. The card remembers, per browser, zoom, focus point, rotation, 2D or 2.5D, tilt, theme and the names toggle, and restores them before the first draw. A remembered value wins over the config until the config changes (then the card starts clean). Reading is defensive: a bad field is dropped, blocked storage just forgets.
+- New toolbar controls: Theme dropdown, names toggle, rotate left and right, and Reset view (back to the config, memory cleared, floor kept). On a pinned card the Fit button is now called Home view, so it is not mistaken for Reset view.
+- Shots and doc images gain rotated cards (45, 90) and narrow ones.
+
 ## 0.12.18
 
 - A room drawn inside a bigger one now paints after it, whatever the array order, so a garden house no longer sits under its garden. Rooms that are not nested keep their order; zones still paint last.
