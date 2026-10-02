@@ -15,6 +15,7 @@ export interface Proj {
   lift: (p: Pt, h: number) => Pt;
   /** A plan point in the screen frame: for facing and depth, which are what the viewer sees. */
   scr: (p: Pt) => Pt;
+  rise: number;
   skew: number;
   cutaway: number;
 }
@@ -43,6 +44,44 @@ export function tallestDrawn(f: Floor): number {
   return top;
 }
 
+/** Twice the unsigned area of a polygon, by the shoelace sum. */
+const area2 = (q: Pt[]) => Math.abs(q.reduce((s, a, i) => { const b = q[(i + 1) % q.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0));
+
+/** `subject` cut down to the inside of the convex `clip` (Sutherland-Hodgman); a concave subject is fine for its area. */
+function clipToConvex(subject: Pt[], clip: Pt[]): Pt[] {
+  const sign = Math.sign(clip.reduce((s, a, i) => { const b = clip[(i + 1) % clip.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0)) || 1;
+  let out = subject;
+  clip.forEach((c1, i) => {
+    const c2 = clip[(i + 1) % clip.length], inside = (p: Pt) => sign * ((c2[0] - c1[0]) * (p[1] - c1[1]) - (c2[1] - c1[1]) * (p[0] - c1[0])) >= 0;
+    const crossing = (p: Pt, q: Pt): Pt => {
+      const dp = (c2[0] - c1[0]) * (p[1] - c1[1]) - (c2[1] - c1[1]) * (p[0] - c1[0]), dq = (c2[0] - c1[0]) * (q[1] - c1[1]) - (c2[1] - c1[1]) * (q[0] - c1[0]), t = dp / (dp - dq);
+      return [p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])];
+    };
+    const prev = out;
+    out = [];
+    prev.forEach((p, j) => {
+      const q = prev[(j + 1) % prev.length];
+      if (inside(p)) { out.push(p); if (!inside(q)) out.push(crossing(p, q)); } else if (inside(q)) out.push(crossing(p, q));
+    });
+  });
+  return out;
+}
+
+/** Below this much screen area (cm squared) a sweep only grazes a room: a wall lying along a border is not covering it. */
+const COVER_MIN_AREA = 25;
+
+/**
+ * Whether a wall from `a` to `b` (screen frame, `n` its outward unit normal), lifted to `h`, hides part of any of the
+ * `floors` (room and zone outlines, screen frame). The wall sweeps the parallelogram from its base along the lift, and
+ * only the outward side counts: its own room lies behind it, and the sides it leans over are the side walls' business.
+ */
+function coversFloor(px: Proj, a: Pt, b: Pt, n: Pt, h: number, floors: Pt[][]): boolean {
+  const lift: Pt = [h * px.rise * px.skew, -h * px.rise];
+  if (n[0] * lift[0] + n[1] * lift[1] <= 0) return false;
+  const sweep: Pt[] = [a, b, [b[0] + lift[0], b[1] + lift[1]], [a[0] + lift[0], a[1] + lift[1]]];
+  return floors.some((q) => area2(clipToConvex(q, sweep)) / 2 > COVER_MIN_AREA);
+}
+
 /** One wall piece of the 2.5D plan: an edge or a free wall with a height above zero. */
 interface WallSeg { a: Pt; b: Pt; h: number; front: boolean; kind: string }
 
@@ -59,9 +98,15 @@ function winding(px: Proj, ps: Pt[]): number {
  * down the screen (+y) would hide the room it closes. Such a wall is drawn at most `cutaway` cm high, like a doll's
  * house with the front taken off; back and side walls keep their full height. A free wall has no outside, so one that
  * is mostly horizontal on screen counts as front. `front` marks them; the cut itself is applied where the faces are made.
+ *
+ * A back wall is no safer for being a back wall: the room behind it may be another room's floor (the Hall's north wall
+ * over the Living room), and that edge is not the Living room's front wall, so nothing above would pair them. So a wall
+ * facing up the screen is also cut when its lift covers the floor of any room or zone. The whole segment takes the cut,
+ * not just the covered part: a wall that steps up and down along its length would read as a fault.
  */
 function collectWalls(f: Floor, px: Proj): WallSeg[] {
   const out: WallSeg[] = [];
+  const floors = (f.rooms ?? []).map((r) => r?.pts).filter((q): q is Pt[] => Array.isArray(q) && q.length >= 3 && q.every(finite)).map((q) => q.map(px.scr));
   const polys: { pts: Pt[]; room: Floor["rooms"][number] | null }[] = [{ pts: f.outline ?? [], room: null }, ...(f.rooms ?? []).filter((r) => r.kind !== "zone").map((room) => ({ pts: room.pts ?? [], room }))];
   for (const P of polys) {
     if (!Array.isArray(P.pts) || P.pts.length < 3 || !P.pts.every(finite)) continue;
@@ -72,8 +117,9 @@ function collectWalls(f: Floor, px: Proj): WallSeg[] {
       if (!(h > 0)) return;
       const s = px.scr(a), t = px.scr(b), len = Math.hypot(t[0] - s[0], t[1] - s[1]) || 1;
       // Screen y points down; for a polygon with positive winding the outward normal of a->b is (dy, -dx), so its y is -dx.
-      const ny = (dir * -(t[0] - s[0])) / len;
-      out.push({ a, b, h, front: dir !== 0 && ny > 0.3, kind: Array.isArray(wk) && typeof wk[i] === "string" ? (wk[i] as string) : P.room ? "wall" : "external" });
+      const nx = (dir * (t[1] - s[1])) / len, ny = (dir * -(t[0] - s[0])) / len;
+      const front = dir !== 0 && (ny > 0.3 || (ny < -0.3 && coversFloor(px, s, t, [nx, ny], h, floors)));
+      out.push({ a, b, h, front, kind: Array.isArray(wk) && typeof wk[i] === "string" ? (wk[i] as string) : P.room ? "wall" : "external" });
     });
   }
   for (const w of f.walls ?? []) {

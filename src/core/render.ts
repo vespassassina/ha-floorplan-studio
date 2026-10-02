@@ -617,7 +617,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const scr = (p: Pt): Pt => (turn ? rotateAbout(p, turn.deg, turn.pivot) : p);
   const ob = obliqueFor(o.tilt);
   const lean = rotateAbout([ob.rise * ob.skew, -ob.rise], -planDeg, [0, 0]);
-  const px: Proj = { lift: (p, h) => [p[0] + h * lean[0], p[1] + h * lean[1]], scr, skew: ob.skew, cutaway: ob.cutaway };
+  const px: Proj = { lift: (p, h) => [p[0] + h * lean[0], p[1] + h * lean[1]], scr, rise: ob.rise, skew: ob.skew, cutaway: ob.cutaway };
   const showText = o.labels !== false; // false skips every <text> and leader below; placement still runs, so nothing else moves
   const solids: Solid[] = [];
   // S7.11: the scan to trace over, first so everything draws on top of it. Checked again here: the layout is untrusted.
