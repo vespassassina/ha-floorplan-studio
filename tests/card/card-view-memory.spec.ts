@@ -301,4 +301,17 @@ test.describe("toolbar", () => {
       expect(k.r).toBeLessThanOrEqual(r.host.r);
     }
   });
+
+  test("a wrapped toolbar on a narrow card does not cover the Active list's fold button", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await open(page);
+    await configure(page, { layout: structuredClone(demo), floor: "ground", view: "2.5d" });
+    const r = await card(page).evaluate((el) => {
+      const bar = el.shadowRoot!.querySelector(".fp-zoom")!.getBoundingClientRect();
+      const head = el.shadowRoot!.querySelector(".fp-active-collapse")!.getBoundingClientRect();
+      return { barBottom: bar.bottom, barHeight: bar.height, headTop: head.top };
+    });
+    expect(r.barHeight).toBeGreaterThan(36); // the premise: it really wrapped
+    expect(r.headTop).toBeGreaterThanOrEqual(r.barBottom);
+  });
 });

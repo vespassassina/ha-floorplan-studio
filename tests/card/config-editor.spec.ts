@@ -450,3 +450,26 @@ test("labels and tilt fields: defaults shown and dropped from the payload, picks
   await expect(page.locator("#editor #labels")).toBeChecked();
   await expect(page.locator("#editor #tilt")).toHaveValue("1");
 });
+
+test("rotation field: a 45 degree select, 0 dropped from the payload, junk shows 0, a note says the view is remembered", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#rotation")).toHaveValue("0");
+  await expect(editor.locator("#rotation option")).toHaveCount(8);
+  await expect(editor).toContainText("remembers");
+
+  await editor.locator("#rotation").selectOption("135");
+  let detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect(detail.config.rotation).toBe(135);
+  await editor.locator("#rotation").selectOption("0");
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("rotation" in detail.config).toBe(false);
+
+  await page.evaluate(() => document.getElementById("editor")!.remove());
+  await mount(page, { rotation: 100, layout: demo }); // 100 rounds to the nearest step, 90
+  await expect(page.locator("#editor #rotation")).toHaveValue("90");
+  await page.evaluate(() => document.getElementById("editor")!.remove());
+  await mount(page, { rotation: "x", layout: demo });
+  await expect(page.locator("#editor #rotation")).toHaveValue("0");
+});

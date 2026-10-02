@@ -701,7 +701,9 @@ test.describe("S7.4 zoom and pan", () => {
     await card(page).locator("css=.fp-floors button").nth(0).click();
     expect(await viewBox(page)).toEqual(fit);
     await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').click();
-    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), floor: "all" }, states());
+    // A *changed* config: an identical one is the same card and now gets its remembered zoom back (view memory).
+    // `floors` joins the storage key, so this is a fresh card; the switcher and the fit are the same as `floor: "all"`.
+    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), floors: ["ground", "first"] }, states());
     expect(await viewBox(page)).toEqual(fit);
   });
 
@@ -716,7 +718,9 @@ test.describe("S7.4 zoom and pan", () => {
             return { bg: s.backgroundColor, fg: s.color, vis: s.visibility, disp: s.display };
           }),
         );
-        expect(got.length, `${theme} dark=${dark}`).toBe(3);
+        // Zoom in, out, Fit, plus the rotate pair, the names toggle and Reset view (all share the zoom bar): all
+        // seven must read, so the new ones are held to the same contrast.
+        expect(got.length, `${theme} dark=${dark}`).toBe(7);
         for (const g of got) {
           expect(g.disp).not.toBe("none");
           expect(ratio(rgbOf(g.bg), rgbOf(g.fg)), `${theme} dark=${dark}`).toBeGreaterThanOrEqual(3);

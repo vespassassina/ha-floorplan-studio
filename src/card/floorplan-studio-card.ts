@@ -1129,7 +1129,11 @@ export class FloorplanStudioCard extends LitElement {
     if (!panel) return;
     if (!this._activePos) {
       panel.style.left = "";
-      panel.style.top = "";
+      // The CSS default sits under a one-row toolbar. On a narrow card the toolbar wraps to more rows and would
+      // cover the panel's fold button, so the default moves down to just below it.
+      const bar = this.shadowRoot?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
+      const wrapped = bar !== null && bar !== undefined && bar.offsetHeight > 36;
+      panel.style.top = wrapped ? `${bar.offsetHeight + 16}px` : "";
       return;
     }
     const hostRect = this.getBoundingClientRect();
