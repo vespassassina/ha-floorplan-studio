@@ -1,5 +1,8 @@
 import { DEFAULT_TILT, DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, clampTilt, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, PlanView, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
+import { normaliseRotation } from "../card/view-state";
+import { MAX_ZOOM, MIN_ZOOM } from "../card/viewport";
+import type { ViewMemory } from "./view-memory";
 
 /** localStorage key for the autosaved edit. */
 export const STORAGE_KEY = "floorplan-studio:layout";
@@ -346,10 +349,61 @@ export class EditorState {
     return true;
   }
 
+  /** The user's turn of the view, a multiple of 45 in 0..315, added to the layout's own `rotate` (the card does the
+   * same). View state: not in the layout, not an undo step. The two Rotate view buttons and the arrow keys set it. */
+  viewRot = 0;
+  /** While a turn is animated: the user's angle drawn this frame, in unwrapped degrees. Otherwise null. */
+  turning: number | null = null;
+
+  /** The angle the plan is drawn at: the layout's own `rotate` plus the user's turn (or the frame of one in flight). */
+  get turnDeg(): number { return (this.layout.rotate ?? 0) + (this.turning ?? this.viewRot); }
+
   /** The plan's rotation as renderFloor takes it: none at 0. */
   get rotation(): { deg: number; pivot: Pt } | undefined {
-    const deg = this.layout.rotate ?? 0;
+    const deg = this.turnDeg;
     return deg % 360 ? { deg, pivot: planPivot(this.layout) } : undefined;
+  }
+
+  /** What to remember of the view (see view-memory.ts). A floor shown whole is left out, so a plan that grows is not
+   * clipped by an old fit. Reads the settled turn, never a frame of one in flight. */
+  exportView(): ViewMemory {
+    const m: ViewMemory = { floor: this.floor, mode: this.viewMode, tilt: this.tilt, labels: this.labels };
+    if (this.viewRot) m.rotation = this.viewRot;
+    const deg = (this.layout.rotate ?? 0) + this.viewRot;
+    const rot = deg % 360 ? { deg, pivot: planPivot(this.layout) } : undefined;
+    const zooms: [string, { zoom: number; focus: Pt; aspect: number }][] = [];
+    for (const [key, v] of Object.entries(this.views)) {
+      const f = hasOwn(this.layout.floors, key) ? this.layout.floors[key] : undefined;
+      if (!f || !(v.w > 0)) continue;
+      const fit = viewBoxFor(f, 80, rot, this.viewMode, this.tilt);
+      const focus: Pt = [v.x + v.w / 2, v.y + v.h / 2];
+      const centre = rot ? rotateAbout([fit.x + fit.w / 2, fit.y + fit.h / 2], -rot.deg, rot.pivot) : ([fit.x + fit.w / 2, fit.y + fit.h / 2] as Pt);
+      const zoom = fit.w / v.w;
+      if (Math.abs(zoom - 1) < 1e-3 && Math.hypot(focus[0] - centre[0], focus[1] - centre[1]) < 1) continue; // shown whole
+      zooms.push([key, { zoom, focus, aspect: v.h / v.w }]);
+    }
+    if (zooms.length) m.zooms = zooms;
+    return m;
+  }
+
+  /** Applies a remembered view. Not an edit: no undo step, the layout is untouched. A floor the layout does not have
+   * is ignored. Call it after the layout is in place, since `setLayout` drops the views. */
+  importView(m: ViewMemory): void {
+    if (m.mode === "2d" || m.mode === "2.5d") this.viewMode = m.mode;
+    if (m.tilt !== undefined) this.tilt = clampTilt(m.tilt);
+    if (m.labels !== undefined) this.labels = m.labels !== false;
+    if (m.rotation !== undefined) this.viewRot = normaliseRotation(m.rotation);
+    if (m.floor !== undefined && hasOwn(this.layout.floors, m.floor)) { this.floor = m.floor; this.sel = null; }
+    this.views = {};
+    for (const [key, z] of m.zooms ?? []) {
+      if (!hasOwn(this.layout.floors, key)) continue;
+      const f = this.layout.floors[key];
+      const rot = this.rotation;
+      const fit = viewBoxFor(f, 80, rot, this.viewMode, this.tilt);
+      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z.zoom));
+      const w = fit.w / zoom, h = z.aspect !== undefined ? w * z.aspect : fit.h / zoom;
+      Object.defineProperty(this.views, key, { value: { x: z.focus[0] - w / 2, y: z.focus[1] - h / 2, w, h }, enumerable: true, writable: true, configurable: true });
+    }
   }
 
   /** A view is stored in plan coordinates: its centre is the plan point in the middle of the screen, w and h are what the screen shows. Rotating the plan therefore needs no change to it. */
