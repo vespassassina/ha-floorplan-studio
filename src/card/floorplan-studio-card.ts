@@ -84,6 +84,10 @@ export interface FloorplanStudioCardConfig {
   view?: PlanView;
   /** `true` (default) shows the View dropdown next to the zoom buttons; `false` hides it, and so does `kiosk`. */
   view_switch?: boolean;
+  /** `true` (default) shows the two rotate buttons next to the zoom buttons, and takes Left/Right; `false` hides them
+   * and the keys. Unset follows the other controls: shown whenever the card draws any (zoom or the View dropdown),
+   * not under `kiosk`. `true` shows them under `kiosk` too, the one control a wall panel may want. */
+  rotate_switch?: boolean;
   /** `false` hides every name and value on the plan, leaving icons and state. Anything but `false` shows them (default). */
   labels?: boolean;
   /** 0..1, how steeply 2.5D looks down: 0 is top-down, 1 side-on. Out-of-range clamps, junk is 0.5 (the look before this key existed). The slider next to the View select moves it for as long as the card is on screen. */
@@ -140,6 +144,9 @@ declare global {
     customCards?: { type: string; name: string; description: string }[];
   }
 }
+
+/** The card that has focus (or has something inside it focused), whatever shadow roots it sits in. */
+let focusedCard: FloorplanStudioCard | null = null;
 
 /** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
 export class FloorplanStudioCard extends LitElement {
@@ -428,10 +435,15 @@ export class FloorplanStudioCard extends LitElement {
   private _onPointerEnter = (): void => { this._hovered = true; };
   private _onPointerLeave = (): void => { this._hovered = false; };
 
-  /** The card the view keys belong to: the one with focus, else the one under the pointer. Never two. */
+  private _onFocusIn = (ev: Event): void => { focusedCard = ev.currentTarget as FloorplanStudioCard; };
+  private _onFocusOut = (): void => { if (focusedCard === this) focusedCard = null; };
+
+  /** The card the view keys belong to: the one with focus, else the one under the pointer. Never two. Focus is
+   * tracked by the card's own focusin and focusout, not read from `document.activeElement`: in Home Assistant the
+   * card sits inside several shadow roots, where `activeElement` is the outermost host and never the card, so a
+   * click on the card and then the pointer moving off it lost the keys. */
   private _ownsViewKeys(): boolean {
-    const focused = globalThis.document?.activeElement;
-    if (focused instanceof FloorplanStudioCard) return focused === this;
+    if (focusedCard) return focusedCard === this;
     return this._hovered;
   }
 
@@ -446,9 +458,22 @@ export class FloorplanStudioCard extends LitElement {
     if (key && this._doViewKey(key)) ev.preventDefault();
   };
 
-  /** Whether the toolbar (View, Theme, Labels, Rotate, Reset) exists, which is when its keys do. */
-  private _hasViewControls(): boolean {
+  /** Whether the two rotate buttons exist, which is when Left and Right turn the plan. `rotate_switch` decides
+   * when it is a boolean; otherwise they come with any other control the card draws (zoom or the View dropdown)
+   * and go with kiosk. Rotation does not depend on 2.5D: it turns the 2D plan too. */
+  private _rotateOn(): boolean {
+    const r = this._config.rotate_switch;
+    if (r === true || r === false) return r;
+    return !this._kiosk() && (this._zoomMode() !== false || this._config.view_switch !== false);
+  }
+
+  private _viewSwitchOn(): boolean {
     return this._config.view_switch !== false && !this._kiosk();
+  }
+
+  /** Whether the toolbar has a Reset view button, which is when Space resets the whole view. */
+  private _hasViewControls(): boolean {
+    return this._viewSwitchOn() || this._rotateOn();
   }
 
   private _doViewKey(key: ViewKey): boolean {
@@ -461,7 +486,7 @@ export class FloorplanStudioCard extends LitElement {
         return true;
       case "rotateLeft":
       case "rotateRight":
-        if (!this._hasViewControls()) return false;
+        if (!this._rotateOn()) return false;
         this._turnBy(key === "rotateLeft" ? -ROTATION_STEP : ROTATION_STEP);
         return true;
       case "reset":
@@ -553,7 +578,10 @@ export class FloorplanStudioCard extends LitElement {
     globalThis.document?.addEventListener("visibilitychange", this._onVisibility);
     globalThis.addEventListener?.("keydown", this._onViewKey);
     this.addEventListener("pointerenter", this._onPointerEnter);
+    this.addEventListener("pointermove", this._onPointerEnter); // a card that appeared under a resting pointer never saw an enter
     this.addEventListener("pointerleave", this._onPointerLeave);
+    this.addEventListener("focusin", this._onFocusIn);
+    this.addEventListener("focusout", this._onFocusOut);
     this.requestUpdate(); // a turn settled while detached left the last frame on screen
   }
 
@@ -700,7 +728,11 @@ export class FloorplanStudioCard extends LitElement {
     globalThis.document?.removeEventListener("visibilitychange", this._onVisibility);
     globalThis.removeEventListener?.("keydown", this._onViewKey);
     this.removeEventListener("pointerenter", this._onPointerEnter);
+    this.removeEventListener("pointermove", this._onPointerEnter);
     this.removeEventListener("pointerleave", this._onPointerLeave);
+    this.removeEventListener("focusin", this._onFocusIn);
+    this.removeEventListener("focusout", this._onFocusOut);
+    if (focusedCard === this) focusedCard = null;
     this._hovered = false;
     this._settleTurn(false); // cancels the frame loop; the state lands where the turn was going
     this._flushSave();
@@ -1386,7 +1418,8 @@ export class FloorplanStudioCard extends LitElement {
     const turn = this._turn;
     const zoom = this._zoomMode() !== false;
     const showZoomButtons = zoom && !this._kiosk(); // S7.5: kiosk still zooms/pans by gesture, just draws no buttons
-    const showViewSwitch = this._config.view_switch !== false && !this._kiosk();
+    const showViewSwitch = this._viewSwitchOn();
+    const showRotate = this._rotateOn();
     // S9.6: `home` is the whole floor unless `center`/`zoom_level` pin the card to part of it — the base the box
     // rests on when there is no explicit `_view`, and what "zoomed" (the fp-zoomed class, below) is measured
     // against, so a pinned card reads as its own resting state, not as permanently zoomed in from the full plan.
@@ -1428,7 +1461,7 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit, showViewSwitch) : showViewSwitch ? html`<div class="fp-viewonly">${this._viewControls(view)}${this._resetButton()}</div>` : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
+    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-viewonly">${showViewSwitch ? this._viewControls(view) : null}${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
   }
 
   /** The view on show: the dropdown's pick, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
@@ -1470,13 +1503,17 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** Everything that changes how the plan looks, but not where it is zoomed: the View select, the Tilt slider while
-   * the view is 2.5D, the Theme select, the Labels toggle and the two rotate buttons. All hidden together
-   * (`view_switch: false`, kiosk). */
+   * the view is 2.5D, the Theme select and the Labels toggle. All hidden together (`view_switch: false`, kiosk). */
   private _viewControls(current: PlanView) {
     const labels = this._labels();
     return html`${this._viewSelect(current)}${current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
-      <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>
-      <span class="fp-pair">
+      <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>`;
+  }
+
+  /** The two rotate buttons, next to the zoom buttons: a control of their own (`rotate_switch`), so a card with
+   * `view_switch: false` still turns. */
+  private _rotateButtons() {
+    return html`<span class="fp-pair">
         <button type="button" aria-label="Rotate left" title="Rotate left" @click=${() => this._turnBy(-ROTATION_STEP)}>${this._icon(UI_ICONS.rotateLeft)}</button>
         <button type="button" aria-label="Rotate right" title="Rotate right" @click=${() => this._turnBy(ROTATION_STEP)}>${this._icon(UI_ICONS.rotateRight)}</button>
       </span>`;
@@ -1666,7 +1703,7 @@ export class FloorplanStudioCard extends LitElement {
    * Diego field report, 0.12.14: "−" used to disable at `fit` itself, so a shed or a corner `viewBoxFor` did not
    * bound on had no way to come into view. It now disables only at `MIN_ZOOM` (`viewport.ts`), the same floor
    * `clamp` itself enforces, so the button and the drag/pinch gesture agree on how far out the card goes. */
-  private _zoomButtons(box: View, home: View, fit: View, withViewSwitch: boolean) {
+  private _zoomButtons(box: View, home: View, fit: View, withViewSwitch: boolean, withRotate: boolean) {
     const atMin = box.w >= (fit.w / MIN_ZOOM) * (1 - 1e-6);
     const atHome = !this._zoomed();
     const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
@@ -1675,12 +1712,13 @@ export class FloorplanStudioCard extends LitElement {
     const resetLabel = pinned ? "Home view" : "Fit";
     return html`<div class="fp-zoom">
       ${withViewSwitch ? this._viewControls(this._planView()) : null}
+      ${withRotate ? this._rotateButtons() : null}
       <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
       <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atMin} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
       <button type="button" aria-label=${resetLabel} title=${resetLabel} ?disabled=${atHome} @click=${() => this._fitView()}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
       </button>
-      ${withViewSwitch ? this._resetButton() : null}
+      ${withViewSwitch || withRotate ? this._resetButton() : null}
     </div>`;
   }
 

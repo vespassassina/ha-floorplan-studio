@@ -114,6 +114,11 @@ describe("card keys: what each key does", () => {
     noZoom.remove();
     const noSwitch = await mount({ view_switch: false });
     hover(noSwitch);
+    expect(press("ArrowRight")).toBe(true); // the rotate buttons are there without the View dropdown, so are the keys
+    expect(press("ArrowUp")).toBe(true);
+    noSwitch.remove();
+    const noRotate = await mount({ rotate_switch: false });
+    hover(noRotate);
     expect(press("ArrowRight")).toBe(false);
     expect(press("ArrowUp")).toBe(true);
   });
@@ -260,5 +265,23 @@ describe("card keys are remembered like any other touch", () => {
     press("ArrowUp");
     await vi.advanceTimersByTimeAsync(200);
     expect(stored()[0]?.zoom).toBeGreaterThan(1);
+  });
+});
+
+describe("rotate_switch: the pair and Left/Right follow the other controls unless the key says otherwise", () => {
+  const btn = (el: FloorplanStudioCard, l: string) => q(el, `button[aria-label="${l}"]`);
+  it("every config with zoom or the View dropdown draws the pair; no control at all draws none", async () => {
+    for (const [cfg, want] of [
+      [{}, true], [{ view: "2.5d" }, true], [{ zoom: false }, true], [{ view_switch: false }, true],
+      [{ zoom: false, view_switch: false }, false], [{ kiosk: true }, false],
+      [{ kiosk: true, rotate_switch: true }, true], [{ zoom: false, view_switch: false, rotate_switch: true }, true],
+      [{ rotate_switch: false }, false], [{ rotate_switch: "yes" as never }, true],
+    ] as const) {
+      const el = await mount(cfg);
+      expect(btn(el, "Rotate left") !== null, JSON.stringify(cfg)).toBe(want);
+      hover(el);
+      expect(press("ArrowRight"), `key ${JSON.stringify(cfg)}`).toBe(want);
+      el.remove();
+    }
   });
 });
