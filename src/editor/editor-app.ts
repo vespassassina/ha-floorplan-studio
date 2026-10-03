@@ -1887,7 +1887,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (claimed) c.id = devId;
     f.devices.push(c.type === "heater"
       ? { id: devId, name: c.name, type: c.type, entity: c.entity, a: [ctr[0] - 50, ctr[1]], b: [ctr[0] + 50, ctr[1]] }
-      : { id: devId, name: c.name, type: c.type, entity: c.entity, x: ctr[0], y: ctr[1] });
+      : { id: devId, name: c.name, type: c.type, entity: c.entity, x: ctr[0], y: ctr[1], ...st.powerFor(c.type, c.entity) });
     st.replaceFloor(f);
     st.sel = { t: "dev", i: f.devices.length - 1 };
     const v = st.view;
