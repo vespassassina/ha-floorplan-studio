@@ -195,6 +195,52 @@ the middle button, right button, or Ctrl/Cmd held.
 The same text is in the editor under Help, step "Moving things and
 snapping". The side panel no longer repeats it.
 
+## Looking around: buttons, keys and memory
+
+Beside the zoom buttons (`+`, `-`, `0`) are **Rotate view left** and **Rotate
+view right**: 45 degrees a press, animated (about 0.35 s a step, none with
+`prefers-reduced-motion`). The turn is added to the plan's own rotation (Edit,
+Rotate the plan) and is only a way of looking. It is not in the layout, not in
+a saved file and not an undo step. A zoomed view keeps its centre and zoom as
+it turns; a view that shows the whole floor is refitted. `0` is **Reset
+view**: the whole floor, the plan upright.
+
+| Key | Does |
+|---|---|
+| Up / Down arrow | zoom in / out |
+| Left / Right arrow | turn the view left / right, 45 degrees |
+| Space | Reset view |
+| Cmd/Ctrl+S | Save, the same as the Save button |
+| Ctrl/Cmd+Z, Shift for redo; Delete | as before |
+
+Precedence, first match wins:
+
+1. **Cmd/Ctrl+S** goes first and works everywhere in the editor, a text box
+   included, and also in the 2.5D preview. The browser's own save-page dialog
+   never opens. Shift+Ctrl+S is left to the browser. An empty plan is not
+   written: the status line says there is nothing to save.
+2. **Typing wins over the view keys.** In a text box, number box, text area,
+   select, range slider or editable text (the combo filter box included), the
+   arrows and Space are the field's. Space on a focused button, summary, link
+   or checkbox presses it. Arrows on a focused button turn or zoom the view.
+3. The view keys work in 2D and in the 2.5D preview, with or without a
+   selection. There is no arrow nudge of a selection, so nothing competes
+   with them. **Alt+arrows** are the same keys.
+4. Keys are heard on the editor only, not on the page: a second editor or any
+   other input on the page is not touched. Delete, Backspace, Escape and
+   Ctrl/Cmd+Z are unchanged, and are not heard in the preview.
+
+The editor remembers how you look, per browser, under
+`floorplan-studio:view` in `localStorage`: the floor on show, 2D or 2.5D,
+tilt, the names toggle, the turn, and the zoom and centre of every floor that
+is not shown whole. Theme, grid, measure grid, Preview night and Help already
+had keys of their own. It is saved 150 ms after the last touch, and when the
+tab is hidden or closed. The plan itself is not in it: a plan that is edited,
+opened or reset keeps the view. A floor the layout does not have is ignored,
+a field that does not parse is dropped on its own, and a browser that blocks
+storage just forgets. A floor the host asks for (`floor` on the element) wins
+over the remembered floor. Reset view clears the zoom and turn.
+
 ## Rotation
 
 A device or a piece of furniture turns from its panel's rotation buttons —

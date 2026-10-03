@@ -2,6 +2,55 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-03: the view is remembered, saved on touch, and driven by keys
+
+Diego, on 0.12.21: no rotate buttons in the editor; add Cmd/Ctrl+S, arrow
+keys for zoom and turn, Space to reset; "the template and view resets between
+reloads"; two editor dashboards in the sidebar. Decisions.
+
+Cause of the reset, with evidence. The card's key (`fp-view:` plus a hash of
+the config seed) is stable across reloads, and a Playwright reload of the
+built card with the Home Assistant lifecycle (repeated `setConfig`, element
+re-attach) kept zoom, centre, turn, view, tilt, theme and names. Those tests
+pass on unmodified code, so the bug is not a moving key. What the card did
+lose: the floor (never stored, so every reload landed on the first floor and
+read as a reset), anything touched within 400 ms of leaving (the debounce
+outlived the page, and nothing flushed on `visibilitychange`), and in the
+editor everything: zoom, centre, turn, 2D or 2.5D, tilt and names were
+session state and there was no memory at all. Fix: the card stores `floor`,
+debounces 150 ms and flushes when hidden; the editor gets its own memory.
+
+Editor memory. One key, `floorplan-studio:view`, per origin and not per
+document: it says nothing about the plan, so an edited, opened or reset plan
+keeps its view. Holds floor, mode, tilt, labels, the turn and, per floor, a
+zoom against that floor's fit, a centre in plan cm and the box's aspect. A
+floor shown whole is not stored, so a plan that grows is not clipped by an old
+fit. Parsed field by field, capped at 50 floors, floor names as list entries
+(a floor may be called `__proto__`). Read once, with the first layout; a floor
+the host asks for wins. Theme, grid, measure and night keep their own keys.
+Walls mode: not included. Its exports are not in this branch.
+
+The turn. `EditorState.viewRot` (0..315) is added to `layout.rotate`. It is
+not an edit: no undo step, never in the layout. Plan rotate (Edit) stays a
+document edit and drops the views, as before. Animation is rAF, 350 ms per
+step, none under reduced motion; a zoomed view keeps centre and zoom, a whole
+view is refitted per frame.
+
+Keys, one rule shared by card and editor (`src/card/view-keys.ts`). Cmd/Ctrl+S
+first and everywhere (editor only). Then a typing target (input except
+checkbox/radio/button types, select, textarea, contenteditable) owns
+everything; a button, summary, link, checkbox or ARIA button also owns Space.
+Ctrl/Cmd chords are never view keys. Alt and Shift are allowed. Editor keys
+are heard on the editor host, never `window`. The card listens on `window`
+but acts only for the card focused or hovered. No arrow nudge exists, so there
+is no clash with a selection.
+
+Sidebar. The integration registers one panel (`panel_custom`, url
+`floorplan-studio`) and one config entry (`single_config_entry`). A second
+"editor" in the sidebar is not made here: it is a dashboard Diego created
+(Settings, Dashboards) or a leftover `panel_custom` / `panel_iframe` in YAML.
+Remove it there. No code change in `custom_components`.
+
 ## 2026-10-03: plugs are active by watts, not by switch
 
 Diego: "the plugs, show them active only if they are consuming power, not if

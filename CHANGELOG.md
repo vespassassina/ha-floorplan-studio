@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Editor: Rotate view left and right, next to the zoom buttons. 45 degrees a press, animated (none under `prefers-reduced-motion`), added on top of the plan's own Rotate. This is how you look at the plan: it is never written to the layout and never an undo step.
+- Keyboard, editor and card. Up and Down arrows zoom, Left and Right turn the view 45 degrees, Space shows the whole floor again and turns the plan upright. They do nothing while you type in a box, a menu list or a text field, and Space still presses a focused button. In the card only the card you hover or have focused listens. Alt+arrows always work.
+- Cmd/Ctrl+S saves in the editor, from anywhere, a text box included. It is the Save button: same checks, same message. An empty plan says there is nothing to save.
+- The editor keeps its view across reloads: zoom and centre per floor, the turn, 2D or 2.5D, tilt, the names toggle and the floor on show (theme, grid, measure and night already were). Saved 150 ms after you touch them, and when the tab is hidden or closed. Reset view (the 0 button or Space) clears the zoom and turn.
+- The card now remembers the floor you were on, saves 150 ms after a touch (was 400 ms) and again when the tab is hidden. A reload no longer drops you back on the first floor, and a change made just before closing the tab is no longer lost.
+- Help gains a step for the view keys, and the Save step names Cmd/Ctrl+S.
+
 ## 0.12.21
 
 - Plugs are active only while they draw power, not while they are merely switched on: from 2 W (card config `plug_watts`, also in the Edit-card form). A plug idling at 0.4 W draws grey. The Active list, the tooltip (`plug: TV plug, 14 W`) and a room that shows a plug's switch follow the same rule.

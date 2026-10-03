@@ -259,6 +259,15 @@ as before.
   every one of these back to the card's config and forgets the memory. The
   turn goes back the short way round. The floor stays. It is not the Fit
   button: Fit, or Home view on a pinned card, only changes zoom and position.
+- **Keys.** The card you hover or have focused listens; another card on the
+  page does not. Up and Down arrows zoom, Left and Right turn (when the
+  rotate buttons are there), Space is Reset view. Nothing fires while you type
+  in a field, and Space on a focused button presses that button. Cover,
+  vacuum and chooser dialogs take the keys while they are open.
+- **When it is saved.** 150 ms after you touch zoom, focus, turn, view, tilt,
+  theme, names or floor, and again when the tab is hidden or closed. The
+  floor is remembered with the rest, so a reload does not return you to the
+  first floor.
 - The memory sits in the browser's `localStorage`, under `fp-view:` and a
   short hash of the card's config. It holds numbers, one 2D/2.5D word, a theme
   name and a flag, nothing else. Anything in it that does not parse is
