@@ -209,8 +209,9 @@ plan is showing. "Active" is lights on (a light bound to a switch counts
 when the switch is), motion and contact on, TVs and media players on or
 playing, a speaker playing, heaters and climate heating, AC running, plugs
 drawing `plug_watts` or more (see Plugs, below), computers on, persons at home, and vacuums that are
-cleaning (one that is only returning to its dock is not). Covers (curtains,
-blinds, shutters, garage doors) are never listed: open is not an alert. Every camera is
+cleaning (one that is only returning to its dock is not). A cover is listed only while a
+garage door, a gate or a door is open, opening or closing (HA `device_class` `garage`, `gate`,
+`door`); curtains, blinds, shades, shutters, awnings, windows and dampers never are. Every camera is
 listed whatever its state — a camera is a view, not an on/off thing —
 except an `unavailable`/`unknown` one, or any device of any type with no
 entity configured: neither has a real more-info dialog to open.
@@ -354,10 +355,13 @@ differently:
   is separate), in 2D and 2.5D (flat at floor level, under the walls), with
   names off, at night and in every theme. Zones and structures never get one.
   A group of motion sensors works the same through its own entity.
-- **Cover** (curtains, blinds, shutters, garage doors) — drawn idle grey in
-  every state, open or closed; it is not an alert, and it is not on the Active
-  list. Its tooltip still names it and a tap still toggles it. Only a door
-  line with a `cover` draws orange when that cover is open (below).
+- **Cover** — active (orange, on the Active list) only while open, opening or
+  closing AND its HA `device_class` is `garage`, `gate` or `door`. Every other
+  class (`curtain`, `blind`, `shade`, `shutter`, `awning`, `window`, `damper`),
+  and a cover that reports no class, draws idle grey in every state. The class
+  is read from the entity's state at draw time; nothing is stored in the layout.
+  A room that shows a cover entity follows the same rule. A tap still toggles
+  it. A door line with a `cover` draws orange when that cover is open (below).
 - **Contact sensor** — open shows the same red disc and pulsing ring. A door
   or window with a contact sensor turns red and dashed when open, over a wide
   pulsing red line; `open_color` recolours both to something other than red.

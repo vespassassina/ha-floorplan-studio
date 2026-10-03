@@ -2,6 +2,30 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-03: a cover is active only as a garage door, a gate or a door
+
+Supersedes 0.12.20 ("a cover draws idle in every state"). Diego: "curtains
+should NOT show active (they are covers but not the same as a garage door)".
+
+Rule, in one function (`coverActive`, core/cover.ts; `classOf`, the Active list
+and the room `on` class all read it): a cover is
+on while its state is `open`, `opening` or `closing` and its `device_class`
+attribute is `garage`, `gate` or `door`. Every other class, a missing or junk
+class, and every other state read idle. Unavailable and unknown still read
+unavailable. `COVER_CLASSES` lists HA's ten classes, so a class HA adds is idle
+until someone writes it down (finding 17).
+
+Where the class comes from. The `device_class` attribute of the entity's state,
+read at draw time, which the overlay already carries. Chosen over a layout field
+(`cover: "door" | "curtain"`): a layout field is a second source that can
+disagree with HA, and the editor would need a select for what HA already knows.
+No state, no attributes, or a state that has not arrived: idle. We do not guess
+from the entity id (a "garage" in a name is not a class). Door lines are
+unchanged: a door with a `cover` still draws orange when that cover is open.
+
+On 0.12.21 itself a cover was never on in `classOf`; if a curtain still drew
+orange on a dashboard, that was a cached 0.12.19 or older bundle.
+
 ## 2026-10-03: plugs are active by watts, not by switch
 
 Diego: "the plugs, show them active only if they are consuming power, not if
