@@ -63,8 +63,10 @@ export function entitiesForType(ha: HaData, type: DeviceType): { match: HaData["
  * radar), correctable in the device panel; `radar` is never guessed automatically.
  * Nothing here is final: the device panel's own type field corrects any guess.
  */
-export function typeForEntity(e: HaData["entities"][number]): DeviceType {
+export function typeForEntity(e: HaData["entities"][number], ha?: Pick<HaData, "entities">): DeviceType {
   switch (e.domain) {
+    // A group is motion only when every member is (it needs `ha` to look them up); any other group is noise.
+    case "group": return ha && isMotionGroup(e, ha.entities, []) ? "motion" : "other";
     case "light": return "light";
     case "lock": return "lock";
     case "camera": return "camera";
@@ -88,6 +90,19 @@ export function typeForEntity(e: HaData["entities"][number]): DeviceType {
   }
 }
 
+/** How many groups deep a motion group may nest. Real groups are one or two deep; the cap keeps junk cheap. */
+const MAX_GROUP_DEPTH = 4;
+
+/** A group whose members are all motion entities (a group of groups counts when each is motion too). Never throws: a cycle, an unknown or non-string member, members that are no array, an empty list or a chain past `MAX_GROUP_DEPTH` all read as not motion. */
+function isMotionGroup(g: HaData["entities"][number], all: unknown, path: string[]): boolean {
+  if (!Array.isArray(g.members) || !g.members.length || !Array.isArray(all) || path.length >= MAX_GROUP_DEPTH || path.includes(g.id)) return false;
+  return g.members.every((m) => {
+    const e = typeof m === "string" ? all.find((x) => x?.id === m) : undefined;
+    if (!e) return false;
+    return e.domain === "group" ? isMotionGroup(e, all, [...path, g.id]) : typeForEntity(e) === "motion";
+  });
+}
+
 /**
  * S8.1: which device types the room panel's Place popup offers from a Home Assistant area, and which it leaves out as
  * noise. Every `DeviceType` is in exactly one list (a test iterates the union, so a new type fails until it is decided).
@@ -99,7 +114,7 @@ export const AREA_NOISE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["o
 
 /** S8.1: the entities of HA area `area` that are not on the plan yet and that the plan has an icon for. Never throws. */
 export function placeableInArea(l: Layout, ha: HaData, area: string): HaData["entities"] {
-  return unplacedHaEntities(l, ha).filter((e) => e.area === area && AREA_PLACEABLE_TYPES.has(typeForEntity(e)));
+  return unplacedHaEntities(l, ha).filter((e) => e.area === area && AREA_PLACEABLE_TYPES.has(typeForEntity(e, ha)));
 }
 
 /**
@@ -316,6 +331,11 @@ function gangEntities(ents: HaData["entities"]): HaData["entities"] {
   return ents.filter((e) => e.domain === "switch" && !e.cat);
 }
 
+/** A device's live (non-`cat`) motion, occupancy and presence binary_sensors: a multisensor with one per zone has several, and each is its own icon. */
+function motionEntities(ents: HaData["entities"]): HaData["entities"] {
+  return ents.filter((e) => e.domain === "binary_sensor" && !e.cat && typeForEntity(e) === "motion");
+}
+
 /**
  * S8.8: the catalog-merged rows to offer one HA device as, for the Add panel and the room Place popup. Normally one
  * row — its main entity (`mainEntity`), or, when a different sibling is the one already in `layout.catalog`, that
@@ -335,13 +355,21 @@ function gangEntities(ents: HaData["entities"]): HaData["entities"] {
  * second time as its own plain `catalog:` row (that part is `addCandidates`'s job, not this function's).
  */
 function deviceRows(ents: HaData["entities"], nameOf: Map<string, string>, deviceId: string, catalogOf: Map<string, CatalogEntry>, placedIds: ReadonlySet<string>): { entity: HaData["entities"][number]; catalogEntry?: CatalogEntry }[] {
-  const gangs = gangEntities(ents);
-  if (gangs.length >= 2) {
-    const deviceName = nameOf.get(deviceId);
-    return gangs.filter((e) => !placedIds.has(e.id)).map((e) => ({ entity: asGangRow(e, deviceName), catalogEntry: catalogOf.get(e.id) }));
+  const gangs = gangEntities(ents), motions = motionEntities(ents), deviceName = nameOf.get(deviceId);
+  const own = (list: HaData["entities"]) => list.filter((e) => !placedIds.has(e.id)).map((e) => ({ entity: asGangRow(e, deviceName), catalogEntry: catalogOf.get(e.id) }));
+  // Two or more motion zones are separate things on the plan, like gangs: one row each, placed one by one. A lone
+  // motion entity is no zone, so it keeps the one-row-per-device rule below.
+  const zones = motions.length >= 2 ? own(motions) : [];
+  if (gangs.length >= 2) return [...own(gangs), ...zones];
+  if (motions.length >= 2) {
+    // The device's other face (its light, its camera) is still one row, unless it is itself a zone or something else of it is on the plan.
+    const main = mainEntity(ents, deviceName);
+    const rest = ents.filter((e) => !motions.includes(e));
+    const mainRow = main && !motions.includes(main) && !rest.some((e) => placedIds.has(e.id)) ? [{ entity: asDeviceRow(main, nameOf), catalogEntry: catalogOf.get(main.id) }] : [];
+    return [...mainRow, ...zones];
   }
   if (ents.some((e) => placedIds.has(e.id))) return []; // non-gang: any entity placed means the whole device is
-  const main = mainEntity(ents, nameOf.get(deviceId));
+  const main = mainEntity(ents, deviceName);
   if (!main) return [];
   return [{ entity: asDeviceRow(main, nameOf), catalogEntry: catalogOf.get(main.id) }];
 }
@@ -363,7 +391,8 @@ function deviceRows(ents: HaData["entities"], nameOf: Map<string, string>, devic
  */
 export function placeableDevicesInArea(l: Layout, ha: HaData, area: string): HaData["entities"] {
   if (!Array.isArray(ha?.entities) || !area) return [];
-  const deviceless = placeableInArea(l, { ...ha, entities: ha.entities.filter((e) => !e?.dev) }, area);
+  // Whole `ha`, filtered afterwards: a motion group is typed by looking up its members, and those may belong to devices.
+  const deviceless = placeableInArea(l, ha, area).filter((e) => !e?.dev);
   // S8.9 defect 2: placement is decided per gang entity inside deviceRows itself, not by a whole-device pre-check
   // here — `placedEntities` (the plan's own entities), never `placedDeviceIds`, which would hide L2 whenever L1 is placed.
   const placedIds = new Set([...placedEntities(l), ...attachedEntities(l)]);
@@ -372,7 +401,7 @@ export function placeableDevicesInArea(l: Layout, ha: HaData, area: string): HaD
   const devRows: HaData["entities"] = [];
   for (const [devId, ents] of byDevice(ha.entities)) {
     for (const row of deviceRows(ents, nameOf, devId, catalogOf, placedIds)) {
-      if (row.entity.area === area && AREA_PLACEABLE_TYPES.has(typeForEntity(row.entity))) devRows.push(row.entity);
+      if (row.entity.area === area && AREA_PLACEABLE_TYPES.has(typeForEntity(row.entity, ha))) devRows.push(row.entity);
     }
   }
   return [...devRows, ...deviceless];
@@ -478,7 +507,7 @@ export function addCandidates(l: Layout, ha: HaData | null): AddCandidate[] {
           merged.add(row.catalogEntry.id);
           devCandidates.push({ key: `catalog:${row.catalogEntry.id}`, source: "catalog", id: row.catalogEntry.id, entity: row.catalogEntry.entity, name: row.entity.name, type: row.catalogEntry.type, ...locateEntity(l, ha, row.catalogEntry.entity, row.catalogEntry.room || undefined) });
         } else {
-          devCandidates.push({ key: `ha-dev:${row.entity.id}`, source: "ha", id: devId, entity: row.entity.id, name: row.entity.name, type: typeForEntity(row.entity), ...locateEntity(l, ha, row.entity.id) });
+          devCandidates.push({ key: `ha-dev:${row.entity.id}`, source: "ha", id: devId, entity: row.entity.id, name: row.entity.name, type: typeForEntity(row.entity, ha), ...locateEntity(l, ha, row.entity.id) });
         }
       }
       // S8.9 defect 3: outside the gang case, EVERY catalog entry among this device's entities is folded away here,
@@ -494,7 +523,7 @@ export function addCandidates(l: Layout, ha: HaData | null): AddCandidate[] {
   }
   if (ha) {
     for (const e of unplacedHaEntities(l, ha).filter((e) => !e.dev)) {
-      out.push({ key: `ha:${e.id}`, source: "ha", id: e.id, entity: e.id, name: e.name || e.id, type: typeForEntity(e), ...locateEntity(l, ha, e.id) });
+      out.push({ key: `ha:${e.id}`, source: "ha", id: e.id, entity: e.id, name: e.name || e.id, type: typeForEntity(e, ha), ...locateEntity(l, ha, e.id) });
     }
   }
   out.push(...devCandidates);

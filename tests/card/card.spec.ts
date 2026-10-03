@@ -2414,3 +2414,56 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     expect(scriptCount).toBe(0);
   });
 });
+
+// Diego, 2026-10: a room with a triggered motion sensor gets one inner line in the sensor's colour. CSS pair (finding 10):
+// the real computed style, and a real click at the line's own spot reaching the room under it (finding 3, 18).
+test("CSS pair: the Hall's motion perimeter is the motion colour, unfilled, takes no click, and goes with the sensor", async ({ page }) => {
+  await open(page);
+  const now = new Date().toISOString();
+  await configure(page, { layout: structuredClone(demo), theme: "light" }, { states: { "binary_sensor.demo_hall_motion": { state: "on", attributes: {}, last_changed: now } } });
+  const read = () => page.locator("floorplan-studio-card").evaluate((el) => {
+    const p = el.shadowRoot!.querySelector("svg polygon.motion-perimeter");
+    if (!p) return null;
+    const s = getComputedStyle(p);
+    const r = p.getBoundingClientRect();
+    return { stroke: s.stroke, fill: s.fill, pe: s.pointerEvents, want: getComputedStyle(p).getPropertyValue("--fp-dev-motion").trim(), x: r.x + r.width / 2, y: r.y + 2 };
+  });
+  const on = (await read())!;
+  expect(on).not.toBeNull();
+  expect(on.fill).toBe("none");
+  expect(on.pe).toBe("none");
+  expect(on.want).toMatch(/^#/);
+  expect(on.stroke).toBe(`rgb(${[1, 3, 5].map((i) => parseInt(on.want.slice(i, i + 2), 16)).join(", ")})`);
+  await configure(page, { layout: structuredClone(demo), theme: "light" }, { states: { "binary_sensor.demo_hall_motion": { state: "off", attributes: {}, last_changed: now } } });
+  expect(await read()).toBeNull();
+});
+
+// Diego, 2026-10: "do not show curtains as orange with open". CSS pair (finding 10): read the real computed fill.
+test("CSS pair: an open cover icon is drawn idle, the same as a closed one, never in the cover colour; a lit lamp still is coloured", async ({ page }) => {
+  await open(page);
+  const layout = structuredClone(demo);
+  const devices = layout.floors.ground.devices as unknown[];
+  devices.push({ id: "curtain", type: "cover", entity: "cover.curtain", name: "Curtain", x: 300, y: 300 });
+  const idx = devices.length - 1;
+  const fills = () => page.locator("floorplan-studio-card").evaluate((el, i) => {
+    const g = el.shadowRoot!.querySelector(`svg g[data-x="${i}"]`)!;
+    return { fill: getComputedStyle(g.querySelector("path:not(.halo)")!).fill, cover: getComputedStyle(g).getPropertyValue("--fp-dev-cover").trim() };
+  }, idx);
+  const now = new Date().toISOString();
+  await configure(page, { layout }, { states: { "cover.curtain": { state: "closed", attributes: {}, last_changed: now } } });
+  const closed = await fills();
+  for (const s of ["open", "opening", "closing"]) {
+    await configure(page, { layout }, { states: { "cover.curtain": { state: s, attributes: {}, last_changed: now } } });
+    const got = await fills();
+    expect(got.fill, s).toBe(closed.fill);
+    expect(got.fill, s).not.toBe(got.cover); // the token is a hex; the colour test below turns it into rgb
+  }
+  const rgbOf = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ")})`;
+  await configure(page, { layout }, { states: { "cover.curtain": { state: "open", attributes: {}, last_changed: now } } });
+  const open_ = await fills();
+  expect(open_.fill).not.toBe(rgbOf(open_.cover));
+  // The control: the same page draws a lit light in colour, so "idle" above is the cover's doing, not a broken stylesheet.
+  await configure(page, { layout }, { states: { "cover.curtain": { state: "open", attributes: {}, last_changed: now }, "light.demo_kitchen": { state: "on", attributes: {}, last_changed: now } } });
+  const lamp = await page.locator("floorplan-studio-card").evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('svg g[data-x="1"] path:not(.halo)')!).fill);
+  expect(lamp).not.toBe(closed.fill);
+});

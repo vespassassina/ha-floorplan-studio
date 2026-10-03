@@ -450,7 +450,7 @@ export class EditorState {
     const next = structuredClone(this.layout);
     const f = next.floors[this.floor];
     const id = newId(f, this.floor, "device", next);
-    const type = typeForEntity(e);
+    const type = typeForEntity(e, this.ha);
     f.devices.push({ id, name: e.name, type, entity: e.id, x: ctr[0], y: ctr[1] });
     next.catalog.push({ id, floor: this.floor, room: room ?? "", type, name: e.name, entity: e.id });
     this.snapshot();
@@ -515,7 +515,7 @@ export class EditorState {
       // would duplicate it a second time. Reuse only when no floor's device currently carries it; otherwise mint a
       // fresh id and update the catalog entry to match, in this same undo step.
       const claimed = existing && Object.values(next.floors).some((fl) => fl.devices.some((d) => d.id === existing.id));
-      const id = existing && !claimed ? existing.id : newId(f, this.floor, "device", next), type = existing?.type ?? typeForEntity(e);
+      const id = existing && !claimed ? existing.id : newId(f, this.floor, "device", next), type = existing?.type ?? typeForEntity(e, this.ha);
       if (existing && claimed) existing.id = id;
       f.devices.push({ id, name: existing?.name ?? e.name, type, entity: e.id, x: at[0], y: at[1] });
       if (!existing) next.catalog.push({ id, floor: this.floor, room: room.name, type, name: e.name, entity: e.id });
@@ -655,7 +655,7 @@ export class EditorState {
   private unattachedHaChoices(type: DeviceType): CatalogEntry[] {
     if (!this.ha) return [];
     return unplacedHaEntities(this.layout, this.ha)
-      .filter((e) => typeForEntity(e) === type)
+      .filter((e) => typeForEntity(e, this.ha) === type)
       .map((e): CatalogEntry => ({ id: e.id, floor: "", room: "", type, name: e.name || e.id, entity: e.id }));
   }
 
@@ -710,7 +710,7 @@ export class EditorState {
     apply(next.floors[this.floor]);
     if (!next.catalog.some((c) => c.entity === entity)) {
       const e = this.ha?.entities.find((x) => x.id === entity);
-      if (e) next.catalog.push({ id: e.id, floor: this.floor, room: "", type: typeForEntity(e), name: e.name || e.id, entity: e.id });
+      if (e) next.catalog.push({ id: e.id, floor: this.floor, room: "", type: typeForEntity(e, this.ha), name: e.name || e.id, entity: e.id });
     }
     const selDevId = this.sel?.t === "dev" ? this.f.devices[this.sel.i]?.id : undefined;
     let pulled = false;

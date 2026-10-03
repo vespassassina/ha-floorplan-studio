@@ -133,8 +133,13 @@ Home Assistant devices" when the area has entities the plan does not show
 yet. It opens a popup: one row per entity with a tick, and a chip per type
 to narrow the list. Only what the plan has an icon for is offered: lights,
 switches, plugs, sensors with a temperature, humidity, motion, contact or
-vibration class, cameras, covers and the like. Power, energy, illuminance
-and battery readings, groups, scripts and people are left out. Untick what
+vibration class, cameras, covers and the like. A device with several motion,
+occupancy or presence sensors (one per zone) gets a row for each, named to tell
+them apart; placing one leaves the others offered. The same rule holds in
+Add, Device and the room menu's "Add device from". A `group` whose members are
+all motion sensors counts as a motion sensor and is offered; any other group is
+left out, with power, energy, illuminance and battery readings, scripts and
+people. Untick what
 you do not want and press Place: the ticked rows land on free spots in the
 room, one undo step, ready to drag to their real place.
 
