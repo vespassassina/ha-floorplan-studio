@@ -41,6 +41,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `view` | `2d` | `2d` draws the flat plan, `2.5d` draws it with depth — see 2.5D view, below. Anything else is `2d` |
 | `view_switch` | `true` | `false` hides the View dropdown next to the zoom buttons. `kiosk` hides it too |
 | `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D. See the Tilt slider, below |
+| `walls` | `cut` | how 2.5D draws wall heights: `full` every wall at its real height, no cutaway; `cut` the doll's house look, walls facing you lowered so the rooms show; `low` every wall at the cutaway height. Anything else is `cut`. Only read in 2.5D. See Walls, below |
 | `labels` | `true` | `false` hides every name and value on the plan (rooms, zones, structures, device names, sensor values), so only icons and state are left. Anything but `false` shows them |
 | `rotation` | `0` | degrees the plan starts turned, in steps of 45: `0`, `45`, `90` ... `315`. Any other number rounds to the nearest step; anything that is not a number is `0`. Text and icons stay upright. A viewer's own turn is remembered over this — see View memory and reset, below |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
@@ -83,6 +84,21 @@ only: zoom and pan stay, and like the View pick it is forgotten when the
 config changes. The `tilt` key sets where it starts. The near walls are cut
 lower as the tilt grows, so a room is as visible at a steep tilt as at the
 default; at `0` nothing is lifted, so nothing hides anything.
+
+**Walls** sets how tall the walls are drawn. `cut` (the default) keeps a wall at
+its real height unless it faces you or hides a room behind it; those ease down
+to the cutaway height, so walls at different angles do not all stand equally
+tall, and a plan turned a little shows tall side walls and low front walls.
+`full` draws every wall at its real height: nothing is cut, and the near walls
+can hide the rooms behind them. `low` draws every wall at the cutaway height
+(a wall that is shorter anyway, such as a fence, stays as it is): all equal,
+every room visible. One straight wall made of several edges (rooms side by
+side along one line) always has one height in `cut`.
+
+A **Walls** select (Full height, Cutaway, Low) sits next to the Tilt slider
+while the view is 2.5D, and goes with it in 2D, with `view_switch: false` and
+in `kiosk`. A pick redraws the plan only and the card remembers it (below). The
+Edit-card form has the same list; the `walls` key sets where it starts.
 
 ![Tilt 0, top-down.](img/card-2-5d-tilt-0.png)
 ![Tilt 1, side-on.](img/card-2-5d-tilt-1.png)
@@ -209,8 +225,9 @@ plan is showing. "Active" is lights on (a light bound to a switch counts
 when the switch is), motion and contact on, TVs and media players on or
 playing, a speaker playing, heaters and climate heating, AC running, plugs
 drawing `plug_watts` or more (see Plugs, below), computers on, persons at home, and vacuums that are
-cleaning (one that is only returning to its dock is not). Covers (curtains,
-blinds, shutters, garage doors) are never listed: open is not an alert. Every camera is
+cleaning (one that is only returning to its dock is not). A cover is listed only while a
+garage door, a gate or a door is open, opening or closing (HA `device_class` `garage`, `gate`,
+`door`); curtains, blinds, shades, shutters, awnings, windows and dampers never are. Every camera is
 listed whatever its state — a camera is a view, not an on/off thing —
 except an `unavailable`/`unknown` one, or any device of any type with no
 entity configured: neither has a real more-info dialog to open.
@@ -246,19 +263,29 @@ names and icons stay upright. Pan, zoom and taps wait until it has settled.
 The card also has a Theme dropdown and a names-and-text toggle next to View.
 
 The card remembers, per browser, the viewer's zoom, the spot they zoomed to,
-the rotation, 2D or 2.5D, the tilt, the theme and whether text shows. Come
+the rotation, 2D or 2.5D, the tilt, the wall heights, the theme and whether
+text shows. Come
 back, reload or switch dashboard tab and the plan is as it was left, with no
 flash of the configured look. The floor and the Active list are remembered
 as before.
 
 - **A remembered value wins over the config** for as long as the config is the
-  same. Edit `view`, `rotation`, `theme`, `tilt`, `labels`, `center`,
+  same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `center`,
   `zoom_level`, the layout source or the floors in the card's YAML and that
   card starts with a clean memory: the new YAML is what you meant.
 - **Reset view** (the last toolbar button, greyed while nothing differs) puts
   every one of these back to the card's config and forgets the memory. The
   turn goes back the short way round. The floor stays. It is not the Fit
   button: Fit, or Home view on a pinned card, only changes zoom and position.
+- **Keys.** The card you hover or have focused listens; another card on the
+  page does not. Up and Down arrows zoom, Left and Right turn (when the
+  rotate buttons are there), Space is Reset view. Nothing fires while you type
+  in a field, and Space on a focused button presses that button. Cover,
+  vacuum and chooser dialogs take the keys while they are open.
+- **When it is saved.** 150 ms after you touch zoom, focus, turn, view, tilt,
+  walls, theme, names or floor, and again when the tab is hidden or closed. The
+  floor is remembered with the rest, so a reload does not return you to the
+  first floor.
 - The memory sits in the browser's `localStorage`, under `fp-view:` and a
   short hash of the card's config. It holds numbers, one 2D/2.5D word, a theme
   name and a flag, nothing else. Anything in it that does not parse is
@@ -354,10 +381,13 @@ differently:
   is separate), in 2D and 2.5D (flat at floor level, under the walls), with
   names off, at night and in every theme. Zones and structures never get one.
   A group of motion sensors works the same through its own entity.
-- **Cover** (curtains, blinds, shutters, garage doors) — drawn idle grey in
-  every state, open or closed; it is not an alert, and it is not on the Active
-  list. Its tooltip still names it and a tap still toggles it. Only a door
-  line with a `cover` draws orange when that cover is open (below).
+- **Cover** — active (orange, on the Active list) only while open, opening or
+  closing AND its HA `device_class` is `garage`, `gate` or `door`. Every other
+  class (`curtain`, `blind`, `shade`, `shutter`, `awning`, `window`, `damper`),
+  and a cover that reports no class, draws idle grey in every state. The class
+  is read from the entity's state at draw time; nothing is stored in the layout.
+  A room that shows a cover entity follows the same rule. A tap still toggles
+  it. A door line with a `cover` draws orange when that cover is open (below).
 - **Contact sensor** — open shows the same red disc and pulsing ring. A door
   or window with a contact sensor turns red and dashed when open, over a wide
   pulsing red line; `open_color` recolours both to something other than red.

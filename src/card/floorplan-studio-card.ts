@@ -1,7 +1,7 @@
 import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
-import type { ActiveDevice, PowerCandidate, Theme } from "../core";
+import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import type { ActiveDevice, PowerCandidate, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
@@ -10,6 +10,7 @@ import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
 import "./config-editor";
 import { defineElement } from "./define";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
+import { viewKeyFor, type ViewKey } from "./view-keys";
 import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type StoredView } from "./view-state";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
@@ -87,6 +88,8 @@ export interface FloorplanStudioCardConfig {
   labels?: boolean;
   /** 0..1, how steeply 2.5D looks down: 0 is top-down, 1 side-on. Out-of-range clamps, junk is 0.5 (the look before this key existed). The slider next to the View select moves it for as long as the card is on screen. */
   tilt?: number;
+  /** How 2.5D draws wall heights: `"full"`, `"cut"` (default) or `"low"` (docs/card.md, Walls). Anything else is `"cut"`. A Walls select next to the Tilt slider changes it for as long as the card is on screen, and the card remembers the pick. */
+  walls?: WallsMode;
   /** Degrees the plan starts turned, on top of the layout's own `rotate`. Rounded to a multiple of 45 and wrapped to 0..359; junk is 0. The two buttons next to the zoom buttons turn it in steps of 45 for as long as the card is on screen, and the card remembers where it was left. */
   rotation?: number;
 }
@@ -109,8 +112,9 @@ const isTheme = (v: unknown): v is Theme => typeof v === "string" && (THEMES as 
 
 /** A 45 degree turn takes this long; a longer one (Reset from 135 away) takes proportionally more, up to twice. */
 const TURN_MS = 350;
-/** Pan and zoom write to storage once they have been still this long. */
-const SAVE_DEBOUNCE_MS = 400;
+/** Pan and zoom write to storage once they have been still this long. Short on purpose: a tablet that is put to
+ * sleep or a tab that is discarded may never fire pagehide, so the write must not wait long for it. */
+const SAVE_DEBOUNCE_MS = 150;
 
 /** Card config is untrusted input (CLAUDE.md finding 1): only a plain `#rrggbb` hex is accepted for open_color. */
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -272,6 +276,8 @@ export class FloorplanStudioCard extends LitElement {
   private _pickedView: PlanView | null = null;
   /** The tilt dragged on the slider; `null` means the config's own. Card state like `_pickedView`: reset by `setConfig`, never by `hass`. */
   private _pickedTilt: number | null = null;
+  /** The wall heights chosen in the Walls select; `null` means the config's own. Same rule as `_pickedTilt`. */
+  private _pickedWalls: WallsMode | null = null;
   /** The theme chosen in the Theme select, the labels toggle and the turn the buttons made (a multiple of 45 in
    * 0..315); each `null` means the config's own. Same rule as `_pickedView`, with one more: these and the view,
    * tilt, zoom and focus are what the card remembers (see `_saveViewNow`), so a field is only ever stored once the
@@ -279,6 +285,8 @@ export class FloorplanStudioCard extends LitElement {
   private _pickedTheme: Theme | null = null;
   private _pickedLabels: boolean | null = null;
   private _pickedRot: number | null = null;
+  /** Whether the pointer is over this card: with focus, what decides which card the view keys belong to. */
+  private _hovered = false;
   /** A turn in flight: `from` and `to` are user angles in degrees, unwrapped (`to` may be 360, or -45) so the
    * interpolation never takes the long way; `anchor` is the plan point and zoom to hold at the centre, or `null`
    * when the card is at home and home itself follows the angle. */
@@ -345,6 +353,7 @@ export class FloorplanStudioCard extends LitElement {
     if (c.rotation !== undefined) seed.push(["rotation", c.rotation]);
     if (c.theme !== undefined) seed.push(["theme", c.theme]);
     if (c.tilt !== undefined) seed.push(["tilt", c.tilt]);
+    if (c.walls !== undefined) seed.push(["walls", c.walls]);
     if (c.labels !== undefined) seed.push(["labels", c.labels]);
     return `fp-view:${tag(JSON.stringify(seed))}`;
   }
@@ -353,8 +362,9 @@ export class FloorplanStudioCard extends LitElement {
    * config's look. Storage is untrusted: `parseStoredView` drops each bad field, and a throwing `localStorage`
    * (private mode, blocked) is nothing stored. */
   private _loadViewState(): void {
-    this._pickedView = this._pickedTilt = this._pickedTheme = this._pickedLabels = this._pickedRot = null;
+    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedRot = null;
     this._pendingView = null;
+    this._shownFloor = null;
     let s: StoredView = {};
     try {
       const raw = globalThis.localStorage?.getItem(this._viewStorageKey());
@@ -364,9 +374,11 @@ export class FloorplanStudioCard extends LitElement {
     }
     if (s.view !== undefined) this._pickedView = s.view as PlanView;
     if (s.tilt !== undefined) this._pickedTilt = s.tilt;
+    if (s.walls !== undefined) this._pickedWalls = wallsModeOf(s.walls);
     if (s.theme !== undefined) this._pickedTheme = s.theme as Theme;
     if (s.labels !== undefined) this._pickedLabels = s.labels;
     if (s.rotation !== undefined && s.rotation !== normaliseRotation(this._config.rotation)) this._pickedRot = s.rotation;
+    if (s.floor !== undefined) this._shownFloor = s.floor; // an unknown id is ignored by _floorKey
     if (s.zoom !== undefined && s.focus !== undefined) this._pendingView = { focus: s.focus, zoom: s.zoom };
   }
 
@@ -382,8 +394,10 @@ export class FloorplanStudioCard extends LitElement {
     if (this._pickedRot !== null) o.rotation = this._pickedRot;
     if (this._pickedView !== null) o.view = this._pickedView;
     if (this._pickedTilt !== null) o.tilt = this._pickedTilt;
+    if (this._pickedWalls !== null) o.walls = this._pickedWalls;
     if (this._pickedTheme !== null) o.theme = this._pickedTheme;
     if (this._pickedLabels !== null) o.labels = this._pickedLabels;
+    if (this._shownFloor !== null) o.floor = this._shownFloor;
     const pending = this._pendingView;
     const anchor = pending ?? this._anchorOfView();
     if (anchor) { o.zoom = anchor.zoom; o.focus = anchor.focus; }
@@ -406,6 +420,61 @@ export class FloorplanStudioCard extends LitElement {
   private _flushSave = (): void => {
     if (this._saveTimer !== null) this._saveViewNow();
   };
+
+  private _onVisibility = (): void => {
+    if (globalThis.document?.visibilityState === "hidden") this._flushSave();
+  };
+
+  private _onPointerEnter = (): void => { this._hovered = true; };
+  private _onPointerLeave = (): void => { this._hovered = false; };
+
+  /** The card the view keys belong to: the one with focus, else the one under the pointer. Never two. */
+  private _ownsViewKeys(): boolean {
+    const focused = globalThis.document?.activeElement;
+    if (focused instanceof FloorplanStudioCard) return focused === this;
+    return this._hovered;
+  }
+
+  /** Arrows zoom (up in, down out) and turn (left, right); Space is Reset view. The same keys as the editor's, from
+   * `view-keys.ts`. A key is taken (preventDefault) only when it did something, so a card that cannot act, because
+   * zoom is off or the controls are hidden, leaves the page its arrows and its Space. Auto-repeat is let through:
+   * holding an arrow keeps zooming. */
+  private _onViewKey = (ev: KeyboardEvent): void => {
+    if (!this.isConnected || !this._ownsViewKeys()) return;
+    if (this._coverDialog || this._vacuumDialog || this._chooserDialog) return; // a dialog has its own keys
+    const key = viewKeyFor(ev);
+    if (key && this._doViewKey(key)) ev.preventDefault();
+  };
+
+  /** Whether the toolbar (View, Theme, Labels, Rotate, Reset) exists, which is when its keys do. */
+  private _hasViewControls(): boolean {
+    return this._config.view_switch !== false && !this._kiosk();
+  }
+
+  private _doViewKey(key: ViewKey): boolean {
+    if (!this._floor()) return false;
+    switch (key) {
+      case "zoomIn":
+      case "zoomOut":
+        if (this._zoomMode() === false) return false;
+        this._zoomCentre(key === "zoomIn" ? BUTTON_ZOOM : 1 / BUTTON_ZOOM);
+        return true;
+      case "rotateLeft":
+      case "rotateRight":
+        if (!this._hasViewControls()) return false;
+        this._turnBy(key === "rotateLeft" ? -ROTATION_STEP : ROTATION_STEP);
+        return true;
+      case "reset":
+        if (this._hasViewControls()) {
+          if (!this._modified()) return false;
+          this._resetView();
+          return true;
+        }
+        if (this._zoomMode() === false || !this._zoomed()) return false;
+        this._fitView();
+        return true;
+    }
+  }
 
   /** The zoomed view as what survives a turn and a reload: its zoom against fit and its centre in plan cm, which is
    * the layout's own coordinates before any rotation. `null` at home. */
@@ -480,6 +549,11 @@ export class FloorplanStudioCard extends LitElement {
     }
     // A reload or a closed tab never runs disconnectedCallback; the debounced save must still go out.
     globalThis.addEventListener?.("pagehide", this._flushSave);
+    // pagehide does not fire for a tab that is hidden and then discarded, or a phone app switched away from.
+    globalThis.document?.addEventListener("visibilitychange", this._onVisibility);
+    globalThis.addEventListener?.("keydown", this._onViewKey);
+    this.addEventListener("pointerenter", this._onPointerEnter);
+    this.addEventListener("pointerleave", this._onPointerLeave);
     this.requestUpdate(); // a turn settled while detached left the last frame on screen
   }
 
@@ -623,6 +697,11 @@ export class FloorplanStudioCard extends LitElement {
     super.disconnectedCallback();
     this._stopTimer();
     globalThis.removeEventListener?.("pagehide", this._flushSave);
+    globalThis.document?.removeEventListener("visibilitychange", this._onVisibility);
+    globalThis.removeEventListener?.("keydown", this._onViewKey);
+    this.removeEventListener("pointerenter", this._onPointerEnter);
+    this.removeEventListener("pointerleave", this._onPointerLeave);
+    this._hovered = false;
     this._settleTurn(false); // cancels the frame loop; the state lands where the turn was going
     this._flushSave();
     this._unbindActions?.();
@@ -1343,6 +1422,7 @@ export class FloorplanStudioCard extends LitElement {
       night: this._night(),
       view,
       tilt: this._tilt(),
+      walls: this._walls(),
       labels: this._labels(),
       around: floorsAroundKey(this._layout!, this._floorKey()!),
     });
@@ -1361,6 +1441,24 @@ export class FloorplanStudioCard extends LitElement {
     return clampTilt(this._pickedTilt ?? this._config.tilt);
   }
 
+  /** The wall heights on show: the select's pick, else `config.walls`, else cut. Config is untrusted, so junk is cut. */
+  private _walls(): WallsMode {
+    return this._pickedWalls ?? wallsModeOf(this._config.walls);
+  }
+
+  /** Next to the Tilt slider, 2.5D only (the caller decides). A pick redraws the plan only and is remembered at once. */
+  private _wallsSelect() {
+    const current = this._walls();
+    const onChange = (e: Event) => {
+      const v = (e.target as HTMLSelectElement).value;
+      if (!(WALLS_MODES as readonly string[]).includes(v)) return;
+      this._pickedWalls = v as WallsMode;
+      this._saveViewNow();
+      this.requestUpdate();
+    };
+    return html`<select aria-label="Walls" title="Walls" @change=${onChange}>${WALLS_MODES.map((m) => html`<option value=${m} ?selected=${m === current}>${WALLS_LABELS[m]}</option>`)}</select>`;
+  }
+
   /** The slider is for 2.5D only: in 2D there is no lift to tilt. Dragging redraws the plan only, like the View select. */
   private _tiltSlider() {
     const onInput = (e: Event) => {
@@ -1376,7 +1474,7 @@ export class FloorplanStudioCard extends LitElement {
    * (`view_switch: false`, kiosk). */
   private _viewControls(current: PlanView) {
     const labels = this._labels();
-    return html`${this._viewSelect(current)}${current === "2.5d" ? this._tiltSlider() : null}${this._themeSelect()}
+    return html`${this._viewSelect(current)}${current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
       <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>
       <span class="fp-pair">
         <button type="button" aria-label="Rotate left" title="Rotate left" @click=${() => this._turnBy(-ROTATION_STEP)}>${this._icon(UI_ICONS.rotateLeft)}</button>
@@ -1405,13 +1503,13 @@ export class FloorplanStudioCard extends LitElement {
   /** Whether anything about the view differs from what the config alone would show: a pick, a zoom, a turn. */
   private _modified(): boolean {
     return this._turn !== null || this._view !== null || this._pendingView !== null
-      || [this._pickedView, this._pickedTilt, this._pickedTheme, this._pickedLabels, this._pickedRot].some((v) => v !== null);
+      || [this._pickedView, this._pickedTilt, this._pickedWalls, this._pickedTheme, this._pickedLabels, this._pickedRot].some((v) => v !== null);
   }
 
   /** Reset view: every view option back to the config's own, the stored entry cleared, the floor kept. The turn goes
    * back the short way (315 to 0 is +45). */
   private _resetView(): void {
-    this._pickedView = this._pickedTilt = this._pickedTheme = this._pickedLabels = null;
+    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = null;
     this._pendingView = null;
     this._view = null;
     const from = this._userAngle();

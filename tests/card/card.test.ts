@@ -1155,7 +1155,7 @@ describe("FloorplanStudioCard", () => {
       const idx = l.floors.ground.furniture.length - 1;
       const el = await mount();
       el.setConfig({ layout: l });
-      el.hass = stubHass({ "cover.gate": st("open") }) as never;
+      el.hass = stubHass({ "cover.gate": st("open", { attributes: { device_class: "garage" } }) }) as never; // a cover is on only as a garage, gate or door
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(`svg g[data-f="${idx}"]`)!.getAttribute("class")).toMatch(/\bon\b/);
     });

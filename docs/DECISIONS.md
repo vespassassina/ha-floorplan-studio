@@ -2,6 +2,137 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-03: the Walls select, in the card and the editor
+
+The `walls` option now has controls. Card: config key `walls` (junk is "cut"),
+a Walls select next to the Tilt slider in 2.5D only, a field in the Edit-card
+form. Editor: View > Walls beside Tilt, enabled in the 2.5D preview only. Both
+pass it to `renderFloor`, so there is still one draw path.
+
+Remembered like tilt. The card stores `walls` in its view entry (picked, saved
+at once, restored before the first render, wins over the config until Reset
+view); the editor stores it in `floorplan-studio:view`. Each reader checks it
+against `WALLS_MODES` and drops anything else on its own, leaving the config's
+(card) or "cut" (editor). The card's view-memory key gains `walls` only when
+the config sets it, as for `tilt`, so cards without it keep their memory.
+Chosen not to coerce a bad stored value to "cut": dropping it lets the config
+decide, which is what the person set last.
+
+## 2026-10-03: a stairwell lies below everything that stands
+
+Diego, on 0.12.21: the first-floor stairs "just render a hole, not the stairs
+going down, they are overlapping weirdly".
+
+Cause. The well's pieces (ground, walls, treads, tread edges) were depth-sorted
+together with walls, so a tread or stripe could be drawn over a wall or over the
+hole's own border. Fix. A `Solid` may be `under`: drawn first, in key order among
+its own kind, then the standing solids. The border of the opening (`well-edge`)
+is drawn last among them. Each tread is veiled darker with depth, and each riser
+twice as dark as the tread above it, so the flight reads as steps going down.
+Only the rim (6 cm up) still sorts with the walls. 2D is unchanged.
+
+## 2026-10-03: a straight wall has one cut; walls get a mode
+
+Diego, again, on 0.12.21: "walls are still not all growing the same in the
+designer".
+
+Measured. The editor and the card call `renderFloor` with the same view, tilt,
+rotation and `around`, and it draws walls from one function, so there is no
+editor/card difference. Over the demo, every 5 degrees, tilt 0.5 and 1: the only
+unequal pairs of overlapping walls differ by 0.06 in cut (about 10 cm). A
+constructed layout showed the real defect: the cut was decided per edge, so one
+straight wall that is several edges (a vertex in the middle of a line, rooms side
+by side along it) could be cut at one end and tall at the other. The examples in
+tests/core/walls-modes.test.ts fail without the fix at most turns.
+
+Fix. Pieces on one line (3 cm), overlapping, or touching and facing the same
+way, share the largest cut among them (`evenRuns`, solids.ts). Two walls on one
+line that face opposite ways (an L-shaped house) stay two.
+
+Not a defect, and left as is. In "cut" a wall at 0 degrees facing the viewer is
+lowered to the cutaway while the side walls stay tall; at 30 degrees the two
+sides differ again (the ease). That is the doll's house rule: it is how the
+rooms stay visible. It reads as unequal walls, so the user now chooses.
+
+Option. `walls` = "full" | "cut" | "low" (`WALLS_MODES`, `WALLS_LABELS`,
+`wallsModeOf` in solids.ts; `RenderOpts.walls`; junk is "cut"). Full: model
+height, no cutaway. Low: every wall at the cutaway height, never raised above its
+own (a 110 cm fence at tilt 0.5 is 90; a 40 cm wall stays 40). 2D is byte for
+byte unchanged. Default stays "cut": unequal heights are the rule working, not a
+fault. Card key and the View menus come from the UI task.
+
+## 2026-10-03: a cover is active only as a garage door, a gate or a door
+
+Supersedes 0.12.20 ("a cover draws idle in every state"). Diego: "curtains
+should NOT show active (they are covers but not the same as a garage door)".
+
+Rule, in one function (`coverActive`, core/cover.ts; `classOf`, the Active list
+and the room `on` class all read it): a cover is
+on while its state is `open`, `opening` or `closing` and its `device_class`
+attribute is `garage`, `gate` or `door`. Every other class, a missing or junk
+class, and every other state read idle. Unavailable and unknown still read
+unavailable. `COVER_CLASSES` lists HA's ten classes, so a class HA adds is idle
+until someone writes it down (finding 17).
+
+Where the class comes from. The `device_class` attribute of the entity's state,
+read at draw time, which the overlay already carries. Chosen over a layout field
+(`cover: "door" | "curtain"`): a layout field is a second source that can
+disagree with HA, and the editor would need a select for what HA already knows.
+No state, no attributes, or a state that has not arrived: idle. We do not guess
+from the entity id (a "garage" in a name is not a class). Door lines are
+unchanged: a door with a `cover` still draws orange when that cover is open.
+
+On 0.12.21 itself a cover was never on in `classOf`; if a curtain still drew
+orange on a dashboard, that was a cached 0.12.19 or older bundle.
+## 2026-10-03: the view is remembered, saved on touch, and driven by keys
+
+Diego, on 0.12.21: no rotate buttons in the editor; add Cmd/Ctrl+S, arrow
+keys for zoom and turn, Space to reset; "the template and view resets between
+reloads"; two editor dashboards in the sidebar. Decisions.
+
+Cause of the reset, with evidence. The card's key (`fp-view:` plus a hash of
+the config seed) is stable across reloads, and a Playwright reload of the
+built card with the Home Assistant lifecycle (repeated `setConfig`, element
+re-attach) kept zoom, centre, turn, view, tilt, theme and names. Those tests
+pass on unmodified code, so the bug is not a moving key. What the card did
+lose: the floor (never stored, so every reload landed on the first floor and
+read as a reset), anything touched within 400 ms of leaving (the debounce
+outlived the page, and nothing flushed on `visibilitychange`), and in the
+editor everything: zoom, centre, turn, 2D or 2.5D, tilt and names were
+session state and there was no memory at all. Fix: the card stores `floor`,
+debounces 150 ms and flushes when hidden; the editor gets its own memory.
+
+Editor memory. One key, `floorplan-studio:view`, per origin and not per
+document: it says nothing about the plan, so an edited, opened or reset plan
+keeps its view. Holds floor, mode, tilt, labels, the turn and, per floor, a
+zoom against that floor's fit, a centre in plan cm and the box's aspect. A
+floor shown whole is not stored, so a plan that grows is not clipped by an old
+fit. Parsed field by field, capped at 50 floors, floor names as list entries
+(a floor may be called `__proto__`). Read once, with the first layout; a floor
+the host asks for wins. Theme, grid, measure and night keep their own keys.
+Walls mode: not included. Its exports are not in this branch.
+
+The turn. `EditorState.viewRot` (0..315) is added to `layout.rotate`. It is
+not an edit: no undo step, never in the layout. Plan rotate (Edit) stays a
+document edit and drops the views, as before. Animation is rAF, 350 ms per
+step, none under reduced motion; a zoomed view keeps centre and zoom, a whole
+view is refitted per frame.
+
+Keys, one rule shared by card and editor (`src/card/view-keys.ts`). Cmd/Ctrl+S
+first and everywhere (editor only). Then a typing target (input except
+checkbox/radio/button types, select, textarea, contenteditable) owns
+everything; a button, summary, link, checkbox or ARIA button also owns Space.
+Ctrl/Cmd chords are never view keys. Alt and Shift are allowed. Editor keys
+are heard on the editor host, never `window`. The card listens on `window`
+but acts only for the card focused or hovered. No arrow nudge exists, so there
+is no clash with a selection.
+
+Sidebar. The integration registers one panel (`panel_custom`, url
+`floorplan-studio`) and one config entry (`single_config_entry`). A second
+"editor" in the sidebar is not made here: it is a dashboard Diego created
+(Settings, Dashboards) or a leftover `panel_custom` / `panel_iframe` in YAML.
+Remove it there. No code change in `custom_components`.
+
 ## 2026-10-03: plugs are active by watts, not by switch
 
 Diego: "the plugs, show them active only if they are consuming power, not if

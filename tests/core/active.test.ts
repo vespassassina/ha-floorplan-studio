@@ -12,7 +12,7 @@ const layoutOf = (devices: Device[]): Layout => ({ version: 2, unit: "cm", north
 
 /** A state overlay that puts `entity` in whatever shape makes `classOf`/the active rule read it as "on", per type. */
 const ON_STATE: Partial<Record<Device["type"], ReturnType<typeof st>>> = {
-  light: st("on"), motion: st("on"), contact: st("on"), tv: st("on"), plug: st("on"), computer: st("on"), cover: st("open"),
+  light: st("on"), motion: st("on"), contact: st("on"), tv: st("on"), plug: st("on"), computer: st("on"), cover: st("open", { device_class: "garage" }),
   heater: st("heat", { hvac_action: "heating" }), climate: st("heat", { hvac_action: "heating" }),
   ac: st("cool", { hvac_action: "cooling" }), media: st("playing"), person: st("home"),
   camera: st("idle"), vacuum: st("cleaning"), speaker: st("playing"),

@@ -1,6 +1,6 @@
 import { LitElement, css, html } from "lit";
-import { DEFAULT_TILT, THEMES, clampTilt, migrate, validate } from "../core";
-import type { Layout, Theme } from "../core";
+import { DEFAULT_TILT, THEMES, WALLS_LABELS, WALLS_MODES, wallsModeOf, clampTilt, migrate, validate } from "../core";
+import type { Layout, Theme, WallsMode } from "../core";
 import type { FloorplanStudioCardConfig, Hass } from "./floorplan-studio-card";
 import { defineElement } from "./define";
 import { ROTATION_STEP, normaliseRotation } from "./view-state";
@@ -173,6 +173,14 @@ export class FloorplanStudioCardEditor extends LitElement {
 
   private _onTilt(e: Event): void {
     this._set("tilt", clampTilt(Number((e.target as HTMLInputElement).value)), DEFAULT_TILT);
+  }
+
+  private _walls(): WallsMode {
+    return wallsModeOf(this._config.walls);
+  }
+
+  private _onWalls(e: Event): void {
+    this._set("walls", wallsModeOf((e.target as HTMLSelectElement).value), "cut");
   }
 
   private _night(): "auto" | "on" | "off" {
@@ -471,6 +479,13 @@ export class FloorplanStudioCardEditor extends LitElement {
       <div class="row">
         <label class="main" for="tilt">Tilt (2.5D)</label>
         <input id="tilt" type="range" min="0" max="1" step="0.01" .value=${String(clampTilt(this._config.tilt))} @change=${this._onTilt} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="walls">Walls (2.5D)</label>
+        <select id="walls" @change=${this._onWalls}>
+          ${WALLS_MODES.map((m) => html`<option value=${m} ?selected=${this._walls() === m}>${WALLS_LABELS[m]}</option>`)}
+        </select>
       </div>
 
       <div class="row">

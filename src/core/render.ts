@@ -6,8 +6,9 @@ import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
 import { esc, num, pts, tag } from "./fmt";
+import { coverActive } from "./cover";
 import { plugThreshold, wattsOf } from "./power";
-import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, type Proj, type Solid } from "./solids";
+import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
 
@@ -35,6 +36,8 @@ export interface RenderOpts {
   labels?: boolean;
   /** 0..1, how steeply the 2.5D view looks down: 0 is top-down (no lift), 1 is side-on. Only read with `view: "2.5d"`; see `obliqueFor`. Default `DEFAULT_TILT`, today's look. */
   tilt?: number;
+  /** 2.5D wall heights: "full" every wall at its model height, "cut" (default, also for junk) the doll's house cutaway, "low" every wall at the cutaway height. See `WALLS_MODES`. 2D ignores it. */
+  walls?: WallsMode;
   /** A plug is active from this many watts (default 2, `PLUG_ACTIVE_WATTS`). Junk is the default; see power.ts. */
   plugWatts?: number;
   /** Plug entity -> power sensor entity, found at runtime by the card for plugs with no `power` of their own. An explicit `power` wins. */
@@ -259,6 +262,7 @@ export const FLOORPLAN_CSS = `
 .stair-dir{fill:none;stroke:var(--fp-wall);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;pointer-events:none} .stair-shade{fill:var(--fp-night);pointer-events:none}
 /* The same stairs in 2.5D, going down: a well in the floor. Walls and treads take .stair-shade as a veil, darker with depth. */
 .well-wall,.well-floor{fill:var(--fp-wall-side)} .well-tread{fill:var(--fp-box-top)} .well-riser{fill:var(--fp-box-side)}
+.well-edge{fill:none;stroke:var(--fp-wall-top);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke;pointer-events:none}
 .well-rim{fill:var(--fp-box-side);stroke:var(--fp-wall-top);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 /* S8.11 (Diego's field report: "openings must be transparent and make the wall under them transparent too"): an
    opening no longer paints a band over the wall — renderFloor cuts a real hole in the wall layer with an SVG
@@ -293,7 +297,7 @@ export const FLOORPLAN_CSS = `
 .dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
-.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)}
+.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}
 /* S7.10: an error vacuum wears --fp-danger on its icon, two classes ahead of the plain idle-grey .dev path rule above. */
 .dev.danger path{fill:var(--fp-danger)}
 /* S4.25: an unlinked item has no on/off state of its own, so it never carries .on — it stays at the plain .dev
@@ -559,9 +563,9 @@ export function classOf(d: Device, o: RenderOpts): Cls {
     if (s.state === "cleaning" || s.state === "returning") return "on";
     return "off";
   }
-  // Diego, 2026-10: curtains, blinds, shutters and garage doors are covers, and open is not an alert for them. They
-  // draw idle in every state (their tap, tooltip and the door lines are unaffected); only unavailable still shows.
-  if (d.type === "cover") return "off";
+  // Diego, 2026-10-03: a cover is active only while a garage door, a gate or a door stands open; a curtain, blind or
+  // shutter draws idle in every state. `coverActive` reads the entity's device_class and decides (cover.ts).
+  if (d.type === "cover") return coverActive(s) ? "on" : "off";
   return s.state === "on" || s.state === "open" ? "on" : "off";
 }
 
@@ -609,6 +613,7 @@ function entityOn(o: RenderOpts, entity: string | undefined, plugs?: ReadonlyMap
   // A room or piece of furniture that shows a plug's switch follows the plug's own rule, not the bare switch state.
   const plug = plugs?.get(entity);
   if (plug) return classOf(plug, o) === "on";
+  if (entity.startsWith("cover.")) return coverActive(s); // a curtain behind a room does not light it either
   return ON_STATES.has(s.state);
 }
 
@@ -853,7 +858,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
   // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.
   if (x25) {
-    solids.push(...wallSolids(f, px));
+    solids.push(...wallSolids(f, px, wallsModeOf(o.walls)));
     f.furniture.forEach((m, i) => {
       const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
       const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, entityOn(o, m.entity, plugs), sym.svg, px) : null;
@@ -861,7 +866,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     });
     for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
     for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px, resolveStairDirection(t, o.around)));
-    out.push(...solids.sort((a, b) => a.key - b.key).map((s) => s.svg));
+    // What lies below the floor (a stairwell) goes first: nothing standing on the floor is ever drawn under it.
+    out.push(...solids.filter((s) => s.under).sort((a, b) => a.key - b.key).map((s) => s.svg));
+    out.push(...solids.filter((s) => !s.under).sort((a, b) => a.key - b.key).map((s) => s.svg));
   }
 
   // S7.1: no text overprints another text or a device icon. Every text is placed against one list of boxes, in the screen

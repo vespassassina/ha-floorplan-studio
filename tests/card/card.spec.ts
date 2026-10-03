@@ -2546,3 +2546,25 @@ test.describe("plug power", () => {
     expect((await plug(page)).cls).toContain("on");
   });
 });
+
+// Diego, 2026-10-03: only a garage door, a gate or a door is active when open. The pair for the rule in cover.ts, on the
+// real stylesheet: a garage cover is painted in the cover colour, a curtain (same state, other device_class) is not.
+test("CSS pair: an open garage cover is drawn in the cover colour, an open curtain is idle", async ({ page }) => {
+  await open(page);
+  const layout = structuredClone(demo);
+  const devices = layout.floors.ground.devices as unknown[];
+  devices.push({ id: "cover", type: "cover", entity: "cover.c", name: "Cover", x: 300, y: 300 });
+  const idx = devices.length - 1;
+  const read = () => page.locator("floorplan-studio-card").evaluate((el, i) => {
+    const g = el.shadowRoot!.querySelector(`svg g[data-x="${i}"]`)!;
+    return { fill: getComputedStyle(g.querySelector("path:not(.halo)")!).fill, cover: getComputedStyle(g).getPropertyValue("--fp-dev-cover").trim() };
+  }, idx);
+  const rgbOf = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ")})`;
+  const now = new Date().toISOString();
+  await configure(page, { layout }, { states: { "cover.c": { state: "open", attributes: { device_class: "curtain" }, last_changed: now } } });
+  const curtain = await read();
+  await configure(page, { layout }, { states: { "cover.c": { state: "open", attributes: { device_class: "garage" }, last_changed: now } } });
+  const garage = await read();
+  expect(garage.fill).toBe(rgbOf(garage.cover));
+  expect(curtain.fill).not.toBe(garage.fill);
+});

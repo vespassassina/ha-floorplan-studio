@@ -1440,7 +1440,7 @@ describe("S2.9: a device wears its colour when it is on", () => {
 // from a deliberate grey — the S2.9 verifier found media, cover and other sitting there while SPEC promised media
 // an accent. This test makes every member of DEVICE_TYPES a decision someone had to write down.
 describe("S2.9: every device type has a decided active colour", () => {
-  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "battery", "inverter", "server", "access_point", "boiler", "car", "ups", "printer", "cover"]; // cover: open is no alert, it draws idle (Diego, 2026-10; tests/core/cover-idle.test.ts). S2.13: these are monitored, not switched; the S4.25 four (speaker moved to its own on colour in S9.4) are unlinked-only types with no entity state to read, so never on
+  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "battery", "inverter", "server", "access_point", "boiler", "car", "ups", "printer"]; // S2.13: these are monitored, not switched; the S4.25 four (speaker moved to its own on colour in S9.4) are unlinked-only types with no entity state to read, so never on
   it.each(DEVICE_TYPES)("%s either names its own --fp-dev or is idle on purpose", (t) => {
     if (t === "ac") return; // ac has two: .dev-ac.cool.on and .dev-ac.heat.on, tested below
     const rule = new RegExp(`\\.dev-${t}\\.on\\{--fp-dev:var\\((--fp-[a-z-]+)\\)\\}`);
@@ -1472,7 +1472,7 @@ describe("S2.9: a room or a piece of furniture with an entity carries the on cla
   });
 
   it("open and playing also count as on; off does not", () => {
-    expect(roomClass(draw([room("zone", { entity: "cover.gate" })], [], { "cover.gate": st("open") }))).toContain("on");
+    expect(roomClass(draw([room("zone", { entity: "cover.gate" })], [], { "cover.gate": st("open", { attributes: { device_class: "gate" } }) }))).toContain("on");
     expect(roomClass(draw([room("zone", { entity: "media_player.x" })], [], { "media_player.x": st("playing") }))).toContain("on");
     expect(roomClass(draw([room("zone", { entity: "cover.gate" })], [], { "cover.gate": st("closed") }))).not.toContain("on");
   });

@@ -1,9 +1,12 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
-import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, WALLS_LABELS, WALLS_MODES, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
+import type { AddCandidate, DeviceType, WallsMode, Floor, HaData, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM } from "../card/viewport";
+import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
+import { isSaveChord, viewKeyFor, type ViewKey } from "../card/view-keys";
+import { readViewMemory, writeViewMemory } from "./view-memory";
 import { traceImage } from "./trace";
 import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
@@ -123,6 +126,10 @@ const HA_KIND_LABELS: [Labelled["kind"], string][] = [["helper", "Helpers"], ["a
 
 /** The Plan view options: one list for the markup and the check. 3D joins it when it exists. */
 const VIEW_OPTIONS = [{ value: "2d", label: "2D" }, { value: "2.5d", label: "2.5D" }] as const;
+/** One 45 degree turn takes this long; more steps stretch it, within bounds (the card uses the same). */
+const TURN_MS = 350;
+/** A view change is written this long after the last one. Short, so a reload right after a touch still finds it. */
+const VIEW_SAVE_MS = 150;
 const PREVIEW_NOTE = "2.5D is a preview. Switch to 2D to edit.";
 
 export class FloorplanStudioEditor extends LitElement {
@@ -188,6 +195,13 @@ export class FloorplanStudioEditor extends LitElement {
   private exportTrace = false;
   private rect = { w: 800, h: 600 };
   private ro?: ResizeObserver;
+  /** The turn in flight, if any. `whole`: the floor was shown whole when it began, so it is refitted every frame. */
+  private turn: { from: number; to: number; t0: number; dur: number; whole: boolean; raf: number } | null = null;
+  /** The remembered view is read once, with the first layout; before that nothing is written. */
+  private viewRestored = false;
+  private memKey: string | null = null;
+  private memSig = "";
+  private memTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
     super();
@@ -308,10 +322,49 @@ export class FloorplanStudioEditor extends LitElement {
     if (!r.ok) { this.errors = r.errors; return; }
     this.errors = [];
     this.st.setLayout(r.layout, this.floor);
+    if (!this.viewRestored) {
+      this.viewRestored = true;
+      // A floor the host asked for wins over the remembered one.
+      const m = readViewMemory();
+      if (this.floor) delete m.floor;
+      this.st.importView(m);
+      this.memSig = JSON.stringify(this.st.exportView());
+      this.memKey = this.viewKey();
+    }
     this.floor = this.st.floor;
     this.refreshNames();
     this.requestUpdate("layout", old);
   }
+
+  // ---- the remembered view -------------------------------------------------
+
+  /** Cheap stand-in for the view: when it is unchanged, `exportView` need not run on every render. */
+  private viewKey(): string {
+    const st = this.st;
+    return `${st.floor}|${st.viewMode}|${st.tilt}|${st.walls}|${st.labels}|${st.viewRot}|${JSON.stringify(st.views)}`;
+  }
+
+  protected updated() {
+    if (this.memKey === null || this.st.turning !== null) return; // not loaded yet, or a frame of a turn
+    const key = this.viewKey();
+    if (key === this.memKey) return;
+    this.memKey = key;
+    if (JSON.stringify(this.st.exportView()) === this.memSig) return;
+    clearTimeout(this.memTimer);
+    this.memTimer = setTimeout(this.flushView, VIEW_SAVE_MS);
+  }
+
+  /** Writes the view now if it differs from what was last written. Storage that refuses is not an error: the view just is not kept. */
+  private flushView = () => {
+    clearTimeout(this.memTimer);
+    this.memTimer = undefined;
+    if (this.memKey === null || this.st.turning !== null) return;
+    const m = this.st.exportView(), sig = JSON.stringify(m);
+    if (sig === this.memSig) return;
+    this.memSig = sig;
+    writeViewMemory(m);
+  };
+  private onVisibility = () => { if (document.visibilityState === "hidden") this.flushView(); };
 
   static styles = css`
     ${css([FLOORPLAN_CSS] as unknown as TemplateStringsArray)}
@@ -422,6 +475,7 @@ export class FloorplanStudioEditor extends LitElement {
     .canvas{position:relative;border:1px solid var(--fp-idle);height:var(--fp-editor-height,calc(100vh - 150px));min-height:420px;touch-action:none;background:var(--fp-bg)}
     .zoom{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px;z-index:2}
     .zoom .btn{width:24px;height:24px;padding:0;text-align:center;line-height:1;font-size:13px}
+    .zoom .btn svg{width:16px;height:16px;display:block;margin:0 auto}
     .canvas svg{width:100%;height:100%;display:block;cursor:grab;user-select:none}
     .canvas svg.drawing,.canvas svg.drawing *{cursor:crosshair}
     /* S7.11: the scan is drawn under everything; see-through room fills keep it visible where a room is already traced. Editor only. */
@@ -490,6 +544,8 @@ export class FloorplanStudioEditor extends LitElement {
     // Keys are heard on the element only, so Delete or Ctrl+Z elsewhere in a page does nothing here.
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
     this.addEventListener("keydown", this.onKey);
+    window.addEventListener("pagehide", this.flushView);
+    document.addEventListener("visibilitychange", this.onVisibility);
     this.addEventListener("focusout", this.onFocusOut);
     this.addEventListener("click", this.onButtonClick);
     window.addEventListener("click", this.onWindowClick);
@@ -497,6 +553,10 @@ export class FloorplanStudioEditor extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.removeEventListener("keydown", this.onKey);
+    window.removeEventListener("pagehide", this.flushView);
+    document.removeEventListener("visibilitychange", this.onVisibility);
+    this.stopTurn();
+    this.flushView();
     this.removeEventListener("focusout", this.onFocusOut);
     this.removeEventListener("click", this.onButtonClick);
     window.removeEventListener("click", this.onWindowClick);
@@ -526,7 +586,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.measure();
   }
 
-  private get svgEl(): SVGSVGElement | null { return this.renderRoot.querySelector("svg"); }
+  private get svgEl(): SVGSVGElement | null { return this.renderRoot.querySelector(".canvas > svg"); } // the plan, not the icons inside the buttons
   private measure() {
     const r = this.svgEl?.getBoundingClientRect();
     if (r && r.width > 0 && r.height > 0 && (Math.abs(r.width - this.rect.w) > 0.5 || Math.abs(r.height - this.rect.h) > 0.5)) {
@@ -1600,12 +1660,89 @@ export class FloorplanStudioEditor extends LitElement {
   /** Zoom by `k` (below 1 zooms in) about the middle of what is shown; 0 fits the whole floor again. A view change only: no layout edit, no undo step. */
   private zoomBy(k: number) {
     const st = this.st, v = st.view;
+    if (this.turn) this.turn.whole = false; // a zoom chosen mid-turn is kept, not refitted away
     if (!k) st.fit();
     else { const cx = v.x + v.w / 2, cy = v.y + v.h / 2; st.views[st.floor] = { x: cx - (v.w * k) / 2, y: cy - (v.h * k) / 2, w: v.w * k, h: v.h * k }; }
     this.requestUpdate();
   }
 
+  /** Whether the floor on show is at its fit (zoom 1). Such a view is refitted as the plan turns; a zoomed one keeps its centre and zoom. */
+  private viewIsWhole(): boolean {
+    const st = this.st, was = st.views[st.floor];
+    if (!was) return true;
+    const fit = viewBoxFor(st.f, 80, st.rotation, st.viewMode, st.tilt);
+    return Math.abs(was.w / fit.w - 1) < 1e-3 && Math.abs(was.h / fit.h - 1) < 1e-3;
+  }
+
+  /** The Rotate view buttons and arrow keys: 45 degrees on top of `layout.rotate`, animated. View state only: the layout is never written and there is no undo step. */
+  private turnBy(delta: number) {
+    this.startTurn((this.turn ? this.turn.to : this.st.viewRot) + delta, this.turn ? this.turn.whole : this.viewIsWhole());
+  }
+
+  /** Reset view: the whole floor, the plan upright (by the shortest way round). */
+  private resetView() {
+    const st = this.st, from = this.turn ? this.turn.to : st.viewRot;
+    if (!from && !this.turn) { st.fit(); this.requestUpdate(); return; }
+    this.startTurn(from + shortestDelta(from, 0), true);
+  }
+
+  private startTurn(to: number, whole: boolean) {
+    const st = this.st, from = st.turning ?? st.viewRot;
+    if (this.turn) cancelAnimationFrame(this.turn.raf);
+    const dur = TURN_MS * Math.min(2, Math.max(0.4, Math.abs(to - from) / ROTATION_STEP));
+    this.turn = { from, to, t0: performance.now(), dur, whole, raf: 0 };
+    st.turning = from;
+    if (globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true) { this.settleTurn(); return; }
+    this.turn.raf = requestAnimationFrame(this.tickTurn);
+    this.requestUpdate();
+  }
+
+  private tickTurn = () => {
+    const t = this.turn;
+    if (!t) return;
+    const p = (performance.now() - t.t0) / t.dur;
+    if (p >= 1) { this.settleTurn(); return; }
+    this.st.turning = t.from + (t.to - t.from) * easeInOut(p);
+    if (t.whole) this.st.fit();
+    t.raf = requestAnimationFrame(this.tickTurn);
+    this.requestUpdate();
+  };
+
+  /** Ends the turn at its target: the stored step is wrapped to 0..315 and the frame angle is dropped. */
+  private settleTurn() {
+    const t = this.turn;
+    if (!t) return;
+    cancelAnimationFrame(t.raf);
+    this.turn = null;
+    this.st.viewRot = normaliseRotation(t.to);
+    this.st.turning = null;
+    if (t.whole) this.st.fit();
+    this.requestUpdate();
+  }
+
+  /** Leaves a turn where it is going, without drawing (the editor is leaving). */
+  private stopTurn() {
+    if (!this.turn) return;
+    cancelAnimationFrame(this.turn.raf);
+    this.st.viewRot = normaliseRotation(this.turn.to);
+    this.st.turning = null;
+    this.turn = null;
+  }
+
+  private doViewKey(key: ViewKey, ev: KeyboardEvent) {
+    ev.preventDefault();
+    if (key === "zoomIn") this.zoomBy(1 / 1.25);
+    else if (key === "zoomOut") this.zoomBy(1.25);
+    else if (key === "rotateLeft") this.turnBy(-ROTATION_STEP);
+    else if (key === "rotateRight") this.turnBy(ROTATION_STEP);
+    else this.resetView();
+  }
+
   private onKey = (ev: KeyboardEvent) => {
+    // Cmd/Ctrl+S is Save from anywhere in the editor, a text box included; the browser's own save-page dialog never opens.
+    if (isSaveChord(ev) && !ev.defaultPrevented && !ev.isComposing) { ev.preventDefault(); this.saveByKey(); return; }
+    const vk = viewKeyFor(ev);
+    if (vk) { this.doViewKey(vk, ev); return; }
     const t = ev.composedPath()[0] as HTMLElement | undefined;
     if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     if (this.st.preview && ev.key !== "Escape") return; // a preview has no edit shortcut: not undo, not Delete
@@ -2203,6 +2340,12 @@ export class FloorplanStudioEditor extends LitElement {
 
   private setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; this.placePos = null; this.requestUpdate(); } // the Place popup belongs to a room of the floor it was opened on
 
+  /** Cmd/Ctrl+S: the Save button's action, except that an empty plan says so instead of writing nothing useful. */
+  private saveByKey() {
+    if (isBlank(this.st.layout)) { this.status = "Nothing to save yet: the plan is empty. Draw something, then press Cmd/Ctrl+S."; this.requestUpdate(); return; }
+    this.save();
+  }
+
   private save() {
     const v = validate(this.st.layout);
     if (!v.ok) { this.errors = v.errors; return; }
@@ -2321,7 +2464,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (perAxis(step) > 400) step = 100;
     if (perAxis(step) > 400) step = 500;
     const numStep = step === 50 ? 100 : step; // at 50 cm, number only the whole metres; else every line already is one
-    const deg = st.layout.rotate ?? 0;
+    const deg = st.turnDeg;
     const upright = (x: number, y: number) => (deg % 360 ? ` transform="rotate(${num(-deg)} ${num(x)} ${num(y)})"` : "");
     const x1 = box.x + box.w, y1 = box.y + box.h;
     const first = (from: number, z: number, s: number) => z + Math.ceil((from - z) / s) * s;
@@ -2349,7 +2492,7 @@ export class FloorplanStudioEditor extends LitElement {
   private overlay(k: number): string {
     const st = this.st, f = st.f, s = st.sel, o: string[] = [];
     const line = (a: Pt, b: Pt, cls: string, extra = "") => `<line class="${cls}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}" ${extra}/>`;
-    const deg = st.layout.rotate ?? 0, upright = (x: number, y: number) => (deg % 360 ? ` transform="rotate(${num(-deg)} ${num(x)} ${num(y)})"` : "");
+    const deg = st.turnDeg, upright = (x: number, y: number) => (deg % 360 ? ` transform="rotate(${num(-deg)} ${num(x)} ${num(y)})"` : "");
     const len = (a: Pt, b: Pt) => `<text class="len" x="${num((a[0] + b[0]) / 2)}" y="${num((a[1] + b[1]) / 2)}"${upright((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)} text-anchor="middle" font-size="${num(10 * k)}">${(dist(a, b) / 100).toFixed(2)} m</text>`;
     if (s?.t === "edge") { const pts = polyPts(f, s.poly); if (pts) { const a = pts[s.i], b = pts[(s.i + 1) % pts.length]; o.push(line(a, b, "hl", 'stroke-width="4"'), len(a, b)); } }
     if (s?.t === "opening" && f.openings[s.i]) o.push(line(f.openings[s.i].a, f.openings[s.i].b, "hl", 'stroke-width="4"'));
@@ -2419,7 +2562,7 @@ export class FloorplanStudioEditor extends LitElement {
     const groupKindOf = (g: { members?: string[] }) => (g.members ?? [])[0]?.split(".")[0] === "binary_sensor" ? "motion" as const : (g.members ?? [])[0]?.split(".")[0] === "light" ? "light" as const : undefined;
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: !preview, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, view: st.viewMode, tilt: st.tilt, labels: st.labels, around: floorsAroundKey(st.layout, st.floor) }) + turnG(overlay);
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: !preview, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, view: st.viewMode, tilt: st.tilt, walls: st.walls, labels: st.labels, around: floorsAroundKey(st.layout, st.floor) }) + turnG(overlay);
     const counts: Record<string, number> = {};
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const pressed = (b: boolean) => (b ? "true" : "false");
@@ -2483,6 +2626,8 @@ export class FloorplanStudioEditor extends LitElement {
             <select id="view-mode" @change=${(e: Event) => this.setViewMode((e.target as HTMLSelectElement).value)}>${VIEW_OPTIONS.map((o) => html`<option value=${o.value} ?selected=${st.viewMode === o.value}>${o.label}</option>`)}</select></div>
           <div class="rotrow"><label for="tilt">Tilt</label>
             <input id="tilt" type="range" min="0" max="1" step="0.01" .value=${String(st.tilt)} ?disabled=${st.viewMode !== "2.5d"} title="How steeply 2.5D looks down: flat at the left, side-on at the right" @input=${(e: Event) => { st.setTilt(Number((e.target as HTMLInputElement).value)); this.requestUpdate(); }}></div>
+          <div class="rotrow"><label for="walls">Walls</label>
+            <select id="walls" ?disabled=${st.viewMode !== "2.5d"} title="How 2.5D draws wall heights" @change=${(e: Event) => { st.setWalls((e.target as HTMLSelectElement).value as WallsMode); this.requestUpdate(); }}>${WALLS_MODES.map((m) => html`<option value=${m} ?selected=${st.walls === m}>${WALLS_LABELS[m]}</option>`)}</select></div>
           <div class="rotrow" id="snap" role="group" aria-label="Snap"><span>Snap</span>
             ${GRID_VALUES.map((g) => html`<button class="chip keep" data-grid=${g} aria-pressed=${pressed(st.snapGrid === g)} @click=${() => { st.setGrid(g); this.requestUpdate(); }}>${g ? `${g} cm` : "None"}</button>`)}</div>
           <button class="chip" id="mgrid" aria-pressed=${pressed(st.measure)} title="A faint 50 cm grid with metre markers, behind the plan" @click=${() => { st.setMeasure(!st.measure); this.requestUpdate(); }}>Measure grid</button>
@@ -2546,12 +2691,15 @@ export class FloorplanStudioEditor extends LitElement {
       ${this.errors.length ? html`<div class="errors" id="errors" role="alert"><strong>That layout was not used.</strong><ul>${this.errors.map((e) => html`<li>${e}</li>`)}</ul><button class="btn" id="errclose" @click=${() => { this.errors = []; }}>Dismiss</button></div>` : nothing}
       <div class="ed">
         <div class="canvas">
+          <svg xmlns="http://www.w3.org/2000/svg" class=${[this.draw ? "drawing" : "", f.trace?.on === true ? "tracing" : ""].filter(Boolean).join(" ")} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
+          <!-- After the plan svg in the DOM, not before: specs and code that ask for "the first svg" must get the plan, not a button icon. It sits on top by z-index. -->
           <div class="zoom" role="group" aria-label="Zoom">
             <button class="btn" id="zin" title="Zoom in" aria-label="Zoom in" @click=${() => this.zoomBy(1 / 1.25)}>+</button>
             <button class="btn" id="zout" title="Zoom out" aria-label="Zoom out" @click=${() => this.zoomBy(1.25)}>&minus;</button>
-            <button class="btn" id="zreset" title="Reset zoom: fit the whole floor" aria-label="Reset zoom" @click=${() => this.zoomBy(0)}>0</button>
+            <button class="btn" id="zreset" title="Reset view: fit the whole floor, plan upright (Space)" aria-label="Reset view" @click=${() => this.resetView()}>0</button>
+            <button class="btn" id="vrotl" title="Rotate view left (Left arrow)" aria-label="Rotate view left" @click=${() => this.turnBy(-ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateLeft} fill="currentColor"/></svg></button>
+            <button class="btn" id="vrotr" title="Rotate view right (Right arrow)" aria-label="Rotate view right" @click=${() => this.turnBy(ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateRight} fill="currentColor"/></svg></button>
           </div>
-          <svg xmlns="http://www.w3.org/2000/svg" class=${[this.draw ? "drawing" : "", f.trace?.on === true ? "tracing" : ""].filter(Boolean).join(" ")} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
           ${this.ctxMenu ? this.ctxMenuView(this.ctxMenu) : nothing}
           ${this.devColsPos ? this.devColsView(st) : nothing}
           ${this.haPos && this.writer ? this.haView() : nothing}
