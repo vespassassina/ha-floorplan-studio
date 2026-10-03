@@ -169,3 +169,23 @@ describe("placeArea (S4.15): every unplaced entity of a room's HA area, in one s
     for (const d of st.f.devices.slice(1)) expect("x" in d && inside([d.x, d.y], st.f.rooms[0].pts)).toBe(true);
   });
 });
+
+describe("placeArea: motion zones and motion groups (field report 2026-10)", () => {
+  beforeEach(() => localStorage.clear());
+  it("places every zone of a multisensor and a motion group, each typed motion", () => {
+    const st = new EditorState(layout());
+    st.ha = {
+      areas: [{ id: "kitchen", name: "Kitchen" }], devices: [{ id: "d1", name: "Kitchen sensor" }],
+      entities: [
+        { id: "binary_sensor.k_a", name: "Zone A", domain: "binary_sensor", dc: "motion", area: "kitchen", dev: "d1" },
+        { id: "binary_sensor.k_b", name: "Zone B", domain: "binary_sensor", dc: "occupancy", area: "kitchen", dev: "d1" },
+        { id: "group.k_motion", name: "Kitchen motion", domain: "group", area: "kitchen", members: ["binary_sensor.k_a", "binary_sensor.k_b"] },
+        { id: "group.k_mixed", name: "Mixed", domain: "group", area: "kitchen", members: ["binary_sensor.k_a", "light.lamp"] },
+      ],
+    } as unknown as HaData;
+    expect(st.areaToPlace(0).map((e) => e.id).sort()).toEqual(["binary_sensor.k_a", "binary_sensor.k_b", "group.k_motion"]);
+    expect(st.placeArea(0)).toBe(3);
+    const added = st.f.devices.filter((d) => d.entity !== "light.lamp");
+    expect(added.map((d) => d.type)).toEqual(["motion", "motion", "motion"]);
+  });
+});
