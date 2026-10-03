@@ -1,9 +1,11 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
 import { dist, edgeKindsNear, stairSteps } from "./geometry";
+import { stairMarks } from "./stair-marks";
+import { resolveStairDirection, type FloorsAround } from "./stairs";
 import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
-import { esc, num, pts } from "./fmt";
+import { esc, num, pts, tag } from "./fmt";
 import { plugThreshold, wattsOf } from "./power";
 import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, type Proj, type Solid } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
@@ -37,6 +39,8 @@ export interface RenderOpts {
   plugWatts?: number;
   /** Plug entity -> power sensor entity, found at runtime by the card for plugs with no `power` of their own. An explicit `power` wins. */
   powerLinks?: Record<string, string>;
+  /** Whether the house has a floor over this one and under it, for the direction a stair with no `direction` of its own takes (stairs.ts). Omitted, the neighbours are unknown and such a stair reads up, as ever. */
+  around?: FloorsAround;
 }
 /** How the plan is drawn. "3d" will be a different renderer (docs/DECISIONS.md), so it is not a member yet. */
 export type PlanView = "2d" | "2.5d";
@@ -250,6 +254,12 @@ export const FLOORPLAN_CSS = `
 .ws.fence{fill:var(--fp-wall-fence);fill-opacity:.4;stroke:var(--fp-wall-fence)} .ws.sealed{fill:var(--fp-sealed);stroke:var(--fp-sealed)}
 .glass{fill:var(--fp-window);fill-opacity:.35;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke} .glass.g-glass{fill:var(--fp-glass);stroke:var(--fp-glass)}
 .e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none}
+/* A stair that goes down or both ways (stairs.ts): an arrow on its axis, and going down the steps darkened toward the low end.
+   Both take no click (finding 18): the flight underneath is the target. --fp-night is the one dark veil every theme has. */
+.stair-dir{fill:none;stroke:var(--fp-wall);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;pointer-events:none} .stair-shade{fill:var(--fp-night);pointer-events:none}
+/* The same stairs in 2.5D, going down: a well in the floor. Walls and treads take .stair-shade as a veil, darker with depth. */
+.well-wall,.well-floor{fill:var(--fp-wall-side)} .well-tread{fill:var(--fp-box-top)} .well-riser{fill:var(--fp-box-side)}
+.well-rim{fill:var(--fp-box-side);stroke:var(--fp-wall-top);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 /* S8.11 (Diego's field report: "openings must be transparent and make the wall under them transparent too"): an
    opening no longer paints a band over the wall — renderFloor cuts a real hole in the wall layer with an SVG
    mask, so whatever is under it (a room's own fill, its texture, the background) shows through. This line still
@@ -376,11 +386,7 @@ const OPENING_EXTRA = WALL_HALO_EXTRA + 2;
 /** A short, deterministic tag for a string (FNV-1a, 32-bit, base36). Not security-sensitive: only used to keep a
  *  generated id short while still varying with its content. Exported (S9.5): the active-devices list panel keys
  *  its localStorage entry off a hash of the card's own config, the same idea as the mask and pattern ids below. */
-export function tag(s: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
-  return (h >>> 0).toString(36);
-}
+export { tag }; // lives in fmt.ts now, so solids.ts can mint a clip id without importing this file
 type Box = [number, number, number, number];
 const meets = (a: Box, b: Box) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 
@@ -612,7 +618,7 @@ function entityOn(o: RenderOpts, entity: string | undefined, plugs?: ReadonlyMap
  * pick (`data-e`): the stored corners are those of the unturned polygon, so for any other stairs they are not where the
  * lines are drawn. The whole group is `data-s`.
  */
-function stairsGroup(t: Stairs, i: number): string {
+function stairsGroup(t: Stairs, i: number, around?: FloorsAround): string {
   const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
@@ -621,23 +627,28 @@ function stairsGroup(t: Stairs, i: number): string {
   const round = t.shape === "round" && typeof t.dia === "number" && t.dia > 0;
   const inner = round && typeof t.inner === "number" && t.inner > 0 ? t.inner / 2 : 0;
   const g: string[] = [];
+  const dir = resolveStairDirection(t, around), treads: string[] = [];
+  let outline = "";
   if (round) {
     const R = t.dia! / 2;
     const hole = inner ? ` M${num(cx + inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx - inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx + inner)} ${num(cy)}Z` : "";
-    g.push(`<path class="stairs room"${paintAttr(t)} fill-rule="evenodd" d="M${t.pts.map((p) => `${num(p[0])} ${num(p[1])}`).join("L")}Z${hole}"/>`);
+    outline = `d="M${t.pts.map((p) => `${num(p[0])} ${num(p[1])}`).join("L")}Z${hole}"`;
+    g.push(`<path class="stairs room"${paintAttr(t)} fill-rule="evenodd" ${outline}/>`);
     for (let n = 1; n < steps; n++) {
       const a = (n * 2 * Math.PI) / steps;
-      g.push(`<line class="tread" x1="${num(cx + inner * Math.cos(a))}" y1="${num(cy + inner * Math.sin(a))}" x2="${num(cx + R * Math.cos(a))}" y2="${num(cy + R * Math.sin(a))}"/>`);
+      treads.push(`<line class="tread" x1="${num(cx + inner * Math.cos(a))}" y1="${num(cy + inner * Math.sin(a))}" x2="${num(cx + R * Math.cos(a))}" y2="${num(cy + R * Math.sin(a))}"/>`);
     }
   } else {
     g.push(`<polygon class="stairs room"${paintAttr(t)} points="${pts(t.pts)}"/>`);
     // Treads run across the short side of the box, one every (long side / steps).
     const along = x1 - x0 > y1 - y0;
     for (let n = 1; n < steps; n++) {
-      if (along) { const x = x0 + ((x1 - x0) * n) / steps; g.push(`<line class="tread" x1="${num(x)}" y1="${num(y0)}" x2="${num(x)}" y2="${num(y1)}"/>`); }
-      else { const y = y0 + ((y1 - y0) * n) / steps; g.push(`<line class="tread" x1="${num(x0)}" y1="${num(y)}" x2="${num(x1)}" y2="${num(y)}"/>`); }
+      if (along) { const x = x0 + ((x1 - x0) * n) / steps; treads.push(`<line class="tread" x1="${num(x)}" y1="${num(y0)}" x2="${num(x)}" y2="${num(y1)}"/>`); }
+      else { const y = y0 + ((y1 - y0) * n) / steps; treads.push(`<line class="tread" x1="${num(x0)}" y1="${num(y)}" x2="${num(x1)}" y2="${num(y)}"/>`); }
     }
   }
+  const marks = stairMarks({ x0, x1, y0, y1, steps, round: round ? { R: t.dia! / 2, r: inner } : undefined }, dir, outline);
+  g.push(marks.shade, ...treads, marks.arrow);
   t.pts.forEach((a, j) => {
     const b = t.pts[(j + 1) % t.pts.length], e = !round && !rot ? ` data-e="s${i}:${j}"` : "";
     g.push(`<line class="e se"${e} x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"/>`);
@@ -749,7 +760,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}${on}"${own} points="${pts(r.pts)}"/>`);
   });
 
-  f.stairs.forEach((t, i) => out.push(stairsGroup(t, i)));
+  f.stairs.forEach((t, i) => out.push(stairsGroup(t, i, o.around)));
 
   // S7.6: the night overlay, over every room fill and staircase, under walls, names and devices, so lines and icons stay
   // crisp. Zones and structures sit on a room and share its overlay; a fill with no name is not drawn, so it gets none.
@@ -849,7 +860,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       if (s) solids.push(s);
     });
     for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
-    for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px));
+    for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px, resolveStairDirection(t, o.around)));
     out.push(...solids.sort((a, b) => a.key - b.key).map((s) => s.svg));
   }
 

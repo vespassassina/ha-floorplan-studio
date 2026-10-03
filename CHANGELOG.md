@@ -6,6 +6,7 @@
 - New optional `power` on a plug: the `sensor.*` (device class `power`) that measures it. The editor writes it when you place a plug whose HA device has exactly one power sensor, and the plug panel has a Power sensor picker. A plug with no `power` is linked at runtime by the card from the same rule, if Home Assistant gives it the entity registry. W and kW are read; another unit, an unavailable sensor or no sensor at all leaves a switched-on plug on, as before.
 - 2.5D walls keep their height. A garden, pavement, terrace, fill, water, structure or zone behind the house no longer cuts its back walls down: only a room (a floor you stand on) behind a wall lowers it. Before, a lawn round the house flattened every back wall while the side walls stayed tall.
 - The cutaway eases in instead of snapping. A wall seen side-on keeps its height, one facing you is lowered to the cutaway, and in between it blends over about 8 degrees of turn, so the walls no longer pop while the plan rotates. Free walls follow the same rule.
+- Stairs have a direction: up, down or both. A Direction select in the editor (Auto, Up, Down, Up and down). Auto is up, but down on the top floor, so the top floor of a two-floor house no longer shows stairs going up. 2D adds a chevron arrow (none for up, so existing plans draw as before); 2.5D draws a down flight as a stairwell and a both flight as the rise with a low kerb. Schema stays v2; `direction` is optional.
 
 ## 0.12.20
 

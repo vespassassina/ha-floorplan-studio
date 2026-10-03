@@ -2,8 +2,9 @@ import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";
 import { DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, DOOR_DEFAULTS, FURNITURE_HEIGHTS, MAX_HEIGHT, UNLINKED_HEIGHTS, wallHeight, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity } from "../core";
+import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
+import type { CatalogEntry, DeviceType, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 import { GUIDE_STEPS } from "./guide";
@@ -1056,6 +1057,14 @@ function stairsPanel(c: PanelCtx, i: number) {
     replace({ pts, shape, dia: d, inner });
   };
   const setInner = (n: number) => c.commit((f) => { const o = f.stairs[i]; if (o.shape === "round") o.inner = Math.max(0, Math.min(Math.round(n), (o.dia ?? 40) - 40)); });
+  // Auto is the field left out, so the file stays as it was; the label says what Auto draws on this floor.
+  const auto = resolveStairDirection({ ...t, direction: undefined }, floorsAroundKey(c.st.layout, c.st.floor));
+  const setDirection = (v: string) => {
+    if (v !== "auto" && !(STAIR_DIRECTIONS as readonly string[]).includes(v)) return;
+    c.commit((f) => { if (v === "auto") delete f.stairs[i].direction; else f.stairs[i].direction = v as StairDirection; });
+  };
+  const directionSelect = html`<label for="sdir">direction</label><select id="sdir" .value=${t.direction ?? "auto"} @change=${(e: Event) => setDirection(val(e))}>
+    <option value="auto" ?selected=${!t.direction}>Auto (${auto})</option>${STAIR_DIRECTIONS.map((d) => html`<option value=${d} ?selected=${d === t.direction}>${STAIR_DIRECTION_LABELS[d]}</option>`)}</select>`;
   return html`<strong>Stairs</strong>
     ${round ? hint("Drag to move; set size below.")
       : t.rot ? hint("Rotated: set 0 to reshape.")
@@ -1063,6 +1072,7 @@ function stairsPanel(c: PanelCtx, i: number) {
     ${heading("Identity")}
     ${text("name", "sn", t.name, (v) => c.commit((f) => { f.stairs[i].name = v; }))}
     ${select("shape", "ss", t.shape, STAIR_SHAPES, setShape)}
+    ${directionSelect}
     <p><span>steps</span> <span id="sstn">${stairSteps(t)}</span> <span class="hint fit">one every 40 cm</span></p>
     ${heading("Appearance")}
     ${rotateButtons(c, "srot", (n) => c.commit((f) => { f.stairs[i].rot = ((t.rot + n) % 360 + 360) % 360; }), { reset: () => { if (t.rot) c.commit((f) => { f.stairs[i].rot = 0; }); }, title: round ? undefined : "A rotated flight has no corner handles: set the rotation to 0 to reshape it." })}

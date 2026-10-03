@@ -2,9 +2,9 @@
 // decides when to call them and in what order (one draw path, CLAUDE.md finding 8). Nothing here knows the OBLIQUE
 // numbers: they arrive in a `Proj`, so this file never imports render.ts.
 import { deviceZ, doorSpan, edgeHeight, floorHeight, furnitureHeight, openingSpan, unlinkedHeight, wallHeight } from "./heights";
-import { esc, num, pts } from "./fmt";
+import { esc, num, pts, tag } from "./fmt";
 import { stairSteps } from "./geometry";
-import type { DoorKind, Floor, Furniture, FurnitureSymbol, Pt, Stairs, Unlinked } from "./schema";
+import type { DoorKind, Floor, Furniture, FurnitureSymbol, Pt, StairDirection, Stairs, Unlinked } from "./schema";
 
 /** A device mount at or above this height gets a stem up from its icon (a ceiling light yes, a plug no). */
 export const STEM_MIN_Z = 100;
@@ -302,34 +302,102 @@ export function unlinkedSolid(u: Unlinked, px: Proj): Solid | null {
 }
 
 /**
- * A staircase as steps, each a block as high as the stairs have climbed by then, the last as high as the storey.
- * A straight flight climbs toward +x when it runs along x and toward -y when it runs along y, away from the viewer, so
- * every riser faces it. A round one climbs once round, anticlockwise on screen from the right. The flat group renderFloor
- * draws stays under, as the click target. `rise` is the storey height; `rot` turns the whole thing about its centre, as in 2D.
+ * The steps of a staircase as base polygons turned by `rot` about the centre of the box, as in 2D, lowest first; the
+ * edge of each that faces the low end; and the outline of the whole foot, grown by `margin` cm. Null for a stair that
+ * cannot be drawn. A straight flight climbs toward +x when it runs along x and toward -y when it runs along y, away from
+ * the viewer, so every riser faces it. A round one climbs once round, anticlockwise on screen from the right.
  */
-export function stairSolids(t: Stairs, rise: number, px: Proj): Solid[] {
-  if (!Array.isArray(t.pts) || t.pts.length < 3 || !t.pts.every(finite)) return [];
+function stairBlocks(t: Stairs): { steps: Pt[][]; lowEdge: number; foot: (margin: number) => Pt[] } | null {
+  if (!Array.isArray(t.pts) || t.pts.length < 3 || !t.pts.every(finite)) return null;
   const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), c: Pt = [(x0 + x1) / 2, (y0 + y1) / 2];
   const rot = typeof t.rot === "number" && Number.isFinite(t.rot) ? t.rot : 0, n = stairSteps(t);
+  const turn = (ps: Pt[]) => (rot ? ps.map((p) => turnAbout(p, rot, c)) : ps);
   const steps: Pt[][] = [];
   if (t.shape === "round" && typeof t.dia === "number" && t.dia > 0) {
     const R = t.dia / 2, r = typeof t.inner === "number" && t.inner > 0 ? t.inner / 2 : 0, ARC = 3;
     for (let k = 0; k < n; k++) {
       const at = (rad: number, j: number): Pt => { const a = ((k + j / ARC) * 2 * Math.PI) / n; return [c[0] + rad * Math.cos(a), c[1] + rad * Math.sin(a)]; };
       const outer = Array.from({ length: ARC + 1 }, (_, j) => at(R, j));
-      steps.push([...outer, ...(r ? Array.from({ length: ARC + 1 }, (_, j) => at(r, ARC - j)) : [c])]);
+      steps.push(turn([...outer, ...(r ? Array.from({ length: ARC + 1 }, (_, j) => at(r, ARC - j)) : [c])]));
     }
-  } else {
-    const along = x1 - x0 > y1 - y0, dx = (x1 - x0) / n, dy = (y1 - y0) / n;
-    for (let k = 0; k < n; k++) steps.push(along
-      ? [[x0 + k * dx, y0], [x0 + (k + 1) * dx, y0], [x0 + (k + 1) * dx, y1], [x0 + k * dx, y1]]
-      : [[x0, y1 - (k + 1) * dy], [x1, y1 - (k + 1) * dy], [x1, y1 - k * dy], [x0, y1 - k * dy]]);
+    // The radial edge that closes a step, back to where it starts, faces the low end. The foot is a 24-gon round the outer rim.
+    const foot = (m: number) => Array.from({ length: 24 }, (_, i): Pt => [c[0] + (R + m) * Math.cos((i * Math.PI) / 12), c[1] + (R + m) * Math.sin((i * Math.PI) / 12)]);
+    return { steps, lowEdge: steps[0].length - 1, foot };
   }
+  const along = x1 - x0 > y1 - y0, dx = (x1 - x0) / n, dy = (y1 - y0) / n;
+  for (let k = 0; k < n; k++) steps.push(turn(along
+    ? [[x0 + k * dx, y0], [x0 + (k + 1) * dx, y0], [x0 + (k + 1) * dx, y1], [x0 + k * dx, y1]]
+    : [[x0, y1 - (k + 1) * dy], [x1, y1 - (k + 1) * dy], [x1, y1 - k * dy], [x0, y1 - k * dy]]));
+  return { steps, lowEdge: along ? 3 : 2, foot: (m) => turn([[x0 - m, y0 - m], [x1 + m, y0 - m], [x1 + m, y1 + m], [x0 - m, y1 + m]]) };
+}
+
+/**
+ * A staircase as steps, each a block as high as the stairs have climbed by then, the last as high as the storey.
+ * The flat group renderFloor draws stays under, as the click target. `rise` is the storey height. Going `down` it is a
+ * stairwell instead (`stairWell`); going `both` it rises and keeps a low rim round its foot.
+ */
+export function stairSolids(t: Stairs, rise: number, px: Proj, dir: StairDirection = "up"): Solid[] {
+  const blocks = stairBlocks(t);
+  if (!blocks) return [];
+  if (dir === "down") return stairWell(blocks, px);
   const out: Solid[] = [];
-  steps.forEach((base, k) => {
-    const turned = rot ? base.map((p) => turnAbout(p, rot, c)) : base, p = prism(turned, ((k + 1) / n) * rise, px);
+  blocks.steps.forEach((turned, k) => {
+    const p = prism(turned, ((k + 1) / blocks.steps.length) * rise, px);
     if (p) out.push({ key: nearest(px, turned), svg: `<g class="obj">${p}</g>` });
   });
+  if (dir === "both") out.push(...stairRim(blocks.foot, px));
+  return out;
+}
+
+/** cm a stairwell sinks below the floor at its lowest step: a drawing of going down, not the storey. */
+const WELL_DEPTH = 60;
+/** cm the near edges of a stairwell stand above the floor. */
+const WELL_RIM = 6;
+/** How far out from the foot, and how high, the kerb of stairs that go both ways stands. */
+const KERB_OUT = 6, KERB_HIGH = 10;
+
+/** A low kerb round the foot of stairs that go both ways. In segments, so each sorts against the steps by its own depth. */
+function stairRim(foot: (margin: number) => Pt[], px: Proj): Solid[] {
+  const inner = foot(0), outer = foot(KERB_OUT), out: Solid[] = [];
+  inner.forEach((a, i) => {
+    const j = (i + 1) % inner.length, base = [a, inner[j], outer[j], outer[i]], p = prism(base, KERB_HIGH, px);
+    if (p) out.push({ key: nearest(px, base), svg: `<g class="obj">${p}</g>` });
+  });
+  return out;
+}
+
+/**
+ * Stairs that go down, drawn as a stairwell in the floor: the inner walls of the opening that the viewer looks across,
+ * one tread sunk lower per step with the risers that face the viewer, and a short rim on the near edges, which hide a
+ * little of what lies below. The lowest step is at the low end, as when the flight goes up. Each piece sorts by depth like
+ * the rest, so a lower tread behind a higher one is covered by it. The treads and the walls take a veil, darker with depth.
+ */
+function stairWell({ steps, lowEdge, foot }: NonNullable<ReturnType<typeof stairBlocks>>, px: Proj): Solid[] {
+  const n = steps.length, outline = foot(0), out: Solid[] = [];
+  /** Edge i of `base` as a quad from height z0 to z1, when the viewer does (or does not) see its outer face. */
+  const face = (base: Pt[], i: number, z0: number, z1: number, cls: string, seen: boolean) => {
+    const a = base[i], b = base[(i + 1) % base.length], d = Math.sign(winding(px, base)), s = px.scr(a), t = px.scr(b), len = Math.hypot(t[0] - s[0], t[1] - s[1]) || 1;
+    const nx = (d * (t[1] - s[1])) / len, ny = (d * -(t[0] - s[0])) / len;
+    return d && (ny > px.skew * nx + 1e-9) === seen ? `<polygon class="${cls}" points="${pts([px.lift(a, z0), px.lift(b, z0), px.lift(b, z1), px.lift(a, z1)])}"/>` : "";
+  };
+  const veil = (poly: string, opacity: number) => poly.replace(/^<polygon class="[^"]*"/, `<polygon class="stair-shade" opacity="${num(opacity)}"`);
+  // Below the floor you see only what the opening lets through: everything sunk is clipped to the footprint at floor
+  // level, or the lowered treads would hang out of the hole toward the viewer like a block. The id is a hash of the
+  // footprint, as the opening mask's is, so two cards drawing this floor mint the same one.
+  const clip = `fp-well-${tag(pts(outline))}`, inWell = `<g class="obj" clip-path="url(#${clip})">`;
+  const walls = outline.map((_, i) => face(outline, i, 0, -WELL_DEPTH, "well-wall", false)).filter(Boolean);
+  const first = Math.min(...steps.map((b) => nearest(px, b)));
+  out.push({ key: first - 2, svg: `<clipPath id="${clip}"><polygon points="${pts(outline)}"/></clipPath>` });
+  // A dark ground first, so what no tread covers (a round stair's well, a gap between lowered treads) reads as depth, not as the floor.
+  const ground = `<polygon class="well-floor" points="${pts(outline)}"/>`;
+  out.push({ key: first - 1, svg: `${inWell}${ground}${veil(ground, 0.8)}${walls.join("")}${walls.map((w) => veil(w, 0.8)).join("")}</g>` });
+  steps.forEach((base, k) => {
+    const z = -WELL_DEPTH + (k * WELL_DEPTH) / n, lid = `<polygon class="well-tread" points="${pts(base.map((p) => px.lift(p, z)))}"/>`;
+    const riser = k ? face(base, lowEdge, z - WELL_DEPTH / n, z, "well-riser", true) : "";
+    out.push({ key: nearest(px, base), svg: `${inWell}${riser}${lid}${veil(lid, (n - k) / n)}</g>` });
+  });
+  const rim = outline.map((_, i) => face(outline, i, 0, WELL_RIM, "well-rim", true)).filter(Boolean);
+  if (rim.length) out.push({ key: Math.max(...steps.map((b) => nearest(px, b))), svg: `<g class="obj">${rim.join("")}</g>` });
   return out;
 }

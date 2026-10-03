@@ -52,12 +52,20 @@ export type EdgeKind = WallKind | "none";
 export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boolean; height?: number }
 ```
 
+## StairDirection
+
+Where a flight goes from this floor. Optional: absent reads from the floors around it (see `stairDirection` in stairs.ts). "both" is stacked stairs.
+
+```ts
+export type StairDirection = "up" | "down" | "both";
+```
+
 ## Stairs
 
 `dia` (outer) and `inner` (the empty well) exist on a round stair only; `pts` is its outer circle as a polygon. `rot` turns it about the centre of its box.
 
 ```ts
-export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape; steps: number; rot: number; dia?: number; inner?: number; color?: string; texture?: string; textureRot?: number; textureScale?: number }
+export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape; steps: number; rot: number; dia?: number; inner?: number; direction?: StairDirection; color?: string; texture?: string; textureRot?: number; textureScale?: number }
 ```
 
 ## Door

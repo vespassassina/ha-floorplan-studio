@@ -16,3 +16,4 @@ export { entitiesOfDevice, entitiesOfDoor } from "./attachments";
 export * from "./heights";
 export { PLUG_ACTIVE_WATTS, findPowerSensor, plugThreshold, wattsOf } from "./power";
 export type { PowerCandidate } from "./power";
+export * from "./stairs";
