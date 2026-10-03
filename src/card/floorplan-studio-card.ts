@@ -10,6 +10,7 @@ import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
 import "./config-editor";
 import { defineElement } from "./define";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
+import { viewKeyFor, type ViewKey } from "./view-keys";
 import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type StoredView } from "./view-state";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
@@ -109,8 +110,9 @@ const isTheme = (v: unknown): v is Theme => typeof v === "string" && (THEMES as 
 
 /** A 45 degree turn takes this long; a longer one (Reset from 135 away) takes proportionally more, up to twice. */
 const TURN_MS = 350;
-/** Pan and zoom write to storage once they have been still this long. */
-const SAVE_DEBOUNCE_MS = 400;
+/** Pan and zoom write to storage once they have been still this long. Short on purpose: a tablet that is put to
+ * sleep or a tab that is discarded may never fire pagehide, so the write must not wait long for it. */
+const SAVE_DEBOUNCE_MS = 150;
 
 /** Card config is untrusted input (CLAUDE.md finding 1): only a plain `#rrggbb` hex is accepted for open_color. */
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -279,6 +281,8 @@ export class FloorplanStudioCard extends LitElement {
   private _pickedTheme: Theme | null = null;
   private _pickedLabels: boolean | null = null;
   private _pickedRot: number | null = null;
+  /** Whether the pointer is over this card: with focus, what decides which card the view keys belong to. */
+  private _hovered = false;
   /** A turn in flight: `from` and `to` are user angles in degrees, unwrapped (`to` may be 360, or -45) so the
    * interpolation never takes the long way; `anchor` is the plan point and zoom to hold at the centre, or `null`
    * when the card is at home and home itself follows the angle. */
@@ -355,6 +359,7 @@ export class FloorplanStudioCard extends LitElement {
   private _loadViewState(): void {
     this._pickedView = this._pickedTilt = this._pickedTheme = this._pickedLabels = this._pickedRot = null;
     this._pendingView = null;
+    this._shownFloor = null;
     let s: StoredView = {};
     try {
       const raw = globalThis.localStorage?.getItem(this._viewStorageKey());
@@ -367,6 +372,7 @@ export class FloorplanStudioCard extends LitElement {
     if (s.theme !== undefined) this._pickedTheme = s.theme as Theme;
     if (s.labels !== undefined) this._pickedLabels = s.labels;
     if (s.rotation !== undefined && s.rotation !== normaliseRotation(this._config.rotation)) this._pickedRot = s.rotation;
+    if (s.floor !== undefined) this._shownFloor = s.floor; // an unknown id is ignored by _floorKey
     if (s.zoom !== undefined && s.focus !== undefined) this._pendingView = { focus: s.focus, zoom: s.zoom };
   }
 
@@ -384,6 +390,7 @@ export class FloorplanStudioCard extends LitElement {
     if (this._pickedTilt !== null) o.tilt = this._pickedTilt;
     if (this._pickedTheme !== null) o.theme = this._pickedTheme;
     if (this._pickedLabels !== null) o.labels = this._pickedLabels;
+    if (this._shownFloor !== null) o.floor = this._shownFloor;
     const pending = this._pendingView;
     const anchor = pending ?? this._anchorOfView();
     if (anchor) { o.zoom = anchor.zoom; o.focus = anchor.focus; }
@@ -406,6 +413,61 @@ export class FloorplanStudioCard extends LitElement {
   private _flushSave = (): void => {
     if (this._saveTimer !== null) this._saveViewNow();
   };
+
+  private _onVisibility = (): void => {
+    if (globalThis.document?.visibilityState === "hidden") this._flushSave();
+  };
+
+  private _onPointerEnter = (): void => { this._hovered = true; };
+  private _onPointerLeave = (): void => { this._hovered = false; };
+
+  /** The card the view keys belong to: the one with focus, else the one under the pointer. Never two. */
+  private _ownsViewKeys(): boolean {
+    const focused = globalThis.document?.activeElement;
+    if (focused instanceof FloorplanStudioCard) return focused === this;
+    return this._hovered;
+  }
+
+  /** Arrows zoom (up in, down out) and turn (left, right); Space is Reset view. The same keys as the editor's, from
+   * `view-keys.ts`. A key is taken (preventDefault) only when it did something, so a card that cannot act, because
+   * zoom is off or the controls are hidden, leaves the page its arrows and its Space. Auto-repeat is let through:
+   * holding an arrow keeps zooming. */
+  private _onViewKey = (ev: KeyboardEvent): void => {
+    if (!this.isConnected || !this._ownsViewKeys()) return;
+    if (this._coverDialog || this._vacuumDialog || this._chooserDialog) return; // a dialog has its own keys
+    const key = viewKeyFor(ev);
+    if (key && this._doViewKey(key)) ev.preventDefault();
+  };
+
+  /** Whether the toolbar (View, Theme, Labels, Rotate, Reset) exists, which is when its keys do. */
+  private _hasViewControls(): boolean {
+    return this._config.view_switch !== false && !this._kiosk();
+  }
+
+  private _doViewKey(key: ViewKey): boolean {
+    if (!this._floor()) return false;
+    switch (key) {
+      case "zoomIn":
+      case "zoomOut":
+        if (this._zoomMode() === false) return false;
+        this._zoomCentre(key === "zoomIn" ? BUTTON_ZOOM : 1 / BUTTON_ZOOM);
+        return true;
+      case "rotateLeft":
+      case "rotateRight":
+        if (!this._hasViewControls()) return false;
+        this._turnBy(key === "rotateLeft" ? -ROTATION_STEP : ROTATION_STEP);
+        return true;
+      case "reset":
+        if (this._hasViewControls()) {
+          if (!this._modified()) return false;
+          this._resetView();
+          return true;
+        }
+        if (this._zoomMode() === false || !this._zoomed()) return false;
+        this._fitView();
+        return true;
+    }
+  }
 
   /** The zoomed view as what survives a turn and a reload: its zoom against fit and its centre in plan cm, which is
    * the layout's own coordinates before any rotation. `null` at home. */
@@ -480,6 +542,11 @@ export class FloorplanStudioCard extends LitElement {
     }
     // A reload or a closed tab never runs disconnectedCallback; the debounced save must still go out.
     globalThis.addEventListener?.("pagehide", this._flushSave);
+    // pagehide does not fire for a tab that is hidden and then discarded, or a phone app switched away from.
+    globalThis.document?.addEventListener("visibilitychange", this._onVisibility);
+    globalThis.addEventListener?.("keydown", this._onViewKey);
+    this.addEventListener("pointerenter", this._onPointerEnter);
+    this.addEventListener("pointerleave", this._onPointerLeave);
     this.requestUpdate(); // a turn settled while detached left the last frame on screen
   }
 
@@ -623,6 +690,11 @@ export class FloorplanStudioCard extends LitElement {
     super.disconnectedCallback();
     this._stopTimer();
     globalThis.removeEventListener?.("pagehide", this._flushSave);
+    globalThis.document?.removeEventListener("visibilitychange", this._onVisibility);
+    globalThis.removeEventListener?.("keydown", this._onViewKey);
+    this.removeEventListener("pointerenter", this._onPointerEnter);
+    this.removeEventListener("pointerleave", this._onPointerLeave);
+    this._hovered = false;
     this._settleTurn(false); // cancels the frame loop; the state lands where the turn was going
     this._flushSave();
     this._unbindActions?.();

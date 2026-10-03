@@ -455,7 +455,8 @@ describe("Reset view", () => {
     expect(lastOpts().tilt).toBeCloseTo(0.2, 6);
     expect(lastOpts().labels).toBe(true);
     expect(el.getAttribute("data-theme")).toBe("slate");
-    expect(stored()).toHaveLength(0);
+    // Only the floor is left (the floor is remembered too, and Reset view keeps it). Every view option is gone.
+    expect(stored().map(([, v]) => JSON.parse(v))).toEqual([{ v: 1, floor: "first" }]);
     const fit = viewBoxFor(turned.floors.first!, 60, { deg: 90, pivot: planPivot(turned) });
     const got = vb(el);
     for (let i = 0; i < 4; i++) expect(got[i]!).toBeCloseTo([fit.x, fit.y, fit.w, fit.h][i]!, 3); // the second floor's own fit

@@ -45,6 +45,8 @@ export interface StoredView {
   tilt?: number;
   theme?: string;
   labels?: boolean;
+  /** The floor the person switched to (a key of the layout's `floors`); the card ignores one it does not have. */
+  floor?: string;
 }
 
 /** Further than this from the origin is not a plan in cm; the bound keeps later arithmetic finite. */
@@ -74,5 +76,6 @@ export function parseStoredView(raw: unknown, isView: (v: unknown) => boolean, t
   if (isNum(r.tilt)) out.tilt = clampTilt(r.tilt);
   if (typeof r.theme === "string" && themes.includes(r.theme)) out.theme = r.theme;
   if (typeof r.labels === "boolean") out.labels = r.labels;
+  if (typeof r.floor === "string" && r.floor.length > 0 && r.floor.length <= 200) out.floor = r.floor;
   return out;
 }
