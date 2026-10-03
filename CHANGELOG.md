@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.20
 
 - Place popup, Add and the room menu: a device with several motion, occupancy or presence sensors now offers each one as its own row (before, only its main entity showed, so extra zones were missing). A `group` whose members are all motion sensors is typed motion and offered; mixed or empty groups stay out.
 - Motion perimeter. A room with a motion sensor or radar that is on gets one thin solid line just inside its walls, in the sensor's colour, for as long as it is on. 2D and 2.5D, every theme.
