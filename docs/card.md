@@ -96,8 +96,9 @@ and taps are unchanged. It works in 2D and 2.5D.
   near, south-facing side of the house are cut down to 90 cm, like a doll's
   house with the front taken off, so they never hide the rooms behind them.
   So is any wall facing north whose lift would cover another room's floor (the
-  Hall's north wall over the Living room); a back wall with nothing behind it
-  keeps its full height.
+  Hall's north wall over the Living room); a back wall with nothing behind it,
+  or only a garden, pavement or zone, keeps its full height. A wall seen
+  side-on keeps its height; while you rotate, the cut eases in and out.
   A fence keeps its own height; kerbs and boundary lines stay flat.
 - A door is a gap in the wall, a window is a band of glass above its sill, a
   glass door is glass from the floor, a sealed door is a solid panel. The

@@ -67,23 +67,37 @@ function clipToConvex(subject: Pt[], clip: Pt[]): Pt[] {
   return out;
 }
 
-/** Below this much screen area (cm squared) a sweep only grazes a room: a wall lying along a border is not covering it. */
-const COVER_MIN_AREA = 25;
+/**
+ * How much a wall facing the viewer is lowered, 0 (keeps its height) to 1 (drawn at the cutaway), by how squarely it
+ * faces down the screen: `ny` is the y of its normal, or of the unit vector across a free wall, in the screen frame.
+ * Up to EASE_FROM a wall is seen side-on or from behind and keeps its height; from EASE_TO it faces the viewer and is cut;
+ * between the two it eases (smoothstep), so a turning plan never snaps a wall and two walls at one angle always agree.
+ * An axis-aligned plan lands on the ends (sides 0, front 1), and so does a 45 degree one (0.71 is past EASE_TO).
+ */
+const EASE_FROM = 0.2, EASE_TO = 0.6;
+function ease(ny: number): number {
+  const t = Math.min(1, Math.max(0, (ny - EASE_FROM) / (EASE_TO - EASE_FROM)));
+  return t * t * (3 - 2 * t);
+}
+
+/** A back wall that hides this much (cm of floor, measured across the wall) is cut fully; less eases in. */
+const COVER_FULL_DEPTH = 30;
 
 /**
- * Whether a wall from `a` to `b` (screen frame, `n` its outward unit normal), lifted to `h`, hides part of any of the
- * `floors` (room and zone outlines, screen frame). The wall sweeps the parallelogram from its base along the lift, and
- * only the outward side counts: its own room lies behind it, and the sides it leans over are the side walls' business.
+ * How far, across the wall, the face of a wall from `a` to `b` (screen frame, `n` its outward unit normal), lifted to `h`,
+ * reaches over any of the `floors` (inner rooms' outlines, screen frame): the covered area over the wall's length. The
+ * wall sweeps the parallelogram from its base along the lift, and only the outward side counts: its own room lies
+ * behind it, and the sides it leans over are the side walls' business.
  */
-function coversFloor(px: Proj, a: Pt, b: Pt, n: Pt, h: number, floors: Pt[][]): boolean {
+function coveredDepth(px: Proj, a: Pt, b: Pt, n: Pt, h: number, floors: Pt[][]): number {
   const lift: Pt = [h * px.rise * px.skew, -h * px.rise];
-  if (n[0] * lift[0] + n[1] * lift[1] <= 0) return false;
+  if (n[0] * lift[0] + n[1] * lift[1] <= 0) return 0;
   const sweep: Pt[] = [a, b, [b[0] + lift[0], b[1] + lift[1]], [a[0] + lift[0], a[1] + lift[1]]];
-  return floors.some((q) => area2(clipToConvex(q, sweep)) / 2 > COVER_MIN_AREA);
+  return Math.max(0, ...floors.map((q) => area2(clipToConvex(q, sweep)) / 2)) / (Math.hypot(b[0] - a[0], b[1] - a[1]) || 1);
 }
 
 /** One wall piece of the 2.5D plan: an edge or a free wall with a height above zero. */
-interface WallSeg { a: Pt; b: Pt; h: number; front: boolean; kind: string }
+interface WallSeg { a: Pt; b: Pt; h: number; /** 0..1: how far it is lowered toward the cutaway. */ cut: number; kind: string }
 
 /** Twice the signed area in the screen frame; its sign says which way the polygon winds, so which side of an edge is outside. */
 function winding(px: Proj, ps: Pt[]): number {
@@ -94,19 +108,22 @@ function winding(px: Proj, ps: Pt[]): number {
 /**
  * Every edge and free wall that has a height, once each.
  *
- * Cutaway rule. A wall hides what is behind it, and the viewer is at the south, so a wall whose outward normal points
- * down the screen (+y) would hide the room it closes. Such a wall is drawn at most `cutaway` cm high, like a doll's
- * house with the front taken off; back and side walls keep their full height. A free wall has no outside, so one that
- * is mostly horizontal on screen counts as front. `front` marks them; the cut itself is applied where the faces are made.
- *
- * A back wall is no safer for being a back wall: the room behind it may be another room's floor (the Hall's north wall
- * over the Living room), and that edge is not the Living room's front wall, so nothing above would pair them. So a wall
- * facing up the screen is also cut when its lift covers the floor of any room or zone. The whole segment takes the cut,
- * not just the covered part: a wall that steps up and down along its length would read as a fault.
+ * Cutaway rule, one for every wall. A wall keeps the height its model gives it (heights.ts), wherever it stands and
+ * whatever the turn, except where it would hide a floor the viewer wants to see. The viewer is at the south, so:
+ *   - a wall whose outward normal points down the screen would hide the room it closes: lowered (a doll's house with
+ *     the front taken off);
+ *   - a wall facing up the screen hides what lies outside it, which matters only when that is another room: lowered
+ *     when its lift covers the floor of a room of kind "room". A garden, pavement, terrace, fill, water, structure or
+ *     zone behind a wall is not an interior and never counts (Diego's field report, 2026-10-03: a lawn behind the house
+ *     had cut every back wall flat);
+ *   - a wall seen side-on keeps its height.
+ * "Lowered" is one constant, `cutaway`, and the step to it is eased in the angle (see `ease`), not a snap. A free wall has
+ * no outside; it is judged by how horizontal it is on screen, by the same ease. The whole segment takes the cut, not just
+ * the covered part: a wall that steps up and down along its length would read as a fault.
  */
 function collectWalls(f: Floor, px: Proj): WallSeg[] {
   const out: WallSeg[] = [];
-  const floors = (f.rooms ?? []).map((r) => r?.pts).filter((q): q is Pt[] => Array.isArray(q) && q.length >= 3 && q.every(finite)).map((q) => q.map(px.scr));
+  const floors = (f.rooms ?? []).filter((r) => r?.kind === "room").map((r) => r.pts).filter((q): q is Pt[] => Array.isArray(q) && q.length >= 3 && q.every(finite)).map((q) => q.map(px.scr));
   const polys: { pts: Pt[]; room: Floor["rooms"][number] | null }[] = [{ pts: f.outline ?? [], room: null }, ...(f.rooms ?? []).filter((r) => r.kind !== "zone").map((room) => ({ pts: room.pts ?? [], room }))];
   for (const P of polys) {
     if (!Array.isArray(P.pts) || P.pts.length < 3 || !P.pts.every(finite)) continue;
@@ -118,8 +135,9 @@ function collectWalls(f: Floor, px: Proj): WallSeg[] {
       const s = px.scr(a), t = px.scr(b), len = Math.hypot(t[0] - s[0], t[1] - s[1]) || 1;
       // Screen y points down; for a polygon with positive winding the outward normal of a->b is (dy, -dx), so its y is -dx.
       const nx = (dir * (t[1] - s[1])) / len, ny = (dir * -(t[0] - s[0])) / len;
-      const front = dir !== 0 && (ny > 0.3 || (ny < -0.3 && coversFloor(px, s, t, [nx, ny], h, floors)));
-      out.push({ a, b, h, front, kind: Array.isArray(wk) && typeof wk[i] === "string" ? (wk[i] as string) : P.room ? "wall" : "external" });
+      const toward = ease(Math.abs(ny));
+      const cut = dir === 0 ? 0 : ny > 0 ? toward : toward && toward * Math.min(1, coveredDepth(px, s, t, [nx, ny], h, floors) / COVER_FULL_DEPTH);
+      out.push({ a, b, h, cut, kind: Array.isArray(wk) && typeof wk[i] === "string" ? (wk[i] as string) : P.room ? "wall" : "external" });
     });
   }
   for (const w of f.walls ?? []) {
@@ -127,16 +145,16 @@ function collectWalls(f: Floor, px: Proj): WallSeg[] {
     const h = wallHeight(f, w);
     if (!(h > 0)) continue;
     const s = px.scr(w.a), t = px.scr(w.b);
-    out.push({ a: w.a, b: w.b, h, front: Math.abs(t[0] - s[0]) > Math.abs(t[1] - s[1]), kind: String(w.kind) });
+    out.push({ a: w.a, b: w.b, h, cut: ease(Math.abs(t[0] - s[0]) / (Math.hypot(t[0] - s[0], t[1] - s[1]) || 1)), kind: String(w.kind) });
   }
   // The same edge twice (a room's wall on the outline, two rooms side by side) is one wall: the taller, the more
-  // exposed (front) and the external kind win, so a doubled edge never draws doubled.
+  // exposed (the most cut) and the external kind win, so a doubled edge never draws doubled.
   const seen = new Map<string, WallSeg>();
   for (const w of out) {
     const k = [w.a, w.b].map((p) => `${Math.round(p[0])},${Math.round(p[1])}`).sort().join("|");
     const o = seen.get(k);
     if (!o) { seen.set(k, { ...w }); continue; }
-    o.front ||= w.front;
+    o.cut = Math.max(o.cut, w.cut);
     if (w.h > o.h) { o.h = w.h; o.kind = w.kind; }
     if (w.kind === "external") o.kind = "external";
   }
@@ -186,7 +204,7 @@ export function wallSolids(f: Floor, px: Proj): Solid[] {
   const spans = spansOf(f);
   return collectWalls(f, px).map((w) => {
     const len = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]), ux = (w.b[0] - w.a[0]) / len, uy = (w.b[1] - w.a[1]) / len;
-    const hh = w.front ? Math.min(w.h, px.cutaway) : w.h;
+    const hh = w.h - w.cut * Math.max(0, w.h - px.cutaway);
     const at = (t: number): Pt => [w.a[0] + ux * t, w.a[1] + uy * t];
     const quad = (t0: number, t1: number, z0: number, z1: number, cls: string) =>
       z1 > z0 && t1 > t0 ? `<polygon class="${cls}" points="${pts([px.lift(at(t0), z0), px.lift(at(t1), z0), px.lift(at(t1), z1), px.lift(at(t0), z1)])}"/>` : "";

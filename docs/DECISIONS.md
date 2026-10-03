@@ -2,6 +2,54 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-03: walls keep their height; the cutaway eases and only counts inner rooms
+
+Supersedes the cutaway rule of 2026-10-02 ("the cutaway follows what a wall
+covers") and the hard `ny` gates in `collectWalls`. From Diego's report on his
+own Home Assistant, 2.5D: "some scale too much, others stay fixed, the walls
+are not 3d anymore". Measured with a harness over the demo and hostile layouts
+(grid, row, stacked, L, free walls, per-room heights), every user turn, tilt
+0 to 1; the viewBox always held every face (57 216 points, 0 outside), and the
+rule was covariant under a 90 degree turn of the layout. Two causes held:
+
+1. A lawn behind the house cut the back wall. `coversFloor` counted every room
+   and zone, so a garden, pavement, terrace, fill, water, structure or zone
+   behind a wall made it "hide a floor". Put a garden round the 3x3 grid and
+   all four back walls went from 250 to 90 cm, with the sides at 250.
+2. The cut was a step. `ny > 0.3` flipped a wall from 250 to 90 in one frame:
+   at 17 degrees of turn ten walls of the grid jumped 160 cm, and from 18 to 72
+   degrees every inner wall was flat. During the 350 ms turn the walls popped.
+
+Rule now (`solids.ts`): a wall has its model height, from `heights.ts`, wherever
+it stands. It is lowered toward the one `cutaway` height by `cut` in 0..1.
+- Facing the viewer (outward normal `ny > 0` in the screen frame, the same
+  frame `renderFloor` turns by): `cut = ease(ny)`.
+- Facing away: `cut = ease(-ny)` times how deep its lifted face reaches over the
+  floor of a room of kind `room`, over 30 cm. Only `kind: "room"` is a floor
+  to uncover; a zone, garden, pavement, terrace, fill, water or structure
+  behind a wall never counts.
+- A free wall: `cut = ease(|dx| / length)` on screen, so 45 degrees is judged
+  like a room wall.
+- `ease` is a smoothstep from `ny` 0.2 (side-on: full) to 0.6 (facing: cut), so
+  sides, backs and 45 degree plans land on 0 or 1 and a turn in between eases
+  over about 8 degrees. A shared edge takes the larger cut of its two sides.
+- Drawn height is `h - cut * max(0, h - cutaway)`: a wall lower than the cutaway
+  is never raised.
+`obliqueFor` is unchanged, so the cutaway still hides about 50 cm on screen at
+every tilt. 2D output and hit-testing are untouched. One test is superseded,
+`backwall-cutaway.test.ts`: "a zone behind a back wall counts too" now says it
+does not.
+
+Stairs, not changed. A straight flight rises to the storey (250 cm by default),
+by the spec and `solids-objects.test.ts`, and climbs along +x or -y of the PLAN,
+so what faces the viewer depends on the turn: at 180 degrees the tall end is
+nearest and hides up to 137 screen cm of floor. Proposed default, not done:
+cap a straight flight's rise at the cutaway by `ease` of its screen climb
+direction, like a wall. Say if you want it.
+
+The first-floor Office is blue because `demo/layout.json` gives that room
+`color: "#4a6fa5"`, in 2D as well. Not a bug.
+
 ## 2026-10-03: motion zones and groups, a motion perimeter, idle covers
 
 From Diego's field report. Four calls.

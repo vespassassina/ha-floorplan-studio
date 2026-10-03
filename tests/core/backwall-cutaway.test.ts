@@ -70,9 +70,11 @@ describe("back walls are cut by what they cover", () => {
     expect(heightOf(f, [100, 300], [300, 300], 1)).toBeCloseTo(250, 0);
   });
 
-  it("a zone behind a back wall counts too", () => {
+  // Superseded 2026-10-03 (docs/DECISIONS.md): this said a zone behind a back wall counts. A zone, like a garden, a
+  // pavement or a lawn, is not an interior; a lawn behind the house had cut every back wall flat. Only a "room" counts.
+  it("a zone behind a back wall is not a floor to uncover: the wall keeps its height", () => {
     const f = floor([room("garden", box(0, 0, 400, 300), { kind: "zone" }), room("hall", box(100, 300, 300, 500))]);
-    expect(heightOf(f, [100, 300], [300, 300], 1)).toBeCloseTo(obliqueFor(1).cutaway, 0);
+    expect(heightOf(f, [100, 300], [300, 300], 1)).toBeCloseTo(250, 0);
   });
 
   describe("an L-shaped room", () => {
