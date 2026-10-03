@@ -2,6 +2,45 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-03: plugs are active by watts, not by switch
+
+Diego: "the plugs, show them active only if they are consuming power, not if
+they are just on. from 2 watts and up." Decisions.
+
+Field. Optional `power?: string` on a `plug` device (schema stays version 2),
+an entity id of a power sensor, validated like `bound`: an entity id, plug
+only, not the plug itself. Chosen over a card-side name guess: the layout
+names the sensor, so the card works without a registry.
+
+Auto-link. `findPowerSensor` (core/power.ts): same HA device, `sensor.*`,
+device class `power`, no `entity_category`; only when exactly one. Two is a
+guess and a wrong one paints a plug by another's draw, so the answer is none.
+The editor writes it when a plug is placed (Add, area, catalog), in the same
+undo step. The card repeats the search at runtime for plugs with no `power`,
+from `hass.entities` (`device_id`, `entity_category`) plus the sensor's
+`device_class` state attribute; an explicit `power` wins. `hass.entities` is
+read as HA's frontend provides it; nothing is invented, and a frontend
+without it just does not link.
+
+The rule (one place, `classOf`; the Active list, the room ring and the
+tooltip read it). Switch off: idle. Unavailable or unknown switch:
+unavailable. Switch on and a readable sensor: watts >= threshold, so 2 W is
+active and 1.99 W is not. Switch on and the sensor is unavailable, unknown,
+junk or in another unit: active, as today. No sensor at all: active, as
+today. We cannot know, and a flaky sensor must not hide a plug. Not marked
+specially. Units: W and kW (x1000); a missing unit counts as W (HA power
+sensors always carry one, so a bare number is a hand-made sensor); anything
+else is unreadable.
+
+Threshold. `PLUG_ACTIVE_WATTS = 2`, card config `plug_watts` (number >= 0,
+anything else is 2), in the Edit-card form. 0 means any reading counts.
+
+Not done. A light `bound` to a plug's switch still follows the bound light
+rule (on if either entity is on): it is a lamp, not an appliance. A room or
+furniture `entity` that is a plug's switch follows the rule only when that
+plug is on the same floor as the room. The tooltip shows watts rounded to
+one decimal, always in W.
+
 ## 2026-10-03: motion zones and groups, a motion perimeter, idle covers
 
 From Diego's field report. Four calls.

@@ -473,3 +473,23 @@ test("rotation field: a 45 degree select, 0 dropped from the payload, junk shows
   await mount(page, { rotation: "x", layout: demo });
   await expect(page.locator("#editor #rotation")).toHaveValue("0");
 });
+
+// Plugs are active from `plug_watts` of measured power. The form shows the default 2 and drops it from the
+// payload at the default, like fade. An empty or negative field is the default, not 0 W (0 would call any
+// reading, even 0.0 W, "drawing power").
+test("plug_watts: shows 2 by default, writes a changed value, and an empty or negative field is the default, dropped from the payload", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#plug_watts")).toHaveValue("2");
+  await editor.locator("#plug_watts").fill("7.5");
+  await editor.locator("#plug_watts").blur();
+  expect(((await events(page)).at(-1) as { config: Record<string, unknown> }).config.plug_watts).toBe(7.5);
+  for (const bad of ["", "-1"]) {
+    await editor.locator("#plug_watts").fill("7.5");
+    await editor.locator("#plug_watts").blur();
+    await editor.locator("#plug_watts").fill(bad);
+    await editor.locator("#plug_watts").blur();
+    expect("plug_watts" in ((await events(page)).at(-1) as { config: Record<string, unknown> }).config, JSON.stringify(bad)).toBe(false);
+  }
+});

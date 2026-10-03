@@ -159,6 +159,8 @@ To add one, push an object onto the right floor's `devices` array:
 { "id": "dev-ground-9", "type": "light", "entity": "light.kitchen_ceiling", "x": 320, "y": 140 }
 ```
 
+A `plug` device may carry `"power": "sensor.<name>"`, the sensor (device class `power`) that measures it; a plug is active only while it reads 2 W or more. Leave it out unless the user names the sensor: an `available` row has no device id, so you cannot tell which power sensor belongs to which plug. The editor and the card link the plug's own sibling sensor themselves.
+
 `id` unique within its floor, `type` one of the `DeviceType` values (see `docs/schema.md`), `entity` copied verbatim from `available`, `x`/`y` the centre in centimetres (or `a`/`b` for a two-point device such as a cover) — inside the room `available` named, or wherever the user told you. Leave `available` itself in the file; the editor drops it automatically the next time the file is saved or re-exported, so you don't need to strip it yourself.
 
 `available` never appears in a file you produced yourself (tracing a drawing gives Home Assistant nothing to snapshot). It only appears in a file the user downloaded from an already-configured plan's **File → Export**, with Home Assistant connected at the time.

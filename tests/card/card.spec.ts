@@ -2467,3 +2467,82 @@ test("CSS pair: an open cover icon is drawn idle, the same as a closed one, neve
   const lamp = await page.locator("floorplan-studio-card").evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('svg g[data-x="1"] path:not(.halo)')!).fill);
   expect(lamp).not.toBe(closed.fill);
 });
+
+// Plugs are active only while they draw power (Diego, 2026-10: "from 2 watts and up"). Real states, real
+// shadow DOM: the icon's class and tooltip, the Active list, and the runtime auto-link from `hass.entities`.
+// Shape of `hass.entities`: HA's frontend registry-display map, `{ [entity_id]: { entity_id, device_id,
+// entity_category?: "config" | "diagnostic", ... } }`; the card reads only device_id and entity_category.
+test.describe("plug power", () => {
+  const now = new Date().toISOString();
+  const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: now });
+  const W = (n: string, unit = "W") => st(n, { unit_of_measurement: unit, device_class: "power" });
+  const plugLayout = (extra: Record<string, unknown>) => {
+    const layout = structuredClone(demo);
+    const d = (layout.floors.ground.devices as { id: string }[]).find((x) => x.id === "plug-living")!;
+    Object.assign(d, extra);
+    return layout;
+  };
+  const plug = (page: Page) => page.locator("floorplan-studio-card").evaluate((el) => {
+    const g = el.shadowRoot!.querySelector("svg g.dev-plug")!;
+    return { cls: g.getAttribute("class")!.split(" "), title: g.querySelector("title")!.textContent, fill: getComputedStyle(g.querySelector("path:not(.halo)")!).fill };
+  });
+  const listed = (page: Page) => page.locator("floorplan-studio-card").evaluate((el) => [...el.shadowRoot!.querySelectorAll(".fp-active-row")].map((r) => r.textContent!.trim()).filter((t) => t.includes("TV plug")).length);
+
+  test("the icon changes class at 1.9 W vs 2 W, with the same switch state; the Active list and tooltip follow", async ({ page }) => {
+    await open(page);
+    const layout = plugLayout({ power: "sensor.tv_power" });
+    await configure(page, { layout }, { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("1.9") } });
+    const idle = await plug(page);
+    expect(idle.cls).toContain("off");
+    expect(idle.cls).not.toContain("on");
+    expect(idle.title).toBe("plug: TV plug, 1.9 W");
+    expect(await listed(page)).toBe(0);
+    await configure(page, { layout }, { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("2") } });
+    const busy = await plug(page);
+    expect(busy.cls).toContain("on");
+    expect(busy.title).toBe("plug: TV plug, 2 W");
+    expect(busy.fill).not.toBe(idle.fill);
+    expect(await listed(page)).toBe(1);
+    // kW is scaled, and plug_watts moves the line.
+    await configure(page, { layout }, { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("0.0019", "kW") } });
+    expect((await plug(page)).cls).toContain("off");
+    await configure(page, { layout, plug_watts: 50 }, { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("35") } });
+    expect((await plug(page)).cls).toContain("off");
+    await configure(page, { layout, plug_watts: "lots" }, { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("35") } });
+    expect((await plug(page)).cls).toContain("on");
+  });
+
+  test("no sensor, or a dead one: a plug that is switched on stays on", async ({ page }) => {
+    await open(page);
+    await configure(page, { layout: plugLayout({}) }, { states: { "switch.demo_tv_plug": st("on") } });
+    expect((await plug(page)).cls).toContain("on");
+    const layout = plugLayout({ power: "sensor.tv_power" });
+    await configure(page, { layout }, { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("unavailable") } });
+    expect((await plug(page)).cls).toContain("on");
+  });
+
+  test("runtime auto-link: the one power sensor of the plug's HA device; two, a diagnostic one or an explicit power change that", async ({ page }) => {
+    await open(page);
+    const entities = {
+      "switch.demo_tv_plug": { entity_id: "switch.demo_tv_plug", device_id: "dev1" },
+      "sensor.tv_power": { entity_id: "sensor.tv_power", device_id: "dev1" },
+      "sensor.tv_energy": { entity_id: "sensor.tv_energy", device_id: "dev1" },
+    };
+    const states = { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("0.4"), "sensor.tv_energy": st("12", { unit_of_measurement: "kWh", device_class: "energy" }) };
+    const layout = plugLayout({});
+    await configure(page, { layout }, { states, entities });
+    expect((await plug(page)).cls).toContain("off"); // linked: 0.4 W
+    // A second power sensor on the device: a guess, so no link and the plug is on as before.
+    await configure(page, { layout }, { states: { ...states, "sensor.tv_power_b": W("9") }, entities: { ...entities, "sensor.tv_power_b": { entity_id: "sensor.tv_power_b", device_id: "dev1" } } });
+    expect((await plug(page)).cls).toContain("on");
+    // ... unless the second one is a diagnostic entity.
+    await configure(page, { layout }, { states: { ...states, "sensor.tv_power_b": W("9") }, entities: { ...entities, "sensor.tv_power_b": { entity_id: "sensor.tv_power_b", device_id: "dev1", entity_category: "diagnostic" } } });
+    expect((await plug(page)).cls).toContain("off");
+    // Another device's sensor is not a candidate.
+    await configure(page, { layout }, { states, entities: { ...entities, "sensor.tv_power": { entity_id: "sensor.tv_power", device_id: "dev2" } } });
+    expect((await plug(page)).cls).toContain("on");
+    // An explicit power wins over the link.
+    await configure(page, { layout: plugLayout({ power: "sensor.tv_power_b" }) }, { states: { ...states, "sensor.tv_power_b": W("9") }, entities });
+    expect((await plug(page)).cls).toContain("on");
+  });
+});

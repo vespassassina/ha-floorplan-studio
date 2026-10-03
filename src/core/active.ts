@@ -1,6 +1,6 @@
 import { DEVICE_TYPES } from "./schema";
 import type { Device, DeviceType, Door, Layout } from "./schema";
-import { acMode, classOf, type StateOverlay } from "./render";
+import { acMode, classOf, type RenderOpts, type StateOverlay } from "./render";
 
 /**
  * S9.5: one row the card's floating active-devices panel can show. `floor` is the layout's own floor key (not the
@@ -63,6 +63,9 @@ const COLOR_VAR: Partial<Record<DeviceType, string>> = {
   vacuum: "--fp-dev-vacuum", speaker: "--fp-dev-speaker",
 };
 
+/** What `renderFloor` takes besides state, so the list reads a plug exactly as the plan does. */
+export type ActiveOpts = Pick<RenderOpts, "plugWatts" | "powerLinks">;
+
 function colorVarFor(d: Device, state: StateOverlay | undefined): string {
   if (d.type === "ac") {
     const mode = acMode(d, { scale: 1, state });
@@ -73,7 +76,7 @@ function colorVarFor(d: Device, state: StateOverlay | undefined): string {
 
 /** Whether `d` belongs on the active list right now, per `ACTIVE_LIST_RULE`. Untrusted state (CLAUDE.md finding 1):
  *  a missing or malformed entry just reads as off, never thrown on — the same contract `classOf` already keeps. */
-function isActive(d: Device, state: StateOverlay | undefined): boolean {
+function isActive(d: Device, state: StateOverlay | undefined, opts: ActiveOpts): boolean {
   // Opus review finding 9: an empty entity has nothing to open more-info on and nothing HA reports state for —
   // never list it, whatever ACTIVE_LIST_RULE says for its type.
   if (typeof d.entity !== "string" || !d.entity) return false;
@@ -83,7 +86,7 @@ function isActive(d: Device, state: StateOverlay | undefined): boolean {
   if (rule === "always") return true;
   if (rule === "never") return false;
   if (rule === "cleaning") return s === "cleaning";
-  return classOf(d, { scale: 1, state }) === "on";
+  return classOf(d, { scale: 1, state, ...opts }) === "on";
 }
 
 /** A device's name for the list: its own plan name, else HA's `friendly_name`, else its entity id — the same
@@ -114,7 +117,7 @@ function doorAttachedRows(door: Door, field: "sensors" | "vibration", state: Sta
 /** Every active device across every floor of `layout` (not only one shown floor: the card can switch floors, this
  *  list must not — CLAUDE.md domain notes). Order follows each floor's own device order, floors in the layout's
  *  own key order; `groupActiveByType` is what the panel actually renders from, in `DEVICE_TYPES` order. */
-export function activeDevices(layout: Layout, state: StateOverlay | undefined): ActiveDevice[] {
+export function activeDevices(layout: Layout, state: StateOverlay | undefined, opts: ActiveOpts = {}): ActiveDevice[] {
   const out: ActiveDevice[] = [];
   // S10.3: an entity already drawn as its own device icon is never repeated as a door row, whichever floor either
   // one is on - built once, over every floor, before the per-floor loop below reads it.
@@ -124,7 +127,7 @@ export function activeDevices(layout: Layout, state: StateOverlay | undefined): 
   }
   for (const [floorKey, floor] of Object.entries(layout.floors)) {
     for (const d of floor.devices) {
-      if (!isActive(d, state)) continue;
+      if (!isActive(d, state, opts)) continue;
       out.push({ entity: d.entity, name: nameFor(d, state), type: d.type, floor: floorKey, colorVar: colorVarFor(d, state) });
     }
     for (const door of floor.doors ?? []) {

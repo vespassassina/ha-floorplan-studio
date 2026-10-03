@@ -111,6 +111,14 @@ Object.assign(STATES.gone, { "vacuum.demo_hall": "unavailable" });
 monLayout.floors.ground.doors[0].vibration = ["binary_sensor.demo_front_vibration"];
 STATES.vibrating = { ...STATES.off, "binary_sensor.demo_front_vibration": "on" };
 
+// Plugs are active only while they draw power (Diego, 2026-10). The TV plug is switched on and draws 35 W: active.
+// A second plug is switched on and idles at 0.4 W: grey, not blue. Off: both switched off, 0 W. Gone: unavailable.
+monLayout.floors.ground.devices.find((d) => d.id === "plug-living").power = "sensor.demo_tv_plug_power";
+monLayout.floors.ground.devices.push({ id: "mon-plug-idle", type: "plug", entity: "switch.demo_idle_plug", name: "Idle plug", power: "sensor.demo_idle_plug_power", x: 60, y: 400 });
+const watts = (n) => ["" + n, { unit_of_measurement: "W", device_class: "power" }];
+Object.assign(STATES.off, { "sensor.demo_tv_plug_power": watts(0), "switch.demo_idle_plug": "off", "sensor.demo_idle_plug_power": watts(0) });
+Object.assign(STATES.on, { "sensor.demo_tv_plug_power": watts(35), "switch.demo_idle_plug": "on", "sensor.demo_idle_plug_power": watts(0.4) });
+Object.assign(STATES.gone, { "sensor.demo_tv_plug_power": "unavailable", "switch.demo_idle_plug": "unavailable", "sensor.demo_idle_plug_power": "unavailable" });
 // A curtain (a cover) in the Hall: open it is drawn idle like closed, never orange (Diego, 2026-10). Closed in "off",
 // open in "on", unavailable in "gone".
 monLayout.floors.ground.devices.push({ id: "mon-curtain", type: "cover", entity: "cover.demo_curtain", name: "Hall curtain", x: 200, y: 550 });

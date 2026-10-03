@@ -746,6 +746,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${d.type === "camera" ? hint("Cone: 120° field of view, 1 m deep.") : nothing}
     ${d.type === "heater" ? heaterFields(c, i) : nothing}
     ${d.type === "ac" ? acField(c, i) : nothing}
+    ${d.type === "plug" ? powerField(c, i) : nothing}
     ${d.type === "person" ? roomSensorField(c, i) : nothing}
     ${d.type === "radar" ? targetsField(c, i) : nothing}
     ${hasLinks ? heading("Links") : nothing}
@@ -777,6 +778,7 @@ function deviceTypeField(c: PanelCtx, i: number) {
     if (t !== "heater") { delete dv.trvs; delete dv.tempSensors; }
     if (t !== "ac") delete dv.linked;
     if (t !== "person") delete dv.room;
+    if (t !== "plug") delete dv.power;
     if (t !== "radar") delete dv.targets;
   });
   return html`<label for="vtype">type</label><select id="vtype" .value=${d.type} @change=${(e: Event) => set(val(e))}>
@@ -917,6 +919,26 @@ function heaterFields(c: PanelCtx, i: number) {
   const setList = (field: "trvs" | "tempSensors") => (next: string[]) => c.commit((f) => mutateList(field)(f, next));
   return html`${multiAttachField(c, "htrv", "TRVs", d.trvs ?? [], c.st.deviceAttachChoices(i, "trvs"), setList("trvs"), { apply: mutateList("trvs"), targetLabel: d.name ?? d.entity, keepDeviceId: d.id })}
     ${multiAttachField(c, "hsens", "temperature sensors", d.tempSensors ?? [], c.st.deviceAttachChoices(i, "tempSensors"), setList("tempSensors"), { apply: mutateList("tempSensors"), targetLabel: d.name ?? d.entity, keepDeviceId: d.id })}`;
+}
+
+/**
+ * A plug's power sensor, written as `power` (the key is deleted for none). With HA only sensors of device class
+ * `power` are offered; the current value always stays listed, so an id HA does not know is never silently dropped.
+ * Empty is not "off": the card then links the device's own power sensor when it has exactly one.
+ */
+function powerField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  const set = (v: string | undefined) => {
+    if ((v || undefined) === d.power) return; // unchanged: no undo step
+    c.commit((f) => { if (v) f.devices[i].power = v; else delete f.devices[i].power; });
+  };
+  const note = hint("Active from 2 W of power (card option plug_watts). Empty: the device's own sensor if it has one; none: active when on.", true);
+  const ha = c.st.ha;
+  if (!ha) return html`${entityField(c, "vpower", "Power sensor", d.power, "(auto)", set)}${note}`;
+  const found = byName(ha.entities.filter((e) => e.domain === "sensor" && e.dc === "power"));
+  const options: ComboOption[] = found.map((e) => ({ value: e.id, label: e.name }));
+  if (d.power && !found.some((e) => e.id === d.power)) options.push({ value: d.power, label: `${d.power} (not a power sensor in Home Assistant)` });
+  return html`<label for="vpower">Power sensor</label>${combo("vpower", "Power sensor", d.power ?? "", options, (v) => set(v || undefined), "(auto)")}${note}`;
 }
 
 /** S7.8: the entity that says which room a person is in. Written as `room`, the key is deleted for none. The person's

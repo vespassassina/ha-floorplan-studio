@@ -8448,3 +8448,61 @@ test("heights: a layout loaded with heights shows them in the fields", async ({ 
   await selectDev(page, 0);
   await expect(page.locator("#vz")).toHaveValue("215");
 });
+
+// ---- Plug power sensor (Diego, 2026-10: a plug is active only while it draws 2 W or more) ----------------
+// `dev` is the HA device id and `dc` the device class, as hass-pickers.ts puts them on HaData rows.
+const POWER_HA = { floors: [{ id: "gf", name: "Ground" }], areas: [{ id: "living", name: "Living" }],
+  entities: [
+    { id: "switch.demo_tv_plug", name: "TV plug", domain: "switch", dc: "outlet", dev: "tv" },
+    { id: "sensor.tv_power", name: "TV power", domain: "sensor", dc: "power", dev: "tv" },
+    { id: "sensor.other_power", name: "Other power", domain: "sensor", dc: "power", dev: "other" },
+    { id: "sensor.tv_energy", name: "TV energy", domain: "sensor", dc: "energy", dev: "tv" },
+    { id: "sensor.pond", name: "Pond level", domain: "sensor" },
+    { id: "switch.free_plug", name: "Free plug", domain: "switch", dc: "outlet", dev: "free" },
+    { id: "sensor.free_power", name: "Free power", domain: "sensor", dc: "power", dev: "free" },
+  ] };
+const plugIndex = (page: Page) => groundOf(page).then((g) => g.devices.findIndex((d) => d.id === "plug-living"));
+
+test("the plug panel offers only power sensors, one pick is one undo step, the same pick again is none, clearing deletes the key", async ({ page }) => {
+  await setHa(page, POWER_HA);
+  const i = await plugIndex(page);
+  await selectDev(page, i);
+  await expect(page.locator("#panel")).toContainText("2 W");
+  expect(await comboOptionValues(page, "#vpower")).toEqual(["", "sensor.free_power", "sensor.other_power", "sensor.tv_power"]);
+  await pickEntity(page, "#vpower", "sensor.tv_power");
+  expect((await groundOf(page)).devices[i].power).toBe("sensor.tv_power");
+  await pickEntity(page, "#vpower", "sensor.tv_power"); // unchanged: no step
+  await menu(page, "File");
+  await page.locator("#undo").click(); // exactly one step back
+  expect("power" in (await groundOf(page)).devices[i]).toBe(false);
+  await menu(page, "File");
+  await expect(page.locator("#undo")).toBeDisabled();
+  await selectDev(page, i);
+  await pickEntity(page, "#vpower", "sensor.other_power");
+  await pickEntity(page, "#vpower", "", "");
+  expect("power" in (await groundOf(page)).devices[i]).toBe(false);
+  await savedValid(page);
+});
+
+test("a device that is not a plug has no power picker; turning a plug into something else drops its power", async ({ page }) => {
+  await setHa(page, POWER_HA);
+  const i = await plugIndex(page);
+  await selectDev(page, 0);
+  await expect(page.locator("#vpower")).toHaveCount(0);
+  await selectDev(page, i);
+  await pickEntity(page, "#vpower", "sensor.tv_power");
+  await page.locator("#vtype").selectOption("switch");
+  await expect(page.locator("#vpower")).toHaveCount(0);
+  expect("power" in (await groundOf(page)).devices[i]).toBe(false);
+  await savedValid(page);
+});
+
+test("placing a catalogued plug from Add writes its device's one power sensor into the layout", async ({ page }) => {
+  await setHa(page, POWER_HA);
+  await setCatalog(page, [{ id: "plug-free", floor: "ground", room: "Living", type: "plug", name: "Free plug", entity: "switch.free_plug" }]);
+  await openDevice(page);
+  await devItem(page, "plug-free").click();
+  const placed = (await groundOf(page)).devices.find((d) => d.id === "plug-free")!;
+  expect(placed).toMatchObject({ type: "plug", power: "sensor.free_power" });
+  await savedValid(page);
+});
