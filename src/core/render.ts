@@ -1,5 +1,7 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
 import { dist, edgeKindsNear, stairSteps } from "./geometry";
+import { stairMarks } from "./stair-marks";
+import { resolveStairDirection, type FloorsAround } from "./stairs";
 import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
@@ -32,6 +34,8 @@ export interface RenderOpts {
   labels?: boolean;
   /** 0..1, how steeply the 2.5D view looks down: 0 is top-down (no lift), 1 is side-on. Only read with `view: "2.5d"`; see `obliqueFor`. Default `DEFAULT_TILT`, today's look. */
   tilt?: number;
+  /** Whether the house has a floor over this one and under it, for the direction a stair with no `direction` of its own takes (stairs.ts). Omitted, the neighbours are unknown and such a stair reads up, as ever. */
+  around?: FloorsAround;
 }
 /** How the plan is drawn. "3d" will be a different renderer (docs/DECISIONS.md), so it is not a member yet. */
 export type PlanView = "2d" | "2.5d";
@@ -245,6 +249,9 @@ export const FLOORPLAN_CSS = `
 .ws.fence{fill:var(--fp-wall-fence);fill-opacity:.4;stroke:var(--fp-wall-fence)} .ws.sealed{fill:var(--fp-sealed);stroke:var(--fp-sealed)}
 .glass{fill:var(--fp-window);fill-opacity:.35;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke} .glass.g-glass{fill:var(--fp-glass);stroke:var(--fp-glass)}
 .e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none}
+/* A stair that goes down or both ways (stairs.ts): an arrow on its axis, and going down the steps darkened toward the low end.
+   Both take no click (finding 18): the flight underneath is the target. --fp-night is the one dark veil every theme has. */
+.stair-dir{fill:none;stroke:var(--fp-wall);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;pointer-events:none} .stair-shade{fill:var(--fp-night);pointer-events:none}
 /* S8.11 (Diego's field report: "openings must be transparent and make the wall under them transparent too"): an
    opening no longer paints a band over the wall — renderFloor cuts a real hole in the wall layer with an SVG
    mask, so whatever is under it (a room's own fill, its texture, the background) shows through. This line still
@@ -578,7 +585,7 @@ function entityOn(o: RenderOpts, entity: string | undefined): boolean {
  * pick (`data-e`): the stored corners are those of the unturned polygon, so for any other stairs they are not where the
  * lines are drawn. The whole group is `data-s`.
  */
-function stairsGroup(t: Stairs, i: number): string {
+function stairsGroup(t: Stairs, i: number, around?: FloorsAround): string {
   const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
@@ -587,23 +594,28 @@ function stairsGroup(t: Stairs, i: number): string {
   const round = t.shape === "round" && typeof t.dia === "number" && t.dia > 0;
   const inner = round && typeof t.inner === "number" && t.inner > 0 ? t.inner / 2 : 0;
   const g: string[] = [];
+  const dir = resolveStairDirection(t, around), treads: string[] = [];
+  let outline = "";
   if (round) {
     const R = t.dia! / 2;
     const hole = inner ? ` M${num(cx + inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx - inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx + inner)} ${num(cy)}Z` : "";
-    g.push(`<path class="stairs room"${paintAttr(t)} fill-rule="evenodd" d="M${t.pts.map((p) => `${num(p[0])} ${num(p[1])}`).join("L")}Z${hole}"/>`);
+    outline = `d="M${t.pts.map((p) => `${num(p[0])} ${num(p[1])}`).join("L")}Z${hole}"`;
+    g.push(`<path class="stairs room"${paintAttr(t)} fill-rule="evenodd" ${outline}/>`);
     for (let n = 1; n < steps; n++) {
       const a = (n * 2 * Math.PI) / steps;
-      g.push(`<line class="tread" x1="${num(cx + inner * Math.cos(a))}" y1="${num(cy + inner * Math.sin(a))}" x2="${num(cx + R * Math.cos(a))}" y2="${num(cy + R * Math.sin(a))}"/>`);
+      treads.push(`<line class="tread" x1="${num(cx + inner * Math.cos(a))}" y1="${num(cy + inner * Math.sin(a))}" x2="${num(cx + R * Math.cos(a))}" y2="${num(cy + R * Math.sin(a))}"/>`);
     }
   } else {
     g.push(`<polygon class="stairs room"${paintAttr(t)} points="${pts(t.pts)}"/>`);
     // Treads run across the short side of the box, one every (long side / steps).
     const along = x1 - x0 > y1 - y0;
     for (let n = 1; n < steps; n++) {
-      if (along) { const x = x0 + ((x1 - x0) * n) / steps; g.push(`<line class="tread" x1="${num(x)}" y1="${num(y0)}" x2="${num(x)}" y2="${num(y1)}"/>`); }
-      else { const y = y0 + ((y1 - y0) * n) / steps; g.push(`<line class="tread" x1="${num(x0)}" y1="${num(y)}" x2="${num(x1)}" y2="${num(y)}"/>`); }
+      if (along) { const x = x0 + ((x1 - x0) * n) / steps; treads.push(`<line class="tread" x1="${num(x)}" y1="${num(y0)}" x2="${num(x)}" y2="${num(y1)}"/>`); }
+      else { const y = y0 + ((y1 - y0) * n) / steps; treads.push(`<line class="tread" x1="${num(x0)}" y1="${num(y)}" x2="${num(x1)}" y2="${num(y)}"/>`); }
     }
   }
+  const marks = stairMarks({ x0, x1, y0, y1, steps, round: round ? { R: t.dia! / 2, r: inner } : undefined }, dir, outline);
+  g.push(marks.shade, ...treads, marks.arrow);
   t.pts.forEach((a, j) => {
     const b = t.pts[(j + 1) % t.pts.length], e = !round && !rot ? ` data-e="s${i}:${j}"` : "";
     g.push(`<line class="e se"${e} x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"/>`);
@@ -714,7 +726,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}${on}"${own} points="${pts(r.pts)}"/>`);
   });
 
-  f.stairs.forEach((t, i) => out.push(stairsGroup(t, i)));
+  f.stairs.forEach((t, i) => out.push(stairsGroup(t, i, o.around)));
 
   // S7.6: the night overlay, over every room fill and staircase, under walls, names and devices, so lines and icons stay
   // crisp. Zones and structures sit on a room and share its overlay; a fill with no name is not drawn, so it gets none.

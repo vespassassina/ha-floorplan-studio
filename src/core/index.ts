@@ -14,3 +14,4 @@ export { ACTIVE_LIST_RULE, activeDevices, groupActiveByType } from "./active";
 export type { ActiveDevice } from "./active";
 export { entitiesOfDevice, entitiesOfDoor } from "./attachments";
 export * from "./heights";
+export * from "./stairs";
