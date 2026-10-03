@@ -7,6 +7,12 @@
 
 - 2.5D: one straight wall is one height. A wall made of several edges (rooms side by side along one line, a vertex in the middle of a wall) was cut per edge, so part of it could stand tall and part low. It now takes the largest cut of its pieces.
 - New `walls` option for the 2.5D view: `full` (every wall at its real height), `cut` (the default, as before) or `low` (every wall at the cutaway height). Card config key `walls`; the controls come with the view menus.
+- Editor: Rotate view left and right, next to the zoom buttons. 45 degrees a press, animated (none under `prefers-reduced-motion`), added on top of the plan's own Rotate. This is how you look at the plan: it is never written to the layout and never an undo step.
+- Keyboard, editor and card. Up and Down arrows zoom, Left and Right turn the view 45 degrees, Space shows the whole floor again and turns the plan upright. They do nothing while you type in a box, a menu list or a text field, and Space still presses a focused button. In the card only the card you hover or have focused listens. Alt+arrows always work.
+- Cmd/Ctrl+S saves in the editor, from anywhere, a text box included. It is the Save button: same checks, same message. An empty plan says there is nothing to save.
+- The editor keeps its view across reloads: zoom and centre per floor, the turn, 2D or 2.5D, tilt, the names toggle and the floor on show (theme, grid, measure and night already were). Saved 150 ms after you touch them, and when the tab is hidden or closed. Reset view (the 0 button or Space) clears the zoom and turn.
+- The card now remembers the floor you were on, saves 150 ms after a touch (was 400 ms) and again when the tab is hidden. A reload no longer drops you back on the first floor, and a change made just before closing the tab is no longer lost.
+- Help gains a step for the view keys, and the Save step names Cmd/Ctrl+S.
 
 ## 0.12.21
 
