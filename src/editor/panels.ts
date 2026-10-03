@@ -2,8 +2,9 @@ import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";
 import { DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, DOOR_DEFAULTS, FURNITURE_HEIGHTS, MAX_HEIGHT, UNLINKED_HEIGHTS, wallHeight, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity } from "../core";
+import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import type { CatalogEntry, DeviceType, EdgeKind, Floor, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
+import type { CatalogEntry, DeviceType, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 import { GUIDE_STEPS } from "./guide";
@@ -746,6 +747,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${d.type === "camera" ? hint("Cone: 120° field of view, 1 m deep.") : nothing}
     ${d.type === "heater" ? heaterFields(c, i) : nothing}
     ${d.type === "ac" ? acField(c, i) : nothing}
+    ${d.type === "plug" ? powerField(c, i) : nothing}
     ${d.type === "person" ? roomSensorField(c, i) : nothing}
     ${d.type === "radar" ? targetsField(c, i) : nothing}
     ${hasLinks ? heading("Links") : nothing}
@@ -777,6 +779,7 @@ function deviceTypeField(c: PanelCtx, i: number) {
     if (t !== "heater") { delete dv.trvs; delete dv.tempSensors; }
     if (t !== "ac") delete dv.linked;
     if (t !== "person") delete dv.room;
+    if (t !== "plug") delete dv.power;
     if (t !== "radar") delete dv.targets;
   });
   return html`<label for="vtype">type</label><select id="vtype" .value=${d.type} @change=${(e: Event) => set(val(e))}>
@@ -919,6 +922,26 @@ function heaterFields(c: PanelCtx, i: number) {
     ${multiAttachField(c, "hsens", "temperature sensors", d.tempSensors ?? [], c.st.deviceAttachChoices(i, "tempSensors"), setList("tempSensors"), { apply: mutateList("tempSensors"), targetLabel: d.name ?? d.entity, keepDeviceId: d.id })}`;
 }
 
+/**
+ * A plug's power sensor, written as `power` (the key is deleted for none). With HA only sensors of device class
+ * `power` are offered; the current value always stays listed, so an id HA does not know is never silently dropped.
+ * Empty is not "off": the card then links the device's own power sensor when it has exactly one.
+ */
+function powerField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  const set = (v: string | undefined) => {
+    if ((v || undefined) === d.power) return; // unchanged: no undo step
+    c.commit((f) => { if (v) f.devices[i].power = v; else delete f.devices[i].power; });
+  };
+  const note = hint("Active from 2 W of power (card option plug_watts). Empty: the device's own sensor if it has one; none: active when on.", true);
+  const ha = c.st.ha;
+  if (!ha) return html`${entityField(c, "vpower", "Power sensor", d.power, "(auto)", set)}${note}`;
+  const found = byName(ha.entities.filter((e) => e.domain === "sensor" && e.dc === "power"));
+  const options: ComboOption[] = found.map((e) => ({ value: e.id, label: e.name }));
+  if (d.power && !found.some((e) => e.id === d.power)) options.push({ value: d.power, label: `${d.power} (not a power sensor in Home Assistant)` });
+  return html`<label for="vpower">Power sensor</label>${combo("vpower", "Power sensor", d.power ?? "", options, (v) => set(v || undefined), "(auto)")}${note}`;
+}
+
 /** S7.8: the entity that says which room a person is in. Written as `room`, the key is deleted for none. The person's
  *  own entity is refused here as `validate` refuses it, so the picker never writes a layout Save would reject. */
 function roomSensorField(c: PanelCtx, i: number) {
@@ -1034,6 +1057,14 @@ function stairsPanel(c: PanelCtx, i: number) {
     replace({ pts, shape, dia: d, inner });
   };
   const setInner = (n: number) => c.commit((f) => { const o = f.stairs[i]; if (o.shape === "round") o.inner = Math.max(0, Math.min(Math.round(n), (o.dia ?? 40) - 40)); });
+  // Auto is the field left out, so the file stays as it was; the label says what Auto draws on this floor.
+  const auto = resolveStairDirection({ ...t, direction: undefined }, floorsAroundKey(c.st.layout, c.st.floor));
+  const setDirection = (v: string) => {
+    if (v !== "auto" && !(STAIR_DIRECTIONS as readonly string[]).includes(v)) return;
+    c.commit((f) => { if (v === "auto") delete f.stairs[i].direction; else f.stairs[i].direction = v as StairDirection; });
+  };
+  const directionSelect = html`<label for="sdir">direction</label><select id="sdir" .value=${t.direction ?? "auto"} @change=${(e: Event) => setDirection(val(e))}>
+    <option value="auto" ?selected=${!t.direction}>Auto (${auto})</option>${STAIR_DIRECTIONS.map((d) => html`<option value=${d} ?selected=${d === t.direction}>${STAIR_DIRECTION_LABELS[d]}</option>`)}</select>`;
   return html`<strong>Stairs</strong>
     ${round ? hint("Drag to move; set size below.")
       : t.rot ? hint("Rotated: set 0 to reshape.")
@@ -1041,6 +1072,7 @@ function stairsPanel(c: PanelCtx, i: number) {
     ${heading("Identity")}
     ${text("name", "sn", t.name, (v) => c.commit((f) => { f.stairs[i].name = v; }))}
     ${select("shape", "ss", t.shape, STAIR_SHAPES, setShape)}
+    ${directionSelect}
     <p><span>steps</span> <span id="sstn">${stairSteps(t)}</span> <span class="hint fit">one every 40 cm</span></p>
     ${heading("Appearance")}
     ${rotateButtons(c, "srot", (n) => c.commit((f) => { f.stairs[i].rot = ((t.rot + n) % 360 + 360) % 360; }), { reset: () => { if (t.rot) c.commit((f) => { f.stairs[i].rot = 0; }); }, title: round ? undefined : "A rotated flight has no corner handles: set the rotation to 0 to reshape it." })}

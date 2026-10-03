@@ -1,7 +1,7 @@
 import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, type PlanView, activeDevices, clampTilt, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
-import type { ActiveDevice, Theme } from "../core";
+import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import type { ActiveDevice, PowerCandidate, Theme } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
@@ -18,6 +18,8 @@ const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set la
 export interface HassEntity { state: string; attributes: Record<string, unknown>; last_changed: string }
 export interface Hass {
   states: Record<string, HassEntity>;
+  /** HA's entity registry (display copy): the device an entity belongs to, and its category. Absent on an old frontend; the plug auto-link then does nothing. */
+  entities?: Record<string, { device_id?: string | null; entity_category?: string | null } | undefined>;
   themes?: { darkMode?: boolean };
   connection?: { sendMessagePromise<T>(msg: Record<string, unknown>): Promise<T> };
   callService?(domain: string, service: string, data?: Record<string, unknown>): Promise<unknown>;
@@ -35,6 +37,8 @@ export interface FloorplanStudioCardConfig {
    * behaves as if `floors` were not set at all. */
   floors?: string[];
   fade?: number;
+  /** A plug is active from this many watts of measured power, not merely while switched on. A number >= 0; anything else is 2 (untrusted YAML). See docs/card.md, Plugs. */
+  plug_watts?: number;
   room_glow?: boolean;
   layout?: Layout;
   layout_url?: string;
@@ -555,6 +559,32 @@ export class FloorplanStudioCard extends LitElement {
       out[id] = { ...s, last_changed: changed };
     }
     return out ?? states;
+  }
+
+  /**
+   * Plug entity -> power sensor, for plugs with no `power` in the layout: the one `sensor.*` of device class `power`
+   * on the plug's own HA device (`hass.entities` gives the device, the sensor's state its class). An explicit
+   * `power` is never overridden (the renderer reads it first), and two candidates link nothing (`findPowerSensor`).
+   */
+  private _powerLinks(): Record<string, string> | undefined {
+    const reg = this._hass?.entities, states = this._hass?.states;
+    if (!this._layout || !reg || !states) return undefined;
+    const plugs = Object.values(this._layout.floors).flatMap((f) => f.devices).filter((d) => d.type === "plug" && !d.power && d.entity);
+    const devs = new Set(plugs.map((d) => reg[d.entity]?.device_id).filter((x): x is string => typeof x === "string" && !!x));
+    if (!devs.size) return undefined;
+    const rows: PowerCandidate[] = [];
+    for (const [id, e] of Object.entries(reg)) {
+      const dev = e?.device_id;
+      if (!dev || !devs.has(dev)) continue;
+      const dc = states[id]?.attributes?.device_class;
+      rows.push({ id, domain: id.split(".")[0], dc: typeof dc === "string" ? dc : undefined, dev, cat: e.entity_category });
+    }
+    const links: Record<string, string> = {};
+    for (const d of plugs) {
+      const found = findPowerSensor(rows, d.entity);
+      if (found) links[d.entity] = found;
+    }
+    return links;
   }
 
   /** Row count from the plan's own aspect ratio (60 cm pad, the layout's rotate), shared by getCardSize and
@@ -1217,7 +1247,7 @@ export class FloorplanStudioCard extends LitElement {
    *  of the plan `renderFloor` draws, so it never steals a hit-test from a device or door under it. */
   private _activePanel() {
     if (!this._activeListVisible() || !this._layout) return null;
-    const groups = groupActiveByType(activeDevices(this._layout, this._stateForRender()));
+    const groups = groupActiveByType(activeDevices(this._layout, this._stateForRender(), { plugWatts: plugThreshold(this._config.plug_watts), powerLinks: this._powerLinks() }));
     const count = groups.reduce((n, [, rows]) => n + rows.length, 0);
     const row = (it: ActiveDevice) => html`<button
       type="button"
@@ -1304,6 +1334,8 @@ export class FloorplanStudioCard extends LitElement {
       state: this._stateForRender(),
       now: Date.now(),
       fade: this._config.fade,
+      plugWatts: plugThreshold(this._config.plug_watts),
+      powerLinks: this._powerLinks(),
       roomGlow: this._config.room_glow,
       theme: this._theme(),
       dark: this._haDark(),
@@ -1312,6 +1344,7 @@ export class FloorplanStudioCard extends LitElement {
       view,
       tilt: this._tilt(),
       labels: this._labels(),
+      around: floorsAroundKey(this._layout!, this._floorKey()!),
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.

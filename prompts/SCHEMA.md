@@ -96,6 +96,7 @@ Optional: `"color": "#rrggbb"` sets a floor colour; `"texture"` (`wood-light`, `
 - `shape` is `straight` or `round`. Nothing else exists.
 - **`steps`**: whole number from 2 to 40. `rot`: degrees, `0` to `359`.
 - `pts`: the rectangle the flight fills, as a polygon.
+- **`direction`** (optional): `up`, `down` or `both`. Leave it out. The editor draws a flight as going up, or down on the top floor, which is right for most houses. Set it only for **stacked stairs**: `both` on a middle floor where a flight arrives from below and goes on up, or `down` where a flight on a middle floor only leads to the floor below.
 - A **curved or angled flight** is written as several `straight` sections placed end to end, each with its own `rot`.
 - A **spiral** is `round`, and then also needs `dia` (outer diameter, at least 40) and `inner` (the empty well, from 0 to `dia - 40`). `pts` is the outer circle as a polygon.
 
@@ -158,6 +159,8 @@ To add one, push an object onto the right floor's `devices` array:
 ```json
 { "id": "dev-ground-9", "type": "light", "entity": "light.kitchen_ceiling", "x": 320, "y": 140 }
 ```
+
+A `plug` device may carry `"power": "sensor.<name>"`, the sensor (device class `power`) that measures it; a plug is active only while it reads 2 W or more. Leave it out unless the user names the sensor: an `available` row has no device id, so you cannot tell which power sensor belongs to which plug. The editor and the card link the plug's own sibling sensor themselves.
 
 `id` unique within its floor, `type` one of the `DeviceType` values (see `docs/schema.md`), `entity` copied verbatim from `available`, `x`/`y` the centre in centimetres (or `a`/`b` for a two-point device such as a cover) — inside the room `available` named, or wherever the user told you. Leave `available` itself in the file; the editor drops it automatically the next time the file is saved or re-exported, so you don't need to strip it yourself.
 

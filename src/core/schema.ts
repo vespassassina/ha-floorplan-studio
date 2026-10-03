@@ -30,8 +30,10 @@ export type EdgeKind = WallKind | "none";
 /** `locked` (S4.9): the segment's length is fixed. Dragging an endpoint then only pivots it, on an arc around the other endpoint. */
 export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boolean; height?: number }
 export type StairShape = "straight" | "round";
+/** Where a flight goes from this floor. Optional: absent reads from the floors around it (see `stairDirection` in stairs.ts). "both" is stacked stairs. */
+export type StairDirection = "up" | "down" | "both";
 /** `dia` (outer) and `inner` (the empty well) exist on a round stair only; `pts` is its outer circle as a polygon. `rot` turns it about the centre of its box. */
-export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape; steps: number; rot: number; dia?: number; inner?: number; color?: string; texture?: string; textureRot?: number; textureScale?: number }
+export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape; steps: number; rot: number; dia?: number; inner?: number; direction?: StairDirection; color?: string; texture?: string; textureRot?: number; textureScale?: number }
 /**
  * `sensors`/`vibration`/`locks` (S4.24): every contact sensor, vibration sensor and smart lock attached to
  * this door or window — several of each allowed. An unlocked lock reads the opening as open, same as a
@@ -61,8 +63,12 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * editor's "Turn on with... Create automation" flow — the automation the editor created, not this field, is what
  * actually drives the light. Unlinking removes only this field; the automation itself stays in Home Assistant,
  * untouched. Must differ from `entity`, same rule as `bound`.
+ * `power` (plugs only): the `sensor.*` (device class `power`) that measures the plug. A plug is active only while
+ * that sensor reads at least 2 W (the card's `plug_watts` changes the 2); switched on and drawing nothing is idle.
+ * Unset, the editor links the plug's sibling power sensor when it finds exactly one, and the card does the same at
+ * runtime; with no sensor at all a plug is active whenever its switch is on. Must differ from `entity`.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; z?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
  *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. */
 export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number }
@@ -119,6 +125,7 @@ export const ROOM_KINDS: readonly RoomKind[] = ["room", "garden", "pavement", "f
 export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", "fence", "edge"];
 export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
 export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
+export const STAIR_DIRECTIONS: readonly StairDirection[] = ["up", "down", "both"];
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed"];
 export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"];
@@ -240,6 +247,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (s.textureScale !== undefined && !(typeof s.textureScale === "number" && Number.isFinite(s.textureScale) && s.textureScale >= 0.25 && s.textureScale <= 2))
         errors.push(`${at} ${s.id} textureScale must be a number from 0.25 to 2`);
       oneOf(`${s.id} shape`, s.shape, STAIR_SHAPES);
+      if (s.direction !== undefined && !STAIR_DIRECTIONS.includes(s.direction)) errors.push(`${at} ${s.id} direction must be one of ${STAIR_DIRECTIONS.join(", ")}; leave it out for Auto`);
       if (!Number.isInteger(s.steps) || s.steps < 2 || s.steps > 40) errors.push(`${at} ${s.id} steps must be a whole number from 2 to 40`);
       if (!(typeof s.rot === "number" && Number.isFinite(s.rot) && s.rot >= 0 && s.rot < 360)) errors.push(`${at} ${s.id} rot must be a number in [0, 360)`);
       const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
@@ -301,6 +309,13 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         else {
           if (d.type !== "light") errors.push(`${at} ${d.id} motion is only allowed on a light`);
           if (d.motion === d.entity) errors.push(`${at} ${d.id} motion must differ from entity`);
+        }
+      }
+      if (d.power !== undefined) {
+        if (!isEntity(d.power)) errors.push(`${at} ${d.id} power must be an entity id like sensor.name`);
+        else {
+          if (d.type !== "plug") errors.push(`${at} ${d.id} power is only allowed on a plug`);
+          if (d.power === d.entity) errors.push(`${at} ${d.id} power must differ from entity`);
         }
       }
       if (d.trvs !== undefined || d.tempSensors !== undefined) {

@@ -159,6 +159,15 @@ in `prompts/`, then fixed in the editor.
   stair: of the mean circumference), at least 2, at most 40; `migrate`
   recomputes it and ignores a stored value that disagrees. `rot` the rotation in degrees. Stairs are placed on every floor at
   the same position.
+- `stairs.direction` (optional, `up`, `down` or `both`) is which way the flight
+  goes from the floor it is drawn on. Absent means auto: up when a floor lies
+  above, else down when a floor lies below, else up. So the top floor shows its
+  stairs coming from below, with no edit; auto never gives `both`. Each floor
+  keeps its own copy of a stair, so the field is per floor. 2D marks it with a
+  chevron arrow along the flight (none for an up stair, so those draw as ever),
+  and shades the treads for down. 2.5D: up is the rise; down is a stairwell, a
+  sunken opening with treads below the floor and a short rim on the near edges;
+  both is the rise with a low kerb round the foot. Resolver: `src/core/stairs.ts`.
 - `door.kind`: door, glass, window, sealed. `sensor` is a binary_sensor entity;
   `cover` is a cover entity for doors that HA can open.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
@@ -190,6 +199,12 @@ in `prompts/`, then fixed in the editor.
   the same lamp. `entity` stays the primary one. Several lights may name the
   same switch: one wall switch can power several lamps. The switch may also be
   a device of its own on the plan.
+- `device.power` (plugs only, optional): the `sensor.*` entity, device class
+  `power`, that measures the plug. A plug is active only while it reads 2 W or
+  more (card `plug_watts`). Must differ from `entity`. Unset, the editor fills
+  it in when it places a plug whose HA device has exactly one power sensor,
+  and the card does the same at runtime; with no sensor a plug is active
+  whenever its switch is on.
 - `device.motion` (lights only, optional, S8.7): the motion sensor or motion
   group entity this light was linked to through the editor's own "Turn on
   with... Create automation" flow. It records the link for the panel to show
@@ -253,7 +268,7 @@ honest metaphor there.
 | smart light (`rgb_color`) | grey icon | icon, halo and aura in the light's own colour from HA, yellow when it reports none | the light's own `rgb_color`, or `--fp-dev-light` | toggle; long press: more-info |
 | light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | as light | toggle the light entity; long press: more-info for it (the switch is reachable from that dialog — `bound` is deliberately never one of S10.4's chooser entities, see docs/DECISIONS.md) |
 | switch (wall switch) | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | toggle |
-| plug | grey | blue icon and halo | `--fp-dev-plug` (#2c7fb8) | toggle |
+| plug | grey | blue icon and halo while it draws `plug_watts` (2 W) or more; a plug switched on but idle stays grey. With no power sensor: while the switch is on | `--fp-dev-plug` (#2c7fb8) | toggle |
 | binary_sensor on a door or window, or an attached `lock` left unlocked | door drawn normally | door drawn red and dashed, over a wide red line pulsing under it (S8.13 line, S9.1 dash; steady under reduced motion), the same for an open contact or an unlocked lock (2026-09-28). A cover door's own open state is undashed and keeps its plain orange, even on a door with both | `--fp-open-door`, default `var(--fp-dev-contact)` (#d64545); card's `open_color` overrides both the door and the line (S9.1) | more-info for its one entity; a door naming more than one (a contact sensor and a vibration sensor, or either plus a `lock`) opens a chooser listing all of them instead (S10.4). Never on a door with a `cover`: a plain tap there always opens its own confirm dialog, but a long press opens the chooser instead, the cover entity included (S10.3 review) |
 | door with a `vibration` sensor triggered | door drawn normally | door drawn the same red as an open contact, over the same pulsing alert line, but solid — dashed still means "open" alone. Open and vibrating together stay dashed (open wins the dash) and share one alert line, not two (S10.3) | `--fp-open-door`, same token and `open_color` override as an open contact | more-info (on the vibration sensor; it also joins the Active panel under the door's name); as above, a chooser instead when the door names more than one entity (S10.4), the long-press chooser on a `cover` door (S10.3 review) |
 | contact (device icon) | grey | red icon, halo filled at 60 % and ringed red, and a red ring pulsing out from under the disc (S8.13) | `--fp-dev-contact` (#d64545) | more-info |

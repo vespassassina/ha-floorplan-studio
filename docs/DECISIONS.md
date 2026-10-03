@@ -2,6 +2,114 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-03: plugs are active by watts, not by switch
+
+Diego: "the plugs, show them active only if they are consuming power, not if
+they are just on. from 2 watts and up." Decisions.
+
+Field. Optional `power?: string` on a `plug` device (schema stays version 2),
+an entity id of a power sensor, validated like `bound`: an entity id, plug
+only, not the plug itself. Chosen over a card-side name guess: the layout
+names the sensor, so the card works without a registry.
+
+Auto-link. `findPowerSensor` (core/power.ts): same HA device, `sensor.*`,
+device class `power`, no `entity_category`; only when exactly one. Two is a
+guess and a wrong one paints a plug by another's draw, so the answer is none.
+The editor writes it when a plug is placed (Add, area, catalog), in the same
+undo step. The card repeats the search at runtime for plugs with no `power`,
+from `hass.entities` (`device_id`, `entity_category`) plus the sensor's
+`device_class` state attribute; an explicit `power` wins. `hass.entities` is
+read as HA's frontend provides it; nothing is invented, and a frontend
+without it just does not link.
+
+The rule (one place, `classOf`; the Active list, the room ring and the
+tooltip read it). Switch off: idle. Unavailable or unknown switch:
+unavailable. Switch on and a readable sensor: watts >= threshold, so 2 W is
+active and 1.99 W is not. Switch on and the sensor is unavailable, unknown,
+junk or in another unit: active, as today. No sensor at all: active, as
+today. We cannot know, and a flaky sensor must not hide a plug. Not marked
+specially. Units: W and kW (x1000); a missing unit counts as W (HA power
+sensors always carry one, so a bare number is a hand-made sensor); anything
+else is unreadable.
+
+Threshold. `PLUG_ACTIVE_WATTS = 2`, card config `plug_watts` (number >= 0,
+anything else is 2), in the Edit-card form. 0 means any reading counts.
+
+Not done. A light `bound` to a plug's switch still follows the bound light
+rule (on if either entity is on): it is a lamp, not an appliance. A room or
+furniture `entity` that is a plug's switch follows the rule only when that
+plug is on the same floor as the room. The tooltip shows watts rounded to
+one decimal, always in W.
+## 2026-10-03: walls keep their height; the cutaway eases and only counts inner rooms
+
+Supersedes the cutaway rule of 2026-10-02 ("the cutaway follows what a wall
+covers") and the hard `ny` gates in `collectWalls`. From Diego's report on his
+own Home Assistant, 2.5D: "some scale too much, others stay fixed, the walls
+are not 3d anymore". Measured with a harness over the demo and hostile layouts
+(grid, row, stacked, L, free walls, per-room heights), every user turn, tilt
+0 to 1; the viewBox always held every face (57 216 points, 0 outside), and the
+rule was covariant under a 90 degree turn of the layout. Two causes held:
+
+1. A lawn behind the house cut the back wall. `coversFloor` counted every room
+   and zone, so a garden, pavement, terrace, fill, water, structure or zone
+   behind a wall made it "hide a floor". Put a garden round the 3x3 grid and
+   all four back walls went from 250 to 90 cm, with the sides at 250.
+2. The cut was a step. `ny > 0.3` flipped a wall from 250 to 90 in one frame:
+   at 17 degrees of turn ten walls of the grid jumped 160 cm, and from 18 to 72
+   degrees every inner wall was flat. During the 350 ms turn the walls popped.
+
+Rule now (`solids.ts`): a wall has its model height, from `heights.ts`, wherever
+it stands. It is lowered toward the one `cutaway` height by `cut` in 0..1.
+- Facing the viewer (outward normal `ny > 0` in the screen frame, the same
+  frame `renderFloor` turns by): `cut = ease(ny)`.
+- Facing away: `cut = ease(-ny)` times how deep its lifted face reaches over the
+  floor of a room of kind `room`, over 30 cm. Only `kind: "room"` is a floor
+  to uncover; a zone, garden, pavement, terrace, fill, water or structure
+  behind a wall never counts.
+- A free wall: `cut = ease(|dx| / length)` on screen, so 45 degrees is judged
+  like a room wall.
+- `ease` is a smoothstep from `ny` 0.2 (side-on: full) to 0.6 (facing: cut), so
+  sides, backs and 45 degree plans land on 0 or 1 and a turn in between eases
+  over about 8 degrees. A shared edge takes the larger cut of its two sides.
+- Drawn height is `h - cut * max(0, h - cutaway)`: a wall lower than the cutaway
+  is never raised.
+`obliqueFor` is unchanged, so the cutaway still hides about 50 cm on screen at
+every tilt. 2D output and hit-testing are untouched. One test is superseded,
+`backwall-cutaway.test.ts`: "a zone behind a back wall counts too" now says it
+does not.
+
+Stairs, not changed. A straight flight rises to the storey (250 cm by default),
+by the spec and `solids-objects.test.ts`, and climbs along +x or -y of the PLAN,
+so what faces the viewer depends on the turn: at 180 degrees the tall end is
+nearest and hides up to 137 screen cm of floor. Proposed default, not done:
+cap a straight flight's rise at the cutaway by `ease` of its screen climb
+direction, like a wall. Say if you want it.
+
+The first-floor Office is blue because `demo/layout.json` gives that room
+`color: "#4a6fa5"`, in 2D as well. Not a bug.
+## 2026-10-03: stair direction
+
+Diego: the top floor shows stairs going up, not down, and stacked stairs
+need both.
+
+Field. Optional `direction`: `up`, `down`, `both` on a stair. Schema stays v2,
+a missing field is valid, junk is a validate error and migrate leaves it.
+
+Default. One resolver, `resolveStairDirection` in `src/core/stairs.ts`: an
+explicit value wins; else up when a floor lies above; else down when one lies
+below; else up. A lone floor and every lower floor draw as before. Auto never
+gives `both`: a middle floor going both ways is a choice. Proposed default;
+say if the top floor should stay up until set.
+
+Marks. 2D adds an arrow only for down and both, so up stairs stay byte for
+byte. Down also shades the treads. 2.5D: down is a stairwell (clipped to the
+footprint, treads sinking, walls darkened by `--fp-night`, short rim on the
+near edges); both is the rise plus a kerb. Chosen over a hole cut in the
+floor polygon, which would touch room and wall code another change is editing.
+
+Context. `renderFloor` knows one floor, so it takes `around: {above, below}`
+(`floorsAroundKey`). No `around` reads as up.
+
 ## 2026-10-03: motion zones and groups, a motion perimeter, idle covers
 
 From Diego's field report. Four calls.

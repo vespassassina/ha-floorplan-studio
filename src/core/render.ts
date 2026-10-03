@@ -1,9 +1,12 @@
 import { DEVICE_ICONS, FURNITURE } from "./icons";
 import { dist, edgeKindsNear, stairSteps } from "./geometry";
+import { stairMarks } from "./stair-marks";
+import { resolveStairDirection, type FloorsAround } from "./stairs";
 import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
-import { esc, num, pts } from "./fmt";
+import { esc, num, pts, tag } from "./fmt";
+import { plugThreshold, wattsOf } from "./power";
 import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, type Proj, type Solid } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
@@ -32,6 +35,12 @@ export interface RenderOpts {
   labels?: boolean;
   /** 0..1, how steeply the 2.5D view looks down: 0 is top-down (no lift), 1 is side-on. Only read with `view: "2.5d"`; see `obliqueFor`. Default `DEFAULT_TILT`, today's look. */
   tilt?: number;
+  /** A plug is active from this many watts (default 2, `PLUG_ACTIVE_WATTS`). Junk is the default; see power.ts. */
+  plugWatts?: number;
+  /** Plug entity -> power sensor entity, found at runtime by the card for plugs with no `power` of their own. An explicit `power` wins. */
+  powerLinks?: Record<string, string>;
+  /** Whether the house has a floor over this one and under it, for the direction a stair with no `direction` of its own takes (stairs.ts). Omitted, the neighbours are unknown and such a stair reads up, as ever. */
+  around?: FloorsAround;
 }
 /** How the plan is drawn. "3d" will be a different renderer (docs/DECISIONS.md), so it is not a member yet. */
 export type PlanView = "2d" | "2.5d";
@@ -245,6 +254,12 @@ export const FLOORPLAN_CSS = `
 .ws.fence{fill:var(--fp-wall-fence);fill-opacity:.4;stroke:var(--fp-wall-fence)} .ws.sealed{fill:var(--fp-sealed);stroke:var(--fp-sealed)}
 .glass{fill:var(--fp-window);fill-opacity:.35;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke} .glass.g-glass{fill:var(--fp-glass);stroke:var(--fp-glass)}
 .e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none}
+/* A stair that goes down or both ways (stairs.ts): an arrow on its axis, and going down the steps darkened toward the low end.
+   Both take no click (finding 18): the flight underneath is the target. --fp-night is the one dark veil every theme has. */
+.stair-dir{fill:none;stroke:var(--fp-wall);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;pointer-events:none} .stair-shade{fill:var(--fp-night);pointer-events:none}
+/* The same stairs in 2.5D, going down: a well in the floor. Walls and treads take .stair-shade as a veil, darker with depth. */
+.well-wall,.well-floor{fill:var(--fp-wall-side)} .well-tread{fill:var(--fp-box-top)} .well-riser{fill:var(--fp-box-side)}
+.well-rim{fill:var(--fp-box-side);stroke:var(--fp-wall-top);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 /* S8.11 (Diego's field report: "openings must be transparent and make the wall under them transparent too"): an
    opening no longer paints a band over the wall — renderFloor cuts a real hole in the wall layer with an SVG
    mask, so whatever is under it (a room's own fill, its texture, the background) shows through. This line still
@@ -371,11 +386,7 @@ const OPENING_EXTRA = WALL_HALO_EXTRA + 2;
 /** A short, deterministic tag for a string (FNV-1a, 32-bit, base36). Not security-sensitive: only used to keep a
  *  generated id short while still varying with its content. Exported (S9.5): the active-devices list panel keys
  *  its localStorage entry off a hash of the card's own config, the same idea as the mask and pattern ids below. */
-export function tag(s: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
-  return (h >>> 0).toString(36);
-}
+export { tag }; // lives in fmt.ts now, so solids.ts can mint a clip id without importing this file
 type Box = [number, number, number, number];
 const meets = (a: Box, b: Box) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 
@@ -500,6 +511,30 @@ export function acMode(d: Device, o: RenderOpts): "cool" | "heat" | null {
   return v === "cooling" ? "cool" : v === "heating" ? "heat" : null;
 }
 
+/** The sensor that measures plug `d`: its own `power`, else the one the card linked at runtime. Own `power` wins. */
+function powerEntity(d: Device, o: RenderOpts): string | undefined {
+  if (typeof d.power === "string" && d.power) return d.power;
+  const linked = o.powerLinks?.[d.entity];
+  return typeof linked === "string" && linked ? linked : undefined;
+}
+
+/** The watts a plug is drawing right now, or null when no sensor is known or it cannot be read (see `wattsOf`). */
+function plugWatts(d: Device, o: RenderOpts): number | null {
+  const e = powerEntity(d, o);
+  return e ? wattsOf(o.state?.[e]) : null;
+}
+
+/**
+ * The one rule for a plug (Diego, 2026-10): active only while it draws `plugWatts` or more, not merely switched on.
+ * Switch off: off. Switch on and a readable sensor: watts >= threshold. Switch on and no sensor, or one that is
+ * unavailable, unknown or in another unit: on, as before. We cannot know, and a flaky sensor must not hide a plug.
+ */
+function plugOn(d: Device, o: RenderOpts, sw: StateOverlay[string]): boolean {
+  if (sw.state !== "on" && sw.state !== "open") return false;
+  const w = plugWatts(d, o);
+  return w === null || w >= plugThreshold(o.plugWatts);
+}
+
 /** Exported (S9.5): the active-devices list panel reuses this same function so the list and the plan can never
  *  disagree about which devices are "on" (CLAUDE.md finding 17). */
 export function classOf(d: Device, o: RenderOpts): Cls {
@@ -508,6 +543,7 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   if (!s) return "off";
   if (s.state === "unavailable" || s.state === "unknown") return "unavailable";
   if (d.type === "ac") return acMode(d, o) ? "on" : "off";
+  if (d.type === "plug") return plugOn(d, o, s) ? "on" : "off";
   if (d.type === "climate" || d.type === "heater") return s.attributes.hvac_action === "heating" ? "on" : "off";
   // S9.4: a speaker is a media_player like any other — playing is the only "on", same as media.
   if (d.type === "media" || d.type === "speaker") return s.state === "playing" ? "on" : "off";
@@ -566,10 +602,14 @@ function personRoom(d: Device, rooms: Floor["rooms"], o: RenderOpts): number {
 
 /** S1.37: a room or a piece of furniture with an entity carries "on" when that entity is on, open or playing. */
 const ON_STATES = new Set(["on", "open", "playing"]);
-function entityOn(o: RenderOpts, entity: string | undefined): boolean {
+function entityOn(o: RenderOpts, entity: string | undefined, plugs?: ReadonlyMap<string, Device>): boolean {
   if (!entity) return false;
   const s = o.state?.[entity];
-  return !!s && ON_STATES.has(s.state);
+  if (!s) return false;
+  // A room or piece of furniture that shows a plug's switch follows the plug's own rule, not the bare switch state.
+  const plug = plugs?.get(entity);
+  if (plug) return classOf(plug, o) === "on";
+  return ON_STATES.has(s.state);
 }
 
 /**
@@ -578,7 +618,7 @@ function entityOn(o: RenderOpts, entity: string | undefined): boolean {
  * pick (`data-e`): the stored corners are those of the unturned polygon, so for any other stairs they are not where the
  * lines are drawn. The whole group is `data-s`.
  */
-function stairsGroup(t: Stairs, i: number): string {
+function stairsGroup(t: Stairs, i: number, around?: FloorsAround): string {
   const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
@@ -587,23 +627,28 @@ function stairsGroup(t: Stairs, i: number): string {
   const round = t.shape === "round" && typeof t.dia === "number" && t.dia > 0;
   const inner = round && typeof t.inner === "number" && t.inner > 0 ? t.inner / 2 : 0;
   const g: string[] = [];
+  const dir = resolveStairDirection(t, around), treads: string[] = [];
+  let outline = "";
   if (round) {
     const R = t.dia! / 2;
     const hole = inner ? ` M${num(cx + inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx - inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx + inner)} ${num(cy)}Z` : "";
-    g.push(`<path class="stairs room"${paintAttr(t)} fill-rule="evenodd" d="M${t.pts.map((p) => `${num(p[0])} ${num(p[1])}`).join("L")}Z${hole}"/>`);
+    outline = `d="M${t.pts.map((p) => `${num(p[0])} ${num(p[1])}`).join("L")}Z${hole}"`;
+    g.push(`<path class="stairs room"${paintAttr(t)} fill-rule="evenodd" ${outline}/>`);
     for (let n = 1; n < steps; n++) {
       const a = (n * 2 * Math.PI) / steps;
-      g.push(`<line class="tread" x1="${num(cx + inner * Math.cos(a))}" y1="${num(cy + inner * Math.sin(a))}" x2="${num(cx + R * Math.cos(a))}" y2="${num(cy + R * Math.sin(a))}"/>`);
+      treads.push(`<line class="tread" x1="${num(cx + inner * Math.cos(a))}" y1="${num(cy + inner * Math.sin(a))}" x2="${num(cx + R * Math.cos(a))}" y2="${num(cy + R * Math.sin(a))}"/>`);
     }
   } else {
     g.push(`<polygon class="stairs room"${paintAttr(t)} points="${pts(t.pts)}"/>`);
     // Treads run across the short side of the box, one every (long side / steps).
     const along = x1 - x0 > y1 - y0;
     for (let n = 1; n < steps; n++) {
-      if (along) { const x = x0 + ((x1 - x0) * n) / steps; g.push(`<line class="tread" x1="${num(x)}" y1="${num(y0)}" x2="${num(x)}" y2="${num(y1)}"/>`); }
-      else { const y = y0 + ((y1 - y0) * n) / steps; g.push(`<line class="tread" x1="${num(x0)}" y1="${num(y)}" x2="${num(x1)}" y2="${num(y)}"/>`); }
+      if (along) { const x = x0 + ((x1 - x0) * n) / steps; treads.push(`<line class="tread" x1="${num(x)}" y1="${num(y0)}" x2="${num(x)}" y2="${num(y1)}"/>`); }
+      else { const y = y0 + ((y1 - y0) * n) / steps; treads.push(`<line class="tread" x1="${num(x0)}" y1="${num(y)}" x2="${num(x1)}" y2="${num(y)}"/>`); }
     }
   }
+  const marks = stairMarks({ x0, x1, y0, y1, steps, round: round ? { R: t.dia! / 2, r: inner } : undefined }, dir, outline);
+  g.push(marks.shade, ...treads, marks.arrow);
   t.pts.forEach((a, j) => {
     const b = t.pts[(j + 1) % t.pts.length], e = !round && !rot ? ` data-e="s${i}:${j}"` : "";
     g.push(`<line class="e se"${e} x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"/>`);
@@ -691,6 +736,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // a/b, only a heater does, but the same "a" in d guard the rest of the file uses is kept here too) is on. Untrusted
   // layout/state: a non-finite coordinate or a light outside every room's polygon is simply not counted, never thrown.
   // S7.6: the same set decides which rooms stay bright at night.
+  const plugs = new Map(f.devices.filter((d) => d.type === "plug" && d.entity).map((d) => [d.entity, d]));
   const glowRooms = new Set<number>();
   if (o.roomGlow || o.night)
     for (const d of f.devices) {
@@ -710,11 +756,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (r.kind === "fill" && !r.name) return;
     const own = paintAttr(r);
     const glow = o.roomGlow && glowRooms.has(i) ? " glow" : "";
-    const on = !r.area && entityOn(o, r.entity) ? " on" : "";
+    const on = !r.area && entityOn(o, r.entity, plugs) ? " on" : "";
     out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}${on}"${own} points="${pts(r.pts)}"/>`);
   });
 
-  f.stairs.forEach((t, i) => out.push(stairsGroup(t, i)));
+  f.stairs.forEach((t, i) => out.push(stairsGroup(t, i, o.around)));
 
   // S7.6: the night overlay, over every room fill and staircase, under walls, names and devices, so lines and icons stay
   // crisp. Zones and structures sit on a room and share its overlay; a fill with no name is not drawn, so it gets none.
@@ -779,7 +825,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   [...f.rooms.keys()].forEach((i) => {
     const r = f.rooms[i];
     if (r.kind === "fill" && !r.name) return;
-    if (r.area || !entityOn(o, r.entity)) return;
+    if (r.area || !entityOn(o, r.entity, plugs)) return;
     out.push(`<polygon class="room on ring" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
   });
 
@@ -810,11 +856,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     solids.push(...wallSolids(f, px));
     f.furniture.forEach((m, i) => {
       const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
-      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, entityOn(o, m.entity), sym.svg, px) : null;
+      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, entityOn(o, m.entity, plugs), sym.svg, px) : null;
       if (s) solids.push(s);
     });
     for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
-    for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px));
+    for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px, resolveStairDirection(t, o.around)));
     out.push(...solids.sort((a, b) => a.key - b.key).map((s) => s.svg));
   }
 
@@ -955,7 +1001,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.furniture.forEach((m, i) => {
     const sym = FURNITURE[m.symbol];
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
-    const on = entityOn(o, m.entity) ? " on" : "";
+    const on = entityOn(o, m.entity, plugs) ? " on" : "";
     out.push(`<g data-f="${i}" class="furn${on}" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
   });
 
@@ -1037,7 +1083,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const label = d.name ?? d.id;
     const bound = d.type === "light" && d.bound ? d.bound : "";
     const bname = bound ? o.state?.[bound]?.attributes.friendly_name : undefined;
-    const title = `${esc(d.type)}: ${esc(label)}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
+    const w = d.type === "plug" ? plugWatts(d, o) : null;
+    const title = `${esc(d.type)}: ${esc(label)}${w === null ? "" : `, ${num(Math.round(w * 10) / 10)} W`}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
     // The group turns by `rot` about the icon's centre; the icon turns back so the glyph stays upright (only what else is drawn in the group turns).
     const rot = !person && typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot !== 0 ? d.rot : 0;
     // A turned plan turns the group again from outside; the icon takes that back too, the cone (in the group's frame) does not.

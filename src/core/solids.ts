@@ -2,9 +2,9 @@
 // decides when to call them and in what order (one draw path, CLAUDE.md finding 8). Nothing here knows the OBLIQUE
 // numbers: they arrive in a `Proj`, so this file never imports render.ts.
 import { deviceZ, doorSpan, edgeHeight, floorHeight, furnitureHeight, openingSpan, unlinkedHeight, wallHeight } from "./heights";
-import { esc, num, pts } from "./fmt";
+import { esc, num, pts, tag } from "./fmt";
 import { stairSteps } from "./geometry";
-import type { DoorKind, Floor, Furniture, FurnitureSymbol, Pt, Stairs, Unlinked } from "./schema";
+import type { DoorKind, Floor, Furniture, FurnitureSymbol, Pt, StairDirection, Stairs, Unlinked } from "./schema";
 
 /** A device mount at or above this height gets a stem up from its icon (a ceiling light yes, a plug no). */
 export const STEM_MIN_Z = 100;
@@ -67,23 +67,37 @@ function clipToConvex(subject: Pt[], clip: Pt[]): Pt[] {
   return out;
 }
 
-/** Below this much screen area (cm squared) a sweep only grazes a room: a wall lying along a border is not covering it. */
-const COVER_MIN_AREA = 25;
+/**
+ * How much a wall facing the viewer is lowered, 0 (keeps its height) to 1 (drawn at the cutaway), by how squarely it
+ * faces down the screen: `ny` is the y of its normal, or of the unit vector across a free wall, in the screen frame.
+ * Up to EASE_FROM a wall is seen side-on or from behind and keeps its height; from EASE_TO it faces the viewer and is cut;
+ * between the two it eases (smoothstep), so a turning plan never snaps a wall and two walls at one angle always agree.
+ * An axis-aligned plan lands on the ends (sides 0, front 1), and so does a 45 degree one (0.71 is past EASE_TO).
+ */
+const EASE_FROM = 0.2, EASE_TO = 0.6;
+function ease(ny: number): number {
+  const t = Math.min(1, Math.max(0, (ny - EASE_FROM) / (EASE_TO - EASE_FROM)));
+  return t * t * (3 - 2 * t);
+}
+
+/** A back wall that hides this much (cm of floor, measured across the wall) is cut fully; less eases in. */
+const COVER_FULL_DEPTH = 30;
 
 /**
- * Whether a wall from `a` to `b` (screen frame, `n` its outward unit normal), lifted to `h`, hides part of any of the
- * `floors` (room and zone outlines, screen frame). The wall sweeps the parallelogram from its base along the lift, and
- * only the outward side counts: its own room lies behind it, and the sides it leans over are the side walls' business.
+ * How far, across the wall, the face of a wall from `a` to `b` (screen frame, `n` its outward unit normal), lifted to `h`,
+ * reaches over any of the `floors` (inner rooms' outlines, screen frame): the covered area over the wall's length. The
+ * wall sweeps the parallelogram from its base along the lift, and only the outward side counts: its own room lies
+ * behind it, and the sides it leans over are the side walls' business.
  */
-function coversFloor(px: Proj, a: Pt, b: Pt, n: Pt, h: number, floors: Pt[][]): boolean {
+function coveredDepth(px: Proj, a: Pt, b: Pt, n: Pt, h: number, floors: Pt[][]): number {
   const lift: Pt = [h * px.rise * px.skew, -h * px.rise];
-  if (n[0] * lift[0] + n[1] * lift[1] <= 0) return false;
+  if (n[0] * lift[0] + n[1] * lift[1] <= 0) return 0;
   const sweep: Pt[] = [a, b, [b[0] + lift[0], b[1] + lift[1]], [a[0] + lift[0], a[1] + lift[1]]];
-  return floors.some((q) => area2(clipToConvex(q, sweep)) / 2 > COVER_MIN_AREA);
+  return Math.max(0, ...floors.map((q) => area2(clipToConvex(q, sweep)) / 2)) / (Math.hypot(b[0] - a[0], b[1] - a[1]) || 1);
 }
 
 /** One wall piece of the 2.5D plan: an edge or a free wall with a height above zero. */
-interface WallSeg { a: Pt; b: Pt; h: number; front: boolean; kind: string }
+interface WallSeg { a: Pt; b: Pt; h: number; /** 0..1: how far it is lowered toward the cutaway. */ cut: number; kind: string }
 
 /** Twice the signed area in the screen frame; its sign says which way the polygon winds, so which side of an edge is outside. */
 function winding(px: Proj, ps: Pt[]): number {
@@ -94,19 +108,22 @@ function winding(px: Proj, ps: Pt[]): number {
 /**
  * Every edge and free wall that has a height, once each.
  *
- * Cutaway rule. A wall hides what is behind it, and the viewer is at the south, so a wall whose outward normal points
- * down the screen (+y) would hide the room it closes. Such a wall is drawn at most `cutaway` cm high, like a doll's
- * house with the front taken off; back and side walls keep their full height. A free wall has no outside, so one that
- * is mostly horizontal on screen counts as front. `front` marks them; the cut itself is applied where the faces are made.
- *
- * A back wall is no safer for being a back wall: the room behind it may be another room's floor (the Hall's north wall
- * over the Living room), and that edge is not the Living room's front wall, so nothing above would pair them. So a wall
- * facing up the screen is also cut when its lift covers the floor of any room or zone. The whole segment takes the cut,
- * not just the covered part: a wall that steps up and down along its length would read as a fault.
+ * Cutaway rule, one for every wall. A wall keeps the height its model gives it (heights.ts), wherever it stands and
+ * whatever the turn, except where it would hide a floor the viewer wants to see. The viewer is at the south, so:
+ *   - a wall whose outward normal points down the screen would hide the room it closes: lowered (a doll's house with
+ *     the front taken off);
+ *   - a wall facing up the screen hides what lies outside it, which matters only when that is another room: lowered
+ *     when its lift covers the floor of a room of kind "room". A garden, pavement, terrace, fill, water, structure or
+ *     zone behind a wall is not an interior and never counts (Diego's field report, 2026-10-03: a lawn behind the house
+ *     had cut every back wall flat);
+ *   - a wall seen side-on keeps its height.
+ * "Lowered" is one constant, `cutaway`, and the step to it is eased in the angle (see `ease`), not a snap. A free wall has
+ * no outside; it is judged by how horizontal it is on screen, by the same ease. The whole segment takes the cut, not just
+ * the covered part: a wall that steps up and down along its length would read as a fault.
  */
 function collectWalls(f: Floor, px: Proj): WallSeg[] {
   const out: WallSeg[] = [];
-  const floors = (f.rooms ?? []).map((r) => r?.pts).filter((q): q is Pt[] => Array.isArray(q) && q.length >= 3 && q.every(finite)).map((q) => q.map(px.scr));
+  const floors = (f.rooms ?? []).filter((r) => r?.kind === "room").map((r) => r.pts).filter((q): q is Pt[] => Array.isArray(q) && q.length >= 3 && q.every(finite)).map((q) => q.map(px.scr));
   const polys: { pts: Pt[]; room: Floor["rooms"][number] | null }[] = [{ pts: f.outline ?? [], room: null }, ...(f.rooms ?? []).filter((r) => r.kind !== "zone").map((room) => ({ pts: room.pts ?? [], room }))];
   for (const P of polys) {
     if (!Array.isArray(P.pts) || P.pts.length < 3 || !P.pts.every(finite)) continue;
@@ -118,8 +135,9 @@ function collectWalls(f: Floor, px: Proj): WallSeg[] {
       const s = px.scr(a), t = px.scr(b), len = Math.hypot(t[0] - s[0], t[1] - s[1]) || 1;
       // Screen y points down; for a polygon with positive winding the outward normal of a->b is (dy, -dx), so its y is -dx.
       const nx = (dir * (t[1] - s[1])) / len, ny = (dir * -(t[0] - s[0])) / len;
-      const front = dir !== 0 && (ny > 0.3 || (ny < -0.3 && coversFloor(px, s, t, [nx, ny], h, floors)));
-      out.push({ a, b, h, front, kind: Array.isArray(wk) && typeof wk[i] === "string" ? (wk[i] as string) : P.room ? "wall" : "external" });
+      const toward = ease(Math.abs(ny));
+      const cut = dir === 0 ? 0 : ny > 0 ? toward : toward && toward * Math.min(1, coveredDepth(px, s, t, [nx, ny], h, floors) / COVER_FULL_DEPTH);
+      out.push({ a, b, h, cut, kind: Array.isArray(wk) && typeof wk[i] === "string" ? (wk[i] as string) : P.room ? "wall" : "external" });
     });
   }
   for (const w of f.walls ?? []) {
@@ -127,16 +145,16 @@ function collectWalls(f: Floor, px: Proj): WallSeg[] {
     const h = wallHeight(f, w);
     if (!(h > 0)) continue;
     const s = px.scr(w.a), t = px.scr(w.b);
-    out.push({ a: w.a, b: w.b, h, front: Math.abs(t[0] - s[0]) > Math.abs(t[1] - s[1]), kind: String(w.kind) });
+    out.push({ a: w.a, b: w.b, h, cut: ease(Math.abs(t[0] - s[0]) / (Math.hypot(t[0] - s[0], t[1] - s[1]) || 1)), kind: String(w.kind) });
   }
   // The same edge twice (a room's wall on the outline, two rooms side by side) is one wall: the taller, the more
-  // exposed (front) and the external kind win, so a doubled edge never draws doubled.
+  // exposed (the most cut) and the external kind win, so a doubled edge never draws doubled.
   const seen = new Map<string, WallSeg>();
   for (const w of out) {
     const k = [w.a, w.b].map((p) => `${Math.round(p[0])},${Math.round(p[1])}`).sort().join("|");
     const o = seen.get(k);
     if (!o) { seen.set(k, { ...w }); continue; }
-    o.front ||= w.front;
+    o.cut = Math.max(o.cut, w.cut);
     if (w.h > o.h) { o.h = w.h; o.kind = w.kind; }
     if (w.kind === "external") o.kind = "external";
   }
@@ -186,7 +204,7 @@ export function wallSolids(f: Floor, px: Proj): Solid[] {
   const spans = spansOf(f);
   return collectWalls(f, px).map((w) => {
     const len = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]), ux = (w.b[0] - w.a[0]) / len, uy = (w.b[1] - w.a[1]) / len;
-    const hh = w.front ? Math.min(w.h, px.cutaway) : w.h;
+    const hh = w.h - w.cut * Math.max(0, w.h - px.cutaway);
     const at = (t: number): Pt => [w.a[0] + ux * t, w.a[1] + uy * t];
     const quad = (t0: number, t1: number, z0: number, z1: number, cls: string) =>
       z1 > z0 && t1 > t0 ? `<polygon class="${cls}" points="${pts([px.lift(at(t0), z0), px.lift(at(t1), z0), px.lift(at(t1), z1), px.lift(at(t0), z1)])}"/>` : "";
@@ -284,34 +302,102 @@ export function unlinkedSolid(u: Unlinked, px: Proj): Solid | null {
 }
 
 /**
- * A staircase as steps, each a block as high as the stairs have climbed by then, the last as high as the storey.
- * A straight flight climbs toward +x when it runs along x and toward -y when it runs along y, away from the viewer, so
- * every riser faces it. A round one climbs once round, anticlockwise on screen from the right. The flat group renderFloor
- * draws stays under, as the click target. `rise` is the storey height; `rot` turns the whole thing about its centre, as in 2D.
+ * The steps of a staircase as base polygons turned by `rot` about the centre of the box, as in 2D, lowest first; the
+ * edge of each that faces the low end; and the outline of the whole foot, grown by `margin` cm. Null for a stair that
+ * cannot be drawn. A straight flight climbs toward +x when it runs along x and toward -y when it runs along y, away from
+ * the viewer, so every riser faces it. A round one climbs once round, anticlockwise on screen from the right.
  */
-export function stairSolids(t: Stairs, rise: number, px: Proj): Solid[] {
-  if (!Array.isArray(t.pts) || t.pts.length < 3 || !t.pts.every(finite)) return [];
+function stairBlocks(t: Stairs): { steps: Pt[][]; lowEdge: number; foot: (margin: number) => Pt[] } | null {
+  if (!Array.isArray(t.pts) || t.pts.length < 3 || !t.pts.every(finite)) return null;
   const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), c: Pt = [(x0 + x1) / 2, (y0 + y1) / 2];
   const rot = typeof t.rot === "number" && Number.isFinite(t.rot) ? t.rot : 0, n = stairSteps(t);
+  const turn = (ps: Pt[]) => (rot ? ps.map((p) => turnAbout(p, rot, c)) : ps);
   const steps: Pt[][] = [];
   if (t.shape === "round" && typeof t.dia === "number" && t.dia > 0) {
     const R = t.dia / 2, r = typeof t.inner === "number" && t.inner > 0 ? t.inner / 2 : 0, ARC = 3;
     for (let k = 0; k < n; k++) {
       const at = (rad: number, j: number): Pt => { const a = ((k + j / ARC) * 2 * Math.PI) / n; return [c[0] + rad * Math.cos(a), c[1] + rad * Math.sin(a)]; };
       const outer = Array.from({ length: ARC + 1 }, (_, j) => at(R, j));
-      steps.push([...outer, ...(r ? Array.from({ length: ARC + 1 }, (_, j) => at(r, ARC - j)) : [c])]);
+      steps.push(turn([...outer, ...(r ? Array.from({ length: ARC + 1 }, (_, j) => at(r, ARC - j)) : [c])]));
     }
-  } else {
-    const along = x1 - x0 > y1 - y0, dx = (x1 - x0) / n, dy = (y1 - y0) / n;
-    for (let k = 0; k < n; k++) steps.push(along
-      ? [[x0 + k * dx, y0], [x0 + (k + 1) * dx, y0], [x0 + (k + 1) * dx, y1], [x0 + k * dx, y1]]
-      : [[x0, y1 - (k + 1) * dy], [x1, y1 - (k + 1) * dy], [x1, y1 - k * dy], [x0, y1 - k * dy]]);
+    // The radial edge that closes a step, back to where it starts, faces the low end. The foot is a 24-gon round the outer rim.
+    const foot = (m: number) => Array.from({ length: 24 }, (_, i): Pt => [c[0] + (R + m) * Math.cos((i * Math.PI) / 12), c[1] + (R + m) * Math.sin((i * Math.PI) / 12)]);
+    return { steps, lowEdge: steps[0].length - 1, foot };
   }
+  const along = x1 - x0 > y1 - y0, dx = (x1 - x0) / n, dy = (y1 - y0) / n;
+  for (let k = 0; k < n; k++) steps.push(turn(along
+    ? [[x0 + k * dx, y0], [x0 + (k + 1) * dx, y0], [x0 + (k + 1) * dx, y1], [x0 + k * dx, y1]]
+    : [[x0, y1 - (k + 1) * dy], [x1, y1 - (k + 1) * dy], [x1, y1 - k * dy], [x0, y1 - k * dy]]));
+  return { steps, lowEdge: along ? 3 : 2, foot: (m) => turn([[x0 - m, y0 - m], [x1 + m, y0 - m], [x1 + m, y1 + m], [x0 - m, y1 + m]]) };
+}
+
+/**
+ * A staircase as steps, each a block as high as the stairs have climbed by then, the last as high as the storey.
+ * The flat group renderFloor draws stays under, as the click target. `rise` is the storey height. Going `down` it is a
+ * stairwell instead (`stairWell`); going `both` it rises and keeps a low rim round its foot.
+ */
+export function stairSolids(t: Stairs, rise: number, px: Proj, dir: StairDirection = "up"): Solid[] {
+  const blocks = stairBlocks(t);
+  if (!blocks) return [];
+  if (dir === "down") return stairWell(blocks, px);
   const out: Solid[] = [];
-  steps.forEach((base, k) => {
-    const turned = rot ? base.map((p) => turnAbout(p, rot, c)) : base, p = prism(turned, ((k + 1) / n) * rise, px);
+  blocks.steps.forEach((turned, k) => {
+    const p = prism(turned, ((k + 1) / blocks.steps.length) * rise, px);
     if (p) out.push({ key: nearest(px, turned), svg: `<g class="obj">${p}</g>` });
   });
+  if (dir === "both") out.push(...stairRim(blocks.foot, px));
+  return out;
+}
+
+/** cm a stairwell sinks below the floor at its lowest step: a drawing of going down, not the storey. */
+const WELL_DEPTH = 60;
+/** cm the near edges of a stairwell stand above the floor. */
+const WELL_RIM = 6;
+/** How far out from the foot, and how high, the kerb of stairs that go both ways stands. */
+const KERB_OUT = 6, KERB_HIGH = 10;
+
+/** A low kerb round the foot of stairs that go both ways. In segments, so each sorts against the steps by its own depth. */
+function stairRim(foot: (margin: number) => Pt[], px: Proj): Solid[] {
+  const inner = foot(0), outer = foot(KERB_OUT), out: Solid[] = [];
+  inner.forEach((a, i) => {
+    const j = (i + 1) % inner.length, base = [a, inner[j], outer[j], outer[i]], p = prism(base, KERB_HIGH, px);
+    if (p) out.push({ key: nearest(px, base), svg: `<g class="obj">${p}</g>` });
+  });
+  return out;
+}
+
+/**
+ * Stairs that go down, drawn as a stairwell in the floor: the inner walls of the opening that the viewer looks across,
+ * one tread sunk lower per step with the risers that face the viewer, and a short rim on the near edges, which hide a
+ * little of what lies below. The lowest step is at the low end, as when the flight goes up. Each piece sorts by depth like
+ * the rest, so a lower tread behind a higher one is covered by it. The treads and the walls take a veil, darker with depth.
+ */
+function stairWell({ steps, lowEdge, foot }: NonNullable<ReturnType<typeof stairBlocks>>, px: Proj): Solid[] {
+  const n = steps.length, outline = foot(0), out: Solid[] = [];
+  /** Edge i of `base` as a quad from height z0 to z1, when the viewer does (or does not) see its outer face. */
+  const face = (base: Pt[], i: number, z0: number, z1: number, cls: string, seen: boolean) => {
+    const a = base[i], b = base[(i + 1) % base.length], d = Math.sign(winding(px, base)), s = px.scr(a), t = px.scr(b), len = Math.hypot(t[0] - s[0], t[1] - s[1]) || 1;
+    const nx = (d * (t[1] - s[1])) / len, ny = (d * -(t[0] - s[0])) / len;
+    return d && (ny > px.skew * nx + 1e-9) === seen ? `<polygon class="${cls}" points="${pts([px.lift(a, z0), px.lift(b, z0), px.lift(b, z1), px.lift(a, z1)])}"/>` : "";
+  };
+  const veil = (poly: string, opacity: number) => poly.replace(/^<polygon class="[^"]*"/, `<polygon class="stair-shade" opacity="${num(opacity)}"`);
+  // Below the floor you see only what the opening lets through: everything sunk is clipped to the footprint at floor
+  // level, or the lowered treads would hang out of the hole toward the viewer like a block. The id is a hash of the
+  // footprint, as the opening mask's is, so two cards drawing this floor mint the same one.
+  const clip = `fp-well-${tag(pts(outline))}`, inWell = `<g class="obj" clip-path="url(#${clip})">`;
+  const walls = outline.map((_, i) => face(outline, i, 0, -WELL_DEPTH, "well-wall", false)).filter(Boolean);
+  const first = Math.min(...steps.map((b) => nearest(px, b)));
+  out.push({ key: first - 2, svg: `<clipPath id="${clip}"><polygon points="${pts(outline)}"/></clipPath>` });
+  // A dark ground first, so what no tread covers (a round stair's well, a gap between lowered treads) reads as depth, not as the floor.
+  const ground = `<polygon class="well-floor" points="${pts(outline)}"/>`;
+  out.push({ key: first - 1, svg: `${inWell}${ground}${veil(ground, 0.8)}${walls.join("")}${walls.map((w) => veil(w, 0.8)).join("")}</g>` });
+  steps.forEach((base, k) => {
+    const z = -WELL_DEPTH + (k * WELL_DEPTH) / n, lid = `<polygon class="well-tread" points="${pts(base.map((p) => px.lift(p, z)))}"/>`;
+    const riser = k ? face(base, lowEdge, z - WELL_DEPTH / n, z, "well-riser", true) : "";
+    out.push({ key: nearest(px, base), svg: `${inWell}${riser}${lid}${veil(lid, (n - k) / n)}</g>` });
+  });
+  const rim = outline.map((_, i) => face(outline, i, 0, WELL_RIM, "well-rim", true)).filter(Boolean);
+  if (rim.length) out.push({ key: Math.max(...steps.map((b) => nearest(px, b))), svg: `<g class="obj">${rim.join("")}</g>` });
   return out;
 }

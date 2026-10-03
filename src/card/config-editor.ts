@@ -13,6 +13,8 @@ type ZoomChoice = "on" | "wheel" | "off";
 const DEFAULT_THEME: Theme = "blueprint";
 const DEFAULT_FADE = 300;
 const DEFAULT_ROOM_GLOW = false;
+// Matches PLUG_ACTIVE_WATTS in core/power.ts, kept apart like the defaults around it.
+const DEFAULT_PLUG_WATTS = 2;
 const DEFAULT_KIOSK = false;
 const DEFAULT_ACTIVE_LIST = true;
 const DEFAULT_NIGHT = "auto";
@@ -239,6 +241,13 @@ export class FloorplanStudioCardEditor extends LitElement {
     this._set("fade", raw !== "" && Number.isFinite(n) && n >= 0 ? n : DEFAULT_FADE, DEFAULT_FADE);
   }
 
+  private _onPlugWatts(e: Event): void {
+    // Same shape as _onFade: an emptied or negative field is the default, which `_set` leaves out of the payload.
+    const raw = (e.target as HTMLInputElement).value.trim();
+    const n = Number(raw);
+    this._set("plug_watts", raw !== "" && Number.isFinite(n) && n >= 0 ? n : DEFAULT_PLUG_WATTS, DEFAULT_PLUG_WATTS);
+  }
+
   private _onRoomGlow(e: Event): void {
     this._set("room_glow", (e.target as HTMLInputElement).checked, DEFAULT_ROOM_GLOW);
   }
@@ -410,6 +419,11 @@ export class FloorplanStudioCardEditor extends LitElement {
       <div class="row">
         <label class="main" for="fade">Fade (s)</label>
         <input id="fade" type="number" min="0" step="1" .value=${String(this._config.fade ?? DEFAULT_FADE)} @change=${this._onFade} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="plug_watts">Plug active from (W)</label>
+        <input id="plug_watts" type="number" min="0" step="0.5" .value=${String(this._config.plug_watts ?? DEFAULT_PLUG_WATTS)} @change=${this._onPlugWatts} />
       </div>
 
       <div class="row">

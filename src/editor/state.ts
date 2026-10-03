@@ -1,4 +1,4 @@
-import { DEFAULT_TILT, DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, clampTilt, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { DEFAULT_TILT, DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, clampTilt, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, PlanView, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 
 /** localStorage key for the autosaved edit. */
@@ -445,13 +445,22 @@ export class EditorState {
    * device panel's own type field corrects it afterward. False, and nothing recorded, for an entity already placed
    * or already in the catalog. Shared by `addFromArea` (S4.18, one room's area) and `addEntity` (S4.14, the general palette).
    */
+  /**
+   * The `power` a newly placed plug starts with: its HA device's one power sensor (`findPowerSensor`), so the card
+   * needs no registry to know it. Spread into the new device; nothing for any other type, no HA data, or no single match.
+   */
+  powerFor(type: DeviceType, entity: string): { power?: string } {
+    const power = type === "plug" ? findPowerSensor(this.ha?.entities, entity) : undefined;
+    return power ? { power } : {};
+  }
+
   private addHaEntity(e: HaData["entities"][number], ctr: Pt, room?: string): boolean {
     if (Object.values(this.layout.floors).some((f) => f.devices.some((d) => d.entity === e.id)) || this.layout.catalog.some((c) => c.entity === e.id)) return false;
     const next = structuredClone(this.layout);
     const f = next.floors[this.floor];
     const id = newId(f, this.floor, "device", next);
     const type = typeForEntity(e, this.ha);
-    f.devices.push({ id, name: e.name, type, entity: e.id, x: ctr[0], y: ctr[1] });
+    f.devices.push({ id, name: e.name, type, entity: e.id, x: ctr[0], y: ctr[1], ...this.powerFor(type, e.id) });
     next.catalog.push({ id, floor: this.floor, room: room ?? "", type, name: e.name, entity: e.id });
     this.snapshot();
     this.layout = next;
@@ -517,7 +526,7 @@ export class EditorState {
       const claimed = existing && Object.values(next.floors).some((fl) => fl.devices.some((d) => d.id === existing.id));
       const id = existing && !claimed ? existing.id : newId(f, this.floor, "device", next), type = existing?.type ?? typeForEntity(e, this.ha);
       if (existing && claimed) existing.id = id;
-      f.devices.push({ id, name: existing?.name ?? e.name, type, entity: e.id, x: at[0], y: at[1] });
+      f.devices.push({ id, name: existing?.name ?? e.name, type, entity: e.id, x: at[0], y: at[1], ...this.powerFor(type, e.id) });
       if (!existing) next.catalog.push({ id, floor: this.floor, room: room.name, type, name: e.name, entity: e.id });
     });
     this.snapshot();

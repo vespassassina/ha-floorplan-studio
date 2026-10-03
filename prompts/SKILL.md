@@ -31,7 +31,7 @@ Do one floor at a time, lowest first. Put `[0, 0]` at the top-left corner of the
 1. **Outline.** The outer edge of the building. Walk the corners once; do not repeat the first point. Set `owk` to `"external"` on every edge.
 2. **Rooms.** One per enclosed space. Where two rooms share a wall, give the shared corners **identical coordinates**. Set `wk` per edge: `"external"` where it lies on the outline, `"wall"` between two rooms. Name each room as the drawing does. Use `area: ""` and `label: ""`.
 3. **Doors and windows.** Two end points lying **on** a wall. Doors 80 to 100 cm wide. Mark glazed doors `glass`, fixed windows `sealed`.
-4. **Stairs.** Only `straight` and `round` exist. A curved or angled flight is several `straight` sections end to end, each with its own `rot`. A spiral is `round` with `dia` and `inner`. Stairs appear on **every** floor they pass through.
+4. **Stairs.** Only `straight` and `round` exist. A curved or angled flight is several `straight` sections end to end, each with its own `rot`. A spiral is `round` with `dia` and `inner`. Stairs appear on **every** floor they pass through. Leave out `direction`; the person sets it in the editor for stacked stairs.
 5. **Furniture**, only if it is drawn clearly. Skip anything you are unsure of.
 6. **Outdoors**, if drawn: a garden, terrace or pavement is a room with that `kind`, and may sit outside the outline.
 
