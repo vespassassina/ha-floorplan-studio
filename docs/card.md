@@ -122,8 +122,12 @@ and taps are unchanged. It works in 2D and 2.5D.
   door line at floor level still shows open, closed and alert.
 - Furniture and appliances that no entity runs are boxes with their symbol
   on the lid. Heights come from the layout (`height`) or a default per kind.
-- A device icon stays where it is on the plan. One mounted at 100 cm or more
-  (a ceiling light, a smoke alarm) gets a thin stem to its real height.
+- A device mounted at 100 cm or more (a ceiling light, a camera, a smoke alarm)
+  is drawn where it hangs, lifted with the walls, with its light radius, camera
+  cone, rings, name and value. A small pin stays on the floor under it, joined by
+  a thin stem. Tap the lifted icon; the pin takes no taps. A person, a heater bar
+  and anything under 100 cm stay on the floor. A radar's target dots stay on the
+  floor too: they are positions in the room.
 - Heights are set in the editor's inspector (see `docs/editor.md`).
 
 ## A card for one room

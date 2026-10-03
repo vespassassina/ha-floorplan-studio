@@ -532,7 +532,7 @@ test.describe("S7.4 zoom and pan", () => {
     expect((await viewBox(page)).h).toBeGreaterThan(flat.h); // the lift widened the box
     const l = await lightAt(page);
     await page.mouse.click(l.x, l.y);
-    expect((await calls(page)).length).toBe(1); // the icon did not move: a tap where it is drawn still reaches it
+    expect((await calls(page)).length).toBe(1); // a tap where the (lifted) icon is drawn reaches it
 
     await sel.selectOption("2d");
     expect(await card(page).locator("css=svg .ws").count()).toBe(0);
