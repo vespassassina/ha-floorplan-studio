@@ -83,6 +83,13 @@ Panels for entity-backed things (rooms with an area, devices) also show
 Home Assistant context — the room's helpers and automations, a device's
 more-info — where a writer is configured.
 
+A plug's panel has a Power sensor picker: the `sensor.*` of device class
+`power` that measures it. A plug is active only while that sensor reads 2 W or
+more. Placing a plug (Add, a room's area, the catalog) fills the picker when its
+Home Assistant device has exactly one power sensor; with two or none it stays
+empty and you pick. Empty also means the card looks for the sibling itself at
+runtime. One pick is one undo step; picking the same sensor again is none.
+
 ![The Living light selected: its panel shows type, entity, rotation, and what powers it.](img/editor-device-panel.png)
 
 ### Heights

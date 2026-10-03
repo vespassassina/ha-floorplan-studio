@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Plugs are active only while they draw power, not while they are merely switched on: from 2 W (card config `plug_watts`, also in the Edit-card form). A plug idling at 0.4 W draws grey. The Active list, the tooltip (`plug: TV plug, 14 W`) and a room that shows a plug's switch follow the same rule.
+- New optional `power` on a plug: the `sensor.*` (device class `power`) that measures it. The editor writes it when you place a plug whose HA device has exactly one power sensor, and the plug panel has a Power sensor picker. A plug with no `power` is linked at runtime by the card from the same rule, if Home Assistant gives it the entity registry. W and kW are read; another unit, an unavailable sensor or no sensor at all leaves a switched-on plug on, as before.
+
 ## 0.12.20
 
 - Place popup, Add and the room menu: a device with several motion, occupancy or presence sensors now offers each one as its own row (before, only its main entity showed, so extra zones were missing). A `group` whose members are all motion sensors is typed motion and offered; mixed or empty groups stay out.

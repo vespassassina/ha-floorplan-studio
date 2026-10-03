@@ -33,6 +33,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `floors` | unset | an array of floor ids: shows a switcher over only these floors, in this order, defaulting to the first one. Takes precedence over `floor`. An id the layout doesn't have is dropped; if none of them match, this is the same as leaving `floors` unset |
 | `theme` | `blueprint` | `blueprint`, `light`, `midnight`, `slate`, `terminal`, `solarized`, or `ha` (see Themes, below) |
 | `fade` | `300` | seconds a motion sensor takes to fade from red to grey after it last went off |
+| `plug_watts` | `2` | a plug is active from this many watts of measured power, not merely while switched on — see Plugs, below. A number `0` or more; anything else is `2` |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
 | `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons top right. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
@@ -205,8 +206,8 @@ A floating panel over the plan, open by default in the top-left, lists
 every active device on every floor of the layout — not only the one the
 plan is showing. "Active" is lights on (a light bound to a switch counts
 when the switch is), motion and contact on, TVs and media players on or
-playing, a speaker playing, heaters and climate heating, AC running, plugs,
-computers on, persons at home, and vacuums that are
+playing, a speaker playing, heaters and climate heating, AC running, plugs
+drawing `plug_watts` or more (see Plugs, below), computers on, persons at home, and vacuums that are
 cleaning (one that is only returning to its dock is not). Covers (curtains,
 blinds, shutters, garage doors) are never listed: open is not an alert. Every camera is
 listed whatever its state — a camera is a view, not an on/off thing —
@@ -269,7 +270,7 @@ as before.
 
 No YAML needed: adding or editing the card in the Lovelace UI (the pencil
 icon, or "Edit" on an existing card) shows a form instead of raw code —
-theme, a Floor selector, fade, room glow, zoom, view, view switch, rotation (with a note that viewers' views are remembered), kiosk, icon size, the
+theme, a Floor selector, fade, the plug watts, room glow, zoom, view, view switch, rotation (with a note that viewers' views are remembered), kiosk, icon size, the
 open-door colour (with a Clear button, distinct from picking the theme's
 own default colour by hand), the Active list toggle, night and the sun
 entity. The Floor selector picks "All floors (switcher)" (the default — it
@@ -443,6 +444,36 @@ differently:
 - **Unavailable or unknown** — dims to 45% opacity, in any state, with no
   strikethrough: Home Assistant's own dashboards dim rather than cross out,
   and a struck-through icon this small reads as noise, not signal.
+
+## Plugs
+
+A plug is active only while it draws power: `plug_watts` (default `2`) or
+more. A plug switched on and idling at 0.4 W draws grey, is not in the Active
+list, and its tooltip says so (`plug: TV plug, 0.4 W`); at exactly 2 W it is
+active, at 1.99 W it is not. The reading comes from the plug's `power` sensor
+(the `sensor.*` of device class `power`) in the layout. Without one, the card
+looks for the plug's sibling at runtime: the one `sensor.*` of device class
+`power` that is not a diagnostic entity on the same Home Assistant device,
+read from `hass.entities` (a card on an old frontend that does not provide it
+simply does not link). Two candidates link nothing: a wrong guess would paint a
+plug by another plug's draw, so pick one in the editor. An explicit `power`
+always wins.
+
+What the card does when it cannot be sure:
+
+| Switch | Power sensor | Plug |
+|---|---|---|
+| off | anything | idle |
+| unavailable or unknown | anything | unavailable |
+| on | below `plug_watts` | idle |
+| on | `plug_watts` or more | active |
+| on | unavailable, unknown, not a number, or a unit other than W and kW | active, as before: a flaky sensor does not hide a plug |
+| on | none known | active, as before: the card cannot know |
+
+`W` and `kW` are read (kW times 1000); a sensor with no unit counts as W. A
+room or a piece of furniture whose `entity` is the plug's switch follows the
+same rule for its "on" ring. A light bound to a plug's switch (`bound`) does
+not: it is a lamp, and on when its switch is.
 
 ## Tapping an object with more than one entity
 
