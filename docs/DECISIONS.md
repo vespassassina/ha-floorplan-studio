@@ -2,6 +2,22 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-03: the Walls select, in the card and the editor
+
+The `walls` option now has controls. Card: config key `walls` (junk is "cut"),
+a Walls select next to the Tilt slider in 2.5D only, a field in the Edit-card
+form. Editor: View > Walls beside Tilt, enabled in the 2.5D preview only. Both
+pass it to `renderFloor`, so there is still one draw path.
+
+Remembered like tilt. The card stores `walls` in its view entry (picked, saved
+at once, restored before the first render, wins over the config until Reset
+view); the editor stores it in `floorplan-studio:view`. Each reader checks it
+against `WALLS_MODES` and drops anything else on its own, leaving the config's
+(card) or "cut" (editor). The card's view-memory key gains `walls` only when
+the config sets it, as for `tilt`, so cards without it keep their memory.
+Chosen not to coerce a bad stored value to "cut": dropping it lets the config
+decide, which is what the person set last.
+
 ## 2026-10-03: a stairwell lies below everything that stands
 
 Diego, on 0.12.21: the first-floor stairs "just render a hole, not the stairs

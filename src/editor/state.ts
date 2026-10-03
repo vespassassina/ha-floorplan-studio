@@ -1,5 +1,5 @@
-import { DEFAULT_TILT, DEVICE_TYPES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, clampTilt, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
-import type { CatalogEntry, DeviceType, Floor, HaData, Layout, PlanView, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
+import { DEFAULT_TILT, DEVICE_TYPES, WALLS_MODES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, clampTilt, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import type { CatalogEntry, DeviceType, WallsMode, Floor, HaData, Layout, PlanView, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 import { normaliseRotation } from "../card/view-state";
 import { MAX_ZOOM, MIN_ZOOM } from "../card/viewport";
 import type { ViewMemory } from "./view-memory";
@@ -199,6 +199,12 @@ export class EditorState {
     // "Whole floor" is any view at least as wide as the flat fit; the 2.5D fit is wider still, so it is not matched exactly.
     if (was && was.w >= flat.w - 1e-6) this.fit();
   }
+  /** How 2.5D draws wall heights. Session state like `tilt`: no undo step, never in the layout. */
+  walls: WallsMode = "cut";
+  /** Junk is ignored. */
+  setWalls(m: WallsMode): void {
+    if ((WALLS_MODES as readonly unknown[]).includes(m)) this.walls = m;
+  }
   /** Anything but 2D only looks: pointer, keys and the edit menus do nothing. */
   get preview(): boolean { return this.viewMode !== "2d"; }
   /** The zoom, pan and selection are left alone, so switching back finds them as they were. */
@@ -367,7 +373,7 @@ export class EditorState {
   /** What to remember of the view (see view-memory.ts). A floor shown whole is left out, so a plan that grows is not
    * clipped by an old fit. Reads the settled turn, never a frame of one in flight. */
   exportView(): ViewMemory {
-    const m: ViewMemory = { floor: this.floor, mode: this.viewMode, tilt: this.tilt, labels: this.labels };
+    const m: ViewMemory = { floor: this.floor, mode: this.viewMode, tilt: this.tilt, walls: this.walls, labels: this.labels };
     if (this.viewRot) m.rotation = this.viewRot;
     const deg = (this.layout.rotate ?? 0) + this.viewRot;
     const rot = deg % 360 ? { deg, pivot: planPivot(this.layout) } : undefined;
@@ -391,6 +397,7 @@ export class EditorState {
   importView(m: ViewMemory): void {
     if (m.mode === "2d" || m.mode === "2.5d") this.viewMode = m.mode;
     if (m.tilt !== undefined) this.tilt = clampTilt(m.tilt);
+    this.setWalls(m.walls as WallsMode);
     if (m.labels !== undefined) this.labels = m.labels !== false;
     if (m.rotation !== undefined) this.viewRot = normaliseRotation(m.rotation);
     if (m.floor !== undefined && hasOwn(this.layout.floors, m.floor)) { this.floor = m.floor; this.sel = null; }

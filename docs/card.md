@@ -95,6 +95,11 @@ can hide the rooms behind them. `low` draws every wall at the cutaway height
 every room visible. One straight wall made of several edges (rooms side by
 side along one line) always has one height in `cut`.
 
+A **Walls** select (Full height, Cutaway, Low) sits next to the Tilt slider
+while the view is 2.5D, and goes with it in 2D, with `view_switch: false` and
+in `kiosk`. A pick redraws the plan only and the card remembers it (below). The
+Edit-card form has the same list; the `walls` key sets where it starts.
+
 ![Tilt 0, top-down.](img/card-2-5d-tilt-0.png)
 ![Tilt 1, side-on.](img/card-2-5d-tilt-1.png)
 
@@ -258,13 +263,14 @@ names and icons stay upright. Pan, zoom and taps wait until it has settled.
 The card also has a Theme dropdown and a names-and-text toggle next to View.
 
 The card remembers, per browser, the viewer's zoom, the spot they zoomed to,
-the rotation, 2D or 2.5D, the tilt, the theme and whether text shows. Come
+the rotation, 2D or 2.5D, the tilt, the wall heights, the theme and whether
+text shows. Come
 back, reload or switch dashboard tab and the plan is as it was left, with no
 flash of the configured look. The floor and the Active list are remembered
 as before.
 
 - **A remembered value wins over the config** for as long as the config is the
-  same. Edit `view`, `rotation`, `theme`, `tilt`, `labels`, `center`,
+  same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `center`,
   `zoom_level`, the layout source or the floors in the card's YAML and that
   card starts with a clean memory: the new YAML is what you meant.
 - **Reset view** (the last toolbar button, greyed while nothing differs) puts
@@ -277,7 +283,7 @@ as before.
   in a field, and Space on a focused button presses that button. Cover,
   vacuum and chooser dialogs take the keys while they are open.
 - **When it is saved.** 150 ms after you touch zoom, focus, turn, view, tilt,
-  theme, names or floor, and again when the tab is hidden or closed. The
+  walls, theme, names or floor, and again when the tab is hidden or closed. The
   floor is remembered with the rest, so a reload does not return you to the
   first floor.
 - The memory sits in the browser's `localStorage`, under `fp-view:` and a

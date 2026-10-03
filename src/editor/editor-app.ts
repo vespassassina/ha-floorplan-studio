@@ -1,8 +1,8 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
-import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, WALLS_LABELS, WALLS_MODES, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
+import type { AddCandidate, DeviceType, WallsMode, Floor, HaData, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
 import { isSaveChord, viewKeyFor, type ViewKey } from "../card/view-keys";
@@ -341,7 +341,7 @@ export class FloorplanStudioEditor extends LitElement {
   /** Cheap stand-in for the view: when it is unchanged, `exportView` need not run on every render. */
   private viewKey(): string {
     const st = this.st;
-    return `${st.floor}|${st.viewMode}|${st.tilt}|${st.labels}|${st.viewRot}|${JSON.stringify(st.views)}`;
+    return `${st.floor}|${st.viewMode}|${st.tilt}|${st.walls}|${st.labels}|${st.viewRot}|${JSON.stringify(st.views)}`;
   }
 
   protected updated() {
@@ -2562,7 +2562,7 @@ export class FloorplanStudioEditor extends LitElement {
     const groupKindOf = (g: { members?: string[] }) => (g.members ?? [])[0]?.split(".")[0] === "binary_sensor" ? "motion" as const : (g.members ?? [])[0]?.split(".")[0] === "light" ? "light" as const : undefined;
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: !preview, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, view: st.viewMode, tilt: st.tilt, labels: st.labels, around: floorsAroundKey(st.layout, st.floor) }) + turnG(overlay);
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: !preview, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, view: st.viewMode, tilt: st.tilt, walls: st.walls, labels: st.labels, around: floorsAroundKey(st.layout, st.floor) }) + turnG(overlay);
     const counts: Record<string, number> = {};
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const pressed = (b: boolean) => (b ? "true" : "false");
@@ -2626,6 +2626,8 @@ export class FloorplanStudioEditor extends LitElement {
             <select id="view-mode" @change=${(e: Event) => this.setViewMode((e.target as HTMLSelectElement).value)}>${VIEW_OPTIONS.map((o) => html`<option value=${o.value} ?selected=${st.viewMode === o.value}>${o.label}</option>`)}</select></div>
           <div class="rotrow"><label for="tilt">Tilt</label>
             <input id="tilt" type="range" min="0" max="1" step="0.01" .value=${String(st.tilt)} ?disabled=${st.viewMode !== "2.5d"} title="How steeply 2.5D looks down: flat at the left, side-on at the right" @input=${(e: Event) => { st.setTilt(Number((e.target as HTMLInputElement).value)); this.requestUpdate(); }}></div>
+          <div class="rotrow"><label for="walls">Walls</label>
+            <select id="walls" ?disabled=${st.viewMode !== "2.5d"} title="How 2.5D draws wall heights" @change=${(e: Event) => { st.setWalls((e.target as HTMLSelectElement).value as WallsMode); this.requestUpdate(); }}>${WALLS_MODES.map((m) => html`<option value=${m} ?selected=${st.walls === m}>${WALLS_LABELS[m]}</option>`)}</select></div>
           <div class="rotrow" id="snap" role="group" aria-label="Snap"><span>Snap</span>
             ${GRID_VALUES.map((g) => html`<button class="chip keep" data-grid=${g} aria-pressed=${pressed(st.snapGrid === g)} @click=${() => { st.setGrid(g); this.requestUpdate(); }}>${g ? `${g} cm` : "None"}</button>`)}</div>
           <button class="chip" id="mgrid" aria-pressed=${pressed(st.measure)} title="A faint 50 cm grid with metre markers, behind the plan" @click=${() => { st.setMeasure(!st.measure); this.requestUpdate(); }}>Measure grid</button>

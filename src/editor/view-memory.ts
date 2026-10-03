@@ -3,7 +3,7 @@
  * One entry per page (origin), not per document: it says nothing about the plan itself, and a plan that is replaced
  * or edited keeps its view. The theme, the grid and night preview have keys of their own (state.ts) and are not
  * repeated here. Storage is untrusted, so every field is checked on its own and nothing here throws. */
-import { clampTilt } from "../core";
+import { WALLS_MODES, clampTilt, type WallsMode } from "../core";
 import { normaliseRotation } from "../card/view-state";
 import { MAX_ZOOM, MIN_ZOOM, type Pt } from "../card/viewport";
 
@@ -15,6 +15,7 @@ export interface ViewMemory {
   floor?: string;
   mode?: "2d" | "2.5d";
   tilt?: number;
+  walls?: WallsMode;
   labels?: boolean;
   /** The user's turn in degrees, a multiple of 45 in 0..315, on top of the layout's own `rotate`. */
   rotation?: number;
@@ -38,6 +39,7 @@ export function parseViewMemory(raw: unknown): ViewMemory {
   if (typeof r.floor === "string" && r.floor.length > 0 && r.floor.length <= 200) out.floor = r.floor;
   if (r.mode === "2d" || r.mode === "2.5d") out.mode = r.mode;
   if (isNum(r.tilt)) out.tilt = clampTilt(r.tilt);
+  if (typeof r.walls === "string" && (WALLS_MODES as readonly string[]).includes(r.walls)) out.walls = r.walls as WallsMode;
   if (typeof r.labels === "boolean") out.labels = r.labels;
   if (isNum(r.rotation)) out.rotation = normaliseRotation(r.rotation);
   if (Array.isArray(r.zooms)) {

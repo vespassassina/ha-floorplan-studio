@@ -29,7 +29,7 @@ Left to right:
 - **Draw** — freehand outline/room drawing mode.
 - **View** — how the plan looks while you work: the installed version at the
   top, then Plan view (2D or 2.5D, see below), snap grid, measure grid,
-  lengths, names, Show names and text, Tilt (2.5D), Preview night, theme, Re-center and Fit to window.
+  lengths, names, Show names and text, Tilt and Walls (2.5D), Preview night, theme, Re-center and Fit to window.
 - **Edit** — what changes the plan or Home Assistant: Add floor, the Home
   Assistant popover (inside Home Assistant), Group, plan rotation, Device
   colours, Trace image…
@@ -67,8 +67,9 @@ the whole floor, so a steeper lift is not cut; a view you zoomed into stays.
 
 View, Walls picks how 2.5D draws wall heights: Full height (every wall at its
 real height), Cutaway (the default: walls that face you or hide a room are
-lowered) or Low (every wall at the cutaway height). Like Tilt it is not an undo
-step and is not saved in the layout. The card's own key is `walls`.
+lowered) or Low (every wall at the cutaway height). The select is enabled only in
+2.5D. Like Tilt it is not an undo step and is not saved in the layout, and the
+editor remembers it per browser (below). The card's own key is `walls`.
 
 ## Show names and text
 
@@ -237,7 +238,7 @@ Precedence, first match wins:
 
 The editor remembers how you look, per browser, under
 `floorplan-studio:view` in `localStorage`: the floor on show, 2D or 2.5D,
-tilt, the names toggle, the turn, and the zoom and centre of every floor that
+tilt, the wall heights, the names toggle, the turn, and the zoom and centre of every floor that
 is not shown whole. Theme, grid, measure grid, Preview night and Help already
 had keys of their own. It is saved 150 ms after the last touch, and when the
 tab is hidden or closed. The plan itself is not in it: a plan that is edited,

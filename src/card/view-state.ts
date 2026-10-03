@@ -1,6 +1,6 @@
 /** The card's view memory and rotation, as pure maths and parsing. No DOM, no storage handle: the card reads and
  * writes `localStorage` itself and hands the raw string here. */
-import { clampTilt } from "../core";
+import { WALLS_MODES, clampTilt } from "../core";
 import { MAX_ZOOM, MIN_ZOOM, type Pt, type View } from "./viewport";
 
 /** A user turn is a multiple of this many degrees. */
@@ -43,6 +43,8 @@ export interface StoredView {
   rotation?: number;
   view?: string;
   tilt?: number;
+  /** One of `WALLS_MODES`, kept as a string like `view`. */
+  walls?: string;
   theme?: string;
   labels?: boolean;
   /** The floor the person switched to (a key of the layout's `floors`); the card ignores one it does not have. */
@@ -74,6 +76,7 @@ export function parseStoredView(raw: unknown, isView: (v: unknown) => boolean, t
   if (isNum(r.rotation)) out.rotation = normaliseRotation(r.rotation);
   if (typeof r.view === "string" && isView(r.view)) out.view = r.view;
   if (isNum(r.tilt)) out.tilt = clampTilt(r.tilt);
+  if (typeof r.walls === "string" && (WALLS_MODES as readonly string[]).includes(r.walls)) out.walls = r.walls;
   if (typeof r.theme === "string" && themes.includes(r.theme)) out.theme = r.theme;
   if (typeof r.labels === "boolean") out.labels = r.labels;
   if (typeof r.floor === "string" && r.floor.length > 0 && r.floor.length <= 200) out.floor = r.floor;

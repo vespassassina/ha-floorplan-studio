@@ -1,7 +1,7 @@
 import { LitElement, css, html, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
-import type { ActiveDevice, PowerCandidate, Theme } from "../core";
+import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import type { ActiveDevice, PowerCandidate, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
@@ -88,6 +88,8 @@ export interface FloorplanStudioCardConfig {
   labels?: boolean;
   /** 0..1, how steeply 2.5D looks down: 0 is top-down, 1 side-on. Out-of-range clamps, junk is 0.5 (the look before this key existed). The slider next to the View select moves it for as long as the card is on screen. */
   tilt?: number;
+  /** How 2.5D draws wall heights: `"full"`, `"cut"` (default) or `"low"` (docs/card.md, Walls). Anything else is `"cut"`. A Walls select next to the Tilt slider changes it for as long as the card is on screen, and the card remembers the pick. */
+  walls?: WallsMode;
   /** Degrees the plan starts turned, on top of the layout's own `rotate`. Rounded to a multiple of 45 and wrapped to 0..359; junk is 0. The two buttons next to the zoom buttons turn it in steps of 45 for as long as the card is on screen, and the card remembers where it was left. */
   rotation?: number;
 }
@@ -274,6 +276,8 @@ export class FloorplanStudioCard extends LitElement {
   private _pickedView: PlanView | null = null;
   /** The tilt dragged on the slider; `null` means the config's own. Card state like `_pickedView`: reset by `setConfig`, never by `hass`. */
   private _pickedTilt: number | null = null;
+  /** The wall heights chosen in the Walls select; `null` means the config's own. Same rule as `_pickedTilt`. */
+  private _pickedWalls: WallsMode | null = null;
   /** The theme chosen in the Theme select, the labels toggle and the turn the buttons made (a multiple of 45 in
    * 0..315); each `null` means the config's own. Same rule as `_pickedView`, with one more: these and the view,
    * tilt, zoom and focus are what the card remembers (see `_saveViewNow`), so a field is only ever stored once the
@@ -349,6 +353,7 @@ export class FloorplanStudioCard extends LitElement {
     if (c.rotation !== undefined) seed.push(["rotation", c.rotation]);
     if (c.theme !== undefined) seed.push(["theme", c.theme]);
     if (c.tilt !== undefined) seed.push(["tilt", c.tilt]);
+    if (c.walls !== undefined) seed.push(["walls", c.walls]);
     if (c.labels !== undefined) seed.push(["labels", c.labels]);
     return `fp-view:${tag(JSON.stringify(seed))}`;
   }
@@ -357,7 +362,7 @@ export class FloorplanStudioCard extends LitElement {
    * config's look. Storage is untrusted: `parseStoredView` drops each bad field, and a throwing `localStorage`
    * (private mode, blocked) is nothing stored. */
   private _loadViewState(): void {
-    this._pickedView = this._pickedTilt = this._pickedTheme = this._pickedLabels = this._pickedRot = null;
+    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedRot = null;
     this._pendingView = null;
     this._shownFloor = null;
     let s: StoredView = {};
@@ -369,6 +374,7 @@ export class FloorplanStudioCard extends LitElement {
     }
     if (s.view !== undefined) this._pickedView = s.view as PlanView;
     if (s.tilt !== undefined) this._pickedTilt = s.tilt;
+    if (s.walls !== undefined) this._pickedWalls = wallsModeOf(s.walls);
     if (s.theme !== undefined) this._pickedTheme = s.theme as Theme;
     if (s.labels !== undefined) this._pickedLabels = s.labels;
     if (s.rotation !== undefined && s.rotation !== normaliseRotation(this._config.rotation)) this._pickedRot = s.rotation;
@@ -388,6 +394,7 @@ export class FloorplanStudioCard extends LitElement {
     if (this._pickedRot !== null) o.rotation = this._pickedRot;
     if (this._pickedView !== null) o.view = this._pickedView;
     if (this._pickedTilt !== null) o.tilt = this._pickedTilt;
+    if (this._pickedWalls !== null) o.walls = this._pickedWalls;
     if (this._pickedTheme !== null) o.theme = this._pickedTheme;
     if (this._pickedLabels !== null) o.labels = this._pickedLabels;
     if (this._shownFloor !== null) o.floor = this._shownFloor;
@@ -1415,6 +1422,7 @@ export class FloorplanStudioCard extends LitElement {
       night: this._night(),
       view,
       tilt: this._tilt(),
+      walls: this._walls(),
       labels: this._labels(),
       around: floorsAroundKey(this._layout!, this._floorKey()!),
     });
@@ -1433,6 +1441,24 @@ export class FloorplanStudioCard extends LitElement {
     return clampTilt(this._pickedTilt ?? this._config.tilt);
   }
 
+  /** The wall heights on show: the select's pick, else `config.walls`, else cut. Config is untrusted, so junk is cut. */
+  private _walls(): WallsMode {
+    return this._pickedWalls ?? wallsModeOf(this._config.walls);
+  }
+
+  /** Next to the Tilt slider, 2.5D only (the caller decides). A pick redraws the plan only and is remembered at once. */
+  private _wallsSelect() {
+    const current = this._walls();
+    const onChange = (e: Event) => {
+      const v = (e.target as HTMLSelectElement).value;
+      if (!(WALLS_MODES as readonly string[]).includes(v)) return;
+      this._pickedWalls = v as WallsMode;
+      this._saveViewNow();
+      this.requestUpdate();
+    };
+    return html`<select aria-label="Walls" title="Walls" @change=${onChange}>${WALLS_MODES.map((m) => html`<option value=${m} ?selected=${m === current}>${WALLS_LABELS[m]}</option>`)}</select>`;
+  }
+
   /** The slider is for 2.5D only: in 2D there is no lift to tilt. Dragging redraws the plan only, like the View select. */
   private _tiltSlider() {
     const onInput = (e: Event) => {
@@ -1448,7 +1474,7 @@ export class FloorplanStudioCard extends LitElement {
    * (`view_switch: false`, kiosk). */
   private _viewControls(current: PlanView) {
     const labels = this._labels();
-    return html`${this._viewSelect(current)}${current === "2.5d" ? this._tiltSlider() : null}${this._themeSelect()}
+    return html`${this._viewSelect(current)}${current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
       <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>
       <span class="fp-pair">
         <button type="button" aria-label="Rotate left" title="Rotate left" @click=${() => this._turnBy(-ROTATION_STEP)}>${this._icon(UI_ICONS.rotateLeft)}</button>
@@ -1477,13 +1503,13 @@ export class FloorplanStudioCard extends LitElement {
   /** Whether anything about the view differs from what the config alone would show: a pick, a zoom, a turn. */
   private _modified(): boolean {
     return this._turn !== null || this._view !== null || this._pendingView !== null
-      || [this._pickedView, this._pickedTilt, this._pickedTheme, this._pickedLabels, this._pickedRot].some((v) => v !== null);
+      || [this._pickedView, this._pickedTilt, this._pickedWalls, this._pickedTheme, this._pickedLabels, this._pickedRot].some((v) => v !== null);
   }
 
   /** Reset view: every view option back to the config's own, the stored entry cleared, the floor kept. The turn goes
    * back the short way (315 to 0 is +45). */
   private _resetView(): void {
-    this._pickedView = this._pickedTilt = this._pickedTheme = this._pickedLabels = null;
+    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = null;
     this._pendingView = null;
     this._view = null;
     const from = this._userAngle();

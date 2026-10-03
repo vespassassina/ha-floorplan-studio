@@ -17,3 +17,5 @@ export * from "./heights";
 export { PLUG_ACTIVE_WATTS, findPowerSensor, plugThreshold, wattsOf } from "./power";
 export type { PowerCandidate } from "./power";
 export * from "./stairs";
+export { WALLS_LABELS, WALLS_MODES, wallsModeOf } from "./solids";
+export type { WallsMode } from "./solids";
