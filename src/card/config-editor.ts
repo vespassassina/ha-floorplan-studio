@@ -358,6 +358,15 @@ export class FloorplanStudioCardEditor extends LitElement {
     this._set("view_switch", (e.target as HTMLInputElement).checked, DEFAULT_VIEW_SWITCH);
   }
 
+  /** Only a real `false` unticks the box, as on the card; `true` (the kiosk opt-in) is YAML only and shows ticked. */
+  private _onRotateSwitch(e: Event): void {
+    this._set("rotate_switch", (e.target as HTMLInputElement).checked, true);
+  }
+
+  private _onNames(e: Event): void {
+    this._set("names", (e.target as HTMLInputElement).checked, false);
+  }
+
   private _onNight(e: Event): void {
     this._set("night", (e.target as HTMLSelectElement).value as EditorConfig["night"], DEFAULT_NIGHT);
   }
@@ -477,6 +486,11 @@ export class FloorplanStudioCardEditor extends LitElement {
       </div>
 
       <div class="row">
+        <label class="main" for="rotate_switch">Rotate buttons</label>
+        <input id="rotate_switch" type="checkbox" .checked=${this._config.rotate_switch !== false} @change=${this._onRotateSwitch} />
+      </div>
+
+      <div class="row">
         <label class="main" for="tilt">Tilt (2.5D)</label>
         <input id="tilt" type="range" min="0" max="1" step="0.01" .value=${String(clampTilt(this._config.tilt))} @change=${this._onTilt} />
       </div>
@@ -500,6 +514,11 @@ export class FloorplanStudioCardEditor extends LitElement {
       <div class="row">
         <label class="main" for="labels">Show names and text</label>
         <input id="labels" type="checkbox" .checked=${this._labels()} @change=${this._onLabels} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="names">Show device names</label>
+        <input id="names" type="checkbox" .checked=${this._config.names === true} @change=${this._onNames} />
       </div>
 
       <div class="row">

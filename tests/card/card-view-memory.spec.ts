@@ -276,12 +276,20 @@ test.describe("the card remembers its view", () => {
 });
 
 test.describe("toolbar", () => {
-  test("view_switch: false hides rotate, theme and reset together", async ({ page }) => {
+  test("view_switch: false hides the View controls (theme, labels, names) but keeps the zoom, rotate and reset buttons (Diego, 0.12.22)", async ({ page }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground", view_switch: false });
-    for (const l of ["Rotate left", "Rotate right", "Reset view"]) await expect(button(page, l)).toHaveCount(0);
     await expect(select(page, "Theme")).toHaveCount(0);
-    await expect(button(page, "Zoom in")).toHaveCount(1); // the zoom buttons are still there
+    for (const l of ["Labels", "Device names"]) await expect(button(page, l)).toHaveCount(0);
+    for (const l of ["Zoom in", "Rotate left", "Rotate right", "Reset view"]) await expect(button(page, l)).toHaveCount(1);
+  });
+
+  test("rotate_switch: false and kiosk hide rotate and reset", async ({ page }) => {
+    for (const cfg of [{ rotate_switch: false, view_switch: false }, { kiosk: true }]) {
+      await open(page);
+      await configure(page, { layout: structuredClone(demo), floor: "ground", ...cfg });
+      for (const l of ["Rotate left", "Rotate right", "Reset view"]) await expect(button(page, l), JSON.stringify(cfg)).toHaveCount(0);
+    }
   });
 
   test("on a 375 px card the toolbar stays inside the card and clear of the card's edges", async ({ page }) => {
