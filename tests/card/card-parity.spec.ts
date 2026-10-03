@@ -93,6 +93,17 @@ for (const row of MATRIX) {
   });
 }
 
+test("the built card names its version in the console, and an older copy that owns the element is called out", async ({ page }) => {
+  const manifest = JSON.parse(readFileSync("custom_components/floorplan_studio/manifest.json", "utf8"));
+  const lines: string[] = [];
+  page.on("console", (m) => lines.push(m.text()));
+  await page.goto(URL_);
+  await page.evaluate(() => customElements.define("floorplan-studio-card", class extends HTMLElement {})); // "the old copy"
+  await page.addScriptTag({ content: CARD_JS, type: "module" });
+  await expect.poll(() => lines.join("\n")).toContain(`Floorplan Studio card ${manifest.version}`);
+  expect(lines.join("\n")).toContain(`Floorplan Studio ${manifest.version}: <floorplan-studio-card> is already defined by another script`);
+});
+
 test("one click on the card, then the pointer away: the keys still reach it", async ({ page }) => {
   await boot(page, BASE, 375);
   const box = (await card(page).boundingBox())!;

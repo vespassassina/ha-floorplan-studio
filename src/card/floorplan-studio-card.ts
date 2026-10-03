@@ -9,6 +9,7 @@ import { TAP_SLOP_PX, bindDeviceActions, fireEvent } from "./actions";
 // second built file (PLAN block interface).
 import "./config-editor";
 import { defineElement } from "./define";
+import { CARD_VERSION } from "./version";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { viewKeyFor, type ViewKey } from "./view-keys";
 import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type StoredView } from "./view-state";
@@ -1936,4 +1937,6 @@ if (typeof window !== "undefined") {
       description: "Draw your home and use it as a live dashboard.",
     });
 }
-defineElement("floorplan-studio-card", FloorplanStudioCard);
+defineElement("floorplan-studio-card", FloorplanStudioCard, CARD_VERSION);
+// One line, so "which card is my dashboard running" is a look at the console, not a guess.
+if (typeof console !== "undefined" && CARD_VERSION !== "dev") console.info(`Floorplan Studio card ${CARD_VERSION}`);

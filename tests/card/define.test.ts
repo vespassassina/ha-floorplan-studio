@@ -69,3 +69,39 @@ describe("S8.3: defineElement survives a registry swap", () => {
     expect(late.get("s83-d")).toBeUndefined();
   });
 });
+
+describe("a card script that lost the race says so", () => {
+  const original = Object.getOwnPropertyDescriptor(window, "customElements");
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    if (original) Object.defineProperty(window, "customElements", original);
+  });
+
+  it("warns once, naming the version and the next step, when another script already owns the element", () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const r = fakeRegistry();
+    Object.defineProperty(window, "customElements", { value: r, configurable: true, writable: true });
+    class Old extends HTMLElement {}
+    class New extends HTMLElement {}
+    r.define("s83-old", Old);
+    defineElement("s83-old", New, "9.9.9");
+    vi.advanceTimersByTime(10_000);
+    expect(r.get("s83-old")).toBe(Old);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const msg = String(warn.mock.calls[0]![0]);
+    expect(msg).toContain("9.9.9");
+    expect(msg).toContain("Resources");
+  });
+
+  it("is quiet when the element is this very class", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const r = fakeRegistry();
+    Object.defineProperty(window, "customElements", { value: r, configurable: true, writable: true });
+    class Same extends HTMLElement {}
+    defineElement("s83-same", Same, "9.9.9");
+    defineElement("s83-same", Same, "9.9.9");
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
