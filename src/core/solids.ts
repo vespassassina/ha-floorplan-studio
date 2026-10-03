@@ -20,7 +20,11 @@ export interface Proj {
   cutaway: number;
 }
 /** A drawn thing and where it stands in the back-to-front order: the larger, the nearer. */
-export interface Solid { key: number; svg: string }
+export interface Solid {
+  key: number; svg: string;
+  /** Lies below the floor (a stairwell): drawn before every standing thing, in key order among its own kind, not sorted with them. */
+  under?: boolean;
+}
 
 const finite = (p: unknown): p is Pt => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]);
 /** Nearer to the viewer is larger: the camera is south and a little west of the plan, so down and left are near. */
@@ -439,15 +443,19 @@ function stairWell({ steps, lowEdge, foot }: NonNullable<ReturnType<typeof stair
   const clip = `fp-well-${tag(pts(outline))}`, inWell = `<g class="obj" clip-path="url(#${clip})">`;
   const walls = outline.map((_, i) => face(outline, i, 0, -WELL_DEPTH, "well-wall", false)).filter(Boolean);
   const first = Math.min(...steps.map((b) => nearest(px, b)));
-  out.push({ key: first - 2, svg: `<clipPath id="${clip}"><polygon points="${pts(outline)}"/></clipPath>` });
+  out.push({ key: first - 3, under: true, svg: `<clipPath id="${clip}"><polygon points="${pts(outline)}"/></clipPath>` });
   // A dark ground first, so what no tread covers (a round stair's well, a gap between lowered treads) reads as depth, not as the floor.
   const ground = `<polygon class="well-floor" points="${pts(outline)}"/>`;
-  out.push({ key: first - 1, svg: `${inWell}${ground}${veil(ground, 0.8)}${walls.join("")}${walls.map((w) => veil(w, 0.8)).join("")}</g>` });
+  out.push({ key: first - 2, under: true, svg: `${inWell}${ground}${veil(ground, 0.8)}${walls.join("")}${walls.map((w) => veil(w, 0.8)).join("")}</g>` });
   steps.forEach((base, k) => {
     const z = -WELL_DEPTH + (k * WELL_DEPTH) / n, lid = `<polygon class="well-tread" points="${pts(base.map((p) => px.lift(p, z)))}"/>`;
     const riser = k ? face(base, lowEdge, z - WELL_DEPTH / n, z, "well-riser", true) : "";
-    out.push({ key: nearest(px, base), svg: `${inWell}${riser}${lid}${veil(lid, (n - k) / n)}</g>` });
+    // The veil is --fp-night, 45% at best; two layers reach 70%, so the lowest step reads as deep. A riser is in shadow: darker than the tread above it.
+    const op = (n - k) / n, shade = (poly: string) => (poly ? veil(poly, op) + veil(poly, op) : "");
+    out.push({ key: nearest(px, base), under: true, svg: `${inWell}${riser}${shade(riser)}${lid}${shade(lid)}</g>` });
   });
+  // The border of the opening, over the treads, at floor level: no tread edge ends up drawn over it.
+  out.push({ key: Infinity, under: true, svg: `<polygon class="well-edge" points="${pts(outline)}"/>` });
   const rim = outline.map((_, i) => face(outline, i, 0, WELL_RIM, "well-rim", true)).filter(Boolean);
   if (rim.length) out.push({ key: Math.max(...steps.map((b) => nearest(px, b))), svg: `<g class="obj">${rim.join("")}</g>` });
   return out;

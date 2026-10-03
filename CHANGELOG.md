@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2.5D stairs going down read as stairs. The well draws its treads as steps, each lower one darker, risers in shadow, clipped to the footprint. Everything below the floor (ground, walls, treads) is now drawn before any wall, and the hole's border on top, so nothing overlaps. 2D is unchanged.
 - A cover is active only when it is a garage door, a gate or a door: HA `device_class` `garage`, `gate` or `door`, while open, opening or closing. Curtains, blinds, shades, shutters, awnings, windows, dampers and a cover with no class stay idle grey and off the Active list. Replaces 0.12.20's "every cover is idle".
 
 - 2.5D: one straight wall is one height. A wall made of several edges (rooms side by side along one line, a vertex in the middle of a wall) was cut per edge, so part of it could stand tall and part low. It now takes the largest cut of its pieces.

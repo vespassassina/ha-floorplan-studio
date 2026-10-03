@@ -2,6 +2,19 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-03: a stairwell lies below everything that stands
+
+Diego, on 0.12.21: the first-floor stairs "just render a hole, not the stairs
+going down, they are overlapping weirdly".
+
+Cause. The well's pieces (ground, walls, treads, tread edges) were depth-sorted
+together with walls, so a tread or stripe could be drawn over a wall or over the
+hole's own border. Fix. A `Solid` may be `under`: drawn first, in key order among
+its own kind, then the standing solids. The border of the opening (`well-edge`)
+is drawn last among them. Each tread is veiled darker with depth, and each riser
+twice as dark as the tread above it, so the flight reads as steps going down.
+Only the rim (6 cm up) still sorts with the walls. 2D is unchanged.
+
 ## 2026-10-03: a straight wall has one cut; walls get a mode
 
 Diego, again, on 0.12.21: "walls are still not all growing the same in the
