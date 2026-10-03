@@ -159,6 +159,15 @@ in `prompts/`, then fixed in the editor.
   stair: of the mean circumference), at least 2, at most 40; `migrate`
   recomputes it and ignores a stored value that disagrees. `rot` the rotation in degrees. Stairs are placed on every floor at
   the same position.
+- `stairs.direction` (optional, `up`, `down` or `both`) is which way the flight
+  goes from the floor it is drawn on. Absent means auto: up when a floor lies
+  above, else down when a floor lies below, else up. So the top floor shows its
+  stairs coming from below, with no edit; auto never gives `both`. Each floor
+  keeps its own copy of a stair, so the field is per floor. 2D marks it with a
+  chevron arrow along the flight (none for an up stair, so those draw as ever),
+  and shades the treads for down. 2.5D: up is the rise; down is a stairwell, a
+  sunken opening with treads below the floor and a short rim on the near edges;
+  both is the rise with a low kerb round the foot. Resolver: `src/core/stairs.ts`.
 - `door.kind`: door, glass, window, sealed. `sensor` is a binary_sensor entity;
   `cover` is a cover entity for doors that HA can open.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,

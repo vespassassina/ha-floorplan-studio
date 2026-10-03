@@ -96,6 +96,7 @@ Optional: `"color": "#rrggbb"` sets a floor colour; `"texture"` (`wood-light`, `
 - `shape` is `straight` or `round`. Nothing else exists.
 - **`steps`**: whole number from 2 to 40. `rot`: degrees, `0` to `359`.
 - `pts`: the rectangle the flight fills, as a polygon.
+- **`direction`** (optional): `up`, `down` or `both`. Leave it out. The editor draws a flight as going up, or down on the top floor, which is right for most houses. Set it only for **stacked stairs**: `both` on a middle floor where a flight arrives from below and goes on up, or `down` where a flight on a middle floor only leads to the floor below.
 - A **curved or angled flight** is written as several `straight` sections placed end to end, each with its own `rot`.
 - A **spiral** is `round`, and then also needs `dia` (outer diameter, at least 40) and `inner` (the empty well, from 0 to `dia - 40`). `pts` is the outer circle as a polygon.
 

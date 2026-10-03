@@ -2,6 +2,29 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-03: stair direction
+
+Diego: the top floor shows stairs going up, not down, and stacked stairs
+need both.
+
+Field. Optional `direction`: `up`, `down`, `both` on a stair. Schema stays v2,
+a missing field is valid, junk is a validate error and migrate leaves it.
+
+Default. One resolver, `resolveStairDirection` in `src/core/stairs.ts`: an
+explicit value wins; else up when a floor lies above; else down when one lies
+below; else up. A lone floor and every lower floor draw as before. Auto never
+gives `both`: a middle floor going both ways is a choice. Proposed default;
+say if the top floor should stay up until set.
+
+Marks. 2D adds an arrow only for down and both, so up stairs stay byte for
+byte. Down also shades the treads. 2.5D: down is a stairwell (clipped to the
+footprint, treads sinking, walls darkened by `--fp-night`, short rim on the
+near edges); both is the rise plus a kerb. Chosen over a hole cut in the
+floor polygon, which would touch room and wall code another change is editing.
+
+Context. `renderFloor` knows one floor, so it takes `around: {above, below}`
+(`floorsAroundKey`). No `around` reads as up.
+
 ## 2026-10-03: motion zones and groups, a motion perimeter, idle covers
 
 From Diego's field report. Four calls.

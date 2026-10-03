@@ -102,6 +102,9 @@ Junk is refused with the reason.
   it shows in 2.5D from 100 cm up.
 
 Stairs take the floor's height as their rise, and a structure line is flat.
+A stair has a Direction select: Auto (shown with what it resolves to on this
+floor), Up, Down, Up and down. Auto removes the field. Pick Up and down for
+stacked stairs on a middle floor, Down where a flight only leads below.
 
 A device's panel shows one extra field for a few types:
 

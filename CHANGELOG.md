@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Stairs have a direction: up, down or both. A Direction select in the editor (Auto, Up, Down, Up and down). Auto is up, but down on the top floor, so the top floor of a two-floor house no longer shows stairs going up. 2D adds a chevron arrow (none for up, so existing plans draw as before); 2.5D draws a down flight as a stairwell and a both flight as the rise with a low kerb. Schema stays v2; `direction` is optional.
+
 ## 0.12.20
 
 - Place popup, Add and the room menu: a device with several motion, occupancy or presence sensors now offers each one as its own row (before, only its main entity showed, so extra zones were missing). A `group` whose members are all motion sensors is typed motion and offered; mixed or empty groups stay out.
