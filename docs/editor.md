@@ -65,6 +65,11 @@ View, Tilt is a slider, enabled only in 2.5D: left is top-down, right is
 side-on, the middle is the card's default. Moving it refits a view that shows
 the whole floor, so a steeper lift is not cut; a view you zoomed into stays.
 
+View, Walls picks how 2.5D draws wall heights: Full height (every wall at its
+real height), Cutaway (the default: walls that face you or hide a room are
+lowered) or Low (every wall at the cutaway height). Like Tilt it is not an undo
+step and is not saved in the layout. The card's own key is `walls`.
+
 ## Show names and text
 
 View, Show names and text hides every room, zone and structure name and every

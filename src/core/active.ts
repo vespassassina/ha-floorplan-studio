@@ -20,7 +20,8 @@ export interface ActiveDevice {
  * Every `DeviceType` is a decision (CLAUDE.md finding 17), written down here rather than left to fall through a
  * catch-all:
  * - `"on"`: listed while `classOf` (the same function `renderFloor` uses to paint the plan) says "on" — light,
- *   motion, contact, heater, climate, ac, tv, media, plug, computer, person. The list and the plan can
+ *   motion, contact, heater, climate, ac, tv, media, plug, computer, person, and cover: only a garage door, gate or
+ *   door is ever "on" (`coverActive`, Diego 2026-10-03), a curtain or blind is not. The list and the plan can
  *   never disagree about one of these.
  * - `"always"`: camera. A camera is a view, not an on/off thing (the maintainer's own words) — it is always
  *   worth a glance, "streaming" or not.
@@ -28,8 +29,7 @@ export interface ActiveDevice {
  *   `.dev-vacuum.on`), but the maintainer's brief for this list asks only for "vacuums that are cleaning" — a
  *   robot on its way back to the dock is winding down, not something to check. So vacuum is the one type whose
  *   list membership is narrower than its plan colour, not merely reused from it.
- * - `"never"`: a cover (curtains, blinds, a garage door: open is not an alert, and `classOf` draws it idle, Diego
- *   2026-10) and every other type — a sensor with no on/off shape of its own (temp, humidity), a plain switch or
+ * - `"never"`: every other type — a sensor with no on/off shape of its own (temp, humidity), a plain switch or
  *   lock (not asked for), or a type the card only ever watches through its own dialog (battery, inverter, server,
  *   access_point, boiler, car, ups, printer, radar, other).
  */
@@ -38,7 +38,7 @@ export const ACTIVE_LIST_RULE: Record<DeviceType, "on" | "always" | "cleaning" |
   plug: "on", computer: "on", person: "on", speaker: "on",
   camera: "always",
   vacuum: "cleaning",
-  cover: "never", switch: "never", temp: "never", humidity: "never", battery: "never", inverter: "never", server: "never",
+  cover: "on", switch: "never", temp: "never", humidity: "never", battery: "never", inverter: "never", server: "never",
   access_point: "never", lock: "never", vibration: "never", other: "never", boiler: "never", car: "never",
   ups: "never", printer: "never", radar: "never",
 };
