@@ -5,7 +5,7 @@ import { resolveStairDirection, type FloorsAround } from "./stairs";
 import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
-import { esc, num, pts } from "./fmt";
+import { esc, num, pts, tag } from "./fmt";
 import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, type Proj, type Solid } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
@@ -251,7 +251,10 @@ export const FLOORPLAN_CSS = `
 .e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none}
 /* A stair that goes down or both ways (stairs.ts): an arrow on its axis, and going down the steps darkened toward the low end.
    Both take no click (finding 18): the flight underneath is the target. --fp-night is the one dark veil every theme has. */
-.stair-dir{fill:none;stroke:var(--fp-wall);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;pointer-events:none} .stair-shade{fill:var(--fp-night);pointer-events:none}
+.stair-dir{fill:none;stroke:var(--fp-wall);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;pointer-events:none} .stair-shade{fill:var(--fp-night);pointer-events:none}
+/* The same stairs in 2.5D, going down: a well in the floor. Walls and treads take .stair-shade as a veil, darker with depth. */
+.well-wall,.well-floor{fill:var(--fp-wall-side)} .well-tread{fill:var(--fp-box-top)} .well-riser{fill:var(--fp-box-side)}
+.well-rim{fill:var(--fp-box-side);stroke:var(--fp-wall-top);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 /* S8.11 (Diego's field report: "openings must be transparent and make the wall under them transparent too"): an
    opening no longer paints a band over the wall — renderFloor cuts a real hole in the wall layer with an SVG
    mask, so whatever is under it (a room's own fill, its texture, the background) shows through. This line still
@@ -378,11 +381,7 @@ const OPENING_EXTRA = WALL_HALO_EXTRA + 2;
 /** A short, deterministic tag for a string (FNV-1a, 32-bit, base36). Not security-sensitive: only used to keep a
  *  generated id short while still varying with its content. Exported (S9.5): the active-devices list panel keys
  *  its localStorage entry off a hash of the card's own config, the same idea as the mask and pattern ids below. */
-export function tag(s: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
-  return (h >>> 0).toString(36);
-}
+export { tag }; // lives in fmt.ts now, so solids.ts can mint a clip id without importing this file
 type Box = [number, number, number, number];
 const meets = (a: Box, b: Box) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 
@@ -826,7 +825,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       if (s) solids.push(s);
     });
     for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
-    for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px));
+    for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px, resolveStairDirection(t, o.around)));
     out.push(...solids.sort((a, b) => a.key - b.key).map((s) => s.svg));
   }
 
