@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.23
 
 - 2.5D: a ceiling light, camera or other high mount is drawn where it hangs, not on the floor. The icon rises with the walls, and so do its light radius, camera cone, motion and speaker rings, name and value. The small pin now stays on the floor, joined to the icon by the stem. Tap the lifted icon. Persons, heater bars, devices under 100 cm, radar target dots and all of 2D are unchanged.
 - Card: the two rotate buttons and the Left/Right keys are their own control now. `view_switch: false` used to hide them along with the View dropdown while the zoom buttons stayed; they now show on every card that draws zoom or the View controls, in 2D and 2.5D. New `rotate_switch` key (`false` hides them and the keys, `true` shows them under `kiosk` too) and a Rotate buttons field in the Edit-card form.
