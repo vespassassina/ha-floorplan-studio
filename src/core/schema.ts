@@ -61,8 +61,12 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * editor's "Turn on with... Create automation" flow — the automation the editor created, not this field, is what
  * actually drives the light. Unlinking removes only this field; the automation itself stays in Home Assistant,
  * untouched. Must differ from `entity`, same rule as `bound`.
+ * `power` (plugs only): the `sensor.*` (device class `power`) that measures the plug. A plug is active only while
+ * that sensor reads at least 2 W (the card's `plug_watts` changes the 2); switched on and drawing nothing is idle.
+ * Unset, the editor links the plug's sibling power sensor when it finds exactly one, and the card does the same at
+ * runtime; with no sensor at all a plug is active whenever its switch is on. Must differ from `entity`.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; z?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
  *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. */
 export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number }
@@ -301,6 +305,13 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         else {
           if (d.type !== "light") errors.push(`${at} ${d.id} motion is only allowed on a light`);
           if (d.motion === d.entity) errors.push(`${at} ${d.id} motion must differ from entity`);
+        }
+      }
+      if (d.power !== undefined) {
+        if (!isEntity(d.power)) errors.push(`${at} ${d.id} power must be an entity id like sensor.name`);
+        else {
+          if (d.type !== "plug") errors.push(`${at} ${d.id} power is only allowed on a plug`);
+          if (d.power === d.entity) errors.push(`${at} ${d.id} power must differ from entity`);
         }
       }
       if (d.trvs !== undefined || d.tempSensors !== undefined) {

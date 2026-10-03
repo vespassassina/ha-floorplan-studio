@@ -4,6 +4,7 @@ import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
 import { esc, num, pts } from "./fmt";
+import { plugThreshold, wattsOf } from "./power";
 import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, type Proj, type Solid } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
@@ -32,6 +33,10 @@ export interface RenderOpts {
   labels?: boolean;
   /** 0..1, how steeply the 2.5D view looks down: 0 is top-down (no lift), 1 is side-on. Only read with `view: "2.5d"`; see `obliqueFor`. Default `DEFAULT_TILT`, today's look. */
   tilt?: number;
+  /** A plug is active from this many watts (default 2, `PLUG_ACTIVE_WATTS`). Junk is the default; see power.ts. */
+  plugWatts?: number;
+  /** Plug entity -> power sensor entity, found at runtime by the card for plugs with no `power` of their own. An explicit `power` wins. */
+  powerLinks?: Record<string, string>;
 }
 /** How the plan is drawn. "3d" will be a different renderer (docs/DECISIONS.md), so it is not a member yet. */
 export type PlanView = "2d" | "2.5d";
@@ -500,6 +505,30 @@ export function acMode(d: Device, o: RenderOpts): "cool" | "heat" | null {
   return v === "cooling" ? "cool" : v === "heating" ? "heat" : null;
 }
 
+/** The sensor that measures plug `d`: its own `power`, else the one the card linked at runtime. Own `power` wins. */
+function powerEntity(d: Device, o: RenderOpts): string | undefined {
+  if (typeof d.power === "string" && d.power) return d.power;
+  const linked = o.powerLinks?.[d.entity];
+  return typeof linked === "string" && linked ? linked : undefined;
+}
+
+/** The watts a plug is drawing right now, or null when no sensor is known or it cannot be read (see `wattsOf`). */
+function plugWatts(d: Device, o: RenderOpts): number | null {
+  const e = powerEntity(d, o);
+  return e ? wattsOf(o.state?.[e]) : null;
+}
+
+/**
+ * The one rule for a plug (Diego, 2026-10): active only while it draws `plugWatts` or more, not merely switched on.
+ * Switch off: off. Switch on and a readable sensor: watts >= threshold. Switch on and no sensor, or one that is
+ * unavailable, unknown or in another unit: on, as before. We cannot know, and a flaky sensor must not hide a plug.
+ */
+function plugOn(d: Device, o: RenderOpts, sw: StateOverlay[string]): boolean {
+  if (sw.state !== "on" && sw.state !== "open") return false;
+  const w = plugWatts(d, o);
+  return w === null || w >= plugThreshold(o.plugWatts);
+}
+
 /** Exported (S9.5): the active-devices list panel reuses this same function so the list and the plan can never
  *  disagree about which devices are "on" (CLAUDE.md finding 17). */
 export function classOf(d: Device, o: RenderOpts): Cls {
@@ -508,6 +537,7 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   if (!s) return "off";
   if (s.state === "unavailable" || s.state === "unknown") return "unavailable";
   if (d.type === "ac") return acMode(d, o) ? "on" : "off";
+  if (d.type === "plug") return plugOn(d, o, s) ? "on" : "off";
   if (d.type === "climate" || d.type === "heater") return s.attributes.hvac_action === "heating" ? "on" : "off";
   // S9.4: a speaker is a media_player like any other — playing is the only "on", same as media.
   if (d.type === "media" || d.type === "speaker") return s.state === "playing" ? "on" : "off";
@@ -566,10 +596,14 @@ function personRoom(d: Device, rooms: Floor["rooms"], o: RenderOpts): number {
 
 /** S1.37: a room or a piece of furniture with an entity carries "on" when that entity is on, open or playing. */
 const ON_STATES = new Set(["on", "open", "playing"]);
-function entityOn(o: RenderOpts, entity: string | undefined): boolean {
+function entityOn(o: RenderOpts, entity: string | undefined, plugs?: ReadonlyMap<string, Device>): boolean {
   if (!entity) return false;
   const s = o.state?.[entity];
-  return !!s && ON_STATES.has(s.state);
+  if (!s) return false;
+  // A room or piece of furniture that shows a plug's switch follows the plug's own rule, not the bare switch state.
+  const plug = plugs?.get(entity);
+  if (plug) return classOf(plug, o) === "on";
+  return ON_STATES.has(s.state);
 }
 
 /**
@@ -691,6 +725,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // a/b, only a heater does, but the same "a" in d guard the rest of the file uses is kept here too) is on. Untrusted
   // layout/state: a non-finite coordinate or a light outside every room's polygon is simply not counted, never thrown.
   // S7.6: the same set decides which rooms stay bright at night.
+  const plugs = new Map(f.devices.filter((d) => d.type === "plug" && d.entity).map((d) => [d.entity, d]));
   const glowRooms = new Set<number>();
   if (o.roomGlow || o.night)
     for (const d of f.devices) {
@@ -710,7 +745,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (r.kind === "fill" && !r.name) return;
     const own = paintAttr(r);
     const glow = o.roomGlow && glowRooms.has(i) ? " glow" : "";
-    const on = !r.area && entityOn(o, r.entity) ? " on" : "";
+    const on = !r.area && entityOn(o, r.entity, plugs) ? " on" : "";
     out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}${on}"${own} points="${pts(r.pts)}"/>`);
   });
 
@@ -779,7 +814,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   [...f.rooms.keys()].forEach((i) => {
     const r = f.rooms[i];
     if (r.kind === "fill" && !r.name) return;
-    if (r.area || !entityOn(o, r.entity)) return;
+    if (r.area || !entityOn(o, r.entity, plugs)) return;
     out.push(`<polygon class="room on ring" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
   });
 
@@ -810,7 +845,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     solids.push(...wallSolids(f, px));
     f.furniture.forEach((m, i) => {
       const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
-      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, entityOn(o, m.entity), sym.svg, px) : null;
+      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, entityOn(o, m.entity, plugs), sym.svg, px) : null;
       if (s) solids.push(s);
     });
     for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
@@ -955,7 +990,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.furniture.forEach((m, i) => {
     const sym = FURNITURE[m.symbol];
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
-    const on = entityOn(o, m.entity) ? " on" : "";
+    const on = entityOn(o, m.entity, plugs) ? " on" : "";
     out.push(`<g data-f="${i}" class="furn${on}" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
   });
 
@@ -1037,7 +1072,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const label = d.name ?? d.id;
     const bound = d.type === "light" && d.bound ? d.bound : "";
     const bname = bound ? o.state?.[bound]?.attributes.friendly_name : undefined;
-    const title = `${esc(d.type)}: ${esc(label)}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
+    const w = d.type === "plug" ? plugWatts(d, o) : null;
+    const title = `${esc(d.type)}: ${esc(label)}${w === null ? "" : `, ${num(Math.round(w * 10) / 10)} W`}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
     // The group turns by `rot` about the icon's centre; the icon turns back so the glyph stays upright (only what else is drawn in the group turns).
     const rot = !person && typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot !== 0 ? d.rot : 0;
     // A turned plan turns the group again from outside; the icon takes that back too, the cone (in the group's frame) does not.
