@@ -47,6 +47,8 @@ export interface StoredView {
   walls?: string;
   theme?: string;
   labels?: boolean;
+  /** Every device's name on the plan, the studio's Names toggle. */
+  names?: boolean;
   /** The floor the person switched to (a key of the layout's `floors`); the card ignores one it does not have. */
   floor?: string;
 }
@@ -79,6 +81,7 @@ export function parseStoredView(raw: unknown, isView: (v: unknown) => boolean, t
   if (typeof r.walls === "string" && (WALLS_MODES as readonly string[]).includes(r.walls)) out.walls = r.walls;
   if (typeof r.theme === "string" && themes.includes(r.theme)) out.theme = r.theme;
   if (typeof r.labels === "boolean") out.labels = r.labels;
+  if (typeof r.names === "boolean") out.names = r.names;
   if (typeof r.floor === "string" && r.floor.length > 0 && r.floor.length <= 200) out.floor = r.floor;
   return out;
 }

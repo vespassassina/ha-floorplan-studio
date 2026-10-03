@@ -145,6 +145,29 @@ test("view and view_switch fields: defaults shown, defaults dropped from the pay
   expect("view_switch" in detail.config).toBe(false);
 });
 
+test("rotate_switch and names fields: ticked and unticked as on the card, defaults dropped from the payload", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#rotate_switch")).toBeChecked();
+  await expect(editor.locator("#names")).not.toBeChecked();
+  await editor.locator("#rotate_switch").uncheck();
+  let detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect(detail.config.rotate_switch).toBe(false);
+  await editor.locator("#rotate_switch").check();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("rotate_switch" in detail.config).toBe(false);
+  await editor.locator("#names").check();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect(detail.config.names).toBe(true);
+  await editor.locator("#names").uncheck();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("names" in detail.config).toBe(false);
+  await mount(page, { rotate_switch: false, names: true, layout: demo });
+  await expect(page.locator("#editor #rotate_switch").last()).not.toBeChecked();
+  await expect(page.locator("#editor #names").last()).toBeChecked();
+});
+
 test("a config with view 2.5d and view_switch false shows both, and a junk view shows 2D without an event", async ({ page }) => {
   await open(page);
   await mount(page, { view: "2.5d", view_switch: false, layout: demo });

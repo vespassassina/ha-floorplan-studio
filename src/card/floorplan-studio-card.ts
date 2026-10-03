@@ -91,6 +91,9 @@ export interface FloorplanStudioCardConfig {
   rotate_switch?: boolean;
   /** `false` hides every name and value on the plan, leaving icons and state. Anything but `false` shows them (default). */
   labels?: boolean;
+  /** `true` writes every device's name under its icon, the studio's Names toggle; default `false`. The View controls'
+   * Device names button changes it for as long as the card is on screen, and the card remembers the pick. */
+  names?: boolean;
   /** 0..1, how steeply 2.5D looks down: 0 is top-down, 1 side-on. Out-of-range clamps, junk is 0.5 (the look before this key existed). The slider next to the View select moves it for as long as the card is on screen. */
   tilt?: number;
   /** How 2.5D draws wall heights: `"full"`, `"cut"` (default) or `"low"` (docs/card.md, Walls). Anything else is `"cut"`. A Walls select next to the Tilt slider changes it for as long as the card is on screen, and the card remembers the pick. */
@@ -189,7 +192,7 @@ export class FloorplanStudioCard extends LitElement {
     .fp-zoom, .fp-viewonly { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 16px); }
     .fp-zoom button, .fp-viewonly button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     .fp-zoom button:disabled, .fp-viewonly button:disabled { opacity: 0.45; cursor: default; }
-    /* The two rotate buttons wrap as one, so a narrow card never parts left from right. */
+    /* The rotate pair and the zoom pair wrap as one each, so a narrow card never parts left from right. */
     .fp-pair { display: flex; gap: 4px; }
     .fp-zoom button[aria-pressed="false"], .fp-viewonly button[aria-pressed="false"] { opacity: 0.6; }
     .fp-zoom svg, .fp-viewonly svg { width: 14px; height: 14px; }
@@ -292,6 +295,7 @@ export class FloorplanStudioCard extends LitElement {
    * person has chosen it, and the config stays in charge of the rest. */
   private _pickedTheme: Theme | null = null;
   private _pickedLabels: boolean | null = null;
+  private _pickedNames: boolean | null = null;
   private _pickedRot: number | null = null;
   /** Whether the pointer is over this card: with focus, what decides which card the view keys belong to. */
   private _hovered = false;
@@ -363,6 +367,7 @@ export class FloorplanStudioCard extends LitElement {
     if (c.tilt !== undefined) seed.push(["tilt", c.tilt]);
     if (c.walls !== undefined) seed.push(["walls", c.walls]);
     if (c.labels !== undefined) seed.push(["labels", c.labels]);
+    if (c.names !== undefined) seed.push(["names", c.names]);
     return `fp-view:${tag(JSON.stringify(seed))}`;
   }
 
@@ -370,7 +375,7 @@ export class FloorplanStudioCard extends LitElement {
    * config's look. Storage is untrusted: `parseStoredView` drops each bad field, and a throwing `localStorage`
    * (private mode, blocked) is nothing stored. */
   private _loadViewState(): void {
-    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedRot = null;
+    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedRot = null;
     this._pendingView = null;
     this._shownFloor = null;
     let s: StoredView = {};
@@ -385,6 +390,7 @@ export class FloorplanStudioCard extends LitElement {
     if (s.walls !== undefined) this._pickedWalls = wallsModeOf(s.walls);
     if (s.theme !== undefined) this._pickedTheme = s.theme as Theme;
     if (s.labels !== undefined) this._pickedLabels = s.labels;
+    if (s.names !== undefined) this._pickedNames = s.names;
     if (s.rotation !== undefined && s.rotation !== normaliseRotation(this._config.rotation)) this._pickedRot = s.rotation;
     if (s.floor !== undefined) this._shownFloor = s.floor; // an unknown id is ignored by _floorKey
     if (s.zoom !== undefined && s.focus !== undefined) this._pendingView = { focus: s.focus, zoom: s.zoom };
@@ -405,6 +411,7 @@ export class FloorplanStudioCard extends LitElement {
     if (this._pickedWalls !== null) o.walls = this._pickedWalls;
     if (this._pickedTheme !== null) o.theme = this._pickedTheme;
     if (this._pickedLabels !== null) o.labels = this._pickedLabels;
+    if (this._pickedNames !== null) o.names = this._pickedNames;
     if (this._shownFloor !== null) o.floor = this._shownFloor;
     const pending = this._pendingView;
     const anchor = pending ?? this._anchorOfView();
@@ -570,7 +577,7 @@ export class FloorplanStudioCard extends LitElement {
     // dragged to a new grid size) must re-clamp the panel too, not only a fresh render. jsdom has no
     // ResizeObserver; the unit suite never needs this path, so it is skipped there rather than polyfilled.
     if (typeof ResizeObserver !== "undefined") {
-      this._activeResizeObserver = new ResizeObserver(() => { this._applyWidthDefault(); this._positionActivePanel(); });
+      this._activeResizeObserver = new ResizeObserver(() => { this._applyWidthDefault(); this._positionToolbar(); this._positionActivePanel(); });
       this._activeResizeObserver.observe(this);
     }
     // A reload or a closed tab never runs disconnectedCallback; the debounced save must still go out.
@@ -889,6 +896,11 @@ export class FloorplanStudioCard extends LitElement {
     return this._pickedLabels ?? this._config.labels !== false;
   }
 
+  /** Whether every device's name shows: the toggle's pick, else `config.names` (only a real `true` shows them). */
+  private _names(): boolean {
+    return this._pickedNames ?? this._config.names === true;
+  }
+
   /** Home Assistant's dark mode, used only by `theme: ha` to choose the dark set for what its CSS variables do not cover. */
   private _haDark(): boolean {
     return this._hass?.themes?.darkMode === true;
@@ -1037,6 +1049,7 @@ export class FloorplanStudioCard extends LitElement {
     super.updated(changed);
     this._glidePeople();
     this._applyWidthDefault();
+    this._positionToolbar();
     this._positionActivePanel();
     const t = this._theme();
     this.setAttribute("data-theme", t);
@@ -1260,6 +1273,20 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
+  /** The toolbar is anchored top right and the floor chips top left, both over the plan. When the toolbar is wide
+   * enough to reach the chips (a wrapped one always is: it fills the card's width), the chips, which sit above it,
+   * would cover its first controls and the View select could not be clicked. It then moves down to just below the
+   * chips. Measured, not guessed: the toolbar's width depends on the config, the view and the theme's fonts. */
+  private _positionToolbar(): void {
+    const root = this.shadowRoot;
+    const bar = root?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
+    if (!bar) return;
+    bar.style.top = "";
+    const chips = root?.querySelector<HTMLElement>(".fp-floors");
+    if (!chips) return;
+    if (bar.getBoundingClientRect().left < chips.getBoundingClientRect().right + 6) bar.style.top = `${chips.offsetTop + chips.offsetHeight + 6}px`;
+  }
+
   /** Opus review findings 3/4: sets the panel's on-screen position directly (bypassing Lit's template, which does
    * not bind `style` any more — see `_activePanel` — so this survives an unrelated re-render), from `_activePos`'s
    * fraction and the *current* card/panel geometry. Called from `updated()` on every render and from the
@@ -1274,8 +1301,8 @@ export class FloorplanStudioCard extends LitElement {
       // The CSS default sits under a one-row toolbar. On a narrow card the toolbar wraps to more rows and would
       // cover the panel's fold button, so the default moves down to just below it.
       const bar = this.shadowRoot?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
-      const wrapped = bar !== null && bar !== undefined && bar.offsetHeight > 36;
-      panel.style.top = wrapped ? `${bar.offsetHeight + 16}px` : "";
+      const below = bar ? bar.offsetTop + bar.offsetHeight + 8 : 0; // 44 px for a one-row bar at the top, the CSS default
+      panel.style.top = below > 44 ? `${below}px` : "";
       return;
     }
     const hostRect = this.getBoundingClientRect();
@@ -1458,6 +1485,7 @@ export class FloorplanStudioCard extends LitElement {
       tilt: this._tilt(),
       walls: this._walls(),
       labels: this._labels(),
+      showNames: this._names(),
       around: floorsAroundKey(this._layout!, this._floorKey()!),
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
@@ -1507,8 +1535,10 @@ export class FloorplanStudioCard extends LitElement {
    * the view is 2.5D, the Theme select and the Labels toggle. All hidden together (`view_switch: false`, kiosk). */
   private _viewControls(current: PlanView) {
     const labels = this._labels();
+    const names = this._names();
     return html`${this._viewSelect(current)}${current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
-      <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>`;
+      <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>
+      <button type="button" aria-label="Device names" title="Device names" aria-pressed=${names ? "true" : "false"} @click=${() => { this._pickedNames = !names; this._saveViewNow(); this.requestUpdate(); }}>Aa</button>`;
   }
 
   /** The two rotate buttons, next to the zoom buttons: a control of their own (`rotate_switch`), so a card with
@@ -1541,13 +1571,13 @@ export class FloorplanStudioCard extends LitElement {
   /** Whether anything about the view differs from what the config alone would show: a pick, a zoom, a turn. */
   private _modified(): boolean {
     return this._turn !== null || this._view !== null || this._pendingView !== null
-      || [this._pickedView, this._pickedTilt, this._pickedWalls, this._pickedTheme, this._pickedLabels, this._pickedRot].some((v) => v !== null);
+      || [this._pickedView, this._pickedTilt, this._pickedWalls, this._pickedTheme, this._pickedLabels, this._pickedNames, this._pickedRot].some((v) => v !== null);
   }
 
   /** Reset view: every view option back to the config's own, the stored entry cleared, the floor kept. The turn goes
    * back the short way (315 to 0 is +45). */
   private _resetView(): void {
-    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = null;
+    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = null;
     this._pendingView = null;
     this._view = null;
     const from = this._userAngle();
@@ -1714,8 +1744,10 @@ export class FloorplanStudioCard extends LitElement {
     return html`<div class="fp-zoom">
       ${withViewSwitch ? this._viewControls(this._planView()) : null}
       ${withRotate ? this._rotateButtons() : null}
-      <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
-      <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atMin} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
+      <span class="fp-pair">
+        <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
+        <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atMin} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
+      </span>
       <button type="button" aria-label=${resetLabel} title=${resetLabel} ?disabled=${atHome} @click=${() => this._fitView()}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
       </button>

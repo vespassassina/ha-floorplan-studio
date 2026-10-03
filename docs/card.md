@@ -39,7 +39,9 @@ floors — ready to paste. See "A premade dashboard" below.
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 | `view` | `2d` | `2d` draws the flat plan, `2.5d` draws it with depth — see 2.5D view, below. Anything else is `2d` |
-| `view_switch` | `true` | `false` hides the View dropdown next to the zoom buttons. `kiosk` hides it too |
+| `view_switch` | `true` | `false` hides the View dropdown, Theme, Labels and Device names next to the zoom buttons. `kiosk` hides them too |
+| `rotate_switch` | follows the other controls | the two rotate buttons and the Left/Right keys. Unset: shown on every card that draws zoom or the View controls, hidden under `kiosk` and on a card with `zoom: false` and `view_switch: false`. `false` hides them, `true` shows them even under `kiosk` |
+| `names` | `false` | `true` writes every device's name under its icon, the studio's Names toggle. The Device names button (`Aa`) changes it for as long as the card is on screen |
 | `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D. See the Tilt slider, below |
 | `walls` | `cut` | how 2.5D draws wall heights: `full` every wall at its real height, no cutaway; `cut` the doll's house look, walls facing you lowered so the rooms show; `low` every wall at the cutaway height. Anything else is `cut`. Only read in 2.5D. See Walls, below |
 | `labels` | `true` | `false` hides every name and value on the plan (rooms, zones, structures, device names, sensor values), so only icons and state are left. Anything but `false` shows them |
@@ -186,12 +188,46 @@ house. `icon_size` scales them further on top of that, from half size to
 three times, for a plan that still reads small, or a tablet viewed from
 across the room.
 
+## Studio and card
+
+"Everything you do in the studio you can do in the card", for **viewing**. Each
+control of the editor's View menu, its zoom group and its Filter menu, and what
+the card does about it. A test (`tests/card/view-parity.spec.ts`) reads the
+editor and fails on a control that has no row here, so a new one gets a decision.
+
+| Studio control | In the card | Why |
+|---|---|---|
+| `#view-mode` Plan view | yes | the View dropdown |
+| `#tilt` Tilt | yes | the Tilt slider, 2.5D |
+| `#walls` Walls | yes | the Walls select, 2.5D |
+| `#labels` Show names and text | yes | the Labels toggle |
+| `#names` Names | yes | the Device names toggle (`Aa`), config `names` |
+| `#thSub` Theme | yes | the Theme dropdown |
+| `#fit` Fit to window | yes | the Fit button (Home view on a pinned card) |
+| `#recenter` Re-center | yes | the same Fit button |
+| `#zin` `#zout` Zoom | yes | the + and − buttons, the Up and Down keys, pinch and wheel |
+| `#zreset` Reset view | yes | the Reset view button and Space |
+| `#vrotl` `#vrotr` Rotate view | yes | the two rotate buttons and the Left and Right keys, 2D and 2.5D |
+| `#version` the installed version | no | the card names its version in the browser console instead |
+| `#snap` Snap grid | no | an editing aid: a viewer places nothing |
+| `#mgrid` Measure grid | no | an editing aid, drawn by the editor over the plan, not by `renderFloor` |
+| `#lens` Lengths | no | an editing aid |
+| `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
+| `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
+| `#filter` Filter by type | no | a work aid for a crowded plan; the card has the Active list, grouped by type |
+
+Also the same in both: the floor switcher (chips and tabs), pan and zoom by
+pointer, the view remembered per browser, and Reset view clearing it. The
+editor's other menus (Add, Draw, Edit, File, Help, Undo) change the plan, which
+a card does not.
+
 ## Kiosk mode
 
 `kiosk: true` is for a tablet fixed to a wall: nobody there should be able to
 switch floors, zoom out past what fits, or reach Home Assistant's more-info
 dialog by holding a finger on a device. It hides the floor chips and the
-zoom +/−/fit buttons, and a long press does nothing — a plain tap still
+zoom +/−/fit buttons and the rotate buttons (`rotate_switch: true` brings
+those back), and a long press does nothing — a plain tap still
 toggles the device it lands on, exactly as without kiosk mode.
 
 `kiosk: true` shows the first floor and draws no switcher whatever would
@@ -257,7 +293,9 @@ autosave does not reset it.
 ## View memory and reset
 
 Two buttons beside the zoom buttons turn the plan: **Rotate left** and
-**Rotate right**, 45 degrees a press. The plan turns smoothly (about 0.35 s a
+**Rotate right**, 45 degrees a press. They are their own control (`rotate_switch`):
+`view_switch: false` hides the View dropdown, not them. They turn the 2D plan
+too; rotation does not need 2.5D. The plan turns smoothly (about 0.35 s a
 step, longer for several quick presses, none with `prefers-reduced-motion`);
 names and icons stay upright. Pan, zoom and taps wait until it has settled.
 The card also has a Theme dropdown and a names-and-text toggle next to View.
@@ -270,7 +308,7 @@ flash of the configured look. The floor and the Active list are remembered
 as before.
 
 - **A remembered value wins over the config** for as long as the config is the
-  same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `center`,
+  same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `names`, `center`,
   `zoom_level`, the layout source or the floors in the card's YAML and that
   card starts with a clean memory: the new YAML is what you meant.
 - **Reset view** (the last toolbar button, greyed while nothing differs) puts
@@ -278,10 +316,16 @@ as before.
   turn goes back the short way round. The floor stays. It is not the Fit
   button: Fit, or Home view on a pinned card, only changes zoom and position.
 - **Keys.** The card you hover or have focused listens; another card on the
-  page does not. Up and Down arrows zoom, Left and Right turn (when the
-  rotate buttons are there), Space is Reset view. Nothing fires while you type
-  in a field, and Space on a focused button presses that button. Cover,
-  vacuum and chooser dialogs take the keys while they are open.
+  page does not. Up and Down arrows zoom (not with `zoom: false`), Left and
+  Right turn (when the rotate buttons are there), Space is Reset view. The
+  keys work with the pointer over the card, no click needed, and after one
+  click on it even when the pointer has moved off. The card tracks its own
+  focus because in Home Assistant it sits inside several shadow roots, where
+  the page's `document.activeElement` is never the card. Nothing fires while
+  you type in a field, and Space on a focused button presses that button. Cover,
+  vacuum and chooser dialogs take the keys while they are open. Under `kiosk`
+  there are no buttons and no rotation keys; the zoom keys still work, as the
+  zoom gestures do.
 - **When it is saved.** 150 ms after you touch zoom, focus, turn, view, tilt,
   walls, theme, names or floor, and again when the tab is hidden or closed. The
   floor is remembered with the rest, so a reload does not return you to the

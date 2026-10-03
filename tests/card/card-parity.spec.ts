@@ -104,6 +104,31 @@ test("the built card names its version in the console, and an older copy that ow
   expect(lines.join("\n")).toContain(`Floorplan Studio ${manifest.version}: <floorplan-studio-card> is already defined by another script`);
 });
 
+for (const width of [375, 500, 700, 900, 1280]) {
+  test(`with three floor chips at ${width} px, every toolbar control is reachable and none sits under a chip`, async ({ page }) => {
+    await boot(page, { ...BASE, view: "2.5d" }, width);
+    const r = await card(page).evaluate((el) => {
+      const root = el.shadowRoot!;
+      const chips = [...root.querySelectorAll<HTMLElement>(".fp-floors button")].map((b) => b.getBoundingClientRect());
+      const hit = (r: DOMRect) => !(r.right <= 0);
+      const controls = [...root.querySelectorAll<HTMLElement>(".fp-zoom button, .fp-zoom select, .fp-zoom input")];
+      const covered = controls.filter((c) => {
+        const b = c.getBoundingClientRect();
+        const top = root.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
+        return !top || !c.contains(top);
+      }).map((c) => c.getAttribute("aria-label"));
+      const overlap = controls.filter((c) => {
+        const b = c.getBoundingClientRect();
+        return chips.some((k) => hit(k) && b.left < k.right && b.right > k.left && b.top < k.bottom && b.bottom > k.top);
+      }).map((c) => c.getAttribute("aria-label"));
+      return { n: chips.length, covered, overlap };
+    });
+    expect(r.n).toBe(3);
+    expect(r.covered).toEqual([]);
+    expect(r.overlap).toEqual([]);
+  });
+}
+
 test("one click on the card, then the pointer away: the keys still reach it", async ({ page }) => {
   await boot(page, BASE, 375);
   const box = (await card(page).boundingBox())!;
