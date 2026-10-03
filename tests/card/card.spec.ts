@@ -532,7 +532,7 @@ test.describe("S7.4 zoom and pan", () => {
     expect((await viewBox(page)).h).toBeGreaterThan(flat.h); // the lift widened the box
     const l = await lightAt(page);
     await page.mouse.click(l.x, l.y);
-    expect((await calls(page)).length).toBe(1); // the icon did not move: a tap where it is drawn still reaches it
+    expect((await calls(page)).length).toBe(1); // a tap where the (lifted) icon is drawn reaches it
 
     await sel.selectOption("2d");
     expect(await card(page).locator("css=svg .ws").count()).toBe(0);
@@ -718,9 +718,9 @@ test.describe("S7.4 zoom and pan", () => {
             return { bg: s.backgroundColor, fg: s.color, vis: s.visibility, disp: s.display };
           }),
         );
-        // Zoom in, out, Fit, plus the rotate pair, the names toggle and Reset view (all share the zoom bar): all
-        // seven must read, so the new ones are held to the same contrast.
-        expect(got.length, `${theme} dark=${dark}`).toBe(7);
+        // Zoom in, out, Fit, plus the rotate pair, the labels and device names toggles and Reset view (all share the
+        // zoom bar): all eight must read, so the new ones are held to the same contrast.
+        expect(got.length, `${theme} dark=${dark}`).toBe(8);
         for (const g of got) {
           expect(g.disp).not.toBe("none");
           expect(ratio(rgbOf(g.bg), rgbOf(g.fg)), `${theme} dark=${dark}`).toBeGreaterThanOrEqual(3);

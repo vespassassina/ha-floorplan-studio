@@ -2,6 +2,73 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-03: a high device is drawn lifted; the pin stays on the floor
+
+Diego, in 2.5D: "instead of moving the icons with the walls, it moves the pin."
+Supersedes the 2.5D entry's "floor-level things keep their plan position" for
+devices: the icon no longer stays on the floor with a stem up to a dot.
+
+A device with z at or above `STEM_MIN_Z` (100 cm), not a person, not a heater
+bar, is drawn at `px.lift(c, z)` (`iconAt` in `renderFloor`). Everything it
+carries moves with it: the lit lamp's aura (unclipped, as before; walls still
+draw over it), the camera cone, ping and wave rings, away mark, name, value, and
+the label-placement obstacle. Only the small pin and the stem stay at the floor
+point `c`. Radar target dots stay on the floor: they are positions in the room.
+Taps follow the icon (`g[data-x]` is the real top element); the pin and stem take
+no pointer events. The editor's 2.5D view is a read-only preview (no selection,
+drag, handles or overlay), so it needed no change. Unlinked appliances were
+already lifted whole as solids, with no pin: unchanged. 2D output is identical.
+## 2026-10-03: studio and card agree on every view control
+
+Diego, on 0.12.22: "i have buttons in the studio but not in the card ... arrow
+keys work in studio but not card. RULE: everything you do in studio must also
+be done in card."
+
+What a Chromium run, with the card mounted as Home Assistant mounts it (bare
+config, `hass` without `config`, inside nested shadow roots, from 200 to 1280
+px wide), found:
+
+- Default configs (`type` only, `view: 2.5d`, `floor`, `labels: false`) already
+  drew the rotate buttons, reachable by a real pointer, and took the keys with
+  the pointer over the card. The 0.12.19 and 0.12.22 code is in the build.
+- `view_switch: false` hid the rotate buttons and Left/Right while the zoom
+  buttons stayed. The pair lived inside the View controls.
+- After a click on the card the keys worked only while the pointer stayed on
+  it, in Home Assistant. The card looked for focus in `document.activeElement`,
+  which in nested shadow roots is the outermost host, never the card. A flat
+  test page hid this. The card now tracks its own focusin and focusout.
+- Not reproducible in a browser: a dashboard that shows none of it. The one
+  cause left outside the card's own logic is the browser running another build:
+  `defineElement` keeps the first owner of the element name silently, so an
+  older copy kept as a manual dashboard resource would win. The card now
+  prints its version and warns once when it lost the name. If Diego's console
+  shows an older version, or the warning, that is it; the fix is in Settings >
+  Dashboards > Resources.
+
+Decided. The rotate pair is a control of its own, `rotate_switch`: unset it
+follows the other controls (shown when the card draws zoom or the View
+controls, hidden under `kiosk`); `false` hides it and the keys; `true` shows it
+under `kiosk` too. `rotation` is taken by the start angle. Kiosk keeps its zoom
+keys (the zoom gestures stay) and has no rotation keys unless `rotate_switch:
+true`. Rotation does not depend on 2.5D, as in the editor.
+
+The Names button made the 2.5D toolbar wide enough to run under the floor chips
+at 700 px, where the chips (higher z-index) covered the View select and the
+Tilt slider; a Playwright test over 375 to 1280 px found it already broken at
+375 and 500. The toolbar is now measured after each render and moves below the
+chips when it would reach them (`_positionToolbar`); the Active list follows
+it. CSS alone cannot know the chips' width.
+
+Parity audit (docs/card.md, "Studio and card"). The one viewing control the card
+lacked was Names: added as the Device names button and config key `names`,
+remembered and reset like Labels, and passed to `renderFloor` as `showNames` (no
+change to the renderer). Deliberately not in the card: Snap, Measure grid and
+Lengths (editing aids; the measure grid is drawn by the editor, not by
+`renderFloor`), Preview night (the card goes dark by itself), Copy card view
+(authoring), Filter (the Active list does that job), the version line (the
+console). A Playwright test reads the editor's View menu, zoom group and Filter
+and fails on any id without a decision (finding 17).
+
 ## 2026-10-03: the Walls select, in the card and the editor
 
 The `walls` option now has controls. Card: config key `walls` (junk is "cut"),

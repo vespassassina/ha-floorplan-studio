@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.12.23
+
+- 2.5D: a ceiling light, camera or other high mount is drawn where it hangs, not on the floor. The icon rises with the walls, and so do its light radius, camera cone, motion and speaker rings, name and value. The small pin now stays on the floor, joined to the icon by the stem. Tap the lifted icon. Persons, heater bars, devices under 100 cm, radar target dots and all of 2D are unchanged.
+- Card: the two rotate buttons and the Left/Right keys are their own control now. `view_switch: false` used to hide them along with the View dropdown while the zoom buttons stayed; they now show on every card that draws zoom or the View controls, in 2D and 2.5D. New `rotate_switch` key (`false` hides them and the keys, `true` shows them under `kiosk` too) and a Rotate buttons field in the Edit-card form.
+- Card keys: one click on the card and the keys keep working with the pointer moved away. Inside Home Assistant's shadow roots the card never looked focused to the page, so only the hover worked. The pointer resting over a card that has just appeared counts as hovering.
+- Card: the studio's Names toggle. A Device names button (`Aa`) beside Labels, config key `names`, a field in the Edit-card form; remembered per browser and cleared by Reset view.
+- The card prints its version in the browser console (`Floorplan Studio card 0.12.22`), and warns when another script already owns `<floorplan-studio-card>`, the way an older copy kept as a manual dashboard resource would, so a dashboard that does not show a new feature can be diagnosed.
+- Card toolbar: on a card narrower than the toolbar, with the floor chips showing, the chips covered the first controls (the View select, the Tilt slider) and a click landed on a chip. The toolbar now moves below the chips when it would reach them, and the Active list below the toolbar. The zoom + and − wrap as one pair, like the rotate pair.
+- docs/card.md "Studio and card": every studio View control against the card, with a test that fails when the editor gets a view control nobody decided about.
+
 ## 0.12.22
 
 - 2.5D stairs going down read as stairs. The well draws its treads as steps, each lower one darker, risers in shadow, clipped to the footprint. Everything below the floor (ground, walls, treads) is now drawn before any wall, and the hole's border on top, so nothing overlaps. 2D is unchanged.

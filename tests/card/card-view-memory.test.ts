@@ -69,13 +69,16 @@ describe("rotate buttons and the config rotation", () => {
     expect(themeSelect(el)!.closest(".fp-zoom")).toBe(group);
   });
 
-  it("they are hidden with view_switch: false and in kiosk, like the View select", async () => {
-    for (const cfg of [{ view_switch: false }, { kiosk: true }]) {
+  it("kiosk and rotate_switch: false hide them with the View select; view_switch: false hides the select but not the pair (Diego, 0.12.22)", async () => {
+    for (const cfg of [{ kiosk: true }, { rotate_switch: false, view_switch: false }]) {
       const el = await mount(cfg);
       for (const l of ["Rotate left", "Rotate right", "Reset view"]) expect(btn(el, l), `${l} ${JSON.stringify(cfg)}`).toBeNull();
       expect(themeSelect(el)).toBeNull();
       el.remove();
     }
+    const el = await mount({ view_switch: false });
+    for (const l of ["Rotate left", "Rotate right", "Reset view"]) expect(btn(el, l), l).not.toBeNull();
+    expect(themeSelect(el)).toBeNull();
   });
 
   it("config rotation is the starting angle: junk is 0, anything else a multiple of 45 in 0..315", async () => {

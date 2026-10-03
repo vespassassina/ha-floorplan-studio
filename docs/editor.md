@@ -30,6 +30,9 @@ Left to right:
 - **View** — how the plan looks while you work: the installed version at the
   top, then Plan view (2D or 2.5D, see below), snap grid, measure grid,
   lengths, names, Show names and text, Tilt and Walls (2.5D), Preview night, theme, Re-center and Fit to window.
+  Everything here that is about looking, not editing, is in the card too:
+  see "Studio and card" in `card.md` for the list, and for what is left out on
+  purpose. A new view control needs a row there (a test checks).
 - **Edit** — what changes the plan or Home Assistant: Add floor, the Home
   Assistant popover (inside Home Assistant), Group, plan rotation, Device
   colours, Trace image…
