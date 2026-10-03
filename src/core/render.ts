@@ -212,6 +212,10 @@ export const FLOORPLAN_CSS = `
    .room{pointer-events:all} — a presentation attribute loses to any author rule, so the attribute alone would
    make the ring a click target with no data-r the day the editor renders live state. Two classes beat one. */
 .room.ring{pointer-events:none}
+/* A room with a triggered motion sensor in it: one thin line inside its walls, in the sensor's own colour (a radar in
+   the radar colour), for as long as the sensor is on. renderFloor masks the wide stroke down to the line; the editor's
+   .room{pointer-events:all} does not touch it, being a different class, and a class rule beats the attribute (finding 18). */
+.motion-perimeter{fill:none;stroke:var(--fp-dev-motion);stroke-linejoin:round;pointer-events:none} .motion-perimeter.radar{stroke:var(--fp-dev-radar)}
 /* .sel is one class (0,1,0); .room.on is two (0,2,0) and would always outrank it on specificity, so a selected
    room that is also on would stop showing its ink selection outline. This three-class override (0,3,0) wins
    regardless of source order and keeps selection on top (Opus review). */
@@ -274,7 +278,7 @@ export const FLOORPLAN_CSS = `
 .dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
-.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)}
+.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)}
 /* S7.10: an error vacuum wears --fp-danger on its icon, two classes ahead of the plain idle-grey .dev path rule above. */
 .dev.danger path{fill:var(--fp-danger)}
 /* S4.25: an unlinked item has no on/off state of its own, so it never carries .on — it stays at the plain .dev
@@ -519,6 +523,9 @@ export function classOf(d: Device, o: RenderOpts): Cls {
     if (s.state === "cleaning" || s.state === "returning") return "on";
     return "off";
   }
+  // Diego, 2026-10: curtains, blinds, shutters and garage doors are covers, and open is not an alert for them. They
+  // draw idle in every state (their tap, tooltip and the door lines are unaffected); only unavailable still shows.
+  if (d.type === "cover") return "off";
   return s.state === "on" || s.state === "open" ? "on" : "off";
 }
 
@@ -602,6 +609,29 @@ function stairsGroup(t: Stairs, i: number): string {
     g.push(`<line class="e se"${e} x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"/>`);
   });
   return `<g data-s="${i}" transform="rotate(${num(rot)} ${num(cx)} ${num(cy)})">${g.join("")}</g>`;
+}
+
+/** cm of floor between the outer edge of the widest wall (halo included) of a room and its motion line. */
+const MOTION_GAP = 2;
+/** cm wide the motion line is drawn. */
+const MOTION_LINE = 2.5;
+
+/**
+ * The room's motion perimeter: one solid line, `MOTION_LINE` wide, just inside the walls. It is the room's outline
+ * stroked wide and masked to a band: white room shape (nothing outside the room shows, whatever the shape) minus a
+ * black stroke twice the wall reach (nothing near the walls shows). What is left is the ring between the two, an exact
+ * inset of the outline, round at a concave corner, so an L or a U needs no offset-polygon arithmetic. The mask id is
+ * a hash of the geometry (like the opening mask) so two cards drawing one floor mint the same id. Colour and
+ * pointer-events come from the class (findings 9, 18); `radar` takes the radar colour.
+ */
+function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean): string {
+  const reach = Math.max(...ring.map((a, j) => wallWidthAt(f, a, ring[(j + 1) % ring.length]))) + WALL_HALO_EXTRA;
+  const hide = reach + 2 * MOTION_GAP, band = hide + 2 * MOTION_LINE;
+  const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1]);
+  const x = Math.min(...xs) - band, y = Math.min(...ys) - band;
+  const id = `fp-mp-${tag(`${pts(ring)}|${hide}`)}`, points = pts(ring);
+  const mask = `<mask id="${id}" maskUnits="userSpaceOnUse" x="${num(x)}" y="${num(y)}" width="${num(Math.max(...xs) + band - x)}" height="${num(Math.max(...ys) + band - y)}"><polygon points="${points}" fill="white"/><polygon points="${points}" fill="none" stroke="black" stroke-width="${num(hide)}" stroke-linejoin="round"/></mask>`;
+  return `${mask}<polygon class="motion-perimeter${radar ? " radar" : ""}" data-m="${i}" mask="url(#${id})" stroke-width="${num(band)}" points="${points}"/>`;
 }
 
 export function renderFloor(f: Floor, o: RenderOpts): string {
@@ -752,6 +782,27 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (r.area || !entityOn(o, r.entity)) return;
     out.push(`<polygon class="room on ring" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
   });
+
+  // A room with a triggered motion sensor (or radar) standing in it gets one thin line just inside its walls, for as
+  // long as the sensor is on. The sensor goes to the smallest room that holds it (a house in a garden lights the house),
+  // and the first one in array order that is on in a room names the colour. Same pass as the ring above, after the
+  // wall lines, so the 2.5D solids below still cover it.
+  const triggered = new Map<number, boolean>(); // room index -> the first sensor that is on there is a radar
+  f.devices.forEach((d, i) => {
+    if ((d.type !== "motion" && d.type !== "radar") || "a" in d || classOf(d, o) !== "on") return;
+    const sel = o.selection?.t === "dev" && o.selection.i === i;
+    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    const c: Pt = [d.x, d.y];
+    if (!c.every(Number.isFinite)) return;
+    let at = -1;
+    f.rooms.forEach((r, j) => {
+      const p = rings[j];
+      if (!p || r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name) || !inside(c, p)) return;
+      if (at < 0 || areas[j] < areas[at]) at = j;
+    });
+    if (at >= 0 && !triggered.has(at)) triggered.set(at, d.type === "radar");
+  });
+  for (const i of [...triggered.keys()].sort((a, b) => a - b)) out.push(motionPerimeter(f, rings[i]!, i, triggered.get(i)!));
 
   // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
   // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.

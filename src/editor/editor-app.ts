@@ -1436,8 +1436,8 @@ export class FloorplanStudioEditor extends LitElement {
   private placeView(st: EditorState, i: number) {
     const room = st.f.rooms[i], p = this.placePos!;
     const all = st.areaToPlace(i);
-    const types = TYPE_LABELS.filter(([t]) => all.some((e) => typeForEntity(e) === t));
-    const shown = this.placeType ? all.filter((e) => typeForEntity(e) === this.placeType) : all;
+    const types = TYPE_LABELS.filter(([t]) => all.some((e) => typeForEntity(e, st.ha) === t));
+    const shown = this.placeType ? all.filter((e) => typeForEntity(e, st.ha) === this.placeType) : all;
     const picked = shown.filter((e) => this.placeOn.has(e.id));
     const allShownOn = shown.length > 0 && shown.every((e) => this.placeOn.has(e.id));
     const tick = (e: HaData["entities"][number]) => (ev: Event) => { if ((ev.target as HTMLInputElement).checked) this.placeOn.add(e.id); else this.placeOn.delete(e.id); this.requestUpdate(); };
@@ -1452,7 +1452,7 @@ export class FloorplanStudioEditor extends LitElement {
       <p>What Home Assistant has in this area and the plan does not show yet. Readings with no icon of their own (power, energy, battery…) are left out. Tick what to place; each placed device can then be dragged to its spot.</p>
       <div class="chips">${types.map(([t, label]) => html`<button class="chip keep" data-ptype=${t} aria-pressed=${this.placeType === t ? "true" : "false"} @click=${() => { this.placeType = this.placeType === t ? null : t; this.requestUpdate(); }}>${label}</button>`)}</div>
       <button class="btn keep" id="placeAll" ?disabled=${!shown.length} @click=${toggleAll}>${allShownOn ? "Deselect all" : "Select all"}</button>
-      <div class="rows">${shown.map((e) => html`<label class="prow" data-pent=${e.id} title=${e.name}><input type="checkbox" .checked=${live(this.placeOn.has(e.id))} @change=${tick(e)}><span class="prow-text"><span class="prow-name">${e.name}</span><small>${TYPE_LABELS.find((t) => t[0] === typeForEntity(e))?.[1] ?? typeForEntity(e)} · ${room.name}</small></span></label>`)}</div>
+      <div class="rows">${shown.map((e) => html`<label class="prow" data-pent=${e.id} title=${e.name}><input type="checkbox" .checked=${live(this.placeOn.has(e.id))} @change=${tick(e)}><span class="prow-text"><span class="prow-name">${e.name}</span><small>${TYPE_LABELS.find((t) => t[0] === typeForEntity(e, st.ha))?.[1] ?? typeForEntity(e, st.ha)} · ${room.name}</small></span></label>`)}</div>
       <button class="btn primary keep" id="placeGo" ?disabled=${!picked.length} @click=${() => this.placeGo(i, picked.map((e) => e.id))}>Place ${picked.length}</button>
     </div>`;
   }
@@ -1554,7 +1554,7 @@ export class FloorplanStudioEditor extends LitElement {
       <button class="btn" id="cmToBack" @click=${() => this.ctxSendToBack()}>Send to back</button>
       <button class="btn warn" id="cmDelete" @click=${() => this.ctxDelete()}>Delete</button>
       ${unplaced.length ? html`<div class="sep"></div><span class="grp">Add device from ${r!.name}</span>
-        ${unplaced.map((e) => html`<button class="btn" @click=${() => this.addFromArea(e)}>${e.name} (${TYPE_LABELS.find((t) => t[0] === typeForEntity(e))?.[1] ?? typeForEntity(e)})</button>`)}` : nothing}`;
+        ${unplaced.map((e) => html`<button class="btn" @click=${() => this.addFromArea(e)}>${e.name} (${TYPE_LABELS.find((t) => t[0] === typeForEntity(e, ha))?.[1] ?? typeForEntity(e, ha)})</button>`)}` : nothing}`;
   }
 
   /** S4.27: Change type, Add a point (edges only), Add an opening, Delete — with the same doors/windows confirm dance as the edge panel's own Delete. */

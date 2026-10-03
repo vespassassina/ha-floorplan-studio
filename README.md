@@ -35,7 +35,8 @@ Assistant every day.
   ![The card in 2.5D.](docs/img/card-2-5d.png)
 - A Lovelace card: lights, switches, sensors, cameras, thermostats, doors,
   people, mmWave radar targets and vacuums shown live. A lit lamp throws a
-  pool of light; motion pings and fades from red to grey; an open door or
+  pool of light; motion pings and fades from red to grey, and its room gets a
+  thin red line inside the walls while it is on; an open door or
   window turns red and dashed; a TV turns blue; a playing speaker sends out
   waves. The plan darkens after sunset. Icons grow with a large house, and
   `icon_size` scales them further.

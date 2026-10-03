@@ -206,8 +206,9 @@ every active device on every floor of the layout — not only the one the
 plan is showing. "Active" is lights on (a light bound to a switch counts
 when the switch is), motion and contact on, TVs and media players on or
 playing, a speaker playing, heaters and climate heating, AC running, plugs,
-computers and covers on or open, persons at home, and vacuums that are
-cleaning (one that is only returning to its dock is not). Every camera is
+computers on, persons at home, and vacuums that are
+cleaning (one that is only returning to its dock is not). Covers (curtains,
+blinds, shutters, garage doors) are never listed: open is not an alert. Every camera is
 listed whatever its state — a camera is a view, not an on/off thing —
 except an `unavailable`/`unknown` one, or any device of any type with no
 entity configured: neither has a real more-info dialog to open.
@@ -342,6 +343,19 @@ differently:
   a ring pulsing out from it while it stays on. It then fades back to grey
   over `fade` seconds from when it last went off — even if it's already off
   by the time the card loads.
+- **Motion perimeter** — while a motion sensor (or a radar) stands in a room
+  and is on, the room gets one thin solid line just inside its walls, in the
+  sensor's own colour (red by default; a radar takes the radar colour). The
+  smallest room that holds the sensor gets it, so a house in a garden lights
+  the house; with several sensors on in a room the first in layout order
+  names the colour. It shows exactly while the sensor is on (the icon's fade
+  is separate), in 2D and 2.5D (flat at floor level, under the walls), with
+  names off, at night and in every theme. Zones and structures never get one.
+  A group of motion sensors works the same through its own entity.
+- **Cover** (curtains, blinds, shutters, garage doors) — drawn idle grey in
+  every state, open or closed; it is not an alert, and it is not on the Active
+  list. Its tooltip still names it and a tap still toggles it. Only a door
+  line with a `cover` draws orange when that cover is open (below).
 - **Contact sensor** — open shows the same red disc and pulsing ring. A door
   or window with a contact sensor turns red and dashed when open, over a wide
   pulsing red line; `open_color` recolours both to something other than red.

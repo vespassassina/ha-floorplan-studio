@@ -111,6 +111,16 @@ Object.assign(STATES.gone, { "vacuum.demo_hall": "unavailable" });
 monLayout.floors.ground.doors[0].vibration = ["binary_sensor.demo_front_vibration"];
 STATES.vibrating = { ...STATES.off, "binary_sensor.demo_front_vibration": "on" };
 
+// A curtain (a cover) in the Hall: open it is drawn idle like closed, never orange (Diego, 2026-10). Closed in "off",
+// open in "on", unavailable in "gone".
+monLayout.floors.ground.devices.push({ id: "mon-curtain", type: "cover", entity: "cover.demo_curtain", name: "Hall curtain", x: 200, y: 550 });
+Object.assign(STATES.off, { "cover.demo_curtain": "closed" });
+Object.assign(STATES.on, { "cover.demo_curtain": "open" });
+Object.assign(STATES.gone, { "cover.demo_curtain": "unavailable" });
+// Only the Hall's motion sensor on: its room gets the thin inner line. With the curtain open and the kitchen light on
+// beside it, so one picture shows the line, an idle open cover and a lit lamp.
+STATES.motion = { ...STATES.off, "binary_sensor.demo_hall_motion": "on", "cover.demo_curtain": "open", "light.demo_kitchen": ["on", { rgb_color: [255, 170, 60] }] };
+
 const shots = [];
 const errors = [];
 mkdirSync("shots", { recursive: true });
@@ -132,7 +142,7 @@ try {
   ];
   const cardShots = [];
   for (const floor of Object.keys(layout.floors)) for (const which of Object.keys(STATES)) for (const t of THEMES) {
-    if (which === "night" || which === "vibrating") continue; // below: ground floor only, two themes each
+    if (which === "night" || which === "vibrating" || which === "motion") continue; // below: ground floor only, two themes each
     cardShots.push({ name: `card-${floor}-${which}-${t.id}`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
   }
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
@@ -141,6 +151,9 @@ try {
   // ground-only, same restriction as night above.
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
     cardShots.push({ name: `card-ground-vibrating-${t.id}`, floor: "ground", which: "vibrating", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
+  // The motion perimeter: ground floor, 2D and 2.5D, a dark and a light theme, at 3x so the line can be judged.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const view of ["2d", "2.5d"])
+    cardShots.push({ name: `card-ground-motion-${t.id}${view === "2.5d" ? "-2-5d" : ""}`, floor: "ground", which: "motion", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view, dpr: 3 });
   // 2.5D: both floors, at rest and lit, in the default, a light and a dark theme (the three that read differently).
   for (const floor of Object.keys(layout.floors)) for (const which of ["off", "on"]) for (const t of THEMES.filter((x) => ["blueprint", "light", "ha-dark"].includes(x.id)))
     cardShots.push({ name: `card-${floor}-${which}-${t.id}-2-5d`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view: "2.5d" });
@@ -159,7 +172,7 @@ try {
   cardShots.push({ name: "card-ground-on-blueprint-2-5d-375px", floor: "ground", which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", width: 375 });
   cardShots.push({ name: "card-ground-on-blueprint-2-5d-rot-45-375px", floor: "ground", which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", width: 375, cfg: { rotation: 45 } });
   for (const s of cardShots) {
-    const ctx = await browser.newContext({ viewport: { width: s.width ?? 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });
+    const ctx = await browser.newContext({ viewport: { width: s.width ?? 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", ...(s.dpr ? { deviceScaleFactor: s.dpr } : {}) });
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(`${s.name}: ${e}`));
     page.on("console", (m) => { if (m.type() === "error") errors.push(`${s.name}: console.error ${m.text()}`); });
