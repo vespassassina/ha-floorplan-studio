@@ -4,6 +4,9 @@
 
 - A cover is active only when it is a garage door, a gate or a door: HA `device_class` `garage`, `gate` or `door`, while open, opening or closing. Curtains, blinds, shades, shutters, awnings, windows, dampers and a cover with no class stay idle grey and off the Active list. Replaces 0.12.20's "every cover is idle".
 
+- 2.5D: one straight wall is one height. A wall made of several edges (rooms side by side along one line, a vertex in the middle of a wall) was cut per edge, so part of it could stand tall and part low. It now takes the largest cut of its pieces.
+- New `walls` option for the 2.5D view: `full` (every wall at its real height), `cut` (the default, as before) or `low` (every wall at the cutaway height). Card config key `walls`; the controls come with the view menus.
+
 ## 0.12.21
 
 - Plugs are active only while they draw power, not while they are merely switched on: from 2 W (card config `plug_watts`, also in the Edit-card form). A plug idling at 0.4 W draws grey. The Active list, the tooltip (`plug: TV plug, 14 W`) and a room that shows a plug's switch follow the same rule.

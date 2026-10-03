@@ -8,7 +8,7 @@ import { rolesToTokens } from "./theme-roles";
 import { esc, num, pts, tag } from "./fmt";
 import { coverActive } from "./cover";
 import { plugThreshold, wattsOf } from "./power";
-import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, type Proj, type Solid } from "./solids";
+import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
 
@@ -36,6 +36,8 @@ export interface RenderOpts {
   labels?: boolean;
   /** 0..1, how steeply the 2.5D view looks down: 0 is top-down (no lift), 1 is side-on. Only read with `view: "2.5d"`; see `obliqueFor`. Default `DEFAULT_TILT`, today's look. */
   tilt?: number;
+  /** 2.5D wall heights: "full" every wall at its model height, "cut" (default, also for junk) the doll's house cutaway, "low" every wall at the cutaway height. See `WALLS_MODES`. 2D ignores it. */
+  walls?: WallsMode;
   /** A plug is active from this many watts (default 2, `PLUG_ACTIVE_WATTS`). Junk is the default; see power.ts. */
   plugWatts?: number;
   /** Plug entity -> power sensor entity, found at runtime by the card for plugs with no `power` of their own. An explicit `power` wins. */
@@ -855,7 +857,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
   // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.
   if (x25) {
-    solids.push(...wallSolids(f, px));
+    solids.push(...wallSolids(f, px, wallsModeOf(o.walls)));
     f.furniture.forEach((m, i) => {
       const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
       const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, entityOn(o, m.entity, plugs), sym.svg, px) : null;

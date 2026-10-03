@@ -96,8 +96,55 @@ function coveredDepth(px: Proj, a: Pt, b: Pt, n: Pt, h: number, floors: Pt[][]):
   return Math.max(0, ...floors.map((q) => area2(clipToConvex(q, sweep)) / 2)) / (Math.hypot(b[0] - a[0], b[1] - a[1]) || 1);
 }
 
+/**
+ * How the 2.5D view draws wall heights (card config and View menu `walls`). "full": every wall at its model height, no
+ * cutaway. "cut": the doll's house rule below, the default. "low": every wall at the cutaway height, or its own if lower.
+ * A union walked by a test, so a new mode fails until someone writes down what it does (finding 17).
+ */
+export const WALLS_MODES = ["full", "cut", "low"] as const;
+export type WallsMode = (typeof WALLS_MODES)[number];
+export const WALLS_LABELS: Record<WallsMode, string> = { full: "Full height", cut: "Cutaway", low: "Low" };
+/** A mode from untrusted input (a config, a saved view): anything not in the list is the default, "cut". */
+export const wallsModeOf = (v: unknown): WallsMode => (typeof v === "string" && (WALLS_MODES as readonly string[]).includes(v) ? (v as WallsMode) : "cut");
+
 /** One wall piece of the 2.5D plan: an edge or a free wall with a height above zero. */
-interface WallSeg { a: Pt; b: Pt; h: number; /** 0..1: how far it is lowered toward the cutaway. */ cut: number; kind: string }
+interface WallSeg {
+  a: Pt; b: Pt; h: number; /** 0..1: how far it is lowered toward the cutaway. */ cut: number; kind: string;
+  /** Unit outward normals of the room edges that made this piece, in the screen frame; none for a free wall. */
+  faces: Pt[];
+}
+
+/** The height a wall is drawn at: its model height lowered toward the cutaway by its cut. */
+const drawnHeight = (w: WallSeg, px: Proj) => w.h - w.cut * Math.max(0, w.h - px.cutaway);
+
+/** cm: how far off one line two pieces may sit and still be one wall; how far apart their ends may be and still touch. */
+const RUN_TOL = 3, TOUCH = 1;
+/** Whether two pieces lie on one straight line, within the editor's snap tolerance. */
+function collinear(p: WallSeg, q: WallSeg): boolean {
+  const dx = p.b[0] - p.a[0], dy = p.b[1] - p.a[1], len = Math.hypot(dx, dy), qx = q.b[0] - q.a[0], qy = q.b[1] - q.a[1], ql = Math.hypot(qx, qy);
+  if (!len || !ql || Math.abs((dx * qy - dy * qx) / (len * ql)) > 0.02) return false;
+  return [q.a, q.b].every((r) => Math.abs((r[0] - p.a[0]) * dy - (r[1] - p.a[1]) * dx) / len <= RUN_TOL);
+}
+/**
+ * A straight wall made of several edges (rooms side by side, a vertex in the middle of a line) is one wall to the eye, so it
+ * has one cut: the largest of its pieces. Pieces that overlap are always one run; pieces that only touch are one run when they
+ * face the same way (an L-shaped house's two walls on one line, facing opposite ways, are two walls).
+ */
+function evenRuns(ws: WallSeg[]): void {
+  const root = ws.map((_, i) => i), find = (i: number): number => (root[i] === i ? i : (root[i] = find(root[i])));
+  const along = (p: WallSeg, r: Pt) => ((r[0] - p.a[0]) * (p.b[0] - p.a[0]) + (r[1] - p.a[1]) * (p.b[1] - p.a[1])) / (Math.hypot(p.b[0] - p.a[0], p.b[1] - p.a[1]) || 1);
+  const sameFace = (p: WallSeg, q: WallSeg) => p.faces.some((n) => q.faces.some((m) => n[0] * m[0] + n[1] * m[1] > 0.99));
+  for (let i = 0; i < ws.length; i++) for (let j = i + 1; j < ws.length; j++) {
+    const p = ws[i], q = ws[j];
+    if (!collinear(p, q)) continue;
+    const len = Math.hypot(p.b[0] - p.a[0], p.b[1] - p.a[1]), t0 = Math.min(along(p, q.a), along(p, q.b)), t1 = Math.max(along(p, q.a), along(p, q.b));
+    const overlap = Math.min(len, t1) - Math.max(0, t0);
+    if (overlap > TOUCH || (overlap >= -TOUCH && sameFace(p, q))) root[find(i)] = find(j);
+  }
+  const top = new Map<number, number>();
+  ws.forEach((w, i) => top.set(find(i), Math.max(top.get(find(i)) ?? 0, w.cut)));
+  ws.forEach((w, i) => { w.cut = top.get(find(i))!; });
+}
 
 /** Twice the signed area in the screen frame; its sign says which way the polygon winds, so which side of an edge is outside. */
 function winding(px: Proj, ps: Pt[]): number {
@@ -121,7 +168,7 @@ function winding(px: Proj, ps: Pt[]): number {
  * no outside; it is judged by how horizontal it is on screen, by the same ease. The whole segment takes the cut, not just
  * the covered part: a wall that steps up and down along its length would read as a fault.
  */
-function collectWalls(f: Floor, px: Proj): WallSeg[] {
+export function collectWalls(f: Floor, px: Proj, mode: WallsMode = "cut"): WallSeg[] {
   const out: WallSeg[] = [];
   const floors = (f.rooms ?? []).filter((r) => r?.kind === "room").map((r) => r.pts).filter((q): q is Pt[] => Array.isArray(q) && q.length >= 3 && q.every(finite)).map((q) => q.map(px.scr));
   const polys: { pts: Pt[]; room: Floor["rooms"][number] | null }[] = [{ pts: f.outline ?? [], room: null }, ...(f.rooms ?? []).filter((r) => r.kind !== "zone").map((room) => ({ pts: room.pts ?? [], room }))];
@@ -137,7 +184,7 @@ function collectWalls(f: Floor, px: Proj): WallSeg[] {
       const nx = (dir * (t[1] - s[1])) / len, ny = (dir * -(t[0] - s[0])) / len;
       const toward = ease(Math.abs(ny));
       const cut = dir === 0 ? 0 : ny > 0 ? toward : toward && toward * Math.min(1, coveredDepth(px, s, t, [nx, ny], h, floors) / COVER_FULL_DEPTH);
-      out.push({ a, b, h, cut, kind: Array.isArray(wk) && typeof wk[i] === "string" ? (wk[i] as string) : P.room ? "wall" : "external" });
+      out.push({ a, b, h, cut, faces: dir === 0 ? [] : [[nx, ny]], kind: Array.isArray(wk) && typeof wk[i] === "string" ? (wk[i] as string) : P.room ? "wall" : "external" });
     });
   }
   for (const w of f.walls ?? []) {
@@ -145,7 +192,7 @@ function collectWalls(f: Floor, px: Proj): WallSeg[] {
     const h = wallHeight(f, w);
     if (!(h > 0)) continue;
     const s = px.scr(w.a), t = px.scr(w.b);
-    out.push({ a: w.a, b: w.b, h, cut: ease(Math.abs(t[0] - s[0]) / (Math.hypot(t[0] - s[0], t[1] - s[1]) || 1)), kind: String(w.kind) });
+    out.push({ a: w.a, b: w.b, h, cut: ease(Math.abs(t[0] - s[0]) / (Math.hypot(t[0] - s[0], t[1] - s[1]) || 1)), faces: [], kind: String(w.kind) });
   }
   // The same edge twice (a room's wall on the outline, two rooms side by side) is one wall: the taller, the more
   // exposed (the most cut) and the external kind win, so a doubled edge never draws doubled.
@@ -155,10 +202,14 @@ function collectWalls(f: Floor, px: Proj): WallSeg[] {
     const o = seen.get(k);
     if (!o) { seen.set(k, { ...w }); continue; }
     o.cut = Math.max(o.cut, w.cut);
+    o.faces = [...o.faces, ...w.faces];
     if (w.h > o.h) { o.h = w.h; o.kind = w.kind; }
     if (w.kind === "external") o.kind = "external";
   }
-  return [...seen.values()];
+  const walls = [...seen.values()];
+  if (mode === "cut") evenRuns(walls);
+  else for (const w of walls) w.cut = mode === "low" ? 1 : 0;
+  return walls;
 }
 
 /**
@@ -200,11 +251,11 @@ const kindClass = (kind: string) => (kind === "wall" ? "" : ` ${esc(kind)}`);
  * Every wall as side faces plus a top, with its openings cut out: below the sill a block, above the head a header,
  * between them nothing (a door, an opening), a glass band (a window, a glass door) or a panel (sealed).
  */
-export function wallSolids(f: Floor, px: Proj): Solid[] {
+export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut"): Solid[] {
   const spans = spansOf(f);
-  return collectWalls(f, px).map((w) => {
+  return collectWalls(f, px, mode).map((w) => {
     const len = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]), ux = (w.b[0] - w.a[0]) / len, uy = (w.b[1] - w.a[1]) / len;
-    const hh = w.h - w.cut * Math.max(0, w.h - px.cutaway);
+    const hh = drawnHeight(w, px);
     const at = (t: number): Pt => [w.a[0] + ux * t, w.a[1] + uy * t];
     const quad = (t0: number, t1: number, z0: number, z1: number, cls: string) =>
       z1 > z0 && t1 > t0 ? `<polygon class="${cls}" points="${pts([px.lift(at(t0), z0), px.lift(at(t1), z0), px.lift(at(t1), z1), px.lift(at(t0), z1)])}"/>` : "";

@@ -41,6 +41,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `view` | `2d` | `2d` draws the flat plan, `2.5d` draws it with depth — see 2.5D view, below. Anything else is `2d` |
 | `view_switch` | `true` | `false` hides the View dropdown next to the zoom buttons. `kiosk` hides it too |
 | `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D. See the Tilt slider, below |
+| `walls` | `cut` | how 2.5D draws wall heights: `full` every wall at its real height, no cutaway; `cut` the doll's house look, walls facing you lowered so the rooms show; `low` every wall at the cutaway height. Anything else is `cut`. Only read in 2.5D. See Walls, below |
 | `labels` | `true` | `false` hides every name and value on the plan (rooms, zones, structures, device names, sensor values), so only icons and state are left. Anything but `false` shows them |
 | `rotation` | `0` | degrees the plan starts turned, in steps of 45: `0`, `45`, `90` ... `315`. Any other number rounds to the nearest step; anything that is not a number is `0`. Text and icons stay upright. A viewer's own turn is remembered over this — see View memory and reset, below |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
@@ -83,6 +84,16 @@ only: zoom and pan stay, and like the View pick it is forgotten when the
 config changes. The `tilt` key sets where it starts. The near walls are cut
 lower as the tilt grows, so a room is as visible at a steep tilt as at the
 default; at `0` nothing is lifted, so nothing hides anything.
+
+**Walls** sets how tall the walls are drawn. `cut` (the default) keeps a wall at
+its real height unless it faces you or hides a room behind it; those ease down
+to the cutaway height, so walls at different angles do not all stand equally
+tall, and a plan turned a little shows tall side walls and low front walls.
+`full` draws every wall at its real height: nothing is cut, and the near walls
+can hide the rooms behind them. `low` draws every wall at the cutaway height
+(a wall that is shorter anyway, such as a fence, stays as it is): all equal,
+every room visible. One straight wall made of several edges (rooms side by
+side along one line) always has one height in `cut`.
 
 ![Tilt 0, top-down.](img/card-2-5d-tilt-0.png)
 ![Tilt 1, side-on.](img/card-2-5d-tilt-1.png)
