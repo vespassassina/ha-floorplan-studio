@@ -2,6 +2,34 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-03: motion zones and groups, a motion perimeter, idle covers
+
+From Diego's field report. Four calls.
+
+Rows. A device with two or more live (non-`cat`) motion binary_sensors lists
+each as its own row, like switch gangs, named by `asGangRow`. The device's
+main entity keeps its row when it is not a motion entity. A device with one
+motion entity is unchanged (its main entity, named by the device), so a
+light plus one motion sensor still shows the light only. Proposed default;
+say if a lone motion sensor beside a light should show too.
+
+Groups. `typeForEntity(e, ha?)` takes the entity list; a `group.*` is
+`motion` when every member is motion (nested groups count, depth cap 4, a
+cycle or unknown member means no). Without `ha` it is `other`, as before.
+
+Perimeter. One class, `.motion-perimeter`, drawn after the wall lines. The
+room outline is stroked wide and masked to a band between the wall reach
+(widest wall plus halo, plus 2 cm) and 2.5 cm further, so a concave room needs
+no offset-polygon arithmetic. Colour `--fp-dev-motion`, `--fp-dev-radar` for a
+radar. Chosen over a computed inset polygon, which breaks on narrow or
+self-touching shapes.
+
+Covers. `classOf` reads a cover as off in every live state; `.dev-cover.on`
+is gone; the Active list rule is `never`. Furniture and rooms bound to a
+cover entity still ring when it is open (a gate), and doors with a `cover`
+keep their orange line: Diego asked about curtains. `--fp-dev-cover` stays a
+token for old configs but nothing paints with it.
+
 ## 2026-10-02: the card turns in 45 degree steps and remembers its view
 
 Asked for by Diego: rotation, memory of the view, a reset button. Four calls.
