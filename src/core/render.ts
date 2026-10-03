@@ -698,6 +698,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const ob = obliqueFor(o.tilt);
   const lean = rotateAbout([ob.rise * ob.skew, -ob.rise], -planDeg, [0, 0]);
   const px: Proj = { lift: (p, h) => [p[0] + h * lean[0], p[1] + h * lean[1]], scr, rise: ob.rise, skew: ob.skew, cutaway: ob.cutaway };
+  /** Where a device's icon, and everything it carries, is drawn. 2.5D lifts a high mount (a ceiling light, a camera) to
+   * where the real thing hangs; a person, a heater bar, a low device and all of 2D stay at `c`. The pin and stem stay
+   * at `c`, on the floor. */
+  const iconAt = (d: Device, c: Pt): Pt => {
+    if (!x25 || d.type === "person" || "a" in d) return c;
+    const z = deviceZ(d);
+    return z >= STEM_MIN_Z ? px.lift(c, z) : c;
+  };
   const showText = o.labels !== false; // false skips every <text> and leader below; placement still runs, so nothing else moves
   const solids: Solid[] = [];
   // S7.11: the scan to trace over, first so everything draws on top of it. Checked again here: the layout is untrusted.
@@ -786,8 +794,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (d.type !== "light") return;
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
     if (classOf(d, o) !== "on") return;
-    const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
-    if (!c.every(Number.isFinite)) return;
+    const floorAt = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
+    if (!floorAt.every(Number.isFinite)) return;
+    const c = iconAt(d, floorAt); // the aura hangs with the lamp, not on the floor under it
     const fill = lightFill(o.state?.[d.entity]);
     const style = fill ? ` style="--fp-aura:${fill}"` : "";
     out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${LIGHT_REACH}"${style}/>`);
@@ -933,7 +942,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.devices.forEach((d, i) => {
     if ([...byRoom.values()].some((who) => who.includes(i))) return;
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
-    if (c.every(Number.isFinite)) others.push(c);
+    if (c.every(Number.isFinite)) others.push(iconAt(d, c));
   });
   for (const [r, who] of byRoom) {
     const c0 = centroid(f.rooms[r].pts), n = who.length;
@@ -949,7 +958,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
     const c = centreOf(d, i);
-    if (c.every(Number.isFinite)) disc(c, 16 * k);
+    if (c.every(Number.isFinite)) disc(iconAt(d, c), 16 * k);
   });
   for (const u of f.unlinked ?? []) {
     const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1;
@@ -1058,10 +1067,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
-    const c = centreOf(d, i);
-    if (!c.every(Number.isFinite)) return;
+    const floorAt = centreOf(d, i);
+    if (!floorAt.every(Number.isFinite)) return;
+    // `c` is where the icon and all it carries are drawn; `floorAt` only the pin, the stem, the room test and a radar's targets.
+    const c = iconAt(d, floorAt);
     // Value sensors in a garden room are outdoor sensors. Motion and contact keep their own state colours.
-    const outdoor = (d.type === "temp" || d.type === "humidity") && f.rooms.some((r) => r.kind === "garden" && inside(c, r.pts));
+    const outdoor = (d.type === "temp" || d.type === "humidity") && f.rooms.some((r) => r.kind === "garden" && inside(floorAt, r.pts));
     const base = classOf(d, o), person = d.type === "person";
     const cls = base + (outdoor ? " outdoor" : "") + personClass(d, o, base) + vacuumSpinClass(d, o);
     const s = o.state?.[d.entity];
@@ -1122,13 +1133,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
         `<circle class="wave w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
       : "";
     const icon = `${ping}${wave}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
-    // 2.5D: a device mounted high (a ceiling light, a camera, a thermostat) gets a thin stem from its icon up to where
-    // the real thing hangs. The icon itself never moves, so its tap target and hit-test are the plan's. A person walks
-    // about and a heater bar lies on the floor: neither gets one.
-    if (x25 && !person && !("a" in d)) {
-      const z = deviceZ(d);
-      if (z >= STEM_MIN_Z) { const top = px.lift(c, z); out.push(`<line class="stem" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(top[0])}" y2="${num(top[1])}"/><circle class="stem-top" cx="${num(top[0])}" cy="${num(top[1])}" r="${num(3 * k)}"/>`); }
-    }
+    // 2.5D: a device mounted high (a ceiling light, a camera, a thermostat) is drawn where the real thing hangs (`c`,
+    // lifted), with its aura, cone, rings and text. A small pin stays on the floor under it and a thin stem joins the
+    // two. The tap target is the lifted icon. A person walks about and a heater bar lies on the floor: neither lifts.
+    if (c !== floorAt) out.push(`<line class="stem" x1="${num(floorAt[0])}" y1="${num(floorAt[1])}" x2="${num(c[0])}" y2="${num(c[1])}"/><circle class="stem-top" cx="${num(floorAt[0])}" cy="${num(floorAt[1])}" r="${num(3 * k)}"/>`);
     // The bar draws first so the icon group (fix/heater-bar-under-icon), with its white disc and halo, always paints on top of it.
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
@@ -1147,7 +1155,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       for (const t of d.targets) {
         const xl = mm(t.x), yl = mm(t.y);
         if (!Number.isFinite(xl) || !Number.isFinite(yl) || (xl === 0 && yl === 0)) continue;
-        const p: Pt = [c[0] + xl * Math.cos(rad) + yl * Math.sin(rad), c[1] + xl * Math.sin(rad) - yl * Math.cos(rad)];
+        const p: Pt = [floorAt[0] + xl * Math.cos(rad) + yl * Math.sin(rad), floorAt[1] + xl * Math.sin(rad) - yl * Math.cos(rad)];
         if (!inside(p, f.outline)) continue;
         out.push(`<circle class="target" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(6 * k)}"/>`);
       }

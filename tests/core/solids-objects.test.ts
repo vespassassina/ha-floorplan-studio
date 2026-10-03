@@ -174,14 +174,75 @@ describe("2.5D device stems", () => {
     expect(Object.keys(STEM).sort()).toEqual([...DEVICE_TYPES].sort());
   });
 
-  it("a ceiling light's stem goes from the icon up to 250 cm and ends in a dot, under the icon", () => {
-    const html = deep(dev("light")), m = stem(html)!;
-    expect([m[1], m[2]]).toEqual(["300", "250"]);
-    expect(`${m[3]},${m[4]}`).toBe(P(300, 250, 250));
-    expect(html).toContain('class="stem-top"');
+  // 2026-10-03 (Diego): the icon rises with the walls to where the thing hangs; the small pin stays on the floor.
+  it("a ceiling light's icon sits at the lifted point, its pin at the floor point, the stem between, under the icon", () => {
+    const html = deep(dev("light", { x: 310, y: 240 })), m = stem(html)!;
+    expect([m[1], m[2]]).toEqual(["310", "240"]);
+    expect(`${m[3]},${m[4]}`).toBe(P(310, 240, 250));
+    expect(html).toContain('<circle class="stem-top" cx="310" cy="240"');
+    const top = P(310, 240, 250).split(",").map(Number);
+    expect(html).toContain(`data-x="0" class="dev dev-light`);
+    expect(html).toContain(`translate(${n(top[0] - 12)} ${n(top[1] - 12)}) scale(1)`);
+    expect(html).not.toContain("translate(298 228)");
     expect(html.indexOf('class="stem"')).toBeLessThan(html.indexOf('data-x="0"'));
-    // The icon is not moved: it sits where the plan puts it, centred on (300, 250).
-    expect(html).toContain("translate(288 238) scale(1)");
+    expect(html.indexOf('class="stem-top"')).toBeLessThan(html.indexOf('data-x="0"'));
+  });
+
+  it("the name and the value of a lifted icon move with it, a person's and a low device's do not", () => {
+    const lifted = P(300, 250, 250).split(",").map(Number);
+    const named = renderFloor(dev("temp", { name: "Nm", z: 250 }), { scale: 1, view: "2.5d", showNames: true, state: { "x.y": { state: "21", attributes: {}, last_changed: "2026-01-01T00:00:00Z" } } as never });
+    expect(named).toMatch(new RegExp(`<text class="lbl" x="${n(lifted[0])}" y="${n(lifted[1] - 16)}"`));
+    expect(named).toMatch(new RegExp(`<text class="val" x="${n(lifted[0])}"`));
+    const low = renderFloor(dev("light", { name: "Nm", z: 80 }), { scale: 1, view: "2.5d", showNames: true });
+    expect(low).toContain("translate(288 238) scale(1)");
+    expect(low).toContain('<text class="lbl" x="300" y="234"');
+  });
+
+  it("every DeviceType: a stemmed one is drawn at its lifted point, the rest where the plan puts them", () => {
+    for (const type of DEVICE_TYPES) {
+      const html = deep(dev(type, { x: 310, y: 240 }));
+      if (STEM[type]) {
+        const m = stem(html)!, g = html.match(/<g data-x="0"[^>]*transform="translate\(([-\d.]+) ([-\d.]+)\)/)!;
+        expect([+g[1] + 12, +g[2] + 12], type).toEqual([+m[3], +m[4]]);
+        expect([m[1], m[2]], type).toEqual(["310", "240"]);
+      } else if (type !== "person") expect(html, type).toContain("translate(298 228)");
+    }
+  });
+
+  // Diego, 2026-10-03: every effect a device carries hangs with its icon. Radar targets are floor positions and stay.
+  it("a lit lamp's aura, a camera's cone, a motion ring and a speaker's waves are at the lifted point", () => {
+    const at = P(310, 240, 250).split(",").map(Number);
+    const on = (e: string, extra = {}) => ({ [e]: { state: "on", attributes: {}, last_changed: "2026-01-01T00:00:00Z" }, ...extra });
+    const lamp = renderFloor(dev("light", { x: 310, y: 240 }), { scale: 1, view: "2.5d", state: on("x.y") as never });
+    expect(lamp).toContain(`<circle class="aura" cx="${n(at[0])}" cy="${n(at[1])}"`);
+    expect(renderFloor(dev("light", { x: 310, y: 240 }), { scale: 1, state: on("x.y") as never })).toContain('<circle class="aura" cx="310" cy="240"');
+    // A cone, a ping and a wave live inside the icon group, so they take its translate; none is drawn outside it.
+    const camera = deep(dev("camera", { x: 310, y: 240, z: 250 }));
+    expect(camera.indexOf('class="cone"')).toBeGreaterThan(camera.indexOf('<g data-x="0"'));
+    expect(camera).toContain(`translate(${n(at[0] - 12)} ${n(at[1] - 12)})`);
+    const ping = renderFloor(dev("motion", { x: 310, y: 240, z: 250 }), { scale: 1, view: "2.5d", state: on("x.y") as never });
+    expect(ping.indexOf('class="ping"')).toBeGreaterThan(ping.indexOf('<g data-x="0"'));
+    const wave = renderFloor(dev("speaker", { x: 310, y: 240, z: 250 }), { scale: 1, view: "2.5d", state: { "x.y": { state: "playing", attributes: {}, last_changed: "2026-01-01T00:00:00Z" } } as never });
+    expect(wave.indexOf('class="wave"')).toBeGreaterThan(wave.indexOf('<g data-x="0"'));
+    expect(wave).toContain(`translate(${n(at[0] - 12)} ${n(at[1] - 12)})`);
+  });
+
+  it("a radar's targets stay on the floor while its icon is lifted", () => {
+    const html = renderFloor(floor({ devices: [{ id: "r", type: "radar", entity: "x.r", x: 300, y: 250, rot: 0, targets: [{ x: "x.tx", y: "x.ty" }] }] as never }), {
+      scale: 1, view: "2.5d",
+      state: { "x.tx": { state: "0", attributes: {}, last_changed: "" }, "x.ty": { state: "1000", attributes: {}, last_changed: "" } } as never,
+    });
+    expect(html).toContain('<circle class="target" cx="300" cy="150"');
+  });
+
+  it("the lifted aura follows a turned plan and every tilt", () => {
+    for (const deg of [0, 90, 180, 270]) for (const tilt of [0.25, 0.5, 1]) {
+      const html = renderFloor(dev("light", { x: 310, y: 240 }), { scale: 1, view: "2.5d", tilt, rotate: { deg, pivot: [300, 250] }, state: { "x.y": { state: "on", attributes: {}, last_changed: "" } } as never });
+      const s = html.match(/<line class="stem" x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/)!, a = html.match(/class="aura" cx="([^"]+)" cy="([^"]+)"/)!;
+      expect([a[1], a[2]], `${deg}/${tilt}`).toEqual([s[3], s[4]]);
+      expect([s[1], s[2]]).toEqual(["310", "240"]);
+      expect(html).toContain(`translate(${n(+s[3] - 12)} ${n(+s[4] - 12)})`);
+    }
   });
 
   it("takes the device's own z, and none below 100", () => {

@@ -2,6 +2,23 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-03: a high device is drawn lifted; the pin stays on the floor
+
+Diego, in 2.5D: "instead of moving the icons with the walls, it moves the pin."
+Supersedes the 2.5D entry's "floor-level things keep their plan position" for
+devices: the icon no longer stays on the floor with a stem up to a dot.
+
+A device with z at or above `STEM_MIN_Z` (100 cm), not a person, not a heater
+bar, is drawn at `px.lift(c, z)` (`iconAt` in `renderFloor`). Everything it
+carries moves with it: the lit lamp's aura (unclipped, as before; walls still
+draw over it), the camera cone, ping and wave rings, away mark, name, value, and
+the label-placement obstacle. Only the small pin and the stem stay at the floor
+point `c`. Radar target dots stay on the floor: they are positions in the room.
+Taps follow the icon (`g[data-x]` is the real top element); the pin and stem take
+no pointer events. The editor's 2.5D view is a read-only preview (no selection,
+drag, handles or overlay), so it needed no change. Unlinked appliances were
+already lifted whole as solids, with no pin: unchanged. 2D output is identical.
+
 ## 2026-10-03: the Walls select, in the card and the editor
 
 The `walls` option now has controls. Card: config key `walls` (junk is "cut"),

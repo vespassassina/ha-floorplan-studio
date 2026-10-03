@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- 2.5D: a ceiling light, camera or other high mount is drawn where it hangs, not on the floor. The icon rises with the walls, and so do its light radius, camera cone, motion and speaker rings, name and value. The small pin now stays on the floor, joined to the icon by the stem. Tap the lifted icon. Persons, heater bars, devices under 100 cm, radar target dots and all of 2D are unchanged.
+
 ## 0.12.22
 
 - 2.5D stairs going down read as stairs. The well draws its treads as steps, each lower one darker, risers in shadow, clipped to the footprint. Everything below the floor (ground, walls, treads) is now drawn before any wall, and the hole's border on top, so nothing overlaps. 2D is unchanged.

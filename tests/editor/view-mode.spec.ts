@@ -190,3 +190,20 @@ test("View > Show names and text: off removes every <text> from the plan, icons 
   await t.click();
   expect(await page.locator("svg text.lbl:not(.mg-n)").count()).toBeGreaterThan(0);
 });
+
+// Lifted icons (2026-10-03): in 2.5D a high mount is drawn where it hangs, its pin on the floor. The preview selects and
+// moves nothing, so a real click on the lifted icon, and one on the pin, leave the layout and the selection alone.
+test("in 2.5D a real click on a lifted icon and on its pin selects nothing, draws no handle, and the icon is away from its pin", async ({ page }) => {
+  const before = await layoutJson(page);
+  await pickView(page, "2.5d");
+  expect(await page.locator("svg circle.stem-top").first().evaluate((el) => getComputedStyle(el).pointerEvents)).toBe("none");
+  const pinAt = await centreOf(page, "svg circle.stem-top");
+  const iconAt = await centreOf(page, "svg g[data-x]");
+  for (const at of [pinAt, iconAt]) await page.mouse.click(at.x, at.y);
+  expect(await layoutJson(page)).toBe(before);
+  expect(await page.locator("svg g[data-x].sel").count()).toBe(0);
+  expect(await page.locator("svg .hl, svg circle.h").count()).toBe(0);
+  // Some lifted icon sits well clear of its own pin: the stem that joins them is longer than a disc.
+  const far = await page.locator("svg line.stem").evaluateAll((ls) => ls.some((l) => Math.hypot(+l.getAttribute("x2")! - +l.getAttribute("x1")!, +l.getAttribute("y2")! - +l.getAttribute("y1")!) > 30));
+  expect(far).toBe(true);
+});
