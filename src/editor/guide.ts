@@ -15,5 +15,6 @@ export const GUIDE_STEPS: GuideStep[] = [
   { title: "Add a device", body: "Open Add, then Devices, and pick one from the list, or open the Device menu to place one already in your catalog. Drag it where it belongs." },
   { title: "Attach it to Home Assistant", body: "Click the device you placed. Its panel opens on the right with a field for its entity — pick the right one from the list, so the plan shows its real state." },
   { title: "Add another floor", body: "Click the + next to the floor tabs at the top of the screen, and give the new floor a name. Click a tab any time to switch floors." },
-  { title: "Save your plan", body: "Open File, then Save. Running inside Home Assistant, this stores your plan for next time. In a plain browser window, use Export instead to download a copy." },
+  { title: "Looking around with the keyboard", body: "Up and Down arrows zoom in and out. Left and Right arrows turn the view, 45 degrees at a time; so do the two turn buttons next to the zoom buttons. Space shows the whole floor again. Turning only changes how you look: it is not saved in your plan and Undo does not touch it. The editor remembers your zoom, turn, view and floor when you come back. These keys do nothing while you type in a box." },
+  { title: "Save your plan", body: "Press Cmd/Ctrl+S, or open File, then Save. Running inside Home Assistant, this stores your plan for next time. In a plain browser window, use Export instead to download a copy." },
 ];
