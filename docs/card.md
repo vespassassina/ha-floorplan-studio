@@ -234,6 +234,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
 | `#filter` Filter by type | no | a work aid for a crowded plan; the card has the Active list, grouped by type |
+| Room facts and device details panel | card only | the card's left panel (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
 
 Also the same in both: the floor switcher (chips and tabs), pan and zoom by
 pointer, the view remembered per browser, and Reset view clearing it. The
@@ -298,7 +299,7 @@ and resize, so it can never end up off-screen, including after the card
 itself is resized or the panel is collapsed then expanded again. On a card
 narrower than 480px the panel starts folded, so it does not cover a
 phone-width plan; from 480px up it starts open. (It is `min(200px, 45%)`
-wide at any size.) The card's width
+wide, `min(260px, 70%)` while a room is picked.) The card's width
 decides, and follows it when the card is resized, until you fold or unfold the
 list by hand. From then on your choice stays, for that card, in this browser.
 A position you only dragged it to does not count as a choice.
@@ -308,6 +309,35 @@ to the layout's source (its `layout_url`, or "inline" for a config
 two cards on the same dashboard — even two showing different floors of the
 same websocket layout — do not share one position, and an inline layout's
 autosave does not reset it.
+
+## Picking a room
+
+Tap the bare floor of a room (not a device, a door or a stair) and the room is
+outlined with a dashed line. The Active panel opens at the left with a room section on top:
+
+- the name and a cross that clears the pick;
+- area in m², worked out from the room's corners;
+- temperature and humidity, the same mean the plan prints under the name;
+- motion, on or off, and since when;
+- the open doors and windows on the room's walls (an unlocked lock counts), and the lights that are on;
+- the room's devices, then the sensors the room owns that have no icon on the plan.
+
+A light, switch, plug or cover row toggles when you tap it and opens
+Home Assistant's more-info when you hold it, as the icons on the plan do. Any
+other row opens more-info. Below, the Active list is cut to the room's
+entities; **Show all** brings the rest back and keeps the room picked.
+
+Tap the room again, tap off any room, press Escape (with the pointer over the
+card or the card focused, as for the view keys) or press the cross to clear it.
+Changing floor clears it too. A tap on a device, a door or an appliance keeps its
+meaning and never picks a room. Under `kiosk: true` or `active_list: false`
+there is no panel, so a tap picks nothing. On a card under 480 px the panel is
+folded by default; it opens while a room is picked.
+
+Every row, here and in the Active list, has a chevron. It opens the device's
+details: manufacturer, model, firmware, area, entity id, state and when it last
+changed, from Home Assistant's device registry. A device with no registry entry
+shows the entity id, state and last changed. The chevron never toggles anything.
 
 ## View memory and reset
 

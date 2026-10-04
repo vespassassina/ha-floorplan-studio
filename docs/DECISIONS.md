@@ -2,6 +2,52 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: picking a room and device details live in the left panel (S11.3, S11.4, card)
+
+Diego: "also when selecting a room in card view, show all the stats and info of
+that room in a side popup. also for every device when selecting them, add the
+info like manufacturer, model etc." Then, answering where: "use the left pane we
+have already, add the room readouts and filter the entities shown to allow
+interaction". So the room is **not** a right-hand popup; it is a section at the
+top of the existing Active panel. Calls made in code, change any:
+
+- A tap on bare room floor picks the room. The same room again, a tap off any
+  room, Escape or the section's cross clears it. A device, door or appliance tap
+  keeps its own meaning and never picks. A stair tap or a hatched fill counts as
+  "off a room". A double tap (zoom) leaves the pick alone. Kiosk and
+  `active_list: false` pick nothing: there is no panel to show it in. Switching
+  floor clears it. Escape uses the card's existing key gate (hover or focus), the
+  same as the view keys.
+- The outline is `.room.picked` (ink, dashed), added by `renderFloor` from a new
+  `selectedRoom` option, so there is one draw path. The editor draws its own
+  selection in its overlay and does not pass it.
+- Area is the polygon's area from the room's corners, to 0.1 m2. The room's
+  `area` field is a Home Assistant area id, not a size, and the editor shows no
+  area figure, so there was nothing else to match.
+- Temperature and humidity are the plan's own `meanReading`, moved out of
+  `renderFloor` into `src/core/readings.ts` so both read one function.
+- "Devices" are the devices whose point (a heater's midpoint) is inside the
+  room, plus the room's own sensors that have no icon. A person never has a row:
+  its drawn position comes from a room sensor, not from x and y. Open doors and
+  windows are those whose line lies on one of the room's edges (`onEdge`), open
+  or unlocked as `doorStateOf` says.
+- Row taps: light, switch, plug and cover toggle (tap) and open more-info (hold),
+  through the same `bindDeviceActions` the plan uses, bound a second time on the
+  panel (`button[data-x]`). Every other type opens more-info. `ROOM_ROW_TAP` lists
+  every device type and a test keeps it inside `NO_TOGGLE`'s refusals.
+- The list below is cut to the room's entities (its devices and what they attach,
+  its sensors, its doors' sensors, locks and cover). "Show all" drops the filter
+  and keeps the room picked. With nothing picked the list is unchanged.
+- While a room is picked the panel is open even where it is folded by default
+  (under 480 px) and is wider (`min(260px, 70%)`); the fold button is hidden.
+- Details (S11.4) read `hass.entities[id].device_id` and `.area_id`,
+  `hass.devices[...]` (manufacturer, model, sw_version, area_id) and
+  `hass.areas[...].name`: checked against the Home Assistant frontend source
+  (`src/types.ts`, `device_registry.ts`, `area_registry.ts`, `entity_registry.ts`),
+  2026-10-04. An empty field is left out. The chevron is a sibling of the row's
+  button, so it never taps the row. Open details are card state keyed by entity.
+- The panel is card-only. The studio has its own selection panel with all of
+  this and more, so this is a stated difference (docs/card.md, "Studio and card").
 ## 2026-10-04: a room owns its temperature, humidity and motion sensors (S11.1, core)
 
 Diego: "instead of having them around, lets add them to a room, like the windows

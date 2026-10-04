@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card: tap the bare floor of a room to pick it. It gets a dashed outline and the left panel opens with a room section: name, area (m², from the room's own corners), temperature and humidity (the same mean the plan shows), motion with when it changed, the open doors and windows on its walls, the lights on, and its devices and own sensors as rows. A light, switch, plug or cover row toggles on a tap and opens more-info on a hold; every other row opens more-info. The Active list below is cut to the room's entities, with a Show all button. Tap the room again, tap off any room, press Escape or press the cross to clear. A device, door or stair tap never picks a room.
+- Card: a chevron on every row of the panel, in the room section and in the Active list, opens that device's details: manufacturer, model, firmware, area, entity id, state and last changed, read from Home Assistant's device registry. A device with no registry entry shows entity, state and last changed.
 - Core: a room can own temperature, humidity and motion sensors (`temps`, `humidity`, `motion`). Their icons are not drawn on the card (the editor still shows them), the room shows the mean reading under its name, and a room with motion draws a red border that pulses while a sensor is on and fades after it. Editor pickers and the card panel follow in later tasks.
 - A lit lamp's glow is clipped to the room it hangs in. It no longer washes through a wall into the next room. A lamp in no room (a garden lamp) keeps the free circle, and a zone does not count as a room. In 2.5D the clip is lifted with the lamp. The camera cone is unchanged.
 
