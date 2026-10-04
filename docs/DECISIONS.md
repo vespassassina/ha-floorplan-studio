@@ -2,6 +2,29 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: a room owns its temperature, humidity and motion sensors (S11.1, core)
+
+Diego: "instead of having them around, lets add them to a room, like the windows
+and doors can add contact sensors. then animate the motion highlight of a room
+when motion trips." `Room` gains `temps`, `humidity`, `motion` (entity id lists,
+at most 20 each; `sensor.*`, and `binary_sensor.*` or `group.*` for motion, since
+a motion group is a motion device). Calls made in code, change any:
+
+- A device of type temp, humidity or motion whose entity is on any room's list is
+  not drawn on the card, in 2D or 2.5D. It stays in the layout. The editor
+  (`editor: true`) still draws it, so it can be selected, moved and deleted; the
+  S11.2 "Attach to room" button will remove it.
+- The readout is one small `.val` line under the room name: the mean of the
+  readable states, rounded to 0.1, with the first unit seen (a mix of C and F is
+  not converted). Temperature and humidity join with a dot. Nothing readable,
+  nothing drawn. It follows `labels:false`.
+- The room's border is the existing `.motion-perimeter`, now also fed by the
+  room's own list: red (the theme's motion colour) and pulsing while a listed
+  sensor is on (`.motion-pulse`, an opacity pulse), then steady and fading with
+  `fade` like the icon does. One ring per room; an attached icon does not make a
+  second one. Reduced motion: the pulse is off, the steady edge stays. Zones,
+  structures and unnamed fills draw none.
+
 ## 2026-10-04: a lamp's aura is clipped to the smallest room that holds it
 
 Diego: "clip the light cones to the room they are in". The aura is a 150 cm

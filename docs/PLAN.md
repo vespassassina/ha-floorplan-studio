@@ -2393,6 +2393,10 @@ Spec: `docs/specs/room-sensors.md`. Proposed 2026-10-04, not started.
 - S11.1 Core: `Room.temps/humidity/motion`, validate, render readout under
   the room name, room motion perimeter and pulse from `motion`. Test: each
   acceptance criterion 1, 2, 7 fails with the feature removed.
+  Done, 2026-10-04. Tests in `tests/core/room-sensors.test.ts`, a computed-style
+  pair in `tests/editor/walls-doors-motion-css.spec.ts` (it caught a reduced-motion
+  rule with too little specificity). `npm run shots` has a `roomsensors` set.
+  Choices in `docs/DECISIONS.md`.
 - S11.2 Editor: three room pickers, "Attach to room" on a loose sensor.
   Criteria 3, 4. Both surfaces draw through `renderFloor`.
 - S11.3 Card: tap a room selects it; the left panel's room section, rows that

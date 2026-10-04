@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Core: a room can own temperature, humidity and motion sensors (`temps`, `humidity`, `motion`). Their icons are not drawn on the card (the editor still shows them), the room shows the mean reading under its name, and a room with motion draws a red border that pulses while a sensor is on and fades after it. Editor pickers and the card panel follow in later tasks.
 - A lit lamp's glow is clipped to the room it hangs in. It no longer washes through a wall into the next room. A lamp in no room (a garden lamp) keeps the free circle, and a zone does not count as a room. In 2.5D the clip is lifted with the lamp. The camera cone is unchanged.
 
 ## 0.12.26

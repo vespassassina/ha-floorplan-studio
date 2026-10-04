@@ -129,6 +129,16 @@ Object.assign(STATES.gone, { "cover.demo_curtain": "unavailable" });
 // beside it, so one picture shows the line, an idle open cover and a lit lamp.
 STATES.motion = { ...STATES.off, "binary_sensor.demo_hall_motion": "on", "cover.demo_curtain": "open", "light.demo_kitchen": ["on", { rgb_color: [255, 170, 60] }] };
 
+// S11.1: sensors that belong to a room. Living owns two temperature sensors (their mean shows under the name, and the
+// loose icon is gone), a humidity sensor and the Hall's motion sensor; the Kitchen owns one that reads unavailable, so
+// it shows nothing. Built on a clone: demo/layout.json stays as it is.
+const roomLayout = structuredClone(monLayout);
+const rg = roomLayout.floors.ground.rooms;
+Object.assign(rg.find((r) => r.name === "Living"), { temps: ["sensor.demo_living_temperature", "sensor.demo_living_temp2"], humidity: ["sensor.demo_living_humidity"] });
+Object.assign(rg.find((r) => r.name === "Hall"), { motion: ["binary_sensor.demo_hall_motion"] });
+Object.assign(rg.find((r) => r.name === "Kitchen"), { temps: ["sensor.demo_kitchen_temp"], motion: ["binary_sensor.demo_kitchen_motion"] });
+STATES.roomsensors = { ...STATES.off, "sensor.demo_living_temperature": ["21", { unit_of_measurement: "°C" }], "sensor.demo_living_temp2": ["22.4", { unit_of_measurement: "°C" }], "sensor.demo_living_humidity": ["48", { unit_of_measurement: "%" }], "binary_sensor.demo_hall_motion": "on", "sensor.demo_kitchen_temp": "unavailable", "binary_sensor.demo_kitchen_motion": "unavailable" };
+
 const shots = [];
 const errors = [];
 mkdirSync("shots", { recursive: true });
@@ -150,7 +160,7 @@ try {
   ];
   const cardShots = [];
   for (const floor of Object.keys(layout.floors)) for (const which of Object.keys(STATES)) for (const t of THEMES) {
-    if (which === "night" || which === "vibrating" || which === "motion") continue; // below: ground floor only, two themes each
+    if (which === "night" || which === "vibrating" || which === "motion" || which === "roomsensors") continue; // below: ground floor only, two themes each
     cardShots.push({ name: `card-${floor}-${which}-${t.id}`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
   }
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
@@ -162,6 +172,9 @@ try {
   // The motion perimeter: ground floor, 2D and 2.5D, a dark and a light theme, at 3x so the line can be judged.
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const view of ["2d", "2.5d"])
     cardShots.push({ name: `card-ground-motion-${t.id}${view === "2.5d" ? "-2-5d" : ""}`, floor: "ground", which: "motion", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view, dpr: 3 });
+  // S11.1: a room's own sensors: the readout under the name, no icons for them, the Hall's border; 2D and 2.5D, at 2x.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const view of ["2d", "2.5d"])
+    cardShots.push({ name: `card-ground-roomsensors-${t.id}${view === "2.5d" ? "-2-5d" : ""}`, floor: "ground", which: "roomsensors", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view, dpr: 2, rooms: true });
   // 2.5D: both floors, at rest and lit, in the default, a light and a dark theme (the three that read differently).
   for (const floor of Object.keys(layout.floors)) for (const which of ["off", "on"]) for (const t of THEMES.filter((x) => ["blueprint", "light", "ha-dark"].includes(x.id)))
     cardShots.push({ name: `card-${floor}-${which}-${t.id}-2-5d`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view: "2.5d" });
@@ -191,7 +204,7 @@ try {
       const el = document.getElementById("c");
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
-    }, [{ layout: s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme, ...(s.view ? { view: s.view } : {}), ...(s.cfg ?? {}) }, hassFor(s.which, s.dark)]);
+    }, [{ layout: s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme, ...(s.view ? { view: s.view } : {}), ...(s.cfg ?? {}) }, hassFor(s.which, s.dark)]);
     const nodes = await page.evaluate(() => document.getElementById("c").shadowRoot.querySelectorAll("svg *").length);
     if (nodes < 10) errors.push(`${s.name}: the plan drew ${nodes} nodes; something is wrong before you even look`);
     await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });
