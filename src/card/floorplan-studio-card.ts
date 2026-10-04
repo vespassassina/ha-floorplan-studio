@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { entitiesOfDevice, DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent, toggleEntity } from "./actions";
@@ -1473,15 +1473,35 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
-  /** S11.3: a tap that landed on no device, door or appliance. On a room's bare floor (the real top element, `polygon[data-r]`)
-   *  it picks that room; the same room again, anything else, or a hatched fill clears. Only with the panel on: kiosk and
+  /** S11.3: a tap that landed on no device, door or appliance. It picks the room under the finger: the first room polygon
+   *  of everything stacked at that point (`elementsFromPoint`), so the room's name, its readout and its furniture count as
+   *  its floor, on a turned plan and in 2.5D too. A zone or a structure lies over a room rather than being one, so it is
+   *  looked through. The same room again, anything else, or a hatched fill clears. Only with the panel on: kiosk and
    *  `active_list: false` have nowhere to show a room. */
   private _tapRoom(e: PointerEvent): void {
     if (!this._activeListVisible()) return;
-    const hit = (e.target as Element | null)?.closest?.("polygon[data-r]");
-    const i = hit ? Number(hit.getAttribute("data-r")) : -1;
-    const room = this._floor()?.rooms[i];
+    const rooms = this._floor()?.rooms ?? [];
+    const root = this.shadowRoot;
+    // jsdom has no elementsFromPoint: the event's own target stands in, as it did before.
+    const stack = root && typeof root.elementsFromPoint === "function" ? root.elementsFromPoint(e.clientX, e.clientY) : [e.target as Element | null];
+    let i = -1;
+    for (const n of stack) {
+      const hit = n?.closest?.("polygon[data-r]");
+      if (!hit) continue;
+      const k = Number(hit.getAttribute("data-r")), kind = rooms[k]?.kind;
+      if (kind === "zone" || kind === "structure") continue;
+      i = k;
+      break;
+    }
+    const room = rooms[i];
     this._pickRoom(room && room.kind !== "fill" && this._picked() !== i ? i : null);
+  }
+
+  /** What a double tap restores: the pick as it was before its first tap, which `_tapRoom` already changed. */
+  private _restorePick(before: { pick: { floor: string; id: string } | null; filter: boolean }): void {
+    this._pickedRoom = before.pick;
+    this._roomFilter = before.filter;
+    this.requestUpdate();
   }
 
   private _toggleInfo(entity: string): void {
@@ -1504,6 +1524,15 @@ export class FloorplanStudioCard extends LitElement {
     return html`<dl class="fp-info">${rows.map((r) => html`<div><dt>${r.label}</dt><dd>${r.value}</dd></div>`)}</dl>`;
   }
 
+  /** A keyboard press on a toggling row asks what a tap on the plan's icon asks (`bindDeviceActions`): a device that names
+   *  more than one entity opens the chooser instead of guessing, one entity toggles. */
+  private _keyToggle(r: RoomDeviceRow): void {
+    const d = this._floor()?.devices[r.index];
+    const ents = d ? entitiesOfDevice(d) : [];
+    if (d && ents.length > 1) this._openChooserDialog(d.name ?? d.entity, ents);
+    else toggleEntity(this._hass, r.entity);
+  }
+
   /** A row of the room section's device list. A toggling type (`ROOM_ROW_TAP`) carries `data-x`, so the panel's own
    *  `bindDeviceActions` gives it tap = toggle and hold = more-info, exactly as on the plan; its `click` only acts for a
    *  keyboard press (`detail` 0), which sends no pointer events. Every other type is a plain more-info button. */
@@ -1511,7 +1540,7 @@ export class FloorplanStudioCard extends LitElement {
     const toggles = ROOM_ROW_TAP[r.type] === "toggle";
     const click = (e: MouseEvent) => {
       if (!toggles) fireEvent(this, "hass-more-info", { entityId: r.entity });
-      else if (e.detail === 0) toggleEntity(this._hass, r.entity);
+      else if (e.detail === 0) this._keyToggle(r);
     };
     return html`<div class="fp-item">
       <button type="button" class=${r.on ? "fp-active-row" : "fp-active-row fp-off"} data-x=${toggles ? String(r.index) : nothing} style="--fp-active-row-color:var(${r.colorVar})" @click=${click}>
@@ -1595,7 +1624,7 @@ export class FloorplanStudioCard extends LitElement {
     // No `style=` binding here on purpose (Opus review findings 3/4): Lit would rewrite the whole `style`
     // attribute on every render, wiping out the position `_positionActivePanel` sets imperatively after render —
     // that function is the only thing that ever touches this element's inline position.
-    return html`<div class=${summary ? "fp-active fp-room-open" : "fp-active"} role="region" aria-label="Active devices">
+    return html`<div class=${summary ? "fp-active fp-room-open" : "fp-active"} role="region" aria-label=${summary ? summary.name || "Unnamed room" : "Active devices"}>
       <div class="fp-active-head" @pointerdown=${(e: PointerEvent) => this._onActiveDragStart(e)}>
         <span class="fp-active-title">Active</span>
         <span class="fp-active-count">${count}</span>
@@ -1963,7 +1992,7 @@ export class FloorplanStudioCard extends LitElement {
     let start = { x: 0, y: 0 };
     let panning = false;
     let pinched = false;
-    let lastTap: { t: number; x: number; y: number } | null = null;
+    let lastTap: { t: number; x: number; y: number; before: { pick: { floor: string; id: string } | null; filter: boolean } } | null = null;
 
     /** Screen point to plan point under view `v`. */
     const toPlan = (v: View, cx: number, cy: number): Pt => {
@@ -2031,6 +2060,7 @@ export class FloorplanStudioCard extends LitElement {
       }
       const now = performance.now();
       if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX) {
+        this._restorePick(lastTap.before); // a double tap is a zoom, and leaves the room pick as it found it (DECISIONS, S11.3)
         lastTap = null;
         if (this._zoomMode() === false) return; // a double tap zooms; pan alone stays on when zoom is off
         // S9.6: zooms in from `home` (the pinned box, or the whole floor with no pin), not the whole floor — the
@@ -2040,7 +2070,7 @@ export class FloorplanStudioCard extends LitElement {
         else this._setView(zoomAt(home, 2, ...toPlan(home, e.clientX, e.clientY)));
         return;
       }
-      lastTap = { t: now, x: e.clientX, y: e.clientY };
+      lastTap = { t: now, x: e.clientX, y: e.clientY, before: { pick: this._pickedRoom, filter: this._roomFilter } };
       this._tapRoom(e);
     };
 

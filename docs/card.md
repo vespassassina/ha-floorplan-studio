@@ -321,8 +321,8 @@ autosave does not reset it.
 
 ## Picking a room
 
-Tap the bare floor of a room (not a device, a door or a stair) and the room is
-outlined with a dashed line. The Active panel opens at the left with a room section on top:
+Tap a room, on its floor, its name, its readout or its furniture (not a device, a
+door or a stair), and the room is outlined with a dashed line. The Active panel opens at the left with a room section on top:
 
 - the name and a cross that clears the pick;
 - area in m², worked out from the room's corners;
@@ -339,7 +339,8 @@ entities; **Show all** brings the rest back and keeps the room picked.
 Tap the room again, tap off any room, press Escape (with the pointer over the
 card or the card focused, as for the view keys) or press the cross to clear it.
 Changing floor clears it too. A tap on a device, a door or an appliance keeps its
-meaning and never picks a room. Under `kiosk: true` or `active_list: false`
+meaning and never picks a room. A double tap zooms and leaves the pick as it
+was. Under `kiosk: true` or `active_list: false`
 there is no panel, so a tap picks nothing. On a card under 480 px the panel is
 folded by default; it opens while a room is picked.
 

@@ -22,6 +22,16 @@ of 1.4 s, `MOTION_PULSES` and `MOTION_PULSE_S` in render.ts). Calls made in code
 
 - A mean reading takes only the readings in the first unit seen: 21 C and 70 F read "21.0 C", not "45.5 C". No
   conversion (supersedes "first unit seen" in the S11.1 entry, which averaged the numbers anyway).
+- A tap picks the first room polygon among everything stacked under the finger (`elementsFromPoint`), not only
+  when the polygon itself is the target. A room's name, its readout and its 2D furniture are its floor; a zone or
+  a structure is looked through to the room below (it is not a room, see the `roomAt` entry). A device, door or
+  stair tap still never picks.
+- A double tap restores the pick as it was before its first tap. The code used to let the first tap pick or clear
+  and the second only zoom, against the S11.3 entry. Known edge: the room section opens at the top left of the
+  card, so a double tap on a room under it lands its second tap on the panel and is two taps, not a zoom.
+- A toggling row in the room section asks what a tap on the plan's icon asks: a device that names more than one
+  entity opens the chooser on Enter or Space too, instead of toggling.
+- The panel's label is the room's name while a room is shown, "Active devices" otherwise.
 
 ## 2026-10-04: one rule for "the room a point is in" (Opus review of Sprint 11, core, editor, card)
 
