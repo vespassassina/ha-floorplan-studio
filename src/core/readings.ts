@@ -6,15 +6,16 @@ export function stateOf(state: StateOverlay | undefined, entity: string): StateO
   return state && Object.prototype.hasOwnProperty.call(state, entity) && typeof state[entity]?.state === "string" ? state[entity] : undefined;
 }
 
-/** Mean of the readable states of `list`, rounded to 0.1, with the first unit seen; "" when none is readable.
- *  The one function behind a room's readout on the plan (`renderFloor`) and in the card's left panel, so the two
- *  can never show different numbers. */
+/** Mean of the readable states of `list`, rounded to 0.1, in the unit of the first one read; "" when none is readable.
+ *  Readings in any other unit are left out, not converted: a mean of 21 °C and 70 °F (45.5) means nothing. The one
+ *  function behind a room's readout on the plan (`renderFloor`) and in the card's left panel, so the two can never
+ *  show different numbers. */
 export function meanReading(list: string[], state: StateOverlay | undefined): string {
-  const rs = list.flatMap((e) => {
+  const all = list.flatMap((e) => {
     const s = stateOf(state, e), t = s?.state.trim() ?? "";
     return s && /^-?\d+(\.\d+)?$/.test(t) && Number.isFinite(Number(t)) ? [{ n: Number(t), unit: typeof s.attributes?.unit_of_measurement === "string" ? s.attributes.unit_of_measurement : "" }] : [];
   });
-  if (!rs.length) return "";
-  const unit = rs.find((r) => r.unit)?.unit;
+  if (!all.length) return "";
+  const unit = all[0].unit, rs = all.filter((r) => r.unit === unit);
   return `${(Math.round((rs.reduce((n, r) => n + r.n, 0) / rs.length) * 10) / 10).toFixed(1)}${unit ? ` ${unit}` : ""}`;
 }

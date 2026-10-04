@@ -66,6 +66,15 @@ describe("meanReading", () => {
   });
 });
 
+describe("meanReading with mixed units (Opus review of Sprint 11)", () => {
+  const mix = { "sensor.c": st("21", { unit_of_measurement: "°C" }), "sensor.f": st("70", { unit_of_measurement: "°F" }), "sensor.c2": st("22", { unit_of_measurement: "°C" }) };
+  it("averages only the readings in the first unit seen, never a bare mean of Celsius and Fahrenheit", () => {
+    expect(meanReading(["sensor.c", "sensor.f"], mix)).toBe("21.0 °C");
+    expect(meanReading(["sensor.f", "sensor.c"], mix)).toBe("70.0 °F");
+    expect(meanReading(["sensor.c", "sensor.f", "sensor.c2"], mix)).toBe("21.5 °C");
+  });
+});
+
 describe("roomSummary", () => {
   it("names the room and gives its area, temperature and humidity", () => {
     const s = sum();

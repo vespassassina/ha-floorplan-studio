@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: small fixes from the Sprint 11 review (card, core)
+
+- A mean reading takes only the readings in the first unit seen: 21 C and 70 F read "21.0 C", not "45.5 C". No
+  conversion (supersedes "first unit seen" in the S11.1 entry, which averaged the numbers anyway).
+
 ## 2026-10-04: one rule for "the room a point is in" (Opus review of Sprint 11, core, editor, card)
 
 The review found three rules for one question: the aura clip took the smallest non-zone room (a structure
