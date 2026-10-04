@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 - 2026-10-04
 
 - Card: tap a room to pick it (its floor, its name, its readout or its furniture). It gets a dashed outline and the left panel opens with a room section: name, area (m², from the room's own corners), temperature and humidity (the same mean the plan shows), motion with when it changed, the open doors and windows on its walls, the lights on, and its devices and own sensors as rows. A light, switch, plug or cover row toggles on a tap and opens more-info on a hold; every other row opens more-info. The Active list below is cut to the room's entities, with a Show all button. Tap the room again, tap off any room, press Escape or press the cross to clear. A device, door or stair tap never picks a room, and a double tap (zoom) leaves the pick as it was. Enter or Space on a light row that names more than one entity opens the chooser, as a tap does. The panel is labelled with the room name.
 - Card: a chevron on every row of the panel, in the room section and in the Active list, opens that device's details: manufacturer, model, firmware, area, entity id, state and last changed, read from Home Assistant's device registry. A device with no registry entry shows entity, state and last changed.
