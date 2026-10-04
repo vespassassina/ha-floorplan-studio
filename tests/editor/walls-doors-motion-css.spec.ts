@@ -74,3 +74,31 @@ test("motion border: its opacity follows --fp-fade and the radar one has its own
     expect(r.pe, t).toBe("none");
   }
 });
+
+// S11.1 pair (finding 10): a room's own motion ring pulses while a sensor is on, and sits still, steady, under reduced motion.
+// Break it: drop `.motion-perimeter.motion-pulse` from the CSS and animation-name reads "none" for the pulsing ring.
+test("room motion ring: pulses while on, steady with the fade when off, no animation under reduced motion, in every theme", async ({ page }) => {
+  await page.setContent(plan(`<rect class="motion-perimeter motion-pulse" width="1" height="1"/><rect class="motion-perimeter" style="--fp-fade:0.4" width="1" height="1"/><rect class="motion-perimeter motion-pulse" style="--fp-pulse-age:2s" width="1" height="1"/>`));
+  const read = (t: string) => page.locator(`#t-${t}`).evaluate((g) => {
+    const c = (el: Element, p: string) => getComputedStyle(el).getPropertyValue(p).trim();
+    const [pulse, steady, late] = [...g.children];
+    return { count: c(pulse, "animation-iteration-count"), delay: c(pulse, "animation-delay"), lateDelay: c(late, "animation-delay"), pulseAnim: c(pulse, "animation-name"), steadyAnim: c(steady, "animation-name"), steadyOp: c(steady, "opacity"), stroke: c(pulse, "stroke"), pe: c(pulse, "pointer-events"), dur: c(pulse, "animation-duration") };
+  });
+  for (const t of THEMES) {
+    const r = await read(t);
+    expect(r.pulseAnim, t).toBe("fp-motion-pulse");
+    expect(r.dur, t).not.toBe("0s");
+    expect(r.count, t).toBe("3"); // three pulses, then the steady edge: never an endless blink
+    expect(r.delay, t).toBe("0s");
+    expect(r.lateDelay, t).toBe("-2s"); // a redraw 2 s after the trip carries on 2 s in, it does not start over
+    expect(r.steadyAnim, t).toBe("none");
+    expect(Number(r.steadyOp), t).toBeCloseTo(0.4, 5);
+    expect(r.stroke, t).toMatch(RGB); // the theme's own motion colour (red in most, gold in a-team), never a literal
+    expect(r.pe, t).toBe("none");
+  }
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  for (const t of THEMES) {
+    const r = await read(t);
+    expect(r.pulseAnim, `${t}: reduced motion`).toBe("none");
+  }
+});

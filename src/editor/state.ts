@@ -1,5 +1,6 @@
-import { DEFAULT_TILT, DEVICE_TYPES, WALLS_MODES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, clampTilt, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { MAX_ROOM_SENSORS, DEFAULT_TILT, DEVICE_TYPES, WALLS_MODES, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, clampTilt, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, WallsMode, Floor, HaData, Layout, PlanView, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
+import { setRoomList, type RoomSensorField } from "./ops";
 import { normaliseRotation } from "../card/view-state";
 import { MAX_ZOOM, MIN_ZOOM } from "../card/viewport";
 import type { ViewMemory } from "./view-memory";
@@ -100,6 +101,9 @@ export function restoreLayout(): Layout | null {
     return null;
   }
 }
+
+/** The room list a device of `type` moves into (S11.2): temperature, humidity and motion devices only. */
+const roomFieldOf = (type: DeviceType | undefined): RoomSensorField | undefined => (type === "temp" ? "temps" : type === "humidity" ? "humidity" : type === "motion" ? "motion" : undefined);
 
 export function polyPts(f: Floor, poly: string): Pt[] | undefined {
   if (poly === "o") return f.outline;
@@ -697,6 +701,64 @@ export class EditorState {
     this.snapshot();
     for (const { i, entity } of links) this.layout.floors[floorKey].devices[i].bound = entity;
     return links.length;
+  }
+
+  /**
+   * S11.2: catalog entries and unplaced HA entities a room's `field` list may take: temperature, humidity or motion
+   * only (the same type rules the Add panel uses), minus anything another room already owns — one room per sensor,
+   * as one door per contact sensor. Entities already on this room's own list stay in, like `doorAttachChoices`;
+   * the panel filters them out of the picker itself. Empty once the list is full.
+   */
+  roomSensorChoices(roomIndex: number, field: RoomSensorField): CatalogEntry[] {
+    const r = this.f.rooms[roomIndex];
+    if (!r || (r[field]?.length ?? 0) >= MAX_ROOM_SENSORS) return [];
+    const type: DeviceType = field === "temps" ? "temp" : field;
+    const used = new Set<string>();
+    for (const fl of Object.values(this.layout.floors)) for (const o of fl.rooms) if (o.id !== r.id) for (const e of o[field] ?? []) used.add(e);
+    return [...this.layout.catalog.filter((c) => c.type === type && !used.has(c.entity)), ...this.unattachedHaChoices(type).filter((c) => !used.has(c.entity))];
+  }
+
+  /** The room device `i` belongs to on the current floor, or -1: `roomAt`, the rule the aura clip, the readout and the Sensors section share. */
+  private roomIndexAt(i: number): number {
+    const d = this.f.devices[i];
+    return d && "x" in d ? roomAt(this.f, [d.x, d.y]) : -1;
+  }
+
+  /**
+   * S11.2: can the loose temp, humidity or motion device `i` move into the room it sits in? `ok: false` carries the
+   * reason the panel shows next to the disabled button. Never throws.
+   */
+  roomAttach(i: number): { ok: true; room: number; field: RoomSensorField } | { ok: false; reason: string } {
+    const d = this.f.devices[i];
+    const field = roomFieldOf(d?.type);
+    if (!d || !field) return { ok: false, reason: "Only a temperature, humidity or motion sensor can join a room." };
+    if (!d.entity) return { ok: false, reason: "This sensor has no Home Assistant entity yet. Pick one above first." };
+    const room = this.roomIndexAt(i);
+    if (room < 0) return { ok: false, reason: "It is not inside a room. Move it into one first." };
+    const list = this.f.rooms[room][field] ?? [];
+    if (list.includes(d.entity)) return { ok: false, reason: `Already on ${this.f.rooms[room].name || "this room"}.` };
+    if (list.length >= MAX_ROOM_SENSORS) return { ok: false, reason: `${this.f.rooms[room].name || "This room"} already has ${MAX_ROOM_SENSORS} of these. Remove one first.` };
+    return { ok: true, room, field };
+  }
+
+  /** S11.2: "Attach to room": adds the device's entity to its room's list and deletes the icon, one undo step. False (no step) when `roomAttach` says no. */
+  attachToRoom(i: number): boolean {
+    const a = this.roomAttach(i);
+    if (!a.ok) return false;
+    const entity = this.f.devices[i].entity, id = this.f.rooms[a.room].id;
+    return this.attachEntity(entity, (f) => {
+      const r = f.rooms.find((x) => x.id === id);
+      if (r) setRoomList(r, a.field, [...(r[a.field] ?? []), entity]);
+    }).changed;
+  }
+
+  /** S11.2: the name of the room whose list already holds device `i`'s entity (any floor), for the "Attached to" line; null when none. */
+  roomOwning(i: number): string | null {
+    const d = this.f.devices[i];
+    const field = roomFieldOf(d?.type);
+    if (!d || !field || !d.entity) return null;
+    for (const fl of Object.values(this.layout.floors)) for (const r of fl.rooms) if (r[field]?.includes(d.entity)) return r.name || r.id;
+    return null;
   }
 
   /**

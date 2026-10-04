@@ -3,7 +3,7 @@ import { entitiesOfDevice, entitiesOfDoor } from "../core";
 import type { Hass } from "./floorplan-studio-card";
 
 /** Device types a tap opens more-info for at once, never a toggle: a camera and a media player have none, and a battery, an inverter, a server or an access point is watched, not switched (S2.13). A vacuum is here too (S7.10), but its tap opens its own dialog, not more-info — see the `d.type === "vacuum"` branch below, checked before this set. S9.4: a speaker is a media_player device like `media`, and gets the same decision for the same reason — `media_player.toggle` is play/pause or power, never a clean on/off, so guessing which one the user meant is worse than always opening more-info. */
-const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "speaker", "battery", "inverter", "server", "access_point", "person", "radar", "vacuum"]);
+export const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "speaker", "battery", "inverter", "server", "access_point", "person", "radar", "vacuum"]);
 
 /** A pointer held this long or longer is a hold, opening more-info instead of toggling. */
 export const HOLD_MS = 500;
@@ -32,6 +32,9 @@ export interface DeviceActionsHost extends EventTarget {
  * more fires `hass-more-info` on `host` instead. A tap on a door with a `sensor` always fires `hass-more-info`
  * for that sensor (doors have no toggle; S2.3), never waiting out the hold delay. `getDevice(i)`/`getDoor(i)`
  * read fresh on every pointerdown, so a re-render between gestures is picked up.
+ *
+ * S11.3: the card's left panel binds this too, on its own element: a device row there is a `<button data-x>` with the same
+ * index meaning, so a tap, a hold and the chooser are the one implementation, not a second one for rows.
  *
  * Device icons are `<g data-x>`, doors are `<line data-d>`, unlinked appliances are `<g data-u>` (S4.25); the
  * pointer can land on an inner element (an icon's `<path>`/`<circle>`, a door's `<title>`), so the real target is
@@ -89,7 +92,7 @@ export interface DeviceActionsHost extends EventTarget {
  *    of its own to guess at, so there is nothing a hold should do differently from a tap.
  */
 export function bindDeviceActions(
-  svg: SVGSVGElement,
+  svg: Element,
   host: DeviceActionsHost,
   getDevice: (index: number) => Device | undefined,
   getDoor?: (index: number) => Door | undefined,
@@ -152,7 +155,7 @@ export function bindDeviceActions(
     }
     startX = pe.clientX ?? 0;
     startY = pe.clientY ?? 0;
-    const target = (e.target as Element | null)?.closest('g[data-x], line[data-d], g[data-u]');
+    const target = (e.target as Element | null)?.closest('g[data-x], button[data-x], line[data-d], g[data-u]');
     if (!target) return;
 
     if (target.tagName === "line") {

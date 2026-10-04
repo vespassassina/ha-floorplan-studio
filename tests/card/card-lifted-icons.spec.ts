@@ -31,19 +31,23 @@ test.describe("2.5D lifted device icons", () => {
   test.use({ viewport: { width: 700, height: 900 } });
 
   for (const rotation of [0, 90, 180, 270]) for (const tilt of [0.25, 0.5, 1]) {
-    test(`rotation ${rotation}, tilt ${tilt}: a click on the lifted icon toggles it, a click on the pin does not`, async ({ page }) => {
+    test(`rotation ${rotation}, tilt ${tilt}: a click on the lifted icon toggles it and picks no room, a click on the pin does not toggle`, async ({ page }) => {
       await open(page, { layout: structuredClone(demo), view: "2.5d", tilt, rotation });
       const icon = card(page).locator('css=g[data-x="1"]'), pin = card(page).locator('css=circle.stem-top[cx="650"][cy="200"]');
       await expect(pin).toHaveCount(1);
       const i = await centre(icon), p = await centre(pin);
       // The icon really is drawn away from its floor point, by more than a disc's radius.
       expect(Math.hypot(i.x - p.x, i.y - p.y)).toBeGreaterThan(30);
-      await page.mouse.click(p.x, p.y);
-      expect(await calls(page)).toEqual([]);
-      await page.mouse.click(i.x, i.y);
-      expect(await calls(page)).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]);
       // The element under the mouse at the icon is the icon group itself (the real top element).
       expect(await page.evaluate(([x, y]) => (document.querySelector("floorplan-studio-card")!.shadowRoot!.elementFromPoint(x!, y!) as Element).closest("g[data-x]")?.getAttribute("data-x"), [i.x, i.y])).toBe("1");
+      // The icon is the tap target: it toggles and never picks a room. It goes first, because a tap on the pin point may pick
+      // the room under it (a room's name can lie there) and the room panel then covers the icon.
+      await page.mouse.click(i.x, i.y);
+      expect(await calls(page)).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]);
+      expect(await card(page).locator("svg polygon.room-picked").count()).toBe(0);
+      // The pin point itself holds nothing to toggle.
+      await page.mouse.click(p.x, p.y);
+      expect(await calls(page)).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]);
     });
   }
 });

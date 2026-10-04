@@ -2,6 +2,205 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: second review round of Sprint 11 (card, core, editor)
+
+The pin rule of commit 6b1214c (a point inside a pin picks nothing) is withdrawn.
+
+- A tap on a point where a room's name lies over a lamp's pin picks the room. The pin lets events through, so the name
+  is the real top element; that is the common 2.5D case (Kitchen, rotation 270). The tap on the lifted icon is the
+  device's: it toggles and never picks. `card-lifted-icons.spec.ts` now taps the icon first and the pin point after,
+  because a room panel opened by the pin point covers the icon; it also asserts the icon tap picks no room.
+- Only the room's own text is its floor: the name (`data-rl`, new on the room's `<text>`) and the readout
+  (`data-rv`), and `g.furn`. A device's value or name and a structure line's name are not (they used to match
+  `text.lbl, text.val`). The one attribute is added to 2D output; the two demo snapshots changed by it and nothing else.
+- A fill is looked through to the room below, like a zone or a structure (it used to clear the pick).
+- Changing a room's kind to zone, structure or fill deletes its temps, humidity and motion lists in the same undo step:
+  nothing could show them and no Sensors section is left to remove them. Undo brings them back.
+- `roomAt` breaks a tie in area toward the highest index, the polygon drawn last, which a tap reaches.
+
+## 2026-10-04: a speaker's icon sits on top of its cabinet (Opus review of Sprint 11, core)
+
+The 2.5D speaker is a 30 cm cabinet, but its icon still floated at 150 cm (speaker) or 100 cm (media), a hook
+on the wall above a box on the floor. Decided by the coordinator, **open to Diego's change**:
+
+- `DEVICE_Z.speaker` and `.media` are 30, the top of the cabinet (`SPEAKER_HEIGHT`). An explicit `z` on the device
+  still wins for the icon (the editor's mount height field shows 30 now).
+- Below `STEM_MIN_Z` an icon normally stays on the floor point. A speaker's is lifted anyway (`DEVICE_SOLID` says
+  "speaker"), so the icon rides the cabinet; no stem, as it stands on the box. 2D is unchanged.
+
+## 2026-10-04: the room's motion border pulses three times per trip (Opus review of Sprint 11, core)
+
+Diego: "animate the motion highlight of a room when motion trips ... pulsing red border that fades out". The
+coordinator took that as three pulses, then a steady edge, and **Diego may change it**; so may the count (3 pulses
+of 1.4 s, `MOTION_PULSES` and `MOTION_PULSE_S` in render.ts). Calls made in code, change any:
+
+- The S11.1 pulse was endless (`infinite`). It is now three, then the steady edge that holds while the sensor is on
+  and fades with `fade` after it. Reduced motion is unchanged: no pulse, edge only.
+- The card redraws the plan on every state update and a redraw restarts a CSS animation, so three pulses would have
+  replayed on every unrelated change. The ring carries the age of the trip, `--fp-pulse-age` (seconds since the
+  newest listed sensor that is on changed), and the stylesheet starts the animation that far in with a negative
+  `animation-delay`. A redraw mid-pulse carries on. Past 4.2 s the ring has no `.motion-pulse` class. An unreadable
+  `last_changed` pulses nothing (it could not be told from a fresh trip on every redraw). The render stays a pure
+  function of layout, state and `now`.
+- An icon-made ring (a loose motion icon) still does not pulse, as before.
+
+## 2026-10-04: small fixes from the Sprint 11 review (card, core)
+
+- A mean reading takes only the readings in the first unit seen: 21 C and 70 F read "21.0 C", not "45.5 C". No
+  conversion (supersedes "first unit seen" in the S11.1 entry, which averaged the numbers anyway).
+- A tap picks the first room polygon among everything stacked under the finger (`elementsFromPoint`), not only
+  when the polygon itself is the target. A room's name, its readout and its 2D furniture are its floor; a zone or
+  a structure is looked through to the room below (it is not a room, see the `roomAt` entry). A device, door or
+  stair tap still never picks.
+- A double tap restores the pick as it was before its first tap. The code used to let the first tap pick or clear
+  and the second only zoom, against the S11.3 entry. Known edge: the room section opens at the top left of the
+  card, so a double tap on a room under it lands its second tap on the panel and is two taps, not a zoom.
+- A toggling row in the room section asks what a tap on the plan's icon asks: a device that names more than one
+  entity opens the chooser on Enter or Space too, instead of toggling.
+- The panel's label is the room's name while a room is shown, "Active devices" otherwise.
+
+## 2026-10-04: one rule for "the room a point is in" (Opus review of Sprint 11, core, editor, card)
+
+The review found three rules for one question: the aura clip took the smallest non-zone room (a structure
+counted), the editor's Attach did the same, the Sensors section hid only zones and structures, the readout hid
+zones and fills, the card's room summary took every room whose ring held the point. So Attach could move a
+sensor into a 40 x 40 structure that had no panel to remove it, and a lamp in a small structure was clipped to it.
+Calls made in code, change any:
+
+- `roomAt(f, p)` (core/render.ts) is the smallest room whose kind is in `ROOM_OWNS`: room, garden, pavement,
+  terrace, water. Zone, structure and fill never own a point. A test lists every `RoomKind`.
+- Used by the lamp aura clip, `EditorState.roomAttach`, `roomSummary` (a device counts in exactly one room, so a
+  closet's lamp is no longer also under the hall's "Lights on"), the readout, the motion edge and the editor's
+  Sensors section. A lamp inside a structure with no room around it keeps the free circle.
+- A named fill no longer draws a motion edge (the spec said unnamed only); it has no Sensors section either.
+
+## 2026-10-04: room sensor pickers and "Attach to room" (S11.2, editor)
+
+Diego: "instead of having them around, lets add them to a room, like the windows
+and doors can add contact sensors." Calls made in code, change any:
+
+- The room panel's three pickers are `multiAttachField`, the door's own widget,
+  so a pick pulls a loose icon of that entity off the plan in the same undo step
+  (S10.2 rule) and Remove only detaches. That is why the editor rarely holds both
+  an icon and a room entry; the "Attached to <room>" line covers a hand-edited
+  layout and an icon dragged back. No new draw path.
+- One room per sensor, like one door per contact sensor: a picker does not offer
+  an entity another room lists. HA entities never placed are offered too
+  (`unattachedHaChoices`). A full list (20) offers nothing. `setRoomList` is the
+  only writer: first occurrence wins, capped at 20, an empty list deletes the key,
+  so no pick can make a layout `validate` refuses.
+- `attachedEntities` (core/bind.ts) now counts a room's three lists, so an entity
+  on a room is "in use" and Add stops offering it as unplaced.
+- "Attach to room" goes to the smallest non-zone room holding the icon's point
+  (the aura-clip rule). It never writes to a zone, and it is disabled with the
+  reason when the point is outside every room, the entity is empty, already
+  listed, or the list is full.
+- Zones and structures get no Sensors section: nothing reads there.
+
+## 2026-10-04: picking a room and device details live in the left panel (S11.3, S11.4, card)
+
+Diego: "also when selecting a room in card view, show all the stats and info of
+that room in a side popup. also for every device when selecting them, add the
+info like manufacturer, model etc." Then, answering where: "use the left pane we
+have already, add the room readouts and filter the entities shown to allow
+interaction". So the room is **not** a right-hand popup; it is a section at the
+top of the existing Active panel. Calls made in code, change any:
+
+- A tap on bare room floor picks the room. The same room again, a tap off any
+  room, Escape or the section's cross clears it. A device, door or appliance tap
+  keeps its own meaning and never picks. A stair tap counts as
+  "off a room"; a fill is looked through (2026-10-04, second round). A double tap (zoom) leaves the pick alone. Kiosk and
+  `active_list: false` pick nothing: there is no panel to show it in. Switching
+  floor clears it. Escape uses the card's existing key gate (hover or focus), the
+  same as the view keys.
+- The outline is `.room-picked` (ink, dashed), added by `renderFloor` from a new
+  `selectedRoom` option, so there is one draw path. The editor draws its own
+  selection in its overlay and does not pass it.
+- Area is the polygon's area from the room's corners, to 0.1 m2. The room's
+  `area` field is a Home Assistant area id, not a size, and the editor shows no
+  area figure, so there was nothing else to match.
+- Temperature and humidity are the plan's own `meanReading`, moved out of
+  `renderFloor` into `src/core/readings.ts` so both read one function.
+- "Devices" are the devices whose point (a heater's midpoint) is inside the
+  room, plus the room's own sensors that have no icon. A person never has a row:
+  its drawn position comes from a room sensor, not from x and y. Open doors and
+  windows are those whose line lies on one of the room's edges (`onEdge`), open
+  or unlocked as `doorStateOf` says.
+- Row taps: light, switch, plug and cover toggle (tap) and open more-info (hold),
+  through the same `bindDeviceActions` the plan uses, bound a second time on the
+  panel (`button[data-x]`). Every other type opens more-info. `ROOM_ROW_TAP` lists
+  every device type and a test keeps it inside `NO_TOGGLE`'s refusals.
+- The list below is cut to the room's entities (its devices and what they attach,
+  its sensors, its doors' sensors, locks and cover). "Show all" drops the filter
+  and keeps the room picked. With nothing picked the list is unchanged.
+- While a room is picked the panel is open even where it is folded by default
+  (under 480 px) and is wider (`min(260px, 70%)`); the fold button is hidden.
+- Details (S11.4) read `hass.entities[id].device_id` and `.area_id`,
+  `hass.devices[...]` (manufacturer, model, sw_version, area_id) and
+  `hass.areas[...].name`: checked against the Home Assistant frontend source
+  (`src/types.ts`, `device_registry.ts`, `area_registry.ts`, `entity_registry.ts`),
+  2026-10-04. An empty field is left out. The chevron is a sibling of the row's
+  button, so it never taps the row. Open details are card state keyed by entity.
+- The panel is card-only. The studio has its own selection panel with all of
+  this and more, so this is a stated difference (docs/card.md, "Studio and card").
+
+## 2026-10-04: a room owns its temperature, humidity and motion sensors (S11.1, core)
+
+Diego: "instead of having them around, lets add them to a room, like the windows
+and doors can add contact sensors. then animate the motion highlight of a room
+when motion trips." `Room` gains `temps`, `humidity`, `motion` (entity id lists,
+at most 20 each; `sensor.*`, and `binary_sensor.*` or `group.*` for motion, since
+a motion group is a motion device). Calls made in code, change any:
+
+- A device of type temp, humidity or motion whose entity is on any room's list is
+  not drawn on the card, in 2D or 2.5D. It stays in the layout. The editor
+  (`editor: true`) still draws it, so it can be selected, moved and deleted; the
+  S11.2 "Attach to room" button will remove it.
+- The readout is one small `.val` line under the room name: the mean of the
+  readable states, rounded to 0.1, with the first unit seen (a mix of C and F is
+  not converted). Temperature and humidity join with a dot. Nothing readable,
+  nothing drawn. It follows `labels:false`.
+- The room's border is the existing `.motion-perimeter`, now also fed by the
+  room's own list: red (the theme's motion colour) and pulsing while a listed
+  sensor is on (`.motion-pulse`, an opacity pulse), then steady and fading with
+  `fade` like the icon does. One ring per room; an attached icon does not make a
+  second one. Reduced motion: the pulse is off, the steady edge stays. Zones,
+  structures and unnamed fills draw none.
+
+## 2026-10-04: 2.5D gives radiators, speakers and TVs a body
+
+Diego: "radiators ... add them some height ... under the windows. for sonos and
+multimedia players use a speaker 3d, for tvs add a tv that goes against the wall".
+`DEVICE_SOLID` (solids.ts) lists every `DeviceType`: heater with a bar is a
+"radiator", `speaker` and `media` a "speaker", `tv` a "tv", the rest none. All are
+drawn by `renderFloor` after the furniture, only when `view` is 2.5d; 2D bytes are
+unchanged. Icons keep their lift, stem and tap.
+- Radiator: box 8 cm deep along the bar, from 10 cm up to `z` (device `z`, already
+  validated; default 70 = window sill 90 less 20). Tinted `--fp-heater` while
+  heating, idle grey otherwise. A heater given as a point, not a bar, has no box.
+- Speaker: 20 x 20 x 30 cm at the floor point, turned by `rot`. Two driver marks
+  go on the face that looks most at the viewer (not a fixed front, so a turned
+  plan still shows them). Lit with `--fp-dev-speaker` (`--fp-dev-media` for media)
+  while playing. `z` is ignored: the icon hangs where `z` says, the cabinet stands.
+- TV: panel 100 x 6 x 60 cm, bottom at `z` (100 by default). It sits on the nearest
+  room edge, outline edge or free wall within 150 cm, flush with the wall's room
+  face (5 cm off the line for a wall, 10 external, 0 for none/fence), centred on the
+  TV's projection onto it, on the TV's side. The screen is drawn only when the
+  face looks toward the viewer (a TV on a south wall shows its back). No wall near:
+  free-standing at its point, facing down the screen, bottom 30 cm (or `z`).
+- A thing on a wall sorts after that wall (a wall is keyed by its nearer end and
+  would otherwise cover a TV far along it).
+- Colours come from existing tokens by `color-mix`; no new theme token. No schema
+  change: `height` is not allowed on a device, only `z`, which exists.
+
+## 2026-10-04: a lamp's aura is clipped to the smallest room that holds it
+
+Diego: "clip the light cones to the room they are in". The aura is a 150 cm
+circle; it crossed walls. Now it is clipped to the floor polygon of the smallest
+non-zone room containing the lamp (a lamp in a closet inside a hall lights the
+closet). No room, no clip: the garden lamp keeps its circle. In 2.5D the clip
+carries the same lift as the aura. The camera cone is not clipped (not asked).
+
 ## 2026-10-04: the card's view buttons are a vertical stack, like the studio's
 
 Diego: the rotate buttons are lost in the crowded top-right toolbar; "do them

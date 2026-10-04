@@ -67,7 +67,7 @@ const COLOR_VAR: Partial<Record<DeviceType, string>> = {
 /** What `renderFloor` takes besides state, so the list reads a plug exactly as the plan does. */
 export type ActiveOpts = Pick<RenderOpts, "plugWatts" | "powerLinks">;
 
-function colorVarFor(d: Device, state: StateOverlay | undefined): string {
+export function colorVarFor(d: Device, state: StateOverlay | undefined): string {
   if (d.type === "ac") {
     const mode = acMode(d, { scale: 1, state });
     return mode === "cool" ? "--fp-dev-ac-cool" : "--fp-dev-ac-heat";
@@ -93,7 +93,7 @@ function isActive(d: Device, state: StateOverlay | undefined, opts: ActiveOpts):
 /** A device's name for the list: its own plan name, else HA's `friendly_name`, else its entity id — the same
  *  fallback order the task asked for, and the only one that can never come up empty. Untrusted state: anything
  *  that is not text is skipped. */
-function nameFor(d: Device, state: StateOverlay | undefined): string {
+export function nameFor(d: Device, state: StateOverlay | undefined): string {
   const friendly = state?.[d.entity]?.attributes?.friendly_name;
   return d.name ?? (typeof friendly === "string" && friendly ? friendly : d.entity);
 }

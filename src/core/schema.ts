@@ -21,9 +21,14 @@ export const FLOOR_COLOURS: { name: string; hex: string }[] = [
 
 /** Most extra colours a layout keeps in `palette`. */
 export const MAX_PALETTE = 24;
+/** Most temperature, humidity or motion sensors one room may list. */
+export const MAX_ROOM_SENSORS = 20;
 
-/** `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows. */
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number }
+/** `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows.
+ *  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The
+ *  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border
+ *  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each. */
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[] }
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
 /** A room edge is a wall kind, or "none": not drawn. The room stays closed for area and snapping. */
 export type EdgeKind = WallKind | "none";
@@ -210,6 +215,13 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (!Array.isArray(f.outline) || !Array.isArray(f.owk) || f.owk.length !== f.outline.length) errors.push(`${at} owk must have ${Array.isArray(f.outline) ? f.outline.length : 0} entries`);
       else if (f.owk.some((k: unknown) => typeof k !== "string" || !EDGE_KINDS.includes(k as EdgeKind))) errors.push(`${at} owk entries must be one of ${EDGE_KINDS.join(", ")}`);
     }
+    // `domains` (S11.1): when given, the id must also start with one of them; `max`: a count cap.
+    const entityList = (o: any, k: string, label: string, domains?: string[], max?: number) => {
+      if (o[k] === undefined) return;
+      if (!Array.isArray(o[k])) { errors.push(`${at} ${o.id} ${k} must be a list of entity ids`); return; }
+      if (max !== undefined && o[k].length > max) { errors.push(`${at} ${o.id} ${k} holds at most ${max} entities, found ${o[k].length}; remove the extra ones`); return; }
+      o[k].forEach((v: unknown, i: number) => { if (!isEntity(v) || (domains && !domains.some((d) => (v as string).startsWith(`${d}.`)))) errors.push(`${at} ${o.id} ${k}[${i}] must be an entity id like ${label}`); });
+    };
     each("rooms", (r) => {
       poly(`${r.id} pts`, r.pts);
       name(r); // migrate turns a missing name into "", so a name that is still not text is a bad file
@@ -225,6 +237,9 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (typeof r.area !== "string") errors.push(`${at} ${r.id} area must be text (empty for a custom shape)`);
       if (r.entity !== undefined && !isEntity(r.entity)) errors.push(`${at} ${r.id} entity must be an entity id like sensor.name`);
       if (r.free !== undefined && typeof r.free !== "boolean") errors.push(`${at} ${r.id} free must be true or false`);
+      entityList(r, "temps", "sensor.name", ["sensor"], MAX_ROOM_SENSORS);
+      entityList(r, "humidity", "sensor.name", ["sensor"], MAX_ROOM_SENSORS);
+      entityList(r, "motion", "binary_sensor.name", ["binary_sensor", "group"], MAX_ROOM_SENSORS); // a group is a motion group (ha.ts isMotionGroup)
       if (Array.isArray(r.pts) && r.pts.length >= 3 && (!Array.isArray(r.wk) || r.wk.length !== r.pts.length))
         errors.push(`${at} ${r.id} wk must have ${r.pts.length} entries`);
       else if (Array.isArray(r.wk)) {
@@ -261,11 +276,6 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         if (s.inner !== undefined) errors.push(`${at} ${s.id} inner is only for a round stair`);
       }
     });
-    const entityList = (o: any, k: string, label: string) => {
-      if (o[k] === undefined) return;
-      if (!Array.isArray(o[k])) { errors.push(`${at} ${o.id} ${k} must be a list of entity ids`); return; }
-      o[k].forEach((v: unknown, i: number) => { if (!isEntity(v)) errors.push(`${at} ${o.id} ${k}[${i}] must be an entity id like ${label}`); });
-    };
     each("doors", (d) => {
       name(d);
       oneOf(`${d.id} kind`, d.kind, DOOR_KINDS);

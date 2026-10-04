@@ -9,12 +9,15 @@ import { esc, num, pts, tag } from "./fmt";
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { plugThreshold, wattsOf } from "./power";
-import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
+import { meanReading } from "./readings";
+import { DEVICE_SOLID, STEM_MIN_Z, furnitureMode, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
-import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
+import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, RoomKind, Stairs } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
 export interface RenderOpts {
+  /** S11.3: the room the card has picked (its left panel shows it); drawn with an outline, class `picked`. The editor draws its own selection in an overlay and never passes this. */
+  selectedRoom?: number;
   scale: number; selection?: { t: string; i: number } | null; showNames?: boolean; filter?: DeviceType[];
   state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
@@ -166,6 +169,9 @@ export const WALL_WIDTH_EXTERNAL = 20;
 const WALL_HALO_EXTRA = 2;
 
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
+/** A room's motion border pulses this many times, each this many seconds, when its sensor trips. */
+const MOTION_PULSES = 3, MOTION_PULSE_S = 1.4;
+
 export const FLOORPLAN_CSS = `
 :host,.fp{${BLUEPRINT_TOKENS}}
 /* Blueprint is the default: with no data-theme anywhere the plan is blueprint, whatever the OS or Home Assistant is doing (Diego's call, 2026-09-21;
@@ -229,10 +235,20 @@ export const FLOORPLAN_CSS = `
    the radar colour), for as long as the sensor is on. renderFloor masks the wide stroke down to the line; the editor's
    .room{pointer-events:all} does not touch it, being a different class, and a class rule beats the attribute (finding 18). */
 .motion-perimeter{fill:none;stroke:var(--fp-dev-motion);stroke-linejoin:round;pointer-events:none;opacity:var(--fp-fade,1)} .motion-perimeter.radar{stroke:var(--fp-dev-radar)}
+/* S11.1: a room's own motion sensor trips: the same border pulses ${MOTION_PULSES} times, then holds steady while the sensor is on, and fades with
+   --fp-fade once it is off. Never an endless blink. A redraw restarts a CSS animation, so renderFloor puts the trip's age in
+   --fp-pulse-age (and the class only while the pulses last) and the negative delay starts it that far in: a redraw in the
+   middle of the pulses carries on, it does not replay them. Reduced motion: no pulse, the steady edge only. */
+.motion-perimeter.motion-pulse{animation:fp-motion-pulse ${MOTION_PULSE_S}s ease-in-out ${MOTION_PULSES};animation-delay:calc(var(--fp-pulse-age,0s) * -1)}
+@keyframes fp-motion-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.motion-perimeter.motion-pulse{animation:none}}
 /* .sel is one class (0,1,0); .room.on is two (0,2,0) and would always outrank it on specificity, so a selected
    room that is also on would stop showing its ink selection outline. This three-class override (0,3,0) wins
    regardless of source order and keeps selection on top (Opus review). */
 .room.on.sel{stroke:var(--fp-ink)}
+/* S11.3: the room picked in the card: the motion perimeter's inset band, dashed, in the ink colour. Dashes run along the wide band's
+   path, so the mask leaves a dashed line. A class rule, not an attribute, for pointer-events (finding 18). */
+.room-picked{fill:none;stroke:var(--fp-ink);stroke-linejoin:round;stroke-dasharray:20 12;pointer-events:none}
 /* S2.9: furniture with an entity turns present, not paler, when it is on. --fp-glow is a fill tint built to sit
    close to a room's own colour, so reusing it as a stroke colour here made a sofa nearly vanish against the room
    under it in either theme (Opus review). --fp-active is its own token, amber like --fp-on, chosen per theme for
@@ -253,6 +269,13 @@ export const FLOORPLAN_CSS = `
 .bs,.bt{stroke:var(--fp-furniture);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .bt{fill:var(--fp-box-top)} .bs{fill:var(--fp-box-side)} .bs.w{fill:var(--fp-box-side-w)}
 .trunk{stroke:var(--fp-furniture);stroke-width:8;stroke-linecap:round}
+.dsolid .bs,.dsolid .bt{stroke:color-mix(in srgb,var(--fp-body) 60%,var(--fp-on-light))}
+.dsolid .bt{fill:color-mix(in srgb,var(--fp-body) 70%,var(--fp-on-dark))} .dsolid .bs{fill:var(--fp-body)} .dsolid .bs.w{fill:color-mix(in srgb,var(--fp-body) 80%,var(--fp-on-light))}
+.dsolid.radiator{--fp-body:color-mix(in srgb,var(--fp-idle) 55%,var(--fp-bg))} .dsolid.radiator.on{--fp-body:color-mix(in srgb,var(--fp-heater) 75%,var(--fp-bg))}
+.dsolid.speaker,.dsolid.tv{--fp-body:color-mix(in srgb,var(--fp-on-light) 62%,var(--fp-furniture))}
+.drv{fill:color-mix(in srgb,var(--fp-on-light) 55%,var(--fp-bg));stroke:var(--fp-on-dark);stroke-opacity:.45;stroke-width:1;vector-effect:non-scaling-stroke}
+.dsolid.speaker.on .drv{fill:var(--fp-dev-speaker)} .dsolid.speaker.media.on .drv{fill:var(--fp-dev-media)}
+.tv-screen{fill:color-mix(in srgb,var(--fp-on-light) 92%,var(--fp-bg));stroke:none} .dsolid.tv.on .tv-screen{fill:color-mix(in srgb,var(--fp-dev-tv) 80%,var(--fp-on-dark))}
 .stem{stroke:var(--fp-idle);stroke-width:1;stroke-opacity:.7;vector-effect:non-scaling-stroke} .stem-top{fill:var(--fp-idle);fill-opacity:.7}
 .ws{fill:var(--fp-wall-side);stroke:var(--fp-wall-top);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 /* A wall face is lit like a solid: a fixed light from the upper left. Faces turned to it are lighter, faces turned away
@@ -517,6 +540,25 @@ export function inside(p: Pt, poly: Pt[]): boolean {
   return in_;
 }
 
+/** Which kinds of room can own a point: hold a lamp's light, take a sensor, show a readout. A zone is an overlay, a structure
+ *  a building drawn on the plan, a fill a hatched patch; none of them is a room a person stands in. Every kind is a decision (finding 17). */
+export const ROOM_OWNS: Record<RoomKind, boolean> = { room: true, garden: true, pavement: true, terrace: true, water: true, fill: false, structure: false, zone: false };
+
+/** The index of the smallest room that may own point `p` (`ROOM_OWNS`), or -1; equal areas go to the highest index. The one rule behind a lamp's aura clip, the
+ *  editor's Attach, a room's readout and Sensors section, and the card's room summary, so they cannot disagree about
+ *  which room a thing is in. Layout is untrusted: a room with no usable ring is skipped, never a throw. */
+export function roomAt(f: Floor, p: Pt): number {
+  if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) return -1;
+  let best = -1, bestArea = Infinity;
+  (Array.isArray(f.rooms) ? f.rooms : []).forEach((r, j) => {
+    const g = r?.pts;
+    if (!r || !ROOM_OWNS[r.kind] || !Array.isArray(g) || g.length < 3 || !g.every((q) => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1])) || !inside(p, g)) return;
+    const a = Math.abs(g.reduce((n, q, k) => n + q[0] * g[(k + 1) % g.length][1] - g[(k + 1) % g.length][0] * q[1], 0)) / 2;
+    if (a <= bestArea) { best = j; bestArea = a; } // a tie goes to the later room: it is drawn on top, the one a tap reaches
+  });
+  return best;
+}
+
 /** S2.10: what an air conditioner is doing, read from the entity at render time and never stored. `off`, `unavailable` and `unknown` win over everything; otherwise `hvac_action` decides, and `state` stands in when the attribute is missing. */
 export function acMode(d: Device, o: RenderOpts): "cool" | "heat" | null {
   const s = o.state?.[d.entity];
@@ -691,13 +733,18 @@ function ringGap(p: Pt, ring: Pt[]): number {
   return best;
 }
 
+/** 0..1 from `fade` seconds (default 300) since `lastChanged`; 1 at that moment, 0 once they have passed. Unreadable time: just changed. */
+function fadeSince(lastChanged: string, fade: number, now: number): number {
+  const t = Date.parse(lastChanged), age = Number.isNaN(t) ? 0 : now - t;
+  return Math.max(0, Math.min(1, 1 - age / (fade * 1000)));
+}
+
 /** 0..1, how red a motion icon still is: 1 at the moment of motion, 0 once `fade` seconds (default 300) have passed since the sensor was last on. Fade 0 turns the fade off. */
 function motionFade(d: Device, o: RenderOpts, now: number): number {
   const s = o.state?.[d.entity];
   if (!s || d.type !== "motion") return 0; // a radar's icon does not fade, so neither does its border
-  const fade = o.fade ?? 300, t = Date.parse(s.last_changed);
-  const age = Number.isNaN(t) ? 0 : now - t; // unreadable time: treat as just changed
-  return fade > 0 ? Math.max(0, Math.min(1, 1 - age / (fade * 1000))) : classOf(d, o) === "on" ? 1 : 0;
+  const fade = o.fade ?? 300;
+  return fade > 0 ? fadeSince(s.last_changed, fade, now) : classOf(d, o) === "on" ? 1 : 0;
 }
 
 /**
@@ -708,14 +755,15 @@ function motionFade(d: Device, o: RenderOpts, now: number): number {
  * a hash of the geometry (like the opening mask) so two cards drawing one floor mint the same id. Colour and
  * pointer-events come from the class (findings 9, 18); `radar` takes the radar colour.
  */
-function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean, strength: number): string {
+function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean, strength: number, pulseAge: number | null = null, as?: { cls: string; data: string }): string {
   const reach = Math.max(...ring.map((a, j) => wallWidthAt(f, a, ring[(j + 1) % ring.length]))) + WALL_HALO_EXTRA;
   const hide = reach + 2 * MOTION_GAP, band = hide + 2 * MOTION_LINE;
   const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1]);
   const x = Math.min(...xs) - band, y = Math.min(...ys) - band;
-  const id = `fp-mp-${tag(`${pts(ring)}|${hide}`)}`, points = pts(ring);
+  const id = `fp-mp-${tag(`${pts(ring)}|${hide}${as ? `|${as.cls}` : ""}`)}`, points = pts(ring); // S11.3: the picked-room line is the same band under its own class and its own mask id
   const mask = `<mask id="${id}" maskUnits="userSpaceOnUse" x="${num(x)}" y="${num(y)}" width="${num(Math.max(...xs) + band - x)}" height="${num(Math.max(...ys) + band - y)}"><polygon points="${points}" fill="white"/><polygon points="${points}" fill="none" stroke="black" stroke-width="${num(hide)}" stroke-linejoin="round"/></mask>`;
-  return `${mask}<polygon class="motion-perimeter${radar ? " radar" : ""}" data-m="${i}" mask="url(#${id})" stroke-width="${num(band)}"${strength < 1 ? ` style="--fp-fade:${num(strength)}"` : ""} points="${points}"/>`;
+  const style = [strength < 1 ? `--fp-fade:${num(strength)}` : "", pulseAge !== null ? `--fp-pulse-age:${num(pulseAge)}s` : ""].filter(Boolean).join(";");
+  return `${mask}<polygon class="${as?.cls ?? "motion-perimeter"}${radar ? " radar" : ""}${pulseAge !== null ? " motion-pulse" : ""}" ${as?.data ?? "data-m"}="${i}" mask="url(#${id})" stroke-width="${num(band)}"${style ? ` style="${style}"` : ""} points="${points}"/>`;
 }
 
 export function renderFloor(f: Floor, o: RenderOpts): string {
@@ -725,6 +773,16 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const up = (x: number, y: number) => (turn ? ` transform="rotate(${num(-planDeg)} ${num(x)} ${num(y)})"` : "");
   const out: string[] = [];
   const now = o.now ?? Date.now();
+  // S11.1: sensors that belong to a room. Layout and state are untrusted: a list that is not a list is empty, a state is
+  // read only if it is the overlay's own, and a reading counts only if it is a plain finite number.
+  const listOf = (r: Floor["rooms"][number], k: "temps" | "humidity" | "motion"): string[] => (Array.isArray(r[k]) ? (r[k] as unknown[]).filter((e): e is string => typeof e === "string") : []);
+  const attached: Record<"temps" | "humidity" | "motion", Set<string>> = { temps: new Set(), humidity: new Set(), motion: new Set() };
+  for (const r of f.rooms) for (const k of ["temps", "humidity", "motion"] as const) for (const e of listOf(r, k)) attached[k].add(e);
+  const ATTACH_LIST: Partial<Record<DeviceType, "temps" | "humidity" | "motion">> = { temp: "temps", humidity: "humidity", motion: "motion" };
+  const isAttached = (d: Device) => { const k = ATTACH_LIST[d.type]; return !!k && attached[k].has(d.entity); };
+  /** An attached sensor draws no icon; the editor keeps it, so it can still be selected and moved (DECISIONS, S11.1). */
+  const iconHidden = (d: Device) => !o.editor && isAttached(d);
+  const stateOf = (e: string) => (o.state && Object.prototype.hasOwnProperty.call(o.state, e) && typeof o.state[e]?.state === "string" ? o.state[e] : undefined);
   // 2.5D: the projection in the frame of the plan group. The screen-up lift is turned back by the plan's own turn, so
   // a rotated plan still lifts toward the top of the screen.
   const x25 = o.view === "2.5d";
@@ -738,7 +796,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const iconAt = (d: Device, c: Pt): Pt => {
     if (!x25 || d.type === "person" || "a" in d) return c;
     const z = deviceZ(d);
-    return z >= STEM_MIN_Z ? px.lift(c, z) : c;
+    // A speaker's default is the top of its cabinet, 30 cm: below the stem threshold, but still lifted onto the box it stands on.
+    return z >= STEM_MIN_Z || (DEVICE_SOLID[d.type] === "speaker" && z > 0) ? px.lift(c, z) : c;
   };
   const showText = o.labels !== false; // false skips every <text> and leader below; placement still runs, so nothing else moves
   const solids: Solid[] = [];
@@ -833,6 +892,17 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const c = iconAt(d, floorAt); // the aura hangs with the lamp, not on the floor under it
     const fill = lightFill(o.state?.[d.entity]);
     const style = fill ? ` style="--fp-aura:${fill}"` : "";
+    // The light stays in the room it hangs in: clipped to the smallest real room holding the lamp (`roomAt`: a zone, a structure
+    // and a fill are not rooms; a lamp in no room, a garden lamp say, keeps the free circle). The clip is the floor polygon.
+    const holder = roomAt(f, floorAt), own = holder < 0 ? null : ring(f.rooms[holder]);
+    if (own) {
+      // The aura hangs with the lamp (`c`), so its clip takes the same lift off the floor.
+      const lift = c[0] !== floorAt[0] || c[1] !== floorAt[1] ? ` transform="translate(${at([c[0] - floorAt[0], c[1] - floorAt[1]])})"` : "";
+      const cid = `fp-aura-${tag(`${pts(own)}${lift}`)}`;
+      out.push(`<clipPath id="${cid}"${lift}><polygon points="${pts(own)}"/></clipPath>`);
+      out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${LIGHT_REACH}" clip-path="url(#${cid})"${style}/>`);
+      return;
+    }
     out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${LIGHT_REACH}"${style}/>`);
   });
 
@@ -876,6 +946,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (r.area || !entityOn(o, r.entity, plugs)) return;
     out.push(`<polygon class="room on ring" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
   });
+  // S11.3: the room the card has picked, a dashed line just inside its walls (the motion perimeter's band, under its own class),
+  // drawn after the wall lines: a stroke on the room's own polygon sits under the wall halo and is not seen (finding 16).
+  // No data-r: it is never a pick target.
+  const pickedAt = typeof o.selectedRoom === "number" ? o.selectedRoom : -1, pickedRing = pickedAt >= 0 && f.rooms[pickedAt] ? ring(f.rooms[pickedAt]) : null;
+  if (pickedRing) out.push(motionPerimeter(f, pickedRing, pickedAt, false, 1, null, { cls: "room-picked", data: "data-picked" }));
 
   // A room with a triggered motion sensor (or radar) in it gets one thin line just inside its walls, for as long as the
   // sensor is on, and while a motion icon is still red from its fade (red icon and no border read as a bug, Diego
@@ -885,7 +960,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // as the ring above, after the wall lines, so the 2.5D solids below still cover it.
   const triggered = new Map<number, { radar: boolean; on: boolean; v: number }>();
   f.devices.forEach((d, i) => {
-    if (!MOTION_TYPES.includes(d.type) || "a" in d) return;
+    if (!MOTION_TYPES.includes(d.type) || "a" in d || isAttached(d)) return; // an attached sensor lights its room through the room's own list, below
     const cls = classOf(d, o), on = cls === "on", v = on ? 1 : motionFade(d, o, now);
     if (v <= 0 || cls === "unavailable") return;
     const sel = o.selection?.t === "dev" && o.selection.i === i;
@@ -906,7 +981,29 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!t || (on && !t.on)) triggered.set(at, mine);
     else if (on === t.on) t.v = Math.max(t.v, v);
   });
-  for (const i of [...triggered.keys()].sort((a, b) => a - b)) { const t = triggered.get(i)!; out.push(motionPerimeter(f, rings[i]!, i, t.radar, t.on ? 1 : t.v)); }
+  // S11.1: a room's own `motion` list. On means 1 and pulses; off fades from last_changed like an icon does; unavailable
+  // or unknown says nothing. It joins the icon-made ring of the same room, so a room never draws two.
+  const pulsing = new Map<number, number>(); // room index to the age of its trip in seconds, only while the pulses last
+  f.rooms.forEach((r, j) => {
+    const p = rings[j];
+    if (!p || !ROOM_OWNS[r.kind]) return;
+    let on = false, v = 0, tripped = -Infinity;
+    for (const e of listOf(r, "motion")) {
+      const s = stateOf(e);
+      if (!s) continue;
+      if (s.state === "on") { on = true; tripped = Math.max(tripped, Date.parse(s.last_changed)); }
+      else if (s.state !== "unavailable" && s.state !== "unknown" && (o.fade ?? 300) > 0) v = Math.max(v, fadeSince(s.last_changed, o.fade ?? 300, now));
+    }
+    if (!on && v <= 0) return;
+    // The age is of the newest sensor that is on. An unreadable time pulses nothing: it could not be told from a fresh trip on every redraw.
+    const age = Math.max(0, (now - tripped) / 1000);
+    if (on && age < MOTION_PULSES * MOTION_PULSE_S) pulsing.set(j, Math.round(age * 100) / 100);
+    const t = triggered.get(j);
+    if (!t) triggered.set(j, { radar: false, on, v: on ? 1 : v });
+    else if (on && !t.on) triggered.set(j, { radar: false, on: true, v: 1 });
+    else if (on === t.on) t.v = Math.max(t.v, on ? 1 : v);
+  });
+  for (const i of [...triggered.keys()].sort((a, b) => a - b)) { const t = triggered.get(i)!; out.push(motionPerimeter(f, rings[i]!, i, t.radar, t.on ? 1 : t.v, pulsing.get(i) ?? null)); }
 
   // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
   // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.
@@ -918,6 +1015,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       if (s) solids.push(s);
     });
     for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
+    f.devices.forEach((d, i) => {
+      if (o.filter && o.filter.length && !o.filter.includes(d.type) && !(o.selection?.t === "dev" && o.selection.i === i)) return;
+      const s = deviceSolid(f, d, classOf(d, o), px);
+      if (s) solids.push(s);
+    });
     for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px, resolveStairDirection(t, o.around)));
     // What lies below the floor (a stairwell) goes first: nothing standing on the floor is ever drawn under it.
     out.push(...solids.filter((s) => s.under).sort((a, b) => a.key - b.key).map((s) => s.svg));
@@ -984,7 +1086,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // the centroid, then 40k below, above, right and left of it, the first where no person lands on another icon's disc.
   const others: Pt[] = [];
   f.devices.forEach((d, i) => {
-    if ([...byRoom.values()].some((who) => who.includes(i))) return;
+    if ([...byRoom.values()].some((who) => who.includes(i)) || iconHidden(d)) return;
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (c.every(Number.isFinite)) others.push(iconAt(d, c));
   });
@@ -1001,6 +1103,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    if (iconHidden(d)) return;
     const c = centreOf(d, i);
     if (c.every(Number.isFinite)) disc(iconAt(d, c), 16 * k);
   });
@@ -1100,13 +1203,26 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       out.push(`<line class="lbl-leader" stroke-width="${num(k)}" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(ex)}" y2="${num(ey)}"/>`);
     }
     out.push(zone
-      ? `<text class="lbl zone" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(size)}">${esc(r.name)}</text>`
-      : `<text class="lbl" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" font-weight="600" opacity=".5">${esc(r.name)}</text>`);
+      ? `<text class="lbl zone" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}">${esc(r.name)}</text>`
+      : `<text class="lbl" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" font-weight="600" opacity=".5">${esc(r.name)}</text>`);
+  });
+
+  // S11.1: the readout of a room's own sensors, a small line under its name (or at its anchor when it has none). Placed like
+  // every other text, so it moves off a name or an icon; nothing readable draws nothing, never "NaN".
+  f.rooms.forEach((r, i) => {
+    if (!showText || !ROOM_OWNS[r.kind]) return;
+    const text = [meanReading(listOf(r, "temps"), o.state), meanReading(listOf(r, "humidity"), o.state)].filter(Boolean).join(" · ");
+    if (!text) return;
+    const lab = nameAt[i], base = lab?.at ?? centroid(r.pts), size = lab?.size ?? 0, vs = 10 * k;
+    if (!base.every(Number.isFinite)) return;
+    const [vx, vy] = place([screenOff(base, 0, 0.25 * size + k + 0.75 * vs), screenOff(base, 0, -0.75 * size - k - 0.25 * vs)], vs, text);
+    out.push(`<text class="val" data-rv="${i}" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
   });
 
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    if (iconHidden(d)) return;
     const floorAt = centreOf(d, i);
     if (!floorAt.every(Number.isFinite)) return;
     // `c` is where the icon and all it carries are drawn; `floorAt` only the pin, the stem, the room test and a radar's targets.

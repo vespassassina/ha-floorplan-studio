@@ -34,11 +34,13 @@ export const DEVICE_Z: Record<DeviceType, number> = {
   // Ceiling-mounted.
   light: 250, camera: 230, motion: 230, radar: 230, access_point: 230,
   // On the wall, up high.
-  ac: 220, speaker: 150, cover: 200,
+  ac: 220, cover: 200,
   // Wall fittings at hand height (a switch is 120 by habit in Europe, a plug sits low).
   switch: 120, plug: 30, contact: 120, vibration: 120, lock: 100, temp: 150, humidity: 150, climate: 150,
   // Plant on the wall or a shelf.
-  boiler: 120, battery: 120, inverter: 100, media: 100, tv: 100, other: 100,
+  boiler: 120, battery: 120, inverter: 100, tv: 100, other: 100,
+  // A speaker or media player is the 30 cm cabinet 2.5D draws (`deviceSolidTop`): the icon sits on top of it.
+  speaker: 30, media: 30,
   // Floor or desk.
   heater: 60, computer: 75, server: 60, ups: 30, printer: 90, car: 150, person: 170, vacuum: 10,
 };
@@ -129,4 +131,14 @@ export function unlinkedHeight(u: Unlinked): number {
 export function deviceZ(d: Device): number {
   const t = (d as { type?: unknown } | null)?.type;
   return own(d, "z") ?? (has(DEVICE_Z, t) ? DEVICE_Z[t] : FALLBACK);
+}
+
+/** `z` as the user set it, or `fallback` when it is missing or invalid. For the devices whose solid has a default of its own (a radiator, a free-standing TV). */
+export const deviceZOr = (d: Device, fallback: number): number => own(d, "z") ?? fallback;
+
+/** A radiator hangs 10 cm off the floor, and its top stays this far under the window sill (a radiator under a window). */
+export const RADIATOR_LIFT = 10, RADIATOR_SILL_MARGIN = 20;
+/** Bottom and top of a radiator box. `z` on the device is its top; the default is the window sill less a margin, 70 cm. */
+export function radiatorSpan(d: Device): { bottom: number; top: number } {
+  return { bottom: RADIATOR_LIFT, top: deviceZOr(d, DOOR_DEFAULTS.window.sill - RADIATOR_SILL_MARGIN) };
 }

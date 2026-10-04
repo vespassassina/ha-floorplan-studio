@@ -1,11 +1,11 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";
-import { DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, DOOR_DEFAULTS, FURNITURE_HEIGHTS, MAX_HEIGHT, UNLINKED_HEIGHTS, wallHeight, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity } from "../core";
+import { DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, DOOR_DEFAULTS, FURNITURE_HEIGHTS, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
-import { movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
+import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 import { GUIDE_STEPS } from "./guide";
 import "./combo";
@@ -68,6 +68,8 @@ export interface PanelCtx {
   /** S10.2: attaches `entity` via `apply` and pulls its device icon off every floor, one undo step; `label` names
    *  the door/device/item it was attached to, for the status line, and `keepDeviceId` spares that device's own icon. */
   attachEntity(entity: string, apply: (f: Floor) => void, label: string, keepDeviceId?: string): void;
+  /** S11.2: "Attach to room" for the device at `devIndex`: its entity joins the room's list and the icon goes, one undo step, status line told. */
+  attachToRoom(devIndex: number): void;
   /** Redraw without an edit. */
   refresh(): void;
   /** S7.2: opens the Help panel, the same as the toolbar's Help button. */
@@ -532,6 +534,7 @@ function roomPanel(c: PanelCtx, i: number) {
     ${text("area id", "ra", r.area, (v) => c.commit((f) => { f.rooms[i].area = v; }), !!r.area, r.kind === "zone" ? "Maps this zone to a Home Assistant area." : undefined)}
     ${r.area ? nothing : entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}
     ${c.st.ha ? heading("Home Assistant") : nothing}
+    ${roomSensors(c, i)}
     ${haBox(c, i)}
     ${toPlace ? heading("Links") : nothing}
     ${placeAreaButton(c, i)}
@@ -541,12 +544,30 @@ function roomPanel(c: PanelCtx, i: number) {
       if (room.kind === v) return;
       room.kind = v as typeof r.kind;
       if (v === "zone") room.wk = room.pts.map((): WallKind => "boundary"); // a zone has no wall edge
+      // A kind `roomAt` cannot pick shows no sensors and has no Sensors section to remove them: drop them in this same step.
+      if (!ROOM_OWNS[room.kind]) for (const [field] of ROOM_SENSORS) delete room[field];
     }))}
     ${heightField(c, "ceiling height (cm)", "rht", r.height, c.st.f.height ?? DEFAULT_FLOOR_HEIGHT, heightSetter(c, "rooms", i, "height"))}
     ${roomTurn(c, i)}
     ${paintControls(c, "rooms", i, "r", r)}`;
   // roomTurn's own Delete button stays next to Unsnap, not in a Danger section at the bottom — an earlier,
   // deliberate decision (see docs/DECISIONS.md and editor.spec.ts "a room's Delete button sits next to Unsnap").
+}
+
+/**
+ * S11.2: the room's temperature, humidity and motion sensors, three pickers built like a door's contact sensors
+ * (`multiAttachField`): a pick pulls a loose icon of that entity off the plan in the same undo step, a Remove button
+ * only detaches. Only a kind that `roomAt` can pick takes sensors (`ROOM_OWNS`): attached to a zone, structure or fill, nothing would show them.
+ */
+const ROOM_SENSORS: [RoomSensorField, string, string][] = [["temps", "rtemp", "temperature sensors"], ["humidity", "rhum", "humidity sensors"], ["motion", "rmot", "motion sensors"]];
+function roomSensors(c: PanelCtx, i: number) {
+  const r = c.st.f.rooms[i];
+  if (!ROOM_OWNS[r.kind]) return nothing;
+  return html`${heading("Sensors")}
+    ${ROOM_SENSORS.map(([field, id, label]) => {
+      const write = (f: Floor, next: string[]) => setRoomList(f.rooms[i], field, next);
+      return multiAttachField(c, id, label, r[field] ?? [], c.st.roomSensorChoices(i, field), (next) => c.commit((f) => write(f, next)), { apply: write, targetLabel: r.name || "the room" });
+    })}`;
 }
 
 /** S4.15/S8.1: one button, counting what Home Assistant has in the room's area that the plan can show and does not yet; it opens the Place popup. */
@@ -734,7 +755,7 @@ function devicePanel(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
   // Opus review of S8.9: areaDiffField renders nothing without c.moveArea, so a Links heading over just an
   // area-diff must not show unless moveArea is also there to fill it.
-  const hasLinks = d.type === "light" || !!(c.areaDiff?.(i) && c.moveArea);
+  const hasLinks = d.type === "light" || !!(c.areaDiff?.(i) && c.moveArea) || ROOM_SENSOR_TYPES.includes(d.type);
   const hasAutomations = !!(c.makeLight && c.st.canMakeLight(i)) || !!(c.controlsAutomation && d.type === "switch") || !!(c.scheduleAutomation && SCHEDULABLE.includes(d.type));
   return html`<strong>${d.name ?? d.id}</strong>
     ${hint("a" in d ? "Drag to move; it aligns to the wall." : "Drag to move.")}
@@ -752,6 +773,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${d.type === "radar" ? targetsField(c, i) : nothing}
     ${hasLinks ? heading("Links") : nothing}
     ${d.type === "light" ? boundField(c, i) : nothing}
+    ${attachToRoomField(c, i)}
     ${areaDiffField(c, i)}
     ${heading("Appearance")}
     ${heightField(c, "mount height (cm)", "vz", d.z, DEVICE_Z[d.type] ?? 100, heightSetter(c, "devices", i, "z"))}
@@ -770,6 +792,19 @@ function devicePanel(c: PanelCtx, i: number) {
  * type uses (`bound` for light, `trvs`/`tempSensors` for heater, `linked` for ac, `room` for person), in the same undo step, so the
  * layout stays valid and the panel never shows a field for the wrong type.
  */
+/** S11.2: a temp, humidity or motion device either already belongs to a room (shown as text) or may join the one it sits in. */
+const ROOM_SENSOR_TYPES: DeviceType[] = ["temp", "humidity", "motion"];
+function attachToRoomField(c: PanelCtx, i: number) {
+  if (!ROOM_SENSOR_TYPES.includes(c.st.f.devices[i].type)) return nothing;
+  const owner = c.st.roomOwning(i);
+  if (owner) return html`<p class="hint" id="vattached">Attached to ${owner}. Its readings show on the room.</p>`;
+  const a = c.st.roomAttach(i);
+  return html`<p>${a.ok
+    ? button("vattach", "Attach to room", () => c.attachToRoom(i), "", `Adds this sensor to ${c.st.f.rooms[a.room].name || "the room"} and removes the icon.`)
+    : html`<button class="btn" id="vattach" disabled title=${a.reason}>Attach to room</button>`}</p>
+    ${a.ok ? nothing : html`<p class="hint" id="vattach-why">${a.reason}</p>`}`;
+}
+
 function deviceTypeField(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
   const set = (t: string) => c.commit((f) => {

@@ -74,6 +74,15 @@ boxes, stairs become steps. The floor itself stays true to the plan, so
 rooms, icons and taps sit where they do in 2D; only what stands up is drawn
 up and to the right (a vertical oblique projection, seen from the south-west).
 
+Three devices also get a body in 2.5D, beside their icon (which stays the tap
+target): a **radiator** (a heater drawn as a bar) is a box 8 cm deep, from 10 cm
+up to 70 cm (just under a window sill), tinted orange while heating; a
+**speaker** or media player is a 20 x 20 x 30 cm cabinet at its point, with
+two round drivers that light while it plays; a **TV** is a flat panel 100 cm
+wide and 6 thick on the nearest wall within 150 cm (free-standing, facing you,
+when there is none), its screen lit while it is on. `z` on a device moves the
+radiator's top and the TV's bottom.
+
 In the toolbar a small `View` dropdown switches between `2D` and
 `2.5D` for as long as the card is on screen. It keeps your zoom and pan, and a
 reload goes back to `view:`. `view_switch: false` removes the dropdown and
@@ -234,6 +243,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
 | `#filter` Filter by type | no | a work aid for a crowded plan; the card has the Active list, grouped by type |
+| Room facts and device details panel | card only | the card's left panel (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
 
 Also the same in both: the floor switcher (chips and tabs), pan and zoom by
 pointer, the view remembered per browser, and Reset view clearing it. The
@@ -298,7 +308,7 @@ and resize, so it can never end up off-screen, including after the card
 itself is resized or the panel is collapsed then expanded again. On a card
 narrower than 480px the panel starts folded, so it does not cover a
 phone-width plan; from 480px up it starts open. (It is `min(200px, 45%)`
-wide at any size.) The card's width
+wide, `min(260px, 70%)` while a room is picked.) The card's width
 decides, and follows it when the card is resized, until you fold or unfold the
 list by hand. From then on your choice stays, for that card, in this browser.
 A position you only dragged it to does not count as a choice.
@@ -308,6 +318,36 @@ to the layout's source (its `layout_url`, or "inline" for a config
 two cards on the same dashboard — even two showing different floors of the
 same websocket layout — do not share one position, and an inline layout's
 autosave does not reset it.
+
+## Picking a room
+
+Tap a room, on its floor, its name, its readout or its furniture (not a device, a
+door or a stair), and the room is outlined with a dashed line. The Active panel opens at the left with a room section on top:
+
+- the name and a cross that clears the pick;
+- area in m², worked out from the room's corners;
+- temperature and humidity, the same mean the plan prints under the name;
+- motion, on or off, and since when;
+- the open doors and windows on the room's walls (an unlocked lock counts), and the lights that are on;
+- the room's devices, then the sensors the room owns that have no icon on the plan.
+
+A light, switch, plug or cover row toggles when you tap it and opens
+Home Assistant's more-info when you hold it, as the icons on the plan do. Any
+other row opens more-info. Below, the Active list is cut to the room's
+entities; **Show all** brings the rest back and keeps the room picked.
+
+Tap the room again, tap off any room, press Escape (with the pointer over the
+card or the card focused, as for the view keys) or press the cross to clear it.
+Changing floor clears it too. A tap on a device, a door or an appliance keeps its
+meaning and never picks a room. A double tap zooms and leaves the pick as it
+was. Under `kiosk: true` or `active_list: false`
+there is no panel, so a tap picks nothing. On a card under 480 px the panel is
+folded by default; it opens while a room is picked.
+
+Every row, here and in the Active list, has a chevron. It opens the device's
+details: manufacturer, model, firmware, area, entity id, state and when it last
+changed, from Home Assistant's device registry. A device with no registry entry
+shows the entity id, state and last changed. The chevron never toggles anything.
 
 ## View memory and reset
 
@@ -444,6 +484,11 @@ differently:
   is separate), in 2D and 2.5D (flat at floor level, under the walls), with
   names off, at night and in every theme. Zones and structures never get one.
   A group of motion sensors works the same through its own entity.
+  A room that lists its own `motion` sensors draws the same line, and it pulses
+  three times when the sensor trips, then holds steady while the sensor is on
+  and fades once it is off. A redraw (any state change on the plan) does not
+  replay the pulses. With reduced motion set on the device, it is the steady
+  line only. Zones, structures and fills never get one.
 - **Cover** — active (orange, on the Active list) only while open, opening or
   closing AND its HA `device_class` is `garage`, `gate` or `door`. Every other
   class (`curtain`, `blind`, `shade`, `shutter`, `awning`, `window`, `damper`),

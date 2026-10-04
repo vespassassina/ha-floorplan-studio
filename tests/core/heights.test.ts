@@ -144,5 +144,7 @@ describe("furnitureHeight, unlinkedHeight, deviceZ", () => {
     expect(DEVICE_Z.light).toBe(250);
     expect(DEVICE_Z.switch).toBe(120);
     expect(DEVICE_Z.plug).toBe(30);
+    expect(DEVICE_Z.speaker).toBe(30); // the top of the 30 cm cabinet 2.5D draws, not a hook on the wall
+    expect(DEVICE_Z.media).toBe(30);
   });
 });
