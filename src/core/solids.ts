@@ -1,12 +1,12 @@
 // The 2.5D solids: walls, furniture, appliances and stairs drawn as extruded shapes. Pure string builders; `renderFloor`
 // decides when to call them and in what order (one draw path, CLAUDE.md finding 8). Nothing here knows the OBLIQUE
 // numbers: they arrive in a `Proj`, so this file never imports render.ts.
-import { deviceZ, doorSpan, edgeHeight, floorHeight, furnitureHeight, openingSpan, unlinkedHeight, wallHeight } from "./heights";
+import { deviceZ, deviceZOr, doorSpan, edgeHeight, floorHeight, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight } from "./heights";
 import { esc, num, pts, tag } from "./fmt";
-import { stairSteps } from "./geometry";
+import { edgeKindAt, nearestEdge, stairSteps } from "./geometry";
 import { doorStateOf, type DoorState } from "./door-state";
 import type { StateOverlay } from "./render";
-import type { DoorKind, Floor, Furniture, FurnitureSymbol, Pt, StairDirection, Stairs, Unlinked } from "./schema";
+import type { Device, DeviceType, DoorKind, Floor, Furniture, FurnitureSymbol, Pt, StairDirection, Stairs, Unlinked } from "./schema";
 
 /** A device mount at or above this height gets a stem up from its icon (a ceiling light yes, a plug no). */
 export const STEM_MIN_Z = 100;
@@ -46,7 +46,10 @@ export function tallestDrawn(f: Floor): number {
   for (const m of f.furniture ?? []) up(furnitureHeight(m));
   for (const u of f.unlinked ?? []) up(unlinkedHeight(u));
   if ((f.stairs ?? []).length) up(floorHeight(f));
-  for (const d of f.devices ?? []) if (d.type !== "person" && !("a" in d)) { const z = deviceZ(d); if (z >= STEM_MIN_Z) up(z); }
+  for (const d of f.devices ?? []) {
+    if (d.type !== "person" && !("a" in d)) { const z = deviceZ(d); if (z >= STEM_MIN_Z) up(z); }
+    up(deviceSolidTop(d));
+  }
   return top;
 }
 
@@ -342,13 +345,13 @@ function turnAbout(p: Pt, deg: number, c: Pt): Pt {
  * screen frame, points toward the camera (south and a little west): ny > skew * nx. The rest are hidden by the lid and
  * the near faces, so they are not drawn. Returns the markup, or null for a base with no area or a height of zero.
  */
-function prism(base: Pt[], h: number, px: Proj): string | null {
+function prism(base: Pt[], h: number, px: Proj, z0 = 0): string | null {
   const dir = Math.sign(winding(px, base));
   if (!dir || !(h > 0) || !base.every(finite)) return null;
   const faces = base.map((a, i) => {
     const b = base[(i + 1) % base.length], s = px.scr(a), t = px.scr(b), len = Math.hypot(t[0] - s[0], t[1] - s[1]) || 1;
     const nx = (dir * (t[1] - s[1])) / len, ny = (dir * -(t[0] - s[0])) / len;
-    return ny > px.skew * nx + 1e-9 ? `<polygon class="bs${Math.abs(nx) > Math.abs(ny) ? " w" : ""}" points="${pts([a, b, px.lift(b, h), px.lift(a, h)])}"/>` : "";
+    return ny > px.skew * nx + 1e-9 ? `<polygon class="bs${Math.abs(nx) > Math.abs(ny) ? " w" : ""}" points="${pts(z0 ? [px.lift(a, z0), px.lift(b, z0), px.lift(b, h), px.lift(a, h)] : [a, b, px.lift(b, h), px.lift(a, h)])}"/>` : "";
   });
   return `${faces.join("")}<polygon class="bt" points="${pts(base.map((p) => px.lift(p, h)))}"/>`;
 }
@@ -392,6 +395,113 @@ export function unlinkedSolid(u: Unlinked, px: Proj): Solid | null {
   const base: Pt[] = [[u.x - r, u.y - r], [u.x + r, u.y - r], [u.x + r, u.y + r], [u.x - r, u.y + r]];
   const p = prism(base, unlinkedHeight(u), px);
   return p ? { key: nearest(px, base), svg: `<g class="obj">${p}</g>` } : null;
+}
+
+/**
+ * What each device type becomes in 2.5D, beside its icon (which stays the tap target and keeps its lift). "radiator" is the
+ * heater bar as a box under a window; "speaker" a small cabinet with two drivers (speaker and media_player); "tv" a flat
+ * panel on the nearest wall. One entry per DeviceType, so a new type fails the test that walks DEVICE_TYPES until someone
+ * decides (finding 17).
+ */
+export const DEVICE_SOLID: Record<DeviceType, "radiator" | "speaker" | "tv" | "none"> = {
+  light: "none", camera: "none", motion: "none", radar: "none", access_point: "none", ac: "none", speaker: "speaker", cover: "none",
+  switch: "none", plug: "none", contact: "none", vibration: "none", lock: "none", temp: "none", humidity: "none", climate: "none",
+  boiler: "none", battery: "none", inverter: "none", media: "speaker", tv: "tv", other: "none", heater: "radiator", computer: "none",
+  server: "none", ups: "none", printer: "none", car: "none", person: "none", vacuum: "none",
+};
+const kindOf = (d: Device) => (has(DEVICE_SOLID, (d as { type?: unknown } | null)?.type) ? DEVICE_SOLID[d.type] : "none");
+
+/** cm. A radiator is 8 deep. A speaker cabinet is 20 x 20 x 30, its drivers 7 across on a face 20 wide. */
+const RADIATOR_WALL_REACH = 25, RADIATOR_DEEP = 8, SPEAKER_SIDE = 20, SPEAKER_HEIGHT = 30, DRIVER_R = 3.5, DRIVER_Z = 15;
+/** cm. A TV panel is 100 wide, 6 thick, 60 tall, with a 3 cm bezel; it is looked for on a wall within 150 cm, and a free-standing one stands 30 cm up on its feet. */
+const TV_WIDTH = 100, TV_THICK = 6, TV_HEIGHT = 60, TV_BEZEL = 3, TV_WALL_REACH = 150, TV_STAND = 30;
+/** Half a wall's thickness (plan: 10 cm, 20 external, kept here because render.ts imports this file): where its room face lies. */
+const wallFace = (kind: string) => (kind === "external" ? 10 : kind === "wall" ? 5 : 0);
+
+/** The top of a device's solid above the floor, or 0 when it has none; `viewBoxFor` widens by it. */
+export function deviceSolidTop(d: Device): number {
+  const k = kindOf(d);
+  if (k === "radiator") return "a" in d ? radiatorSpan(d).top : 0;
+  if (k === "speaker") return SPEAKER_HEIGHT;
+  if (k === "tv") return deviceZOr(d, TV_STAND) + TV_HEIGHT;
+  return 0;
+}
+
+/** Plan-frame unit vector that points down the screen (toward the viewer): where a free-standing screen looks. */
+function downScreen(px: Proj): Pt {
+  const o = px.scr([0, 0]), e1 = px.scr([1, 0]), e2 = px.scr([0, 1]);
+  return [e1[1] - o[1], e2[1] - o[1]];
+}
+
+/**
+ * Where a thing that hangs on a wall sorts: a wall piece is keyed by its nearer end, so a long wall that ends far to the
+ * left would be drawn after a TV or a radiator on it and cover them. Such a thing takes the wall's own key, plus a hair.
+ */
+function onWallKey(f: Floor, hit: NonNullable<ReturnType<typeof nearestEdge>>, own: number, px: Proj): number {
+  const ring = hit.poly === "o" ? f.outline : /^r\d+$/.test(hit.poly) ? f.rooms?.[+hit.poly.slice(1)]?.pts : null;
+  const ends = hit.poly === "w" ? [f.walls?.[hit.i]?.a, f.walls?.[hit.i]?.b] : [ring?.[hit.i], ring?.[(hit.i + 1) % (ring?.length || 1)]];
+  return ends.every(finite) ? Math.max(own, nearest(px, ends as Pt[]) + 0.01) : own;
+}
+
+/** A flat panel `TV_THICK` thick on a wall of the room the TV is in, or standing free when no wall is near. */
+function tvSolid(f: Floor, d: Device, on: string, px: Proj): Solid | null {
+  if (!("x" in d) || ![d.x, d.y].every((v) => typeof v === "number" && Number.isFinite(v))) return null;
+  const p: Pt = [d.x, d.y], hit = nearestEdge(f, p, TV_WALL_REACH, { walls: true });
+  let c: Pt, n: Pt, off: number, z0: number;
+  if (hit) {
+    const side: Pt = [hit.u[1], -hit.u[0]], flip = (p[0] - hit.q[0]) * side[0] + (p[1] - hit.q[1]) * side[1] < 0;
+    c = hit.q; n = flip ? [-side[0], -side[1]] : side; off = wallFace(edgeKindAt(f, hit.poly, hit.i)); z0 = deviceZ(d);
+  } else {
+    n = downScreen(px); c = p; off = -TV_THICK / 2; z0 = deviceZOr(d, TV_STAND);
+  }
+  const u: Pt = [-n[1], n[0]], at = (t: number, o: number): Pt => [c[0] + u[0] * t + n[0] * o, c[1] + u[1] * t + n[1] * o];
+  const w = TV_WIDTH / 2, base = [at(-w, off), at(w, off), at(w, off + TV_THICK), at(-w, off + TV_THICK)], z1 = z0 + TV_HEIGHT;
+  const body = prism(base, z1, px, z0);
+  if (!body) return null;
+  const s = px.scr(c), t = px.scr([c[0] + n[0], c[1] + n[1]]), v: Pt = [t[0] - s[0], t[1] - s[1]];
+  const b = TV_BEZEL, screen = v[1] - px.skew * v[0] > 1e-9
+    ? `<polygon class="tv-screen" points="${pts([px.lift(at(-w + b, off + TV_THICK), z0 + b), px.lift(at(w - b, off + TV_THICK), z0 + b), px.lift(at(w - b, off + TV_THICK), z1 - b), px.lift(at(-w + b, off + TV_THICK), z1 - b)])}"/>`
+    : "";
+  return { key: hit ? onWallKey(f, hit, nearest(px, base), px) : nearest(px, base), svg: `<g class="obj dsolid tv ${on}">${body}${screen}</g>` };
+}
+
+/** The heater bar as a box: 8 cm deep along the bar, from 10 cm up to its top. */
+function radiatorSolid(f: Floor, d: Device, on: string, px: Proj): Solid | null {
+  if (!("a" in d) || !finite(d.a) || !finite(d.b)) return null;
+  const len = Math.hypot(d.b[0] - d.a[0], d.b[1] - d.a[1]), { bottom, top } = radiatorSpan(d);
+  if (!len || !(top > bottom)) return null;
+  const h = RADIATOR_DEEP / 2, nx = ((d.b[1] - d.a[1]) / len) * h, ny = (-(d.b[0] - d.a[0]) / len) * h;
+  const base: Pt[] = [[d.a[0] + nx, d.a[1] + ny], [d.b[0] + nx, d.b[1] + ny], [d.b[0] - nx, d.b[1] - ny], [d.a[0] - nx, d.a[1] - ny]];
+  const body = prism(base, top, px, bottom);
+  // It stands under a window, on a wall: sorted after that wall, if one is within its own depth of the bar's middle.
+  const host = nearestEdge(f, [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2], RADIATOR_WALL_REACH, { walls: true }), own = nearest(px, base);
+  return body ? { key: host ? onWallKey(f, host, own, px) : own, svg: `<g class="obj dsolid radiator ${on}">${body}</g>` } : null;
+}
+
+/** A small cabinet on the floor at the device's point, two round drivers on the face that looks most at the viewer. */
+function speakerSolid(d: Device, on: string, px: Proj): Solid | null {
+  if (!("x" in d) || ![d.x, d.y].every((v) => typeof v === "number" && Number.isFinite(v))) return null;
+  const r = SPEAKER_SIDE / 2, c: Pt = [d.x, d.y], rot = typeof d.rot === "number" && Number.isFinite(d.rot) ? d.rot : 0;
+  const base = ([[-r, -r], [r, -r], [r, r], [-r, r]] as Pt[]).map((q) => turnAbout([c[0] + q[0], c[1] + q[1]], rot, c));
+  const body = prism(base, SPEAKER_HEIGHT, px);
+  if (!body) return null;
+  // Of the four faces, the one whose normal (screen frame) looks most down the screen and a little west: the front.
+  const dir = Math.sign(winding(px, base));
+  const score = (i: number) => {
+    const s = px.scr(base[i]), t = px.scr(base[(i + 1) % 4]), len = Math.hypot(t[0] - s[0], t[1] - s[1]) || 1;
+    return (dir * -(t[0] - s[0])) / len - (px.skew * dir * (t[1] - s[1])) / len;
+  };
+  const front = [0, 1, 2, 3].reduce((best, i) => (score(i) > score(best) ? i : best), 0);
+  const a = base[front], b = base[(front + 1) % 4], u: Pt = [(b[0] - a[0]) / SPEAKER_SIDE, (b[1] - a[1]) / SPEAKER_SIDE];
+  const l = px.lift([0, 0], 1), m = `matrix(${num(u[0])} ${num(u[1])} ${num(l[0])} ${num(l[1])} ${num(a[0])} ${num(a[1])})`;
+  const drivers = [SPEAKER_SIDE / 4, (SPEAKER_SIDE * 3) / 4].map((t) => `<circle class="drv" transform="${m}" cx="${num(t)}" cy="${DRIVER_Z}" r="${DRIVER_R}"/>`).join("");
+  return { key: nearest(px, base), svg: `<g class="obj dsolid speaker${d.type === "media" ? " media" : ""} ${on}">${body}${drivers}</g>` };
+}
+
+/** The 2.5D solid of a device, or null when its type has none or its numbers cannot be drawn. `on` is the class the icon wears. */
+export function deviceSolid(f: Floor, d: Device, on: string, px: Proj): Solid | null {
+  const k = kindOf(d);
+  return k === "radiator" ? radiatorSolid(f, d, on, px) : k === "speaker" ? speakerSolid(d, on, px) : k === "tv" ? tvSolid(f, d, on, px) : null;
 }
 
 /**

@@ -10,7 +10,7 @@ import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { plugThreshold, wattsOf } from "./power";
 import { meanReading } from "./readings";
-import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
+import { STEM_MIN_Z, furnitureMode, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
 
@@ -264,6 +264,13 @@ export const FLOORPLAN_CSS = `
 .bs,.bt{stroke:var(--fp-furniture);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .bt{fill:var(--fp-box-top)} .bs{fill:var(--fp-box-side)} .bs.w{fill:var(--fp-box-side-w)}
 .trunk{stroke:var(--fp-furniture);stroke-width:8;stroke-linecap:round}
+.dsolid .bs,.dsolid .bt{stroke:color-mix(in srgb,var(--fp-body) 60%,var(--fp-on-light))}
+.dsolid .bt{fill:color-mix(in srgb,var(--fp-body) 70%,var(--fp-on-dark))} .dsolid .bs{fill:var(--fp-body)} .dsolid .bs.w{fill:color-mix(in srgb,var(--fp-body) 80%,var(--fp-on-light))}
+.dsolid.radiator{--fp-body:color-mix(in srgb,var(--fp-idle) 55%,var(--fp-bg))} .dsolid.radiator.on{--fp-body:color-mix(in srgb,var(--fp-heater) 75%,var(--fp-bg))}
+.dsolid.speaker,.dsolid.tv{--fp-body:color-mix(in srgb,var(--fp-on-light) 62%,var(--fp-furniture))}
+.drv{fill:color-mix(in srgb,var(--fp-on-light) 55%,var(--fp-bg));stroke:var(--fp-on-dark);stroke-opacity:.45;stroke-width:1;vector-effect:non-scaling-stroke}
+.dsolid.speaker.on .drv{fill:var(--fp-dev-speaker)} .dsolid.speaker.media.on .drv{fill:var(--fp-dev-media)}
+.tv-screen{fill:color-mix(in srgb,var(--fp-on-light) 92%,var(--fp-bg));stroke:none} .dsolid.tv.on .tv-screen{fill:color-mix(in srgb,var(--fp-dev-tv) 80%,var(--fp-on-dark))}
 .stem{stroke:var(--fp-idle);stroke-width:1;stroke-opacity:.7;vector-effect:non-scaling-stroke} .stem-top{fill:var(--fp-idle);fill-opacity:.7}
 .ws{fill:var(--fp-wall-side);stroke:var(--fp-wall-top);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 /* A wall face is lit like a solid: a fixed light from the upper left. Faces turned to it are lighter, faces turned away
@@ -986,6 +993,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       if (s) solids.push(s);
     });
     for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
+    f.devices.forEach((d, i) => {
+      if (o.filter && o.filter.length && !o.filter.includes(d.type) && !(o.selection?.t === "dev" && o.selection.i === i)) return;
+      const s = deviceSolid(f, d, classOf(d, o), px);
+      if (s) solids.push(s);
+    });
     for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px, resolveStairDirection(t, o.around)));
     // What lies below the floor (a stairwell) goes first: nothing standing on the floor is ever drawn under it.
     out.push(...solids.filter((s) => s.under).sort((a, b) => a.key - b.key).map((s) => s.svg));

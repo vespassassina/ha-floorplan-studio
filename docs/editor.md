@@ -118,7 +118,10 @@ Junk is refused with the reason.
   from 90, an opening 210 from 0).
 - **Furniture** and **unlinked appliance** — height (by symbol or type).
 - **Device** — mount height, where the real object hangs (by type). A stem to
-  it shows in 2.5D from 100 cm up.
+  it shows in 2.5D from 100 cm up. A heater bar is drawn as a box whose top is
+  this height (default 70 cm, under a window sill); a TV panel's bottom is it
+  (default 100 cm; 30 cm when it stands free); a speaker's cabinet is a fixed
+  20 x 20 x 30 cm and ignores it.
 
 Stairs take the floor's height as their rise, and a structure line is flat.
 A stair has a Direction select: Auto (shown with what it resolves to on this

@@ -94,6 +94,32 @@ a motion group is a motion device). Calls made in code, change any:
   second one. Reduced motion: the pulse is off, the steady edge stays. Zones,
   structures and unnamed fills draw none.
 
+## 2026-10-04: 2.5D gives radiators, speakers and TVs a body
+
+Diego: "radiators ... add them some height ... under the windows. for sonos and
+multimedia players use a speaker 3d, for tvs add a tv that goes against the wall".
+`DEVICE_SOLID` (solids.ts) lists every `DeviceType`: heater with a bar is a
+"radiator", `speaker` and `media` a "speaker", `tv` a "tv", the rest none. All are
+drawn by `renderFloor` after the furniture, only when `view` is 2.5d; 2D bytes are
+unchanged. Icons keep their lift, stem and tap.
+- Radiator: box 8 cm deep along the bar, from 10 cm up to `z` (device `z`, already
+  validated; default 70 = window sill 90 less 20). Tinted `--fp-heater` while
+  heating, idle grey otherwise. A heater given as a point, not a bar, has no box.
+- Speaker: 20 x 20 x 30 cm at the floor point, turned by `rot`. Two driver marks
+  go on the face that looks most at the viewer (not a fixed front, so a turned
+  plan still shows them). Lit with `--fp-dev-speaker` (`--fp-dev-media` for media)
+  while playing. `z` is ignored: the icon hangs where `z` says, the cabinet stands.
+- TV: panel 100 x 6 x 60 cm, bottom at `z` (100 by default). It sits on the nearest
+  room edge, outline edge or free wall within 150 cm, flush with the wall's room
+  face (5 cm off the line for a wall, 10 external, 0 for none/fence), centred on the
+  TV's projection onto it, on the TV's side. The screen is drawn only when the
+  face looks toward the viewer (a TV on a south wall shows its back). No wall near:
+  free-standing at its point, facing down the screen, bottom 30 cm (or `z`).
+- A thing on a wall sorts after that wall (a wall is keyed by its nearer end and
+  would otherwise cover a TV far along it).
+- Colours come from existing tokens by `color-mix`; no new theme token. No schema
+  change: `height` is not allowed on a device, only `z`, which exists.
+
 ## 2026-10-04: a lamp's aura is clipped to the smallest room that holds it
 
 Diego: "clip the light cones to the room they are in". The aura is a 150 cm
