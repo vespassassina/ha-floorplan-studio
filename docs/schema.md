@@ -28,12 +28,20 @@ Most extra colours a layout keeps in `palette`.
 export const MAX_PALETTE = 24;
 ```
 
-## Room
+## MAX_ROOM_SENSORS
 
-`area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows.
+Most temperature, humidity or motion sensors one room may list.
 
 ```ts
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number }
+export const MAX_ROOM_SENSORS = 20;
+```
+
+## Room
+
+`area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows.  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each.
+
+```ts
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[] }
 ```
 
 ## EdgeKind
@@ -175,6 +183,14 @@ S7.11: a raster data URL and nothing else. SVG is left out (it is a document), a
 
 ```ts
 export const TRACE_SRC = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]*={0,2}$/;
+```
+
+## MOTION_TYPES
+
+The types that mean "something moved here": the room's motion border, the icon fade and the card's fade timer all read this one list. A plain occupancy or presence sensor is typed `motion` (ha.ts), so it is in. `person` is not: it says who is home, not that a room is in use.
+
+```ts
+export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];
 ```
 
 ## UNLINKED_TYPES

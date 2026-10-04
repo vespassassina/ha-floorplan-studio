@@ -229,6 +229,11 @@ export const FLOORPLAN_CSS = `
    the radar colour), for as long as the sensor is on. renderFloor masks the wide stroke down to the line; the editor's
    .room{pointer-events:all} does not touch it, being a different class, and a class rule beats the attribute (finding 18). */
 .motion-perimeter{fill:none;stroke:var(--fp-dev-motion);stroke-linejoin:round;pointer-events:none;opacity:var(--fp-fade,1)} .motion-perimeter.radar{stroke:var(--fp-dev-radar)}
+/* S11.1: a room's own motion sensor is on: the same border, pulsing while it is on. Off, it is the steady edge fading with --fp-fade.
+   Reduced motion: no pulse, the steady edge only. */
+.motion-perimeter.motion-pulse{animation:fp-motion-pulse 1.4s ease-in-out infinite}
+@keyframes fp-motion-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.motion-perimeter.motion-pulse{animation:none}}
 /* .sel is one class (0,1,0); .room.on is two (0,2,0) and would always outrank it on specificity, so a selected
    room that is also on would stop showing its ink selection outline. This three-class override (0,3,0) wins
    regardless of source order and keeps selection on top (Opus review). */
@@ -691,13 +696,18 @@ function ringGap(p: Pt, ring: Pt[]): number {
   return best;
 }
 
+/** 0..1 from `fade` seconds (default 300) since `lastChanged`; 1 at that moment, 0 once they have passed. Unreadable time: just changed. */
+function fadeSince(lastChanged: string, fade: number, now: number): number {
+  const t = Date.parse(lastChanged), age = Number.isNaN(t) ? 0 : now - t;
+  return Math.max(0, Math.min(1, 1 - age / (fade * 1000)));
+}
+
 /** 0..1, how red a motion icon still is: 1 at the moment of motion, 0 once `fade` seconds (default 300) have passed since the sensor was last on. Fade 0 turns the fade off. */
 function motionFade(d: Device, o: RenderOpts, now: number): number {
   const s = o.state?.[d.entity];
   if (!s || d.type !== "motion") return 0; // a radar's icon does not fade, so neither does its border
-  const fade = o.fade ?? 300, t = Date.parse(s.last_changed);
-  const age = Number.isNaN(t) ? 0 : now - t; // unreadable time: treat as just changed
-  return fade > 0 ? Math.max(0, Math.min(1, 1 - age / (fade * 1000))) : classOf(d, o) === "on" ? 1 : 0;
+  const fade = o.fade ?? 300;
+  return fade > 0 ? fadeSince(s.last_changed, fade, now) : classOf(d, o) === "on" ? 1 : 0;
 }
 
 /**
@@ -708,14 +718,14 @@ function motionFade(d: Device, o: RenderOpts, now: number): number {
  * a hash of the geometry (like the opening mask) so two cards drawing one floor mint the same id. Colour and
  * pointer-events come from the class (findings 9, 18); `radar` takes the radar colour.
  */
-function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean, strength: number): string {
+function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean, strength: number, pulse = false): string {
   const reach = Math.max(...ring.map((a, j) => wallWidthAt(f, a, ring[(j + 1) % ring.length]))) + WALL_HALO_EXTRA;
   const hide = reach + 2 * MOTION_GAP, band = hide + 2 * MOTION_LINE;
   const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1]);
   const x = Math.min(...xs) - band, y = Math.min(...ys) - band;
   const id = `fp-mp-${tag(`${pts(ring)}|${hide}`)}`, points = pts(ring);
   const mask = `<mask id="${id}" maskUnits="userSpaceOnUse" x="${num(x)}" y="${num(y)}" width="${num(Math.max(...xs) + band - x)}" height="${num(Math.max(...ys) + band - y)}"><polygon points="${points}" fill="white"/><polygon points="${points}" fill="none" stroke="black" stroke-width="${num(hide)}" stroke-linejoin="round"/></mask>`;
-  return `${mask}<polygon class="motion-perimeter${radar ? " radar" : ""}" data-m="${i}" mask="url(#${id})" stroke-width="${num(band)}"${strength < 1 ? ` style="--fp-fade:${num(strength)}"` : ""} points="${points}"/>`;
+  return `${mask}<polygon class="motion-perimeter${radar ? " radar" : ""}${pulse ? " motion-pulse" : ""}" data-m="${i}" mask="url(#${id})" stroke-width="${num(band)}"${strength < 1 ? ` style="--fp-fade:${num(strength)}"` : ""} points="${points}"/>`;
 }
 
 export function renderFloor(f: Floor, o: RenderOpts): string {
@@ -725,6 +735,26 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const up = (x: number, y: number) => (turn ? ` transform="rotate(${num(-planDeg)} ${num(x)} ${num(y)})"` : "");
   const out: string[] = [];
   const now = o.now ?? Date.now();
+  // S11.1: sensors that belong to a room. Layout and state are untrusted: a list that is not a list is empty, a state is
+  // read only if it is the overlay's own, and a reading counts only if it is a plain finite number.
+  const listOf = (r: Floor["rooms"][number], k: "temps" | "humidity" | "motion"): string[] => (Array.isArray(r[k]) ? (r[k] as unknown[]).filter((e): e is string => typeof e === "string") : []);
+  const attached: Record<"temps" | "humidity" | "motion", Set<string>> = { temps: new Set(), humidity: new Set(), motion: new Set() };
+  for (const r of f.rooms) for (const k of ["temps", "humidity", "motion"] as const) for (const e of listOf(r, k)) attached[k].add(e);
+  const ATTACH_LIST: Partial<Record<DeviceType, "temps" | "humidity" | "motion">> = { temp: "temps", humidity: "humidity", motion: "motion" };
+  const isAttached = (d: Device) => { const k = ATTACH_LIST[d.type]; return !!k && attached[k].has(d.entity); };
+  /** An attached sensor draws no icon; the editor keeps it, so it can still be selected and moved (DECISIONS, S11.1). */
+  const iconHidden = (d: Device) => !o.editor && isAttached(d);
+  const stateOf = (e: string) => (o.state && Object.prototype.hasOwnProperty.call(o.state, e) && typeof o.state[e]?.state === "string" ? o.state[e] : undefined);
+  /** Mean of the readable states, rounded to 0.1, with the first unit seen; "" when none is readable. */
+  const meanOf = (list: string[]): string => {
+    const rs = list.flatMap((e) => {
+      const s = stateOf(e), t = s?.state.trim() ?? "";
+      return s && /^-?\d+(\.\d+)?$/.test(t) && Number.isFinite(Number(t)) ? [{ n: Number(t), unit: typeof s.attributes?.unit_of_measurement === "string" ? s.attributes.unit_of_measurement : "" }] : [];
+    });
+    if (!rs.length) return "";
+    const unit = rs.find((r) => r.unit)?.unit;
+    return `${(Math.round((rs.reduce((n, r) => n + r.n, 0) / rs.length) * 10) / 10).toFixed(1)}${unit ? ` ${unit}` : ""}`;
+  };
   // 2.5D: the projection in the frame of the plan group. The screen-up lift is turned back by the plan's own turn, so
   // a rotated plan still lifts toward the top of the screen.
   const x25 = o.view === "2.5d";
@@ -902,7 +932,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // as the ring above, after the wall lines, so the 2.5D solids below still cover it.
   const triggered = new Map<number, { radar: boolean; on: boolean; v: number }>();
   f.devices.forEach((d, i) => {
-    if (!MOTION_TYPES.includes(d.type) || "a" in d) return;
+    if (!MOTION_TYPES.includes(d.type) || "a" in d || isAttached(d)) return; // an attached sensor lights its room through the room's own list, below
     const cls = classOf(d, o), on = cls === "on", v = on ? 1 : motionFade(d, o, now);
     if (v <= 0 || cls === "unavailable") return;
     const sel = o.selection?.t === "dev" && o.selection.i === i;
@@ -923,7 +953,27 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!t || (on && !t.on)) triggered.set(at, mine);
     else if (on === t.on) t.v = Math.max(t.v, v);
   });
-  for (const i of [...triggered.keys()].sort((a, b) => a - b)) { const t = triggered.get(i)!; out.push(motionPerimeter(f, rings[i]!, i, t.radar, t.on ? 1 : t.v)); }
+  // S11.1: a room's own `motion` list. On means 1 and pulses; off fades from last_changed like an icon does; unavailable
+  // or unknown says nothing. It joins the icon-made ring of the same room, so a room never draws two.
+  const pulsing = new Set<number>();
+  f.rooms.forEach((r, j) => {
+    const p = rings[j];
+    if (!p || r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name)) return;
+    let on = false, v = 0;
+    for (const e of listOf(r, "motion")) {
+      const s = stateOf(e);
+      if (!s) continue;
+      if (s.state === "on") on = true;
+      else if (s.state !== "unavailable" && s.state !== "unknown" && (o.fade ?? 300) > 0) v = Math.max(v, fadeSince(s.last_changed, o.fade ?? 300, now));
+    }
+    if (!on && v <= 0) return;
+    if (on) pulsing.add(j);
+    const t = triggered.get(j);
+    if (!t) triggered.set(j, { radar: false, on, v: on ? 1 : v });
+    else if (on && !t.on) triggered.set(j, { radar: false, on: true, v: 1 });
+    else if (on === t.on) t.v = Math.max(t.v, on ? 1 : v);
+  });
+  for (const i of [...triggered.keys()].sort((a, b) => a - b)) { const t = triggered.get(i)!; out.push(motionPerimeter(f, rings[i]!, i, t.radar, t.on ? 1 : t.v, pulsing.has(i))); }
 
   // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
   // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.
@@ -1001,7 +1051,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // the centroid, then 40k below, above, right and left of it, the first where no person lands on another icon's disc.
   const others: Pt[] = [];
   f.devices.forEach((d, i) => {
-    if ([...byRoom.values()].some((who) => who.includes(i))) return;
+    if ([...byRoom.values()].some((who) => who.includes(i)) || iconHidden(d)) return;
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (c.every(Number.isFinite)) others.push(iconAt(d, c));
   });
@@ -1018,6 +1068,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    if (iconHidden(d)) return;
     const c = centreOf(d, i);
     if (c.every(Number.isFinite)) disc(iconAt(d, c), 16 * k);
   });
@@ -1121,9 +1172,22 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       : `<text class="lbl" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" font-weight="600" opacity=".5">${esc(r.name)}</text>`);
   });
 
+  // S11.1: the readout of a room's own sensors, a small line under its name (or at its anchor when it has none). Placed like
+  // every other text, so it moves off a name or an icon; nothing readable draws nothing, never "NaN".
+  f.rooms.forEach((r, i) => {
+    if (!showText || r.kind === "zone" || r.kind === "fill") return;
+    const text = [meanOf(listOf(r, "temps")), meanOf(listOf(r, "humidity"))].filter(Boolean).join(" · ");
+    if (!text) return;
+    const lab = nameAt[i], base = lab?.at ?? centroid(r.pts), size = lab?.size ?? 0, vs = 10 * k;
+    if (!base.every(Number.isFinite)) return;
+    const [vx, vy] = place([screenOff(base, 0, 0.25 * size + k + 0.75 * vs), screenOff(base, 0, -0.75 * size - k - 0.25 * vs)], vs, text);
+    out.push(`<text class="val" data-rv="${i}" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
+  });
+
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    if (iconHidden(d)) return;
     const floorAt = centreOf(d, i);
     if (!floorAt.every(Number.isFinite)) return;
     // `c` is where the icon and all it carries are drawn; `floorAt` only the pin, the stem, the room test and a radar's targets.
