@@ -1,10 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.12.25
 
 - 2.5D walls read as solids. Each face is lit by which way it looks on screen (lit, plain, dim) with a darker foot and a thin lit top edge, and the cap on top is thinner than the flat wall (12 cm external, 7 cm inner, scaling with the tilt). Tilt 0 and 2D are unchanged. The default `walls` stays `cut`: `full` hides 137 cm (tilt 0.5) to 275 cm (tilt 1) of floor behind a front wall.
 - An open door or window is red in 2.5D too, on the face and the frame, in the card and the editor preview. A lock left unlocked or a vibrating door reads the same. Closed, unavailable or without a sensor it is not red. A cover left open on a plain door keeps its orange.
 - A closed door is a painted leaf (`--fp-door`) in 2.5D, in internal walls as well as outer ones; open, it is a red frame.
+- A cover left open on a plain door is red too in 2.5D and 2D, like a contact door. It was orange.
 - Motion border: it fades with the sensor icon (a sensor that just went off keeps a fading border while its icon is still red), counts a wall-mounted sensor for the nearest room, and the innermost room wins. Radar is a motion type everywhere: perimeter, Active list. One `MOTION_TYPES` list.
 
 ## 0.12.24

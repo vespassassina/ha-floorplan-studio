@@ -265,8 +265,8 @@ export const FLOORPLAN_CSS = `
 /* An opening that is open (a contact sensor on, a lock left unlocked) is red on the wall face as it is in 2D, an alarm the
    same; an open cover keeps its own orange. Unavailable and unknown are none of these. A closed door is a painted leaf. */
 .door-leaf{fill:var(--fp-door);fill-opacity:.85;stroke:var(--fp-on-light);stroke-opacity:.6;stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
-.opn{fill:var(--fp-open-door);fill-opacity:.3;stroke:var(--fp-open-door);stroke-width:2;stroke-linejoin:round;vector-effect:non-scaling-stroke} .opn.cover-open{fill:var(--fp-open);stroke:var(--fp-open)}
-.glass.open,.glass.alarm,.ws.sealed.open,.ws.sealed.alarm{fill:var(--fp-open-door);stroke:var(--fp-open-door)} .glass.open,.glass.alarm{fill-opacity:.55} .glass.cover-open,.ws.sealed.cover-open{fill:var(--fp-open);stroke:var(--fp-open)}
+.opn{fill:var(--fp-open-door);fill-opacity:.3;stroke:var(--fp-open-door);stroke-width:2;stroke-linejoin:round;vector-effect:non-scaling-stroke} .opn.cover-open{fill:var(--fp-open-door);stroke:var(--fp-open-door)}
+.glass.open,.glass.alarm,.ws.sealed.open,.ws.sealed.alarm{fill:var(--fp-open-door);stroke:var(--fp-open-door)} .glass.open,.glass.alarm{fill-opacity:.55} .glass.cover-open,.ws.sealed.cover-open{fill:var(--fp-open-door);stroke:var(--fp-open-door)}
 .e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none}
 /* A stair that goes down or both ways (stairs.ts): an arrow on its axis, and going down the steps darkened toward the low end.
    Both take no click (finding 18): the flight underneath is the target. --fp-night is the one dark veil every theme has. */
@@ -301,7 +301,7 @@ export const FLOORPLAN_CSS = `
    door that somehow carries both, .cover-open wins on every property it sets, including the dasharray it
    explicitly clears back to none. render.ts never sets .cover-open on a window or glass door at all — there
    cover is curtains, not a security state (Diego, 2026-09-28). */
-.door.open{stroke:var(--fp-open-door);stroke-dasharray:10 6} .door.cover-open{stroke:var(--fp-open);stroke-dasharray:none}
+.door.open{stroke:var(--fp-open-door);stroke-dasharray:10 6} .door.cover-open{stroke:var(--fp-open-door);stroke-dasharray:none}
 /* S8.9 finding 3: a door's own stroke is now as thin as the internal wall it sits on, so this invisible twin
    (drawn first, same data-d, at the old fixed 22 cm) keeps the click target exactly as wide as it always was. */
 .door-hit{stroke:transparent;pointer-events:stroke;cursor:move}

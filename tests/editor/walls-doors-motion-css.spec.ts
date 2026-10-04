@@ -52,8 +52,8 @@ test("doors: the closed leaf is painted, every open piece is red, and none takes
     }
     expect(r.winOpen, `${t}: an open window is not its shut colour`).not.toBe(r.winShut);
     expect(r.sealedOpen, `${t}: an open sealed panel is not its shut colour`).not.toBe(r.sealedShut);
-    expect(r.opnCover, `${t}: a cover left open keeps its orange`).not.toBe(r.opnOpen);
-    expect(r.winCover, `${t}: ditto on glass`).not.toBe(r.winOpen);
+    expect(r.opnCover, `${t}: a cover left open is red like an open door`).toBe(r.opnOpen);
+    expect(r.winCover, `${t}: ditto on glass`).toBe(r.winOpen);
     expect(r.pe.every((p) => p === "none"), `${t}: ${r.pe}`).toBe(true);
   }
 });

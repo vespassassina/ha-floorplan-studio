@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: a cover left open on a plain door is red; walls default stays `cut`
+
+Diego confirmed three calls on 0.12.25. `.door.cover-open`, `.opn.cover-open`
+and the glass and sealed cover-open rules now use `--fp-open-door`, not
+`--fp-open` (orange), so every open opening reads the same. Supersedes the S9.1
+"cover keeps orange". The `walls` default stays `cut` (`full` hides 137 cm of
+floor at tilt 0.5). Internal doors are painted leaves; open ones a red frame.
+
 ## 2026-10-04: 2.5D walls shaded, open doors red, motion border follows the icon
 
 Diego on 0.12.23: walls look like "2d + hat", open doors and windows should be
