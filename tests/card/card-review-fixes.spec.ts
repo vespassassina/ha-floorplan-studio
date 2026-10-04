@@ -113,6 +113,16 @@ test.describe("1: a tap on a room's name, readout or furniture picks the room", 
   });
 });
 
+test.describe("1, the other side: what is on top of a room and is not its text or furniture picks nothing", () => {
+  test("a device's pin in 2.5D (its icon is lifted away from it)", async ({ page }) => {
+    await boot(page, { config: { view: "2.5d", tilt: 0.5, rotation: 270 } });
+    const p = await centreOf(page, 'svg circle.stem-top[cx="650"][cy="200"]');
+    // Here the kitchen's label is what the mouse reaches (the pin lets events through), and it would pick the room.
+    await page.mouse.click(p.x, p.y);
+    expect(await picked(page)).toEqual([]);
+  });
+});
+
 test.describe("3: a double tap leaves the pick alone", () => {
   test("with a room picked, a double tap on another room or on the same room keeps it", async ({ page }) => {
     await boot(page);

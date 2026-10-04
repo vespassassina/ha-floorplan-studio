@@ -1476,7 +1476,7 @@ export class FloorplanStudioCard extends LitElement {
   /** S11.3: a tap that landed on no device, door or appliance. It picks the room under the finger: the first room polygon
    *  of everything stacked at that point (`elementsFromPoint`), so the room's name, its readout and its furniture count as
    *  its floor, on a turned plan and in 2.5D too. A zone or a structure lies over a room rather than being one, so it is
-   *  looked through. The same room again, anything else, or a hatched fill clears. Only with the panel on: kiosk and
+   *  looked through; a device's pin or stem is not (it is the device's, and a device never picks). The same room again, anything else, or a hatched fill clears. Only with the panel on: kiosk and
    *  `active_list: false` have nowhere to show a room. */
   private _tapRoom(e: PointerEvent): void {
     if (!this._activeListVisible()) return;
@@ -1484,14 +1484,23 @@ export class FloorplanStudioCard extends LitElement {
     const root = this.shadowRoot;
     // jsdom has no elementsFromPoint: the event's own target stands in, as it did before.
     const stack = root && typeof root.elementsFromPoint === "function" ? root.elementsFromPoint(e.clientX, e.clientY) : [e.target as Element | null];
+    // A device's pin lets pointer events through (`pointer-events:none`), so a room's label can sit on top of it in the
+    // hit stack. The pin is still the device's, not the room's: a tap on it picks nothing.
+    const onPin = [...(root?.querySelectorAll("circle.stem-top") ?? [])].some((c) => {
+      const b = c.getBoundingClientRect();
+      return e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom;
+    });
     let i = -1;
-    for (const n of stack) {
+    for (const n of onPin ? [] : stack) {
       const hit = n?.closest?.("polygon[data-r]");
-      if (!hit) continue;
-      const k = Number(hit.getAttribute("data-r")), kind = rooms[k]?.kind;
-      if (kind === "zone" || kind === "structure") continue;
-      i = k;
-      break;
+      if (hit) {
+        const k = Number(hit.getAttribute("data-r")), kind = rooms[k]?.kind;
+        if (kind === "zone" || kind === "structure") continue;
+        i = k;
+        break;
+      }
+      // A room's own text and its furniture are its floor. Anything else on top (a device's pin or stem, a wall) is its own thing: no pick.
+      if (!n?.closest?.("text.lbl, text.val, g.furn")) break;
     }
     const room = rooms[i];
     this._pickRoom(room && room.kind !== "fill" && this._picked() !== i ? i : null);
