@@ -13,6 +13,12 @@ Assistant every day.
 |---|---|---|
 | ![The card: the demo ground floor, two lights and the hall motion sensor on.](docs/img/card-overview.png) | ![The same card at phone width: the Active list starts folded.](docs/img/card-phone.png) | ![The editor with the demo house loaded.](docs/img/editor-overview.png) |
 
+A real house, on the card in 2.5D, three themes (room and device names blurred):
+
+| Home Assistant theme | Cyberpunk theme | Space theme, first floor |
+|---|---|---|
+| ![The card in 2.5D on a real ground floor, Home Assistant theme.](docs/img/card-house-ground-ha.png) | ![The same floor in the Cyberpunk theme.](docs/img/card-house-ground-cyberpunk.png) | ![The first floor in the Space theme.](docs/img/card-house-first-space.png) |
+
 ## What you get
 
 - An editor panel in HA: draw floors, rooms, walls, doors, windows, stairs,
