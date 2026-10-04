@@ -185,17 +185,20 @@ export class FloorplanStudioCard extends LitElement {
     .fp-dialog p { margin: 0 0 14px; font: 14px/1.3 system-ui, sans-serif; }
     .fp-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
     .fp-dialog-actions button { font: 13px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 6px 14px; cursor: pointer; }
-    /* S7.4: the zoom buttons are card chrome, the same colours as the floor chips, in the other top corner. */
-    /* .fp-viewonly: the View select alone when zoom is off. Not .fp-zoom, so "zoom: false shows no zoom chrome" holds. */
-    /* The toolbar wraps: on a narrow card (375 px) its ten controls take two rows, right-aligned, rather than running
-       off the left edge. The right-hand 8 px plus the floor chips' room on the left are what max-width leaves. */
+    /* S7.4: the view controls are card chrome, the same colours as the floor chips, in the other top corner.
+       Like the studio: a horizontal toolbar (.fp-zoom) for the look controls and a vertical stack (.fp-stack) for
+       zoom, fit, rotate and reset, just below it. .fp-viewonly is the toolbar when zoom is off, not .fp-zoom, so
+       "zoom: false shows no zoom chrome" holds. */
+    /* The toolbar wraps: on a narrow card (375 px) its controls take two rows, right-aligned, rather than running
+       off the left edge. The right-hand 8 px plus the floor chips' room on the left are what max-width leaves.
+       The stack's top is set in _positionToolbar, from where the toolbar ends. */
     .fp-zoom, .fp-viewonly { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 16px); }
-    .fp-zoom button, .fp-viewonly button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
-    .fp-zoom button:disabled, .fp-viewonly button:disabled { opacity: 0.45; cursor: default; }
-    /* The rotate pair and the zoom pair wrap as one each, so a narrow card never parts left from right. */
-    .fp-pair { display: flex; gap: 4px; }
+    .fp-stack { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-direction: column; gap: 4px; }
+    .fp-stack.fp-stack-row { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; left: 8px; }
+    .fp-zoom button, .fp-viewonly button, .fp-stack button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
+    .fp-zoom button:disabled, .fp-viewonly button:disabled, .fp-stack button:disabled { opacity: 0.45; cursor: default; }
     .fp-zoom button[aria-pressed="false"], .fp-viewonly button[aria-pressed="false"] { opacity: 0.6; }
-    .fp-zoom svg, .fp-viewonly svg { width: 14px; height: 14px; }
+    .fp-zoom svg, .fp-viewonly svg, .fp-stack svg { width: 14px; height: 14px; }
     /* While the plan turns it takes no taps: a tap would land on a device that is moving away from the finger.
        The star reaches the children that carry their own pointer-events (.room{pointer-events:all} in the editor's
        rules, .extra, .door-hit), which an inherited value on the svg alone would lose to. */
@@ -1280,11 +1283,23 @@ export class FloorplanStudioCard extends LitElement {
   private _positionToolbar(): void {
     const root = this.shadowRoot;
     const bar = root?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
-    if (!bar) return;
-    bar.style.top = "";
+    const stack = root?.querySelector<HTMLElement>(".fp-stack");
     const chips = root?.querySelector<HTMLElement>(".fp-floors");
-    if (!chips) return;
-    if (bar.getBoundingClientRect().left < chips.getBoundingClientRect().right + 6) bar.style.top = `${chips.offsetTop + chips.offsetHeight + 6}px`;
+    const belowChips = chips ? chips.offsetTop + chips.offsetHeight + 6 : 8;
+    if (bar) bar.style.top = "";
+    if (stack) { stack.style.top = ""; stack.classList.remove("fp-stack-row"); }
+    if (bar && chips && bar.getBoundingClientRect().left < chips.getBoundingClientRect().right + 6) bar.style.top = `${belowChips}px`;
+    if (!stack) return;
+    // The stack hangs under the toolbar, wherever the toolbar ended up; with no toolbar it keeps the CSS default.
+    if (bar) stack.style.top = `${bar.offsetTop + bar.offsetHeight + 4}px`;
+    // A card too short for the column (a ~200 px wide one, where the toolbar already takes most of the height):
+    // the stack lays out as a wrapping row under the chips and the toolbar moves below it. Zoom and rotate stay
+    // reachable; the toolbar's last row is what the card clips.
+    if (stack.offsetTop + stack.offsetHeight > this.clientHeight - 4) {
+      stack.classList.add("fp-stack-row");
+      stack.style.top = `${belowChips}px`;
+      if (bar) bar.style.top = `${stack.offsetTop + stack.offsetHeight + 4}px`;
+    }
   }
 
   /** Opus review findings 3/4: sets the panel's on-screen position directly (bypassing Lit's template, which does
@@ -1302,7 +1317,12 @@ export class FloorplanStudioCard extends LitElement {
       // cover the panel's fold button, so the default moves down to just below it.
       const bar = this.shadowRoot?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
       const below = bar ? bar.offsetTop + bar.offsetHeight + 8 : 0; // 44 px for a one-row bar at the top, the CSS default
-      panel.style.top = below > 44 ? `${below}px` : "";
+      let top = below > 44 ? below : 0;
+      // The stack is on the right, the list on the left: they meet only on a very narrow card. Then the list goes
+      // under the stack, as it goes under the toolbar.
+      const stack = this.shadowRoot?.querySelector<HTMLElement>(".fp-stack");
+      if (stack && panel.offsetLeft + panel.offsetWidth + 6 > stack.offsetLeft) top = Math.max(top, stack.offsetTop + stack.offsetHeight + 8);
+      panel.style.top = top ? `${top}px` : "";
       return;
     }
     const hostRect = this.getBoundingClientRect();
@@ -1382,7 +1402,7 @@ export class FloorplanStudioCard extends LitElement {
 
   /** S9.5: the floating panel of every active device across every floor (`activeDevices`/`groupActiveByType`,
    *  `src/core/active.ts` — the one place that decides "active", reused here rather than repeated). Card chrome,
-   *  positioned outside the `<svg>` like `_floorChips`/`_zoomButtons` (CLAUDE.md finding 8): nothing here is part
+   *  positioned outside the `<svg>` like `_floorChips`/`_viewStack` (CLAUDE.md finding 8): nothing here is part
    *  of the plan `renderFloor` draws, so it never steals a hit-test from a device or door under it. */
   private _activePanel() {
     if (!this._activeListVisible() || !this._layout) return null;
@@ -1490,7 +1510,7 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showZoomButtons ? this._zoomButtons(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-viewonly">${showViewSwitch ? this._viewControls(view) : null}${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
+    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"}>${this._viewControls(showZoomButtons ? this._planView() : view)}</div>` : null}${showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
   }
 
   /** The view on show: the dropdown's pick, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
@@ -1544,10 +1564,8 @@ export class FloorplanStudioCard extends LitElement {
   /** The two rotate buttons, next to the zoom buttons: a control of their own (`rotate_switch`), so a card with
    * `view_switch: false` still turns. */
   private _rotateButtons() {
-    return html`<span class="fp-pair">
-        <button type="button" aria-label="Rotate left" title="Rotate left" @click=${() => this._turnBy(-ROTATION_STEP)}>${this._icon(UI_ICONS.rotateLeft)}</button>
-        <button type="button" aria-label="Rotate right" title="Rotate right" @click=${() => this._turnBy(ROTATION_STEP)}>${this._icon(UI_ICONS.rotateRight)}</button>
-      </span>`;
+    return html`<button type="button" aria-label="Rotate left" title="Rotate left" @click=${() => this._turnBy(-ROTATION_STEP)}>${this._icon(UI_ICONS.rotateLeft)}</button>
+      <button type="button" aria-label="Rotate right" title="Rotate right" @click=${() => this._turnBy(ROTATION_STEP)}>${this._icon(UI_ICONS.rotateRight)}</button>`;
   }
 
   /** A toolbar icon: 24x24 path from the inlined set, drawn in the button's own colour. */
@@ -1734,23 +1752,20 @@ export class FloorplanStudioCard extends LitElement {
    * Diego field report, 0.12.14: "−" used to disable at `fit` itself, so a shed or a corner `viewBoxFor` did not
    * bound on had no way to come into view. It now disables only at `MIN_ZOOM` (`viewport.ts`), the same floor
    * `clamp` itself enforces, so the button and the drag/pinch gesture agree on how far out the card goes. */
-  private _zoomButtons(box: View, home: View, fit: View, withViewSwitch: boolean, withRotate: boolean) {
+  private _viewStack(box: View, home: View, fit: View, withViewSwitch: boolean, withRotate: boolean) {
     const atMin = box.w >= (fit.w / MIN_ZOOM) * (1 - 1e-6);
     const atHome = !this._zoomed();
     const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
     const pinned = !sameView(home, fit, fit);
-    // "Reset view" is the toolbar's own button (every view option back to the config); this one only fits.
+    // "Reset view" is the stack's own last button (every view option back to the config); Fit only fits.
     const resetLabel = pinned ? "Home view" : "Fit";
-    return html`<div class="fp-zoom">
-      ${withViewSwitch ? this._viewControls(this._planView()) : null}
-      ${withRotate ? this._rotateButtons() : null}
-      <span class="fp-pair">
-        <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
-        <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atMin} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
-      </span>
+    return html`<div class="fp-stack">
+      <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
+      <button type="button" aria-label="Zoom out" title="Zoom out" ?disabled=${atMin} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
       <button type="button" aria-label=${resetLabel} title=${resetLabel} ?disabled=${atHome} @click=${() => this._fitView()}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
       </button>
+      ${withRotate ? this._rotateButtons() : null}
       ${withViewSwitch || withRotate ? this._resetButton() : null}
     </div>`;
   }

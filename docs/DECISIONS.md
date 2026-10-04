@@ -2,6 +2,20 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: the card's view buttons are a vertical stack, like the studio's
+
+Diego: the rotate buttons are lost in the crowded top-right toolbar; "do them
+like in studio". The card now draws two groups: `.fp-zoom` (`.fp-viewonly`
+with zoom off), a wrapping toolbar for View, Tilt, Walls, Theme, Labels and
+Names, and `.fp-stack`, a column of 28 px buttons: zoom in, zoom out, fit,
+rotate left, rotate right, Reset view. Conditions are unchanged; zoom off
+leaves rotate and Reset in the stack. `_positionToolbar` puts the stack under
+the toolbar, wherever that sits, and the Active list clears the stack when
+they would meet. A card too short for the column (about 200 px wide, where
+the toolbar alone is 90 px of 144) lays the stack out as a row under the
+chips and moves the toolbar below it: zoom and rotate stay reachable, the
+toolbar's last row is clipped. Tests that looked for the zoom buttons inside
+`.fp-zoom` now look in `.fp-stack`. No editor change.
 ## 2026-10-04: a cover left open on a plain door is red; walls default stays `cut`
 
 Diego confirmed three calls on 0.12.25. `.door.cover-open`, `.opn.cover-open`
