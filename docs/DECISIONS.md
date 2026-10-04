@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: a speaker's icon sits on top of its cabinet (Opus review of Sprint 11, core)
+
+The 2.5D speaker is a 30 cm cabinet, but its icon still floated at 150 cm (speaker) or 100 cm (media), a hook
+on the wall above a box on the floor. Decided by the coordinator, **open to Diego's change**:
+
+- `DEVICE_Z.speaker` and `.media` are 30, the top of the cabinet (`SPEAKER_HEIGHT`). An explicit `z` on the device
+  still wins for the icon (the editor's mount height field shows 30 now).
+- Below `STEM_MIN_Z` an icon normally stays on the floor point. A speaker's is lifted anyway (`DEVICE_SOLID` says
+  "speaker"), so the icon rides the cabinet; no stem, as it stands on the box. 2D is unchanged.
+
 ## 2026-10-04: the room's motion border pulses three times per trip (Opus review of Sprint 11, core)
 
 Diego: "animate the motion highlight of a room when motion trips ... pulsing red border that fades out". The

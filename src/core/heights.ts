@@ -34,11 +34,13 @@ export const DEVICE_Z: Record<DeviceType, number> = {
   // Ceiling-mounted.
   light: 250, camera: 230, motion: 230, radar: 230, access_point: 230,
   // On the wall, up high.
-  ac: 220, speaker: 150, cover: 200,
+  ac: 220, cover: 200,
   // Wall fittings at hand height (a switch is 120 by habit in Europe, a plug sits low).
   switch: 120, plug: 30, contact: 120, vibration: 120, lock: 100, temp: 150, humidity: 150, climate: 150,
   // Plant on the wall or a shelf.
-  boiler: 120, battery: 120, inverter: 100, media: 100, tv: 100, other: 100,
+  boiler: 120, battery: 120, inverter: 100, tv: 100, other: 100,
+  // A speaker or media player is the 30 cm cabinet 2.5D draws (`deviceSolidTop`): the icon sits on top of it.
+  speaker: 30, media: 30,
   // Floor or desk.
   heater: 60, computer: 75, server: 60, ups: 30, printer: 90, car: 150, person: 170, vacuum: 10,
 };

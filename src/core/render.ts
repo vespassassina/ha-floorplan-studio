@@ -10,7 +10,7 @@ import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { plugThreshold, wattsOf } from "./power";
 import { meanReading } from "./readings";
-import { STEM_MIN_Z, furnitureMode, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
+import { DEVICE_SOLID, STEM_MIN_Z, furnitureMode, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, RoomKind, Stairs } from "./schema";
 
@@ -796,7 +796,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const iconAt = (d: Device, c: Pt): Pt => {
     if (!x25 || d.type === "person" || "a" in d) return c;
     const z = deviceZ(d);
-    return z >= STEM_MIN_Z ? px.lift(c, z) : c;
+    // A speaker's default is the top of its cabinet, 30 cm: below the stem threshold, but still lifted onto the box it stands on.
+    return z >= STEM_MIN_Z || (DEVICE_SOLID[d.type] === "speaker" && z > 0) ? px.lift(c, z) : c;
   };
   const showText = o.labels !== false; // false skips every <text> and leader below; placement still runs, so nothing else moves
   const solids: Solid[] = [];

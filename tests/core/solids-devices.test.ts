@@ -87,6 +87,19 @@ describe("2.5D device solids", () => {
       // South face (y 310), between 10 and 30 cm up: x inside the cabinet's width plus the lean.
       for (const [x, y] of c) { expect(y).toBeLessThan(310); expect(y).toBeGreaterThan(310 - 30 * R); expect(x).toBeGreaterThan(190); expect(x).toBeLessThan(210 + 30 * K * R); }
     });
+    // Opus review of Sprint 11 / Diego's coordinator: the icon sits on top of the cabinet (30 cm), not floating at 150 or 100.
+    it("its icon defaults to the top of the cabinet, 30 cm up, for speaker and media; an explicit z wins; 2D is unchanged", () => {
+      const iconAt = (html: string) => { const m = /<g data-x="0"[^>]*transform="translate\(([-\d.]+) ([-\d.]+)\)/.exec(html)!; return [+m[1] + 12, +m[2] + 12]; }; // the icon is 24 wide, its origin at the corner
+      for (const type of ["speaker", "media"]) {
+        const [x, y] = iconAt(deep(floor({ devices: [dev(type)] as never })));
+        expect(x, type).toBeCloseTo(300 + 30 * K * R, 1);
+        expect(y, type).toBeCloseTo(250 - 30 * R, 1);
+        const [hx, hy] = iconAt(deep(floor({ devices: [dev(type, { z: 150 })] as never })));
+        expect(hx, `${type} z 150`).toBeCloseTo(300 + 150 * K * R, 1);
+        expect(hy, `${type} z 150`).toBeCloseTo(250 - 150 * R, 1);
+        expect(iconAt(flat(floor({ devices: [dev(type)] as never }))), `${type} 2D`).toEqual([300, 250]);
+      }
+    });
     it("is playing on", () => {
       const st = { "x.speaker": { state: "playing", attributes: {}, last_changed: "2026-01-01T00:00:00Z" } };
       expect(solid(deep(floor({ devices: [dev("speaker")] as never }), { state: st }), "speaker")).toMatch(/^<g class="obj dsolid speaker on"/);

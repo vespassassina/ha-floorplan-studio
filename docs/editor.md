@@ -121,7 +121,8 @@ Junk is refused with the reason.
   it shows in 2.5D from 100 cm up. A heater bar is drawn as a box whose top is
   this height (default 70 cm, under a window sill); a TV panel's bottom is it
   (default 100 cm; 30 cm when it stands free); a speaker's cabinet is a fixed
-  20 x 20 x 30 cm and ignores it.
+  20 x 20 x 30 cm and ignores it, but its icon rides it: 30 cm (the top of the
+  cabinet) by default, or the height you set.
 
 Stairs take the floor's height as their rise, and a structure line is flat.
 A stair has a Direction select: Auto (shown with what it resolves to on this
