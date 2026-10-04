@@ -2,11 +2,12 @@ import { DEVICE_ICONS, FURNITURE } from "./icons";
 import { dist, edgeKindsNear, stairSteps } from "./geometry";
 import { stairMarks } from "./stair-marks";
 import { resolveStairDirection, type FloorsAround } from "./stairs";
-import { DEVICE_TYPES, MAX_TRACE_BYTES, TRACE_SRC } from "./schema";
+import { DEVICE_TYPES, MAX_TRACE_BYTES, MOTION_TYPES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
 import { esc, num, pts, tag } from "./fmt";
 import { coverActive } from "./cover";
+import { doorStateOf } from "./door-state";
 import { plugThreshold, wattsOf } from "./power";
 import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
@@ -227,7 +228,7 @@ export const FLOORPLAN_CSS = `
 /* A room with a triggered motion sensor in it: one thin line inside its walls, in the sensor's own colour (a radar in
    the radar colour), for as long as the sensor is on. renderFloor masks the wide stroke down to the line; the editor's
    .room{pointer-events:all} does not touch it, being a different class, and a class rule beats the attribute (finding 18). */
-.motion-perimeter{fill:none;stroke:var(--fp-dev-motion);stroke-linejoin:round;pointer-events:none} .motion-perimeter.radar{stroke:var(--fp-dev-radar)}
+.motion-perimeter{fill:none;stroke:var(--fp-dev-motion);stroke-linejoin:round;pointer-events:none;opacity:var(--fp-fade,1)} .motion-perimeter.radar{stroke:var(--fp-dev-radar)}
 /* .sel is one class (0,1,0); .room.on is two (0,2,0) and would always outrank it on specificity, so a selected
    room that is also on would stop showing its ink selection outline. This three-class override (0,3,0) wins
    regardless of source order and keeps selection on top (Opus review). */
@@ -248,14 +249,24 @@ export const FLOORPLAN_CSS = `
 .eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
 /* 2.5D solids take no clicks: a tap or a pick goes through to the floor-level shape under them, as in 2D. Furniture is the
    exception: its group is data-f, so a tap on the block reaches it as it reaches the flat symbol. */
-.ws,.glass,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk{pointer-events:none}
+.ws,.glass,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk,.wfoot,.wl,.door-leaf,.opn{pointer-events:none}
 .bs,.bt{stroke:var(--fp-furniture);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .bt{fill:var(--fp-box-top)} .bs{fill:var(--fp-box-side)} .bs.w{fill:var(--fp-box-side-w)}
 .trunk{stroke:var(--fp-furniture);stroke-width:8;stroke-linecap:round}
 .stem{stroke:var(--fp-idle);stroke-width:1;stroke-opacity:.7;vector-effect:non-scaling-stroke} .stem-top{fill:var(--fp-idle);fill-opacity:.7}
 .ws{fill:var(--fp-wall-side);stroke:var(--fp-wall-top);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+/* A wall face is lit like a solid: a fixed light from the upper left. Faces turned to it are lighter, faces turned away
+   darker, both by mixing the plain side with the theme's own light and dark text colours, so every theme and dark mode
+   keep their hue. The foot is a darker band where the wall meets the floor; the highlight is a thin line on the near edge of the cap. */
+.ws.lit{fill:color-mix(in srgb,var(--fp-wall-side) 80%,var(--fp-on-dark))} .ws.dim{fill:color-mix(in srgb,var(--fp-wall-side) 78%,var(--fp-on-light))}
+.wfoot{fill:var(--fp-on-light);fill-opacity:.16;stroke:none} .wl{stroke:var(--fp-on-dark);stroke-opacity:.55;stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .ws.fence{fill:var(--fp-wall-fence);fill-opacity:.4;stroke:var(--fp-wall-fence)} .ws.sealed{fill:var(--fp-sealed);stroke:var(--fp-sealed)}
 .glass{fill:var(--fp-window);fill-opacity:.35;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke} .glass.g-glass{fill:var(--fp-glass);stroke:var(--fp-glass)}
+/* An opening that is open (a contact sensor on, a lock left unlocked) is red on the wall face as it is in 2D, an alarm the
+   same; an open cover keeps its own orange. Unavailable and unknown are none of these. A closed door is a painted leaf. */
+.door-leaf{fill:var(--fp-door);fill-opacity:.85;stroke:var(--fp-on-light);stroke-opacity:.6;stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.opn{fill:var(--fp-open-door);fill-opacity:.3;stroke:var(--fp-open-door);stroke-width:2;stroke-linejoin:round;vector-effect:non-scaling-stroke} .opn.cover-open{fill:var(--fp-open);stroke:var(--fp-open)}
+.glass.open,.glass.alarm,.ws.sealed.open,.ws.sealed.alarm{fill:var(--fp-open-door);stroke:var(--fp-open-door)} .glass.open,.glass.alarm{fill-opacity:.55} .glass.cover-open,.ws.sealed.cover-open{fill:var(--fp-open);stroke:var(--fp-open)}
 .e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none}
 /* A stair that goes down or both ways (stairs.ts): an arrow on its axis, and going down the steps darkened toward the low end.
    Both take no click (finding 18): the flight underneath is the target. --fp-night is the one dark veil every theme has. */
@@ -666,6 +677,29 @@ const MOTION_GAP = 2;
 /** cm wide the motion line is drawn. */
 const MOTION_LINE = 2.5;
 
+/** cm a motion sensor may sit outside a room's outline and still count for it: half the thickest wall plus its halo, so one screwed into the wall line is the room's. */
+const MOTION_WALL_REACH = WALL_WIDTH_EXTERNAL / 2 + WALL_HALO_EXTRA;
+
+/** cm from `p` to the nearest edge of the ring. */
+function ringGap(p: Pt, ring: Pt[]): number {
+  let best = Infinity;
+  ring.forEach((a, j) => {
+    const b = ring[(j + 1) % ring.length], dx = b[0] - a[0], dy = b[1] - a[1], len2 = dx * dx + dy * dy;
+    const t = len2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2)) : 0;
+    best = Math.min(best, Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy)));
+  });
+  return best;
+}
+
+/** 0..1, how red a motion icon still is: 1 at the moment of motion, 0 once `fade` seconds (default 300) have passed since the sensor was last on. Fade 0 turns the fade off. */
+function motionFade(d: Device, o: RenderOpts, now: number): number {
+  const s = o.state?.[d.entity];
+  if (!s || d.type !== "motion") return 0; // a radar's icon does not fade, so neither does its border
+  const fade = o.fade ?? 300, t = Date.parse(s.last_changed);
+  const age = Number.isNaN(t) ? 0 : now - t; // unreadable time: treat as just changed
+  return fade > 0 ? Math.max(0, Math.min(1, 1 - age / (fade * 1000))) : classOf(d, o) === "on" ? 1 : 0;
+}
+
 /**
  * The room's motion perimeter: one solid line, `MOTION_LINE` wide, just inside the walls. It is the room's outline
  * stroked wide and masked to a band: white room shape (nothing outside the room shows, whatever the shape) minus a
@@ -674,14 +708,14 @@ const MOTION_LINE = 2.5;
  * a hash of the geometry (like the opening mask) so two cards drawing one floor mint the same id. Colour and
  * pointer-events come from the class (findings 9, 18); `radar` takes the radar colour.
  */
-function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean): string {
+function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean, strength: number): string {
   const reach = Math.max(...ring.map((a, j) => wallWidthAt(f, a, ring[(j + 1) % ring.length]))) + WALL_HALO_EXTRA;
   const hide = reach + 2 * MOTION_GAP, band = hide + 2 * MOTION_LINE;
   const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1]);
   const x = Math.min(...xs) - band, y = Math.min(...ys) - band;
   const id = `fp-mp-${tag(`${pts(ring)}|${hide}`)}`, points = pts(ring);
   const mask = `<mask id="${id}" maskUnits="userSpaceOnUse" x="${num(x)}" y="${num(y)}" width="${num(Math.max(...xs) + band - x)}" height="${num(Math.max(...ys) + band - y)}"><polygon points="${points}" fill="white"/><polygon points="${points}" fill="none" stroke="black" stroke-width="${num(hide)}" stroke-linejoin="round"/></mask>`;
-  return `${mask}<polygon class="motion-perimeter${radar ? " radar" : ""}" data-m="${i}" mask="url(#${id})" stroke-width="${num(band)}" points="${points}"/>`;
+  return `${mask}<polygon class="motion-perimeter${radar ? " radar" : ""}" data-m="${i}" mask="url(#${id})" stroke-width="${num(band)}"${strength < 1 ? ` style="--fp-fade:${num(strength)}"` : ""} points="${points}"/>`;
 }
 
 export function renderFloor(f: Floor, o: RenderOpts): string {
@@ -843,31 +877,41 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<polygon class="room on ring" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
   });
 
-  // A room with a triggered motion sensor (or radar) standing in it gets one thin line just inside its walls, for as
-  // long as the sensor is on. The sensor goes to the smallest room that holds it (a house in a garden lights the house),
-  // and the first one in array order that is on in a room names the colour. Same pass as the ring above, after the
-  // wall lines, so the 2.5D solids below still cover it.
-  const triggered = new Map<number, boolean>(); // room index -> the first sensor that is on there is a radar
+  // A room with a triggered motion sensor (or radar) in it gets one thin line just inside its walls, for as long as the
+  // sensor is on, and while a motion icon is still red from its fade (red icon and no border read as a bug, Diego
+  // 0.12.23; the border fades with the icon). The sensor goes to a room by its FLOOR point, never the lifted icon: the
+  // smallest room that holds it (a house in a garden lights the house); one screwed into the wall line goes to the
+  // nearest room. The first sensor that is on in a room names the colour, a fading one only lends strength. Same pass
+  // as the ring above, after the wall lines, so the 2.5D solids below still cover it.
+  const triggered = new Map<number, { radar: boolean; on: boolean; v: number }>();
   f.devices.forEach((d, i) => {
-    if ((d.type !== "motion" && d.type !== "radar") || "a" in d || classOf(d, o) !== "on") return;
+    if (!MOTION_TYPES.includes(d.type) || "a" in d) return;
+    const cls = classOf(d, o), on = cls === "on", v = on ? 1 : motionFade(d, o, now);
+    if (v <= 0 || cls === "unavailable") return;
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
     const c: Pt = [d.x, d.y];
     if (!c.every(Number.isFinite)) return;
-    let at = -1;
+    let at = -1, best = Infinity;
     f.rooms.forEach((r, j) => {
       const p = rings[j];
-      if (!p || r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name) || !inside(c, p)) return;
-      if (at < 0 || areas[j] < areas[at]) at = j;
+      if (!p || r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name)) return;
+      const gap = inside(c, p) ? 0 : ringGap(c, p);
+      if (gap > MOTION_WALL_REACH) return;
+      const rank = (gap === 0 ? 0 : 1e9) + areas[j] + gap; // inside beats near; then the smaller room
+      if (rank < best) { best = rank; at = j; }
     });
-    if (at >= 0 && !triggered.has(at)) triggered.set(at, d.type === "radar");
+    if (at < 0) return;
+    const t = triggered.get(at), mine = { radar: d.type === "radar", on, v };
+    if (!t || (on && !t.on)) triggered.set(at, mine);
+    else if (on === t.on) t.v = Math.max(t.v, v);
   });
-  for (const i of [...triggered.keys()].sort((a, b) => a - b)) out.push(motionPerimeter(f, rings[i]!, i, triggered.get(i)!));
+  for (const i of [...triggered.keys()].sort((a, b) => a - b)) { const t = triggered.get(i)!; out.push(motionPerimeter(f, rings[i]!, i, t.radar, t.on ? 1 : t.v)); }
 
   // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
   // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.
   if (x25) {
-    solids.push(...wallSolids(f, px, wallsModeOf(o.walls)));
+    solids.push(...wallSolids(f, px, wallsModeOf(o.walls), o.state));
     f.furniture.forEach((m, i) => {
       const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
       const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, entityOn(o, m.entity, plugs), sym.svg, px) : null;
@@ -1025,17 +1069,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S4.24: several contact sensors may be attached; the door reads open if any one does, and the same for an
     // attached smart lock left unlocked (Diego, 2026-09-28: an unlocked door or window is the same security
     // state as an open one, so it gets the same alert).
-    const open = (d.sensors ?? []).some((e) => o.state?.[e]?.state === "on") || (d.locks ?? []).some((e) => o.state?.[e]?.state === "unlocked");
-    const cover = d.cover ? o.state?.[d.cover] : undefined;
-    // Diego, 2026-09-28: on a window or glass door, `cover` is curtains/blinds (schema.ts's own doc comment) -
-    // open curtains are not a security state and must never colour the opening. On a plain door or a sealed
-    // opening, `cover` is a shutter or garage opener, which still is.
-    const coverIsCurtain = d.kind === "window" || d.kind === "glass";
+    // (doorStateOf, door-state.ts, also drives the 2.5D wall face.) Diego, 2026-09-28: on a window or glass door,
+    // `cover` is curtains/blinds - open curtains are not a security state and never colour the opening.
     // S10.3: a triggered vibration sensor gives the door the same red and the same pulsing alert line as an open
     // contact, but solid, not dashed - dashed keeps meaning "open" alone. Both at once: dashed (open wins the
     // dash, class order below puts .open after .alarm so its dasharray is the one asserted last), red, one line.
-    const vibrating = (d.vibration ?? []).some((e) => o.state?.[e]?.state === "on");
-    const cls = ["door", `door-${esc(String(d.kind))}`, vibrating ? "alarm" : "", open ? "open" : "", !coverIsCurtain && cover?.state === "open" ? "cover-open" : ""].filter(Boolean).join(" ");
+    const { open, alarm: vibrating, cover: coverOpen } = doorStateOf(d, o.state);
+    const cls = ["door", `door-${esc(String(d.kind))}`, vibrating ? "alarm" : "", open ? "open" : "", coverOpen ? "cover-open" : ""].filter(Boolean).join(" ");
     const sel = o.selection?.t === "door" && o.selection.i === i;
     // 2.5D: the wall is already cut open above, so the floor line is only a threshold, thin enough to see through the gap.
     // It keeps every class (open, alarm, cover-open) and its alert line, so a door's state still shows.
@@ -1078,11 +1118,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const s = o.state?.[d.entity];
     const styleParts: string[] = [];
     if (d.type === "motion" && s) {
-      const fade = o.fade ?? 300;
-      const t = Date.parse(s.last_changed);
-      const age = Number.isNaN(t) ? 0 : now - t; // unreadable time: treat as just changed
-      const v = fade > 0 ? Math.max(0, Math.min(1, 1 - age / (fade * 1000))) : cls === "on" ? 1 : 0;
-      styleParts.push(`--fp-fade:${num(v)}`);
+      styleParts.push(`--fp-fade:${num(motionFade(d, o, now))}`);
     }
     // S2.2: a lit lamp's own colour and brightness, read from its own state (not the bound switch's) and set as
     // custom properties the stylesheet consumes (`.dev.on path`), not literal fill/opacity attributes — so a

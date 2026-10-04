@@ -10,7 +10,7 @@ const dev = (type: DeviceType, entity: string, x: number, y: number): Device => 
 const sq = (x: number, y: number, w: number, h: number): Pt[] => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
 const room = (name: string, pts: Pt[], extra: Record<string, unknown> = {}) => ({ id: name, name, area: "", kind: "room", pts, wk: pts.map(() => "wall"), ...extra });
 const draw = (rooms: unknown[], devices: Device[], state: StateOverlay | undefined, extra: Record<string, unknown> = {}) =>
-  renderFloor({ ...ground, outline: [], rooms, devices, doors: [], walls: [], openings: [], furniture: [], stairs: [], extras: [], unlinked: [] } as unknown as typeof ground, { scale: 0.5, now: NOW, state, ...extra });
+  renderFloor({ ...ground, outline: [], rooms, devices, doors: [], walls: [], openings: [], furniture: [], stairs: [], extras: [], unlinked: [] } as unknown as typeof ground, { scale: 0.5, now: NOW, fade: 0 /* these tests are about on/off; the fade has tests/core/motion-types.test.ts */, state, ...extra });
 const rings = (html: string) => [...html.matchAll(/<polygon[^>]*class="motion-perimeter[^"]*"[^>]*>/g)].map((m) => m[0]);
 const L_SHAPE: Pt[] = [[0, 0], [400, 0], [400, 150], [150, 150], [150, 400], [0, 400]];
 
