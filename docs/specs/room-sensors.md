@@ -13,8 +13,11 @@ about it in the card's existing left panel, and lets you act on it.
 
 1. An attached sensor has no icon on the plan. The room shows its readout
    (temperature, humidity) as text under its name.
-2. Motion: a pulsing red border, then a steady red edge that fades as the
-   sensor goes quiet. Reduced motion: no pulse, edge only.
+2. Motion: a red border that pulses three times when motion trips, then a
+   steady red edge that fades as the sensor goes quiet. No endless blinking
+   while a sensor stays on. Reduced motion: no pulse, edge only. (Pulse count
+   decided by the coordinator on Diego's wording "a pulsing red border that
+   fades out", 2026-10-04; open to his change.)
 3. Room info goes in the left panel we already have (the Active list), not a
    new popup. It adds the room readouts and filters the entities to the room,
    rows you can act on.
@@ -47,7 +50,7 @@ checks arrays, strings, entity-id shape, count caps; never throws (finding 1).
 ## Acceptance criteria
 
 1. A room with `motion: ["binary_sensor.x"]` draws the red perimeter and one
-   pulse when the entity turns on, in the card and the editor preview, 2D and
+   three pulses when the entity turns on (a redraw does not replay them), in the card and the editor preview, 2D and
    2.5D; it fades after off like the icon fade does today.
 2. A room with `temps` and `humidity` shows the means under its name; a missing
    or `unavailable` state shows nothing, never `NaN`.

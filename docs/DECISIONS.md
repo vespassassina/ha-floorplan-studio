@@ -2,6 +2,22 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: the room's motion border pulses three times per trip (Opus review of Sprint 11, core)
+
+Diego: "animate the motion highlight of a room when motion trips ... pulsing red border that fades out". The
+coordinator took that as three pulses, then a steady edge, and **Diego may change it**; so may the count (3 pulses
+of 1.4 s, `MOTION_PULSES` and `MOTION_PULSE_S` in render.ts). Calls made in code, change any:
+
+- The S11.1 pulse was endless (`infinite`). It is now three, then the steady edge that holds while the sensor is on
+  and fades with `fade` after it. Reduced motion is unchanged: no pulse, edge only.
+- The card redraws the plan on every state update and a redraw restarts a CSS animation, so three pulses would have
+  replayed on every unrelated change. The ring carries the age of the trip, `--fp-pulse-age` (seconds since the
+  newest listed sensor that is on changed), and the stylesheet starts the animation that far in with a negative
+  `animation-delay`. A redraw mid-pulse carries on. Past 4.2 s the ring has no `.motion-pulse` class. An unreadable
+  `last_changed` pulses nothing (it could not be told from a fresh trip on every redraw). The render stays a pure
+  function of layout, state and `now`.
+- An icon-made ring (a loose motion icon) still does not pulse, as before.
+
 ## 2026-10-04: small fixes from the Sprint 11 review (card, core)
 
 - A mean reading takes only the readings in the first unit seen: 21 C and 70 F read "21.0 C", not "45.5 C". No

@@ -169,6 +169,9 @@ export const WALL_WIDTH_EXTERNAL = 20;
 const WALL_HALO_EXTRA = 2;
 
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
+/** A room's motion border pulses this many times, each this many seconds, when its sensor trips. */
+const MOTION_PULSES = 3, MOTION_PULSE_S = 1.4;
+
 export const FLOORPLAN_CSS = `
 :host,.fp{${BLUEPRINT_TOKENS}}
 /* Blueprint is the default: with no data-theme anywhere the plan is blueprint, whatever the OS or Home Assistant is doing (Diego's call, 2026-09-21;
@@ -232,9 +235,11 @@ export const FLOORPLAN_CSS = `
    the radar colour), for as long as the sensor is on. renderFloor masks the wide stroke down to the line; the editor's
    .room{pointer-events:all} does not touch it, being a different class, and a class rule beats the attribute (finding 18). */
 .motion-perimeter{fill:none;stroke:var(--fp-dev-motion);stroke-linejoin:round;pointer-events:none;opacity:var(--fp-fade,1)} .motion-perimeter.radar{stroke:var(--fp-dev-radar)}
-/* S11.1: a room's own motion sensor is on: the same border, pulsing while it is on. Off, it is the steady edge fading with --fp-fade.
-   Reduced motion: no pulse, the steady edge only. */
-.motion-perimeter.motion-pulse{animation:fp-motion-pulse 1.4s ease-in-out infinite}
+/* S11.1: a room's own motion sensor trips: the same border pulses ${MOTION_PULSES} times, then holds steady while the sensor is on, and fades with
+   --fp-fade once it is off. Never an endless blink. A redraw restarts a CSS animation, so renderFloor puts the trip's age in
+   --fp-pulse-age (and the class only while the pulses last) and the negative delay starts it that far in: a redraw in the
+   middle of the pulses carries on, it does not replay them. Reduced motion: no pulse, the steady edge only. */
+.motion-perimeter.motion-pulse{animation:fp-motion-pulse ${MOTION_PULSE_S}s ease-in-out ${MOTION_PULSES};animation-delay:calc(var(--fp-pulse-age,0s) * -1)}
 @keyframes fp-motion-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.motion-perimeter.motion-pulse{animation:none}}
 /* .sel is one class (0,1,0); .room.on is two (0,2,0) and would always outrank it on specificity, so a selected
@@ -750,14 +755,15 @@ function motionFade(d: Device, o: RenderOpts, now: number): number {
  * a hash of the geometry (like the opening mask) so two cards drawing one floor mint the same id. Colour and
  * pointer-events come from the class (findings 9, 18); `radar` takes the radar colour.
  */
-function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean, strength: number, pulse = false, as?: { cls: string; data: string }): string {
+function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean, strength: number, pulseAge: number | null = null, as?: { cls: string; data: string }): string {
   const reach = Math.max(...ring.map((a, j) => wallWidthAt(f, a, ring[(j + 1) % ring.length]))) + WALL_HALO_EXTRA;
   const hide = reach + 2 * MOTION_GAP, band = hide + 2 * MOTION_LINE;
   const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1]);
   const x = Math.min(...xs) - band, y = Math.min(...ys) - band;
   const id = `fp-mp-${tag(`${pts(ring)}|${hide}${as ? `|${as.cls}` : ""}`)}`, points = pts(ring); // S11.3: the picked-room line is the same band under its own class and its own mask id
   const mask = `<mask id="${id}" maskUnits="userSpaceOnUse" x="${num(x)}" y="${num(y)}" width="${num(Math.max(...xs) + band - x)}" height="${num(Math.max(...ys) + band - y)}"><polygon points="${points}" fill="white"/><polygon points="${points}" fill="none" stroke="black" stroke-width="${num(hide)}" stroke-linejoin="round"/></mask>`;
-  return `${mask}<polygon class="${as?.cls ?? "motion-perimeter"}${radar ? " radar" : ""}${pulse ? " motion-pulse" : ""}" ${as?.data ?? "data-m"}="${i}" mask="url(#${id})" stroke-width="${num(band)}"${strength < 1 ? ` style="--fp-fade:${num(strength)}"` : ""} points="${points}"/>`;
+  const style = [strength < 1 ? `--fp-fade:${num(strength)}` : "", pulseAge !== null ? `--fp-pulse-age:${num(pulseAge)}s` : ""].filter(Boolean).join(";");
+  return `${mask}<polygon class="${as?.cls ?? "motion-perimeter"}${radar ? " radar" : ""}${pulseAge !== null ? " motion-pulse" : ""}" ${as?.data ?? "data-m"}="${i}" mask="url(#${id})" stroke-width="${num(band)}"${style ? ` style="${style}"` : ""} points="${points}"/>`;
 }
 
 export function renderFloor(f: Floor, o: RenderOpts): string {
@@ -943,7 +949,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // drawn after the wall lines: a stroke on the room's own polygon sits under the wall halo and is not seen (finding 16).
   // No data-r: it is never a pick target.
   const pickedAt = typeof o.selectedRoom === "number" ? o.selectedRoom : -1, pickedRing = pickedAt >= 0 && f.rooms[pickedAt] ? ring(f.rooms[pickedAt]) : null;
-  if (pickedRing) out.push(motionPerimeter(f, pickedRing, pickedAt, false, 1, false, { cls: "room-picked", data: "data-picked" }));
+  if (pickedRing) out.push(motionPerimeter(f, pickedRing, pickedAt, false, 1, null, { cls: "room-picked", data: "data-picked" }));
 
   // A room with a triggered motion sensor (or radar) in it gets one thin line just inside its walls, for as long as the
   // sensor is on, and while a motion icon is still red from its fade (red icon and no border read as a bug, Diego
@@ -976,25 +982,27 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   });
   // S11.1: a room's own `motion` list. On means 1 and pulses; off fades from last_changed like an icon does; unavailable
   // or unknown says nothing. It joins the icon-made ring of the same room, so a room never draws two.
-  const pulsing = new Set<number>();
+  const pulsing = new Map<number, number>(); // room index to the age of its trip in seconds, only while the pulses last
   f.rooms.forEach((r, j) => {
     const p = rings[j];
     if (!p || !ROOM_OWNS[r.kind]) return;
-    let on = false, v = 0;
+    let on = false, v = 0, tripped = -Infinity;
     for (const e of listOf(r, "motion")) {
       const s = stateOf(e);
       if (!s) continue;
-      if (s.state === "on") on = true;
+      if (s.state === "on") { on = true; tripped = Math.max(tripped, Date.parse(s.last_changed)); }
       else if (s.state !== "unavailable" && s.state !== "unknown" && (o.fade ?? 300) > 0) v = Math.max(v, fadeSince(s.last_changed, o.fade ?? 300, now));
     }
     if (!on && v <= 0) return;
-    if (on) pulsing.add(j);
+    // The age is of the newest sensor that is on. An unreadable time pulses nothing: it could not be told from a fresh trip on every redraw.
+    const age = Math.max(0, (now - tripped) / 1000);
+    if (on && age < MOTION_PULSES * MOTION_PULSE_S) pulsing.set(j, Math.round(age * 100) / 100);
     const t = triggered.get(j);
     if (!t) triggered.set(j, { radar: false, on, v: on ? 1 : v });
     else if (on && !t.on) triggered.set(j, { radar: false, on: true, v: 1 });
     else if (on === t.on) t.v = Math.max(t.v, on ? 1 : v);
   });
-  for (const i of [...triggered.keys()].sort((a, b) => a - b)) { const t = triggered.get(i)!; out.push(motionPerimeter(f, rings[i]!, i, t.radar, t.on ? 1 : t.v, pulsing.has(i))); }
+  for (const i of [...triggered.keys()].sort((a, b) => a - b)) { const t = triggered.get(i)!; out.push(motionPerimeter(f, rings[i]!, i, t.radar, t.on ? 1 : t.v, pulsing.get(i) ?? null)); }
 
   // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
   // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.

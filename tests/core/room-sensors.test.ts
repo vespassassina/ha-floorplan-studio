@@ -138,9 +138,36 @@ describe("render: the room's own motion ring", () => {
     const html = draw([room({ motion: [evil, 7] }, evil)], [], { [evil]: st("on") });
     expect(html).not.toContain("<script>");
   });
-  it("the stylesheet pulses it, and holds it steady under reduced motion", () => {
-    expect(FLOORPLAN_CSS).toMatch(/\.motion-perimeter\.motion-pulse\{[^}]*animation:fp-motion-pulse/);
+  it("the stylesheet pulses it three times, not for ever, starting part-way in by its own age, and holds it steady under reduced motion", () => {
+    expect(FLOORPLAN_CSS).toMatch(/\.motion-perimeter\.motion-pulse\{[^}]*animation:fp-motion-pulse 1\.4s ease-in-out 3\b/);
+    expect(FLOORPLAN_CSS).not.toMatch(/\.motion-perimeter\.motion-pulse\{[^}]*infinite/);
+    expect(FLOORPLAN_CSS).toMatch(/\.motion-perimeter\.motion-pulse\{[^}]*animation-delay:calc\(var\(--fp-pulse-age,0s\)\s*\*\s*-1\)/);
     expect(FLOORPLAN_CSS).toMatch(/@media \(prefers-reduced-motion:reduce\)\{[^}]*\.motion-pulse\{animation:none\}/);
+  });
+  describe("the pulses play once per trip, not once per redraw (Diego's pulse, decided by the coordinator)", () => {
+    // The card redraws on every state update and a redraw restarts a CSS animation. So the ring carries its own age and
+    // the stylesheet starts the animation that far in: a redraw 2 s after the trip continues at 2 s, and past the last
+    // pulse (3 x 1.4 s) the ring has no pulse class at all, only the steady edge.
+    const trip = (secs: number) => rings(draw([r], [], { "binary_sensor.a": st("on", {}, new Date(NOW - secs * 1000).toISOString()) }, { fade: 300 }))[0];
+    it("a fresh trip pulses and says how far in it is", () => {
+      expect(trip(0)).toContain("motion-pulse");
+      expect(trip(0)).toContain("--fp-pulse-age:0s");
+      expect(trip(2)).toContain("motion-pulse");
+      expect(trip(2)).toContain("--fp-pulse-age:2s");
+    });
+    it("after the third pulse it is the steady full-strength edge: no pulse class, no age", () => {
+      for (const secs of [4.3, 10, 3600]) {
+        expect(trip(secs), `${secs} s`).toBeTruthy();
+        expect(trip(secs), `${secs} s`).not.toContain("motion-pulse");
+        expect(trip(secs), `${secs} s`).not.toContain("--fp-pulse-age");
+        expect(trip(secs), `${secs} s`).not.toContain("--fp-fade"); // on means full strength
+      }
+    });
+    it("the age is the newest sensor that is on, and an unreadable time pulses nothing", () => {
+      const two = rings(draw([r], [], { "binary_sensor.a": st("on", {}, new Date(NOW - 60000).toISOString()), "binary_sensor.b": st("on", {}, new Date(NOW - 1000).toISOString()) }))[0];
+      expect(two).toContain("--fp-pulse-age:1s");
+      expect(rings(draw([r], [], { "binary_sensor.a": st("on", {}, "garbage") }))[0]).not.toContain("motion-pulse");
+    });
   });
   it("a layout without the new fields draws no readout and no pulse", () => {
     const html = draw([room()], [dev("temp", "sensor.a", 100, 100)], { "sensor.a": st("20") });

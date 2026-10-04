@@ -483,6 +483,11 @@ differently:
   is separate), in 2D and 2.5D (flat at floor level, under the walls), with
   names off, at night and in every theme. Zones and structures never get one.
   A group of motion sensors works the same through its own entity.
+  A room that lists its own `motion` sensors draws the same line, and it pulses
+  three times when the sensor trips, then holds steady while the sensor is on
+  and fades once it is off. A redraw (any state change on the plan) does not
+  replay the pulses. With reduced motion set on the device, it is the steady
+  line only. Zones, structures and fills never get one.
 - **Cover** — active (orange, on the Active list) only while open, opening or
   closing AND its HA `device_class` is `garage`, `gate` or `door`. Every other
   class (`curtain`, `blind`, `shade`, `shutter`, `awning`, `window`, `damper`),
