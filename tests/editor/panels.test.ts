@@ -14,6 +14,7 @@ function baseCtx(st: EditorState): PanelCtx {
     st,
     commit: () => {},
     attachEntity: () => {},
+    attachToRoom: () => {},
     select: () => {},
     paint: () => {},
     rotateTexture: () => {},

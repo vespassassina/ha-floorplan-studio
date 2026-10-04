@@ -2,6 +2,29 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: room sensor pickers and "Attach to room" (S11.2, editor)
+
+Diego: "instead of having them around, lets add them to a room, like the windows
+and doors can add contact sensors." Calls made in code, change any:
+
+- The room panel's three pickers are `multiAttachField`, the door's own widget,
+  so a pick pulls a loose icon of that entity off the plan in the same undo step
+  (S10.2 rule) and Remove only detaches. That is why the editor rarely holds both
+  an icon and a room entry; the "Attached to <room>" line covers a hand-edited
+  layout and an icon dragged back. No new draw path.
+- One room per sensor, like one door per contact sensor: a picker does not offer
+  an entity another room lists. HA entities never placed are offered too
+  (`unattachedHaChoices`). A full list (20) offers nothing. `setRoomList` is the
+  only writer: first occurrence wins, capped at 20, an empty list deletes the key,
+  so no pick can make a layout `validate` refuses.
+- `attachedEntities` (core/bind.ts) now counts a room's three lists, so an entity
+  on a room is "in use" and Add stops offering it as unplaced.
+- "Attach to room" goes to the smallest non-zone room holding the icon's point
+  (the aura-clip rule). It never writes to a zone, and it is disabled with the
+  reason when the point is outside every room, the entity is empty, already
+  listed, or the list is full.
+- Zones and structures get no Sensors section: nothing reads there.
+
 ## 2026-10-04: a room owns its temperature, humidity and motion sensors (S11.1, core)
 
 Diego: "instead of having them around, lets add them to a room, like the windows

@@ -1,5 +1,5 @@
-import { contentPoints, dist, movePoints, polys, stairSteps, stitch } from "../core";
-import type { Floor, Furniture, Pt, Stairs, WallKind } from "../core";
+import { MAX_ROOM_SENSORS, contentPoints, dist, movePoints, polys, stairSteps, stitch } from "../core";
+import type { Floor, Furniture, Pt, Room, Stairs, WallKind } from "../core";
 import { newId, type LooseRef, type PtRef } from "./state";
 
 // Floor edits that geometry.ts does not cover: loose wall, opening and extra ends.
@@ -247,4 +247,16 @@ export function scaleFurniture(m: Furniture, corner: Corner, to: Pt, opts: { shi
   const rad2 = (m.rot * Math.PI) / 180, cos2 = Math.cos(rad2), sin2 = Math.sin(rad2);
   const dWorld: Pt = [midLocal[0] * cos2 - midLocal[1] * sin2, midLocal[0] * sin2 + midLocal[1] * cos2];
   return { ...m, x: round2(m.x + dWorld[0]), y: round2(m.y + dWorld[1]), w: round2(w), h: round2(h) };
+}
+
+/** The three entity lists a room owns (S11.1). */
+export type RoomSensorField = "temps" | "humidity" | "motion";
+
+/**
+ * Writes a room's sensor list: first occurrence wins, at most `MAX_ROOM_SENSORS`, and an empty list deletes the key.
+ * One writer for the picker, so no combination of picks can make a layout `validate` refuses (finding 12).
+ */
+export function setRoomList(r: Room, field: RoomSensorField, next: string[]): void {
+  const list = [...new Set(next)].slice(0, MAX_ROOM_SENSORS);
+  if (list.length) r[field] = list; else delete r[field];
 }

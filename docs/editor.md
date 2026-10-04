@@ -189,6 +189,19 @@ room, one undo step, ready to drag to their real place.
    unplaced, so it can't be placed a second time next to what already reads
    it. Detach it again (Remove, or clear the cover) and it goes back to
    `Device`, not back onto the plan.
+   **Room sensors.** A room's panel has a *Sensors* section: temperature,
+   humidity and motion pickers, the same as a door's contact sensors. Each lists
+   only its own kind of entity (a `sensor` of class temperature or humidity; a
+   `binary_sensor` of class motion, occupancy or presence) and none another room
+   already owns, at most 20 per list. A pick is one undo step and also removes a
+   loose icon of that entity; Remove only detaches. A loose temperature,
+   humidity or motion icon that sits inside a room shows **Attach to room** in
+   its panel: one click adds its entity to the smallest room (never a zone)
+   that holds it and deletes the icon, one undo step. The button is disabled,
+   with the reason beside it, when the icon is outside every room, has no
+   entity, or is already on the room's list. A layout that holds both an icon
+   and the room entry (hand-edited) keeps drawing the icon in the editor, and
+   its panel says "Attached to <room>".
 7. **Save.** `File → Save` inside Home Assistant writes to `.storage`
    straight away. `File → Export` (either mode) downloads the JSON.
 
