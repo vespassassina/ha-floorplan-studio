@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- A lit lamp's glow is clipped to the room it hangs in. It no longer washes through a wall into the next room. A lamp in no room (a garden lamp) keeps the free circle, and a zone does not count as a room. In 2.5D the clip is lifted with the lamp. The camera cone is unchanged.
+
 ## 0.12.26
 
 - Card: the zoom, Fit, rotate and Reset view buttons are one vertical stack under the toolbar, as in the studio. The toolbar keeps View, Tilt, Walls, Theme, Labels and Device names, so the rotate buttons no longer get lost among them. Same conditions as before (`zoom`, `view_switch`, `rotate_switch`, `kiosk`). The Active list moves below the stack if they would meet, and on a card too short for the column the stack becomes a row.

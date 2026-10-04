@@ -154,10 +154,53 @@ describe("renderFloor", () => {
     expect(html).toMatch(/data-x="1"[^>]*class="dev dev-light unavailable"/);
   });
 
+  describe("aura clip: a lamp's light stays in its own room", () => {
+    const on = { "light.demo_kitchen": st("on") };
+    const clipOf = (html: string) => {
+      const id = /<circle class="aura"[^>]*clip-path="url\(#([^)]+)\)"/.exec(html)?.[1];
+      if (!id) return null;
+      return new RegExp(`<clipPath id="${id}"><polygon points="([^"]+)"/></clipPath>`).exec(html)?.[1] ?? null;
+    };
+
+    it("clips a lit lamp's aura to the polygon of the room it hangs in", () => {
+      // Kitchen light (650,200) is in the Kitchen room, [500,0] [800,0] [800,400] [500,400]; a 150 cm circle would spill into the Living room.
+      expect(clipOf(renderFloor(ground, { ...base, state: on }))).toBe("500,0 800,0 800,400 500,400");
+    });
+
+    it("leaves the aura unclipped for a lamp outside every room", () => {
+      const f = structuredClone(ground);
+      f.devices[1] = { ...f.devices[1], x: 2000, y: 2000 } as typeof f.devices[number];
+      const html = renderFloor(f, { ...base, state: on });
+      expect(html).toMatch(/<circle class="aura" cx="2000" cy="2000" r="150"\/>/);
+      expect(html).not.toContain("<clipPath");
+    });
+
+    it("clips to the smallest room that holds the lamp, not a bigger one around it", () => {
+      const f = structuredClone(ground);
+      f.rooms.push({ id: "closet", name: "Closet", area: 1, kind: "room", pts: [[600, 150], [700, 150], [700, 250], [600, 250]], wk: ["i", "i", "i", "i"] } as unknown as typeof f.rooms[number]);
+      expect(clipOf(renderFloor(f, { ...base, state: on }))).toBe("600,150 700,150 700,250 600,250");
+    });
+
+    it("2.5D: the clip is lifted with the lamp, so it still lines up with the aura it cuts", () => {
+      const html = renderFloor(ground, { ...base, view: "2.5d", state: on });
+      const c = /<circle class="aura" cx="([-\d.]+)" cy="([-\d.]+)"/.exec(html)!;
+      const t = /<clipPath id="fp-aura-[^"]+" transform="translate\(([-\d.]+) ([-\d.]+)\)">/.exec(html);
+      expect(+c[2], "the aura is lifted").toBeLessThan(200);
+      expect(t, "a lifted clip carries the lift").not.toBeNull();
+      expect([+t![1], +t![2]]).toEqual([+c[1] - 650, +c[2] - 200]);
+    });
+
+    it("ignores a zone: a lamp in the Reading corner clips to the room under it", () => {
+      const f = structuredClone(ground);
+      f.devices[0] = { ...f.devices[0], x: 400, y: 80 } as typeof f.devices[number];
+      expect(clipOf(renderFloor(f, { ...base, state: { "light.demo_living": st("on") } }))).toBe("0,0 500,0 500,400 0,400");
+    });
+  });
+
   describe("S2.8: a lit lamp casts an aura", () => {
     it("draws one circle.aura of radius 150 (S8.13: 1.5x the old 100) at a lit light's centre", () => {
       const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
-      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/);
     });
 
     it("draws no aura for a light that is off, unavailable or unknown", () => {
@@ -173,18 +216,18 @@ describe("renderFloor", () => {
 
     it("a light with rgb_color sets --fp-aura on its own circle through style", () => {
       const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0, 0] } }) } });
-      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150" style="--fp-aura:rgb\(255,0,0\)"\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")? style="--fp-aura:rgb\(255,0,0\)"\/>/);
     });
 
     it("a light with no rgb_color carries no --fp-aura, so the default CSS variable applies", () => {
       const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
-      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/);
       expect(html).not.toContain("--fp-aura");
     });
 
     it("a bound light's aura follows the switch's on state but keeps the default colour (no rgb_color on the light entity itself)", () => {
       const html = renderFloor(ground, { ...base, state: { "switch.demo_living_relay": st("on") } }); // light.demo_living itself missing from state
-      expect(html).toMatch(/<circle class="aura" cx="250" cy="200" r="150"\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="250" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/);
     });
 
     it("every aura is drawn before every device group, so overlapping auras never hide an icon", () => {
@@ -402,7 +445,7 @@ describe("S8.13: brighter alerts, wider light", () => {
   it("a lit lamp's aura is 1.5 times the old 100 cm, and a camera's cone keeps 100", () => {
     expect(LIGHT_REACH).toBe(150);
     expect(DEVICE_REACH).toBe(100);
-    expect(draw([dev("light", "light.l")], { "light.l": st("on") })).toMatch(/<circle class="aura" cx="400" cy="300" r="150"\/>/);
+    expect(draw([dev("light", "light.l")], { "light.l": st("on") })).toMatch(/<circle class="aura" cx="400" cy="300" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/);
   });
 
   it("a triggered motion or contact sensor carries a ping ring under its disc; idle, off, unavailable or another type do not", () => {

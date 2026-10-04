@@ -833,6 +833,23 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const c = iconAt(d, floorAt); // the aura hangs with the lamp, not on the floor under it
     const fill = lightFill(o.state?.[d.entity]);
     const style = fill ? ` style="--fp-aura:${fill}"` : "";
+    // The light stays in the room it hangs in: clipped to the smallest real room holding the lamp (a zone is an
+    // overlay, not a room; a lamp in no room, a garden lamp say, keeps the free circle). The clip is the floor polygon.
+    let own: Pt[] | null = null, ownArea = Infinity;
+    for (const r of f.rooms) {
+      const rg = ring(r);
+      if (!rg || r.kind === "zone" || !inside(floorAt, rg)) continue;
+      const a = Math.abs(rg.reduce((n, p, j) => n + p[0] * rg[(j + 1) % rg.length][1] - rg[(j + 1) % rg.length][0] * p[1], 0)) / 2;
+      if (a < ownArea) { own = rg; ownArea = a; }
+    }
+    if (own) {
+      // The aura hangs with the lamp (`c`), so its clip takes the same lift off the floor.
+      const lift = c[0] !== floorAt[0] || c[1] !== floorAt[1] ? ` transform="translate(${at([c[0] - floorAt[0], c[1] - floorAt[1]])})"` : "";
+      const cid = `fp-aura-${tag(`${pts(own)}${lift}`)}`;
+      out.push(`<clipPath id="${cid}"${lift}><polygon points="${pts(own)}"/></clipPath>`);
+      out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${LIGHT_REACH}" clip-path="url(#${cid})"${style}/>`);
+      return;
+    }
     out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${LIGHT_REACH}"${style}/>`);
   });
 

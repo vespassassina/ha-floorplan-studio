@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: a lamp's aura is clipped to the smallest room that holds it
+
+Diego: "clip the light cones to the room they are in". The aura is a 150 cm
+circle; it crossed walls. Now it is clipped to the floor polygon of the smallest
+non-zone room containing the lamp (a lamp in a closet inside a hall lights the
+closet). No room, no clip: the garden lamp keeps its circle. In 2.5D the clip
+carries the same lift as the aura. The camera cone is not clipped (not asked).
+
 ## 2026-10-04: the card's view buttons are a vertical stack, like the studio's
 
 Diego: the rotate buttons are lost in the crowded top-right toolbar; "do them
