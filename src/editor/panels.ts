@@ -544,6 +544,8 @@ function roomPanel(c: PanelCtx, i: number) {
       if (room.kind === v) return;
       room.kind = v as typeof r.kind;
       if (v === "zone") room.wk = room.pts.map((): WallKind => "boundary"); // a zone has no wall edge
+      // A kind `roomAt` cannot pick shows no sensors and has no Sensors section to remove them: drop them in this same step.
+      if (!ROOM_OWNS[room.kind]) for (const [field] of ROOM_SENSORS) delete room[field];
     }))}
     ${heightField(c, "ceiling height (cm)", "rht", r.height, c.st.f.height ?? DEFAULT_FLOOR_HEIGHT, heightSetter(c, "rooms", i, "height"))}
     ${roomTurn(c, i)}
