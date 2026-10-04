@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Card: the zoom, Fit, rotate and Reset view buttons are one vertical stack under the toolbar, as in the studio. The toolbar keeps View, Tilt, Walls, Theme, Labels and Device names, so the rotate buttons no longer get lost among them. Same conditions as before (`zoom`, `view_switch`, `rotate_switch`, `kiosk`). The Active list moves below the stack if they would meet, and on a card too short for the column the stack becomes a row.
+
 ## 0.12.25
 
 - 2.5D walls read as solids. Each face is lit by which way it looks on screen (lit, plain, dim) with a darker foot and a thin lit top edge, and the cap on top is thinner than the flat wall (12 cm external, 7 cm inner, scaling with the tilt). Tilt 0 and 2D are unchanged. The default `walls` stays `cut`: `full` hides 137 cm (tilt 0.5) to 275 cm (tilt 1) of floor behind a front wall.

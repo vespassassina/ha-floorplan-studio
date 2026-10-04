@@ -62,11 +62,14 @@ afterEach(() => {
 });
 
 describe("rotate buttons and the config rotation", () => {
-  it("has rotate left and right next to the zoom buttons, and Reset view and Theme in the same group", async () => {
+  it("has zoom, rotate and Reset view in one stack, and Theme in the toolbar", async () => {
     const el = await mount();
-    const group = btn(el, "Zoom in")!.closest(".fp-zoom");
-    for (const l of ["Rotate left", "Rotate right", "Reset view"]) expect(btn(el, l)!.closest(".fp-zoom"), l).toBe(group);
-    expect(themeSelect(el)!.closest(".fp-zoom")).toBe(group);
+    // Layout changed (card-stack): the buttons are the studio's vertical stack, the look controls stay in the toolbar.
+    const group = btn(el, "Zoom in")!.closest(".fp-stack");
+    expect(group).not.toBeNull();
+    for (const l of ["Zoom out", "Fit", "Rotate left", "Rotate right", "Reset view"]) expect(btn(el, l)!.closest(".fp-stack"), l).toBe(group);
+    expect(themeSelect(el)!.closest(".fp-zoom")).not.toBeNull();
+    expect(themeSelect(el)!.closest(".fp-stack")).toBeNull();
   });
 
   it("kiosk and rotate_switch: false hide them with the View select; view_switch: false hides the select but not the pair (Diego, 0.12.22)", async () => {
