@@ -64,6 +64,9 @@ choice is not an undo step, is not saved in the layout and is forgotten on
 reload. Fit to window in 2.5D leaves room for the walls rising above the plan;
 switching view does not refit by itself, so press it if the top is cut.
 
+The preview draws what the card draws: shaded wall faces, painted door leaves,
+open doors and windows red, and the motion border (the same `renderFloor`).
+
 View, Tilt is a slider, enabled only in 2.5D: left is top-down, right is
 side-on, the middle is the card's default. Moving it refits a view that shows
 the whole floor, so a steeper lift is not cut; a view you zoomed into stays.
