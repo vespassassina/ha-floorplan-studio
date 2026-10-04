@@ -9,12 +9,15 @@ import { esc, num, pts, tag } from "./fmt";
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { plugThreshold, wattsOf } from "./power";
+import { meanReading } from "./readings";
 import { STEM_MIN_Z, furnitureMode, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
 export interface RenderOpts {
+  /** S11.3: the room the card has picked (its left panel shows it); drawn with an outline, class `picked`. The editor draws its own selection in an overlay and never passes this. */
+  selectedRoom?: number;
   scale: number; selection?: { t: string; i: number } | null; showNames?: boolean; filter?: DeviceType[];
   state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
@@ -238,6 +241,9 @@ export const FLOORPLAN_CSS = `
    room that is also on would stop showing its ink selection outline. This three-class override (0,3,0) wins
    regardless of source order and keeps selection on top (Opus review). */
 .room.on.sel{stroke:var(--fp-ink)}
+/* S11.3: the room picked in the card: the motion perimeter's inset band, dashed, in the ink colour. Dashes run along the wide band's
+   path, so the mask leaves a dashed line. A class rule, not an attribute, for pointer-events (finding 18). */
+.room-picked{fill:none;stroke:var(--fp-ink);stroke-linejoin:round;stroke-dasharray:20 12;pointer-events:none}
 /* S2.9: furniture with an entity turns present, not paler, when it is on. --fp-glow is a fill tint built to sit
    close to a room's own colour, so reusing it as a stroke colour here made a sofa nearly vanish against the room
    under it in either theme (Opus review). --fp-active is its own token, amber like --fp-on, chosen per theme for
@@ -718,14 +724,14 @@ function motionFade(d: Device, o: RenderOpts, now: number): number {
  * a hash of the geometry (like the opening mask) so two cards drawing one floor mint the same id. Colour and
  * pointer-events come from the class (findings 9, 18); `radar` takes the radar colour.
  */
-function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean, strength: number, pulse = false): string {
+function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean, strength: number, pulse = false, as?: { cls: string; data: string }): string {
   const reach = Math.max(...ring.map((a, j) => wallWidthAt(f, a, ring[(j + 1) % ring.length]))) + WALL_HALO_EXTRA;
   const hide = reach + 2 * MOTION_GAP, band = hide + 2 * MOTION_LINE;
   const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1]);
   const x = Math.min(...xs) - band, y = Math.min(...ys) - band;
-  const id = `fp-mp-${tag(`${pts(ring)}|${hide}`)}`, points = pts(ring);
+  const id = `fp-mp-${tag(`${pts(ring)}|${hide}${as ? `|${as.cls}` : ""}`)}`, points = pts(ring); // S11.3: the picked-room line is the same band under its own class and its own mask id
   const mask = `<mask id="${id}" maskUnits="userSpaceOnUse" x="${num(x)}" y="${num(y)}" width="${num(Math.max(...xs) + band - x)}" height="${num(Math.max(...ys) + band - y)}"><polygon points="${points}" fill="white"/><polygon points="${points}" fill="none" stroke="black" stroke-width="${num(hide)}" stroke-linejoin="round"/></mask>`;
-  return `${mask}<polygon class="motion-perimeter${radar ? " radar" : ""}${pulse ? " motion-pulse" : ""}" data-m="${i}" mask="url(#${id})" stroke-width="${num(band)}"${strength < 1 ? ` style="--fp-fade:${num(strength)}"` : ""} points="${points}"/>`;
+  return `${mask}<polygon class="${as?.cls ?? "motion-perimeter"}${radar ? " radar" : ""}${pulse ? " motion-pulse" : ""}" ${as?.data ?? "data-m"}="${i}" mask="url(#${id})" stroke-width="${num(band)}"${strength < 1 ? ` style="--fp-fade:${num(strength)}"` : ""} points="${points}"/>`;
 }
 
 export function renderFloor(f: Floor, o: RenderOpts): string {
@@ -745,16 +751,6 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   /** An attached sensor draws no icon; the editor keeps it, so it can still be selected and moved (DECISIONS, S11.1). */
   const iconHidden = (d: Device) => !o.editor && isAttached(d);
   const stateOf = (e: string) => (o.state && Object.prototype.hasOwnProperty.call(o.state, e) && typeof o.state[e]?.state === "string" ? o.state[e] : undefined);
-  /** Mean of the readable states, rounded to 0.1, with the first unit seen; "" when none is readable. */
-  const meanOf = (list: string[]): string => {
-    const rs = list.flatMap((e) => {
-      const s = stateOf(e), t = s?.state.trim() ?? "";
-      return s && /^-?\d+(\.\d+)?$/.test(t) && Number.isFinite(Number(t)) ? [{ n: Number(t), unit: typeof s.attributes?.unit_of_measurement === "string" ? s.attributes.unit_of_measurement : "" }] : [];
-    });
-    if (!rs.length) return "";
-    const unit = rs.find((r) => r.unit)?.unit;
-    return `${(Math.round((rs.reduce((n, r) => n + r.n, 0) / rs.length) * 10) / 10).toFixed(1)}${unit ? ` ${unit}` : ""}`;
-  };
   // 2.5D: the projection in the frame of the plan group. The screen-up lift is turned back by the plan's own turn, so
   // a rotated plan still lifts toward the top of the screen.
   const x25 = o.view === "2.5d";
@@ -923,6 +919,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (r.area || !entityOn(o, r.entity, plugs)) return;
     out.push(`<polygon class="room on ring" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
   });
+  // S11.3: the room the card has picked, a dashed line just inside its walls (the motion perimeter's band, under its own class),
+  // drawn after the wall lines: a stroke on the room's own polygon sits under the wall halo and is not seen (finding 16).
+  // No data-r: it is never a pick target.
+  const pickedAt = typeof o.selectedRoom === "number" ? o.selectedRoom : -1, pickedRing = pickedAt >= 0 && f.rooms[pickedAt] ? ring(f.rooms[pickedAt]) : null;
+  if (pickedRing) out.push(motionPerimeter(f, pickedRing, pickedAt, false, 1, false, { cls: "room-picked", data: "data-picked" }));
 
   // A room with a triggered motion sensor (or radar) in it gets one thin line just inside its walls, for as long as the
   // sensor is on, and while a motion icon is still red from its fade (red icon and no border read as a bug, Diego
@@ -1176,7 +1177,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // every other text, so it moves off a name or an icon; nothing readable draws nothing, never "NaN".
   f.rooms.forEach((r, i) => {
     if (!showText || r.kind === "zone" || r.kind === "fill") return;
-    const text = [meanOf(listOf(r, "temps")), meanOf(listOf(r, "humidity"))].filter(Boolean).join(" · ");
+    const text = [meanReading(listOf(r, "temps"), o.state), meanReading(listOf(r, "humidity"), o.state)].filter(Boolean).join(" · ");
     if (!text) return;
     const lab = nameAt[i], base = lab?.at ?? centroid(r.pts), size = lab?.size ?? 0, vs = 10 * k;
     if (!base.every(Number.isFinite)) return;
