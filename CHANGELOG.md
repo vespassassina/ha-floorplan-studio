@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.26
 
 - Card: the zoom, Fit, rotate and Reset view buttons are one vertical stack under the toolbar, as in the studio. The toolbar keeps View, Tilt, Walls, Theme, Labels and Device names, so the rotate buttons no longer get lost among them. Same conditions as before (`zoom`, `view_switch`, `rotate_switch`, `kiosk`). The Active list moves below the stack if they would meet, and on a card too short for the column the stack becomes a row.
 
