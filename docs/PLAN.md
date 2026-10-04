@@ -2399,6 +2399,9 @@ Spec: `docs/specs/room-sensors.md`. Proposed 2026-10-04, not started.
   Choices in `docs/DECISIONS.md`.
 - S11.2 Editor: three room pickers, "Attach to room" on a loose sensor.
   Criteria 3, 4. Both surfaces draw through `renderFloor`.
+  Done, 2026-10-04. Tests in `tests/editor/room-sensors.test.ts` and
+  `tests/editor/room-sensors.spec.ts`; room lists count as attached in
+  `tests/core/bind.test.ts`. Choices in `docs/DECISIONS.md`.
 - S11.3 Card: tap a room selects it; the left panel's room section, rows that
   act. Criterion 5. Real-coordinate Playwright tests.
 - S11.4 Card: expandable device info from `hass.devices`. Criterion 6.

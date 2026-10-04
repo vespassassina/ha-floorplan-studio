@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Core: a room can own temperature, humidity and motion sensors (`temps`, `humidity`, `motion`). Their icons are not drawn on the card (the editor still shows them), the room shows the mean reading under its name, and a room with motion draws a red border that pulses while a sensor is on and fades after it. Editor pickers and the card panel follow in later tasks.
+- Editor: a room's panel has a Sensors section with three pickers (temperature, humidity, motion), built like a door's contact sensors. Each lists only entities of its kind and none another room already owns. A pick is one undo step and takes the sensor's loose icon off the plan; Remove only detaches. A loose temperature, humidity or motion icon inside a room gets an **Attach to room** button: one undo step moves its entity onto the room and deletes the icon. Outside a room, with no entity, or already on the room, the button is disabled and says why. A sensor that is on a room and still has an icon says "Attached to <room>". Sensors on a room's list no longer show up in Add as unplaced.
 - A lit lamp's glow is clipped to the room it hangs in. It no longer washes through a wall into the next room. A lamp in no room (a garden lamp) keeps the free circle, and a zone does not count as a room. In 2.5D the clip is lifted with the lamp. The camera cone is unchanged.
 
 ## 0.12.26
