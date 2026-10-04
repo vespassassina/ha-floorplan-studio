@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render } from "lit";
 import demo from "../../demo/layout.json";
-import type { Layout } from "../../src/core/schema";
+import { ROOM_KINDS, type Layout } from "../../src/core/schema";
 import { EditorState } from "../../src/editor/state";
 import { selectionPanel, type PanelCtx } from "../../src/editor/panels";
 
@@ -52,5 +52,20 @@ describe("devicePanel Links heading (Opus review of S8.9)", () => {
     render(selectionPanel(ctx), div);
     const headings = [...div.querySelectorAll("h4.pnl-h")].map((h) => h.textContent);
     expect(headings).toContain("Links");
+  });
+});
+
+describe("room Sensors section follows roomAt's rule (Opus review of Sprint 11, finding 2)", () => {
+  it("shows the three pickers for exactly the kinds that can own a point, one test per RoomKind", () => {
+    const owns: Record<string, boolean> = { room: true, garden: true, pavement: true, terrace: true, water: true, fill: false, structure: false, zone: false };
+    for (const kind of ROOM_KINDS) {
+      const st = new EditorState(fresh());
+      st.edit((f) => { f.rooms[0].kind = kind; });
+      st.sel = { t: "room", i: 0 };
+      const div = document.createElement("div");
+      render(selectionPanel(baseCtx(st)), div);
+      const headings = [...div.querySelectorAll("h4.pnl-h")].map((h) => h.textContent);
+      expect(headings.includes("Sensors"), kind).toBe(owns[kind]);
+    }
   });
 });

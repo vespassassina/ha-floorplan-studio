@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: one rule for "the room a point is in" (Opus review of Sprint 11, core, editor, card)
+
+The review found three rules for one question: the aura clip took the smallest non-zone room (a structure
+counted), the editor's Attach did the same, the Sensors section hid only zones and structures, the readout hid
+zones and fills, the card's room summary took every room whose ring held the point. So Attach could move a
+sensor into a 40 x 40 structure that had no panel to remove it, and a lamp in a small structure was clipped to it.
+Calls made in code, change any:
+
+- `roomAt(f, p)` (core/render.ts) is the smallest room whose kind is in `ROOM_OWNS`: room, garden, pavement,
+  terrace, water. Zone, structure and fill never own a point. A test lists every `RoomKind`.
+- Used by the lamp aura clip, `EditorState.roomAttach`, `roomSummary` (a device counts in exactly one room, so a
+  closet's lamp is no longer also under the hall's "Lights on"), the readout, the motion edge and the editor's
+  Sensors section. A lamp inside a structure with no room around it keeps the free circle.
+- A named fill no longer draws a motion edge (the spec said unnamed only); it has no Sensors section either.
+
 ## 2026-10-04: room sensor pickers and "Attach to room" (S11.2, editor)
 
 Diego: "instead of having them around, lets add them to a room, like the windows

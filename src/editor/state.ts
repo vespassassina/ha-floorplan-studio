@@ -1,4 +1,4 @@
-import { MAX_ROOM_SENSORS, DEFAULT_TILT, DEVICE_TYPES, WALLS_MODES, FLOOR_COLOURS, inside, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, clampTilt, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { MAX_ROOM_SENSORS, DEFAULT_TILT, DEVICE_TYPES, WALLS_MODES, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, clampTilt, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, WallsMode, Floor, HaData, Layout, PlanView, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 import { setRoomList, type RoomSensorField } from "./ops";
 import { normaliseRotation } from "../card/view-state";
@@ -718,17 +718,10 @@ export class EditorState {
     return [...this.layout.catalog.filter((c) => c.type === type && !used.has(c.entity)), ...this.unattachedHaChoices(type).filter((c) => !used.has(c.entity))];
   }
 
-  /** The smallest non-zone room of the current floor that holds device `i`'s point, or -1. Same rule `renderFloor` uses for a lamp's aura. */
+  /** The room device `i` belongs to on the current floor, or -1: `roomAt`, the rule the aura clip, the readout and the Sensors section share. */
   private roomIndexAt(i: number): number {
     const d = this.f.devices[i];
-    if (!d || !("x" in d) || !Number.isFinite(d.x) || !Number.isFinite(d.y)) return -1;
-    let best = -1, bestArea = Infinity;
-    this.f.rooms.forEach((r, j) => {
-      if (r.kind === "zone" || !Array.isArray(r.pts) || r.pts.length < 3 || !inside([d.x, d.y], r.pts)) return;
-      const a = Math.abs(r.pts.reduce((n, p, k) => n + p[0] * r.pts[(k + 1) % r.pts.length][1] - r.pts[(k + 1) % r.pts.length][0] * p[1], 0)) / 2;
-      if (a < bestArea) { best = j; bestArea = a; }
-    });
-    return best;
+    return d && "x" in d ? roomAt(this.f, [d.x, d.y]) : -1;
   }
 
   /**

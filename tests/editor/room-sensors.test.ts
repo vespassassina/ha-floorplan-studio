@@ -151,3 +151,22 @@ describe("Attach to room", () => {
     expect(st.roomOwning(i)).toBe("Living");
   });
 });
+
+describe("Attach to room: the same room rule as the panel (Opus review of Sprint 11)", () => {
+  it("attaches to the room around a structure, and refuses a sensor whose only holder is a structure", () => {
+    const st = new EditorState(fresh());
+    const i = st.f.devices.findIndex((d) => d.id === "temp-living");
+    const d = st.f.devices[i] as { x: number; y: number };
+    const box: [number, number][] = [[d.x - 20, d.y - 20], [d.x + 20, d.y - 20], [d.x + 20, d.y + 20], [d.x - 20, d.y + 20]];
+    st.edit((f) => { f.rooms.push({ id: "box", name: "Box", area: "", kind: "structure", pts: box, wk: ["wall", "wall", "wall", "wall"] }); });
+    // the Living room is still the smallest room that may hold it: the structure must not take the sensor
+    const a = st.roomAttach(i);
+    expect(a.ok && st.f.rooms[a.room].name).toBe("Living");
+    ok(st.layout);
+    st.edit((f) => { Object.assign(f.devices[i], { x: 5000, y: 5000 }); f.rooms.push({ id: "far", name: "Far", area: "", kind: "structure", pts: [[4980, 4980], [5020, 4980], [5020, 5020], [4980, 5020]], wk: ["wall", "wall", "wall", "wall"] }); });
+    expect(st.roomAttach(i)).toMatchObject({ ok: false, reason: expect.stringMatching(/room/i) });
+    const before = JSON.stringify(st.layout);
+    expect(st.attachToRoom(i)).toBe(false);
+    expect(JSON.stringify(st.layout)).toBe(before);
+  });
+});

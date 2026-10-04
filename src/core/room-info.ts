@@ -1,5 +1,5 @@
 import type { Device, DeviceType, Door, Floor, Pt, Room } from "./schema";
-import { classOf, inside, type StateOverlay } from "./render";
+import { classOf, roomAt, type StateOverlay } from "./render";
 import { onEdge } from "./geometry";
 import { doorStateOf } from "./door-state";
 import { entitiesOfDevice, entitiesOfDoor } from "./attachments";
@@ -99,9 +99,10 @@ export function roomSummary(f: Floor, index: number, state: StateOverlay | undef
   const lightsOn: string[] = [];
   f.devices.forEach((d, i) => {
     const c = centre(d);
+    // A device counts in the one room `roomAt` gives it (the smallest), so a closet's lamp is not also the hall's.
     // A person's drawn position comes from a room sensor at render time, not from x and y: listing one by its stored
     // point would put it in the wrong room, so a person never has a row here.
-    if (!c || d.type === "person" || typeof d.entity !== "string" || !d.entity || !ring.length || !inside(c, ring)) return;
+    if (!c || d.type === "person" || typeof d.entity !== "string" || !d.entity || roomAt(f, c) !== index) return;
     const on = classOf(d, { scale: 1, state, ...opts }) === "on";
     devices.push({ index: i, entity: d.entity, name: nameFor(d, state), type: d.type, state: stateText(state, d.entity), on, colorVar: on ? colorVarFor(d, state) : "--fp-ink" });
     for (const e of entitiesOfDevice(d)) entities.add(e);

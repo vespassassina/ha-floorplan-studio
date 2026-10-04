@@ -1,7 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";
-import { DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, DOOR_DEFAULTS, FURNITURE_HEIGHTS, MAX_HEIGHT, UNLINKED_HEIGHTS, wallHeight, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity } from "../core";
+import { DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, DOOR_DEFAULTS, FURNITURE_HEIGHTS, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
@@ -555,12 +555,12 @@ function roomPanel(c: PanelCtx, i: number) {
 /**
  * S11.2: the room's temperature, humidity and motion sensors, three pickers built like a door's contact sensors
  * (`multiAttachField`): a pick pulls a loose icon of that entity off the plan in the same undo step, a Remove button
- * only detaches. Zones and structures take none, there is nothing to read there.
+ * only detaches. Only a kind that `roomAt` can pick takes sensors (`ROOM_OWNS`): attached to a zone, structure or fill, nothing would show them.
  */
 const ROOM_SENSORS: [RoomSensorField, string, string][] = [["temps", "rtemp", "temperature sensors"], ["humidity", "rhum", "humidity sensors"], ["motion", "rmot", "motion sensors"]];
 function roomSensors(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
-  if (r.kind === "zone" || r.kind === "structure") return nothing;
+  if (!ROOM_OWNS[r.kind]) return nothing;
   return html`${heading("Sensors")}
     ${ROOM_SENSORS.map(([field, id, label]) => {
       const write = (f: Floor, next: string[]) => setRoomList(f.rooms[i], field, next);

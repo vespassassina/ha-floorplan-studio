@@ -12,7 +12,7 @@ import { plugThreshold, wattsOf } from "./power";
 import { meanReading } from "./readings";
 import { STEM_MIN_Z, furnitureMode, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
-import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, Stairs } from "./schema";
+import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, RoomKind, Stairs } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
 export interface RenderOpts {
@@ -535,6 +535,25 @@ export function inside(p: Pt, poly: Pt[]): boolean {
   return in_;
 }
 
+/** Which kinds of room can own a point: hold a lamp's light, take a sensor, show a readout. A zone is an overlay, a structure
+ *  a building drawn on the plan, a fill a hatched patch; none of them is a room a person stands in. Every kind is a decision (finding 17). */
+export const ROOM_OWNS: Record<RoomKind, boolean> = { room: true, garden: true, pavement: true, terrace: true, water: true, fill: false, structure: false, zone: false };
+
+/** The index of the smallest room that may own point `p` (`ROOM_OWNS`), or -1. The one rule behind a lamp's aura clip, the
+ *  editor's Attach, a room's readout and Sensors section, and the card's room summary, so they cannot disagree about
+ *  which room a thing is in. Layout is untrusted: a room with no usable ring is skipped, never a throw. */
+export function roomAt(f: Floor, p: Pt): number {
+  if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) return -1;
+  let best = -1, bestArea = Infinity;
+  (Array.isArray(f.rooms) ? f.rooms : []).forEach((r, j) => {
+    const g = r?.pts;
+    if (!r || !ROOM_OWNS[r.kind] || !Array.isArray(g) || g.length < 3 || !g.every((q) => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1])) || !inside(p, g)) return;
+    const a = Math.abs(g.reduce((n, q, k) => n + q[0] * g[(k + 1) % g.length][1] - g[(k + 1) % g.length][0] * q[1], 0)) / 2;
+    if (a < bestArea) { best = j; bestArea = a; }
+  });
+  return best;
+}
+
 /** S2.10: what an air conditioner is doing, read from the entity at render time and never stored. `off`, `unavailable` and `unknown` win over everything; otherwise `hvac_action` decides, and `state` stands in when the attribute is missing. */
 export function acMode(d: Device, o: RenderOpts): "cool" | "heat" | null {
   const s = o.state?.[d.entity];
@@ -866,15 +885,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const c = iconAt(d, floorAt); // the aura hangs with the lamp, not on the floor under it
     const fill = lightFill(o.state?.[d.entity]);
     const style = fill ? ` style="--fp-aura:${fill}"` : "";
-    // The light stays in the room it hangs in: clipped to the smallest real room holding the lamp (a zone is an
-    // overlay, not a room; a lamp in no room, a garden lamp say, keeps the free circle). The clip is the floor polygon.
-    let own: Pt[] | null = null, ownArea = Infinity;
-    for (const r of f.rooms) {
-      const rg = ring(r);
-      if (!rg || r.kind === "zone" || !inside(floorAt, rg)) continue;
-      const a = Math.abs(rg.reduce((n, p, j) => n + p[0] * rg[(j + 1) % rg.length][1] - rg[(j + 1) % rg.length][0] * p[1], 0)) / 2;
-      if (a < ownArea) { own = rg; ownArea = a; }
-    }
+    // The light stays in the room it hangs in: clipped to the smallest real room holding the lamp (`roomAt`: a zone, a structure
+    // and a fill are not rooms; a lamp in no room, a garden lamp say, keeps the free circle). The clip is the floor polygon.
+    const holder = roomAt(f, floorAt), own = holder < 0 ? null : ring(f.rooms[holder]);
     if (own) {
       // The aura hangs with the lamp (`c`), so its clip takes the same lift off the floor.
       const lift = c[0] !== floorAt[0] || c[1] !== floorAt[1] ? ` transform="translate(${at([c[0] - floorAt[0], c[1] - floorAt[1]])})"` : "";
@@ -966,7 +979,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const pulsing = new Set<number>();
   f.rooms.forEach((r, j) => {
     const p = rings[j];
-    if (!p || r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name)) return;
+    if (!p || !ROOM_OWNS[r.kind]) return;
     let on = false, v = 0;
     for (const e of listOf(r, "motion")) {
       const s = stateOf(e);
@@ -1188,7 +1201,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // S11.1: the readout of a room's own sensors, a small line under its name (or at its anchor when it has none). Placed like
   // every other text, so it moves off a name or an icon; nothing readable draws nothing, never "NaN".
   f.rooms.forEach((r, i) => {
-    if (!showText || r.kind === "zone" || r.kind === "fill") return;
+    if (!showText || !ROOM_OWNS[r.kind]) return;
     const text = [meanReading(listOf(r, "temps"), o.state), meanReading(listOf(r, "humidity"), o.state)].filter(Boolean).join(" · ");
     if (!text) return;
     const lab = nameAt[i], base = lab?.at ?? centroid(r.pts), size = lab?.size ?? 0, vs = 10 * k;
