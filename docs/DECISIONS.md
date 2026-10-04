@@ -35,7 +35,8 @@ of 1.4 s, `MOTION_PULSES` and `MOTION_PULSE_S` in render.ts). Calls made in code
 - A tap picks the first room polygon among everything stacked under the finger (`elementsFromPoint`), not only
   when the polygon itself is the target. A room's name, its readout and its 2D furniture are its floor; a zone or
   a structure is looked through to the room below (it is not a room, see the `roomAt` entry). A device, door or
-  stair tap still never picks.
+  stair tap still never picks. A point inside a device's pin (`circle.stem-top`, which lets events through, so a
+  room label can lie above it in 2.5D) picks nothing either.
 - A double tap restores the pick as it was before its first tap. The code used to let the first tap pick or clear
   and the second only zoom, against the S11.3 entry. Known edge: the room section opens at the top left of the
   card, so a double tap on a room under it lands its second tap on the panel and is two taps, not a zoom.
