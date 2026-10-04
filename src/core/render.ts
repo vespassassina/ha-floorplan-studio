@@ -544,7 +544,7 @@ export function inside(p: Pt, poly: Pt[]): boolean {
  *  a building drawn on the plan, a fill a hatched patch; none of them is a room a person stands in. Every kind is a decision (finding 17). */
 export const ROOM_OWNS: Record<RoomKind, boolean> = { room: true, garden: true, pavement: true, terrace: true, water: true, fill: false, structure: false, zone: false };
 
-/** The index of the smallest room that may own point `p` (`ROOM_OWNS`), or -1. The one rule behind a lamp's aura clip, the
+/** The index of the smallest room that may own point `p` (`ROOM_OWNS`), or -1; equal areas go to the highest index. The one rule behind a lamp's aura clip, the
  *  editor's Attach, a room's readout and Sensors section, and the card's room summary, so they cannot disagree about
  *  which room a thing is in. Layout is untrusted: a room with no usable ring is skipped, never a throw. */
 export function roomAt(f: Floor, p: Pt): number {
@@ -554,7 +554,7 @@ export function roomAt(f: Floor, p: Pt): number {
     const g = r?.pts;
     if (!r || !ROOM_OWNS[r.kind] || !Array.isArray(g) || g.length < 3 || !g.every((q) => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1])) || !inside(p, g)) return;
     const a = Math.abs(g.reduce((n, q, k) => n + q[0] * g[(k + 1) % g.length][1] - g[(k + 1) % g.length][0] * q[1], 0)) / 2;
-    if (a < bestArea) { best = j; bestArea = a; }
+    if (a <= bestArea) { best = j; bestArea = a; } // a tie goes to the later room: it is drawn on top, the one a tap reaches
   });
   return best;
 }
@@ -1203,8 +1203,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       out.push(`<line class="lbl-leader" stroke-width="${num(k)}" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(ex)}" y2="${num(ey)}"/>`);
     }
     out.push(zone
-      ? `<text class="lbl zone" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(size)}">${esc(r.name)}</text>`
-      : `<text class="lbl" x="${num(x)}" y="${num(y)}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" font-weight="600" opacity=".5">${esc(r.name)}</text>`);
+      ? `<text class="lbl zone" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}">${esc(r.name)}</text>`
+      : `<text class="lbl" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" font-weight="600" opacity=".5">${esc(r.name)}</text>`);
   });
 
   // S11.1: the readout of a room's own sensors, a small line under its name (or at its anchor when it has none). Placed like

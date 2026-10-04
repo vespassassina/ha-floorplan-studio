@@ -30,6 +30,10 @@ describe("roomAt", () => {
     expect(roomAt(f, [300, 300])).toBe(0);
     expect(roomAt(f, [900, 900])).toBe(-1);
   });
+  it("ties in area go to the highest index, the polygon a tap reaches (drawn last)", () => {
+    const f = floor([room("Under", sq(0, 0, 100, 100)), room("Over", sq(0, 0, 100, 100))]);
+    expect(roomAt(f, [50, 50])).toBe(1);
+  });
   it("never throws on junk", () => {
     const f = floor([{ kind: "room", pts: 5 }, { kind: "room", pts: [[NaN, 1], [1, 1], [1, 2]] }, room("Ok", sq(0, 0, 10, 10))]);
     expect(roomAt(f, [5, 5])).toBe(2);

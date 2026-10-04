@@ -1484,26 +1484,21 @@ export class FloorplanStudioCard extends LitElement {
     const root = this.shadowRoot;
     // jsdom has no elementsFromPoint: the event's own target stands in, as it did before.
     const stack = root && typeof root.elementsFromPoint === "function" ? root.elementsFromPoint(e.clientX, e.clientY) : [e.target as Element | null];
-    // A device's pin lets pointer events through (`pointer-events:none`), so a room's label can sit on top of it in the
-    // hit stack. The pin is still the device's, not the room's: a tap on it picks nothing.
-    const onPin = [...(root?.querySelectorAll("circle.stem-top") ?? [])].some((c) => {
-      const b = c.getBoundingClientRect();
-      return e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom;
-    });
     let i = -1;
-    for (const n of onPin ? [] : stack) {
+    for (const n of stack) {
       const hit = n?.closest?.("polygon[data-r]");
       if (hit) {
         const k = Number(hit.getAttribute("data-r")), kind = rooms[k]?.kind;
-        if (kind === "zone" || kind === "structure") continue;
+        if (kind === "zone" || kind === "structure" || kind === "fill") continue; // not rooms: look through to the room below
         i = k;
         break;
       }
-      // A room's own text and its furniture are its floor. Anything else on top (a device's pin or stem, a wall) is its own thing: no pick.
-      if (!n?.closest?.("text.lbl, text.val, g.furn")) break;
+      // A room's own name (data-rl), its readout (data-rv) and its furniture are its floor. Anything else on top (a device's
+      // value or name, a structure line's name, a wall) is its own thing: no pick.
+      if (!n?.closest?.("text[data-rl], text[data-rv], g.furn")) break;
     }
     const room = rooms[i];
-    this._pickRoom(room && room.kind !== "fill" && this._picked() !== i ? i : null);
+    this._pickRoom(room && this._picked() !== i ? i : null);
   }
 
   /** What a double tap restores: the pick as it was before its first tap, which `_tapRoom` already changed. */

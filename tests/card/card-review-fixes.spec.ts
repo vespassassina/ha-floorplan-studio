@@ -104,20 +104,36 @@ test.describe("1: a tap on a room's name, readout or furniture picks the room", 
       await page.mouse.click(p.x, p.y);
       expect(await picked(page)).toEqual([0]);
     });
+  test("a room's name over a lamp's pin in 2.5D (Kitchen, rotation 270, tilt 0.5) picks the room", async ({ page }) => {
+    await boot(page, { config: { view: "2.5d", tilt: 0.5, rotation: 270 } });
+    // The lamp's pin lets events through. At the pin's own centre the real top element is the Kitchen name: click there.
+    const pin = await centreOf(page, 'svg circle.stem-top[cx="650"][cy="200"]');
+    const top = await card(page).evaluate((el, [x, y]) => el.shadowRoot!.elementsFromPoint(x!, y!)[0]?.textContent ?? null, [pin.x, pin.y] as const);
+    expect(top, "the Kitchen name is on top of the pin").toBe("Kitchen");
+    await page.mouse.click(pin.x, pin.y);
+    expect(await picked(page)).toEqual([1]);
+  });
+  test("a loose sensor's value text is the device's: no pick (B)", async ({ page }) => {
+    await boot(page, { states: { ...STATES(), "sensor.demo_living_temperature": st("19", { unit_of_measurement: "°C" }) } });
+    const v = await centreOf(page, "svg text.val:not([data-rv])");
+    expect(v.top, "the device's value is the top element").toBe(true);
+    await page.mouse.click(v.x, v.y);
+    expect(await picked(page)).toEqual([]);
+  });
+  // A fill with no name draws nothing, so this one has a name (it takes no label either).
+  test("a fill on top of a room is looked through to the room (C)", async ({ page }) => {
+    const l = structuredClone(layout);
+    l.floors.ground.rooms.push({ id: "room-fill", name: "Rug", area: "", kind: "fill", pts: [[60, 260], [160, 260], [160, 340], [60, 340]], wk: ["none", "none", "none", "none"] });
+    const n = l.floors.ground.rooms.length - 1;
+    await boot(page, { config: { layout: l } });
+    const p = await floorPoint(page, n);
+    await page.mouse.click(p.x, p.y);
+    expect(await picked(page)).toEqual([0]);
+  });
   test("a device is still never a pick", async ({ page }) => {
     await boot(page);
     const p = await centreOf(page, 'svg g[data-x="1"]');
     expect(p.top).toBe(true);
-    await page.mouse.click(p.x, p.y);
-    expect(await picked(page)).toEqual([]);
-  });
-});
-
-test.describe("1, the other side: what is on top of a room and is not its text or furniture picks nothing", () => {
-  test("a device's pin in 2.5D (its icon is lifted away from it)", async ({ page }) => {
-    await boot(page, { config: { view: "2.5d", tilt: 0.5, rotation: 270 } });
-    const p = await centreOf(page, 'svg circle.stem-top[cx="650"][cy="200"]');
-    // Here the kitchen's label is what the mouse reaches (the pin lets events through), and it would pick the room.
     await page.mouse.click(p.x, p.y);
     expect(await picked(page)).toEqual([]);
   });

@@ -2,6 +2,22 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: second review round of Sprint 11 (card, core, editor)
+
+The pin rule of commit 6b1214c (a point inside a pin picks nothing) is withdrawn.
+
+- A tap on a point where a room's name lies over a lamp's pin picks the room. The pin lets events through, so the name
+  is the real top element; that is the common 2.5D case (Kitchen, rotation 270). The tap on the lifted icon is the
+  device's: it toggles and never picks. `card-lifted-icons.spec.ts` now taps the icon first and the pin point after,
+  because a room panel opened by the pin point covers the icon; it also asserts the icon tap picks no room.
+- Only the room's own text is its floor: the name (`data-rl`, new on the room's `<text>`) and the readout
+  (`data-rv`), and `g.furn`. A device's value or name and a structure line's name are not (they used to match
+  `text.lbl, text.val`). The one attribute is added to 2D output; the two demo snapshots changed by it and nothing else.
+- A fill is looked through to the room below, like a zone or a structure (it used to clear the pick).
+- Changing a room's kind to zone, structure or fill deletes its temps, humidity and motion lists in the same undo step:
+  nothing could show them and no Sensors section is left to remove them. Undo brings them back.
+- `roomAt` breaks a tie in area toward the highest index, the polygon drawn last, which a tap reaches.
+
 ## 2026-10-04: a speaker's icon sits on top of its cabinet (Opus review of Sprint 11, core)
 
 The 2.5D speaker is a 30 cm cabinet, but its icon still floated at 150 cm (speaker) or 100 cm (media), a hook
@@ -35,8 +51,7 @@ of 1.4 s, `MOTION_PULSES` and `MOTION_PULSE_S` in render.ts). Calls made in code
 - A tap picks the first room polygon among everything stacked under the finger (`elementsFromPoint`), not only
   when the polygon itself is the target. A room's name, its readout and its 2D furniture are its floor; a zone or
   a structure is looked through to the room below (it is not a room, see the `roomAt` entry). A device, door or
-  stair tap still never picks. A point inside a device's pin (`circle.stem-top`, which lets events through, so a
-  room label can lie above it in 2.5D) picks nothing either.
+  stair tap still never picks.
 - A double tap restores the pick as it was before its first tap. The code used to let the first tap pick or clear
   and the second only zoom, against the S11.3 entry. Known edge: the room section opens at the top left of the
   card, so a double tap on a room under it lands its second tap on the panel and is two taps, not a zoom.
@@ -93,8 +108,8 @@ top of the existing Active panel. Calls made in code, change any:
 
 - A tap on bare room floor picks the room. The same room again, a tap off any
   room, Escape or the section's cross clears it. A device, door or appliance tap
-  keeps its own meaning and never picks. A stair tap or a hatched fill counts as
-  "off a room". A double tap (zoom) leaves the pick alone. Kiosk and
+  keeps its own meaning and never picks. A stair tap counts as
+  "off a room"; a fill is looked through (2026-10-04, second round). A double tap (zoom) leaves the pick alone. Kiosk and
   `active_list: false` pick nothing: there is no panel to show it in. Switching
   floor clears it. Escape uses the card's existing key gate (hover or focus), the
   same as the view keys.
