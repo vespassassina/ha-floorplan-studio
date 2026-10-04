@@ -2404,6 +2404,9 @@ Spec: `docs/specs/room-sensors.md`. Proposed 2026-10-04, not started.
   `tests/core/bind.test.ts`. Choices in `docs/DECISIONS.md`.
 - S11.3 Card: tap a room selects it; the left panel's room section, rows that
   act. Criterion 5. Real-coordinate Playwright tests.
+  Done, 2026-10-04. Tests in `tests/core/room-info.test.ts` and
+  `tests/card/card-room-select.spec.ts`. Choices in `docs/DECISIONS.md`.
 - S11.4 Card: expandable device info from `hass.devices`. Criterion 6.
+  Done, 2026-10-04, with S11.3 (same panel, same specs).
 - S11.5 Docs, schema reference, prompts/SCHEMA.md, studio-and-card table,
   review.
