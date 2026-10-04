@@ -2434,7 +2434,13 @@ test("CSS pair: the Hall's motion perimeter is the motion colour, unfilled, take
   expect(on.pe).toBe("none");
   expect(on.want).toMatch(/^#/);
   expect(on.stroke).toBe(`rgb(${[1, 3, 5].map((i) => parseInt(on.want.slice(i, i + 2), 16)).join(", ")})`);
+  // Just gone off: the border fades with the icon (0.12.24), it does not vanish while the icon is still red.
   await configure(page, { layout: structuredClone(demo), theme: "light" }, { states: { "binary_sensor.demo_hall_motion": { state: "off", attributes: {}, last_changed: now } } });
+  expect(await read()).not.toBeNull();
+  // Off for longer than the fade: gone. A fresh page, because the card remembers when it last saw the sensor on.
+  await open(page);
+  const old = new Date(Date.now() - 3600_000).toISOString();
+  await configure(page, { layout: structuredClone(demo), theme: "light" }, { states: { "binary_sensor.demo_hall_motion": { state: "off", attributes: {}, last_changed: old } } });
   expect(await read()).toBeNull();
 });
 
