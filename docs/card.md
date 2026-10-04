@@ -35,11 +35,11 @@ floors — ready to paste. See "A premade dashboard" below.
 | `fade` | `300` | seconds a motion sensor takes to fade from red to grey after it last went off |
 | `plug_watts` | `2` | a plug is active from this many watts of measured power, not merely while switched on — see Plugs, below. A number `0` or more; anything else is `2` |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
-| `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons top right. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
+| `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons in the vertical stack at the top right, under the toolbar. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 | `view` | `2d` | `2d` draws the flat plan, `2.5d` draws it with depth — see 2.5D view, below. Anything else is `2d` |
-| `view_switch` | `true` | `false` hides the View dropdown, Theme, Labels and Device names next to the zoom buttons. `kiosk` hides them too |
+| `view_switch` | `true` | `false` hides the View dropdown, Theme, Labels and Device names in the toolbar. `kiosk` hides them too |
 | `rotate_switch` | follows the other controls | the two rotate buttons and the Left/Right keys. Unset: shown on every card that draws zoom or the View controls, hidden under `kiosk` and on a card with `zoom: false` and `view_switch: false`. `false` hides them, `true` shows them even under `kiosk` |
 | `names` | `false` | `true` writes every device's name under its icon, the studio's Names toggle. The Device names button (`Aa`) changes it for as long as the card is on screen |
 | `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D. See the Tilt slider, below |
@@ -74,7 +74,7 @@ boxes, stairs become steps. The floor itself stays true to the plan, so
 rooms, icons and taps sit where they do in 2D; only what stands up is drawn
 up and to the right (a vertical oblique projection, seen from the south-west).
 
-Next to the zoom buttons a small `View` dropdown switches between `2D` and
+In the toolbar a small `View` dropdown switches between `2D` and
 `2.5D` for as long as the card is on screen. It keeps your zoom and pan, and a
 reload goes back to `view:`. `view_switch: false` removes the dropdown and
 `kiosk: true` does too; the configured `view` still applies.
@@ -157,7 +157,7 @@ zoomed-in indicator both return here, not to the whole floor. The Fit button
 reads **Home view** on a pinned card, since it no longer fits the whole
 floor, and is disabled only when the view is already home — pan or pinch it
 away and Home view lights back up. (**Reset view** is a different button, the
-last one in the toolbar: it also drops the remembered turn, view and theme —
+last one in the stack: it also drops the remembered turn, view and theme —
 see View memory and reset, below.) The − button is never gated by the pin:
 it is disabled only once the whole floor is on screen, so a pinned card can
 still zoom all the way out to see the rest of the house.
@@ -204,6 +204,11 @@ across the room.
 
 ## Studio and card
 
+The card lays its controls out like the studio: one vertical stack on the plan (+, −, Fit,
+rotate left, rotate right, Reset view) under a horizontal toolbar that keeps the look
+controls (View, Tilt, Walls, Theme, Labels, Names). On a card too short for the column
+the stack lays out as a row under the floor chips.
+
 "Everything you do in the studio you can do in the card", for **viewing**. Each
 control of the editor's View menu, its zoom group and its Filter menu, and what
 the card does about it. A test (`tests/card/view-parity.spec.ts`) reads the
@@ -219,9 +224,9 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#thSub` Theme | yes | the Theme dropdown |
 | `#fit` Fit to window | yes | the Fit button (Home view on a pinned card) |
 | `#recenter` Re-center | yes | the same Fit button |
-| `#zin` `#zout` Zoom | yes | the + and − buttons, the Up and Down keys, pinch and wheel |
-| `#zreset` Reset view | yes | the Reset view button and Space |
-| `#vrotl` `#vrotr` Rotate view | yes | the two rotate buttons and the Left and Right keys, 2D and 2.5D |
+| `#zin` `#zout` Zoom | yes | the + and − buttons, first in the stack, the Up and Down keys, pinch and wheel |
+| `#zreset` Reset view | yes | the Reset view button, last in the stack, and Space |
+| `#vrotl` `#vrotr` Rotate view | yes | the two rotate buttons in the stack and the Left and Right keys, 2D and 2.5D |
 | `#version` the installed version | no | the card names its version in the browser console instead |
 | `#snap` Snap grid | no | an editing aid: a viewer places nothing |
 | `#mgrid` Measure grid | no | an editing aid, drawn by the editor over the plan, not by `renderFloor` |
@@ -306,7 +311,7 @@ autosave does not reset it.
 
 ## View memory and reset
 
-Two buttons beside the zoom buttons turn the plan: **Rotate left** and
+Two buttons in the stack, under the zoom buttons, turn the plan: **Rotate left** and
 **Rotate right**, 45 degrees a press. They are their own control (`rotate_switch`):
 `view_switch: false` hides the View dropdown, not them. They turn the 2D plan
 too; rotation does not need 2.5D. The plan turns smoothly (about 0.35 s a
@@ -325,7 +330,7 @@ as before.
   same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `names`, `center`,
   `zoom_level`, the layout source or the floors in the card's YAML and that
   card starts with a clean memory: the new YAML is what you meant.
-- **Reset view** (the last toolbar button, greyed while nothing differs) puts
+- **Reset view** (the last button of the stack, greyed while nothing differs) puts
   every one of these back to the card's config and forgets the memory. The
   turn goes back the short way round. The floor stays. It is not the Fit
   button: Fit, or Home view on a pinned card, only changes zoom and position.
@@ -350,7 +355,7 @@ as before.
   dropped field by field, and a browser that blocks storage just forgets.
 - It is per browser, not per Home Assistant user, and not synced.
 
-![The demo turned 45 degrees: the toolbar has the View and Theme dropdowns, the names toggle, the two rotate buttons, the zoom buttons, Fit and Reset view.](img/card-rotated-45.png)
+![The demo turned 45 degrees: the toolbar has the View and Theme dropdowns and the labels and names toggles; the stack under it has zoom, Fit, the two rotate buttons and Reset view.](img/card-rotated-45.png)
 
 ## The Edit-card form
 

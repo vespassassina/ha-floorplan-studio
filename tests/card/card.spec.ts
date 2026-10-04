@@ -499,9 +499,9 @@ test.describe("S7.4 zoom and pan", () => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const fit = await viewBox(page);
-    const zoomIn = card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]');
-    const zoomOut = card(page).locator('css=.fp-zoom button[aria-label="Zoom out"]');
-    const fitBtn = card(page).locator('css=.fp-zoom button[aria-label="Fit"]');
+    const zoomIn = card(page).locator('css=.fp-stack button[aria-label="Zoom in"]');
+    const zoomOut = card(page).locator('css=.fp-stack button[aria-label="Zoom out"]');
+    const fitBtn = card(page).locator('css=.fp-stack button[aria-label="Fit"]');
     // 0.12.14: "−" stays enabled at fit — there is more to zoom out to (MIN_ZOOM) — only Fit (nothing to reset) is.
     await expect(zoomOut).toBeEnabled();
     await expect(fitBtn).toBeDisabled();
@@ -523,7 +523,7 @@ test.describe("S7.4 zoom and pan", () => {
     const sel = card(page).locator('css=.fp-zoom select[aria-label="View"]');
     await expect(sel).toBeVisible();
     const s = (await sel.boundingBox())!;
-    const z = (await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').boundingBox())!;
+    const z = (await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').boundingBox())!;
     expect(s.x + s.width).toBeLessThanOrEqual(z.x + 0.5); // beside the buttons, not over them
     expect(Math.abs(s.height - z.height)).toBeLessThan(2); // same row height
 
@@ -583,7 +583,7 @@ test.describe("S7.4 zoom and pan", () => {
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const fit = await viewBox(page);
     // One click (1.5x about the centre): the kitchen light stays on screen and clear of the buttons.
-    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').click();
+    await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').click();
     const z = await viewBox(page);
     const b = await svgBox(page);
     const l = await lightAt(page);
@@ -655,9 +655,9 @@ test.describe("S7.4 zoom and pan", () => {
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const touchAction = () => card(page).evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector("svg")!).touchAction);
     expect(await touchAction()).toBe("pan-y");
-    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').click();
+    await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').click();
     await expect.poll(touchAction).toBe("none");
-    await card(page).locator('css=.fp-zoom button[aria-label="Fit"]').click();
+    await card(page).locator('css=.fp-stack button[aria-label="Fit"]').click();
     await expect.poll(touchAction).toBe("pan-y");
   });
 
@@ -681,7 +681,7 @@ test.describe("S7.4 zoom and pan", () => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo), floor: "all" }, states());
     const fit = await viewBox(page);
-    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').click();
+    await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').click();
     const z = await viewBox(page);
     expect(z.w).toBeLessThan(fit.w);
 
@@ -696,11 +696,11 @@ test.describe("S7.4 zoom and pan", () => {
     const firstFit = await viewBox(page);
     expect(firstFit.w).toBeGreaterThan(z.w); // a new floor opens at its own fit, not at the old zoom
     // 0.12.14: "−" stays enabled at fit — MIN_ZOOM is further out — only "Fit" is disabled there.
-    await expect(card(page).locator('css=.fp-zoom button[aria-label="Fit"]')).toBeDisabled();
+    await expect(card(page).locator('css=.fp-stack button[aria-label="Fit"]')).toBeDisabled();
 
     await card(page).locator("css=.fp-floors button").nth(0).click();
     expect(await viewBox(page)).toEqual(fit);
-    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').click();
+    await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').click();
     // A *changed* config: an identical one is the same card and now gets its remembered zoom back (view memory).
     // `floors` joins the storage key, so this is a fresh card; the switcher and the fit are the same as `floor: "all"`.
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo), floors: ["ground", "first"] }, states());
@@ -713,7 +713,7 @@ test.describe("S7.4 zoom and pan", () => {
       for (const dark of [false, true]) {
         await configure(page, { layout: structuredClone(demo), theme }, { states: {}, themes: { darkMode: dark } });
         const got = await card(page).evaluate((el) =>
-          [...el.shadowRoot!.querySelectorAll(".fp-zoom button")].map((btn) => {
+          [...el.shadowRoot!.querySelectorAll(".fp-zoom button, .fp-stack button")].map((btn) => {
             const s = getComputedStyle(btn);
             return { bg: s.backgroundColor, fg: s.color, vis: s.visibility, disp: s.display };
           }),
@@ -824,7 +824,7 @@ test.describe("S9.6 a card pinned to one room", () => {
     await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(home.w * 0.95);
     // Pinned (center/zoom_level set): the Fit button reads "Home view" (Opus review, 2026-09-27), since it no
     // longer fits the whole floor.
-    const fitBtn = card(page).locator('css=.fp-zoom button[aria-label="Home view"]');
+    const fitBtn = card(page).locator('css=.fp-stack button[aria-label="Home view"]');
     await fitBtn.click();
     expect(await viewBox(page)).toEqual(home);
 
@@ -867,8 +867,8 @@ test.describe("S9.6 a card pinned to one room", () => {
   // floor) and, after a same-width sideways pan, left Fit disabled with no way back. The fixes below check each
   // button's own condition: "−" against the whole floor (`fit`), Fit against whether `_view` is set at all.
   test.describe("S9.6 review: the zoom buttons' own disabled state (Opus, 2026-09-27)", () => {
-    const minusBtn = (page: Page) => card(page).locator('css=.fp-zoom button[aria-label="Zoom out"]');
-    const fitBtn = (page: Page) => card(page).locator('css=.fp-zoom button[aria-label="Fit"], .fp-zoom button[aria-label="Home view"]');
+    const minusBtn = (page: Page) => card(page).locator('css=.fp-stack button[aria-label="Zoom out"]');
+    const fitBtn = (page: Page) => card(page).locator('css=.fp-stack button[aria-label="Fit"], .fp-stack button[aria-label="Home view"]');
 
     test("a pinned card at home has \"−\" enabled, and clicking it widens the viewBox", async ({ page }) => {
       await open(page);
@@ -925,15 +925,15 @@ test.describe("S9.6 a card pinned to one room", () => {
       await open(page);
       await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
       await expect(minusBtn(page)).toBeEnabled();
-      await expect(card(page).locator('css=.fp-zoom button[aria-label="Fit"]')).toBeDisabled();
-      await expect(card(page).locator('css=.fp-zoom button[aria-label="Home view"]')).toHaveCount(0);
+      await expect(card(page).locator('css=.fp-stack button[aria-label="Fit"]')).toBeDisabled();
+      await expect(card(page).locator('css=.fp-stack button[aria-label="Home view"]')).toHaveCount(0);
     });
 
     test("a pinned card's Fit button reads \"Home view\", not \"Fit\"", async ({ page }) => {
       await open(page);
       await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
-      await expect(card(page).locator('css=.fp-zoom button[aria-label="Home view"]')).toHaveCount(1);
-      await expect(card(page).locator('css=.fp-zoom button[aria-label="Fit"]')).toHaveCount(0);
+      await expect(card(page).locator('css=.fp-stack button[aria-label="Home view"]')).toHaveCount(1);
+      await expect(card(page).locator('css=.fp-stack button[aria-label="Fit"]')).toHaveCount(0);
     });
   });
 });
@@ -1025,8 +1025,8 @@ test.describe("S7.4 touch", () => {
     expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
 
     await page.evaluate(() => window.scrollTo(0, 0));
-    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').tap();
-    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').tap();
+    await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').tap();
+    await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').tap();
     const z = await viewBox(page);
     expect(z.w).toBeLessThan(fit.w);
     // S8.2 review: the two taps just added `touch-action: none` to the svg (`.fp-zoomed`); Chromium applies
@@ -1043,7 +1043,7 @@ test.describe("S7.4 touch", () => {
   test("Break it: a pinch whose first finger starts outside the svg is ignored", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
-    await card(page).locator('css=.fp-zoom button[aria-label="Zoom in"]').tap();
+    await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').tap();
     const z = await viewBox(page);
     const b = await svgBox(page);
     const cx = b.x + b.width / 2, cy = b.y + b.height / 2;

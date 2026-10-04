@@ -41,13 +41,15 @@ describe("card view option and dropdown", () => {
     document.body.innerHTML = "";
   });
 
-  it("is 2D with a View select next to the zoom buttons by default", async () => {
+  it("is 2D with a View select in the toolbar, the zoom buttons in the stack, by default", async () => {
     const el = await mount();
     expect(lastView()).toBe("2d");
     const s = select(el)!;
     expect(s.value).toBe("2d");
     expect([...s.options].map((o) => [o.value, o.textContent!.trim()])).toEqual([["2d", "2D"], ["2.5d", "2.5D"]]);
-    expect(s.closest(".fp-zoom")).toBe(el.shadowRoot!.querySelector('button[aria-label="Zoom in"]')!.closest(".fp-zoom"));
+    // Layout changed (card-stack): the select is in the toolbar, zoom is in the vertical stack, as in the studio.
+    expect(s.closest(".fp-zoom")).not.toBeNull();
+    expect(el.shadowRoot!.querySelector('button[aria-label="Zoom in"]')!.closest(".fp-stack")).not.toBeNull();
   });
 
   it("view: 2.5d starts in 2.5D and the select says so", async () => {
