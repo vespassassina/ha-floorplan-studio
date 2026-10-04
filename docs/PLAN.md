@@ -2385,3 +2385,18 @@ the editor becomes one reusable combo, tested, with shots looked at.
   of Save or the live editor state. See `docs/DECISIONS.md` for why the
   earlier "keep it separate, not in `layout.json`" idea (below, struck
   through) was reversed.
+
+## Sprint 11 — rooms own their sensors (E3)
+
+Spec: `docs/specs/room-sensors.md`. Proposed 2026-10-04, not started.
+
+- S11.1 Core: `Room.temps/humidity/motion`, validate, render readout under
+  the room name, room motion perimeter and pulse from `motion`. Test: each
+  acceptance criterion 1, 2, 7 fails with the feature removed.
+- S11.2 Editor: three room pickers, "Attach to room" on a loose sensor.
+  Criteria 3, 4. Both surfaces draw through `renderFloor`.
+- S11.3 Card: tap a room selects it; the left panel's room section, rows that
+  act. Criterion 5. Real-coordinate Playwright tests.
+- S11.4 Card: expandable device info from `hass.devices`. Criterion 6.
+- S11.5 Docs, schema reference, prompts/SCHEMA.md, studio-and-card table,
+  review.
