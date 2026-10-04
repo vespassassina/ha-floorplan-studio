@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2.5D: a radiator (heater bar) is a box under the window, a speaker or media player is a small cabinet with two drivers, and a TV is a flat panel against the nearest wall with its screen lit when on. The icons stay the tap targets. 2D is unchanged.
+
 - A lit lamp's glow is clipped to the room it hangs in. It no longer washes through a wall into the next room. A lamp in no room (a garden lamp) keeps the free circle, and a zone does not count as a room. In 2.5D the clip is lifted with the lamp. The camera cone is unchanged.
 
 ## 0.12.26

@@ -207,3 +207,11 @@ test("in 2.5D a real click on a lifted icon and on its pin selects nothing, draw
   const far = await page.locator("svg line.stem").evaluateAll((ls) => ls.some((l) => Math.hypot(+l.getAttribute("x2")! - +l.getAttribute("x1")!, +l.getAttribute("y2")! - +l.getAttribute("y1")!) > 30));
   expect(far).toBe(true);
 });
+
+test("2.5D draws the demo's radiator as a solid box through the same draw path as the card; 2D draws none", async ({ page }) => {
+  expect(await page.locator("svg g.dsolid").count()).toBe(0);
+  await pickView(page, "2.5d");
+  expect(await page.locator("svg g.dsolid.radiator").count()).toBe(1);
+  await pickView(page, "2d");
+  expect(await page.locator("svg g.dsolid").count()).toBe(0);
+});

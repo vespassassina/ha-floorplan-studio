@@ -25,7 +25,7 @@ question. Nothing else hard-codes a height.
 | `height`, `sill` | `Opening` | 210, 0 | Same. |
 | `height` | `Furniture` | by symbol (`FURNITURE_HEIGHTS`) | Top of the piece above the floor. |
 | `height` | `Unlinked` | by type (`UNLINKED_HEIGHTS`) | Top of the appliance. |
-| `z` | `Device` | by type (`DEVICE_Z`) | Mount height of the icon's real object: a ceiling light 250, a switch 120, a plug 30, a heater 0 to 60. |
+| `z` | `Device` | by type (`DEVICE_Z`) | Mount height of the icon's real object: a ceiling light 250, a switch 120, a plug 30, a heater 0 to 60. In 2.5D a heater bar is a box from 10 cm up to `z` (default 70), a TV panel starts at `z`, a speaker cabinet ignores it. |
 | `height` | `Stairs` | the floor's | Rise. Implicit; not stored. |
 | `height` | `Extra` | 0 | Flat outline, no height. |
 

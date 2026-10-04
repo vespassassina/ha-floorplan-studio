@@ -74,6 +74,15 @@ boxes, stairs become steps. The floor itself stays true to the plan, so
 rooms, icons and taps sit where they do in 2D; only what stands up is drawn
 up and to the right (a vertical oblique projection, seen from the south-west).
 
+Three devices also get a body in 2.5D, beside their icon (which stays the tap
+target): a **radiator** (a heater drawn as a bar) is a box 8 cm deep, from 10 cm
+up to 70 cm (just under a window sill), tinted orange while heating; a
+**speaker** or media player is a 20 x 20 x 30 cm cabinet at its point, with
+two round drivers that light while it plays; a **TV** is a flat panel 100 cm
+wide and 6 thick on the nearest wall within 150 cm (free-standing, facing you,
+when there is none), its screen lit while it is on. `z` on a device moves the
+radiator's top and the TV's bottom.
+
 In the toolbar a small `View` dropdown switches between `2D` and
 `2.5D` for as long as the card is on screen. It keeps your zoom and pan, and a
 reload goes back to `view:`. `view_switch: false` removes the dropdown and

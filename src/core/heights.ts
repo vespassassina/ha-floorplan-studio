@@ -130,3 +130,13 @@ export function deviceZ(d: Device): number {
   const t = (d as { type?: unknown } | null)?.type;
   return own(d, "z") ?? (has(DEVICE_Z, t) ? DEVICE_Z[t] : FALLBACK);
 }
+
+/** `z` as the user set it, or `fallback` when it is missing or invalid. For the devices whose solid has a default of its own (a radiator, a free-standing TV). */
+export const deviceZOr = (d: Device, fallback: number): number => own(d, "z") ?? fallback;
+
+/** A radiator hangs 10 cm off the floor, and its top stays this far under the window sill (a radiator under a window). */
+export const RADIATOR_LIFT = 10, RADIATOR_SILL_MARGIN = 20;
+/** Bottom and top of a radiator box. `z` on the device is its top; the default is the window sill less a margin, 70 cm. */
+export function radiatorSpan(d: Device): { bottom: number; top: number } {
+  return { bottom: RADIATOR_LIFT, top: deviceZOr(d, DOOR_DEFAULTS.window.sill - RADIATOR_SILL_MARGIN) };
+}

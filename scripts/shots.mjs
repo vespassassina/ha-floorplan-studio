@@ -96,6 +96,13 @@ monLayout.floors.ground.devices.push({ id: "mon-tv", type: "tv", entity: "media_
 Object.assign(STATES.off, { "media_player.demo_tv": "off" });
 Object.assign(STATES.on, { "media_player.demo_tv": "on" });
 Object.assign(STATES.gone, { "media_player.demo_tv": "unavailable" });
+// Objects in 2.5D: a TV on the Living room's north wall (it stands against the wall and shows its screen), and a speaker
+// standing in the room (a cabinet with two drivers). The Hall TV above is on the south wall, so it shows its back.
+monLayout.floors.ground.devices.push({ id: "mon-tv-living", type: "tv", entity: "media_player.demo_tv_living", name: "Living TV", x: 400, y: 70 });
+monLayout.floors.ground.devices.push({ id: "mon-speaker", type: "speaker", entity: "media_player.demo_sonos", name: "Sonos", x: 440, y: 300 });
+Object.assign(STATES.off, { "media_player.demo_tv_living": "off", "media_player.demo_sonos": "idle" });
+Object.assign(STATES.on, { "media_player.demo_tv_living": "on", "media_player.demo_sonos": "playing" });
+Object.assign(STATES.gone, { "media_player.demo_tv_living": "unavailable", "media_player.demo_sonos": "unavailable" });
 // S8.13: an open contact door and window draw their alert line in "on"; closed in "off", unknown in "gone".
 Object.assign(STATES.off, { "binary_sensor.demo_front_door": "off", "binary_sensor.demo_bedroom_window": "off" });
 Object.assign(STATES.on, { "binary_sensor.demo_front_door": "on", "binary_sensor.demo_bedroom_window": "on" });
@@ -110,6 +117,8 @@ Object.assign(STATES.gone, { "vacuum.demo_hall": "unavailable" });
 // solid on its own, distinct from "on"'s dashed+alarm combination (both classes together).
 monLayout.floors.ground.doors[0].vibration = ["binary_sensor.demo_front_vibration"];
 STATES.vibrating = { ...STATES.off, "binary_sensor.demo_front_vibration": "on" };
+// Everything lit and the Living radiator actually heating (hvac_action), so the radiator box shows its heater tint.
+STATES.heating = { ...STATES.on, "climate.demo_living": ["heat", { hvac_action: "heating" }] };
 
 // Plugs are active only while they draw power (Diego, 2026-10). The TV plug is switched on and draws 35 W: active.
 // A second plug is switched on and idles at 0.4 W: grey, not blue. Off: both switched off, 0 W. Gone: unavailable.
@@ -150,7 +159,7 @@ try {
   ];
   const cardShots = [];
   for (const floor of Object.keys(layout.floors)) for (const which of Object.keys(STATES)) for (const t of THEMES) {
-    if (which === "night" || which === "vibrating" || which === "motion") continue; // below: ground floor only, two themes each
+    if (which === "night" || which === "vibrating" || which === "motion" || which === "heating") continue; // below: ground floor only, two themes each
     cardShots.push({ name: `card-${floor}-${which}-${t.id}`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
   }
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
@@ -177,6 +186,9 @@ try {
     for (const rotation of [45, 90]) cardShots.push({ name: `card-${floor}-on-blueprint-rot-${rotation}`, floor, which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, cfg: { rotation } });
     for (const rotation of [45, 180]) cardShots.push({ name: `card-${floor}-on-blueprint-2-5d-rot-${rotation}`, floor, which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", cfg: { rotation } });
   }
+  // Radiator, speaker and TV solids: ground floor, lit and at rest, tilt 0.5 and 1, turned 0 and 90, light and blueprint.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const tilt of [0.5, 1]) for (const rotation of [0, 90]) for (const which of ["off", "on", "heating"])
+    cardShots.push({ name: `card-ground-${which}-${t.id}-solids-tilt-${String(tilt).replace(".", "-")}-rot-${rotation}`, floor: "ground", which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view: "2.5d", cfg: { tilt, rotation, active_list: false }, dpr: 2 });
   cardShots.push({ name: "card-ground-on-blueprint-2-5d-375px", floor: "ground", which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", width: 375 });
   cardShots.push({ name: "card-ground-on-blueprint-2-5d-rot-45-375px", floor: "ground", which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", width: 375, cfg: { rotation: 45 } });
   for (const s of cardShots) {
