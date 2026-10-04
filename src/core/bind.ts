@@ -51,6 +51,14 @@ export function attachedEntities(l: Layout): Set<string> {
         pushEntity((d as any).cover, out);
       }
     }
+    if (Array.isArray((f as Partial<Floor>).rooms)) {
+      for (const r of (f as Floor).rooms) {
+        if (!r || typeof r !== "object") continue;
+        pushEntityList((r as any).temps, out);
+        pushEntityList((r as any).humidity, out);
+        pushEntityList((r as any).motion, out);
+      }
+    }
     if (Array.isArray((f as Partial<Floor>).devices)) {
       for (const d of (f as Floor).devices) {
         if (!d || typeof d !== "object") continue;

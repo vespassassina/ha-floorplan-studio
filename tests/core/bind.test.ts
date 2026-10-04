@@ -64,6 +64,10 @@ describe("attachedEntities", () => {
     { label: "device.trvs", entity: "climate.trv_1", floor: { ...emptyFloor(), devices: [{ id: "h1", type: "heater", entity: "climate.heater", trvs: ["climate.trv_1"], x: 0, y: 0 }] } },
     { label: "device.tempSensors", entity: "sensor.temp_1", floor: { ...emptyFloor(), devices: [{ id: "h1", type: "heater", entity: "climate.heater", tempSensors: ["sensor.temp_1"], x: 0, y: 0 }] } },
     { label: "device.linked", entity: "climate.linked_1", floor: { ...emptyFloor(), devices: [{ id: "a1", type: "ac", entity: "climate.ac", linked: ["climate.linked_1"], x: 0, y: 0 }] } },
+    // S11.2: a room's own sensor lists are attachments too
+    { label: "room.temps", entity: "sensor.room_t", floor: { ...emptyFloor(), rooms: [{ id: "r1", name: "R", area: "", kind: "room", pts: [[0, 0], [1, 0], [1, 1]], wk: ["wall", "wall", "wall"], temps: ["sensor.room_t"] }] } },
+    { label: "room.humidity", entity: "sensor.room_h", floor: { ...emptyFloor(), rooms: [{ id: "r1", name: "R", area: "", kind: "room", pts: [[0, 0], [1, 0], [1, 1]], wk: ["wall", "wall", "wall"], humidity: ["sensor.room_h"] }] } },
+    { label: "room.motion", entity: "binary_sensor.room_m", floor: { ...emptyFloor(), rooms: [{ id: "r1", name: "R", area: "", kind: "room", pts: [[0, 0], [1, 0], [1, 1]], wk: ["wall", "wall", "wall"], motion: ["binary_sensor.room_m"] }] } },
     { label: "unlinked.attached", entity: "sensor.attached_1", floor: { ...emptyFloor(), unlinked: [{ id: "u1", type: "other", x: 0, y: 0, rot: 0, scale: 1, attached: ["sensor.attached_1"] }] } },
   ];
 
