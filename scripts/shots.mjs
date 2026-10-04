@@ -175,6 +175,11 @@ try {
   // S11.1: a room's own sensors: the readout under the name, no icons for them, the Hall's border; 2D and 2.5D, at 2x.
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const view of ["2d", "2.5d"])
     cardShots.push({ name: `card-ground-roomsensors-${t.id}${view === "2.5d" ? "-2-5d" : ""}`, floor: "ground", which: "roomsensors", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view, dpr: 2, rooms: true });
+  // S11.3/S11.4: the Living room picked by a real click, the room section and the filtered list in the left panel, with the lamp's
+  // details open; blueprint and light, at 375 px (the list is folded by default there) and at 1000 px, and in 2.5D once.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [375, 1000])
+    cardShots.push({ name: `card-ground-roompicked-${t.id}-${width}px`, floor: "ground", which: "roomsensors", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, width, dpr: 2, rooms: true, pick: 0 });
+  cardShots.push({ name: "card-ground-roompicked-blueprint-2-5d", floor: "ground", which: "roomsensors", dark: false, theme: "blueprint", vars: "", page: "#0d1522", width: 1000, dpr: 2, rooms: true, pick: 0, view: "2.5d" });
   // 2.5D: both floors, at rest and lit, in the default, a light and a dark theme (the three that read differently).
   for (const floor of Object.keys(layout.floors)) for (const which of ["off", "on"]) for (const t of THEMES.filter((x) => ["blueprint", "light", "ha-dark"].includes(x.id)))
     cardShots.push({ name: `card-${floor}-${which}-${t.id}-2-5d`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view: "2.5d" });
@@ -205,6 +210,22 @@ try {
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
     }, [{ layout: s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme, ...(s.view ? { view: s.view } : {}), ...(s.cfg ?? {}) }, hassFor(s.which, s.dark)]);
+    if (s.pick !== undefined) {
+      // A real click on bare floor, found with elementFromPoint (CLAUDE.md finding 3), then the first details chevron.
+      await page.evaluate(([reg]) => { const el = document.getElementById("c"); el.hass = { ...el.hass, ...reg }; return el.updateComplete; },
+        [{ entities: { "light.demo_living": { entity_id: "light.demo_living", device_id: "d1" } }, devices: { d1: { id: "d1", manufacturer: "Signify", model: "Hue white ambiance", sw_version: "1.88.1", area_id: "living" } }, areas: { living: { area_id: "living", name: "Living" } } }]);
+      const at = await page.evaluate((i) => {
+        const sr = document.getElementById("c").shadowRoot, poly = sr.querySelector(`svg polygon[data-r="${i}"]`), r = poly.getBoundingClientRect();
+        for (let y = r.top + 6; y < r.bottom; y += 6) for (let x = r.left + 6; x < r.right; x += 6) if (sr.elementFromPoint(x, y) === poly) return { x, y };
+        return null;
+      }, s.pick);
+      if (!at) errors.push(`${s.name}: no bare floor to click in room ${s.pick}`);
+      else {
+        await page.mouse.click(at.x, at.y);
+        await page.locator("floorplan-studio-card").locator(".fp-room-devices .fp-info-btn").first().click();
+      }
+      await page.mouse.move(0, 0);
+    }
     const nodes = await page.evaluate(() => document.getElementById("c").shadowRoot.querySelectorAll("svg *").length);
     if (nodes < 10) errors.push(`${s.name}: the plan drew ${nodes} nodes; something is wrong before you even look`);
     await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });
