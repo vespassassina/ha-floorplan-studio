@@ -31,7 +31,7 @@ export interface ActiveDevice {
  *   list membership is narrower than its plan colour, not merely reused from it.
  * - `"never"`: every other type — a sensor with no on/off shape of its own (temp, humidity), a plain switch or
  *   lock (not asked for), or a type the card only ever watches through its own dialog (battery, inverter, server,
- *   access_point, boiler, car, ups, printer, radar, other).
+ *   access_point, boiler, car, ups, printer, other). A radar is "on" like a motion sensor (`MOTION_TYPES`).
  */
 export const ACTIVE_LIST_RULE: Record<DeviceType, "on" | "always" | "cleaning" | "never"> = {
   light: "on", motion: "on", contact: "on", heater: "on", climate: "on", ac: "on", tv: "on", media: "on",
@@ -40,7 +40,8 @@ export const ACTIVE_LIST_RULE: Record<DeviceType, "on" | "always" | "cleaning" |
   vacuum: "cleaning",
   cover: "on", switch: "never", temp: "never", humidity: "never", battery: "never", inverter: "never", server: "never",
   access_point: "never", lock: "never", vibration: "never", other: "never", boiler: "never", car: "never",
-  ups: "never", printer: "never", radar: "never",
+  ups: "never", printer: "never",
+  radar: "on", // a radar that sees someone is motion like any other (MOTION_TYPES); it was "never" until 0.12.24
 };
 
 /** The `--fp-dev-*` token each type's on colour comes from on the plan (render.ts's `FLOORPLAN_CSS`), so the list's
@@ -60,7 +61,7 @@ const COLOR_VAR: Partial<Record<DeviceType, string>> = {
   light: "--fp-dev-light", motion: "--fp-dev-motion", contact: "--fp-dev-contact", heater: "--fp-dev-heater",
   climate: "--fp-dev-climate", tv: "--fp-dev-tv", media: "--fp-dev-media",
   plug: "--fp-dev-plug", computer: "--fp-dev-computer", camera: "--fp-ink", person: "--fp-dev-person",
-  vacuum: "--fp-dev-vacuum", speaker: "--fp-dev-speaker",
+  vacuum: "--fp-dev-vacuum", speaker: "--fp-dev-speaker", radar: "--fp-dev-radar",
 };
 
 /** What `renderFloor` takes besides state, so the list reads a plug exactly as the plan does. */

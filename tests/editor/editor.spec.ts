@@ -4892,13 +4892,13 @@ test("Opus review CSS pair: S9.1 an open contact door is dashed in --fp-open-doo
   expect(s.dash).not.toBe("none");
 });
 
-test("Opus review CSS pair: S9.1 a cover door's own open state stays plain orange and undashed, even alongside .open", async ({ page }) => {
+test("Opus review CSS pair: S9.1 a cover door's own open state is red like an open door but undashed, even alongside .open", async ({ page }) => {
   const s = await page.evaluate((tag) => {
     const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
     const line = svg.querySelector("line[data-d]") as SVGLineElement;
     line.setAttribute("class", "door open cover-open"); // both at once: the schema permits sensors + cover together
     const cs = getComputedStyle(line);
-    return { stroke: cs.stroke, dash: cs.strokeDasharray, want: getComputedStyle(svg).getPropertyValue("--fp-open").trim() };
+    return { stroke: cs.stroke, dash: cs.strokeDasharray, want: getComputedStyle(svg).getPropertyValue("--fp-open-door").trim() };
   }, EDITOR);
   expect(s.stroke).toBe(rgb(s.want));
   expect(s.dash).toBe("none");

@@ -4,6 +4,8 @@
 import { deviceZ, doorSpan, edgeHeight, floorHeight, furnitureHeight, openingSpan, unlinkedHeight, wallHeight } from "./heights";
 import { esc, num, pts, tag } from "./fmt";
 import { stairSteps } from "./geometry";
+import { doorStateOf, type DoorState } from "./door-state";
+import type { StateOverlay } from "./render";
 import type { DoorKind, Floor, Furniture, FurnitureSymbol, Pt, StairDirection, Stairs, Unlinked } from "./schema";
 
 /** A device mount at or above this height gets a stem up from its icon (a ceiling light yes, a plug no). */
@@ -224,12 +226,15 @@ export function collectWalls(f: Floor, px: Proj, mode: WallsMode = "cut"): WallS
 export const OPENING_FILL: Record<DoorKind | "opening", "gap" | "glass" | "panel"> = { door: "gap", opening: "gap", glass: "glass", window: "glass", sealed: "panel" };
 const has = <T extends string>(table: Record<T, unknown>, k: unknown): k is T => typeof k === "string" && Object.prototype.hasOwnProperty.call(table, k);
 
-/** A door, window or opening as the wall sees it: where it lies and between which heights. */
-interface Span { a: Pt; b: Pt; sill: number; head: number; kind: string }
-const spansOf = (f: Floor): Span[] => [
-  ...(f.doors ?? []).filter((d) => finite(d.a) && finite(d.b)).map((d) => ({ a: d.a, b: d.b, ...doorSpan(d), kind: String(d.kind) })),
-  ...(f.openings ?? []).filter((o) => finite(o.a) && finite(o.b)).map((o) => ({ a: o.a, b: o.b, ...openingSpan(o), kind: "opening" })),
+/** A door, window or opening as the wall sees it: where it lies and between which heights, and what its sensors say. */
+interface Span { a: Pt; b: Pt; sill: number; head: number; kind: string; live: DoorState }
+const CLOSED: DoorState = { open: false, alarm: false, cover: false };
+const spansOf = (f: Floor, state: StateOverlay | undefined): Span[] => [
+  ...(f.doors ?? []).filter((d) => finite(d.a) && finite(d.b)).map((d) => ({ a: d.a, b: d.b, ...doorSpan(d), kind: String(d.kind), live: doorStateOf(d, state) })),
+  ...(f.openings ?? []).filter((o) => finite(o.a) && finite(o.b)).map((o) => ({ a: o.a, b: o.b, ...openingSpan(o), kind: "opening", live: CLOSED })),
 ];
+/** The state classes an opening's infill wears: red for open or alarm (solid), the cover's own colour for an open cover. */
+const liveClass = (l: DoorState) => `${l.open ? " open" : ""}${l.alarm ? " alarm" : ""}${l.cover ? " cover-open" : ""}`;
 /** How far from a wall's line an opening's middle may sit and still be in it: the editor's own snap tolerance (render.ts, DOOR_WALL_TOL). */
 const HOST_TOL = 10;
 
@@ -252,18 +257,44 @@ function within(w: WallSeg, span: Span): [number, number] | null {
 const kindClass = (kind: string) => (kind === "wall" ? "" : ` ${esc(kind)}`);
 
 /**
- * Every wall as side faces plus a top, with its openings cut out: below the sill a block, above the head a header,
- * between them nothing (a door, an opening), a glass band (a window, a glass door) or a panel (sealed).
+ * cm the top of a wall is drawn across in 2.5D at the default tilt: its footprint is 10 (20 external), but the cap is a
+ * rim on a solid, and a full-width one outweighs the face under it. It thins with the tilt (no lift, no change), by an
+ * inline style, which beats the kind rules in the stylesheet whatever their specificity.
  */
-export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut"): Solid[] {
-  const spans = spansOf(f);
+const CAP_WIDTH = 7, CAP_WIDTH_EXTERNAL = 12, FLAT_WIDTH = 10, FLAT_WIDTH_EXTERNAL = 20, CAP_FULL_RISE = 0.55;
+/** cm up from the floor the darker foot of a wall face reaches. */
+const FOOT_HEIGHT = 12;
+
+/**
+ * How a wall face is lit, by which way it looks on screen: a fixed light from the upper left, so a face turned toward
+ * it is "lit", one turned away "dim", and one that looks straight at the viewer is the plain tone. The screen frame, so
+ * turning the plan turns the light with the viewer, and two walls at one angle always agree. Returns the unit normal
+ * (in the plan's own frame) that faces the camera, for the highlight, and the class suffix.
+ */
+function lighting(w: WallSeg, px: Proj, ux: number, uy: number): { tone: string; toward: Pt } {
+  const n: Pt = [uy, -ux], s = px.scr(w.a), t = px.scr([w.a[0] + n[0], w.a[1] + n[1]]), v: Pt = [t[0] - s[0], t[1] - s[1]];
+  const flip = v[1] - px.skew * v[0] < 0, sx = flip ? -v[0] : v[0];
+  return { tone: sx < -0.35 ? " lit" : sx > 0.35 ? " dim" : "", toward: flip ? [-n[0], -n[1]] : n };
+}
+
+/**
+ * Every wall as side faces plus a top, with its openings cut out: below the sill a block, above the head a header,
+ * between them nothing (a plain opening), a painted leaf (a closed door), a red frame (an open one), a glass band (a
+ * window, a glass door) or a panel (sealed). `state` is what the sensors say: an open or alarmed opening wears the
+ * same red as its line in 2D (Diego, 0.12.23).
+ */
+export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: StateOverlay): Solid[] {
+  const spans = spansOf(f, state);
   return collectWalls(f, px, mode).map((w) => {
     const len = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]), ux = (w.b[0] - w.a[0]) / len, uy = (w.b[1] - w.a[1]) / len;
-    const hh = drawnHeight(w, px);
+    // Seen from straight above (no lift) a wall has no face: it is drawn exactly as it always was.
+    const solid = px.rise > 0, hh = drawnHeight(w, px), { tone, toward } = solid ? lighting(w, px, ux, uy) : { tone: "", toward: [0, 0] as Pt };
     const at = (t: number): Pt => [w.a[0] + ux * t, w.a[1] + uy * t];
     const quad = (t0: number, t1: number, z0: number, z1: number, cls: string) =>
       z1 > z0 && t1 > t0 ? `<polygon class="${cls}" points="${pts([px.lift(at(t0), z0), px.lift(at(t1), z0), px.lift(at(t1), z1), px.lift(at(t0), z1)])}"/>` : "";
-    const wall = `ws${kindClass(w.kind)}`;
+    const wall = `ws${kindClass(w.kind)}${tone}`;
+    /** A block of wall from the floor to `z1`, with its darker foot. */
+    const block = (t0: number, t1: number, z1: number) => quad(t0, t1, 0, z1, wall) + (solid ? quad(t0, t1, 0, Math.min(z1, FOOT_HEIGHT), "wfoot") : "");
     const here = spans.map((s) => ({ s, r: within(w, s) })).filter((x): x is { s: Span; r: [number, number] } => x.r !== null).sort((p, q) => p.r[0] - q.r[0]);
     const faces: string[] = [], tops: [number, number][] = [];
     const top = (t0: number, t1: number) => { const last = tops[tops.length - 1]; if (last && last[1] >= t0 - 0.01) last[1] = Math.max(last[1], t1); else tops.push([t0, t1]); };
@@ -271,23 +302,30 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut"): Solid[]
     for (const { s, r } of here) {
       const t0 = Math.max(r[0], cursor), t1 = r[1];
       if (t1 <= t0) continue;
-      faces.push(quad(cursor, t0, 0, hh, wall));
+      faces.push(block(cursor, t0, hh));
       if (t0 > cursor) top(cursor, t0);
-      const sill = Math.min(s.sill, hh), head = Math.min(s.head, hh);
-      faces.push(quad(t0, t1, 0, sill, wall));
+      const sill = Math.min(s.sill, hh), head = Math.min(s.head, hh), live = solid ? liveClass(s.live) : "";
+      faces.push(block(t0, t1, sill));
       const fill = has(OPENING_FILL, s.kind) ? OPENING_FILL[s.kind] : "gap";
-      if (fill === "glass") faces.push(quad(t0, t1, sill, head, `glass g-${esc(s.kind)}`));
-      else if (fill === "panel") faces.push(quad(t0, t1, sill, head, "ws sealed"));
+      if (fill === "glass") faces.push(quad(t0, t1, sill, head, `glass g-${esc(s.kind)}${live}`));
+      else if (fill === "panel") faces.push(quad(t0, t1, sill, head, `ws sealed${live}`));
+      // A door: closed it is a painted leaf, open (or alarmed, or its cover open) a red frame round the gap. A plain opening is only a gap.
+      else if (s.kind !== "opening" && solid) faces.push(quad(t0, t1, sill, head, live ? `opn${live}` : "door-leaf"));
       faces.push(quad(t0, t1, head, hh, wall));
       if (s.head < hh || s.sill >= hh) top(t0, t1); // a header, or a sill that reaches the top, closes the wall above the gap
       cursor = t1;
     }
-    faces.push(quad(cursor, len, 0, hh, wall));
+    faces.push(block(cursor, len, hh));
     if (len > cursor) top(cursor, len);
-    const kc = kindClass(w.kind);
+    const kc = kindClass(w.kind), ext = w.kind === "external", cap = ext ? CAP_WIDTH_EXTERNAL : CAP_WIDTH;
+    // Only a wall and an external wall are thinned; a fence or an edge is a line already. The halo is 2 wider, as in 2D.
+    const thin = solid && (w.kind === "wall" || ext) ? Math.min(1, px.rise / CAP_FULL_RISE) : 0, flat = ext ? FLAT_WIDTH_EXTERNAL : FLAT_WIDTH;
+    const width = (halo: number) => (thin ? ` style="stroke-width:${num(flat + (cap - flat) * thin + halo)}"` : "");
     const lines = tops.map(([t0, t1]) => {
       const a = px.lift(at(t0), hh), b = px.lift(at(t1), hh), g = `x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"`;
-      return `<line class="eh${kc} top" ${g}/><line class="e${kc} top" ${g}/>`;
+      // The lit edge of the face: a thin line on the cap's near edge, drawn after the cap so it shows.
+      const o: Pt = [(toward[0] * cap) / 2, (toward[1] * cap) / 2], ha = px.lift([at(t0)[0] + o[0], at(t0)[1] + o[1]], hh), hb = px.lift([at(t1)[0] + o[0], at(t1)[1] + o[1]], hh);
+      return `<line class="eh${kc} top" ${g}${width(2)}/><line class="e${kc} top" ${g}${width(0)}/>${solid ? `<line class="wl" x1="${num(ha[0])}" y1="${num(ha[1])}" x2="${num(hb[0])}" y2="${num(hb[1])}"/>` : ""}`;
     });
     return { key: nearest(px, [w.a, w.b]), svg: faces.join("") + lines.join("") };
   });

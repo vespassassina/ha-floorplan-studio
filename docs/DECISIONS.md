@@ -2,6 +2,37 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: a cover left open on a plain door is red; walls default stays `cut`
+
+Diego confirmed three calls on 0.12.25. `.door.cover-open`, `.opn.cover-open`
+and the glass and sealed cover-open rules now use `--fp-open-door`, not
+`--fp-open` (orange), so every open opening reads the same. Supersedes the S9.1
+"cover keeps orange". The `walls` default stays `cut` (`full` hides 137 cm of
+floor at tilt 0.5). Internal doors are painted leaves; open ones a red frame.
+
+## 2026-10-04: 2.5D walls shaded, open doors red, motion border follows the icon
+
+Diego on 0.12.23: walls look like "2d + hat", open doors and windows should be
+red, no motion border in the Living room.
+
+- Walls: the default `walls` stays `cut`. `full` hides 137 cm of floor behind a
+  front wall at tilt 0.5 and 275 cm at tilt 1; the doll's house look is the
+  point of the view. The look is fixed by shading instead: faces lit by screen
+  orientation (`.ws.lit`, `.ws.dim`, mixed from `--fp-wall-side` with
+  `--fp-on-dark` and `--fp-on-light`), a foot, a top edge, a thinner cap.
+  Everything is gated on `rise > 0`, so tilt 0 and 2D are byte-identical.
+- Open openings: 2.5D reads the same state as 2D (`doorStateOf`). Open and
+  alarm are `--fp-open-door`. A cover left open on a plain door keeps
+  `--fp-open` (orange), as 2D and the existing tests pin. Supersedes nothing;
+  confirm if Diego wants it red too.
+- "Internal doors paint them", read as: a closed door is a painted leaf in
+  `--fp-door` in every wall, internal included. Open it is a red frame.
+- Motion: the red icon is a fade of a sensor already off, and the border
+  ignored it. The border now fades with the icon (`--fp-fade`). A sensor in a
+  wall counts for the nearest room within the wall reach; the innermost room
+  wins. `MOTION_TYPES` (motion, radar) is the one list; radar is now on the
+  Active list. A radar icon does not fade, so neither does its border.
+
 ## 2026-10-04: three photos of the maintainer's card go in the README, blurred
 
 CLAUDE.md says the maintainer's house layout never enters the repo. Diego chose

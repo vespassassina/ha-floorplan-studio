@@ -47,6 +47,6 @@ describe("covers with no garage, gate or door class draw idle (curtains, blinds,
     const door = { id: "d", kind: "door", a: [0, 0], b: [90, 0], cover: "cover.c" };
     const html = draw([], { "cover.c": st("open") }, { doors: [door] } as never);
     expect(html).toContain("cover-open");
-    expect(FLOORPLAN_CSS).toContain(".door.cover-open{stroke:var(--fp-open)");
+    expect(FLOORPLAN_CSS).toContain(".door.cover-open{stroke:var(--fp-open-door)");
   });
 });

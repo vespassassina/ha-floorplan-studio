@@ -1369,7 +1369,7 @@ describe("S2.9: a device wears its colour when it is on", () => {
 
   it("a door contact sensor (not a device icon) also draws red now, not the old orange --fp-open", () => {
     expect(FLOORPLAN_CSS).toContain(".door.open{stroke:var(--fp-open-door);stroke-dasharray:10 6}");
-    expect(FLOORPLAN_CSS).toContain(".door.cover-open{stroke:var(--fp-open);stroke-dasharray:none}"); // a cover's own open state is unrelated to contact, stays orange, and is never dashed
+    expect(FLOORPLAN_CSS).toContain(".door.cover-open{stroke:var(--fp-open-door);stroke-dasharray:none}"); // a cover's own open state is unrelated to contact, is red like an open door (2026-10-04), and is never dashed
   });
 
   it("S9.1: --fp-open-door is red in every theme block: the contact red where it is red, a fixed red where the theme collapses to one accent", () => {

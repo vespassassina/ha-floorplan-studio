@@ -25,7 +25,7 @@ const OFF_STATE: Partial<Record<Device["type"], ReturnType<typeof st>>> = {
   light: st("off"), motion: st("off"), contact: st("off"), tv: st("off"), plug: st("off"), computer: st("off"), cover: st("closed"),
   heater: st("heat", { hvac_action: "idle" }), climate: st("heat", { hvac_action: "idle" }),
   ac: st("off"), media: st("idle"), person: st("not_home"), speaker: st("idle"),
-  camera: st("idle"), vacuum: st("returning"), // "returning" is on-plan-active but off-list (the one deliberate gap)
+  radar: st("off"), camera: st("idle"), vacuum: st("returning"), // "returning" is on-plan-active but off-list (the one deliberate gap)
 };
 
 describe("S9.5: every DeviceType is a decided list membership (CLAUDE.md finding 17)", () => {

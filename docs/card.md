@@ -97,6 +97,16 @@ can hide the rooms behind them. `low` draws every wall at the cutaway height
 every room visible. One straight wall made of several edges (rooms side by
 side along one line) always has one height in `cut`.
 
+In 2.5D a wall face is lit by which way it looks on screen (lit, plain, dim),
+with a darker foot and a thin lit top edge; the cap on top is thinner than the
+flat wall. A door is a painted leaf (`--fp-door`) when closed. An open door or
+window, a lock left unlocked or a vibrating door is red (`--fp-open-door`) on
+the face and the frame, as its line is in 2D; closed, unavailable or without a
+sensor it is not. A cover left open on a plain door stays orange. A room whose
+motion sensor is on draws a thin border just inside its walls in the sensor's
+colour, and it fades with the icon over `fade` seconds. A radar counts as a
+motion sensor here and in the Active list.
+
 A **Walls** select (Full height, Cutaway, Low) sits next to the Tilt slider
 while the view is 2.5D, and goes with it in 2D, with `view_switch: false` and
 in `kiosk`. A pick redraws the plan only and the card remembers it (below). The
