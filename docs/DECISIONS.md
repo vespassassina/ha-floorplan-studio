@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-04: three photos of the maintainer's card go in the README, blurred
+
+CLAUDE.md says the maintainer's house layout never enters the repo. Diego chose
+to show his real card anyway, with every room, device and entity name blurred
+(the Active list and each plan label). The shape of the house stays visible.
+The files are `docs/img/card-house-*.png`. This is an exception for these three
+images only; no layout JSON, entity id or URL goes in.
+
 ## 2026-10-03: a high device is drawn lifted; the pin stays on the floor
 
 Diego, in 2.5D: "instead of moving the icons with the walls, it moves the pin."
