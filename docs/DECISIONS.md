@@ -97,7 +97,7 @@ top of the existing Active panel. Calls made in code, change any:
   `active_list: false` pick nothing: there is no panel to show it in. Switching
   floor clears it. Escape uses the card's existing key gate (hover or focus), the
   same as the view keys.
-- The outline is `.room.picked` (ink, dashed), added by `renderFloor` from a new
+- The outline is `.room-picked` (ink, dashed), added by `renderFloor` from a new
   `selectedRoom` option, so there is one draw path. The editor draws its own
   selection in its overlay and does not pass it.
 - Area is the polygon's area from the room's corners, to 0.1 m2. The room's
@@ -127,6 +127,7 @@ top of the existing Active panel. Calls made in code, change any:
   button, so it never taps the row. Open details are card state keyed by entity.
 - The panel is card-only. The studio has its own selection panel with all of
   this and more, so this is a stated difference (docs/card.md, "Studio and card").
+
 ## 2026-10-04: a room owns its temperature, humidity and motion sensors (S11.1, core)
 
 Diego: "instead of having them around, lets add them to a room, like the windows

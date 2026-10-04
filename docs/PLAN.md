@@ -2388,7 +2388,7 @@ the editor becomes one reusable combo, tested, with shots looked at.
 
 ## Sprint 11 — rooms own their sensors (E3)
 
-Spec: `docs/specs/room-sensors.md`. Proposed 2026-10-04, not started.
+Spec: `docs/specs/room-sensors.md`. Built 2026-10-04 (S11.1 to S11.4; S11.5 open).
 
 - S11.1 Core: `Room.temps/humidity/motion`, validate, render readout under
   the room name, room motion perimeter and pulse from `motion`. Test: each

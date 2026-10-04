@@ -1,6 +1,7 @@
 # Room sensors, room motion, room and device info
 
-Status: proposed 2026-10-04. Needs Diego's yes before any code.
+Status: built, 2026-10-04 (Sprint 11, S11.1 to S11.4; docs and review in S11.5).
+The assumptions below held, with the final decisions listed at the end.
 
 ## Goal
 
@@ -72,3 +73,21 @@ checks arrays, strings, entity-id shape, count caps; never throws (finding 1).
 
 No new backend. No battery or signal rows. No change to the tap on a device.
 No 3D.
+
+## Final decisions (built, 2026-10-04)
+
+Each is in `docs/DECISIONS.md` with its reasons.
+
+- One rule for the room a point is in: `roomAt`, the smallest room of a kind that
+  can own a point (room, garden, pavement, terrace, water; never zone, structure
+  or fill). The aura clip, Attach to room, the readout, the Sensors section, the
+  motion edge and the card's room summary all use it (assumption A).
+- Motion: three pulses when a sensor trips, then the steady edge, fading after it
+  goes off. A redraw does not replay the pulses; the ring carries its trip age.
+  Decided by the coordinator on Diego's wording, open to his change.
+- A mean reading takes only the readings in the first unit seen (assumption D).
+- A tap picks the room under the finger, through its name, readout and furniture;
+  a zone or structure is looked through; a double tap leaves the pick alone
+  (assumption B). Enter on a toggling row decides like a tap.
+- The room section is in the left panel and is labelled with the room's name
+  (assumption C). Card only; the studio has its own selection panel (assumption E).
