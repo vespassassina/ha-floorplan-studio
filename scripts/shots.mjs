@@ -244,23 +244,6 @@ try {
     shots.push(s.name);
     await ctx.close();
   }
-  // The editor's 2.5D preview: the same plan, read-only, with the note in the panel.
-  for (const theme of ["blueprint", "light"]) {
-    const name = `editor-${theme}-2-5d`;
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: "light", reducedMotion: "reduce" });
-    const page = await ctx.newPage();
-    page.on("pageerror", (e) => errors.push(`${name}: ${e}`));
-    await page.addInitScript((t) => localStorage.setItem("floorplan-studio:theme", t), theme);
-    await page.goto(pathToFileURL(resolve(EDITOR)).href);
-    await page.locator("floorplan-studio-editor svg polygon[data-r]").first().waitFor();
-    await page.locator('details.menu > summary:text-is("View")').click();
-    await page.locator("#view-mode").selectOption("2.5d");
-    await page.locator('details.menu > summary:text-is("View")').click();
-    await page.locator("#previewNote").waitFor();
-    await page.screenshot({ path: `${OUT}/${name}.png` });
-    shots.push(name);
-    await ctx.close();
-  }
   for (const theme of ["blueprint", "light", "ha"]) {
     const name = `editor-${theme}`;
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: "light", reducedMotion: "reduce" });

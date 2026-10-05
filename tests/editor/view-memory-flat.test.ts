@@ -43,7 +43,8 @@ describe("view memory has no 2.5D", () => {
 
   it("importing an old 2.5d entry, or junk, gives the same view as the entry without those fields", () => {
     for (const memory of [OLD, { mode: 5, tilt: "x", walls: [], rotation: 45 }, { mode: "2.5d", floor: "ground" }]) {
-      const { mode, tilt, walls, ...rest } = memory as Record<string, unknown>;
+      const rest = { ...(memory as Record<string, unknown>) };
+      for (const k of ["mode", "tilt", "walls"]) delete rest[k];
       const a = new EditorState(fresh()), b = new EditorState(fresh());
       expect(() => a.importView(memory as never), JSON.stringify(memory)).not.toThrow();
       b.importView(rest as never);
