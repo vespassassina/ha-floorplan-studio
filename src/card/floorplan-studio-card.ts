@@ -13,6 +13,7 @@ import { CARD_VERSION } from "./version";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { viewKeyFor, type ViewKey } from "./view-keys";
 import type { View3D } from "./three/view3d";
+import type { Pick as Pick3D } from "./three/pick";
 import { buildScene, CUT_WALL_HEIGHT } from "../core/scene";
 import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type StoredView } from "./view-state";
 
@@ -393,6 +394,10 @@ export class FloorplanStudioCard extends LitElement {
   private _infoOpen: Set<string> = new Set();
   private _actionsPanel: HTMLElement | null = null;
   private _unbindPanel: (() => void) | null = null;
+  /** S12.4: the 3D host the taps are bound on, and what unbinds them. */
+  private _actions3d: HTMLElement | null = null;
+  private _unbind3d: (() => void) | null = null;
+  private _pick3dCache: { stamp: number; x: number; y: number; pick: Pick3D | null } | null = null;
 
   /** `localStorage` key for this card's panel state. Opus review finding 7: the seed used to be the layout's own
    * content (`layout_url`, or the inline `layout` verbatim), which meant two cards in websocket mode — no
@@ -823,6 +828,9 @@ export class FloorplanStudioCard extends LitElement {
     this._unbindPanel?.();
     this._unbindPanel = null;
     this._actionsPanel = null;
+    this._unbind3d?.();
+    this._unbind3d = null;
+    this._actions3d = null;
     this._activeResizeObserver?.disconnect();
     this._activeResizeObserver = null;
     this._dispose3d();
@@ -1160,6 +1168,14 @@ export class FloorplanStudioCard extends LitElement {
       this._actionsSvg = svg;
     }
 
+    // S12.4: the 3D view's taps, on its own host, bound once per element like the plan's.
+    const host3 = this.shadowRoot?.querySelector<HTMLElement>(".fp-3d") ?? null;
+    if (host3 !== this._actions3d) {
+      this._unbind3d?.();
+      this._unbind3d = host3 ? this._bind3d(host3) : null;
+      this._actions3d = host3;
+    }
+
     // S11.3: the panel's device rows go through the same gesture binder as the plan's icons, bound once per element.
     const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active") ?? null;
     if (panel !== this._actionsPanel) {
@@ -1253,7 +1269,76 @@ export class FloorplanStudioCard extends LitElement {
       this._view3dAround = aroundKey;
       this._view3d.setFloor(f, around);
     }
+    this._view3d.setRing(this._picked());
     this._apply3dInset();
+  }
+
+  /** What the 3D view has under a pointer event, read once per event: the gesture code and the room tap both ask. */
+  private _pick3d(e: PointerEvent): Pick3D | null {
+    const c = this._pick3dCache;
+    if (c && c.stamp === e.timeStamp && c.x === e.clientX && c.y === e.clientY) return c.pick;
+    const pick = this._view3d?.pick(e.clientX, e.clientY) ?? null;
+    this._pick3dCache = { stamp: e.timeStamp, x: e.clientX, y: e.clientY, pick };
+    return pick;
+  }
+
+  /** S12.4: taps in 3D mean what they mean in 2D. A device, a door or window and an unlinked appliance go to the same
+   *  gesture code as the plan's (`bindDeviceActions`, told what is under the pointer by a ray instead of the DOM):
+   *  tap toggles, hold opens more-info, `NO_TOGGLE` types do not toggle. Any other tap picks the room under it, or clears.
+   *  A drag (the view says so), a pinch and a double tap pick nothing; a double tap puts the pick back as it was. */
+  private _bind3d(host: HTMLElement): () => void {
+    const svgEl = (tag: string, attr: string, v: number): Element => {
+      const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+      el.setAttribute(attr, String(v));
+      return el;
+    };
+    const unbindGestures = bindDeviceActions(host, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], (door) => this._openCoverDialog(door), {
+      longPress: !this._kiosk(),
+      openVacuumDialog: (d) => this._openVacuumDialog(d),
+      openChooser: (title, entities) => this._openChooserDialog(title, entities),
+      getUnlinked: (i) => this._floor()?.unlinked[i],
+      resolve: (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return null;
+        const p = this._pick3d(e);
+        return !p ? null : p.type === "device" ? svgEl("g", "data-x", p.index) : p.type === "door" ? svgEl("line", "data-d", p.index) : p.type === "unlinked" ? svgEl("g", "data-u", p.index) : null;
+      },
+    });
+    let start: { x: number; y: number } | null = null, pointers = 0;
+    let last: { t: number; x: number; y: number; before: { pick: { floor: string; id: string } | null; filter: boolean } } | null = null;
+    const onDown = (e: PointerEvent) => {
+      if (e.isPrimary) pointers = 0;
+      pointers++;
+      if (pointers > 1) { start = null; last = null; return; }
+      start = e.pointerType === "mouse" && e.button !== 0 ? null : { x: e.clientX, y: e.clientY };
+    };
+    const onUp = (e: PointerEvent) => {
+      pointers = Math.max(0, pointers - 1);
+      const s = start;
+      start = null;
+      if (!s || this._view3d?.dragged !== false || Math.hypot(e.clientX - s.x, e.clientY - s.y) > TAP_SLOP_PX) { last = null; return; }
+      const p = this._pick3d({ clientX: s.x, clientY: s.y, timeStamp: -1 } as PointerEvent);
+      if (p && (p.type === "device" || p.type === "door" || p.type === "unlinked")) { last = null; return; } // its own thing, never a pick
+      const now = performance.now();
+      if (last && now - last.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - last.x, e.clientY - last.y) < DOUBLE_TAP_PX) {
+        this._restorePick(last.before);
+        last = null;
+        return;
+      }
+      last = { t: now, x: e.clientX, y: e.clientY, before: { pick: this._pickedRoom, filter: this._roomFilter } };
+      if (!this._activeListVisible()) return;
+      const room = p?.type === "room" ? p.index : null;
+      this._pickRoom(room !== null && this._picked() !== room ? room : null);
+    };
+    const onCancel = () => { pointers = 0; start = null; };
+    host.addEventListener("pointerdown", onDown);
+    host.addEventListener("pointerup", onUp);
+    host.addEventListener("pointercancel", onCancel);
+    return () => {
+      unbindGestures();
+      host.removeEventListener("pointerdown", onDown);
+      host.removeEventListener("pointerup", onUp);
+      host.removeEventListener("pointercancel", onCancel);
+    };
   }
 
   /** The Active list floats over the model. Where it covers the left or the right part of the 3D view, the camera frames the

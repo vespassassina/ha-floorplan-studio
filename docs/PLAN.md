@@ -2442,6 +2442,12 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   Choices in `docs/DECISIONS.md`.
 - S12.4 Picking: ray to room and device, tap, hold, room panel, drag is not a
   tap. Real `page.mouse` coordinates, `--repeat-each=10`.
+  Done, 2026-10-05. Part A: walls mode, closed T-joints, framing beside the
+  list. Part B: pick.ts, device balls, ring, taps through `bindDeviceActions`
+  `resolve`. 15 unit tests for the picker (5000 furniture), 12 Playwright tests
+  in `tests/card/card-3d-pick.spec.ts` (120 runs at `--repeat-each=10`, all
+  green after a test pause for the double-tap window), 4 for part A. Totals:
+  vitest 2456, Playwright 916, pytest 30. Choices in `docs/DECISIONS.md`.
 - S12.5 Live state: lamp light per room, open doors and windows, heating,
   room motion edge, readouts and icons as an HTML overlay.
 - S12.6 Floors, performance budget (criterion 9, 60/30 fps), docs, Opus

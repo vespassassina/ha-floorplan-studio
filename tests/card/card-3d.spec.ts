@@ -1,54 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { demo, open, serve, configure, card, viewSelect, canvas, holder, cam, drawn, ORIGIN } from "./helpers-3d";
 
 // S12.3: the card's 3D view in real Chromium, loaded the way Home Assistant loads the card (a module under
 // /floorplan_studio_static/ with a ?v= query, from the built www/ folder), so the chunk delivery is tested as shipped
 // (spec gate K, criterion 3). Real mouse coordinates (finding 3), pixels read back from the canvas (finding 16).
 
-const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
-const WWW = resolve("custom_components/floorplan_studio/www");
-const ORIGIN = "http://fp.test";
-const MIME: Record<string, string> = { ".js": "text/javascript", ".html": "text/html" };
-
-/** Everything the page asked for, so a test can say what was and was not fetched. */
-async function serve(page: Page): Promise<string[]> {
-  const seen: string[] = [];
-  page.on("request", (r) => { if (!r.url().startsWith("data:") && !r.url().startsWith("blob:")) seen.push(r.url()); });
-  await page.route("**/*", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.origin !== ORIGIN) return route.abort(); // a request to any other origin is recorded above, then refused
-    if (url.pathname === "/harness.html") return route.fulfill({ body: readFileSync(resolve("tests/card/harness-static.html")), contentType: "text/html" });
-    const m = /^\/floorplan_studio_static\/([\w.-]+)$/.exec(url.pathname);
-    const file = m && resolve(WWW, m[1]);
-    if (!file || !existsSync(file)) return route.fulfill({ status: 404, body: "not found" });
-    return route.fulfill({ body: readFileSync(file), contentType: MIME[file.slice(file.lastIndexOf("."))] ?? "application/octet-stream" });
-  });
-  return seen;
-}
-
-async function open(page: Page, config: Record<string, unknown> = { layout: structuredClone(demo), floor: "ground" }) {
-  const seen = await serve(page);
-  await page.goto(`${ORIGIN}/harness.html`);
-  await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-  await configure(page, config);
-  return seen;
-}
-async function configure(page: Page, config: Record<string, unknown>) {
-  await page.evaluate((config) => {
-    const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
-    el.setConfig(config);
-    el.hass = { states: {}, callService: () => undefined };
-    return el.updateComplete;
-  }, config);
-}
-
-const card = (page: Page) => page.locator("floorplan-studio-card");
-const viewSelect = (page: Page) => card(page).locator('css=select[aria-label="View"]');
-const canvas = (page: Page) => card(page).locator("css=canvas");
-const holder = (page: Page) => card(page).locator("css=.fp-3d");
 const chunkRequests = (seen: string[]) => seen.filter((u) => /floorplan-studio-3d-[\w-]+\.js/.test(u));
-const cam = (page: Page) => holder(page).evaluate((el) => ({ az: +el.dataset.az!, polar: +el.dataset.polar!, dist: +el.dataset.dist!, target: el.dataset.target!, drawn: +(el.dataset.drawn ?? 0) }));
 const renderers = (page: Page) => page.evaluate(() => (customElements.get("floorplan-studio-card") as unknown as { liveRenderers: number }).liveRenderers);
 
 /** Distinct colours in a PNG of the canvas, counted in the page (Playwright has no image decoder). */
@@ -66,8 +23,6 @@ async function colours(page: Page, png: Buffer): Promise<number> {
     return set.size;
   }, png.toString("base64"));
 }
-/** Waits until the canvas has drawn at least `n` frames. */
-const drawn = (page: Page, n = 1) => expect.poll(async () => (await cam(page)).drawn, { timeout: 15000 }).toBeGreaterThanOrEqual(n);
 
 test.describe("3D view: delivery (spec gate K, criterion 3)", () => {
   test("no 3D request before the user picks 3D, exactly one chunk request after, and nothing leaves the origin", async ({ page }) => {

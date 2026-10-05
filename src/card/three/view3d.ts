@@ -2,12 +2,13 @@
 // three.js is a chunk of its own beside the card file and costs nothing until then (docs/DECISIONS.md, S12.3 spike).
 // It builds the scene of the floor (core/scene.ts), turns each solid into a mesh, and runs a small orbit camera. Colours
 // are the card's `--fp-*` theme tokens, read from the card itself once per theme change. No network, no textures.
-import { DirectionalLight, BufferAttribute, BufferGeometry, Color, HemisphereLight, Mesh, MeshLambertMaterial, PerspectiveCamera, Scene, WebGLRenderer, DoubleSide } from "three";
+import { DirectionalLight, BufferAttribute, BufferGeometry, Color, HemisphereLight, InstancedMesh, LineDashedMaterial, LineLoop, Matrix4, Mesh, MeshLambertMaterial, PerspectiveCamera, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGLRenderer, DoubleSide } from "three";
 // Types only: this module imports nothing from the card at run time, so the bundler keeps it a chunk of its own (see palette.ts).
 import type { Scene as Plan3D } from "../../core/scene";
 import { prismTriangles, type Triangles } from "./mesh";
 import { lowerWalls, wallBodies, wallZ, type WallBody, type Walls } from "./cut";
 import { Orbit } from "./orbit";
+import { MARKER_R, Picker, type Pick } from "./pick";
 import { roleStyle } from "./palette";
 
 export interface View3DOptions {
@@ -31,6 +32,10 @@ export interface View3D {
   setWalls(mode: string): void;
   /** A panel covers the left and the right part of the view (fractions of its width): frame the house in the free part. */
   setInset(left: number, right: number): void;
+  /** What is under this point of the page (client coordinates), or null: the same answer a tap there gets. */
+  pick(clientX: number, clientY: number): Pick | null;
+  /** The picked room (its index on the floor) gets a dashed ring along its outline, just above its floor; null removes it. A room with no floor of its own (a zone) gets none. */
+  setRing(room: number | null): void;
   /** Back to the first camera. */
   reset(): void;
   /** Whether the last pointer gesture moved: a drag, which is never a tap (S12.4 reads this). */
@@ -46,7 +51,8 @@ export const liveRenderers = (): number => live;
 export class NoWebGL extends Error {}
 
 const FOV = 40;
-const DRAG_PX = 4;
+/** Copy of the card's `TAP_SLOP_PX` (the chunk imports no card code); a test holds the two equal. */
+export const DRAG_PX = 6;
 /** The far plane, as a multiple of the distance that frames the house. */
 const FAR_PLANES = 40;
 const hex = (n: number) => n.toString(16).padStart(6, "0");
@@ -92,6 +98,9 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   let orbit = new Orbit({ min: [0, 0, 0], max: [0, 0, 0] }, 1, FOV, opts.turnDeg);
   let plan: Plan3D | null = null, themeKey = "", meshes: Mesh[] = [], raf = 0, dragged = false;
   // The walls are meshes of their own, built again only when the set of lowered walls changes, never per frame.
+  let picker: Picker | null = null, markers: InstancedMesh | null = null, ring: LineLoop | null = null;
+  let ringRoom: number | null = null;
+  const raycaster = new Raycaster();
   let wallMeshes: Mesh[] = [], bodies: WallBody[] = [], lowered = new Set<string>(), walls: Walls = "cut";
 
   const size = () => ({ w: Math.max(1, container.clientWidth), h: Math.max(1, container.clientHeight) });
@@ -108,9 +117,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     lowered = next;
     buildWalls();
   };
-  const draw = () => {
-    raf = 0;
-    if (disposed) return;
+  /** Puts the camera where the orbit says and decides the lowered walls for it: what a frame and a pick both need first. */
+  const prepare = () => {
     const [x, y, z] = orbit.position();
     camera.position.set(x, y, z);
     camera.near = Math.max(1, orbit.framing * 0.02);
@@ -119,7 +127,13 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     const { w, h } = size(), shift = orbit.shift;
     if (shift !== 0) camera.setViewOffset(w, h, -shift * w, 0, w, h); else camera.clearViewOffset();
     camera.updateProjectionMatrix();
+    camera.updateMatrixWorld(true);
     updateWalls([x, z, y]);
+  };
+  const draw = () => {
+    raf = 0;
+    if (disposed) return;
+    prepare();
     renderer.render(scene, camera);
     container.dataset.drawn = String(+(container.dataset.drawn ?? 0) + 1);
     publish();
@@ -232,7 +246,40 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     return out;
   };
   const isWall = (s: Plan3D["solids"][number]) => s.kind === "wall" || s.kind === "opening";
-  const clear = () => { dispose(meshes); dispose(wallMeshes); meshes = []; wallMeshes = []; };
+  const clear = () => {
+    dispose(meshes); dispose(wallMeshes); meshes = []; wallMeshes = [];
+    if (markers) { scene.remove(markers); markers.geometry.dispose(); (markers.material as MeshLambertMaterial).dispose(); markers.dispose(); markers = null; }
+    picker = null;
+  };
+  /** One ball per device that has no body of its own, at its z, in the colour of its type. The tap's proxy (pick.ts) is bigger and has no mesh. */
+  const buildMarkers = () => {
+    const pts = (plan?.solids ?? []).filter((s) => s.kind === "device" && s.shape.type === "point");
+    if (!pts.length) return;
+    const m = new InstancedMesh(new SphereGeometry(MARKER_R, 14, 10), new MeshLambertMaterial({ color: 0xffffff }), pts.length), at = new Matrix4();
+    pts.forEach((sol, i) => {
+      if (sol.shape.type !== "point") return;
+      at.makeTranslation(sol.shape.at[0], sol.shape.z, sol.shape.at[1]);
+      m.setMatrixAt(i, at);
+      m.setColorAt(i, paintOf(sol.paint.role, sol.paint.color).colour);
+    });
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    scene.add(m);
+    markers = m;
+  };
+  /** The picked room's outline, dashed, a little above its floor so the slab does not eat it. */
+  const buildRing = () => {
+    if (ring) { scene.remove(ring); ring.geometry.dispose(); (ring.material as LineDashedMaterial).dispose(); ring = null; }
+    const sol = ringRoom === null ? undefined : plan?.solids.find((x) => x.kind === "room" && x.ref.room === ringRoom);
+    if (!sol || sol.shape.type !== "prism") return;
+    const z = sol.shape.z1 + 2;
+    const geo = new BufferGeometry().setFromPoints(sol.shape.base.map((q) => new Vector3(q[0], z, q[1])));
+    const mat = new LineDashedMaterial({ color: paintOf("ring", undefined).colour, dashSize: 18, gapSize: 10, depthTest: false }); // the outline lies inside the walls' footprint: it is drawn over them, as in 2D
+    ring = new LineLoop(geo, mat);
+    ring.renderOrder = 10;
+    ring.computeLineDistances();
+    scene.add(ring);
+  };
   const buildWalls = () => {
     dispose(wallMeshes);
     wallMeshes = meshesOf(isWall, (s) => wallZ(s, lowered, opts.lowWall));
@@ -244,11 +291,14 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     meshes = meshesOf((s) => !isWall(s), (s) => (s.shape.type === "prism" ? [s.shape.z0, s.shape.z1] : null));
     bodies = wallBodies(plan.solids);
     lowered = new Set();
+    buildMarkers();
+    picker = new Picker(plan.solids);
     buildWalls();
+    buildRing();
   };
 
   resize();
-  return {
+  const api: View3D = {
     setFloor(floor, around) {
       try { plan = opts.buildScene(floor, around); } catch { plan = null; }
       const { w, h } = size();
@@ -275,6 +325,21 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       container.dataset.inset = `${Math.max(0, +left || 0).toFixed(3)},${Math.max(0, +right || 0).toFixed(3)}`;
       want();
     },
+    pick(clientX, clientY) {
+      if (disposed || !plan || !picker) return null;
+      const r = canvas.getBoundingClientRect();
+      if (!(r.width > 0 && r.height > 0) || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+      prepare();
+      raycaster.setFromCamera(new Vector2(((clientX - r.left) / r.width) * 2 - 1, -(((clientY - r.top) / r.height) * 2 - 1)), camera);
+      const o = raycaster.ray.origin, d = raycaster.ray.direction; // three's frame to the plan's: (x, y, z) -> (x, z, y)
+      return picker.pick({ o: [o.x, o.z, o.y], d: [d.x, d.z, d.y] }, (sol) => wallZ(sol, lowered, opts.lowWall));
+    },
+    setRing(room) {
+      ringRoom = typeof room === "number" && Number.isFinite(room) ? room : null;
+      container.dataset.ring = ringRoom === null ? "" : String(ringRoom);
+      buildRing();
+      want();
+    },
     reset() { orbit.reset(); want(); },
     get dragged() { return dragged; },
     dispose() {
@@ -294,9 +359,35 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       renderer.forceContextLoss();
       canvas.remove();
       probe.remove();
-      for (const k of ["az", "polar", "dist", "target", "drawn", "dragged", "lowered", "inset"]) delete container.dataset[k];
+      for (const k of ["az", "polar", "dist", "target", "drawn", "dragged", "lowered", "inset", "ring"]) delete container.dataset[k];
+      if (testHook && (globalThis as Record<string, unknown>).__fp3d === testHook) delete (globalThis as Record<string, unknown>).__fp3d;
+      ring = null; // its geometry went with the scene
       live--;
     },
   };
+  // A hook for the tests, off unless the page sets `__FP3D_TEST__` first: where a point of the plan lies on the screen, so a
+  // Playwright test can drive a real mouse at it, and what a point of the screen would pick.
+  let testHook: object | null = null;
+  if ((globalThis as Record<string, unknown>).__FP3D_TEST__ === true) {
+    const project = (x: number, y: number, z: number) => {
+      prepare();
+      const v = new Vector3(x, z, y).project(camera), r = canvas.getBoundingClientRect();
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+    };
+    testHook = {
+      project,
+      /** Where the middle of the top of a solid (a device `kind` "device" with its index, say) is on the screen, or null. */
+      where(kind: string, index: number) {
+        const sol = plan?.solids.find((x) => x.kind === kind && x.ref.index === index);
+        if (!sol) return null;
+        if (sol.shape.type === "point") return project(sol.shape.at[0], sol.shape.at[1], sol.shape.z);
+        const b = sol.shape.base, cx = b.reduce((a, q) => a + q[0], 0) / b.length, cy = b.reduce((a, q) => a + q[1], 0) / b.length;
+        return project(cx, cy, sol.shape.z1);
+      },
+      pick: (cx: number, cy: number) => api.pick(cx, cy),
+    };
+    (globalThis as Record<string, unknown>).__fp3d = testHook;
+  }
+  return api;
 }
 

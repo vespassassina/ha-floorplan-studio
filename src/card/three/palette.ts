@@ -39,6 +39,7 @@ TABLE.set("slab", solid(mix("--fp-furniture", 45, "--fp-bg")));
 TABLE.set("panel", solid("var(--fp-sealed)"));
 TABLE.set("door-leaf", solid("var(--fp-door)"));
 TABLE.set("stair", solid(mix("--fp-tread", 70, "--fp-bg")));
+TABLE.set("ring", solid("var(--fp-ink)")); // the dashed outline of the picked room
 TABLE.set("unlinked", solid(mix("--fp-idle", 70, "--fp-bg")));
 for (const k of ROOM_KINDS) TABLE.set(`room-${k}`, solid(ROOM[k] ?? "var(--fp-room)"));
 for (const k of WALL_KINDS) TABLE.set(`wall-${k}`, solid(WALL[k] ?? "var(--fp-wall)"));

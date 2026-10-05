@@ -102,6 +102,9 @@ export function bindDeviceActions(
     openVacuumDialog?: (device: Device) => void;
     openChooser?: (title: string, entities: string[]) => void;
     getUnlinked?: (index: number) => Unlinked | undefined;
+    /** What a press lands on, when the DOM cannot say (the 3D view picks with a ray): an element that carries `data-x`,
+     *  `data-d` or `data-u`, or null. Replaces the lookup of the event's target. */
+    resolve?: (e: PointerEvent) => Element | null;
   },
 ): () => void {
   const longPress = opts?.longPress !== false;
@@ -155,7 +158,7 @@ export function bindDeviceActions(
     }
     startX = pe.clientX ?? 0;
     startY = pe.clientY ?? 0;
-    const target = (e.target as Element | null)?.closest('g[data-x], button[data-x], line[data-d], g[data-u]');
+    const target = opts?.resolve ? opts.resolve(pe) : (e.target as Element | null)?.closest('g[data-x], button[data-x], line[data-d], g[data-u]');
     if (!target) return;
 
     if (target.tagName === "line") {

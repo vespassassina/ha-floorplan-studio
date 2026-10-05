@@ -1061,3 +1061,33 @@ describe("actions: S10.3 review fix 3 — an unlinked appliance (g[data-u]) with
     vi.useRealTimers();
   });
 });
+
+describe("actions: opts.resolve (S12.4, the 3D view picks with a ray)", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+    vi.useRealTimers();
+  });
+
+  it("a press on a plain element toggles the device `resolve` names, and a null answer does nothing", () => {
+    vi.useFakeTimers();
+    const callService = vi.fn();
+    const svg = svgFixture([LIGHT, SWITCH]);
+    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+    let answer: Element | null = svg.querySelector('[data-x="1"]');
+    const unbind = bindDeviceActions(svg, host, (i) => [LIGHT, SWITCH][i], undefined, undefined, { resolve: () => answer });
+    pointer(svg, "pointerdown"); // the target is the svg itself, which carries no data-x
+    pointer(svg, "pointerup");
+    expect(callService).toHaveBeenCalledTimes(1);
+    expect(callService).toHaveBeenCalledWith("switch", "toggle", { entity_id: "switch.demo_hall" });
+    answer = null;
+    pointer(svg, "pointerdown");
+    pointer(svg, "pointerup");
+    expect(callService).toHaveBeenCalledTimes(1);
+    unbind();
+  });
+
+  it("the 3D view's drag threshold equals the tap slop, so no press is both a tap here and a drag there", async () => {
+    const { DRAG_PX } = await import("../../src/card/three/view3d");
+    expect(DRAG_PX).toBe(TAP_SLOP_PX);
+  });
+});

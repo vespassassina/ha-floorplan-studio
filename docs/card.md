@@ -708,7 +708,18 @@ with its own colour keeps it. There are no textures and no shadows.
 - **Low-power devices.** A wall tablet with no GPU may fall back, or draw slowly.
   Keep `view: 2d` there. The choice is remembered per browser like the rest of
   the view.
-- Taps on rooms and devices are not wired in 3D yet; that comes next (S12.4).
+- **Taps in 3D work as in 2D.** A tap on a device (the small ball, or its body)
+  toggles it, except the types that have no on/off (camera, media, speaker and
+  the like), which open more-info; a hold opens more-info. A door, a window and
+  an unlinked appliance do what they do in 2D. A tap on a room's floor picks the
+  room: a dashed outline on its floor, the room section in the left panel, the
+  Active list cut to the room. Tap the room again, tap anything else (the
+  background, a tall wall, a stair, furniture standing on no room) or press
+  Escape to clear. Furniture picks the room it stands in. A lowered wall is
+  looked over, a tall one is not. A drag (moving more than 6 px) is never a tap,
+  and a double tap or the wheel neither picks nor clears. The ball is 24 cm wide
+  to the eye and 48 cm to the finger. The room section widens the Active list,
+  which moves the model a little to keep it in the free part of the view.
 
 ## Troubleshooting
 

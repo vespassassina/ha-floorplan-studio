@@ -252,9 +252,12 @@ try {
   const shots3d = [];
   for (const floor of Object.keys(layout.floors)) for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const orbit of [false, true])
     shots3d.push({ name: `card-${floor}-on-${t.id}-3d${orbit ? "-orbit" : ""}`, floor, t, orbit });
+  // S12.4: a room picked with a real click, the Active list open (the pick ring, the room section, the model clear of the list).
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) shots3d.push({ name: `card-ground-on-${t.id}-3d-picked`, floor: "ground", t, orbit: false, pick: true });
   for (const s of shots3d) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: 2 });
     const page = await ctx.newPage();
+    if (s.pick) await page.addInitScript(() => { globalThis.__FP3D_TEST__ = true; });
     page.on("pageerror", (e) => errors.push(`${s.name}: ${e}`));
     page.on("console", (m) => { if (m.type() === "error") errors.push(`${s.name}: console.error ${m.text()}`); });
     await page.route("**/*", (route) => {
@@ -271,7 +274,7 @@ try {
       const el = document.getElementById("c");
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
-    }, [{ layout: s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.t.theme, view: "3d", active_list: false }, hassFor("on", s.t.dark)]);
+    }, [{ layout: s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.t.theme, view: "3d", active_list: !!s.pick }, hassFor("on", s.t.dark)]);
     const holder = page.locator("floorplan-studio-card").locator(".fp-3d");
     try { await page.waitForFunction(() => +(document.getElementById("c").shadowRoot.querySelector(".fp-3d")?.dataset.drawn ?? 0) >= 1, null, { timeout: 15000 }); }
     catch { errors.push(`${s.name}: the 3D view never drew a frame (WebGL missing, or the chunk failed)`); }
@@ -280,6 +283,13 @@ try {
       await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
       await page.mouse.down(); await page.mouse.move(b.x + b.width / 2 + 160, b.y + b.height / 2 - 40, { steps: 8 }); await page.mouse.up();
       await page.waitForTimeout(300);
+    }
+    if (s.pick) {
+      await page.waitForTimeout(600);
+      const at = await page.evaluate(() => globalThis.__fp3d.project(60, 60, 1));
+      await page.mouse.click(at.x, at.y);
+      await page.waitForTimeout(800);
+      if (!(await holder.getAttribute("data-ring"))) errors.push(`${s.name}: the click at ${at.x},${at.y} picked no room`);
     }
     await page.mouse.move(0, 0);
     await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });
