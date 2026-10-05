@@ -7,7 +7,7 @@
 // Frame: x and y are the plan's, in cm, y down as on the plan; z is up, in cm, 0 the walking surface of the floor.
 // `opts.elevation` lifts the whole scene (the floor's slab top, `floorElevation`) so floors can be stacked.
 import { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight } from "./heights";
-import { inside } from "./render";
+import { attachedTest, inside } from "./render";
 import { resolveStairDirection, type FloorsAround } from "./stairs";
 import {
   DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, KERB_OUT, OPENING_FILL, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH,
@@ -27,7 +27,9 @@ export type SolidKind = "floor" | "room" | "wall" | "opening" | "furniture" | "u
  * ("out" is away from what the polygon holds); a free wall has both sides, as it has no inside. An opening's infill carries
  * `wall`, the `poly:index` of the wall it sits in, so a viewer that lowers that wall can lower the infill with it.
  */
-export interface SolidRef { poly?: string; index?: number; room?: number; id?: string; entity?: string; entities?: string[]; size?: [number, number]; faces?: [number, number][]; wall?: string }
+export interface SolidRef { poly?: string; index?: number; room?: number; id?: string; entity?: string; entities?: string[]; size?: [number, number]; faces?: [number, number][]; wall?: string;
+  /** A device that is a room's own sensor (its `temps`, `humidity` or `motion` list): it draws no marker, and a tap passes through it (DECISIONS S11.1, S12.5). */
+  hidden?: true }
 /** `role` is a token the viewer maps to a theme colour; `color` and `texture` are the user's own choice, passed on as written. */
 export interface Paint { role: string; color?: string; texture?: string }
 export interface Solid { id: string; kind: SolidKind; tag: string; shape: Shape; ref: SolidRef; paint: Paint }
@@ -247,11 +249,13 @@ export function buildScene(floor: Floor, opts: SceneOpts = {}): Scene {
 
   // Devices. The radiator, the speaker and the TV have a body (DEVICE_SOLID, the same list 2.5D reads); every other device,
   // and one of those three whose numbers cannot be drawn, is a point at the height of its icon.
+  const attached = attachedTest({ ...f, rooms: list(f.rooms).filter(isObj) } as Floor);
   list(f.devices).forEach((d, i) => piece(() => {
     if (!isObj(d)) return;
     const dev = d as unknown as Device & { x?: number; y?: number; a?: Pt; b?: Pt; rot?: number };
     const type = oneOf(DEVICE_TYPES, d.type) ? d.type : "other", kind = has(DEVICE_SOLID, d.type) ? DEVICE_SOLID[d.type] : "none";
     const ref: SolidRef = { index: i, id: text(d.id), entity: text(d.entity) }, paint: Paint = { role: `device-${type}` }, id = `device:${i}`;
+    if (attached(dev)) ref.hidden = true;
     const has2 = (): boolean => fin(dev.x) && fin(dev.y);
     const before = solids.length;
     if (kind === "radiator" && isPt(dev.a) && isPt(dev.b)) {
