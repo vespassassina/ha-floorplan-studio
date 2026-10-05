@@ -5,7 +5,8 @@ import { resolve } from "node:path";
 // Shared by the 3D card specs: the built card served the way Home Assistant serves it, and a few locators.
 
 export const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
-export const WWW = resolve("custom_components/floorplan_studio/www");
+// dist-test/ is the card built with the 3D test hook (scripts/build.mjs, FP_TEST_BUILD=1); the shipped www/ has none. The files are the same otherwise.
+export const WWW = resolve("dist-test");
 export const ORIGIN = "http://fp.test";
 const MIME: Record<string, string> = { ".js": "text/javascript", ".html": "text/html" };
 

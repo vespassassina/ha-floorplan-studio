@@ -2,8 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { demo, serve, ORIGIN, card, holder, canvas, cam, drawn } from "./helpers-3d";
 
 // S12.4 (spec G, criteria 4, 5 and 10): taps in the 3D view mean what they mean on the plan. Every click is a real
-// page.mouse event at the screen position of something in the model, asked of the view's test hook (`__fp3d`, on only
-// when the page sets `__FP3D_TEST__`), because a test that dispatched events on an element would pass while the real
+// page.mouse event at the screen position of something in the model, asked of the view's test hook (`__fp3d`, built only into dist-test/), because a test that dispatched events on an element would pass while the real
 // click on the canvas was broken (CLAUDE.md finding 3). Demo ground floor: Living is room 0, Kitchen 1, Hall 2; device 0
 // is the living light, 4 the living temperature sensor (no toggle), 7 the heater.
 
@@ -12,7 +11,6 @@ const st = (state: string) => ({ state, attributes: {}, last_changed: "2026-10-0
 const STATES = { "light.demo_living": st("on"), "light.demo_kitchen": st("on"), "sensor.demo_living_temperature": st("21"), "climate.demo_living": st("heat"), "switch.demo_hall": st("off") };
 
 async function boot(page: Page, config: Record<string, unknown> = {}) {
-  await page.addInitScript(() => { (window as unknown as { __FP3D_TEST__: boolean }).__FP3D_TEST__ = true; });
   await serve(page);
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.goto(`${ORIGIN}/harness.html`);

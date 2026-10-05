@@ -61,6 +61,12 @@ export interface View3D {
   dispose(): void;
 }
 
+/** Set by the build (vite.config.ts `define`): true only in the test build the Playwright specs run against, so the hook below is dropped from the shipped chunk. */
+declare const __FP3D_TEST__: boolean;
+/** The test hooks of the live views, newest last: `window.__fp3d` is the newest, and removing one view puts the one before it back. */
+const hooks: object[] = [];
+const publishHook = () => { const g = globalThis as Record<string, unknown>; if (hooks.length) g.__fp3d = hooks[hooks.length - 1]; else delete g.__fp3d; };
+
 /** How many renderers are alive in this page. A test hook (the card reads it): the lifecycle test must see it return to 0. */
 let live = 0;
 export const liveRenderers = (): number => live;
@@ -80,7 +86,7 @@ const SWING = (70 * Math.PI) / 180;
 const DAY = { hemi: 1.6, sun: 1.9, boost: 1.3 }, NIGHT = { hemi: 0.5, sun: 0.35, boost: 3.5 };
 /** How much of its own opacity a floor below keeps: dim enough to read as "another floor", solid enough to read as a house. */
 const DIM = 0.3;
-const EMPTY: Live3D = { pulse: [3, 1.4], night: false, labels: false, names: false, colours: "", lights: [], doors: [], devices: [], rooms: [] };
+const EMPTY: Live3D = { pulse: [3, 1.4], night: false, labels: false, names: false, lights: [], doors: [], devices: [], rooms: [] };
 const hexOf = (c: Color) => `#${c.getHexString()}`;
 
 /** A CSS colour the browser accepts, as 0xRRGGBB, or `null`. Resolved on `probe`, which sits inside the card and so sees its tokens. */
@@ -647,15 +653,15 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       canvas.remove();
       probe.remove();
       for (const k of ["az", "polar", "dist", "target", "drawn", "dragged", "lowered", "inset", "ring", "pools", "below"]) delete container.dataset[k];
-      if (testHook && (globalThis as Record<string, unknown>).__fp3d === testHook) delete (globalThis as Record<string, unknown>).__fp3d;
+      if (__FP3D_TEST__ && testHook) { const at = hooks.indexOf(testHook); if (at >= 0) hooks.splice(at, 1); publishHook(); }
       ring = null; // its geometry went with the scene
       live--;
     },
   };
-  // A hook for the tests, off unless the page sets `__FP3D_TEST__` first: where a point of the plan lies on the screen, so a
-  // Playwright test can drive a real mouse at it, and what a point of the screen would pick.
+  // A hook for the tests, compiled in only when the build sets `__FP3D_TEST__` (the Playwright test build): where a point of the plan lies
+  // on the screen, so a test can drive a real mouse at it, and what a point of the screen would pick.
   let testHook: object | null = null;
-  if ((globalThis as Record<string, unknown>).__FP3D_TEST__ === true) {
+  if (__FP3D_TEST__) {
     const project = (x: number, y: number, z: number) => {
       prepare();
       const v = new Vector3(x, z, y).project(camera), r = canvas.getBoundingClientRect();
@@ -705,7 +711,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         };
       },
     };
-    (globalThis as Record<string, unknown>).__fp3d = testHook;
+    hooks.push(testHook);
+    publishHook();
   }
   return api;
 }

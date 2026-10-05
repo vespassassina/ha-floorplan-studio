@@ -20,7 +20,6 @@ const st = (state: string, last = iso(600)) => ({ state, attributes: {}, last_ch
 const QUIET = () => ({ "light.demo_living": st("off"), "light.demo_kitchen": st("off"), "light.demo_bedroom": st("off"), "binary_sensor.demo_hall_motion": st("off") });
 
 async function boot(page: Page, floor: string, states: Record<string, unknown> = QUIET()) {
-  await page.addInitScript(() => { (window as unknown as { __FP3D_TEST__: boolean }).__FP3D_TEST__ = true; });
   await serve(page);
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.goto(`${ORIGIN}/harness.html`);

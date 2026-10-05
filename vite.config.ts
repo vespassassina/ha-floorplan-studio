@@ -10,9 +10,11 @@ const version = JSON.parse(readFileSync("custom_components/floorplan_studio/mani
 export default defineConfig(({ mode }) => {
   const lib = (entry: string, fileName: string) => ({
     plugins: [trimThree()],
-    define: { __FP_VERSION__: JSON.stringify(version) },
+    // `__FP3D_TEST__` is a compile-time flag: only the test build (FP3D_TEST=1, made by scripts/build.mjs for the Playwright specs)
+    // keeps the 3D view's test hook; in the shipped build the code is dropped.
+    define: { __FP_VERSION__: JSON.stringify(version), __FP3D_TEST__: process.env.FP3D_TEST === "1" ? "true" : "false" },
     build: {
-      outDir: "dist",
+      outDir: process.env.FP_OUT ?? "dist",
       emptyOutDir: false,
       lib: { entry, formats: ["es" as const], fileName: () => fileName },
       // The card lazy-loads its 3D code (three.js) with import(). That becomes a chunk beside the card, named by a hash of

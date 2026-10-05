@@ -16,7 +16,6 @@ const trouble = (page: Page) => {
   return seen;
 };
 async function boot(page: Page, layout: unknown, states: Record<string, unknown> = QUIET()) {
-  await page.addInitScript(() => { (window as unknown as { __FP3D_TEST__: boolean }).__FP3D_TEST__ = true; });
   await serve(page);
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.goto(`${ORIGIN}/harness.html`);
@@ -120,7 +119,6 @@ test.describe("3D view: hostile layouts, in a real browser (S12.6)", () => {
       // `null` for NaN and the long literal for Infinity cannot survive JSON, so the layout goes in as the browser's own object
       if (name.startsWith("a NaN")) { const g = layout.floors.ground; g.furniture[g.furniture.length - 2].w = NaN; g.furniture[g.furniture.length - 1].x = Infinity; }
       await serve(page);
-      await page.addInitScript(() => { (window as unknown as { __FP3D_TEST__: boolean }).__FP3D_TEST__ = true; });
       await page.goto(`${ORIGIN}/harness.html`);
       await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
       await page.evaluate(async (layout) => {
@@ -142,7 +140,6 @@ test.describe("3D view: hostile layouts, in a real browser (S12.6)", () => {
   test("a floor named __proto__ renders or falls back, with no error", async ({ page }) => {
     const seen = trouble(page);
     await serve(page);
-    await page.addInitScript(() => { (window as unknown as { __FP3D_TEST__: boolean }).__FP3D_TEST__ = true; });
     await page.goto(`${ORIGIN}/harness.html`);
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
     const raw = JSON.stringify(demo).replace('"floors":{"ground":', '"floors":{"__proto__":'); // JSON.parse makes it an own key, as a file would
