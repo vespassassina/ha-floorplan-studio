@@ -4,6 +4,7 @@
 
 - Card: floor textures in 3D. A room or stair with a texture shows it on its floor, at the same size, turn and scale as in 2D; the flat colour shows until the tile is ready. A bad texture id or rotation falls back to the flat colour.
 - Card: a lit lamp now lights the walls of its own room in 3D, a soft glow in the lamp's colour out to about 3 m, only on faces that look at it and only up to the height the wall is drawn at.
+- Card: a lamp's glow in 3D now lights only the stretch of a wall that is in its own room. A long outer wall shared by several rooms used to light by its middle point, so a lamp lit the neighbour's part of it or none of its own; a room nested in another is no longer lit through.
 - Card: 3D shows one floor at a time. The dimmed stack of lower floors is gone (on a real layout the floors drifted out of line); the camera frames the floor you picked.
 - Card: 3D icons no longer float over the house. A device's icon and its ball stay at most 10 cm under the top of the floor's walls (a ceiling light or camera at 250 cm on a 250 cm floor now sits at 240); a low device, a socket say, keeps its own height.
 - Card: panning is back in 3D. Drag with the **middle mouse button**, or hold **Space** and drag with the left button (while the pointer is over the view; Space no longer scrolls the page there). Right-drag, Shift-drag and two fingers still pan; a plain drag still turns the house. A pan is never a tap.

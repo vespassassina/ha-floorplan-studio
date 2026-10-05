@@ -254,7 +254,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   const onBlur = () => { if (spaceDown) setSpace(false); };
   const onEnter = () => { hovered = true; };
   const onLeave = () => { hovered = false; };
-  const noMiddle = (e: MouseEvent) => { if (e.button === 1) e.preventDefault(); }; // the browser's autoscroll, and the paste of a selection on Linux
+  // A cancelled pointerdown (below) stops the compatibility mousedown, which is what starts the browser's autoscroll (a test holds this); the middle click is let through only here.
+  const noMiddle = (e: MouseEvent) => { if (e.button === 1) e.preventDefault(); };
   const onDown = (e: PointerEvent) => {
     if (e.button === 1) e.preventDefault();
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -298,7 +299,6 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   canvas.addEventListener("pointercancel", onUp);
   canvas.addEventListener("wheel", onWheel, { passive: false });
   canvas.addEventListener("contextmenu", noMenu);
-  canvas.addEventListener("mousedown", noMiddle);
   canvas.addEventListener("auxclick", noMiddle);
   canvas.addEventListener("pointerenter", onEnter);
   canvas.addEventListener("pointerleave", onLeave);
@@ -452,7 +452,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       b.forEach((a, i) => wallSides.push({ a, b: b[(i + 1) % b.length], s: w, z0: z[0], z1: z[1] }));
     }
     sidesVersion++;
-    glow.set(glowSpecs, wallSides, sidesVersion);
+    glow.set(glowSpecs, wallSides, sidesVersion, roomShapes);
     buildParts();
     container.dataset.lowered = [...lowered].sort().join(" ");
   };
@@ -602,7 +602,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     container.dataset.pools = `${pools.visible()}/${here.length}`;
     // The same lamps light the walls of their rooms: a lamp's own height is its icon's (held under the walls), else a standing lamp's.
     glowSpecs = pickLights(here, centre, MAX_POOLS).map((l) => { const r = roomSolid.get(l.room)!; return { at: l.at, lampZ: deviceZ.get(l.device) ?? r.z + 200, base: r.base, rgb: l.rgb, level: l.level, room: l.room, boost: mode.boost }; });
-    glow.set(glowSpecs, wallSides, sidesVersion);
+    glow.set(glowSpecs, wallSides, sidesVersion, roomShapes);
     overlay.set(L, anchors);
     applyBalls();
     applyBodies();
@@ -736,7 +736,6 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       canvas.removeEventListener("pointercancel", onUp);
       canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("contextmenu", noMenu);
-      canvas.removeEventListener("mousedown", noMiddle);
       canvas.removeEventListener("auxclick", noMiddle);
       canvas.removeEventListener("pointerenter", onEnter);
       canvas.removeEventListener("pointerleave", onLeave);
