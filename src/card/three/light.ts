@@ -75,3 +75,58 @@ export function roomLifts(lights: readonly LitLight[], boost = 1): Map<number, R
   for (const [r, s] of sum) out.set(r, liftFor(s.w > 0 ? (s.c.map((c) => c / s.w) as Rgb) : [1, 1, 1], Math.min(1, s.w), boost));
   return out;
 }
+
+// ---- the lamp's light on the walls of its own room (S13). A wall face that looks into the lamp's room gets a soft patch, brightest
+// near the lamp and gone at `GLOW_REACH`; a face of another room, the outside of an outer wall, a face turned away: nothing.
+/** cm. How far a lamp's light reaches along a wall (3D distance, the height difference included). */
+export const GLOW_REACH = 300;
+/** cm. A patch has a vertex about this often along a face and up it; at most `GLOW_COLS` by `GLOW_ROWS` cells, so a face costs a fixed few dozen vertices. */
+const GLOW_CELL = 25, GLOW_COLS = 12, GLOW_ROWS = 6;
+
+/** 0..1: the share of the lamp's light on a wall point `dist` cm from it, `perp` of that across the wall's plane. Falls with the square of what is left of the reach, and a point seen at a grazing angle gets less. */
+export function glowAt(dist: number, perp: number, reach = GLOW_REACH): number {
+  if (!fin(dist) || !fin(perp) || !(dist < reach)) return 0;
+  const t = 1 - Math.max(0, dist) / reach, cos = dist > 0 ? Math.max(0, Math.min(1, perp / dist)) : 1;
+  return t * t * (0.35 + 0.65 * cos);
+}
+
+/** 1 for a ring wound the way the plan's y-down shoelace calls positive, -1 for the other way: the sign that makes an edge's (dy, -dx) point out of the solid (as `prismTriangles` does). */
+export const outwardSign = (ring: Poly): 1 | -1 => (ring.reduce((s, p, i) => { const q = ring[(i + 1) % ring.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0) >= 0 ? 1 : -1);
+
+/**
+ * The outward unit normal (plan frame) of a wall solid's face a to b (an edge of its ring, wound with sign `s`, see `outwardSign`) if the face looks into
+ * `base`, the lamp's room, toward the lamp; else null. A face looks into the room when the point just in front of its middle lies in the room: the outside
+ * of an outer wall and the neighbour's face of a shared wall do not, and a face the lamp is behind does not.
+ */
+export function facing(a: Pt, b: Pt, s: 1 | -1, base: Poly, lamp: Pt): Pt | null {
+  if (![a[0], a[1], b[0], b[1], lamp[0], lamp[1]].every(fin)) return null;
+  const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
+  if (!(len > 0.5)) return null;
+  const n: Pt = [(s * dy) / len + 0, (-s * dx) / len + 0], mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+  return inPoly(base, mx + n[0] * 2, my + n[1] * 2) && (lamp[0] - mx) * n[0] + (lamp[1] - my) * n[1] > 0 ? n : null;
+}
+
+/**
+ * The patch of one face (a to b, normal `n`, drawn from `z0` to `z1`) lit by a lamp at `lamp` and height `lampZ`: a grid of vertices lifted `lift` cm off the
+ * face, in three.js' frame (x, up, plan y), with the share of light (`glowAt`) at each, and the triangles. Only the stretch within reach is meshed. Null when
+ * the lamp is behind the face or out of reach, or nothing would be lit.
+ */
+export function glowGrid(a: Pt, b: Pt, n: Pt, z0: number, z1: number, lamp: Pt, lampZ: number, reach: number, lift: number): { pos: number[]; k: number[]; index: number[] } | null {
+  if (![a[0], a[1], b[0], b[1], n[0], n[1], z0, z1, lamp[0], lamp[1], lampZ, reach, lift].every(fin) || !(z1 > z0)) return null;
+  const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
+  if (!(len > 0)) return null;
+  const ux = dx / len, uy = dy / len, perp = (lamp[0] - a[0]) * n[0] + (lamp[1] - a[1]) * n[1], foot = (lamp[0] - a[0]) * ux + (lamp[1] - a[1]) * uy;
+  if (!(perp > 0) || !(perp < reach)) return null;
+  const half = Math.sqrt(reach * reach - perp * perp), u0 = Math.max(0, foot - half), u1 = Math.min(len, foot + half);
+  if (!(u1 > u0)) return null;
+  const cols = Math.max(1, Math.min(GLOW_COLS, Math.ceil((u1 - u0) / GLOW_CELL))), rows = Math.max(1, Math.min(GLOW_ROWS, Math.ceil((z1 - z0) / (GLOW_CELL * 1.6))));
+  const pos: number[] = [], k: number[] = [], index: number[] = [];
+  for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
+    const u = u0 + ((u1 - u0) * i) / cols, z = z0 + ((z1 - z0) * j) / rows;
+    pos.push(a[0] + ux * u + n[0] * lift, z, a[1] + uy * u + n[1] * lift);
+    k.push(glowAt(Math.hypot(perp, u - foot, z - lampZ), perp, reach));
+  }
+  if (!k.some((v) => v > 0)) return null;
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) { const p = j * (cols + 1) + i, q = p + cols + 1; index.push(p, p + 1, q + 1, p, q + 1, q); }
+  return { pos, k, index };
+}
