@@ -104,4 +104,14 @@ describe("a card script that lost the race says so", () => {
     defineElement("s83-same", Same, "9.9.9");
     expect(warn).not.toHaveBeenCalled();
   });
+
+  it("stops quietly when the page is gone before its 30 s watch ends (a test environment torn down mid-run)", () => {
+    vi.useFakeTimers();
+    Object.defineProperty(window, "customElements", { value: fakeRegistry(), configurable: true, writable: true });
+    defineElement("s83-gone", class extends HTMLElement {});
+    vi.stubGlobal("window", undefined);
+    expect(() => vi.advanceTimersByTime(2_000)).not.toThrow();
+    expect(vi.getTimerCount()).toBe(1); // only the 30 s stop remains: the interval cleared itself
+    vi.unstubAllGlobals();
+  });
 });

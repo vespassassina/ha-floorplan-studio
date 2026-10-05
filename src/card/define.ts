@@ -15,7 +15,11 @@ const EVERY_MS = 500;
 export function defineElement(name: string, ctor: CustomElementConstructor, version = "dev"): void {
   if (typeof window === "undefined" || !window.customElements) return;
   let warned = false;
+  // eslint-disable-next-line prefer-const
+  let id: ReturnType<typeof setInterval> | undefined;
   const define = () => {
+    // The page can be gone before the watch ends (a test environment torn down, a frame detached): stop, do not throw.
+    if (typeof window === "undefined") { clearInterval(id); return; }
     const reg = window.customElements;
     const owner = reg.get(name);
     if (owner) {
@@ -32,6 +36,6 @@ export function defineElement(name: string, ctor: CustomElementConstructor, vers
     }
   };
   define();
-  const id = setInterval(define, EVERY_MS);
+  id = setInterval(define, EVERY_MS);
   setTimeout(() => clearInterval(id), WATCH_MS);
 }
