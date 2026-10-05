@@ -10,6 +10,14 @@ out of line with the selected floor. `BelowFloor`, `setFloor`'s third argument, 
 opacity and the card's `_view3dBelow` are gone. The camera frames the one floor. `buildScene`'s `elevation` option stays in
 core (it is the plan's own, tested, and costs nothing). Cost: you no longer see the floor under you as context.
 
+**Icons stay under the walls.** A point device (light, camera, motion, radar, access point at 230 to 250 cm by default) was
+placed at its own `z`, which on a 250 cm floor is the wall top, so the icon read as flying over the house. `buildScene`
+now holds a point's `z` to the highest wall of the floor less `ICON_MARGIN` (10 cm), never below the slab; with no walls
+it is the floor's storey height. A body's icon (radiator, speaker, TV: top plus 6 cm) is held by the same margin in
+`anchorsOf` (`view3d.ts`). It is the one rule for the ball, the tap proxy and the icon, because all three read the point.
+2D and 2.5D do not use the scene: unchanged. Cost: a device the user mounted above the wall top is drawn lower than
+its `z`; the plan's number is untouched.
+
 ## 2026-10-05: Sprint 12 review fixes
 
 **Coordinate bound.** `validate` refuses any coordinate beyond +-1e7 cm (100 km) from the origin, on every point,

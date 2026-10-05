@@ -54,6 +54,8 @@ export const WALL_THICKNESS: Record<string, number> = { wall: 10, external: 20, 
 export const PANE_THICKNESS = 2, LEAF_THICKNESS = 4, TRUNK_SIDE = 12, ROOM_THICKNESS = 1;
 /** cm. How high a wall stands where a viewer lowers it to show the rooms behind it (the 3D view's "cut" and "low" walls). */
 export const CUT_WALL_HEIGHT = 30;
+/** cm. A device's icon and point stay this far under the top of the floor's walls, so a ceiling light or camera does not float over the house. */
+export const ICON_MARGIN = 10;
 /** Most rooms for which nesting is worked out (it is quadratic); more than this and every fill sits at the same height. */
 const NEST_LIMIT = 300;
 /** The most point tests nesting may cost: the square of the total points of all rooms bounds it (S12 review). Over it, no nesting, as past NEST_LIMIT. */
@@ -273,6 +275,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
 
     // Devices. The radiator, the speaker and the TV have a body (DEVICE_SOLID, the same list 2.5D reads); every other device,
     // and one of those three whose numbers cannot be drawn, is a point at the height of its icon.
+    // The highest wall of this floor (its storey when it has none), without the lift: what an icon is held under.
+    const wallTop = solids.reduce((m, s) => (s.kind === "wall" && s.shape.type === "prism" ? Math.max(m, s.shape.z1 - lift) : m), 0) || floorHeight(f);
     const attached = attachedTest({ ...f, rooms: list(f.rooms).filter(isObj) } as Floor);
     list(f.devices).forEach((d, i) => piece(() => {
       if (!isObj(d)) return;
@@ -298,7 +302,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       }
       if (solids.length > before) return;
       const at: Pt | null = has2() ? [dev.x as number, dev.y as number] : isPt(dev.a) && isPt(dev.b) ? [(dev.a[0] + dev.b[0]) / 2, (dev.a[1] + dev.b[1]) / 2] : null;
-      if (at) add("device", id, type, { type: "point", at, z: deviceZ(dev) }, ref, paint);
+      if (at) add("device", id, type, { type: "point", at, z: Math.min(deviceZ(dev), Math.max(0, wallTop - ICON_MARGIN)) }, ref, paint);
     }));
 
     const lo: [number, number, number] = [Infinity, Infinity, Infinity], hi: [number, number, number] = [-Infinity, -Infinity, -Infinity];

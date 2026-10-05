@@ -6,7 +6,7 @@
 // motion edge, and the HTML overlay. Every part changes in place; the scene is built again only for a new floor or theme.
 import { CylinderGeometry, DirectionalLight, BufferAttribute, BufferGeometry, Color, HemisphereLight, InstancedMesh, LineDashedMaterial, LineLoop, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, PerspectiveCamera, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGLRenderer, DoubleSide } from "three";
 // Types only: this module imports nothing from the card at run time, so the bundler keeps it a chunk of its own (see palette.ts).
-import { CUT_WALL_HEIGHT, makeBuildScene, type Scene as Plan3D, type Solid, type SceneDeps } from "../../core/scene-build";
+import { CUT_WALL_HEIGHT, ICON_MARGIN, makeBuildScene, type Scene as Plan3D, type Solid, type SceneDeps } from "../../core/scene-build";
 import { makeLiveOf, type Live3D, type LiveDeps } from "../../core/live-build";
 import type { RenderOpts } from "../../core/render";
 import { prismTriangles, type Triangles } from "./mesh";
@@ -540,12 +540,16 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     pulsing = applyRings();
     want();
   }
+  /** The top of the highest wall of the floor drawn (plan z, the floor's lift included); 0 when it has none. */
+  const wallTop = () => (plan?.solids ?? []).reduce((m, s) => (s.kind === "wall" && s.shape.type === "prism" ? Math.max(m, s.shape.z1) : m), 0);
   const anchorsOf = (): Anchors => {
     const devices = new Map<number, [number, number, number]>(), roomsA = new Map<number, [number, number, number]>();
+    // A point is held under the walls by the scene itself; a body's icon (its top plus 6) is held here, by the same margin.
+    const top = wallTop(), cap = top > 0 ? Math.max(0, top - ICON_MARGIN) : Infinity;
     for (const s of plan?.solids ?? []) {
       if (s.kind === "device" && !s.ref.hidden && typeof s.ref.index === "number") {
         if (s.shape.type === "point") devices.set(s.ref.index, [s.shape.at[0], s.shape.z, s.shape.at[1]]);
-        else { const b = s.shape.base; devices.set(s.ref.index, [b.reduce((a, q) => a + q[0], 0) / b.length, s.shape.z1 + 6, b.reduce((a, q) => a + q[1], 0) / b.length]); }
+        else { const b = s.shape.base; devices.set(s.ref.index, [b.reduce((a, q) => a + q[0], 0) / b.length, Math.min(s.shape.z1 + 6, Math.max(cap, s.shape.z0)), b.reduce((a, q) => a + q[1], 0) / b.length]); }
       }
     }
     for (const [r, rs] of roomSolid) roomsA.set(r, [0, rs.z + 2, 0]);
@@ -695,6 +699,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         return project(cx, cy, sol.shape.z1);
       },
       pick: (cx: number, cy: number) => api.pick(cx, cy),
+      /** Where each device's icon is anchored, as its height above the floor's slab top (cm). */
+      anchors: () => [...anchors.devices].map(([index, a]) => ({ index, type: plan?.solids.find((x) => x.kind === "device" && x.ref.index === index)?.tag ?? "", z: a[1] })),
       /** Points the camera (az: 0 is south of the house, positive turns east; polar: 0 straight down). */
       look(az: number, polar: number) { orbit.azimuth = az; orbit.polar = Math.max(0.1, Math.min(1.45, polar)); want(); },
       /** The height range of everything drawn (cm, plan z): what the one-floor test reads. */
