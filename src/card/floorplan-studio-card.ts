@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { entitiesOfDevice, DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { entitiesOfDevice, DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorElevation, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent, toggleEntity } from "./actions";
@@ -336,6 +336,7 @@ export class FloorplanStudioCard extends LitElement {
   private _view3d: View3D | null = null;
   private _view3dFloor: unknown = null;
   private _view3dAround = "";  // JSON of `FloorsAround`, to compare
+  private _view3dBelow: unknown[] = []; // the floor objects under the selected one, to compare
   private _fallback3d: string | null = null;
   /** How many 3D renderers are alive in this page: a test hook (a lifecycle test reads that it returns to 0). */
   static get liveRenderers(): number { return lib3d?.liveRenderers() ?? 0; }
@@ -1263,10 +1264,15 @@ export class FloorplanStudioCard extends LitElement {
     this._view3d.setTheme(`${this._theme()}|${this._haDark()}`);
     this._view3d.setWalls(this._walls());
     const around = floorsAroundKey(this._layout!, this._floorKey()!), aroundKey = JSON.stringify(around);
-    if (f !== this._view3dFloor || aroundKey !== this._view3dAround) {
+    // The floors below the selected one (S12.6) stand dimmed under it, at their real height; those above are not drawn.
+    const layout = this._layout!, key = this._floorKey()!, keys = Object.keys(layout.floors), base = floorElevation(layout, key);
+    const below = keys.slice(0, keys.indexOf(key)).map((k) => ({ key: k, floor: layout.floors[k], around: floorsAroundKey(layout, k), elevation: floorElevation(layout, k) - base }));
+    const same = below.length === this._view3dBelow.length && below.every((b, i) => b.floor === this._view3dBelow[i]);
+    if (f !== this._view3dFloor || aroundKey !== this._view3dAround || !same) {
       this._view3dFloor = f;
       this._view3dAround = aroundKey;
-      this._view3d.setFloor(f, around);
+      this._view3dBelow = below.map((b) => b.floor);
+      this._view3d.setFloor(f, around, below);
     }
     // The live state, decided by the plan's own rules (core/live.ts); the view changes its parts in place, and does nothing when it is the same as the last.
     const now = Date.now();

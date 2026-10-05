@@ -27,9 +27,15 @@ export interface View3DOptions {
   /** The plan's turn in degrees, the camera's starting azimuth. */
   turnDeg: number;
 }
+/** A floor under the selected one: its data, what its stairs face (`around`), and where it stands (cm, relative to the selected floor's slab top). */
+export interface BelowFloor { key: string; floor: unknown; around?: unknown; elevation: number }
 export interface View3D {
-  /** Replaces the scene with this floor's. Never throws. */
-  setFloor(floor: unknown, around?: unknown): void;
+  /**
+   * Replaces the scene with this floor's. Never throws. `below` are the floors under it, each with its `elevation` in cm relative to
+   * this floor's slab top (negative): they are drawn dimmed, with no live state, and the pick ignores them. The camera keeps its
+   * azimuth and polar and frames this floor; the old meshes are disposed.
+   */
+  setFloor(floor: unknown, around?: unknown, below?: BelowFloor[]): void;
   /** The card's theme or dark mode may have changed: `key` identifies them, and the colours are read again when it differs. */
   setTheme(key: string): void;
   /** The container's size may have changed. */
@@ -72,6 +78,8 @@ const hex = (n: number) => n.toString(16).padStart(6, "0");
 const SWING = (70 * Math.PI) / 180;
 /** The lights' strength by day and by night, and how much more a lit room and a lamp's pool count at night, against the dark. */
 const DAY = { hemi: 1.6, sun: 1.9, boost: 1.3 }, NIGHT = { hemi: 0.5, sun: 0.35, boost: 3.5 };
+/** How much of its own opacity a floor below keeps: dim enough to read as "another floor", solid enough to read as a house. */
+const DIM = 0.3;
 const EMPTY: Live3D = { pulse: [3, 1.4], night: false, labels: false, names: false, colours: "", lights: [], doors: [], devices: [], rooms: [] };
 const hexOf = (c: Color) => `#${c.getHexString()}`;
 
@@ -115,12 +123,14 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   sun.position.set(-0.5, 1, 0.8); // from the south-west, above: the south and west faces catch it, the others stay in half tone
   scene.add(sun);
 
+  let framed = false;
   let orbit = new Orbit({ min: [0, 0, 0], max: [0, 0, 0] }, 1, FOV, opts.turnDeg);
   let plan: Plan3D | null = null, themeKey = "", meshes: Mesh[] = [], raf = 0, dragged = false;
   // The walls are meshes of their own, built again only when the set of lowered walls changes, never per frame.
   let picker: Picker | null = null, markers: InstancedMesh | null = null, ring: LineLoop | null = null;
   let ringRoom: number | null = null, inset: [number, number] = [0, 0];
   const raycaster = new Raycaster();
+  let belowPlans: { key: string; plan: Plan3D; meshes: Mesh[] }[] = [];
   let wallMeshes: Mesh[] = [], bodies: WallBody[] = [], lowered = new Set<string>(), walls: Walls = "cut";
   // ---- the live state (S12.5). `liveNow` is what core/live.ts last said; every part below is changed in place from it.
   let liveNow: Live3D | null = null, liveSig = "", builds = 0, pulsing = false, pulseStart = 0, liftKey = "";
@@ -267,9 +277,9 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   };
   const dispose = (list: Mesh[]) => { for (const m of list) { scene.remove(m); m.geometry.dispose(); (m.material as MeshLambertMaterial).dispose(); } };
   /** One mesh per colour from the solids `pick` accepts, drawn over the z range `zOf` gives (null: left out). */
-  const meshesOf = (pick: (s: Plan3D["solids"][number]) => boolean, zOf: (s: Plan3D["solids"][number]) => [number, number] | null): Mesh[] => {
+  const meshesOf = (pick: (s: Plan3D["solids"][number]) => boolean, zOf: (s: Plan3D["solids"][number]) => [number, number] | null, src: Plan3D | null = plan, dim = false): Mesh[] => {
     const groups = new Map<string, { tris: Triangles; colour: Color; opacity: number }>();
-    for (const s of plan?.solids ?? []) {
+    for (const s of src?.solids ?? []) {
       if (s.shape.type !== "prism" || !pick(s)) continue; // a point (a device with no body of its own) is a ball, below
       const z = zOf(s);
       if (!z) continue;
@@ -286,9 +296,10 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       geo.setAttribute("normal", new BufferAttribute(new Float32Array(g.tris.normal), 3));
       geo.setAttribute("color", new BufferAttribute(new Float32Array(g.tris.position.length).fill(1), 3)); // white: a lit room multiplies it (paintLifts)
       geo.computeBoundingSphere();
-      const glass = g.opacity < 1, mat = new MeshLambertMaterial({ color: g.colour, vertexColors: true, transparent: glass, opacity: g.opacity, depthWrite: !glass, ...(glass ? { side: DoubleSide } : {}) }); // `side: undefined` makes three warn
+      // A floor below is see-through whatever it is made of, and writes no depth: the selected floor's own parts stay in front of it.
+      const glass = dim || g.opacity < 1, mat = new MeshLambertMaterial({ color: g.colour, vertexColors: !dim, transparent: glass, opacity: dim ? g.opacity * DIM : g.opacity, depthWrite: !glass, ...(glass ? { side: DoubleSide } : {}) }); // `side: undefined` makes three warn
       const mesh = new Mesh(geo, mat);
-      mesh.renderOrder = glass ? 1 : 0;
+      mesh.renderOrder = dim ? -1 : glass ? 1 : 0;
       scene.add(mesh);
       out.push(mesh);
     }
@@ -300,6 +311,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   const drop = (m: Mesh) => { scene.remove(m); m.geometry.dispose(); (m.material as MeshLambertMaterial).dispose(); };
   const clear = () => {
     dispose(meshes); dispose(wallMeshes); meshes = []; wallMeshes = [];
+    for (const b of belowPlans) { dispose(b.meshes); b.meshes = []; }
     for (const x of parts) drop(x.mesh);
     for (const b of devBodies) { drop(b.mesh); b.lit.forEach(drop); }
     parts = []; devBodies = []; ballIdx = []; ballRest = [];
@@ -522,6 +534,9 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         roomShapes.push({ index: s.ref.room, base, top: s.shape.z1, area });
       }
     }
+    // The floors below: every solid but a device (their lights, doors and icons are not shown), whole, at their elevation.
+    for (const b of belowPlans) b.meshes = meshesOf((s) => s.kind !== "device", (s) => (s.shape.type === "prism" ? [s.shape.z0, s.shape.z1] : null), b.plan, true);
+    container.dataset.below = String(belowPlans.length);
     lifts = new Map(); liftKey = "";
     bodies = wallBodies(plan.solids);
     lowered = new Set();
@@ -536,11 +551,21 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
 
   resize();
   const api: View3D = {
-    setFloor(floor, around) {
+    setFloor(floor, around, below) {
       try { plan = buildScene(floor as never, { around: around as never }); } catch { plan = null; }
-      const { w, h } = size();
-      orbit = new Orbit(plan?.bounds ?? { min: [0, 0, 0], max: [0, 0, 0] }, w / h, FOV, opts.turnDeg);
-      orbit.setInset(inset[0], inset[1]); // a new floor keeps the room the list takes
+      clear(); // the old floor's meshes and the old floors below go now, before the new ones are made
+      belowPlans = [];
+      for (const b of Array.isArray(below) ? below : []) {
+        try { if (b && Number.isFinite(b.elevation)) belowPlans.push({ key: String(b.key), plan: buildScene(b.floor as never, { around: b.around as never, elevation: b.elevation }), meshes: [] }); } catch { /* a floor that cannot be built is left out */ }
+      }
+      const bounds = plan?.bounds ?? { min: [0, 0, 0], max: [0, 0, 0] };
+      if (framed) orbit.reframe(bounds); // the same way of looking, at the new floor
+      else {
+        const { w, h } = size();
+        orbit = new Orbit(bounds, w / h, FOV, opts.turnDeg);
+        orbit.setInset(inset[0], inset[1]); // a new floor keeps the room the list takes
+        framed = true;
+      }
       build();
       want();
     },
@@ -618,7 +643,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       renderer.forceContextLoss();
       canvas.remove();
       probe.remove();
-      for (const k of ["az", "polar", "dist", "target", "drawn", "dragged", "lowered", "inset", "ring", "pools"]) delete container.dataset[k];
+      for (const k of ["az", "polar", "dist", "target", "drawn", "dragged", "lowered", "inset", "ring", "pools", "below"]) delete container.dataset[k];
       if (testHook && (globalThis as Record<string, unknown>).__fp3d === testHook) delete (globalThis as Record<string, unknown>).__fp3d;
       ring = null; // its geometry went with the scene
       live--;
@@ -646,6 +671,22 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       pick: (cx: number, cy: number) => api.pick(cx, cy),
       /** Points the camera (az: 0 is south of the house, positive turns east; polar: 0 straight down). */
       look(az: number, polar: number) { orbit.azimuth = az; orbit.polar = Math.max(0.1, Math.min(1.45, polar)); want(); },
+      /** The floors below and the height range of everything drawn (cm, plan z): what the stacking test reads. */
+      floors() {
+        const range = (list: Mesh[]) => {
+          let y0 = Infinity, y1 = -Infinity;
+          for (const m of list) { const b = m.geometry.boundingBox ?? (m.geometry.computeBoundingBox(), m.geometry.boundingBox!); y0 = Math.min(y0, b.min.y + m.position.y); y1 = Math.max(y1, b.max.y + m.position.y); }
+          return { y0, y1 };
+        };
+        const own = [...meshes, ...wallMeshes, ...parts.map((x) => x.mesh), ...devBodies.map((x) => x.mesh)];
+        const all = range([...own, ...belowPlans.flatMap((b) => b.meshes)]);
+        return {
+          below: belowPlans.map((b) => ({ key: b.key, ...range(b.meshes), opacity: Math.max(0, ...b.meshes.map((m) => (m.material as MeshLambertMaterial).opacity)), meshes: b.meshes.length, pickable: !!picker && plan !== null && b.plan === plan })),
+          extent: all,
+        };
+      },
+      /** three's own count of what the graphics card holds: 21 floor switches must leave it where 2 did. */
+      memory: () => ({ geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }),
       /** What the live state did to the scene: for the tests, which read the pixels too. */
       live() {
         const body = (b: (typeof devBodies)[number]) => ({ index: b.index, type: b.type, colour: hexOf(b.mat.color), emissive: b.on && b.lit[0] ? hexOf((b.lit[0].material as MeshBasicMaterial).color) : "#000000" });

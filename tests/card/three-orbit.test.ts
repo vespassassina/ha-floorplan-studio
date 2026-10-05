@@ -133,3 +133,38 @@ describe("Orbit inset: a panel covers part of the view (S12.4)", () => {
     expect(o.distance).toBe(d);
   });
 });
+
+describe("Orbit reframe: another floor, the same way of looking (S12.6)", () => {
+  const small = { min: [0, 0, -300] as [number, number, number], max: [200, 100, 250] as [number, number, number] };
+  it("keeps azimuth and polar, frames the new bounds, and what reset returns to is the new frame", () => {
+    const o = make(1.5, 20);
+    o.rotate(-100, 40);
+    o.zoom(0.5);
+    o.pan(30, 30, 800);
+    const [az, polar] = [o.azimuth, o.polar];
+    const fresh = new Orbit(small, 1.5, 40, 20);
+    o.reframe(small);
+    expect(o.azimuth).toBe(az);
+    expect(o.polar).toBe(polar);
+    expect(o.distance).toBeCloseTo(fresh.distance, 6);
+    expect(o.target).toEqual(fresh.target);
+    expect(o.framing).toBeCloseTo(fresh.framing, 6);
+    o.rotate(50, 50);
+    o.reset();
+    expect(o.distance).toBeCloseTo(fresh.distance, 6); // back to the new floor's frame, with the first azimuth
+    expect(o.target).toEqual(fresh.target);
+  });
+  it("keeps the panel inset, and junk bounds change nothing", () => {
+    const o = make();
+    o.setInset(0.2, 0.1);
+    const fresh = new Orbit(small, 1.5, 40, 0);
+    fresh.setInset(0.2, 0.1);
+    o.reframe(small);
+    expect(o.distance).toBeCloseTo(fresh.distance, 6);
+    const d = o.distance, t = [...o.target];
+    o.reframe({ min: [NaN, 0, 0], max: [1, 1, Infinity] } as never);
+    o.reframe(null as never);
+    expect(o.distance).toBe(d);
+    expect(o.target).toEqual(t);
+  });
+});
