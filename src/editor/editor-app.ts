@@ -394,6 +394,9 @@ export class FloorplanStudioEditor extends LitElement {
     .btn.primary{background:var(--fp-primary);color:var(--fp-on-dark);border-color:var(--fp-primary)}
     .btn.danger{background:var(--fp-danger);color:var(--fp-on-dark);border-color:var(--fp-danger)}
     .btn.warn{background:var(--fp-warn);color:var(--fp-on-light);border-color:var(--fp-warn)}
+    /* Round red X, icon only: the room Sensors section's Remove. Square box so 50% is a circle. */
+    .btn.rm-x{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:26px;height:26px;padding:0;border-radius:50%;background:var(--fp-danger);color:var(--fp-on-dark);border-color:var(--fp-danger);vertical-align:middle}
+    .btn.rm-x svg{width:16px;height:16px;fill:currentColor;pointer-events:none}
     .menu{position:relative}
     .menu>summary{list-style:none;display:inline-block}
     .menu>summary::-webkit-details-marker{display:none}

@@ -1,7 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";
-import { DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, DOOR_DEFAULTS, FURNITURE_HEIGHTS, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity } from "../core";
+import { DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, DOOR_DEFAULTS, FURNITURE_HEIGHTS, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
@@ -10,6 +10,7 @@ import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 import { GUIDE_STEPS } from "./guide";
 import "./combo";
 import type { ComboOption } from "./combo";
+import { groupSensorChoices, type GroupedChoice } from "./sensor-order";
 
 /** Selection panels: one function per kind of selection, all pure views over the state. */
 
@@ -439,16 +440,22 @@ function angleField(c: PanelCtx, id: string, list: "walls" | "doors" | "openings
  * ever removes the attachment (behaviour 3), never the icon. `vctl`'s Controls draft (session state, not a layout
  * field) passes no `attach` and keeps its old direct-`set` behaviour.
  */
+/** A round red button with only an X; the name is in `aria-label` and `title`, not in text. */
+const removeX = (id: string, name: string, on: () => void) =>
+  html`<button class="btn rm-x" id=${id} type="button" aria-label=${`Remove ${name}`} title=${`Remove ${name}`} @click=${on}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.close}/></svg></button>`;
 function multiAttachField(
   c: PanelCtx, id: string, label: string, cur: string[], choices: CatalogEntry[], set: (next: string[]) => void,
   attach?: { apply: (f: Floor, next: string[]) => void; targetLabel: string; keepDeviceId?: string },
+  /** `grouped` orders the offered entries and names each one's heading; `roundRemove` shows Remove as a round red X. */
+  look?: { grouped?: (avail: CatalogEntry[]) => GroupedChoice[]; roundRemove?: boolean },
 ) {
   const placed = placedEntities(c.st.layout);
   const nameOf = (entity: string) => { const e = c.st.layout.catalog.find((x) => x.entity === entity); return e ? (e.room ? `${e.room} - ${e.name}` : e.name) : entity; };
   const avail = choices.filter((s) => !cur.includes(s.entity));
   // S10.2 behaviour 2: an entity already placed as an icon is still offered, labelled so the user can tell; the
   // suffix is appended to the label only, so `filterCombo`'s name match (label+value+group) still finds it by name.
-  const options: ComboOption[] = avail.map((s) => ({ value: s.entity, label: placed.has(s.entity) ? `${s.name} (on plan)` : s.name, group: s.room }));
+  const entries = look?.grouped ? look.grouped(avail) : avail.map((s) => ({ entry: s, group: s.room }));
+  const options: ComboOption[] = entries.map(({ entry: s, group }) => ({ value: s.entity, label: placed.has(s.entity) ? `${s.name} (on plan)` : s.name, group }));
   // Picking adds to the list and clears itself: the combo's own value never lingers on the picked entity, unlike a
   // native `<select>` whose "add..." placeholder simply gets reselected next render.
   const add = (v: string) => {
@@ -458,7 +465,7 @@ function multiAttachField(
   };
   return html`<label for=${id}>${label}</label>
     ${combo(id, label, "", options, add, "add...")}
-    ${cur.map((en, k) => html`<p class="attach-row">${nameOf(en)} ${button(`${id}-rm${k}`, "Remove", () => set(cur.filter((x) => x !== en)), "warn")}</p>`)}`;
+    ${cur.map((en, k) => html`<p class="attach-row">${nameOf(en)} ${look?.roundRemove ? removeX(`${id}-rm${k}`, nameOf(en), () => set(cur.filter((x) => x !== en))) : button(`${id}-rm${k}`, "Remove", () => set(cur.filter((x) => x !== en)), "warn")}</p>`)}`;
 }
 
 function doorPanel(c: PanelCtx, i: number) {
@@ -566,7 +573,7 @@ function roomSensors(c: PanelCtx, i: number) {
   return html`${heading("Sensors")}
     ${ROOM_SENSORS.map(([field, id, label]) => {
       const write = (f: Floor, next: string[]) => setRoomList(f.rooms[i], field, next);
-      return multiAttachField(c, id, label, r[field] ?? [], c.st.roomSensorChoices(i, field), (next) => c.commit((f) => write(f, next)), { apply: write, targetLabel: r.name || "the room" });
+      return multiAttachField(c, id, label, r[field] ?? [], c.st.roomSensorChoices(i, field), (next) => c.commit((f) => write(f, next)), { apply: write, targetLabel: r.name || "the room" }, { grouped: (avail) => groupSensorChoices(c.st.layout, avail, c.st.floor, r.name), roundRemove: true });
     })}`;
 }
 
