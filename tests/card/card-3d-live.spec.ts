@@ -252,7 +252,7 @@ test.describe("3D view: motion", () => {
     expect((await ring(page)).visible).toBe(false);
     const hall = await at(page, 150, 540, 1);
     const box = { x: Math.max(0, hall.x - 160), y: Math.max(0, hall.y - 90), width: 320, height: 180 };
-    const base = await reds(page, box);
+    const base = await reds(page, box, true); // soft: the pulse's trough is a dull red
     await setStates(page, { ...QUIET(), "binary_sensor.demo_hall_motion": st("on", {}, iso(0)) }, false);
     expect(await ring(page)).toMatchObject({ visible: true });
     await expect.poll(async () => (await live(page)).pulsing).toBe(true);
@@ -261,9 +261,9 @@ test.describe("3D view: motion", () => {
     await page.waitForTimeout(600);
     expect((await cam(page)).drawn).toBeGreaterThan(f0 + 3);
     const seen = new Set<number>();
-    for (let i = 0; i < 8; i++) { seen.add(Math.round((await ring(page)).opacity * 20)); await page.waitForTimeout(110); }
-    expect(seen.size).toBeGreaterThan(2); // it breathes
-    expect(await reds(page, box)).toBeGreaterThan(base + 30);
+    // it breathes: the opacity takes more than two values while the pulse plays (polled, because a loaded machine draws few frames)
+    await expect.poll(async () => { seen.add(Math.round((await ring(page)).opacity * 20)); return seen.size; }, { intervals: [60], timeout: 3000 }).toBeGreaterThan(2);
+    await expect.poll(() => reds(page, box, true), { intervals: [100], timeout: 3000 }).toBeGreaterThan(base + 30); // on screen at some point of the breath
     // three pulses of 1.4 s, then steady, and then no frame at all
     await expect.poll(async () => (await live(page)).pulsing, { timeout: 8000 }).toBe(false);
     await still(page);

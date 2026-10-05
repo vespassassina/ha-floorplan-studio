@@ -71,7 +71,7 @@ const hex = (n: number) => n.toString(16).padStart(6, "0");
 /** radians. How far an open door's leaf swings about its hinge: about 70 degrees. */
 const SWING = (70 * Math.PI) / 180;
 /** The lights' strength by day and by night, and how much more a lit room and a lamp's pool count at night, against the dark. */
-const DAY = { hemi: 1.6, sun: 1.9, boost: 1.6 }, NIGHT = { hemi: 0.5, sun: 0.35, boost: 3.5 };
+const DAY = { hemi: 1.6, sun: 1.9, boost: 1.3 }, NIGHT = { hemi: 0.5, sun: 0.35, boost: 3.5 };
 const EMPTY: Live3D = { pulse: [3, 1.4], night: false, labels: false, names: false, colours: "", lights: [], doors: [], devices: [], rooms: [] };
 const hexOf = (c: Color) => `#${c.getHexString()}`;
 
