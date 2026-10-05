@@ -2,6 +2,50 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: the 3D scene module (S12.2, core)
+
+`buildScene(floor, opts)` in `src/core/scene.ts` returns the raw solids of one floor, in cm, z up, as plain JSON. No
+three.js, no DOM. It reads the same resolvers (`heights.ts`) and the same fixed sizes (`solids.ts`) as 2.5D, so the
+two views cannot disagree (spec R3). Choices:
+
+- **Two shapes only.** `prism` (a polygon from `z0` to `z1`; every box is one) and `point` (a device with no body).
+  Winding is not fixed. Each solid has `id` (by index, never by user text), `kind`
+  (floor, room, wall, opening, furniture, unlinked, stair, device), `tag` (wall kind, symbol, device type, `glass`,
+  `door-leaf`, `panel`, `kerb`, `stair-down`), `ref` (what to find again) and `paint` (a `role` token, plus the
+  user's own `color` and `texture` as written; never a theme hex).
+- **Opening is a kind of its own.** A door, window or opening is a gap in its wall: a block under the sill, a
+  header over the head, nothing between. A plain door gets a 4 cm `door-leaf`, a window or glass door a 2 cm
+  `glass` pane, a sealed one a `panel` as thick as the wall. `ref.index` is the door's index and `ref.entity`
+  its first sensor, lock or cover; `entities` has all of them. One infill per opening, even when two
+  coincident walls carry it.
+- **Wall thickness** (the plan draws a line, 3D needs a width): wall 10, external 20, fence 4, edge 10, centred on
+  the edge line. Corners have no mitre: two meeting walls leave a notch of half a thickness. Known, left to the
+  viewer or a later task.
+- **Same edge twice is one wall**: the taller wins, and `external` wins on a tie, as in `collectWalls` (solids.ts).
+- **Rooms.** A zone has no fill (it is an overlay) and no walls; a structure has no fill but keeps its walls (neither
+  owns a point, `ROOM_OWNS`); a `fill` with no name is skipped, as in `renderFloor`. Every other kind gets a 1 cm
+  fill on the slab, lifted 1 cm per bigger room it sits inside (garden house over garden), up to 300 rooms; past
+  that all sit at 0. Unknown kinds get none. The slab is `-slab..0`, so the walking surface is z 0.
+- **Furniture** by `FURNITURE_SOLID`: box and flat are the rotated rectangle at `furnitureHeight`; a pole (tree) is a
+  12 cm trunk and `ref.size` carries [w, h] for the viewer's crown. A piece with a non-finite number, a size of
+  zero or less, a height of zero or an unknown symbol is skipped (2.5D draws the unknown as flat 2D; 3D has nothing to draw).
+- **Unlinked** is a 40 cm block times `scale`, at `unlinkedHeight`, rotation not drawn, as in 2.5D.
+- **Stairs**: a step per `stairSteps`, each as high as the flight has climbed by then (last = storey height). Down:
+  treads sunk below the floor (`stair-down`; the viewer may cut the slab). Both ways: the rising flight plus a kerb.
+  `opts.around` is `floorsAround`, so an unmarked stair resolves as in 2.5D.
+- **Devices** by `DEVICE_SOLID`: radiator (8 cm deep, `radiatorSpan`), speaker and media (20 x 20 x 30, turned by
+  `rot`), TV (`tvPlacement`: 100 x 6 x 60, flush on the nearest wall within 150 cm at `deviceZ`, else free-standing
+  30 cm up looking toward +y). A heater with no bar, a TV or speaker with no usable position, and every other
+  type, is a `point` at `deviceZ` (a bar: at its middle). Nothing is skipped for want of a body.
+- **Exports added, behaviour unchanged**: from `solids.ts` `within`, `turnAbout`, `stairBlocks`, `wallFace`, the
+  device sizes, `KERB_*`, `WELL_DEPTH`, `HOST_TOL`, and a new `tvPlacement` (the placement half of `tvSolid`,
+  moved out so 2.5D and 3D share it); from `heights.ts` `floorSlab`. `within`'s parameter types are narrowed to the
+  fields it reads.
+- **Never throws.** Every piece builds inside its own guard and one `add` refuses a shape with a non-finite
+  number or no thickness. Heights that are junk fall back to the default, as in `heights.ts` (a wall of height -5
+  stands at the storey height; height 0 is no wall).
+- No CHANGELOG line: no user-visible change.
+
 ## 2026-10-05: real 3D in the card, view-only; 2.5D leaves the editor
 
 Diego asked for real 3D. Chosen: a three.js view in the card, built from a new raw-solid scene module

@@ -67,7 +67,7 @@ describe("scene: walls read heights.ts", () => {
       { id: "a", name: "A", area: "", kind: "room", pts: sq(0), wk: ["wall", "wall", "wall", "wall"] },
       { id: "b", name: "B", area: "", kind: "room", pts: sq(100), wk: ["wall", "wall", "wall", "wall"], height: 300 },
     ] });
-    const shared = buildScene(f).solids.filter((s) => s.kind === "wall" && span(xs(s))[0] > 95 && span(xs(s))[1] < 105);
+    const shared = buildScene(f).solids.filter((s) => s.kind === "wall" && span(xs(s))[0] >= 95 && span(xs(s))[1] <= 105);
     expect(shared).toHaveLength(1);
     expect(prism(shared[0]).z1).toBe(300);
   });
@@ -382,10 +382,11 @@ describe("scene: hostile layouts never throw and keep the good pieces", () => {
     expect(sc.solids.some((s) => s.kind === "room" && s.ref.room === 0)).toBe(true);
     expect(sc.solids.some((s) => s.kind === "furniture" && s.ref.index === 3)).toBe(true);
     expect(sc.solids.some((s) => s.kind === "wall" && s.ref.poly === "w" && s.ref.index === 3)).toBe(true);
-    expect(sc.solids.some((s) => s.kind === "wall" && s.ref.poly === "w" && s.ref.index === 2)).toBe(false);
+    // a negative height is junk and reads as the default (heights.ts), so that wall stands at the storey height
+    expect(sc.solids.find((s) => s.kind === "wall" && s.ref.poly === "w" && s.ref.index === 2)).toMatchObject({ shape: { z1: 250 } });
     expect(sc.solids.some((s) => s.kind === "device" && s.ref.entity === "a.c")).toBe(true);
-    expect(sc.solids.some((s) => s.kind === "furniture" && [0, 1, 2, 4].includes(s.ref.index))).toBe(false);
-    expect(sc.solids.some((s) => s.kind === "room" && [1, 2, 4].includes(s.ref.room))).toBe(false);
+    expect(sc.solids.some((s) => s.kind === "furniture" && [0, 1, 2, 4].includes(s.ref.index as number))).toBe(false);
+    expect(sc.solids.some((s) => s.kind === "room" && [1, 2, 4].includes(s.ref.room as number))).toBe(false);
     // every number in every solid is finite: JSON would turn NaN or Infinity into null
     expect(JSON.parse(JSON.stringify(sc))).toEqual(sc);
     expect(sc.bounds.min.every(Number.isFinite) && sc.bounds.max.every(Number.isFinite)).toBe(true);

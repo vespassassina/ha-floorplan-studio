@@ -2423,6 +2423,9 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   `heights.ts`. Tests: demo numbers, a gap for each door and window, every
   device and furniture kind iterated, hostile layout. Increment: pure core,
   no UI.
+  Done, 2026-10-05. 30 tests in `tests/core/scene.test.ts` (every DeviceType,
+  FurnitureSymbol and RoomKind iterated; 5000 furniture; hostile floors).
+  Choices in `docs/DECISIONS.md`. No CHANGELOG line (no user-visible change).
 - S12.3 Spike, then the card's 3D option: can the chunk sit beside the card
   file or must it be inlined (gate K). Static scene, orbit, zoom, pan, theme
   tokens, WebGL fallback, dispose on disconnect. Increment: look at the house
