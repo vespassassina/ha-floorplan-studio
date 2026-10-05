@@ -2,6 +2,40 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: Sprint 12 review fixes
+
+**Coordinate bound.** `validate` refuses any coordinate beyond +-1e7 cm (100 km) from the origin, on every point,
+wall, door, opening, extra, device, furniture piece and unlinked item (`COORD_LIMIT`, `src/core/schema.ts`). A layout
+of 1.7e308 made the camera distance Infinity and a blank canvas. Real houses are under 1e4 cm; the bound leaves room
+for any survey. The message names the floor and the limit. As a second guard `Orbit.finite` is false when the framing
+distance still overflows, and the view falls back with "it could not start".
+
+**Nest budget.** `nest()` in `scene-build.ts` stops when rooms times points exceeds 1e7 pair tests (`NEST_WORK`), as
+it already stopped at `NEST_LIMIT` rooms; the rooms are then drawn without nesting. `meet` finds wall ends through a
+grid of cell JOINT_TOLERANCE instead of comparing all pairs. Cost: a layout over the budget loses the nesting of
+fills, not the model.
+
+**Retry of a failed chunk.** A browser caches a failed `import()` per URL, so the second pick failed the same way.
+The build puts the chunk's hashed name into the card (`chunkName` plugin in `vite.config.ts`, placeholder
+`__FP3D_CHUNK__`); the first load is the plain import, each retry asks `<card dir>/<hash>.js?r=<n>`, the same file
+under a new URL. It is built as a string, not `new URL(.., import.meta.url)`, which Vite rewrites as an asset.
+Unbuilt (vitest, dev) the placeholder stays and the plain import is used.
+
+**Lost context.** The view calls `preventDefault` on `webglcontextlost`, pauses, and waits 3000 ms for
+`webglcontextrestored`; three.js rebuilds its own state. If it does not come, `onFail(reason, true)` and the card shows
+the note, then tries once more on `visibilitychange` to visible or on `connectedCallback`.
+
+**Test hook flag.** `window.__fp3d` is behind `__FP3D_TEST__`, a compile-time define: true only in `dist-test/`, an
+extra card build `scripts/build.mjs` makes when `FP_TEST_BUILD=1` (the Playwright globalSetup, `npm run shots`). The
+shipped `dist/` and `www/` contain no hook; `size-budget.spec.ts` greps for it. Two cards stack their hooks; removing
+one republishes the other's.
+
+**Folded Active list.** `_apply3dInset` insets only when the panel has its body (open). A folded 36 px header spans half
+a phone's width and hid almost nothing.
+
+Not done: the card does not pass `layout.colors` to the 3D view (the dead `Live3D.colours` is gone); 3D takes its
+colours from the stylesheet variables only, as 2D does.
+
 ## 2026-10-05: floors, size budget and performance in 3D (S12.6)
 
 **The size budget is met, with the limits unchanged.** Card gzip 98690 -> 94341 (+3561 over the pre-3D 90780; limit

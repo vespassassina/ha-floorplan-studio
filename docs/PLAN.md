@@ -2473,3 +2473,5 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   (`tests/card/card-3d-floors.spec.ts`, 5 tests). Performance and hostile layouts:
   `tests/card/card-3d-perf.spec.ts`, 12 tests, 120 runs at `--repeat-each=10` green; none needed a
   code change. Choices in `docs/DECISIONS.md`.
+- Sprint 12 review fixes: chunk retry, lost-context recovery, draw guard, coordinate bound, nest budget, test hook
+  compiled out of the shipped build, narrow-card inset, ring disposal, debug lines. Choices in `docs/DECISIONS.md`.
