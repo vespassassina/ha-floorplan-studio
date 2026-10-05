@@ -519,14 +519,14 @@ function boundClassOf(d: Device, o: RenderOpts): Cls {
 }
 
 /** A light that is on takes its icon fill from `attributes.rgb_color` when present; unset otherwise, so `.dev.on path`'s `var(--fp-dev-fill,var(--fp-on))` falls through to the flat colour. Untrusted `state`: a malformed value is silently ignored, not thrown on. */
-function lightFill(s: StateOverlay[string] | undefined): string | null {
+export function lightFill(s: StateOverlay[string] | undefined): string | null {
   const rgb = s?.attributes.rgb_color;
   if (Array.isArray(rgb) && rgb.length === 3 && rgb.every((n) => typeof n === "number" && Number.isFinite(n))) return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
   return null;
 }
 
 /** `attributes.brightness / 255`, floored at 0.35 so a dimmed lamp's icon never goes near-invisible; unset (full opacity through the cascade) with no `brightness` attribute. */
-function lightOpacity(s: StateOverlay[string] | undefined): number | null {
+export function lightOpacity(s: StateOverlay[string] | undefined): number | null {
   const b = s?.attributes.brightness;
   if (typeof b !== "number" || !Number.isFinite(b)) return null;
   return Math.max(0.35, Math.min(1, b / 255));
@@ -643,7 +643,7 @@ const NO_ROOM = new Set(["", "unknown", "unavailable", "not_home"]);
  * its `area_id` and `area` attributes; each is matched, ignoring case, against every room's `area` before any room's
  * `name`. Untrusted state: anything that is not text is skipped, never thrown on.
  */
-function personRoom(d: Device, rooms: Floor["rooms"], o: RenderOpts): number {
+export function personRoom(d: Device, rooms: Floor["rooms"], o: RenderOpts): number {
   if (d.type !== "person" || typeof d.room !== "string") return -1;
   const s = o.state?.[d.room];
   if (!s) return -1;
@@ -764,6 +764,18 @@ function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean, streng
   const mask = `<mask id="${id}" maskUnits="userSpaceOnUse" x="${num(x)}" y="${num(y)}" width="${num(Math.max(...xs) + band - x)}" height="${num(Math.max(...ys) + band - y)}"><polygon points="${points}" fill="white"/><polygon points="${points}" fill="none" stroke="black" stroke-width="${num(hide)}" stroke-linejoin="round"/></mask>`;
   const style = [strength < 1 ? `--fp-fade:${num(strength)}` : "", pulseAge !== null ? `--fp-pulse-age:${num(pulseAge)}s` : ""].filter(Boolean).join(";");
   return `${mask}<polygon class="${as?.cls ?? "motion-perimeter"}${radar ? " radar" : ""}${pulseAge !== null ? " motion-pulse" : ""}" ${as?.data ?? "data-m"}="${i}" mask="url(#${id})" stroke-width="${num(band)}"${style ? ` style="${style}"` : ""} points="${points}"/>`;
+}
+
+/** The vertex mean, or when that falls outside the room (an L, a U) the middle of the widest stretch of the room along the mean's own row. */
+export function polyCentre(p: Pt[]): Pt {
+  const m: Pt = [p.reduce((s, q) => s + q[0], 0) / p.length, p.reduce((s, q) => s + q[1], 0) / p.length];
+  if (!m.every(Number.isFinite) || inside(m, p)) return m;
+  const xs: number[] = [];
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++) if ((p[i][1] > m[1]) !== (p[j][1] > m[1])) xs.push(p[i][0] + ((m[1] - p[i][1]) * (p[j][0] - p[i][0])) / (p[j][1] - p[i][1]));
+  xs.sort((a, b) => a - b);
+  let best: Pt = m, w = 0;
+  for (let i = 0; i + 1 < xs.length; i += 2) if (xs[i + 1] - xs[i] > w) { w = xs[i + 1] - xs[i]; best = [(xs[i] + xs[i + 1]) / 2, m[1]]; }
+  return best;
 }
 
 // ---- What the plan decides from the live state, as functions. renderFloor reads them, and so does the card's 3D view
@@ -1132,22 +1144,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     placed.push(textBox(at, size, len));
     return at;
   };
-  const inPoly = (p: Pt, poly: Pt[]): boolean => {
-    let c = false;
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) if ((poly[i][1] > p[1]) !== (poly[j][1] > p[1]) && p[0] < ((poly[j][0] - poly[i][0]) * (p[1] - poly[i][1])) / (poly[j][1] - poly[i][1]) + poly[i][0]) c = !c;
-    return c;
-  };
-  /** The vertex mean, or when that falls outside the room (an L, a U) the middle of the widest stretch of the room along the mean's own row. */
-  const centroid = (p: Pt[]): Pt => {
-    const m: Pt = [p.reduce((s, q) => s + q[0], 0) / p.length, p.reduce((s, q) => s + q[1], 0) / p.length];
-    if (!m.every(Number.isFinite) || inPoly(m, p)) return m;
-    const xs: number[] = [];
-    for (let i = 0, j = p.length - 1; i < p.length; j = i++) if ((p[i][1] > m[1]) !== (p[j][1] > m[1])) xs.push(p[i][0] + ((m[1] - p[i][1]) * (p[j][0] - p[i][0])) / (p[j][1] - p[i][1]));
-    xs.sort((a, b) => a - b);
-    let best: Pt = m, w = 0;
-    for (let i = 0; i + 1 < xs.length; i += 2) if (xs[i + 1] - xs[i] > w) { w = xs[i + 1] - xs[i]; best = [(xs[i] + xs[i + 1]) / 2, m[1]]; }
-    return best;
-  };
+  const inPoly = inside, centroid = polyCentre;
   /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 12k name either way.
    * The ones inside the room come first: a name goes to the next room only when no spot in its own is free.
    * `avoid` are smaller rooms drawn inside this one (a pond in a garden): a name on one hides under its fill. */
