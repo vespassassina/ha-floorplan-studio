@@ -2410,3 +2410,26 @@ Spec: `docs/specs/room-sensors.md`. Built 2026-10-04 (S11.1 to S11.4; S11.5 open
   Done, 2026-10-04, with S11.3 (same panel, same specs).
 - S11.5 Docs, schema reference, prompts/SCHEMA.md, studio-and-card table,
   review.
+
+## Sprint 12: real 3D view in the card (E4)
+
+Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
+
+- S12.1 Remove 2.5D from the editor: view select, tilt, walls mode, preview
+  note, view-memory `mode`. Card untouched. Test: each editor 2.5D test is
+  moved to the card or deleted, with the count in the report; a stored
+  `"2.5d"` opens 2D. Increment: a simpler editor.
+- S12.2 `src/core/scene.ts`: raw solids in cm from the layout, using
+  `heights.ts`. Tests: demo numbers, a gap for each door and window, every
+  device and furniture kind iterated, hostile layout. Increment: pure core,
+  no UI.
+- S12.3 Spike, then the card's 3D option: can the chunk sit beside the card
+  file or must it be inlined (gate K). Static scene, orbit, zoom, pan, theme
+  tokens, WebGL fallback, dispose on disconnect. Increment: look at the house
+  in 3D.
+- S12.4 Picking: ray to room and device, tap, hold, room panel, drag is not a
+  tap. Real `page.mouse` coordinates, `--repeat-each=10`.
+- S12.5 Live state: lamp light per room, open doors and windows, heating,
+  room motion edge, readouts and icons as an HTML overlay.
+- S12.6 Floors, performance budget (criterion 9, 60/30 fps), docs, Opus
+  review. Then Diego decides whether 2.5D leaves the card.
