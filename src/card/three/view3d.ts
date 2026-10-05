@@ -286,7 +286,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       geo.setAttribute("normal", new BufferAttribute(new Float32Array(g.tris.normal), 3));
       geo.setAttribute("color", new BufferAttribute(new Float32Array(g.tris.position.length).fill(1), 3)); // white: a lit room multiplies it (paintLifts)
       geo.computeBoundingSphere();
-      const glass = g.opacity < 1, mat = new MeshLambertMaterial({ color: g.colour, vertexColors: true, transparent: glass, opacity: g.opacity, depthWrite: !glass, side: glass ? DoubleSide : undefined });
+      const glass = g.opacity < 1, mat = new MeshLambertMaterial({ color: g.colour, vertexColors: true, transparent: glass, opacity: g.opacity, depthWrite: !glass, ...(glass ? { side: DoubleSide } : {}) }); // `side: undefined` makes three warn
       const mesh = new Mesh(geo, mat);
       mesh.renderOrder = glass ? 1 : 0;
       scene.add(mesh);
