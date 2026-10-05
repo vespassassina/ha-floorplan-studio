@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 - 2026-10-05
 
 - Card: 3D now recovers. A failed load of the 3D code is tried again the next time you pick 3D; a lost graphics context (a driver reset, a tab left in the background) is waited for three seconds, and if it does not come back the card shows 2D and tries 3D once more when the tab is shown again or the card is placed again. A frame that cannot be drawn gives the 2D plan and one line, never a blank canvas.
 - Card: a house no longer shrinks at phone width in 3D: a folded Active list takes no room from it.
