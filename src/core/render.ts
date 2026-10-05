@@ -379,7 +379,7 @@ export const FLOORPLAN_CSS = `
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl.zone{opacity:.5} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
-.sel{stroke:var(--fp-ink)} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}`;
+.sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}`;
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
 const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -972,8 +972,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // Diego's field review (2026-09-26, 4x crops): a round cap erodes a full disc of radius half-width around each
   // end, in every direction, not only along the wall — the opening's ends read as concave arcs instead of a square
   // cut, and the erosion reaches past the opening's own span. "butt" cuts exactly at `a` and `b`, wider across only.
-  const openingLines = f.openings.map((op, i) => `<line x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke="black" stroke-width="${openingWidths[i]}" stroke-linecap="butt"/>`);
-  const maskId = f.openings.length ? `fp-open-mask-${tag(openingLines.join(""))}` : "";
+  // An open doorway (kind "open") is cut like an opening: it is a door that draws nothing, so the wall must not show through it.
+  const doorways = f.doors.filter((d) => d.kind === "open");
+  const openingLines = [...f.openings, ...doorways].map((op) => `<line x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke="black" stroke-width="${wallWidthAt(f, op.a, op.b) + OPENING_EXTRA}" stroke-linecap="butt"/>`);
+  const maskId = openingLines.length ? `fp-open-mask-${tag(openingLines.join(""))}` : "";
   // Opus review (2026-09-26): `<mask>` itself carries no x/y/width/height, so its region defaults to -10%/120% of
   // the *viewport*, measured from the coordinate system's own 0,0 — never from the viewBox's own x/y. A floor that
   // is viewed away from the origin (zoomed in on the card or the editor, or simply drawn somewhere else in plan
@@ -1266,7 +1268,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // dash, class order below puts .open after .alarm so its dasharray is the one asserted last), red, one line.
     const { open, alarm: vibrating, cover: coverOpen } = doorStateOf(d, o.state);
     const cls = ["door", `door-${esc(String(d.kind))}`, d.kind === "slit" ? "door-window" : "", vibrating ? "alarm" : "", open ? "open" : "", coverOpen ? "cover-open" : ""].filter(Boolean).join(" ");
-    const sel = o.selection?.t === "door" && o.selection.i === i;
+    const sel = o.selection?.t === "door" && o.selection.i === i, doorway = d.kind === "open";
     // 2.5D: the wall is already cut open above, so the floor line is only a threshold, thin enough to see through the gap.
     // It keeps every class (open, alarm, cover-open) and its alert line, so a door's state still shows.
     // A slit window is the window mark drawn as a thin band (SLIT_BAND of the wall), so it reads as a slit at a glance.
@@ -1278,7 +1280,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S8.13: an open contact door gets a wide pulsing line under its own, so it reads from across the room.
     // S10.3: a vibrating door gets the same line - open or vibrating (or both) is still only ever one alert line.
     if (open || vibrating) out.push(`<line class="door-alert" ${seg} stroke-width="${w + DOOR_ALERT_EXTRA}"/>`);
-    out.push(`<line data-d="${i}" class="door-hit" ${seg} stroke-width="${DOOR_HIT_WIDTH}"/>`);
+    out.push(`<line data-d="${i}" class="door-hit${doorway ? " door-hit-open" : ""}" ${seg} stroke-width="${DOOR_HIT_WIDTH}"/>`);
+    // A doorway draws nothing of its own: only its state (open, vibrating, cover open) or the editor's selection shows a line.
+    if (doorway && !sel && !open && !vibrating && !coverOpen) return;
     out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`);
   });
 

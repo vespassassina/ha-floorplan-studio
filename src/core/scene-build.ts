@@ -229,7 +229,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
           const part = (tag: string, role: string, t: number) => add("opening", `opening:${s.index}:${tag}`, tag, { type: "prism", base: slab(w.a, w.b, t0, t1, t), z0: sill, z1: head }, oref, { role });
           if (fill === "glass") part("glass", `glass-${s.kind}`, PANE_THICKNESS);
           else if (fill === "panel") part("panel", "panel", thick);
-          else if (s.kind !== "opening") part("door-leaf", "door-leaf", LEAF_THICKNESS);
+          else if (s.kind !== "opening" && fill !== "void") part("door-leaf", "door-leaf", LEAF_THICKNESS);
         }
         cursor = t1;
       }

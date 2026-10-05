@@ -1,7 +1,7 @@
 import { TEXTURE_IDS } from "./textures";
 export type Pt = [number, number];
 export type RoomKind = "room" | "garden" | "pavement" | "fill" | "terrace" | "structure" | "zone" | "water";
-export type DoorKind = "door" | "glass" | "window" | "sealed" | "slit";
+export type DoorKind = "door" | "glass" | "window" | "sealed" | "slit" | "open";
 export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
   | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover"
@@ -49,6 +49,9 @@ export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape
  * (Diego, 2026-09-28 — the office window's curtains were flipping it orange).
  * `slit` (2026-10-05) is a window 60 cm high that hangs from the ceiling of its wall; its width is the length a to b.
  * It reads and behaves as a `window` in every other respect. Its default sill is read from the wall, never stored.
+ * `open` (2026-10-05) is a doorway: the wall is cut as for a door (210 high from 0), but nothing is drawn in the gap. It is a
+ * real Door, so it keeps a name, sensors, vibration, locks and a cover; unlike an `Opening` it can carry them. Closed and
+ * unselected it draws nothing; open, it shows the same alert as any door.
  */
 export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensors?: string[]; vibration?: string[]; locks?: string[]; cover?: string; locked?: boolean; height?: number; sill?: number }
 export interface Opening { id: string; a: Pt; b: Pt; locked?: boolean; height?: number; sill?: number }
@@ -146,7 +149,7 @@ export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", 
 export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
 export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
 export const STAIR_DIRECTIONS: readonly StairDirection[] = ["up", "down", "both"];
-export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed", "slit"];
+export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed", "slit", "open"];
 export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum"];
 /** The types that mean "something moved here": the room's motion border, the icon fade and the card's fade timer all read this one list. A plain occupancy or presence sensor is typed `motion` (ha.ts), so it is in. `person` is not: it says who is home, not that a room is in use. */
 export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];

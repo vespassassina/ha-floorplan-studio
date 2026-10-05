@@ -223,10 +223,11 @@ export function collectWalls(f: Floor, px: Proj, mode: WallsMode = "cut"): WallS
 
 /**
  * What fills the hole an opening cuts between its sill and head: nothing (a door stands open, a plain opening is a
- * gap), a translucent band of glass (a window, a glass door) or a solid panel (sealed, as the 2D plan draws it). One
+ * gap), a translucent band of glass (a window, a glass door) or a solid panel (sealed, as the 2D plan draws it). `void`
+ * (an open doorway) is a gap that draws nothing closed and the red frame when its sensors say open. One
  * entry per DoorKind, so a new kind fails the test that walks DOOR_KINDS until someone decides (finding 17).
  */
-export const OPENING_FILL: Record<DoorKind | "opening", "gap" | "glass" | "panel"> = { door: "gap", opening: "gap", glass: "glass", window: "glass", slit: "glass", sealed: "panel" };
+export const OPENING_FILL: Record<DoorKind | "opening", "gap" | "void" | "glass" | "panel"> = { door: "gap", open: "void", opening: "gap", glass: "glass", window: "glass", slit: "glass", sealed: "panel" };
 const has = <T extends string>(table: Record<T, unknown>, k: unknown): k is T => typeof k === "string" && Object.prototype.hasOwnProperty.call(table, k);
 
 /** A door, window or opening as the wall sees it: where it lies and between which heights, and what its sensors say. */
@@ -313,7 +314,7 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
       if (fill === "glass") faces.push(quad(t0, t1, sill, head, `glass g-${esc(s.kind)}${live}`));
       else if (fill === "panel") faces.push(quad(t0, t1, sill, head, `ws sealed${live}`));
       // A door: closed it is a painted leaf, open (or alarmed, or its cover open) a red frame round the gap. A plain opening is only a gap.
-      else if (s.kind !== "opening" && solid) faces.push(quad(t0, t1, sill, head, live ? `opn${live}` : "door-leaf"));
+      else if (s.kind !== "opening" && solid && (fill !== "void" || live)) faces.push(quad(t0, t1, sill, head, live ? `opn${live}` : "door-leaf"));
       faces.push(quad(t0, t1, head, hh, wall));
       if (own.head < hh || own.sill >= hh) top(t0, t1); // a header, or a sill that reaches the top, closes the wall above the gap
       cursor = t1;

@@ -60,6 +60,7 @@ export const DOOR_DEFAULTS: Record<DoorKind, { height: number; sill: number }> =
   glass: { height: 210, sill: 0 },
   sealed: { height: 210, sill: 0 },
   window: { height: 120, sill: 90 },
+  open: { height: 210, sill: 0 }, // a doorway: the cut of a door, nothing drawn in it
   slit: { height: 60, sill: 190 }, // for the default 250 storey; see SLIT_HEIGHT and doorSpan: the real sill hangs from the wall's ceiling
 };
 /** A slit window is this high, and hangs from the ceiling of the wall it sits in (Diego, 2026-10-05). */

@@ -16,7 +16,7 @@ const draw = (f: Floor, state: StateOverlay | undefined, view: "2d" | "2.5d") =>
 const cls = (html: string, re: RegExp) => [...html.matchAll(re)].map((m) => m[1]);
 /** The class of every 2.5D piece that fills an opening: the glass band, the sealed panel, the door leaf, the open frame. */
 const infill = (html: string) => cls(html, /<polygon class="((?:glass|door-leaf|opn|ws sealed)[^"]*)"/g);
-const line2d = (html: string) => cls(html, /<line data-d="0" class="(door [^"]*)"/g)[0];
+const line2d = (html: string) => cls(html, /<line data-d="0" class="(door [^"]*)"/g)[0] ?? ""; // a doorway (open) draws no line while closed
 
 describe("every door kind: open is red in 2D and in 2.5D, closed and unavailable are not (finding 17)", () => {
   for (const kind of DOOR_KINDS) {
