@@ -21,6 +21,41 @@ const demoFloors = () => Object.values((demo as unknown as Layout).floors);
 /** The wall pieces of outline edge `i` (top edge is 0), by their x extent. */
 const edge0 = (sc: ReturnType<typeof buildScene>) => sc.solids.filter((s) => s.kind === "wall" && s.ref.poly === "o" && s.ref.index === 0 && s.tag !== "glass" && s.tag !== "door-leaf" && s.tag !== "panel");
 
+describe("scene: wall corners are closed (S12.3)", () => {
+  // Two walls meeting at a corner each end on the corner's centre point, so the outer corner is a notch of half a wall
+  // thick, seen from any 3D angle. Each end that meets another wall runs on by half of that wall's thickness.
+  it("a rectangle of external walls (20 thick) overlaps at every corner: each wall runs 10 past its corner", () => {
+    const sc = buildScene(floor());
+    const top = edge0(sc)[0], right = sc.solids.find((s) => s.kind === "wall" && s.ref.poly === "o" && s.ref.index === 1)!;
+    expect(span(xs(top))).toEqual([-10, 610]);
+    expect(span(ys(right))).toEqual([-10, 510]);
+  });
+
+  it("a lone wall end, and a T-joint (the end meets the middle of another wall), is not extended", () => {
+    const f = floor({ owk: ["none", "none", "none", "none"], walls: [{ id: "a", a: [100, 100], b: [300, 100], kind: "wall" }, { id: "b", a: [200, 100], b: [200, 300], kind: "wall" }, { id: "c", a: [400, 400], b: [500, 400], kind: "wall" }] });
+    const sc = buildScene(f);
+    const get = (i: number) => sc.solids.find((s) => s.ref.poly === "w" && s.ref.index === i)!;
+    expect(span(xs(get(0)))).toEqual([100, 300]);
+    expect(span(ys(get(1)))).toEqual([100, 300]); // b starts on the middle of a: no extension
+    expect(span(xs(get(2)))).toEqual([400, 500]);
+  });
+
+  it("a corner of a thin wall and a thick one runs on by the other wall's half thickness, not its own", () => {
+    const f = floor({ owk: ["none", "none", "none", "none"], walls: [{ id: "a", a: [100, 100], b: [300, 100], kind: "wall" }, { id: "b", a: [100, 100], b: [100, 300], kind: "external" }] });
+    const sc = buildScene(f);
+    const a = sc.solids.find((s) => s.ref.poly === "w" && s.ref.index === 0)!, b = sc.solids.find((s) => s.ref.poly === "w" && s.ref.index === 1)!;
+    expect(span(xs(a))).toEqual([90, 300]); // 10 thick wall, meets a 20 thick one: 10 past the corner
+    expect(span(ys(b))).toEqual([95, 300]); // the 20 thick wall meets a 10 thick one: 5 past
+  });
+
+  it("a door at a corner keeps its gap: nothing but the header stands over it below the head", () => {
+    const f = floor({ doors: [{ id: "d", a: [0, 0], b: [90, 0], kind: "door", sensors: [] } as never] });
+    const low = edge0(buildScene(f)).filter((s) => prism(s).z0 < 100);
+    expect(low.length).toBeGreaterThan(0);
+    for (const s of low) expect(span(xs(s))[0] >= 90 || span(xs(s))[1] <= 0).toBe(true); // the corner's overrun (x < 0) or the wall beyond the door
+  });
+});
+
 describe("scene: walls read heights.ts", () => {
   it("every edge and free wall stands at the height heights.ts gives it", () => {
     const f = floor({
@@ -80,7 +115,7 @@ describe("scene: openings are gaps", () => {
     // the wall is cut: at least two solids, and the x ranges at the wall's own height leave 100..190 empty
     expect(pieces.length).toBeGreaterThanOrEqual(2);
     const full = pieces.filter((s) => prism(s).z0 === 0 && prism(s).z1 === floorHeight(f)).map((s) => span(xs(s))).sort((a, b) => a[0] - b[0]);
-    expect(full).toEqual([[0, 100], [190, 600]]);
+    expect(full).toEqual([[-10, 100], [190, 610]]); // the ends run 10 past the corners (S12.3)
     // above the door a header closes the wall: from the door's head up to the ceiling
     const head = doorSpan(f.doors[0]).head;
     expect(head).toBe(195);

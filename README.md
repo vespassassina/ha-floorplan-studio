@@ -119,6 +119,8 @@ The sidebar link is on by default. To hide it: Settings → Devices & services �
 
 Updates arrive through HACS like any other.
 
+The card is a file plus one chunk: `www/floorplan-studio-card.js` and `www/floorplan-studio-3d-<hash>.js` (the 3D view, fetched only when someone picks 3D). The HACS download holds both. If you install by hand, copy the whole `custom_components/floorplan_studio/` folder, `www/` included, never the card file alone.
+
 A card config, by hand (the Edit-card form in the Lovelace UI does this for
 you, no YAML needed — see [`docs/card.md`](docs/card.md#the-edit-card-form)):
 

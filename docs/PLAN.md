@@ -2435,6 +2435,11 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   file or must it be inlined (gate K). Static scene, orbit, zoom, pan, theme
   tokens, WebGL fallback, dispose on disconnect. Increment: look at the house
   in 3D.
+  Done, 2026-10-05. Chunk beside the card works (gate K): card 296271 -> 310732
+  bytes (90818 -> 95581 gzip, +4763), chunk `floorplan-studio-3d-<hash>.js`
+  856137 bytes, 182.8 KB gzip. 11 Playwright tests in `tests/card/card-3d.spec.ts`,
+  unit tests for mesh, orbit and palette. Wall corners now closed in scene.ts.
+  Choices in `docs/DECISIONS.md`.
 - S12.4 Picking: ray to room and device, tap, hold, room panel, drag is not a
   tap. Real `page.mouse` coordinates, `--repeat-each=10`.
 - S12.5 Live state: lamp light per room, open doors and windows, heating,

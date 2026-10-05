@@ -1,5 +1,5 @@
 name: Release
-# Push a tag like v0.1.0. The zip holds the integration with the built card, panel and editor in www/,
+# Push a tag like v0.1.0. The zip holds the integration with the built card, its 3D chunk, panel and editor in www/,
 # which HACS downloads because hacs.json sets zip_release.
 on:
   push:
@@ -24,6 +24,10 @@ jobs:
       - name: Zip
         run: |
           for f in floorplan-studio-card.js floorplan-studio-panel.js editor.html; do test -s custom_components/floorplan_studio/www/$f || { echo "missing www/$f: the build did not produce it"; exit 1; }; done
+          # The 3D view is a lazy chunk beside the card (content-hashed name). Exactly one, or the card cannot load it.
+          n=$(ls custom_components/floorplan_studio/www/floorplan-studio-3d-*.js 2>/dev/null | wc -l)
+          [ "$n" -eq 1 ] || { echo "expected one www/floorplan-studio-3d-<hash>.js, found $n: the build did not produce it, or a stale one is left"; exit 1; }
+          test -s custom_components/floorplan_studio/www/floorplan-studio-3d-*.js
           cd custom_components/floorplan_studio && zip -r ../../floorplan_studio.zip . -x "__pycache__/*" "*.pyc"
       - run: gh release create "$GITHUB_REF_NAME" floorplan_studio.zip --title "$GITHUB_REF_NAME" --generate-notes
         env: { GH_TOKEN: "${{ github.token }}" }

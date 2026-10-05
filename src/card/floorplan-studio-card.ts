@@ -12,6 +12,8 @@ import { defineElement } from "./define";
 import { CARD_VERSION } from "./version";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { viewKeyFor, type ViewKey } from "./view-keys";
+import type { View3D } from "./three/view3d";
+import { buildScene } from "../core/scene";
 import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type StoredView } from "./view-state";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
@@ -83,9 +85,9 @@ export interface FloorplanStudioCardConfig {
    * default, 1; an in-range-but-odd number (0, negative, past `MAX_ZOOM`) clamps rather than being refused, the
    * same as `icon_size`. `zoom` (the pinch/wheel switch) was already taken, so this is a separate key. */
   zoom_level?: number;
-  /** `"2d"` (default) draws the flat plan, `"2.5d"` the same plan with walls and furniture drawn up (docs/card.md).
+  /** `"2d"` (default) draws the flat plan, `"2.5d"` the same plan with walls and furniture drawn up, `"3d"` the house as a real 3D model you can turn (docs/card.md).
    * The dropdown (`view_switch`) can change it for as long as the card is on screen. Anything else is `"2d"`. */
-  view?: PlanView;
+  view?: CardView;
   /** `true` (default) shows the View dropdown next to the zoom buttons; `false` hides it, and so does `kiosk`. */
   view_switch?: boolean;
   /** `true` (default) shows the two rotate buttons next to the zoom buttons, and takes Left/Right; `false` hides them
@@ -105,13 +107,16 @@ export interface FloorplanStudioCardConfig {
   rotation?: number;
 }
 
+/** What the View dropdown offers: the two flat plans `renderFloor` draws and the 3D model, which is a renderer of its own. */
+export type CardView = PlanView | "3d";
 /** The View dropdown's options, one list for the markup and for reading the choice back (a value that is not here
- * is refused). 3D joins this list when it exists. */
-const VIEW_OPTIONS: readonly { value: PlanView; label: string }[] = [
+ * is refused). */
+const VIEW_OPTIONS: readonly { value: CardView; label: string }[] = [
   { value: "2d", label: "2D" },
   { value: "2.5d", label: "2.5D" },
+  { value: "3d", label: "3D" },
 ];
-const isView = (v: unknown): v is PlanView => VIEW_OPTIONS.some((o) => o.value === v);
+const isView = (v: unknown): v is CardView => VIEW_OPTIONS.some((o) => o.value === v);
 
 /** The Theme dropdown's labels. A Record over `Theme`, so a theme added to core fails the build here until it has a name. */
 const THEME_LABELS: Record<Theme, string> = {
@@ -152,6 +157,17 @@ declare global {
   }
 }
 
+type Lib3d = typeof import("./three/view3d");
+/** The 3D module, once loaded: one for the page, shared by every card. It is a chunk of its own beside this file (three.js,
+ * about 170 KB gzipped) and is fetched by `import()` the first time anyone picks 3D, never with the card. Its URL is
+ * resolved from this module's own URL, so it works wherever Home Assistant serves the card from. */
+let lib3d: Lib3d | null = null;
+let lib3dLoading: Promise<Lib3d> | null = null;
+const loadLib3d = (): Promise<Lib3d> => {
+  lib3dLoading ??= import("./three/view3d").then((m) => (lib3d = m), (err) => { lib3dLoading = null; throw err; }); // a failed load may be tried again
+  return lib3dLoading;
+};
+
 /** The card that has focus (or has something inside it focused), whatever shadow roots it sits in. */
 let focusedCard: FloorplanStudioCard | null = null;
 
@@ -169,6 +185,11 @@ export class FloorplanStudioCard extends LitElement {
        the screen and "fit" looked zoomed in. In panel layout the card takes the screen below HA's header. */
     :host([panel]) { height: calc(100vh - var(--header-height, 56px)); }
     svg { width: 100%; height: 100%; display: block; }
+    /* S12.3: the 3D view takes the place of the plan's svg, in the same box (aspect-ratio is the plan's own: with an
+       indefinite height it sizes like the svg, in a fixed row it fills it). */
+    .fp-3d { position: relative; width: 100%; height: 100%; display: block; }
+    /* One line, over the plan, when 3D cannot run: why, and that 2D is what is shown. */
+    .fp-3d-note { position: absolute; left: 8px; bottom: 8px; z-index: 1; margin: 0; max-width: calc(100% - 16px); padding: 4px 8px; font: 12px/1.3 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; }
     p.msg { padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
     /* S2.6: the floor switcher is card chrome (like p.msg above), not plan content, so it sits outside the <svg>
        renderFloor draws and is positioned over it instead. */
@@ -310,8 +331,16 @@ export class FloorplanStudioCard extends LitElement {
   private _chooserDialogWasOpen = false;
   /** S7.4: the zoomed viewBox, or `null` for fit. Card state: reset by `setConfig` and a floor change, never by `hass`. */
   private _view: View | null = null;
+  /** S12.3: the live 3D view, the floor and stair context it was built for, and why 3D cannot run (`null` while it can). */
+  private _view3d: View3D | null = null;
+  private _view3dFloor: unknown = null;
+  private _view3dAround = "";  // JSON of `FloorsAround`, to compare
+  private _fallback3d: string | null = null;
+  /** How many 3D renderers are alive in this page: a test hook (a lifecycle test reads that it returns to 0). */
+  static get liveRenderers(): number { return lib3d?.liveRenderers() ?? 0; }
+
   /** The view picked in the dropdown; `null` means the config's own. Card state like `_view`: reset by `setConfig`, never by `hass`. */
-  private _pickedView: PlanView | null = null;
+  private _pickedView: CardView | null = null;
   /** The tilt dragged on the slider; `null` means the config's own. Card state like `_pickedView`: reset by `setConfig`, never by `hass`. */
   private _pickedTilt: number | null = null;
   /** The wall heights chosen in the Walls select; `null` means the config's own. Same rule as `_pickedTilt`. */
@@ -421,7 +450,7 @@ export class FloorplanStudioCard extends LitElement {
     } catch {
       /* storage blocked: the card starts from its config */
     }
-    if (s.view !== undefined) this._pickedView = s.view as PlanView;
+    if (s.view !== undefined) this._pickedView = s.view as CardView;
     if (s.tilt !== undefined) this._pickedTilt = s.tilt;
     if (s.walls !== undefined) this._pickedWalls = wallsModeOf(s.walls);
     if (s.theme !== undefined) this._pickedTheme = s.theme as Theme;
@@ -526,7 +555,7 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   private _doViewKey(key: ViewKey): boolean {
-    if (!this._floor()) return false;
+    if (!this._floor() || this._shows3d()) return false; // the 3D camera is the pointer's; the plan's zoom and turn are not on show
     switch (key) {
       case "zoomIn":
       case "zoomOut":
@@ -662,6 +691,7 @@ export class FloorplanStudioCard extends LitElement {
     this._wsRequested = false;
     this._shownFloor = null;
     this._view = null;
+    this._fallback3d = null;
     this._loadViewState();
     this._loadActiveState();
     this._loadLayout();
@@ -795,6 +825,7 @@ export class FloorplanStudioCard extends LitElement {
     this._actionsPanel = null;
     this._activeResizeObserver?.disconnect();
     this._activeResizeObserver = null;
+    this._dispose3d();
   }
 
   /** Takes any accepted layout (from config or a fetch), migrates and validates it. Never throws: an unusable one
@@ -1108,6 +1139,8 @@ export class FloorplanStudioCard extends LitElement {
     if (openColor && HEX_COLOR.test(openColor)) this.style.setProperty("--fp-open-door", openColor);
     else this.style.removeProperty("--fp-open-door");
 
+    this._sync3d();
+
     const svg = this.shadowRoot?.querySelector("svg") ?? null;
     if (svg !== this._actionsSvg) {
       // Lit keeps the <svg> element itself across renders (only unsafeSVG's content is replaced), so binding
@@ -1170,6 +1203,54 @@ export class FloorplanStudioCard extends LitElement {
       this.focus();
     }
     this._chooserDialogWasOpen = chooserOpen;
+  }
+
+  /** Whether the 3D model is what the card draws: 3D is picked, its module is loaded, it has not failed, and there is a floor. */
+  private _shows3d(): boolean {
+    return this._viewPick() === "3d" && lib3d !== null && this._fallback3d === null && this._floor() !== null;
+  }
+
+  private _dispose3d(): void {
+    this._view3d?.dispose();
+    this._view3d = null;
+    this._view3dFloor = null;
+  }
+
+  /** Brings the 3D view in line with what the card shows, after every render: loads the module on the first need, makes the
+   * view once its container is on screen, and ends it when the pick moves away. It never throws; every failure is the
+   * one line and the 2D plan. */
+  private _sync3d(): void {
+    const f = this._floor();
+    if (this._viewPick() !== "3d" || !f) { this._dispose3d(); return; }
+    if (this._fallback3d !== null) { this._dispose3d(); return; }
+    if (!lib3d) {
+      loadLib3d().then(() => this.requestUpdate(), () => { this._fallback3d = "3D view unavailable: its code did not load. Showing 2D."; this.requestUpdate(); });
+      return;
+    }
+    const host = this.shadowRoot?.querySelector<HTMLElement>(".fp-3d") ?? null;
+    if (!host) return;
+    if (!this._view3d) {
+      try {
+        this._view3d = lib3d.createView3D(host, {
+          turnDeg: this._rotate()?.deg ?? 0,
+          buildScene: (floor, around) => buildScene(floor as never, { around: around as never }),
+          onFail: (why) => { this._fallback3d = `3D view unavailable: ${why}. Showing 2D.`; this._dispose3d(); this.requestUpdate(); },
+        });
+      } catch (err) {
+        this._fallback3d = err instanceof lib3d.NoWebGL ? "3D view unavailable: this browser has no WebGL. Showing 2D." : "3D view unavailable: it could not start. Showing 2D.";
+        this.requestUpdate();
+        return;
+      }
+      this._view3dFloor = null;
+    }
+    // A theme change (or Home Assistant's dark mode) re-reads the colours; a new floor, or one the layout reload replaced, rebuilds the scene.
+    this._view3d.setTheme(`${this._theme()}|${this._haDark()}`);
+    const around = floorsAroundKey(this._layout!, this._floorKey()!), aroundKey = JSON.stringify(around);
+    if (f !== this._view3dFloor || aroundKey !== this._view3dAround) {
+      this._view3dFloor = f;
+      this._view3dAround = aroundKey;
+      this._view3d.setFloor(f, around);
+    }
   }
 
   /**
@@ -1698,7 +1779,9 @@ export class FloorplanStudioCard extends LitElement {
     // the page's own vertical scroll fought the pan) even while `_view` was already pinning a panned box.
     // `fp-zoomable` (the touch-action override) is unconditional too: it enables the drag gesture, not zoom.
     const svgClass = (this._view !== null ? "fp-zoomable fp-zoomed" : "fp-zoomable") + (turn ? " fp-turning" : "");
-    const body = renderFloor(f, {
+    // S12.3: 3D takes the plan's place once its module is loaded and WebGL works; until then, and if it cannot, the 2D plan is on show.
+    const live3d = this._shows3d();
+    const body = live3d ? "" : renderFloor(f, {
       scale: this._scale(fit),
       state: this._stateForRender(),
       now: Date.now(),
@@ -1720,12 +1803,21 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    return html`${this._floorChips()}<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>${this._activePanel()}${showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"}>${this._viewControls(showZoomButtons ? this._planView() : view)}</div>` : null}${showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
+    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>`;
+    const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${this._fallback3d}</p>` : null;
+    const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label="Reset camera" title="Reset camera" @click=${() => this._view3d?.reset()}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
+    return html`${this._floorChips()}${stage}${note}${this._activePanel()}${showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"}>${this._viewControls(this._viewPick())}</div>` : null}${stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
   }
 
-  /** The view on show: the dropdown's pick, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
-  private _planView(): PlanView {
+  /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
+  private _viewPick(): CardView {
     return this._pickedView ?? (isView(this._config.view) ? this._config.view : "2d");
+  }
+
+  /** The flat plan `renderFloor` draws: the pick, or 2D when the pick is 3D (what the card shows while 3D loads or if it cannot run). */
+  private _planView(): PlanView {
+    const v = this._viewPick();
+    return v === "3d" ? "2d" : v;
   }
 
   /** The tilt on show: the slider's, else `config.tilt`, else the default. Clamped, since config is untrusted. */
@@ -1763,9 +1855,10 @@ export class FloorplanStudioCard extends LitElement {
 
   /** Everything that changes how the plan looks, but not where it is zoomed: the View select, the Tilt slider while
    * the view is 2.5D, the Theme select and the Labels toggle. All hidden together (`view_switch: false`, kiosk). */
-  private _viewControls(current: PlanView) {
+  private _viewControls(current: CardView) {
     const labels = this._labels();
     const names = this._names();
+    if (current === "3d" && this._shows3d()) return html`${this._viewSelect(current)}${this._themeSelect()}`; // the 3D model draws no labels yet
     return html`${this._viewSelect(current)}${current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
       <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>
       <button type="button" aria-label="Device names" title="Device names" aria-pressed=${names ? "true" : "false"} @click=${() => { this._pickedNames = !names; this._saveViewNow(); this.requestUpdate(); }}>Aa</button>`;
@@ -1805,6 +1898,7 @@ export class FloorplanStudioCard extends LitElement {
   /** Reset view: every view option back to the config's own, the stored entry cleared, the floor kept. The turn goes
    * back the short way (315 to 0 is +45). */
   private _resetView(): void {
+    this._fallback3d = null;
     this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = null;
     this._pendingView = null;
     this._view = null;
@@ -1823,11 +1917,12 @@ export class FloorplanStudioCard extends LitElement {
 
   /** Compact `<select>` in the card chrome, outside the plan's `<svg>` like the zoom buttons. A pick redraws the
    * plan only: `_view` (zoom and pan) is left alone, `render` clamps it against the new fit. */
-  private _viewSelect(current: PlanView) {
+  private _viewSelect(current: CardView) {
     const onChange = (e: Event) => {
       const v = (e.target as HTMLSelectElement).value;
       if (!isView(v)) return;
       this._pickedView = v;
+      this._fallback3d = null; // a new pick tries 3D again
       this._saveViewNow();
       this.requestUpdate();
     };

@@ -34,6 +34,19 @@ async def test_the_built_panel_file_is_served_from_the_static_path(hass, entry, 
     assert "floorplan-studio-panel" in await r.text()
 
 
+@pytest.mark.skipif(not (WWW / "floorplan-studio-card.js").exists(), reason="run `npm run build` first: www/ is built, not committed")
+async def test_the_card_has_exactly_one_3d_chunk_beside_it_and_it_is_served(hass, entry, hass_client):
+    # The card loads its 3D view with import() the first time 3D is picked, relative to its own URL (S12.3).
+    chunks = sorted(p.name for p in WWW.glob("floorplan-studio-3d-*.js"))
+    assert len(chunks) == 1, chunks
+    card = (WWW / "floorplan-studio-card.js").read_text()
+    assert chunks[0] in card  # the card names the chunk it loads
+    client = await hass_client()
+    r = await client.get(f"/floorplan_studio_static/{chunks[0]}")
+    assert r.status == 200
+    assert r.headers["Content-Type"].startswith(("text/javascript", "application/javascript"))
+
+
 CARD = "/floorplan_studio_static/floorplan-studio-card.js"
 
 
