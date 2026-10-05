@@ -20,8 +20,9 @@ fails over either limit, on a second chunk, and when the builder or `WebGLRender
 `elevation = floorElevation(below) - floorElevation(selected)` (negative), drawn as merged meshes at 0.3 of their own
 opacity, no depth write, drawn first, no devices, no live state, not in the picker and not in the occlusion test. The
 floors above are not built. The camera is one `Orbit` for the life of the view; a floor switch calls `Orbit.reframe`:
-azimuth and polar stay, distance and target frame the new floor, the panel inset stays. It frames the selected floor
-only, not the stack. Old meshes go through `clear()`: 21 switches leave `renderer.info.memory.geometries` where 2 did
+azimuth and polar stay, distance and target frame the new floor, the panel inset stays. It frames the stack (the
+selected floor and the ones under it): framing the selected floor alone cut the dimmed floor off at the edge of the
+view, which the S12.6 shots showed. Old meshes go through `clear()`: 21 switches leave `renderer.info.memory.geometries` where 2 did
 (the test fails when the below meshes are not disposed).
 
 **Performance needed no code.** Idle, a settled pulse, and 100 unchanged `hass` updates already drew nothing (one

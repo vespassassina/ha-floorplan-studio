@@ -558,7 +558,10 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       for (const b of Array.isArray(below) ? below : []) {
         try { if (b && Number.isFinite(b.elevation)) belowPlans.push({ key: String(b.key), plan: buildScene(b.floor as never, { around: b.around as never, elevation: b.elevation }), meshes: [] }); } catch { /* a floor that cannot be built is left out */ }
       }
-      const bounds = plan?.bounds ?? { min: [0, 0, 0], max: [0, 0, 0] };
+      // The camera frames the stack: the selected floor and what stands under it, so the dimmed floors are not cut off by the edge.
+      const own = plan?.bounds ?? { min: [0, 0, 0], max: [0, 0, 0] };
+      const bounds = { min: [...own.min] as [number, number, number], max: [...own.max] as [number, number, number] }; // a copy: the plan's own bounds centre the lamps' pools
+      for (const b of belowPlans) if (b.plan.solids.length) for (let i = 0; i < 3; i++) { bounds.min[i] = Math.min(bounds.min[i], b.plan.bounds.min[i]); bounds.max[i] = Math.max(bounds.max[i], b.plan.bounds.max[i]); }
       if (framed) orbit.reframe(bounds); // the same way of looking, at the new floor
       else {
         const { w, h } = size();
