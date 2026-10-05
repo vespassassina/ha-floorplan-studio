@@ -2466,8 +2466,8 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   Done, 2026-10-05 (the Opus review is still to do). Size: `buildScene` and `liveOf` moved
   into the chunk (injected helpers, `core/three-deps.ts`), and a build plugin
   (`scripts/trim-three.mjs`) swaps three's WebXR, environment and shadow-map classes for
-  stand-ins. Card 98690 -> 94340 gzip (+3560 over the pre-3D 90780, goal +5120),
-  chunk 199927 -> 190352 (goal 200000); guarded by `tests/card/size-budget.spec.ts`.
+  stand-ins. Card 98690 -> 94341 gzip (+3561 over the pre-3D 90780, goal +5120),
+  chunk 199927 -> 190424 (goal 200000); guarded by `tests/card/size-budget.spec.ts`.
   Floors: below dimmed at their real height, above not drawn, azimuth and polar kept
   on a switch (`Orbit.reframe`), 21 switches leave three's geometry count where 2 did
   (`tests/card/card-3d-floors.spec.ts`, 5 tests). Performance and hostile layouts:

@@ -4,8 +4,8 @@ Newest first. A change supersedes; nothing is edited.
 
 ## 2026-10-05: floors, size budget and performance in 3D (S12.6)
 
-**The size budget is met, with the limits unchanged.** Card gzip 98690 -> 94340 (+3560 over the pre-3D 90780; limit
-+5120). Chunk 199927 -> 190352 (limit 200000; the aim of 190000 is missed by 352 bytes). Two moves. (1) `buildScene` and
+**The size budget is met, with the limits unchanged.** Card gzip 98690 -> 94341 (+3561 over the pre-3D 90780; limit
++5120). Chunk 199927 -> 190424 (limit 200000; the aim of 190000 is missed by 424 bytes). Two moves. (1) `buildScene` and
 `liveOf` are factories in the chunk (`makeBuildScene`, `makeLiveOf`) that take the 2D helpers as an argument; the card
 passes them (`core/three-deps.ts`). The chunk may not import the card's modules, or Rollup makes a shared chunk and the
 card file shrinks to 129 bytes, which games the budget; importing the card entry loads it twice (`?v=`). `core/scene.ts`
@@ -33,7 +33,7 @@ once its window ends. The hostile layouts all drew or fell back with no `pageerr
 checker refuses (a NaN size, a device of an unknown type) fall back with the checker's own line; a 5000-furniture tap
 answers in well under 1 s.
 
-**To confirm.** Floors below use a fixed 0.3 opacity; no config key. The chunk is 352 bytes over the 190000 aim.
+**To confirm.** Floors below use a fixed 0.3 opacity; no config key. The chunk is 424 bytes over the 190000 aim.
 
 ## 2026-10-05: live state in 3D (S12.5)
 
