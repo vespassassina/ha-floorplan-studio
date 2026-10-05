@@ -38,7 +38,8 @@ export interface SolidRef { poly?: string; index?: number; room?: number; id?: s
   /** A device that is a room's own sensor (its `temps`, `humidity` or `motion` list): it draws no marker, and a tap passes through it (DECISIONS S11.1, S12.5). */
   hidden?: true }
 /** `role` is a token the viewer maps to a theme colour; `color` and `texture` are the user's own choice, passed on as written. */
-export interface Paint { role: string; color?: string; texture?: string }
+/** `textureRot` and `textureScale` are the layout's own values, untrusted: the reader normalises them (core/textures.ts). */
+export interface Paint { role: string; color?: string; texture?: string; textureRot?: number; textureScale?: number }
 export interface Solid { id: string; kind: SolidKind; tag: string; shape: Shape; ref: SolidRef; paint: Paint }
 export interface Scene { solids: Solid[]; bounds: { min: [number, number, number]; max: [number, number, number] } }
 export interface SceneOpts {
@@ -174,6 +175,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       const z0 = nest(i) * ROOM_THICKNESS, paint: Paint = { role: `room-${r.kind}` };
       if (typeof r.color === "string") paint.color = r.color;
       if (typeof r.texture === "string") paint.texture = r.texture;
+      if (typeof r.textureRot === "number") paint.textureRot = r.textureRot;
+      if (typeof r.textureScale === "number") paint.textureScale = r.textureScale;
       add("room", `room:${i}`, r.kind, { type: "prism", base: p, z0, z1: z0 + ROOM_THICKNESS }, { room: i }, paint);
     }));
 
@@ -246,6 +249,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       const dir = resolveStairDirection(t as never, opts?.around), rise = floorHeight(f), count = blocks.steps.length, paint: Paint = { role: "stair" };
       if (typeof (t as { color?: unknown }).color === "string") paint.color = (t as { color: string }).color;
       if (typeof (t as { texture?: unknown }).texture === "string") paint.texture = (t as { texture: string }).texture;
+      for (const k of ["textureRot", "textureScale"] as const) if (typeof (t as Record<string, unknown>)[k] === "number") paint[k] = (t as unknown as Record<string, number>)[k];
       blocks.steps.forEach((base, k) => {
         if (dir === "down") { const z = -WELL_DEPTH + (k * WELL_DEPTH) / count; add("stair", `stair:${i}:${k}`, "stair-down", { type: "prism", base, z0: z - WELL_DEPTH / count, z1: z }, { index: i }, paint); }
         else add("stair", `stair:${i}:${k}`, "stair", { type: "prism", base, z0: 0, z1: ((k + 1) / count) * rise }, { index: i }, paint);

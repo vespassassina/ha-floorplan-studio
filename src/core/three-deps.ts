@@ -9,6 +9,7 @@ import {
 } from "./solids";
 import { DEVICE_TYPES, ROOM_KINDS, WALL_KINDS } from "./schema";
 import { doorStateOf } from "./door-state";
+import { textureTile } from "./textures";
 import type { LiveDeps } from "./live-build";
 import type { SceneDeps } from "./scene-build";
 
@@ -22,3 +23,5 @@ export const sceneDeps: SceneDeps = {
 export const liveDeps: LiveDeps = {
   acMode, attachedTest, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, polyCentre, roomAt, roomReadout, ROOM_OWNS, doorStateOf,
 };
+export const textureDeps = { texture: textureTile };
+export type TextureDeps = typeof textureDeps;

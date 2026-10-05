@@ -14,7 +14,7 @@ import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, 
 import { viewKeyFor, type ViewKey } from "./view-keys";
 import type { View3D } from "./three/view3d";
 import type { Pick as Pick3D } from "./three/pick";
-import { liveDeps, sceneDeps } from "../core/three-deps";
+import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
 import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type StoredView } from "./view-state";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
@@ -1272,7 +1272,7 @@ export class FloorplanStudioCard extends LitElement {
       try {
         this._view3d = lib3d.createView3D(host, {
           turnDeg: this._rotate()?.deg ?? 0,
-          deps: { scene: sceneDeps, live: liveDeps },
+          deps: { scene: sceneDeps, live: liveDeps, texture: textureDeps.texture },
           onFail: (why, retry) => { this._retry3d = retry === true; this._fallback3d = `3D view unavailable: ${why}. Showing 2D.`; this._dispose3d(); this.requestUpdate(); },
         });
       } catch (err) {
