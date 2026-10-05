@@ -766,6 +766,143 @@ function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean, streng
   return `${mask}<polygon class="${as?.cls ?? "motion-perimeter"}${radar ? " radar" : ""}${pulseAge !== null ? " motion-pulse" : ""}" ${as?.data ?? "data-m"}="${i}" mask="url(#${id})" stroke-width="${num(band)}"${style ? ` style="${style}"` : ""} points="${points}"/>`;
 }
 
+// ---- What the plan decides from the live state, as functions. renderFloor reads them, and so does the card's 3D view
+// (live.ts), so the two views cannot disagree about which room has motion, which sensor is attached or what an icon wears.
+
+export type SensorList = "temps" | "humidity" | "motion";
+/** The entity ids of a room's own sensor list. Layout is untrusted: a list that is not a list is empty, a non-text entry is dropped. */
+export const roomList = (r: Floor["rooms"][number], k: SensorList): string[] => (Array.isArray(r[k]) ? (r[k] as unknown[]).filter((e): e is string => typeof e === "string") : []);
+const ATTACH_LIST: Partial<Record<DeviceType, SensorList>> = { temp: "temps", humidity: "humidity", motion: "motion" };
+/** S11.1: whether a device is a room's own sensor (in the room's temps, humidity or motion list). Such a sensor draws no icon (DECISIONS, S11.1). */
+export function attachedTest(f: Floor): (d: Device) => boolean {
+  const attached: Record<SensorList, Set<string>> = { temps: new Set(), humidity: new Set(), motion: new Set() };
+  for (const r of f.rooms) for (const k of ["temps", "humidity", "motion"] as const) for (const e of roomList(r, k)) attached[k].add(e);
+  return (d) => { const k = ATTACH_LIST[d.type]; return !!k && attached[k].has(d.entity); };
+}
+/** S11.1: the readout of a room's own sensors: the mean temperature and humidity, as the plan prints them under the room's name. "" when nothing is readable. */
+export function roomReadout(r: Floor["rooms"][number], state: StateOverlay | undefined): string {
+  return [meanReading(roomList(r, "temps"), state), meanReading(roomList(r, "humidity"), state)].filter(Boolean).join(" · ");
+}
+/** `layout.colors` as the custom properties the plan sets on a group (known types, strict colours only), so a device keeps its own colour. */
+export function deviceColourVars(colors: RenderOpts["colors"]): string[] {
+  return Object.entries(colors ?? {}).filter(([t, v]) => (DEVICE_TYPES as readonly string[]).includes(t) && typeof v === "string" && COLOR.test(v)).map(([t, v]) => `--fp-dev-${t}:${v}`);
+}
+
+export interface RoomMotion { radar: boolean; on: boolean; v: number }
+/**
+ * The rooms with motion: room index to how it reads (radar colour, a sensor is on, strength 0..1). `pulsing` holds the
+ * rooms whose own sensor tripped less than `MOTION_PULSES` pulses ago, with the age in seconds. The rule behind the
+ * plan's red border and the 3D view's: a sensor goes to a room by its FLOOR point, never the lifted icon: the smallest
+ * room that holds it; one screwed into the wall line goes to the nearest room. The first sensor that is on in a room
+ * names the colour, a fading one only lends strength. A room's own `motion` list joins the icon-made ring of the same room.
+ */
+export function motionRooms(f: Floor, o: RenderOpts, now: number): { triggered: Map<number, RoomMotion>; pulsing: Map<number, number> } {
+  const isAttached = attachedTest(f), stateOf = (e: string) => (o.state && Object.prototype.hasOwnProperty.call(o.state, e) && typeof o.state[e]?.state === "string" ? o.state[e] : undefined);
+  const listOf = roomList;
+  const ring = (r: { pts?: unknown }): Pt[] | null => Array.isArray(r.pts) && r.pts.length >= 3 && r.pts.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) ? (r.pts as Pt[]) : null;
+  const ringArea = (p: Pt[]) => Math.abs(p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0)) / 2;
+  const rings = f.rooms.map(ring), areas = rings.map((p) => (p ? ringArea(p) : 0));
+  const triggered = new Map<number, RoomMotion>();
+  f.devices.forEach((d, i) => {
+    if (!MOTION_TYPES.includes(d.type) || "a" in d || isAttached(d)) return; // an attached sensor lights its room through the room's own list, below
+    const cls = classOf(d, o), on = cls === "on", v = on ? 1 : motionFade(d, o, now);
+    if (v <= 0 || cls === "unavailable") return;
+    const sel = o.selection?.t === "dev" && o.selection.i === i;
+    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    const c: Pt = [d.x, d.y];
+    if (!c.every(Number.isFinite)) return;
+    let at = -1, best = Infinity;
+    f.rooms.forEach((r, j) => {
+      const p = rings[j];
+      if (!p || r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name)) return;
+      const gap = inside(c, p) ? 0 : ringGap(c, p);
+      if (gap > MOTION_WALL_REACH) return;
+      const rank = (gap === 0 ? 0 : 1e9) + areas[j] + gap; // inside beats near; then the smaller room
+      if (rank < best) { best = rank; at = j; }
+    });
+    if (at < 0) return;
+    const t = triggered.get(at), mine = { radar: d.type === "radar", on, v };
+    if (!t || (on && !t.on)) triggered.set(at, mine);
+    else if (on === t.on) t.v = Math.max(t.v, v);
+  });
+  // S11.1: a room's own `motion` list. On means 1 and pulses; off fades from last_changed like an icon does; unavailable
+  // or unknown says nothing. It joins the icon-made ring of the same room, so a room never draws two.
+  const pulsing = new Map<number, number>(); // room index to the age of its trip in seconds, only while the pulses last
+  f.rooms.forEach((r, j) => {
+    const p = rings[j];
+    if (!p || !ROOM_OWNS[r.kind]) return;
+    let on = false, v = 0, tripped = -Infinity;
+    for (const e of listOf(r, "motion")) {
+      const s = stateOf(e);
+      if (!s) continue;
+      if (s.state === "on") { on = true; tripped = Math.max(tripped, Date.parse(s.last_changed)); }
+      else if (s.state !== "unavailable" && s.state !== "unknown" && (o.fade ?? 300) > 0) v = Math.max(v, fadeSince(s.last_changed, o.fade ?? 300, now));
+    }
+    if (!on && v <= 0) return;
+    // The age is of the newest sensor that is on. An unreadable time pulses nothing: it could not be told from a fresh trip on every redraw.
+    const age = Math.max(0, (now - tripped) / 1000);
+    if (on && age < MOTION_PULSES * MOTION_PULSE_S) pulsing.set(j, Math.round(age * 100) / 100);
+    const t = triggered.get(j);
+    if (!t) triggered.set(j, { radar: false, on, v: on ? 1 : v });
+    else if (on && !t.on) triggered.set(j, { radar: false, on: true, v: 1 });
+    else if (on === t.on) t.v = Math.max(t.v, on ? 1 : v);
+  });
+  return { triggered, pulsing };
+}
+
+export interface DeviceMarkup {
+  /** `on`, `off`, `unavailable` or `danger`, then what the type adds (`outdoor`, `home`/`away`, `spin`): the classes of the icon group after `dev dev-<type>`. */
+  cls: string;
+  base: Cls;
+  /** Custom properties the icon's rules read: motion fade, a lit lamp's own colour and brightness. */
+  style: string[];
+  /** The inner markup of the icon: rings, halo, glyph, the away mark. */
+  icon: string;
+  s: StateOverlay[string] | undefined;
+}
+/** What a device icon wears, from the live state: the one place the plan (renderFloor) and the 3D overlay read it. `floorAt` is the device's floor point. */
+export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, floorAt: Pt): DeviceMarkup {
+    // Value sensors in a garden room are outdoor sensors. Motion and contact keep their own state colours.
+    const outdoor = (d.type === "temp" || d.type === "humidity") && f.rooms.some((r) => r.kind === "garden" && inside(floorAt, r.pts));
+    const base = classOf(d, o), person = d.type === "person";
+    const cls = base + (outdoor ? " outdoor" : "") + personClass(d, o, base) + vacuumSpinClass(d, o);
+    const s = o.state?.[d.entity];
+    const style: string[] = [];
+    if (d.type === "motion" && s) {
+      style.push(`--fp-fade:${num(motionFade(d, o, now))}`);
+    }
+    // S2.2: a lit lamp's own colour and brightness, read from its own state (not the bound switch's) and set as
+    // custom properties the stylesheet consumes (`.dev.on path`), not literal fill/opacity attributes — so a
+    // future rule (S2.9's aura) can read the same `--fp-dev-fill` instead of a second, possibly different, source.
+    if (d.type === "light" && cls === "on" && s) {
+      const fill = lightFill(s);
+      if (fill) style.push(`--fp-dev-fill:${fill}`);
+      const opacity = lightOpacity(s);
+      if (opacity !== null) style.push(`--fp-dev-opacity:${num(opacity)}`);
+    }
+    // S7.8: an away person carries a small grey dot on the disc's edge, so away reads without relying on the fade alone.
+    const mark = person && cls.endsWith(" away") ? `<circle class="away-mark" cx="23" cy="1" r="4.5"/>` : "";
+    // S8.13: a triggered motion or contact sensor sends out a ring from under its disc, so it reads at a glance.
+    const ping = (d.type === "motion" || d.type === "contact") && base === "on" ? `<circle class="ping" cx="12" cy="12" r="16"/>` : "";
+    // S9.4: a speaker or media device playing sends out two arcs, staggered — exactly "playing", not the generic
+    // .on class (a media_player can be "on" without playing, and that reads active but silent, not radiating).
+    // r=16, the halo's own radius (like .ping): a smaller arc sat entirely inside the halo's fill and never showed
+    // even at rest under reduced motion (Opus review, S9.4 shots) — the two together read as one ring, split so
+    // each can carry its own animation-delay and pulse out a beat apart.
+    // Opus review finding 8: two <circle> elements, not <path> semicircles — a circle's bounding box is always the
+    // square centred on (cx,cy), so transform-box:fill-box scales it about the halo's own centre, whatever it did
+    // for two independent semicircle paths (each one's bbox sits off to one side). pathLength="100" makes
+    // stroke-dasharray's numbers mean "percent of the circumference" regardless of r; "50 50" is half drawn, half
+    // gap, and the second arc's dashoffset of 50 puts its visible half opposite the first's, so the two read as
+    // two arcs on either side of the ring rather than one drawn twice in the same place.
+    const wave = (d.type === "speaker" || d.type === "media") && s?.state === "playing"
+      ? `<circle class="wave" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
+        `<circle class="wave w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
+      : "";
+    const icon = `${ping}${wave}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
+  return { cls, base, style, icon, s };
+}
+
 export function renderFloor(f: Floor, o: RenderOpts): string {
   const k = 1 / (o.scale || 1);
   const turn = o.rotate && o.rotate.deg % 360 ? o.rotate : null, planDeg = turn ? turn.deg : 0;
@@ -775,11 +912,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const now = o.now ?? Date.now();
   // S11.1: sensors that belong to a room. Layout and state are untrusted: a list that is not a list is empty, a state is
   // read only if it is the overlay's own, and a reading counts only if it is a plain finite number.
-  const listOf = (r: Floor["rooms"][number], k: "temps" | "humidity" | "motion"): string[] => (Array.isArray(r[k]) ? (r[k] as unknown[]).filter((e): e is string => typeof e === "string") : []);
-  const attached: Record<"temps" | "humidity" | "motion", Set<string>> = { temps: new Set(), humidity: new Set(), motion: new Set() };
-  for (const r of f.rooms) for (const k of ["temps", "humidity", "motion"] as const) for (const e of listOf(r, k)) attached[k].add(e);
-  const ATTACH_LIST: Partial<Record<DeviceType, "temps" | "humidity" | "motion">> = { temp: "temps", humidity: "humidity", motion: "motion" };
-  const isAttached = (d: Device) => { const k = ATTACH_LIST[d.type]; return !!k && attached[k].has(d.entity); };
+  const listOf = roomList, isAttached = attachedTest(f);
   /** An attached sensor draws no icon; the editor keeps it, so it can still be selected and moved (DECISIONS, S11.1). */
   const iconHidden = (d: Device) => !o.editor && isAttached(d);
   const stateOf = (e: string) => (o.state && Object.prototype.hasOwnProperty.call(o.state, e) && typeof o.state[e]?.state === "string" ? o.state[e] : undefined);
@@ -958,51 +1091,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // smallest room that holds it (a house in a garden lights the house); one screwed into the wall line goes to the
   // nearest room. The first sensor that is on in a room names the colour, a fading one only lends strength. Same pass
   // as the ring above, after the wall lines, so the 2.5D solids below still cover it.
-  const triggered = new Map<number, { radar: boolean; on: boolean; v: number }>();
-  f.devices.forEach((d, i) => {
-    if (!MOTION_TYPES.includes(d.type) || "a" in d || isAttached(d)) return; // an attached sensor lights its room through the room's own list, below
-    const cls = classOf(d, o), on = cls === "on", v = on ? 1 : motionFade(d, o, now);
-    if (v <= 0 || cls === "unavailable") return;
-    const sel = o.selection?.t === "dev" && o.selection.i === i;
-    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
-    const c: Pt = [d.x, d.y];
-    if (!c.every(Number.isFinite)) return;
-    let at = -1, best = Infinity;
-    f.rooms.forEach((r, j) => {
-      const p = rings[j];
-      if (!p || r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name)) return;
-      const gap = inside(c, p) ? 0 : ringGap(c, p);
-      if (gap > MOTION_WALL_REACH) return;
-      const rank = (gap === 0 ? 0 : 1e9) + areas[j] + gap; // inside beats near; then the smaller room
-      if (rank < best) { best = rank; at = j; }
-    });
-    if (at < 0) return;
-    const t = triggered.get(at), mine = { radar: d.type === "radar", on, v };
-    if (!t || (on && !t.on)) triggered.set(at, mine);
-    else if (on === t.on) t.v = Math.max(t.v, v);
-  });
-  // S11.1: a room's own `motion` list. On means 1 and pulses; off fades from last_changed like an icon does; unavailable
-  // or unknown says nothing. It joins the icon-made ring of the same room, so a room never draws two.
-  const pulsing = new Map<number, number>(); // room index to the age of its trip in seconds, only while the pulses last
-  f.rooms.forEach((r, j) => {
-    const p = rings[j];
-    if (!p || !ROOM_OWNS[r.kind]) return;
-    let on = false, v = 0, tripped = -Infinity;
-    for (const e of listOf(r, "motion")) {
-      const s = stateOf(e);
-      if (!s) continue;
-      if (s.state === "on") { on = true; tripped = Math.max(tripped, Date.parse(s.last_changed)); }
-      else if (s.state !== "unavailable" && s.state !== "unknown" && (o.fade ?? 300) > 0) v = Math.max(v, fadeSince(s.last_changed, o.fade ?? 300, now));
-    }
-    if (!on && v <= 0) return;
-    // The age is of the newest sensor that is on. An unreadable time pulses nothing: it could not be told from a fresh trip on every redraw.
-    const age = Math.max(0, (now - tripped) / 1000);
-    if (on && age < MOTION_PULSES * MOTION_PULSE_S) pulsing.set(j, Math.round(age * 100) / 100);
-    const t = triggered.get(j);
-    if (!t) triggered.set(j, { radar: false, on, v: on ? 1 : v });
-    else if (on && !t.on) triggered.set(j, { radar: false, on: true, v: 1 });
-    else if (on === t.on) t.v = Math.max(t.v, on ? 1 : v);
-  });
+  const { triggered, pulsing } = motionRooms(f, o, now);
   for (const i of [...triggered.keys()].sort((a, b) => a - b)) { const t = triggered.get(i)!; out.push(motionPerimeter(f, rings[i]!, i, t.radar, t.on ? 1 : t.v, pulsing.get(i) ?? null)); }
 
   // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
@@ -1227,24 +1316,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!floorAt.every(Number.isFinite)) return;
     // `c` is where the icon and all it carries are drawn; `floorAt` only the pin, the stem, the room test and a radar's targets.
     const c = iconAt(d, floorAt);
-    // Value sensors in a garden room are outdoor sensors. Motion and contact keep their own state colours.
-    const outdoor = (d.type === "temp" || d.type === "humidity") && f.rooms.some((r) => r.kind === "garden" && inside(floorAt, r.pts));
-    const base = classOf(d, o), person = d.type === "person";
-    const cls = base + (outdoor ? " outdoor" : "") + personClass(d, o, base) + vacuumSpinClass(d, o);
-    const s = o.state?.[d.entity];
-    const styleParts: string[] = [];
-    if (d.type === "motion" && s) {
-      styleParts.push(`--fp-fade:${num(motionFade(d, o, now))}`);
-    }
-    // S2.2: a lit lamp's own colour and brightness, read from its own state (not the bound switch's) and set as
-    // custom properties the stylesheet consumes (`.dev.on path`), not literal fill/opacity attributes — so a
-    // future rule (S2.9's aura) can read the same `--fp-dev-fill` instead of a second, possibly different, source.
-    if (d.type === "light" && cls === "on" && s) {
-      const fill = lightFill(s);
-      if (fill) styleParts.push(`--fp-dev-fill:${fill}`);
-      const opacity = lightOpacity(s);
-      if (opacity !== null) styleParts.push(`--fp-dev-opacity:${num(opacity)}`);
-    }
+    const person = d.type === "person";
+    const { cls, style: styleParts, icon, base, s } = deviceMarkup(f, d, o, now, floorAt);
     // S7.8: a person's position is a CSS transform, so .dev-person's transition can glide it to a new room. A person
     // has no facing, so `rot` is not applied.
     const origin = at([c[0] - 12 * k, c[1] - 12 * k]).replace(" ", "px,") + "px";
@@ -1265,26 +1338,6 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const R = DEVICE_REACH / k, p = (deg: number) => at([12 + R * Math.cos((deg * Math.PI) / 180), 12 + R * Math.sin((deg * Math.PI) / 180)]);
       cone = `<path class="cone" d="M12 12L${p(-150)}A${num(R)} ${num(R)} 0 0 1 ${p(-30)}Z"/>`;
     }
-    // S7.8: an away person carries a small grey dot on the disc's edge, so away reads without relying on the fade alone.
-    const mark = person && cls.endsWith(" away") ? `<circle class="away-mark" cx="23" cy="1" r="4.5"/>` : "";
-    // S8.13: a triggered motion or contact sensor sends out a ring from under its disc, so it reads at a glance.
-    const ping = (d.type === "motion" || d.type === "contact") && base === "on" ? `<circle class="ping" cx="12" cy="12" r="16"/>` : "";
-    // S9.4: a speaker or media device playing sends out two arcs, staggered — exactly "playing", not the generic
-    // .on class (a media_player can be "on" without playing, and that reads active but silent, not radiating).
-    // r=16, the halo's own radius (like .ping): a smaller arc sat entirely inside the halo's fill and never showed
-    // even at rest under reduced motion (Opus review, S9.4 shots) — the two together read as one ring, split so
-    // each can carry its own animation-delay and pulse out a beat apart.
-    // Opus review finding 8: two <circle> elements, not <path> semicircles — a circle's bounding box is always the
-    // square centred on (cx,cy), so transform-box:fill-box scales it about the halo's own centre, whatever it did
-    // for two independent semicircle paths (each one's bbox sits off to one side). pathLength="100" makes
-    // stroke-dasharray's numbers mean "percent of the circumference" regardless of r; "50 50" is half drawn, half
-    // gap, and the second arc's dashoffset of 50 puts its visible half opposite the first's, so the two read as
-    // two arcs on either side of the ring rather than one drawn twice in the same place.
-    const wave = (d.type === "speaker" || d.type === "media") && s?.state === "playing"
-      ? `<circle class="wave" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
-        `<circle class="wave w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
-      : "";
-    const icon = `${ping}${wave}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
     // 2.5D: a device mounted high (a ceiling light, a camera, a thermostat) is drawn where the real thing hangs (`c`,
     // lifted), with its aura, cone, rings and text. A small pin stays on the floor under it and a thin stem joins the
     // two. The tap target is the lifted icon. A person walks about and a heater bar lies on the floor: neither lifts.
@@ -1350,7 +1403,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const body = out.join("\n");
   const turned = turn ? `<g class="plan-turn" transform="rotate(${num(turn.deg)} ${num(turn.pivot[0])} ${num(turn.pivot[1])})">${body}</g>` : body;
   // Custom properties inherit, so one style on a group reaches every device. Only known types and strict #rrggbb go in: the value ends up in an attribute.
-  const vars = Object.entries(o.colors ?? {}).filter(([t, v]) => (DEVICE_TYPES as readonly string[]).includes(t) && typeof v === "string" && COLOR.test(v)).map(([t, v]) => `--fp-dev-${t}:${v}`);
+  const vars = deviceColourVars(o.colors);
   const coloured = vars.length ? `<g class="dev-colours" style="${vars.join(";")}">${turned}</g>` : turned;
   // A plan-level theme, so one plan can differ from its host. No o.theme writes nothing and inherits the host's. o.theme is checked against THEMES:
   // it lands in an attribute, and a caller's stray string must not.
