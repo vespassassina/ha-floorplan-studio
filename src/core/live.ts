@@ -4,7 +4,7 @@
 // The 3D chunk imports nothing from core, so it gets this object and draws it. A layout is untrusted (CLAUDE.md finding 1):
 // nothing here throws, and a piece that cannot be read is null.
 import { doorStateOf, type DoorState } from "./door-state";
-import { acMode, attachedTest, classOf, deviceColourVars, deviceMarkup, lightFill, lightOpacity, motionRooms, personRoom, polyCentre, roomAt, roomReadout, ROOM_OWNS, type RenderOpts } from "./render";
+import { acMode, attachedTest, classOf, deviceColourVars, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, polyCentre, roomAt, roomReadout, ROOM_OWNS, type RenderOpts } from "./render";
 import type { Device, Floor, Pt } from "./schema";
 
 export interface LiveLight { device: number; room: number; at: Pt; /** The lamp's own CSS colour, or null for the theme's light colour. */ rgb: string | null; /** 0..1 */ level: number }
@@ -29,6 +29,8 @@ export interface LiveDevice {
 export interface LiveRoom { name: string; at: Pt; readout: string; motion: { radar: boolean; on: boolean; v: number; pulseAge: number | null } | null }
 export interface Live3D {
   night: boolean; labels: boolean; names: boolean;
+  /** How many times a tripped room's edge pulses, and how long one pulse is in seconds: the plan's own figures. */
+  pulse: [number, number];
   /** `--fp-dev-<type>:#rrggbb;...`, the layout's own device colours, for the overlay's root. */
   colours: string;
   lights: LiveLight[];
@@ -84,5 +86,5 @@ export function liveOf(floor: Floor, o: RenderOpts, now: number): Live3D {
       return { name: typeof r.name === "string" && r.kind !== "structure" ? r.name : "", at: polyCentre(p), readout: owns ? roomReadout(r, o.state) : "", motion: m ? { radar: m.radar, on: m.on, v: m.v, pulseAge: motion.pulsing.get(i) ?? null } : null };
     } catch { return null; }
   });
-  return { night: !!o.night, labels: o.labels !== false, names: !!o.showNames, colours: deviceColourVars(o.colors).join(";"), lights, doors, devices: out, rooms: liveRooms };
+  return { pulse: [MOTION_PULSES, MOTION_PULSE_S], night: !!o.night, labels: o.labels !== false, names: !!o.showNames, colours: deviceColourVars(o.colors).join(";"), lights, doors, devices: out, rooms: liveRooms };
 }

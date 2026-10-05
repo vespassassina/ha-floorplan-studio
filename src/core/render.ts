@@ -170,7 +170,7 @@ const WALL_HALO_EXTRA = 2;
 
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
 /** A room's motion border pulses this many times, each this many seconds, when its sensor trips. */
-const MOTION_PULSES = 3, MOTION_PULSE_S = 1.4;
+export const MOTION_PULSES = 3, MOTION_PULSE_S = 1.4;
 
 export const FLOORPLAN_CSS = `
 :host,.fp{${BLUEPRINT_TOKENS}}
