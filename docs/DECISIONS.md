@@ -2,6 +2,37 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: live state in 3D (S12.5)
+
+**Light model.** Which room a lamp lights is the 2D `roomAt` rule, computed in core (`liveOf`) and handed to the chunk
+as JSON. The chunk gives every vertex an owner room (a wall face belongs to the room it faces, within 12 cm) and
+multiplies its colour by that room's lift, so floor, furniture and walls of the lit room change and the neighbour does
+not move by a grey level. A pool of light is a soft disc under a lamp, and costs a draw: **8 pools at most**, the lamps
+nearest the middle of the house, stable on ties; the room lift is free, so it applies to every lit room. The view
+publishes `data-pools="shown/lit"`. Daytime lift is modest (1.3), because 1.6 washed a lit room to white in the light
+theme; night is strong (3.5) against dimmed lights.
+
+**Overlay tap path: one path, the raycast plus the icon disc.** The HTML layer is `pointer-events:none`, so it can
+never block an orbit drag. `pick()` asks the overlay first whether the point is inside an icon's 16 px disc (the icon
+the eye sees), then the raycast `Picker`. The card's `bindDeviceActions` `resolve` is unchanged, so taps, holds and
+NO_TOGGLE are the 2D code.
+
+**Occlusion rule.** A label or icon is hidden when the segment from the camera to its anchor crosses a wall, stair or
+door leaf or panel (`Picker.blocked`), or when it is behind the camera. Floors, furniture, glass and device bodies do
+not hide it. A lowered wall blocks only up to its lowered height.
+
+**Pulse follows 2D.** Only a room with its own `motion` list pulses, three times of 1.4 s, then holds and fades. The
+card remembers the last time each motion sensor was on, so one that just went off keeps its strength and fades from
+there (2D does the same). The view's draw loop runs only while a pulse plays.
+
+**Media has no drivers.** A speaker gets two lit drivers; a `media` device is a box with none, so playing lights only
+its icon. A TV's screen is assumed to face out of the wall along the base edge, as in 2.5D.
+
+**Size budget was already gone at S12.4, and S12.5 spent more.** Card gzip: pre-3D 90818, S12.3 95583, S12.4 97283,
+S12.5 98690 (+7872; goal +5120). Chunk 199927 gzip (goal 200000). The card has to carry `liveOf` and the helpers
+extracted from `render.ts`, because the chunk may import nothing from core at run time. Ways to get back under: lazy
+`import()` of `live.ts` from the chunk's loader, and replacing `CylinderGeometry` for the drivers. Not done here.
+
 ## 2026-10-05: picking and taps in 3D (S12.4, part B)
 
 **One gesture code, two sources of "what was hit".** `bindDeviceActions` takes an optional `resolve(e)`; in 3D it
