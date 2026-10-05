@@ -1,13 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
-import { demo, serve, ORIGIN, card, cam, drawn } from "./helpers-3d";
+import { demo, serve, ORIGIN, card, cam, drawn, holder } from "./helpers-3d";
 
-// S12.6, spec assumption I (criterion 8): in 3D the selected floor is solid, the floors below it are drawn dimmed at their real
-// elevation (no live state, no icons, not pickable), the floors above are not drawn. Real card, demo floors, real mouse.
+// S12.6, spec assumption I (criterion 8): in 3D the selected floor is solid, only the selected floor is drawn (3D fixes: the dimmed stack was removed). Real card, demo floors, real mouse.
 // Demo: ground is 250 cm high with a 25 cm slab, so `first` stands 275 cm above it and `test` 550 cm. The garden (x 800..900,
 // y 380..540) is on the ground floor only; the first floor is 0..810 x 0..610.
 
 interface Hook {
-  floors(): { below: { key: string; y0: number; y1: number; opacity: number; meshes: number; pickable: boolean }[]; extent: { y0: number; y1: number } };
+  floors(): { extent: { y0: number; y1: number } };
   live(): { children: number; lifted: number[]; pools: { visible: boolean }[] };
   memory(): { geometries: number; textures: number };
   project(x: number, y: number, z: number): { x: number; y: number };
@@ -44,39 +43,21 @@ async function select(page: Page, floor: string) {
 }
 
 test.describe("3D view: floors (S12.6)", () => {
-  test("the floor below is there, lower, and dimmed; the ground floor has nothing below it", async ({ page }) => {
-    await boot(page, "first");
-    const f = await hook(page, (h) => h.floors());
-    expect(f.below.map((b) => b.key)).toEqual(["ground"]);
-    const g = f.below[0];
-    expect(g.meshes).toBeGreaterThan(0);
-    expect(g.y1).toBeLessThanOrEqual(-275 + 251); // its top (250 cm walls) is a storey under the selected floor's z 0, slab included
-    expect(g.y0).toBeCloseTo(-275 - 25, 0); // its own slab, 275 cm below
-    expect(g.opacity).toBeGreaterThan(0.1);
-    expect(g.opacity).toBeLessThan(0.6); // dimmed: see-through
-    expect(g.pickable).toBe(false);
-    await select(page, "test");
-    expect((await hook(page, (h) => h.floors())).below.map((b) => b.key)).toEqual(["ground", "first"]);
-    await select(page, "ground");
-    expect((await hook(page, (h) => h.floors())).below).toEqual([]);
-  });
-
-  test("floors above are not drawn: the scene reaches no higher than the selected floor's own walls", async ({ page }) => {
+  test("one floor at a time: only the selected floor is drawn, whichever it is, and nothing is dimmed or stacked", async ({ page }) => {
+    // 3D fixes: Diego saw the stacked floors drift out of line on his layout, so the card draws the selected floor alone.
+    // Demo: ground walls are 250 cm and its slab 25 cm; every floor is built at z 0, so the extent is the same for each.
+    const check = async (floor: string) => {
+      const e = (await hook(page, (h) => h.floors())).extent;
+      expect(e.y1, floor).toBeLessThanOrEqual(251);
+      expect(e.y0, floor).toBeGreaterThanOrEqual(-26); // a floor below would reach -300 or lower
+      expect(await holder(page).evaluate((el) => el.dataset.below), floor).toBeUndefined();
+    };
     await boot(page, "ground");
-    const e0 = (await hook(page, (h) => h.floors())).extent;
-    expect(e0.y1).toBeLessThanOrEqual(251); // ground walls are 250 cm; the first floor would reach 525
-    expect(e0.y0).toBeGreaterThanOrEqual(-26);
-    await select(page, "first");
-    const e1 = (await hook(page, (h) => h.floors())).extent;
-    expect(e1.y1).toBeLessThanOrEqual(251);
-    expect(e1.y0).toBeLessThan(-290); // the ground floor below it
-    await select(page, "test");
-    const e2 = (await hook(page, (h) => h.floors())).extent;
-    expect(e2.y1).toBeLessThanOrEqual(251);
-    expect(e2.y0).toBeLessThan(-570); // two floors below
+    await check("ground");
+    for (const floor of ["first", "test", "ground"]) { await select(page, floor); await check(floor); }
   });
 
-  test("a tap on the dimmed floor picks nothing; a tap on the selected floor still does", async ({ page }) => {
+  test("a tap where a lower floor's garden would be picks nothing; a tap on the selected floor still does", async ({ page }) => {
     await boot(page, "first");
     await hook(page, (h) => h.look(0.6, 0.9));
     await expect.poll(async () => (await cam(page)).az).toBeCloseTo(0.6, 2);
@@ -91,7 +72,7 @@ test.describe("3D view: floors (S12.6)", () => {
     expect(picked).toMatchObject({ type: "room", index: 0 });
   });
 
-  test("a lamp on the ground floor lights nothing on the floor above, and nothing is lit on the dimmed floor", async ({ page }) => {
+  test("a lamp on the ground floor lights nothing on the floor above, ", async ({ page }) => {
     const on = { ...QUIET(), "light.demo_living": st("on", iso(5)), "light.demo_kitchen": st("on", iso(5)) };
     await boot(page, "ground", on);
     expect((await hook(page, (h) => h.live())).lifted).toEqual([0, 1]);

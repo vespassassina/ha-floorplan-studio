@@ -38,7 +38,8 @@ export interface SolidRef { poly?: string; index?: number; room?: number; id?: s
   /** A device that is a room's own sensor (its `temps`, `humidity` or `motion` list): it draws no marker, and a tap passes through it (DECISIONS S11.1, S12.5). */
   hidden?: true }
 /** `role` is a token the viewer maps to a theme colour; `color` and `texture` are the user's own choice, passed on as written. */
-export interface Paint { role: string; color?: string; texture?: string }
+/** `textureRot` and `textureScale` are the layout's own values, untrusted: the reader normalises them (core/textures.ts). */
+export interface Paint { role: string; color?: string; texture?: string; textureRot?: number; textureScale?: number }
 export interface Solid { id: string; kind: SolidKind; tag: string; shape: Shape; ref: SolidRef; paint: Paint }
 export interface Scene { solids: Solid[]; bounds: { min: [number, number, number]; max: [number, number, number] } }
 export interface SceneOpts {
@@ -54,6 +55,8 @@ export const WALL_THICKNESS: Record<string, number> = { wall: 10, external: 20, 
 export const PANE_THICKNESS = 2, LEAF_THICKNESS = 4, TRUNK_SIDE = 12, ROOM_THICKNESS = 1;
 /** cm. How high a wall stands where a viewer lowers it to show the rooms behind it (the 3D view's "cut" and "low" walls). */
 export const CUT_WALL_HEIGHT = 30;
+/** cm. A device's icon and point stay this far under the top of the floor's walls, so a ceiling light or camera does not float over the house. */
+export const ICON_MARGIN = 10;
 /** Most rooms for which nesting is worked out (it is quadratic); more than this and every fill sits at the same height. */
 const NEST_LIMIT = 300;
 /** The most point tests nesting may cost: the square of the total points of all rooms bounds it (S12 review). Over it, no nesting, as past NEST_LIMIT. */
@@ -172,6 +175,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       const z0 = nest(i) * ROOM_THICKNESS, paint: Paint = { role: `room-${r.kind}` };
       if (typeof r.color === "string") paint.color = r.color;
       if (typeof r.texture === "string") paint.texture = r.texture;
+      if (typeof r.textureRot === "number") paint.textureRot = r.textureRot;
+      if (typeof r.textureScale === "number") paint.textureScale = r.textureScale;
       add("room", `room:${i}`, r.kind, { type: "prism", base: p, z0, z1: z0 + ROOM_THICKNESS }, { room: i }, paint);
     }));
 
@@ -244,6 +249,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       const dir = resolveStairDirection(t as never, opts?.around), rise = floorHeight(f), count = blocks.steps.length, paint: Paint = { role: "stair" };
       if (typeof (t as { color?: unknown }).color === "string") paint.color = (t as { color: string }).color;
       if (typeof (t as { texture?: unknown }).texture === "string") paint.texture = (t as { texture: string }).texture;
+      for (const k of ["textureRot", "textureScale"] as const) if (typeof (t as Record<string, unknown>)[k] === "number") paint[k] = (t as unknown as Record<string, number>)[k];
       blocks.steps.forEach((base, k) => {
         if (dir === "down") { const z = -WELL_DEPTH + (k * WELL_DEPTH) / count; add("stair", `stair:${i}:${k}`, "stair-down", { type: "prism", base, z0: z - WELL_DEPTH / count, z1: z }, { index: i }, paint); }
         else add("stair", `stair:${i}:${k}`, "stair", { type: "prism", base, z0: 0, z1: ((k + 1) / count) * rise }, { index: i }, paint);
@@ -273,6 +279,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
 
     // Devices. The radiator, the speaker and the TV have a body (DEVICE_SOLID, the same list 2.5D reads); every other device,
     // and one of those three whose numbers cannot be drawn, is a point at the height of its icon.
+    // The highest wall of this floor (its storey when it has none), without the lift: what an icon is held under.
+    const wallTop = solids.reduce((m, s) => (s.kind === "wall" && s.shape.type === "prism" ? Math.max(m, s.shape.z1 - lift) : m), 0) || floorHeight(f);
     const attached = attachedTest({ ...f, rooms: list(f.rooms).filter(isObj) } as Floor);
     list(f.devices).forEach((d, i) => piece(() => {
       if (!isObj(d)) return;
@@ -298,7 +306,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       }
       if (solids.length > before) return;
       const at: Pt | null = has2() ? [dev.x as number, dev.y as number] : isPt(dev.a) && isPt(dev.b) ? [(dev.a[0] + dev.b[0]) / 2, (dev.a[1] + dev.b[1]) / 2] : null;
-      if (at) add("device", id, type, { type: "point", at, z: deviceZ(dev) }, ref, paint);
+      if (at) add("device", id, type, { type: "point", at, z: Math.min(deviceZ(dev), Math.max(0, wallTop - ICON_MARGIN)) }, ref, paint);
     }));
 
     const lo: [number, number, number] = [Infinity, Infinity, Infinity], hi: [number, number, number] = [-Infinity, -Infinity, -Infinity];

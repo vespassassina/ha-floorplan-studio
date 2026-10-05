@@ -2,6 +2,65 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: textures and wall light in 3D
+
+**Textures.** A room's or stair's top face wears its `Paint.texture` in 3D, at the size, turn and scale 2D uses. The tile is
+the same inline SVG, drawn through an `Image` onto a canvas (4 px per cm, longest side at most 512, least 32) and used as a
+`CanvasTexture` with repeat wrapping, mipmaps and anisotropy 4; no network, no new dependency. The UVs are plan cm over the
+tile's size times scale, turned by the texture's own rotation about the plan origin, as the SVG `patternTransform` does
+(the canvas is uploaded flipped, so v is negative). Only triangles that face up take the texture; sides and undersides keep
+the flat colour. Until the tile has loaded the face shows the texture's preview colour, then swaps and asks for a frame.
+Rasters are cached per (id, scale); each `texture()` call makes its own `CanvasTexture`, so a floor switch disposes
+the textures and the materials' maps and three's texture count returns to where it was (tested over repeated switches).
+The chunk does not import core (see `palette.ts`), so the card passes `textureTile` in through `three-deps.ts`. An unknown id,
+a non-string id, a NaN or huge rotation or scale give `null`, which is the flat colour: layout files are untrusted input,
+and `validate` does not see a layout handed to the view by other routes. The vertex-colour lift of a lit room still
+multiplies the texture (the textured material's colour is white and its vertex colours carry the lift). Cost: a lit lamp
+over very light wood washes the grain a little; the pattern still reads (looked at in both themes).
+
+**Light on the walls: a vertex-coloured additive patch, not a decal.** Alternatives: (1) a gradient texture per wall face,
+(2) real `PointLight` shading on the walls (already there, but it lights every wall, has no reach limit and does not respect
+the lamp's room), (3) per-lamp additive geometry. Chosen: 3. For each of the (at most `MAX_POOLS` = 8) lamps one mesh holds a
+small grid per wall face that looks into the lamp's own room and lies within 300 cm; each vertex carries the lamp's colour
+times `(1 - d/R)^2 * (0.35 + 0.65 * cos)`, with d the distance to the lamp and cos the angle to the face. It needs no
+textures to create, upload or free; it stops exactly at the drawn wall height, so a cut (lowered) wall has a low patch only;
+and it counts the distance across the room, which a flat decal does not. Face ownership uses the true outward normal of the
+wall ring: a face is lit when a point 2 cm in front of its middle falls in the lamp's room polygon. Door-jamb end caps sit on the room
+boundary and may take a sliver; accepted, they are a few cm wide. Off lamp, or a room that is not lit: the slot is hidden.
+Cost: a face is meshed in 25 cm cells (at most 12 by 6), so a very large wall gets a coarser patch. Test hook:
+`window.__fp3d.muteGlow(on)` (dist-test build only) hides the patches, because the pool light also brightens the wall and a
+pixel test of on against off proved nothing about the patch (it passed with the gain at 0 until this was found).
+
+## 2026-10-05: 3D fixes after 0.14.0 on the real layout
+
+**One floor at a time (supersedes "Floors" in the S12.6 entry).** The card draws only the selected floor. The dimmed floors
+below were built from each floor's own `floorElevation`, and on Diego's layout (garage, office, outdoor, 3 floors) they sat
+out of line with the selected floor. `BelowFloor`, `setFloor`'s third argument, `belowPlans`, `data-below`, the `DIM`
+opacity and the card's `_view3dBelow` are gone. The camera frames the one floor. `buildScene`'s `elevation` option stays in
+core (it is the plan's own, tested, and costs nothing). Cost: you no longer see the floor under you as context.
+
+**Icons stay under the walls.** A point device (light, camera, motion, radar, access point at 230 to 250 cm by default) was
+placed at its own `z`, which on a 250 cm floor is the wall top, so the icon read as flying over the house. `buildScene`
+now holds a point's `z` to the highest wall of the floor less `ICON_MARGIN` (10 cm), never below the slab; with no walls
+it is the floor's storey height. A body's icon (radiator, speaker, TV: top plus 6 cm) is held by the same margin in
+`anchorsOf` (`view3d.ts`). It is the one rule for the ball, the tap proxy and the icon, because all three read the point.
+2D and 2.5D do not use the scene: unchanged. Cost: a device the user mounted above the wall top is drawn lower than
+its `z`; the plan's number is untouched.
+
+**Panning: middle button and Space.** The view pans on a middle-button drag, on a left drag while Space is held, and as
+before on a right drag, Shift-drag and two fingers. The middle button's `pointerdown`, `mousedown` and `auxclick` are
+prevented (no browser autoscroll). Space is a window `keydown`/`keyup` pair, but it acts only while the pointer is over
+the canvas (`pointerenter`/`pointerleave`), not when the key starts in a control that Space activates (a button, a field),
+and with no Ctrl, Cmd or Alt; it is the same gate the card's own view keys use. It is taken (`preventDefault`) only then,
+so the page scrolls as usual elsewhere. Keyup and window `blur` end it. The mode is read at `pointerdown`, so releasing
+Space mid-drag does not turn the pan into a turn. The card's own Space (Reset view) never fires in 3D
+(`_doViewKey` returns false there), so the two do not collide. Pan moves past `DRAG_PX` set `dragged`, so it is never a tap,
+and the card already ignores a non-left button. Cost: a window-level listener per 3D view; chosen over a focusable canvas
+because Space must work from a plain hover, with no click first.
+
+**Item 1 of the field report (the office with no walls) was a data error in Diego's layout file, not a code defect.**
+`lowerWalls` and `wallZ` are unchanged: nothing was reproduced on the demo layout, so nothing was changed on a hunch.
+
 ## 2026-10-05: Sprint 12 review fixes
 
 **Coordinate bound.** `validate` refuses any coordinate beyond +-1e7 cm (100 km) from the origin, on every point,

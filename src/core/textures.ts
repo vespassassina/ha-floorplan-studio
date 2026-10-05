@@ -88,3 +88,11 @@ export function texturePatterns(uses: Iterable<{ id: string; rot?: number; scale
       return `<pattern id="${patId}" width="${w}" height="${h}" patternUnits="userSpaceOnUse"${viewBox}${transform}>${t.tile}</pattern>`;
     }).join("");
 }
+
+/** What the 3D view needs to draw a floor texture (the chunk imports nothing from core, so the card hands this over, see three-deps.ts):
+ * the tile and its natural size in cm, the flat colour that stands for it, and the rotation and scale as the 2D plan reads them. `null` for an id that is not a texture. */
+export interface TextureTile { id: string; tile: string; w: number; h: number; preview: string; rot: number; scale: number }
+export function textureTile(id: unknown, rot: unknown, scale: unknown): TextureTile | null {
+  const t = typeof id === "string" ? TEXTURES.find((x) => x.id === id) : undefined;
+  return t ? { id: t.id, tile: t.tile, w: t.w, h: t.h, preview: t.preview, rot: normTextureRot(rot), scale: normTextureScale(scale) } : null;
+}

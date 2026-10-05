@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Card: floor textures in 3D. A room or stair with a texture shows it on its floor, at the same size, turn and scale as in 2D; the flat colour shows until the tile is ready. A bad texture id or rotation falls back to the flat colour.
+- Card: a lit lamp now lights the walls of its own room in 3D, a soft glow in the lamp's colour out to about 3 m, only on faces that look at it and only up to the height the wall is drawn at.
+- Card: 3D shows one floor at a time. The dimmed stack of lower floors is gone (on a real layout the floors drifted out of line); the camera frames the floor you picked.
+- Card: 3D icons no longer float over the house. A device's icon and its ball stay at most 10 cm under the top of the floor's walls (a ceiling light or camera at 250 cm on a 250 cm floor now sits at 240); a low device, a socket say, keeps its own height.
+- Card: panning is back in 3D. Drag with the **middle mouse button**, or hold **Space** and drag with the left button (while the pointer is over the view; Space no longer scrolls the page there). Right-drag, Shift-drag and two fingers still pan; a plain drag still turns the house. A pan is never a tap.
+
 ## 0.14.0 - 2026-10-05
 
 - Card: 3D now recovers. A failed load of the 3D code is tried again the next time you pick 3D; a lost graphics context (a driver reset, a tab left in the background) is waited for three seconds, and if it does not come back the card shows 2D and tries 3D once more when the tab is shown again or the card is placed again. A frame that cannot be drawn gives the 2D plan and one line, never a blank canvas.

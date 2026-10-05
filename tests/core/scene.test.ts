@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { buildScene, type Solid } from "../../src/core/scene";
+import { buildScene, ICON_MARGIN, type Solid } from "../../src/core/scene";
 import { deviceSolidTop, FURNITURE_SOLID, DEVICE_SOLID } from "../../src/core/solids";
 import { deviceZ, edgeHeight, floorHeight, furnitureHeight, radiatorSpan, unlinkedHeight, wallHeight, doorSpan, openingSpan } from "../../src/core/heights";
 import { stairSteps } from "../../src/core/geometry";
@@ -413,7 +413,7 @@ describe("scene: devices match the 2.5D numbers", () => {
       expect(out[0].tag).toBe(t);
       expect(out[0].ref.entity).toBe(`x.${t}`);
       expect(out[0].ref.index).toBe(0);
-      if (KIND[t] === "none") { expect(out[0].shape, t).toEqual({ type: "point", at: [300, 250], z: deviceZ(d) }); }
+      if (KIND[t] === "none") { expect(out[0].shape, t).toEqual({ type: "point", at: [300, 250], z: Math.min(deviceZ(d), floorHeight(floor()) - ICON_MARGIN) }); } // a ceiling light is held under the wall top (3D fixes)
       else expect(out[0].shape.type, t).toBe("prism");
     }
   });
@@ -530,5 +530,34 @@ describe("a room's own sensors (S12.5)", () => {
     const sc = buildScene(floor({ rooms, devices }));
     const hidden = sc.solids.filter((s) => s.kind === "device").map((s) => [s.ref.index, !!s.ref.hidden]);
     expect(hidden).toEqual([[0, true], [1, true], [2, false], [3, false]]);
+  });
+});
+
+describe("scene: a device's point stays under the wall top (3D fixes)", () => {
+  // Diego: icons fly over the house. A ceiling light is 250 cm by default and the walls are 250, so its icon floated at the wall top.
+  const dv = (type: DeviceType, o: Record<string, unknown> = {}) => ({ id: `d.${type}`, type, x: 300, y: 250, entity: `x.${type}`, ...o }) as never;
+  const zOf = (f: Floor, i = 0) => { const s = buildScene(f).solids.find((x) => x.kind === "device" && x.ref.index === i)!; return s.shape.type === "point" ? s.shape.z : NaN; };
+
+  it("a ceiling light, a camera and a user z above the walls are held ICON_MARGIN under them; every default point is", () => {
+    const top = floorHeight(floor());
+    expect(ICON_MARGIN).toBe(10);
+    expect(zOf(floor({ devices: [dv("light")] }))).toBe(top - ICON_MARGIN);
+    expect(zOf(floor({ devices: [dv("camera", { z: 400 })] }))).toBe(top - ICON_MARGIN);
+    for (const t of DEVICE_TYPES) {
+      if (DEVICE_SOLID[t] !== "none") continue;
+      expect(zOf(floor({ devices: [dv(t)] })), t).toBeLessThanOrEqual(top - ICON_MARGIN);
+    }
+  });
+  it("a low device keeps its own height, and so does a high one on a taller floor", () => {
+    expect(zOf(floor({ devices: [dv("plug")] }))).toBe(deviceZ(dv("plug")));
+    expect(zOf(floor({ devices: [dv("camera", { z: 187 })] }))).toBe(187);
+    expect(zOf(floor({ height: 320, devices: [dv("light")] }))).toBe(250); // 250 is under 320 - 10: untouched
+  });
+  it("the cap never goes below the slab", () => {
+    expect(zOf(floor({ height: 5, devices: [dv("light")] }))).toBe(0); // walls of 5 cm: the cap is the slab, not below it
+  });
+  it("the elevation lifts the capped height with the floor", () => {
+    const s = buildScene(floor({ devices: [dv("light")] }), { elevation: 275 }).solids.find((x) => x.kind === "device")!;
+    expect(s.shape).toMatchObject({ type: "point", z: 275 + 240 });
   });
 });
