@@ -6,8 +6,9 @@
 // motion edge, and the HTML overlay. Every part changes in place; the scene is built again only for a new floor or theme.
 import { CylinderGeometry, DirectionalLight, BufferAttribute, BufferGeometry, Color, HemisphereLight, InstancedMesh, LineDashedMaterial, LineLoop, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, PerspectiveCamera, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGLRenderer, DoubleSide } from "three";
 // Types only: this module imports nothing from the card at run time, so the bundler keeps it a chunk of its own (see palette.ts).
-import type { Scene as Plan3D, Solid } from "../../core/scene";
-import type { Live3D } from "../../core/live";
+import { CUT_WALL_HEIGHT, makeBuildScene, type Scene as Plan3D, type Solid, type SceneDeps } from "../../core/scene-build";
+import { makeLiveOf, type Live3D, type LiveDeps } from "../../core/live-build";
+import type { RenderOpts } from "../../core/render";
 import { prismTriangles, type Triangles } from "./mesh";
 import { lowerWalls, wallBodies, wallZ, type WallBody, type Walls } from "./cut";
 import { Orbit } from "./orbit";
@@ -19,14 +20,12 @@ import { createOverlay, type Anchors } from "./overlay";
 import { pulseAt } from "./ring";
 
 export interface View3DOptions {
-  /** `buildScene` of core/scene.ts, passed in by the card (which already carries that code) so that this chunk shares none of it. */
-  buildScene(floor: unknown, around?: unknown): Plan3D;
+  /** The core helpers the scene and the live state are built from, passed in by the card, which already carries them for the 2D plan, so the chunk holds no second copy (core/three-deps.ts). */
+  deps: { scene: SceneDeps; live: LiveDeps };
   /** Called once if the view cannot go on (the graphics context is lost): the card then draws 2D and says why. */
   onFail(reason: string): void;
   /** The plan's turn in degrees, the camera's starting azimuth. */
   turnDeg: number;
-  /** cm. Where a lowered wall stops: `CUT_WALL_HEIGHT` of core/scene.ts, passed in so this chunk shares no core code. */
-  lowWall: number;
 }
 export interface View3D {
   /** Replaces the scene with this floor's. Never throws. */
@@ -44,10 +43,11 @@ export interface View3D {
   /** The picked room (its index on the floor) gets a dashed ring along its outline, just above its floor; null removes it. A room with no floor of its own (a zone) gets none. */
   setRing(room: number | null): void;
   /**
-   * The live state of the floor (`liveOf` of core/live.ts): what is lit, which door is open, what each device wears. Changes the
-   * scene's parts in place, never rebuilds it, and does nothing at all (no frame) when it equals the last one. `null` clears it.
+   * The live state of the floor (`liveOf` of core/live-build.ts, run here on the card's inputs): what is lit, which door is open, what each
+   * device wears. Changes the scene's parts in place, never rebuilds it, and does nothing at all (no frame) when it equals the last one.
+   * `null` clears it.
    */
-  setLive(live: Live3D | null): void;
+  setLive(floor: unknown, o: RenderOpts, now: number): void;
   /** Back to the first camera. */
   reset(): void;
   /** Whether the last pointer gesture moved: a drag, which is never a tap (S12.4 reads this). */
@@ -107,6 +107,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none";
   container.appendChild(probe);
 
+  const buildScene = makeBuildScene(opts.deps.scene), liveOf = makeLiveOf(opts.deps.live);
   const scene = new Scene(), camera = new PerspectiveCamera(FOV, 1, 1, 1000);
   const hemi = new HemisphereLight(0xffffff, 0x8a8a8a, DAY.hemi);
   scene.add(hemi);
@@ -170,7 +171,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   const hidden = (p: readonly [number, number, number]) => {
     if (!picker) return false;
     const o = camera.position, d: [number, number, number] = [p[0] - o.x, p[2] - o.z, p[1] - o.y], len = Math.hypot(d[0], d[1], d[2]);
-    return picker.blocked({ o: [o.x, o.z, o.y], d }, len - 3, (sol) => wallZ(sol, lowered, opts.lowWall));
+    return picker.blocked({ o: [o.x, o.z, o.y], d }, len - 3, (sol) => wallZ(sol, lowered, CUT_WALL_HEIGHT));
   };
   const draw = () => {
     raf = 0;
@@ -340,7 +341,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   };
   const buildWalls = () => {
     dispose(wallMeshes);
-    wallMeshes = meshesOf((x) => isWall(x) && !isPart(x), (x) => wallZ(x, lowered, opts.lowWall));
+    wallMeshes = meshesOf((x) => isWall(x) && !isPart(x), (x) => wallZ(x, lowered, CUT_WALL_HEIGHT));
     for (const m of wallMeshes) paintLifts(m);
     buildParts();
     container.dataset.lowered = [...lowered].sort().join(" ");
@@ -377,7 +378,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     parts = [];
     for (const s of plan?.solids ?? []) {
       if (!isPart(s) || s.shape.type !== "prism" || typeof s.ref.index !== "number" || s.shape.base.length < 4) continue;
-      const z = wallZ(s, lowered, opts.lowWall);
+      const z = wallZ(s, lowered, CUT_WALL_HEIGHT);
       if (!z) continue;
       const b = s.shape.base, hx = (b[0][0] + b[3][0]) / 2, hy = (b[0][1] + b[3][1]) / 2, tris: Triangles = { position: [], normal: [] };
       prismTriangles(b.map((q) => [q[0] - hx, q[1] - hy] as [number, number]), z[0], z[1], tris);
@@ -536,7 +537,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   resize();
   const api: View3D = {
     setFloor(floor, around) {
-      try { plan = opts.buildScene(floor, around); } catch { plan = null; }
+      try { plan = buildScene(floor as never, { around: around as never }); } catch { plan = null; }
       const { w, h } = size();
       orbit = new Orbit(plan?.bounds ?? { min: [0, 0, 0], max: [0, 0, 0] }, w / h, FOV, opts.turnDeg);
       orbit.setInset(inset[0], inset[1]); // a new floor keeps the room the list takes
@@ -574,7 +575,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       prepare();
       raycaster.setFromCamera(new Vector2(((clientX - r.left) / r.width) * 2 - 1, -(((clientY - r.top) / r.height) * 2 - 1)), camera);
       const o = raycaster.ray.origin, d = raycaster.ray.direction; // three's frame to the plan's: (x, y, z) -> (x, z, y)
-      return picker.pick({ o: [o.x, o.z, o.y], d: [d.x, d.z, d.y] }, (sol) => wallZ(sol, lowered, opts.lowWall));
+      return picker.pick({ o: [o.x, o.z, o.y], d: [d.x, d.z, d.y] }, (sol) => wallZ(sol, lowered, CUT_WALL_HEIGHT));
     },
     setRing(room) {
       const next = typeof room === "number" && Number.isFinite(room) ? room : null;
@@ -584,8 +585,10 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       buildRing();
       want();
     },
-    setLive(l) {
+    setLive(floor, o, now) {
       if (disposed) return;
+      let l: Live3D | null = null;
+      try { l = liveOf(floor as never, o, now); } catch { l = null; } // liveOf never throws; a layout is untrusted all the same
       // A steady edge (reduced motion) has no use for the age of a pulse, which changes with every render and would redraw for nothing.
       const sig = l ? JSON.stringify(reduced() ? { ...l, rooms: l.rooms.map((r) => (r && r.motion ? { ...r, motion: { ...r.motion, pulseAge: null } } : r)) } : l) : "";
       if (sig === liveSig) return; // nothing changed: no work and no frame

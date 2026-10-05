@@ -14,8 +14,7 @@ import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, 
 import { viewKeyFor, type ViewKey } from "./view-keys";
 import type { View3D } from "./three/view3d";
 import type { Pick as Pick3D } from "./three/pick";
-import { buildScene, CUT_WALL_HEIGHT } from "../core/scene";
-import { liveOf } from "../core/live";
+import { liveDeps, sceneDeps } from "../core/three-deps";
 import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type StoredView } from "./view-state";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
@@ -1250,8 +1249,7 @@ export class FloorplanStudioCard extends LitElement {
       try {
         this._view3d = lib3d.createView3D(host, {
           turnDeg: this._rotate()?.deg ?? 0,
-          lowWall: CUT_WALL_HEIGHT,
-          buildScene: (floor, around) => buildScene(floor as never, { around: around as never }),
+          deps: { scene: sceneDeps, live: liveDeps },
           onFail: (why) => { this._fallback3d = `3D view unavailable: ${why}. Showing 2D.`; this._dispose3d(); this.requestUpdate(); },
         });
       } catch (err) {
@@ -1272,7 +1270,7 @@ export class FloorplanStudioCard extends LitElement {
     }
     // The live state, decided by the plan's own rules (core/live.ts); the view changes its parts in place, and does nothing when it is the same as the last.
     const now = Date.now();
-    this._view3d.setLive(liveOf(f, { scale: 1, state: this._stateForRender(), now, fade: this._config.fade, plugWatts: plugThreshold(this._config.plug_watts), powerLinks: this._powerLinks(), roomGlow: this._config.room_glow, night: this._night(), labels: this._labels(), showNames: this._names(), around: floorsAroundKey(this._layout!, this._floorKey()!) }, now));
+    this._view3d.setLive(f, { scale: 1, state: this._stateForRender(), now, fade: this._config.fade, plugWatts: plugThreshold(this._config.plug_watts), powerLinks: this._powerLinks(), roomGlow: this._config.room_glow, night: this._night(), labels: this._labels(), showNames: this._names(), around: floorsAroundKey(this._layout!, this._floorKey()!) }, now);
     this._view3d.setRing(this._picked());
     this._apply3dInset();
   }
