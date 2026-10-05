@@ -6,6 +6,7 @@ import { DirectionalLight, BufferAttribute, BufferGeometry, Color, HemisphereLig
 // Types only: this module imports nothing from the card at run time, so the bundler keeps it a chunk of its own (see palette.ts).
 import type { Scene as Plan3D } from "../../core/scene";
 import { prismTriangles, type Triangles } from "./mesh";
+import { lowerWalls, wallBodies, wallZ, type WallBody, type Walls } from "./cut";
 import { Orbit } from "./orbit";
 import { roleStyle } from "./palette";
 
@@ -16,6 +17,8 @@ export interface View3DOptions {
   onFail(reason: string): void;
   /** The plan's turn in degrees, the camera's starting azimuth. */
   turnDeg: number;
+  /** cm. Where a lowered wall stops: `CUT_WALL_HEIGHT` of core/scene.ts, passed in so this chunk shares no core code. */
+  lowWall: number;
 }
 export interface View3D {
   /** Replaces the scene with this floor's. Never throws. */
@@ -24,6 +27,10 @@ export interface View3D {
   setTheme(key: string): void;
   /** The container's size may have changed. */
   resize(): void;
+  /** The walls mode: "full", "cut" (the walls facing the camera drop to `lowWall`) or "low" (all of them do). */
+  setWalls(mode: string): void;
+  /** A panel covers the left and the right part of the view (fractions of its width): frame the house in the free part. */
+  setInset(left: number, right: number): void;
   /** Back to the first camera. */
   reset(): void;
   /** Whether the last pointer gesture moved: a drag, which is never a tap (S12.4 reads this). */
@@ -84,6 +91,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
 
   let orbit = new Orbit({ min: [0, 0, 0], max: [0, 0, 0] }, 1, FOV, opts.turnDeg);
   let plan: Plan3D | null = null, themeKey = "", meshes: Mesh[] = [], raf = 0, dragged = false;
+  // The walls are meshes of their own, built again only when the set of lowered walls changes, never per frame.
+  let wallMeshes: Mesh[] = [], bodies: WallBody[] = [], lowered = new Set<string>(), walls: Walls = "cut";
 
   const size = () => ({ w: Math.max(1, container.clientWidth), h: Math.max(1, container.clientHeight) });
   const publish = () => {
@@ -91,6 +100,13 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     container.dataset.polar = orbit.polar.toFixed(4);
     container.dataset.dist = orbit.distance.toFixed(1);
     container.dataset.target = `${orbit.target[0].toFixed(1)},${orbit.target[2].toFixed(1)}`;
+  };
+  /** Decides which walls are lowered for a camera at `cam` (plan frame); rebuilds the wall meshes only if that changed. */
+  const updateWalls = (cam: [number, number, number]) => {
+    const next = lowerWalls(bodies, cam, walls, lowered);
+    if (next.size === lowered.size && [...next].every((k) => lowered.has(k))) return;
+    lowered = next;
+    buildWalls();
   };
   const draw = () => {
     raf = 0;
@@ -100,7 +116,10 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     camera.near = Math.max(1, orbit.framing * 0.02);
     camera.far = orbit.framing * FAR_PLANES;
     camera.lookAt(orbit.target[0], orbit.target[1], orbit.target[2]);
+    const { w, h } = size(), shift = orbit.shift;
+    if (shift !== 0) camera.setViewOffset(w, h, -shift * w, 0, w, h); else camera.clearViewOffset();
     camera.updateProjectionMatrix();
+    updateWalls([x, z, y]);
     renderer.render(scene, camera);
     container.dataset.drawn = String(+(container.dataset.drawn ?? 0) + 1);
     publish();
@@ -184,21 +203,20 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     }
     return p;
   };
-  const clear = () => {
-    for (const m of meshes) { scene.remove(m); m.geometry.dispose(); (m.material as MeshLambertMaterial).dispose(); }
-    meshes = [];
-  };
-  const build = () => {
-    clear();
-    if (!plan) return;
+  const dispose = (list: Mesh[]) => { for (const m of list) { scene.remove(m); m.geometry.dispose(); (m.material as MeshLambertMaterial).dispose(); } };
+  /** One mesh per colour from the solids `pick` accepts, drawn over the z range `zOf` gives (null: left out). */
+  const meshesOf = (pick: (s: Plan3D["solids"][number]) => boolean, zOf: (s: Plan3D["solids"][number]) => [number, number] | null): Mesh[] => {
     const groups = new Map<string, { tris: Triangles; colour: Color; opacity: number }>();
-    for (const s of plan.solids) {
-      if (s.shape.type !== "prism") continue; // a point (a device with no body of its own) is S12.5's
+    for (const s of plan?.solids ?? []) {
+      if (s.shape.type !== "prism" || !pick(s)) continue; // a point (a device with no body of its own) is S12.5's
+      const z = zOf(s);
+      if (!z) continue;
       const p = paintOf(s.paint.role, s.paint.color), key = `${p.colour.getHexString()}|${p.opacity}`;
       let g = groups.get(key);
       if (!g) groups.set(key, (g = { tris: { position: [], normal: [] }, colour: p.colour, opacity: p.opacity }));
-      prismTriangles(s.shape.base, s.shape.z0, s.shape.z1, g.tris);
+      prismTriangles(s.shape.base, z[0], z[1], g.tris);
     }
+    const out: Mesh[] = [];
     for (const g of groups.values()) {
       if (!g.tris.position.length) continue;
       const geo = new BufferGeometry();
@@ -209,8 +227,24 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       const mesh = new Mesh(geo, mat);
       mesh.renderOrder = glass ? 1 : 0;
       scene.add(mesh);
-      meshes.push(mesh);
+      out.push(mesh);
     }
+    return out;
+  };
+  const isWall = (s: Plan3D["solids"][number]) => s.kind === "wall" || s.kind === "opening";
+  const clear = () => { dispose(meshes); dispose(wallMeshes); meshes = []; wallMeshes = []; };
+  const buildWalls = () => {
+    dispose(wallMeshes);
+    wallMeshes = meshesOf(isWall, (s) => wallZ(s, lowered, opts.lowWall));
+    container.dataset.lowered = [...lowered].sort().join(" ");
+  };
+  const build = () => {
+    clear();
+    if (!plan) return;
+    meshes = meshesOf((s) => !isWall(s), (s) => (s.shape.type === "prism" ? [s.shape.z0, s.shape.z1] : null));
+    bodies = wallBodies(plan.solids);
+    lowered = new Set();
+    buildWalls();
   };
 
   resize();
@@ -230,6 +264,17 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       want();
     },
     resize,
+    setWalls(mode) {
+      const m: Walls = mode === "full" || mode === "low" ? mode : "cut";
+      if (m === walls) return;
+      walls = m;
+      want(); // the next frame decides, and rebuilds if the set changed
+    },
+    setInset(left, right) {
+      orbit.setInset(left, right);
+      container.dataset.inset = `${Math.max(0, +left || 0).toFixed(3)},${Math.max(0, +right || 0).toFixed(3)}`;
+      want();
+    },
     reset() { orbit.reset(); want(); },
     get dragged() { return dragged; },
     dispose() {
@@ -249,7 +294,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       renderer.forceContextLoss();
       canvas.remove();
       probe.remove();
-      for (const k of ["az", "polar", "dist", "target", "drawn", "dragged"]) delete container.dataset[k];
+      for (const k of ["az", "polar", "dist", "target", "drawn", "dragged", "lowered", "inset"]) delete container.dataset[k];
       live--;
     },
   };

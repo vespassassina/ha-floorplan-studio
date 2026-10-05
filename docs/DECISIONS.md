@@ -2,6 +2,36 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: 3D walls mode, wall corners, framing beside the list (S12.4, part A)
+
+**Walls in 3D is the 2.5D select and its stored value.** One `walls` setting (config key, Walls select, saved view),
+read by both views. `cut` is the default. Say so if you want 3D to remember its own.
+
+**Cut is decided by the camera, in `src/card/three/cut.ts`, pure and without three.js.** The outline faces out of the
+house: it drops to `CUT_WALL_HEIGHT` (30 cm, `scene.ts`) while the camera is past its plane by more than 20 cm, and
+stands again only when the camera is 20 cm back inside (the margin stops a flicker on a threshold). The far side of the
+house stands in full. An inner wall (a room's edge, a free wall), whatever faces it kept, drops when it hides more than
+60 cm of floor behind it (`h*d/(camZ-h)` across the wall) and stands when that is under 40 cm; a camera lower than the
+wall's top hides everything. `full` lowers none, `low` all. The scene stays pure: the wall meshes are the only ones
+rebuilt, and only when the set changes, never per frame. The card passes the cut height in, so the chunk still shares no
+code. `wall` and `faces` ride in the solid's `ref` for this.
+
+**First try was wrong and is why inner walls use depth.** One-sided rule only: the wide south room's north edge (it
+overlaps two small rooms' south edges in part, so it is not merged with them) faced north, was "far" from a southern
+camera, and stood at 250 cm in front of the north rooms. The shot showed it.
+
+**Dark slivers at a door gap were a corner bug, not a shading bug.** A partition drawn as two collinear room edges, or
+ending on a through wall, was extended as if it met a corner, and stopped flush with the outer face; wall colours then
+z-fought there. `meet()` now gives no extension to a wall that runs through a joint or ends on a through wall (a T).
+
+**The grey tile beside the house on the ground floor is not a stray solid.** It is the demo's Garden and Pavement
+rooms, 1 cm tiles outside the slab, as the plan has them. A test says so. They look odd in the blueprint theme (dark
+navy tokens); not changed.
+
+**The Active list moves the framing.** The card measures the list against the 3D host after a render and when the
+panel moves, and tells the view the covered fractions of the left and right. `Orbit.setInset` fits the house to the
+free width and `camera.setViewOffset` slides the picture; the two together never take more than 60 percent.
+
 ## 2026-10-05: the card's 3D view, chunk delivery and three.js (S12.3)
 
 **Dependency.** `three` ^0.186 (MIT) and `@types/three`, dev dependencies, bundled into the chunk; never fetched at

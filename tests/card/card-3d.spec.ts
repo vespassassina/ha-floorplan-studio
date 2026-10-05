@@ -268,3 +268,72 @@ test.describe("3D view: lifecycle and hostile input", () => {
     expect(errors).toEqual([]);
   });
 });
+
+const wallsSelect = (page: Page) => card(page).locator('css=select[aria-label="Walls"]');
+const lowered = async (page: Page) => ((await holder(page).getAttribute("data-lowered")) ?? "").split(" ").filter(Boolean);
+
+test.describe("3D view: walls mode (S12.4)", () => {
+  test("Walls is a select in 3D, cut by default: walls facing the camera drop, the far ones stand; full none, low all", async ({ page }) => {
+    await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
+    await drawn(page);
+    await expect(wallsSelect(page)).toHaveCount(1);
+    expect(await wallsSelect(page).inputValue()).toBe("cut");
+    await expect.poll(async () => (await lowered(page)).length).toBeGreaterThan(0);
+    const cut = await lowered(page);
+    await wallsSelect(page).selectOption("low");
+    await expect.poll(async () => (await lowered(page)).length).toBeGreaterThan(cut.length);
+    const all = await lowered(page);
+    expect(all).toEqual(expect.arrayContaining(cut));
+    await wallsSelect(page).selectOption("full");
+    await expect.poll(async () => (await lowered(page)).length).toBe(0);
+    await wallsSelect(page).selectOption("cut");
+    await expect.poll(async () => (await lowered(page)).length).toBe(cut.length);
+  });
+
+  test("turning the house to the other side lowers the other walls, and a zoom does not change the set", async ({ page }) => {
+    await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
+    await drawn(page);
+    await expect.poll(async () => (await lowered(page)).length).toBeGreaterThan(0);
+    const south = await lowered(page);
+    await page.mouse.wheel(0, -300);
+    await expect.poll(async () => (await cam(page)).dist).toBeLessThan(1e9);
+    expect(await lowered(page)).toEqual(south);
+    const b = (await canvas(page).boundingBox())!, cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+    await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(cx + 520, cy, { steps: 10 }); await page.mouse.up(); // about 180 degrees
+    await expect.poll(async () => (await lowered(page)).join(" ")).not.toBe(south.join(" "));
+  });
+
+  test("the config's walls value is the 3D select's value, as in 2.5D", async ({ page }) => {
+    await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d", walls: "low" });
+    await drawn(page);
+    expect(await wallsSelect(page).inputValue()).toBe("low");
+    await viewSelect(page).selectOption("2.5d");
+    expect(await wallsSelect(page).inputValue()).toBe("low");
+  });
+});
+
+test.describe("3D view: the Active list does not hide the model (S12.4)", () => {
+  test("with the list open the camera frames the house in the free width", async ({ page }) => {
+    await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
+    await drawn(page);
+    const h = (await holder(page).boundingBox())!, p = (await card(page).locator("css=.fp-active").boundingBox())!;
+    await expect.poll(async () => +((await holder(page).getAttribute("data-inset")) ?? "0,0").split(",")[0]).toBeGreaterThan(0.05);
+    const [l, r] = ((await holder(page).getAttribute("data-inset")) ?? "0,0").split(",").map(Number);
+    expect(r).toBe(0);
+    expect(l).toBeCloseTo((p.x + p.width - h.x) / h.width, 2); // the list's right edge, as a share of the view
+    // a house centred in the free part: its pixels lie right of the list's edge, not under it
+    await card(page).locator("css=.fp-active").evaluate((el: HTMLElement) => { el.style.visibility = "hidden"; }); // the list paints over the canvas: read the model alone
+    const png = await canvas(page).screenshot();
+    const edge = await page.evaluate(async (b64) => {
+      const img = new Image(); img.src = `data:image/png;base64,${b64}`; await img.decode();
+      const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+      const g = c.getContext("2d")!; g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      let min = c.width, max = 0;
+      for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (Math.abs(d[(y * c.width + x) * 4] - d[0]) + Math.abs(d[(y * c.width + x) * 4 + 1] - d[1]) + Math.abs(d[(y * c.width + x) * 4 + 2] - d[2]) > 24) { min = Math.min(min, x); max = Math.max(max, x); }
+      return { min: min / c.width, max: max / c.width };
+    }, png.toString("base64"));
+    expect(edge.min).toBeGreaterThan((p.x + p.width - h.x) / h.width - 0.02); // nothing of the model under the list
+    expect(edge.max).toBeLessThan(1.0);
+  });
+});

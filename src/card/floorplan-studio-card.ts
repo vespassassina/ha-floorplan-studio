@@ -13,7 +13,7 @@ import { CARD_VERSION } from "./version";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { viewKeyFor, type ViewKey } from "./view-keys";
 import type { View3D } from "./three/view3d";
-import { buildScene } from "../core/scene";
+import { buildScene, CUT_WALL_HEIGHT } from "../core/scene";
 import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type StoredView } from "./view-state";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
@@ -1233,6 +1233,7 @@ export class FloorplanStudioCard extends LitElement {
       try {
         this._view3d = lib3d.createView3D(host, {
           turnDeg: this._rotate()?.deg ?? 0,
+          lowWall: CUT_WALL_HEIGHT,
           buildScene: (floor, around) => buildScene(floor as never, { around: around as never }),
           onFail: (why) => { this._fallback3d = `3D view unavailable: ${why}. Showing 2D.`; this._dispose3d(); this.requestUpdate(); },
         });
@@ -1245,12 +1246,31 @@ export class FloorplanStudioCard extends LitElement {
     }
     // A theme change (or Home Assistant's dark mode) re-reads the colours; a new floor, or one the layout reload replaced, rebuilds the scene.
     this._view3d.setTheme(`${this._theme()}|${this._haDark()}`);
+    this._view3d.setWalls(this._walls());
     const around = floorsAroundKey(this._layout!, this._floorKey()!), aroundKey = JSON.stringify(around);
     if (f !== this._view3dFloor || aroundKey !== this._view3dAround) {
       this._view3dFloor = f;
       this._view3dAround = aroundKey;
       this._view3d.setFloor(f, around);
     }
+    this._apply3dInset();
+  }
+
+  /** The Active list floats over the model. Where it covers the left or the right part of the 3D view, the camera frames the
+   * house in the rest (S12.4). Costs a layout read, so it runs after a render and when the panel moves, not per frame. */
+  private _apply3dInset(): void {
+    const view = this._view3d, host = this.shadowRoot?.querySelector<HTMLElement>(".fp-3d");
+    if (!view || !host) return;
+    const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active"), h = host.getBoundingClientRect();
+    let left = 0, right = 0;
+    if (panel && h.width > 0) {
+      const p = panel.getBoundingClientRect();
+      if (p.width > 0 && p.height > 0) {
+        if (p.left + p.width / 2 < h.left + h.width / 2) left = Math.max(0, Math.min(1, (p.right - h.left) / h.width));
+        else right = Math.max(0, Math.min(1, (h.right - p.left) / h.width));
+      }
+    }
+    view.setInset(left, right);
   }
 
   /**
@@ -1445,6 +1465,11 @@ export class FloorplanStudioCard extends LitElement {
    * was saved: a narrower viewport, a taller panel after expanding from collapsed, or nothing at all. With
    * `_activePos` still `null` (never dragged) this clears any inline position, leaving the CSS default in place. */
   private _positionActivePanel(): void {
+    this._positionActivePanelNow();
+    this._apply3dInset();
+  }
+
+  private _positionActivePanelNow(): void {
     const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active");
     if (!panel) return;
     if (!this._activePos) {
@@ -1858,7 +1883,7 @@ export class FloorplanStudioCard extends LitElement {
   private _viewControls(current: CardView) {
     const labels = this._labels();
     const names = this._names();
-    if (current === "3d" && this._shows3d()) return html`${this._viewSelect(current)}${this._themeSelect()}`; // the 3D model draws no labels yet
+    if (current === "3d" && this._shows3d()) return html`${this._viewSelect(current)}${this._wallsSelect()}${this._themeSelect()}`; // the 3D model draws no labels yet; Walls is the 2.5D select's value
     return html`${this._viewSelect(current)}${current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
       <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>
       <button type="button" aria-label="Device names" title="Device names" aria-pressed=${names ? "true" : "false"} @click=${() => { this._pickedNames = !names; this._saveViewNow(); this.requestUpdate(); }}>Aa</button>`;

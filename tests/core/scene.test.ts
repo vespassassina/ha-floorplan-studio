@@ -48,11 +48,69 @@ describe("scene: wall corners are closed (S12.3)", () => {
     expect(span(ys(b))).toEqual([95, 300]); // the 20 thick wall meets a 10 thick one: 5 past
   });
 
+  // S12.4 look at the first-floor shot: a partition ending on a wall that is drawn as two collinear pieces (the two rooms'
+  // edges) was taken for a corner, ran on to the outside face of that wall, and its other colour fought the wall's there:
+  // a dark sliver down the facade.
+  it("a partition that ends on a wall drawn in two collinear pieces stays inside it: it is a T-joint, not a corner", () => {
+    const f = floor({ owk: ["none", "none", "none", "none"], walls: [
+      { id: "l", a: [0, 0], b: [400, 0], kind: "external" }, { id: "r", a: [400, 0], b: [800, 0], kind: "external" }, { id: "p", a: [400, 0], b: [400, 300], kind: "wall" },
+    ] });
+    const sc = buildScene(f), get = (i: number) => sc.solids.find((s) => s.ref.poly === "w" && s.ref.index === i)!;
+    expect(span(ys(get(2)))).toEqual([0, 300]); // not -10, the face of the wall it ends on
+    expect(span(xs(get(0)))).toEqual([0, 400]); // two collinear pieces are one wall: neither runs on into the other
+    expect(span(xs(get(1)))).toEqual([400, 800]);
+  });
+
+  it("a partition whose end meets a through wall drawn as two pieces, from either side of the joint, is left alone", () => {
+    const f = floor({ owk: ["none", "none", "none", "none"], walls: [
+      { id: "l", a: [0, 300], b: [400, 300], kind: "wall" }, { id: "r", a: [800, 300], b: [400, 300], kind: "wall" }, { id: "p", a: [400, 300], b: [400, 0], kind: "wall" },
+    ] });
+    const sc = buildScene(f), get = (i: number) => sc.solids.find((s) => s.ref.poly === "w" && s.ref.index === i)!;
+    expect(span(xs(get(0)))).toEqual([0, 400]);
+    expect(span(xs(get(1)))).toEqual([400, 800]);
+    expect(span(ys(get(2)))).toEqual([0, 300]);
+  });
+
   it("a door at a corner keeps its gap: nothing but the header stands over it below the head", () => {
     const f = floor({ doors: [{ id: "d", a: [0, 0], b: [90, 0], kind: "door", sensors: [] } as never] });
     const low = edge0(buildScene(f)).filter((s) => prism(s).z0 < 100);
     expect(low.length).toBeGreaterThan(0);
     for (const s of low) expect(span(xs(s))[0] >= 90 || span(xs(s))[1] <= 0).toBe(true); // the corner's overrun (x < 0) or the wall beyond the door
+  });
+});
+
+describe("scene: which way a wall faces, for a viewer that lowers the near walls (S12.4)", () => {
+  const wallOf = (sc: ReturnType<typeof buildScene>, poly: string, index: number) => sc.solids.find((s) => s.kind === "wall" && s.ref.poly === poly && s.ref.index === index)!;
+  it("an outline edge faces out of the house, whichever way the outline is wound", () => {
+    for (const outline of [[[0, 0], [600, 0], [600, 500], [0, 500]], [[0, 0], [0, 500], [600, 500], [600, 0]]] as [number, number][][]) {
+      const sc = buildScene(floor({ outline, owk: ["external", "external", "external", "external"] }));
+      for (const s of sc.solids.filter((x) => x.kind === "wall")) {
+        const f = s.ref.faces!, mid = [(Math.min(...xs(s)) + Math.max(...xs(s))) / 2, (Math.min(...ys(s)) + Math.max(...ys(s))) / 2];
+        expect(f).toHaveLength(1);
+        expect(Math.hypot(f[0][0], f[0][1])).toBeCloseTo(1, 6);
+        // stepping from the wall's middle along its face leaves the 600 x 500 box, stepping against it stays inside
+        const out = [mid[0] + f[0][0] * 30, mid[1] + f[0][1] * 30], inn = [mid[0] - f[0][0] * 30, mid[1] - f[0][1] * 30];
+        const inBox = (p: number[]) => p[0] > 0 && p[0] < 600 && p[1] > 0 && p[1] < 500;
+        expect(inBox(out)).toBe(false);
+        expect(inBox(inn)).toBe(true);
+      }
+    }
+  });
+  it("a wall between two rooms faces both ways; a free wall has both sides", () => {
+    const f = floor({
+      rooms: [{ id: "a", name: "A", kind: "room", pts: [[0, 0], [300, 0], [300, 500], [0, 500]] }, { id: "b", name: "B", kind: "room", pts: [[300, 0], [600, 0], [600, 500], [300, 500]] }] as never,
+      walls: [{ id: "w", a: [100, 250], b: [200, 250], kind: "wall" }],
+    });
+    const sc = buildScene(f), both = (faces: number[][]) => faces.some((p) => faces.some((q) => p[0] * q[0] + p[1] * q[1] < -0.99));
+    const shared = sc.solids.find((s) => s.kind === "wall" && s.ref.poly === "r0" && s.ref.index === 1)!;
+    expect(both(shared.ref.faces!)).toBe(true);
+    expect(both(wallOf(sc, "w", 0).ref.faces!)).toBe(true);
+  });
+  it("an opening's glass and leaf name the wall they stand in, and that wall exists", () => {
+    const sc = buildScene(floor({ doors: [{ id: "d", a: [100, 0], b: [200, 0], kind: "window", sensors: [] }, { id: "e", a: [300, 500], b: [390, 500], kind: "door", sensors: [] }] as never }));
+    const infill = sc.solids.filter((s) => s.kind === "opening");
+    expect(infill.length).toBe(2);
+    for (const o of infill) expect(sc.solids.some((w) => w.kind === "wall" && `${w.ref.poly}:${w.ref.index}` === o.ref.wall)).toBe(true);
   });
 });
 
@@ -182,6 +240,19 @@ describe("scene: floor slab and rooms", () => {
     expect(rooms.map((s) => s.ref.room)).toEqual([0, 1, 2, 4, 5, 6]); // room 3 is a zone
     for (const r of rooms) { expect(prism(r).z0).toBeGreaterThanOrEqual(0); expect(prism(r).z1 - prism(r).z0).toBeGreaterThan(0); expect(prism(r).z1).toBeLessThan(5); }
     expect(rooms.map((s) => s.tag)).toEqual(["room", "room", "room", "garden", "pavement", "water"]);
+  });
+
+  it("the grey tile beside the demo house is its garden and pavement rooms: flat tiles outside the slab, not a stray solid (S12.4)", () => {
+    const f = demoFloors()[0], sc = buildScene(f);
+    const slab = prism(sc.solids.find((s) => s.kind === "floor")!);
+    const [x0, x1] = span(slab.base.map((p: number[]) => p[0])), [y0, y1] = span(slab.base.map((p: number[]) => p[1]));
+    const outside = sc.solids.filter((s) => s.kind === "room" && (s.tag === "garden" || s.tag === "pavement"));
+    expect(outside.length).toBeGreaterThan(0);
+    for (const r of outside) {
+      const [rx0, rx1] = span(xs(r)), [ry0, ry1] = span(ys(r));
+      expect(rx1 > x1 || ry1 > y1 || rx0 < x0 || ry0 < y0, `${r.id} lies beyond the outline`).toBe(true);
+      expect(prism(r).z1 - prism(r).z0, `${r.id} is a flat tile`).toBeLessThan(5);
+    }
   });
 
   /** What a room kind becomes. Written out on purpose: a new RoomKind fails until someone decides (finding 17). */

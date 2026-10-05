@@ -30,6 +30,8 @@ export class Orbit {
   private hi: V3 = [0, 0, 0];
   private fov: number;
   private aspect: number;
+  private left = 0;
+  private right = 0;
 
   /** `bounds` are the scene's, in the plan's frame (x, y, z up, cm); `fovDeg` the camera's vertical field; `turnDeg` the plan's turn. */
   constructor(bounds: Bounds, aspect: number, fovDeg: number, turnDeg: number) {
@@ -50,7 +52,7 @@ export class Orbit {
   /** The distance at which the whole house fits the narrower of the two fields of view. */
   private fitDistance(): number {
     const radius = Math.max(100, 0.5 * Math.hypot(this.hi[0] - this.lo[0], this.hi[1] - this.lo[1], this.hi[2] - this.lo[2]));
-    const across = 2 * Math.atan(Math.tan(this.fov / 2) * this.aspect);
+    const across = 2 * Math.atan(Math.tan(this.fov / 2) * this.aspect * (1 - this.left - this.right));
     return (0.85 * radius) / Math.sin(Math.min(this.fov, across) / 2);
   }
 
@@ -61,6 +63,26 @@ export class Orbit {
     this.fit = this.fitDistance();
     this.start.distance = this.fit;
   }
+
+  /**
+   * A panel covers `left` and `right` (fractions of the width): frame the house in what is left. The camera backs off to
+   * fit the narrower width, and `shift` tells the view to slide the picture so the house is centred in the free part.
+   * The distance the user has chosen is kept in proportion. Junk changes nothing; the two together never pass 0.6.
+   */
+  setInset(left: number, right: number): void {
+    if (!(fin(left) && fin(right) && left >= 0 && right >= 0)) return;
+    const total = left + right, k = total > 0.6 ? 0.6 / total : 1, l = left * k, r = right * k;
+    if (l === this.left && r === this.right) return;
+    const was = this.fit;
+    this.left = l;
+    this.right = r;
+    this.fit = this.fitDistance();
+    this.start.distance = this.fit;
+    this.distance = clamp(this.distance * (this.fit / was), this.fit * NEAR_FACTOR, this.fit * FAR_FACTOR);
+  }
+
+  /** Where the free part's centre lies, as a fraction of the view's width from the view's centre (right is positive). */
+  get shift(): number { return (this.left - this.right) / 2; }
 
   /** Where the camera stands (three's frame). */
   position(): V3 {
