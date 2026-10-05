@@ -2475,3 +2475,11 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   code change. Choices in `docs/DECISIONS.md`.
 - Sprint 12 review fixes: chunk retry, lost-context recovery, draw guard, coordinate bound, nest budget, test hook
   compiled out of the shipped build, narrow-card inset, ring disposal, debug lines. Choices in `docs/DECISIONS.md`.
+
+## Slit window (small task, 2026-10-05)
+
+- `task/slit-window`. "To the window type add a slit window, configurable width but only 60 cm high, starting from the ceiling."
+  New `DoorKind` `slit`: default 60 high, head at the ceiling of its own wall (`doorSpan(door, ceiling)`, `doorCeiling`),
+  glass in 2.5D and 3D, a window in every other respect, a thin band in 2D, Add, Openings, Slit window in the editor.
+  Tests first: `tests/core/slit.test.ts` (25), `tests/editor/slit.spec.ts` (6), `tests/card/slit.spec.ts` (2).
+  Choices in `docs/DECISIONS.md`.

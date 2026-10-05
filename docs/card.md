@@ -141,6 +141,7 @@ and taps are unchanged. It works in 2D and 2.5D.
   side-on keeps its height; while you rotate, the cut eases in and out.
   A fence keeps its own height; kerbs and boundary lines stay flat.
 - A door is a gap in the wall, a window is a band of glass above its sill, a
+  slit window is a band of glass 60 cm high against the ceiling, a
   glass door is glass from the floor, a sealed door is a solid panel. The
   door line at floor level still shows open, closed and alert.
 - Furniture and appliances that no entity runs are boxes with their symbol

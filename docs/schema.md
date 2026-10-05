@@ -78,7 +78,7 @@ export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape
 
 ## Door
 
-`sensors`/`vibration`/`locks` (S4.24): every contact sensor, vibration sensor and smart lock attached to this door or window — several of each allowed. An unlocked lock reads the opening as open, same as a triggered contact sensor (Diego, 2026-09-28). `cover` (a curtain/blind entity) is not restricted by kind — a plain door's garage opener is a cover too — it just doubles as the electric-curtain field on a glass door or window. render.ts only colours the opening from `cover` on a plain `door` or `sealed` kind; on `window`/`glass` it is curtains, not a security state, and opening them never colours the window (Diego, 2026-09-28 — the office window's curtains were flipping it orange).
+`sensors`/`vibration`/`locks` (S4.24): every contact sensor, vibration sensor and smart lock attached to this door or window — several of each allowed. An unlocked lock reads the opening as open, same as a triggered contact sensor (Diego, 2026-09-28). `cover` (a curtain/blind entity) is not restricted by kind — a plain door's garage opener is a cover too — it just doubles as the electric-curtain field on a glass door or window. render.ts only colours the opening from `cover` on a plain `door` or `sealed` kind; on `window`/`glass` it is curtains, not a security state, and opening them never colours the window (Diego, 2026-09-28 — the office window's curtains were flipping it orange). `slit` (2026-10-05) is a window 60 cm high that hangs from the ceiling of its wall; its width is the length a to b. It reads and behaves as a `window` in every other respect. Its default sill is read from the wall, never stored.
 
 ```ts
 export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensors?: string[]; vibration?: string[]; locks?: string[]; cover?: string; locked?: boolean; height?: number; sill?: number }
@@ -130,7 +130,7 @@ export interface Trace { src: string; x: number; y: number; w: number; rot: numb
 
 ## Floor
 
-`ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. Heights, all optional, in cm, 0 to 1000  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90); `z` on a Device is its mount height.
+`ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. Heights, all optional, in cm, 0 to 1000  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high from the ceiling of its wall); `z` on a Device is its mount height.
 
 ```ts
 export interface Floor {
@@ -183,6 +183,14 @@ S7.11: a raster data URL and nothing else. SVG is left out (it is a document), a
 
 ```ts
 export const TRACE_SRC = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]*={0,2}$/;
+```
+
+## COORD_LIMIT
+
+cm. No coordinate of a plan lies further than this from the origin (100 km). Past it, a finite number such as 1.7e308 overflows the maths of the 3D camera and draws nothing (S12 review).
+
+```ts
+export const COORD_LIMIT = 1e7;
 ```
 
 ## MOTION_TYPES

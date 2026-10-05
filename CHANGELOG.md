@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Window type **slit window** (`kind: slit`): a window 60 cm high that starts at the ceiling of the wall it sits in. Add, Openings, Slit window; its width is the Length field (a to b), height and sill are optional as for a window. Its default sill is read from the wall (250 cm wall: 190; 300 cm: 240; a wall under 60 cm gives a slit as high as the wall), an own sill or height wins, and the head never passes the wall. Glass in 2.5D and 3D, the same sensors, locks, curtain cover and tap as a window, and a thin band in the window colour in 2D. No schema bump (still version 2). **A layout that uses `slit` is refused by a card older than this release** (`kind must be one of door, glass, window, sealed`): update the card before saving one.
+
 ## 0.14.0 - 2026-10-05
 
 - Card: 3D now recovers. A failed load of the 3D code is tried again the next time you pick 3D; a lost graphics context (a driver reset, a tab left in the background) is waited for three seconds, and if it does not come back the card shows 2D and tries 3D once more when the tab is shown again or the card is placed again. A frame that cannot be drawn gives the 2D plan and one line, never a blank canvas.

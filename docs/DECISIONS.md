@@ -2,6 +2,35 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: slit window (`door.kind` `slit`)
+
+**What.** A window 60 cm high whose head meets the ceiling of the wall it sits in. Width is the length from `a` to `b`
+(the editor's Length field, as for any door). Diego: "to the window type add a 'slit window', configurable width but
+only 60 cm high, starting from the ceiling."
+
+**A kind, not a flag.** `DoorKind` gains `slit` and `DOOR_KINDS` its member, so every per-kind table decides it
+(finding 17): `DOOR_DEFAULTS.slit` (60 high), `OPENING_FILL.slit` is glass, `doorStateOf` counts it as curtains (an open
+`cover` never colours it), the 3D palette gives `glass-slit` the window colour. Everything else is shared with `window`.
+
+**No schema bump.** Version stays 2. A bump exists for a change old files cannot be read through; this one only adds an
+enum member, so every old layout is still valid and migrates unchanged. The cost is one-way: a card or editor older than
+this release refuses a layout that holds a `slit` (`kind must be one of ...`), and nothing in the file says why. The
+CHANGELOG says so. Bumping would not help: the old validator rejects an unknown version just as hard.
+
+**The default is read from the wall, never stored.** `doorSpan(door, ceiling)` takes the top of the wall the door sits
+in (default: the storey, 250). Only a slit reads it: no own value gives sill `ceiling - 60`, head the ceiling; an own
+`height` keeps the head at the ceiling; an own `sill` wins and the head follows it, clamped to the ceiling; a wall under
+60 cm gives a slit as high as the wall. A wall's height is per wall and per room, so `solids.ts` and `scene-build.ts`
+resolve the span per wall (`Span.at(w.h)`), with `w.h` the model height, not the cutaway one: a lowered front wall hides
+the slit with the rest of the wall, as it hides a window. The panel's placeholders use `doorCeiling(floor, door)`: the
+highest of the walls under the door's middle, as the scene keeps the tallest of coincident walls. 2D is unaffected.
+
+**2D symbol.** The window line, class `door door-slit door-window` (so the window's colour rule applies, and no CSS rule
+was added or changed), at 0.4 of its wall's thickness (`SLIT_BAND` in `render.ts`, by the stroke-width attribute). A
+layout with no slit draws byte for byte what it drew before; the computed-style pair is in `tests/card/slit.spec.ts`.
+
+**Radiator.** `radiatorSpan` reads `DOOR_DEFAULTS.window.sill`, not a slit's, so a slit never lowers a radiator.
+
 ## 2026-10-05: Sprint 12 review fixes
 
 **Coordinate bound.** `validate` refuses any coordinate beyond +-1e7 cm (100 km) from the origin, on every point,
