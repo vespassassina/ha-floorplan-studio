@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Card: **3D view** (`view: 3d`, or 3D in the View dropdown). The floor as a model with real wall thickness and height, floors, doors, windows, stairs, furniture and device bodies, in the theme's colours. Drag turns it, wheel or pinch zooms, right-drag or two fingers pan, and you cannot go under the floor. No WebGL, a lost graphics context or a failed load show the 2D plan and one line why. Tilt and Walls are hidden in 3D; 2D and 2.5D are unchanged. Picking and live state in 3D come later.
+- Card: the 3D code is a second file, `floorplan-studio-3d-<hash>.js`, loaded only when 3D is first picked (the card file itself grew by under 5 KB gzipped). The HACS download and the release zip include it; a manual install must copy `www/` whole.
+- Dependency: three.js (MIT), bundled into that chunk, never fetched at runtime.
 - Editor: 2.5D preview removed (Plan view, Tilt, Walls and the preview note); the editor draws and edits flat only. A stored 2.5D view opens flat. The card still has 2D, 2.5D and, soon, 3D.
 
 ## 0.13.0 - 2026-10-04

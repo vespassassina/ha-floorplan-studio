@@ -20,6 +20,7 @@ const args = new Set(process.argv.slice(2));
 const OUT = "shots/current";
 const BASE = "shots/baseline";
 const CARD = "dist/floorplan-studio-card.js";
+const DIST = resolve("dist");
 const EDITOR = "dist/editor.html";
 for (const f of [CARD, EDITOR]) {
   if (!existsSync(f)) {
@@ -240,6 +241,47 @@ try {
     }
     const nodes = await page.evaluate(() => document.getElementById("c").shadowRoot.querySelectorAll("svg *").length);
     if (nodes < 10) errors.push(`${s.name}: the plan drew ${nodes} nodes; something is wrong before you even look`);
+    await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });
+    shots.push(s.name);
+    await ctx.close();
+  }
+  // S12.3: the 3D view. The card has to be loaded as a module from a URL (its 3D chunk is found beside it), so these are
+  // served from dist/ under a fake origin. Both floors, blueprint and light, from the default camera and from an orbit
+  // (a real mouse drag), at 2x, with the demo's devices lit.
+  const ORIGIN = "http://fp.test";
+  const shots3d = [];
+  for (const floor of Object.keys(layout.floors)) for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const orbit of [false, true])
+    shots3d.push({ name: `card-${floor}-on-${t.id}-3d${orbit ? "-orbit" : ""}`, floor, t, orbit });
+  for (const s of shots3d) {
+    const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: 2 });
+    const page = await ctx.newPage();
+    page.on("pageerror", (e) => errors.push(`${s.name}: ${e}`));
+    page.on("console", (m) => { if (m.type() === "error") errors.push(`${s.name}: console.error ${m.text()}`); });
+    await page.route("**/*", (route) => {
+      const url = new URL(route.request().url());
+      if (url.origin !== ORIGIN) return route.abort();
+      if (url.pathname === "/") return route.fulfill({ contentType: "text/html", body: `<!doctype html><meta charset="utf-8"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=shots"></script><body style="margin:0;padding:12px;background:${s.t.page};${s.t.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>` });
+      const m = /^\/floorplan_studio_static\/([\w.-]+)$/.exec(url.pathname);
+      if (!m || !existsSync(resolve(DIST, m[1]))) return route.fulfill({ status: 404, body: "not found" });
+      return route.fulfill({ contentType: "text/javascript", body: readFileSync(resolve(DIST, m[1])) });
+    });
+    await page.goto(`${ORIGIN}/`);
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await page.evaluate(([config, hass]) => {
+      const el = document.getElementById("c");
+      el.setConfig(config); el.hass = hass;
+      return el.updateComplete;
+    }, [{ layout: s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.t.theme, view: "3d", active_list: false }, hassFor("on", s.t.dark)]);
+    const holder = page.locator("floorplan-studio-card").locator(".fp-3d");
+    try { await page.waitForFunction(() => +(document.getElementById("c").shadowRoot.querySelector(".fp-3d")?.dataset.drawn ?? 0) >= 1, null, { timeout: 15000 }); }
+    catch { errors.push(`${s.name}: the 3D view never drew a frame (WebGL missing, or the chunk failed)`); }
+    if (s.orbit) {
+      const b = await holder.boundingBox();
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+      await page.mouse.down(); await page.mouse.move(b.x + b.width / 2 + 160, b.y + b.height / 2 - 40, { steps: 8 }); await page.mouse.up();
+      await page.waitForTimeout(300);
+    }
+    await page.mouse.move(0, 0);
     await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });
     shots.push(s.name);
     await ctx.close();

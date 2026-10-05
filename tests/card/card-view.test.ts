@@ -46,7 +46,7 @@ describe("card view option and dropdown", () => {
     expect(lastView()).toBe("2d");
     const s = select(el)!;
     expect(s.value).toBe("2d");
-    expect([...s.options].map((o) => [o.value, o.textContent!.trim()])).toEqual([["2d", "2D"], ["2.5d", "2.5D"]]);
+    expect([...s.options].map((o) => [o.value, o.textContent!.trim()])).toEqual([["2d", "2D"], ["2.5d", "2.5D"], ["3d", "3D"]]);
     // Layout changed (card-stack): the select is in the toolbar, zoom is in the vertical stack, as in the studio.
     expect(s.closest(".fp-zoom")).not.toBeNull();
     expect(el.shadowRoot!.querySelector('button[aria-label="Zoom in"]')!.closest(".fp-stack")).not.toBeNull();
@@ -60,7 +60,7 @@ describe("card view option and dropdown", () => {
   });
 
   it("a junk view falls back to 2D, and does not throw", async () => {
-    for (const v of ["3d", "", 2.5, null, {}, "2.5D"]) {
+    for (const v of ["", 2.5, null, {}, "2.5D", "3D", "4d"]) {
       const el = await mount({ view: v as never });
       expect(lastView(), String(v)).toBe("2d");
       expect(select(el)!.value).toBe("2d");

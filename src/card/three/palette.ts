@@ -2,7 +2,14 @@
 // role looks like in the card's own theme, as a CSS colour built from the `--fp-*` tokens. The viewer resolves the
 // expression once per theme change on the card itself (a probe element inherits the host's tokens), so a theme added to
 // the card works here with no change, and no colour is a literal (CLAUDE.md finding 9).
-import { DEVICE_TYPES, FURNITURE_SYMBOLS, ROOM_KINDS, WALL_KINDS } from "../../core/schema";
+//
+// It names every member itself and imports nothing from core: the chunk must not share code with the card, or the bundler
+// pulls the shared code out into a chunk the card then loads up front (docs/DECISIONS.md, S12.3). A test iterates the core
+// unions (`ROOM_KINDS`, `WALL_KINDS`, `DEVICE_TYPES`, `FURNITURE_SYMBOLS`) so a new member fails until it is named here.
+const ROOM_KINDS = ["room", "garden", "pavement", "fill", "terrace", "water"] as const; // a zone and a structure have no floor of their own
+const WALL_KINDS = ["wall", "boundary", "external", "fence", "edge"] as const;
+const FURNITURE_SYMBOLS = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"] as const;
+const DEVICE_TYPES = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum"] as const;
 
 export interface RoleStyle { css: string; opacity: number }
 
@@ -13,8 +20,10 @@ const ROOM: Record<string, string> = {
   room: mix("--fp-room", 100, "--fp-bg"), garden: "var(--fp-garden)", pavement: "var(--fp-pavement)", terrace: "var(--fp-terrace)",
   fill: "var(--fp-fill)", water: "var(--fp-water)",
 };
+// A wall is the ink colour of its theme: near black in the light theme, where a solid slab of it under lighting reads as a
+// hole. The 2.5D side faces already soften it this way (--fp-wall-side, 55% over the background), so the 3D walls do too.
 const WALL: Record<string, string> = {
-  wall: "var(--fp-wall)", boundary: "var(--fp-wall)", external: "var(--fp-wall-external)", fence: "var(--fp-wall-fence)", edge: "var(--fp-wall-edge)",
+  wall: mix("--fp-wall", 55, "--fp-bg"), boundary: mix("--fp-wall", 55, "--fp-bg"), external: mix("--fp-wall-external", 60, "--fp-bg"), fence: "var(--fp-wall-fence)", edge: "var(--fp-wall-edge)",
 };
 const FURNITURE: Record<string, string> = {
   tree: "var(--fp-dev-garden)", "patio-wood": "var(--fp-wall-fence)", "patio-concrete": "var(--fp-pavement)", car: mix("--fp-dev-camera", 80, "--fp-furniture"),
@@ -31,7 +40,7 @@ TABLE.set("panel", solid("var(--fp-sealed)"));
 TABLE.set("door-leaf", solid("var(--fp-door)"));
 TABLE.set("stair", solid(mix("--fp-tread", 70, "--fp-bg")));
 TABLE.set("unlinked", solid(mix("--fp-idle", 70, "--fp-bg")));
-for (const k of ROOM_KINDS) if (k !== "zone" && k !== "structure") TABLE.set(`room-${k}`, solid(ROOM[k] ?? "var(--fp-room)"));
+for (const k of ROOM_KINDS) TABLE.set(`room-${k}`, solid(ROOM[k] ?? "var(--fp-room)"));
 for (const k of WALL_KINDS) TABLE.set(`wall-${k}`, solid(WALL[k] ?? "var(--fp-wall)"));
 for (const k of ["door", "glass", "window", "sealed", "opening"]) TABLE.set(`glass-${k}`, { css: k === "window" ? "var(--fp-window)" : "var(--fp-glass)", opacity: 0.35 });
 for (const s of FURNITURE_SYMBOLS) TABLE.set(`furniture-${s}`, solid(FURNITURE[s] ?? mix("--fp-furniture", 70, "--fp-bg")));

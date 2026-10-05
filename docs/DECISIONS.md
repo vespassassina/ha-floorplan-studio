@@ -2,6 +2,45 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: the card's 3D view, chunk delivery and three.js (S12.3)
+
+**Dependency.** `three` ^0.186 (MIT) and `@types/three`, dev dependencies, bundled into the chunk; never fetched at
+runtime (finding 9). Diego approved it on 2026-10-05. Only named imports are used, so the bundler drops the rest.
+
+**Chunk delivery (gate K): the chunk works, no inlining.** `import("./three/view3d")` in the card emits
+`floorplan-studio-3d-<content hash>.js` in `dist/` and `www/`, resolved by the browser relative to the card module
+(`import.meta.url`), so the `?v=` on the card's URL does not matter and a new build is a new file name. A Playwright
+test serves `www/` at `/floorplan_studio_static/?v=` and shows no 3D request before 3D is picked, exactly one after,
+and none to another origin. Numbers: card 296271 -> 310732 bytes, 90818 -> 95581 gzip (+4763, limit 5120); chunk
+856137 bytes, 182.8 KB gzip (limit 200). `release.yml` insists on exactly one chunk, `build.mjs` removes stale ones from
+`www/`, and a pytest checks it is served.
+
+**The chunk shares no code with the card.** First build: Rollup moved the card's own code into a shared hashed chunk
+and left a 99-byte card, so the card loaded two files up front. The view modules (`palette.ts`, `view3d.ts`) now import
+nothing from `src/core` at run time (the union lists are copied and a test iterates the core unions; `buildScene` is
+passed in by the card). Then the card stays whole and only three.js and the view are lazy.
+
+**Own orbit controller, no OrbitControls.** `src/card/three/orbit.ts`, about 100 lines, pure and unit-tested: azimuth,
+polar clamp 0.1 to 1.45 rad (never under the floor), zoom 0.15x to 4x of the fit distance, pan in the view plane. The
+addon would add code and a second place for the clamp to differ from our own tests.
+
+**Mesh.** Each prism is triangulated by three's `ShapeUtils` (earcut: concave bases work); a base that cannot be drawn
+is skipped, never thrown on (finding 1). Points (devices with no body) are skipped until S12.5.
+
+**Colour.** `paint.role` maps to a CSS expression of `--fp-*` tokens, read once per theme change through
+`getComputedStyle`; a user `paint.color` is used as written. Walls are the ink token mixed 55% over the background,
+as the 2.5D side faces are: raw ink is near black in the light theme and read as a hole.
+
+**Wall corners** are now closed in `scene.ts`: a wall end that meets another wall's end extends by half that wall's
+thickness. Four tests. The first look showed a notch at every outer corner.
+
+**Test hooks.** `FloorplanStudioCard.liveRenderers` (static getter, a counter, not a global) and data attributes on
+the 3D holder (`data-az`, `data-polar`, `data-dist`, `data-target`, `data-drawn`, `data-dragged`); S12.4 reads
+`dragged`.
+
+**Fallback.** No WebGL, a lost context or a failed chunk load: the 2D plan and one line why. A failed load is retried
+at the next pick.
+
 ## 2026-10-05: the editor loses 2.5D (S12.1)
 
 Diego: "remove the 2.5d from the editor, it doesn't work well". Removed: View > Plan view, Tilt and Walls, the
