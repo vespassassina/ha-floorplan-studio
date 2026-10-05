@@ -3,6 +3,7 @@
 // roomReadout), so the two views cannot disagree about which room is lit, which door is open or what an icon wears.
 // The 3D chunk imports nothing from core, so it gets this object and draws it. A layout is untrusted (CLAUDE.md finding 1):
 // nothing here throws, and a piece that cannot be read is null.
+import { debugOnce } from "./debug-once";
 import type { DoorState } from "./door-state";
 import type { RenderOpts } from "./render";
 import type { Device, Floor, Pt } from "./schema";
@@ -80,18 +81,18 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
           const st = o.state?.[d.entity];
           lights.push({ device: i, room: roomAt(safe, at), at, rgb: lightFill(st), level: lightOpacity(st) ?? 1 });
         }
-      } catch { /* a device that cannot be read draws nothing */ }
+      } catch (e) { debugOnce("3D live state: a device could not be read and draws nothing", e); }
     });
-    const doors = list<Floor["doors"][number]>(f.doors).map((d) => { try { return typeof d === "object" && d !== null ? doorStateOf(d, o.state) : null; } catch { return null; } });
+    const doors = list<Floor["doors"][number]>(f.doors).map((d) => { try { return typeof d === "object" && d !== null ? doorStateOf(d, o.state) : null; } catch (e) { debugOnce("3D live state: a door could not be read", e); return null; } });
     let motion: ReturnType<typeof motionRooms> = { triggered: new Map(), pulsing: new Map() };
-    try { motion = motionRooms(safe, o, now); } catch { /* no rings */ }
+    try { motion = motionRooms(safe, o, now); } catch (e) { debugOnce("3D live state: the motion edges could not be worked out", e); }
     const liveRooms = rooms.map((r, i): LiveRoom | null => {
       try {
         const p = ringOf(r);
         if (!p || typeof r !== "object") return null;
         const m = motion.triggered.get(i), owns = ROOM_OWNS[r.kind];
         return { name: typeof r.name === "string" && r.kind !== "structure" ? r.name : "", at: polyCentre(p), readout: owns ? roomReadout(r, o.state) : "", motion: m ? { radar: m.radar, on: m.on, v: m.v, pulseAge: motion.pulsing.get(i) ?? null } : null };
-      } catch { return null; }
+      } catch (e) { debugOnce("3D live state: a room could not be read", e); return null; }
     });
     return { pulse: [MOTION_PULSES, MOTION_PULSE_S], night: !!o.night, labels: o.labels !== false, names: !!o.showNames, lights, doors, devices: out, rooms: liveRooms };
   }

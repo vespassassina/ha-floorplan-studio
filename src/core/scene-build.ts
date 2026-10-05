@@ -6,6 +6,7 @@
 //
 // Frame: x and y are the plan's, in cm, y down as on the plan; z is up, in cm, 0 the walking surface of the floor.
 // `opts.elevation` lifts the whole scene (the floor's slab top, `floorElevation`) so floors can be stacked.
+import { debugOnce } from "./debug-once";
 import type { FloorsAround } from "./stairs";
 import type { Device, Floor, FurnitureSymbol, Pt } from "./schema";
 
@@ -152,7 +153,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       } else if (isPt(shape.at) && fin(shape.z)) solids.push({ id, kind, tag, shape: { type: "point", at: [shape.at[0], shape.at[1]], z: shape.z + lift }, ref, paint });
     };
     /** Runs one piece's builder; whatever it throws, the piece is lost and the scene is not. */
-    const piece = (fn: () => void) => { try { fn(); } catch { /* skip the bad piece */ } };
+    const piece = (fn: () => void) => { try { fn(); } catch (e) { debugOnce("3D scene: a piece of the layout could not be built and was left out", e); } };
 
     // The slab under the house, its top at the walking surface.
     piece(() => { const o = ring(f.outline); if (o) add("floor", "floor", "slab", { type: "prism", base: o, z0: -floorSlab(f), z1: 0 }, {}, { role: "slab" }); });
