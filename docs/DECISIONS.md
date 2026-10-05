@@ -2,6 +2,68 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: picking and taps in 3D (S12.4, part B)
+
+**One gesture code, two sources of "what was hit".** `bindDeviceActions` takes an optional `resolve(e)`; in 3D it
+asks the view's ray pick and answers with a stand-in `g[data-x]`, `line[data-d]` or `g[data-u]`. Tap, hold, the
+NO_TOGGLE set (finding 20), the chooser and the cover dialog are therefore the 2D code, not a copy. Room taps are the
+card's own small handler, because 2D has none to share (its rooms are DOM polygons).
+
+**The pick is `src/card/three/pick.ts`, pure.** A bounding-box prefilter, then ray against prism or ball. A device is a
+ball of 12 cm (drawn) with an unseen 24 cm hit proxy. The proxy is a test in the picker, not a mesh, so a miss
+reaches the room behind. 5000 furniture pieces pick in well under a second (a test holds it).
+
+**What a tap clears.** A device, door or unlinked hit never picks a room (as in 2D). A tap on a full-height wall, a
+stair, the slab, or furniture on no room is "other" and clears the pick: the 2D rule "anything else clears". A "fill"
+room (garden, pavement and the like) is looked through. A lowered wall is looked over, using the same cut set the
+view draws. Furniture picks the highest room under its hit point.
+
+**Drag threshold 6 px, the same as `TAP_SLOP_PX`.** It was 4 in the view. A test holds the two equal, so no press is
+a tap on one side and a drag on the other. A double tap (350 ms, 24 px) restores the pick as it was; 3D has no zoom
+on double tap.
+
+**The ring is drawn over the walls (no depth test).** The room outline lies inside the walls' footprint, so with depth
+it was hidden; the shot showed no ring at all. Drawn over the walls it is thin but visible.
+
+**The test hook** `globalThis.__fp3d` (`project`, `where`, `pick`) exists only when `globalThis.__FP3D_TEST__ ===
+true`. Playwright uses it for coordinates and then drives `page.mouse`.
+
+**Side effect to confirm.** Picking a room widens the Active list (room section), and the inset moves the camera, so
+the model slides a little. Left as is; the alternative is to fix the inset at the widest width.
+
+**Found, not changed.** `temp` is not in `NO_TOGGLE`, so a tap on a temperature icon calls a toggle in 2D as well as 3D.
+Partly overlapping duplicate walls are not merged in the scene (same colour, invisible).
+
+## 2026-10-05: 3D walls mode, wall corners, framing beside the list (S12.4, part A)
+
+**Walls in 3D is the 2.5D select and its stored value.** One `walls` setting (config key, Walls select, saved view),
+read by both views. `cut` is the default. Say so if you want 3D to remember its own.
+
+**Cut is decided by the camera, in `src/card/three/cut.ts`, pure and without three.js.** The outline faces out of the
+house: it drops to `CUT_WALL_HEIGHT` (30 cm, `scene.ts`) while the camera is past its plane by more than 20 cm, and
+stands again only when the camera is 20 cm back inside (the margin stops a flicker on a threshold). The far side of the
+house stands in full. An inner wall (a room's edge, a free wall), whatever faces it kept, drops when it hides more than
+60 cm of floor behind it (`h*d/(camZ-h)` across the wall) and stands when that is under 40 cm; a camera lower than the
+wall's top hides everything. `full` lowers none, `low` all. The scene stays pure: the wall meshes are the only ones
+rebuilt, and only when the set changes, never per frame. The card passes the cut height in, so the chunk still shares no
+code. `wall` and `faces` ride in the solid's `ref` for this.
+
+**First try was wrong and is why inner walls use depth.** One-sided rule only: the wide south room's north edge (it
+overlaps two small rooms' south edges in part, so it is not merged with them) faced north, was "far" from a southern
+camera, and stood at 250 cm in front of the north rooms. The shot showed it.
+
+**Dark slivers at a door gap were a corner bug, not a shading bug.** A partition drawn as two collinear room edges, or
+ending on a through wall, was extended as if it met a corner, and stopped flush with the outer face; wall colours then
+z-fought there. `meet()` now gives no extension to a wall that runs through a joint or ends on a through wall (a T).
+
+**The grey tile beside the house on the ground floor is not a stray solid.** It is the demo's Garden and Pavement
+rooms, 1 cm tiles outside the slab, as the plan has them. A test says so. They look odd in the blueprint theme (dark
+navy tokens); not changed.
+
+**The Active list moves the framing.** The card measures the list against the 3D host after a render and when the
+panel moves, and tells the view the covered fractions of the left and right. `Orbit.setInset` fits the house to the
+free width and `camera.setViewOffset` slides the picture; the two together never take more than 60 percent.
+
 ## 2026-10-05: the card's 3D view, chunk delivery and three.js (S12.3)
 
 **Dependency.** `three` ^0.186 (MIT) and `@types/three`, dev dependencies, bundled into the chunk; never fetched at

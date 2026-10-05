@@ -45,7 +45,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `rotate_switch` | follows the other controls | the two rotate buttons and the Left/Right keys. Unset: shown on every card that draws zoom or the View controls, hidden under `kiosk` and on a card with `zoom: false` and `view_switch: false`. `false` hides them, `true` shows them even under `kiosk` |
 | `names` | `false` | `true` writes every device's name under its icon, the studio's Names toggle. The Device names button (`Aa`) changes it for as long as the card is on screen |
 | `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D, and the control is hidden in 3D. See the Tilt slider, below |
-| `walls` | `cut` | how 2.5D draws wall heights: `full` every wall at its real height, no cutaway; `cut` the doll's house look, walls facing you lowered so the rooms show; `low` every wall at the cutaway height. Anything else is `cut`. Only read in 2.5D, and the control is hidden in 3D. See Walls, below |
+| `walls` | `cut` | how 2.5D and 3D draw wall heights: `full` every wall at its real height, no cutaway; `cut` the doll's house look, walls facing you lowered so the rooms show; `low` every wall at the cutaway height. Anything else is `cut`. Read in 2.5D and 3D. See Walls, below |
 | `labels` | `true` | `false` hides every name and value on the plan (rooms, zones, structures, device names, sensor values), so only icons and state are left. Anything but `false` shows them |
 | `rotation` | `0` | degrees the plan starts turned, in steps of 45: `0`, `45`, `90` ... `315`. Any other number rounds to the nearest step; anything that is not a number is `0`. Text and icons stay upright. A viewer's own turn is remembered over this — see View memory and reset, below |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
@@ -700,7 +700,7 @@ with its own colour keeps it. There are no textures and no shadows.
   pan. You cannot go under the floor. The camera starts south of the house at
   about 50 degrees; the card's `rotation` is the starting turn. The Reset view
   button puts the camera back.
-- Tilt and Walls do nothing in 3D and are hidden. 2D and 2.5D are unchanged.
+- Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 30 cm the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same select and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The Active list covers part of the view, so the camera frames the house in the rest. 2D and 2.5D are unchanged.
 - The 3D code is loaded the first time you pick 3D, and only then (about 183 KB
   gzipped). It draws only while something moves, so a still model costs nothing.
 - **No WebGL, or the graphics context is lost, or the 3D code cannot load:** the
@@ -708,7 +708,18 @@ with its own colour keeps it. There are no textures and no shadows.
 - **Low-power devices.** A wall tablet with no GPU may fall back, or draw slowly.
   Keep `view: 2d` there. The choice is remembered per browser like the rest of
   the view.
-- Taps on rooms and devices are not wired in 3D yet; that comes next (S12.4).
+- **Taps in 3D work as in 2D.** A tap on a device (the small ball, or its body)
+  toggles it, except the types that have no on/off (camera, media, speaker and
+  the like), which open more-info; a hold opens more-info. A door, a window and
+  an unlinked appliance do what they do in 2D. A tap on a room's floor picks the
+  room: a dashed outline on its floor, the room section in the left panel, the
+  Active list cut to the room. Tap the room again, tap anything else (the
+  background, a tall wall, a stair, furniture standing on no room) or press
+  Escape to clear. Furniture picks the room it stands in. A lowered wall is
+  looked over, a tall one is not. A drag (moving more than 6 px) is never a tap,
+  and a double tap or the wheel neither picks nor clears. The ball is 24 cm wide
+  to the eye and 48 cm to the finger. The room section widens the Active list,
+  which moves the model a little to keep it in the free part of the view.
 
 ## Troubleshooting
 

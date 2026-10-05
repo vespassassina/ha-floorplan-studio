@@ -97,3 +97,39 @@ describe("Orbit", () => {
     expect(MIN_POLAR).toBeLessThan(MAX_POLAR);
   });
 });
+
+describe("Orbit inset: a panel covers part of the view (S12.4)", () => {
+  it("frames the house in the free width: the camera backs off and the picture shifts toward the free side", () => {
+    const o = make(1.5), before = o.distance;
+    expect(o.shift).toBe(0);
+    o.setInset(0, 0.4); // a panel over the right 40 percent
+    expect(o.distance).toBeGreaterThan(before); // a narrower field must back off to fit the width
+    expect(o.shift).toBeCloseTo(-0.2, 9); // the free area's centre is 0.2 of the width left of the view's centre
+    o.setInset(0.4, 0);
+    expect(o.shift).toBeCloseTo(0.2, 9);
+  });
+
+  it("clearing the inset returns the first framing; a camera the user moved keeps its distance", () => {
+    const o = make(1.5), first = o.distance;
+    o.setInset(0, 0.4);
+    o.setInset(0, 0);
+    expect(o.distance).toBeCloseTo(first, 9);
+    expect(o.shift).toBe(0);
+    o.zoom(0.5);
+    const zoomed = o.distance;
+    o.setInset(0, 0.4);
+    const fresh = make(1.5);
+    fresh.setInset(0, 0.4);
+    expect(o.distance).toBeCloseTo(zoomed * (fresh.distance / first), 6); // the same step, so the zoom the user chose is kept in proportion
+  });
+
+  it("never covers the whole view, and junk changes nothing", () => {
+    const o = make(1.5);
+    o.setInset(0.9, 0.9);
+    expect(o.shift).toBe(0); // equal sides: centred
+    expect(Number.isFinite(o.distance)).toBe(true);
+    const d = o.distance;
+    o.setInset(NaN, -3);
+    expect(o.distance).toBe(d);
+  });
+});

@@ -23,8 +23,11 @@ export type SolidKind = "floor" | "room" | "wall" | "opening" | "furniture" | "u
  * `index` the edge or wall in it, for a wall. For everything else `index` is the item's own index in its floor array
  * (a door's, for an opening). `room` is a room fill's index. `entity` is a device's entity, or a door's first sensor;
  * `entities` is every entity a door owns. `size` is a furniture piece's own [w, h], for the crown of a tree.
+ * A wall also carries `faces`, the unit normals (plan frame, y down) of the sides that face out of a room or the outline
+ * ("out" is away from what the polygon holds); a free wall has both sides, as it has no inside. An opening's infill carries
+ * `wall`, the `poly:index` of the wall it sits in, so a viewer that lowers that wall can lower the infill with it.
  */
-export interface SolidRef { poly?: string; index?: number; room?: number; id?: string; entity?: string; entities?: string[]; size?: [number, number] }
+export interface SolidRef { poly?: string; index?: number; room?: number; id?: string; entity?: string; entities?: string[]; size?: [number, number]; faces?: [number, number][]; wall?: string }
 /** `role` is a token the viewer maps to a theme colour; `color` and `texture` are the user's own choice, passed on as written. */
 export interface Paint { role: string; color?: string; texture?: string }
 export interface Solid { id: string; kind: SolidKind; tag: string; shape: Shape; ref: SolidRef; paint: Paint }
@@ -40,6 +43,8 @@ export interface SceneOpts {
 export const WALL_THICKNESS: Record<string, number> = { wall: 10, external: 20, fence: 4, edge: 10, boundary: 10 };
 /** cm. A glass pane, a closed door's leaf, a stair-side trunk and the slab of a room fill. */
 export const PANE_THICKNESS = 2, LEAF_THICKNESS = 4, TRUNK_SIDE = 12, ROOM_THICKNESS = 1;
+/** cm. How high a wall stands where a viewer lowers it to show the rooms behind it (the 3D view's "cut" and "low" walls). */
+export const CUT_WALL_HEIGHT = 30;
 /** Most rooms for which nesting is worked out (it is quadratic); more than this and every fill sits at the same height. */
 const NEST_LIMIT = 300;
 /** cm. Two wall ends this close are one corner. */
@@ -52,6 +57,8 @@ const list = (x: unknown): unknown[] => (Array.isArray(x) ? x : []);
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null;
 const has = <T extends string>(table: Record<T, unknown>, k: unknown): k is T => typeof k === "string" && Object.prototype.hasOwnProperty.call(table, k);
 const oneOf = <T extends string>(set: readonly T[], k: unknown): k is T => typeof k === "string" && (set as readonly string[]).includes(k);
+/** Turns a negative zero into zero: a normal that went through JSON must equal the one that did not. */
+const nz = (v: number): number => (v === 0 ? 0 : v);
 const text = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
 /** A rectangle `len` long from `a` to `b` and `thick` across, centred on the line, between t0 and t1 along it. */
@@ -62,7 +69,7 @@ function slab(a: Pt, b: Pt, t0: number, t1: number, thick: number): Pt[] {
   return [[p[0] + nx, p[1] + ny], [q[0] + nx, q[1] + ny], [q[0] - nx, q[1] - ny], [p[0] - nx, p[1] - ny]];
 }
 
-interface WallSeg { a: Pt; b: Pt; h: number; kind: string; poly: string; index: number; external: boolean }
+interface WallSeg { a: Pt; b: Pt; h: number; kind: string; poly: string; index: number; external: boolean; faces: Pt[] }
 
 /** Every edge and free wall that has a height and a length, once each. The rule of `collectWalls` in solids.ts, without the cutaway. */
 function collectWalls(f: Floor): WallSeg[] {
@@ -76,24 +83,29 @@ function collectWalls(f: Floor): WallSeg[] {
   });
   for (const P of polys) {
     const wk = (P.room ? P.room.wk : f.owk) as unknown;
+    // Shoelace in plan coordinates (y down): for a positive sum the outward normal of a to b is (dy, -dx), for a negative one (-dy, dx).
+    const sign = Math.sign(P.pts.reduce((s, a, i) => { const b = P.pts[(i + 1) % P.pts.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0));
     P.pts.forEach((a, i) => {
       const b = P.pts[(i + 1) % P.pts.length], h = edgeHeight(f, P.room, i), k = Array.isArray(wk) ? wk[i] : undefined;
       if (!(h > 0) || !(Math.hypot(b[0] - a[0], b[1] - a[1]) > 0)) return;
       const kind = oneOf(WALL_KINDS, k) ? k : P.room ? "wall" : "external";
-      out.push({ a, b, h, kind, poly: P.id, index: i, external: kind === "external" });
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]), faces: Pt[] = sign === 0 ? [] : [[nz((sign * (b[1] - a[1])) / len), nz((sign * -(b[0] - a[0])) / len)]];
+      out.push({ a, b, h, kind, poly: P.id, index: i, external: kind === "external", faces });
     });
   }
   list(f.walls).forEach((w, i) => {
     if (!isObj(w) || !isPt(w.a) || !isPt(w.b)) return;
     const h = wallHeight(f, w as never);
     if (!(h > 0) || !(Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]) > 0)) return;
-    out.push({ a: w.a, b: w.b, h, kind: oneOf(WALL_KINDS, w.kind) ? w.kind : "wall", poly: "w", index: i, external: w.kind === "external" });
+    const len = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]), n: Pt = [nz((w.b[1] - w.a[1]) / len), nz(-(w.b[0] - w.a[0]) / len)];
+    out.push({ a: w.a, b: w.b, h, kind: oneOf(WALL_KINDS, w.kind) ? w.kind : "wall", poly: "w", index: i, external: w.kind === "external", faces: [n, [nz(-n[0]), nz(-n[1])]] });
   });
   // The same edge twice (a room's wall on the outline, two rooms side by side) is one wall: the taller wins, and the external kind.
   const seen = new Map<string, WallSeg>();
   for (const w of out) {
     const k = [w.a, w.b].map((p) => `${Math.round(p[0])},${Math.round(p[1])}`).sort().join("|"), o = seen.get(k);
-    if (!o) { seen.set(k, w); continue; }
+    if (!o) { seen.set(k, { ...w, faces: [...w.faces] }); continue; }
+    o.faces.push(...w.faces);
     if (w.h > o.h) { o.h = w.h; o.kind = w.kind; o.poly = w.poly; o.index = w.index; }
     if (w.kind === "external") o.kind = "external";
   }
@@ -150,12 +162,26 @@ export function buildScene(floor: Floor, opts: SceneOpts = {}): Scene {
   // Walls, each cut by the openings that lie in it: a block under the sill, a header over the head, nothing between.
   const spans = spansOf(f), placed = new Set<number>();
   piece(() => { const all = collectWalls(f); all.forEach((w) => piece(() => {
-    const len = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]), thick = WALL_THICKNESS[w.kind] ?? 10, ref: SolidRef = { poly: w.poly, index: w.index };
+    const len = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]), thick = WALL_THICKNESS[w.kind] ?? 10, ref: SolidRef = { poly: w.poly, index: w.index, faces: w.faces };
     // A corner: two walls end on the same point, so the outer corner would be a notch half a wall thick. An end that meets
-    // another wall's end runs on by half of that wall's thickness. A T-joint (the end on the middle of another wall) is
-    // already buried in it and is left alone.
-    const meet = (p: Pt) => all.reduce((m, o) => (o !== w && [o.a, o.b].some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) <= JOINT_TOLERANCE) ? Math.max(m, (WALL_THICKNESS[o.kind] ?? 10) / 2) : m), 0);
-    const ext0 = meet(w.a), ext1 = meet(w.b);
+    // another wall's end runs on by half of that wall's thickness. Not a corner, and left alone: a T-joint (the end on the
+    // middle of another wall, which may itself be drawn as two collinear pieces ending at the joint; running on would poke
+    // the end out to that wall's far face, where its colour fights the wall's), and a straight continuation.
+    const meet = (p: Pt, far: Pt) => {
+      const dir = (q: Pt, r: Pt): Pt => { const l = Math.hypot(r[0] - q[0], r[1] - q[1]); return [(r[0] - q[0]) / l, (r[1] - q[1]) / l]; };
+      const dw = dir(p, far), around: { d: Pt; half: number }[] = [];
+      for (const o of all) {
+        if (o === w) continue;
+        const end = [o.a, o.b].find((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) <= JOINT_TOLERANCE);
+        if (end) around.push({ d: dir(end, end === o.a ? o.b : o.a), half: (WALL_THICKNESS[o.kind] ?? 10) / 2 });
+      }
+      const dot = (a: Pt, b: Pt) => a[0] * b[0] + a[1] * b[1], cross = (a: Pt, b: Pt) => Math.abs(a[0] * b[1] - a[1] * b[0]);
+      if (around.some((o) => cross(dw, o.d) < 0.2 && dot(dw, o.d) < 0)) return 0; // this wall runs on through the joint
+      const turned = around.filter((o) => cross(dw, o.d) >= 0.2);
+      if (turned.some((a) => turned.some((b) => cross(a.d, b.d) < 0.2 && dot(a.d, b.d) < 0))) return 0; // a wall passes through: a T
+      return turned.reduce((m, o) => Math.max(m, o.half), 0);
+    };
+    const ext0 = meet(w.a, w.b), ext1 = meet(w.b, w.a);
     let n = 0;
     const block = (a0: number, a1: number, z0: number, z1: number) => {
       const t0 = a0 <= 0 ? -ext0 : a0, t1 = a1 >= len ? len + ext1 : a1;
@@ -173,7 +199,7 @@ export function buildScene(floor: Floor, opts: SceneOpts = {}): Scene {
       // The opening's own infill, once per opening even when two coincident walls both carry it.
       if (!placed.has(s.index + (s.kind === "opening" ? 1e6 : 0))) {
         placed.add(s.index + (s.kind === "opening" ? 1e6 : 0));
-        const fill = has(OPENING_FILL, s.kind) ? OPENING_FILL[s.kind] : "gap", oref: SolidRef = { index: s.index, id: s.id, entity: s.entities[0], entities: s.entities };
+        const fill = has(OPENING_FILL, s.kind) ? OPENING_FILL[s.kind] : "gap", oref: SolidRef = { index: s.index, id: s.id, entity: s.entities[0], entities: s.entities, wall: `${w.poly}:${w.index}` };
         const part = (tag: string, role: string, t: number) => add("opening", `opening:${s.index}:${tag}`, tag, { type: "prism", base: slab(w.a, w.b, t0, t1, t), z0: sill, z1: head }, oref, { role });
         if (fill === "glass") part("glass", `glass-${s.kind}`, PANE_THICKNESS);
         else if (fill === "panel") part("panel", "panel", thick);

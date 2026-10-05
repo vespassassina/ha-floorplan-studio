@@ -1,54 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { demo, open, serve, configure, card, viewSelect, canvas, holder, cam, drawn, ORIGIN } from "./helpers-3d";
 
 // S12.3: the card's 3D view in real Chromium, loaded the way Home Assistant loads the card (a module under
 // /floorplan_studio_static/ with a ?v= query, from the built www/ folder), so the chunk delivery is tested as shipped
 // (spec gate K, criterion 3). Real mouse coordinates (finding 3), pixels read back from the canvas (finding 16).
 
-const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
-const WWW = resolve("custom_components/floorplan_studio/www");
-const ORIGIN = "http://fp.test";
-const MIME: Record<string, string> = { ".js": "text/javascript", ".html": "text/html" };
-
-/** Everything the page asked for, so a test can say what was and was not fetched. */
-async function serve(page: Page): Promise<string[]> {
-  const seen: string[] = [];
-  page.on("request", (r) => { if (!r.url().startsWith("data:") && !r.url().startsWith("blob:")) seen.push(r.url()); });
-  await page.route("**/*", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.origin !== ORIGIN) return route.abort(); // a request to any other origin is recorded above, then refused
-    if (url.pathname === "/harness.html") return route.fulfill({ body: readFileSync(resolve("tests/card/harness-static.html")), contentType: "text/html" });
-    const m = /^\/floorplan_studio_static\/([\w.-]+)$/.exec(url.pathname);
-    const file = m && resolve(WWW, m[1]);
-    if (!file || !existsSync(file)) return route.fulfill({ status: 404, body: "not found" });
-    return route.fulfill({ body: readFileSync(file), contentType: MIME[file.slice(file.lastIndexOf("."))] ?? "application/octet-stream" });
-  });
-  return seen;
-}
-
-async function open(page: Page, config: Record<string, unknown> = { layout: structuredClone(demo), floor: "ground" }) {
-  const seen = await serve(page);
-  await page.goto(`${ORIGIN}/harness.html`);
-  await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-  await configure(page, config);
-  return seen;
-}
-async function configure(page: Page, config: Record<string, unknown>) {
-  await page.evaluate((config) => {
-    const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
-    el.setConfig(config);
-    el.hass = { states: {}, callService: () => undefined };
-    return el.updateComplete;
-  }, config);
-}
-
-const card = (page: Page) => page.locator("floorplan-studio-card");
-const viewSelect = (page: Page) => card(page).locator('css=select[aria-label="View"]');
-const canvas = (page: Page) => card(page).locator("css=canvas");
-const holder = (page: Page) => card(page).locator("css=.fp-3d");
 const chunkRequests = (seen: string[]) => seen.filter((u) => /floorplan-studio-3d-[\w-]+\.js/.test(u));
-const cam = (page: Page) => holder(page).evaluate((el) => ({ az: +el.dataset.az!, polar: +el.dataset.polar!, dist: +el.dataset.dist!, target: el.dataset.target!, drawn: +(el.dataset.drawn ?? 0) }));
 const renderers = (page: Page) => page.evaluate(() => (customElements.get("floorplan-studio-card") as unknown as { liveRenderers: number }).liveRenderers);
 
 /** Distinct colours in a PNG of the canvas, counted in the page (Playwright has no image decoder). */
@@ -66,8 +23,6 @@ async function colours(page: Page, png: Buffer): Promise<number> {
     return set.size;
   }, png.toString("base64"));
 }
-/** Waits until the canvas has drawn at least `n` frames. */
-const drawn = (page: Page, n = 1) => expect.poll(async () => (await cam(page)).drawn, { timeout: 15000 }).toBeGreaterThanOrEqual(n);
 
 test.describe("3D view: delivery (spec gate K, criterion 3)", () => {
   test("no 3D request before the user picks 3D, exactly one chunk request after, and nothing leaves the origin", async ({ page }) => {
@@ -266,5 +221,74 @@ test.describe("3D view: lifecycle and hostile input", () => {
     if (await canvas(page).count()) await drawn(page);
     expect(Date.now() - t0).toBeLessThan(8000);
     expect(errors).toEqual([]);
+  });
+});
+
+const wallsSelect = (page: Page) => card(page).locator('css=select[aria-label="Walls"]');
+const lowered = async (page: Page) => ((await holder(page).getAttribute("data-lowered")) ?? "").split(" ").filter(Boolean);
+
+test.describe("3D view: walls mode (S12.4)", () => {
+  test("Walls is a select in 3D, cut by default: walls facing the camera drop, the far ones stand; full none, low all", async ({ page }) => {
+    await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
+    await drawn(page);
+    await expect(wallsSelect(page)).toHaveCount(1);
+    expect(await wallsSelect(page).inputValue()).toBe("cut");
+    await expect.poll(async () => (await lowered(page)).length).toBeGreaterThan(0);
+    const cut = await lowered(page);
+    await wallsSelect(page).selectOption("low");
+    await expect.poll(async () => (await lowered(page)).length).toBeGreaterThan(cut.length);
+    const all = await lowered(page);
+    expect(all).toEqual(expect.arrayContaining(cut));
+    await wallsSelect(page).selectOption("full");
+    await expect.poll(async () => (await lowered(page)).length).toBe(0);
+    await wallsSelect(page).selectOption("cut");
+    await expect.poll(async () => (await lowered(page)).length).toBe(cut.length);
+  });
+
+  test("turning the house to the other side lowers the other walls, and a zoom does not change the set", async ({ page }) => {
+    await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
+    await drawn(page);
+    await expect.poll(async () => (await lowered(page)).length).toBeGreaterThan(0);
+    const south = await lowered(page);
+    await page.mouse.wheel(0, -300);
+    await expect.poll(async () => (await cam(page)).dist).toBeLessThan(1e9);
+    expect(await lowered(page)).toEqual(south);
+    const b = (await canvas(page).boundingBox())!, cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+    await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(cx + 520, cy, { steps: 10 }); await page.mouse.up(); // about 180 degrees
+    await expect.poll(async () => (await lowered(page)).join(" ")).not.toBe(south.join(" "));
+  });
+
+  test("the config's walls value is the 3D select's value, as in 2.5D", async ({ page }) => {
+    await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d", walls: "low" });
+    await drawn(page);
+    expect(await wallsSelect(page).inputValue()).toBe("low");
+    await viewSelect(page).selectOption("2.5d");
+    expect(await wallsSelect(page).inputValue()).toBe("low");
+  });
+});
+
+test.describe("3D view: the Active list does not hide the model (S12.4)", () => {
+  test("with the list open the camera frames the house in the free width", async ({ page }) => {
+    await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
+    await drawn(page);
+    const h = (await holder(page).boundingBox())!, p = (await card(page).locator("css=.fp-active").boundingBox())!;
+    await expect.poll(async () => +((await holder(page).getAttribute("data-inset")) ?? "0,0").split(",")[0]).toBeGreaterThan(0.05);
+    const [l, r] = ((await holder(page).getAttribute("data-inset")) ?? "0,0").split(",").map(Number);
+    expect(r).toBe(0);
+    expect(l).toBeCloseTo((p.x + p.width - h.x) / h.width, 2); // the list's right edge, as a share of the view
+    // a house centred in the free part: its pixels lie right of the list's edge, not under it
+    await card(page).locator("css=.fp-active").evaluate((el: HTMLElement) => { el.style.visibility = "hidden"; }); // the list paints over the canvas: read the model alone
+    const png = await canvas(page).screenshot();
+    const edge = await page.evaluate(async (b64) => {
+      const img = new Image(); img.src = `data:image/png;base64,${b64}`; await img.decode();
+      const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+      const g = c.getContext("2d")!; g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      let min = c.width, max = 0;
+      for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (Math.abs(d[(y * c.width + x) * 4] - d[0]) + Math.abs(d[(y * c.width + x) * 4 + 1] - d[1]) + Math.abs(d[(y * c.width + x) * 4 + 2] - d[2]) > 24) { min = Math.min(min, x); max = Math.max(max, x); }
+      return { min: min / c.width, max: max / c.width };
+    }, png.toString("base64"));
+    expect(edge.min).toBeGreaterThan((p.x + p.width - h.x) / h.width - 0.02); // nothing of the model under the list
+    expect(edge.max).toBeLessThan(1.0);
   });
 });
