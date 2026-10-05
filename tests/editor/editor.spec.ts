@@ -120,7 +120,7 @@ async function menu(page: Page, name: string) {
 }
 /** S4.11: which of Add's submenus a leaf item's id opened under, or null for one that stayed flat (Furniture). */
 function addSubFor(id: string): "Openings" | "Wall" | "Areas" | null {
-  if (id === "#addDoor" || id === "#addWin" || id === "#addSlit" || id === "#addGap") return "Openings";
+  if (id === "#addDoor" || id === "#addOpenDoor" || id === "#addWin" || id === "#addSlit" || id === "#addGap") return "Openings";
   if (id.startsWith("#addWall-")) return "Wall";
   if (id === "#addStr" || id === "#addZone" || id === "#addStairs") return "Areas";
   return null;
@@ -2947,7 +2947,7 @@ test("the Add menu holds no Draw item and no Water; the Draw menu holds all elev
   for (const id of [...DRAW_IDS, "addWater", "addWall"]) await expect(page.locator(`#mAdd #${id}`)).toHaveCount(0);
   await expect(page.locator("#mAdd .grp, #mAdd .sep").filter({ hasText: /Draw/ })).toHaveCount(0);
   const ids = await page.locator("#mAdd button").evaluateAll((b) => b.map((x) => x.id));
-  expect(ids).toEqual(["addDoor", "addWin", "addSlit", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addStr", "addZone", "addStairs", "addDevBtn"]);
+  expect(ids).toEqual(["addDoor", "addOpenDoor", "addWin", "addSlit", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addStr", "addZone", "addStairs", "addDevBtn"]);
   await expect(page.locator("#mAdd select#addFurn")).toHaveCount(1);
   expect(await page.locator("#mDraw button").evaluateAll((b) => b.map((x) => x.id))).toEqual(DRAW_IDS_DOM);
   expect(new Set(DRAW_IDS_DOM)).toEqual(new Set(DRAW_IDS));
@@ -2967,7 +2967,7 @@ test("S4.11: Add's items sit under three submenus by group, Furniture stays flat
   const subOf = (id: string) => page.locator(`#mAdd details.sub:has(#${id})`);
   await menu(page, "Add");
   // grouped correctly
-  for (const id of ["addDoor", "addWin", "addSlit", "addGap"]) await expect(subOf(id).locator("summary")).toHaveText("Openings");
+  for (const id of ["addDoor", "addOpenDoor", "addWin", "addSlit", "addGap"]) await expect(subOf(id).locator("summary")).toHaveText("Openings");
   for (const k of WALL_KINDS) await expect(subOf(`addWall-${k}`).locator("summary")).toHaveText("Wall");
   for (const id of ["addStr", "addZone", "addStairs"]) await expect(subOf(id).locator("summary")).toHaveText("Areas");
   // Furniture is not inside any submenu
@@ -3000,7 +3000,7 @@ test("S4.11: Tab reaches every Add item in DOM order, submenus included", async 
   await page.locator(`#mAdd details.sub > summary:text-is("Wall")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Areas")`).click();
   const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.map((e) => e.id || e.textContent?.trim()));
-  expect(order).toEqual(["Openings", "addDoor", "addWin", "addSlit", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "addDevBtn", "addFurn", "addUnlDev"]);
+  expect(order).toEqual(["Openings", "addDoor", "addOpenDoor", "addWin", "addSlit", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "addDevBtn", "addFurn", "addUnlDev"]);
 });
 
 test("each Add, Wall item places a 200 cm wall of its kind at the spawn point, selected, in one undo step", async ({ page }) => {
@@ -6484,12 +6484,26 @@ test("S4.31: 'Add an opening' on a wall is a submenu offering Door, Window and O
   await rightClickCm(page, 500, 300); // the wall's own midpoint is (500,200) — 100 cm away from this point
   const menu = page.locator(".ctxmenu");
   await menu.locator("summary", { hasText: "Add an opening" }).click();
-  await menu.locator("details.sub button", { hasText: "Door" }).click();
+  await menu.locator("details.sub button", { hasText: /^Door$/ }).click();
   await expect(menu).toHaveCount(0);
   const d = (await groundOf(page)).doors.at(-1)!;
   expect(d.kind).toBe("door");
   expect(d.locked).not.toBe(true); // freshly placed, so it starts unfixed and can be moved
   expect((d.a[1] + d.b[1]) / 2).toBeCloseTo(300, 0);
+});
+
+test("the wall menu's 'Add an opening' offers Open doorway: a door of kind open, centred on the right-click point, one undo step", async ({ page }) => {
+  const before = (await groundOf(page)).doors.length;
+  await rightClickCm(page, 500, 300);
+  const menu = page.locator(".ctxmenu");
+  await menu.locator("summary", { hasText: "Add an opening" }).click();
+  await menu.locator("details.sub button", { hasText: /^Open doorway$/ }).click();
+  const d = (await groundOf(page)).doors;
+  expect(d).toHaveLength(before + 1);
+  expect(d.at(-1)).toMatchObject({ kind: "open", name: "new open doorway" });
+  expect((d.at(-1)!.a[1] + d.at(-1)!.b[1]) / 2).toBeCloseTo(300, 0);
+  await page.locator("#undo").click();
+  expect((await groundOf(page)).doors).toHaveLength(before);
 });
 
 test("S4.27: right-clicking the background, a device or a room's interior (away from any edge) opens no wall menu", async ({ page }) => {
