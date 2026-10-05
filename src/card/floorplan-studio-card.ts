@@ -15,6 +15,7 @@ import { viewKeyFor, type ViewKey } from "./view-keys";
 import type { View3D } from "./three/view3d";
 import type { Pick as Pick3D } from "./three/pick";
 import { buildScene, CUT_WALL_HEIGHT } from "../core/scene";
+import { liveOf } from "../core/live";
 import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type StoredView } from "./view-state";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
@@ -1269,6 +1270,9 @@ export class FloorplanStudioCard extends LitElement {
       this._view3dAround = aroundKey;
       this._view3d.setFloor(f, around);
     }
+    // The live state, decided by the plan's own rules (core/live.ts); the view changes its parts in place, and does nothing when it is the same as the last.
+    const now = Date.now();
+    this._view3d.setLive(liveOf(f, { scale: 1, state: this._stateForRender(), now, fade: this._config.fade, plugWatts: plugThreshold(this._config.plug_watts), powerLinks: this._powerLinks(), roomGlow: this._config.room_glow, night: this._night(), labels: this._labels(), showNames: this._names(), around: floorsAroundKey(this._layout!, this._floorKey()!) }, now));
     this._view3d.setRing(this._picked());
     this._apply3dInset();
   }
@@ -1968,8 +1972,8 @@ export class FloorplanStudioCard extends LitElement {
   private _viewControls(current: CardView) {
     const labels = this._labels();
     const names = this._names();
-    if (current === "3d" && this._shows3d()) return html`${this._viewSelect(current)}${this._wallsSelect()}${this._themeSelect()}`; // the 3D model draws no labels yet; Walls is the 2.5D select's value
-    return html`${this._viewSelect(current)}${current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
+    const in3d = current === "3d" && this._shows3d(); // Walls is the 2.5D select's value; the model has no tilt slider
+    return html`${this._viewSelect(current)}${in3d ? this._wallsSelect() : current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
       <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>
       <button type="button" aria-label="Device names" title="Device names" aria-pressed=${names ? "true" : "false"} @click=${() => { this._pickedNames = !names; this._saveViewNow(); this.requestUpdate(); }}>Aa</button>`;
   }

@@ -29,7 +29,7 @@ const FURNITURE: Record<string, string> = {
   tree: "var(--fp-dev-garden)", "patio-wood": "var(--fp-wall-fence)", "patio-concrete": "var(--fp-pavement)", car: mix("--fp-dev-camera", 80, "--fp-furniture"),
   sink: mix("--fp-window", 25, "--fp-furniture"), toilet: mix("--fp-window", 25, "--fp-furniture"), shower: mix("--fp-window", 25, "--fp-furniture"), bathtub: mix("--fp-window", 25, "--fp-furniture"),
 };
-// A device with a body in the scene (radiator, speaker, TV) is drawn at rest; the live tint is S12.5's. Every other type is a point, which has no body yet.
+// A device with a body in the scene (radiator, speaker, TV) is drawn at rest here; the live tints are the LIVE roles below. Every other type is a point.
 const DEVICE: Record<string, string> = {
   heater: mix("--fp-idle", 55, "--fp-bg"), tv: mix("--fp-on-light", 62, "--fp-furniture"), speaker: mix("--fp-on-light", 62, "--fp-furniture"),
 };
@@ -41,6 +41,18 @@ TABLE.set("door-leaf", solid("var(--fp-door)"));
 TABLE.set("stair", solid(mix("--fp-tread", 70, "--fp-bg")));
 TABLE.set("ring", solid("var(--fp-ink)")); // the dashed outline of the picked room
 TABLE.set("unlinked", solid(mix("--fp-idle", 70, "--fp-bg")));
+// What the live state paints over the rest (S12.5): a door that is open or alarmed, a garage cover that is open, a radiator that is heating,
+// a TV screen that is on, a speaker's drivers, a room's motion edge, a lamp with no colour of its own. Every colour is a token.
+TABLE.set("open-door", solid("var(--fp-open-door)"));
+TABLE.set("door-cover", solid("var(--fp-dev-cover)"));
+TABLE.set("body-heating", solid(mix("--fp-heater", 75, "--fp-bg")));
+TABLE.set("screen-on", solid("var(--fp-dev-tv)"));
+TABLE.set("driver-off", solid(mix("--fp-ink", 55, "--fp-furniture")));
+TABLE.set("driver-on", solid("var(--fp-dev-speaker)"));
+TABLE.set("motion", solid("var(--fp-dev-motion)"));
+TABLE.set("motion-radar", solid("var(--fp-dev-radar)"));
+TABLE.set("lamp", solid("var(--fp-dev-light)"));
+TABLE.set("backdrop", solid("var(--fp-bg)"));
 for (const k of ROOM_KINDS) TABLE.set(`room-${k}`, solid(ROOM[k] ?? "var(--fp-room)"));
 for (const k of WALL_KINDS) TABLE.set(`wall-${k}`, solid(WALL[k] ?? "var(--fp-wall)"));
 for (const k of ["door", "glass", "window", "sealed", "opening"]) TABLE.set(`glass-${k}`, { css: k === "window" ? "var(--fp-window)" : "var(--fp-glass)", opacity: 0.35 });

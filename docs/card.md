@@ -701,8 +701,15 @@ with its own colour keeps it. There are no textures and no shadows.
   about 50 degrees; the card's `rotation` is the starting turn. The Reset view
   button puts the camera back.
 - Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 30 cm the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same select and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The Active list covers part of the view, so the camera frames the house in the rest. 2D and 2.5D are unchanged.
-- The 3D code is loaded the first time you pick 3D, and only then (about 183 KB
+- The 3D code is loaded the first time you pick 3D, and only then (about 195 KB
   gzipped). It draws only while something moves, so a still model costs nothing.
+- **Live state in 3D (S12.5).** The same rules as 2D, from the same helpers.
+  - *Lights.* A lit light device lights the room it hangs in (the 2D rule): its floor, furniture and walls take a lift toward the lamp's colour, and a soft pool sits under the lamp. The neighbouring room does not change. **At most 8 lamps get a pool**, the 8 nearest the middle of the house; every lit room is lifted whatever the count. The card says so in the view's `data-pools="shown/lit"`. Night (the sun rule) darkens the scene and leaves lit rooms bright.
+  - *Doors and windows.* A closed plain door shows its leaf; an open one (or an open cover door) swings about 70 degrees about its hinge. A window's pane is there while it is closed and gone when it is open. Sealed doors do not change. An alarmed door (vibration) stays shut and turns red.
+  - *Devices.* The small balls take their colour from the `--fp-dev-*` tokens and the state, as the 2D icons do. Person, radar, vibration and the plug-power rule are the 2D helpers. A speaker that is playing has lit drivers; a TV that is on has a lit screen; a heating radiator is tinted with `--fp-heater`. A device with a body, and a sensor that belongs to a room, shows no ball.
+  - *Room motion.* A room with a `motion` list gets a red edge on its floor outline: three pulses when a sensor trips, then steady, then it fades by `last_changed` and the `fade` setting, as in 2D. With reduced motion the edge is steady. The view draws frames only while a pulse plays.
+  - *Labels and icons.* An HTML layer over the model shows each room's name and its sensors' mean reading, and a real icon for every visible device. The Labels and Names buttons work in 3D. A label or icon behind a wall, or behind the camera, is hidden. The layer ignores the pointer, so a drag that starts on an icon still turns the model; a tap on an icon toggles or opens more-info as in 2D.
+  - A Home Assistant update changes all of this in place: no rebuild, no camera move.
 - **No WebGL, or the graphics context is lost, or the 3D code cannot load:** the
   card shows the 2D plan and one line saying why. Nothing is left blank.
 - **Low-power devices.** A wall tablet with no GPU may fall back, or draw slowly.

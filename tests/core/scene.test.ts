@@ -519,3 +519,16 @@ describe("scene: hostile layouts never throw and keep the good pieces", () => {
     expect(JSON.stringify(f)).toBe(before);
   });
 });
+
+describe("a room's own sensors (S12.5)", () => {
+  it("a device in a room's temps, humidity or motion list is marked hidden; every other device is not", () => {
+    const rooms = [{ id: "r", name: "R", area: "", kind: "room", pts: [[0, 0], [300, 0], [300, 300], [0, 300]], wk: ["wall", "wall", "wall", "wall"], temps: ["sensor.t"], motion: ["binary_sensor.m"] }] as unknown as Floor["rooms"];
+    const devices = [
+      { id: "t", type: "temp", entity: "sensor.t", x: 10, y: 10 }, { id: "m", type: "motion", entity: "binary_sensor.m", x: 20, y: 10 },
+      { id: "m2", type: "motion", entity: "binary_sensor.other", x: 30, y: 10 }, { id: "l", type: "light", entity: "light.a", x: 40, y: 10 }, null,
+    ] as unknown as Floor["devices"];
+    const sc = buildScene(floor({ rooms, devices }));
+    const hidden = sc.solids.filter((s) => s.kind === "device").map((s) => [s.ref.index, !!s.ref.hidden]);
+    expect(hidden).toEqual([[0, true], [1, true], [2, false], [3, false]]);
+  });
+});

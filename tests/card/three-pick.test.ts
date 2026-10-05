@@ -127,3 +127,30 @@ describe("Picker: 5000 furniture pieces (spec criterion 10)", () => {
     expect(p.pick(down(30, 20), plain)).not.toBeNull();
   });
 });
+
+describe("Picker: a room's own sensor and what hides a label (S12.5)", () => {
+  const two = (o: Partial<Floor> = {}) => house({ rooms: [{ ...(house().rooms[0] as object), temps: ["sensor.t"] }, house().rooms[1]] as never, devices: [{ id: "t", type: "temp", entity: "sensor.t", name: "T", x: 100, y: 250 }, { id: "u", type: "temp", entity: "sensor.u", name: "U", x: 450, y: 250 }] as never, ...o });
+  it("a ray at the attached sensor's ball goes through to the room; the free sensor's ball is hit", () => {
+    const scene = buildScene(two()), p = new Picker(scene.solids);
+    const z = (scene.solids.find((s) => s.kind === "device" && s.ref.index === 0)!.shape as { z: number }).z;
+    expect(p.pick({ o: [100, 250, z + 300], d: [0, 0, -1] }, plain)).toEqual({ type: "room", index: 0 });
+    expect(p.pick({ o: [450, 250, z + 300], d: [0, 0, -1] }, plain)).toEqual({ type: "device", index: 1 });
+  });
+  it("a wall stands in the way of a ray, the floor and a table do not, and a ray that stops short of the wall is clear", () => {
+    const p = new Picker(buildScene(house({ furniture: [{ id: "f", symbol: "table", x: 100, y: 250, rot: 0, w: 120, h: 80 }] as never })).solids);
+    const from = [-500, 250, 100] as [number, number, number];
+    expect(p.blocked(through(from, [100, 250, 10]), 640, plain)).toBe(true); // through the west wall (x=0)
+    expect(p.blocked(through(from, [-100, 250, 10]), 420, plain)).toBe(false); // stops before it
+    expect(p.blocked(through([100, 900, 3000], [100, 250, 10]), 3300, plain)).toBe(false); // from above, over the wall, onto the floor
+    expect(p.blocked(through([100, 900, 200], [100, 250, 10]), 700, plain)).toBe(true); // low: through the south wall
+    expect(p.blocked(down(100, 250), 5, plain)).toBe(false);
+    expect(p.blocked({ o: [NaN, 0, 0], d: [0, 0, -1] }, 10, plain)).toBe(false);
+  });
+  it("a lowered wall does not block", () => {
+    const sol = buildScene(house()).solids, p = new Picker(sol);
+    const low = (s: Solid): [number, number] | null => (s.shape.type !== "prism" ? null : s.kind === "wall" ? [s.shape.z0, Math.min(s.shape.z1, 30)] : [s.shape.z0, s.shape.z1]);
+    const ray = through([100, 900, 200], [100, 250, 100]);
+    expect(p.blocked(ray, 720, plain)).toBe(true);
+    expect(p.blocked(ray, 720, low)).toBe(false);
+  });
+});
