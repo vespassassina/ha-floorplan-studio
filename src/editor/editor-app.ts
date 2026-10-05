@@ -1425,7 +1425,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.closeCtxMenu();
   }
   /** S4.27: places a new door or window centred on the right-click point, the same way `ctxAddOpening` places a gap. */
-  private ctxAddDoor(kind: "door" | "window", len: number) {
+  private ctxAddDoor(kind: "door" | "window" | "slit", len: number) {
     const m = this.ctxMenu;
     if (!m) return;
     this.addDoor(kind, len, this.toSvg({ clientX: m.x, clientY: m.y }));
@@ -1642,6 +1642,7 @@ export class FloorplanStudioEditor extends LitElement {
       <details class="sub" id="cmAddOpening"><summary class="btn">Add an opening</summary>
         <button class="btn" @click=${() => this.ctxAddDoor("door", 90)}>Door</button>
         <button class="btn" @click=${() => this.ctxAddDoor("window", 120)}>Window</button>
+        <button class="btn" @click=${() => this.ctxAddDoor("slit", 120)}>Slit window</button>
         <button class="btn" @click=${() => this.ctxAddOpening()}>Opening</button>
       </details>
       ${t.k === "wall" ? html`<button class="btn" @click=${() => this.ctxToggleLock()}>${this.lockedOf(t) ? "Unfix" : "Fix"}</button>` : nothing}
@@ -1912,10 +1913,10 @@ export class FloorplanStudioEditor extends LitElement {
     } else this.requestUpdate();
   }
 
-  private addDoor(kind: "door" | "window", len: number, at?: Pt) {
+  private addDoor(kind: "door" | "window" | "slit", len: number, at?: Pt) {
     this.stopDraw();
     const c = at ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
-    this.commit((f) => { f.doors.push({ id: newId(f, floor, "door"), name: `new ${kind}`, kind, ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
+    this.commit((f) => { f.doors.push({ id: newId(f, floor, "door"), name: `new ${kind === "slit" ? "slit window" : kind}`, kind, ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
     this.st.sel = { t: "door", i: this.st.f.doors.length - 1 };
     this.requestUpdate();
   }
@@ -2559,6 +2560,7 @@ export class FloorplanStudioEditor extends LitElement {
           <details class="sub" id="addOpenings"><summary class="btn">Openings</summary>
             <button class="btn" id="addDoor" @click=${() => this.addDoor("door", 90)}>Door</button>
             <button class="btn" id="addWin" @click=${() => this.addDoor("window", 120)}>Window</button>
+            <button class="btn" id="addSlit" title="A window 60 cm high, from the ceiling down" @click=${() => this.addDoor("slit", 120)}>Slit window</button>
             <button class="btn" id="addGap" title="A gap in a wall: the wall is not drawn there" @click=${() => this.addOpeningGap()}>Opening</button>
           </details>
           <details class="sub" id="addWallSub"><summary class="btn">Wall</summary>

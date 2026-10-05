@@ -1,10 +1,10 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";
-import { DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, DOOR_DEFAULTS, FURNITURE_HEIGHTS, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity } from "../core";
+import { DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import type { CatalogEntry, DeviceType, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
+import type { CatalogEntry, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 import { GUIDE_STEPS } from "./guide";
@@ -467,15 +467,17 @@ function doorPanel(c: PanelCtx, i: number) {
   const setList = (field: "sensors" | "vibration" | "locks") => (next: string[]) => c.commit((f) => mutateList(field)(f, next));
   // `cover` is general purpose (a garage door's roller shutter is one too, kind "door") and stays offered on
   // every kind, same as before S4.24 — it doubles as the electric-curtain dropdown on a glass door or window.
-  const coverLabel = d.kind === "glass" || d.kind === "window" ? "electric curtain" : "cover";
+  const coverLabel = d.kind === "glass" || d.kind === "window" || d.kind === "slit" ? "electric curtain" : "cover";
+  // The placeholders are what the kind would be with no own value: for a slit that depends on the wall it hangs from.
+  const dflt = doorSpan({ kind: d.kind } as Door, doorCeiling(c.st.f, d));
   return html`<strong>Door / window</strong>
     ${hint("Drag along the wall; drag an end to resize.")}
     ${heading("Identity")}
     ${text("name", "dn", d.name, (v) => c.commit((f) => { f.doors[i].name = v; }))}
     ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }))}
     ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); f.doors[i].locked = true; }))}
-    ${heightField(c, "height (cm)", "dht", d.height, DOOR_DEFAULTS[d.kind]?.height ?? DOOR_DEFAULTS.door.height, heightSetter(c, "doors", i, "height"))}
-    ${d.kind === "window" || d.sill !== undefined ? heightField(c, "sill (cm)", "dsill", d.sill, DOOR_DEFAULTS[d.kind]?.sill ?? 0, heightSetter(c, "doors", i, "sill")) : nothing}
+    ${heightField(c, "height (cm)", "dht", d.height, dflt.head - dflt.sill, heightSetter(c, "doors", i, "height"))}
+    ${d.kind === "window" || d.kind === "slit" || d.sill !== undefined ? heightField(c, "sill (cm)", "dsill", d.sill, dflt.sill, heightSetter(c, "doors", i, "sill")) : nothing}
     ${heading("Home Assistant")}
     ${multiAttachField(c, "dsens", "contact sensors", d.sensors ?? [], c.st.doorAttachChoices(d.id, "sensors"), setList("sensors"), { apply: mutateList("sensors"), targetLabel: d.name })}
     ${multiAttachField(c, "dvibr", "vibration sensors", d.vibration ?? [], c.st.doorAttachChoices(d.id, "vibration"), setList("vibration"), { apply: mutateList("vibration"), targetLabel: d.name })}
