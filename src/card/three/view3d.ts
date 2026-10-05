@@ -17,13 +17,14 @@ import { roleStyle } from "./palette";
 import { MAX_POOLS, pickLights, roomLifts, roomOfPoint, WALL_REACH, type Poly, type Rgb, type RoomShape } from "./light";
 import { createPools, createRings } from "./fx";
 import { createOverlay, type Anchors } from "./overlay";
+import { debugOnce } from "../../core/debug-once";
 import { pulseAt } from "./ring";
 
 export interface View3DOptions {
   /** The core helpers the scene and the live state are built from, passed in by the card, which already carries them for the 2D plan, so the chunk holds no second copy (core/three-deps.ts). */
   deps: { scene: SceneDeps; live: LiveDeps };
-  /** Called once if the view cannot go on (the graphics context is lost): the card then draws 2D and says why. */
-  onFail(reason: string): void;
+  /** Called once if the view cannot go on (the graphics context is lost and does not come back, a frame cannot be drawn): the card then draws 2D and says why. `retry` says a later try may work (a lost context). */
+  onFail(reason: string, retry?: boolean): void;
   /** The plan's turn in degrees, the camera's starting azimuth. */
   turnDeg: number;
 }
@@ -70,6 +71,11 @@ const publishHook = () => { const g = globalThis as Record<string, unknown>; if 
 /** How many renderers are alive in this page. A test hook (the card reads it): the lifecycle test must see it return to 0. */
 let live = 0;
 export const liveRenderers = (): number => live;
+
+/** `onFail`'s reason for a lost graphics context: the card matches it to try again later. */
+export const CONTEXT_LOST = "the graphics context was lost";
+/** ms. How long a lost graphics context is waited for before the view gives up: a driver reset restores it within a moment. */
+const RESTORE_MS = 3000;
 
 /** Why a view could not be made: WebGL is missing. The card turns this into its one line. */
 export class NoWebGL extends Error {}
@@ -189,17 +195,27 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     const o = camera.position, d: [number, number, number] = [p[0] - o.x, p[2] - o.z, p[1] - o.y], len = Math.hypot(d[0], d[1], d[2]);
     return picker.blocked({ o: [o.x, o.z, o.y], d }, len - 3, (sol) => wallZ(sol, lowered, CUT_WALL_HEIGHT));
   };
+  /** The view cannot go on: say so once, and the card draws 2D with a line saying why (never a blank canvas). */
+  const fail = (why: string, retry = false) => { if (!disposed) opts.onFail(why, retry); };
+  let lost = false, restoreTimer: ReturnType<typeof setTimeout> | null = null;
   const draw = () => {
     raf = 0;
-    if (disposed) return;
-    prepare();
-    // The motion edge breathes while a pulse plays: one frame asks for the next, and the one that ends it sets the held value.
-    if (pulsing) pulsing = applyRings();
-    renderer.render(scene, camera);
-    const { w, h } = size();
-    overlay.place(project, hidden, w, h);
-    container.dataset.drawn = String(+(container.dataset.drawn ?? 0) + 1);
-    publish();
+    if (disposed || lost) return; // a lost context draws nothing; `webglcontextrestored` asks for the next frame
+    try {
+      prepare();
+      if (!orbit.finite) throw new Error("the camera has no finite position (the plan's numbers are out of range)");
+      // The motion edge breathes while a pulse plays: one frame asks for the next, and the one that ends it sets the held value.
+      if (pulsing) pulsing = applyRings();
+      renderer.render(scene, camera);
+      const { w, h } = size();
+      overlay.place(project, hidden, w, h);
+      container.dataset.drawn = String(+(container.dataset.drawn ?? 0) + 1);
+      publish();
+    } catch (err) {
+      debugOnce("3D view: a frame could not be drawn", err);
+      fail("it could not start");
+      return;
+    }
     if (pulsing) want();
   };
   /** Renders once, on the next frame. A burst of changes (a drag) is one frame; with no change there is no frame at all. */
@@ -263,8 +279,24 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   canvas.addEventListener("wheel", onWheel, { passive: false });
   canvas.addEventListener("contextmenu", noMenu);
 
-  const onLost = (e: Event) => { e.preventDefault(); if (!disposed) opts.onFail("the graphics context was lost"); };
+  // A lost context may come back (a driver reset, a tab returning to the front): preventDefault allows the restore, and three.js
+  // builds its own state again when it comes. The view waits for it a moment; if it does not come, the card falls back to 2D
+  // and tries 3D once more the next time the tab is shown or the card is attached.
+  const onLost = (e: Event) => {
+    e.preventDefault();
+    if (disposed || lost) return;
+    lost = true;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    restoreTimer = setTimeout(() => { restoreTimer = null; if (lost) fail(CONTEXT_LOST, true); }, RESTORE_MS);
+  };
+  const onRestored = () => {
+    if (disposed || !lost) return;
+    lost = false;
+    if (restoreTimer !== null) { clearTimeout(restoreTimer); restoreTimer = null; }
+    resize(); // sets the size again and asks for a frame
+  };
   canvas.addEventListener("webglcontextlost", onLost);
+  canvas.addEventListener("webglcontextrestored", onRestored);
 
   const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : null;
   ro?.observe(container);
@@ -323,6 +355,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     parts = []; devBodies = []; ballIdx = []; ballRest = [];
     rings.dispose();
     roomShapes = []; roomSolid.clear();
+    if (ring) { scene.remove(ring); ring.geometry.dispose(); (ring.material as LineDashedMaterial).dispose(); ring = null; }
     if (markers) { scene.remove(markers); markers.geometry.dispose(); (markers.material as MeshLambertMaterial).dispose(); markers.dispose(); markers = null; }
     picker = null;
   };
@@ -558,11 +591,11 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   resize();
   const api: View3D = {
     setFloor(floor, around, below) {
-      try { plan = buildScene(floor as never, { around: around as never }); } catch { plan = null; }
+      try { plan = buildScene(floor as never, { around: around as never }); } catch (e) { debugOnce("3D view: the floor could not be built", e); plan = null; }
       clear(); // the old floor's meshes and the old floors below go now, before the new ones are made
       belowPlans = [];
       for (const b of Array.isArray(below) ? below : []) {
-        try { if (b && Number.isFinite(b.elevation)) belowPlans.push({ key: String(b.key), plan: buildScene(b.floor as never, { around: b.around as never, elevation: b.elevation }), meshes: [] }); } catch { /* a floor that cannot be built is left out */ }
+        try { if (b && Number.isFinite(b.elevation)) belowPlans.push({ key: String(b.key), plan: buildScene(b.floor as never, { around: b.around as never, elevation: b.elevation }), meshes: [] }); } catch (e) { debugOnce("3D view: a floor below could not be built and is left out", e); }
       }
       // The camera frames the stack: the selected floor and what stands under it, so the dimmed floors are not cut off by the edge.
       const own = plan?.bounds ?? { min: [0, 0, 0], max: [0, 0, 0] };
@@ -575,6 +608,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         orbit.setInset(inset[0], inset[1]); // a new floor keeps the room the list takes
         framed = true;
       }
+      if (!orbit.finite) { fail("it could not start"); return; } // numbers no camera can frame: say so, do not draw a blank
       build();
       want();
     },
@@ -622,14 +656,14 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     setLive(floor, o, now) {
       if (disposed) return;
       let l: Live3D | null = null;
-      try { l = liveOf(floor as never, o, now); } catch { l = null; } // liveOf never throws; a layout is untrusted all the same
+      try { l = liveOf(floor as never, o, now); } catch (e) { debugOnce("3D view: the live state could not be worked out", e); l = null; } // liveOf never throws; a layout is untrusted all the same
       // A steady edge (reduced motion) has no use for the age of a pulse, which changes with every render and would redraw for nothing.
       const sig = l ? JSON.stringify(reduced() ? { ...l, rooms: l.rooms.map((r) => (r && r.motion ? { ...r, motion: { ...r.motion, pulseAge: null } } : r)) } : l) : "";
       if (sig === liveSig) return; // nothing changed: no work and no frame
       liveSig = sig;
       liveNow = l ?? null;
       pulseStart = performance.now();
-      try { applyLive(); } catch { /* a live state that cannot be drawn leaves the last one on screen */ }
+      try { applyLive(); } catch (e) { debugOnce("3D view: the live state could not be drawn; the last one stays on screen", e); }
     },
     reset() { orbit.reset(); want(); },
     get dragged() { return dragged; },
@@ -645,7 +679,9 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("contextmenu", noMenu);
       canvas.removeEventListener("webglcontextlost", onLost);
-      clear();
+      canvas.removeEventListener("webglcontextrestored", onRestored);
+      if (restoreTimer !== null) clearTimeout(restoreTimer);
+      clear(); // the ring too
       pools.dispose();
       overlay.dispose();
       renderer.dispose();
@@ -654,7 +690,6 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       probe.remove();
       for (const k of ["az", "polar", "dist", "target", "drawn", "dragged", "lowered", "inset", "ring", "pools", "below"]) delete container.dataset[k];
       if (__FP3D_TEST__ && testHook) { const at = hooks.indexOf(testHook); if (at >= 0) hooks.splice(at, 1); publishHook(); }
-      ring = null; // its geometry went with the scene
       live--;
     },
   };

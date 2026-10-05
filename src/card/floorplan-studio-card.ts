@@ -164,8 +164,19 @@ type Lib3d = typeof import("./three/view3d");
  * resolved from this module's own URL, so it works wherever Home Assistant serves the card from. */
 let lib3d: Lib3d | null = null;
 let lib3dLoading: Promise<Lib3d> | null = null;
+/** The build puts the chunk's hashed file name here; unbuilt (vitest, dev) it stays a placeholder and the plain import is used. */
+const CHUNK_FILE = "__FP3D_CHUNK__";
+let lib3dTries = 0;
 const loadLib3d = (): Promise<Lib3d> => {
-  lib3dLoading ??= import("./three/view3d").then((m) => (lib3d = m), (err) => { lib3dLoading = null; throw err; }); // a failed load may be tried again
+  if (!lib3dLoading) {
+    // A browser remembers a failed `import()` of one URL and never asks the network again. The first try is the plain import;
+    // each later one asks for the same file under a new query, which is a new URL to the browser (and the same file to the server).
+    const n = lib3dTries++;
+    const load: Promise<Lib3d> = n > 0 && /^floorplan-studio-3d-.+\.js$/.test(CHUNK_FILE)
+      ? import(/* @vite-ignore */ `${import.meta.url.split(/[?#]/)[0].replace(/[^/]*$/, "")}${CHUNK_FILE}?r=${n}`) // not `new URL(.., import.meta.url)`: Vite reads that as an asset and rewrites it
+      : import("./three/view3d");
+    lib3dLoading = load.then((m) => (lib3d = m), (err) => { lib3dLoading = null; throw err; }); // a failed load may be tried again
+  }
   return lib3dLoading;
 };
 
@@ -338,6 +349,8 @@ export class FloorplanStudioCard extends LitElement {
   private _view3dAround = "";  // JSON of `FloorsAround`, to compare
   private _view3dBelow: unknown[] = []; // the floor objects under the selected one, to compare
   private _fallback3d: string | null = null;
+  /** The fallback came from a lost graphics context: the card tries 3D once more when it is attached or shown again. */
+  private _retry3d = false;
   /** How many 3D renderers are alive in this page: a test hook (a lifecycle test reads that it returns to 0). */
   static get liveRenderers(): number { return lib3d?.liveRenderers() ?? 0; }
 
@@ -509,7 +522,16 @@ export class FloorplanStudioCard extends LitElement {
 
   private _onVisibility = (): void => {
     if (globalThis.document?.visibilityState === "hidden") this._flushSave();
+    else this._retry3dNow();
   };
+
+  /** A lost graphics context may be back by now (the tab returns, the card is placed again): one more try at 3D. */
+  private _retry3dNow(): void {
+    if (!this._retry3d || this._fallback3d === null) return;
+    this._retry3d = false;
+    this._fallback3d = null;
+    this.requestUpdate();
+  }
 
   private _onPointerEnter = (): void => { this._hovered = true; };
   private _onPointerLeave = (): void => { this._hovered = false; };
@@ -660,6 +682,7 @@ export class FloorplanStudioCard extends LitElement {
     globalThis.addEventListener?.("pagehide", this._flushSave);
     // pagehide does not fire for a tab that is hidden and then discarded, or a phone app switched away from.
     globalThis.document?.addEventListener("visibilitychange", this._onVisibility);
+    this._retry3dNow();
     globalThis.addEventListener?.("keydown", this._onViewKey);
     this.addEventListener("pointerenter", this._onPointerEnter);
     this.addEventListener("pointermove", this._onPointerEnter); // a card that appeared under a resting pointer never saw an enter
@@ -1251,7 +1274,7 @@ export class FloorplanStudioCard extends LitElement {
         this._view3d = lib3d.createView3D(host, {
           turnDeg: this._rotate()?.deg ?? 0,
           deps: { scene: sceneDeps, live: liveDeps },
-          onFail: (why) => { this._fallback3d = `3D view unavailable: ${why}. Showing 2D.`; this._dispose3d(); this.requestUpdate(); },
+          onFail: (why, retry) => { this._retry3d = retry === true; this._fallback3d = `3D view unavailable: ${why}. Showing 2D.`; this._dispose3d(); this.requestUpdate(); },
         });
       } catch (err) {
         this._fallback3d = err instanceof lib3d.NoWebGL ? "3D view unavailable: this browser has no WebGL. Showing 2D." : "3D view unavailable: it could not start. Showing 2D.";

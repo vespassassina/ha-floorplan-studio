@@ -168,3 +168,11 @@ describe("Orbit reframe: another floor, the same way of looking (S12.6)", () => 
     expect(o.target).toEqual(t);
   });
 });
+
+describe("Orbit with numbers too large for a camera", () => {
+  it("says it has no finite position when the bounds overflow the framing distance", () => {
+    const huge = { min: [-1.7e308, 0, 0] as [number, number, number], max: [1.7e308, 800, 250] as [number, number, number] };
+    expect(new Orbit(huge, 1.5, 40, 0).finite).toBe(false);
+    expect(make().finite).toBe(true);
+  });
+});
