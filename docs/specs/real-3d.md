@@ -19,8 +19,8 @@ does not work well.
 ## Assumptions (change any of them)
 
 - A. The card gets a third view, "3D", next to 2D and 2.5D. The card's 2.5D
-  stays until Diego has seen 3D and says it can go (task S12.6). The editor's
-  2.5D goes first (S12.1).
+  stays for good (Diego, 2026-10-05): it is the fast, low-power view for
+  weak devices and wall tablets. The editor's 2.5D goes first (S12.1).
 - B. Parity: this is an exception to "studio and card show the same". The
   editor draws 2D only; the card draws 2D, 2.5D and 3D. Same status as the
   card-only left panel.

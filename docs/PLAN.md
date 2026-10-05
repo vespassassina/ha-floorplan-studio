@@ -2432,4 +2432,4 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
 - S12.5 Live state: lamp light per room, open doors and windows, heating,
   room motion edge, readouts and icons as an HTML overlay.
 - S12.6 Floors, performance budget (criterion 9, 60/30 fps), docs, Opus
-  review. Then Diego decides whether 2.5D leaves the card.
+  review. The card keeps 2.5D as its low-power view.

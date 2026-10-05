@@ -7,7 +7,7 @@ Newest first. A change supersedes; nothing is edited.
 Diego asked for real 3D. Chosen: a three.js view in the card, built from a new raw-solid scene module
 (`src/core/scene.ts`), because `solids.ts` returns projected SVG and cannot feed a 3D engine. View-only; the editor
 stays 2D and loses 2.5D (it "doesn't work well"). The chunk loads on first use (about 170 KB gzipped, accepted). The
-card keeps 2.5D until Diego has seen 3D. This is a stated exception to studio and card parity. Spec:
+card keeps 2.5D for good, as the fast low-power view for weak devices (Diego, 2026-10-05). This is a stated exception to studio and card parity. Spec:
 `docs/specs/real-3d.md`.
 
 ## 2026-10-04: second review round of Sprint 11 (card, core, editor)
