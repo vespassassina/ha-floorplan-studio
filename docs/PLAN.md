@@ -2456,6 +2456,6 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   `--repeat-each=10`, all green with 2 workers on a quiet machine), plus unit
   tests for live, light, ring, pick and palette. Sizes: card 98690 gzip
   (+7872 over the pre-3D 90818, over the 5 KB goal), chunk 199927 gzip.
-  Choices in `docs/DECISIONS.md`.
+  Totals: vitest 2490, Playwright 935 (1 skipped), pytest 30. Choices in `docs/DECISIONS.md`.
 - S12.6 Floors, performance budget (criterion 9, 60/30 fps), docs, Opus
   review. The card keeps 2.5D as its low-power view.
