@@ -2,6 +2,35 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: open doorway (`door.kind` `open`)
+
+**What.** A door that is only a hole in the wall: cut like a door (210 high from 0, width a to b, the same editable
+Length, height and sill), with nothing drawn in it. Diego: "to doors add as door type: open and do not draw the door."
+
+**Why not the existing `Opening`.** An `Opening` is its own list: no name, no sensors, no state. `open` is a real `Door`,
+so a doorway can carry a name, contact sensors, vibration, locks and a cover, and tell you when it is crossed or left
+unlocked. Use `Opening` for a plain gap, `open` when the gap has to talk to Home Assistant.
+
+**A kind.** `DoorKind` and `DOOR_KINDS` gain `open`; `DOOR_DEFAULTS.open` is a door's (210, 0); `OPENING_FILL.open` is a
+new value, `void`: a gap that draws nothing closed. `doorStateOf` is unchanged: it is not curtains, so an open `cover`
+colours it as it does a plain door. No schema bump (as for `slit`): a card older than this release refuses a layout that
+holds an `open` door (`kind must be one of ...`). The CHANGELOG says so.
+
+**How live state shows (decided).** Closed, unselected: nothing at all. Open (contact on, lock unlocked), vibrating or
+cover open: the same as any door, the dashed open-door line and the pulsing alert line in 2D, the red frame in the gap in
+2.5D. The sensor would be useless otherwise. In 3D nothing shows: the 3D live state lives on the door's leaf, and
+`open` has none (a known gap; `three/*` is left alone here).
+
+**2D.** The wall is cut by the same mask as an `Opening`, over `[...openings, ...open doors]`, so the plan shows a clean
+gap, not a coloured line over the wall. No visible `<line>`, no `<title>`. The invisible `door-hit` twin stays (finding
+3), with a class `door-hit-open`. A line is drawn only while selected (`door door-open sel`, 35 % opacity by a rule that
+excludes `.open`, `.alarm`, `.cover-open`, so state keeps its full colour) or showing state. The editor adds a faint
+outline on hover (`.door-hit-open:hover`, editor stylesheet only; the card has no hover). A layout with no `open` door
+draws byte for byte what it drew before (the demo's sha1, both floors, 2D and 2.5D, checked).
+
+**2.5D and 3D.** The span is the door's. `wallSolids` and `scene-build` cut between sill and head, add no leaf, glass or
+panel; the red frame appears in 2.5D only while open.
+
 ## 2026-10-05: slit window (`door.kind` `slit`)
 
 **What.** A window 60 cm high whose head meets the ceiling of the wall it sits in. Width is the length from `a` to `b`

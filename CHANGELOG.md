@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Door type **open doorway** (`kind: open`): a door that is only a hole in the wall. The wall is cut as for a door (210 cm high, width a to b, height and sill editable) and nothing is drawn in the gap: no line in 2D, no leaf in 2.5D or 3D. Unlike an Opening it is a real door, so it keeps a name, contact sensors, vibration, locks and a cover. Add, Openings, Open doorway, or right-click a wall, Add an opening. Closed it draws nothing; when its contact says open, or a lock is unlocked, it wears the usual dashed red line and alert pulse in 2D and the red frame in 2.5D (3D shows no state for it). In the editor it shows a faint outline only while selected or hovered. No schema bump (still version 2). **A layout that uses `open` is refused by a card older than this release** (`kind must be one of door, glass, window, sealed`): update the card before saving one.
+
 - Window type **slit window** (`kind: slit`): a window 60 cm high that starts at the ceiling of the wall it sits in. Add, Openings, Slit window; its width is the Length field (a to b), height and sill are optional as for a window. Its default sill is read from the wall (250 cm wall: 190; 300 cm: 240; a wall under 60 cm gives a slit as high as the wall), an own sill or height wins, and the head never passes the wall. Glass in 2.5D and 3D, the same sensors, locks, curtain cover and tap as a window, and a thin band in the window colour in 2D. No schema bump (still version 2). **A layout that uses `slit` is refused by a card older than this release** (`kind must be one of door, glass, window, sealed`): update the card before saving one.
 
 ## 0.14.0 - 2026-10-05
