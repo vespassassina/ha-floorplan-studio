@@ -42,6 +42,8 @@ export const WALL_THICKNESS: Record<string, number> = { wall: 10, external: 20, 
 export const PANE_THICKNESS = 2, LEAF_THICKNESS = 4, TRUNK_SIDE = 12, ROOM_THICKNESS = 1;
 /** Most rooms for which nesting is worked out (it is quadratic); more than this and every fill sits at the same height. */
 const NEST_LIMIT = 300;
+/** cm. Two wall ends this close are one corner. */
+const JOINT_TOLERANCE = 1;
 
 const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 const isPt = (p: unknown): p is Pt => Array.isArray(p) && fin(p[0]) && fin(p[1]);
@@ -147,11 +149,17 @@ export function buildScene(floor: Floor, opts: SceneOpts = {}): Scene {
 
   // Walls, each cut by the openings that lie in it: a block under the sill, a header over the head, nothing between.
   const spans = spansOf(f), placed = new Set<number>();
-  piece(() => collectWalls(f).forEach((w) => piece(() => {
+  piece(() => { const all = collectWalls(f); all.forEach((w) => piece(() => {
     const len = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]), thick = WALL_THICKNESS[w.kind] ?? 10, ref: SolidRef = { poly: w.poly, index: w.index };
+    // A corner: two walls end on the same point, so the outer corner would be a notch half a wall thick. An end that meets
+    // another wall's end runs on by half of that wall's thickness. A T-joint (the end on the middle of another wall) is
+    // already buried in it and is left alone.
+    const meet = (p: Pt) => all.reduce((m, o) => (o !== w && [o.a, o.b].some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) <= JOINT_TOLERANCE) ? Math.max(m, (WALL_THICKNESS[o.kind] ?? 10) / 2) : m), 0);
+    const ext0 = meet(w.a), ext1 = meet(w.b);
     let n = 0;
-    const block = (t0: number, t1: number, z0: number, z1: number) => {
-      if (t1 > t0 && z1 > z0) add("wall", `wall:${w.poly}:${w.index}:${n++}`, w.kind, { type: "prism", base: slab(w.a, w.b, t0, t1, thick), z0, z1 }, ref, { role: `wall-${w.kind}` });
+    const block = (a0: number, a1: number, z0: number, z1: number) => {
+      const t0 = a0 <= 0 ? -ext0 : a0, t1 = a1 >= len ? len + ext1 : a1;
+      if (a1 > a0 && z1 > z0) add("wall", `wall:${w.poly}:${w.index}:${n++}`, w.kind, { type: "prism", base: slab(w.a, w.b, t0, t1, thick), z0, z1 }, ref, { role: `wall-${w.kind}` });
     };
     const here = spans.map((s) => ({ s, r: within(w, s) })).filter((x): x is { s: Span; r: [number, number] } => x.r !== null).sort((p, q) => p.r[0] - q.r[0]);
     let cursor = 0;
@@ -174,7 +182,7 @@ export function buildScene(floor: Floor, opts: SceneOpts = {}): Scene {
       cursor = t1;
     }
     block(cursor, len, 0, w.h);
-  })));
+  })); });
 
   // Stairs: one block per step, each as high as the flight has climbed by then. Down, the treads are sunk into the floor (a
   // stairwell; the viewer may cut the slab); both ways, the flight rises and keeps a kerb round its foot.
