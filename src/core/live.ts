@@ -4,7 +4,7 @@
 // The 3D chunk imports nothing from core, so it gets this object and draws it. A layout is untrusted (CLAUDE.md finding 1):
 // nothing here throws, and a piece that cannot be read is null.
 import { doorStateOf, type DoorState } from "./door-state";
-import { acMode, attachedTest, classOf, deviceColourVars, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, polyCentre, roomAt, roomReadout, ROOM_OWNS, type RenderOpts } from "./render";
+import { acMode, attachedTest, deviceColourVars, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, polyCentre, roomAt, roomReadout, ROOM_OWNS, type RenderOpts } from "./render";
 import type { Device, Floor, Pt } from "./schema";
 
 export interface LiveLight { device: number; room: number; at: Pt; /** The lamp's own CSS colour, or null for the theme's light colour. */ rgb: string | null; /** 0..1 */ level: number }

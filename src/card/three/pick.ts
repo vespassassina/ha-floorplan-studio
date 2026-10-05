@@ -81,15 +81,22 @@ function ballHit(r: Ray, c: V3, rad: number): number | null {
   return t > 1e-9 ? t : null;
 }
 
+/**
+ * What hides a label or an icon behind it (S12.5): a wall, a stair, a door's leaf, a sealed panel. Not the floor or the slab
+ * (a label lies on them), not furniture and devices (small, and a label under a table would never show), not glass.
+ */
+const BLOCKS = (s: Solid): boolean => s.kind === "wall" || s.kind === "stair" || (s.kind === "opening" && s.tag !== "glass");
+
 export class Picker {
   private items: Item[] = [];
   private rooms: { index: number; base: number[][]; top: number }[] = [];
+  private shade: Item[] = [];
 
   /** `solids` are a scene's. A solid that cannot be drawn (junk base, non-finite number) is not pickable. */
   constructor(solids: readonly Solid[]) {
     for (const s of Array.isArray(solids) ? solids : []) {
       const sh = s?.shape;
-      if (!sh) continue;
+      if (!sh || s.ref?.hidden === true) continue; // a room's own sensor draws nothing and a tap passes through it (S12.5)
       if (sh.type === "point") {
         if (!Array.isArray(sh.at) || !fin(sh.at[0]) || !fin(sh.at[1]) || !fin(sh.z)) continue;
         this.items.push({ s, lo: [sh.at[0] - PROXY_R, sh.at[1] - PROXY_R, sh.z - PROXY_R], hi: [sh.at[0] + PROXY_R, sh.at[1] + PROXY_R, sh.z + PROXY_R] });
@@ -97,7 +104,9 @@ export class Picker {
       }
       if (sh.type !== "prism" || !Array.isArray(sh.base) || sh.base.length < 3 || !sh.base.every((p: unknown[]) => Array.isArray(p) && fin(p[0]) && fin(p[1])) || !fin(sh.z0) || !fin(sh.z1)) continue;
       const xs = sh.base.map((p: number[]) => p[0]), ys = sh.base.map((p: number[]) => p[1]);
-      this.items.push({ s, lo: [Math.min(...xs), Math.min(...ys), Math.min(sh.z0, sh.z1)], hi: [Math.max(...xs), Math.max(...ys), Math.max(sh.z0, sh.z1)] });
+      const item: Item = { s, lo: [Math.min(...xs), Math.min(...ys), Math.min(sh.z0, sh.z1)], hi: [Math.max(...xs), Math.max(...ys), Math.max(sh.z0, sh.z1)] };
+      this.items.push(item);
+      if (BLOCKS(s)) this.shade.push(item);
       if (s.kind === "room" && s.tag !== "fill" && fin(s.ref?.room)) this.rooms.push({ index: s.ref.room!, base: sh.base, top: sh.z1 });
     }
   }
@@ -107,6 +116,22 @@ export class Picker {
     let best: { index: number; top: number } | null = null;
     for (const r of this.rooms) if ((!best || r.top >= best.top) && contains(r.base, x, y)) best = r;
     return best ? best.index : null;
+  }
+
+  /** Whether something that hides labels (BLOCKS) stands between the ray's origin and the point `tMax` along it. `zOf` as in `pick`. */
+  blocked(ray: Ray, tMax: number, zOf: (s: Solid) => [number, number] | null): boolean {
+    if (!ray || !vec(ray.o) || !vec(ray.d) || !(tMax > 0) || !Number.isFinite(tMax)) return false;
+    const len = Math.hypot(...ray.d);
+    if (!(len > 0)) return false;
+    const r: Ray = { o: ray.o, d: [ray.d[0] / len, ray.d[1] / len, ray.d[2] / len] };
+    for (const it of this.shade) {
+      const sh = it.s.shape, z = zOf(it.s);
+      if (sh.type !== "prism" || !z || !(z[1] > z[0])) continue;
+      if (!boxHit(r, [it.lo[0], it.lo[1], z[0]], [it.hi[0], it.hi[1], z[1]], tMax)) continue;
+      const t = prismHit(r, sh.base, z[0], z[1]);
+      if (t !== null && t < tMax) return true;
+    }
+    return false;
   }
 
   /**

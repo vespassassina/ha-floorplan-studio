@@ -927,7 +927,6 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const listOf = roomList, isAttached = attachedTest(f);
   /** An attached sensor draws no icon; the editor keeps it, so it can still be selected and moved (DECISIONS, S11.1). */
   const iconHidden = (d: Device) => !o.editor && isAttached(d);
-  const stateOf = (e: string) => (o.state && Object.prototype.hasOwnProperty.call(o.state, e) && typeof o.state[e]?.state === "string" ? o.state[e] : undefined);
   // 2.5D: the projection in the frame of the plan group. The screen-up lift is turned back by the plan's own turn, so
   // a rotated plan still lifts toward the top of the screen.
   const x25 = o.view === "2.5d";
@@ -1314,7 +1313,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // `c` is where the icon and all it carries are drawn; `floorAt` only the pin, the stem, the room test and a radar's targets.
     const c = iconAt(d, floorAt);
     const person = d.type === "person";
-    const { cls, style: styleParts, icon, base, s } = deviceMarkup(f, d, o, now, floorAt);
+    const { cls, style: styleParts, icon, s } = deviceMarkup(f, d, o, now, floorAt);
     // S7.8: a person's position is a CSS transform, so .dev-person's transition can glide it to a new room. A person
     // has no facing, so `rot` is not applied.
     const origin = at([c[0] - 12 * k, c[1] - 12 * k]).replace(" ", "px,") + "px";
