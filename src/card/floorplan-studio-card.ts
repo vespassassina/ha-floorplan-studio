@@ -1379,7 +1379,8 @@ export class FloorplanStudioCard extends LitElement {
     if (!view || !host) return;
     const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active"), h = host.getBoundingClientRect();
     let left = 0, right = 0;
-    if (panel && h.width > 0) {
+    // A folded list is a 36 px header: at phone width its box spans half the view, but it hides almost none of the house. Only an open one insets.
+    if (panel && h.width > 0 && panel.querySelector(".fp-active-body")) {
       const p = panel.getBoundingClientRect();
       if (p.width > 0 && p.height > 0) {
         if (p.left + p.width / 2 < h.left + h.width / 2) left = Math.max(0, Math.min(1, (p.right - h.left) / h.width));
