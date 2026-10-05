@@ -2,6 +2,38 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: floors, size budget and performance in 3D (S12.6)
+
+**The size budget is met, with the limits unchanged.** Card gzip 98690 -> 94340 (+3560 over the pre-3D 90780; limit
++5120). Chunk 199927 -> 190352 (limit 200000; the aim of 190000 is missed by 352 bytes). Two moves. (1) `buildScene` and
+`liveOf` are factories in the chunk (`makeBuildScene`, `makeLiveOf`) that take the 2D helpers as an argument; the card
+passes them (`core/three-deps.ts`). The chunk may not import the card's modules, or Rollup makes a shared chunk and the
+card file shrinks to 129 bytes, which games the budget; importing the card entry loads it twice (`?v=`). `core/scene.ts`
+and `core/live.ts` stay as thin wrappers, so tests and the API did not move. (2) `scripts/trim-three.mjs`, a Vite plugin
+for the card and panel builds, swaps three's WebXR manager, environment-map cache and shadow-map renderer for inert
+stand-ins (about 15.8 KB gzip off the chunk). Each patch must match exactly once or the build fails, so a three.js
+upgrade that moves the line is a build error, not a silent size jump. `tests/card/trim-three.test.ts` covers the plugin.
+Cost: a shadow, an environment map or WebXR in 3D would need the patch removed. Guard: `tests/card/size-budget.spec.ts`
+fails over either limit, on a second chunk, and when the builder or `WebGLRenderer` is in the card file.
+
+**Floors.** The scene is built for the selected floor at 0; each floor below is built by the same `buildScene` with
+`elevation = floorElevation(below) - floorElevation(selected)` (negative), drawn as merged meshes at 0.3 of their own
+opacity, no depth write, drawn first, no devices, no live state, not in the picker and not in the occlusion test. The
+floors above are not built. The camera is one `Orbit` for the life of the view; a floor switch calls `Orbit.reframe`:
+azimuth and polar stay, distance and target frame the new floor, the panel inset stays. It frames the selected floor
+only, not the stack. Old meshes go through `clear()`: 21 switches leave `renderer.info.memory.geometries` where 2 did
+(the test fails when the below meshes are not disposed).
+
+**Performance needed no code.** Idle, a settled pulse, and 100 unchanged `hass` updates already drew nothing (one
+`rAF` per burst; `setLive` skips an equal signature). The tests make it a promise: with the signature skip removed, 100
+updates a frame apart draw 100 frames and the test fails. One trailing frame after a pulse is expected: the card's
+one-second fade tick tells the view the pulse is over. A fade is at most one frame a second, from that tick, and none
+once its window ends. The hostile layouts all drew or fell back with no `pageerror` and no `console.error`. The ones the
+checker refuses (a NaN size, a device of an unknown type) fall back with the checker's own line; a 5000-furniture tap
+answers in well under 1 s.
+
+**To confirm.** Floors below use a fixed 0.3 opacity; no config key. The chunk is 352 bytes over the 190000 aim.
+
 ## 2026-10-05: live state in 3D (S12.5)
 
 **Light model.** Which room a lamp lights is the 2D `roomAt` rule, computed in core (`liveOf`) and handed to the chunk
