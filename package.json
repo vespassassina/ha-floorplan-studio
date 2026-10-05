@@ -13,19 +13,21 @@
     "test": "NODE_OPTIONS=--no-experimental-webstorage vitest run",
     "test:e2e": "playwright test",
     "build": "node scripts/build.mjs",
-    "shots": "node scripts/build.mjs && node scripts/shots.mjs",
+    "shots": "FP_TEST_BUILD=1 node scripts/build.mjs && node scripts/shots.mjs",
     "demo-gif": "node scripts/build.mjs && node scripts/demo-gif.mjs",
     "dev": "vite --config vite.config.ts --mode editor --host 127.0.0.1 src/editor",
     "docs:schema": "node scripts/gen-schema-docs.mjs > docs/schema.md",
     "docs:check": "markdown-link-check docs/*.md README.md CONTRIBUTING.md"
   },
   "dependencies": {
-    "lit": "^3.2.0"
+    "lit": "^3.2.0",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@mdi/js": "^7.4.47",
     "@playwright/test": "^1.48.0",
     "@types/node": "^20.19.43",
+    "@types/three": "^0.186.0",
     "eslint": "^9.14.0",
     "jsdom": "^25.0.0",
     "markdown-link-check": "^3.15.0",

@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { FLOORPLAN_CSS, THEMES } from "../../src/core/render";
 
+// Moved from tests/editor in S12.1: the editor has no 2.5D any more, the card does.
 // 2.5D device solids CSS pairs (CLAUDE.md finding 10): a string test cannot see specificity, so each rule is read back
 // from Chromium in every theme. The device solids reuse the furniture box's .bs/.bt classes, so the pair that matters
 // is that the more specific .dsolid rule really wins over them, and that the on state really changes the pixel.

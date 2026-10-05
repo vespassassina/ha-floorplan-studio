@@ -2,6 +2,259 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: Sprint 12 review fixes
+
+**Coordinate bound.** `validate` refuses any coordinate beyond +-1e7 cm (100 km) from the origin, on every point,
+wall, door, opening, extra, device, furniture piece and unlinked item (`COORD_LIMIT`, `src/core/schema.ts`). A layout
+of 1.7e308 made the camera distance Infinity and a blank canvas. Real houses are under 1e4 cm; the bound leaves room
+for any survey. The message names the floor and the limit. As a second guard `Orbit.finite` is false when the framing
+distance still overflows, and the view falls back with "it could not start".
+
+**Nest budget.** `nest()` in `scene-build.ts` stops when rooms times points exceeds 1e7 pair tests (`NEST_WORK`), as
+it already stopped at `NEST_LIMIT` rooms; the rooms are then drawn without nesting. `meet` finds wall ends through a
+grid of cell JOINT_TOLERANCE instead of comparing all pairs. Cost: a layout over the budget loses the nesting of
+fills, not the model.
+
+**Retry of a failed chunk.** A browser caches a failed `import()` per URL, so the second pick failed the same way.
+The build puts the chunk's hashed name into the card (`chunkName` plugin in `vite.config.ts`, placeholder
+`__FP3D_CHUNK__`); the first load is the plain import, each retry asks `<card dir>/<hash>.js?r=<n>`, the same file
+under a new URL. It is built as a string, not `new URL(.., import.meta.url)`, which Vite rewrites as an asset.
+Unbuilt (vitest, dev) the placeholder stays and the plain import is used.
+
+**Lost context.** The view calls `preventDefault` on `webglcontextlost`, pauses, and waits 3000 ms for
+`webglcontextrestored`; three.js rebuilds its own state. If it does not come, `onFail(reason, true)` and the card shows
+the note, then tries once more on `visibilitychange` to visible or on `connectedCallback`.
+
+**Test hook flag.** `window.__fp3d` is behind `__FP3D_TEST__`, a compile-time define: true only in `dist-test/`, an
+extra card build `scripts/build.mjs` makes when `FP_TEST_BUILD=1` (the Playwright globalSetup, `npm run shots`). The
+shipped `dist/` and `www/` contain no hook; `size-budget.spec.ts` greps for it. Two cards stack their hooks; removing
+one republishes the other's.
+
+**Folded Active list.** `_apply3dInset` insets only when the panel has its body (open). A folded 36 px header spans half
+a phone's width and hid almost nothing.
+
+Not done: the card does not pass `layout.colors` to the 3D view (the dead `Live3D.colours` is gone); 3D takes its
+colours from the stylesheet variables only, as 2D does.
+
+## 2026-10-05: floors, size budget and performance in 3D (S12.6)
+
+**The size budget is met, with the limits unchanged.** Card gzip 98690 -> 94341 (+3561 over the pre-3D 90780; limit
++5120). Chunk 199927 -> 190424 (limit 200000; the aim of 190000 is missed by 424 bytes). Two moves. (1) `buildScene` and
+`liveOf` are factories in the chunk (`makeBuildScene`, `makeLiveOf`) that take the 2D helpers as an argument; the card
+passes them (`core/three-deps.ts`). The chunk may not import the card's modules, or Rollup makes a shared chunk and the
+card file shrinks to 129 bytes, which games the budget; importing the card entry loads it twice (`?v=`). `core/scene.ts`
+and `core/live.ts` stay as thin wrappers, so tests and the API did not move. (2) `scripts/trim-three.mjs`, a Vite plugin
+for the card and panel builds, swaps three's WebXR manager, environment-map cache and shadow-map renderer for inert
+stand-ins (about 15.8 KB gzip off the chunk). Each patch must match exactly once or the build fails, so a three.js
+upgrade that moves the line is a build error, not a silent size jump. `tests/card/trim-three.test.ts` covers the plugin.
+Cost: a shadow, an environment map or WebXR in 3D would need the patch removed. Guard: `tests/card/size-budget.spec.ts`
+fails over either limit, on a second chunk, and when the builder or `WebGLRenderer` is in the card file.
+
+**Floors.** The scene is built for the selected floor at 0; each floor below is built by the same `buildScene` with
+`elevation = floorElevation(below) - floorElevation(selected)` (negative), drawn as merged meshes at 0.3 of their own
+opacity, no depth write, drawn first, no devices, no live state, not in the picker and not in the occlusion test. The
+floors above are not built. The camera is one `Orbit` for the life of the view; a floor switch calls `Orbit.reframe`:
+azimuth and polar stay, distance and target frame the new floor, the panel inset stays. It frames the stack (the
+selected floor and the ones under it): framing the selected floor alone cut the dimmed floor off at the edge of the
+view, which the S12.6 shots showed. Old meshes go through `clear()`: 21 switches leave `renderer.info.memory.geometries` where 2 did
+(the test fails when the below meshes are not disposed).
+
+**Performance needed no code.** Idle, a settled pulse, and 100 unchanged `hass` updates already drew nothing (one
+`rAF` per burst; `setLive` skips an equal signature). The tests make it a promise: with the signature skip removed, 100
+updates a frame apart draw 100 frames and the test fails. One trailing frame after a pulse is expected: the card's
+one-second fade tick tells the view the pulse is over. A fade is at most one frame a second, from that tick, and none
+once its window ends. The hostile layouts all drew or fell back with no `pageerror` and no `console.error`. The ones the
+checker refuses (a NaN size, a device of an unknown type) fall back with the checker's own line; a 5000-furniture tap
+answers in well under 1 s.
+
+**To confirm.** Floors below use a fixed 0.3 opacity; no config key. The chunk is 424 bytes over the 190000 aim.
+
+## 2026-10-05: live state in 3D (S12.5)
+
+**Light model.** Which room a lamp lights is the 2D `roomAt` rule, computed in core (`liveOf`) and handed to the chunk
+as JSON. The chunk gives every vertex an owner room (a wall face belongs to the room it faces, within 12 cm) and
+multiplies its colour by that room's lift, so floor, furniture and walls of the lit room change and the neighbour does
+not move by a grey level. A pool of light is a soft disc under a lamp, and costs a draw: **8 pools at most**, the lamps
+nearest the middle of the house, stable on ties; the room lift is free, so it applies to every lit room. The view
+publishes `data-pools="shown/lit"`. Daytime lift is modest (1.3), because 1.6 washed a lit room to white in the light
+theme; night is strong (3.5) against dimmed lights.
+
+**Overlay tap path: one path, the raycast plus the icon disc.** The HTML layer is `pointer-events:none`, so it can
+never block an orbit drag. `pick()` asks the overlay first whether the point is inside an icon's 16 px disc (the icon
+the eye sees), then the raycast `Picker`. The card's `bindDeviceActions` `resolve` is unchanged, so taps, holds and
+NO_TOGGLE are the 2D code.
+
+**Occlusion rule.** A label or icon is hidden when the segment from the camera to its anchor crosses a wall, stair or
+door leaf or panel (`Picker.blocked`), or when it is behind the camera. Floors, furniture, glass and device bodies do
+not hide it. A lowered wall blocks only up to its lowered height.
+
+**Pulse follows 2D.** Only a room with its own `motion` list pulses, three times of 1.4 s, then holds and fades. The
+card remembers the last time each motion sensor was on, so one that just went off keeps its strength and fades from
+there (2D does the same). The view's draw loop runs only while a pulse plays.
+
+**Media has no drivers.** A speaker gets two lit drivers; a `media` device is a box with none, so playing lights only
+its icon. A TV's screen is assumed to face out of the wall along the base edge, as in 2.5D.
+
+**Size budget was already gone at S12.4, and S12.5 spent more.** Card gzip: pre-3D 90818, S12.3 95583, S12.4 97283,
+S12.5 98690 (+7872; goal +5120). Chunk 199927 gzip (goal 200000). The card has to carry `liveOf` and the helpers
+extracted from `render.ts`, because the chunk may import nothing from core at run time. Ways to get back under: lazy
+`import()` of `live.ts` from the chunk's loader, and replacing `CylinderGeometry` for the drivers. Not done here.
+
+## 2026-10-05: picking and taps in 3D (S12.4, part B)
+
+**One gesture code, two sources of "what was hit".** `bindDeviceActions` takes an optional `resolve(e)`; in 3D it
+asks the view's ray pick and answers with a stand-in `g[data-x]`, `line[data-d]` or `g[data-u]`. Tap, hold, the
+NO_TOGGLE set (finding 20), the chooser and the cover dialog are therefore the 2D code, not a copy. Room taps are the
+card's own small handler, because 2D has none to share (its rooms are DOM polygons).
+
+**The pick is `src/card/three/pick.ts`, pure.** A bounding-box prefilter, then ray against prism or ball. A device is a
+ball of 12 cm (drawn) with an unseen 24 cm hit proxy. The proxy is a test in the picker, not a mesh, so a miss
+reaches the room behind. 5000 furniture pieces pick in well under a second (a test holds it).
+
+**What a tap clears.** A device, door or unlinked hit never picks a room (as in 2D). A tap on a full-height wall, a
+stair, the slab, or furniture on no room is "other" and clears the pick: the 2D rule "anything else clears". A "fill"
+room (garden, pavement and the like) is looked through. A lowered wall is looked over, using the same cut set the
+view draws. Furniture picks the highest room under its hit point.
+
+**Drag threshold 6 px, the same as `TAP_SLOP_PX`.** It was 4 in the view. A test holds the two equal, so no press is
+a tap on one side and a drag on the other. A double tap (350 ms, 24 px) restores the pick as it was; 3D has no zoom
+on double tap.
+
+**The ring is drawn over the walls (no depth test).** The room outline lies inside the walls' footprint, so with depth
+it was hidden; the shot showed no ring at all. Drawn over the walls it is thin but visible.
+
+**The test hook** `globalThis.__fp3d` (`project`, `where`, `pick`) exists only when `globalThis.__FP3D_TEST__ ===
+true`. Playwright uses it for coordinates and then drives `page.mouse`.
+
+**Side effect to confirm.** Picking a room widens the Active list (room section), and the inset moves the camera, so
+the model slides a little. Left as is; the alternative is to fix the inset at the widest width.
+
+**Found, not changed.** `temp` is not in `NO_TOGGLE`, so a tap on a temperature icon calls a toggle in 2D as well as 3D.
+Partly overlapping duplicate walls are not merged in the scene (same colour, invisible).
+
+## 2026-10-05: 3D walls mode, wall corners, framing beside the list (S12.4, part A)
+
+**Walls in 3D is the 2.5D select and its stored value.** One `walls` setting (config key, Walls select, saved view),
+read by both views. `cut` is the default. Say so if you want 3D to remember its own.
+
+**Cut is decided by the camera, in `src/card/three/cut.ts`, pure and without three.js.** The outline faces out of the
+house: it drops to `CUT_WALL_HEIGHT` (30 cm, `scene.ts`) while the camera is past its plane by more than 20 cm, and
+stands again only when the camera is 20 cm back inside (the margin stops a flicker on a threshold). The far side of the
+house stands in full. An inner wall (a room's edge, a free wall), whatever faces it kept, drops when it hides more than
+60 cm of floor behind it (`h*d/(camZ-h)` across the wall) and stands when that is under 40 cm; a camera lower than the
+wall's top hides everything. `full` lowers none, `low` all. The scene stays pure: the wall meshes are the only ones
+rebuilt, and only when the set changes, never per frame. The card passes the cut height in, so the chunk still shares no
+code. `wall` and `faces` ride in the solid's `ref` for this.
+
+**First try was wrong and is why inner walls use depth.** One-sided rule only: the wide south room's north edge (it
+overlaps two small rooms' south edges in part, so it is not merged with them) faced north, was "far" from a southern
+camera, and stood at 250 cm in front of the north rooms. The shot showed it.
+
+**Dark slivers at a door gap were a corner bug, not a shading bug.** A partition drawn as two collinear room edges, or
+ending on a through wall, was extended as if it met a corner, and stopped flush with the outer face; wall colours then
+z-fought there. `meet()` now gives no extension to a wall that runs through a joint or ends on a through wall (a T).
+
+**The grey tile beside the house on the ground floor is not a stray solid.** It is the demo's Garden and Pavement
+rooms, 1 cm tiles outside the slab, as the plan has them. A test says so. They look odd in the blueprint theme (dark
+navy tokens); not changed.
+
+**The Active list moves the framing.** The card measures the list against the 3D host after a render and when the
+panel moves, and tells the view the covered fractions of the left and right. `Orbit.setInset` fits the house to the
+free width and `camera.setViewOffset` slides the picture; the two together never take more than 60 percent.
+
+## 2026-10-05: the card's 3D view, chunk delivery and three.js (S12.3)
+
+**Dependency.** `three` ^0.186 (MIT) and `@types/three`, dev dependencies, bundled into the chunk; never fetched at
+runtime (finding 9). Diego approved it on 2026-10-05. Only named imports are used, so the bundler drops the rest.
+
+**Chunk delivery (gate K): the chunk works, no inlining.** `import("./three/view3d")` in the card emits
+`floorplan-studio-3d-<content hash>.js` in `dist/` and `www/`, resolved by the browser relative to the card module
+(`import.meta.url`), so the `?v=` on the card's URL does not matter and a new build is a new file name. A Playwright
+test serves `www/` at `/floorplan_studio_static/?v=` and shows no 3D request before 3D is picked, exactly one after,
+and none to another origin. Numbers: card 296271 -> 310732 bytes, 90818 -> 95581 gzip (+4763, limit 5120); chunk
+856137 bytes, 182.8 KB gzip (limit 200). `release.yml` insists on exactly one chunk, `build.mjs` removes stale ones from
+`www/`, and a pytest checks it is served.
+
+**The chunk shares no code with the card.** First build: Rollup moved the card's own code into a shared hashed chunk
+and left a 99-byte card, so the card loaded two files up front. The view modules (`palette.ts`, `view3d.ts`) now import
+nothing from `src/core` at run time (the union lists are copied and a test iterates the core unions; `buildScene` is
+passed in by the card). Then the card stays whole and only three.js and the view are lazy.
+
+**Own orbit controller, no OrbitControls.** `src/card/three/orbit.ts`, about 100 lines, pure and unit-tested: azimuth,
+polar clamp 0.1 to 1.45 rad (never under the floor), zoom 0.15x to 4x of the fit distance, pan in the view plane. The
+addon would add code and a second place for the clamp to differ from our own tests.
+
+**Mesh.** Each prism is triangulated by three's `ShapeUtils` (earcut: concave bases work); a base that cannot be drawn
+is skipped, never thrown on (finding 1). Points (devices with no body) are skipped until S12.5.
+
+**Colour.** `paint.role` maps to a CSS expression of `--fp-*` tokens, read once per theme change through
+`getComputedStyle`; a user `paint.color` is used as written. Walls are the ink token mixed 55% over the background,
+as the 2.5D side faces are: raw ink is near black in the light theme and read as a hole.
+
+**Wall corners** are now closed in `scene.ts`: a wall end that meets another wall's end extends by half that wall's
+thickness. Four tests. The first look showed a notch at every outer corner.
+
+**Test hooks.** `FloorplanStudioCard.liveRenderers` (static getter, a counter, not a global) and data attributes on
+the 3D holder (`data-az`, `data-polar`, `data-dist`, `data-target`, `data-drawn`, `data-dragged`); S12.4 reads
+`dragged`.
+
+**Fallback.** No WebGL, a lost context or a failed chunk load: the 2D plan and one line why. A failed load is retried
+at the next pick.
+
+## 2026-10-05: the editor loses 2.5D (S12.1)
+
+Diego: "remove the 2.5d from the editor, it doesn't work well". Removed: View > Plan view, Tilt and Walls, the
+preview note and the read-only preview mode (inert menus, no hit-test, no keys) with `EditorState.viewMode`, `tilt`,
+`walls`, `preview` and their setters; `viewBoxFor` is called flat. `ViewMemory` drops `mode`, `tilt`, `walls` and the
+zoom `aspect` (it existed only because the fit changed shape with the tilt). An old stored entry is read without them
+and opens flat; the entry is rewritten at the next view change, not before. Kept: everything in `src/core` and
+`src/card` (`renderFloor` with `view`, `tilt`, `walls`), and the editor's door "preview open" box, which is 2D. The
+parity test now lists Plan view, Tilt and Walls as card only (an exception, as in the entry below).
+
+## 2026-10-05: the 3D scene module (S12.2, core)
+
+`buildScene(floor, opts)` in `src/core/scene.ts` returns the raw solids of one floor, in cm, z up, as plain JSON. No
+three.js, no DOM. It reads the same resolvers (`heights.ts`) and the same fixed sizes (`solids.ts`) as 2.5D, so the
+two views cannot disagree (spec R3). Choices:
+
+- **Two shapes only.** `prism` (a polygon from `z0` to `z1`; every box is one) and `point` (a device with no body).
+  Winding is not fixed. Each solid has `id` (by index, never by user text), `kind`
+  (floor, room, wall, opening, furniture, unlinked, stair, device), `tag` (wall kind, symbol, device type, `glass`,
+  `door-leaf`, `panel`, `kerb`, `stair-down`), `ref` (what to find again) and `paint` (a `role` token, plus the
+  user's own `color` and `texture` as written; never a theme hex).
+- **Opening is a kind of its own.** A door, window or opening is a gap in its wall: a block under the sill, a
+  header over the head, nothing between. A plain door gets a 4 cm `door-leaf`, a window or glass door a 2 cm
+  `glass` pane, a sealed one a `panel` as thick as the wall. `ref.index` is the door's index and `ref.entity`
+  its first sensor, lock or cover; `entities` has all of them. One infill per opening, even when two
+  coincident walls carry it.
+- **Wall thickness** (the plan draws a line, 3D needs a width): wall 10, external 20, fence 4, edge 10, centred on
+  the edge line. Corners have no mitre: two meeting walls leave a notch of half a thickness. Known, left to the
+  viewer or a later task.
+- **Same edge twice is one wall**: the taller wins, and `external` wins on a tie, as in `collectWalls` (solids.ts).
+- **Rooms.** A zone has no fill (it is an overlay) and no walls; a structure has no fill but keeps its walls (neither
+  owns a point, `ROOM_OWNS`); a `fill` with no name is skipped, as in `renderFloor`. Every other kind gets a 1 cm
+  fill on the slab, lifted 1 cm per bigger room it sits inside (garden house over garden), up to 300 rooms; past
+  that all sit at 0. Unknown kinds get none. The slab is `-slab..0`, so the walking surface is z 0.
+- **Furniture** by `FURNITURE_SOLID`: box and flat are the rotated rectangle at `furnitureHeight`; a pole (tree) is a
+  12 cm trunk and `ref.size` carries [w, h] for the viewer's crown. A piece with a non-finite number, a size of
+  zero or less, a height of zero or an unknown symbol is skipped (2.5D draws the unknown as flat 2D; 3D has nothing to draw).
+- **Unlinked** is a 40 cm block times `scale`, at `unlinkedHeight`, rotation not drawn, as in 2.5D.
+- **Stairs**: a step per `stairSteps`, each as high as the flight has climbed by then (last = storey height). Down:
+  treads sunk below the floor (`stair-down`; the viewer may cut the slab). Both ways: the rising flight plus a kerb.
+  `opts.around` is `floorsAround`, so an unmarked stair resolves as in 2.5D.
+- **Devices** by `DEVICE_SOLID`: radiator (8 cm deep, `radiatorSpan`), speaker and media (20 x 20 x 30, turned by
+  `rot`), TV (`tvPlacement`: 100 x 6 x 60, flush on the nearest wall within 150 cm at `deviceZ`, else free-standing
+  30 cm up looking toward +y). A heater with no bar, a TV or speaker with no usable position, and every other
+  type, is a `point` at `deviceZ` (a bar: at its middle). Nothing is skipped for want of a body.
+- **Exports added, behaviour unchanged**: from `solids.ts` `within`, `turnAbout`, `stairBlocks`, `wallFace`, the
+  device sizes, `KERB_*`, `WELL_DEPTH`, `HOST_TOL`, and a new `tvPlacement` (the placement half of `tvSolid`,
+  moved out so 2.5D and 3D share it); from `heights.ts` `floorSlab`. `within`'s parameter types are narrowed to the
+  fields it reads.
+- **Never throws.** Every piece builds inside its own guard and one `add` refuses a shape with a non-finite
+  number or no thickness. Heights that are junk fall back to the default, as in `heights.ts` (a wall of height -5
+  stands at the storey height; height 0 is no wall).
+- No CHANGELOG line: no user-visible change.
+
 ## 2026-10-05: real 3D in the card, view-only; 2.5D leaves the editor
 
 Diego asked for real 3D. Chosen: a three.js view in the card, built from a new raw-solid scene module

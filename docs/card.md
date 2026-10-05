@@ -9,7 +9,9 @@ Assistant entity, in one glance, at scale.
 ## Adding it to a dashboard
 
 Nothing to install by hand — the integration serves the card's script to every
-dashboard. Add the card by its type:
+dashboard. (The card is one file plus one more, `floorplan-studio-3d-<hash>.js`,
+the 3D view, which the browser fetches only the first time someone picks 3D.
+HACS delivers both. If you ever copy `www/` by hand, copy both.) Add the card by its type:
 
 ```yaml
 type: custom:floorplan-studio-card
@@ -38,12 +40,12 @@ floors — ready to paste. See "A premade dashboard" below.
 | `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons in the vertical stack at the top right, under the toolbar. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
-| `view` | `2d` | `2d` draws the flat plan, `2.5d` draws it with depth — see 2.5D view, below. Anything else is `2d` |
+| `view` | `2d` | `2d` draws the flat plan, `2.5d` draws it with depth (see 2.5D view, below), `3d` draws it as a real 3D model you can turn (see 3D view, below). Anything else is `2d` |
 | `view_switch` | `true` | `false` hides the View dropdown, Theme, Labels and Device names in the toolbar. `kiosk` hides them too |
 | `rotate_switch` | follows the other controls | the two rotate buttons and the Left/Right keys. Unset: shown on every card that draws zoom or the View controls, hidden under `kiosk` and on a card with `zoom: false` and `view_switch: false`. `false` hides them, `true` shows them even under `kiosk` |
 | `names` | `false` | `true` writes every device's name under its icon, the studio's Names toggle. The Device names button (`Aa`) changes it for as long as the card is on screen |
-| `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D. See the Tilt slider, below |
-| `walls` | `cut` | how 2.5D draws wall heights: `full` every wall at its real height, no cutaway; `cut` the doll's house look, walls facing you lowered so the rooms show; `low` every wall at the cutaway height. Anything else is `cut`. Only read in 2.5D. See Walls, below |
+| `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D, and the control is hidden in 3D. See the Tilt slider, below |
+| `walls` | `cut` | how 2.5D and 3D draw wall heights: `full` every wall at its real height, no cutaway; `cut` the doll's house look, walls facing you lowered so the rooms show; `low` every wall at the cutaway height. Anything else is `cut`. Read in 2.5D and 3D. See Walls, below |
 | `labels` | `true` | `false` hides every name and value on the plan (rooms, zones, structures, device names, sensor values), so only icons and state are left. Anything but `false` shows them |
 | `rotation` | `0` | degrees the plan starts turned, in steps of 45: `0`, `45`, `90` ... `315`. Any other number rounds to the nearest step; anything that is not a number is `0`. Text and icons stay upright. A viewer's own turn is remembered over this — see View memory and reset, below |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
@@ -225,9 +227,6 @@ editor and fails on a control that has no row here, so a new one gets a decision
 
 | Studio control | In the card | Why |
 |---|---|---|
-| `#view-mode` Plan view | yes | the View dropdown |
-| `#tilt` Tilt | yes | the Tilt slider, 2.5D |
-| `#walls` Walls | yes | the Walls select, 2.5D |
 | `#labels` Show names and text | yes | the Labels toggle |
 | `#names` Names | yes | the Device names toggle (`Aa`), config `names` |
 | `#thSub` Theme | yes | the Theme dropdown |
@@ -235,7 +234,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#recenter` Re-center | yes | the same Fit button |
 | `#zin` `#zout` Zoom | yes | the + and − buttons, first in the stack, the Up and Down keys, pinch and wheel |
 | `#zreset` Reset view | yes | the Reset view button, last in the stack, and Space |
-| `#vrotl` `#vrotr` Rotate view | yes | the two rotate buttons in the stack and the Left and Right keys, 2D and 2.5D |
+| `#vrotl` `#vrotr` Rotate view | yes | the two rotate buttons in the stack and the Left and Right keys |
 | `#version` the installed version | no | the card names its version in the browser console instead |
 | `#snap` Snap grid | no | an editing aid: a viewer places nothing |
 | `#mgrid` Measure grid | no | an editing aid, drawn by the editor over the plan, not by `renderFloor` |
@@ -243,6 +242,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
 | `#filter` Filter by type | no | a work aid for a crowded plan; the card has the Active list, grouped by type |
+| Plan view, Tilt, Walls | card only | the View dropdown, the Tilt slider and the Walls select. The studio has no 2.5D since 0.14 (S12.1); the card keeps 2D and 2.5D, and gets 3D |
 | Room facts and device details panel | card only | the card's left panel (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
 
 Also the same in both: the floor switcher (chips and tabs), pan and zoom by
@@ -360,7 +360,7 @@ names and icons stay upright. Pan, zoom and taps wait until it has settled.
 The card also has a Theme dropdown and a names-and-text toggle next to View.
 
 The card remembers, per browser, the viewer's zoom, the spot they zoomed to,
-the rotation, 2D or 2.5D, the tilt, the wall heights, the theme and whether
+the rotation, 2D, 2.5D or 3D, the tilt, the wall heights, the theme and whether
 text shows. Come
 back, reload or switch dashboard tab and the plan is as it was left, with no
 flash of the configured look. The floor and the Active list are remembered
@@ -390,7 +390,7 @@ as before.
   floor is remembered with the rest, so a reload does not return you to the
   first floor.
 - The memory sits in the browser's `localStorage`, under `fp-view:` and a
-  short hash of the card's config. It holds numbers, one 2D/2.5D word, a theme
+  short hash of the card's config. It holds numbers, one 2D/2.5D/3D word, a theme
   name and a flag, nothing else. Anything in it that does not parse is
   dropped field by field, and a browser that blocks storage just forgets.
 - It is per browser, not per Home Assistant user, and not synced.
@@ -687,6 +687,64 @@ Point `sun` at another entity to decide yourself, for instance a binary
 sensor that is `on` when it is dark. `night: off` turns it off for good. In
 the editor, View, Preview night shows the look; the editor has no live
 lights, so every room is dark there.
+
+## 3D view
+
+`view: 3d`, or **3D** in the View dropdown, draws the floor as a model: walls with
+their real thickness and height, floors, doors and windows (glass is see-through),
+stairs, furniture, and the radiator, speaker and TV bodies. Colours come from the
+theme (the same `--fp-*` variables as 2D), and a room, wall or furniture piece
+with its own colour keeps it. There are no textures and no shadows.
+
+- Drag turns the model around, wheel or pinch zooms, right-drag or two fingers
+  pan. You cannot go under the floor. The camera starts south of the house at
+  about 50 degrees; the card's `rotation` is the starting turn. The Reset view
+  button puts the camera back.
+- Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 30 cm the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same select and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The Active list covers part of the view, so the camera frames the house in the rest. 2D and 2.5D are unchanged.
+- The 3D code is loaded the first time you pick 3D, and only then (about 186 KB
+  gzipped; the card file grew by about 3.5 KB). It draws only while something
+  moves: a still model, a settled pulse and a Home Assistant update that changes
+  nothing cost no frame at all. A fade asks for at most one frame a second.
+- **Live state in 3D (S12.5).** The same rules as 2D, from the same helpers.
+  - *Lights.* A lit light device lights the room it hangs in (the 2D rule): its floor, furniture and walls take a lift toward the lamp's colour, and a soft pool sits under the lamp. The neighbouring room does not change. **At most 8 lamps get a pool**, the 8 nearest the middle of the house; every lit room is lifted whatever the count. The card says so in the view's `data-pools="shown/lit"`. Night (the sun rule) darkens the scene and leaves lit rooms bright.
+  - *Doors and windows.* A closed plain door shows its leaf; an open one (or an open cover door) swings about 70 degrees about its hinge. A window's pane is there while it is closed and gone when it is open. Sealed doors do not change. An alarmed door (vibration) stays shut and turns red.
+  - *Devices.* The small balls take their colour from the `--fp-dev-*` tokens and the state, as the 2D icons do. Person, radar, vibration and the plug-power rule are the 2D helpers. A speaker that is playing has lit drivers; a TV that is on has a lit screen; a heating radiator is tinted with `--fp-heater`. A device with a body, and a sensor that belongs to a room, shows no ball.
+  - *Room motion.* A room with a `motion` list gets a red edge on its floor outline: three pulses when a sensor trips, then steady, then it fades by `last_changed` and the `fade` setting, as in 2D. With reduced motion the edge is steady. The view draws frames only while a pulse plays.
+  - *Labels and icons.* An HTML layer over the model shows each room's name and its sensors' mean reading, and a real icon for every visible device. The Labels and Names buttons work in 3D. A label or icon behind a wall, or behind the camera, is hidden. The layer ignores the pointer, so a drag that starts on an icon still turns the model; a tap on an icon toggles or opens more-info as in 2D.
+  - A Home Assistant update changes all of this in place: no rebuild, no camera move.
+- **Floors in 3D.** The selected floor is solid and live. Every floor below it
+  stands dimmed under it at its real height (its slab and walls, floor heights
+  from the layout): no lights, no icons, and a tap on it picks nothing. Floors
+  above are not drawn. Pick another floor and the model is built again, the
+  camera keeps its angle and frames the new floor. A lamp on a lower floor
+  lights nothing on the upper one.
+- **No WebGL, or the graphics context is lost, or the 3D code cannot load:** the
+  card shows the 2D plan and one line saying why. Nothing is left blank. A lost
+  graphics context is waited for three seconds; if it does not return, the card
+  shows the line and tries 3D once more when the tab is shown again or the card
+  is attached again. A load that failed is tried again on the next 3D pick. The
+  lines are `3D view unavailable: this browser has no WebGL. Showing 2D.`,
+  `3D view unavailable: the graphics context was lost. Showing 2D.`,
+  `3D view unavailable: its code did not load. Showing 2D.` and
+  `3D view unavailable: it could not start. Showing 2D.` A layout the checker
+  refuses shows its own line, `The plan could not be used: ...`, in every view.
+- **Low-power devices.** A wall tablet with no GPU may fall back, or draw slowly.
+  **2.5D is the fast view**: it is the flat plan with depth, no WebGL. Use
+  `view: 2.5d` (or `2d`) there; the 3D view keeps its frames low by drawing only
+  on change, but a big house still costs a GPU. The choice is remembered per
+  browser like the rest of the view.
+- **Taps in 3D work as in 2D.** A tap on a device (the small ball, or its body)
+  toggles it, except the types that have no on/off (camera, media, speaker and
+  the like), which open more-info; a hold opens more-info. A door, a window and
+  an unlinked appliance do what they do in 2D. A tap on a room's floor picks the
+  room: a dashed outline on its floor, the room section in the left panel, the
+  Active list cut to the room. Tap the room again, tap anything else (the
+  background, a tall wall, a stair, furniture standing on no room) or press
+  Escape to clear. Furniture picks the room it stands in. A lowered wall is
+  looked over, a tall one is not. A drag (moving more than 6 px) is never a tap,
+  and a double tap or the wheel neither picks nor clears. The ball is 24 cm wide
+  to the eye and 48 cm to the finger. The room section widens the Active list,
+  which moves the model a little to keep it in the free part of the view.
 
 ## Troubleshooting
 

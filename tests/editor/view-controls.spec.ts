@@ -16,11 +16,6 @@ const planDeg = (page: Page) => page.evaluate((tag) => {
 }, EDITOR);
 const settled = (page: Page) => expect.poll(() => st(page, (s) => s.turning)).toBeNull();
 const focusEditor = (page: Page) => page.evaluate((tag) => (document.querySelector(tag) as HTMLElement).focus(), EDITOR);
-async function pickView(page: Page, value: "2d" | "2.5d") {
-  await page.locator('details.menu > summary:text-is("View")').click();
-  await page.locator("#view-mode").selectOption(value);
-  await page.locator('details.menu > summary:text-is("View")').click();
-}
 /** Screen position of a plan point (cm). Reads through the turned group, as the editor's own specs do. */
 const screenOf = (page: Page, x: number, y: number) =>
   page.evaluate(([tag, px, py]) => {
@@ -100,14 +95,6 @@ test.describe("rotate view buttons", () => {
     await settled(page);
     await clickDevice(page);
     expect(await st(page, (s) => s.sel?.t)).toBe("dev");
-  });
-
-  test("in 2.5D the buttons turn the preview too", async ({ page }) => {
-    await pickView(page, "2.5d");
-    await page.locator("#vrotr").click();
-    await settled(page);
-    expect(await planDeg(page)).toBe(45);
-    expect(await page.locator("svg .ws").count()).toBeGreaterThan(0);
   });
 
   test("a zoomed view keeps its centre across a turn", async ({ page }) => {
@@ -194,14 +181,6 @@ test.describe("keys", () => {
     expect(await st(page, (s) => s.f.devices.length)).toBe(n0);
   });
 
-  test("they work in the 2.5D preview", async ({ page }) => {
-    await pickView(page, "2.5d");
-    await focusEditor(page);
-    await page.keyboard.press("ArrowRight");
-    await settled(page);
-    expect(await planDeg(page)).toBe(45);
-  });
-
   test("keys typed into a text box (a room's name) do not move the view", async ({ page }) => {
     await clickRoom(page);
     const input = page.locator("#panel #rn").first();
@@ -260,14 +239,6 @@ test.describe("Cmd/Ctrl+S saves", () => {
     expect(await page.evaluate(() => (window as any).__saves)).toBe(1);
   });
 
-  test("works in the 2.5D preview", async ({ page }) => {
-    await page.evaluate((tag) => { (window as any).__saves = 0; document.querySelector(tag)!.addEventListener("save-request", () => { (window as any).__saves++; }); }, EDITOR);
-    await pickView(page, "2.5d");
-    await focusEditor(page);
-    await page.keyboard.press("Control+s");
-    expect(await page.evaluate(() => (window as any).__saves)).toBe(1);
-  });
-
   test("an invalid plan is not saved and the error box says why (never a silent nothing)", async ({ page }) => {
     await page.evaluate((tag) => {
       const e = document.querySelector(tag) as any;
@@ -296,23 +267,17 @@ test.describe("the view survives a reload", () => {
     await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   };
 
-  test("2.5D, tilt, turn, zoom and centre are back after page.reload; Reset view clears them", async ({ page }) => {
-    await pickView(page, "2.5d");
+  test("turn, zoom and centre are back after page.reload; Reset view clears them", async ({ page }) => {
     await page.locator("#vrotr").click();
     await settled(page);
     await page.locator("#zin").click();
     await page.locator("#zin").click();
     await page.locator("#zin").click();
     await page.evaluate((tag) => { const e = document.querySelector(tag) as any; e.st.views[e.st.floor] = { ...e.st.view, x: e.st.view.x + 120, y: e.st.view.y + 40 }; e.requestUpdate(); }, EDITOR);
-    await page.locator('details.menu > summary:text-is("View")').click();
-    await page.locator("#tilt").fill("0.8");
-    await page.locator('details.menu > summary:text-is("View")').click();
-    const before = await st(page, (s) => ({ mode: s.viewMode, tilt: s.tilt, rot: s.viewRot, v: s.view, floor: s.floor }));
+    const before = await st(page, (s) => ({ rot: s.viewRot, v: s.view, floor: s.floor }));
     await page.waitForTimeout(300); // the debounced save, no page event involved
     await reload(page);
-    const after = await st(page, (s) => ({ mode: s.viewMode, tilt: s.tilt, rot: s.viewRot, v: s.view, floor: s.floor }));
-    expect(after.mode).toBe("2.5d");
-    expect(after.tilt).toBeCloseTo(0.8, 6);
+    const after = await st(page, (s) => ({ rot: s.viewRot, v: s.view, floor: s.floor }));
     expect(after.rot).toBe(45);
     expect(after.floor).toBe(before.floor);
     for (const k of ["x", "y", "w", "h"] as const) expect(after.v[k]).toBeCloseTo(before.v[k], 3);
@@ -351,9 +316,9 @@ test.describe("the view survives a reload", () => {
   });
 
   test("a stored view that is junk is ignored: the editor starts normal", async ({ page }) => {
-    await page.evaluate(() => localStorage.setItem("floorplan-studio:view", '{"mode":"3d","rotation":"x","zooms":[["ground",{"zoom":"big"}]],"floor":"nope"}'));
+    await page.evaluate(() => localStorage.setItem("floorplan-studio:view", '{"mode":"3d","tilt":"x","rotation":"x","zooms":[["ground",{"zoom":"big"}]],"floor":"nope"}'));
     await reload(page);
-    expect(await st(page, (s) => s.viewMode)).toBe("2d");
+    expect(await page.locator("svg .ws").count()).toBe(0);
     expect(await planDeg(page)).toBe(0);
   });
 

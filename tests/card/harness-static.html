@@ -1,0 +1,10 @@
+<!doctype html>
+<!-- S12.3: the card loaded the way Home Assistant loads it: a module script at /floorplan_studio_static/ with a ?v= query,
+     served by tests/card/card-3d.spec.ts from the built www/ folder under a fake origin. The 3D chunk sits beside the card
+     and must be found from the card module's own URL. -->
+<html>
+<head><meta charset="utf-8"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=9.9.9"></script></head>
+<body>
+<div id="wrap" style="width:900px"><floorplan-studio-card id="card"></floorplan-studio-card></div>
+</body>
+</html>

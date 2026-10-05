@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  define: { __FP3D_TEST__: "false" },
   test: {
     environment: "jsdom",
     include: ["tests/core/**/*.test.ts", "tests/card/**/*.test.ts", "tests/editor/**/*.test.ts"],

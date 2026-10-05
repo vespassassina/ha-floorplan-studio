@@ -2410,6 +2410,10 @@ Spec: `docs/specs/room-sensors.md`. Built 2026-10-04 (S11.1 to S11.4; S11.5 open
   Done, 2026-10-04, with S11.3 (same panel, same specs).
 - S11.5 Docs, schema reference, prompts/SCHEMA.md, studio-and-card table,
   review.
+  Docs done, 2026-10-05 (closed in S12.6): `docs/schema.md` and the card guide's
+  studio-and-card table already had the room `temps`/`humidity`/`motion`;
+  `prompts/SCHEMA.md` now has them too. The Sprint 11 review is folded into the
+  Opus review of Sprint 12.
 
 ## Sprint 12: real 3D view in the card (E4)
 
@@ -2419,17 +2423,55 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   note, view-memory `mode`. Card untouched. Test: each editor 2.5D test is
   moved to the card or deleted, with the count in the report; a stored
   `"2.5d"` opens 2D. Increment: a simpler editor.
+  Done, 2026-10-05. Tests: `tests/editor/no-25d.spec.ts` (3),
+  `tests/editor/view-memory-flat.test.ts` (6) written first and failing.
+  Of the old editor 2.5D tests, 4 moved to the card (`tests/card/oblique-css.spec.ts`,
+  `device-solids-css.spec.ts`), 27 deleted (each one drove the editor preview; the
+  card has its own spec for the same render), the rest edited to flat only. Choices in `docs/DECISIONS.md`.
 - S12.2 `src/core/scene.ts`: raw solids in cm from the layout, using
   `heights.ts`. Tests: demo numbers, a gap for each door and window, every
   device and furniture kind iterated, hostile layout. Increment: pure core,
   no UI.
+  Done, 2026-10-05. 30 tests in `tests/core/scene.test.ts` (every DeviceType,
+  FurnitureSymbol and RoomKind iterated; 5000 furniture; hostile floors).
+  Choices in `docs/DECISIONS.md`. No CHANGELOG line (no user-visible change).
 - S12.3 Spike, then the card's 3D option: can the chunk sit beside the card
   file or must it be inlined (gate K). Static scene, orbit, zoom, pan, theme
   tokens, WebGL fallback, dispose on disconnect. Increment: look at the house
   in 3D.
+  Done, 2026-10-05. Chunk beside the card works (gate K): card 296271 -> 310732
+  bytes (90818 -> 95581 gzip, +4763), chunk `floorplan-studio-3d-<hash>.js`
+  856137 bytes, 182.8 KB gzip. 11 Playwright tests in `tests/card/card-3d.spec.ts`,
+  unit tests for mesh, orbit and palette. Wall corners now closed in scene.ts.
+  Choices in `docs/DECISIONS.md`.
 - S12.4 Picking: ray to room and device, tap, hold, room panel, drag is not a
   tap. Real `page.mouse` coordinates, `--repeat-each=10`.
+  Done, 2026-10-05. Part A: walls mode, closed T-joints, framing beside the
+  list. Part B: pick.ts, device balls, ring, taps through `bindDeviceActions`
+  `resolve`. 15 unit tests for the picker (5000 furniture), 12 Playwright tests
+  in `tests/card/card-3d-pick.spec.ts` (120 runs at `--repeat-each=10`, all
+  green after a test pause for the double-tap window), 4 for part A. Totals:
+  vitest 2456, Playwright 916, pytest 30. Choices in `docs/DECISIONS.md`.
 - S12.5 Live state: lamp light per room, open doors and windows, heating,
   room motion edge, readouts and icons as an HTML overlay.
+  Done, 2026-10-05. `core/live.ts` (`liveOf`) hands the chunk plain JSON from
+  the 2D helpers; the chunk gains `light.ts`, `ring.ts`, `fx.ts`, `overlay.ts`.
+  19 Playwright tests in `tests/card/card-3d-live.spec.ts` (190 runs at
+  `--repeat-each=10`, all green with 2 workers on a quiet machine), plus unit
+  tests for live, light, ring, pick and palette. Sizes: card 98690 gzip
+  (+7872 over the pre-3D 90818, over the 5 KB goal), chunk 199927 gzip.
+  Totals: vitest 2490, Playwright 935 (1 skipped), pytest 30. Choices in `docs/DECISIONS.md`.
 - S12.6 Floors, performance budget (criterion 9, 60/30 fps), docs, Opus
   review. The card keeps 2.5D as its low-power view.
+  Done, 2026-10-05 (the Opus review is still to do). Size: `buildScene` and `liveOf` moved
+  into the chunk (injected helpers, `core/three-deps.ts`), and a build plugin
+  (`scripts/trim-three.mjs`) swaps three's WebXR, environment and shadow-map classes for
+  stand-ins. Card 98690 -> 94341 gzip (+3561 over the pre-3D 90780, goal +5120),
+  chunk 199927 -> 190424 (goal 200000); guarded by `tests/card/size-budget.spec.ts`.
+  Floors: below dimmed at their real height, above not drawn, azimuth and polar kept
+  on a switch (`Orbit.reframe`), 21 switches leave three's geometry count where 2 did
+  (`tests/card/card-3d-floors.spec.ts`, 5 tests). Performance and hostile layouts:
+  `tests/card/card-3d-perf.spec.ts`, 12 tests, 120 runs at `--repeat-each=10` green; none needed a
+  code change. Choices in `docs/DECISIONS.md`.
+- Sprint 12 review fixes: chunk retry, lost-context recovery, draw guard, coordinate bound, nest budget, test hook
+  compiled out of the shipped build, narrow-card inset, ring disposal, debug lines. Choices in `docs/DECISIONS.md`.

@@ -1,5 +1,5 @@
-import { MAX_ROOM_SENSORS, DEFAULT_TILT, DEVICE_TYPES, WALLS_MODES, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, clampTilt, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
-import type { CatalogEntry, DeviceType, WallsMode, Floor, HaData, Layout, PlanView, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
+import { MAX_ROOM_SENSORS, DEVICE_TYPES, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 import { setRoomList, type RoomSensorField } from "./ops";
 import { normaliseRotation } from "../card/view-state";
 import { MAX_ZOOM, MIN_ZOOM } from "../card/viewport";
@@ -188,33 +188,9 @@ export class EditorState {
   helpOpen: boolean = readHelp();
   /** S7.6: whether the plan is drawn as at night. Kept in localStorage, not in the layout, never an undo step. */
   night: boolean = readNight();
-  /** How the plan is drawn: flat, or 2.5D, which is a read-only preview. Session state: no undo step, never in the layout, not even in localStorage. */
-  viewMode: PlanView = "2d";
-  /** Whether the plan draws names and values. Session state like `viewMode`: no undo step, never in the layout. */
+  /** Whether the plan draws names and values. View state: no undo step, never in the layout. */
   labels = true;
   setLabels(on: boolean): void { this.labels = on !== false; }
-  /** How steeply 2.5D looks down, 0..1. Session state; only read while the view is 2.5D. */
-  tilt = DEFAULT_TILT;
-  /** Junk is ignored. A view that shows the whole floor is refitted, so a steeper lift is not clipped; a zoomed one stays where it is. */
-  setTilt(t: number): void {
-    if (typeof t !== "number" || !Number.isFinite(t)) return;
-    const was = this.views[this.floor], flat = viewBoxFor(this.f, 80, this.rotation);
-    this.tilt = clampTilt(t);
-    // "Whole floor" is any view at least as wide as the flat fit; the 2.5D fit is wider still, so it is not matched exactly.
-    if (was && was.w >= flat.w - 1e-6) this.fit();
-  }
-  /** How 2.5D draws wall heights. Session state like `tilt`: no undo step, never in the layout. */
-  walls: WallsMode = "cut";
-  /** Junk is ignored. */
-  setWalls(m: WallsMode): void {
-    if ((WALLS_MODES as readonly unknown[]).includes(m)) this.walls = m;
-  }
-  /** Anything but 2D only looks: pointer, keys and the edit menus do nothing. */
-  get preview(): boolean { return this.viewMode !== "2d"; }
-  /** The zoom, pan and selection are left alone, so switching back finds them as they were. */
-  setViewMode(v: PlanView): void {
-    if (v === "2d" || v === "2.5d") this.viewMode = v;
-  }
   /** id of the door drawn open in the preview */
   openDoor: string | null = null;
   /** S8.10: which room-box collapsible groups (the panel's "Home Assistant" device list) are open — keyed
@@ -377,20 +353,20 @@ export class EditorState {
   /** What to remember of the view (see view-memory.ts). A floor shown whole is left out, so a plan that grows is not
    * clipped by an old fit. Reads the settled turn, never a frame of one in flight. */
   exportView(): ViewMemory {
-    const m: ViewMemory = { floor: this.floor, mode: this.viewMode, tilt: this.tilt, walls: this.walls, labels: this.labels };
+    const m: ViewMemory = { floor: this.floor, labels: this.labels };
     if (this.viewRot) m.rotation = this.viewRot;
     const deg = (this.layout.rotate ?? 0) + this.viewRot;
     const rot = deg % 360 ? { deg, pivot: planPivot(this.layout) } : undefined;
-    const zooms: [string, { zoom: number; focus: Pt; aspect: number }][] = [];
+    const zooms: [string, { zoom: number; focus: Pt }][] = [];
     for (const [key, v] of Object.entries(this.views)) {
       const f = hasOwn(this.layout.floors, key) ? this.layout.floors[key] : undefined;
       if (!f || !(v.w > 0)) continue;
-      const fit = viewBoxFor(f, 80, rot, this.viewMode, this.tilt);
+      const fit = viewBoxFor(f, 80, rot);
       const focus: Pt = [v.x + v.w / 2, v.y + v.h / 2];
       const centre = rot ? rotateAbout([fit.x + fit.w / 2, fit.y + fit.h / 2], -rot.deg, rot.pivot) : ([fit.x + fit.w / 2, fit.y + fit.h / 2] as Pt);
       const zoom = fit.w / v.w;
       if (Math.abs(zoom - 1) < 1e-3 && Math.hypot(focus[0] - centre[0], focus[1] - centre[1]) < 1) continue; // shown whole
-      zooms.push([key, { zoom, focus, aspect: v.h / v.w }]);
+      zooms.push([key, { zoom, focus }]);
     }
     if (zooms.length) m.zooms = zooms;
     return m;
@@ -399,9 +375,6 @@ export class EditorState {
   /** Applies a remembered view. Not an edit: no undo step, the layout is untouched. A floor the layout does not have
    * is ignored. Call it after the layout is in place, since `setLayout` drops the views. */
   importView(m: ViewMemory): void {
-    if (m.mode === "2d" || m.mode === "2.5d") this.viewMode = m.mode;
-    if (m.tilt !== undefined) this.tilt = clampTilt(m.tilt);
-    this.setWalls(m.walls as WallsMode);
     if (m.labels !== undefined) this.labels = m.labels !== false;
     if (m.rotation !== undefined) this.viewRot = normaliseRotation(m.rotation);
     if (m.floor !== undefined && hasOwn(this.layout.floors, m.floor)) { this.floor = m.floor; this.sel = null; }
@@ -410,16 +383,16 @@ export class EditorState {
       if (!hasOwn(this.layout.floors, key)) continue;
       const f = this.layout.floors[key];
       const rot = this.rotation;
-      const fit = viewBoxFor(f, 80, rot, this.viewMode, this.tilt);
+      const fit = viewBoxFor(f, 80, rot);
       const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z.zoom));
-      const w = fit.w / zoom, h = z.aspect !== undefined ? w * z.aspect : fit.h / zoom;
+      const w = fit.w / zoom, h = fit.h / zoom;
       Object.defineProperty(this.views, key, { value: { x: z.focus[0] - w / 2, y: z.focus[1] - h / 2, w, h }, enumerable: true, writable: true, configurable: true });
     }
   }
 
   /** A view is stored in plan coordinates: its centre is the plan point in the middle of the screen, w and h are what the screen shows. Rotating the plan therefore needs no change to it. */
   fit() {
-    const b = viewBoxFor(this.f, 80, this.rotation, this.viewMode, this.tilt), r = this.rotation;
+    const b = viewBoxFor(this.f, 80, this.rotation), r = this.rotation;
     const c = r ? rotateAbout([b.x + b.w / 2, b.y + b.h / 2], -r.deg, r.pivot) : ([b.x + b.w / 2, b.y + b.h / 2] as Pt);
     this.views[this.floor] = { x: c[0] - b.w / 2, y: c[1] - b.h / 2, w: b.w, h: b.h };
   }

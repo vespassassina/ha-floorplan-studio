@@ -28,8 +28,9 @@ Left to right:
   or not.
 - **Draw** — freehand outline/room drawing mode.
 - **View** — how the plan looks while you work: the installed version at the
-  top, then Plan view (2D or 2.5D, see below), snap grid, measure grid,
-  lengths, names, Show names and text, Tilt and Walls (2.5D), Preview night, theme, Re-center and Fit to window.
+  top, then snap grid, measure grid, lengths, names, Show names and text,
+  Preview night, theme, Re-center and Fit to window. The editor draws the plan
+  flat only; 2.5D (and soon 3D) is a way to look, so it lives in the card.
   Everything here that is about looking, not editing, is in the card too:
   see "Studio and card" in `card.md` for the list, and for what is left out on
   purpose. A new view control needs a row there (a test checks).
@@ -49,41 +50,12 @@ Left to right:
 
 ![The Add menu open: Openings, Wall and Areas submenus, then Furniture and Unlinked device selects.](img/editor-add-menu.png)
 
-## 2.5D preview
-
-View, Plan view switches the editor between `2D` and `2.5D`. 2.5D draws the
-plan as the card does with `view: 2.5d`: walls and furniture rise, the near
-walls are cut down (docs/card.md, "2.5D view"). It is a **preview**. Nothing
-on the plan can be hit, selected, dragged or drawn; the Add, Draw and Edit
-menus, Reset, Undo, Delete and Ctrl/Cmd+Z do nothing, and the side panel reads
-"2.5D is a preview. Switch to 2D to edit." You can still pan and zoom. A
-drawing in progress is dropped.
-
-Switching back to 2D finds the selection and the zoom as you left them. The
-choice is not an undo step, is not saved in the layout and is forgotten on
-reload. Fit to window in 2.5D leaves room for the walls rising above the plan;
-switching view does not refit by itself, so press it if the top is cut.
-
-The preview draws what the card draws: shaded wall faces, painted door leaves,
-open doors and windows red, and the motion border (the same `renderFloor`).
-
-View, Tilt is a slider, enabled only in 2.5D: left is top-down, right is
-side-on, the middle is the card's default. Moving it refits a view that shows
-the whole floor, so a steeper lift is not cut; a view you zoomed into stays.
-
-View, Walls picks how 2.5D draws wall heights: Full height (every wall at its
-real height), Cutaway (the default: walls that face you or hide a room are
-lowered) or Low (every wall at the cutaway height). The select is enabled only in
-2.5D. Like Tilt it is not an undo step and is not saved in the layout, and the
-editor remembers it per browser (below). The card's own key is `walls`.
-
 ## Show names and text
 
 View, Show names and text hides every room, zone and structure name and every
-sensor value on the plan, leaving icons and state, in 2D and in 2.5D. It does
+sensor value on the plan, leaving icons and state. It does
 not touch the Names button (device names, off by default), the Lengths and
-the measure grid, which are editor aids rather than plan text. Like Plan view
-and Tilt it is not an undo step, is not saved in the layout and goes back to
+the measure grid, which are editor aids rather than plan text. It is not an undo step, is not saved in the layout and goes back to
 shown on reload. The card's own switch is `labels: false` in its config.
 
 ## The side panel
@@ -118,7 +90,7 @@ Junk is refused with the reason.
   from 90, an opening 210 from 0).
 - **Furniture** and **unlinked appliance** — height (by symbol or type).
 - **Device** — mount height, where the real object hangs (by type). A stem to
-  it shows in 2.5D from 100 cm up. A heater bar is drawn as a box whose top is
+  it shows in the card's 2.5D from 100 cm up. A heater bar is drawn as a box whose top is
   this height (default 70 cm, under a window sill); a TV panel's bottom is it
   (default 100 cm; 30 cm when it stands free); a speaker's cabinet is a fixed
   20 x 20 x 30 cm and ignores it, but its icon rides it: 30 cm (the top of the
@@ -245,27 +217,26 @@ view**: the whole floor, the plan upright.
 Precedence, first match wins:
 
 1. **Cmd/Ctrl+S** goes first and works everywhere in the editor, a text box
-   included, and also in the 2.5D preview. The browser's own save-page dialog
+   included. The browser's own save-page dialog
    never opens. Shift+Ctrl+S is left to the browser. An empty plan is not
    written: the status line says there is nothing to save.
 2. **Typing wins over the view keys.** In a text box, number box, text area,
    select, range slider or editable text (the combo filter box included), the
    arrows and Space are the field's. Space on a focused button, summary, link
    or checkbox presses it. Arrows on a focused button turn or zoom the view.
-3. The view keys work in 2D and in the 2.5D preview, with or without a
+3. The view keys work with or without a
    selection. There is no arrow nudge of a selection, so nothing competes
    with them. **Alt+arrows** are the same keys.
 4. Keys are heard on the editor only, not on the page: a second editor or any
    other input on the page is not touched. Delete, Backspace, Escape and
-   Ctrl/Cmd+Z are unchanged, and are not heard in the preview.
+   Ctrl/Cmd+Z are unchanged.
 
 The editor remembers how you look, per browser, under
-`floorplan-studio:view` in `localStorage`: the floor on show, 2D or 2.5D,
-tilt, the wall heights, the names toggle, the turn, and the zoom and centre of every floor that
+`floorplan-studio:view` in `localStorage`: the floor on show, the names toggle, the turn, and the zoom and centre of every floor that
 is not shown whole. Theme, grid, measure grid, Preview night and Help already
 had keys of their own. It is saved 150 ms after the last touch, and when the
 tab is hidden or closed. The plan itself is not in it: a plan that is edited,
-opened or reset keeps the view. A floor the layout does not have is ignored,
+opened or reset keeps the view. An older entry that names a 2.5D view, a tilt or a wall mode is read without them and opens flat. A floor the layout does not have is ignored,
 a field that does not parse is dropped on its own, and a browser that blocks
 storage just forgets. A floor the host asks for (`floor` on the element) wins
 over the remembered floor. Reset view clears the zoom and turn.

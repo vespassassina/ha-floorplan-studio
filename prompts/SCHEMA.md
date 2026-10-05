@@ -59,6 +59,7 @@ Every object in `rooms`, `walls`, `stairs`, `doors`, `openings`, `extras`, `furn
 - **`area`**: always `""`. The owner links it to a Home Assistant area later.
 - **`label`**: always `""`.
 - **`name`**: what the drawing calls the room. Text, required, may be empty.
+- **`temps`**, **`humidity`**, **`motion`** (optional): lists of Home Assistant entity ids (`sensor.*` for the first two, `binary_sensor.*` for motion; at most 20 each) that belong to this room. The card shows the mean temperature and humidity under the room's name and a red pulsing edge while a `motion` entity is on, and draws no icon for them. Leave them out unless `available` names sensors for that room; never invent an entity.
 - **`kind`**, one of:
 
 | kind | use for |
