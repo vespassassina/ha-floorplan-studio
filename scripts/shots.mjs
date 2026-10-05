@@ -149,6 +149,14 @@ Object.assign(rg.find((r) => r.name === "Hall"), { motion: ["binary_sensor.demo_
 Object.assign(rg.find((r) => r.name === "Kitchen"), { temps: ["sensor.demo_kitchen_temp"], motion: ["binary_sensor.demo_kitchen_motion"] });
 STATES.roomsensors = { ...STATES.off, "sensor.demo_living_temperature": ["21", { unit_of_measurement: "°C" }], "sensor.demo_living_temp2": ["22.4", { unit_of_measurement: "°C" }], "sensor.demo_living_humidity": ["48", { unit_of_measurement: "%" }], "binary_sensor.demo_hall_motion": "on", "sensor.demo_kitchen_temp": "unavailable", "binary_sensor.demo_kitchen_motion": "unavailable" };
 
+// S13: floor textures in 3D, on a clone. The lit Kitchen wears the lightest wood (the case that could saturate), Living a
+// checkerboard turned 30 degrees at 150%, the Hall dark wood.
+const texLayout = structuredClone(roomLayout);
+const tg = texLayout.floors.ground.rooms;
+Object.assign(tg.find((r) => r.name === "Kitchen"), { texture: "wood-light" });
+Object.assign(tg.find((r) => r.name === "Living"), { texture: "checker-classic", textureRot: 30, textureScale: 1.5 });
+Object.assign(tg.find((r) => r.name === "Hall"), { texture: "wood-dark" });
+
 const shots = [];
 const errors = [];
 mkdirSync("shots", { recursive: true });
@@ -261,6 +269,10 @@ try {
     shots3d.push({ name: `card-ground-heating-${t.id}-3d-orbit`, floor: "ground", t, orbit: true, which: "heating", rooms: true });
     shots3d.push({ name: `card-ground-night-${t.id}-3d`, floor: "ground", t, orbit: false, which: "night", rooms: true });
     shots3d.push({ name: `card-ground-night-${t.id}-3d-orbit`, floor: "ground", t, orbit: true, which: "night", rooms: true });
+    // S13: textured floors, by day and with the kitchen lamp lit at night (its light on the walls).
+    shots3d.push({ name: `card-ground-textured-${t.id}-3d`, floor: "ground", t, orbit: false, which: "heating", tex: true });
+    shots3d.push({ name: `card-ground-textured-night-${t.id}-3d`, floor: "ground", t, orbit: false, which: "night", tex: true });
+    shots3d.push({ name: `card-ground-textured-night-${t.id}-3d-orbit`, floor: "ground", t, orbit: true, which: "night", tex: true });
   }
   for (const s of shots3d) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: 2 });
@@ -281,7 +293,7 @@ try {
       const el = document.getElementById("c");
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
-    }, [{ layout: s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.t.theme, view: "3d", active_list: !!s.pick }, hassFor(s.which ?? "on", s.t.dark)]);
+    }, [{ layout: s.tex ? texLayout : s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.t.theme, view: "3d", active_list: !!s.pick }, hassFor(s.which ?? "on", s.t.dark)]);
     const holder = page.locator("floorplan-studio-card").locator(".fp-3d");
     try { await page.waitForFunction(() => +(document.getElementById("c").shadowRoot.querySelector(".fp-3d")?.dataset.drawn ?? 0) >= 1, null, { timeout: 15000 }); }
     catch { errors.push(`${s.name}: the 3D view never drew a frame (WebGL missing, or the chunk failed)`); }

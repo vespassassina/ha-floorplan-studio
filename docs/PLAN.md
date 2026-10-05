@@ -2480,3 +2480,10 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   `tests/core/scene.test.ts`. Choices in `docs/DECISIONS.md`.
 - Sprint 12 review fixes: chunk retry, lost-context recovery, draw guard, coordinate bound, nest budget, test hook
   compiled out of the shipped build, narrow-card inset, ring disposal, debug lines. Choices in `docs/DECISIONS.md`.
+- S13 (task/3d-textures-light): floor textures in 3D and the lamp's light on the walls of its own room. Done, 2026-10-05.
+  Textures: a room's or tread's top face wears its texture, same size, turn and scale as 2D (`src/card/three/tex.ts`,
+  `textureTile` in core handed over through `three-deps.ts`); flat colour until the tile is ready; textures freed on a
+  floor switch and on `dispose()`. Light: an additive patch per lamp on the inside faces of its room, reach 300 cm,
+  clipped to the drawn height (`glow.ts`, `light.ts`). Tests: `tests/card/three-glow.test.ts`, `three-tex.test.ts`,
+  `tests/card/card-3d-tex-glow.spec.ts` (12, `--repeat-each=10` green). Sizes: card 94700 gzip (budget 95900), chunk
+  193252 (budget 200000). Choices in `docs/DECISIONS.md`.

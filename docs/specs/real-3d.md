@@ -59,8 +59,7 @@ does not work well.
 
 ## Non-goals
 
-Editing in 3D. Placing devices in 3D. Textures beyond the existing room
-paint colours. Real shadows from sunlight. Exporting a 3D model.
+Editing in 3D. Placing devices in 3D. Real shadows from sunlight. Exporting a 3D model.
 
 ## Risks
 

@@ -2,6 +2,35 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: textures and wall light in 3D
+
+**Textures.** A room's or stair's top face wears its `Paint.texture` in 3D, at the size, turn and scale 2D uses. The tile is
+the same inline SVG, drawn through an `Image` onto a canvas (4 px per cm, longest side at most 512, least 32) and used as a
+`CanvasTexture` with repeat wrapping, mipmaps and anisotropy 4; no network, no new dependency. The UVs are plan cm over the
+tile's size times scale, turned by the texture's own rotation about the plan origin, as the SVG `patternTransform` does
+(the canvas is uploaded flipped, so v is negative). Only triangles that face up take the texture; sides and undersides keep
+the flat colour. Until the tile has loaded the face shows the texture's preview colour, then swaps and asks for a frame.
+Rasters are cached per (id, scale); each `texture()` call makes its own `CanvasTexture`, so a floor switch disposes
+the textures and the materials' maps and three's texture count returns to where it was (tested over repeated switches).
+The chunk does not import core (see `palette.ts`), so the card passes `textureTile` in through `three-deps.ts`. An unknown id,
+a non-string id, a NaN or huge rotation or scale give `null`, which is the flat colour: layout files are untrusted input,
+and `validate` does not see a layout handed to the view by other routes. The vertex-colour lift of a lit room still
+multiplies the texture (the textured material's colour is white and its vertex colours carry the lift). Cost: a lit lamp
+over very light wood washes the grain a little; the pattern still reads (looked at in both themes).
+
+**Light on the walls: a vertex-coloured additive patch, not a decal.** Alternatives: (1) a gradient texture per wall face,
+(2) real `PointLight` shading on the walls (already there, but it lights every wall, has no reach limit and does not respect
+the lamp's room), (3) per-lamp additive geometry. Chosen: 3. For each of the (at most `MAX_POOLS` = 8) lamps one mesh holds a
+small grid per wall face that looks into the lamp's own room and lies within 300 cm; each vertex carries the lamp's colour
+times `(1 - d/R)^2 * (0.35 + 0.65 * cos)`, with d the distance to the lamp and cos the angle to the face. It needs no
+textures to create, upload or free; it stops exactly at the drawn wall height, so a cut (lowered) wall has a low patch only;
+and it counts the distance across the room, which a flat decal does not. Face ownership uses the true outward normal of the
+wall ring: a face is lit when a point 2 cm in front of its middle falls in the lamp's room polygon. Door-jamb end caps sit on the room
+boundary and may take a sliver; accepted, they are a few cm wide. Off lamp, or a room that is not lit: the slot is hidden.
+Cost: a face is meshed in 25 cm cells (at most 12 by 6), so a very large wall gets a coarser patch. Test hook:
+`window.__fp3d.muteGlow(on)` (dist-test build only) hides the patches, because the pool light also brightens the wall and a
+pixel test of on against off proved nothing about the patch (it passed with the gain at 0 until this was found).
+
 ## 2026-10-05: 3D fixes after 0.14.0 on the real layout
 
 **One floor at a time (supersedes "Floors" in the S12.6 entry).** The card draws only the selected floor. The dimmed floors
