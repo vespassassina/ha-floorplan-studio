@@ -170,7 +170,11 @@ room, one undo step, ready to drag to their real place.
    only its own kind of entity (a `sensor` of class temperature or humidity; a
    `binary_sensor` of class motion, occupancy or presence) and none another room
    already owns, at most 20 per list. A pick is one undo step and also removes a
-   loose icon of that entity; Remove only detaches. A loose temperature,
+   loose icon of that entity; Remove (a round red X, named "Remove <sensor>" for
+   screen readers) only detaches. The add menu is grouped "<floor> · <room>":
+   the room being edited first, then its floor's other rooms, then the other
+   floors in layout order, entities with no room last in each floor, and typing
+   still filters by the heading. A loose temperature,
    humidity or motion icon that sits inside a room shows **Attach to room** in
    its panel: one click adds its entity to the smallest room (never a zone)
    that holds it and deletes the icon, one undo step. The button is disabled,

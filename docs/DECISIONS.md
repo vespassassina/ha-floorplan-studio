@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: room Sensors section, add menu order and Remove button
+
+The room panel's three sensor pickers group their options "<floor title> · <room>" and sort them (`groupSensorChoices`,
+`src/editor/sensor-order.ts`): the edited room, then the other rooms of its floor in the floor's room order, then the
+other floors in layout order. An entry with a floor but no room sits last in its floor under "<floor> · No room"; an entry
+with no known floor (an HA entity not catalogued yet, `unattachedHaChoices`, or a stale floor key) goes last under its
+room name or "Elsewhere". Never throws. Order inside a group is the incoming order. Door, heater and other lists keep the
+old room-name groups; `multiAttachField` takes an opt-in `look` argument.
+Remove on a room sensor is a round red icon-only button (`.btn.rm-x`, `--fp-danger`, white X, 26 px). The name is in
+`aria-label` and `title` ("Remove <room> - <sensor>"); the id `<picker>-rm<k>` is unchanged. The X path is `UI_ICONS.close` (mdiClose, inlined).
+
 ## 2026-10-05: Sprint 12 review fixes
 
 **Coordinate bound.** `validate` refuses any coordinate beyond +-1e7 cm (100 km) from the origin, on every point,
