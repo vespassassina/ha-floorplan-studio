@@ -72,7 +72,7 @@ const has = <T extends string>(table: Record<T, number>, k: unknown): k is T => 
 const FALLBACK = 100; // an unknown symbol or type: a number, not a crash
 
 export const floorHeight = (f: Floor): number => own(f, "height") ?? DEFAULT_FLOOR_HEIGHT;
-const floorSlab = (f: Floor): number => own(f, "slab") ?? DEFAULT_SLAB;
+export const floorSlab = (f: Floor): number => own(f, "slab") ?? DEFAULT_SLAB;
 
 /** Elevation of a floor's slab top: the sum of every lower floor's height and slab, in `floors` key order. */
 export function floorElevation(layout: Layout, floorKey: string): number {

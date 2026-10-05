@@ -239,10 +239,10 @@ const spansOf = (f: Floor, state: StateOverlay | undefined): Span[] => [
 /** The state classes an opening's infill wears: red for open or alarm (solid), the cover's own colour for an open cover. */
 const liveClass = (l: DoorState) => `${l.open ? " open" : ""}${l.alarm ? " alarm" : ""}${l.cover ? " cover-open" : ""}`;
 /** How far from a wall's line an opening's middle may sit and still be in it: the editor's own snap tolerance (render.ts, DOOR_WALL_TOL). */
-const HOST_TOL = 10;
+export const HOST_TOL = 10;
 
 /** The part of `span` that lies in the wall, as distances along it, or null when the span is not in this wall. */
-function within(w: WallSeg, span: Span): [number, number] | null {
+export function within(w: Pick<WallSeg, "a" | "b">, span: Pick<Span, "a" | "b">): [number, number] | null {
   const dx = w.b[0] - w.a[0], dy = w.b[1] - w.a[1], len = Math.hypot(dx, dy);
   if (!len) return null;
   const ux = dx / len, uy = dy / len, sx = span.b[0] - span.a[0], sy = span.b[1] - span.a[1], sl = Math.hypot(sx, sy);
@@ -335,7 +335,7 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
 }
 
 /** `p` turned clockwise by `deg` about `c` (y points down, the way SVG's rotate() turns). */
-function turnAbout(p: Pt, deg: number, c: Pt): Pt {
+export function turnAbout(p: Pt, deg: number, c: Pt): Pt {
   const a = (deg * Math.PI) / 180, cs = Math.cos(a), sn = Math.sin(a), dx = p[0] - c[0], dy = p[1] - c[1];
   return [c[0] + dx * cs - dy * sn, c[1] + dx * sn + dy * cs];
 }
@@ -387,7 +387,7 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
 }
 
 /** cm across the block under an unlinked appliance, times its own scale: a small thing, the icon says what it is. */
-const UNLINKED_BASE = 40;
+export const UNLINKED_BASE = 40;
 /** A low box at the appliance's own height; the icon (drawn by renderFloor, at the plan position) stays on top. */
 export function unlinkedSolid(u: Unlinked, px: Proj): Solid | null {
   if (![u.x, u.y].every((v) => typeof v === "number" && Number.isFinite(v))) return null;
@@ -412,11 +412,13 @@ export const DEVICE_SOLID: Record<DeviceType, "radiator" | "speaker" | "tv" | "n
 const kindOf = (d: Device) => (has(DEVICE_SOLID, (d as { type?: unknown } | null)?.type) ? DEVICE_SOLID[d.type] : "none");
 
 /** cm. A radiator is 8 deep. A speaker cabinet is 20 x 20 x 30, its drivers 7 across on a face 20 wide. */
-const RADIATOR_WALL_REACH = 25, RADIATOR_DEEP = 8, SPEAKER_SIDE = 20, SPEAKER_HEIGHT = 30, DRIVER_R = 3.5, DRIVER_Z = 15;
+export const RADIATOR_DEEP = 8, SPEAKER_SIDE = 20, SPEAKER_HEIGHT = 30;
+const RADIATOR_WALL_REACH = 25, DRIVER_R = 3.5, DRIVER_Z = 15;
 /** cm. A TV panel is 100 wide, 6 thick, 60 tall, with a 3 cm bezel; it is looked for on a wall within 150 cm, and a free-standing one stands 30 cm up on its feet. */
-const TV_WIDTH = 100, TV_THICK = 6, TV_HEIGHT = 60, TV_BEZEL = 3, TV_WALL_REACH = 150, TV_STAND = 30;
+export const TV_WIDTH = 100, TV_THICK = 6, TV_HEIGHT = 60;
+const TV_BEZEL = 3, TV_WALL_REACH = 150, TV_STAND = 30;
 /** Half a wall's thickness (plan: 10 cm, 20 external, kept here because render.ts imports this file): where its room face lies. */
-const wallFace = (kind: string) => (kind === "external" ? 10 : kind === "wall" ? 5 : 0);
+export const wallFace = (kind: string) => (kind === "external" ? 10 : kind === "wall" ? 5 : 0);
 
 /** The top of a device's solid above the floor, or 0 when it has none; `viewBoxFor` widens by it. */
 export function deviceSolidTop(d: Device): number {
@@ -443,17 +445,24 @@ function onWallKey(f: Floor, hit: NonNullable<ReturnType<typeof nearestEdge>>, o
   return ends.every(finite) ? Math.max(own, nearest(px, ends as Pt[]) + 0.01) : own;
 }
 
-/** A flat panel `TV_THICK` thick on a wall of the room the TV is in, or standing free when no wall is near. */
-function tvSolid(f: Floor, d: Device, on: string, px: Proj): Solid | null {
+/**
+ * Where a TV stands: the centre `c` of its back, the unit normal `n` it looks along, the offset `off` of its back from `c`
+ * along `n`, and the height `z0` of its bottom. On the nearest wall within 150 cm it is flush with the room's face of that wall;
+ * with none near it stands free, `down` (the way the viewer looks) in front of it, 30 cm up. Shared by the 2.5D solid and the 3D scene.
+ */
+export function tvPlacement(f: Floor, d: Device, down: Pt): { c: Pt; n: Pt; off: number; z0: number; hit: ReturnType<typeof nearestEdge> } | null {
   if (!("x" in d) || ![d.x, d.y].every((v) => typeof v === "number" && Number.isFinite(v))) return null;
   const p: Pt = [d.x, d.y], hit = nearestEdge(f, p, TV_WALL_REACH, { walls: true });
-  let c: Pt, n: Pt, off: number, z0: number;
-  if (hit) {
-    const side: Pt = [hit.u[1], -hit.u[0]], flip = (p[0] - hit.q[0]) * side[0] + (p[1] - hit.q[1]) * side[1] < 0;
-    c = hit.q; n = flip ? [-side[0], -side[1]] : side; off = wallFace(edgeKindAt(f, hit.poly, hit.i)); z0 = deviceZ(d);
-  } else {
-    n = downScreen(px); c = p; off = -TV_THICK / 2; z0 = deviceZOr(d, TV_STAND);
-  }
+  if (!hit) return { c: p, n: down, off: -TV_THICK / 2, z0: deviceZOr(d, TV_STAND), hit };
+  const side: Pt = [hit.u[1], -hit.u[0]], flip = (p[0] - hit.q[0]) * side[0] + (p[1] - hit.q[1]) * side[1] < 0;
+  return { c: hit.q, n: flip ? [-side[0], -side[1]] : side, off: wallFace(edgeKindAt(f, hit.poly, hit.i)), z0: deviceZ(d), hit };
+}
+
+/** A flat panel `TV_THICK` thick on a wall of the room the TV is in, or standing free when no wall is near. */
+function tvSolid(f: Floor, d: Device, on: string, px: Proj): Solid | null {
+  const place = tvPlacement(f, d, downScreen(px));
+  if (!place) return null;
+  const { c, n, off, z0, hit } = place;
   const u: Pt = [-n[1], n[0]], at = (t: number, o: number): Pt => [c[0] + u[0] * t + n[0] * o, c[1] + u[1] * t + n[1] * o];
   const w = TV_WIDTH / 2, base = [at(-w, off), at(w, off), at(w, off + TV_THICK), at(-w, off + TV_THICK)], z1 = z0 + TV_HEIGHT;
   const body = prism(base, z1, px, z0);
@@ -510,7 +519,7 @@ export function deviceSolid(f: Floor, d: Device, on: string, px: Proj): Solid | 
  * cannot be drawn. A straight flight climbs toward +x when it runs along x and toward -y when it runs along y, away from
  * the viewer, so every riser faces it. A round one climbs once round, anticlockwise on screen from the right.
  */
-function stairBlocks(t: Stairs): { steps: Pt[][]; lowEdge: number; foot: (margin: number) => Pt[] } | null {
+export function stairBlocks(t: Stairs): { steps: Pt[][]; lowEdge: number; foot: (margin: number) => Pt[] } | null {
   if (!Array.isArray(t.pts) || t.pts.length < 3 || !t.pts.every(finite)) return null;
   const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), c: Pt = [(x0 + x1) / 2, (y0 + y1) / 2];
@@ -554,11 +563,11 @@ export function stairSolids(t: Stairs, rise: number, px: Proj, dir: StairDirecti
 }
 
 /** cm a stairwell sinks below the floor at its lowest step: a drawing of going down, not the storey. */
-const WELL_DEPTH = 60;
+export const WELL_DEPTH = 60;
 /** cm the near edges of a stairwell stand above the floor. */
 const WELL_RIM = 6;
 /** How far out from the foot, and how high, the kerb of stairs that go both ways stands. */
-const KERB_OUT = 6, KERB_HIGH = 10;
+export const KERB_OUT = 6, KERB_HIGH = 10;
 
 /** A low kerb round the foot of stairs that go both ways. In segments, so each sorts against the steps by its own depth. */
 function stairRim(foot: (margin: number) => Pt[], px: Proj): Solid[] {
