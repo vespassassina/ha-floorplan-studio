@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { FLOORPLAN_CSS, THEMES } from "../../src/core/render";
 
+// Moved from tests/editor in S12.1: the editor has no 2.5D any more, the card does.
 // 2.5D CSS pairs (CLAUDE.md finding 10). The string tests in render.test.ts prove nothing about specificity or
 // inheritance, so each rule that carries the 2.5D look is read back from Chromium, in every theme (finding 17).
 // A bare page with FLOORPLAN_CSS, one `<g data-theme>` per theme, like theme-css.spec.ts.

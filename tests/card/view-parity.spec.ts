@@ -13,9 +13,6 @@ const EDITING_AID = "an editing aid: it helps place and measure things, and a da
 /** Editor control id -> what the card does. `has` is a selector in the card's shadow root. */
 const PARITY: Record<string, Decision> = {
   version: { card: "deliberate", why: "the card names its version in the browser console instead of in its chrome" },
-  "view-mode": { card: "yes", has: 'select[aria-label="View"]' },
-  tilt: { card: "yes", has: 'input[aria-label="Tilt"]' },
-  walls: { card: "yes", has: 'select[aria-label="Walls"]' },
   snap: { card: "deliberate", why: EDITING_AID },
   mgrid: { card: "deliberate", why: EDITING_AID },
   lens: { card: "deliberate", why: EDITING_AID },
@@ -34,6 +31,14 @@ const PARITY: Record<string, Decision> = {
   vrotr: { card: "yes", has: 'button[aria-label="Rotate right"]' },
 };
 
+/** S12.1: the editor has no 2.5D, so these three are card only (the card keeps 2.5D as its low-power view). They are not
+ * in PARITY, which is keyed by editor control; the card must still have them, and the editor must not. */
+const CARD_ONLY: Record<string, string> = {
+  "view-mode": 'select[aria-label="View"]',
+  tilt: 'input[aria-label="Tilt"]',
+  walls: 'select[aria-label="Walls"]',
+};
+
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 const HARNESS = pathToFileURL(resolve("tests/card/harness.html")).href;
@@ -49,6 +54,7 @@ test("every view control of the editor has a decision for the card", async ({ pa
   expect(ids.length).toBeGreaterThan(15); // the scrape found the menus at all
   const undecided = ids.filter((id) => !(id in PARITY));
   expect(undecided, `New editor view control(s) with no card decision: add them to PARITY here and to docs/card.md ("Studio and card"): ${undecided.join(", ")}`).toEqual([]);
+  for (const id of Object.keys(CARD_ONLY)) expect(ids, `#${id} is card only: the editor has no 2.5D`).not.toContain(id);
   const gone = Object.keys(PARITY).filter((id) => !ids.includes(id));
   expect(gone, `PARITY names editor controls that no longer exist: ${gone.join(", ")}`).toEqual([]);
 });
@@ -68,6 +74,7 @@ test("every control the card is said to have is on a 2.5D card", async ({ page }
     if (d.card !== "yes") continue;
     await expect(page.locator("floorplan-studio-card").locator(`css=${d.has}`), `${id}: ${d.has}`).toHaveCount(1);
   }
+  for (const [id, has] of Object.entries(CARD_ONLY)) await expect(page.locator("floorplan-studio-card").locator(`css=${has}`), `${id}: ${has}`).toHaveCount(1);
 });
 
 test("docs/card.md lists every control and its decision", () => {

@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: the editor loses 2.5D (S12.1)
+
+Diego: "remove the 2.5d from the editor, it doesn't work well". Removed: View > Plan view, Tilt and Walls, the
+preview note and the read-only preview mode (inert menus, no hit-test, no keys) with `EditorState.viewMode`, `tilt`,
+`walls`, `preview` and their setters; `viewBoxFor` is called flat. `ViewMemory` drops `mode`, `tilt`, `walls` and the
+zoom `aspect` (it existed only because the fit changed shape with the tilt). An old stored entry is read without them
+and opens flat; the entry is rewritten at the next view change, not before. Kept: everything in `src/core` and
+`src/card` (`renderFloor` with `view`, `tilt`, `walls`), and the editor's door "preview open" box, which is 2D. The
+parity test now lists Plan view, Tilt and Walls as card only (an exception, as in the entry below).
+
 ## 2026-10-05: real 3D in the card, view-only; 2.5D leaves the editor
 
 Diego asked for real 3D. Chosen: a three.js view in the card, built from a new raw-solid scene module

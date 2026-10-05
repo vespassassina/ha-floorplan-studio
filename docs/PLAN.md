@@ -2419,6 +2419,11 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   note, view-memory `mode`. Card untouched. Test: each editor 2.5D test is
   moved to the card or deleted, with the count in the report; a stored
   `"2.5d"` opens 2D. Increment: a simpler editor.
+  Done, 2026-10-05. Tests: `tests/editor/no-25d.spec.ts` (3),
+  `tests/editor/view-memory-flat.test.ts` (6) written first and failing.
+  Of the old editor 2.5D tests, 4 moved to the card (`tests/card/oblique-css.spec.ts`,
+  `device-solids-css.spec.ts`), 27 deleted (each one drove the editor preview; the
+  card has its own spec for the same render), the rest edited to flat only. Choices in `docs/DECISIONS.md`.
 - S12.2 `src/core/scene.ts`: raw solids in cm from the layout, using
   `heights.ts`. Tests: demo numbers, a gap for each door and window, every
   device and furniture kind iterated, hostile layout. Increment: pure core,
