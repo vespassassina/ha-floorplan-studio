@@ -65,8 +65,10 @@ describe("liveOf", () => {
     const l = liveOf({ devices: 5, rooms: "x", doors: {} } as never, { scale: 1 }, NOW);
     expect(l).toMatchObject({ lights: [], doors: [], devices: [], rooms: [] });
   });
-  it("carries the toggles and the layout's device colours", () => {
-    expect(live({}, ground, { labels: false, showNames: true, night: true, colors: { light: "#ff0000", bogus: "#00ff00" } })).toMatchObject({ labels: false, names: true, night: true, colours: "--fp-dev-light:#ff0000" });
+  it("carries the toggles (the card does not pass the layout's device colours to 3D: DECISIONS, S12 fixes, Not done)", () => {
+    const l = live({}, ground, { labels: false, showNames: true, night: true, colors: { light: "#ff0000", bogus: "#00ff00" } });
+    expect(l).toMatchObject({ labels: false, names: true, night: true });
+    expect(l).not.toHaveProperty("colours"); // computed once, read by nothing: removed
     expect(live({}).labels).toBe(true);
   });
 });

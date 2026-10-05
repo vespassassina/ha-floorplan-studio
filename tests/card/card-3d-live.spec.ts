@@ -3,7 +3,7 @@ import { demo, serve, ORIGIN, card, canvas, cam, drawn } from "./helpers-3d";
 
 // S12.5: live state in the 3D view. Pixels are read from real screenshots of the canvas, taps are real `page.mouse`
 // events, and the scene's own state (a door's swing, a body's colour, a pool, a ring) is read from the test hook
-// `__fp3d.live()` that exists only when the page sets `__FP3D_TEST__`. Demo ground floor: Living is room 0 (0..500 x
+// `__fp3d.live()` that exists only in the test build (dist-test/). Demo ground floor: Living is room 0 (0..500 x
 // 0..400), Kitchen 1 (500..800 x 0..400), Hall 2; device 0 is the living light at (250,200), 1 the kitchen light,
 // 5 the hall motion sensor, 7 the heater bar; doors: 0 Front door (plain), 1 Patio (glass), 2 Garage (plain, a cover).
 
@@ -27,7 +27,6 @@ interface Live {
 }
 
 async function boot(page: Page, config: Record<string, unknown> = {}, states: Record<string, unknown> = QUIET(), layout: unknown = structuredClone(demo)) {
-  await page.addInitScript(() => { (window as unknown as { __FP3D_TEST__: boolean }).__FP3D_TEST__ = true; });
   await serve(page);
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.goto(`${ORIGIN}/harness.html`);

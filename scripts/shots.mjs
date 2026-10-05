@@ -20,7 +20,7 @@ const args = new Set(process.argv.slice(2));
 const OUT = "shots/current";
 const BASE = "shots/baseline";
 const CARD = "dist/floorplan-studio-card.js";
-const DIST = resolve("dist");
+const DIST = resolve("dist-test"); // the card with the 3D test hook (build with FP_TEST_BUILD=1, as `npm run shots` does)
 const EDITOR = "dist/editor.html";
 for (const f of [CARD, EDITOR]) {
   if (!existsSync(f)) {
@@ -265,7 +265,6 @@ try {
   for (const s of shots3d) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: 2 });
     const page = await ctx.newPage();
-    if (s.pick) await page.addInitScript(() => { globalThis.__FP3D_TEST__ = true; });
     page.on("pageerror", (e) => errors.push(`${s.name}: ${e}`));
     page.on("console", (m) => { if (m.type() === "error") errors.push(`${s.name}: console.error ${m.text()}`); });
     await page.route("**/*", (route) => {

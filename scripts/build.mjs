@@ -11,6 +11,17 @@ rmSync("dist", { recursive: true, force: true });
 for (const mode of ["card", "panel", "editor"]) await build({ configFile: "vite.config.ts", mode, logLevel: "warn" });
 renameSync("dist/standalone.html", "dist/editor.html");
 
+// The Playwright specs drive the 3D view through a test hook that the shipped build does not contain (a compile-time flag,
+// vite.config.ts). With FP_TEST_BUILD=1 the card is built a second time, hook included, into dist-test/.
+if (process.env.FP_TEST_BUILD === "1") {
+  rmSync("dist-test", { recursive: true, force: true });
+  process.env.FP3D_TEST = "1";
+  process.env.FP_OUT = "dist-test";
+  await build({ configFile: "vite.config.ts", mode: "card", logLevel: "warn" });
+  delete process.env.FP3D_TEST;
+  delete process.env.FP_OUT;
+}
+
 // The integration serves these files from its www/ folder.
 const www = "custom_components/floorplan_studio/www";
 mkdirSync(www, { recursive: true });

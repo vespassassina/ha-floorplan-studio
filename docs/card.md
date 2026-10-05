@@ -719,7 +719,10 @@ with its own colour keeps it. There are no textures and no shadows.
   camera keeps its angle and frames the new floor. A lamp on a lower floor
   lights nothing on the upper one.
 - **No WebGL, or the graphics context is lost, or the 3D code cannot load:** the
-  card shows the 2D plan and one line saying why. Nothing is left blank. The
+  card shows the 2D plan and one line saying why. Nothing is left blank. A lost
+  graphics context is waited for three seconds; if it does not return, the card
+  shows the line and tries 3D once more when the tab is shown again or the card
+  is attached again. A load that failed is tried again on the next 3D pick. The
   lines are `3D view unavailable: this browser has no WebGL. Showing 2D.`,
   `3D view unavailable: the graphics context was lost. Showing 2D.`,
   `3D view unavailable: its code did not load. Showing 2D.` and

@@ -6,6 +6,7 @@
 //
 // Frame: x and y are the plan's, in cm, y down as on the plan; z is up, in cm, 0 the walking surface of the floor.
 // `opts.elevation` lifts the whole scene (the floor's slab top, `floorElevation`) so floors can be stacked.
+import { debugOnce } from "./debug-once";
 import type { FloorsAround } from "./stairs";
 import type { Device, Floor, FurnitureSymbol, Pt } from "./schema";
 
@@ -55,6 +56,8 @@ export const PANE_THICKNESS = 2, LEAF_THICKNESS = 4, TRUNK_SIDE = 12, ROOM_THICK
 export const CUT_WALL_HEIGHT = 30;
 /** Most rooms for which nesting is worked out (it is quadratic); more than this and every fill sits at the same height. */
 const NEST_LIMIT = 300;
+/** The most point tests nesting may cost: the square of the total points of all rooms bounds it (S12 review). Over it, no nesting, as past NEST_LIMIT. */
+const NEST_WORK = 1e7;
 /** cm. Two wall ends this close are one corner. */
 const JOINT_TOLERANCE = 1;
 
@@ -150,7 +153,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       } else if (isPt(shape.at) && fin(shape.z)) solids.push({ id, kind, tag, shape: { type: "point", at: [shape.at[0], shape.at[1]], z: shape.z + lift }, ref, paint });
     };
     /** Runs one piece's builder; whatever it throws, the piece is lost and the scene is not. */
-    const piece = (fn: () => void) => { try { fn(); } catch { /* skip the bad piece */ } };
+    const piece = (fn: () => void) => { try { fn(); } catch (e) { debugOnce("3D scene: a piece of the layout could not be built and was left out", e); } };
 
     // The slab under the house, its top at the walking surface.
     piece(() => { const o = ring(f.outline); if (o) add("floor", "floor", "slab", { type: "prism", base: o, z0: -floorSlab(f), z1: 0 }, {}, { role: "slab" }); });
@@ -160,7 +163,9 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     const rooms = list(f.rooms), rings = rooms.map((r) => (isObj(r) ? ring(r.pts) : null));
     const area = (p: Pt[]) => Math.abs(p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0)) / 2;
     const areas = rings.map((p) => (p ? area(p) : 0));
-    const nest = (i: number) => { const p = rings[i]; return p && rooms.length <= NEST_LIMIT ? rings.reduce((n, q, j) => n + +(j !== i && !!q && areas[j] > areas[i] && p.every((v) => inside(v, q))), 0) : 0; };
+    const points = rings.reduce((n, p) => n + (p ? p.length : 0), 0);
+    const nestable = rooms.length <= NEST_LIMIT && points * points <= NEST_WORK;
+    const nest = (i: number) => { const p = rings[i]; return p && nestable ? rings.reduce((n, q, j) => n + +(j !== i && !!q && areas[j] > areas[i] && p.every((v) => inside(v, q))), 0) : 0; };
     rooms.forEach((r, i) => piece(() => {
       const p = rings[i];
       if (!p || !isObj(r) || !oneOf(ROOM_KINDS, r.kind) || r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name)) return;
@@ -172,7 +177,16 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
 
     // Walls, each cut by the openings that lie in it: a block under the sill, a header over the head, nothing between.
     const spans = spansOf(f), placed = new Set<number>();
-    piece(() => { const all = collectWalls(f); all.forEach((w) => piece(() => {
+    piece(() => { const all = collectWalls(f);
+      // Wall ends on a grid one tolerance wide: a corner is found by looking at nine cells, not at every wall (near linear, S12 review).
+      const ends = new Map<string, number[]>(), cell = (q: Pt) => `${Math.floor(q[0] / JOINT_TOLERANCE)},${Math.floor(q[1] / JOINT_TOLERANCE)}`;
+      all.forEach((o, k) => { for (const q of [o.a, o.b]) { const key = cell(q), at = ends.get(key); if (at) { if (at[at.length - 1] !== k) at.push(k); } else ends.set(key, [k]); } });
+      const near = (p: Pt): number[] => {
+        const cx = Math.floor(p[0] / JOINT_TOLERANCE), cy = Math.floor(p[1] / JOINT_TOLERANCE), hit = new Set<number>();
+        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (const k of ends.get(`${cx + dx},${cy + dy}`) ?? []) hit.add(k);
+        return [...hit].sort((x, y) => x - y); // the order of `all`, as before
+      };
+      all.forEach((w) => piece(() => {
       const len = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]), thick = WALL_THICKNESS[w.kind] ?? 10, ref: SolidRef = { poly: w.poly, index: w.index, faces: w.faces };
       // A corner: two walls end on the same point, so the outer corner would be a notch half a wall thick. An end that meets
       // another wall's end runs on by half of that wall's thickness. Not a corner, and left alone: a T-joint (the end on the
@@ -181,7 +195,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       const meet = (p: Pt, far: Pt) => {
         const dir = (q: Pt, r: Pt): Pt => { const l = Math.hypot(r[0] - q[0], r[1] - q[1]); return [(r[0] - q[0]) / l, (r[1] - q[1]) / l]; };
         const dw = dir(p, far), around: { d: Pt; half: number }[] = [];
-        for (const o of all) {
+        for (const k of near(p)) {
+          const o = all[k];
           if (o === w) continue;
           const end = [o.a, o.b].find((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) <= JOINT_TOLERANCE);
           if (end) around.push({ d: dir(end, end === o.a ? o.b : o.a), half: (WALL_THICKNESS[o.kind] ?? 10) / 2 });

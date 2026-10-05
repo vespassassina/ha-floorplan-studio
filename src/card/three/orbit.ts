@@ -137,6 +137,9 @@ export class Orbit {
     this.target = [...this.start.target];
   }
 
+  /** Whether the camera has a position at all: false when the bounds are so large that the distance overflowed (the view then falls back to 2D). */
+  get finite(): boolean { return [this.distance, this.fit, ...this.target].every(fin); }
+
   /** The distance that frames the house, for the near and far planes. */
   get framing(): number { return this.fit; }
   /** The size of the scene's frame, for the camera's far plane. */

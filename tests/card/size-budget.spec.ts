@@ -30,3 +30,19 @@ test("the card file imports no three.js and no scene or live builder (they belon
   // Words only scene-build.ts (the shape of a solid, a sunken stair) and live-build.ts (a motion edge's pulse age) write.
   for (const word of ["\"prism\"", "stair-down", "pulseAge"]) expect(src, word).not.toContain(word);
 });
+
+// S12 review N6: the test hook `__fp3d` is a compile-time flag. The shipped build (dist/, www/) must not carry it; the Playwright
+// specs that drive it run against dist-test/, a second card build made only when FP_TEST_BUILD=1 (scripts/build.mjs).
+test("the shipped 3D chunk and card carry no test hook", () => {
+  for (const f of readdirSync("dist").filter((n) => n.endsWith(".js"))) {
+    const src = readFileSync(`dist/${f}`, "utf8");
+    expect(src, f).not.toContain("__fp3d");
+    expect(src, f).not.toContain("__FP3D_TEST__");
+  }
+});
+
+test("the test build does carry it (so the grep above can fail)", () => {
+  const chunk = readdirSync("dist-test").find((n) => /^floorplan-studio-3d-.*\.js$/.test(n));
+  expect(chunk).toBeTruthy();
+  expect(readFileSync(`dist-test/${chunk}`, "utf8")).toContain("__fp3d");
+});

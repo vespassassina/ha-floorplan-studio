@@ -3,6 +3,7 @@
 // roomReadout), so the two views cannot disagree about which room is lit, which door is open or what an icon wears.
 // The 3D chunk imports nothing from core, so it gets this object and draws it. A layout is untrusted (CLAUDE.md finding 1):
 // nothing here throws, and a piece that cannot be read is null.
+import { debugOnce } from "./debug-once";
 import type { DoorState } from "./door-state";
 import type { RenderOpts } from "./render";
 import type { Device, Floor, Pt } from "./schema";
@@ -10,7 +11,7 @@ import type { Device, Floor, Pt } from "./schema";
 // Like scene-build.ts, this file imports nothing from core at run time: the 3D chunk holds it and the card hands it the 2D
 // plan's own helpers (`LiveDeps`, core/three-deps.ts), so there is one copy of them in the page.
 type Render = typeof import("./render");
-export type LiveDeps = Pick<Render, "acMode" | "attachedTest" | "deviceColourVars" | "deviceMarkup" | "lightFill" | "lightOpacity" | "MOTION_PULSE_S" | "MOTION_PULSES" | "motionRooms" | "personRoom" | "polyCentre" | "roomAt" | "roomReadout" | "ROOM_OWNS">
+export type LiveDeps = Pick<Render, "acMode" | "attachedTest" | "deviceMarkup" | "lightFill" | "lightOpacity" | "MOTION_PULSE_S" | "MOTION_PULSES" | "motionRooms" | "personRoom" | "polyCentre" | "roomAt" | "roomReadout" | "ROOM_OWNS">
   & Pick<typeof import("./door-state"), "doorStateOf">;
 
 export interface LiveLight { device: number; room: number; at: Pt; /** The lamp's own CSS colour, or null for the theme's light colour. */ rgb: string | null; /** 0..1 */ level: number }
@@ -37,8 +38,6 @@ export interface Live3D {
   night: boolean; labels: boolean; names: boolean;
   /** How many times a tripped room's edge pulses, and how long one pulse is in seconds: the plan's own figures. */
   pulse: [number, number];
-  /** `--fp-dev-<type>:#rrggbb;...`, the layout's own device colours, for the overlay's root. */
-  colours: string;
   lights: LiveLight[];
   doors: (DoorState | null)[];
   /** Per device index; null for a room's own sensor (it draws no icon of its own, DECISIONS S11.1). */
@@ -48,7 +47,7 @@ export interface Live3D {
 
 /** `liveOf`, bound to the 2D plan's helpers. The 3D chunk builds one per view; `core/live.ts` binds the real ones for the tests. */
 export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: number) => Live3D {
-  const { acMode, attachedTest, deviceColourVars, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, polyCentre, roomAt, roomReadout, ROOM_OWNS, doorStateOf } = d;
+  const { acMode, attachedTest, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, polyCentre, roomAt, roomReadout, ROOM_OWNS, doorStateOf } = d;
   const isPt = (p: unknown): p is Pt => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]);
   const ringOf = (r: { pts?: unknown } | null | undefined): Pt[] | null => (r && Array.isArray(r.pts) && r.pts.length >= 3 && r.pts.every(isPt) ? (r.pts as Pt[]) : null);
   const list = <T>(x: unknown): T[] => (Array.isArray(x) ? (x as T[]) : []);
@@ -82,20 +81,20 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
           const st = o.state?.[d.entity];
           lights.push({ device: i, room: roomAt(safe, at), at, rgb: lightFill(st), level: lightOpacity(st) ?? 1 });
         }
-      } catch { /* a device that cannot be read draws nothing */ }
+      } catch (e) { debugOnce("3D live state: a device could not be read and draws nothing", e); }
     });
-    const doors = list<Floor["doors"][number]>(f.doors).map((d) => { try { return typeof d === "object" && d !== null ? doorStateOf(d, o.state) : null; } catch { return null; } });
+    const doors = list<Floor["doors"][number]>(f.doors).map((d) => { try { return typeof d === "object" && d !== null ? doorStateOf(d, o.state) : null; } catch (e) { debugOnce("3D live state: a door could not be read", e); return null; } });
     let motion: ReturnType<typeof motionRooms> = { triggered: new Map(), pulsing: new Map() };
-    try { motion = motionRooms(safe, o, now); } catch { /* no rings */ }
+    try { motion = motionRooms(safe, o, now); } catch (e) { debugOnce("3D live state: the motion edges could not be worked out", e); }
     const liveRooms = rooms.map((r, i): LiveRoom | null => {
       try {
         const p = ringOf(r);
         if (!p || typeof r !== "object") return null;
         const m = motion.triggered.get(i), owns = ROOM_OWNS[r.kind];
         return { name: typeof r.name === "string" && r.kind !== "structure" ? r.name : "", at: polyCentre(p), readout: owns ? roomReadout(r, o.state) : "", motion: m ? { radar: m.radar, on: m.on, v: m.v, pulseAge: motion.pulsing.get(i) ?? null } : null };
-      } catch { return null; }
+      } catch (e) { debugOnce("3D live state: a room could not be read", e); return null; }
     });
-    return { pulse: [MOTION_PULSES, MOTION_PULSE_S], night: !!o.night, labels: o.labels !== false, names: !!o.showNames, colours: deviceColourVars(o.colors).join(";"), lights, doors, devices: out, rooms: liveRooms };
+    return { pulse: [MOTION_PULSES, MOTION_PULSE_S], night: !!o.night, labels: o.labels !== false, names: !!o.showNames, lights, doors, devices: out, rooms: liveRooms };
   }
   return liveOf;
 }
