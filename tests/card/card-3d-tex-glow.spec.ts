@@ -9,7 +9,7 @@ import { textureDeps } from "../../src/core/three-deps";
 // Pixels come from real screenshots; what is drawn (a map, a patch of glow) is read from the hook.
 
 interface Tex { id: string; rot: number; scale: number; tileCm: [number, number]; hasMap: boolean; wrap: [number, number]; srgb: boolean; anisotropy: number; verts: number; first: { x: number; y: number; u: number; v: number }[] }
-interface Glow { room: number; visible: boolean; faces: { a: [number, number]; b: [number, number]; z0: number; z1: number }[] }
+interface Glow { room: number; visible: boolean; faces: { a: [number, number]; b: [number, number]; z0: number; z1: number }[]; pos: number[] }
 interface Hook {
   textured(): Tex[];
   live(): { glow: Glow[]; lifted: number[] };
@@ -249,6 +249,28 @@ test.describe("3D view: the lamp's light on the walls (S13)", () => {
     expect((await glow(page)).filter((x) => x.visible).map((x) => x.room).sort()).toEqual([0, 1]);
     await setStates(page, QUIET());
     expect((await glow(page)).filter((x) => x.visible)).toEqual([]);
+  });
+
+  /** How far (cm) the point (x, y) is from the axis-aligned box x0..x1 by y0..y1: 0 inside it. */
+  const outside = (x: number, y: number, [x0, y0, x1, y1]: number[]) => Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(y0 - y, 0, y - y1));
+  // A wall face sits 5 cm off a room's edge (half the 10 cm wall) and the patch lifts 0.8 cm more: a vertex of the lamp's own room is within 6 cm of it.
+  // The bug this guards lit the stretch of an outline face that is shared by several rooms for 93 cm into the next room.
+  test("no vertex of a lamp's glow lies outside the lamp's own room (first-floor Bedroom, ground Kitchen and Living on the demo)", async ({ page }) => {
+    await boot(page, structuredClone(demo), { walls: "full" });
+    for (const [floor, entity, room, box, name] of [
+      ["ground", "light.demo_kitchen", 1, [500, 0, 800, 400], "Kitchen"],
+      ["ground", "light.demo_living", 0, [0, 0, 500, 400], "Living"],
+      ["first", "light.demo_bedroom", 0, [0, 0, 400, 300], "Bedroom"],
+    ] as const) {
+      await select(page, floor);
+      await setStates(page, { ...QUIET(), "light.demo_bedroom": st("off"), [entity]: st("on", { rgb_color: [255, 170, 60], brightness: 255 }, iso(5)) });
+      const g = (await glow(page)).filter((x) => x.visible);
+      expect(g.map((x) => x.room), name).toEqual([room]);
+      expect(g[0].pos.length, `${name} has vertices`).toBeGreaterThan(30 * 3);
+      const far = [] as string[];
+      for (let i = 0; i < g[0].pos.length; i += 3) { const d = outside(g[0].pos[i], g[0].pos[i + 2], [...box]); if (d > 6) far.push(`${g[0].pos[i].toFixed(0)},${g[0].pos[i + 2].toFixed(0)} (${d.toFixed(0)} cm out)`); }
+      expect(far, `${name}: vertices outside the room`).toEqual([]);
+    }
   });
 
   test("a lamp in no room lights no wall", async ({ page }) => {

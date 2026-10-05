@@ -124,12 +124,12 @@ test.describe("3D view: panning (3D fixes)", () => {
     const s = await boot(page);
     await page.evaluate(() => {
       const w = window as unknown as { __mid: Record<string, boolean[]> };
-      w.__mid = { pointerdown: [], auxclick: [] };
-      for (const t of ["pointerdown", "auxclick"]) window.addEventListener(t, (e) => { if ((e as MouseEvent).button === 1) w.__mid[t].push(e.defaultPrevented); });
+      w.__mid = { pointerdown: [], mousedown: [], auxclick: [] };
+      for (const t of ["pointerdown", "mousedown", "auxclick"]) window.addEventListener(t, (e) => { if ((e as MouseEvent).button === 1) w.__mid[t].push(e.defaultPrevented); });
     });
     await page.mouse.move(s.cx, s.cy);
     await page.mouse.click(s.cx, s.cy, { button: "middle" });
-    expect(await page.evaluate(() => (window as unknown as { __mid: unknown }).__mid)).toEqual({ pointerdown: [true], auxclick: [true] });
+    expect(await page.evaluate(() => (window as unknown as { __mid: unknown }).__mid)).toEqual({ pointerdown: [true], mousedown: [], auxclick: [true] }); // no mousedown reaches the page: the cancelled pointerdown stops it, so a mousedown guard would be dead code
   });
 
   test("a pan is not a tap: a middle drag or a Space drag that starts on a room picks nothing, and a middle click picks nothing", async ({ page }) => {

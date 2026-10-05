@@ -2,6 +2,23 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: the wall glow is clipped to the lamp's room, face by face
+
+Supersedes the "face looks into the lamp's room" test of the entry below. That test looked at one point, 2 cm in front of the
+face's midpoint. An outer wall is one long face shared by several rooms (`collectWalls` merges only identical edges), so the
+midpoint decided for the whole face: in a 1000 x 400 outline split at x=500, a lamp in the east room lit the outline from
+x=407 to 793, 93 cm of it in the west room, and a lamp in the west room lit none of its own stretch. On the demo the
+first-floor Bedroom lamp lit 31 vertices outside its room. Now `facing` cuts the face wherever the line 2 cm in front of it
+crosses a room's edge, keeps the stretches whose middle is in the lamp's room, and `glowGrid` meshes each stretch (the 300 cm
+reach and the drawn height are unchanged; the cost is one small grid per stretch, still bounded). The room of a point is
+`roomOfPoint`'s (the highest room, then the smallest), so the inside face of a room nested in the lamp's room is not lit
+through the inner room. Tests: the two-room outline both ways, a nested room, a face in a neighbour's room that faces the
+lamp (fails without the room check), and a pixel-side check on the demo that no glow vertex lies more than 6 cm outside
+the lamp's room.
+
+Also: the 3D view no longer listens for `mousedown`. A cancelled `pointerdown` stops the compatibility mousedown in Chromium
+(the pan test now records it and sees none), and the autoscroll starts from that mousedown, so the listener was unreachable.
+
 ## 2026-10-05: textures and wall light in 3D
 
 **Textures.** A room's or stair's top face wears its `Paint.texture` in 3D, at the size, turn and scale 2D uses. The tile is

@@ -94,30 +94,53 @@ export function glowAt(dist: number, perp: number, reach = GLOW_REACH): number {
 export const outwardSign = (ring: Poly): 1 | -1 => (ring.reduce((s, p, i) => { const q = ring[(i + 1) % ring.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0) >= 0 ? 1 : -1);
 
 /**
- * The outward unit normal (plan frame) of a wall solid's face a to b (an edge of its ring, wound with sign `s`, see `outwardSign`) if the face looks into
- * `base`, the lamp's room, toward the lamp; else null. A face looks into the room when the point just in front of its middle lies in the room: the outside
- * of an outer wall and the neighbour's face of a shared wall do not, and a face the lamp is behind does not.
+ * The lit part of a wall solid's face a to b (an edge of its ring, wound with sign `s`, see `outwardSign`): the outward unit normal (plan frame) and
+ * the stretches of the face, as cm from `a`, that look into the lamp's room toward the lamp; else null. A stretch looks into the room when the point
+ * just in front of it lies in the room, so the face is cut wherever that point crosses a room's edge: one long outline face shared by two rooms lights
+ * only the part before the lamp's own room, the outside of an outer wall and the neighbour's face of a shared wall do not, and a face the lamp is behind
+ * does not. With `rooms` and `room` the room of that point is `roomOfPoint`'s (the highest, then the smallest that holds it), so the face of a room nested
+ * in the lamp's room, which looks into the inner room, is not lit through it; without them it is `base`.
  */
-export function facing(a: Pt, b: Pt, s: 1 | -1, base: Poly, lamp: Pt): Pt | null {
+export function facing(a: Pt, b: Pt, s: 1 | -1, base: Poly, lamp: Pt, rooms?: readonly RoomShape[], room = -1): { n: Pt; spans: [number, number][] } | null {
   if (![a[0], a[1], b[0], b[1], lamp[0], lamp[1]].every(fin)) return null;
   const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
   if (!(len > 0.5)) return null;
-  const n: Pt = [(s * dy) / len + 0, (-s * dx) / len + 0], mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
-  return inPoly(base, mx + n[0] * 2, my + n[1] * 2) && (lamp[0] - mx) * n[0] + (lamp[1] - my) * n[1] > 0 ? n : null;
+  const n: Pt = [(s * dy) / len + 0, (-s * dx) / len + 0];
+  if (!((lamp[0] - a[0]) * n[0] + (lamp[1] - a[1]) * n[1] > 0)) return null;
+  const x0 = a[0] + n[0] * FRONT, y0 = a[1] + n[1] * FRONT, polys: Poly[] = [base, ...(rooms ?? []).map((r) => r.base)], cuts = [0, 1];
+  for (const P of polys) for (let i = 0; i < P.length; i++) {
+    const p = P[i], q = P[(i + 1) % P.length], ex = q[0] - p[0], ey = q[1] - p[1], den = dx * ey - dy * ex;
+    if (!(Math.abs(den) > 1e-9)) continue;
+    const t = ((p[0] - x0) * ey - (p[1] - y0) * ex) / den, u = ((p[0] - x0) * dy - (p[1] - y0) * dx) / den;
+    if (t > 0 && t < 1 && u >= 0 && u <= 1) cuts.push(t);
+  }
+  cuts.sort((m, k) => m - k);
+  const spans: [number, number][] = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const t0 = cuts[i], t1 = cuts[i + 1];
+    if (!((t1 - t0) * len > 0.5)) continue;
+    const x = x0 + dx * (t0 + t1) / 2, y = y0 + dy * (t0 + t1) / 2;
+    if (!(rooms && room >= 0 ? roomOfPoint(rooms, x, y) === room : inPoly(base, x, y))) continue;
+    const last = spans[spans.length - 1];
+    if (last && Math.abs(last[1] - t0 * len) < 1e-6) last[1] = t1 * len; else spans.push([t0 * len, t1 * len]);
+  }
+  return spans.length ? { n, spans } : null;
 }
+/** cm. How far in front of a face the room test looks. */
+const FRONT = 2;
 
 /**
  * The patch of one face (a to b, normal `n`, drawn from `z0` to `z1`) lit by a lamp at `lamp` and height `lampZ`: a grid of vertices lifted `lift` cm off the
- * face, in three.js' frame (x, up, plan y), with the share of light (`glowAt`) at each, and the triangles. Only the stretch within reach is meshed. Null when
+ * face, in three.js' frame (x, up, plan y), with the share of light (`glowAt`) at each, and the triangles. Only the stretch within reach (and within `span`, cm from `a`, when given) is meshed. Null when
  * the lamp is behind the face or out of reach, or nothing would be lit.
  */
-export function glowGrid(a: Pt, b: Pt, n: Pt, z0: number, z1: number, lamp: Pt, lampZ: number, reach: number, lift: number): { pos: number[]; k: number[]; index: number[] } | null {
+export function glowGrid(a: Pt, b: Pt, n: Pt, z0: number, z1: number, lamp: Pt, lampZ: number, reach: number, lift: number, span?: readonly [number, number]): { pos: number[]; k: number[]; index: number[] } | null {
   if (![a[0], a[1], b[0], b[1], n[0], n[1], z0, z1, lamp[0], lamp[1], lampZ, reach, lift].every(fin) || !(z1 > z0)) return null;
   const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
   if (!(len > 0)) return null;
   const ux = dx / len, uy = dy / len, perp = (lamp[0] - a[0]) * n[0] + (lamp[1] - a[1]) * n[1], foot = (lamp[0] - a[0]) * ux + (lamp[1] - a[1]) * uy;
   if (!(perp > 0) || !(perp < reach)) return null;
-  const half = Math.sqrt(reach * reach - perp * perp), u0 = Math.max(0, foot - half), u1 = Math.min(len, foot + half);
+  const half = Math.sqrt(reach * reach - perp * perp), u0 = Math.max(span ? Math.max(0, span[0]) : 0, foot - half), u1 = Math.min(span ? Math.min(len, span[1]) : len, foot + half);
   if (!(u1 > u0)) return null;
   const cols = Math.max(1, Math.min(GLOW_COLS, Math.ceil((u1 - u0) / GLOW_CELL))), rows = Math.max(1, Math.min(GLOW_ROWS, Math.ceil((z1 - z0) / (GLOW_CELL * 1.6))));
   const pos: number[] = [], k: number[] = [], index: number[] = [];
