@@ -126,6 +126,19 @@ const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" &&
 const isEntity = (x: unknown) => typeof x === "string" && x.includes(".");
 const isPt = (p: unknown) => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === "number" && Number.isFinite(n));
 
+/** cm. No coordinate of a plan lies further than this from the origin (100 km). Past it, a finite number such as 1.7e308 overflows the maths of the 3D camera and draws nothing (S12 review). */
+export const COORD_LIMIT = 1e7;
+const near = (n: unknown): boolean => typeof n === "number" && Number.isFinite(n) && Math.abs(n) > COORD_LIMIT;
+/** Whether any coordinate of a floor lies beyond `COORD_LIMIT`: the outline, every room's and stair's points, wall, door, opening and extra ends, the x and y of a device, furniture or unlinked appliance. Never throws. */
+function farCoordinate(f: Record<string, any>): boolean {
+  const pt = (p: unknown) => Array.isArray(p) && p.some(near);
+  const pts = (l: unknown) => Array.isArray(l) && l.some(pt);
+  const list = (k: string): any[] => (Array.isArray(f[k]) ? f[k] : []);
+  const at = (o: any) => isObj(o) && (near(o.x) || near(o.y) || pt(o.a) || pt(o.b));
+  return pts(f.outline) || list("rooms").some((r) => isObj(r) && pts(r.pts)) || list("stairs").some((s) => isObj(s) && pts(s.pts))
+    || ["walls", "doors", "openings", "extras", "devices", "furniture", "unlinked"].some((k) => list(k).some(at));
+}
+
 export const ROOM_KINDS: readonly RoomKind[] = ["room", "garden", "pavement", "fill", "terrace", "structure", "zone", "water"];
 export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", "fence", "edge"];
 export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
@@ -209,6 +222,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       }
     }
     optHeight(f, "height"); optHeight(f, "slab");
+    if (farCoordinate(f)) errors.push(`${at} a coordinate lies further than ${COORD_LIMIT} cm (100 km) from the origin; keep every point within +-${COORD_LIMIT} cm`);
     poly("outline", f.outline);
     // S1.52: owk is optional (migrate fills it), but once present it must match the outline point by point.
     if (f.owk !== undefined) {
