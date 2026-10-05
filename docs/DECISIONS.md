@@ -70,6 +70,63 @@ room name or "Elsewhere". Never throws. Order inside a group is the incoming ord
 old room-name groups; `multiAttachField` takes an opt-in `look` argument.
 Remove on a room sensor is a round red icon-only button (`.btn.rm-x`, `--fp-danger`, white X, 26 px). The name is in
 `aria-label` and `title` ("Remove <room> - <sensor>"); the id `<picker>-rm<k>` is unchanged. The X path is `UI_ICONS.close` (mdiClose, inlined).
+## 2026-10-05: open doorway (`door.kind` `open`)
+
+**What.** A door that is only a hole in the wall: cut like a door (210 high from 0, width a to b, the same editable
+Length, height and sill), with nothing drawn in it. Diego: "to doors add as door type: open and do not draw the door."
+
+**Why not the existing `Opening`.** An `Opening` is its own list: no name, no sensors, no state. `open` is a real `Door`,
+so a doorway can carry a name, contact sensors, vibration, locks and a cover, and tell you when it is crossed or left
+unlocked. Use `Opening` for a plain gap, `open` when the gap has to talk to Home Assistant.
+
+**A kind.** `DoorKind` and `DOOR_KINDS` gain `open`; `DOOR_DEFAULTS.open` is a door's (210, 0); `OPENING_FILL.open` is a
+new value, `void`: a gap that draws nothing closed. `doorStateOf` is unchanged: it is not curtains, so an open `cover`
+colours it as it does a plain door. No schema bump (as for `slit`): a card older than this release refuses a layout that
+holds an `open` door (`kind must be one of ...`). The CHANGELOG says so.
+
+**How live state shows (decided).** Closed, unselected: nothing at all. Open (contact on, lock unlocked), vibrating or
+cover open: the same as any door, the dashed open-door line and the pulsing alert line in 2D, the red frame in the gap in
+2.5D. The sensor would be useless otherwise. In 3D nothing shows: the 3D live state lives on the door's leaf, and
+`open` has none (a known gap; `three/*` is left alone here).
+
+**2D.** The wall is cut by the same mask as an `Opening`, over `[...openings, ...open doors]`, so the plan shows a clean
+gap, not a coloured line over the wall. No visible `<line>`, no `<title>`. The invisible `door-hit` twin stays (finding
+3), with a class `door-hit-open`. A line is drawn only while selected (`door door-open sel`, 35 % opacity by a rule that
+excludes `.open`, `.alarm`, `.cover-open`, so state keeps its full colour) or showing state. The editor adds a faint
+outline on hover (`.door-hit-open:hover`, editor stylesheet only; the card has no hover). A layout with no `open` door
+draws byte for byte what it drew before (the demo's sha1, both floors, 2D and 2.5D, checked).
+
+**2.5D and 3D.** The span is the door's. `wallSolids` and `scene-build` cut between sill and head, add no leaf, glass or
+panel; the red frame appears in 2.5D only while open.
+
+## 2026-10-05: slit window (`door.kind` `slit`)
+
+**What.** A window 60 cm high whose head meets the ceiling of the wall it sits in. Width is the length from `a` to `b`
+(the editor's Length field, as for any door). Diego: "to the window type add a 'slit window', configurable width but
+only 60 cm high, starting from the ceiling."
+
+**A kind, not a flag.** `DoorKind` gains `slit` and `DOOR_KINDS` its member, so every per-kind table decides it
+(finding 17): `DOOR_DEFAULTS.slit` (60 high), `OPENING_FILL.slit` is glass, `doorStateOf` counts it as curtains (an open
+`cover` never colours it), the 3D palette gives `glass-slit` the window colour. Everything else is shared with `window`.
+
+**No schema bump.** Version stays 2. A bump exists for a change old files cannot be read through; this one only adds an
+enum member, so every old layout is still valid and migrates unchanged. The cost is one-way: a card or editor older than
+this release refuses a layout that holds a `slit` (`kind must be one of ...`), and nothing in the file says why. The
+CHANGELOG says so. Bumping would not help: the old validator rejects an unknown version just as hard.
+
+**The default is read from the wall, never stored.** `doorSpan(door, ceiling)` takes the top of the wall the door sits
+in (default: the storey, 250). Only a slit reads it: no own value gives sill `ceiling - 60`, head the ceiling; an own
+`height` keeps the head at the ceiling; an own `sill` wins and the head follows it, clamped to the ceiling; a wall under
+60 cm gives a slit as high as the wall. A wall's height is per wall and per room, so `solids.ts` and `scene-build.ts`
+resolve the span per wall (`Span.at(w.h)`), with `w.h` the model height, not the cutaway one: a lowered front wall hides
+the slit with the rest of the wall, as it hides a window. The panel's placeholders use `doorCeiling(floor, door)`: the
+highest of the walls under the door's middle, as the scene keeps the tallest of coincident walls. 2D is unaffected.
+
+**2D symbol.** The window line, class `door door-slit door-window` (so the window's colour rule applies, and no CSS rule
+was added or changed), at 0.4 of its wall's thickness (`SLIT_BAND` in `render.ts`, by the stroke-width attribute). A
+layout with no slit draws byte for byte what it drew before; the computed-style pair is in `tests/card/slit.spec.ts`.
+
+**Radiator.** `radiatorSpan` reads `DOOR_DEFAULTS.window.sill`, not a slit's, so a slit never lowers a radiator.
 
 ## 2026-10-05: Sprint 12 review fixes
 

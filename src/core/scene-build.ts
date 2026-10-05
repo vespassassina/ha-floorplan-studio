@@ -129,16 +129,16 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     return [...seen.values()];
   }
 
-  interface Span { a: Pt; b: Pt; sill: number; head: number; kind: string; index: number; id?: string; entities: string[] }
+  interface Span { a: Pt; b: Pt; at: (ceiling: number) => { sill: number; head: number }; kind: string; index: number; id?: string; entities: string[] }
   function spansOf(f: Floor): Span[] {
     const out: Span[] = [];
     list(f.doors).forEach((d, i) => {
       if (!isObj(d) || !isPt(d.a) || !isPt(d.b)) return;
       const entities = [...list(d.sensors), ...list(d.vibration), ...list(d.locks), d.cover].filter((e): e is string => typeof e === "string");
-      out.push({ a: d.a, b: d.b, ...doorSpan(d as never), kind: String(d.kind), index: i, id: text(d.id), entities });
+      out.push({ a: d.a, b: d.b, at: (c) => doorSpan(d as never, c), kind: String(d.kind), index: i, id: text(d.id), entities });
     });
     list(f.openings).forEach((o, i) => {
-      if (isObj(o) && isPt(o.a) && isPt(o.b)) out.push({ a: o.a, b: o.b, ...openingSpan(o as never), kind: "opening", index: i, id: text(o.id), entities: [] });
+      if (isObj(o) && isPt(o.a) && isPt(o.b)) out.push({ a: o.a, b: o.b, at: () => openingSpan(o as never), kind: "opening", index: i, id: text(o.id), entities: [] });
     });
     return out;
   }
@@ -224,7 +224,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
         const t0 = Math.max(r[0], cursor), t1 = r[1];
         if (t1 <= t0) continue;
         block(cursor, t0, 0, w.h);
-        const sill = Math.min(s.sill, w.h), head = Math.min(s.head, w.h);
+        const own = s.at(w.h), sill = Math.min(own.sill, w.h), head = Math.min(own.head, w.h);
         block(t0, t1, 0, sill);
         block(t0, t1, head, w.h);
         // The opening's own infill, once per opening even when two coincident walls both carry it.
@@ -234,7 +234,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
           const part = (tag: string, role: string, t: number) => add("opening", `opening:${s.index}:${tag}`, tag, { type: "prism", base: slab(w.a, w.b, t0, t1, t), z0: sill, z1: head }, oref, { role });
           if (fill === "glass") part("glass", `glass-${s.kind}`, PANE_THICKNESS);
           else if (fill === "panel") part("panel", "panel", thick);
-          else if (s.kind !== "opening") part("door-leaf", "door-leaf", LEAF_THICKNESS);
+          else if (s.kind !== "opening" && fill !== "void") part("door-leaf", "door-leaf", LEAF_THICKNESS);
         }
         cursor = t1;
       }

@@ -2487,3 +2487,18 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   clipped to the drawn height (`glow.ts`, `light.ts`). Tests: `tests/card/three-glow.test.ts`, `three-tex.test.ts`,
   `tests/card/card-3d-tex-glow.spec.ts` (12, `--repeat-each=10` green). Sizes: card 94700 gzip (budget 95900), chunk
   193252 (budget 200000). Choices in `docs/DECISIONS.md`.
+
+## Open doorway (small task, 2026-10-05)
+
+- `task/open-door`, off `task/slit-window`. "To doors add as door type: open and do not draw the door." New `DoorKind`
+  `open`: a door's cut, nothing drawn; keeps name, sensors, vibration, locks, cover and live state. Add, Openings, Open
+  doorway, and the wall menu. Tests first: `tests/core/open-door.test.ts`, `tests/editor/open-door.spec.ts`,
+  `tests/card/open-door.spec.ts`. Choices in `docs/DECISIONS.md`.
+
+## Slit window (small task, 2026-10-05)
+
+- `task/slit-window`. "To the window type add a slit window, configurable width but only 60 cm high, starting from the ceiling."
+  New `DoorKind` `slit`: default 60 high, head at the ceiling of its own wall (`doorSpan(door, ceiling)`, `doorCeiling`),
+  glass in 2.5D and 3D, a window in every other respect, a thin band in 2D, Add, Openings, Slit window in the editor.
+  Tests first: `tests/core/slit.test.ts` (25), `tests/editor/slit.spec.ts` (6), `tests/card/slit.spec.ts` (2).
+  Choices in `docs/DECISIONS.md`.

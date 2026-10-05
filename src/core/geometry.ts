@@ -80,6 +80,23 @@ export function nearestEdge(f: Floor, p: Pt, maxd: number, opts: { zones?: boole
   return r && r.d <= maxd ? r : null;
 }
 
+/** Every wall a door at `p` along unit `dir` lies in, as `{ poly, i }` (the same walls `edgeKindsNear` reads): outline, room edges and free walls, no zone, no stairs. */
+export function edgesNear(f: Floor, p: Pt, dir: Pt, maxd: number): { poly: string; i: number }[] {
+  const out: { poly: string; i: number }[] = [];
+  const check = (a: Pt, b: Pt, poly: string, i: number) => {
+    const edx = b[0] - a[0], edy = b[1] - a[1], elen = Math.hypot(edx, edy);
+    if (elen === 0 || Math.abs(dir[0] * (edy / elen) - dir[1] * (edx / elen)) > 0.05) return; // no length, or not parallel
+    const { t, q } = project(p, a, b);
+    if (dist(p, t <= 0 ? a : t >= 1 ? b : q) <= maxd) out.push({ poly, i });
+  };
+  for (const P of polys(f)) {
+    if (P.id[0] === "s" || isZone(P)) continue;
+    edges(P.pts).forEach(({ a, b, i }) => check(a, b, P.id, i));
+  }
+  f.walls.forEach((w, i) => check(w.a, w.b, "w", i));
+  return out;
+}
+
 /**
  * S8.9 defect 4 (Opus review): every non-zone room edge, outline edge and free wall within `maxd` of `p` and
  * parallel to unit direction `dir` — a door drawn on a corner where two edges coincide (an outline wall behind a

@@ -530,6 +530,7 @@ export class FloorplanStudioEditor extends LitElement {
     .status{flex:0 1 auto;max-width:16em;font-size:.85em;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .room{pointer-events:all}
     .opening{pointer-events:stroke}
+    .door-hit-open:hover{stroke:var(--fp-door);stroke-opacity:.3}
     .furn{pointer-events:all}
     .hl{fill:none;stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
     .h{cursor:move} .h.on{fill:var(--fp-ink)}
@@ -1428,7 +1429,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.closeCtxMenu();
   }
   /** S4.27: places a new door or window centred on the right-click point, the same way `ctxAddOpening` places a gap. */
-  private ctxAddDoor(kind: "door" | "window", len: number) {
+  private ctxAddDoor(kind: "door" | "window" | "slit" | "open", len: number) {
     const m = this.ctxMenu;
     if (!m) return;
     this.addDoor(kind, len, this.toSvg({ clientX: m.x, clientY: m.y }));
@@ -1644,7 +1645,9 @@ export class FloorplanStudioEditor extends LitElement {
       ${t.k === "edge" ? html`<button class="btn" @click=${() => this.ctxAddPoint()}>Add a point</button>` : nothing}
       <details class="sub" id="cmAddOpening"><summary class="btn">Add an opening</summary>
         <button class="btn" @click=${() => this.ctxAddDoor("door", 90)}>Door</button>
+        <button class="btn" @click=${() => this.ctxAddDoor("open", 90)}>Open doorway</button>
         <button class="btn" @click=${() => this.ctxAddDoor("window", 120)}>Window</button>
+        <button class="btn" @click=${() => this.ctxAddDoor("slit", 120)}>Slit window</button>
         <button class="btn" @click=${() => this.ctxAddOpening()}>Opening</button>
       </details>
       ${t.k === "wall" ? html`<button class="btn" @click=${() => this.ctxToggleLock()}>${this.lockedOf(t) ? "Unfix" : "Fix"}</button>` : nothing}
@@ -1915,10 +1918,10 @@ export class FloorplanStudioEditor extends LitElement {
     } else this.requestUpdate();
   }
 
-  private addDoor(kind: "door" | "window", len: number, at?: Pt) {
+  private addDoor(kind: "door" | "window" | "slit" | "open", len: number, at?: Pt) {
     this.stopDraw();
     const c = at ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
-    this.commit((f) => { f.doors.push({ id: newId(f, floor, "door"), name: `new ${kind}`, kind, ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
+    this.commit((f) => { f.doors.push({ id: newId(f, floor, "door"), name: `new ${kind === "slit" ? "slit window" : kind === "open" ? "open doorway" : kind}`, kind, ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
     this.st.sel = { t: "door", i: this.st.f.doors.length - 1 };
     this.requestUpdate();
   }
@@ -2561,7 +2564,9 @@ export class FloorplanStudioEditor extends LitElement {
         <details class="menu" id="mAdd" @toggle=${this.onMenuToggle}><summary class="btn">Add</summary><div class="box">
           <details class="sub" id="addOpenings"><summary class="btn">Openings</summary>
             <button class="btn" id="addDoor" @click=${() => this.addDoor("door", 90)}>Door</button>
+            <button class="btn" id="addOpenDoor" title="A doorway in a wall, with nothing drawn in it. Unlike Opening it can have a name and sensors" @click=${() => this.addDoor("open", 90)}>Open doorway</button>
             <button class="btn" id="addWin" @click=${() => this.addDoor("window", 120)}>Window</button>
+            <button class="btn" id="addSlit" title="A window 60 cm high, from the ceiling down" @click=${() => this.addDoor("slit", 120)}>Slit window</button>
             <button class="btn" id="addGap" title="A gap in a wall: the wall is not drawn there" @click=${() => this.addOpeningGap()}>Opening</button>
           </details>
           <details class="sub" id="addWallSub"><summary class="btn">Wall</summary>

@@ -55,7 +55,7 @@ TABLE.set("lamp", solid("var(--fp-dev-light)"));
 TABLE.set("backdrop", solid("var(--fp-bg)"));
 for (const k of ROOM_KINDS) TABLE.set(`room-${k}`, solid(ROOM[k] ?? "var(--fp-room)"));
 for (const k of WALL_KINDS) TABLE.set(`wall-${k}`, solid(WALL[k] ?? "var(--fp-wall)"));
-for (const k of ["door", "glass", "window", "sealed", "opening"]) TABLE.set(`glass-${k}`, { css: k === "window" ? "var(--fp-window)" : "var(--fp-glass)", opacity: 0.35 });
+for (const k of ["door", "glass", "window", "slit", "sealed", "opening"]) TABLE.set(`glass-${k}`, { css: k === "window" || k === "slit" ? "var(--fp-window)" : "var(--fp-glass)", opacity: 0.35 });
 for (const s of FURNITURE_SYMBOLS) TABLE.set(`furniture-${s}`, solid(FURNITURE[s] ?? mix("--fp-furniture", 70, "--fp-bg")));
 for (const t of DEVICE_TYPES) TABLE.set(`device-${t}`, solid(DEVICE[t] ?? mix("--fp-furniture", 70, "--fp-bg")));
 

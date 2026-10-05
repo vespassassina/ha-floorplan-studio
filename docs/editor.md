@@ -21,7 +21,7 @@ Left to right:
   floor.
 - **Filter: all (N)** — filters which device types are drawn, so a crowded
   plan can be thinned out while you work.
-- **Add** — every drawable thing: openings (door, window, gap), a wall of a
+- **Add** — every drawable thing: openings (door, open doorway, window, slit window, gap), a wall of a
   given kind, areas (zone, structure, stairs), furniture, an unlinked
   appliance icon, and (inside Home Assistant) entities from your instance.
   Device, inside Add, is the catalog of every device on this layout, placed
@@ -87,7 +87,7 @@ Junk is refused with the reason.
 - **Wall** — height (by kind: a fence 110, an edge or boundary 0, a wall the
   storey).
 - **Door** and **Opening** — height and sill (a door 210 from 0, a window 120
-  from 90, an opening 210 from 0).
+  from 90, a slit window 60 from the wall's ceiling, an opening 210 from 0).
 - **Furniture** and **unlinked appliance** — height (by symbol or type).
 - **Device** — mount height, where the real object hangs (by type). A stem to
   it shows in the card's 2.5D from 100 cm up. A heater bar is drawn as a box whose top is
@@ -148,7 +148,10 @@ room, one undo step, ready to drag to their real place.
 2. **Split it into rooms.** Draw a room the same way, snapped to the outline
    and to other rooms — a room's own edges default to `wall`.
 3. **Doors and windows.** `Add → Openings` places one on the nearest wall
-   within 15 cm; drag it along the wall afterwards.
+   within 15 cm; drag it along the wall afterwards. An **Open doorway** is a
+   door with nothing drawn in it: the wall is cut, and you see it only while it
+   is selected or under the pointer (or in the alert colour when its sensor says
+   open). Choose it over a plain **Opening** when the gap needs a name or sensors.
 4. **Stairs, zones, structures.** `Add → Areas`. A zone has no wall edges (it
    can't — `wk` is forced to `boundary` throughout); a structure can.
 5. **Furniture and devices.** `Add → Furniture` places a symbol you can move,

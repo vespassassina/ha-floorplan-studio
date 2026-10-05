@@ -21,7 +21,7 @@ A real house, on the card in 2.5D, three themes (room and device names blurred):
 
 ## What you get
 
-- An editor panel in HA: draw floors, rooms, walls, doors, windows, stairs,
+- An editor panel in HA: draw floors, rooms, walls, doors, windows (also slit windows), open doorways, stairs,
   furniture. Attach rooms to areas and devices to entities from pickers.
 - A dumb light on a smart switch is one icon: bind the switch to the light
   ("Controlled by") and the plan shows both as one lamp.
