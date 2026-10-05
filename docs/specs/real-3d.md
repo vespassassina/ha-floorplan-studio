@@ -37,8 +37,9 @@ does not work well.
   `--fp-*` tokens, read once per theme change.
 - F. WebGL missing or context lost: the card falls back to 2D and says so in
   one line. It never shows a blank canvas.
-- G. Interaction: drag orbits, wheel and pinch zoom, right drag or two fingers
-  pan. A tap and a hold mean what they mean in 2D (device toggles, hold opens
+- G. Interaction: drag orbits, wheel and pinch zoom; pan is a middle-button
+  drag, Space held plus a left drag (only while the pointer is over the view),
+  a right drag, Shift plus a drag, or two fingers. A tap and a hold mean what they mean in 2D (device toggles, hold opens
   more-info, room tap picks the room and opens the room panel). A drag never
   counts as a tap.
 - H. Live state in 3D: a lit lamp lights its room (a light, not a flat

@@ -18,6 +18,20 @@ it is the floor's storey height. A body's icon (radiator, speaker, TV: top plus 
 2D and 2.5D do not use the scene: unchanged. Cost: a device the user mounted above the wall top is drawn lower than
 its `z`; the plan's number is untouched.
 
+**Panning: middle button and Space.** The view pans on a middle-button drag, on a left drag while Space is held, and as
+before on a right drag, Shift-drag and two fingers. The middle button's `pointerdown`, `mousedown` and `auxclick` are
+prevented (no browser autoscroll). Space is a window `keydown`/`keyup` pair, but it acts only while the pointer is over
+the canvas (`pointerenter`/`pointerleave`), not when the key starts in a control that Space activates (a button, a field),
+and with no Ctrl, Cmd or Alt; it is the same gate the card's own view keys use. It is taken (`preventDefault`) only then,
+so the page scrolls as usual elsewhere. Keyup and window `blur` end it. The mode is read at `pointerdown`, so releasing
+Space mid-drag does not turn the pan into a turn. The card's own Space (Reset view) never fires in 3D
+(`_doViewKey` returns false there), so the two do not collide. Pan moves past `DRAG_PX` set `dragged`, so it is never a tap,
+and the card already ignores a non-left button. Cost: a window-level listener per 3D view; chosen over a focusable canvas
+because Space must work from a plain hover, with no click first.
+
+**Item 1 of the field report (the office with no walls) was a data error in Diego's layout file, not a code defect.**
+`lowerWalls` and `wallZ` are unchanged: nothing was reproduced on the demo layout, so nothing was changed on a hunch.
+
 ## 2026-10-05: Sprint 12 review fixes
 
 **Coordinate bound.** `validate` refuses any coordinate beyond +-1e7 cm (100 km) from the origin, on every point,

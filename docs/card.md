@@ -696,8 +696,10 @@ stairs, furniture, and the radiator, speaker and TV bodies. Colours come from th
 theme (the same `--fp-*` variables as 2D), and a room, wall or furniture piece
 with its own colour keeps it. There are no textures and no shadows.
 
-- Drag turns the model around, wheel or pinch zooms, right-drag or two fingers
-  pan. You cannot go under the floor. The camera starts south of the house at
+- Drag turns the model around, wheel or pinch zooms. To pan: drag with the
+  middle mouse button, or hold Space and drag with the left button (the pointer
+  must be over the view), or right-drag or Shift-drag, or use two fingers. A
+  pan is never a tap. You cannot go under the floor. The camera starts south of the house at
   about 50 degrees; the card's `rotation` is the starting turn. The Reset view
   button puts the camera back.
 - Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 30 cm the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same select and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The Active list covers part of the view, so the camera frames the house in the rest. 2D and 2.5D are unchanged.

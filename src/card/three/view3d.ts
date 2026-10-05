@@ -225,16 +225,35 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     want();
   };
 
-  // ---- the pointer: drag orbits, right drag or shift-drag pans, two fingers pan and pinch, the wheel zooms. A drag is not a tap.
+  // ---- the pointer: drag orbits; a middle drag, a right drag, a shift-drag or Space held plus a drag pans; two fingers pan and
+  // pinch; the wheel zooms. A drag is not a tap.
   const pointers = new Map<number, { x: number; y: number }>();
   let start = { x: 0, y: 0 }, pinch = 0, mid = { x: 0, y: 0 };
   const twoFingers = () => { const [a, b] = [...pointers.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), m: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } }; };
   let panning = false;
+  // Space: held while the pointer is over the view, a left drag pans. The key reaches the page, not the canvas (a canvas has no
+  // focus), so the listeners sit on the window but act only while the pointer is over this view (as the card's own view keys do), and
+  // a key that starts in a control that Space activates is that control's.
+  let hovered = false, spaceDown = false;
+  const setSpace = (on: boolean) => { spaceDown = on; canvas.style.cursor = on ? "grab" : ""; };
+  const isSpace = (e: KeyboardEvent) => e.code === "Space" || e.key === " " || e.key === "Spacebar";
+  const takesSpace = (t: EventTarget | undefined) => t instanceof Element && !!t.closest('button,input,select,textarea,summary,a,[contenteditable]:not([contenteditable="false"]),[role="button"],[role="menuitem"],[role="checkbox"],[role="switch"],[role="tab"],[role="option"]');
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (!isSpace(e) || !hovered || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || e.isComposing || takesSpace(e.composedPath()[0])) return;
+    e.preventDefault(); // the page would scroll
+    if (!spaceDown) setSpace(true);
+  };
+  const onKeyUp = (e: KeyboardEvent) => { if (isSpace(e) && spaceDown) setSpace(false); };
+  const onBlur = () => { if (spaceDown) setSpace(false); };
+  const onEnter = () => { hovered = true; };
+  const onLeave = () => { hovered = false; };
+  const noMiddle = (e: MouseEvent) => { if (e.button === 1) e.preventDefault(); }; // the browser's autoscroll, and the paste of a selection on Linux
   const onDown = (e: PointerEvent) => {
+    if (e.button === 1) e.preventDefault();
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try { canvas.setPointerCapture(e.pointerId); } catch { /* a synthetic pointer: nothing to capture */ }
     container.dataset.dragged = "false";
-    if (pointers.size === 1) { dragged = false; start = { x: e.clientX, y: e.clientY }; panning = e.button === 2 || e.shiftKey; }
+    if (pointers.size === 1) { dragged = false; start = { x: e.clientX, y: e.clientY }; panning = e.button === 1 || e.button === 2 || e.shiftKey || spaceDown; }
     else if (pointers.size === 2) { const t = twoFingers(); pinch = t.d; mid = t.m; dragged = true; container.dataset.dragged = "true"; }
   };
   const onMove = (e: PointerEvent) => {
@@ -272,6 +291,13 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   canvas.addEventListener("pointercancel", onUp);
   canvas.addEventListener("wheel", onWheel, { passive: false });
   canvas.addEventListener("contextmenu", noMenu);
+  canvas.addEventListener("mousedown", noMiddle);
+  canvas.addEventListener("auxclick", noMiddle);
+  canvas.addEventListener("pointerenter", onEnter);
+  canvas.addEventListener("pointerleave", onLeave);
+  globalThis.addEventListener("keydown", onKeyDown);
+  globalThis.addEventListener("keyup", onKeyUp);
+  globalThis.addEventListener("blur", onBlur);
 
   // A lost context may come back (a driver reset, a tab returning to the front): preventDefault allows the restore, and three.js
   // builds its own state again when it comes. The view waits for it a moment; if it does not come, the card falls back to 2D
@@ -664,6 +690,13 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       canvas.removeEventListener("pointercancel", onUp);
       canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("contextmenu", noMenu);
+      canvas.removeEventListener("mousedown", noMiddle);
+      canvas.removeEventListener("auxclick", noMiddle);
+      canvas.removeEventListener("pointerenter", onEnter);
+      canvas.removeEventListener("pointerleave", onLeave);
+      globalThis.removeEventListener("keydown", onKeyDown);
+      globalThis.removeEventListener("keyup", onKeyUp);
+      globalThis.removeEventListener("blur", onBlur);
       canvas.removeEventListener("webglcontextlost", onLost);
       canvas.removeEventListener("webglcontextrestored", onRestored);
       if (restoreTimer !== null) clearTimeout(restoreTimer);

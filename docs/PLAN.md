@@ -2473,5 +2473,10 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   (`tests/card/card-3d-floors.spec.ts`, 5 tests). Performance and hostile layouts:
   `tests/card/card-3d-perf.spec.ts`, 12 tests, 120 runs at `--repeat-each=10` green; none needed a
   code change. Choices in `docs/DECISIONS.md`.
+- 3D fixes (task/3d-fixes), after the field report on 0.14.0: one floor at a time (the dimmed stack and its plumbing
+  removed), icons held under the wall top, panning by middle button and by Space plus a drag. Done, 2026-10-05. The
+  report's walls item was a data error in the layout, so `cut.ts` did not change. Tests: `tests/card/card-3d-pan.spec.ts`
+  (8), `tests/card/card-3d-icons.spec.ts` (1), `tests/card/card-3d-floors.spec.ts` (one-floor test), 4 in
+  `tests/core/scene.test.ts`. Choices in `docs/DECISIONS.md`.
 - Sprint 12 review fixes: chunk retry, lost-context recovery, draw guard, coordinate bound, nest budget, test hook
   compiled out of the shipped build, narrow-card inset, ring disposal, debug lines. Choices in `docs/DECISIONS.md`.
