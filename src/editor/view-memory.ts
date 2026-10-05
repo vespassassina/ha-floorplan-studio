@@ -1,21 +1,15 @@
-/** What the editor remembers of how the plan is looked at, between reloads: the plan view (2D or 2.5D), its tilt,
- * the names toggle, the turn, the floor on show, and the zoom and centre of each floor that is not shown whole.
+/** What the editor remembers of how the plan is looked at, between reloads: the names toggle, the turn, the floor on show, and the zoom and centre of each floor that is not shown whole.
  * One entry per page (origin), not per document: it says nothing about the plan itself, and a plan that is replaced
  * or edited keeps its view. The theme, the grid and night preview have keys of their own (state.ts) and are not
- * repeated here. Storage is untrusted, so every field is checked on its own and nothing here throws. */
-import { WALLS_MODES, clampTilt, type WallsMode } from "../core";
+ * repeated here. The editor draws flat only (S12.1), so an older entry's `mode`, `tilt` and `walls` are ignored. Storage is untrusted, so every field is checked on its own and nothing here throws. */
 import { normaliseRotation } from "../card/view-state";
 import { MAX_ZOOM, MIN_ZOOM, type Pt } from "../card/viewport";
 
 export const VIEW_MEMORY_KEY = "floorplan-studio:view";
 
-/** `aspect` is the box's height over its width. It is kept because the fit changes shape with the tilt while a zoomed box does not. */
-export interface FloorZoom { zoom: number; focus: Pt; aspect?: number }
+export interface FloorZoom { zoom: number; focus: Pt }
 export interface ViewMemory {
   floor?: string;
-  mode?: "2d" | "2.5d";
-  tilt?: number;
-  walls?: WallsMode;
   labels?: boolean;
   /** The user's turn in degrees, a multiple of 45 in 0..315, on top of the layout's own `rotate`. */
   rotation?: number;
@@ -37,9 +31,6 @@ export function parseViewMemory(raw: unknown): ViewMemory {
   const r = o as Record<string, unknown>;
   const out: ViewMemory = {};
   if (typeof r.floor === "string" && r.floor.length > 0 && r.floor.length <= 200) out.floor = r.floor;
-  if (r.mode === "2d" || r.mode === "2.5d") out.mode = r.mode;
-  if (isNum(r.tilt)) out.tilt = clampTilt(r.tilt);
-  if (typeof r.walls === "string" && (WALLS_MODES as readonly string[]).includes(r.walls)) out.walls = r.walls as WallsMode;
   if (typeof r.labels === "boolean") out.labels = r.labels;
   if (isNum(r.rotation)) out.rotation = normaliseRotation(r.rotation);
   if (Array.isArray(r.zooms)) {
@@ -47,11 +38,10 @@ export function parseViewMemory(raw: unknown): ViewMemory {
     for (const e of r.zooms) {
       if (zooms.length >= MAX_ZOOMS) break;
       if (!Array.isArray(e) || typeof e[0] !== "string" || !e[0] || e[0].length > 200) continue;
-      const z = e[1] as { zoom?: unknown; focus?: unknown; aspect?: unknown } | null;
+      const z = e[1] as { zoom?: unknown; focus?: unknown } | null;
       const f = z?.focus;
       if (!z || !isNum(z.zoom) || !Array.isArray(f) || f.length !== 2 || !isNum(f[0]) || !isNum(f[1])) continue;
       const out: FloorZoom = { zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z.zoom)), focus: [clampFocus(f[0]), clampFocus(f[1])] };
-      if (isNum(z.aspect) && z.aspect >= 0.05 && z.aspect <= 20) out.aspect = z.aspect;
       zooms.push([e[0], out]);
     }
     if (zooms.length) out.zooms = zooms;

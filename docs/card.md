@@ -225,9 +225,6 @@ editor and fails on a control that has no row here, so a new one gets a decision
 
 | Studio control | In the card | Why |
 |---|---|---|
-| `#view-mode` Plan view | yes | the View dropdown |
-| `#tilt` Tilt | yes | the Tilt slider, 2.5D |
-| `#walls` Walls | yes | the Walls select, 2.5D |
 | `#labels` Show names and text | yes | the Labels toggle |
 | `#names` Names | yes | the Device names toggle (`Aa`), config `names` |
 | `#thSub` Theme | yes | the Theme dropdown |
@@ -235,7 +232,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#recenter` Re-center | yes | the same Fit button |
 | `#zin` `#zout` Zoom | yes | the + and − buttons, first in the stack, the Up and Down keys, pinch and wheel |
 | `#zreset` Reset view | yes | the Reset view button, last in the stack, and Space |
-| `#vrotl` `#vrotr` Rotate view | yes | the two rotate buttons in the stack and the Left and Right keys, 2D and 2.5D |
+| `#vrotl` `#vrotr` Rotate view | yes | the two rotate buttons in the stack and the Left and Right keys |
 | `#version` the installed version | no | the card names its version in the browser console instead |
 | `#snap` Snap grid | no | an editing aid: a viewer places nothing |
 | `#mgrid` Measure grid | no | an editing aid, drawn by the editor over the plan, not by `renderFloor` |
@@ -243,6 +240,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
 | `#filter` Filter by type | no | a work aid for a crowded plan; the card has the Active list, grouped by type |
+| Plan view, Tilt, Walls | card only | the View dropdown, the Tilt slider and the Walls select. The studio has no 2.5D since 0.14 (S12.1); the card keeps 2D and 2.5D, and gets 3D |
 | Room facts and device details panel | card only | the card's left panel (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
 
 Also the same in both: the floor switcher (chips and tabs), pan and zoom by
