@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-05: 3D fixes after 0.14.0 on the real layout
+
+**One floor at a time (supersedes "Floors" in the S12.6 entry).** The card draws only the selected floor. The dimmed floors
+below were built from each floor's own `floorElevation`, and on Diego's layout (garage, office, outdoor, 3 floors) they sat
+out of line with the selected floor. `BelowFloor`, `setFloor`'s third argument, `belowPlans`, `data-below`, the `DIM`
+opacity and the card's `_view3dBelow` are gone. The camera frames the one floor. `buildScene`'s `elevation` option stays in
+core (it is the plan's own, tested, and costs nothing). Cost: you no longer see the floor under you as context.
+
 ## 2026-10-05: Sprint 12 review fixes
 
 **Coordinate bound.** `validate` refuses any coordinate beyond +-1e7 cm (100 km) from the origin, on every point,

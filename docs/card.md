@@ -712,12 +712,10 @@ with its own colour keeps it. There are no textures and no shadows.
   - *Room motion.* A room with a `motion` list gets a red edge on its floor outline: three pulses when a sensor trips, then steady, then it fades by `last_changed` and the `fade` setting, as in 2D. With reduced motion the edge is steady. The view draws frames only while a pulse plays.
   - *Labels and icons.* An HTML layer over the model shows each room's name and its sensors' mean reading, and a real icon for every visible device. The Labels and Names buttons work in 3D. A label or icon behind a wall, or behind the camera, is hidden. The layer ignores the pointer, so a drag that starts on an icon still turns the model; a tap on an icon toggles or opens more-info as in 2D.
   - A Home Assistant update changes all of this in place: no rebuild, no camera move.
-- **Floors in 3D.** The selected floor is solid and live. Every floor below it
-  stands dimmed under it at its real height (its slab and walls, floor heights
-  from the layout): no lights, no icons, and a tap on it picks nothing. Floors
-  above are not drawn. Pick another floor and the model is built again, the
-  camera keeps its angle and frames the new floor. A lamp on a lower floor
-  lights nothing on the upper one.
+- **Floors in 3D.** Only the selected floor is drawn, solid and live. No other
+  floor is shown, above or below. Pick another floor and the model is built
+  again, the camera keeps its angle and frames the new floor. A lamp on a
+  lower floor lights nothing on the upper one.
 - **No WebGL, or the graphics context is lost, or the 3D code cannot load:** the
   card shows the 2D plan and one line saying why. Nothing is left blank. A lost
   graphics context is waited for three seconds; if it does not return, the card

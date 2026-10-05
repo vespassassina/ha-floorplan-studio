@@ -46,8 +46,9 @@ does not work well.
   with motion gets the red edge; room readouts show as labels over the room.
   Icons and labels are HTML laid over the canvas, so they stay crisp and
   clickable and use the existing `data-x` hit rules (finding 3).
-- I. Floors: the selected floor is drawn solid; floors below are drawn
-  dimmed; floors above are hidden. An "all floors" stack is a later option.
+- I. Floors: only the selected floor is drawn, solid. Floors below and above
+  are hidden. (A dimmed stack of the floors below was built in 0.14.0 and
+  removed in the 3D fixes: on a real layout the floors drifted out of line.)
 - J. Performance: 60 fps on a mid laptop, 30 on a wall tablet. Render on
   demand (on change, drag, state update), not in a constant loop. Reduced
   motion: no camera easing.
@@ -90,7 +91,7 @@ paint colours. Real shadows from sunlight. Exporting a 3D model.
 6. A lit lamp lights its room and not the next one. Open door or window,
    heating radiator, room motion edge and room readout show as in 2D.
 7. WebGL unavailable: the card shows 2D and one line saying why.
-8. The selected floor is solid, floors below are dimmed, floors above hidden.
+8. Only the selected floor is drawn: nothing below it, nothing above it.
 9. The chunk is at most 200 KB gzipped; the card's own file does not grow by
    more than 5 KB.
 10. Adversarial: a layout with 5000 furniture, a zero-height wall, `NaN` size
