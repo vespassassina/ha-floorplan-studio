@@ -18,7 +18,7 @@ export interface DoorState {
  */
 export function doorStateOf(d: Door, state: StateOverlay | undefined): DoorState {
   const on = (list: unknown, want: string) => Array.isArray(list) && list.some((e) => typeof e === "string" && state?.[e]?.state === want);
-  const curtain = d.kind === "window" || d.kind === "glass";
+  const curtain = d.kind === "window" || d.kind === "glass" || d.kind === "slit";
   return {
     open: on(d.sensors, "on") || on(d.locks, "unlocked"),
     alarm: on(d.vibration, "on"),

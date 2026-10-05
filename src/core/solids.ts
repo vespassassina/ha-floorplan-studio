@@ -226,15 +226,15 @@ export function collectWalls(f: Floor, px: Proj, mode: WallsMode = "cut"): WallS
  * gap), a translucent band of glass (a window, a glass door) or a solid panel (sealed, as the 2D plan draws it). One
  * entry per DoorKind, so a new kind fails the test that walks DOOR_KINDS until someone decides (finding 17).
  */
-export const OPENING_FILL: Record<DoorKind | "opening", "gap" | "glass" | "panel"> = { door: "gap", opening: "gap", glass: "glass", window: "glass", sealed: "panel" };
+export const OPENING_FILL: Record<DoorKind | "opening", "gap" | "glass" | "panel"> = { door: "gap", opening: "gap", glass: "glass", window: "glass", slit: "glass", sealed: "panel" };
 const has = <T extends string>(table: Record<T, unknown>, k: unknown): k is T => typeof k === "string" && Object.prototype.hasOwnProperty.call(table, k);
 
 /** A door, window or opening as the wall sees it: where it lies and between which heights, and what its sensors say. */
-interface Span { a: Pt; b: Pt; sill: number; head: number; kind: string; live: DoorState }
+interface Span { a: Pt; b: Pt; at: (ceiling: number) => { sill: number; head: number }; kind: string; live: DoorState }
 const CLOSED: DoorState = { open: false, alarm: false, cover: false };
 const spansOf = (f: Floor, state: StateOverlay | undefined): Span[] => [
-  ...(f.doors ?? []).filter((d) => finite(d.a) && finite(d.b)).map((d) => ({ a: d.a, b: d.b, ...doorSpan(d), kind: String(d.kind), live: doorStateOf(d, state) })),
-  ...(f.openings ?? []).filter((o) => finite(o.a) && finite(o.b)).map((o) => ({ a: o.a, b: o.b, ...openingSpan(o), kind: "opening", live: CLOSED })),
+  ...(f.doors ?? []).filter((d) => finite(d.a) && finite(d.b)).map((d) => ({ a: d.a, b: d.b, at: (c: number) => doorSpan(d, c), kind: String(d.kind), live: doorStateOf(d, state) })),
+  ...(f.openings ?? []).filter((o) => finite(o.a) && finite(o.b)).map((o) => ({ a: o.a, b: o.b, at: () => openingSpan(o), kind: "opening", live: CLOSED })),
 ];
 /** The state classes an opening's infill wears: red for open or alarm (solid), the cover's own colour for an open cover. */
 const liveClass = (l: DoorState) => `${l.open ? " open" : ""}${l.alarm ? " alarm" : ""}${l.cover ? " cover-open" : ""}`;
@@ -307,7 +307,7 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
       if (t1 <= t0) continue;
       faces.push(block(cursor, t0, hh));
       if (t0 > cursor) top(cursor, t0);
-      const sill = Math.min(s.sill, hh), head = Math.min(s.head, hh), live = solid ? liveClass(s.live) : "";
+      const own = s.at(w.h), sill = Math.min(own.sill, hh), head = Math.min(own.head, hh), live = solid ? liveClass(s.live) : "";
       faces.push(block(t0, t1, sill));
       const fill = has(OPENING_FILL, s.kind) ? OPENING_FILL[s.kind] : "gap";
       if (fill === "glass") faces.push(quad(t0, t1, sill, head, `glass g-${esc(s.kind)}${live}`));
@@ -315,7 +315,7 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
       // A door: closed it is a painted leaf, open (or alarmed, or its cover open) a red frame round the gap. A plain opening is only a gap.
       else if (s.kind !== "opening" && solid) faces.push(quad(t0, t1, sill, head, live ? `opn${live}` : "door-leaf"));
       faces.push(quad(t0, t1, head, hh, wall));
-      if (s.head < hh || s.sill >= hh) top(t0, t1); // a header, or a sill that reaches the top, closes the wall above the gap
+      if (own.head < hh || own.sill >= hh) top(t0, t1); // a header, or a sill that reaches the top, closes the wall above the gap
       cursor = t1;
     }
     faces.push(block(cursor, len, hh));

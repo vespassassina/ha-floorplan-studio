@@ -411,6 +411,8 @@ export function wallWidthAt(f: Floor, a: Pt, b: Pt): number {
 }
 /** cm wide a door's floor line is drawn in 2.5D (see the doors loop in renderFloor). */
 const DOOR_THRESHOLD_25D = 4;
+/** The thickness of a slit window's line, as a share of the wall it sits in. */
+const SLIT_BAND = 0.4;
 /** A selected door or window is always 8 cm wider than its own thickness, whichever wall it sits on. */
 const DOOR_SELECT_EXTRA = 8;
 /** An opening's stroke must fully erase the (possibly thicker) wall under it: the wall's own thickness, plus enough
@@ -1263,11 +1265,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // contact, but solid, not dashed - dashed keeps meaning "open" alone. Both at once: dashed (open wins the
     // dash, class order below puts .open after .alarm so its dasharray is the one asserted last), red, one line.
     const { open, alarm: vibrating, cover: coverOpen } = doorStateOf(d, o.state);
-    const cls = ["door", `door-${esc(String(d.kind))}`, vibrating ? "alarm" : "", open ? "open" : "", coverOpen ? "cover-open" : ""].filter(Boolean).join(" ");
+    const cls = ["door", `door-${esc(String(d.kind))}`, d.kind === "slit" ? "door-window" : "", vibrating ? "alarm" : "", open ? "open" : "", coverOpen ? "cover-open" : ""].filter(Boolean).join(" ");
     const sel = o.selection?.t === "door" && o.selection.i === i;
     // 2.5D: the wall is already cut open above, so the floor line is only a threshold, thin enough to see through the gap.
     // It keeps every class (open, alarm, cover-open) and its alert line, so a door's state still shows.
-    const w = x25 ? DOOR_THRESHOLD_25D : wallWidthAt(f, d.a, d.b);
+    // A slit window is the window mark drawn as a thin band (SLIT_BAND of the wall), so it reads as a slit at a glance.
+    const w = x25 ? DOOR_THRESHOLD_25D : d.kind === "slit" ? wallWidthAt(f, d.a, d.b) * SLIT_BAND : wallWidthAt(f, d.a, d.b);
     const seg = `x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}"`;
     // S8.9 part 2 + finding 3: the visible line is now as thin as the internal wall it sits on (10 cm, or 20 on an
     // external wall), so a plain transparent line first, at the old fixed 22 cm, keeps the door as easy to click as
