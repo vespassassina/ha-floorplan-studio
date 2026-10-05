@@ -49,6 +49,21 @@ export class Orbit {
     this.start = { azimuth: this.azimuth, polar: this.polar, distance: this.distance, target: [...this.target] };
   }
 
+  /**
+   * Another floor, the same way of looking: the camera keeps its azimuth and polar, and frames the new bounds (the target to their
+   * centre, the distance to the one that fits them). A panel inset stays. Junk bounds change nothing.
+   */
+  reframe(bounds: Bounds): void {
+    if (!(bounds && Array.isArray(bounds.min) && Array.isArray(bounds.max) && [...bounds.min, ...bounds.max].every(fin))) return;
+    this.lo = [bounds.min[0], bounds.min[2], bounds.min[1]];
+    this.hi = [bounds.max[0], bounds.max[2], bounds.max[1]];
+    this.target = [0, 1, 2].map((i) => (this.lo[i] + this.hi[i]) / 2) as V3;
+    this.fit = this.fitDistance();
+    this.distance = this.fit;
+    this.start.distance = this.fit;
+    this.start.target = [...this.target];
+  }
+
   /** The distance at which the whole house fits the narrower of the two fields of view. */
   private fitDistance(): number {
     const radius = Math.max(100, 0.5 * Math.hypot(this.hi[0] - this.lo[0], this.hi[1] - this.lo[1], this.hi[2] - this.lo[2]));

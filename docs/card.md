@@ -701,8 +701,10 @@ with its own colour keeps it. There are no textures and no shadows.
   about 50 degrees; the card's `rotation` is the starting turn. The Reset view
   button puts the camera back.
 - Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 30 cm the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same select and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The Active list covers part of the view, so the camera frames the house in the rest. 2D and 2.5D are unchanged.
-- The 3D code is loaded the first time you pick 3D, and only then (about 195 KB
-  gzipped). It draws only while something moves, so a still model costs nothing.
+- The 3D code is loaded the first time you pick 3D, and only then (about 186 KB
+  gzipped; the card file grew by about 3.5 KB). It draws only while something
+  moves: a still model, a settled pulse and a Home Assistant update that changes
+  nothing cost no frame at all. A fade asks for at most one frame a second.
 - **Live state in 3D (S12.5).** The same rules as 2D, from the same helpers.
   - *Lights.* A lit light device lights the room it hangs in (the 2D rule): its floor, furniture and walls take a lift toward the lamp's colour, and a soft pool sits under the lamp. The neighbouring room does not change. **At most 8 lamps get a pool**, the 8 nearest the middle of the house; every lit room is lifted whatever the count. The card says so in the view's `data-pools="shown/lit"`. Night (the sun rule) darkens the scene and leaves lit rooms bright.
   - *Doors and windows.* A closed plain door shows its leaf; an open one (or an open cover door) swings about 70 degrees about its hinge. A window's pane is there while it is closed and gone when it is open. Sealed doors do not change. An alarmed door (vibration) stays shut and turns red.
@@ -710,11 +712,24 @@ with its own colour keeps it. There are no textures and no shadows.
   - *Room motion.* A room with a `motion` list gets a red edge on its floor outline: three pulses when a sensor trips, then steady, then it fades by `last_changed` and the `fade` setting, as in 2D. With reduced motion the edge is steady. The view draws frames only while a pulse plays.
   - *Labels and icons.* An HTML layer over the model shows each room's name and its sensors' mean reading, and a real icon for every visible device. The Labels and Names buttons work in 3D. A label or icon behind a wall, or behind the camera, is hidden. The layer ignores the pointer, so a drag that starts on an icon still turns the model; a tap on an icon toggles or opens more-info as in 2D.
   - A Home Assistant update changes all of this in place: no rebuild, no camera move.
+- **Floors in 3D.** The selected floor is solid and live. Every floor below it
+  stands dimmed under it at its real height (its slab and walls, floor heights
+  from the layout): no lights, no icons, and a tap on it picks nothing. Floors
+  above are not drawn. Pick another floor and the model is built again, the
+  camera keeps its angle and frames the new floor. A lamp on a lower floor
+  lights nothing on the upper one.
 - **No WebGL, or the graphics context is lost, or the 3D code cannot load:** the
-  card shows the 2D plan and one line saying why. Nothing is left blank.
+  card shows the 2D plan and one line saying why. Nothing is left blank. The
+  lines are `3D view unavailable: this browser has no WebGL. Showing 2D.`,
+  `3D view unavailable: the graphics context was lost. Showing 2D.`,
+  `3D view unavailable: its code did not load. Showing 2D.` and
+  `3D view unavailable: it could not start. Showing 2D.` A layout the checker
+  refuses shows its own line, `The plan could not be used: ...`, in every view.
 - **Low-power devices.** A wall tablet with no GPU may fall back, or draw slowly.
-  Keep `view: 2d` there. The choice is remembered per browser like the rest of
-  the view.
+  **2.5D is the fast view**: it is the flat plan with depth, no WebGL. Use
+  `view: 2.5d` (or `2d`) there; the 3D view keeps its frames low by drawing only
+  on change, but a big house still costs a GPU. The choice is remembered per
+  browser like the rest of the view.
 - **Taps in 3D work as in 2D.** A tap on a device (the small ball, or its body)
   toggles it, except the types that have no on/off (camera, media, speaker and
   the like), which open more-info; a hold opens more-info. A door, a window and

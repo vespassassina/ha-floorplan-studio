@@ -2410,6 +2410,10 @@ Spec: `docs/specs/room-sensors.md`. Built 2026-10-04 (S11.1 to S11.4; S11.5 open
   Done, 2026-10-04, with S11.3 (same panel, same specs).
 - S11.5 Docs, schema reference, prompts/SCHEMA.md, studio-and-card table,
   review.
+  Docs done, 2026-10-05 (closed in S12.6): `docs/schema.md` and the card guide's
+  studio-and-card table already had the room `temps`/`humidity`/`motion`;
+  `prompts/SCHEMA.md` now has them too. The Sprint 11 review is folded into the
+  Opus review of Sprint 12.
 
 ## Sprint 12: real 3D view in the card (E4)
 
@@ -2459,3 +2463,13 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   Totals: vitest 2490, Playwright 935 (1 skipped), pytest 30. Choices in `docs/DECISIONS.md`.
 - S12.6 Floors, performance budget (criterion 9, 60/30 fps), docs, Opus
   review. The card keeps 2.5D as its low-power view.
+  Done, 2026-10-05 (the Opus review is still to do). Size: `buildScene` and `liveOf` moved
+  into the chunk (injected helpers, `core/three-deps.ts`), and a build plugin
+  (`scripts/trim-three.mjs`) swaps three's WebXR, environment and shadow-map classes for
+  stand-ins. Card 98690 -> 94341 gzip (+3561 over the pre-3D 90780, goal +5120),
+  chunk 199927 -> 190424 (goal 200000); guarded by `tests/card/size-budget.spec.ts`.
+  Floors: below dimmed at their real height, above not drawn, azimuth and polar kept
+  on a switch (`Orbit.reframe`), 21 switches leave three's geometry count where 2 did
+  (`tests/card/card-3d-floors.spec.ts`, 5 tests). Performance and hostile layouts:
+  `tests/card/card-3d-perf.spec.ts`, 12 tests, 120 runs at `--repeat-each=10` green; none needed a
+  code change. Choices in `docs/DECISIONS.md`.

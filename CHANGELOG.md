@@ -8,7 +8,9 @@
 - Card: **taps in 3D**. Tap a device to toggle it (cameras, media and the other no-toggle types open more-info), hold for more-info, tap a door, window or stair as in 2D. Tap a room's floor to pick it: dashed outline, room panel, Active list cut to the room; tap it again, tap off or press Escape to clear. A drag, a double tap or the wheel never picks. Devices without a body show as small balls.
 - Card: the 3D camera frames the house in the part of the view the Active list leaves free.
 - Card: 3D wall corners and T-joints are closed; a partition no longer ends short of the outer face and leaves a dark sliver at a door gap.
-- Card: the 3D code is a second file, `floorplan-studio-3d-<hash>.js`, loaded only when 3D is first picked (the card file itself grew by about 7.9 KB gzipped, over the 5 KB goal, see DECISIONS). The HACS download and the release zip include it; a manual install must copy `www/` whole.
+- Card: **floors in 3D**. The floor you picked is solid; the floors under it stand dimmed beneath it at their real height (no lights, no icons, not tappable), and the floors above are not drawn. Switching floors keeps the angle you were looking from and frames the new floor. A lamp downstairs never lights a room upstairs.
+- Card: the 3D view draws only when something changes: a still model, a settled pulse and an unchanged Home Assistant update draw nothing. The card shows the 2D plan instead of failing on a layout it cannot draw. On a wall tablet or any device without a good GPU, 2.5D is the fast view.
+- Card: the 3D code is a second file, `floorplan-studio-3d-<hash>.js` (about 186 KB gzipped), loaded only when 3D is first picked; the card file itself grew by about 3.5 KB gzipped. The HACS download and the release zip include it; a manual install must copy `www/` whole.
 - Dependency: three.js (MIT), bundled into that chunk, never fetched at runtime.
 - Editor: 2.5D preview removed (Plan view, Tilt, Walls and the preview note); the editor draws and edits flat only. A stored 2.5D view opens flat. The card still has 2D, 2.5D and, soon, 3D.
 
