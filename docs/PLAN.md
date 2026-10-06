@@ -2381,7 +2381,7 @@ Diego, 2026-10-06. Four items. Each task starts with its failing test (CLAUDE.md
 - [ ] S16.4 Vacuum path, research first. Roborock, Dreame and Roomba differ: in Home Assistant core none exposes the path as coordinates; the map is an image entity or a camera, and Dreame's custom integration puts a path on its map camera. Task: write down, per integration, which entity or attribute carries position and path, from its docs and a real example state (Diego's HA, read only), and what we can draw. Output: a note in `docs/DECISIONS.md` and a yes or no for S16.5. Not coded before that.
 - [ ] S16.5 Draw the path, if S16.4 finds usable data. A polyline over the plan, in the vacuum's own colour, clipped to the room, new points while it cleans, cleared when it docks; a map calibration (two points) if the data is in the robot's own frame. Spec and acceptance written after S16.4.
 
-Open choices to confirm before S16.1 (defaults in brackets): whether the car keeps its furniture symbol when unlinked [yes, the symbol stays for a plain drawing]; whether thumbnails refresh every 10 s [10 s, configurable].
+Choices confirmed by Diego, 2026-10-06 (defaults accepted): whether the car keeps its furniture symbol when unlinked [yes, the symbol stays for a plain drawing]; whether thumbnails refresh every 10 s [10 s, configurable].
 
 ## Later, not planned
 
