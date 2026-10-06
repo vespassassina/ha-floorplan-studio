@@ -259,7 +259,7 @@ switch floors, zoom out past what fits, or reach Home Assistant's more-info
 dialog by holding a finger on a device. It hides the floor chips and the
 zoom +/−/fit buttons and the rotate buttons (`rotate_switch: true` brings
 those back), and a long press does nothing — a plain tap still
-toggles the device it lands on, exactly as without kiosk mode.
+opens the device's popup, whose button operates it, exactly as without kiosk mode.
 
 `kiosk: true` shows the first floor and draws no switcher whatever would
 otherwise have produced one — `floors`, `floor: "all"`, or simply a
@@ -333,9 +333,8 @@ door or a stair), and the room is outlined with a dashed line. The Active panel 
 - the open doors and windows on the room's walls (an unlocked lock counts), and the lights that are on;
 - the room's devices, then the sensors the room owns that have no icon on the plan.
 
-A light, switch, plug or cover row toggles when you tap it and opens
-Home Assistant's more-info when you hold it, as the icons on the plan do. Any
-other row opens more-info. Below, the Active list is cut to the room's
+A tap on a row opens the same popup as the icon on the plan; a hold opens
+Home Assistant's more-info. Below, the Active list is cut to the room's
 entities; **Show all** brings the rest back and keeps the room picked.
 
 Tap the room again, tap off any room, press Escape (with the pointer over the
@@ -467,10 +466,10 @@ device is grey; an active one takes its type's own colour — one
 differently:
 
 - **Light** — grey when off; on, it turns amber (or the bulb's own colour, if
-  it reports one) and grows a soft aura, 3 m across, on the plan. Tap toggles it; a long
+  it reports one) and grows a soft aura, 3 m across, on the plan. A tap opens its popup (Turn on or off, sliders); a long
   press opens Home Assistant's more-info dialog.
 - **Light with a bound switch** — one icon that lights up if either the light
-  or its switch is on. Tap always toggles the light itself; the switch is
+  or its switch is on. A tap's button always acts on the light itself; the switch is
   never one of the S10.4 chooser's entities (below) — it stays reachable from
   inside the light's own more-info dialog instead.
 - **Motion sensor** — red the moment it triggers, with a strong red disc and
@@ -496,8 +495,8 @@ differently:
   class (`curtain`, `blind`, `shade`, `shutter`, `awning`, `window`, `damper`),
   and a cover that reports no class, draws idle grey in every state. The class
   is read from the entity's state at draw time; nothing is stored in the layout.
-  A room that shows a cover entity follows the same rule. A tap still toggles
-  it. A door line with a `cover` draws orange when that cover is open (below).
+  A room that shows a cover entity follows the same rule. A tap opens its popup
+  (Open or Close). A door line with a `cover` draws orange when that cover is open (below).
 - **Contact sensor** — open shows the same red disc and pulsing ring. A door
   or window with a contact sensor turns red and dashed when open, over a wide
   pulsing red line; `open_color` recolours both to something other than red.
@@ -523,7 +522,7 @@ differently:
   rather than being fixed itself. Playing, two arcs pulse out from under
   its disc in its own colour, so a speaker mid-song reads as radiating
   sound on the plan. Reduced motion holds the arcs still, the same as a
-  motion sensor's ring. Tap always opens more-info: `media_player.toggle`
+  motion sensor's ring. The popup has More info only: `media_player.toggle`
   is play/pause or power, never a clean on/off, so guessing which one you
   meant would be worse than always asking.
 - **Camera** — a dark cone of view, turned to match the device's own
@@ -536,7 +535,7 @@ differently:
   attribute, names one of your rooms; the icon then glides there over 600 ms
   each time the sensor changes, and several people in the same room spread on
   a ring instead of stacking. No room sensor, or one that names no room on
-  the plan, leaves the icon where you placed it. Tap always opens more-info,
+  the plan, leaves the icon where you placed it. The popup has More info only,
   never a toggle.
 - **Radar (mmWave presence)** — a purple icon while its presence entity is on,
   plus one small dot per tracked target, turned by the device's own `rot` (0
@@ -569,8 +568,8 @@ differently:
   `sensor.office_radar_target_1_y` (Home Assistant's own generated entity ids
   for the `name`s above — repeat the `target_2`/`target_3` blocks and add a
   pair each for more than one tracked person).
-- **Cover on a door** — an open door draws orange; tapping it asks before
-  opening or closing.
+- **Cover on a door** — an open door draws orange; tapping it opens the popup,
+  and its button asks before opening or closing.
 - **Vacuum** — grey while docked, idle or paused; a teal icon while cleaning,
   its icon spinning slowly; teal, not spinning, while returning to dock; and
   `--fp-danger` red on an error state, neither on nor off. A tap opens a
@@ -616,6 +615,36 @@ room or a piece of furniture whose `entity` is the plug's switch follows the
 same rule for its "on" ring. A light bound to a plug's switch (`bound`) does
 not: it is a lamp, and on when its switch is.
 
+## Tap, hold and hover
+
+A tap never operates anything. On a device icon, a door, an unlinked appliance or a row of the Active list,
+in 2D and in 3D, it opens a small popup next to the icon:
+
+- the name and one line of state (the same text the hover tooltip and the plan's readouts use: `48 %`, `21.5 °C`,
+  a light's brightness as a percent, a cover's position, a plug's watts);
+- one primary button, 44 px tall: **Turn on**, **Turn off**, **Open**, **Close**, **Lock** or **Unlock**, a plain
+  `turn_on`, `turn_off`, `open_cover`, `close_cover`, `lock` or `unlock` call on the device's own entity;
+- a **More info** link, which opens Home Assistant's dialog (or the chooser when the object names several entities).
+
+The popup stays inside the card. Only one is open at a time. It closes on Escape, on a tap anywhere else, or on a
+second tap of the same icon. Tapping another icon moves it. It is a non-modal `role="dialog"` named after the device;
+focus goes to its primary button and comes back to what opened it. A **hold** (long press) still opens more-info
+directly, as before.
+
+- **Turning something OFF asks first**, for every type except a light: the button turns into **Confirm turn off**
+  next to Cancel. Turning ON is immediate. A light's OFF is immediate too. A lock and a cover keep their own
+  wording. A door with a `cover` keeps its confirm dialog, opened from the popup's button.
+- **A light** with brightness gets a slider (1-100 %); one with colour temperature gets a kelvin slider; one with a
+  colour mode (hs, xy, rgb) gets a hue slider. Moving a slider changes only the number shown; releasing it makes the
+  one `light.turn_on` call. A light that only switches on and off gets no slider.
+- **No toggle** (camera, media player, speaker, battery, inverter, server, access point, person, radar, vacuum):
+  name, state and More info only. A vacuum tap still opens its own dialog.
+- `tap_action` is not a card option and the popup does not read one.
+
+**Hover** (mouse only, not touch): over an icon, a door or an appliance a small tooltip shows the name and the state
+text, in 2D and in 3D. It goes when the pointer leaves, when you press, drag or scroll, and while a popup is open.
+The icon's own browser tooltip is replaced while it shows.
+
 ## Tapping an object with more than one entity
 
 A heater's `trvs`, an ac's `linked` units, a radar's own `targets`, a door's
@@ -634,19 +663,15 @@ the vacuum dialog — is ever open at once.
 Which gesture reaches the chooser depends on what the object would otherwise
 do with a plain tap:
 
-- **A device that toggles** (a heater, an ac, a switch, a plug...): naming
-  more than one entity moves the chooser onto the plain **tap** — a tap no
-  longer toggles such a device, since guessing which of several entities it
-  meant was the exact problem this feature exists to fix. A **long press**
-  on it instead opens more-info for the device's own entity alone, the same
-  thing a long press always did before this feature existed. Naming exactly
-  one entity is untouched: tap toggles, long press opens more-info.
+- **A device that toggles** (a heater, an ac, a switch, a plug...): a tap
+  opens the popup (S14.2). Its button acts on the device's own entity only; its
+  **More info** link opens the chooser when the device names several entities.
+  A **long press** opens more-info for the device's own entity alone.
 - **A device with no toggle** (a camera, a radar, a person...) and a
-  non-cover door: unchanged from a device that toggles with one entity — a
-  plain tap resolves straight to more-info or the chooser, with no long
-  press involved (these never had one).
-- **A door with a `cover`**: a tap always opens the existing open/close
-  confirm dialog, whatever else is attached to the door — this is unaffected
+  non-cover door: a tap opens the popup with More info only; More info
+  resolves to more-info or the chooser as above.
+- **A door with a `cover`**: a tap opens the popup, whose Open or Close button opens the existing confirm
+  dialog, whatever else is attached to the door — this is unaffected
   by any of the above. A **long press** on it opens the chooser instead,
   listing every entity the door names, the cover included; with only the
   cover attached, a long press opens the cover's own more-info directly
@@ -654,8 +679,8 @@ do with a plain tap:
   press anywhere) such a door only ever opens the cover dialog, since no
   long press ever starts.
 - **An unlinked appliance** (a plan icon placed by type, with no linked
-  entity of its own — Add → Unlinked device in the editor): has no toggle
-  and no long press. A tap alone resolves through its `attached` list, the
+  entity of its own — Add → Unlinked device in the editor): has no toggle.
+  A tap opens a popup (name, More info); More info resolves through its `attached` list, the
   ordinary one-entity-more-info/several-entities-chooser rule.
 
 A light's `bound` switch is deliberately never offered here; see "Light with

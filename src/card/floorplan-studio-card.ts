@@ -1642,7 +1642,10 @@ export class FloorplanStudioCard extends LitElement {
   /** After every render: the popup sits near where it was tapped, inside the card; focus goes to its button when it opens and back to what opened it when it closes. */
   private _syncPopup(): void {
     const key = this._popup?.s.key ?? null, el = this.shadowRoot?.querySelector<HTMLElement>(".fp-pop") ?? null;
-    if (this._popup && el) placeNear(el, this, this._popup.x, this._popup.y);
+    if (this._popup && el) {
+      const o = this._popup.opener;
+      placeNear(el, this, this._popup.x, this._popup.y, 14, o?.isConnected && o.matches(".fp-active-row") ? o.getBoundingClientRect() : null);
+    }
     if (key === this._popupFocusKey) return;
     this._popupFocusKey = key;
     if (key && el) (el.querySelector<HTMLElement>(".fp-pop-do") ?? el.querySelector<HTMLElement>(".fp-pop-more"))?.focus({ preventScroll: true });

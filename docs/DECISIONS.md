@@ -2,6 +2,29 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: S14.2, a tap opens a popup; OFF asks; one state text
+
+- **A tap never operates.** On an icon, a door, an unlinked appliance or an Active row, in 2D and 3D, a tap opens a popup. The
+  popup's button does what the tap used to do. A hold still opens more-info. `bindDeviceActions` no longer calls a service at all;
+  `toggleEntity` is gone.
+- **`tap_action`.** It is not read anywhere in the card or the docs, so there was no config meaning to keep. None is added.
+- **Explicit services.** The button calls `turn_on` or `turn_off` by the entity's state, not `domain.toggle`. A lock calls
+  `lock.lock` or `lock.unlock` (the old `lock.toggle` does not exist in Home Assistant). A cover calls `open_cover` or
+  `close_cover`; a cover door still goes through its confirm dialog.
+- **Confirm before OFF** is an inline step in the popup (the button becomes Confirm turn off, with Cancel), for every type except a
+  light. A light's OFF is immediate. ON is immediate. `tests/card/popup-rules.test.ts` iterates `DEVICE_TYPES` and records the answer
+  per type, so a new type fails until someone decides.
+- **No toggle stays no toggle.** Media, speaker and the other `NO_TOGGLE` types get a popup with name, state and More info only
+  (`media_player.toggle` is ambiguous, S9.4). A vacuum tap still opens its own dialog.
+- **A device with several entities.** The primary button acts on the device's own entity. More info opens the chooser.
+- **Light controls.** Brightness only if `supported_color_modes` has a mode beyond `onoff` (or, with no modes listed, an own
+  `brightness` attribute); temperature only with `color_temp` (kelvin range from the entity, else 2000-6500); hue only with a colour
+  mode. `input` moves the shown number; `change` makes the one `light.turn_on`.
+- **One state text** (`src/core/state-text.ts`): the plan's rule everywhere, the state plus its unit, raw. A room mean drops its
+  trailing ".0" (48 %, not 48.0 %). A light on shows brightness as a percent, a cover its position, a plug its watts.
+- **Hover** is mouse only. In 3D it uses the pick on pointermove, once per animation frame, with no per-move allocation.
+  Anchor of the popup: the pointer, or the element's box for a keyboard or row activation.
+
 ## 2026-10-06: the size budget is raised for Sprints 14 and 15
 
 Diego said yes to +20 KB on the card and +40 KB on the 3D chunk (card 95,076 -> 115,000 gz, chunk 193,707 -> 233,000 gz)

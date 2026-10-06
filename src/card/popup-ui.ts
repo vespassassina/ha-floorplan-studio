@@ -92,8 +92,15 @@ export function popupTemplate(v: PopupView) {
 }
 
 /** Puts `el` (absolutely positioned in `host`) just below the point (client x, y), above it when there is no room below, and inside the host either way. */
-export function placeNear(el: HTMLElement, host: HTMLElement, x: number, y: number, gap = 14): void {
+export function placeNear(el: HTMLElement, host: HTMLElement, x: number, y: number, gap = 14, beside: DOMRect | null = null): void {
   const h = host.getBoundingClientRect(), w = el.offsetWidth, ht = el.offsetHeight;
+  // Beside a list row, the popup goes to the side of the list and lines up with the row, so the rows under it stay reachable.
+  if (beside) {
+    const right = beside.right - h.left + 8, room = right + w + 4 <= h.width;
+    el.style.left = `${Math.round(Math.max(4, room ? right : beside.left - h.left - w - 8))}px`;
+    el.style.top = `${Math.round(Math.max(4, Math.min(h.height - ht - 4, beside.top - h.top + beside.height / 2 - ht / 2)))}px`;
+    return;
+  }
   const left = Math.max(4, Math.min(h.width - w - 4, x - h.left - w / 2));
   let top = y - h.top + gap;
   if (top + ht > h.height - 4) top = y - h.top - gap - ht;

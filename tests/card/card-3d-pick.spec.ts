@@ -21,7 +21,7 @@ async function boot(page: Page, config: Record<string, unknown> = {}) {
     const el = document.getElementById("card") as unknown as HTMLElement & { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
     el.addEventListener("hass-more-info", (e) => w.__info.push((e as CustomEvent).detail.entityId));
     el.setConfig(config);
-    // callService(domain, service, data), as Home Assistant's hass has it (toggleEntity in src/card/actions.ts is the caller)
+    // callService(domain, service, data), as Home Assistant's hass has it (the popup actions in src/card are the caller)
     el.hass = { states, callService: (d: string, s: string, data: { entity_id: string }) => { w.__calls.push(`${d}.${s} ${data.entity_id}`); } };
     return el.updateComplete;
   }, [{ layout: structuredClone(demo), floor: "ground", view: "3d", ...config }, STATES] as const);
@@ -57,10 +57,13 @@ async function click(page: Page, locate: () => Promise<Where | null>, want: unkn
 }
 
 test.describe("3D view: taps on devices", () => {
-  test("a tap on a light toggles that entity and opens nothing else", async ({ page }) => {
+  test("a tap on a light opens its popup and operates nothing; the popup's button makes the one call", async ({ page }) => {
     await boot(page);
     await click(page, () => where(page, "device", 0), { type: "device", index: 0 });
-    await expect.poll(() => calls(page)).toEqual(["light.toggle light.demo_living"]);
+    await expect(card(page).locator("css=.fp-pop")).toBeVisible();
+    expect(await calls(page)).toEqual([]);
+    await card(page).locator("css=.fp-pop-do").click();
+    await expect.poll(() => calls(page)).toEqual(["light.turn_off light.demo_living"]);
     expect(await infos(page)).toEqual([]);
     expect(await ring(page)).toBe(""); // a device never picks a room
   });
@@ -77,9 +80,11 @@ test.describe("3D view: taps on devices", () => {
     expect(await calls(page)).toEqual([]);
   });
 
-  test("a tap on a camera opens its more-info and never toggles (a NO_TOGGLE type, finding 20)", async ({ page }) => {
+  test("a tap on a camera opens a popup with More info only, which opens its more-info; nothing toggles (a NO_TOGGLE type, finding 20)", async ({ page }) => {
     await boot(page);
     await click(page, () => where(page, "device", 6), { type: "device", index: 6 });
+    await expect(card(page).locator("css=.fp-pop-do")).toHaveCount(0);
+    await card(page).locator("css=.fp-pop-more").click();
     await expect.poll(() => infos(page)).toEqual(["camera.demo_hall"]);
     expect(await calls(page)).toEqual([]);
   });

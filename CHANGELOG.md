@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Card: a tap no longer operates a device. On an icon, a door, an appliance or an Active-list row, in 2D and 3D, it opens a small popup with the name, the state, one primary button (Turn on, Turn off, Open, Close, Lock, Unlock) and More info. It closes on Escape, an outside tap or a second tap. A long press still opens more-info. Types without a toggle show name, state and More info only.
+- Card: turning something OFF asks first (a confirm step in the popup) for every type except a light. Turning ON is immediate.
+- Card: a light's popup has brightness, colour-temperature and hue sliders where the light supports them. One `light.turn_on` on release, none while dragging.
+- Card: a mouse hover shows a tooltip with the name and the state, in 2D and 3D.
+- Card: one state text for the plan, the popup and the tooltip. A room's mean humidity reads "48 %", not "48.0 %".
+- Card: a lock's button now calls `lock.lock` or `lock.unlock` (the old tap called `lock.toggle`, which Home Assistant does not have).
+
 ## 0.15.0 - 2026-10-06
 
 - Card: floor textures in 3D. A room or stair with a texture shows it on its floor, at the same size, turn and scale as in 2D; the flat colour shows until the tile is ready. A bad texture id or rotation falls back to the flat colour.

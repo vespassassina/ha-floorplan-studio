@@ -2507,7 +2507,7 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
 
 Spec `docs/specs/card-polish-and-light.md`, items 1-12. Order and one outcome each, tests first:
 - S14.1 Rename "slit window"; slit head 40 cm under the ceiling (items 1, 2). Core + editor.
-- S14.2 Tap popup, hover name, confirm-OFF, siren size (items 3-6). Card, both views. Raise the size budget first.
+- [x] S14.2 Tap popup, hover name, confirm-OFF, live values, light controls (items 3, 4, 5, 17, 18; item 6 siren is a separate task). Card, both views. Raise the size budget first.
 - S14.3 Effect size per device, editor field (item 7). Schema optional field, 2D and 3D.
 - S14.4 View memory per floor, 2D and 3D (item 8).
 - S14.5 Open doorway alert band (item 9), lower presets (item 10), low and cutaway wall height (item 11).
