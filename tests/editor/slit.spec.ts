@@ -33,7 +33,7 @@ test("Add, Openings, Slit window places a 120 cm slit, selected, with the window
   expect("sill" in d.at(-1)!).toBe(false);
   await expect(page.locator("#dk")).toHaveValue("slit");
   await expect(page.locator("#dht")).toHaveAttribute("placeholder", "60");
-  await expect(page.locator("#dsill")).toHaveAttribute("placeholder", "190"); // the demo's storey is 250: 250 - 60
+  await expect(page.locator("#dsill")).toHaveAttribute("placeholder", "150"); // the demo's storey is 250: 250 - 40 - 60
   await expect(page.locator("#dsill")).toBeVisible();
   await expect(page.locator("#dcover")).toBeAttached();
   await expect(page.locator('label[for="dcover"]')).toHaveText("electric curtain"); // cover is curtains, as on a window
@@ -79,6 +79,15 @@ test("the slit is a band 0.4 as thick as a window on the same wall, and a real c
   await expect(page.locator("#dk")).toHaveValue("slit");
 });
 
+test("the type selector and the wall menu say \"slit window\", the stored kind stays slit", async ({ page }) => {
+  await addSlit(page);
+  const opts = await page.locator("#dk option").evaluateAll((os) => os.map((o) => [(o as HTMLOptionElement).value, o.textContent]));
+  expect(opts).toContainEqual(["slit", "slit window"]);
+  expect(opts.map((o) => o[1])).not.toContain("slit");
+  expect(await page.locator("#dk option:checked").textContent()).toBe("slit window");
+  await expect(page.locator("#addSlit")).toHaveText("Slit window");
+});
+
 test("changing the type of a window to slit, and back, is one undo step each", async ({ page }) => {
   await addSlit(page);
   await page.locator("#dk").selectOption("window");
@@ -102,9 +111,9 @@ test("an own height and sill are kept as typed; clearing them brings the default
   expect("height" in (await doors(page)).at(-1)!).toBe(false);
 });
 
-test("the sill default follows the wall the slit hangs from: a 300 cm storey reads 240", async ({ page }) => {
+test("the sill default follows the wall the slit hangs from: a 300 cm storey reads 200 (head 260, 40 under the ceiling)", async ({ page }) => {
   await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.height = 300; el.layout = l; }, EDITOR);
   await addSlit(page);
-  await expect(page.locator("#dsill")).toHaveAttribute("placeholder", "240");
+  await expect(page.locator("#dsill")).toHaveAttribute("placeholder", "200");
   await expect(page.locator("#dht")).toHaveAttribute("placeholder", "60");
 });

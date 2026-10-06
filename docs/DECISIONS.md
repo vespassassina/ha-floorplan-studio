@@ -2,6 +2,25 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: a slit window's head sits 40 cm under the ceiling, and is called "slit window" everywhere
+
+Diego, Sprint 14 items 1 and 2. Supersedes the "head at the ceiling" rule of the 2026-10-05 slit entry below (the rest of that
+entry stands: a kind, not a flag; read from the wall, never stored; no schema bump; the 2D band).
+
+**Gap.** `SLIT_HEAD_GAP` in `heights.ts` is `DEFAULT_FLOOR_HEIGHT - (window.sill + window.height)` = 250 - 210 = 40, derived from
+`DOOR_DEFAULTS.window` so the two cannot drift. A slit's head is `ceiling - 40`, its height stays 60, so its sill is
+`ceiling - 100`: 150 and 210 on 250, 200 and 260 on 300. It is per wall (`doorCeiling`), as before. An own `height` keeps that
+head, an own `sill` wins and the head follows it, clamped to the ceiling. On a wall too low for the gap the head is
+`min(ceiling, max(ceiling - 40, height))`: a 40 cm wall gives glass from 0 to 40, a 100 cm wall from 0 to 60, a 120 cm wall from 20 to 80;
+the sill is never negative and the head never over the wall. The 2.5D and 3D builders already took the span from `doorSpan`, so
+they now leave 40 cm of wall over the glass with no change of their own.
+
+**Existing layouts.** Nothing is stored for the defaults, so a slit with no own sill moves down 40 cm on update. Accepted: the
+slit was one day old, and a slit with an own sill is untouched.
+
+**The name.** Add, Openings and the wall menu already said "Slit window". The door type select listed the raw id `slit`; it now
+shows "slit window" (value still `slit`; the other kinds keep their ids as labels).
+
 ## 2026-10-06: the size budget is raised for Sprints 14 and 15
 
 Diego said yes to +20 KB on the card and +40 KB on the 3D chunk (card 95,076 -> 115,000 gz, chunk 193,707 -> 233,000 gz)

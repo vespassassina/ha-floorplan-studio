@@ -4,7 +4,7 @@ import { OBLIQUE, renderFloor } from "../../src/core/render";
 import { buildScene } from "../../src/core/scene";
 import { DOOR_KINDS, validate, type Floor, type Layout } from "../../src/core/schema";
 import { migrate } from "../../src/core/migrate";
-import { DEFAULT_FLOOR_HEIGHT, DOOR_DEFAULTS, SLIT_HEIGHT, doorCeiling, doorSpan, radiatorSpan } from "../../src/core/heights";
+import { DEFAULT_FLOOR_HEIGHT, DOOR_DEFAULTS, SLIT_HEIGHT, SLIT_HEAD_GAP, doorCeiling, doorSpan, radiatorSpan } from "../../src/core/heights";
 import { doorStateOf } from "../../src/core/door-state";
 import { OPENING_FILL } from "../../src/core/solids";
 
@@ -57,23 +57,31 @@ describe("slit: the kind", () => {
   });
 });
 
-describe("slit: the span hangs from the ceiling of its wall", () => {
-  it.each([[250, 190, 250], [300, 240, 300], [40, 0, 40], [60, 0, 60], [0, 0, 0]])("wall %i cm: sill %i, head %i", (h, sill, head) => {
+describe("slit: the head sits as far under the ceiling as a window's does", () => {
+  it("the gap is the window's: the default 250 wall less sill 90 plus height 120, 40 cm", () => {
+    expect(SLIT_HEAD_GAP).toBe(DEFAULT_FLOOR_HEIGHT - (DOOR_DEFAULTS.window.sill + DOOR_DEFAULTS.window.height));
+    expect(SLIT_HEAD_GAP).toBe(40);
+    const w = doorSpan({ kind: "window" } as never, 250);
+    expect(250 - w.head).toBe(SLIT_HEAD_GAP); // a window and a slit end the same distance under the ceiling
+    expect(250 - doorSpan(slit() as never, 250).head).toBe(SLIT_HEAD_GAP);
+  });
+  it.each([[250, 150, 210], [300, 200, 260], [220, 120, 180], [120, 20, 80], [100, 0, 60], [60, 0, 60], [40, 0, 40], [0, 0, 0]])("wall %i cm: sill %i, head %i", (h, sill, head) => {
     expect(doorSpan(slit() as never, h)).toEqual({ sill, head });
   });
-  it("with no wall at all it is the storey default, 250", () => {
+  it("with no wall at all it is the storey default, 250: sill 150, head 210", () => {
     expect(DEFAULT_FLOOR_HEIGHT).toBe(250);
-    expect(doorSpan(slit() as never)).toEqual({ sill: 190, head: 250 });
+    expect(doorSpan(slit() as never)).toEqual({ sill: 150, head: 210 });
   });
-  it("an own height keeps the top at the ceiling; an own sill wins and the head is clamped; both win together", () => {
-    expect(doorSpan(slit({ height: 40 }) as never, 300)).toEqual({ sill: 260, head: 300 });
+  it("an own height keeps the head 40 under the ceiling; an own sill wins and the head is clamped; both win together", () => {
+    expect(doorSpan(slit({ height: 30 }) as never, 300)).toEqual({ sill: 230, head: 260 });
+    expect(doorSpan(slit({ height: 500 }) as never, 300)).toEqual({ sill: 0, head: 300 }); // taller than the wall: the wall
     expect(doorSpan(slit({ sill: 100 }) as never, 300)).toEqual({ sill: 100, head: 160 });
     expect(doorSpan(slit({ sill: 280 }) as never, 300)).toEqual({ sill: 280, head: 300 }); // head <= the wall
     expect(doorSpan(slit({ sill: 100, height: 30 }) as never, 300)).toEqual({ sill: 100, head: 130 });
-    expect(doorSpan(slit({ height: 500 }) as never, 300)).toEqual({ sill: 0, head: 300 }); // taller than the wall: the wall
+    expect(doorSpan(slit({ sill: 0 }) as never, 250)).toEqual({ sill: 0, head: 60 });
   });
   it("junk falls back to the default, and no other kind is touched by a ceiling", () => {
-    for (const j of [NaN, "tall", -5, 1001, null]) expect(doorSpan(slit({ sill: j, height: j }) as never, 300), String(j)).toEqual({ sill: 240, head: 300 });
+    for (const j of [NaN, "tall", -5, 1001, null]) expect(doorSpan(slit({ sill: j, height: j }) as never, 300), String(j)).toEqual({ sill: 200, head: 260 });
     expect(doorSpan({ kind: "window" } as never, 300)).toEqual({ sill: 90, head: 210 });
     expect(doorSpan({ kind: "door" } as never, 40)).toEqual({ sill: 0, head: 210 });
   });
@@ -97,7 +105,7 @@ describe("slit: the ceiling is the wall's own", () => {
   it("a slit on a room whose ceiling is 220 hangs from 220 in the 3D scene", () => {
     const sc = buildScene(floor({ rooms: [room] as never, owk: ["none", "none", "none", "none"], doors: [slit()] as never }));
     const pane = sc.solids.find((s) => s.tag === "glass")!;
-    expect([(pane.shape as any).z0, (pane.shape as any).z1]).toEqual([160, 220]);
+    expect([(pane.shape as any).z0, (pane.shape as any).z1]).toEqual([120, 180]);
   });
 });
 
@@ -111,13 +119,12 @@ describe("slit: a window in every other respect", () => {
 });
 
 describe("slit: 2.5D", () => {
-  it.each([[undefined, 250], [300, 300]])("storey %s: a block under, glass from top-60 to top, nothing above", (storey, top) => {
+  it.each([[undefined, 250], [300, 300]])("storey %s: a block under, glass from top-100 to top-40, wall above it", (storey, top) => {
     const f = floor({ doors: [slit()] as never, ...(storey ? { height: storey } : {}) });
     const html = deep(f);
-    expect(glass(html)).toEqual([`glass g-slit|${box(100, 220, top - 60, top)}`]);
-    expect(faces(html)).toContain(box(100, 220, 0, top - 60));
-    expect(faces(html).filter((q) => q === box(100, 220, top, top + 1)).length).toBe(0);
-    expect(faces(html).some((q) => q.startsWith(`${P(100, 0, top)} ${P(220, 0, top)}`) && q !== box(100, 220, 0, top - 60))).toBe(false);
+    expect(glass(html)).toEqual([`glass g-slit|${box(100, 220, top - 100, top - 40)}`]);
+    expect(faces(html)).toContain(box(100, 220, 0, top - 100));
+    expect(faces(html)).toContain(box(100, 220, top - 40, top)); // the 40 cm of wall over the head
   });
   it("an own sill and height win", () => {
     expect(glass(deep(floor({ doors: [slit({ sill: 100, height: 30 })] as never })))).toEqual([`glass g-slit|${box(100, 220, 100, 130)}`]);
@@ -130,18 +137,18 @@ describe("slit: 2.5D", () => {
 
 describe("slit: 3D scene", () => {
   const prism = (s: any) => s.shape;
-  it.each([[250, undefined], [300, 300], [40, undefined]])("wall %i: the pane spans top-60 to top, the block runs under it, nothing over it", (h, storey) => {
+  it.each([[250, undefined], [300, 300], [40, undefined]])("wall %i: the pane spans top-100 to top-40, a block under it, 40 cm of wall over it", (h, storey) => {
     const f = h === 40
       ? floor({ owk: ["none", "none", "none", "none"], walls: [{ id: "w", a: [0, 0], b: [400, 0], kind: "wall", height: 40 }] as never, doors: [slit()] as never })
       : floor({ doors: [slit()] as never, ...(storey ? { height: storey } : {}) });
     const sc = buildScene(f);
     const pane = sc.solids.filter((s) => s.tag === "glass");
     expect(pane).toHaveLength(1);
-    expect([prism(pane[0]).z0, prism(pane[0]).z1]).toEqual([Math.max(0, h - 60), h]);
+    expect([prism(pane[0]).z0, prism(pane[0]).z1]).toEqual(h === 40 ? [0, 40] : [h - 100, h - 40]);
     expect(pane[0].paint.role).toBe("glass-slit");
     const walls = sc.solids.filter((s) => s.kind === "wall" && s.tag !== "glass");
     const under = walls.filter((s) => { const xs = prism(s).base.map((p: number[]) => p[0]); return Math.min(...xs) >= 100 && Math.max(...xs) <= 220; });
-    if (h > 60) expect(under.map((s) => [prism(s).z0, prism(s).z1])).toEqual([[0, h - 60]]);
+    if (h > 60) expect(under.map((s) => [prism(s).z0, prism(s).z1]).sort((x, y) => x[0] - y[0])).toEqual([[0, h - 100], [h - 40, h]]);
     else expect(under).toEqual([]);
   });
 });

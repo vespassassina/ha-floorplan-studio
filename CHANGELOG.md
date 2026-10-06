@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Editor: the door type select says "slit window" (the stored kind is still `slit`).
+- Window type **slit window**: its head now ends 40 cm under the ceiling of its wall, as a normal window's does (sill 90 + 120 high on a 250 wall), not at the ceiling. Default sill 150 and head 210 on a 250 cm wall; 200 and 260 on 300; on a wall too low for that it is as high as the wall allows (never below the floor, never over the wall). Height is still 60 and an own sill or height still wins. Slit windows already in a layout move down 40 cm: nothing is stored, so nothing needs migrating.
+
 ## 0.15.0 - 2026-10-06
 
 - Card: floor textures in 3D. A room or stair with a texture shows it on its floor, at the same size, turn and scale as in 2D; the flat colour shows until the tile is ready. A bad texture id or rotation falls back to the flat colour.

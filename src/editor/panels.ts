@@ -168,9 +168,11 @@ function rotateButtons(c: PanelCtx, id: string, turn: (deg: number) => void, opt
     ${[30, 45, 60, 90].map((n) => html`<button class="btn" id=${`${id}${n}`} ?disabled=${opts.disabled} aria-label=${`Turn ${n} degrees ${cw ? "clockwise" : "counter-clockwise"}`} @click=${() => turn(c.st.turnDir * n)}>${n}</button>`)}
     ${opts.reset ? html`<button class="btn" id=${`${id}reset`} @click=${opts.reset}>Reset</button>` : nothing}</div>`;
 }
-function select(label: string, id: string, value: string, options: readonly string[], on: (v: string) => void) {
-  return html`<label for=${id}>${label}</label><select id=${id} .value=${value} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${o}</option>`)}</select>`;
+function select(label: string, id: string, value: string, options: readonly string[], on: (v: string) => void, names: Record<string, string> = {}) {
+  return html`<label for=${id}>${label}</label><select id=${id} .value=${value} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${names[o] ?? o}</option>`)}</select>`;
 }
+/** What the door type select shows where it differs from the stored kind id (`slit` is stored, "slit window" is read). */
+const DOOR_KIND_NAMES: Record<string, string> = { slit: "slit window" };
 export const ROOM_LABELS: Record<RoomKind, string> = { room: "Room", garden: "Garden", pavement: "Pavement", fill: "Fill", terrace: "Terrace", structure: "Structure", zone: "Zone", water: "Water" };
 const kindSelect = (value: string, on: (v: string) => void) =>
   html`<label for="rk">kind</label><select id="rk" .value=${value} @change=${(e: Event) => on(val(e))}>${ROOM_KINDS.map((k) => html`<option value=${k} ?selected=${k === value}>${ROOM_LABELS[k]}</option>`)}</select>`;
@@ -481,7 +483,7 @@ function doorPanel(c: PanelCtx, i: number) {
     ${hint("Drag along the wall; drag an end to resize.")}
     ${heading("Identity")}
     ${text("name", "dn", d.name, (v) => c.commit((f) => { f.doors[i].name = v; }))}
-    ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }))}
+    ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }), DOOR_KIND_NAMES)}
     ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); f.doors[i].locked = true; }))}
     ${heightField(c, "height (cm)", "dht", d.height, dflt.head - dflt.sill, heightSetter(c, "doors", i, "height"))}
     ${d.kind === "window" || d.kind === "slit" || d.sill !== undefined ? heightField(c, "sill (cm)", "dsill", d.sill, dflt.sill, heightSetter(c, "doors", i, "sill")) : nothing}

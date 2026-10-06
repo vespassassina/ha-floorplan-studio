@@ -47,7 +47,7 @@ export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape
  * glass door or window. render.ts only colours the opening from `cover` on a plain `door` or `sealed` kind;
  * on `window`/`glass` it is curtains, not a security state, and opening them never colours the window
  * (Diego, 2026-09-28 — the office window's curtains were flipping it orange).
- * `slit` (2026-10-05) is a window 60 cm high that hangs from the ceiling of its wall; its width is the length a to b.
+ * `slit` (2026-10-05) is a window 60 cm high whose head ends 40 cm under the ceiling of its wall, as a window's does (2026-10-06); its width is the length a to b.
  * It reads and behaves as a `window` in every other respect. Its default sill is read from the wall, never stored.
  * `open` (2026-10-05) is a doorway: the wall is cut as for a door (210 high from 0), but nothing is drawn in the gap. It is a
  * real Door, so it keeps a name, sensors, vibration, locks and a cover; unlike an `Opening` it can carry them. Closed and
@@ -101,7 +101,7 @@ export interface Trace { src: string; x: number; y: number; w: number; rot: numb
 /** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. Heights, all optional, in cm, 0 to 1000
  *  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling
  *  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture
- *  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high from the ceiling of its wall); `z` on a Device is its mount height. */
+ *  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high, its head 40 under the ceiling of its wall); `z` on a Device is its mount height. */
 export interface Floor {
   ha?: string; height?: number; slab?: number; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[]; trace?: Trace;
