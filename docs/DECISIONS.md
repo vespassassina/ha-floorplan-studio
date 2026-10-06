@@ -43,6 +43,28 @@ Spec item 8. Supersedes "one zoom, focus and turn per card" of the 0.12 view mem
 - **Old entries.** A stored entry with top-level `zoom`, `focus`, `rotation` moves to the floor it names in `floor`; with no floor named it is dropped (whose view it was cannot be said). One lost zoom at worst.
 - **Parity with the studio.** The editor already remembers a zoom per floor (`view-memory.ts`) and draws flat only, so it has no camera. Its one turn for all floors stays: the editor edits one layout across floors and a turn there is a viewpoint on the house, not on a floor. Not changed. If Diego wants a turn per floor in the editor too, it is a small change to `ViewMemory`.
 - **Not done.** A turn in 3D is not remembered apart from the camera azimuth. The 3D "top view" and "frame a room" (S15.5) will store through the same `cam`.
+## 2026-10-06: S14.7, room scenes: area first, an explicit list as the exception, lights-only presets without a confirm
+
+Diego, Sprint 14 item 19 (Hue scenes included).
+
+- **Which Home Assistant scene belongs to a room.** The room's area, as the spec says: a `scene.*` whose entity `area_id` (`hass.entities`),
+  else whose device's `area_id` (`hass.devices`), is the room's `area`. Hue scenes sit on the Hue room's device, so they come by the
+  second way with no setup. Nothing is stored for it: no schema change, and it follows the area in Home Assistant. For a scene with no
+  area, or in another one, the room has an optional explicit `haScenes` list (entity ids, `scene.*` only, edited under *also offer*
+  in the room panel). Alternative considered: an explicit list only. Rejected: every Hue room would need its scenes ticked by hand.
+- **Custom scenes** are `room.scenes`, optional, no version bump: `{ id, name, items: [{ entity, on, brightness?, kelvin?, hs? }] }`,
+  light or switch entities only, 12 scenes and 40 items at most. An older card never reads the field; `validate` checks every part
+  and never throws (the same discipline as the sensor lists). They are applied with the existing services, one call per item.
+- **All off needs no confirm.** The brief for this task asked for a confirm "consistent with S14.2". S14.2's rule (and the spec row for
+  item 19) says a light is exempt, and All off is lights only, so it follows the rule: no confirm. The rule is kept where it bites: a
+  custom scene that turns a *switch* off asks first (its button turns into "Confirm: name"). A Home Assistant scene is never confirmed:
+  the card cannot know what it switches off, and Home Assistant owns it. If Diego wants All off to ask, it is one line.
+- **Presets** act on the lights drawn in the room (`roomSummary`, the one rule for "a device of this room"), in one call each.
+  A room with no lights shows neither.
+- **The studio cannot capture live state.** The editor holds no entity states, so a new scene starts as every light and switch of the
+  room, on, and the person edits it. Capturing from the lamps is a possible later addition.
+- **Parity.** The editor lists and edits; the card shows and runs. A scene is not drawn on the plan, so there is nothing for the
+  two views to disagree about.
 
 ## 2026-10-06: a slit window's head sits 40 cm under the ceiling, and is called "slit window" everywhere
 

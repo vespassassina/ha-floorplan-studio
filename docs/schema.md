@@ -41,7 +41,31 @@ export const MAX_ROOM_SENSORS = 20;
 `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows.  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each.
 
 ```ts
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[] }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[] }
+```
+
+## MAX_ROOM_SCENES
+
+Most custom scenes one room may keep, and most lights or switches one scene may set.
+
+```ts
+export const MAX_ROOM_SCENES = 12;
+```
+
+## SceneItem
+
+S14.7: one light or switch of a custom scene. `on` false turns it off; `brightness` (1-100 %), `kelvin` and `hs` ([hue 0-360, saturation 0-100]) only mean something for a light that is on, and a field left out leaves that setting as it is.
+
+```ts
+export interface SceneItem { entity: string; on: boolean; brightness?: number; kelvin?: number; hs?: [number, number] }
+```
+
+## RoomScene
+
+S14.7: a custom scene, stored on the room (optional, no schema bump: an older card ignores the field). The card applies it through the plain light and switch services, one call per item. `haScenes` on a room lists Home Assistant `scene.*` entities to offer for the room besides the ones whose area is the room's own.
+
+```ts
+export interface RoomScene { id: string; name: string; items: SceneItem[] }
 ```
 
 ## EdgeKind

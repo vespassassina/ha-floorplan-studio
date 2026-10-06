@@ -21,6 +21,8 @@ export type { PowerCandidate } from "./power";
 export * from "./stairs";
 export { WALLS_LABELS, WALLS_MODES, wallsModeOf } from "./solids";
 export type { WallsMode } from "./solids";
+export { customCalls, customScene, haScenesFor, presetCalls, roomScenes, sceneNeedsConfirm } from "./room-scenes";
+export type { HaSceneRow, RoomSceneMenu, SceneCall, SceneHass } from "./room-scenes";
 export { ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomAreaM2, roomSummary } from "./room-info";
 export type { InfoHass, InfoRow, RoomDeviceRow, RoomSensorRow, RoomSummary } from "./room-info";
 export { meanText, readingText, stateText } from "./state-text";

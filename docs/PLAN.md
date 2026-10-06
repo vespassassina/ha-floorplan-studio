@@ -2513,6 +2513,7 @@ Spec `docs/specs/card-polish-and-light.md`, items 1-12. Order and one outcome ea
 - [x] S14.5 Open doorway alert band (item 9), lower presets (item 10), low and cutaway wall height (item 11).
 - [x] S14.6 Active list and Room panel by collapsible category (item 12).
 - [x] S14.8 Plug colour by power (item 24). `task/S14.8`: `powerHeat`/`heatRange` in `core/power.ts`, `--fp-heat` from `deviceMarkup`, card options `plug_heat_from`/`plug_heat_to`. Tests: `tests/core/plug-heat.test.ts`, `tests/card/plug-heat.spec.ts`, `plug_heat` in `tests/card/config-editor.spec.ts`.
+- [x] S14.7 Room scenes (item 19). Done on `task/S14.7`: `src/core/room-scenes.ts`, `src/card/room-scenes-ui.ts`, `src/editor/room-scenes-ops.ts`, the Scenes section of the Room panel. Tests: `tests/core/room-scenes.test.ts`, `tests/editor/room-scenes-ops.test.ts`, `tests/card/card-room-scenes.spec.ts`, `tests/editor/room-scenes.spec.ts`.
 Sprint review by Opus once the integrated build is done; then release 0.16.0 on Diego's yes.
 
 ## Sprint 15 (0.17.0): light

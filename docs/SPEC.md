@@ -58,7 +58,7 @@ in `prompts/`, then fixed in the editor.
     "ground": {
       "title": "Ground", "ha": "downstairs",
       "outline": [[x, y], ...], "owk": ["external", ...],
-      "rooms":   [{"id", "name", "area", "kind", "pts", "wk", "color"?, "texture"?, "textureRot"?, "free"?, "entity"?}],
+      "rooms":   [{"id", "name", "area", "kind", "pts", "wk", "color"?, "texture"?, "textureRot"?, "free"?, "entity"?, "temps"?, "humidity"?, "motion"?, "scenes"?, "haScenes"?}],
       "walls":   [{"id", "a", "b", "kind"}],
       "stairs":  [{"id", "name", "pts", "shape", "steps", "rot", "dia"?, "inner"?, "color"?, "texture"?, "textureRot"?}],
       "doors":   [{"id", "name", "kind", "a", "b", "sensor", "cover"}],

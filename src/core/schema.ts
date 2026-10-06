@@ -28,7 +28,21 @@ export const MAX_ROOM_SENSORS = 20;
  *  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The
  *  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border
  *  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each. */
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[] }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[] }
+/** Most custom scenes one room may keep, and most lights or switches one scene may set. */
+export const MAX_ROOM_SCENES = 12;
+export const MAX_SCENE_ITEMS = 40;
+/**
+ * S14.7: one light or switch of a custom scene. `on` false turns it off; `brightness` (1-100 %), `kelvin` and `hs` ([hue 0-360,
+ * saturation 0-100]) only mean something for a light that is on, and a field left out leaves that setting as it is.
+ */
+export interface SceneItem { entity: string; on: boolean; brightness?: number; kelvin?: number; hs?: [number, number] }
+/**
+ * S14.7: a custom scene, stored on the room (optional, no schema bump: an older card ignores the field). The card applies it
+ * through the plain light and switch services, one call per item. `haScenes` on a room lists Home Assistant `scene.*` entities
+ * to offer for the room besides the ones whose area is the room's own.
+ */
+export interface RoomScene { id: string; name: string; items: SceneItem[] }
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
 /** A room edge is a wall kind, or "none": not drawn. The room stays closed for area and snapping. */
 export type EdgeKind = WallKind | "none";
@@ -274,6 +288,34 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       entityList(r, "temps", "sensor.name", ["sensor"], MAX_ROOM_SENSORS);
       entityList(r, "humidity", "sensor.name", ["sensor"], MAX_ROOM_SENSORS);
       entityList(r, "motion", "binary_sensor.name", ["binary_sensor", "group"], MAX_ROOM_SENSORS); // a group is a motion group (ha.ts isMotionGroup)
+      entityList(r, "haScenes", "scene.name", ["scene"], MAX_ROOM_SCENES * 4);
+      if (r.scenes !== undefined) {
+        const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+        if (!Array.isArray(r.scenes)) errors.push(`${at} ${r.id} scenes must be a list`);
+        else if (r.scenes.length > MAX_ROOM_SCENES) errors.push(`${at} ${r.id} scenes holds at most ${MAX_ROOM_SCENES}, found ${r.scenes.length}; remove the extra ones`);
+        else {
+          const ids = new Set<string>();
+          r.scenes.forEach((sc: unknown, k: number) => {
+            const w = `${at} ${r.id} scenes[${k}]`;
+            if (!isObj(sc)) { errors.push(`${w} must be an object`); return; }
+            if (typeof sc.id !== "string" || !sc.id) errors.push(`${w} id must be text`);
+            else if (ids.has(sc.id)) errors.push(`${w} duplicate id ${sc.id}`);
+            else ids.add(sc.id);
+            if (typeof sc.name !== "string" || !sc.name.trim()) errors.push(`${w} name must be text`);
+            if (!Array.isArray(sc.items)) { errors.push(`${w} items must be a list`); return; }
+            if (sc.items.length > MAX_SCENE_ITEMS) { errors.push(`${w} items holds at most ${MAX_SCENE_ITEMS}, found ${sc.items.length}`); return; }
+            sc.items.forEach((it: unknown, j: number) => {
+              const x = `${w} items[${j}]`;
+              if (!isObj(it)) { errors.push(`${x} must be an object`); return; }
+              if (typeof it.entity !== "string" || !/^(light|switch)\./.test(it.entity)) errors.push(`${x} entity must be a light or switch id like light.name`);
+              if (typeof it.on !== "boolean") errors.push(`${x} on must be true or false`);
+              if (it.brightness !== undefined && !(fin(it.brightness) && it.brightness >= 1 && it.brightness <= 100)) errors.push(`${x} brightness must be a number from 1 to 100`);
+              if (it.kelvin !== undefined && !(fin(it.kelvin) && it.kelvin >= 1000 && it.kelvin <= 10000)) errors.push(`${x} kelvin must be a number from 1000 to 10000`);
+              if (it.hs !== undefined && !(Array.isArray(it.hs) && it.hs.length === 2 && fin(it.hs[0]) && fin(it.hs[1]) && it.hs[0] >= 0 && it.hs[0] <= 360 && it.hs[1] >= 0 && it.hs[1] <= 100)) errors.push(`${x} hs must be [hue 0-360, saturation 0-100]`);
+            });
+          });
+        }
+      }
       if (Array.isArray(r.pts) && r.pts.length >= 3 && (!Array.isArray(r.wk) || r.wk.length !== r.pts.length))
         errors.push(`${at} ${r.id} wk must have ${r.pts.length} entries`);
       else if (Array.isArray(r.wk)) {

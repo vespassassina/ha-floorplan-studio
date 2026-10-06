@@ -342,7 +342,19 @@ door or a stair), and the room is outlined with a dashed line. The Active panel 
 - temperature and humidity, the same mean the plan prints under the name;
 - motion, on or off, and since when;
 - the open doors and windows on the room's walls (an unlocked lock counts), and the lights that are on;
+- **Scenes** (S14.7): a button for each Home Assistant `scene.*` entity of the room (dashed border), for each custom scene saved on the
+  room, then **All off** and **All on**. See below;
 - the room's devices, then the sensors the room owns that have no icon on the plan, grouped by the same collapsible categories as the Active list.
+
+**Scenes.** A scene button is one tap, no popup. A Home Assistant scene calls `scene.turn_on`. A scene belongs to the room when its
+area is the room's area (the scene entity's own `area_id` in `hass.entities`, else its device's `area_id` in `hass.devices`; the Hue
+integration puts its scenes on the Hue room's device, so Hue scenes appear on their own), or when the studio lists it in the room's
+`haScenes`. A custom scene is a name and a list of lights and switches, each on or off, a light with an optional brightness (1 to
+100 %), colour temperature (K) or colour (`hs`); it calls `light.turn_on` or `light.turn_off` per light and `switch.turn_on` or
+`switch.turn_off` per switch, with only the fields it sets. **All off** and **All on** are one `light.turn_off` or `light.turn_on` over the lights drawn
+in the room. They are lights only, so they do not ask first, the same as a light's popup (S14.2). A custom scene that turns a
+switch off asks first: its button turns into **Confirm: name** with a Cancel next to it. A room with no scene and no light shows no
+Scenes label. Scenes are in the Room section, so they need the Active panel (not `kiosk`, not `active_list: false`).
 
 A tap on a row opens the same popup as the icon on the plan; a hold opens
 Home Assistant's more-info. Below, the Active list is cut to the room's
