@@ -2520,3 +2520,7 @@ Items 13-15. Needs a short design pass first (S15.0: visibility-polygon maths in
 - S15.1 Core light maths: gaps, visibility polygon, light map per floor.
 - S15.2 3D: light from the device, passing gaps.
 - S15.3 Daylight from `sun.sun`, card option.
+
+Added 2026-10-06 (Diego's picks): S14.2 also does items 17-18 (live values, light slider); S14.7 room scenes (item 19);
+S14.8 plug colour by power (item 24); S15.3 also the evening tint (22); S15.4 open leaf, sash and 3D alert band (20);
+S15.5 top view and frame a room (21); S15.6 blob shadows (23). Not taken: room master switch, keyboard navigation.
