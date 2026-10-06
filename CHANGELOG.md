@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.4 - 2026-10-06
 
 - Card, studio, 3D: a light, switch or plug that is **unavailable or unknown is drawn as off**, no longer a dimmed ghost. Other device types keep the unavailable look.
 - 3D: a room built against the edge of a bigger one (a garden shed on the garden's border) is lifted above it, so its **floor shows**.
