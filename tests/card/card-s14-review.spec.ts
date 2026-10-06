@@ -16,7 +16,7 @@ const STATES = () => ({
   "light.demo_kitchen": st("on", { supported_color_modes: ["onoff"] }),
   "switch.demo_hall": st("off"), "switch.demo_tv_plug": st("on"),
   "sensor.demo_living_temperature": st("21.5", { unit_of_measurement: "°C" }),
-  "climate.demo_living": st("heat"), "camera.demo_hall": st("idle"),
+  "climate.demo_living": st("heat"), "camera.demo_hall": st("idle"), "vacuum.demo_robot": st("docked"),
 });
 
 /** Sets up one card (`#id`) in the harness. */
@@ -36,6 +36,7 @@ async function setup(page: Page, id: string, extra: Record<string, unknown>) {
 async function boot(page: Page, width = 1100, extra: Record<string, unknown> = {}) {
   await page.setViewportSize({ width, height: 900 });
   await page.goto(URL_);
+  await page.evaluate((d) => { (window as unknown as { __demo: unknown }).__demo = d; }, demo);
   await page.addScriptTag({ content: CARD_JS, type: "module" });
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
   await setup(page, "card", extra);
@@ -120,7 +121,7 @@ test.describe("S14 review 2 and 3: when a popup goes", () => {
 });
 
 test.describe("S14 review 4: a row in the room panel is the plan icon", () => {
-  test("a radiator row opens the radiator's popup, with only More info, which opens more-info", async ({ page }) => {
+  test("a radiator row opens the radiator's popup, whose More info opens more-info", async ({ page }) => {
     await boot(page, 1280);
     const p = await card(page).evaluate((el) => {
       const poly = el.shadowRoot!.querySelector<SVGPolygonElement>('svg polygon[data-r="0"]')!, r = poly.getBoundingClientRect();
@@ -135,6 +136,33 @@ test.describe("S14 review 4: a row in the room panel is the plan icon", () => {
     await expect(pop(page).locator("css=.fp-pop-more")).toHaveCount(1);
     await pop(page).locator("css=.fp-pop-more").click();
     expect(await infos(page)).toEqual(["climate.demo_living"]);
+  });
+
+  test("a real tap on a vacuum row opens the vacuum dialog and starts nothing", async ({ page }) => {
+    await boot(page, 1280);
+    // the demo has no robot: add one to the living room (device 8 of the ground floor)
+    await card(page).evaluate((el) => {
+      const e = el as unknown as { setConfig(c: unknown): void; updateComplete: Promise<unknown> };
+      const l = structuredClone((window as unknown as { __demo: unknown }).__demo) as { floors: { ground: { devices: unknown[] } } };
+      l.floors.ground.devices.push({ id: "vac-1", type: "vacuum", entity: "vacuum.demo_robot", name: "Robot", x: 100, y: 100 });
+      e.setConfig({ layout: l, floor: "ground" });
+      return e.updateComplete;
+    });
+    const p = await card(page).evaluate((el) => {
+      const poly = el.shadowRoot!.querySelector<SVGPolygonElement>('svg polygon[data-r="0"]')!, r = poly.getBoundingClientRect();
+      for (let y = r.top + 6; y < r.bottom; y += 6) for (let x = r.left + 6; x < r.right; x += 6) if (el.shadowRoot!.elementFromPoint(x, y) === poly) return { x, y };
+      return null;
+    });
+    await page.mouse.click(p!.x, p!.y);
+    const row = card(page).locator("css=.fp-room-devices .fp-active-row", { hasText: "Robot" });
+    const b = await boxOf(row);
+    const top = await card(page).evaluate((el, [x, y]) => !!el.shadowRoot!.elementFromPoint(x!, y!)?.closest('button[data-x]'), [b.x + b.w / 2, b.y + b.h / 2] as const);
+    expect(top, "the row is the real top element").toBe(true);
+    await page.mouse.click(b.x + b.w / 2, b.y + b.h / 2);
+    await expect(card(page).locator("css=.fp-vacuum-dialog")).toBeVisible();
+    expect(await calls(page)).toEqual([]);
+    await card(page).locator("css=.fp-vacuum-dialog button.cancel").click();
+    await expect(card(page).locator("css=.fp-vacuum-dialog")).toHaveCount(0);
   });
 });
 
@@ -186,6 +214,39 @@ test.describe("S14 review 5: the room panel on a narrow card", () => {
     expect(panel.h).toBeGreaterThan(c.h * 0.6);
     await page.screenshot({ path: "/private/tmp/s14-panel-900.png" });
   });
+});
+
+/** A point on room `i` where its polygon is the top element, or null. */
+const roomPoint = (page: Page, i: number) => card(page).evaluate((el, i) => {
+  const poly = el.shadowRoot!.querySelector<SVGPolygonElement>(`svg polygon[data-r="${i}"]`)!, r = poly.getBoundingClientRect();
+  for (let y = r.top + 3; y < r.bottom; y += 3) for (let x = r.left + 3; x < r.right; x += 3) if (el.shadowRoot!.elementFromPoint(x, y) === poly) return { x, y };
+  return null;
+}, i);
+
+test.describe("S14 recheck: every ground room stays mostly visible under the docked sheet", () => {
+  // ground rooms: 0 Living, 1 Kitchen, 2 Hall, 3 Reading corner (a sofa covers it: no bare point to click, so left out); 4-6 are the garden, pavement and pond
+  for (const [width, min, rooms] of [[375, 0.87, [0, 1, 2, 4, 5, 6]], [320, 0.6, [2]]] as const) {
+    for (const theme of ["light", "dark"]) {
+      for (const i of rooms) {
+        test(`at ${width} px (${theme}) room ${i} keeps at least ${min * 100} % of its bare floor`, async ({ page }) => {
+          await boot(page, width, { theme });
+          const before = await bareFloor(page, i);
+          const p = await roomPoint(page, i);
+          expect(p, `room ${i} has a clickable point`).not.toBeNull();
+          await page.mouse.click(p!.x, p!.y);
+          await expect(card(page).locator("css=.fp-room")).toHaveCount(1);
+          // wherever the sheet docks, its own header and body are the top element at their corners: no toolbar draws over it
+          const pb = await boxOf(card(page).locator("css=.fp-active"));
+          for (const [x, y] of [[pb.x + 12, pb.y + 12], [pb.x + pb.w - 12, pb.y + pb.h - 12]] as const) {
+            expect(await card(page).evaluate((el, [x, y]) => !!el.shadowRoot!.elementFromPoint(x!, y!)?.closest(".fp-active"), [x, y] as const), `the sheet is on top at ${x},${y}`).toBe(true);
+          }
+          const after = await bareFloor(page, i);
+          await page.screenshot({ path: `/private/tmp/s14-recheck-${width}-${theme}-${i}.png` });
+          expect(after, `room ${i}: ${before} bare points before, ${after} with the sheet`).toBeGreaterThanOrEqual(before * min);
+        });
+      }
+    }
+  }
 });
 
 test.describe("S14 review 6: a tall popup in a short card", () => {

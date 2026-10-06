@@ -294,6 +294,8 @@ export class FloorplanStudioCard extends LitElement {
     /* S14 review: on a card narrower than ACTIVE_FOLD_BELOW_PX an open room panel is a short sheet, not a column down the card: at most 45% of the card high, its body scrolling, and docked on the half opposite the picked room (class set in _positionActivePanelNow) so that room stays in view. */
     .fp-active.fp-sheet { max-height: 45%; }
     .fp-active.fp-sheet.fp-dock-bottom { top: auto; bottom: 8px; }
+    /* Docked at the top over the toolbar (z-index 2, as the floor chips; the dialogs come later in the DOM and win). */
+    .fp-active.fp-sheet.fp-dock-over { top: 8px; z-index: 2; }
     .fp-item { display: flex; flex-wrap: wrap; align-items: center; }
     .fp-item .fp-active-row { flex: 1 1 0; width: auto; min-width: 0; }
     .fp-row-state { margin-left: auto; padding-left: 6px; flex: 0 0 auto; white-space: nowrap; font-size: 11px; color: var(--fp-text); overflow-wrap: anywhere; text-align: right; }
@@ -1327,6 +1329,7 @@ export class FloorplanStudioCard extends LitElement {
       this._unbindPanel = panel
         ? bindDeviceActions(panel, this, (i) => this._floor()?.devices[i], undefined, {
             longPress: !this._kiosk(),
+            openVacuumDialog: (d) => this._openVacuumDialog(d),
             openChooser: (title, entities) => this._openChooserDialog(title, entities),
             openPopup: (t, at, from) => this._openPopup(t, at, from),
           })
@@ -1997,33 +2000,57 @@ export class FloorplanStudioCard extends LitElement {
     this._apply3dInset();
   }
 
+  /** Puts the undragged panel at the top: the CSS default under a one-row toolbar, lower when the toolbar wraps. */
+  private _placeTopDock(panel: HTMLElement): void {
+    panel.style.left = "";
+    // The CSS default sits under a one-row toolbar. On a narrow card the toolbar wraps to more rows and would
+    // cover the panel's fold button, so the default moves down to just below it.
+    const bar = this.shadowRoot?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
+    const below = bar ? bar.offsetTop + bar.offsetHeight + 8 : 0; // 44 px for a one-row bar at the top, the CSS default
+    let top = below > 44 ? below : 0;
+    // The stack is on the right, the list on the left: they meet only on a very narrow card. Then the list goes
+    // under the stack, as it goes under the toolbar.
+    const stack = this.shadowRoot?.querySelector<HTMLElement>(".fp-stack");
+    if (stack && panel.offsetLeft + panel.offsetWidth + 6 > stack.offsetLeft) top = Math.max(top, stack.offsetTop + stack.offsetHeight + 8);
+    panel.style.top = top ? `${top}px` : "";
+  }
+
   private _positionActivePanelNow(): void {
     const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active");
     if (!panel) return;
     const sheet = panel.classList.contains("fp-room-open") && this.getBoundingClientRect().width < ACTIVE_FOLD_BELOW_PX;
     panel.classList.toggle("fp-sheet", sheet);
-    // Docked at the bottom when the picked room's centre is in the card's upper half, at the top (the default) when it is in the lower; a panel the person has dragged stays where it was put.
+    // A sheet docks where it hides less of the picked room. Three places are laid out and the one whose box overlaps
+    // the room's bounding box least wins: under the toolbar (which wraps on a narrow card, so it can be low), at the
+    // bottom, or at the top over the toolbar (8 px; the controls are back when the panel closes). On a tie the dock
+    // away from the room's centre goes first.
     let bottom = false;
     if (sheet && !this._activePos) {
       const poly = this.shadowRoot?.querySelector("svg polygon.room-picked");
-      if (poly) { const h = this.getBoundingClientRect(), r = poly.getBoundingClientRect(); bottom = r.top + r.height / 2 - h.top < h.height / 2; }
+      if (poly) {
+        const h = this.getBoundingClientRect(), r = poly.getBoundingClientRect();
+        const hidden = () => {
+          const p = panel.getBoundingClientRect();
+          return Math.max(0, Math.min(p.right, r.right) - Math.max(p.left, r.left)) * Math.max(0, Math.min(p.bottom, r.bottom) - Math.max(p.top, r.top));
+        };
+        const place = {
+          below: () => { panel.classList.remove("fp-dock-bottom", "fp-dock-over"); this._placeTopDock(panel); },
+          bottom: () => { panel.classList.remove("fp-dock-over"); panel.classList.add("fp-dock-bottom"); panel.style.top = ""; panel.style.left = ""; },
+          over: () => { panel.classList.remove("fp-dock-bottom"); panel.classList.add("fp-dock-over"); panel.style.left = ""; panel.style.top = ""; },
+        };
+        const roomInUpperHalf = r.top + r.height / 2 - h.top < h.height / 2;
+        const order = (roomInUpperHalf ? ["bottom", "below", "over"] : ["below", "bottom", "over"]) as (keyof typeof place)[];
+        let best = order[0]!, least = Infinity;
+        for (const k of order) { place[k](); const o = hidden(); if (o < least) { least = o; best = k; } }
+        place[best]();
+        bottom = best === "bottom";
+        if (best === "over") return;
+      }
     }
+    panel.classList.remove("fp-dock-over");
     panel.classList.toggle("fp-dock-bottom", bottom);
     if (bottom) { panel.style.top = ""; panel.style.left = ""; return; }
-    if (!this._activePos) {
-      panel.style.left = "";
-      // The CSS default sits under a one-row toolbar. On a narrow card the toolbar wraps to more rows and would
-      // cover the panel's fold button, so the default moves down to just below it.
-      const bar = this.shadowRoot?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
-      const below = bar ? bar.offsetTop + bar.offsetHeight + 8 : 0; // 44 px for a one-row bar at the top, the CSS default
-      let top = below > 44 ? below : 0;
-      // The stack is on the right, the list on the left: they meet only on a very narrow card. Then the list goes
-      // under the stack, as it goes under the toolbar.
-      const stack = this.shadowRoot?.querySelector<HTMLElement>(".fp-stack");
-      if (stack && panel.offsetLeft + panel.offsetWidth + 6 > stack.offsetLeft) top = Math.max(top, stack.offsetTop + stack.offsetHeight + 8);
-      panel.style.top = top ? `${top}px` : "";
-      return;
-    }
+    if (!this._activePos) { this._placeTopDock(panel); return; }
     const hostRect = this.getBoundingClientRect();
     const panelRect = panel.getBoundingClientRect();
     const maxX = Math.max(0, hostRect.width - panelRect.width);
