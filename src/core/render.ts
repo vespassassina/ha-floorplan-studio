@@ -8,7 +8,7 @@ import { rolesToTokens } from "./theme-roles";
 import { esc, num, pts, tag } from "./fmt";
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
-import { plugThreshold, wattsOf } from "./power";
+import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 import { meanReading } from "./readings";
 import { DEVICE_SOLID, STEM_MIN_Z, furnitureMode, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
@@ -46,6 +46,8 @@ export interface RenderOpts {
   plugWatts?: number;
   /** Plug entity -> power sensor entity, found at runtime by the card for plugs with no `power` of their own. An explicit `power` wins. */
   powerLinks?: Record<string, string>;
+  /** S14.8: draw range [from, to] in watts. A plug that is on and has a readable power sensor then carries `--fp-heat` (0 idle .. 1 hot) and the stylesheet tints it. Absent, nothing is written and the markup is as before. Junk is the default range; see `heatRange`. */
+  plugHeat?: [number, number];
   /** Whether the house has a floor over this one and under it, for the direction a stair with no `direction` of its own takes (stairs.ts). Omitted, the neighbours are unknown and such a stair reads up, as ever. */
   around?: FloorsAround;
 }
@@ -174,6 +176,9 @@ export const MOTION_PULSES = 3, MOTION_PULSE_S = 1.4;
 
 export const FLOORPLAN_CSS = `
 :host,.fp{${BLUEPRINT_TOKENS}}
+/* S14.8: the colour a plug runs through as its draw rises. Fixed hues, the same in every theme (not the theme's accent, which a one-accent theme makes orange and so
+   leaves nothing to ramp to), declared before the themes so a theme can override them. */
+:host,.fp,[data-theme]{--fp-heat-cool:#2f86c9;--fp-heat-mid:#f0a020;--fp-heat-hot:#d63a2a}
 /* Blueprint is the default: with no data-theme anywhere the plan is blueprint, whatever the OS or Home Assistant is doing (Diego's call, 2026-09-21;
    this replaces the old Auto, which followed prefers-color-scheme). A theme is named by data-theme, on the host (:host([data-theme])) or on one
    plan's own root (renderFloor's theme option, a <g data-theme>). Each rule has three selectors: the host itself, the .fp svg inside it (which the
@@ -335,6 +340,9 @@ export const FLOORPLAN_CSS = `
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
 .dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}
+/* S14.8: a plug with a readable draw (renderFloor wrote --fp-heat, 0..1) runs cool -> mid -> hot. Same specificity class as .dev-plug.on plus an attribute, so it wins; a plug with no
+   reading has no --fp-heat and keeps --fp-dev-plug, exactly as before. */
+.dev-plug.on[style*="--fp-heat"]{--fp-dev:color-mix(in oklch,color-mix(in oklch,var(--fp-heat-cool) calc((1 - min(var(--fp-heat) * 2,1)) * 100%),var(--fp-heat-mid)) calc((1 - max(var(--fp-heat) * 2 - 1,0)) * 100%),var(--fp-heat-hot))}
 /* S7.10: an error vacuum wears --fp-danger on its icon, two classes ahead of the plain idle-grey .dev path rule above. */
 .dev.danger path{fill:var(--fp-danger)}
 /* S4.25: an unlinked item has no on/off state of its own, so it never carries .on — it stays at the plain .dev
@@ -900,6 +908,11 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
       if (fill) style.push(`--fp-dev-fill:${fill}`);
       const opacity = lightOpacity(s);
       if (opacity !== null) style.push(`--fp-dev-opacity:${num(opacity)}`);
+    }
+    // S14.8: a plug's draw as a fraction of the card's range; the stylesheet's `.dev-plug.on` rule turns it into a colour. Only with a readable sensor.
+    if (d.type === "plug" && base === "on" && o.plugHeat !== undefined) {
+      const w = plugWatts(d, o);
+      if (w !== null) { const [from, to] = heatRange(o.plugHeat); style.push(`--fp-heat:${num(Math.round(powerHeat(w, from, to) * 100) / 100)}`); }
     }
     // S14.3: the effect size, a fraction the rings and waves read (`--fp-fx`, default 1 in the stylesheet). Written only when it
     // changes something, so a layout that never sets it is drawn byte for byte as before.

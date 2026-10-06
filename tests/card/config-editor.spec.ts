@@ -516,3 +516,24 @@ test("plug_watts: shows 2 by default, writes a changed value, and an empty or ne
     expect("plug_watts" in ((await events(page)).at(-1) as { config: Record<string, unknown> }).config, JSON.stringify(bad)).toBe(false);
   }
 });
+
+// S14.8: the range plugs are tinted over, two numbers. Shown with their defaults, dropped from the payload at the default, and a pair that cannot be a range
+// (empty, negative is fine as a from, from >= to) is left to the card, which falls back to the default pair.
+test("plug_heat_from and plug_heat_to: default 0 and 2000, written when changed, dropped when emptied", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#plug_heat_from")).toHaveValue("0");
+  await expect(editor.locator("#plug_heat_to")).toHaveValue("2000");
+  await editor.locator("#plug_heat_to").fill("750");
+  await editor.locator("#plug_heat_to").blur();
+  expect(((await events(page)).at(-1) as { config: Record<string, unknown> }).config.plug_heat_to).toBe(750);
+  await editor.locator("#plug_heat_from").fill("25");
+  await editor.locator("#plug_heat_from").blur();
+  expect(((await events(page)).at(-1) as { config: Record<string, unknown> }).config.plug_heat_from).toBe(25);
+  for (const id of ["plug_heat_from", "plug_heat_to"]) {
+    await editor.locator(`#${id}`).fill("");
+    await editor.locator(`#${id}`).blur();
+    expect(id in ((await events(page)).at(-1) as { config: Record<string, unknown> }).config, id).toBe(false);
+  }
+});

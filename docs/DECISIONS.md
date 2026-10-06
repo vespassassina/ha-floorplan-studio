@@ -2,6 +2,23 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: S14.8, a plug is coloured by its draw (item 24)
+
+- **One source, three views.** `deviceMarkup` writes `--fp-heat` (0..1, rounded to 0.01) on the plug's icon group when the plug is
+  active and its power sensor reads; the 2D plan, the 2.5D plan and the 3D overlay all draw that same group, so one stylesheet rule
+  (`.dev-plug.on[style*="--fp-heat"]`) colours all three. A plug has no 3D body, so there is nothing else to tint.
+- **Opt-in in core, on in the card.** `RenderOpts.plugHeat` (a pair) turns it on; the card always passes it (default 0 and 2000 W),
+  the editor passes nothing. With the option absent the markup is byte for byte as before (hashed over the demo, 2D and 2.5D,
+  before and after: equal). A plug with no reading, or off, writes nothing and keeps `--fp-dev-plug`.
+- **Fixed ramp, not the accent.** Blue, amber, red as three tokens (`--fp-heat-cool/-mid/-hot`) declared once, ahead of the themes.
+  Reading `--fp-dev-plug` for the cool end failed in blueprint, where one-accent themes make the plug orange and the ramp
+  vanished. A theme may override the tokens. `colors.plug` still colours a plug that has no reading.
+- **Colour is not the only signal.** The tooltip and the popup already print the watts (S14.2's state text).
+- **Config.** `plug_heat_from` and `plug_heat_to`, two numbers, from below to, else 0 and 2000 (`heatRange`). Two keys, not a
+  list, so the visual editor has two plain fields.
+- **Not done, stated.** Only plugs: the schema allows `power` on a plug only, and a switch has no sensor field. Widening that is
+  a schema change for Diego to ask for.
+
 ## 2026-10-06: a slit window's head sits 40 cm under the ceiling, and is called "slit window" everywhere
 
 Diego, Sprint 14 items 1 and 2. Supersedes the "head at the ceiling" rule of the 2026-10-05 slit entry below (the rest of that

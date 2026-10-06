@@ -204,7 +204,9 @@ in `prompts/`, then fixed in the editor.
   more (card `plug_watts`). Must differ from `entity`. Unset, the editor fills
   it in when it places a plug whose HA device has exactly one power sensor,
   and the card does the same at runtime; with no sensor a plug is active
-  whenever its switch is on.
+  whenever its switch is on. S14.8: the same reading tints the plug from cool
+  blue through amber to red between the card's `plug_heat_from` (default 0 W)
+  and `plug_heat_to` (2000 W), in 2D, 2.5D and 3D; no sensor, no tint.
 - `device.fx` (optional, S14.3): the size of the effect the device draws, in percent of its
   type's own size: 25 to 300, absent is 100. A lit light's aura (and its floor pool and wall
   light in 3D), a playing speaker's or media device's two waves, a triggered motion or contact
