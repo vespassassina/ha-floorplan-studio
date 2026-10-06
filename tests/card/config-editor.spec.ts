@@ -100,7 +100,7 @@ test("room_glow, kiosk and fade also drop from the payload at their default", as
   detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
   expect("kiosk" in detail.config).toBe(false);
 
-  await editor.locator("#fade").fill("300");
+  await editor.locator("#fade").fill("120");
   await editor.locator("#fade").blur();
   detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
   expect("fade" in detail.config).toBe(false);

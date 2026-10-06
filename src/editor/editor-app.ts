@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
+import { DEFAULT_MOTION_FADE_S, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -233,52 +233,24 @@ export class FloorplanStudioEditor extends LitElement {
   get hassState(): StateOverlay | undefined { return this._hassStates; }
   set hassState(v: StateOverlay | undefined) {
     this._hassStates = v;
-    if (v) this._recordLastOn(v);
     this.syncFadeTimer();
     this.requestUpdate();
   }
   private _hassStates: StateOverlay | undefined;
-  /** S2.4-equivalent: the last moment each motion entity on any floor was seen `on`, so one that has since gone
-   * `off` keeps fading from that moment rather than snapping to idle the instant a push carries the `off`. */
-  private _lastOn: Record<string, number> = {};
   private _fadeTimer: ReturnType<typeof setInterval> | null = null;
-  /** Every floor's motion entities, not only the shown one's, so a sensor keeps fading across a floor switch (card's S2.4/S2.6 rule). */
-  private motionEntities(): Set<string> {
-    return new Set(Object.values(this.st.layout.floors).flatMap((f) => f.devices.filter((d) => d.type === "motion").map((d) => d.entity)));
-  }
-  private _recordLastOn(state: StateOverlay): void {
-    for (const id of this.motionEntities()) {
-      const s = state[id];
-      if (!s || s.state !== "on") continue;
-      const t = Date.parse(s.last_changed);
-      if (!Number.isNaN(t)) this._lastOn[id] = t;
-    }
-  }
-  /** Card's `_stateForRender`, mirrored: `_hassStates` with a motion entity's `last_changed` swapped for its recorded `_lastOn` when they differ. */
-  private stateForRender(): StateOverlay | undefined {
-    const state = this._hassStates;
-    if (!state) return state;
-    let out: StateOverlay | undefined;
-    for (const id of this.motionEntities()) {
-      const t = this._lastOn[id];
-      const s = state[id];
-      if (t === undefined || !s) continue;
-      const changed = new Date(t).toISOString();
-      if (s.last_changed === changed) continue;
-      out = out ?? { ...state };
-      out[id] = { ...s, last_changed: changed };
-    }
-    return out ?? state;
-  }
+  /** The states the render reads: a motion sensor's own `last_changed` is when it went off, which is when its fade starts. */
+  private stateForRender(): StateOverlay | undefined { return this._hassStates; }
+  /** True while a motion sensor of the shown floor (device or room list) is off and inside the fade window, plus one tick (card's `_motionFading`, mirrored). */
   private motionFading(): boolean {
-    const state = this._hassStates;
+    const state = this._hassStates, f = this.st.f;
     if (!state) return false;
     const now = Date.now();
-    return [...this.motionEntities()].some((id) => {
+    const ids = [...f.devices.filter((d) => d.type === "motion").map((d) => d.entity), ...f.rooms.flatMap((r) => r.motion ?? [])];
+    return ids.some((id) => {
       const s = state[id];
-      if (!s) return false;
-      const t = this._lastOn[id] ?? Date.parse(s.last_changed);
-      return !Number.isNaN(t) && now - t < 300_000; // 300 s: render.ts's own default fade window
+      if (!s || s.state === "on") return false;
+      const t = Date.parse(s.last_changed);
+      return !Number.isNaN(t) && now - t < DEFAULT_MOTION_FADE_S * 1000 + 1000;
     });
   }
   private stopFadeTimer(): void {

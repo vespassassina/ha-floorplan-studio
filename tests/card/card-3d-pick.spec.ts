@@ -185,6 +185,9 @@ test.describe("3D view: taps on rooms", () => {
     await page.mouse.move(b.x + 300, b.y + 300); await page.mouse.down(); await page.mouse.move(b.x + 360, b.y + 300, { steps: 6 }); await page.mouse.up();
     await click(page, () => at(page, 60, 60, 1), { type: "room", index: 0 });
     await expect.poll(() => ring(page)).toBe("0");
+    // The drag's own easing must be over before we measure, or the camera is "moved" by the drag, not by the state update.
+    let prev = "", same = 0;
+    await expect.poll(async () => { const c = await cam(page), k = `${c.az}|${c.polar}|${c.dist}|${c.target}`; same = k === prev ? same + 1 : 0; prev = k; return same; }, { intervals: [100], timeout: 10000 }).toBeGreaterThanOrEqual(4);
     const before = await cam(page);
     await page.evaluate(() => {
       const el = document.getElementById("card") as unknown as { hass: { states: Record<string, unknown> } };

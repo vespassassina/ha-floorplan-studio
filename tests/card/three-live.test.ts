@@ -32,10 +32,11 @@ describe("roomOfPoint", () => {
 describe("the lamp budget and the lift", () => {
   const lamp = (x: number, room = 0) => ({ at: [x, 0] as [number, number], room, rgb: [1, 0.7, 0.3] as [number, number, number], level: 1 });
   it("keeps the nearest lamps to the centre, in a fixed order", () => {
-    const lamps = Array.from({ length: 20 }, (_, i) => lamp(i * 10));
-    const kept = pickLights(lamps, [0, 0]);
-    expect(kept).toHaveLength(MAX_POOLS);
-    expect(kept.map((l) => l.at[0])).toEqual([0, 10, 20, 30, 40, 50, 60, 70]);
+    const many = Array.from({ length: 50 }, (_, i) => lamp(i * 10)), lamps = many.slice(0, 20);
+    const kept = pickLights(many, [0, 0]);
+    expect(MAX_POOLS).toBe(32); // Diego, 2026-10-06: a house with a dozen lit rooms must not leave rooms dark
+    expect(kept).toHaveLength(32);
+    expect(kept.map((l) => l.at[0])).toEqual(Array.from({ length: 32 }, (_, i) => i * 10));
     expect(pickLights(lamps, [200, 0], 3).map((l) => l.at[0])).toEqual([190, 180, 170]);
     expect(pickLights(lamps, [0, 0], 0)).toEqual([]);
   });

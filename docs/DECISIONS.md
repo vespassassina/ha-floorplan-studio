@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: Motion fades 120 s after motion ends
+
+Supersedes S2.4 ("fade counts from the last time the sensor was on") and the 300 s default. Diego: the garden stayed highlighted for hours; it should go 2 minutes after motion ends. Two causes found: the card remembered the sensor's *on* moment (`_lastOn`) and faded from there, so motion that lasted longer than the window had no fade after it ended; and the fade timer watched only motion devices, never a room's own `motion` list, so nothing redrew a garden's border when its window closed. Now the fade starts at the sensor's own `last_changed` while it is off (the moment motion ended), the timer covers devices and room lists of the shown floor and runs one tick past the window so the last render is clean, and `DEFAULT_MOTION_FADE_S = 120` is the one default (core, card form, studio). A sensor that stays `on` stays lit and runs no timer. `_lastOn` and `_recordLastOn` are gone from the card and the studio.
+
+## 2026-10-06: 3D lamp budget 8 to 32
+
+Supersedes the S13 budget of 8 (`MAX_POOLS`). Diego saw lit lights in the Kitchen and Office with no glow while the Living Room used all 8 pools. Asked to choose between one pool per lit room first and a higher cap, he chose the cap: 32. Slots are meshes hidden until used, so an idle slot costs nothing; weak devices can use 2D or 2.5D. A per-room guarantee is not built.
+
 ## 2026-10-06: Parapet wall kind and the Fix plan lock
 
 - **`parapet`** is a sixth `WallKind`, appended last. 120 cm (`WALL_KIND_HEIGHT`), 20 cm thick (`WALL_THICKNESS`, drawn at the external width, same colour token as an external wall, so no new theme role). Not "balcony" or "half wall": a parapet is the word for exactly this. Layouts that use it do not open in 0.16.0 (the validator lists the kinds); no schema bump, as with `slit` and `open`.

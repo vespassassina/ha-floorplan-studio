@@ -273,8 +273,8 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: structuredClone(L), fade: 10 });
       const now = Date.parse("2026-09-19T10:00:00Z");
       vi.setSystemTime(now);
-      // motion just went on: inside the 10 s fade window.
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(now).toISOString() }) }) as never;
+      // motion just ended: inside the 10 s fade window. (While it is on there is nothing to fade, so no timer.)
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(now).toISOString() }) }) as never;
       await el.updateComplete;
       expect(setSpy).toHaveBeenCalled();
 
@@ -303,8 +303,8 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: structuredClone(L), fade: 10 });
       const now = Date.parse("2026-09-19T10:00:00Z");
       vi.setSystemTime(now);
-      // motion just went on: inside the 10 s fade window, so the timer is running.
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(now).toISOString() }) }) as never;
+      // motion just ended: inside the 10 s fade window, so the timer is running.
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(now).toISOString() }) }) as never;
       await el.updateComplete;
       expect(setSpy).toHaveBeenCalledTimes(1);
       const timerId = setSpy.mock.results[0]!.value;
@@ -321,14 +321,14 @@ describe("FloorplanStudioCard", () => {
     });
   });
 
-  describe("S2.4 motion fade: the card remembers the last on time so an off sensor keeps fading", () => {
+  describe("S2.4 motion fade, counted from when motion ends (2026-10-06: it was from when it began)", () => {
     beforeEach(() => vi.useFakeTimers());
     // See "the motion re-render timer" above: spies on globalThis timers must be restored before uninstalling fakes.
     afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
     const motionIndex = L.floors.ground.devices.findIndex((d) => d.entity === "binary_sensor.demo_hall_motion");
 
-    it("fades from the entity's last on time, not from a later off event, and stops the timer once the fade is over", async () => {
+    it("fades from the moment the sensor goes off, and stops the timer once the fade is over", async () => {
       const setSpy = vi.spyOn(globalThis, "setInterval");
       const clearSpy = vi.spyOn(globalThis, "clearInterval");
       const el = await mount();
@@ -341,31 +341,32 @@ describe("FloorplanStudioCard", () => {
       el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }) }) as never;
       await el.updateComplete;
       expect(styleOf()).toContain("--fp-fade:1");
-      expect(setSpy).toHaveBeenCalledTimes(1);
+      expect(setSpy).not.toHaveBeenCalled(); // on: nothing fades yet, so no timer (a sensor stuck on must not tick forever)
 
-      // t0+2s: the sensor returns to off. This must not reset the fade window.
+      // t0+2s: the sensor returns to off. Motion has ended: the fade window starts here.
       vi.setSystemTime(t0 + 2000);
       el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 2000).toISOString() }) }) as never;
       await el.updateComplete;
-      // still one interval: a later hass set while already fading must not start a second timer.
       expect(setSpy).toHaveBeenCalledTimes(1);
 
-      // t0+5s, fade: 10 -> half faded, counted from the original on time (t0), not the t0+2s off event.
+      // t0+7s, fade: 10 -> half faded, counted from the t0+2s off event (asymmetric: from t0 it would be 0.3).
       // advanceTimersByTimeAsync itself moves the fake clock forward by its argument, on top of setSystemTime,
       // so the target instant is set 1000ms early and reached exactly when the interval's own tick fires.
-      vi.setSystemTime(t0 + 4000);
+      vi.setSystemTime(t0 + 6000);
       await vi.advanceTimersByTimeAsync(1000);
       expect(styleOf()).toContain("--fp-fade:0.5");
 
-      // t0+10s -> fully faded, and the timer stops itself.
-      vi.setSystemTime(t0 + 9000);
+      // t0+12s -> fully faded, and the timer stops itself.
+      vi.setSystemTime(t0 + 11000);
       await vi.advanceTimersByTimeAsync(1000);
       expect(styleOf()).toContain("--fp-fade:0");
+      vi.setSystemTime(t0 + 12000);
+      await vi.advanceTimersByTimeAsync(1000); // one more tick finds nothing left to fade and stops
       expect(clearSpy).toHaveBeenCalled();
       expect(setSpy).toHaveBeenCalledTimes(1); // never restarted a second timer along the way
     });
 
-    it("Opus review: remembers and rewrites last_changed only for the layout's own motion entities, not every entity hass carries", async () => {
+    it("Opus review: hands the render every entity's own last_changed, the sensor's off time included", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), fade: 10 });
       const t0 = Date.parse("2026-09-19T10:00:00Z");
@@ -384,10 +385,9 @@ describe("FloorplanStudioCard", () => {
       await el.updateComplete;
 
       const state = lastRenderState().state as Record<string, { last_changed: string }>;
-      // the motion entity's last_changed was rewritten to its last on time (t0), not the t0+2s off event.
-      expect(state["binary_sensor.demo_hall_motion"].last_changed).toBe(new Date(t0).toISOString());
-      // an unrelated entity keeps its own real last_changed: the overlay must not lie about anything the plan
-      // does not draw motion fade for (S2.5 reads last_changed for other device types next).
+      // the motion entity's last_changed is its off event (t0+2s): when motion ended.
+      expect(state["binary_sensor.demo_hall_motion"].last_changed).toBe(new Date(t0 + 2000).toISOString());
+      // an unrelated entity keeps its own real last_changed too.
       expect(state["sensor.unrelated_0"].last_changed).toBe(new Date(t0 + 2000).toISOString());
     });
 
@@ -405,11 +405,44 @@ describe("FloorplanStudioCard", () => {
       el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 2000).toISOString() }) }) as never;
       await el.updateComplete;
 
-      // back to ground: the fade must still be counted from t0, not reset by the floor switch or restarted from t0+2s.
-      vi.setSystemTime(t0 + 5000);
+      // back to ground: the fade is counted from the t0+2s off event, not reset by the floor switch.
+      vi.setSystemTime(t0 + 7000);
       el.setConfig({ layout: structuredClone(L), fade: 10, floor: "ground" });
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(`svg [data-x="${motionIndex}"]`)!.getAttribute("style")).toContain("--fp-fade:0.5");
+    });
+
+    it("a long motion fades for the full window after it ends (it was already grey when it ended)", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L), fade: 10 });
+      const t0 = Date.parse("2026-09-19T10:00:00Z");
+      vi.setSystemTime(t0);
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }) }) as never;
+      await el.updateComplete;
+      vi.setSystemTime(t0 + 100_000); // on for 100 s, then off
+      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 100_000).toISOString() }) }) as never;
+      vi.setSystemTime(t0 + 103_000);
+      el.requestUpdate();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(`svg [data-x="${motionIndex}"]`)!.getAttribute("style")).toContain("--fp-fade:0.7");
+    });
+
+    it("a room's own motion list keeps the timer running while its border fades, and the border is gone when the fade is over", async () => {
+      const setSpy = vi.spyOn(globalThis, "setInterval");
+      const lay = structuredClone(L) as typeof L & { floors: Record<string, { rooms: { motion?: string[] }[] }> };
+      lay.floors.ground.rooms[0].motion = ["binary_sensor.garden_ring"];
+      const el = await mount();
+      el.setConfig({ layout: lay, fade: 10 });
+      const t0 = Date.parse("2026-09-19T10:00:00Z");
+      vi.setSystemTime(t0);
+      const rings = () => el.shadowRoot!.querySelectorAll('svg polygon.motion-perimeter[data-m="0"]').length;
+      el.hass = stubHass({ "binary_sensor.garden_ring": st("off", { last_changed: new Date(t0 - 3000).toISOString() }) }) as never;
+      await el.updateComplete;
+      expect(rings()).toBe(1);
+      expect(setSpy).toHaveBeenCalledTimes(1);
+      vi.setSystemTime(t0 + 6000);
+      await vi.advanceTimersByTimeAsync(1000); // 10 s after the sensor went off, no hass update in between
+      expect(rings()).toBe(0);
     });
 
     it("Break it: fade 0 shows red only while on, even once the sensor carries a remembered on time from being on a moment ago", async () => {
