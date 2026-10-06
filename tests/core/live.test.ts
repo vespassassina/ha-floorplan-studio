@@ -52,7 +52,8 @@ describe("liveOf", () => {
     const u = liveOf(upper, { scale: 1, now: NOW, state: { "media_player.demo_office": st("playing") } }, NOW), m = upper.devices.findIndex((d) => d.entity === "media_player.demo_office");
     expect(u.devices[m]?.playing).toBe(true);
     expect(u.devices[m]?.icon).toContain("wave");
-    expect(live({ "light.demo_living": st("unavailable") }).devices[0]?.state).toBe("unavailable");
+    expect(live({ "light.demo_living": st("unavailable") }).devices[0]?.state).toBe("off"); // a dead light reads as off
+    expect(live({ "climate.demo_living": st("unavailable") }).devices[heater]?.state).toBe("unavailable");
   });
   it("a sensor reads as the plan prints it, and junk as a dash", () => {
     const i = ground.devices.findIndex((d) => d.entity === "sensor.demo_living_temperature");

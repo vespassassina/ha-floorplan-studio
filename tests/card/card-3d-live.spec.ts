@@ -219,13 +219,13 @@ test.describe("3D view: devices", () => {
     expect((await body()).colour).toBe(idle);
   });
 
-  test("a ball takes its state's colour: a light that is on is not the colour of one that is off; an unavailable one is not either", async ({ page }) => {
+  test("a ball takes its state's colour: a light that is on is not the colour of one that is off; an unavailable one is the colour of an off one", async ({ page }) => {
     await boot(page);
     const ball = async (i: number) => (await live(page)).balls.find((b) => b.index === i)!;
     const off = (await ball(0)).colour;
     await setStates(page, { ...QUIET(), "light.demo_living": st("on", {}, iso(5)), "light.demo_kitchen": st("unavailable") });
     expect((await ball(0)).colour).not.toBe(off);
-    expect((await ball(1)).colour).not.toBe(off);
+    expect((await ball(1)).colour).toBe(off); // Diego, 2026-10-06: unavailable reads as off
     expect((await ball(1)).colour).not.toBe((await ball(0)).colour);
     await setStates(page, QUIET());
     expect((await ball(0)).colour).toBe(off);
