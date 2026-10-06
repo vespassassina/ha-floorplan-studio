@@ -74,6 +74,9 @@ test.describe("3D popup", () => {
 
   test("a plug's OFF asks first in 3D too", async ({ page }) => {
     await boot(page);
+    // From the default camera the TV plug sits behind the 110 cm wall between Hall and Living: its icon is hidden there (overlay.ts,
+    // `blocked`) and a pick at that spot correctly meets the wall. Steeper from above the icon is drawn, and it is what is tapped.
+    await page.evaluate(() => (window as unknown as { __fp3d: { look(az: number, polar: number): void } }).__fp3d.look(0, 0.5));
     const p = await device(page, 3);
     await page.mouse.click(p.x, p.y);
     await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Turn off");

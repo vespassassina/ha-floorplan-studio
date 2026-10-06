@@ -100,12 +100,16 @@ test.describe("3D view: the open doorway's alert band", () => {
     for (let k = 0; k < 3; k++) expect(Math.abs(after[k] - before[k]), `channel ${k} back to closed`).toBeLessThanOrEqual(2);
   });
 
-  test("a tap on the band is a tap on that door: the view finds the door, and it names both its entities in the chooser", async ({ page }) => {
+  test("a tap on the band is a tap on that door: the view finds the door, its popup names it, and More info lists both its entities in the chooser", async ({ page }) => {
     await boot(page, { ...QUIET(), [SENSOR]: st("on") });
     const p = await at(page, 150, 0, 100);
     expect(await picks(page, p)).toEqual({ type: "door", index: ARCH });
     await page.mouse.click(p.x, p.y);
-    // The arch names a contact and a vibration sensor: two entities, so a tap opens the chooser, as on any door (actions.ts).
+    // S14.2: a tap opens the popup and operates nothing. The arch names a contact and a vibration sensor: two entities, so its
+    // More info opens the chooser (actions.ts `moreInfoOf`), as on any door.
+    const pop = page.locator("css=floorplan-studio-card").locator("css=.fp-pop");
+    await expect(pop).toHaveAttribute("aria-label", "Hall arch");
+    await pop.locator("css=.fp-pop-more").click();
     const dlg = page.locator("css=floorplan-studio-card").locator("css=.fp-chooser-dialog");
     await expect(dlg.locator("css=p")).toHaveText("Hall arch");
     await expect(dlg.locator("css=.fp-chooser-list button")).toHaveCount(2);
