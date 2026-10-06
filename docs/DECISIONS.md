@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: Sprint 16 planned: car, camera thumbnail, vacuum path
+
+Diego asked for a car with attached sensors and devices, shown at home or away by its position; a floating camera thumbnail in every view with size and position set in the View menu; and vacuum paths for Roborock, Dreame and Roomba. Planned as S16.1 to S16.5 in `docs/PLAN.md`. The vacuum path is research first: the "Later" note says no common integration exposes coordinates, so S16.5 is built only if S16.4 finds data. Away is drawn as a person's is (35 %, away mark), never by moving the car with GPS.
+
 ## 2026-10-06: Unavailable lights and switches read as off; a shed on the garden's edge keeps its floor in 3D
 
 Diego: unavailable lights and switches show them off. `classOf` returns `off`, not `unavailable`, for a `light`, `switch` or `plug` whose state is `unavailable` or `unknown` (a bound light too), so the plan, 3D and the Active list draw no 45 % ghost. Other types keep the `unavailable` class. Supersedes S2.6 for those three types. Diego: in 3D the garden shed's floor was invisible. A room is nested above a bigger one only if all its corners are inside it, and a corner on the bigger room's edge counted as outside, so the shed stayed at the garden's height. A corner within 1 cm of an edge now counts as inside.
