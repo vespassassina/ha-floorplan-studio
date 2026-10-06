@@ -48,7 +48,7 @@ test("2.5D draws the three solids; 2D draws none", async ({ page }) => {
   await expect(card(page).locator("svg g.dsolid.speaker circle.drv")).toHaveCount(2);
 });
 
-for (const rotation of [0, 90]) test(`rotation ${rotation}: a real click on the TV icon toggles it, a click on the panel does not reach it`, async ({ page }) => {
+for (const rotation of [0, 90]) test(`rotation ${rotation}: a real click on the TV icon opens its popup and its button makes the one call, a click on the panel does not reach it`, async ({ page }) => {
   await open(page, "2.5d", rotation);
   const centre = async (sel: string) => { const b = (await card(page).locator(sel).first().boundingBox())!; return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
   const panel = await centre("svg g.dsolid.tv polygon.tv-screen, svg g.dsolid.tv polygon.bt"), icon = await centre('svg g[data-x="2"]');
@@ -58,5 +58,9 @@ for (const rotation of [0, 90]) test(`rotation ${rotation}: a real click on the 
   await page.mouse.click(panel.x, panel.y);
   expect(await calls(page)).toEqual([]);
   await page.mouse.click(icon.x, icon.y);
-  expect((await calls(page)).length).toBe(1);
+  expect(await calls(page)).toEqual([]); // a tap opens the popup and operates nothing
+  await card(page).locator("css=.fp-pop-do").click(); // the TV is on: its OFF asks first
+  expect(await calls(page)).toEqual([]);
+  await card(page).locator("css=.fp-pop-do").click();
+  expect(await calls(page)).toEqual([["switch", "turn_off", { entity_id: "switch.tv" }]]);
 });

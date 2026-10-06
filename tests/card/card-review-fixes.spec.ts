@@ -195,23 +195,29 @@ test.describe("5: the room's motion border pulses three times per trip", () => {
 });
 
 test.describe("9 and 12: the keyboard decides like the pointer; the panel names the room", () => {
-  test("Enter on a light that names two entities opens the chooser, as a tap does, and toggles nothing", async ({ page }) => {
+  test("Enter on a light that names two entities opens its popup, as a tap does, and calls nothing; the popup's More info opens the chooser", async ({ page }) => {
     await boot(page);
     const f = await floorPoint(page, 0);
     await page.mouse.click(f.x, f.y);
     const row = card(page).locator("css=.fp-room-devices .fp-active-row", { hasText: "Living light" });
     await row.focus();
     await page.keyboard.press("Enter");
+    await expect(card(page).locator("css=.fp-pop")).toHaveCount(1);
+    expect(await calls(page)).toEqual([]);
+    await card(page).locator("css=.fp-pop-more").click();
     await expect(card(page).locator("css=.fp-chooser-dialog")).toHaveCount(1);
     expect(await calls(page)).toEqual([]);
   });
-  test("Enter on a light with one entity toggles it, as a tap does", async ({ page }) => {
+  test("Enter on a light with one entity opens its popup, as a tap does; the button then makes the one call", async ({ page }) => {
     await boot(page);
     const f = await floorPoint(page, 1);
     await page.mouse.click(f.x, f.y);
     await card(page).locator("css=.fp-room-devices .fp-active-row", { hasText: "Kitchen light" }).focus();
     await page.keyboard.press("Enter");
-    expect(await calls(page)).toEqual(["light.toggle light.demo_kitchen"]);
+    await expect(card(page).locator("css=.fp-pop")).toHaveCount(1);
+    expect(await calls(page)).toEqual([]);
+    await card(page).locator("css=.fp-pop-do").click();
+    expect(await calls(page)).toEqual(["light.turn_off light.demo_kitchen"]);
   });
   test("the panel's label is the room's name while a room is shown, and 'Active devices' otherwise", async ({ page }) => {
     await boot(page);

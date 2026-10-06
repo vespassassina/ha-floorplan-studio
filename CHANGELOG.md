@@ -4,6 +4,12 @@
 
 - Editor: the door type select says "slit window" (the stored kind is still `slit`).
 - Window type **slit window**: its head now ends 40 cm under the ceiling of its wall, as a normal window's does (sill 90 + 120 high on a 250 wall), not at the ceiling. Default sill 150 and head 210 on a 250 cm wall; 200 and 260 on 300; on a wall too low for that it is as high as the wall allows (never below the floor, never over the wall). Height is still 60 and an own sill or height still wins. Slit windows already in a layout move down 40 cm: nothing is stored, so nothing needs migrating.
+- Card: a tap no longer operates a device. On an icon, a door, an appliance or an Active-list row, in 2D and 3D, it opens a small popup with the name, the state, one primary button (Turn on, Turn off, Open, Close, Lock, Unlock) and More info. It closes on Escape, an outside tap or a second tap. A long press still opens more-info. Types without a toggle show name, state and More info only.
+- Card: turning something OFF asks first (a confirm step in the popup) for every type except a light. Turning ON is immediate.
+- Card: a light's popup has brightness, colour-temperature and hue sliders where the light supports them. One `light.turn_on` on release, none while dragging.
+- Card: a mouse hover shows a tooltip with the name and the state, in 2D and 3D.
+- Card: one state text for the plan, the popup and the tooltip. A room's mean humidity reads "48 %", not "48.0 %".
+- Card: a lock's button now calls `lock.lock` or `lock.unlock` (the old tap called `lock.toggle`, which Home Assistant does not have).
 
 ## 0.15.0 - 2026-10-06
 

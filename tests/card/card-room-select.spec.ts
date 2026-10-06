@@ -107,7 +107,7 @@ for (const width of [1280, 375]) {
       const covered = await room(page).evaluate((el) => { const r = el.getBoundingClientRect(); return !(el.getRootNode() as ShadowRoot).elementFromPoint(r.x + 8, r.y + 8)?.closest(".fp-room"); });
       expect(covered, "the room section is not under anything").toBe(false);
       expect(await factsOf(page)).toMatchObject({
-        Area: "20 m²", Temperature: "21.7 °C", Humidity: "48.0 %", Motion: expect.stringMatching(/^on since \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/),
+        Area: "20 m²", Temperature: "21.7 °C", Humidity: "48 %", Motion: expect.stringMatching(/^on since \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/),
         "Open doors and windows": "Patio door", "Lights on": "Living light",
       });
     });
@@ -141,10 +141,11 @@ for (const width of [1280, 375]) {
       await expect(room(page).locator("css=.fp-room-name")).toHaveText("Kitchen");
     });
 
-    test("a tap on a device in the room toggles it and does not select the room", async ({ page }) => {
+    test("a tap on a device in the room opens its popup, calls nothing and does not select the room", async ({ page }) => {
       await boot(page, width);
       await click(page, await iconPoint(page, 0));
-      expect(await calls(page)).toEqual(["light.toggle light.demo_living"]);
+      await expect(card(page).locator("css=.fp-pop")).toHaveAttribute("aria-label", "Living light");
+      expect(await calls(page)).toEqual([]);
       expect(await picked(page)).toEqual([]);
       await expect(room(page)).toHaveCount(0);
     });
@@ -177,7 +178,7 @@ test.describe("the room section and the filtered list", () => {
     expect((await card(page).locator("css=.fp-filtered .fp-active-row").allTextContents()).join("|")).toContain("Kitchen light");
   });
 
-  test("the devices list holds the room's devices and its own sensors; light rows toggle, others open more-info", async ({ page }) => {
+  test("the devices list holds the room's devices and its own sensors; a row opens the same popup; More info opens more-info", async ({ page }) => {
     await boot(page, 1280);
     await click(page, await floorPoint(page, 0));
     const names = (await room(page).locator("css=.fp-room-devices .fp-active-row").allTextContents()).map((s) => s.replace(/\s+/g, " ").trim());
@@ -187,13 +188,14 @@ test.describe("the room section and the filtered list", () => {
     expect(names.filter((n) => n.startsWith("Living temperature")).length, "a placed sensor that the room owns is listed once").toBe(1);
     expect(names.some((n) => n.includes("binary_sensor.demo_living_motion"))).toBe(true); // owned, never placed: listed by entity id
     await room(page).locator("css=.fp-room-devices .fp-active-row", { hasText: "Living light" }).click();
-    expect(await calls(page)).toEqual(["light.toggle light.demo_living"]);
-    await room(page).locator("css=.fp-room-devices .fp-active-row", { hasText: "Living radiator" }).click();
+    await expect(card(page).locator("css=.fp-pop")).toHaveAttribute("aria-label", "Living light");
+    expect(await calls(page)).toEqual([]); // a tap on a row operates nothing
+    await room(page).locator("css=.fp-room-devices .fp-active-row", { hasText: "Living radiator" }).click(); // a type that never toggled: more-info as before
     expect(await infos(page)).toContain("climate.demo_living");
-    expect(await calls(page)).toEqual(["light.toggle light.demo_living"]); // the radiator did not toggle
+    expect(await calls(page)).toEqual([]);
   });
 
-  test("holding a toggling row opens more-info instead of toggling", async ({ page }) => {
+  test("holding a row opens more-info instead of the popup", async ({ page }) => {
     await boot(page, 1280);
     await click(page, await floorPoint(page, 0));
     const b = (await room(page).locator("css=.fp-room-devices .fp-active-row", { hasText: "Living light" }).boundingBox())!;
@@ -249,13 +251,15 @@ test.describe("device details", () => {
     await expect(item.locator("css=.fp-info")).toHaveCount(0); // the second click folds it
   });
 
-  test("the Active list rows have the chevron too, and the row's own tap still opens more-info", async ({ page }) => {
+  test("the Active list rows have the chevron too, and the row's own tap opens the popup, whose More info opens more-info", async ({ page }) => {
     await boot(page, 1280);
     const item = info(page, ".fp-active-body");
     await item.locator("css=.fp-info-btn").click();
     await expect(item.locator("css=.fp-info")).toContainText("Lamp 2");
     expect(await infos(page)).toEqual([]);
     await item.locator("css=.fp-active-row").click();
+    expect(await infos(page)).toEqual([]);
+    await card(page).locator("css=.fp-pop-more").click();
     expect(await infos(page)).toEqual(["light.demo_living"]);
   });
 

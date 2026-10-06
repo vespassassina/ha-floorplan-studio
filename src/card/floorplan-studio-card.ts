@@ -1,9 +1,11 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { entitiesOfDevice, DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
-import { TAP_SLOP_PX, bindDeviceActions, fireEvent, toggleEntity } from "./actions";
+import { TAP_SLOP_PX, bindDeviceActions, fireEvent, type TapTarget } from "./actions";
+import { lightCaps, popupOp, type PopupOp } from "./popup";
+import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind } from "./popup-ui";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
 // one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
 // second built file (PLAN block interface).
@@ -299,7 +301,7 @@ export class FloorplanStudioCard extends LitElement {
     .fp-filter { display: flex; align-items: center; gap: 6px; font: 600 10px/1.6 system-ui, sans-serif; color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; }
     .fp-show-all { margin-left: auto; border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 system-ui, sans-serif; text-transform: none; letter-spacing: 0; border-radius: 4px; padding: 1px 6px; cursor: pointer; }
     .fp-show-all:hover, .fp-show-all:focus-visible { background: var(--fp-idle); }
-  `];
+  `, POPUP_CSS];
 
   private _config: FloorplanStudioCardConfig = {};
   private _hass?: Hass;
@@ -341,6 +343,16 @@ export class FloorplanStudioCard extends LitElement {
    *  focus move" rules as `_coverDialog`/`_vacuumDialog`. */
   private _chooserDialog: { title: string; entities: string[] } | null = null;
   private _chooserDialogWasOpen = false;
+  /** S14.2: the tap popup, or `null` for none. One at a time; `s.key` is who it is about, `x`/`y` where the pointer landed (client px), `opener` the
+   *  focusable thing that opened it (an Active row), `confirming` the turn-OFF question, `draft` a slider's shown value until Home Assistant answers. */
+  private _popup: { s: PopupSubject; x: number; y: number; opener: Element | null; confirming: boolean; draft: { kind: SliderKind; value: number; from: number | null } | null } | null = null;
+  private _popupFocusKey: string | null = null;
+  private _popupReturn: Element | null = null;
+  /** S14.2: the hover tooltip (mouse only). `_tipKey` is who it shows, `_tipHost` the card's box read once when it appears, `_tipTitle` a plan `<title>` held back so the browser's own tooltip does not double ours. */
+  private _tipKey: string | null = null;
+  private _tipHost: DOMRect | null = null;
+  private _tipEl: Element | null = null;
+  private _tipTitle: { el: Element; title: Element } | null = null;
   /** S7.4: the zoomed viewBox, or `null` for fit. Card state: reset by `setConfig` and a floor change, never by `hass`. */
   private _view: View | null = null;
   /** S12.3: the live 3D view, the floor and stair context it was built for, and why 3D cannot run (`null` while it can). */
@@ -410,6 +422,7 @@ export class FloorplanStudioCard extends LitElement {
   /** S12.4: the 3D host the taps are bound on, and what unbinds them. */
   private _actions3d: HTMLElement | null = null;
   private _unbind3d: (() => void) | null = null;
+  private _unbindHover: (() => void) | null = null;
   private _pick3dCache: { stamp: number; x: number; y: number; pick: Pick3D | null } | null = null;
 
   /** `localStorage` key for this card's panel state. Opus review finding 7: the seed used to be the layout's own
@@ -554,6 +567,7 @@ export class FloorplanStudioCard extends LitElement {
   private _onViewKey = (ev: KeyboardEvent): void => {
     if (!this.isConnected || !this._ownsViewKeys()) return;
     if (this._coverDialog || this._vacuumDialog || this._chooserDialog) return; // a dialog has its own keys
+    if (ev.key === "Escape" && this._popup) { this._closePopup(); ev.preventDefault(); return; }
     if (ev.key === "Escape" && this._pickedRoom) { // S11.3: the same ownership gate as the view keys, so another card never loses its room
       this._pickRoom(null);
       ev.preventDefault();
@@ -683,6 +697,8 @@ export class FloorplanStudioCard extends LitElement {
     globalThis.document?.addEventListener("visibilitychange", this._onVisibility);
     this._retry3dNow();
     globalThis.addEventListener?.("keydown", this._onViewKey);
+    globalThis.document?.addEventListener("pointerdown", this._onOutsideDown, true);
+    globalThis.addEventListener?.("scroll", this._hideTip, true);
     this.addEventListener("pointerenter", this._onPointerEnter);
     this.addEventListener("pointermove", this._onPointerEnter); // a card that appeared under a resting pointer never saw an enter
     this.addEventListener("pointerleave", this._onPointerLeave);
@@ -834,6 +850,10 @@ export class FloorplanStudioCard extends LitElement {
     globalThis.removeEventListener?.("pagehide", this._flushSave);
     globalThis.document?.removeEventListener("visibilitychange", this._onVisibility);
     globalThis.removeEventListener?.("keydown", this._onViewKey);
+    globalThis.document?.removeEventListener("pointerdown", this._onOutsideDown, true);
+    globalThis.removeEventListener?.("scroll", this._hideTip, true);
+    this._popup = null;
+    this._hideTip();
     this.removeEventListener("pointerenter", this._onPointerEnter);
     this.removeEventListener("pointermove", this._onPointerEnter);
     this.removeEventListener("pointerleave", this._onPointerLeave);
@@ -845,6 +865,8 @@ export class FloorplanStudioCard extends LitElement {
     this._flushSave();
     this._unbindActions?.();
     this._unbindActions = null;
+    this._unbindHover?.();
+    this._unbindHover = null;
     this._unbindZoom?.();
     this._unbindZoom = null;
     this._actionsSvg = null;
@@ -1179,13 +1201,16 @@ export class FloorplanStudioCard extends LitElement {
       // debounce, but also no double-firing from a stale second listener).
       this._unbindActions?.();
       this._unbindActions = svg
-        ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], (door) => this._openCoverDialog(door), {
+        ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], {
             longPress: !this._kiosk(),
             openVacuumDialog: (d) => this._openVacuumDialog(d),
             openChooser: (title, entities) => this._openChooserDialog(title, entities),
+            openPopup: (t, at, from) => this._openPopup(t, at, from),
             getUnlinked: (i) => this._floor()?.unlinked[i],
           })
         : null;
+      this._unbindHover?.();
+      this._unbindHover = svg ? this._bindHover(svg) : null;
       this._unbindZoom?.();
       this._unbindZoom = svg ? this._bindZoom(svg) : null;
       this._actionsSvg = svg;
@@ -1204,9 +1229,10 @@ export class FloorplanStudioCard extends LitElement {
     if (panel !== this._actionsPanel) {
       this._unbindPanel?.();
       this._unbindPanel = panel
-        ? bindDeviceActions(panel, this, (i) => this._floor()?.devices[i], undefined, undefined, {
+        ? bindDeviceActions(panel, this, (i) => this._floor()?.devices[i], undefined, {
             longPress: !this._kiosk(),
             openChooser: (title, entities) => this._openChooserDialog(title, entities),
+            openPopup: (t, at, from) => this._openPopup(t, at, from),
           })
         : null;
       this._actionsPanel = panel;
@@ -1242,6 +1268,7 @@ export class FloorplanStudioCard extends LitElement {
       this.focus();
     }
     this._chooserDialogWasOpen = chooserOpen;
+    this._syncPopup();
   }
 
   /** Whether the 3D model is what the card draws: 3D is picked, its module is loaded, it has not failed, and there is a floor. */
@@ -1318,10 +1345,11 @@ export class FloorplanStudioCard extends LitElement {
       el.setAttribute(attr, String(v));
       return el;
     };
-    const unbindGestures = bindDeviceActions(host, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], (door) => this._openCoverDialog(door), {
+    const unbindGestures = bindDeviceActions(host, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], {
       longPress: !this._kiosk(),
       openVacuumDialog: (d) => this._openVacuumDialog(d),
       openChooser: (title, entities) => this._openChooserDialog(title, entities),
+      openPopup: (t, at, from) => this._openPopup(t, at, from),
       getUnlinked: (i) => this._floor()?.unlinked[i],
       resolve: (e) => {
         if (e.pointerType === "mouse" && e.button !== 0) return null;
@@ -1341,9 +1369,10 @@ export class FloorplanStudioCard extends LitElement {
       pointers = Math.max(0, pointers - 1);
       const s = start;
       start = null;
-      if (!s || this._view3d?.dragged !== false || Math.hypot(e.clientX - s.x, e.clientY - s.y) > TAP_SLOP_PX) { last = null; return; }
+      if (!s || this._view3d?.dragged !== false || Math.hypot(e.clientX - s.x, e.clientY - s.y) > TAP_SLOP_PX) { if (s && this._view3d?.dragged) this._closePopup(); last = null; return; }
       const p = this._pick3d({ clientX: s.x, clientY: s.y, timeStamp: -1 } as PointerEvent);
       if (p && (p.type === "device" || p.type === "door" || p.type === "unlinked")) { last = null; return; } // its own thing, never a pick
+      this._closePopup(); // a tap on anything else is an outside tap
       const now = performance.now();
       if (last && now - last.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - last.x, e.clientY - last.y) < DOUBLE_TAP_PX) {
         this._restorePick(last.before);
@@ -1356,10 +1385,35 @@ export class FloorplanStudioCard extends LitElement {
       this._pickRoom(room !== null && this._picked() !== room ? room : null);
     };
     const onCancel = () => { pointers = 0; start = null; };
+    // S14.2: hover (mouse only). The pointer's position is two numbers and the pick runs once a frame, whatever the pointer does in between.
+    let hx = 0, hy = 0, hraf = 0;
+    const hoverFrame = () => {
+      hraf = 0;
+      const p = this._view3d?.pick(hx, hy);
+      const t = p && !this._popup ? (p.type === "device" ? this._targetOf("x", p.index) : p.type === "door" ? this._targetOf("d", p.index) : p.type === "unlinked" ? this._targetOf("u", p.index) : null) : null;
+      if (t) this._showTip(t, hx, hy, null);
+      else this._hideTip();
+    };
+    const onHoverMove = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || e.buttons) { this._hideTip(); return; }
+      hx = e.clientX; hy = e.clientY;
+      if (!hraf) hraf = requestAnimationFrame(hoverFrame);
+    };
+    const onHoverEnd = () => this._hideTip();
+    host.addEventListener("pointermove", onHoverMove);
+    host.addEventListener("pointerleave", onHoverEnd);
+    host.addEventListener("pointerdown", onHoverEnd);
+    host.addEventListener("wheel", onHoverEnd, { passive: true });
     host.addEventListener("pointerdown", onDown);
     host.addEventListener("pointerup", onUp);
     host.addEventListener("pointercancel", onCancel);
     return () => {
+      if (hraf) cancelAnimationFrame(hraf);
+      host.removeEventListener("pointermove", onHoverMove);
+      host.removeEventListener("pointerleave", onHoverEnd);
+      host.removeEventListener("pointerdown", onHoverEnd);
+      host.removeEventListener("wheel", onHoverEnd);
+      this._hideTip();
       unbindGestures();
       host.removeEventListener("pointerdown", onDown);
       host.removeEventListener("pointerup", onUp);
@@ -1433,6 +1487,235 @@ export class FloorplanStudioCard extends LitElement {
     this._chooserDialog = null;
     this.requestUpdate();
   }
+
+  // ---- S14.2: the tap popup and the hover tooltip ------------------------------------------------------------------------------------
+
+  /** A pointer went down somewhere: a popup closes unless the press was in it or on something that decides for itself (an icon, a door, an Active row, the 3D view: those open, swap or close it on their own tap). */
+  private _onOutsideDown = (e: Event): void => {
+    if (!this._popup) return;
+    for (const n of e.composedPath()) {
+      if (n instanceof Element && (n.classList.contains("fp-pop") || n.classList.contains("fp-3d") || n.matches("g[data-x], button[data-x], line[data-d], g[data-u], [data-pop]"))) return;
+    }
+    this._closePopup();
+  };
+
+  /** What index `i` of the shown floor is, as the gesture code names it. */
+  private _targetOf(kind: "x" | "d" | "u", i: number): TapTarget | null {
+    const f = this._floor();
+    if (!f || !Number.isFinite(i)) return null;
+    if (kind === "x") { const device = f.devices[i]; return device ? { device, index: i } : null; }
+    if (kind === "d") { const door = f.doors[i]; return door ? { door, index: i } : null; }
+    const unlinked = f.unlinked?.[i];
+    return unlinked ? { unlinked, index: i } : null;
+  }
+
+  private _deviceSubject(d: Device, name?: string): PopupSubject {
+    const friendly = this._hass?.states[d.entity]?.attributes?.friendly_name;
+    return {
+      key: `d:${d.entity || d.id}`, type: d.type, entity: d.entity || undefined, entities: entitiesOfDevice(d),
+      name: name || d.name || (typeof friendly === "string" && friendly) || d.entity || d.id,
+      powerEntity: d.power || (d.type === "plug" ? this._powerLinks()?.[d.entity] : undefined),
+    };
+  }
+
+  /** The popup's (and the tooltip's) subject for a tap target; null when there is nothing to say or do. */
+  private _subjectOf(t: TapTarget): PopupSubject | null {
+    if ("device" in t) return this._deviceSubject(t.device);
+    if ("door" in t) {
+      const door = t.door, entities = entitiesOfDoor(door);
+      return door.cover || entities.length ? { key: `o:${door.id}`, name: door.name, type: "door", entities, ...(door.cover ? { door } : {}) } : null;
+    }
+    const u = t.unlinked, entities = entitiesOfDevice(u);
+    return { key: `u:${u.id}`, name: u.name ?? u.id, type: u.type, entities };
+  }
+
+  /** The one state line: the popup and the tooltip both print this. A door says its cover's state, else its first entity's. */
+  private _subjectText(s: PopupSubject): string {
+    const states = this._hass?.states, e = s.door?.cover || (s.door ? s.entities[0] : s.entity);
+    if (!e) return "";
+    const w = s.powerEntity ? wattsOf(states?.[s.powerEntity]) : null;
+    return stateText(s.type, states?.[e], w === null ? undefined : `${Math.round(w * 10) / 10} W`);
+  }
+
+  private _tapActiveRow(it: ActiveDevice, e: MouseEvent): void {
+    const d = this._layout?.floors[it.floor]?.devices.find((x) => x.entity === it.entity);
+    const row = e.currentTarget as Element, b = row.getBoundingClientRect();
+    const s = d ? this._deviceSubject(d, it.name) : { key: `d:${it.entity}`, name: it.name, type: it.type, entity: it.entity, entities: [it.entity] };
+    this._openSubject(s, e.detail > 0 ? { x: e.clientX, y: e.clientY } : { x: b.left + b.width / 2, y: b.bottom }, row);
+  }
+
+  private _openPopup(t: TapTarget, at: { x: number; y: number }, from: Element | null): void {
+    const s = this._subjectOf(t);
+    if (s) this._openSubject(s, at, from);
+  }
+
+  /** Opens the popup, swaps it for another subject's, or closes it when the same subject is tapped again. Nothing is operated here. */
+  private _openSubject(s: PopupSubject, at: { x: number; y: number }, from: Element | null): void {
+    if (this._coverDialog || this._vacuumDialog || this._chooserDialog) return;
+    this._hideTip();
+    if (this._popup?.s.key === s.key) { this._closePopup(); return; }
+    this._popup = { s, x: at.x, y: at.y, opener: from, confirming: false, draft: null };
+    this.requestUpdate();
+  }
+
+  private _closePopup(): void {
+    if (!this._popup) return;
+    this._popupReturn = this._popup.opener;
+    this._popup = null;
+    this.requestUpdate();
+  }
+
+  private _levelOf(kind: SliderKind, a: Record<string, unknown> | undefined): number | null {
+    const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+    if (kind === "b") { const b = n(a?.brightness); return b === null ? null : Math.max(1, Math.min(100, Math.round((b / 255) * 100))); }
+    if (kind === "t") return n(a?.color_temp_kelvin);
+    const hs = a?.hs_color;
+    const h = Array.isArray(hs) ? n(hs[0]) : null;
+    return h === null ? null : Math.round(h);
+  }
+
+  private _popupOp(s: PopupSubject): PopupOp | null {
+    return s.door ? null : popupOp(s.type, s.entity, this._hass?.states[s.entity ?? ""]?.state);
+  }
+
+  private _popupTemplate() {
+    const p = this._popup;
+    if (!p) return null;
+    const s = p.s, st = this._hass?.states[s.entity ?? ""], op = this._popupOp(s);
+    const light = op !== null && s.entity?.startsWith("light.") && st?.state !== "off" ? true : op !== null && s.entity?.startsWith("light.");
+    const caps = light ? lightCaps(st?.attributes) : null;
+    const level = (k: SliderKind) => {
+      const now = this._levelOf(k, st?.attributes);
+      return p.draft && p.draft.kind === k && p.draft.from === now ? p.draft.value : now;
+    };
+    return popupTemplate({
+      subject: s, text: this._subjectText(s), op, confirming: p.confirming, caps,
+      doorLabel: s.door?.cover ? (this._coverService(s.door) === "close_cover" ? "Close" : "Open") : null,
+      level: { b: caps?.brightness ? level("b") : null, t: caps?.temp ? level("t") : null, h: caps?.hue ? level("h") : null },
+      act: () => this._popupAct(),
+      cancel: () => { if (this._popup) { this._popup.confirming = false; this.requestUpdate(); } },
+      more: () => this._popupMore(),
+      key: (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); this._closePopup(); } },
+      slide: (kind, value, commit) => this._popupSlide(kind, value, commit),
+    });
+  }
+
+  /** The popup's one button. A cover door's opens the card's confirm dialog; a turn OFF (not a light's) first turns the button into its confirm; anything else is one service call. */
+  private _popupAct(): void {
+    const p = this._popup;
+    if (!p) return;
+    if (p.s.door?.cover) {
+      const door = p.s.door;
+      this._closePopup();
+      this._openCoverDialog(door);
+      return;
+    }
+    const op = this._popupOp(p.s);
+    if (!op || !p.s.entity) return;
+    if (op.confirm && !p.confirming) { p.confirming = true; this.requestUpdate(); return; }
+    this._hass?.callService?.(op.domain, op.service, { entity_id: p.s.entity });
+    this._closePopup();
+  }
+
+  private _popupMore(): void {
+    const p = this._popup;
+    if (!p) return;
+    this._closePopup();
+    if (p.s.entities.length > 1) this._openChooserDialog(p.s.name, p.s.entities);
+    else if (p.s.entities.length === 1) fireEvent(this, "hass-more-info", { entityId: p.s.entities[0]! });
+  }
+
+  /** A slider moving only changes the number shown; its release (`change`) is the one `light.turn_on`, so dragging never floods Home Assistant. */
+  private _popupSlide(kind: SliderKind, value: number, commit: boolean): void {
+    const p = this._popup, entity = p?.s.entity;
+    if (!p || !entity || !Number.isFinite(value)) return;
+    const a = this._hass?.states[entity]?.attributes;
+    p.draft = { kind, value, from: this._levelOf(kind, a) };
+    if (commit) {
+      const hs = a?.hs_color, sat = Array.isArray(hs) && typeof hs[1] === "number" && Number.isFinite(hs[1]) ? hs[1] : 100;
+      const data = kind === "b" ? { brightness_pct: value } : kind === "t" ? { color_temp_kelvin: value } : { hs_color: [value, sat] };
+      this._hass?.callService?.("light", "turn_on", { entity_id: entity, ...data });
+    }
+    this.requestUpdate();
+  }
+
+  /** After every render: the popup sits near where it was tapped, inside the card; focus goes to its button when it opens and back to what opened it when it closes. */
+  private _syncPopup(): void {
+    const key = this._popup?.s.key ?? null, el = this.shadowRoot?.querySelector<HTMLElement>(".fp-pop") ?? null;
+    if (this._popup && el) {
+      const o = this._popup.opener;
+      placeNear(el, this, this._popup.x, this._popup.y, 14, o?.isConnected && o.matches(".fp-active-row") ? o.getBoundingClientRect() : null);
+    }
+    if (key === this._popupFocusKey) return;
+    this._popupFocusKey = key;
+    if (key && el) (el.querySelector<HTMLElement>(".fp-pop-do") ?? el.querySelector<HTMLElement>(".fp-pop-more"))?.focus({ preventScroll: true });
+    else if (!key) {
+      if (this._coverDialog || this._vacuumDialog || this._chooserDialog) { this._popupReturn = null; return; } // the dialog took focus; it hands it back itself
+      const back = this._popupReturn as HTMLElement | null;
+      this._popupReturn = null;
+      (back?.isConnected ? back : this).focus({ preventScroll: true });
+    }
+  }
+
+  /** Hover on the plan (mouse only; a finger has the popup). The tooltip follows the pointer over an icon, a door or an appliance and goes when it leaves, is pressed or the page scrolls. */
+  private _bindHover(svg: Element): () => void {
+    const move = (e: Event) => {
+      const pe = e as PointerEvent;
+      if (pe.pointerType !== "mouse" || pe.buttons || this._popup) { this._hideTip(); return; }
+      const el = (pe.target as Element | null)?.closest?.("g[data-x], line[data-d], g[data-u]");
+      const kind = el?.hasAttribute("data-x") ? "x" : el?.hasAttribute("data-d") ? "d" : "u";
+      const t = el ? this._targetOf(kind, Number(el.getAttribute(`data-${kind}`))) : null;
+      if (t && el) this._showTip(t, pe.clientX, pe.clientY, el);
+      else this._hideTip();
+    };
+    const hide = () => this._hideTip();
+    svg.addEventListener("pointermove", move);
+    svg.addEventListener("pointerleave", hide);
+    svg.addEventListener("pointerdown", hide);
+    return () => {
+      svg.removeEventListener("pointermove", move);
+      svg.removeEventListener("pointerleave", hide);
+      svg.removeEventListener("pointerdown", hide);
+      this._hideTip();
+    };
+  }
+
+  /** Shows (or moves) the tooltip for `t` at the client point (x, y). The text is worked out when the target changes, not on every move. `el` is the plan's element, which gets `aria-describedby`. */
+  private _showTip(t: TapTarget, x: number, y: number, el: Element | null): void {
+    const tip = this.shadowRoot?.querySelector<HTMLElement>(".fp-tip");
+    const s = tip ? this._subjectOf(t) : null;
+    if (!tip || !s) { this._hideTip(); return; }
+    if (s.key !== this._tipKey) {
+      this._hideTip();
+      (tip.firstElementChild as HTMLElement).textContent = s.name;
+      (tip.lastElementChild as HTMLElement).textContent = this._subjectText(s);
+      tip.hidden = false;
+      this._tipKey = s.key;
+      this._tipHost = this.getBoundingClientRect();
+      if (el) {
+        el.setAttribute("aria-describedby", "fp-tip");
+        const title = el.querySelector(":scope > title"); // the browser's own tooltip would sit beside ours
+        if (title) { el.removeChild(title); this._tipTitle = { el, title }; }
+        this._tipEl = el;
+      }
+    }
+    const h = this._tipHost!, w = tip.offsetWidth, ht = tip.offsetHeight;
+    const left = Math.max(4, Math.min(h.width - w - 4, x - h.left + 12));
+    const below = y - h.top + 18;
+    tip.style.transform = `translate(${Math.round(left)}px, ${Math.round(below + ht > h.height - 4 ? Math.max(4, y - h.top - ht - 10) : below)}px)`;
+  }
+
+  private _hideTip = (): void => {
+    if (this._tipKey === null) return;
+    this._tipKey = null;
+    const tip = this.shadowRoot?.querySelector<HTMLElement>(".fp-tip");
+    if (tip) tip.hidden = true;
+    this._tipEl?.removeAttribute("aria-describedby");
+    this._tipEl = null;
+    const t = this._tipTitle;
+    this._tipTitle = null;
+    if (t?.el.isConnected && !t.el.querySelector(":scope > title")) t.el.prepend(t.title);
+  };
 
   /** The chooser's own row label: HA's `friendly_name` when the entity has state, else the plan id itself — same
    *  fallback order `active.ts`'s `nameFor` already uses for a device row, so the two never disagree about what an
@@ -1746,13 +2029,11 @@ export class FloorplanStudioCard extends LitElement {
     return html`<dl class="fp-info">${rows.map((r) => html`<div><dt>${r.label}</dt><dd>${r.value}</dd></div>`)}</dl>`;
   }
 
-  /** A keyboard press on a toggling row asks what a tap on the plan's icon asks (`bindDeviceActions`): a device that names
-   *  more than one entity opens the chooser instead of guessing, one entity toggles. */
-  private _keyToggle(r: RoomDeviceRow): void {
+  /** A keyboard press on a toggling row does what a tap on its icon does (S14.2): it opens the popup, anchored on the row. Nothing is operated by the press itself. */
+  private _keyToggle(r: RoomDeviceRow, row: Element | null): void {
     const d = this._floor()?.devices[r.index];
-    const ents = d ? entitiesOfDevice(d) : [];
-    if (d && ents.length > 1) this._openChooserDialog(d.name ?? d.entity, ents);
-    else toggleEntity(this._hass, r.entity);
+    const b = row?.getBoundingClientRect();
+    if (d) this._openPopup({ device: d, index: r.index }, { x: b ? b.left + b.width / 2 : 0, y: b ? b.bottom : 0 }, row);
   }
 
   /** A row of the room section's device list. A toggling type (`ROOM_ROW_TAP`) carries `data-x`, so the panel's own
@@ -1762,7 +2043,7 @@ export class FloorplanStudioCard extends LitElement {
     const toggles = ROOM_ROW_TAP[r.type] === "toggle";
     const click = (e: MouseEvent) => {
       if (!toggles) fireEvent(this, "hass-more-info", { entityId: r.entity });
-      else if (e.detail === 0) this._keyToggle(r);
+      else if (e.detail === 0) this._keyToggle(r, e.currentTarget as Element);
     };
     return html`<div class="fp-item">
       <button type="button" class=${r.on ? "fp-active-row" : "fp-active-row fp-off"} data-x=${toggles ? String(r.index) : nothing} style="--fp-active-row-color:var(${r.colorVar})" @click=${click}>
@@ -1830,8 +2111,9 @@ export class FloorplanStudioCard extends LitElement {
     const row = (it: ActiveDevice) => html`<div class="fp-item"><button
       type="button"
       class="fp-active-row"
+      data-pop
       style="--fp-active-row-color:var(${it.colorVar})"
-      @click=${() => fireEvent(this, "hass-more-info", { entityId: it.entity })}
+      @click=${(e: MouseEvent) => this._tapActiveRow(it, e)}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${DEVICE_ICONS[it.type]}></path></svg>
       <span>${it.name}</span>
@@ -1943,7 +2225,7 @@ export class FloorplanStudioCard extends LitElement {
     const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>`;
     const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${this._fallback3d}</p>` : null;
     const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label="Reset camera" title="Reset camera" @click=${() => this._view3d?.reset()}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
-    return html`${this._floorChips()}${stage}${note}${this._activePanel()}${showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"}>${this._viewControls(this._viewPick())}</div>` : null}${stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}`;
+    return html`${this._floorChips()}${stage}${note}${this._activePanel()}${showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"}>${this._viewControls(this._viewPick())}</div>` : null}${stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
   /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
