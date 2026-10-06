@@ -7,7 +7,7 @@
 // pulls the shared code out into a chunk the card then loads up front (docs/DECISIONS.md, S12.3). A test iterates the core
 // unions (`ROOM_KINDS`, `WALL_KINDS`, `DEVICE_TYPES`, `FURNITURE_SYMBOLS`) so a new member fails until it is named here.
 const ROOM_KINDS = ["room", "garden", "pavement", "fill", "terrace", "water"] as const; // a zone and a structure have no floor of their own
-const WALL_KINDS = ["wall", "boundary", "external", "fence", "edge"] as const;
+const WALL_KINDS = ["wall", "boundary", "external", "fence", "edge", "parapet"] as const;
 const FURNITURE_SYMBOLS = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"] as const;
 const DEVICE_TYPES = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum"] as const;
 
@@ -23,7 +23,7 @@ const ROOM: Record<string, string> = {
 // A wall is the ink colour of its theme: near black in the light theme, where a solid slab of it under lighting reads as a
 // hole. The 2.5D side faces already soften it this way (--fp-wall-side, 55% over the background), so the 3D walls do too.
 const WALL: Record<string, string> = {
-  wall: mix("--fp-wall", 55, "--fp-bg"), boundary: mix("--fp-wall", 55, "--fp-bg"), external: mix("--fp-wall-external", 60, "--fp-bg"), fence: "var(--fp-wall-fence)", edge: "var(--fp-wall-edge)",
+  wall: mix("--fp-wall", 55, "--fp-bg"), boundary: mix("--fp-wall", 55, "--fp-bg"), external: mix("--fp-wall-external", 60, "--fp-bg"), fence: "var(--fp-wall-fence)", edge: "var(--fp-wall-edge)", parapet: mix("--fp-wall-external", 60, "--fp-bg"),
 };
 const FURNITURE: Record<string, string> = {
   tree: "var(--fp-dev-garden)", "patio-wood": "var(--fp-wall-fence)", "patio-concrete": "var(--fp-pavement)", car: mix("--fp-dev-camera", 80, "--fp-furniture"),

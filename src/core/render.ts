@@ -266,8 +266,8 @@ export const FLOORPLAN_CSS = `
 /* 2.5D: the top of a wall. Same stroke as the flat wall, from its own token, and before the .external and .fence rules
    below so an equal-specificity kind rule still wins. */
 .e.top{stroke:var(--fp-wall-top)}
-.e.external{stroke:var(--fp-wall-external);stroke-width:${WALL_WIDTH_EXTERNAL};stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
-.eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
+.e.external{stroke:var(--fp-wall-external);stroke-width:${WALL_WIDTH_EXTERNAL};stroke-linecap:square} .e.parapet{stroke:var(--fp-wall-external);stroke-width:${WALL_WIDTH_EXTERNAL};stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
+.eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.parapet{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
 /* 2.5D solids take no clicks: a tap or a pick goes through to the floor-level shape under them, as in 2D. Furniture is the
    exception: its group is data-f, so a tap on the block reaches it as it reaches the flat symbol. */
 .ws,.glass,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk,.wfoot,.wl,.door-leaf,.opn{pointer-events:none}
@@ -422,7 +422,7 @@ export function wallWidthAt(f: Floor, a: Pt, b: Pt): number {
   const len = dist(a, b) || 1;
   const dir: Pt = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
   const kinds = edgeKindsNear(f, mid(a, b), dir, DOOR_WALL_TOL);
-  return kinds.includes("external") ? WALL_WIDTH_EXTERNAL : WALL_WIDTH;
+  return kinds.includes("external") || kinds.includes("parapet") ? WALL_WIDTH_EXTERNAL : WALL_WIDTH;
 }
 /** cm wide a door's floor line is drawn in 2.5D (see the doors loop in renderFloor). */
 const DOOR_THRESHOLD_25D = 4;

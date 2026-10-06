@@ -149,8 +149,9 @@ in `prompts/`, then fixed in the editor.
   no snap, stitch or merge target and it can be rotated even where it still
   touches a neighbour.
 - `wall.kind`: wall (internal), boundary (dotted), external, fence, edge
-  (outdoor boundary such as a property line). The same five are the kinds of a
-  room edge.
+  (outdoor boundary such as a property line), parapet (a balcony's half wall:
+  120 cm tall, 20 cm thick as an external wall). The same six are the kinds of
+  a room edge.
 - `stairs.shape`: straight (a polygon with treads drawn across it) or round (a
   spiral of outer diameter `dia` around an empty well of diameter `inner`,
   treads drawn as spokes). There is no curved shape: an angled or curved

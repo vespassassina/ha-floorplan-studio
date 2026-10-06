@@ -1135,12 +1135,12 @@ test("a thin fence stays clickable a few pixels off its line, and of two walls 6
   await expect(page.locator("#wk")).toHaveValue("edge");
 });
 
-test("the wall panel has a kind select with five human labels, the opening entry and no toggle button", async ({ page }) => {
+test("the wall panel has a kind select with six human labels, the opening entry and no toggle button", async ({ page }) => {
   await withWallRow(page);
   await clickCm(page, 60, 650);
   await expect(page.locator("#wk")).toHaveJSProperty("tagName", "SELECT");
   expect(await page.locator("#wk option").evaluateAll((o) => o.map((x) => [(x as HTMLOptionElement).value, x.textContent]))).toEqual([
-    ["wall", "Internal wall"], ["boundary", "Dotted boundary"], ["external", "External wall"], ["fence", "Fence"], ["edge", "Outdoor edge"], ["opening", "Opening (a gap in the wall)"],
+    ["wall", "Internal wall"], ["boundary", "Dotted boundary"], ["external", "External wall"], ["fence", "Fence"], ["edge", "Outdoor edge"], ["parapet", "Balcony wall (parapet)"], ["opening", "Opening (a gap in the wall)"],
   ]);
   await expect(page.locator("button#wk")).toHaveCount(0);
 });
@@ -2605,7 +2605,7 @@ test("the kind select of a shared edge writes both rooms, redraws the line, is o
   await expect(page.locator("#wallt")).toHaveCount(0);
   await expect(page.locator("#panel strong").first()).toHaveText("Internal wall");
   const options = await page.locator("#ek option").allTextContents();
-  expect(options).toEqual(["Internal wall", "Dotted boundary", "External wall", "Fence", "Outdoor edge", "Not drawn"]);
+  expect(options).toEqual(["Internal wall", "Dotted boundary", "External wall", "Fence", "Outdoor edge", "Balcony wall (parapet)", "Not drawn"]);
   await page.locator("#ek").selectOption("external");
   const g = await groundOf(page);
   expect([g.rooms[0].wk[1], g.rooms[1].wk[3]]).toEqual(["external", "external"]);
@@ -2752,7 +2752,7 @@ test("a free wall becomes an opening and back to a wall of a chosen kind; two un
   await withWallRow(page);
   await clickCm(page, 60 + 3 * 150, 650); // the fence, wall index 3
   await expect(page.locator("#wk")).toHaveValue("fence");
-  expect(await page.locator("#wk option").evaluateAll((o) => o.map((x) => [(x as HTMLOptionElement).value, x.textContent]).slice(5))).toEqual([["opening", "Opening (a gap in the wall)"]]);
+  expect(await page.locator("#wk option").evaluateAll((o) => o.map((x) => [(x as HTMLOptionElement).value, x.textContent]).slice(6))).toEqual([["opening", "Opening (a gap in the wall)"]]);
   const before = await groundOf(page), fence = before.walls[3];
   await page.locator("#wk").selectOption("opening");
   const g = await groundOf(page);
@@ -2765,7 +2765,7 @@ test("a free wall becomes an opening and back to a wall of a chosen kind; two un
   // the real pointer reaches the new opening, not a wall
   expect(await topAt(page, 60 + 3 * 150, 650)).toBe("line.opening");
   expect(await page.locator("#ok option").evaluateAll((o) => o.map((x) => [(x as HTMLOptionElement).value, x.textContent]))).toEqual([
-    ["opening", "Opening"], ["wall", "Internal wall"], ["boundary", "Dotted boundary"], ["external", "External wall"], ["fence", "Fence"], ["edge", "Outdoor edge"],
+    ["opening", "Opening"], ["wall", "Internal wall"], ["boundary", "Dotted boundary"], ["external", "External wall"], ["fence", "Fence"], ["edge", "Outdoor edge"], ["parapet", "Balcony wall (parapet)"],
   ]);
   await expect(page.locator("#ok")).toHaveValue("opening");
   await page.locator("#ok").selectOption("external");
@@ -2782,9 +2782,9 @@ test("a free wall becomes an opening and back to a wall of a chosen kind; two un
   await savedValid(page);
 });
 
-test("choosing the opening entry on a room edge select is not possible: the edge kind select has the five kinds and Not drawn", async ({ page }) => {
+test("choosing the opening entry on a room edge select is not possible: the edge kind select has the six kinds and Not drawn", async ({ page }) => {
   await clickCm(page, 500, 200);
-  expect(await page.locator("#ek option").evaluateAll((o) => o.map((x) => (x as HTMLOptionElement).value))).toEqual(["wall", "boundary", "external", "fence", "edge", "none"]);
+  expect(await page.locator("#ek option").evaluateAll((o) => o.map((x) => (x as HTMLOptionElement).value))).toEqual(["wall", "boundary", "external", "fence", "edge", "parapet", "none"]);
 });
 
 test("break it: a wall of zero length is not turned into an opening; the status line says so and nothing is written", async ({ page }) => {
@@ -2939,15 +2939,15 @@ test("Diego, 2026-09-28: a device whose catalog room is not on the floor lands a
 });
 
 // ---- S1.21 Draw is its own menu ----
-const DRAW_IDS = ["drawRoom", "drawZone", "drawWater", "drawOutline", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawOpening", "drawExtra"];
+const DRAW_IDS = ["drawRoom", "drawZone", "drawWater", "drawOutline", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawWall-parapet", "drawOpening", "drawExtra"];
 // S4.26: grouped like Add — Openings, Wall, Areas — so DOM order differs from DRAW_IDS' logical grouping.
-const DRAW_IDS_DOM = ["drawOpening", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawRoom", "drawZone", "drawWater", "drawOutline", "drawExtra"];
+const DRAW_IDS_DOM = ["drawOpening", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawWall-parapet", "drawRoom", "drawZone", "drawWater", "drawOutline", "drawExtra"];
 
-test("the Add menu holds no Draw item and no Water; the Draw menu holds all eleven", async ({ page }) => {
+test("the Add menu holds no Draw item and no Water; the Draw menu holds all twelve", async ({ page }) => {
   for (const id of [...DRAW_IDS, "addWater", "addWall"]) await expect(page.locator(`#mAdd #${id}`)).toHaveCount(0);
   await expect(page.locator("#mAdd .grp, #mAdd .sep").filter({ hasText: /Draw/ })).toHaveCount(0);
   const ids = await page.locator("#mAdd button").evaluateAll((b) => b.map((x) => x.id));
-  expect(ids).toEqual(["addDoor", "addOpenDoor", "addWin", "addSlit", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addStr", "addZone", "addStairs", "addDevBtn"]);
+  expect(ids).toEqual(["addDoor", "addOpenDoor", "addWin", "addSlit", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addWall-parapet", "addStr", "addZone", "addStairs", "addDevBtn"]);
   await expect(page.locator("#mAdd select#addFurn")).toHaveCount(1);
   expect(await page.locator("#mDraw button").evaluateAll((b) => b.map((x) => x.id))).toEqual(DRAW_IDS_DOM);
   expect(new Set(DRAW_IDS_DOM)).toEqual(new Set(DRAW_IDS));
@@ -3000,7 +3000,7 @@ test("S4.11: Tab reaches every Add item in DOM order, submenus included", async 
   await page.locator(`#mAdd details.sub > summary:text-is("Wall")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Areas")`).click();
   const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.map((e) => e.id || e.textContent?.trim()));
-  expect(order).toEqual(["Openings", "addDoor", "addOpenDoor", "addWin", "addSlit", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "Areas", "addStr", "addZone", "addStairs", "addDevBtn", "addFurn", "addUnlDev"]);
+  expect(order).toEqual(["Openings", "addDoor", "addOpenDoor", "addWin", "addSlit", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addWall-parapet", "Areas", "addStr", "addZone", "addStairs", "addDevBtn", "addFurn", "addUnlDev"]);
 });
 
 test("each Add, Wall item places a 200 cm wall of its kind at the spawn point, selected, in one undo step", async ({ page }) => {

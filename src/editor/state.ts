@@ -234,10 +234,21 @@ export class EditorState {
 
   // ---- floors: whole-layout snapshots, one undo step each, nothing recorded when refused ----
 
+  /**
+   * "Fix plan" (2026-10-06): while on, nothing of the plan changes, only devices (lights and the rest). View state, like
+   * `viewRot`: not in the layout and not an undo step. Every writer below asks `planOpen()` first; `planBlocked` says the
+   * last one was refused, so the editor can tell the person why nothing happened.
+   */
+  planLocked = false;
+  planBlocked = false;
+  private planOpen(): boolean { this.planBlocked = this.planLocked; return !this.planLocked; }
+  /** The floor with its devices taken out: what a plan lock holds still. */
+  private static plan(f: Floor): string { return JSON.stringify({ ...f, devices: [] }); }
+
   /** Adds a floor last and selects it, with the outline (and its wall kinds), and the stairs, of the first floor (the lowest) and nothing else, so a house is not traced twice. Deep copies; the stairs get ids of the new floor. The key is the slug of the title, with -2, -3 on a clash. Returns the key, or "" for an empty title. */
   addFloor(title: string): string {
     const t = title.trim();
-    if (!t) return "";
+    if (!t || !this.planOpen()) return "";
     const base = slug(t) || "floor";
     let key = base;
     for (let n = 2; hasOwn(this.layout.floors, key); n++) key = `${base}-${n}`;
@@ -253,6 +264,7 @@ export class EditorState {
 
   /** Adds the same stairs to every floor, each with an id of its own, as one undo step; selects the one on the current floor. A floor that has stairs gets another: two flights are legitimate. */
   addStairsEverywhere(t: Omit<Stairs, "id">): void {
+    if (!this.planOpen()) return;
     this.snapshot();
     for (const [key, fl] of Object.entries(this.layout.floors)) fl.stairs.push({ ...structuredClone(t), id: newId(fl, key, "stairs") });
     this.sel = { t: "stairs", i: this.f.stairs.length - 1 };
@@ -262,7 +274,7 @@ export class EditorState {
   /** Changes the title only; the key stays. False for an empty title, the same title or an unknown key. */
   renameFloor(key: string, title: string): boolean {
     const t = title.trim();
-    if (!t || !hasOwn(this.layout.floors, key) || this.layout.floors[key].title === t) return false;
+    if (!t || !hasOwn(this.layout.floors, key) || this.layout.floors[key].title === t || !this.planOpen()) return false;
     this.snapshot();
     this.layout.floors[key].title = t;
     return true;
@@ -271,7 +283,7 @@ export class EditorState {
   /** Removes a floor and its content. False for the last floor or an unknown key. The catalog is left alone. The selection moves to the next floor, else the previous. */
   deleteFloor(key: string): boolean {
     const ks = Object.keys(this.layout.floors), i = ks.indexOf(key);
-    if (i < 0 || ks.length < 2) return false;
+    if (i < 0 || ks.length < 2 || !this.planOpen()) return false;
     this.snapshot();
     this.layout.floors = floorsOf(ks.filter((k) => k !== key).map((k) => [k, this.layout.floors[k]]));
     delete this.views[key];
@@ -283,7 +295,7 @@ export class EditorState {
   /** Moves a floor `delta` places in the key order (-1 earlier, +1 later). False when that would leave the list or nothing moves. */
   moveFloor(key: string, delta: number): boolean {
     const ks = Object.keys(this.layout.floors), i = ks.indexOf(key), j = i + delta;
-    if (i < 0 || !Number.isInteger(delta) || delta === 0 || j < 0 || j >= ks.length) return false;
+    if (i < 0 || !Number.isInteger(delta) || delta === 0 || j < 0 || j >= ks.length || !this.planOpen()) return false;
     this.snapshot();
     ks.splice(i, 1);
     ks.splice(j, 0, key);
@@ -302,6 +314,7 @@ export class EditorState {
     const g = structuredClone(this.f);
     const next = fn(g) ?? g;
     for (const t of next.stairs) t.steps = stairSteps(t); // steps follow the run (S1.44)
+    if (this.planLocked) { this.planBlocked = EditorState.plan(next) !== EditorState.plan(this.f); if (this.planBlocked) return false; } else this.planBlocked = false;
     // Deep compare by serialising: cheap at this size, and it makes a no-op edit leave no undo step.
     if (JSON.stringify(next) === JSON.stringify(this.f)) return false;
     this.snapshot();
@@ -310,7 +323,11 @@ export class EditorState {
   }
 
   /** Swap the current floor without touching history (used while dragging). */
-  replaceFloor(f: Floor) { for (const t of f.stairs) t.steps = stairSteps(t); this.layout.floors[this.floor] = f; }
+  replaceFloor(f: Floor) {
+    if (this.planLocked) f = { ...this.f, devices: f.devices }; // the plan holds still; a device may still follow the pointer
+    for (const t of f.stairs) t.steps = stairSteps(t);
+    this.layout.floors[this.floor] = f;
+  }
 
   /** Commits a gesture already shown live via `replaceFloor` (a value dragged with an `<input type="range">`, for
    * instance): one undo step from `before` (the layout exactly as it stood when the gesture started) to the current
@@ -411,7 +428,7 @@ export class EditorState {
   /** Turns the whole plan to `deg` (a multiple of 45, taken modulo 360): one undo step, no step when it is already there. The views are dropped so each floor is fitted again. */
   setRotate(deg: number): boolean {
     const n = ((Math.round(deg / 45) * 45) % 360 + 360) % 360;
-    if (n === (this.layout.rotate ?? 0)) return false;
+    if (n === (this.layout.rotate ?? 0) || !this.planOpen()) return false;
     this.snapshot();
     this.layout.rotate = n;
     this.views = {};
@@ -426,6 +443,7 @@ export class EditorState {
    * bad or nothing changes.
    */
   paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string; rot?: number; scale?: number } | null): boolean {
+    if (!this.planOpen()) return false;
     const next: Layout = structuredClone(this.layout);
     const shape = next.floors[this.floor][on][i];
     if (!shape) return false;

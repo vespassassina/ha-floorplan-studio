@@ -83,7 +83,7 @@ describe("roomHeight, wallHeight, edgeHeight", () => {
   it("every EDGE_KINDS member is decided", () => {
     for (const k of EDGE_KINDS) {
       const h = edgeHeight(f, { height: 233, wk: [k] } as any, 0);
-      const expected = k === "wall" || k === "external" ? 233 : k === "fence" ? 110 : 0;
+      const expected = k === "wall" || k === "external" ? 233 : k === "fence" ? 110 : k === "parapet" ? 120 : 0;
       expect(h, k).toBe(expected);
     }
   });

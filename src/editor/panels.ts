@@ -25,7 +25,7 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["radar", "mmWave radar"], ["vacuum", "Vacuums"],
 ];
 
-export const WALL_LABELS: Record<EdgeKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge", none: "Not drawn" };
+export const WALL_LABELS: Record<EdgeKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge", parapet: "Balcony wall (parapet)", none: "Not drawn" };
 
 export interface PanelCtx {
   st: EditorState;
