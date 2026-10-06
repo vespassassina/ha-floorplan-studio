@@ -842,7 +842,7 @@ test.describe("S9.6 a card pinned to one room", () => {
     expect(await viewBox(page)).toEqual(home);
 
     // A double-tap resets the same way (S7.4's own reset path, `_fitView`, shared with the pinned "home").
-    const x = b.x + 10, y = b.y + b.height - 10;
+    const x = b.x + b.width - 10, y = b.y + b.height - 10; // bottom-right: the open Active panel (taller now, with scenes and category headers) covers the bottom-left
     await page.mouse.dblclick(x, y);
     await page.waitForTimeout(50);
     // The first double-tap, at fit already, zooms in 2x about the tap point instead of doing nothing.
@@ -973,7 +973,7 @@ test.describe("S7.4 touch", () => {
     // S8.12: the top-left corner is no longer clear of chrome on its own — with no floor config and the demo's
     // three floors, the default switcher (S8.12) now sits there. Bottom-left stays clear of it, of every device,
     // and of the zoom buttons (top-right).
-    const x = b.x + 10, y = b.y + b.height - 10;
+    const x = b.x + b.width - 10, y = b.y + b.height - 10; // bottom-right: the open Active panel (taller now, with scenes and category headers) covers the bottom-left
     await page.touchscreen.tap(x, y);
     await page.touchscreen.tap(x, y);
     await expect.poll(async () => (await viewBox(page)).w).toBeCloseTo(fit.w / 2, 3);
