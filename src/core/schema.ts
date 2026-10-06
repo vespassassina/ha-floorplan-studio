@@ -76,7 +76,8 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * `power` (plugs only): the `sensor.*` (device class `power`) that measures the plug. A plug is active only while
  * that sensor reads at least 2 W (the card's `plug_watts` changes the 2); switched on and drawing nothing is idle.
  * Unset, the editor links the plug's sibling power sensor when it finds exactly one, and the card does the same at
- * runtime; with no sensor at all a plug is active whenever its switch is on. Must differ from `entity`.
+ * runtime; with no sensor at all a plug is active whenever its switch is on. Must differ from `entity`. S14.8: the same
+ * reading also tints the plug cool, warm or hot by how much it draws (the card's `plug_heat_from` and `plug_heat_to`); no sensor, no tint.
  * `fx` (S14.3): the size of the effect the device draws, in percent of its type's own size, 25 to 300; absent is 100. It scales a
  * lit lamp's aura (and its floor pool and wall light in 3D), a playing speaker's or media device's waves, a triggered motion or
  * contact sensor's ring and a siren's rings (`FX_TYPES`, `isSiren`); on a device that draws none it is ignored. Not a schema bump:

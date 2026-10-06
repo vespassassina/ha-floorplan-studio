@@ -49,3 +49,18 @@ export function findPowerSensor(entities: readonly PowerCandidate[] | undefined,
   const found = rows.filter((e) => e.dev === dev && e.domain === "sensor" && e.dc === "power" && !e.cat);
   return found.length === 1 ? found[0].id : undefined;
 }
+
+/** S14.8: the draw range a plug's colour runs over, idle at the low end, hot at the high end. The card's `plug_heat` overrides it. */
+export const HEAT_FROM = 0;
+export const HEAT_TO = 2000;
+
+/** `plug_heat` from untrusted config: two finite numbers with from < to stand, anything else is [0, 2000]. */
+export function heatRange(v: unknown): [number, number] {
+  if (Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n)) && v[0] < v[1]) return [v[0], v[1]];
+  return [HEAT_FROM, HEAT_TO];
+}
+
+/** Where `watts` sits between `from` and `to`: 0 at or under `from`, 1 at or over `to`, linear between. Needs from < to (`heatRange`). */
+export function powerHeat(watts: number, from: number, to: number): number {
+  return Math.max(0, Math.min(1, (watts - from) / (to - from)));
+}

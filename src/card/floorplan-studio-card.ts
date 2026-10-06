@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupByCategory, ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, heatRange, clampTilt, groupByCategory, ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, DeviceType, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent, type TapTarget } from "./actions";
@@ -49,6 +49,9 @@ export interface FloorplanStudioCardConfig {
   fade?: number;
   /** A plug is active from this many watts of measured power, not merely while switched on. A number >= 0; anything else is 2 (untrusted YAML). See docs/card.md, Plugs. */
   plug_watts?: number;
+  /** S14.8: a plug that is on is tinted from idle to hot by its draw, between these two wattages (default 0 and 2000). Both must be numbers with from < to, else the default pair. See docs/card.md, Plugs. */
+  plug_heat_from?: number;
+  plug_heat_to?: number;
   room_glow?: boolean;
   layout?: Layout;
   layout_url?: string;
@@ -825,6 +828,11 @@ export class FloorplanStudioCard extends LitElement {
     return out ?? states;
   }
 
+  /** S14.8: the draw range plugs are tinted over, from the two card options (untrusted: junk is the default range). */
+  private _plugHeat(): [number, number] {
+    return heatRange([this._config.plug_heat_from ?? HEAT_FROM, this._config.plug_heat_to ?? HEAT_TO]);
+  }
+
   /**
    * Plug entity -> power sensor, for plugs with no `power` in the layout: the one `sensor.*` of device class `power`
    * on the plug's own HA device (`hass.entities` gives the device, the sensor's state its class). An explicit
@@ -1360,7 +1368,7 @@ export class FloorplanStudioCard extends LitElement {
     }
     // The live state, decided by the plan's own rules (core/live.ts); the view changes its parts in place, and does nothing when it is the same as the last.
     const now = Date.now();
-    this._view3d.setLive(f, { scale: 1, state: this._stateForRender(), now, fade: this._config.fade, plugWatts: plugThreshold(this._config.plug_watts), powerLinks: this._powerLinks(), roomGlow: this._config.room_glow, night: this._night(), labels: this._labels(), showNames: this._names(), around: floorsAroundKey(this._layout!, this._floorKey()!) }, now);
+    this._view3d.setLive(f, { scale: 1, state: this._stateForRender(), now, fade: this._config.fade, plugWatts: plugThreshold(this._config.plug_watts), plugHeat: this._plugHeat(), powerLinks: this._powerLinks(), roomGlow: this._config.room_glow, night: this._night(), labels: this._labels(), showNames: this._names(), around: floorsAroundKey(this._layout!, this._floorKey()!) }, now);
     this._view3d.setRing(this._picked());
     this._apply3dInset();
   }
@@ -2245,6 +2253,7 @@ export class FloorplanStudioCard extends LitElement {
       now: Date.now(),
       fade: this._config.fade,
       plugWatts: plugThreshold(this._config.plug_watts),
+      plugHeat: this._plugHeat(),
       powerLinks: this._powerLinks(),
       roomGlow: this._config.room_glow,
       theme: this._theme(),

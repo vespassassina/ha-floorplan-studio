@@ -2512,6 +2512,7 @@ Spec `docs/specs/card-polish-and-light.md`, items 1-12. Order and one outcome ea
 - S14.4 View memory per floor, 2D and 3D (item 8).
 - [x] S14.5 Open doorway alert band (item 9), lower presets (item 10), low and cutaway wall height (item 11).
 - [x] S14.6 Active list and Room panel by collapsible category (item 12).
+- [x] S14.8 Plug colour by power (item 24). `task/S14.8`: `powerHeat`/`heatRange` in `core/power.ts`, `--fp-heat` from `deviceMarkup`, card options `plug_heat_from`/`plug_heat_to`. Tests: `tests/core/plug-heat.test.ts`, `tests/card/plug-heat.spec.ts`, `plug_heat` in `tests/card/config-editor.spec.ts`.
 Sprint review by Opus once the integrated build is done; then release 0.16.0 on Diego's yes.
 
 ## Sprint 15 (0.17.0): light

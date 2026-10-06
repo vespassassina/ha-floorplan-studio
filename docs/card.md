@@ -35,6 +35,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `floors` | unset | an array of floor ids: shows a switcher over only these floors, in this order, defaulting to the first one. Takes precedence over `floor`. An id the layout doesn't have is dropped; if none of them match, this is the same as leaving `floors` unset |
 | `theme` | `blueprint` | `blueprint`, `light`, `midnight`, `slate`, `terminal`, `solarized`, or `ha` (see Themes, below) |
 | `fade` | `300` | seconds a motion sensor takes to fade from red to grey after it last went off |
+| `plug_heat_from`, `plug_heat_to` | `0`, `2000` | the draw range a plug's colour runs over, in watts: blue at the low end, amber half way, red at the high end. Two numbers with from below to; anything else is `0` and `2000`. See Plugs |
 | `plug_watts` | `2` | a plug is active from this many watts of measured power, not merely while switched on — see Plugs, below. A number `0` or more; anything else is `2` |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
 | `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons in the vertical stack at the top right, under the toolbar. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
@@ -608,6 +609,15 @@ read from `hass.entities` (a card on an old frontend that does not provide it
 simply does not link). Two candidates link nothing: a wrong guess would paint a
 plug by another plug's draw, so pick one in the editor. An explicit `power`
 always wins.
+
+**Colour by draw (S14.8).** A plug that is active and has a readable power sensor is
+tinted by how much it draws: blue at `plug_heat_from` (default 0 W) or less, amber
+half way, red at `plug_heat_to` (default 2000 W) or more, in 2D, 2.5D and 3D, in
+every theme (the ramp is three fixed tokens, `--fp-heat-cool`, `--fp-heat-mid` and
+`--fp-heat-hot`, not the theme's accent). Colour is not the only signal: the plan's
+tooltip and the tap popup say the watts (`plug: TV plug, 1500 W`). A plug with no
+sensor, an unreadable one, or one that is off keeps its own colour (`--fp-dev-plug`,
+or `colors.plug`), as before. Only plugs are tinted; a switch has no `power` field.
 
 What the card does when it cannot be sure:
 

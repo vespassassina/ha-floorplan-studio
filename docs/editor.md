@@ -72,7 +72,9 @@ A plug's panel has a Power sensor picker: the `sensor.*` of device class
 more. Placing a plug (Add, a room's area, the catalog) fills the picker when its
 Home Assistant device has exactly one power sensor; with two or none it stays
 empty and you pick. Empty also means the card looks for the sibling itself at
-runtime. One pick is one undo step; picking the same sensor again is none.
+runtime. One pick is one undo step; picking the same sensor again is none. The same sensor tints
+the plug in the card by its draw (card options `plug_heat_from` and `plug_heat_to`); the
+editor's own plan shows no live state, so the tint is for the card.
 
 ![The Living light selected: its panel shows type, entity, rotation, and what powers it.](img/editor-device-panel.png)
 

@@ -16,7 +16,7 @@ export { CATEGORIES, CATEGORY_OF, groupByCategory } from "./categories";
 export type { CategoryGroup, CategoryId } from "./categories";
 export { entitiesOfDevice, entitiesOfDoor } from "./attachments";
 export * from "./heights";
-export { PLUG_ACTIVE_WATTS, findPowerSensor, plugThreshold, wattsOf } from "./power";
+export { HEAT_FROM, HEAT_TO, PLUG_ACTIVE_WATTS, findPowerSensor, heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 export type { PowerCandidate } from "./power";
 export * from "./stairs";
 export { WALLS_LABELS, WALLS_MODES, wallsModeOf } from "./solids";
