@@ -283,6 +283,33 @@ describe("scene: floor slab and rooms", () => {
   });
 });
 
+describe("scene: a shed that touches the garden's edge", () => {
+  // Diego, 2026-10-06: "in 3d mode i cannot see the floor of the garden shed". A shed built against the garden's border has corners ON
+  // its edge, and the even-odd test calls such a corner outside, so the shed was never lifted above the garden and its floor was hidden.
+  const WK = ["none", "none", "none", "none"] as const;
+  const garden = { id: "b", name: "Garden", area: "", kind: "garden", pts: [[0, 0], [500, 0], [500, 500], [0, 500]], wk: [...WK] };
+  const cases: Record<string, number[][]> = {
+    "a corner on the garden's corner": [[0, 0], [100, 0], [100, 100], [0, 100]],
+    "a side along the garden's edge": [[200, 0], [300, 0], [300, 100], [200, 100]],
+    "the far corner on the edge": [[400, 400], [500, 400], [500, 500], [400, 500]],
+  };
+  for (const [name, pts] of Object.entries(cases)) it(`lifts a shed over the garden: ${name}`, () => {
+    for (const order of [0, 1]) {
+      const shed = { id: "s", name: "Shed", area: "", kind: "room", pts, wk: [...WK] };
+      const f = floor({ owk: [...WK], rooms: order ? [garden, shed] : [shed, garden] } as never);
+      const r = buildScene(f).solids.filter((s) => s.kind === "room");
+      const small = r.find((s) => s.ref.room === (order ? 1 : 0))!, big = r.find((s) => s.ref.room === (order ? 0 : 1))!;
+      expect(prism(small).z0, `order ${order}`).toBeGreaterThanOrEqual(prism(big).z1);
+    }
+  });
+  it("two rooms side by side do not nest", () => {
+    const a = { id: "a", name: "A", area: "", kind: "room", pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: [...WK] };
+    const b = { id: "b", name: "B", area: "", kind: "room", pts: [[100, 0], [150, 0], [150, 100], [100, 100]], wk: [...WK] };
+    const r = buildScene(floor({ owk: [...WK], rooms: [a, b] } as never)).solids.filter((s) => s.kind === "room");
+    expect(r.map((s) => prism(s).z0)).toEqual([0, 0]);
+  });
+});
+
 describe("scene: furniture, unlinked, stairs", () => {
   const piece = (symbol: FurnitureSymbol, o = {}) => ({ id: "f", symbol, x: 300, y: 200, rot: 0, w: 120, h: 70, ...o });
   /** What a symbol becomes. Written out on purpose (finding 17). */
