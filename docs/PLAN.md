@@ -2502,3 +2502,21 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   glass in 2.5D and 3D, a window in every other respect, a thin band in 2D, Add, Openings, Slit window in the editor.
   Tests first: `tests/core/slit.test.ts` (25), `tests/editor/slit.spec.ts` (6), `tests/card/slit.spec.ts` (2).
   Choices in `docs/DECISIONS.md`.
+
+## Sprint 14 (0.16.0): interaction and polish
+
+Spec `docs/specs/card-polish-and-light.md`, items 1-12. Order and one outcome each, tests first:
+- S14.1 Rename "slit window"; slit head 40 cm under the ceiling (items 1, 2). Core + editor.
+- S14.2 Tap popup, hover name, confirm-OFF, siren size (items 3-6). Card, both views. Raise the size budget first.
+- S14.3 Effect size per device, editor field (item 7). Schema optional field, 2D and 3D.
+- S14.4 View memory per floor, 2D and 3D (item 8).
+- S14.5 Open doorway alert band (item 9), lower presets (item 10), low and cutaway wall height (item 11).
+- S14.6 Active list and Room panel by collapsible category (item 12).
+Sprint review by Opus once the integrated build is done; then release 0.16.0 on Diego's yes.
+
+## Sprint 15 (0.17.0): light
+
+Items 13-15. Needs a short design pass first (S15.0: visibility-polygon maths in core, tested against walls and gaps).
+- S15.1 Core light maths: gaps, visibility polygon, light map per floor.
+- S15.2 3D: light from the device, passing gaps.
+- S15.3 Daylight from `sun.sun`, card option.
