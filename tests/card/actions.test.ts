@@ -533,3 +533,28 @@ describe("actions: opts.resolve (S12.4, the 3D view picks with a ray)", () => {
     expect(DRAG_PX).toBe(TAP_SLOP_PX);
   });
 });
+
+describe("actions: a speaker or TV object linked to a media player stands in for the player", () => {
+  const obj = (type: Unlinked["type"], attached?: string[]): Unlinked => ({ id: "u9", type, name: "Object", x: 10, y: 10, rot: 0, scale: 1, ...(attached ? { attached } : {}) });
+  it.each(["speaker", "tv"] as const)("a tap on a %s with a media_player opens that player's more-info and no popup", (type) => {
+    const r = rig({ unlinked: obj(type, ["sensor.noise", "media_player.living"]) });
+    r.tap();
+    expect(r.detail()).toEqual({ entityId: "media_player.living" });
+    expect(r.openPopup).not.toHaveBeenCalled();
+    expect(r.callService).not.toHaveBeenCalled();
+  });
+  it("a hold does the same", () => {
+    const r = rig({ unlinked: obj("speaker", ["media_player.living"]) });
+    r.hold();
+    expect(r.detail()).toEqual({ entityId: "media_player.living" });
+  });
+  it("without a media_player, or on another type, a tap is the popup as before", () => {
+    for (const u of [obj("speaker", ["sensor.noise"]), obj("speaker"), obj("heater", ["media_player.living"])]) {
+      const r = rig({ unlinked: u });
+      r.tap();
+      expect(r.moreInfo).not.toHaveBeenCalled();
+      expect(r.openPopup.mock.calls.length).toBe(u.attached?.length ? 1 : 0);
+      r.unbind();
+    }
+  });
+});

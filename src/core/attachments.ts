@@ -5,6 +5,15 @@ import type { Device, DeviceType, Door } from "./schema";
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((e): e is string => typeof e === "string" && e.length > 0) : []);
 
 /**
+ * A speaker or TV object stands in for the media player attached to it: the first attached `media_player.*`. Any other
+ * type, or one with no player attached, has none. Never throws on a hostile `attached`.
+ */
+export function playerOf(u: { type: DeviceType; attached?: unknown }): string | undefined {
+  if (u.type !== "speaker" && u.type !== "tv") return undefined;
+  return strings(u.attached).find((e) => e.startsWith("media_player."));
+}
+
+/**
  * S10.4: every entity a tap on this device's icon should offer — more-info directly when this is the only one,
  * a chooser dialog listing all of them otherwise. The device's own `entity` comes first (an Unlinked appliance,
  * S4.25, has none of its own: its `attached` list alone fills this), then its type's own attachments, in the

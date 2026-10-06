@@ -2394,6 +2394,23 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
       await expect(page.locator("floorplan-studio-card").locator("css=.fp-chooser-dialog")).toHaveCount(0);
     });
 
+    test("a speaker linked to a media player: playing draws waves, and a real tap is the player's more-info with no popup", async ({ page }) => {
+      const layout = withUnlinked(["media_player.living"]);
+      layout.floors.ground.unlinked[0].type = "speaker";
+      await open(page);
+      await configureRecordingMoreInfo(page, { layout }, { states: { "media_player.living": { state: "playing", attributes: {}, last_changed: new Date().toISOString() } } });
+      await expect(page.locator("floorplan-studio-card").locator('css=g[data-u="0"] .wave')).toHaveCount(2);
+      // The waves animate, so the group's box never settles: tap the icon itself.
+      const icon = page.locator("floorplan-studio-card").locator('css=g[data-u="0"] path:not(.wave)').first();
+      await icon.scrollIntoViewIfNeeded();
+      const b = (await icon.boundingBox())!;
+      await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+      expect(await moreInfo(page)).toEqual([{ entityId: "media_player.living" }]);
+      await expect(page.locator("floorplan-studio-card").locator("css=.fp-pop")).toHaveCount(0);
+      await configure(page, { layout }, { states: { "media_player.living": { state: "paused", attributes: {}, last_changed: new Date().toISOString() } } });
+      await expect(page.locator("floorplan-studio-card").locator('css=g[data-u="0"] .wave')).toHaveCount(0);
+    });
+
     test("no attached entities: a tap does nothing", async ({ page }) => {
       await open(page);
       await configureRecordingMoreInfo(page, { layout: withUnlinked() }, { states: {} });

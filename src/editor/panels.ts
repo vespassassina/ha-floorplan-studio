@@ -37,6 +37,8 @@ export interface PanelCtx {
   /** S4.22: the paint panel's texture-rotation slider. `live` previews every tick, no undo step; `commit`, once at
    * release, records the whole drag as one step (none if it ended back where it started). */
   rotateTexture(on: "rooms" | "stairs", i: number, rot: number, phase: "live" | "commit"): void;
+  /** A piece of furniture or an unlinked object turned to any angle with a slider: same live/commit gesture as `rotateTexture`. */
+  rotateItem(on: "furniture" | "unlinked", i: number, rot: number, phase: "live" | "commit"): void;
   /** S4.19: the paint panel's texture-scale slider, 25–200%. Same live/commit gesture as `rotateTexture`. */
   scaleTexture(on: "rooms" | "stairs", i: number, scale: number, phase: "live" | "commit"): void;
   /** S4.4: create a light from the selected switch or plug. Absent when there is no Home Assistant to write to. */
@@ -177,6 +179,12 @@ function rotateButtons(c: PanelCtx, id: string, turn: (deg: number) => void, opt
     ${[30, 45, 60, 90].map((n) => html`<button class="btn" id=${`${id}${n}`} ?disabled=${opts.disabled} aria-label=${`Turn ${n} degrees ${cw ? "clockwise" : "counter-clockwise"}`} @click=${() => turn(c.st.turnDir * n)}>${n}</button>`)}
     ${opts.reset ? html`<button class="btn" id=${`${id}reset`} @click=${opts.reset}>Reset</button>` : nothing}</div>`;
 }
+/** A 0-359 degree slider under the turn buttons: previews every tick, one undo step per drag. Ids: `<id>sl` the slider, `<id>val` the readout. */
+const rotationSlider = (c: PanelCtx, id: string, on: "furniture" | "unlinked", i: number, rot: number) => html`<div class="rangerow">
+  <input id=${`${id}sl`} type="range" min="0" max="359" step="1" aria-label="Rotation" .value=${live(String(Math.round(rot) % 360))}
+    @input=${(e: Event) => c.rotateItem(on, i, Number(val(e)), "live")}
+    @change=${(e: Event) => c.rotateItem(on, i, Number(val(e)), "commit")}>
+  <span class="rot-val" id=${`${id}val`}>${Math.round(rot) % 360}°</span></div>`;
 function select(label: string, id: string, value: string, options: readonly string[], on: (v: string) => void, names: Record<string, string> = {}) {
   return html`<label for=${id}>${label}</label><select id=${id} .value=${value} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${names[o] ?? o}</option>`)}</select>`;
 }
@@ -1096,6 +1104,7 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${number(c, "width (cm)", "fw", m.w, setSize("w"))}
     ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
     ${heightField(c, "height (cm)", "fuht", m.height, FURNITURE_HEIGHTS[m.symbol] ?? 100, heightSetter(c, "furniture", i, "height"))}
+    ${rotationSlider(c, "frot", "furniture", i, m.rot)}
     ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}
     ${heading("Danger")}
     <p>${button("fudel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); }, "warn")}</p>`;
@@ -1113,17 +1122,18 @@ function unlinkedPanel(c: PanelCtx, i: number) {
   const setAttached = (next: string[]) => c.commit((f) => mutateAttached(f, next));
   return html`<strong>${u.name ?? label}</strong>
     ${hint("Drag it to move it.")}
-    ${hint("No single on/off state; for reference only.")}
+    ${u.type === "speaker" || u.type === "tv" ? hint("Attach a media player: it shows playing, a tap opens it.") : hint("No single on/off state; for reference only.")}
     ${heading("Identity")}
     ${text("plan name", "uun", u.name ?? "", (v) => c.commit((f) => { setOrDelete(f.unlinked[i], "name", v.trim()); }))}
     ${heading("Home Assistant")}
-    ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(), setAttached, { apply: mutateAttached, targetLabel: u.name ?? label })}
+    ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(u.type), setAttached, { apply: mutateAttached, targetLabel: u.name ?? label })}
     ${heading("Appearance")}
     <label for="uucol">colour</label>
     <input id="uucol" type="color" .value=${u.color ?? "#8b8578"} @change=${(e: Event) => c.commit((f) => { f.unlinked[i].color = val(e); })}>
     ${button("uuclr", "Use default colour", () => c.commit((f) => { delete f.unlinked[i].color; }))}
     ${number(c, "scale", "uusc", u.scale, (n) => c.commit((f) => { f.unlinked[i].scale = Math.min(4, Math.max(0.25, n)); }))}
     ${heightField(c, "height (cm)", "uuht", u.height, UNLINKED_HEIGHTS[u.type] ?? 100, heightSetter(c, "unlinked", i, "height"))}
+    ${rotationSlider(c, "uurot", "unlinked", i, u.rot)}
     ${rotateButtons(c, "uurot", (n) => c.commit((f) => { f.unlinked[i].rot = ((u.rot + n) % 360 + 360) % 360; }), { reset: () => { if (u.rot) c.commit((f) => { f.unlinked[i].rot = 0; }); } })}
     ${heading("Danger")}
     <p>${button("uudel", "Delete", () => { c.commit((f) => { f.unlinked.splice(i, 1); }); c.select(null); }, "warn")}</p>`;

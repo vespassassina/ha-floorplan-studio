@@ -188,3 +188,19 @@ describe("roomSensorChoices: an HA sensor the plan has not met yet", () => {
     expect(byId["sensor.loose_humidity"]).toMatchObject({ floor: "", room: "" });
   });
 });
+
+describe("unlinkedAttachChoices for a speaker or TV", () => {
+  it("lists media players first, including HA players the plan has not met, and only for those two types", () => {
+    const st = new EditorState(fresh());
+    st.ha = { areas: [], devices: [], entities: [{ id: "media_player.kitchen_echo", name: "Kitchen echo", domain: "media_player", area: null }] } as unknown as HaData;
+    for (const type of ["speaker", "tv"] as const) {
+      const out = st.unlinkedAttachChoices(type).map((c) => c.entity);
+      expect(out[0]).toMatch(/^media_player\./);
+      expect(out).toContain("media_player.kitchen_echo");
+      const firstOther = out.findIndex((e) => !e.startsWith("media_player."));
+      expect(out.slice(firstOther).some((e) => e.startsWith("media_player."))).toBe(false);
+    }
+    expect(st.unlinkedAttachChoices("heater").map((c) => c.entity)).not.toContain("media_player.kitchen_echo");
+    expect(st.unlinkedAttachChoices().map((c) => c.entity)).not.toContain("media_player.kitchen_echo");
+  });
+});

@@ -822,8 +822,12 @@ export class EditorState {
    * linked climates, an unlinked item has no fixed HA domain (a "car" or "server" type has no natural one), so
    * every placed entity is a candidate; `multiAttachField` already excludes what is attached to this item.
    */
-  unlinkedAttachChoices(): CatalogEntry[] {
-    return this.layout.catalog;
+  unlinkedAttachChoices(type?: DeviceType): CatalogEntry[] {
+    if (type !== "speaker" && type !== "tv") return this.layout.catalog;
+    // A speaker or TV is linked to a media player: those come first, the ones the plan has not met yet included.
+    const isPlayer = (c: CatalogEntry) => c.entity.startsWith("media_player.");
+    const players = [...this.layout.catalog.filter(isPlayer), ...this.unattachedHaChoices("media").filter((c) => !this.layout.catalog.some((k) => k.entity === c.entity))];
+    return [...players, ...this.layout.catalog.filter((c) => !isPlayer(c))];
   }
 
   /**

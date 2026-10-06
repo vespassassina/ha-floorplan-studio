@@ -2,6 +2,8 @@
 
 ## 0.16.3 - 2026-10-06
 
+- Studio: furniture and unlinked objects (heater, speaker, TV...) have a **rotation slider**, any angle from 0 to 359, previewed live, one undo step per drag. The turn buttons stay.
+- Card, studio: a **speaker or TV object** (Add > Unlinked device) with a `media_player` attached shows its state: two waves and its active colour while playing. A tap or hold on it opens that player's more-info instead of the popup. The attach list offers media players first. 2D and 2.5D; the 3D view does not draw the waves yet.
 - Studio, room panel: the temperature, humidity and motion pickers each sit in a framed box with their list, and the sensor names are smaller. Humidity (and any other) sensors not yet on the plan are now listed under the floor and room of their Home Assistant area, like the others, instead of all under "Elsewhere". Delete is the first control under the name, in the door and window panel too.
 - Studio: a page left open through an update no longer runs the old panel unnoticed. The panel asks the integration for the installed version (new `floorplan_studio/version` command) when it opens and whenever the tab becomes visible again; if it differs from its own build, a banner says so with a **Reload** button, and Save is refused until you reload. Pages that were open before this version do not have the check; it protects the updates after it.
 

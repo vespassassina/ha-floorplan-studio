@@ -2494,3 +2494,26 @@ describe("0.12.16: room names sit inside their room, small and half transparent"
     expect(FLOORPLAN_CSS).toMatch(/\.lbl\.zone\{opacity:\.5\}/);
   });
 });
+
+describe("a speaker or TV object linked to a media player shows its state", () => {
+  const floorWith = (type: string, attached?: string[]) => ({ ...ground, unlinked: [{ id: "u1", type, name: "Obj", x: 100, y: 100, rot: 0, scale: 1, ...(attached ? { attached } : {}) }] }) as unknown as typeof ground;
+  const st = (entity: string, state: string) => ({ state: { [entity]: { state, attributes: {} } } }) as unknown as Partial<StateOverlay>;
+  const html = (type: string, attached: string[] | undefined, state?: [string, string]) => renderFloor(floorWith(type, attached), { ...base, ...(state ? st(state[0], state[1]) : {}) } as never);
+  it.each(["speaker", "tv"])("a %s whose player is playing draws two waves and carries on", (type) => {
+    const out = html(type, ["media_player.living"], ["media_player.living", "playing"]);
+    expect(out.match(/class="wave/g)).toHaveLength(2);
+    expect(out).toMatch(/data-u="0" class="dev unl[^"]*\bon\b/);
+  });
+  it("paused, idle, off or unknown: no waves, not on", () => {
+    for (const s of ["paused", "idle", "off", "unavailable"]) {
+      const out = html("speaker", ["media_player.living"], ["media_player.living", s]);
+      expect(out, s).not.toContain('class="wave');
+      expect(out, s).not.toMatch(/data-u="0" class="dev unl[^"]*\bon\b/);
+    }
+    expect(html("speaker", ["media_player.living"])).not.toContain('class="wave');
+  });
+  it("only a speaker or a TV, and only with a media_player attached, reacts", () => {
+    expect(html("heater", ["media_player.living"], ["media_player.living", "playing"])).not.toContain('class="wave');
+    expect(html("speaker", ["sensor.noise"], ["sensor.noise", "playing"])).not.toContain('class="wave');
+  });
+});

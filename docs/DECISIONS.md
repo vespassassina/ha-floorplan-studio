@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: Rotation slider; a speaker or TV object stands in for its media player
+
+Diego: rotate furniture and objects with a slider, not only by fixed steps; a speaker object linked to a media player showing its waves and clickable instead of the player; the same for a TV. Decisions: (1) Furniture and unlinked objects get a 0-359 degree slider (`#frotsl`, `#uurotsl`) above the turn buttons, preview every tick, one undo step per drag (the texture slider's live/commit gesture, `rotateItem`). (2) The speaker and TV objects are the existing *unlinked* objects of type `speaker` and `tv`, not new furniture symbols: they already have the icons, the picking in 2D, 2.5D and 3D, and `attached`. Their linked player is the first attached `media_player.*` (`playerOf`); no schema change. (3) Playing shows the same two waves a speaker device draws and the type's active tint; paused, idle, off or unavailable show neither. (4) A tap or hold on such an object opens the player's own more-info, no popup; Diego chose this over play/pause because `media_player.toggle` is play/pause or power and guessing is worse (see `NO_TOGGLE`). With no player attached, or any other type, the popup is unchanged. (5) The attach picker for these two types lists media players first, including ones the plan has not met. Not done: the 3D view draws these objects without live state, so no waves there yet (a tap works).
+
 ## 2026-10-06: A door's Delete moves above its sensors
 
 Diego, same rule as the room: the door and window panel's red Delete is now the first control after Identity, above Home Assistant. The "Danger" heading is gone. Test helpers `clickCm` and `dragCm` now scroll the plan into view first: a taller panel makes the page scroll when a panel control is clicked, which put plan coordinates off the viewport.

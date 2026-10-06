@@ -7664,6 +7664,29 @@ test("a door's Delete button comes before its sensors, as in the room panel (Die
   expect((await groundOf(page)).doors).toHaveLength(n - 1);
 });
 
+for (const t of [
+  { name: "furniture", open: async (p: Page) => { await menu(p, "Add"); await p.locator("#addFurn").selectOption("bed"); }, id: "#frot", list: "furniture" },
+  { name: "unlinked", open: async (p: Page) => { await menu(p, "Add"); await p.locator("#addUnlDev").selectOption("heater"); }, id: "#uurot", list: "unlinked" },
+] as const)
+  test(`${t.name}: a rotation slider turns it to any angle, live, and the whole drag is one undo step (Diego, 2026-10-06)`, async ({ page }) => {
+    await t.open(page);
+    const get = async () => (await groundOf(page))[t.list].at(-1)!.rot;
+    const before = await get();
+    const slider = page.locator(`${t.id}sl`);
+    await expect(slider).toHaveAttribute("type", "range");
+    await slider.fill("37"); // fires input and change, as a drag and release does
+    expect(await get()).toBe(37);
+    await expect(page.locator(`${t.id}val`)).toHaveText("37°");
+    await slider.fill("211");
+    expect(await get()).toBe(211);
+    await page.locator("#undo").click();
+    expect(await get()).toBe(37); // one step per gesture: undo goes back to the previous release, not to the start
+    await page.locator("#undo").click();
+    expect(await get()).toBe(before);
+    await page.locator("#redo").click();
+    expect(await get()).toBe(37);
+  });
+
 test("View menu shows the installed version, matching the integration manifest, at the top of the menu", async ({ page }) => {
   await menu(page, "View");
   const box = page.locator("#mOpt .box");
