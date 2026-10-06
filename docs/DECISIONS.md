@@ -2,6 +2,20 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: Sprint 14 review: rows open the popup, a narrow room panel is a sheet, a popup is bound to its card
+
+Supersedes the S14.2 row rule ("a type that never toggled goes straight to more-info") and the unbounded popup.
+- **Room-panel rows are the plan icon's twin.** Every row carries `data-x`, so a tap opens the popup whatever the type (a heater, a TV,
+  a lock: a button where the type has one, else name, state and More info); a hold opens more-info. `ROOM_ROW_TAP` stays as the old table
+  but the card no longer reads it. Before, the plan icon and its row of one device did two different things.
+- **Narrow room panel.** Under `ACTIVE_FOLD_BELOW_PX` (480 px, the card's own width, not the viewport's) an open room panel gets
+  `max-height: 45%` (its body already scrolls) and, if never dragged, docks at the bottom when the picked room's centre is in the upper half.
+  Measured at 375 px: 253x209 over a 359x259 plan, hiding 85 % of the picked room's bare floor; now 251x116, the room keeps at least
+  60 % of it (the test holds that). Chosen over docking below the plan, which would grow the card and move the plan under the finger.
+- **Popup height.** `max-height: calc(100% - 16px)` of the card; the sliders sit in their own scrolling block, so the primary button and
+  More info are always on screen (374 px tall in a 259 px card before).
+- **Kiosk.** The popup drops More info: a tap must not reach Home Assistant's dialog on a wall tablet.
+
 ## 2026-10-06: Active list and Room panel by collapsible category (S14.6, item 12)
 
 Supersedes "grouped by type" (S9.5). **Categories** are a new pure module, `src/core/categories.ts`: `CATEGORY_OF` is a

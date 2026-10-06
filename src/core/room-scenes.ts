@@ -71,9 +71,15 @@ export function sceneNeedsConfirm(scene: RoomScene | null | undefined): boolean 
   return customCalls(scene).some((c) => c.service === "turn_off" && c.domain !== "light");
 }
 
-/** The All off / All on presets: one call over the room's lights; none when it has none. Lights only, so no confirm (Diego's spec: "lights only, no confirm"). */
+/** The All off / All on presets: one call per domain over the room's lights; none when it has none. Each entity goes to its own domain's service: a `light.*` to `light`, a `switch.*` to `switch`, anything else to `homeassistant` (a `group` or a fan has no `turn_on` of its own, or not a shared one). Lights only, so no confirm (Diego's spec: "lights only, no confirm"). */
 export function presetCalls(which: "on" | "off", lights: string[]): SceneCall[] {
-  return lights.length ? [{ domain: "light", service: which === "on" ? "turn_on" : "turn_off", data: { entity_id: [...lights] } }] : [];
+  const service = which === "on" ? "turn_on" : "turn_off";
+  const by: Record<string, string[]> = { light: [], switch: [], homeassistant: [] };
+  for (const e of lights) {
+    const d = e.split(".")[0] ?? "";
+    (by[d === "light" || d === "switch" ? d : "homeassistant"] as string[]).push(e);
+  }
+  return Object.entries(by).filter(([, ids]) => ids.length).map(([domain, ids]) => ({ domain, service, data: { entity_id: ids } }));
 }
 
 /** What the Room section lists for `f.rooms[index]`. All three empty: show no scene section. */

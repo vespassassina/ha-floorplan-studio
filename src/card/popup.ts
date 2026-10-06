@@ -27,8 +27,9 @@ export function popupOp(type: string, entity: string | undefined, state: string 
   if (domain === "lock") return state === "locked" ? { label: "Unlock", domain, service: "unlock", confirm: null } : { label: "Lock", domain, service: "lock", confirm: null };
   if (domain === "cover") return state === "open" ? { label: "Close", domain, service: "close_cover", confirm: null } : { label: "Open", domain, service: "open_cover", confirm: null };
   if (!SWITCHABLE.has(domain)) return null;
-  if (state === "off") return { label: "Turn on", domain, service: "turn_on", confirm: null };
-  return { label: "Turn off", domain, service: "turn_off", confirm: domain === "light" ? null : "Confirm turn off" };
+  const call = domain === "group" ? "homeassistant" : domain; // the `group` domain has no turn_on / turn_off; `homeassistant.turn_*` does it
+  if (state === "off") return { label: "Turn on", domain: call, service: "turn_on", confirm: null };
+  return { label: "Turn off", domain: call, service: "turn_off", confirm: domain === "light" ? null : "Confirm turn off" };
 }
 
 export interface LightCaps { brightness: boolean; temp: { min: number; max: number } | null; hue: boolean }

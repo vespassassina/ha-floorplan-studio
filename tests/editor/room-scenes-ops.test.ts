@@ -27,18 +27,24 @@ describe("scene writers", () => {
   it("addScene names and ids it uniquely, fills it with the given entities switched on, and stops at the cap", () => {
     const r = roomOf();
     expect(addScene(r, ["light.a", "switch.b"])).toBe(true);
-    expect(addScene(r, [])).toBe(true);
+    expect(addScene(r, ["light.b"])).toBe(true);
     expect(r.scenes!.map((s) => s.name)).toEqual(["Scene 1", "Scene 2"]);
     expect(new Set(r.scenes!.map((s) => s.id)).size).toBe(2);
     expect(r.scenes![0].items).toEqual([{ entity: "light.a", on: true }, { entity: "switch.b", on: true }]);
     removeScene(r, r.scenes![0].id);
-    addScene(r, []);
+    addScene(r, ["light.b"]);
     expect(new Set(r.scenes!.map((s) => s.id)).size).toBe(2); // an id of a removed scene is never handed out twice in a row
-    while (r.scenes!.length < 12) addScene(r, []);
+    while (r.scenes!.length < 12) addScene(r, ["light.b"]);
+    expect(addScene(r, ["light.b"])).toBe(false);
+  });
+  it("addScene refuses an empty scene: no target, or none that is a light or a switch (S14 review)", () => {
+    const r = roomOf();
     expect(addScene(r, [])).toBe(false);
+    expect(addScene(r, ["sensor.t", "fan.x"])).toBe(false);
+    expect(r.scenes).toBeUndefined();
   });
   it("renameScene trims, refuses an empty name, and reports no change for the same name", () => {
-    const r = roomOf(); addScene(r, []);
+    const r = roomOf(); addScene(r, ["light.a"]);
     const id = r.scenes![0].id;
     expect(renameScene(r, id, "  Movie  ")).toBe(true);
     expect(r.scenes![0].name).toBe("Movie");
@@ -85,7 +91,7 @@ describe("scene writers", () => {
   it("every combination leaves a layout validate accepts", () => {
     const l = structuredClone(demo);
     const r = l.floors.ground.rooms[0] as Room;
-    for (const ents of [[], ["light.demo_living"], ["light.demo_living", "switch.demo_hall"]]) {
+    for (const ents of [["light.demo_kitchen"], ["light.demo_living"], ["light.demo_living", "switch.demo_hall"]]) {
       addScene(r, ents);
       const id = r.scenes![r.scenes!.length - 1].id;
       for (const patch of [{ brightness: 500 }, { brightness: -3 }, { on: false }, { on: true, brightness: 40 }, { brightness: null }]) for (const e of ents) setSceneItem(r, id, e, patch);

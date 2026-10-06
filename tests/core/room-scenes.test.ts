@@ -102,6 +102,16 @@ describe("roomScenes: what the card's Room section lists", () => {
     expect(presetCalls("on", ["light.a"])).toEqual([{ domain: "light", service: "turn_on", data: { entity_id: ["light.a"] } }]);
     expect(presetCalls("off", [])).toEqual([]);
   });
+  it("a preset uses each entity's own domain: light.*, switch.*, and homeassistant.* for anything else (S14 review)", () => {
+    const e = ["light.a", "switch.b", "light.c", "fan.d", "group.e", "input_boolean.f"];
+    expect(presetCalls("off", e)).toEqual([
+      { domain: "light", service: "turn_off", data: { entity_id: ["light.a", "light.c"] } },
+      { domain: "switch", service: "turn_off", data: { entity_id: ["switch.b"] } },
+      { domain: "homeassistant", service: "turn_off", data: { entity_id: ["fan.d", "group.e", "input_boolean.f"] } },
+    ]);
+    expect(presetCalls("on", ["switch.b"])).toEqual([{ domain: "switch", service: "turn_on", data: { entity_id: ["switch.b"] } }]);
+    expect(presetCalls("on", ["nodot", ""])).toEqual([{ domain: "homeassistant", service: "turn_on", data: { entity_id: ["nodot", ""] } }]);
+  });
   it("skips a malformed scene in the layout instead of throwing", () => {
     const bad = floorWith([{ area: "living", scenes: [null, 5, { id: 1 }, { id: "ok", name: "Ok", items: [] }] }], []);
     expect(roomScenes(bad, 0, HASS).custom).toEqual([{ id: "ok", name: "Ok", confirm: false }]);

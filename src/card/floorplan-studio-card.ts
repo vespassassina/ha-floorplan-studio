@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, heatRange, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, heatRange, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, DeviceType, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent, type TapTarget } from "./actions";
@@ -291,6 +291,9 @@ export class FloorplanStudioCard extends LitElement {
     .fp-active-empty { margin: 4px 2px; font: 12px/1.3 system-ui, sans-serif; color: var(--fp-text); }
     /* S11.3/S11.4: the room section and the details under a row. Same card chrome and tokens as the list above. */
     .fp-active.fp-room-open { width: min(260px, 70%); }
+    /* S14 review: on a card narrower than ACTIVE_FOLD_BELOW_PX an open room panel is a short sheet, not a column down the card: at most 45% of the card high, its body scrolling, and docked on the half opposite the picked room (class set in _positionActivePanelNow) so that room stays in view. */
+    .fp-active.fp-sheet { max-height: 45%; }
+    .fp-active.fp-sheet.fp-dock-bottom { top: auto; bottom: 8px; }
     .fp-item { display: flex; flex-wrap: wrap; align-items: center; }
     .fp-item .fp-active-row { flex: 1 1 0; width: auto; min-width: 0; }
     .fp-row-state { margin-left: auto; padding-left: 6px; flex: 0 0 auto; white-space: nowrap; font-size: 11px; color: var(--fp-text); overflow-wrap: anywhere; text-align: right; }
@@ -362,6 +365,9 @@ export class FloorplanStudioCard extends LitElement {
   private _tipHost: DOMRect | null = null;
   private _tipEl: Element | null = null;
   private _tipTitle: { el: Element; title: Element } | null = null;
+  /** The tooltip's subject and the selector of its plan element, so a re-render (which replaces the plan's elements) can refresh its text and take the new element's `<title>` out again. */
+  private _tipTarget: TapTarget | null = null;
+  private _tipSel: string | null = null;
   /** S7.4: the zoomed viewBox, or `null` for fit. Card state: reset by `setConfig` and a floor change, never by `hass`. */
   private _view: View | null = null;
   /** S12.3: the live 3D view, the floor and stair context it was built for, and why 3D cannot run (`null` while it can). */
@@ -808,6 +814,8 @@ export class FloorplanStudioCard extends LitElement {
     this._flushSave(); // under the old config's key
     this._settleTurn(false);
     this._config = config ?? {};
+    this._closePopup();
+    this._hideTip();
     this._layout = null;
     this._error = null;
     this._urlRequested = false;
@@ -976,6 +984,8 @@ export class FloorplanStudioCard extends LitElement {
       if (!v.ok) throw new Error(v.errors[0]);
       if (!Object.keys(v.layout.floors).length) throw new Error("the plan has no floors");
       this._layout = v.layout;
+      this._closePopup(); // its subject belonged to the layout just replaced
+      this._hideTip();
       // S2.4 review: every floor, not only the one on show, so a sensor keeps fading across a floor switch (S2.6).
       this._motionEntities = new Set(Object.values(v.layout.floors).flatMap((f) => f.devices.filter((d) => d.type === "motion").map((d) => d.entity)));
       this._error = null;
@@ -1173,6 +1183,7 @@ export class FloorplanStudioCard extends LitElement {
    * floor already, not by which one is on screen (S2.4 review). */
   private _selectFloor(key: string): void {
     if (this._shownFloor === key) return;
+    this._closePopup(); // its subject is on the floor just left
     this._settleTurn(false); // a turn in flight ends where it was going, under the floor it began on
     this._saveViewNow(); // the floor just left keeps its zoom, turn and camera (S14.4)
     this._shownFloor = key;
@@ -1354,6 +1365,7 @@ export class FloorplanStudioCard extends LitElement {
     }
     this._chooserDialogWasOpen = chooserOpen;
     this._syncPopup();
+    this._syncTip();
   }
 
   /** Whether the 3D model is what the card draws: 3D is picked, its module is loaded, it has not failed, and there is a floor. */
@@ -1589,7 +1601,8 @@ export class FloorplanStudioCard extends LitElement {
   private _onOutsideDown = (e: Event): void => {
     if (!this._popup) return;
     for (const n of e.composedPath()) {
-      if (n instanceof Element && (n.classList.contains("fp-pop") || n.classList.contains("fp-3d") || n.matches("g[data-x], button[data-x], line[data-d], g[data-u], [data-pop]"))) return;
+      // Only what is in this card's own shadow tree counts as inside: an icon of another card must close this card's popup.
+      if (n instanceof Element && n.getRootNode() === this.shadowRoot && (n.classList.contains("fp-pop") || n.classList.contains("fp-3d") || n.matches("g[data-x], button[data-x], line[data-d], g[data-u], [data-pop]"))) return;
     }
     this._closePopup();
   };
@@ -1684,7 +1697,7 @@ export class FloorplanStudioCard extends LitElement {
       return p.draft && p.draft.kind === k && p.draft.from === now ? p.draft.value : now;
     };
     return popupTemplate({
-      subject: s, text: this._subjectText(s), op, confirming: p.confirming, caps,
+      subject: s, text: this._subjectText(s), op, confirming: p.confirming, kiosk: this._kiosk(), caps,
       doorLabel: s.door?.cover ? (this._coverService(s.door) === "close_cover" ? "Close" : "Open") : null,
       level: { b: caps?.brightness ? level("b") : null, t: caps?.temp ? level("t") : null, h: caps?.hue ? level("h") : null },
       act: () => this._popupAct(),
@@ -1786,12 +1799,12 @@ export class FloorplanStudioCard extends LitElement {
       (tip.lastElementChild as HTMLElement).textContent = this._subjectText(s);
       tip.hidden = false;
       this._tipKey = s.key;
+      this._tipTarget = t;
       this._tipHost = this.getBoundingClientRect();
       if (el) {
-        el.setAttribute("aria-describedby", "fp-tip");
-        const title = el.querySelector(":scope > title"); // the browser's own tooltip would sit beside ours
-        if (title) { el.removeChild(title); this._tipTitle = { el, title }; }
-        this._tipEl = el;
+        const kind = el.hasAttribute("data-x") ? "x" : el.hasAttribute("data-d") ? "d" : "u";
+        this._tipSel = `[data-${kind}="${el.getAttribute(`data-${kind}`)}"]`;
+        this._holdTipEl(el);
       }
     }
     const h = this._tipHost!, w = tip.offsetWidth, ht = tip.offsetHeight;
@@ -1800,9 +1813,34 @@ export class FloorplanStudioCard extends LitElement {
     tip.style.transform = `translate(${Math.round(left)}px, ${Math.round(below + ht > h.height - 4 ? Math.max(4, y - h.top - ht - 10) : below)}px)`;
   }
 
+  /** The plan's element under the tooltip: it points at the tooltip and its own `<title>` is held back, so the browser's tooltip does not sit under ours. */
+  private _holdTipEl(el: Element): void {
+    el.setAttribute("aria-describedby", "fp-tip");
+    const title = el.querySelector(":scope > title");
+    if (title) { el.removeChild(title); this._tipTitle = { el, title }; }
+    this._tipEl = el;
+  }
+
+  /** After every render: a state change while the tooltip is up rewrites its text, and the plan's elements, drawn again by that render, get the same treatment as the first (the new `<title>` out, `aria-describedby` on). The subject gone from the plan hides it. */
+  private _syncTip(): void {
+    const tip = this.shadowRoot?.querySelector<HTMLElement>(".fp-tip");
+    if (this._tipKey === null || !tip) return;
+    const s = this._tipTarget ? this._subjectOf(this._tipTarget) : null;
+    if (!s || s.key !== this._tipKey) { this._hideTip(); return; }
+    (tip.firstElementChild as HTMLElement).textContent = s.name;
+    (tip.lastElementChild as HTMLElement).textContent = this._subjectText(s);
+    if (this._tipSel) {
+      const el = this.shadowRoot?.querySelector(`svg ${this._tipSel}`) ?? null;
+      if (!el) { this._hideTip(); return; }
+      if (el !== this._tipEl) { this._tipTitle = null; this._holdTipEl(el); } // the old element and its title are gone with the old drawing
+    }
+  }
+
   private _hideTip = (): void => {
     if (this._tipKey === null) return;
     this._tipKey = null;
+    this._tipTarget = null;
+    this._tipSel = null;
     const tip = this.shadowRoot?.querySelector<HTMLElement>(".fp-tip");
     if (tip) tip.hidden = true;
     this._tipEl?.removeAttribute("aria-describedby");
@@ -1962,6 +2000,16 @@ export class FloorplanStudioCard extends LitElement {
   private _positionActivePanelNow(): void {
     const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active");
     if (!panel) return;
+    const sheet = panel.classList.contains("fp-room-open") && this.getBoundingClientRect().width < ACTIVE_FOLD_BELOW_PX;
+    panel.classList.toggle("fp-sheet", sheet);
+    // Docked at the bottom when the picked room's centre is in the card's upper half, at the top (the default) when it is in the lower; a panel the person has dragged stays where it was put.
+    let bottom = false;
+    if (sheet && !this._activePos) {
+      const poly = this.shadowRoot?.querySelector("svg polygon.room-picked");
+      if (poly) { const h = this.getBoundingClientRect(), r = poly.getBoundingClientRect(); bottom = r.top + r.height / 2 - h.top < h.height / 2; }
+    }
+    panel.classList.toggle("fp-dock-bottom", bottom);
+    if (bottom) { panel.style.top = ""; panel.style.left = ""; return; }
     if (!this._activePos) {
       panel.style.left = "";
       // The CSS default sits under a one-row toolbar. On a narrow card the toolbar wraps to more rows and would
@@ -2129,20 +2177,18 @@ export class FloorplanStudioCard extends LitElement {
   private _keyToggle(r: RoomDeviceRow, row: Element | null): void {
     const d = this._floor()?.devices[r.index];
     const b = row?.getBoundingClientRect();
+    if (d?.type === "vacuum") { this._openVacuumDialog(d); return; } // as its tap on the plan does
     if (d) this._openPopup({ device: d, index: r.index }, { x: b ? b.left + b.width / 2 : 0, y: b ? b.bottom : 0 }, row);
   }
 
-  /** A row of the room section's device list. A toggling type (`ROOM_ROW_TAP`) carries `data-x`, so the panel's own
-   *  `bindDeviceActions` gives it tap = toggle and hold = more-info, exactly as on the plan; its `click` only acts for a
-   *  keyboard press (`detail` 0), which sends no pointer events. Every other type is a plain more-info button. */
+  /** A row of the room section's device list. It carries `data-x`, so the panel's own `bindDeviceActions` gives it the
+   *  plan icon's gestures: a tap opens the popup, a hold opens more-info. Its `click` only acts for a keyboard press
+   *  (`detail` 0), which sends no pointer events. */
   private _roomDeviceRow(r: RoomDeviceRow) {
-    const toggles = ROOM_ROW_TAP[r.type] === "toggle";
-    const click = (e: MouseEvent) => {
-      if (!toggles) fireEvent(this, "hass-more-info", { entityId: r.entity });
-      else if (e.detail === 0) this._keyToggle(r, e.currentTarget as Element);
-    };
+    // S14 review: every row is the plan icon's twin (`data-x`): a tap opens the popup, a hold opens more-info, whatever the type.
+    const click = (e: MouseEvent) => { if (e.detail === 0) this._keyToggle(r, e.currentTarget as Element); };
     return html`<div class="fp-item">
-      <button type="button" class=${r.on ? "fp-active-row" : "fp-active-row fp-off"} data-x=${toggles ? String(r.index) : nothing} style="--fp-active-row-color:var(${r.colorVar})" @click=${click}>
+      <button type="button" class=${r.on ? "fp-active-row" : "fp-active-row fp-off"} data-x=${String(r.index)} style="--fp-active-row-color:var(${r.colorVar})" @click=${click}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${DEVICE_ICONS[r.type]}></path></svg>
         <span>${r.name}</span><span class="fp-row-state">${r.state}</span>
       </button>

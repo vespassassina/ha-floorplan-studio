@@ -270,7 +270,8 @@ switch floors, zoom out past what fits, or reach Home Assistant's more-info
 dialog by holding a finger on a device. It hides the floor chips and the
 zoom +/−/fit buttons and the rotate buttons (`rotate_switch: true` brings
 those back), and a long press does nothing — a plain tap still
-opens the device's popup, whose button operates it, exactly as without kiosk mode.
+opens the device's popup, whose button operates it, as without kiosk mode, but the popup has no
+**More info** link: nothing in kiosk mode reaches Home Assistant's dialog.
 
 `kiosk: true` shows the first floor and draws no switcher whatever would
 otherwise have produced one — `floors`, `floor: "all"`, or simply a
@@ -356,8 +357,8 @@ in the room. They are lights only, so they do not ask first, the same as a light
 switch off asks first: its button turns into **Confirm: name** with a Cancel next to it. A room with no scene and no light shows no
 Scenes label. Scenes are in the Room section, so they need the Active panel (not `kiosk`, not `active_list: false`).
 
-A tap on a row opens the same popup as the icon on the plan; a hold opens
-Home Assistant's more-info. Below, the Active list is cut to the room's
+A tap on a row opens the same popup as the icon on the plan, for every type (a radiator's has only **More info**); a hold opens
+Home Assistant's more-info. On a card under 480 px wide the open panel is a short sheet, at most 45 % of the card high with its list scrolling inside, docked on the half of the card away from the picked room. Below, the Active list is cut to the room's
 entities; **Show all** brings the rest back and keeps the room picked.
 
 Tap the room again, tap off any room, press Escape (with the pointer over the
@@ -668,12 +669,12 @@ in 2D and in 3D, it opens a small popup next to the icon:
   `turn_on`, `turn_off`, `open_cover`, `close_cover`, `lock` or `unlock` call on the device's own entity;
 - a **More info** link, which opens Home Assistant's dialog (or the chooser when the object names several entities).
 
-The popup stays inside the card. Only one is open at a time. It closes on Escape, on a tap anywhere else, or on a
+The popup stays inside the card (on a short card its sliders scroll; the name, the state and the buttons stay in view). Only one is open at a time, across cards too. It also closes when the floor changes or the layout is replaced. It closes on Escape, on a tap anywhere else, or on a
 second tap of the same icon. Tapping another icon moves it. It is a non-modal `role="dialog"` named after the device;
 focus goes to its primary button and comes back to what opened it. A **hold** (long press) still opens more-info
 directly, as before.
 
-- **Turning something OFF asks first**, for every type except a light: the button turns into **Confirm turn off**
+- **Turning something OFF asks first**, for every type except a light (a lock and a cover act at once; a media player or speaker has no on/off button): the button turns into **Confirm turn off**
   next to Cancel. Turning ON is immediate. A light's OFF is immediate too. A lock and a cover keep their own
   wording. A door with a `cover` keeps its confirm dialog, opened from the popup's button.
 - **A light** with brightness gets a slider (1-100 %); one with colour temperature gets a kelvin slider; one with a

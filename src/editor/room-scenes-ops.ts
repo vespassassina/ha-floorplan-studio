@@ -23,13 +23,14 @@ export function roomSceneTargets(f: Floor, roomIndex: number): { entity: string;
 
 const find = (r: Room, id: string): RoomScene | undefined => r.scenes?.find((s) => s.id === id);
 
-/** A new scene named "Scene N" with `entities` switched on (only light and switch ids are kept). False at the cap. */
+/** A new scene named "Scene N" with `entities` switched on (only light and switch ids are kept). False at the cap, and false when none is left: a scene with nothing in it does nothing, so none is made. */
 export function addScene(r: Room, entities: string[]): boolean {
   const list = r.scenes ?? [];
   if (list.length >= MAX_ROOM_SCENES) return false;
+  const items: SceneItem[] = [...new Set(entities.filter((e) => LIGHT_OR_SWITCH.test(e)))].slice(0, MAX_SCENE_ITEMS).map((entity) => ({ entity, on: true }));
+  if (!items.length) return false;
   let n = list.length + 1;
   while (list.some((s) => s.id === `scene-${n}` || s.name === `Scene ${n}`)) n++;
-  const items: SceneItem[] = [...new Set(entities.filter((e) => LIGHT_OR_SWITCH.test(e)))].slice(0, MAX_SCENE_ITEMS).map((entity) => ({ entity, on: true }));
   r.scenes = [...list, { id: `scene-${n}`, name: `Scene ${n}`, items }];
   return true;
 }

@@ -52,6 +52,10 @@ describe("popupOp: the default operation per device type", () => {
     for (const e of ["fan.x", "siren.x", "switch.pump", "humidifier.x", "input_boolean.x"]) expect(popupOp("other", e, "on")!.confirm, e).toBe("Confirm turn off");
     for (const e of ["sensor.x", "binary_sensor.x", "button.x", "scene.x"]) expect(popupOp("other", e, "on"), e).toBeNull();
   });
+  it("a group has no turn_on of its own: its button calls homeassistant.turn_on / turn_off (S14 review)", () => {
+    expect(popupOp("other", "group.lamps", "off")).toMatchObject({ label: "Turn on", domain: "homeassistant", service: "turn_on", confirm: null });
+    expect(popupOp("other", "group.lamps", "on")).toMatchObject({ label: "Turn off", domain: "homeassistant", service: "turn_off", confirm: "Confirm turn off" });
+  });
   it("no button with no entity, or a state it cannot act on", () => {
     expect(popupOp("switch", "", "on")).toBeNull();
     expect(popupOp("switch", undefined, "on")).toBeNull();

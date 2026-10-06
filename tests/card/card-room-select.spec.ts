@@ -190,7 +190,10 @@ test.describe("the room section and the filtered list", () => {
     await room(page).locator("css=.fp-room-devices .fp-active-row", { hasText: "Living light" }).click();
     await expect(card(page).locator("css=.fp-pop")).toHaveAttribute("aria-label", "Living light");
     expect(await calls(page)).toEqual([]); // a tap on a row operates nothing
-    await room(page).locator("css=.fp-room-devices .fp-active-row", { hasText: "Living radiator" }).click(); // a type that never toggled: more-info as before
+    await room(page).locator("css=.fp-room-devices .fp-active-row", { hasText: "Living radiator" }).click(); // a type that never toggled: the same popup as its icon (S14 review), More info inside
+    await expect(card(page).locator("css=.fp-pop")).toHaveAttribute("aria-label", "Living radiator");
+    expect(await infos(page)).toEqual([]);
+    await card(page).locator("css=.fp-pop .fp-pop-more").click();
     expect(await infos(page)).toContain("climate.demo_living");
     expect(await calls(page)).toEqual([]);
   });
