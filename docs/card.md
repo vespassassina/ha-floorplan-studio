@@ -378,12 +378,22 @@ back, reload or switch dashboard tab and the plan is as it was left, with no
 flash of the configured look. The floor and the Active list are remembered
 as before.
 
+**Zoom, spot, rotation and the 3D camera are remembered per floor.** Zoom in
+on the ground floor, turn the first floor, orbit the 3D model on either:
+switch floors and back and each is as you left it. A floor you never touched
+shows the config's look (in 3D, the way of looking carried over from the floor
+before, framed for itself). Reset view, and Reset camera in 3D, clear the
+floor on show and leave the others alone. With storage blocked the floors
+still remember until the page closes. Entries written by an older card (one
+zoom and turn for the whole card) move to the floor they were saved on.
+
 - **A remembered value wins over the config** for as long as the config is the
   same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `names`, `center`,
   `zoom_level`, the layout source or the floors in the card's YAML and that
   card starts with a clean memory: the new YAML is what you meant.
 - **Reset view** (the last button of the stack, greyed while nothing differs) puts
-  every one of these back to the card's config and forgets the memory. The
+  every one of these back to the card's config and forgets the memory (zoom,
+  turn and camera: of the floor on show only). The
   turn goes back the short way round. The floor stays. It is not the Fit
   button: Fit, or Home view on a pinned card, only changes zoom and position.
 - **Keys.** The card you hover or have focused listens; another card on the

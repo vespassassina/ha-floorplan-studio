@@ -137,6 +137,27 @@ export class Orbit {
     this.target = [...this.start.target];
   }
 
+  /** The camera as numbers a floor can be left with and found again by (S14.4): where it looks from, the distance as a
+   * multiple of the one that frames the floor, and the look-at point's offset from the floor's centre. None of them
+   * depends on the size of the view, so a restore in a differently shaped card still frames the same. */
+  state(): { az: number; polar: number; zoom: number; dx: number; dz: number } {
+    return { az: this.azimuth, polar: this.polar, zoom: this.distance / this.fit, dx: this.target[0] - (this.lo[0] + this.hi[0]) / 2, dz: this.target[2] - (this.lo[2] + this.hi[2]) / 2 };
+  }
+
+  /** The inverse of `state`, for a camera someone stored: untrusted, so each number is bounded the way a drag, a wheel turn
+   * and a pan bound theirs, and anything that is not five finite numbers changes nothing. */
+  restore(s: { az: number; polar: number; zoom: number; dx: number; dz: number }): void {
+    if (!s || typeof s !== "object" || ![s.az, s.polar, s.zoom, s.dx, s.dz].every(fin)) return;
+    this.azimuth = s.az;
+    this.polar = clamp(s.polar, MIN_POLAR, MAX_POLAR);
+    this.distance = clamp(s.zoom * this.fit, this.fit * NEAR_FACTOR, this.fit * FAR_FACTOR);
+    const at = (i: 0 | 2, d: number) => {
+      const centre = (this.lo[i] + this.hi[i]) / 2, room = 0.5 * (this.hi[i] - this.lo[i]) + 100;
+      return clamp(centre + d, this.lo[i] - room, this.hi[i] + room);
+    };
+    this.target = [at(0, s.dx), (this.lo[1] + this.hi[1]) / 2, at(2, s.dz)];
+  }
+
   /** Whether the camera has a position at all: false when the bounds are so large that the distance overflowed (the view then falls back to 2D). */
   get finite(): boolean { return [this.distance, this.fit, ...this.target].every(fin); }
 

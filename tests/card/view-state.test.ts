@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround } from "../../src/card/view-state";
+import { CAM_ZOOM_MAX, CAM_ZOOM_MIN, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround } from "../../src/card/view-state";
 import { MAX_ZOOM, MIN_ZOOM } from "../../src/card/viewport";
 
 const isView = (v: unknown) => v === "2d" || v === "2.5d";
@@ -46,10 +46,14 @@ describe("easeInOut", () => {
   });
 });
 
+/** One floor's view, wrapped as the card stores it. */
+const onFloor = (fv: unknown, key = "ground") => ({ floors: [[key, fv]] });
+const floorOf = (raw: unknown, key = "ground") => parse(raw).floors?.find(([k]) => k === key)?.[1];
+
 describe("parseStoredView: untrusted storage, field by field", () => {
-  it("reads a full good entry", () => {
-    const raw = JSON.stringify({ v: 1, zoom: 2.5, focus: [120, -40], rotation: 90, view: "2.5d", tilt: 0.3, theme: "light", labels: false });
-    expect(parse(raw)).toEqual({ zoom: 2.5, focus: [120, -40], rotation: 90, view: "2.5d", tilt: 0.3, theme: "light", labels: false });
+  it("reads a full good entry, the view per floor", () => {
+    const raw = JSON.stringify({ v: 1, floors: [["ground", { zoom: 2.5, focus: [120, -40], rotation: 90, cam: { az: 1, polar: 0.8, zoom: 0.5, dx: 10, dz: -20 } }]], view: "2.5d", tilt: 0.3, theme: "light", labels: false, floor: "ground" });
+    expect(parse(raw)).toEqual({ floors: [["ground", { zoom: 2.5, focus: [120, -40], rotation: 90, cam: { az: 1, polar: 0.8, zoom: 0.5, dx: 10, dz: -20 } }]], view: "2.5d", tilt: 0.3, theme: "light", labels: false, floor: "ground" });
   });
 
   it("an empty entry, no entry and junk are nothing, and never throw", () => {
@@ -57,9 +61,9 @@ describe("parseStoredView: untrusted storage, field by field", () => {
   });
 
   it("drops each bad field and keeps the good ones", () => {
-    const raw = { zoom: "big", focus: [1, 2], rotation: NaN, view: "3d?", tilt: "x", theme: "neon", labels: "yes" };
+    const raw = { tilt: "x", view: "3d?", theme: "neon", labels: "yes", floors: [["ground", { zoom: "big", focus: [1, 2], rotation: NaN, cam: 7 }]] };
     expect(parse(raw)).toEqual({});
-    expect(parse({ ...raw, rotation: 45, theme: "ha" })).toEqual({ rotation: 45, theme: "ha" });
+    expect(parse({ ...raw, theme: "ha", floors: [["ground", { rotation: 45 }]] })).toEqual({ theme: "ha", floors: [["ground", { rotation: 45 }]] });
   });
 
   it("a view the card does not offer is dropped, one it offers is kept as the string it was", () => {
@@ -75,35 +79,66 @@ describe("parseStoredView: untrusted storage, field by field", () => {
   });
 
   it("clamps zoom to the card's range", () => {
-    expect(parse({ zoom: 1000, focus: [0, 0] }).zoom).toBe(MAX_ZOOM);
-    expect(parse({ zoom: 0.0001, focus: [0, 0] }).zoom).toBe(MIN_ZOOM);
-    expect(parse({ zoom: -2, focus: [0, 0] }).zoom).toBe(MIN_ZOOM);
+    expect(floorOf(onFloor({ zoom: 1000, focus: [0, 0] }))!.zoom).toBe(MAX_ZOOM);
+    expect(floorOf(onFloor({ zoom: 0.0001, focus: [0, 0] }))!.zoom).toBe(MIN_ZOOM);
+    expect(floorOf(onFloor({ zoom: -2, focus: [0, 0] }))!.zoom).toBe(MIN_ZOOM);
   });
 
   it("zoom and focus come as a pair: one without the other is dropped", () => {
-    expect(parse({ zoom: 2 })).toEqual({});
-    expect(parse({ focus: [1, 2] })).toEqual({});
-    expect(parse({ zoom: 2, focus: [1] })).toEqual({});
-    expect(parse({ zoom: 2, focus: [1, "2"] })).toEqual({});
-    expect(parse({ zoom: 2, focus: [1, Infinity] })).toEqual({});
-    expect(parse({ zoom: 2, focus: [1, 2, 3] })).toEqual({});
+    for (const fv of [{ zoom: 2 }, { focus: [1, 2] }, { zoom: 2, focus: [1] }, { zoom: 2, focus: [1, "2"] }, { zoom: 2, focus: [1, Infinity] }, { zoom: 2, focus: [1, 2, 3] }]) {
+      expect(parse(onFloor(fv)), JSON.stringify(fv)).toEqual({});
+    }
   });
 
   it("a focus far outside any plan is pulled to a finite bound", () => {
-    const f = parse({ zoom: 2, focus: [1e300, -1e300] }).focus!;
+    const f = floorOf(onFloor({ zoom: 2, focus: [1e300, -1e300] }))!.focus!;
     expect(Math.abs(f[0])).toBeLessThanOrEqual(1e6);
     expect(Math.abs(f[1])).toBeLessThanOrEqual(1e6);
   });
 
   it("rotation is rounded to a step of 45 and wrapped", () => {
-    expect(parse({ rotation: 100 }).rotation).toBe(90);
-    expect(parse({ rotation: -45 }).rotation).toBe(315);
-    expect(parse({ rotation: 720 }).rotation).toBe(0);
+    expect(floorOf(onFloor({ rotation: 100 }))!.rotation).toBe(90);
+    expect(floorOf(onFloor({ rotation: -45 }))!.rotation).toBe(315);
+    expect(floorOf(onFloor({ rotation: 720 }))!.rotation).toBe(0);
   });
 
   it("tilt is clamped to 0..1", () => {
     expect(parse({ tilt: 5 }).tilt).toBe(1);
     expect(parse({ tilt: -5 }).tilt).toBe(0);
+  });
+
+  it("each floor stands alone: a bad one is dropped, the others stay", () => {
+    const raw = { floors: [["ground", { rotation: 90 }], ["first", { zoom: "x" }], [7, { rotation: 45 }], ["", { rotation: 45 }], "junk", ["test", { rotation: 135 }]] };
+    expect(parse(raw).floors).toEqual([["ground", { rotation: 90 }], ["test", { rotation: 135 }]]);
+  });
+
+  it("a floor named __proto__ is data, not a prototype", () => {
+    const raw = JSON.parse('{"floors":[["__proto__",{"rotation":90}],["constructor",{"rotation":45}]]}');
+    expect(parse(raw).floors).toEqual([["__proto__", { rotation: 90 }], ["constructor", { rotation: 45 }]]);
+    expect(({} as Record<string, unknown>).rotation).toBeUndefined();
+  });
+
+  it("keeps at most 50 floors", () => {
+    const floors = Array.from({ length: 80 }, (_, i) => [`f${i}`, { rotation: 90 }]);
+    expect(parse({ floors }).floors).toHaveLength(50);
+  });
+
+  it("the 3D camera: every number must be finite, and each is bounded", () => {
+    const good = { az: 1, polar: 0.8, zoom: 1, dx: 0, dz: 0 };
+    for (const bad of [{ ...good, az: NaN }, { ...good, polar: "1" }, { ...good, zoom: Infinity }, { ...good, dx: null }, { az: 1 }, [], "x"]) {
+      expect(parse(onFloor({ cam: bad })), JSON.stringify(bad)).toEqual({});
+    }
+    const c = floorOf(onFloor({ cam: { az: 1e300, polar: 0.8, zoom: 99, dx: -1e300, dz: 1e300 } }))!.cam!;
+    expect(Math.abs(c.az)).toBeLessThanOrEqual(1e4);
+    expect(c.zoom).toBe(CAM_ZOOM_MAX);
+    expect(Math.abs(c.dx)).toBeLessThanOrEqual(1e6);
+    expect(Math.abs(c.dz)).toBeLessThanOrEqual(1e6);
+    expect(floorOf(onFloor({ cam: { ...good, zoom: 0 } }))!.cam!.zoom).toBe(CAM_ZOOM_MIN);
+  });
+
+  it("an entry from before per-floor memory moves its zoom, focus and turn to the floor it names", () => {
+    expect(parse({ zoom: 2, focus: [1, 2], rotation: 90, floor: "first" })).toEqual({ floor: "first", floors: [["first", { zoom: 2, focus: [1, 2], rotation: 90 }]] });
+    expect(parse({ zoom: 2, focus: [1, 2], rotation: 90 })).toEqual({}); // no floor named: whose view it was cannot be said
   });
 });
 

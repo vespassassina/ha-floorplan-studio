@@ -29,7 +29,11 @@ export interface View3DOptions {
   onFail(reason: string, retry?: boolean): void;
   /** The plan's turn in degrees, the camera's starting azimuth. */
   turnDeg: number;
+  /** Called after the person moved the camera (a drag, a wheel turn, a pinch), once per gesture event: the card saves the camera for the floor, debounced. Never called for a `setCamera` or `reset`. */
+  onCamera?(): void;
 }
+/** The camera as `Orbit.state` says it: numbers that do not depend on the size of the view. */
+export interface CameraState { az: number; polar: number; zoom: number; dx: number; dz: number }
 export interface View3D {
   /**
    * Replaces the scene with this floor's, alone: no other floor is drawn. Never throws. The camera keeps its azimuth and polar and
@@ -56,6 +60,10 @@ export interface View3D {
   setLive(floor: unknown, o: RenderOpts, now: number): void;
   /** Back to the first camera. */
   reset(): void;
+  /** Where the camera stands now, to be stored per floor (S14.4). */
+  camera(): CameraState;
+  /** Puts the camera back where `camera()` once said, bounded by what a drag could reach; junk changes nothing. Call it after `setFloor`, which frames the floor first. */
+  setCamera(c: CameraState): void;
   /** Whether the last pointer gesture moved: a drag, which is never a tap (S12.4 reads this). */
   readonly dragged: boolean;
   dispose(): void;
@@ -274,11 +282,13 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       dragged = true;
       container.dataset.dragged = "true";
       if (panning) orbit.pan(dx, dy, size().h); else orbit.rotate(dx, dy);
+      opts.onCamera?.();
     } else if (pointers.size === 2) {
       const t = twoFingers();
       if (pinch > 0 && t.d > 0) orbit.zoom(pinch / t.d);
       orbit.pan(t.m.x - mid.x, t.m.y - mid.y, size().h);
       pinch = t.d; mid = t.m;
+      opts.onCamera?.();
     }
     want();
   };
@@ -290,6 +300,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
     orbit.zoom(Math.exp(Math.max(-200, Math.min(200, e.deltaY)) * (e.ctrlKey ? 0.01 : 0.0015)));
+    opts.onCamera?.();
     want();
   };
   const noMenu = (e: Event) => e.preventDefault();
@@ -724,6 +735,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       try { applyLive(); } catch (e) { debugOnce("3D view: the live state could not be drawn; the last one stays on screen", e); }
     },
     reset() { orbit.reset(); want(); },
+    camera: () => orbit.state(),
+    setCamera(c) { orbit.restore(c); want(); },
     get dragged() { return dragged; },
     dispose() {
       if (disposed) return;

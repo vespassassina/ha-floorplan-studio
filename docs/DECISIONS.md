@@ -30,6 +30,19 @@ the editor's own Add > Unlinked list keeps its type grouping. Stated exception, 
   list, so the visual editor has two plain fields.
 - **Not done, stated.** Only plugs: the schema allows `power` on a plug only, and a switch has no sensor field. Widening that is
   a schema change for Diego to ask for.
+## 2026-10-06: S14.4, the card remembers its view per floor, 2D and 3D
+
+Spec item 8. Supersedes "one zoom, focus and turn per card" of the 0.12 view memory; everything else in that entry stands.
+
+- **Where.** The card's existing `fp-view:` entry gains `floors`, a list of `[floor key, {zoom, focus, rotation, cam}]` (a list, so a floor called `__proto__` is a string, as in the editor's `zooms`). `view`, `tilt`, `walls`, `theme`, `labels`, `names` and the shown `floor` stay per card. Same key, so two cards still do not clash. No second key: one write, one read.
+- **Turn per floor.** The spec says rotation is per floor. A floor stored without one starts at the config's `rotation`.
+- **3D camera as relative numbers.** `cam` is azimuth, polar, distance as a multiple of the framing distance, and the look-at offset from the floor's centre in cm. Absolute numbers would be wrong after a resize, a panel inset or a floor of another size. `Orbit.restore` bounds each number the way a drag does.
+- **What counts as touched.** The camera is stored only after the person moved it (`onCamera` from a drag, wheel or pinch). Not doing so would store the default camera for every floor visited and make Reset look like it did nothing. A floor with no stored camera keeps the old behaviour: the look carries over, the floor is framed.
+- **Reset.** Reset view and Reset camera clear the shown floor's zoom, turn and camera, not another floor's. Reset view still clears the card-wide choices as before.
+- **Blocked storage.** The map lives in memory too, so floors remember within the page; storage is the second copy.
+- **Old entries.** A stored entry with top-level `zoom`, `focus`, `rotation` moves to the floor it names in `floor`; with no floor named it is dropped (whose view it was cannot be said). One lost zoom at worst.
+- **Parity with the studio.** The editor already remembers a zoom per floor (`view-memory.ts`) and draws flat only, so it has no camera. Its one turn for all floors stays: the editor edits one layout across floors and a turn there is a viewpoint on the house, not on a floor. Not changed. If Diego wants a turn per floor in the editor too, it is a small change to `ViewMemory`.
+- **Not done.** A turn in 3D is not remembered apart from the camera azimuth. The 3D "top view" and "frame a room" (S15.5) will store through the same `cam`.
 
 ## 2026-10-06: a slit window's head sits 40 cm under the ceiling, and is called "slit window" everywhere
 
