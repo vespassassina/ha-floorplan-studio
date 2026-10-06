@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: Active list and Room panel by collapsible category (S14.6, item 12)
+
+Supersedes "grouped by type" (S9.5). **Categories** are a new pure module, `src/core/categories.ts`: `CATEGORY_OF` is a
+`Record<DeviceType, CategoryId>`, so a new device type does not compile until it is placed, and a test iterates `DEVICE_TYPES`.
+Ten fixed groups: lights, climate, security (camera, lock, motion, contact, vibration, radar), media, power (switch, plug, battery,
+inverter, UPS), covers, computers and network, sensors (temp, humidity), people, other. Order is the list's order, not
+`DEVICE_TYPES`'. Rows keep their input order inside a group.
+**State.** Every group starts open (nothing in the request asked for a default fold; a phone already folds the whole Active list).
+The fold is per card, in `localStorage` in try/catch, one key apart from the panel's position key (a bad entry in one costs not the
+other), with separate ids for the Active list (`a:`) and the Room panel (`r:`): folding Lights in a room must not hide them in the
+list below. **Studio parity:** none needed. The editor has no Active list and no Room panel (they are card chrome over live state);
+the editor's own Add > Unlinked list keeps its type grouping. Stated exception, like item 16.
 ## 2026-10-06: a slit window's head sits 40 cm under the ceiling, and is called "slit window" everywhere
 
 Diego, Sprint 14 items 1 and 2. Supersedes the "head at the ceiling" rule of the 2026-10-05 slit entry below (the rest of that

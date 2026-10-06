@@ -1378,7 +1378,7 @@ describe("FloorplanStudioCard", () => {
     function panelGroups(el: FloorplanStudioCard): [string, string[]][] {
       const groups = el.shadowRoot!.querySelectorAll(".fp-active-group");
       return [...groups].map((g) => [
-        g.querySelector(".fp-active-group-label")!.textContent!,
+        g.querySelector(".fp-cat-name")!.textContent!,
         [...g.querySelectorAll(".fp-active-row span")].map((s) => s.textContent!),
       ]);
     }
@@ -1398,11 +1398,56 @@ describe("FloorplanStudioCard", () => {
       expect(panel).toBeTruthy();
       expect(panel!.querySelector(".fp-active-count")!.textContent).toBe("5"); // 2 lights + camera (always) + media + person
       expect(panelGroups(el)).toEqual([
-        ["Light", ["Living light", "Bedroom light"]],
-        ["Camera", ["Hall camera"]],
-        ["Media player", ["Office speaker"]],
-        ["Person", ["Alex"]],
+        ["Lights", ["Living light", "Bedroom light"]],
+        ["Security", ["Hall camera"]],
+        ["Media", ["Office speaker"]],
+        ["People", ["Alex"]],
       ]);
+    });
+
+    it("S14.6: a category header is a button that folds its group, aria-expanded follows, and the fold is remembered per card", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "light.demo_living": st("on"), "media_player.demo_office": st("playing") }) as never;
+      await el.updateComplete;
+      const head = (cat: string) => el.shadowRoot!.querySelector<HTMLButtonElement>(`.fp-active-group[data-cat="${cat}"] button.fp-cat`)!;
+      const rows = (cat: string) => el.shadowRoot!.querySelectorAll(`.fp-active-group[data-cat="${cat}"] .fp-active-row`).length;
+      expect(head("lights").getAttribute("aria-expanded")).toBe("true");
+      expect(rows("lights")).toBe(1);
+      head("lights").click();
+      await el.updateComplete;
+      expect(head("lights").getAttribute("aria-expanded")).toBe("false");
+      expect(rows("lights")).toBe(0);
+      expect(head("lights").querySelector(".fp-active-count")!.textContent).toBe("1"); // the count stays
+      expect(rows("media")).toBe(1); // the others are untouched
+      // a second card with the same config reads the fold back
+      const el2 = await mount();
+      el2.setConfig({ layout: structuredClone(L) });
+      el2.hass = stubHass({ "light.demo_living": st("on"), "media_player.demo_office": st("playing") }) as never;
+      await el2.updateComplete;
+      expect(el2.shadowRoot!.querySelector('.fp-active-group[data-cat="lights"] button.fp-cat')!.getAttribute("aria-expanded")).toBe("false");
+      expect(el2.shadowRoot!.querySelectorAll('.fp-active-group[data-cat="media"] .fp-active-row').length).toBe(1);
+      // and a click again opens it, and storage that throws or holds junk never breaks the panel
+      head("lights").click();
+      await el.updateComplete;
+      expect(rows("lights")).toBe(1);
+    });
+
+    it("S14.6: junk in the fold storage opens every group", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      const keys = () => Object.keys(localStorage).filter((k) => k.startsWith("fp-active-cats:"));
+      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el.updateComplete;
+      el.shadowRoot!.querySelector<HTMLButtonElement>("button.fp-cat")!.click();
+      const k = keys()[0];
+      expect(k).toBeTruthy();
+      localStorage.setItem(k, "{not json");
+      const el2 = await mount();
+      el2.setConfig({ layout: structuredClone(L) });
+      el2.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el2.updateComplete;
+      expect(el2.shadowRoot!.querySelector("button.fp-cat")!.getAttribute("aria-expanded")).toBe("true");
     });
 
     it("a bound light is listed from its switch even with the light entity itself off (reuses classOf, S9.5 spec)", async () => {
