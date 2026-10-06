@@ -690,7 +690,7 @@ test.describe("S7.4 zoom and pan", () => {
     await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(fit.w);
   });
 
-  test("the zoom survives a hass update, and resets on setConfig and on a floor change", async ({ page }) => {
+  test("the zoom survives a hass update; a floor comes back at the zoom it was left with (S14.4); a changed config starts clean", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo), floor: "all" }, states());
     const fit = await viewBox(page);
@@ -712,7 +712,7 @@ test.describe("S7.4 zoom and pan", () => {
     await expect(card(page).locator('css=.fp-stack button[aria-label="Fit"]')).toBeDisabled();
 
     await card(page).locator("css=.fp-floors button").nth(0).click();
-    expect(await viewBox(page)).toEqual(fit);
+    expect(await viewBox(page)).toEqual(z); // S14.4: the floor comes back as it was left, not at its fit
     await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').click();
     // A *changed* config: an identical one is the same card and now gets its remembered zoom back (view memory).
     // `floors` joins the storage key, so this is a fresh card; the switcher and the fit are the same as `floor: "all"`.
