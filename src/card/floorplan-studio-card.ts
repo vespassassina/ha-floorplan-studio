@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, heatRange, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { DEFAULT_MOTION_FADE_S, customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, heatRange, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, DeviceType, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent, type TapTarget } from "./actions";
@@ -326,15 +326,6 @@ export class FloorplanStudioCard extends LitElement {
   private _timer: ReturnType<typeof setInterval> | null = null;
   private _actionsSvg: SVGSVGElement | null = null;
   private _unbindActions: (() => void) | null = null;
-  /** S2.4: the last time each entity was seen `on`, in ms. `last_changed` moves to the moment a motion sensor goes
-   * `off`, which is no use for a fade that must keep counting from when it was last `on` — so the card remembers
-   * that moment itself and hands it to `renderFloor` in place of the entity's own `last_changed`. */
-  private _lastOn: Record<string, number> = {};
-  /** S2.4 review: the `entity` of every motion device across every floor of the loaded layout (not only the one
-   * shown: S2.6 adds a floor switcher and a sensor must keep fading across it), recomputed only when the layout
-   * changes. `hass` can carry hundreds to thousands of entities and is set on every state change anywhere in the
-   * house, so `_recordLastOn`/`_stateForRender` walk this small, bounded set instead of every entity `hass` has. */
-  private _motionEntities: Set<string> = new Set();
   /** S2.6: which floor `floor: "all"` currently shows. Only read/written through `_floorKey`/`_selectFloor`, which
    * fall back to the layout's first floor when this is unset, stale (the layout changed) or names a floor that
    * no longer exists. */
@@ -838,42 +829,15 @@ export class FloorplanStudioCard extends LitElement {
 
   set hass(h: Hass) {
     this._hass = h;
-    this._recordLastOn(h);
     if (!this._layout) this._loadLayout();
     this._syncTimer();
     this.requestUpdate();
   }
 
-  /** S2.4, scoped by review: updates `_lastOn` for the layout's own motion entities that are now `on`, so one that
-   * later goes `off` keeps its last `on` moment on record. Never walks the rest of `hass.states`. */
-  private _recordLastOn(h: Hass): void {
-    for (const id of this._motionEntities) {
-      const s = h.states[id];
-      if (!s || s.state !== "on") continue;
-      const t = Date.parse(s.last_changed);
-      if (!Number.isNaN(t)) this._lastOn[id] = t;
-    }
-  }
-
-  /** `hass.states`, with a motion entity's `last_changed` swapped for its recorded `_lastOn` when the two differ.
-   * `renderFloor` reads only `last_changed` for its fade math (S2.4's interface, no new option on `RenderOpts`), so
-   * this is how the card hands over the remembered on time. Scoped to `_motionEntities` and copy-on-write: an
-   * unrelated entity's real `last_changed` reaches core untouched, and with nothing to override this returns
-   * `hass.states` itself, no copy, which is most renders on a card with no motion device fading. */
+  /** The states the render reads. A motion sensor's own `last_changed` is the moment it went off, so it is also the moment its
+   * fade starts (2026-10-06: the card used to remember when it went on, which ended a long motion's fade before it began). */
   private _stateForRender(): Hass["states"] | undefined {
-    const states = this._hass?.states;
-    if (!states) return states;
-    let out: Hass["states"] | undefined;
-    for (const id of this._motionEntities) {
-      const t = this._lastOn[id];
-      const s = states[id];
-      if (t === undefined || !s) continue;
-      const changed = new Date(t).toISOString();
-      if (s.last_changed === changed) continue;
-      out = out ?? { ...states };
-      out[id] = { ...s, last_changed: changed };
-    }
-    return out ?? states;
+    return this._hass?.states;
   }
 
   /** S14.8: the draw range plugs are tinted over, from the two card options (untrusted: junk is the default range). */
@@ -988,8 +952,6 @@ export class FloorplanStudioCard extends LitElement {
       this._layout = v.layout;
       this._closePopup(); // its subject belonged to the layout just replaced
       this._hideTip();
-      // S2.4 review: every floor, not only the one on show, so a sensor keeps fading across a floor switch (S2.6).
-      this._motionEntities = new Set(Object.values(v.layout.floors).flatMap((f) => f.devices.filter((d) => d.type === "motion").map((d) => d.entity)));
       this._error = null;
     } catch (e) {
       const why = e instanceof Error ? e.message : "";
@@ -1181,8 +1143,7 @@ export class FloorplanStudioCard extends LitElement {
 
   /** S2.6: switches which floor `floor: "all"` shows. Ordinary card chrome, not a plan gesture, so it is wired with
    * a plain button click, not `bindDeviceActions` (CLAUDE.md finding 3: that gesture implementation is for hits on
-   * the plan itself). The motion-fade timer state (`_lastOn`) is untouched: it is keyed by entity across every
-   * floor already, not by which one is on screen (S2.4 review). */
+   * the plan itself).  */
   private _selectFloor(key: string): void {
     if (this._shownFloor === key) return;
     this._closePopup(); // its subject is on the floor just left
@@ -1195,18 +1156,19 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
-  /** True while any motion device on the shown floor is within its fade window (S2.4 computes the fade itself; this only decides whether the timer runs). */
+  /** True while any motion sensor on the shown floor (a motion device, or a room's own `motion` list) is off and inside its fade window,
+   * or for one tick after it, so the last render is made past the window and leaves no faint border behind. */
   private _motionFading(): boolean {
     const f = this._floor();
-    const fadeMs = (this._config.fade ?? 300) * 1000;
+    const fadeMs = (this._config.fade ?? DEFAULT_MOTION_FADE_S) * 1000;
     if (!f || !this._hass || fadeMs <= 0) return false;
     const now = Date.now();
-    return f.devices.some((d) => {
-      if (d.type !== "motion") return false;
-      const s = this._hass!.states[d.entity];
-      if (!s) return false;
-      const t = this._lastOn[d.entity] ?? Date.parse(s.last_changed);
-      return !Number.isNaN(t) && now - t < fadeMs;
+    const ids = [...f.devices.filter((d) => d.type === "motion").map((d) => d.entity), ...f.rooms.flatMap((r) => r.motion ?? [])];
+    return ids.some((id) => {
+      const s = this._hass!.states[id];
+      if (!s || s.state === "on") return false;
+      const t = Date.parse(s.last_changed);
+      return !Number.isNaN(t) && now - t < fadeMs + 1000;
     });
   }
 

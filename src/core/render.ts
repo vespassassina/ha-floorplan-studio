@@ -750,17 +750,20 @@ function ringGap(p: Pt, ring: Pt[]): number {
   return best;
 }
 
-/** 0..1 from `fade` seconds (default 300) since `lastChanged`; 1 at that moment, 0 once they have passed. Unreadable time: just changed. */
+/** The default motion fade, seconds: a motion sensor is red while on and fades to nothing this long after it goes off. */
+export const DEFAULT_MOTION_FADE_S = 120;
+
+/** 0..1 from `fade` seconds (default 120) since `lastChanged`; 1 at that moment, 0 once they have passed. Unreadable time: just changed. */
 function fadeSince(lastChanged: string, fade: number, now: number): number {
   const t = Date.parse(lastChanged), age = Number.isNaN(t) ? 0 : now - t;
   return Math.max(0, Math.min(1, 1 - age / (fade * 1000)));
 }
 
-/** 0..1, how red a motion icon still is: 1 at the moment of motion, 0 once `fade` seconds (default 300) have passed since the sensor was last on. Fade 0 turns the fade off. */
+/** 0..1, how red a motion icon still is: 1 at the moment of motion, 0 once `fade` seconds (default 120) have passed since the sensor went off. Fade 0 turns the fade off. */
 function motionFade(d: Device, o: RenderOpts, now: number): number {
   const s = o.state?.[d.entity];
   if (!s || d.type !== "motion") return 0; // a radar's icon does not fade, so neither does its border
-  const fade = o.fade ?? 300;
+  const fade = o.fade ?? DEFAULT_MOTION_FADE_S;
   return fade > 0 ? fadeSince(s.last_changed, fade, now) : classOf(d, o) === "on" ? 1 : 0;
 }
 
@@ -865,7 +868,7 @@ export function motionRooms(f: Floor, o: RenderOpts, now: number): { triggered: 
       const s = stateOf(e);
       if (!s) continue;
       if (s.state === "on") { on = true; tripped = Math.max(tripped, Date.parse(s.last_changed)); }
-      else if (s.state !== "unavailable" && s.state !== "unknown" && (o.fade ?? 300) > 0) v = Math.max(v, fadeSince(s.last_changed, o.fade ?? 300, now));
+      else if (s.state !== "unavailable" && s.state !== "unknown" && (o.fade ?? DEFAULT_MOTION_FADE_S) > 0) v = Math.max(v, fadeSince(s.last_changed, o.fade ?? DEFAULT_MOTION_FADE_S, now));
     }
     if (!on && v <= 0) return;
     // The age is of the newest sensor that is on. An unreadable time pulses nothing: it could not be told from a fresh trip on every redraw.

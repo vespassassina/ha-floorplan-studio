@@ -127,7 +127,7 @@ test.describe("3D view: lights", () => {
     expect((await live(page)).lifted).toEqual([1]);
   });
 
-  test("forty lit lamps: the view says it caps the pools, and still draws and answers", async ({ page }) => {
+  test("forty lit lamps: the view caps the pools at 32, and still draws and answers", async ({ page }) => {
     const layout = structuredClone(demo);
     const states = QUIET() as Record<string, unknown>;
     for (let i = 0; i < 40; i++) {
@@ -136,7 +136,7 @@ test.describe("3D view: lights", () => {
     }
     await boot(page, {}, states, layout);
     const l = await live(page);
-    expect(l.pools.filter((p) => p.visible).length).toBeLessThanOrEqual(8);
+    expect(l.pools.filter((p) => p.visible).length).toBeLessThanOrEqual(32);
     expect(l.pools.filter((p) => p.visible).length).toBeGreaterThan(0);
     const t = Date.now();
     await page.mouse.move(500, 400); await page.mouse.down(); await page.mouse.move(560, 420, { steps: 5 }); await page.mouse.up();
@@ -280,8 +280,8 @@ test.describe("3D view: motion", () => {
     expect((await live(page)).pulsing).toBe(false);
   });
 
-  test("a sensor that went off 150 s ago (default fade 300 s) leaves half an edge; 400 s ago, none", async ({ page }) => {
-    await boot(page, {}, { ...QUIET(), "binary_sensor.demo_hall_motion": st("off", {}, iso(150)) }, hallLayout());
+  test("a sensor that went off 60 s ago (default fade 120 s) leaves half an edge; 150 s ago, none", async ({ page }) => {
+    await boot(page, {}, { ...QUIET(), "binary_sensor.demo_hall_motion": st("off", {}, iso(60)) }, hallLayout());
     const hall = await at(page, 150, 540, 1);
     const box = { x: Math.max(0, hall.x - 160), y: Math.max(0, hall.y - 90), width: 320, height: 180 };
     const half = await ring(page);
@@ -290,7 +290,7 @@ test.describe("3D view: motion", () => {
     expect(half.opacity).toBeLessThan(0.65);
     expect((await live(page)).pulsing).toBe(false);
     expect(await reds(page, box, true)).toBeGreaterThan(20); // seen on screen, not only in the scene
-    await setStates(page, { ...QUIET(), "binary_sensor.demo_hall_motion": st("off", {}, iso(400)) });
+    await setStates(page, { ...QUIET(), "binary_sensor.demo_hall_motion": st("off", {}, iso(150)) });
     expect((await ring(page)).visible).toBe(false);
     expect(await reds(page, box, true)).toBeLessThanOrEqual(5);
   });

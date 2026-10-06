@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.2 - 2026-10-06
+
+- Card, studio: a motion highlight now fades **120 s after motion ends** (the default `fade` was 300 s) and is then gone. Before, the fade counted from when the sensor turned *on*, so a long motion had no fade at all, and a room's own motion sensors (a garden's, say) had no timer, so their border could stay drawn until something else redrew the card. A sensor that stays `on` stays lit, as before. Set `fade` in the card to change it.
+- Card, 3D: up to **32** lit lamps now get a floor pool and wall light (it was 8). With 8, a room full of lit lamps used every slot and the lit lights in other rooms showed no glow. Only lit lamps cost anything; a weak device can use 2D or 2.5D.
+
 ## 0.16.1 - 2026-10-06
 
 - Wall kind **parapet** ("Balcony wall (parapet)"): a balcony's half wall, 120 cm tall and 20 cm thick like an external wall, in 2D, 2.5D and 3D. Draw it from the Draw wall and Add wall menus, or set it as the kind of a room or outline edge. A layout that uses it needs this version: an older card or studio rejects the layout, since it does not know the kind.

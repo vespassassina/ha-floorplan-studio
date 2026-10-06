@@ -9,7 +9,7 @@ export interface RoomShape { index: number; base: Poly; top: number; area: numbe
 export interface LitLight { room: number; at: Pt; rgb: Rgb; level: number }
 
 /** The most lamps that get a pool of their own. A room is lifted whatever it holds; the pool is the cost. */
-export const MAX_POOLS = 8;
+export const MAX_POOLS = 32;
 /** cm. A wall's own vertex this far outside every room still belongs to the nearest one (the face of an outer wall). */
 export const WALL_REACH = 12;
 

@@ -11,7 +11,7 @@ export type EditorConfig = FloorplanStudioCardConfig;
 type ZoomChoice = "on" | "wheel" | "off";
 
 const DEFAULT_THEME: Theme = "blueprint";
-const DEFAULT_FADE = 300;
+const DEFAULT_FADE = 120;
 const DEFAULT_ROOM_GLOW = false;
 // Matches PLUG_ACTIVE_WATTS in core/power.ts, kept apart like the defaults around it.
 const DEFAULT_PLUG_WATTS = 2;

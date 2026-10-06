@@ -34,7 +34,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `floor` | the switcher, if the layout has more than one floor; its only floor otherwise | which floor to pin to, by its id (`ground`, `first`, ...) — no switcher, just that floor; `all` shows the switcher explicitly; an id the layout doesn't have is treated the same as leaving `floor` unset |
 | `floors` | unset | an array of floor ids: shows a switcher over only these floors, in this order, defaulting to the first one. Takes precedence over `floor`. An id the layout doesn't have is dropped; if none of them match, this is the same as leaving `floors` unset |
 | `theme` | `blueprint` | `blueprint`, `light`, `midnight`, `slate`, `terminal`, `solarized`, or `ha` (see Themes, below) |
-| `fade` | `300` | seconds a motion sensor takes to fade from red to grey after it last went off |
+| `fade` | `120` | seconds a motion sensor takes to fade from red to nothing after it goes off |
 | `plug_heat_from`, `plug_heat_to` | `0`, `2000` | the draw range a plug's colour runs over, in watts: blue at the low end, amber half way, red at the high end. Two numbers with from below to; anything else is `0` and `2000`. See Plugs |
 | `plug_watts` | `2` | a plug is active from this many watts of measured power, not merely while switched on — see Plugs, below. A number `0` or more; anything else is `2` |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
@@ -61,7 +61,7 @@ type: custom:floorplan-studio-card
 floors:
   - ground
   - first
-fade: 300
+fade: 120
 room_glow: true
 theme: blueprint
 zoom: true

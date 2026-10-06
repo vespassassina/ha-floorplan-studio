@@ -136,7 +136,7 @@ type: custom:floorplan-studio-card
 floors:
   - ground
   - first
-fade: 300
+fade: 120
 room_glow: true
 theme: blueprint
 zoom: true
