@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.16.3 - 2026-10-06
+
+- Studio: a page left open through an update no longer runs the old panel unnoticed. The panel asks the integration for the installed version (new `floorplan_studio/version` command) when it opens and whenever the tab becomes visible again; if it differs from its own build, a banner says so with a **Reload** button, and Save is refused until you reload. Pages that were open before this version do not have the check; it protects the updates after it.
+
 ## 0.16.2 - 2026-10-06
 
 - Card, studio: a motion highlight now fades **120 s after motion ends** (the default `fade` was 300 s) and is then gone. Before, the fade counted from when the sensor turned *on*, so a long motion had no fade at all, and a room's own motion sensors (a garden's, say) had no timer, so their border could stay drawn until something else redrew the card. A sensor that stays `on` stays lit, as before. Set `fade` in the card to change it.

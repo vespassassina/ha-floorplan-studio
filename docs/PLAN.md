@@ -2518,7 +2518,7 @@ Sprint review by Opus once the integrated build is done; then release 0.16.0 on 
 
 ## Patch 0.16.3: stale panel guard
 
-- P1 "Reload to finish updating" (Diego picked it, 2026-10-06). Twice a cached old panel looked like a crash after an update. The panel gets the installed integration version from the server (`panel.py` already versions its URLs) and compares it with its own build version; on a mismatch it shows a banner with a Reload button, and never edits or saves while the banner shows. Acceptance: a matching version shows nothing; a mismatch shows the banner and Reload calls `location.reload()`; the studio refuses Save while stale. Test first (unit for the compare, panel test for the banner).
+- [x] P1 "Reload to finish updating" (Diego picked it, 2026-10-06). Twice a cached old panel looked like a crash after an update. The panel gets the installed integration version from the server (`panel.py` already versions its URLs) and compares it with its own build version; on a mismatch it shows a banner with a Reload button, and never edits or saves while the banner shows. Acceptance: a matching version shows nothing; a mismatch shows the banner and Reload calls `location.reload()`; the studio refuses Save while stale. Test first (unit for the compare, panel test for the banner).
 
 ## Sprint 15 (0.17.0): light
 

@@ -16,6 +16,15 @@ async def test_load_before_any_save_returns_null_not_an_error(hass, entry, hass_
     assert msg["result"] == {"layout": None}
 
 
+async def test_version_names_the_installed_integration_for_any_user(hass, entry, hass_ws_client):
+    manifest = json.loads(Path("custom_components/floorplan_studio/manifest.json").read_text())
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "floorplan_studio/version"})
+    msg = await ws.receive_json()
+    assert msg["success"] is True
+    assert msg["result"] == {"version": manifest["version"]}
+
+
 async def test_save_then_load_returns_the_same_layout(hass, entry, hass_ws_client):
     ws = await hass_ws_client(hass)
     await ws.send_json({"id": 1, "type": "floorplan_studio/save", "layout": DEMO})

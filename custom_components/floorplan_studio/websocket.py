@@ -1,4 +1,4 @@
-"""floorplan_studio/load (any user) and floorplan_studio/save (admin only)."""
+"""floorplan_studio/load and floorplan_studio/version (any user), floorplan_studio/save (admin only)."""
 from __future__ import annotations
 
 from typing import Any
@@ -6,6 +6,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.loader import async_get_integration
 
 from .const import DOMAIN
 from .storage import InvalidLayout, LayoutStore
@@ -15,6 +16,7 @@ from .storage import InvalidLayout, LayoutStore
 def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_load)
     websocket_api.async_register_command(hass, ws_save)
+    websocket_api.async_register_command(hass, ws_version)
 
 
 def _store(hass: HomeAssistant) -> LayoutStore | None:
@@ -45,3 +47,10 @@ async def ws_save(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
         connection.send_error(msg["id"], "invalid_format", str(err))
         return
     connection.send_result(msg["id"], {"ok": True})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "floorplan_studio/version"})
+@websocket_api.async_response
+async def ws_version(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """The installed version, so an open page that is older than it can ask for a reload."""
+    connection.send_result(msg["id"], {"version": str((await async_get_integration(hass, DOMAIN)).version)})

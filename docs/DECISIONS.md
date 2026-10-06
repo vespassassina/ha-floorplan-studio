@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: Stale panel guard (0.16.3)
+
+Twice a cached old panel after an update looked like a product crash ("layout was not used", a locked 3D drag). The panel now asks `floorplan_studio/version` (any user, `{ version }`) at load and on every `visibilitychange` to visible, compares it with `CARD_VERSION` (injected at build; a `dev` build never compares) and, on a mismatch, shows a Reload banner and refuses Save. A failed or odd reply says nothing, so the guard cannot break an older integration. It cannot help a page that was already open before this release.
+
 ## 2026-10-06: North in the layout, sun from its real direction, folding panel sections
 
 Diego asked for the sun to come from the right angle, for the studio to show where north is, and for the right-hand panel sections to fold, closed at start. `north` already exists (schema, 0-359) but only "for the compass rose", which nothing draws. It is now defined as degrees clockwise from plan-up to true north, in layout coordinates before `rotate`; the sun's plan bearing is `azimuth + north`. The rose is drawn by `renderFloor` so studio and card cannot differ (finding 8). No schema change, no migration: layouts already carry `north: 0`. Panel folds are view state, like Fix plan: not in the layout, not an undo step. Planned as S15.3a-d and S15.7, plus patch 0.16.3 (stale panel guard) first.
