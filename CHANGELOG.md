@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.0 - 2026-10-06
 
 - Card: the Active list and the room panel group their rows by category (lights, climate, security, media, power, covers, computers and network, sensors, people, other), always in that order. Each category header is a button that folds its group, from the mouse or the keyboard; the fold is remembered per card in the browser. Groups start open.
 - Card: a plug is tinted by how much power it draws, from its power sensor: blue at 0 W, amber half way, red at 2000 W, in 2D, 2.5D and 3D and in every theme. The range is the card options `plug_heat_from` and `plug_heat_to` (also in the visual editor). The tooltip and popup already say the watts, so colour is never the only signal. A plug with no readable sensor keeps its colour; a card that does not use the feature draws byte for byte as before.
