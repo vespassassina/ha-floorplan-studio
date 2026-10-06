@@ -2516,12 +2516,21 @@ Spec `docs/specs/card-polish-and-light.md`, items 1-12. Order and one outcome ea
 - [x] S14.7 Room scenes (item 19). Done on `task/S14.7`: `src/core/room-scenes.ts`, `src/card/room-scenes-ui.ts`, `src/editor/room-scenes-ops.ts`, the Scenes section of the Room panel. Tests: `tests/core/room-scenes.test.ts`, `tests/editor/room-scenes-ops.test.ts`, `tests/card/card-room-scenes.spec.ts`, `tests/editor/room-scenes.spec.ts`.
 Sprint review by Opus once the integrated build is done; then release 0.16.0 on Diego's yes.
 
+## Patch 0.16.3: stale panel guard
+
+- P1 "Reload to finish updating" (Diego picked it, 2026-10-06). Twice a cached old panel looked like a crash after an update. The panel gets the installed integration version from the server (`panel.py` already versions its URLs) and compares it with its own build version; on a mismatch it shows a banner with a Reload button, and never edits or saves while the banner shows. Acceptance: a matching version shows nothing; a mismatch shows the banner and Reload calls `location.reload()`; the studio refuses Save while stale. Test first (unit for the compare, panel test for the banner).
+
 ## Sprint 15 (0.17.0): light
 
 Items 13-15. Needs a short design pass first (S15.0: visibility-polygon maths in core, tested against walls and gaps).
 - S15.1 Core light maths: gaps, visibility polygon, light map per floor.
 - S15.2 3D: light from the device, passing gaps.
-- S15.3 Daylight from `sun.sun`, card option.
+- S15.3 Daylight from `sun.sun`, card option. Extended 2026-10-06 (Diego): the sun comes from the right side. Split in four tasks, each with its own failing test:
+  - S15.3a `north` in the studio: View, North (number field, 0-359) and a compass rose drawn by `renderFloor` in editor and card, turning with `rotate`; draggable in the studio; one undo step; validated as today. Acceptance: with `north: 90` the rose's N points right; a drag sets it; undo restores.
+  - S15.3b Pure core `sunDir(azimuth, elevation, north)` giving the plan-space direction and slope; tests at the four compass points and with `north` 0, 90, 270 (asymmetric values), below-horizon and missing attributes return null.
+  - S15.3c 3D: the scene's sun light uses `sunDir`; a south window on a south-facing plan lights its floor at noon and not at 02:00 (pixels, finding 16); null falls back to today's fixed daylight.
+  - S15.3d 2D: the same as a soft wedge through windows and openings, drawn by `renderFloor`; card option `sun_light` (default on).
+- S15.7 Studio panel sections fold (Diego, 2026-10-06). In the right-hand selection panel the sections Room (Identity and Appearance), Sensors, Scenes and Home Assistant become `<details>`-style folds that start collapsed; Danger stays always visible. Open or closed is kept per section for the session (not in the layout, not an undo step). Assumption to confirm: Identity is folded too, since "room" was in his list. Acceptance: a fresh selection shows only headers; a click opens one; the state survives selecting another room; keyboard works (button, aria-expanded).
 
 Added 2026-10-06 (Diego's picks): S14.2 also does items 17-18 (live values, light slider); S14.7 room scenes (item 19);
 S14.8 plug colour by power (item 24); S15.3 also the evening tint (22); S15.4 open leaf, sash and 3D alert band (20);

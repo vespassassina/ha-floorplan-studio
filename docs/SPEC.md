@@ -73,8 +73,15 @@ in `prompts/`, then fixed in the editor.
 }
 ```
 
-- Units are cm, y grows downwards, north is up (`north` is degrees for the
-  compass rose only).
+- Units are cm, y grows downwards. `north` (degrees, 0 to 359, default 0) is the
+  angle clockwise from the plan's up direction to true north: 0 means the top
+  of the plan is north, 90 means north is to the right. It is in layout
+  coordinates, before `rotate`, and it never moves a point. It places the
+  compass rose (S15.3) and gives the sun its direction: the sun's compass
+  bearing `azimuth` (from `sun.sun`) points, on the plan, at `azimuth + north`
+  clockwise from up. Both the studio and the card draw the rose, from the same
+  `renderFloor`, and it turns with `rotate`. The studio sets `north` (View,
+  North, a number field, or by dragging the rose); one undo step.
 - `rotate` turns the whole plan on screen, in steps of 45 degrees (0, 45, …,
   315), so the drawing can be lined up with north. It is applied by the
   renderer around one pivot shared by every floor; the stored coordinates never
@@ -365,6 +372,13 @@ the same commit as this paragraph:
 
 A light's `bound` switch and `motion` link, and a person's `room` sensor, are
 deliberately never listed — see docs/DECISIONS.md.
+
+Sun direction (S15.3, planned 0.17.0): the card reads `azimuth` and `elevation` from the
+`sun` entity. Sunlight is one parallel direction: in 3D the scene's sun light comes from
+bearing `azimuth + north` (see Layout schema, `north`) at that elevation, so a window on the
+south wall lights the floor when the sun is in the south. Without those attributes, or with
+the sun below the horizon, the light is the fixed daylight of today. The 2D plan shows the
+same as a soft wedge through windows and openings.
 
 Rooms tint when any light in them is on (`room_glow: true`). Night (S7.6):
 `night: auto` darkens the plan while the `sun` entity (default `sun.sun`) is

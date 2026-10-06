@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: North in the layout, sun from its real direction, folding panel sections
+
+Diego asked for the sun to come from the right angle, for the studio to show where north is, and for the right-hand panel sections to fold, closed at start. `north` already exists (schema, 0-359) but only "for the compass rose", which nothing draws. It is now defined as degrees clockwise from plan-up to true north, in layout coordinates before `rotate`; the sun's plan bearing is `azimuth + north`. The rose is drawn by `renderFloor` so studio and card cannot differ (finding 8). No schema change, no migration: layouts already carry `north: 0`. Panel folds are view state, like Fix plan: not in the layout, not an undo step. Planned as S15.3a-d and S15.7, plus patch 0.16.3 (stale panel guard) first.
+
 ## 2026-10-06: Motion fades 120 s after motion ends
 
 Supersedes S2.4 ("fade counts from the last time the sensor was on") and the 300 s default. Diego: the garden stayed highlighted for hours; it should go 2 minutes after motion ends. Two causes found: the card remembered the sensor's *on* moment (`_lastOn`) and faded from there, so motion that lasted longer than the window had no fade after it ended; and the fade timer watched only motion devices, never a room's own `motion` list, so nothing redrew a garden's border when its window closed. Now the fade starts at the sensor's own `last_changed` while it is off (the moment motion ended), the timer covers devices and room lists of the shown floor and runs one tick past the window so the last render is clean, and `DEFAULT_MOTION_FADE_S = 120` is the one default (core, card form, studio). A sensor that stays `on` stays lit and runs no timer. `_lastOn` and `_recordLastOn` are gone from the card and the studio.
