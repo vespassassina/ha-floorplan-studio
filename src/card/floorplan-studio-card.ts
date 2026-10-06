@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
-import type { ActiveDevice, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
+import { entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupByCategory, ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import type { ActiveDevice, DeviceType, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent, type TapTarget } from "./actions";
 import { lightCaps, popupOp, type PopupOp } from "./popup";
@@ -276,6 +276,11 @@ export class FloorplanStudioCard extends LitElement {
     .fp-active-body { overflow-y: auto; padding: 4px 8px 8px; }
     .fp-active-group-label { font: 600 10px/1.6 system-ui, sans-serif; color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 6px; }
     .fp-active-group-label:first-child { margin-top: 0; }
+    /* S14.6: a category header is a button (keyboard, aria-expanded); it keeps the label's look. */
+    button.fp-cat { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 28px; text-align: left; border: none; background: transparent; padding: 0 2px; cursor: pointer; border-radius: 4px; }
+    button.fp-cat:hover, button.fp-cat:focus-visible { background: var(--fp-idle); }
+    .fp-cat-name { flex: 1; min-width: 0; }
+    .fp-cat-chev { flex: 0 0 10px; }
     .fp-active-row { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; border: none; background: transparent; color: inherit; font: 12px/1.3 system-ui, sans-serif; padding: 4px 2px; cursor: pointer; border-radius: 4px; }
     .fp-active-row:hover, .fp-active-row:focus-visible { background: var(--fp-idle); }
     .fp-active-row svg { width: 16px; height: 16px; flex: 0 0 16px; fill: var(--fp-active-row-color, var(--fp-ink)); }
@@ -404,6 +409,8 @@ export class FloorplanStudioCard extends LitElement {
    * `localStorage` (wrapped in try/catch: private browsing or blocked storage just means the panel forgets
    * between reloads, never a thrown error — CLAUDE.md finding 1's spirit applied to browser state). */
   private _activeCollapsed = false;
+  /** S14.6: the category groups the viewer folded, as `list:category` ids (`a:` Active list, `r:` Room panel). Per card, in browser storage. */
+  private _foldedCats = new Set<string>();
   private _activePos: { x: number; y: number } | null = null;
   /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then the card's
    * own width decides: folded under `ACTIVE_FOLD_BELOW_PX`, open from there up, followed on every resize (0.12.17;
@@ -660,6 +667,37 @@ export class FloorplanStudioCard extends LitElement {
     }
   }
 
+  private _catStorageKey(): string {
+    return `fp-active-cats:${tag(JSON.stringify(this._storageSeed()))}`;
+  }
+
+  private _loadFoldedCats(): void {
+    this._foldedCats = new Set();
+    try {
+      const raw = globalThis.localStorage?.getItem(this._catStorageKey());
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed)) for (const id of parsed) if (typeof id === "string" && id.length < 40) this._foldedCats.add(id);
+    } catch {
+      /* malformed or unavailable storage: every group opens */
+    }
+  }
+
+  private _toggleCat(id: string): void {
+    if (!this._foldedCats.delete(id)) this._foldedCats.add(id);
+    try { globalThis.localStorage?.setItem(this._catStorageKey(), JSON.stringify([...this._foldedCats])); } catch { /* storage blocked: the fold just does not persist */ }
+    this.requestUpdate();
+  }
+
+  /** S14.6: one category of rows under a header button. `list` is `a` (Active) or `r` (Room); folded state is per list. */
+  private _catGroup(list: "a" | "r", id: string, label: string, count: number, rows: unknown) {
+    const key = `${list}:${id}`, folded = this._foldedCats.has(key);
+    return html`<div class="fp-active-group" data-cat=${id}>
+      <button type="button" class="fp-active-group-label fp-cat" aria-expanded=${folded ? "false" : "true"} @click=${() => this._toggleCat(key)}>
+        <span class="fp-cat-chev" aria-hidden="true">${folded ? "▸" : "▾"}</span><span class="fp-cat-name">${label}</span><span class="fp-active-count">${count}</span>
+      </button>${folded ? null : rows}
+    </div>`;
+  }
+
   private _saveActiveState(): void {
     try {
       globalThis.localStorage?.setItem(this._activeStorageKey(), JSON.stringify({ collapsed: this._activeUserChose && this._activeCollapsed, chosen: this._activeUserChose, x: this._activePos?.x, y: this._activePos?.y }));
@@ -738,6 +776,7 @@ export class FloorplanStudioCard extends LitElement {
     this._fallback3d = null;
     this._loadViewState();
     this._loadActiveState();
+    this._loadFoldedCats();
     this._loadLayout();
     this.requestUpdate();
   }
@@ -2085,7 +2124,10 @@ export class FloorplanStudioCard extends LitElement {
       <dl class="fp-room-facts">${facts.filter(([, v]) => v).map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
       <div class="fp-active-group-label">Devices</div>
       <div class="fp-room-devices">
-        ${s.devices.length || s.sensors.length ? [...s.devices.map((r) => this._roomDeviceRow(r)), ...s.sensors.map((r) => this._roomSensorRow(r))] : html`<p class="fp-active-empty">No devices in this room</p>`}
+        ${s.devices.length || s.sensors.length
+          ? groupByCategory([...s.devices.map((r) => ({ type: r.type, tpl: this._roomDeviceRow(r) })), ...s.sensors.map((r) => ({ type: (r.kind === "temps" ? "temp" : r.kind) as DeviceType, tpl: this._roomSensorRow(r) }))])
+              .map((g) => this._catGroup("r", g.id, g.label, g.items.length, g.items.map((i) => i.tpl)))
+          : html`<p class="fp-active-empty">No devices in this room</p>`}
       </div>
     </div>`;
   }
@@ -2106,8 +2148,8 @@ export class FloorplanStudioCard extends LitElement {
     const summary = at !== null && floor ? roomSummary(floor, at, state, opts) : null;
     let items = activeDevices(this._layout, state, opts);
     if (summary && this._roomFilter) items = filterToRoom(items, summary);
-    const groups = groupActiveByType(items);
-    const count = groups.reduce((n, [, rows]) => n + rows.length, 0);
+    const groups = groupByCategory(items);
+    const count = items.length;
     const row = (it: ActiveDevice) => html`<div class="fp-item"><button
       type="button"
       class="fp-active-row"
@@ -2119,10 +2161,7 @@ export class FloorplanStudioCard extends LitElement {
       <span>${it.name}</span>
     </button>${this._infoButton(it.name, it.entity)}${this._infoBlock(it.entity)}</div>`;
     const list = groups.length
-      ? groups.map(([type, rows]) => html`<div class="fp-active-group">
-          <div class="fp-active-group-label">${DEVICE_TYPE_LABELS[type]}</div>
-          ${rows.map(row)}
-        </div>`)
+      ? groups.map((g) => this._catGroup("a", g.id, g.label, g.items.length, g.items.map(row)))
       : html`<p class="fp-active-empty">${summary && this._roomFilter ? "Nothing on in this room" : "Nothing on"}</p>`;
     const folded = this._activeCollapsed && !summary;
     // No `style=` binding here on purpose (Opus review findings 3/4): Lit would rewrite the whole `style`

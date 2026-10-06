@@ -253,7 +253,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#lens` Lengths | no | an editing aid |
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
-| `#filter` Filter by type | no | a work aid for a crowded plan; the card has the Active list, grouped by type |
+| `#filter` Filter by type | no | a work aid for a crowded plan; the card has the Active list, grouped by category |
 | Plan view, Tilt, Walls | card only | the View dropdown, the Tilt slider and the Walls select. The studio has no 2.5D since 0.14 (S12.1); the card keeps 2D and 2.5D, and gets 3D |
 | Room facts and device details panel | card only | the card's left panel (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
 
@@ -309,7 +309,7 @@ listed whatever its state — a camera is a view, not an on/off thing —
 except an `unavailable`/`unknown` one, or any device of any type with no
 entity configured: neither has a real more-info dialog to open.
 
-Rows are grouped by type, each with the type's own icon and colour — the
+Rows are grouped by category (Lights, Climate, Security, Media, Power, Covers, Computers and network, Sensors, People, Other, always in that order), and each category is a header button with a chevron, a name and a count that folds it (`aria-expanded`, Enter or Space). Every group starts open. The fold is remembered per card in the browser, apart for the Active list and the Room panel; storage that is blocked or holds junk just opens every group. Each row has its type's own icon and colour — the
 camera row's own icon is the panel's ink colour rather than the plan's
 camera tint, chosen to stay legible against the panel's background in
 every theme — and its name; a tap, click or Enter opens Home Assistant's
@@ -341,7 +341,7 @@ door or a stair), and the room is outlined with a dashed line. The Active panel 
 - temperature and humidity, the same mean the plan prints under the name;
 - motion, on or off, and since when;
 - the open doors and windows on the room's walls (an unlocked lock counts), and the lights that are on;
-- the room's devices, then the sensors the room owns that have no icon on the plan.
+- the room's devices, then the sensors the room owns that have no icon on the plan, grouped by the same collapsible categories as the Active list.
 
 A tap on a row opens the same popup as the icon on the plan; a hold opens
 Home Assistant's more-info. Below, the Active list is cut to the room's

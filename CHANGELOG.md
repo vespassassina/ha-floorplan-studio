@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card: the Active list and the room panel group their rows by category (lights, climate, security, media, power, covers, computers and network, sensors, people, other), always in that order. Each category header is a button that folds its group, from the mouse or the keyboard; the fold is remembered per card in the browser. Groups start open.
 - Editor: the door type select says "slit window" (the stored kind is still `slit`).
 - Window type **slit window**: its head now ends 40 cm under the ceiling of its wall, as a normal window's does (sill 90 + 120 high on a 250 wall), not at the ceiling. Default sill 150 and head 210 on a 250 cm wall; 200 and 260 on 300; on a wall too low for that it is as high as the wall allows (never below the floor, never over the wall). Height is still 60 and an own sill or height still wins. Slit windows already in a layout move down 40 cm: nothing is stored, so nothing needs migrating.
 - Card: a tap no longer operates a device. On an icon, a door, an appliance or an Active-list row, in 2D and 3D, it opens a small popup with the name, the state, one primary button (Turn on, Turn off, Open, Close, Lock, Unlock) and More info. It closes on Escape, an outside tap or a second tap. A long press still opens more-info. Types without a toggle show name, state and More info only.
