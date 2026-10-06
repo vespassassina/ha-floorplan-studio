@@ -725,6 +725,9 @@ do with a plain tap:
   entity of its own — Add → Unlinked device in the editor): has no toggle.
   A tap opens a popup (name, More info); More info resolves through its `attached` list, the
   ordinary one-entity-more-info/several-entities-chooser rule.
+  A **speaker or TV** with a `media_player.*` attached stands in for that player: while it is playing the icon draws
+  two waves in its active colour, and a tap or hold opens the player's more-info directly (no popup). Paused, idle,
+  off: no waves. In 3D a tap works, the waves are not drawn yet.
 
 A light's `bound` switch is deliberately never offered here; see "Light with
 a bound switch" above and docs/DECISIONS.md.

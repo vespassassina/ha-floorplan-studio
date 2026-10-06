@@ -73,8 +73,15 @@ in `prompts/`, then fixed in the editor.
 }
 ```
 
-- Units are cm, y grows downwards, north is up (`north` is degrees for the
-  compass rose only).
+- Units are cm, y grows downwards. `north` (degrees, 0 to 359, default 0) is the
+  angle clockwise from the plan's up direction to true north: 0 means the top
+  of the plan is north, 90 means north is to the right. It is in layout
+  coordinates, before `rotate`, and it never moves a point. It places the
+  compass rose (S15.3) and gives the sun its direction: the sun's compass
+  bearing `azimuth` (from `sun.sun`) points, on the plan, at `azimuth + north`
+  clockwise from up. Both the studio and the card draw the rose, from the same
+  `renderFloor`, and it turns with `rotate`. The studio sets `north` (View,
+  North, a number field, or by dragging the rose); one undo step.
 - `rotate` turns the whole plan on screen, in steps of 45 degrees (0, 45, …,
   315), so the drawing can be lined up with north. It is applied by the
   renderer around one pivot shared by every floor; the stored coordinates never
@@ -312,7 +319,7 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 | speaker (media_player) | grey | blue icon and halo while the player is exactly `playing` (paused, idle, off, on-but-not-playing, unavailable, unknown or no state stay idle), plus two arcs pulsing out from under the disc in the device's own colour (S9.4; held still at 1.5x, 60 % opacity under reduced motion) | `--fp-dev-speaker` (#2c7fb8, fixed in every theme) | more-info (media_player's own toggle is play/pause or power, never a clean on/off) |
 | cover (device icon, not a door) | grey | orange icon and halo while the cover is open | `--fp-dev-cover` (#f28c28) | more-info |
 | other | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
-| unlinked appliance (Add > Unlinked device, S4.25 — a placed type with no linked entity of its own) | flat idle-grey icon, no on/off state | unchanged — no live state to show | `--fp-dev-fill`/`--fp-idle`, or the item's own colour override | no toggle, no long press. Tap resolves its `attached` list: one entity opens more-info directly, several open the chooser, none does nothing (S10.3 review) |
+| unlinked appliance (Add > Unlinked device, S4.25 — a placed type with no linked entity of its own) | flat idle-grey icon, no on/off state | unchanged — no live state to show | `--fp-dev-fill`/`--fp-idle`, or the item's own colour override | no toggle, no long press. Tap resolves its `attached` list: one entity opens more-info directly, several open the chooser, none does nothing (S10.3 review). A speaker or TV with a `media_player.*` attached stands in for it: playing draws the speaker's two waves and the active tint, and a tap or hold opens that player's more-info, no popup (2D and 2.5D draw; 3D does not yet) |
 | person (`person.*`, `device_tracker.*`) | away (`not_home` or any zone): 35 % opacity and a small grey away dot on the disc's edge | `home`: green icon and halo, full opacity. With a `room` sensor that names a room, the icon glides (600 ms CSS transform, none under reduced motion) to the room's centroid, or beside it when another icon sits there; several people in one room stand on a ring | `--fp-dev-person` (#1b9e77) | more-info |
 | radar (mmWave presence, `binary_sensor.*occupancy`) | grey icon; no `targets` dots when the pair is not finite or falls outside the floor | purple icon and halo when the presence entity is on; each `targets` pair draws a small dot at its turned, plan-relative position | `--fp-dev-radar` (#6a3fbf) | more-info for the presence entity alone; with one or more `targets` pairs, a tap opens a chooser listing the presence entity then each pair's x then y entity instead (S10.4) |
 | vacuum (`vacuum.*`) | `docked`, `idle`, `paused`: grey icon, no brighter than off | `cleaning`: teal icon and halo, slowly spinning; `returning`: teal icon and halo, not spinning; `error`: `--fp-danger` icon, neither on nor off | `--fp-dev-vacuum` (#2f8f8f) / `--fp-danger` (#b02a2a) on error | opens a dialog: Start, Pause, Return to dock, each a `vacuum.*` service call; Cancel closes it. `unavailable`/`unknown` disables the three actions, Cancel stays enabled |
@@ -365,6 +372,13 @@ the same commit as this paragraph:
 
 A light's `bound` switch and `motion` link, and a person's `room` sensor, are
 deliberately never listed — see docs/DECISIONS.md.
+
+Sun direction (S15.3, planned 0.17.0): the card reads `azimuth` and `elevation` from the
+`sun` entity. Sunlight is one parallel direction: in 3D the scene's sun light comes from
+bearing `azimuth + north` (see Layout schema, `north`) at that elevation, so a window on the
+south wall lights the floor when the sun is in the south. Without those attributes, or with
+the sun below the horizon, the light is the fixed daylight of today. The 2D plan shows the
+same as a soft wedge through windows and openings.
 
 Rooms tint when any light in them is on (`room_glow: true`). Night (S7.6):
 `night: auto` darkens the plan while the `sun` entity (default `sun.sun`) is

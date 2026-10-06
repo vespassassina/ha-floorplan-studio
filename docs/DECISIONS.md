@@ -2,6 +2,30 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: Rotation slider; a speaker or TV object stands in for its media player
+
+Diego: rotate furniture and objects with a slider, not only by fixed steps; a speaker object linked to a media player showing its waves and clickable instead of the player; the same for a TV. Decisions: (1) Furniture and unlinked objects get a 0-359 degree slider (`#frotsl`, `#uurotsl`) above the turn buttons, preview every tick, one undo step per drag (the texture slider's live/commit gesture, `rotateItem`). (2) The speaker and TV objects are the existing *unlinked* objects of type `speaker` and `tv`, not new furniture symbols: they already have the icons, the picking in 2D, 2.5D and 3D, and `attached`. Their linked player is the first attached `media_player.*` (`playerOf`); no schema change. (3) Playing shows the same two waves a speaker device draws and the type's active tint; paused, idle, off or unavailable show neither. (4) A tap or hold on such an object opens the player's own more-info, no popup; Diego chose this over play/pause because `media_player.toggle` is play/pause or power and guessing is worse (see `NO_TOGGLE`). With no player attached, or any other type, the popup is unchanged. (5) The attach picker for these two types lists media players first, including ones the plan has not met. Not done: the 3D view draws these objects without live state, so no waves there yet (a tap works).
+
+## 2026-10-06: A door's Delete moves above its sensors
+
+Diego, same rule as the room: the door and window panel's red Delete is now the first control after Identity, above Home Assistant. The "Danger" heading is gone. Test helpers `clickCm` and `dragCm` now scroll the plan into view first: a taller panel makes the page scroll when a panel control is clicked, which put plan coordinates off the viewport.
+
+## 2026-10-06: Room sensors sit in framed boxes; every humidity sensor is filed by floor and room
+
+Diego: group the dropdown and its list so it is clear where they are, smaller names, and humidity sensors "organized by floor and room same as the others". Each of the three kinds (temperature, humidity, motion) is now one `.sens-box` (thin frame, rounded, faint tint); names in it are 11 px. The cause of the humidity order: a sensor the plan had not met yet came from Home Assistant with no floor or room, so the picker put all of them under "Elsewhere". `EditorState.withPlanRoom` now gives such an entity the floor and room of the drawn room that has its HA area (first match, the rule `availableEntities` uses). No area, or an area with no drawn room, stays loose. Only the room sensor picker uses it.
+
+## 2026-10-06: A room's Delete moves under its name
+
+Supersedes the earlier "Delete stays next to Unsnap" exception. Diego: the red Delete in the room panel belongs before the sensors. It is now the first control after the name block, above Home Assistant, Sensors and Scenes; Unsnap stays with the rotation. The spec test now asserts order (Delete before `#rtemp` and `#runsnap`) and that it still deletes.
+
+## 2026-10-06: Stale panel guard (0.16.3)
+
+Twice a cached old panel after an update looked like a product crash ("layout was not used", a locked 3D drag). The panel now asks `floorplan_studio/version` (any user, `{ version }`) at load and on every `visibilitychange` to visible, compares it with `CARD_VERSION` (injected at build; a `dev` build never compares) and, on a mismatch, shows a Reload banner and refuses Save. A failed or odd reply says nothing, so the guard cannot break an older integration. It cannot help a page that was already open before this release.
+
+## 2026-10-06: North in the layout, sun from its real direction, folding panel sections
+
+Diego asked for the sun to come from the right angle, for the studio to show where north is, and for the right-hand panel sections to fold, closed at start. `north` already exists (schema, 0-359) but only "for the compass rose", which nothing draws. It is now defined as degrees clockwise from plan-up to true north, in layout coordinates before `rotate`; the sun's plan bearing is `azimuth + north`. The rose is drawn by `renderFloor` so studio and card cannot differ (finding 8). No schema change, no migration: layouts already carry `north: 0`. Panel folds are view state, like Fix plan: not in the layout, not an undo step. Planned as S15.3a-d and S15.7, plus patch 0.16.3 (stale panel guard) first.
+
 ## 2026-10-06: Motion fades 120 s after motion ends
 
 Supersedes S2.4 ("fade counts from the last time the sensor was on") and the 300 s default. Diego: the garden stayed highlighted for hours; it should go 2 minutes after motion ends. Two causes found: the card remembered the sensor's *on* moment (`_lastOn`) and faded from there, so motion that lasted longer than the window had no fade after it ended; and the fade timer watched only motion devices, never a room's own `motion` list, so nothing redrew a garden's border when its window closed. Now the fade starts at the sensor's own `last_changed` while it is off (the moment motion ended), the timer covers devices and room lists of the shown floor and runs one tick past the window so the last render is clean, and `DEFAULT_MOTION_FADE_S = 120` is the one default (core, card form, studio). A sensor that stays `on` stays lit and runs no timer. `_lastOn` and `_recordLastOn` are gone from the card and the studio.

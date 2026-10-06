@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.16.3 - 2026-10-06
+
+- Studio: furniture and unlinked objects (heater, speaker, TV...) have a **rotation slider**, any angle from 0 to 359, previewed live, one undo step per drag. The turn buttons stay.
+- Card, studio: a **speaker or TV object** (Add > Unlinked device) with a `media_player` attached shows its state: two waves and its active colour while playing. A tap or hold on it opens that player's more-info instead of the popup. The attach list offers media players first. 2D and 2.5D; the 3D view does not draw the waves yet.
+- Studio, room panel: the temperature, humidity and motion pickers each sit in a framed box with their list, and the sensor names are smaller. Humidity (and any other) sensors not yet on the plan are now listed under the floor and room of their Home Assistant area, like the others, instead of all under "Elsewhere". Delete is the first control under the name, in the door and window panel too.
+- Studio: a page left open through an update no longer runs the old panel unnoticed. The panel asks the integration for the installed version (new `floorplan_studio/version` command) when it opens and whenever the tab becomes visible again; if it differs from its own build, a banner says so with a **Reload** button, and Save is refused until you reload. Pages that were open before this version do not have the check; it protects the updates after it.
+
 ## 0.16.2 - 2026-10-06
 
 - Card, studio: a motion highlight now fades **120 s after motion ends** (the default `fade` was 300 s) and is then gone. Before, the fade counted from when the sensor turned *on*, so a long motion had no fade at all, and a room's own motion sensors (a garden's, say) had no timer, so their border could stay drawn until something else redrew the card. A sensor that stays `on` stays lit, as before. Set `fade` in the card to change it.

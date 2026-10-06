@@ -706,7 +706,18 @@ export class EditorState {
     const type: DeviceType = field === "temps" ? "temp" : field;
     const used = new Set<string>();
     for (const fl of Object.values(this.layout.floors)) for (const o of fl.rooms) if (o.id !== r.id) for (const e of o[field] ?? []) used.add(e);
-    return [...this.layout.catalog.filter((c) => c.type === type && !used.has(c.entity)), ...this.unattachedHaChoices(type).filter((c) => !used.has(c.entity))];
+    return [...this.layout.catalog.filter((c) => c.type === type && !used.has(c.entity)), ...this.withPlanRoom(this.unattachedHaChoices(type).filter((c) => !used.has(c.entity)))];
+  }
+
+  /**
+   * Gives an uncatalogued HA entity the floor and room its HA area is drawn as, first match wins (the rule `availableEntities`
+   * uses), so a picker can file it under its room like a catalogued one. An entity with no area, or an area with no drawn room, stays loose.
+   */
+  private withPlanRoom(choices: CatalogEntry[]): CatalogEntry[] {
+    const areaOf = new Map((this.ha?.entities ?? []).map((e) => [e.id, e.area]));
+    const where = new Map<string, { floor: string; room: string }>();
+    for (const [key, fl] of Object.entries(this.layout.floors)) for (const r of fl.rooms) if (r.area && !where.has(r.area)) where.set(r.area, { floor: key, room: r.name });
+    return choices.map((c) => { const w = where.get(areaOf.get(c.entity) ?? ""); return w ? { ...c, ...w } : c; });
   }
 
   /** The room device `i` belongs to on the current floor, or -1: `roomAt`, the rule the aura clip, the readout and the Sensors section share. */
@@ -811,8 +822,12 @@ export class EditorState {
    * linked climates, an unlinked item has no fixed HA domain (a "car" or "server" type has no natural one), so
    * every placed entity is a candidate; `multiAttachField` already excludes what is attached to this item.
    */
-  unlinkedAttachChoices(): CatalogEntry[] {
-    return this.layout.catalog;
+  unlinkedAttachChoices(type?: DeviceType): CatalogEntry[] {
+    if (type !== "speaker" && type !== "tv") return this.layout.catalog;
+    // A speaker or TV is linked to a media player: those come first, the ones the plan has not met yet included.
+    const isPlayer = (c: CatalogEntry) => c.entity.startsWith("media_player.");
+    const players = [...this.layout.catalog.filter(isPlayer), ...this.unattachedHaChoices("media").filter((c) => !this.layout.catalog.some((k) => k.entity === c.entity))];
+    return [...players, ...this.layout.catalog.filter((c) => !isPlayer(c))];
   }
 
   /**

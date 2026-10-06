@@ -223,4 +223,62 @@ describe("<floorplan-studio-panel>", () => {
       expect(editorOf(el)).not.toBeNull();
     });
   });
+
+  // P1 (0.16.3): an open page keeps the old panel after an update. The panel asks the integration which version is installed
+  // (`floorplan_studio/version`, shape copied from websocket.py: `{ "version": "<x.y.z>" }`) and compares it with its own build.
+  describe("a stale page", () => {
+    const asked = (installed: () => string) => stubHass((m) => (m.type === "floorplan_studio/version" ? { version: installed() } : { layout: L }));
+    const staleBox = (el: FloorplanStudioPanel) => el.shadowRoot!.querySelector(".stale") as HTMLElement | null;
+    const mountBuilt = async (hass: ReturnType<typeof stubHass>, built: string) => {
+      const el = new FloorplanStudioPanel();
+      (el as unknown as { built: string }).built = built;
+      document.body.appendChild(el);
+      el.hass = hass as never;
+      await settle(el);
+      return el;
+    };
+
+    it("shows nothing when the installed version is the one this page was built from", async () => {
+      const el = await mountBuilt(asked(() => "0.16.3"), "0.16.3");
+      expect(staleBox(el)).toBeNull();
+    });
+
+    it("shows a Reload banner when another version is installed, and the button reloads the page", async () => {
+      const el = await mountBuilt(asked(() => "0.16.4"), "0.16.3");
+      expect(staleBox(el)).not.toBeNull();
+      expect(staleBox(el)!.textContent).toContain("0.16.4");
+      expect(staleBox(el)!.textContent).toContain("0.16.3");
+      const reload = vi.spyOn(el as unknown as { reload(): void }, "reload").mockImplementation(() => undefined);
+      (staleBox(el)!.querySelector("button") as HTMLButtonElement).click();
+      expect(reload).toHaveBeenCalledTimes(1);
+    });
+
+    it("refuses to save while stale, and says why", async () => {
+      const hass = asked(() => "0.16.4");
+      const el = await mountBuilt(hass, "0.16.3");
+      const ed = editorOf(el)!;
+      const saveDone = vi.spyOn(ed, "saveDone");
+      ed.dispatchEvent(new CustomEvent("save-request", { detail: L }));
+      await settle(el);
+      expect(hass.callWS.mock.calls.filter(([m]) => m.type === "floorplan_studio/save")).toHaveLength(0);
+      expect(saveDone).toHaveBeenCalledWith(false, expect.stringContaining("Reload"));
+    });
+
+    it("asks again when the page becomes visible, so a tab left open through an update is caught", async () => {
+      let installed = "0.16.3";
+      const el = await mountBuilt(asked(() => installed), "0.16.3");
+      expect(staleBox(el)).toBeNull();
+      installed = "0.16.4";
+      document.dispatchEvent(new Event("visibilitychange"));
+      await settle(el);
+      expect(staleBox(el)).not.toBeNull();
+    });
+
+    it("a reply without a usable version, or a dev build, never claims the page is stale", async () => {
+      const none = await mountBuilt(stubHass(() => ({ layout: L })), "0.16.3");
+      expect(staleBox(none)).toBeNull();
+      const dev = await mountBuilt(asked(() => "0.16.4"), "dev");
+      expect(staleBox(dev)).toBeNull();
+    });
+  });
 });

@@ -17,7 +17,7 @@ function baseCtx(st: EditorState): PanelCtx {
     attachToRoom: () => {},
     select: () => {},
     paint: () => {},
-    rotateTexture: () => {},
+    rotateTexture: () => {}, rotateItem: () => {},
     scaleTexture: () => {},
     drawArea: () => {},
     placeArea: () => {},

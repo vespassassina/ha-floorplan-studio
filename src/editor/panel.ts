@@ -8,6 +8,7 @@ import { makeWriter } from "./hass-write";
 import { panelVar } from "./theme";
 import type { HaData } from "../core";
 import type { FloorplanStudioEditor } from "./editor-app";
+import { CARD_VERSION } from "../card/version";
 
 /** The part of Home Assistant's `hass` object the panel uses. */
 interface PanelHass {
@@ -46,6 +47,7 @@ export class FloorplanStudioPanel extends LitElement {
     ready: { state: true },
     error: { state: true },
     install: { state: true },
+    stale: { state: true },
   };
   declare hass: PanelHass | undefined;
   declare narrow: boolean;
@@ -56,6 +58,10 @@ export class FloorplanStudioPanel extends LitElement {
   declare error: string;
   /** The install click: empty when idle, busy, done, or an error text. */
   declare install: string;
+  /** The installed version when it differs from the one this page was built from (an update landed while the page stayed open); empty otherwise. */
+  declare stale: string;
+  /** This page's own build version. A dev build has none to compare, so it is never stale. */
+  private built: string = CARD_VERSION;
   private started = false;
   /** What HA has, fetched once after the load. Handed to the editor directly, never through a template binding: the editor is drawn once (see `render`). */
   private ha: HaData | undefined;
@@ -66,12 +72,27 @@ export class FloorplanStudioPanel extends LitElement {
     this.ready = false;
     this.error = "";
     this.install = "";
+    this.stale = "";
   }
+
+  private onVisible = () => { if (document.visibilityState !== "hidden") void this.checkVersion(); };
+  connectedCallback() { super.connectedCallback(); document.addEventListener("visibilitychange", this.onVisible); }
+  disconnectedCallback() { document.removeEventListener("visibilitychange", this.onVisible); super.disconnectedCallback(); }
+  /** Asks the integration which version is installed. Any failure or odd reply says nothing: a guard must never be the thing that breaks the panel. */
+  private async checkVersion() {
+    if (!this.hass || this.built === "dev") return;
+    try {
+      const r = await this.hass.callWS<{ version?: unknown }>({ type: "floorplan_studio/version" });
+      this.stale = typeof r?.version === "string" && r.version !== "" && r.version !== this.built ? r.version : "";
+    } catch { /* an older integration has no such command */ }
+  }
+  private reload() { location.reload(); }
 
   willUpdate(changed: Map<string, unknown>) {
     if (changed.has("hass") && this.hass && !this.started) {
       this.started = true;
       void this.load();
+      void this.checkVersion();
     }
   }
 
@@ -108,6 +129,7 @@ export class FloorplanStudioPanel extends LitElement {
   private async onSave(e: Event) {
     const ed = e.currentTarget as FloorplanStudioEditor;
     const layout = (e as CustomEvent<Layout>).detail;
+    if (this.stale) { ed.saveDone(false, `Not saved: this page is out of date (${this.built}, installed ${this.stale}). Reload, then save again.`); return; }
     try {
       await this.hass!.callWS({ type: "floorplan_studio/save", layout });
       ed.saveDone(true, "Saved to Home Assistant");
@@ -127,6 +149,7 @@ export class FloorplanStudioPanel extends LitElement {
   }
 
   private banner() {
+    if (this.stale) return html`<div class="update stale">Floorplan Studio was updated to ${this.stale}; this page still runs ${this.built}. <button @click=${() => this.reload()}>Reload</button> Saving is off until you do.</div>`;
     if (this.install === "done") return html`<div class="update">Update installed. Restart Home Assistant to finish (Settings, System, Restart).</div>`;
     const u = findUpdate(this.hass);
     if (!u) return nothing;

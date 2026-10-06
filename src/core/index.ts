@@ -14,7 +14,7 @@ export { ACTIVE_LIST_RULE, activeDevices, groupActiveByType } from "./active";
 export type { ActiveDevice } from "./active";
 export { CATEGORIES, CATEGORY_OF, groupByCategory } from "./categories";
 export type { CategoryGroup, CategoryId } from "./categories";
-export { entitiesOfDevice, entitiesOfDoor } from "./attachments";
+export { entitiesOfDevice, entitiesOfDoor, playerOf } from "./attachments";
 export * from "./heights";
 export { HEAT_FROM, HEAT_TO, PLUG_ACTIVE_WATTS, findPowerSensor, heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 export type { PowerCandidate } from "./power";

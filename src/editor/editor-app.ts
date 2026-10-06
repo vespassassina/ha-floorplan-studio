@@ -159,6 +159,7 @@ export class FloorplanStudioEditor extends LitElement {
   private draw: Draw | null = null;
   /** S4.22: the layout as it stood when the texture-rotation slider's drag began, or null between drags. */
   private textureRotGesture: Layout | null = null;
+  private itemRotGesture: Layout | null = null;
   /** S4.19: the same, for the texture-scale slider. */
   private textureScaleGesture: Layout | null = null;
   private hover: Pt | null = null;
@@ -369,6 +370,9 @@ export class FloorplanStudioEditor extends LitElement {
     /* Round red X, icon only: the room Sensors section's Remove. Square box so 50% is a circle. */
     .btn.rm-x{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:26px;height:26px;padding:0;border-radius:50%;background:var(--fp-danger);color:var(--fp-on-dark);border-color:var(--fp-danger);vertical-align:middle}
     .btn.rm-x svg{width:16px;height:16px;fill:currentColor;pointer-events:none}
+    /* The room Sensors section: one framed box per kind round its picker and its list, names smaller than the form text. */
+    .sens-box{border:1px solid var(--fp-primary);border-radius:6px;padding:6px 8px;margin:6px 0;background:color-mix(in srgb,var(--fp-primary) 7%,transparent)}
+    .sens-box .attach-row{font-size:11px}
     .menu{position:relative}
     .menu>summary{list-style:none;display:inline-block}
     .menu>summary::-webkit-details-marker{display:none}
@@ -637,6 +641,19 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.commitLiveEdit(before)) this.changed("Texture rotated");
     else this.requestUpdate();
   };
+  /** The furniture and unlinked panels' rotation slider. Same live/commit gesture as `rotateTexture`. */
+  private rotateItem = (on: "furniture" | "unlinked", i: number, rot: number, phase: "live" | "commit") => {
+    if (!this.itemRotGesture) this.itemRotGesture = structuredClone(this.st.layout);
+    const g = structuredClone(this.st.f);
+    const o = g[on][i];
+    if (o) o.rot = ((Math.trunc(rot) % 360) + 360) % 360;
+    this.st.replaceFloor(g);
+    if (phase === "live") { this.requestUpdate(); return; }
+    const before = this.itemRotGesture;
+    this.itemRotGesture = null;
+    if (this.st.commitLiveEdit(before)) this.changed("Rotated");
+    else this.requestUpdate();
+  };
   /** S4.19: the paint panel's scale slider. Same live/commit gesture as `rotateTexture`. */
   private scaleTexture = (on: "rooms" | "stairs", i: number, scale: number, phase: "live" | "commit") => {
     if (!this.textureScaleGesture) this.textureScaleGesture = structuredClone(this.st.layout);
@@ -652,7 +669,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.requestUpdate();
   };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, attachEntity: this.attachEntity, attachToRoom: this.attachToRoom, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, attachEntity: this.attachEntity, attachToRoom: this.attachToRoom, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, rotateItem: this.rotateItem, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------

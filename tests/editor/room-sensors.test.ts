@@ -170,3 +170,37 @@ describe("Attach to room: the same room rule as the panel (Opus review of Sprint
     expect(JSON.stringify(st.layout)).toBe(before);
   });
 });
+
+describe("roomSensorChoices: an HA sensor the plan has not met yet", () => {
+  it("takes its floor and room from its HA area, so the picker files it under that room, not 'Elsewhere'", () => {
+    const l = fresh();
+    l.floors.ground.rooms[1].area = "area_k"; // a room other than the one being edited
+    const room1 = l.floors.ground.rooms[1].name;
+    const st = new EditorState(l);
+    const ha = { areas: [{ id: "area_k", name: "K" }], entities: [
+      { id: "sensor.new_humidity", name: "New humidity", domain: "sensor", dc: "humidity", area: "area_k" },
+      { id: "sensor.loose_humidity", name: "Loose humidity", domain: "sensor", dc: "humidity", area: null },
+    ], devices: [] } as unknown as HaData;
+    st.ha = ha;
+    const out = st.roomSensorChoices(LIVING, "humidity").filter((c) => c.entity.startsWith("sensor.new") || c.entity.startsWith("sensor.loose"));
+    const byId = Object.fromEntries(out.map((c) => [c.entity, c]));
+    expect(byId["sensor.new_humidity"]).toMatchObject({ floor: "ground", room: room1 });
+    expect(byId["sensor.loose_humidity"]).toMatchObject({ floor: "", room: "" });
+  });
+});
+
+describe("unlinkedAttachChoices for a speaker or TV", () => {
+  it("lists media players first, including HA players the plan has not met, and only for those two types", () => {
+    const st = new EditorState(fresh());
+    st.ha = { areas: [], devices: [], entities: [{ id: "media_player.kitchen_echo", name: "Kitchen echo", domain: "media_player", area: null }] } as unknown as HaData;
+    for (const type of ["speaker", "tv"] as const) {
+      const out = st.unlinkedAttachChoices(type).map((c) => c.entity);
+      expect(out[0]).toMatch(/^media_player\./);
+      expect(out).toContain("media_player.kitchen_echo");
+      const firstOther = out.findIndex((e) => !e.startsWith("media_player."));
+      expect(out.slice(firstOther).some((e) => e.startsWith("media_player."))).toBe(false);
+    }
+    expect(st.unlinkedAttachChoices("heater").map((c) => c.entity)).not.toContain("media_player.kitchen_echo");
+    expect(st.unlinkedAttachChoices().map((c) => c.entity)).not.toContain("media_player.kitchen_echo");
+  });
+});
