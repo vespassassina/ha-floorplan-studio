@@ -51,6 +51,7 @@ export const DEVICE_Z: Record<DeviceType, number> = {
 export const WALL_KIND_HEIGHT: Record<WallKind, number | "storey"> = {
   wall: "storey", external: "storey",
   fence: 110,
+  parapet: 120, // a balcony's half wall (2026-10-06)
   edge: 0, // a curb: flat on the plan
   boundary: 0, // a drawn line, no wall
 };

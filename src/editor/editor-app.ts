@@ -528,6 +528,7 @@ export class FloorplanStudioEditor extends LitElement {
        the packed block's right edge, and every item after status keeps a fixed distance from that right edge, so
        Filter's x never moves when the status text changes — see the "moves no button" acceptance test). max-width
        still caps an extreme message so text-overflow:ellipsis clips it instead of ever forcing a wrap. */
+    .fixplan{display:inline-flex;align-items:center;gap:4px;margin:0;font-size:.85em;opacity:1;white-space:nowrap}
     .status{flex:0 1 auto;max-width:16em;font-size:.85em;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .room{pointer-events:all}
     .opening{pointer-events:stroke}
@@ -625,7 +626,9 @@ export class FloorplanStudioEditor extends LitElement {
     this.emit("layout-changed");
     this.requestUpdate();
   }
-  private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); };
+  private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); else if (this.st.planBlocked) this.planFixed(); };
+  /** The one reply to a change the plan lock refused ("Fix plan" is ticked). */
+  private planFixed(): boolean { this.status = "The plan is fixed. Untick Fix plan to change it; devices stay editable"; this.requestUpdate(); return true; }
   /** S10.2: `PanelCtx.attachEntity` — names the entity (its catalog name, escaped by lit's own text interpolation)
    *  and `label` (the door/device/item) in the status line only when an icon was actually pulled off the plan. */
   private attachEntity = (entity: string, apply: (f: Floor) => void, label: string, keepDeviceId?: string) => {
@@ -858,6 +861,8 @@ export class FloorplanStudioEditor extends LitElement {
         st.sel = null;
         this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: ev.button, moved: false };
     }
+    // Fix plan: a press still selects, so a wall or a room can be looked at, but only a device (or the view) follows the pointer.
+    if (st.planLocked && this.drag && this.drag.type !== "pan" && this.drag.type !== "dev") { this.drag = null; this.planFixed(); }
     capture();
     this.requestUpdate();
   };
@@ -1870,6 +1875,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   /** Enters draw mode. Whatever was being drawn is dropped; the selection is cleared so no shape looks selected while drawing. */
   private startDraw(kind: DrawKind, wall: WallKind = "wall", area?: AreaPreset) {
+    if (this.st.planLocked) { this.planFixed(); return; }
     this.draw = new Draw(kind, wall, area);
     this.hover = null;
     this.st.sel = null;
@@ -2392,6 +2398,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   /** Wipes the plan to a blank one. In Home Assistant nothing stored changes until Save. */
   private reset() {
+    if (this.st.planLocked) { this.planFixed(); return; }
     if (!confirm("Erase everything and start from a blank plan? Nothing saved is touched until you Save. Undo brings it back.")) return;
     // Not through applyLayout: a blank plan is not a valid layout (an outline needs 3 points), so it would be refused.
     this.stopDraw();
@@ -2408,6 +2415,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   /** Validates first; on any problem lists them and leaves the current layout untouched. */
   private applyLayout(x: unknown, status: string) {
+    if (this.st.planLocked) { this.planFixed(); return; }
     const r = loadLayout(x);
     if (!r.ok) { this.errors = r.errors; this.status = "Could not use that layout"; return; }
     this.stopDraw();
@@ -2557,6 +2565,7 @@ export class FloorplanStudioEditor extends LitElement {
         <div class="bar-right">
         <!-- S8.10 follow-up: status is the cluster's first item; growing it moves only its own left edge, never
              a button after it (see .status's own comment above). -->
+        <label class="fixplan" title="Lock the plan: walls, rooms, doors, stairs and furniture stay as they are. Lights and other devices stay editable"><input type="checkbox" id="fixPlan" .checked=${live(st.planLocked)} @change=${(e: Event) => { st.planLocked = (e.target as HTMLInputElement).checked; if (st.planLocked) this.stopDraw(); this.status = st.planLocked ? "Plan fixed: only devices can change" : "Plan unlocked"; this.requestUpdate(); }}> Fix plan</label>
         <span class="status" id="status" role="status" title=${this.status}>${this.status}</span>
         <details class="menu" id="filter" @toggle=${this.onMenuToggle}><summary class="btn" aria-label="Filter devices">${st.filter.length ? `Filter: ${st.filter.length} type${st.filter.length > 1 ? "s" : ""}` : `Filter: all (${f.devices.length})`}</summary><div class="box">
           <button class="btn keep" id="filterAll" ?disabled=${!st.filter.length} @click=${() => { st.filter = []; st.sel = null; this.requestUpdate(); }}>All</button>

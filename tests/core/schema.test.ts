@@ -276,7 +276,7 @@ describe("wall kinds", () => {
     for (const k of ["wall", "boundary", "external", "fence", "edge"]) expect(errorsOf(withKind(k)), k).toEqual([]);
   });
   it("rejects garden, an empty kind, a missing kind and a non-string kind", () => {
-    for (const k of ["garden", "", undefined, 3, null, "Fence"]) expect(errorsOf(withKind(k)).join("\n"), String(k)).toMatch(/w1 kind must be one of wall, boundary, external, fence, edge/);
+    for (const k of ["garden", "", undefined, 3, null, "Fence"]) expect(errorsOf(withKind(k)).join("\n"), String(k)).toMatch(/w1 kind must be one of wall, boundary, external, fence, edge, parapet/);
   });
 });
 
@@ -335,7 +335,7 @@ describe("room wk (S1.17)", () => {
   });
   it("rejects a wk of the wrong length, an unknown kind, and a missing wk", () => {
     expect(errs((l) => { l.floors.ground.rooms[0].wk = ["wall"]; })).toMatch(/room-ground-1.*wk must have 4 entries/);
-    expect(errs((l) => { l.floors.ground.rooms[0].wk = ["wall", "wall", "moat", "wall"]; })).toMatch(/room-ground-1.*wk.*one of wall, boundary, external, fence, edge/);
+    expect(errs((l) => { l.floors.ground.rooms[0].wk = ["wall", "wall", "moat", "wall"]; })).toMatch(/room-ground-1.*wk.*one of wall, boundary, external, fence, edge, parapet/);
     expect(errs((l) => { delete l.floors.ground.rooms[0].wk; })).toMatch(/room-ground-1.*wk must have 4 entries/);
   });
   it("accepts every wall kind on a room edge", () => {
@@ -359,7 +359,7 @@ describe("outline owk (S1.52)", () => {
   });
   it("rejects a wrong length, an unknown kind, and a non-array", () => {
     expect(errs((l) => { l.floors.ground.owk = ["external"]; })).toMatch(/ground:.*owk must have 4 entries/);
-    expect(errs((l) => { l.floors.ground.owk = ["external", "external", "moat", "external"]; })).toMatch(/ground:.*owk entries must be one of wall, boundary, external, fence, edge/);
+    expect(errs((l) => { l.floors.ground.owk = ["external", "external", "moat", "external"]; })).toMatch(/ground:.*owk entries must be one of wall, boundary, external, fence, edge, parapet/);
     expect(errs((l) => { l.floors.ground.owk = "external"; })).toMatch(/ground:.*owk must have 4 entries/);
   });
   it("accepts every wall kind, including none", () => {

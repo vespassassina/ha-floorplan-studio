@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Wall kind **parapet** ("Balcony wall (parapet)"): a balcony's half wall, 120 cm tall and 20 cm thick like an external wall, in 2D, 2.5D and 3D. Draw it from the Draw wall and Add wall menus, or set it as the kind of a room or outline edge. A layout that uses it needs this version: an older card or studio rejects the layout, since it does not know the kind.
+- Studio: a **Fix plan** checkbox in the top bar, before the status label. While it is ticked nothing of the plan changes (walls, rooms, doors, openings, stairs, furniture, floors, rotation, paint, Open and Reset), by drag, panel, menu or key; a press still selects so you can look. Lights and other devices stay fully editable: move, add, remove, attach. It is a view setting: not saved in the layout, and off again after a reload.
+
 ## 0.16.0 - 2026-10-06
 
 - Card: the Active list and the room panel group their rows by category (lights, climate, security, media, power, covers, computers and network, sensors, people, other), always in that order. Each category header is a button that folds its group, from the mouse or the keyboard; the fold is remembered per card in the browser. Groups start open.

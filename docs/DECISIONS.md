@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: Parapet wall kind and the Fix plan lock
+
+- **`parapet`** is a sixth `WallKind`, appended last. 120 cm (`WALL_KIND_HEIGHT`), 20 cm thick (`WALL_THICKNESS`, drawn at the external width, same colour token as an external wall, so no new theme role). Not "balcony" or "half wall": a parapet is the word for exactly this. Layouts that use it do not open in 0.16.0 (the validator lists the kinds); no schema bump, as with `slit` and `open`.
+- **Fix plan** lives in `EditorState` (`planLocked`), not in the layout and not an undo step, off on load: a lock that survives a reload would hide why a click does nothing. The gate is in the state, not in each control: `edit` refuses any change whose floor differs once `devices` is set aside; `replaceFloor` (live drags) keeps the plan and takes the devices; floor add, rename, move, delete, stairs on all floors, rotation and paint refuse; the editor refuses draw, Open and Reset, and a press on a plan item selects but starts no drag. A change that touches a device and the plan together is refused whole. Undo and Redo stay allowed. Chosen over disabling controls one by one, which misses the next control someone adds.
+
 ## 2026-10-06: Sprint 14 review: rows open the popup, a narrow room panel is a sheet, a popup is bound to its card
 
 Supersedes the S14.2 row rule ("a type that never toggled goes straight to more-info") and the unbounded popup.

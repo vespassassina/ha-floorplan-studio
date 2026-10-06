@@ -321,7 +321,7 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
     }
     faces.push(block(cursor, len, hh));
     if (len > cursor) top(cursor, len);
-    const kc = kindClass(w.kind), ext = w.kind === "external", cap = ext ? CAP_WIDTH_EXTERNAL : CAP_WIDTH;
+    const kc = kindClass(w.kind), ext = w.kind === "external" || w.kind === "parapet", cap = ext ? CAP_WIDTH_EXTERNAL : CAP_WIDTH;
     // Only a wall and an external wall are thinned; a fence or an edge is a line already. The halo is 2 wider, as in 2D.
     const thin = solid && (w.kind === "wall" || ext) ? Math.min(1, px.rise / CAP_FULL_RISE) : 0, flat = ext ? FLAT_WIDTH_EXTERNAL : FLAT_WIDTH;
     const width = (halo: number) => (thin ? ` style="stroke-width:${num(flat + (cap - flat) * thin + halo)}"` : "");
@@ -419,7 +419,7 @@ const RADIATOR_WALL_REACH = 25, DRIVER_R = 3.5, DRIVER_Z = 15;
 export const TV_WIDTH = 100, TV_THICK = 6, TV_HEIGHT = 60;
 const TV_BEZEL = 3, TV_WALL_REACH = 150, TV_STAND = 30;
 /** Half a wall's thickness (plan: 10 cm, 20 external, kept here because render.ts imports this file): where its room face lies. */
-export const wallFace = (kind: string) => (kind === "external" ? 10 : kind === "wall" ? 5 : 0);
+export const wallFace = (kind: string) => (kind === "external" || kind === "parapet" ? 10 : kind === "wall" ? 5 : 0);
 
 /** The top of a device's solid above the floor, or 0 when it has none; `viewBoxFor` widens by it. */
 export function deviceSolidTop(d: Device): number {

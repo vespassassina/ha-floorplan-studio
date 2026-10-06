@@ -50,7 +50,7 @@ export interface SceneOpts {
 }
 
 /** cm. How thick a wall is, by kind (the plan draws 10, and 20 for an external wall; a fence is a thin rail). Centred on its line. */
-export const WALL_THICKNESS: Record<string, number> = { wall: 10, external: 20, fence: 4, edge: 10, boundary: 10 };
+export const WALL_THICKNESS: Record<string, number> = { wall: 10, external: 20, fence: 4, edge: 10, boundary: 10, parapet: 20 };
 /** cm. A glass pane, a closed door's leaf, a stair-side trunk and the slab of a room fill. */
 export const PANE_THICKNESS = 2, LEAF_THICKNESS = 4, TRUNK_SIDE = 12, ROOM_THICKNESS = 1;
 /** cm. How high a wall stands where a viewer lowers it to show the rooms behind it: ONE figure for the 3D view's "cut" and "low" walls (S14.5: 30 -> 110, Diego: low was too low). */
