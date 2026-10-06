@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { OBLIQUE, renderFloor } from "../../src/core/render";
+import { FLOORPLAN_CSS, OBLIQUE, renderFloor } from "../../src/core/render";
 import { buildScene } from "../../src/core/scene";
 import { DOOR_KINDS, validate, type Floor, type Layout } from "../../src/core/schema";
 import { migrate } from "../../src/core/migrate";
@@ -92,14 +92,29 @@ describe("open: 2D draws no door, still cuts the wall", () => {
     const w = flat(floor({ doors: [door("window"), door("door", { a: [200, 0], b: [290, 0] })] as never }));
     expect(w).not.toContain("<mask");
   });
-  it("closed and unselected draws nothing; an open contact draws the same dashed line and pulse as any door; vibration too", () => {
+  it("closed and unselected draws nothing; an open contact, vibration or an open cover draws a solid alert band: marked `band`, with no pulse line (S14.5)", () => {
     const f = floor({ doors: [door("open", { sensors: ["binary_sensor.c"], vibration: ["binary_sensor.v"] })] as never });
     expect(visible(flat(f, { state: state("binary_sensor.c", "off") }))).toEqual([]);
     expect(flat(f, { state: state("binary_sensor.c", "off") })).not.toContain("door-alert");
     const open = flat(f, { state: state("binary_sensor.c", "on") });
-    expect(visible(open)).toEqual(["door door-open open"]);
+    expect(visible(open)).toEqual(["door door-open open band"]);
+    expect(open).not.toContain("door-alert"); // no pulsing line under it
+    const shake = flat(f, { state: state("binary_sensor.v", "on") });
+    expect(visible(shake)).toEqual(["door door-open alarm band"]);
+    expect(shake).not.toContain("door-alert");
+    const g = floor({ doors: [door("open", { cover: "cover.c" })] as never });
+    expect(visible(flat(g, { state: state("cover.c", "open") }))).toEqual(["door door-open cover-open band"]);
+    expect(visible(flat(g, { state: state("cover.c", "closed") }))).toEqual([]);
+  });
+  it("a plain door keeps the dashed look and the pulse: only the doorway changed", () => {
+    const f = floor({ doors: [door("door", { sensors: ["binary_sensor.c"] })] as never });
+    const open = flat(f, { state: state("binary_sensor.c", "on") });
+    expect(visible(open)).toEqual(["door door-door open"]);
     expect(open).toContain('class="door-alert"');
-    expect(visible(flat(f, { state: state("binary_sensor.v", "on") }))).toEqual(["door door-open alarm"]);
+  });
+  it("the stylesheet says a band is solid and full: no dash, full opacity, and the selected-faint rule leaves it alone", () => {
+    expect(FLOORPLAN_CSS).toMatch(/\.door\.door-open\.band\{[^}]*stroke-dasharray:none/);
+    expect(FLOORPLAN_CSS).toMatch(/\.door\.door-open\.band\{[^}]*stroke-opacity:1/);
   });
   it("selected, it shows its outline; deselected, it is gone again", () => {
     const f = floor({ doors: [door("open")] as never });
@@ -129,21 +144,36 @@ describe("open: 2.5D is a hole through the wall with no infill", () => {
   it("an own height sets the head, as for a door", () => {
     expect(faces(deep(floor({ doors: [door("open", { height: 200 })] as never })))).toContain(box(100, 190, 200, 250));
   });
-  it("a live open contact still draws the red frame; closed it does not, and a closed door is not confused with it", () => {
+  it("a live open contact fills the gap with the solid band (the former red frame); closed it does not, and a plain door keeps its frame", () => {
     const f = floor({ doors: [door("open", { sensors: ["binary_sensor.c"] })] as never });
     expect(deep(f, { state: state("binary_sensor.c", "off") })).not.toContain('class="opn');
-    expect(deep(f, { state: state("binary_sensor.c", "on") })).toContain(`<polygon class="opn open" points="${box(100, 190, 0, 210)}"/>`);
+    expect(deep(f, { state: state("binary_sensor.c", "on") })).toContain(`<polygon class="opn open band" points="${box(100, 190, 0, 210)}"/>`);
+    const g = floor({ doors: [door("door", { sensors: ["binary_sensor.c"] })] as never });
+    expect(deep(g, { state: state("binary_sensor.c", "on") })).toContain(`<polygon class="opn open" points="${box(100, 190, 0, 210)}"/>`);
+  });
+  it("the stylesheet fills a band at full opacity, and the frame stays translucent", () => {
+    expect(FLOORPLAN_CSS).toMatch(/\.opn\.band\{[^}]*fill-opacity:1/);
   });
 });
 
 describe("open: 3D scene", () => {
-  it("cuts the wall to a header above 210 and draws no leaf, glass or panel (a door has its leaf)", () => {
+  it("cuts the wall to a header above 210 and fills the gap with one thin alert band, not a leaf, glass or panel (a door has its leaf)", () => {
     const prism = (s: any) => s.shape;
-    for (const [kind, leaf] of [["open", 0], ["door", 1]] as const) {
+    for (const [kind, tag] of [["open", "band"], ["door", "door-leaf"]] as const) {
       const sc = buildScene(floor({ doors: [door(kind)] as never }));
-      expect(sc.solids.filter((s) => s.kind === "opening").length, kind).toBe(leaf);
+      expect(sc.solids.filter((s) => s.kind === "opening").map((s) => s.tag), kind).toEqual([tag]);
       const inside = sc.solids.filter((s) => s.kind === "wall").filter((s) => { const xs = prism(s).base.map((p: number[]) => p[0]); return Math.min(...xs) >= 100 && Math.max(...xs) <= 190; });
       expect(inside.map((s) => [prism(s).z0, prism(s).z1]), kind).toEqual([[210, 250]]);
     }
+  });
+  it("the band lies in the gap: the opening's own range (own sill and height), the door's index, the alert paint role, a thin slab", () => {
+    const sc = buildScene(floor({ doors: [door("open", { sill: 20, height: 150 })] as never }));
+    const b = sc.solids.find((s) => s.tag === "band")!, sh = b.shape as any;
+    expect([sh.z0, sh.z1]).toEqual([20, 170]);
+    expect(b.ref.index).toBe(0);
+    expect(b.paint.role).toBe("door-band");
+    const ys = sh.base.map((p: number[]) => p[1]), xs = sh.base.map((p: number[]) => p[0]);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(4);
+    expect([Math.min(...xs), Math.max(...xs)]).toEqual([100, 190]);
   });
 });

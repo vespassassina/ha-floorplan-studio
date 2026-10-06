@@ -314,7 +314,7 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
       if (fill === "glass") faces.push(quad(t0, t1, sill, head, `glass g-${esc(s.kind)}${live}`));
       else if (fill === "panel") faces.push(quad(t0, t1, sill, head, `ws sealed${live}`));
       // A door: closed it is a painted leaf, open (or alarmed, or its cover open) a red frame round the gap. A plain opening is only a gap.
-      else if (s.kind !== "opening" && solid && (fill !== "void" || live)) faces.push(quad(t0, t1, sill, head, live ? `opn${live}` : "door-leaf"));
+      else if (s.kind !== "opening" && solid && (fill !== "void" || live)) faces.push(quad(t0, t1, sill, head, live ? `opn${live}${fill === "void" ? " band" : ""}` : "door-leaf"));
       faces.push(quad(t0, t1, head, hh, wall));
       if (own.head < hh || own.sill >= hh) top(t0, t1); // a header, or a sill that reaches the top, closes the wall above the gap
       cursor = t1;

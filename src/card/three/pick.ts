@@ -83,9 +83,9 @@ function ballHit(r: Ray, c: V3, rad: number): number | null {
 
 /**
  * What hides a label or an icon behind it (S12.5): a wall, a stair, a door's leaf, a sealed panel. Not the floor or the slab
- * (a label lies on them), not furniture and devices (small, and a label under a table would never show), not glass.
+ * (a label lies on them), not furniture and devices (small, and a label under a table would never show), not glass or a doorway's alert band (a slab 2 cm thick).
  */
-const BLOCKS = (s: Solid): boolean => s.kind === "wall" || s.kind === "stair" || (s.kind === "opening" && s.tag !== "glass");
+const BLOCKS = (s: Solid): boolean => s.kind === "wall" || s.kind === "stair" || (s.kind === "opening" && s.tag !== "glass" && s.tag !== "band");
 
 export class Picker {
   private items: Item[] = [];

@@ -13,6 +13,9 @@
 - Layout: a device may carry `fx`, the size of its effect in percent (25 to 300, absent is 100). It scales a lit lamp's aura, a playing speaker's or media player's waves and a triggered motion or contact sensor's ring, in 2D, 2.5D and 3D (a lamp's floor pool and wall light too). Each type keeps its own base size; a layout without the field draws exactly as before. A value outside 25 to 300 is refused by validation and dropped when a file is opened.
 - Editor: an "effect size (%)" field in the device panel, on every device that draws an effect. Empty is 100; one undo step.
 - Card: a siren (any device whose entity is `siren.*`) that is on sends out two red rings, twice as far as a speaker's waves, on a thicker line and a faster beat; with reduced motion they hold still at twice the size. The effect size scales them too.
+- Card: a tripped **open doorway** (`kind: open`: its contact is open, its lock unlocked, a vibration or its cover open) is now a solid band in the alert colour (`--fp-open-door`) across the gap in 2D, 2.5D and 3D: no dash, no pulse, no door look. In 3D, where the doorway used to show nothing, a thin glass-like slab fills the gap while it is tripped, and a tap on it works like a tap on any door. Closed it still draws nothing. A plain door keeps its dashed line and pulse.
+- Card: **lower mount heights** in 3D and 2.5D. A ceiling light now hangs at 215 cm (was 250), a camera, motion sensor, radar and access point at 205 (was 230), an air conditioner at 195 (was 220), a cover motor at 175 (was 200), a thermostat, temperature and humidity sensor at 135 (was 150). An icon also stays 25 cm under the wall top (was 10). A device with its own mount height (`z`) keeps it; the editor's field shows the new preset.
+- Card: **walls in 3D**. The `low` walls and the cutaway's lowered walls are now 110 cm high (they were 30), so a low wall still shows into the rooms but reads as a wall. One figure for both modes.
 
 ## 0.15.0 - 2026-10-06
 

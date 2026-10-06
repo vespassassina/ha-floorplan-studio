@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { demo, serve, ORIGIN, drawn } from "./helpers-3d";
 
-// 3D fixes: device icons floated over the walls. Every icon anchor stays at most ICON_MARGIN (10 cm) under the top of the floor's
+// 3D fixes: device icons floated over the walls. Every icon anchor stays at most ICON_MARGIN (25 cm) under the top of the floor's
 // walls, and a low device keeps its own height. Real card, the demo's ground floor (walls 250 cm) plus a TV mounted high.
 
 interface Hook { anchors(): { index: number; type: string; z: number }[] }
@@ -26,10 +26,10 @@ test("every icon anchor is under the wall top; a low device keeps its height", a
   const a = await anchors(page);
   const byType = (t: string) => a.filter((x) => x.type === t);
   expect(a.length).toBe(devices.length);
-  for (const x of a) expect(x.z, `${x.type} #${x.index}`).toBeLessThanOrEqual(250 - 10);
-  expect(byType("light").map((x) => x.z)).toEqual([240, 240]); // ceiling lights: 250 by default, held to 240, not lower
-  expect(byType("camera")[0].z).toBe(230); // under the cap: its own height
+  for (const x of a.filter((q) => q.type !== "tv")) expect(x.z, `${x.type} #${x.index}`).toBeLessThanOrEqual(250 - 25);
+  expect(byType("light").map((x) => x.z)).toEqual([215, 215]); // ceiling lights: the preset, 215 (S14.5), under the cap of 225
+  expect(byType("camera")[0].z).toBe(205); // under the cap: its own height (the preset, S14.5)
   expect(byType("plug")[0].z).toBe(30); // a socket stays low
-  expect(byType("tv")[0].z).toBe(240); // a body's anchor (its top plus 6) is held too: 296 would float
+  expect(byType("tv")[0].z).toBe(230); // a body's anchor (its top plus 6) is held to the cap (225) but never under its own bottom (z 230): 296 would float
   expect(byType("heater")[0].z).toBe(76); // the radiator's top, 70, plus 6: untouched
 });

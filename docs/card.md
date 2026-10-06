@@ -152,10 +152,11 @@ and taps are unchanged. It works in 2D and 2.5D.
 - A door is a gap in the wall, a window is a band of glass above its sill, a
   slit window is a band of glass 60 cm high against the ceiling, a
   glass door is glass from the floor, a sealed door is a solid panel, an open
-  doorway is a gap with nothing in it (a red frame only while its sensor says open). The
+  doorway is a gap with nothing in it (while its sensor trips, a solid alert-colour band fills the gap: no dash, no pulse; in 3D a thin glass-like slab). The
   door line at floor level still shows open, closed and alert.
 - Furniture and appliances that no entity runs are boxes with their symbol
   on the lid. Heights come from the layout (`height`) or a default per kind.
+- Mount heights (S14.5): a ceiling light hangs at 215 cm, a camera, motion sensor, radar and access point at 205, an air conditioner at 195, a cover motor at 175, a thermostat or temperature sensor at 135; the editor's mount height field shows the preset and a device with its own `z` keeps it. In 3D an icon also stays 25 cm under the top of the walls.
 - A device mounted at 100 cm or more (a ceiling light, a camera, a smoke alarm)
   is drawn where it hangs, lifted with the walls, with its light radius, camera
   cone, rings, name and value. A small pin stays on the floor under it, joined by
@@ -738,7 +739,7 @@ with its own colour keeps it. There are no textures and no shadows.
   pan is never a tap. You cannot go under the floor. The camera starts south of the house at
   about 50 degrees; the card's `rotation` is the starting turn. The Reset view
   button puts the camera back.
-- Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 30 cm the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same select and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The Active list covers part of the view, so the camera frames the house in the rest. 2D and 2.5D are unchanged.
+- Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 110 cm (the same figure as `low`) the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same select and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The Active list covers part of the view, so the camera frames the house in the rest. 2D and 2.5D are unchanged.
 - The 3D code is loaded the first time you pick 3D, and only then (about 186 KB
   gzipped; the card file grew by about 3.5 KB). It draws only while something
   moves: a still model, a settled pulse and a Home Assistant update that changes

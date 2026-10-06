@@ -53,10 +53,10 @@ export interface SceneOpts {
 export const WALL_THICKNESS: Record<string, number> = { wall: 10, external: 20, fence: 4, edge: 10, boundary: 10 };
 /** cm. A glass pane, a closed door's leaf, a stair-side trunk and the slab of a room fill. */
 export const PANE_THICKNESS = 2, LEAF_THICKNESS = 4, TRUNK_SIDE = 12, ROOM_THICKNESS = 1;
-/** cm. How high a wall stands where a viewer lowers it to show the rooms behind it (the 3D view's "cut" and "low" walls). */
-export const CUT_WALL_HEIGHT = 30;
-/** cm. A device's icon and point stay this far under the top of the floor's walls, so a ceiling light or camera does not float over the house. */
-export const ICON_MARGIN = 10;
+/** cm. How high a wall stands where a viewer lowers it to show the rooms behind it: ONE figure for the 3D view's "cut" and "low" walls (S14.5: 30 -> 110, Diego: low was too low). */
+export const CUT_WALL_HEIGHT = 110;
+/** cm. A device's icon and point stay this far under the top of the floor's walls, so a ceiling light or camera does not float over the house (S14.5: 10 -> 25, with the lower presets). */
+export const ICON_MARGIN = 25;
 /** Most rooms for which nesting is worked out (it is quadratic); more than this and every fill sits at the same height. */
 const NEST_LIMIT = 300;
 /** The most point tests nesting may cost: the square of the total points of all rooms bounds it (S12 review). Over it, no nesting, as past NEST_LIMIT. */
@@ -235,6 +235,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
           if (fill === "glass") part("glass", `glass-${s.kind}`, PANE_THICKNESS);
           else if (fill === "panel") part("panel", "panel", thick);
           else if (s.kind !== "opening" && fill !== "void") part("door-leaf", "door-leaf", LEAF_THICKNESS);
+          // A doorway has no leaf: its live state (open, vibrating, cover open) is a thin alert slab in the gap, shown only then (S14.5).
+          else if (s.kind !== "opening") part("band", "door-band", PANE_THICKNESS);
         }
         cursor = t1;
       }

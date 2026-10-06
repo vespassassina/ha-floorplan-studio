@@ -393,8 +393,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     }
   }
   const isWall = (s: Solid) => s.kind === "wall" || s.kind === "opening";
-  /** A door's leaf and a window's pane are parts of their own (they swing and vanish with the state); a sealed panel stays in the wall. */
-  const isPart = (s: Solid) => s.kind === "opening" && (s.tag === "door-leaf" || s.tag === "glass");
+  /** A door's leaf, a window's pane and an open doorway's alert band are parts of their own (they swing, vanish or appear with the state); a sealed panel stays in the wall. */
+  const isPart = (s: Solid) => s.kind === "opening" && (s.tag === "door-leaf" || s.tag === "glass" || s.tag === "band");
   const drop = (m: Mesh) => { scene.remove(m); m.geometry.dispose(); dropMat(m.material as MeshLambertMaterial); };
   const clear = () => {
     dispose(meshes); dispose(wallMeshes); meshes = []; wallMeshes = []; texMeshes = [];
@@ -540,7 +540,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     for (const x of parts) {
       const d = L.doors[x.index] ?? null, swing = !!d && (d.open || d.cover);
       if (x.tag === "door-leaf") x.mesh.rotation.y = swing ? -SWING : 0;
-      x.mesh.visible = x.tag === "door-leaf" || !(d && d.open);
+      x.mesh.visible = x.tag === "door-leaf" || (x.tag === "band" ? !!d && (d.open || d.alarm || d.cover) : !(d && d.open));
       x.mat.color.copy(d && (d.alarm || d.open) ? open : d && d.cover && x.tag === "door-leaf" ? cover : x.rest);
     }
   }

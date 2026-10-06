@@ -2513,7 +2513,7 @@ Spec `docs/specs/card-polish-and-light.md`, items 1-12. Order and one outcome ea
 - S14.3 Effect size per device, editor field (item 7). Schema optional field, 2D and 3D.
 - [x] S14.3 Effect size per device, editor field (item 7). Schema optional field, 2D and 3D. Done on `task/S14.3` (also item 6: a siren's louder rings). Tests: `tests/core/effect-size.test.ts`, `tests/card/effect-size-css.spec.ts`, the 3D block in `tests/card/card-3d-tex-glow.spec.ts`, `effect size:` in `tests/editor/editor.spec.ts`.
 - S14.4 View memory per floor, 2D and 3D (item 8).
-- S14.5 Open doorway alert band (item 9), lower presets (item 10), low and cutaway wall height (item 11).
+- [x] S14.5 Open doorway alert band (item 9), lower presets (item 10), low and cutaway wall height (item 11).
 - S14.6 Active list and Room panel by collapsible category (item 12).
 Sprint review by Opus once the integrated build is done; then release 0.16.0 on Diego's yes.
 

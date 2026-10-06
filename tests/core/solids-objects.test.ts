@@ -178,9 +178,9 @@ describe("2.5D device stems", () => {
   it("a ceiling light's icon sits at the lifted point, its pin at the floor point, the stem between, under the icon", () => {
     const html = deep(dev("light", { x: 310, y: 240 })), m = stem(html)!;
     expect([m[1], m[2]]).toEqual(["310", "240"]);
-    expect(`${m[3]},${m[4]}`).toBe(P(310, 240, 250));
+    expect(`${m[3]},${m[4]}`).toBe(P(310, 240, 215)); // the light preset (S14.5)
     expect(html).toContain('<circle class="stem-top" cx="310" cy="240"');
-    const top = P(310, 240, 250).split(",").map(Number);
+    const top = P(310, 240, 215).split(",").map(Number);
     expect(html).toContain(`data-x="0" class="dev dev-light`);
     expect(html).toContain(`translate(${n(top[0] - 12)} ${n(top[1] - 12)}) scale(1)`);
     expect(html).not.toContain("translate(298 228)");
@@ -203,7 +203,9 @@ describe("2.5D device stems", () => {
       const html = deep(dev(type, { x: 310, y: 240 }));
       if (STEM[type]) {
         const m = stem(html)!, g = html.match(/<g data-x="0"[^>]*transform="translate\(([-\d.]+) ([-\d.]+)\)/)!;
-        expect([+g[1] + 12, +g[2] + 12], type).toEqual([+m[3], +m[4]]);
+        // Both are rounded to 0.01, so two roundings can differ by one in the last place (a temp sensor at 135 did): compare to 0.02.
+        expect(Math.abs(+g[1] + 12 - +m[3]), type).toBeLessThanOrEqual(0.02);
+        expect(Math.abs(+g[2] + 12 - +m[4]), type).toBeLessThanOrEqual(0.02);
         expect([m[1], m[2]], type).toEqual(["310", "240"]);
       } else if (type !== "person") expect(html, type).toContain("translate(298 228)");
     }
@@ -211,10 +213,10 @@ describe("2.5D device stems", () => {
 
   // Diego, 2026-10-03: every effect a device carries hangs with its icon. Radar targets are floor positions and stay.
   it("a lit lamp's aura, a camera's cone, a motion ring and a speaker's waves are at the lifted point", () => {
-    const at = P(310, 240, 250).split(",").map(Number);
+    const at = P(310, 240, 250).split(",").map(Number), lampAt = P(310, 240, 215).split(",").map(Number); // an explicit z of 250, and the light preset
     const on = (e: string, extra = {}) => ({ [e]: { state: "on", attributes: {}, last_changed: "2026-01-01T00:00:00Z" }, ...extra });
     const lamp = renderFloor(dev("light", { x: 310, y: 240 }), { scale: 1, view: "2.5d", state: on("x.y") as never });
-    expect(lamp).toContain(`<circle class="aura" cx="${n(at[0])}" cy="${n(at[1])}"`);
+    expect(lamp).toContain(`<circle class="aura" cx="${n(lampAt[0])}" cy="${n(lampAt[1])}"`);
     expect(renderFloor(dev("light", { x: 310, y: 240 }), { scale: 1, state: on("x.y") as never })).toContain('<circle class="aura" cx="310" cy="240"');
     // A cone, a ping and a wave live inside the icon group, so they take its translate; none is drawn outside it.
     const camera = deep(dev("camera", { x: 310, y: 240, z: 250 }));

@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import { FLOORPLAN_CSS, THEMES } from "../../src/core/render";
 
 // The open doorway in the card, in a real Chromium: closed it draws nothing at all; when its contact says open it
-// wears the same dashed alert as any door (Diego, 2026-10-05: "open ... do not draw the door").
+// is a SOLID alert band across the gap: no dash, no pulse, no door look (S14.5; Diego, 2026-10-05: "open ... do not draw the door").
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
@@ -37,28 +37,49 @@ test("2D: a closed doorway draws no line at all; the plan holds one door line fe
   expect(n.alert).toBe(0);
 });
 
-test("2D: an open contact on it draws the dashed alert line in the open-door colour, and the pulse", async ({ page }) => {
+test("2D: an open contact on it draws a solid band in the open-door colour: no dash, full opacity, no pulse line", async ({ page }) => {
   await boot(page, "2d", "on");
   const r = await card(page).evaluate((el) => {
     const hit = el.shadowRoot!.querySelector("svg line.door-hit-open")!, i = hit.getAttribute("data-d")!;
     const l = el.shadowRoot!.querySelector(`svg line.door-open[data-d="${i}"]`)!, cs = getComputedStyle(l);
-    return { cls: l.getAttribute("class"), dash: cs.strokeDasharray, stroke: cs.stroke, alert: el.shadowRoot!.querySelectorAll("svg line.door-alert").length };
+    const probe = document.createElement("i"); probe.style.color = "var(--fp-open-door)"; el.shadowRoot!.querySelector("svg")!.parentNode!.appendChild(probe);
+    const want = getComputedStyle(probe).color; probe.remove();
+    return { cls: l.getAttribute("class"), dash: cs.strokeDasharray, op: cs.strokeOpacity, anim: cs.animationName, stroke: cs.stroke, want, alert: el.shadowRoot!.querySelectorAll("svg line.door-alert").length };
   });
-  expect(r.cls).toMatch(/door-open.*\bopen\b/);
-  expect(r.dash).not.toBe("none");
-  expect(r.alert).toBe(1);
-  expect(r.stroke).toMatch(/^(rgb|color)\(/);
+  expect(r.cls).toMatch(/door-open.*\bopen\b.*\bband\b/);
+  expect(r.dash).toBe("none");
+  expect(r.op).toBe("1");
+  expect(r.anim).toBe("none");
+  expect(r.alert).toBe(0);
+  expect(r.stroke).toBe(r.want); // the alert colour itself
 });
 
-test("2.5D: closed, nothing stands in the gap; open, the red frame does", async ({ page }) => {
+test("CSS pair: a plain open door is still dashed with its pulse; only the doorway is a band", async ({ page }) => {
+  await page.setContent(`<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg>${THEMES.map((t) => `<g data-theme="${t}" data-mode="dark" id="t-${t}"><line class="door door-door open" x1="0" y1="0" x2="9" y2="0"/><line class="door door-open open band" x1="0" y1="0" x2="9" y2="0"/><line class="door door-open alarm band" x1="0" y1="0" x2="9" y2="0"/><line class="door door-open sel open band" x1="0" y1="0" x2="9" y2="0"/><polygon class="opn open" points="0,0 9,0 9,9"/><polygon class="opn open band" points="0,0 9,0 9,9"/></g>`).join("")}</svg></body></html>`);
+  for (const t of THEMES) {
+    const r = await page.locator(`#t-${t}`).evaluate((g) => [...g.children].map((l) => { const c = getComputedStyle(l); return [c.strokeDasharray, c.strokeOpacity, c.fillOpacity]; }));
+    expect(r[0][0], `${t} plain door dashed`).not.toBe("none");
+    expect(r[1][0], `${t} band`).toBe("none");
+    expect(r[2][0], `${t} vibrating band`).toBe("none");
+    expect(r[3][0], `${t} selected band`).toBe("none");
+    expect(r[3][1], `${t} selected band opacity`).toBe("1");
+    expect(Number(r[4][2]), `${t} frame stays translucent`).toBeLessThan(0.5);
+    expect(r[5][2], `${t} 2.5D band is solid`).toBe("1");
+  }
+});
+
+test("2.5D: closed, nothing stands in the gap; open, the solid band does", async ({ page }) => {
   await boot(page, "2.5d", "off");
   await expect(card(page).locator("css=svg.fp-turning")).toHaveCount(0);
-  const leafs = (p: Page) => card(p).evaluate((el) => ({ opn: el.shadowRoot!.querySelectorAll("svg polygon.opn").length, open: el.shadowRoot!.querySelectorAll("svg polygon.opn.open").length }));
+  const leafs = (p: Page) => card(p).evaluate((el) => ({ opn: el.shadowRoot!.querySelectorAll("svg polygon.opn").length, open: el.shadowRoot!.querySelectorAll("svg polygon.opn.open").length, band: [...el.shadowRoot!.querySelectorAll("svg polygon.opn.open.band")].map((q) => getComputedStyle(q).fillOpacity) }));
   const closed = await leafs(page);
   await boot(page, "2.5d", "on");
   await expect(card(page).locator("css=svg.fp-turning")).toHaveCount(0);
   const on = await leafs(page);
-  expect(on.open).toBeGreaterThan(closed.open); // the red frame of the doorway appears
+  expect(on.open).toBeGreaterThan(closed.open); // the alert band of the doorway appears
+  expect(closed.band).toEqual([]);
+  expect(on.band.length).toBeGreaterThan(0); // an overlapping wall may repeat the span: every copy is solid
+  expect(new Set(on.band)).toEqual(new Set(["1"])); // solid, not the frame's translucent fill
 });
 
 test("CSS pair: a selected doorway is a faint line, an open one is not; an open one keeps its full colour", async ({ page }) => {

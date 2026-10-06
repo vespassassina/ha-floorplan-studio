@@ -130,12 +130,12 @@ test.describe("3D view: taps on rooms", () => {
 
   test("a lowered wall is looked over: a tap on the floor behind the front wall picks that room; with full walls it is the wall, which clears", async ({ page }) => {
     await boot(page);
-    await click(page, () => at(page, 150, 540, 1), { type: "room", index: 2 }); // the Hall, 50 cm inside its south wall, from a camera in the south
+    await click(page, () => at(page, 150, 450, 1), { type: "room", index: 2 }); // the Hall, 150 cm inside its south wall (S14.5: the low wall is 110 cm, so a nearer point is hidden), from a camera in the south
     await expect.poll(() => ring(page)).toBe("2");
     await expect.poll(async () => (await holder(page).getAttribute("data-inset"))).toMatch(/^0\.[3-9]/); // the room section widened the list
     await card(page).locator('css=select[aria-label="Walls"]').selectOption("full");
     await expect.poll(async () => (await holder(page).getAttribute("data-lowered"))).toBe("");
-    await click(page, () => at(page, 150, 540, 1), { type: "other" }); // the wall in front of it now
+    await click(page, () => at(page, 150, 450, 1), { type: "other" }); // the wall in front of it now
     await expect.poll(() => ring(page)).toBe("");
   });
 

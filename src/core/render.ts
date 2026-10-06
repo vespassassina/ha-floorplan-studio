@@ -288,7 +288,7 @@ export const FLOORPLAN_CSS = `
 /* An opening that is open (a contact sensor on, a lock left unlocked) is red on the wall face as it is in 2D, an alarm the
    same; an open cover keeps its own orange. Unavailable and unknown are none of these. A closed door is a painted leaf. */
 .door-leaf{fill:var(--fp-door);fill-opacity:.85;stroke:var(--fp-on-light);stroke-opacity:.6;stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
-.opn{fill:var(--fp-open-door);fill-opacity:.3;stroke:var(--fp-open-door);stroke-width:2;stroke-linejoin:round;vector-effect:non-scaling-stroke} .opn.cover-open{fill:var(--fp-open-door);stroke:var(--fp-open-door)}
+.opn{fill:var(--fp-open-door);fill-opacity:.3;stroke:var(--fp-open-door);stroke-width:2;stroke-linejoin:round;vector-effect:non-scaling-stroke} .opn.cover-open{fill:var(--fp-open-door);stroke:var(--fp-open-door)} .opn.band{fill-opacity:1}
 .glass.open,.glass.alarm,.ws.sealed.open,.ws.sealed.alarm{fill:var(--fp-open-door);stroke:var(--fp-open-door)} .glass.open,.glass.alarm{fill-opacity:.55} .glass.cover-open,.ws.sealed.cover-open{fill:var(--fp-open-door);stroke:var(--fp-open-door)}
 .e.none{stroke:var(--fp-idle);stroke-width:1;stroke-dasharray:2 5;opacity:.6} .e.se{stroke-width:1.5} .tread{stroke:var(--fp-tread);stroke-width:1.5;fill:none}
 /* A stair that goes down or both ways (stairs.ts): an arrow on its axis, and going down the steps darkened toward the low end.
@@ -325,6 +325,9 @@ export const FLOORPLAN_CSS = `
    explicitly clears back to none. render.ts never sets .cover-open on a window or glass door at all — there
    cover is curtains, not a security state (Diego, 2026-09-28). */
 .door.open{stroke:var(--fp-open-door);stroke-dasharray:10 6} .door.cover-open{stroke:var(--fp-open-door);stroke-dasharray:none}
+/* S14.5: a tripped open doorway is a solid band in the alert colour, whatever tripped it (open, vibrating, cover open), at full strength even
+   while selected. Three classes, so it outranks .door.open's dash and the selected-faint rule below without depending on source order. */
+.door.door-open.band{stroke:var(--fp-open-door);stroke-dasharray:none;stroke-opacity:1}
 /* S8.9 finding 3: a door's own stroke is now as thin as the internal wall it sits on, so this invisible twin
    (drawn first, same data-d, at the old fixed 22 cm) keeps the click target exactly as wide as it always was. */
 .door-hit{stroke:transparent;pointer-events:stroke;cursor:move}
@@ -1280,8 +1283,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // contact, but solid, not dashed - dashed keeps meaning "open" alone. Both at once: dashed (open wins the
     // dash, class order below puts .open after .alarm so its dasharray is the one asserted last), red, one line.
     const { open, alarm: vibrating, cover: coverOpen } = doorStateOf(d, o.state);
-    const cls = ["door", `door-${esc(String(d.kind))}`, d.kind === "slit" ? "door-window" : "", vibrating ? "alarm" : "", open ? "open" : "", coverOpen ? "cover-open" : ""].filter(Boolean).join(" ");
     const sel = o.selection?.t === "door" && o.selection.i === i, doorway = d.kind === "open";
+    // S14.5: a tripped doorway is a solid alert band (`band`: no dash, no pulse), not an open door's look.
+    const tripped = doorway && (open || vibrating || coverOpen);
+    const cls = ["door", `door-${esc(String(d.kind))}`, d.kind === "slit" ? "door-window" : "", vibrating ? "alarm" : "", open ? "open" : "", coverOpen ? "cover-open" : "", tripped ? "band" : ""].filter(Boolean).join(" ");
     // 2.5D: the wall is already cut open above, so the floor line is only a threshold, thin enough to see through the gap.
     // It keeps every class (open, alarm, cover-open) and its alert line, so a door's state still shows.
     // A slit window is the window mark drawn as a thin band (SLIT_BAND of the wall), so it reads as a slit at a glance.
@@ -1292,7 +1297,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // it always was. It shares data-d with the visible line, so hitOf() (editor-app.ts) finds the same door either way.
     // S8.13: an open contact door gets a wide pulsing line under its own, so it reads from across the room.
     // S10.3: a vibrating door gets the same line - open or vibrating (or both) is still only ever one alert line.
-    if (open || vibrating) out.push(`<line class="door-alert" ${seg} stroke-width="${w + DOOR_ALERT_EXTRA}"/>`);
+    if ((open || vibrating) && !doorway) out.push(`<line class="door-alert" ${seg} stroke-width="${w + DOOR_ALERT_EXTRA}"/>`);
     out.push(`<line data-d="${i}" class="door-hit${doorway ? " door-hit-open" : ""}" ${seg} stroke-width="${DOOR_HIT_WIDTH}"/>`);
     // A doorway draws nothing of its own: only its state (open, vibrating, cover open) or the editor's selection shows a line.
     if (doorway && !sel && !open && !vibrating && !coverOpen) return;

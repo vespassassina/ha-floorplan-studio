@@ -540,8 +540,8 @@ describe("scene: a device's point stays under the wall top (3D fixes)", () => {
 
   it("a ceiling light, a camera and a user z above the walls are held ICON_MARGIN under them; every default point is", () => {
     const top = floorHeight(floor());
-    expect(ICON_MARGIN).toBe(10);
-    expect(zOf(floor({ devices: [dv("light")] }))).toBe(top - ICON_MARGIN);
+    expect(ICON_MARGIN).toBe(25);
+    expect(zOf(floor({ devices: [dv("light")] }))).toBe(215); // the preset, already under the cap of 225
     expect(zOf(floor({ devices: [dv("camera", { z: 400 })] }))).toBe(top - ICON_MARGIN);
     for (const t of DEVICE_TYPES) {
       if (DEVICE_SOLID[t] !== "none") continue;
@@ -551,13 +551,14 @@ describe("scene: a device's point stays under the wall top (3D fixes)", () => {
   it("a low device keeps its own height, and so does a high one on a taller floor", () => {
     expect(zOf(floor({ devices: [dv("plug")] }))).toBe(deviceZ(dv("plug")));
     expect(zOf(floor({ devices: [dv("camera", { z: 187 })] }))).toBe(187);
-    expect(zOf(floor({ height: 320, devices: [dv("light")] }))).toBe(250); // 250 is under 320 - 10: untouched
+    expect(zOf(floor({ height: 320, devices: [dv("light")] }))).toBe(215); // 215 is under 320 - 25: untouched
+    expect(zOf(floor({ height: 230, devices: [dv("light")] }))).toBe(205); // a low ceiling: the margin binds, 230 - 25
   });
   it("the cap never goes below the slab", () => {
     expect(zOf(floor({ height: 5, devices: [dv("light")] }))).toBe(0); // walls of 5 cm: the cap is the slab, not below it
   });
   it("the elevation lifts the capped height with the floor", () => {
-    const s = buildScene(floor({ devices: [dv("light")] }), { elevation: 275 }).solids.find((x) => x.kind === "device")!;
-    expect(s.shape).toMatchObject({ type: "point", z: 275 + 240 });
+    const s = buildScene(floor({ devices: [dv("camera", { z: 400 })] }), { elevation: 275 }).solids.find((x) => x.kind === "device")!;
+    expect(s.shape).toMatchObject({ type: "point", z: 275 + 225 }); // capped at 250 - 25, then lifted
   });
 });
