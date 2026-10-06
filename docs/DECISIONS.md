@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: the size budget is raised for Sprints 14 and 15
+
+Diego said yes to +20 KB on the card and +40 KB on the 3D chunk (card 95,076 -> 115,000 gz, chunk 193,707 -> 233,000 gz)
+for the tap popup, effect sizes, scenes, view memory, and the light-through-windows and daylight maths. The limits in
+`tests/card/size-budget.spec.ts` are `CARD_GROWTH_LIMIT` 24,220 over the 90,780 pre-3D card and `CHUNK_LIMIT` 233,000.
+This supersedes the 5 KB / 200 KB figures of `docs/specs/real-3d.md` criterion 9. The scene builder stays injected, so
+a user of the 2D card never pays for three.js.
+
 ## 2026-10-06: the wall glow is clipped to the lamp's room, face by face
 
 Supersedes the "face looks into the lamp's room" test of the entry below. That test looked at one point, 2 cm in front of the
