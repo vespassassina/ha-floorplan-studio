@@ -2,6 +2,34 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: effect size is a per-device percent, read by CSS and by the 3D pool; a siren is an entity domain
+
+S14.3, spec items 7 and 6. `Device.fx` is optional, a finite number in [25, 300] (percent of the type's own size, absent is 100).
+No schema bump: it is optional, the card ignores what it does not know, and a file without it draws as before. `validate` refuses
+a value outside the range; `migrate` drops it, as it does a bad height, so the file opens.
+**2D.** The aura's radius is `LIGHT_REACH * fx / 100`, and `viewBoxFor` widens by it. The rings and waves are CSS animations that
+scale about the icon, so the end size reads a custom property the icon group carries, `--fp-fx` (the fraction): the keyframes are
+`scale(calc(1 + k * var(--fp-fx, 1)))` with k 1.2 for the ping and 1.4 for the wave, which is today's 2.2 and 2.4 at the default.
+Scaling the end and not the start keeps every ring born at the disc; a small `fx` shortens the ring's reach, not its start. The
+property is written only when `fx` is not 100 and the device draws an effect, so unused, the demo's markup hashes the same
+before and after (sha256 524d66b3...a880 over every floor, bare and with live state, 2D and 2.5D, editor and card).
+**3D.** `LiveLight` carries `scale` (absent at 100, so the JSON is unchanged), and the floor pool (`POOL_REACH` 220) and the wall
+light (`GLOW_REACH` 300) reach that much further or shorter; a wall still cuts them. The icons are the 2D markup, so they scale too.
+`fxScale` reaches the chunk through `liveDeps`, as the other helpers do: the chunk still imports nothing from core.
+**Which types draw one.** `FX_TYPES` (light, speaker, media, motion, contact) plus any siren; a test iterates `DEVICE_TYPES` and
+fails for a new type until it says whether it draws one. The editor shows the field exactly there. A stored `fx` on a type that
+draws nothing is ignored, not cleared when the type changes.
+**Sirens.** HA has a `siren` domain and the schema has no siren type, so a siren is a device whose entity starts with `siren.`,
+whatever type it was given (an `other`, say). On, it draws two `.siren-ring` circles, like the waves but with an end scale of 4.8
+(twice the speaker's 2.4), a 3.5 px line against 2, a 1 s beat against 1.6 s, and the danger colour (the group takes class `siren`,
+which sets `--fp-dev` to `--fp-danger`, so the disc and glyph go red too). Reduced motion holds the rings at 3 times the icon
+against 1.5 (twice), opacity .8 against .6. This is also spec item 6; S14.2 keeps the siren's tap and its confirm-OFF.
+**The editor field** reuses the height field's behaviour (empty removes the key, junk is refused with the reason, a value out of
+range is clamped and says so), now one `optionalField` behind both. The existing height messages are unchanged.
+Tests: core (validate and migrate against hostile values, 2D scale at 50, 100, 150, 300 with asymmetric numbers, an iteration over
+every type), a Chromium pair that reads `getComputedStyle` and the running animation's end frame, the 3D pool and glow reach on
+the demo's living lamp, and the editor with a real mouse, run ten times.
+
 ## 2026-10-06: the size budget is raised for Sprints 14 and 15
 
 Diego said yes to +20 KB on the card and +40 KB on the 3D chunk (card 95,076 -> 115,000 gz, chunk 193,707 -> 233,000 gz)

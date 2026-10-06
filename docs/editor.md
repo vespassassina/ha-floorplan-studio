@@ -95,6 +95,13 @@ Junk is refused with the reason.
   (default 100 cm; 30 cm when it stands free); a speaker's cabinet is a fixed
   20 x 20 x 30 cm and ignores it, but its icon rides it: 30 cm (the top of the
   cabinet) by default, or the height you set.
+- **Device**, effect size (%) — on the devices that draw an effect (a light, a
+  speaker, a media player, a motion or contact sensor, and any device whose
+  entity is a `siren.*`): how big its aura, rings or waves are, 25 to 300, as a
+  percent of the type's own size. Empty is 100, shown as the placeholder; a
+  value outside the range is clamped and the status line says so. One undo step;
+  empty removes the key. The editor draws no live state, so the effect shows in
+  the card; the field is there so the layout carries the size.
 
 Stairs take the floor's height as their rise, and a structure line is flat.
 A stair has a Direction select: Auto (shown with what it resolves to on this

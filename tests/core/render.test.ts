@@ -483,7 +483,7 @@ describe("S8.13: brighter alerts, wider light", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.ping\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-ping/);
     expect(FLOORPLAN_CSS).toMatch(/\.dev-motion\.on \.halo,\.dev-contact\.on \.halo\{fill-opacity:\.6;stroke:var\(--fp-dev\);stroke-width:2\}/);
     expect(FLOORPLAN_CSS).toMatch(/\.door-alert\{stroke:var\(--fp-open-door\);[^}]*stroke-linecap:butt;[^}]*pointer-events:none/);
-    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave\{animation:none\}/);
+    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave,\.siren-ring\{animation:none\}/);
   });
 });
 
@@ -603,7 +603,7 @@ describe("S9.4: a speaker radiates while it plays", () => {
   it("the wave rule pulses from the sensor's own colour, staggered, and holds still under reduced motion", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.wave\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-wave/);
     expect(FLOORPLAN_CSS).toMatch(/\.wave\.w2\{animation-delay:\.8s\}/);
-    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave\{animation:none\}\.ping,\.wave\{transform:scale\(1\.5\);opacity:\.6\}\}/);
+    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave,\.siren-ring\{animation:none\}\.ping,\.wave\{transform:scale\(calc\(1 \+ \.5\*var\(--fp-fx,1\)\)\);opacity:\.6\}/);
   });
 
   // Opus review finding 8: the wave is now a <circle>, like .ping — so, like .ping, it needs no ".dev.on path.wave"

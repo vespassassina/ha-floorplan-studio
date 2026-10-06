@@ -77,8 +77,12 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * that sensor reads at least 2 W (the card's `plug_watts` changes the 2); switched on and drawing nothing is idle.
  * Unset, the editor links the plug's sibling power sensor when it finds exactly one, and the card does the same at
  * runtime; with no sensor at all a plug is active whenever its switch is on. Must differ from `entity`.
+ * `fx` (S14.3): the size of the effect the device draws, in percent of its type's own size, 25 to 300; absent is 100. It scales a
+ * lit lamp's aura (and its floor pool and wall light in 3D), a playing speaker's or media device's waves, a triggered motion or
+ * contact sensor's ring and a siren's rings (`FX_TYPES`, `isSiren`); on a device that draws none it is ignored. Not a schema bump:
+ * an old card ignores the field, and a layout without it draws as before.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
  *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. */
 export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number }
@@ -150,6 +154,16 @@ export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
 export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
 export const STAIR_DIRECTIONS: readonly StairDirection[] = ["up", "down", "both"];
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed", "slit", "open"];
+/** S14.3: the least and most a device's effect size (`fx`, percent) may be. Absent reads as 100. */
+export const FX_MIN = 25, FX_MAX = 300;
+/** S14.3: the types that draw an effect the size scales: a lit lamp's aura, a playing speaker's or media device's waves, a triggered motion or contact sensor's ring. A siren is not a type; see `isSiren`. */
+export const FX_TYPES: readonly DeviceType[] = ["light", "speaker", "media", "motion", "contact"];
+/** S14.3 (spec item 6): a siren is any device whose entity is in HA's `siren` domain, whatever type the user gave it; while it is on it sends out the loudest rings. */
+export const isSiren = (d: { entity?: unknown }): boolean => typeof d.entity === "string" && d.entity.startsWith("siren.");
+/** Whether the device draws an effect `fx` can size: the editor offers the field exactly then. */
+export const drawsEffect = (d: { type?: unknown; entity?: unknown }): boolean => (FX_TYPES as readonly unknown[]).includes(d.type) || isSiren(d);
+/** The effect size as a fraction (1 = the type's own size). A missing or invalid `fx` reads as 1. */
+export const fxScale = (d: { fx?: unknown }): number => (typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX ? d.fx / 100 : 1);
 export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum"];
 /** The types that mean "something moved here": the room's motion border, the icon fade and the card's fade timer all read this one list. A plain occupancy or presence sensor is typed `motion` (ha.ts), so it is in. `person` is not: it says who is home, not that a room is in use. */
 export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];
@@ -335,6 +349,9 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
           if (d.bound === d.entity) errors.push(`${at} ${d.id} bound must differ from entity`);
         }
       }
+      // S14.3: the effect size, a percent of the type's own ring, aura or wave. Optional; absent is 100.
+      if (d.fx !== undefined && !(typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX))
+        errors.push(`${at} ${d.id} fx must be a number from ${FX_MIN} to ${FX_MAX} (percent); leave it out for 100`);
       if (d.motion !== undefined) {
         if (!isEntity(d.motion)) errors.push(`${at} ${d.id} motion must be an entity id like binary_sensor.name`);
         else {

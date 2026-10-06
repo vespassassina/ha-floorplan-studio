@@ -98,10 +98,10 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
 
 ## Device
 
-`bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor entity attached to this device — several allowed, unlike `bound`. `room` (person only), S7.8: an entity whose state, `area_id` or `area` attribute names the room the person is in (a Bermuda or ESPresense area sensor, say). The card moves the icon to that room; no match keeps the placed spot. The person's own `entity` is `person.*` or `device_tracker.*`. `targets` (radar only), S7.9: up to any number of x/y sensor-entity pairs from an mmWave presence sensor (an ESPHome LD2450, say), each pair's two entities reporting one target's position in millimetres, x to the sensor's right and y ahead of it. `entity` is the radar's own presence entity (typically a `binary_sensor.*occupancy`), which colours the icon; `rot` is which way the sensor points (`0` = ahead is screen-up), the same field a camera already uses for its cone. `motion` (lights only), S8.7: the motion sensor or motion-group entity that this light was linked to through the editor's "Turn on with... Create automation" flow — the automation the editor created, not this field, is what actually drives the light. Unlinking removes only this field; the automation itself stays in Home Assistant, untouched. Must differ from `entity`, same rule as `bound`. `power` (plugs only): the `sensor.*` (device class `power`) that measures the plug. A plug is active only while that sensor reads at least 2 W (the card's `plug_watts` changes the 2); switched on and drawing nothing is idle. Unset, the editor links the plug's sibling power sensor when it finds exactly one, and the card does the same at runtime; with no sensor at all a plug is active whenever its switch is on. Must differ from `entity`.
+`bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor entity attached to this device — several allowed, unlike `bound`. `room` (person only), S7.8: an entity whose state, `area_id` or `area` attribute names the room the person is in (a Bermuda or ESPresense area sensor, say). The card moves the icon to that room; no match keeps the placed spot. The person's own `entity` is `person.*` or `device_tracker.*`. `targets` (radar only), S7.9: up to any number of x/y sensor-entity pairs from an mmWave presence sensor (an ESPHome LD2450, say), each pair's two entities reporting one target's position in millimetres, x to the sensor's right and y ahead of it. `entity` is the radar's own presence entity (typically a `binary_sensor.*occupancy`), which colours the icon; `rot` is which way the sensor points (`0` = ahead is screen-up), the same field a camera already uses for its cone. `motion` (lights only), S8.7: the motion sensor or motion-group entity that this light was linked to through the editor's "Turn on with... Create automation" flow — the automation the editor created, not this field, is what actually drives the light. Unlinking removes only this field; the automation itself stays in Home Assistant, untouched. Must differ from `entity`, same rule as `bound`. `power` (plugs only): the `sensor.*` (device class `power`) that measures the plug. A plug is active only while that sensor reads at least 2 W (the card's `plug_watts` changes the 2); switched on and drawing nothing is idle. Unset, the editor links the plug's sibling power sensor when it finds exactly one, and the card does the same at runtime; with no sensor at all a plug is active whenever its switch is on. Must differ from `entity`. `fx` (S14.3): the size of the effect the device draws, in percent of its type's own size, 25 to 300; absent is 100. It scales a lit lamp's aura (and its floor pool and wall light in 3D), a playing speaker's or media device's waves, a triggered motion or contact sensor's ring and a siren's rings (`FX_TYPES`, `isSiren`); on a device that draws none it is ignored. Not a schema bump: an old card ignores the field, and a layout without it draws as before.
 
 ```ts
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 ```
 
 ## Furniture
@@ -191,6 +191,46 @@ cm. No coordinate of a plan lies further than this from the origin (100 km). Pas
 
 ```ts
 export const COORD_LIMIT = 1e7;
+```
+
+## FX_MIN
+
+S14.3: the least and most a device's effect size (`fx`, percent) may be. Absent reads as 100.
+
+```ts
+export const FX_MIN = 25, FX_MAX = 300;
+```
+
+## FX_TYPES
+
+S14.3: the types that draw an effect the size scales: a lit lamp's aura, a playing speaker's or media device's waves, a triggered motion or contact sensor's ring. A siren is not a type; see `isSiren`.
+
+```ts
+export const FX_TYPES: readonly DeviceType[] = ["light", "speaker", "media", "motion", "contact"];
+```
+
+## isSiren
+
+S14.3 (spec item 6): a siren is any device whose entity is in HA's `siren` domain, whatever type the user gave it; while it is on it sends out the loudest rings.
+
+```ts
+export const isSiren = (d: { entity?: unknown }): boolean => typeof d.entity === "string" && d.entity.startsWith("siren.");
+```
+
+## drawsEffect
+
+Whether the device draws an effect `fx` can size: the editor offers the field exactly then.
+
+```ts
+export const drawsEffect = (d: { type?: unknown; entity?: unknown }): boolean => (FX_TYPES as readonly unknown[]).includes(d.type) || isSiren(d);
+```
+
+## fxScale
+
+The effect size as a fraction (1 = the type's own size). A missing or invalid `fx` reads as 1.
+
+```ts
+export const fxScale = (d: { fx?: unknown }): number => (typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX ? d.fx / 100 : 1);
 ```
 
 ## MOTION_TYPES

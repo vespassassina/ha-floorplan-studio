@@ -85,6 +85,15 @@ wide and 6 thick on the nearest wall within 150 cm (free-standing, facing you,
 when there is none), its screen lit while it is on. `z` on a device moves the
 radiator's top and the TV's bottom.
 
+A device's `fx` (the editor's "effect size (%)", 25 to 300, default 100) scales
+the effect it draws: a lit lamp's aura, a playing speaker's or media player's
+waves, a triggered motion or contact sensor's ring and a siren's rings, in 2D,
+2.5D and 3D (a lamp's floor pool and wall light too). A **siren** (any device
+whose entity is `siren.*`) that is on sends out two red rings, twice as far as a
+speaker's waves, on a thicker line and a faster beat; with reduced motion they
+hold still at twice the size. Each type keeps its own base size, so 100 is what
+the card drew before the field existed.
+
 In the toolbar a small `View` dropdown switches between `2D` and
 `2.5D` for as long as the card is on screen. It keeps your zoom and pan, and a
 reload goes back to `view:`. `view_switch: false` removes the dropdown and

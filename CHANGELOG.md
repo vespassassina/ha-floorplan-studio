@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Layout: a device may carry `fx`, the size of its effect in percent (25 to 300, absent is 100). It scales a lit lamp's aura, a playing speaker's or media player's waves and a triggered motion or contact sensor's ring, in 2D, 2.5D and 3D (a lamp's floor pool and wall light too). Each type keeps its own base size; a layout without the field draws exactly as before. A value outside 25 to 300 is refused by validation and dropped when a file is opened.
+- Editor: an "effect size (%)" field in the device panel, on every device that draws an effect. Empty is 100; one undo step.
+- Card: a siren (any device whose entity is `siren.*`) that is on sends out two red rings, twice as far as a speaker's waves, on a thicker line and a faster beat; with reduced motion they hold still at twice the size. The effect size scales them too.
+
 ## 0.15.0 - 2026-10-06
 
 - Card: floor textures in 3D. A room or stair with a texture shows it on its floor, at the same size, turn and scale as in 2D; the flat colour shows until the tile is ready. A bad texture id or rotation falls back to the flat colour.
