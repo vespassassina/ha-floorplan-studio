@@ -58,7 +58,7 @@ in `prompts/`, then fixed in the editor.
     "ground": {
       "title": "Ground", "ha": "downstairs",
       "outline": [[x, y], ...], "owk": ["external", ...],
-      "rooms":   [{"id", "name", "area", "kind", "pts", "wk", "color"?, "texture"?, "textureRot"?, "free"?, "entity"?}],
+      "rooms":   [{"id", "name", "area", "kind", "pts", "wk", "color"?, "texture"?, "textureRot"?, "free"?, "entity"?, "temps"?, "humidity"?, "motion"?, "scenes"?, "haScenes"?}],
       "walls":   [{"id", "a", "b", "kind"}],
       "stairs":  [{"id", "name", "pts", "shape", "steps", "rot", "dia"?, "inner"?, "color"?, "texture"?, "textureRot"?}],
       "doors":   [{"id", "name", "kind", "a", "b", "sensor", "cover"}],
@@ -168,7 +168,7 @@ in `prompts/`, then fixed in the editor.
   and shades the treads for down. 2.5D: up is the rise; down is a stairwell, a
   sunken opening with treads below the floor and a short rim on the near edges;
   both is the rise with a low kerb round the foot. Resolver: `src/core/stairs.ts`.
-- `door.kind`: door, glass, window, sealed, slit (a window 60 cm high that hangs from the ceiling of its wall, 2026-10-05), open (a doorway: a door's cut, nothing drawn, 2026-10-05). `sensor` is a binary_sensor entity;
+- `door.kind`: door, glass, window, sealed, slit (a window 60 cm high, its head 40 cm under the ceiling of its wall like a window's, 2026-10-06; before that it touched the ceiling; shown as "slit window"), open (a doorway: a door's cut, nothing drawn while closed; tripped, a solid alert band in the gap in 2D, 2.5D and 3D, 2026-10-05, S14.5). `sensor` is a binary_sensor entity;
   `cover` is a cover entity for doors that HA can open.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
   camera, climate, ac, tv, computer, media, cover, battery, inverter, server,
@@ -204,7 +204,22 @@ in `prompts/`, then fixed in the editor.
   more (card `plug_watts`). Must differ from `entity`. Unset, the editor fills
   it in when it places a plug whose HA device has exactly one power sensor,
   and the card does the same at runtime; with no sensor a plug is active
-  whenever its switch is on.
+  whenever its switch is on. S14.8: the same reading tints the plug from cool
+  blue through amber to red between the card's `plug_heat_from` (default 0 W)
+  and `plug_heat_to` (2000 W), in 2D, 2.5D and 3D; no sensor, no tint.
+- `device.fx` (optional, S14.3): the size of the effect the device draws, in percent of its
+  type's own size: 25 to 300, absent is 100. A lit light's aura (and its floor pool and wall
+  light in 3D), a playing speaker's or media device's two waves, a triggered motion or contact
+  sensor's ring, and a siren's rings all scale with it; each type keeps its own base size, so
+  100 is today's pixels and a layout without the field is drawn byte for byte as before. A
+  device that draws no effect ignores it (`FX_TYPES` in `schema.ts` lists the types). `validate`
+  refuses anything but a finite number in [25, 300]; `migrate` drops a value that is not. No
+  schema bump: it is optional, and an older card ignores it.
+- A **siren** is any device whose `entity` is in HA's `siren` domain, whatever its `type`. While
+  it is on it sends out two rings in the danger colour, with twice the reach of a speaker's
+  waves (4.8 against 2.4 times the icon at the end of the beat), a thicker line and a faster
+  beat (1 s against 1.6 s). Under reduced motion the rings hold still at 3 times the icon, not
+  1.5, so the siren still reads louder. `fx` scales it like the other effects.
 - `device.motion` (lights only, optional, S8.7): the motion sensor or motion
   group entity this light was linked to through the editor's own "Turn on
   with... Create automation" flow. It records the link for the panel to show
@@ -262,20 +277,29 @@ fainter, when it is on. `room_glow` (below) keeps the fill-mix mechanism: it
 is a distinct signal, light spilling into a room, and a warm tint is the
 honest metaphor there.
 
+S14.2 (interaction model): a tap on a device, a door, an unlinked appliance or an Active row never operates it. Wherever
+the "Click" column below says "toggle", "more-info" or "chooser" for a tap, read: the tap opens a popup (name, state, one
+44 px primary button, More info). The button does the old toggle as `turn_on` / `turn_off` / `open_cover` / `close_cover` /
+`lock` / `unlock`; More info does the old more-info or chooser; a long press still opens more-info directly. Turning OFF asks
+first (a Confirm turn off step in the popup) for every type except a light. A light adds brightness, colour temperature and
+hue sliders per its `supported_color_modes`, with one `light.turn_on` on release. A mouse hover shows a tooltip with the name
+and the state text. Types without a toggle (`NO_TOGGLE`) show name, state and More info only. The state text is one
+formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. See `docs/card.md`, "Tap, hold and hover".
+
 | Entity domain / device type | Idle | Active | Colour | Click |
 |---|---|---|---|---|
-| light | grey icon | yellow icon and halo, brightness as opacity, plus a round aura 300 cm across (S8.13) in the same colour at 25 % alpha, drawn under walls, doors and names | `--fp-dev-light` (#e0a800) | toggle; long press: more-info |
-| smart light (`rgb_color`) | grey icon | icon, halo and aura in the light's own colour from HA, yellow when it reports none | the light's own `rgb_color`, or `--fp-dev-light` | toggle; long press: more-info |
-| light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | as light | toggle the light entity; long press: more-info for it (the switch is reachable from that dialog — `bound` is deliberately never one of S10.4's chooser entities, see docs/DECISIONS.md) |
-| switch (wall switch) | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | toggle |
-| plug | grey | blue icon and halo while it draws `plug_watts` (2 W) or more; a plug switched on but idle stays grey. With no power sensor: while the switch is on | `--fp-dev-plug` (#2c7fb8) | toggle |
+| light | grey icon | yellow icon and halo, brightness as opacity, plus a round aura 300 cm across (S8.13) in the same colour at 25 % alpha, drawn under walls, doors and names | `--fp-dev-light` (#e0a800) | popup (Turn on/off); long press: more-info |
+| smart light (`rgb_color`) | grey icon | icon, halo and aura in the light's own colour from HA, yellow when it reports none | the light's own `rgb_color`, or `--fp-dev-light` | popup (Turn on/off); long press: more-info |
+| light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | as light | popup for the light entity; long press: more-info for it (the switch is reachable from that dialog — `bound` is deliberately never one of S10.4's chooser entities, see docs/DECISIONS.md) |
+| switch (wall switch) | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | popup (Turn on/off) |
+| plug | grey | blue icon and halo while it draws `plug_watts` (2 W) or more; a plug switched on but idle stays grey. With no power sensor: while the switch is on | `--fp-dev-plug` (#2c7fb8) | popup (Turn on/off) |
 | binary_sensor on a door or window, or an attached `lock` left unlocked | door drawn normally | door drawn red and dashed, over a wide red line pulsing under it (S8.13 line, S9.1 dash; steady under reduced motion), the same for an open contact or an unlocked lock (2026-09-28). A cover door's own open state is undashed and keeps its plain orange, even on a door with both | `--fp-open-door`, default `var(--fp-dev-contact)` (#d64545); card's `open_color` overrides both the door and the line (S9.1) | more-info for its one entity; a door naming more than one (a contact sensor and a vibration sensor, or either plus a `lock`) opens a chooser listing all of them instead (S10.4). Never on a door with a `cover`: a plain tap there always opens its own confirm dialog, but a long press opens the chooser instead, the cover entity included (S10.3 review) |
 | door with a `vibration` sensor triggered | door drawn normally | door drawn the same red as an open contact, over the same pulsing alert line, but solid — dashed still means "open" alone. Open and vibrating together stay dashed (open wins the dash) and share one alert line, not two (S10.3) | `--fp-open-door`, same token and `open_color` override as an open contact | more-info (on the vibration sensor; it also joins the Active panel under the door's name); as above, a chooser instead when the door names more than one entity (S10.4), the long-press chooser on a `cover` door (S10.3 review) |
 | contact (device icon) | grey | red icon, halo filled at 60 % and ringed red, and a red ring pulsing out from under the disc (S8.13) | `--fp-dev-contact` (#d64545) | more-info |
 | motion (binary_sensor motion/occupancy) | grey | icon red, fading to grey over `fade` seconds from `last_changed`; halo red at once, filled at 60 % and ringed red, with a red ring pulsing out from under the disc while it is on (S8.13) | `--fp-dev-motion` (#d64545) | more-info |
 | temp, humidity (sensor) | grey icon, value as a label next to it | humidity: grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
 | temp or humidity sensor inside a room of kind garden | green icon (class `outdoor`, from the centre of the icon) | as its type | `--fp-dev-garden` (#3f8f4f) idle, as its type when on | more-info |
-| heater, climate (TRV, thermostat) | heater bar grey with target; icon and halo grey | orange icon and halo when heating | `--fp-dev-heater` / `--fp-dev-climate` (#e8801a) | with `trvs`/`tempSensors` attached: tap opens a chooser listing the heater plus all of them, never a guess (S10.4); long press opens more-info for the heater alone (S10.3 review). With none attached: toggle; long press: more-info, unchanged |
+| heater, climate (TRV, thermostat) | heater bar grey with target; icon and halo grey | orange icon and halo when heating | `--fp-dev-heater` / `--fp-dev-climate` (#e8801a) | with `trvs`/`tempSensors` attached: tap opens a chooser listing the heater plus all of them, never a guess (S10.4); long press opens more-info for the heater alone (S10.3 review). With none attached: popup; long press: more-info, unchanged |
 | ac (air conditioner, heat pump, fan, air cleaner) | grey | blue while `hvac_action` is cooling, orange while heating, grey otherwise | `--fp-dev-ac-cool` (#2c7fb8) / `--fp-dev-ac-heat` (#e8801a) | with `linked` climate/TRV entities: tap opens the chooser (S10.4), long press opens more-info for the ac alone (S10.3 review). With none: toggle; long press: more-info, unchanged |
 | tv | grey | blue icon and halo when the player is on or playing | `--fp-dev-tv` (#2c7fb8) | more-info |
 | battery, inverter, server, access_point | grey icon on the round disc, `on` or off | grey, unchanged | — (idle grey `--fp-idle`; `layout.colors` can name one) | more-info |
@@ -433,7 +457,7 @@ meant for one floor; `floor:` picks which one.
 
 `active_list` (S9.5, default `true`): a floating panel over the plan, open by default in the top-left, listing every active device across every floor of the layout, not only the one the plan is showing. "Active" reuses `classOf` (`src/core/render.ts`, exported for this) — the same function that colours the plan — so the list and the plan can never disagree about a device's on/off state; a `light` with `bound` counts through its switch, the same as on the plan. The one addition beyond `classOf`'s own "on": a `vacuum` is listed only while `cleaning`, narrower than `classOf`'s own on-plan colour (which also covers "returning" to the dock) — a robot heading home is winding down, not something to check. A `camera` is listed whatever its state, since a camera is a view, not an on/off thing — except an `unavailable`/`unknown` one, or any device of any type with an empty `entity`: neither has a real more-info to open, so `isActive` (Opus review finding 9) excludes them regardless of `ACTIVE_LIST_RULE`. `src/core/active.ts`'s `ACTIVE_LIST_RULE` writes down every `DeviceType`'s membership explicitly (`"on"`, `"always"`, `"cleaning"` or `"never"`), tested by iterating `DEVICE_TYPES` (CLAUDE.md finding 17), so a new type is a decision made in the open, not a silent fall-through.
 
-Rows are grouped by type (`DEVICE_TYPES`' own order), each with that type's icon and colour — a `camera` row is the one exception, taking `--fp-ink` (the panel's own text colour) rather than `--fp-dev-camera`, since that token is tuned for the plan's own room background and read illegibly close to the panel's `--fp-room` background in the dark themes (Opus review finding 10) — and its `name ?? friendly_name ?? entity`; a click or Enter fires `hass-more-info` for that entity, the same event the plan's own tap already fires. The header shows "Active", a live count and a collapse toggle; dragging the header repositions the panel. Its position is kept as a fraction of the card's own free space and reapplied after every render and on a `ResizeObserver` of the card's host, not only while dragging (Opus review findings 3 and 4), so it can never be lost off-screen — including after the card itself is resized, or after a collapse/drag-to-bottom/expand cycle. With nothing yet stored and the card narrower than 500px, the panel starts collapsed and takes `min(200px, 45%)` of the width instead of a flat 200px (Opus review finding 5, an assumption: 500px as "phone width" is not tested against a real device, only Chromium's viewport emulation). Position and collapsed state are kept in `localStorage`, wrapped in try/catch, under a key hashed from the layout's *source* — `layout_url`, else `"inline"` for a config `layout`, else `"ws"` for the websocket fetch — plus the card's own `floor`/`floors` (Opus review finding 7: the old key hashed the layout's *content*, so two cards in websocket mode, the default install with no `layout`/`layout_url`, shared one key even when pinned to different floors, and an inline layout's own autosave changed the key on every edit). `kiosk: true` hides the panel too — a wall tablet shows only the plan.
+Rows are grouped by category (S14.6, `src/core/categories.ts`: `CATEGORY_OF` places every `DeviceType` in one of ten categories, `CATEGORIES` fixes their order: lights, climate, security, media, power, covers, computers and network, sensors, people, other; a type nobody placed falls to "other"). Each category is a header `<button aria-expanded>` that folds its rows; groups start open and the fold is kept per card (`localStorage`, try/catch, key `fp-active-cats:<hash of the same source seed>`, separate ids for the Active list and the Room panel, which is grouped the same way). Each row has that type's icon and colour — a `camera` row is the one exception, taking `--fp-ink` (the panel's own text colour) rather than `--fp-dev-camera`, since that token is tuned for the plan's own room background and read illegibly close to the panel's `--fp-room` background in the dark themes (Opus review finding 10) — and its `name ?? friendly_name ?? entity`; a click or Enter fires `hass-more-info` for that entity, the same event the plan's own tap already fires. The header shows "Active", a live count and a collapse toggle; dragging the header repositions the panel. Its position is kept as a fraction of the card's own free space and reapplied after every render and on a `ResizeObserver` of the card's host, not only while dragging (Opus review findings 3 and 4), so it can never be lost off-screen — including after the card itself is resized, or after a collapse/drag-to-bottom/expand cycle. With nothing yet stored and the card narrower than 500px, the panel starts collapsed and takes `min(200px, 45%)` of the width instead of a flat 200px (Opus review finding 5, an assumption: 500px as "phone width" is not tested against a real device, only Chromium's viewport emulation). Position and collapsed state are kept in `localStorage`, wrapped in try/catch, under a key hashed from the layout's *source* — `layout_url`, else `"inline"` for a config `layout`, else `"ws"` for the websocket fetch — plus the card's own `floor`/`floors` (Opus review finding 7: the old key hashed the layout's *content*, so two cards in websocket mode, the default install with no `layout`/`layout_url`, shared one key even when pinned to different floors, and an inline layout's own autosave changed the key on every edit). `kiosk: true` hides the panel too — a wall tablet shows only the plan.
 
 Opus review, 2026-09-27: with the same `floor`, several S9.6 cards pinned to
 different rooms still shared one storage key, so collapsing or dragging one
@@ -458,6 +482,8 @@ byte-identical to before this change. `icon_size` is a number from `0.5` to
 `3`, default `1`; anything else (missing, non-numeric, `NaN`) is the default
 rather than refused, since a slider or a stray digit should never break the
 card. The editor is unchanged — it always passed its own zoom, never `1`.
+
+**View memory per floor (S14.4).** The card remembers, per browser, what each floor was left looking like: in 2D and 2.5D the zoom, the spot zoomed to and the turn; in 3D the camera (azimuth, polar angle, distance, look-at point). Coming back to a floor, by its chip or by a reload, restores it; a floor never touched starts at the config's look. Storage is `localStorage` only, in a `floors` list of `[floor key, view]` inside the card's `fp-view:` entry, wrapped in try/catch; with storage blocked the floors still remember for the life of the page. The 3D distance is stored as a multiple of the distance that frames the floor and the look-at point as an offset from the floor's centre, so a restore in a differently shaped card frames the same. Reset view (and Reset camera, in 3D) clears the shown floor's memory and no other floor's. Every stored number is untrusted and bounded on read. The editor already keeps its own zoom per floor and does not draw 3D; its single turn stays single (see DECISIONS, 2026-10-06 S14.4).
 
 `theme` is blueprint unless the dashboard says otherwise. `light` is the paper-and-ink set; `midnight` is the project's first dark theme, kept under its own name once blueprint moved on to a new palette (2026-09-22). `ha` inherits the dashboard's own theme: ground from `--card-background-color`, rooms from `--secondary-background-color`, walls and text from `--primary-text-color`, measure marks from `--secondary-text-color`. Each has the plain light or midnight set as its fallback, chosen by `hass.themes.darkMode`, so a dashboard that defines none of them still draws. Warn, danger and primary (the UI chrome, not a device's own colour) never follow the theme: they and their on-dark/on-light text are the same fixed pair everywhere, because they already clear 4.5:1 against it. The card ignores the OS colour scheme.
 

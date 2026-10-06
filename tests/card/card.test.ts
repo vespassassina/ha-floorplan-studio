@@ -118,7 +118,7 @@ describe("FloorplanStudioCard", () => {
       expect(openDoors[0]).toBe(line2);
     });
 
-    it("a tap on it fires hass-more-info with its own entity id, not another door's", async () => {
+    it("a tap on it opens the popup, and its More info fires hass-more-info with its own entity id, not another door's", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floor });
       el.hass = stubHass() as never;
@@ -129,6 +129,9 @@ describe("FloorplanStudioCard", () => {
       el.addEventListener("hass-more-info", moreInfo);
       line.dispatchEvent(new Event("pointerdown", { bubbles: true }));
       line.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      await el.updateComplete;
+      expect(moreInfo).not.toHaveBeenCalled(); // a tap shows the popup; it does not open more-info
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-pop-more")!.click();
       expect(moreInfo).toHaveBeenCalledTimes(1);
       expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: entity });
     });
@@ -466,7 +469,7 @@ describe("FloorplanStudioCard", () => {
       expect(bar2.getAttribute("class")).not.toMatch(/\bon\b/);
     });
 
-    it("a tap on the camera fires hass-more-info with its entity, not a toggle", async () => {
+    it("a tap on the camera opens a popup with More info only, whose button fires hass-more-info with its entity; no toggle", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
       const callService = vi.fn();
@@ -477,12 +480,15 @@ describe("FloorplanStudioCard", () => {
       el.addEventListener("hass-more-info", moreInfo);
       g.dispatchEvent(new Event("pointerdown", { bubbles: true }));
       g.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-pop-do")).toBeNull(); // NO_TOGGLE: no operate button
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-pop-more")!.click();
       expect(moreInfo).toHaveBeenCalledTimes(1);
       expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "camera.demo_hall" });
       expect(callService).not.toHaveBeenCalled();
     });
 
-    it("a tap on the media player fires hass-more-info with its entity, not a toggle, and it takes the on class while playing", async () => {
+    it("a tap on the media player opens a popup with More info only, not a toggle, and it takes the on class while playing", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floor: "first" });
       const callService = vi.fn();
@@ -495,6 +501,9 @@ describe("FloorplanStudioCard", () => {
       el.addEventListener("hass-more-info", moreInfo);
       g.dispatchEvent(new Event("pointerdown", { bubbles: true }));
       g.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-pop-do")).toBeNull();
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-pop-more")!.click();
       expect(moreInfo).toHaveBeenCalledTimes(1);
       expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "media_player.demo_office" });
       expect(callService).not.toHaveBeenCalled();
@@ -775,7 +784,7 @@ describe("FloorplanStudioCard", () => {
       g2.dispatchEvent(new Event("pointerup", { bubbles: true }));
     });
 
-    it("a plain tap still toggles under kiosk", async () => {
+    it("a plain tap still opens the popup under kiosk, and its button makes the one call", async () => {
       const el = await mount();
       const callService = vi.fn();
       el.setConfig({ layout: structuredClone(L), kiosk: true });
@@ -785,7 +794,11 @@ describe("FloorplanStudioCard", () => {
       const g = el.shadowRoot!.querySelector('svg [data-x="0"]')!;
       g.dispatchEvent(new Event("pointerdown", { bubbles: true }));
       g.dispatchEvent(new Event("pointerup", { bubbles: true }));
-      expect(callService).toHaveBeenCalledWith("light", "toggle", { entity_id: "light.demo_living" });
+      await el.updateComplete;
+      expect(callService).not.toHaveBeenCalled();
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-pop-do")!.click();
+      expect(callService).toHaveBeenCalledTimes(1);
+      expect(callService).toHaveBeenCalledWith("light", "turn_on", { entity_id: "light.demo_living" }); // stubHass has the light off
     });
 
     it("kiosk: \"yes\" (a string) is refused by setConfig, naming the key", async () => {
@@ -868,10 +881,13 @@ describe("FloorplanStudioCard", () => {
     const garageEntity = "cover.demo_garage_door";
     const garageName = L.floors.ground.doors.find((d) => d.id === "door-ground-3")!.name;
 
-    function tap(el: FloorplanStudioCard, index: number) {
+    /** S14.2: a tap opens the popup; its primary button ("Open" / "Close") is what opens the confirm dialog. */
+    async function tap(el: FloorplanStudioCard, index: number) {
       const line = el.shadowRoot!.querySelector(`svg line[data-d="${index}"]`)!;
       line.dispatchEvent(new Event("pointerdown", { bubbles: true }));
       line.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      await el.updateComplete;
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-pop-do")!.click();
     }
 
     function dialogText(el: FloorplanStudioCard): string | null {
@@ -882,6 +898,22 @@ describe("FloorplanStudioCard", () => {
       return el.shadowRoot!.querySelector(".fp-dialog button.confirm")?.textContent?.trim() ?? null;
     }
 
+    it("a tap on a cover door opens the popup only: no dialog and no service until its button is pressed (S14.2)", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      const callService = vi.fn();
+      el.hass = { ...stubHass({ [garageEntity]: st("closed") }), callService } as never;
+      await el.updateComplete;
+      const line = el.shadowRoot!.querySelector(`svg line[data-d="${garageIndex}"]`)!;
+      line.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      line.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector('.fp-pop[role="dialog"]')).not.toBeNull();
+      expect(el.shadowRoot!.querySelector(".fp-pop-do")!.textContent!.trim()).toBe("Open");
+      expect(dialogText(el)).toBeNull();
+      expect(callService).not.toHaveBeenCalled();
+    });
+
     it("a tap on a door with a closed cover opens an in-card dialog reading \"Open <name>?\" with an Open button", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
@@ -889,7 +921,7 @@ describe("FloorplanStudioCard", () => {
       await el.updateComplete;
       expect(dialogText(el)).toBeNull(); // nothing shown before the tap
 
-      tap(el, garageIndex);
+      await tap(el, garageIndex);
       await el.updateComplete;
       expect(dialogText(el)).toBe(`Open ${garageName}?`);
       expect(confirmButtonText(el)).toBe("Open");
@@ -903,7 +935,7 @@ describe("FloorplanStudioCard", () => {
       el.hass = { ...stubHass({ [garageEntity]: st("closed") }), callService } as never;
       await el.updateComplete;
 
-      tap(el, garageIndex);
+      await tap(el, garageIndex);
       await el.updateComplete;
       el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.confirm")!.click();
       await el.updateComplete;
@@ -919,7 +951,7 @@ describe("FloorplanStudioCard", () => {
       el.hass = { ...stubHass({ [garageEntity]: st("open") }), callService } as never;
       await el.updateComplete;
 
-      tap(el, garageIndex);
+      await tap(el, garageIndex);
       await el.updateComplete;
       expect(dialogText(el)).toBe(`Close ${garageName}?`);
       expect(confirmButtonText(el)).toBe("Close");
@@ -936,7 +968,7 @@ describe("FloorplanStudioCard", () => {
       el.hass = { ...stubHass({ [garageEntity]: st("closed") }), callService } as never;
       await el.updateComplete;
 
-      tap(el, garageIndex);
+      await tap(el, garageIndex);
       await el.updateComplete;
       expect(dialogText(el)).toBe(`Open ${garageName}?`);
       expect(confirmButtonText(el)).toBe("Open");
@@ -959,7 +991,7 @@ describe("FloorplanStudioCard", () => {
       el.hass = stubHass({ [garageEntity]: st("closed") }) as never;
       await el.updateComplete;
 
-      tap(el, garageIndex);
+      await tap(el, garageIndex);
       await el.updateComplete;
       const dialog = el.shadowRoot!.querySelector(".fp-dialog")!;
       expect(dialog.getAttribute("role")).toBe("dialog");
@@ -978,7 +1010,7 @@ describe("FloorplanStudioCard", () => {
       el.hass = { ...stubHass({ [garageEntity]: st("closed") }), callService } as never;
       await el.updateComplete;
 
-      tap(el, garageIndex);
+      await tap(el, garageIndex);
       await el.updateComplete;
       el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.cancel")!.click();
       await el.updateComplete;
@@ -992,11 +1024,14 @@ describe("FloorplanStudioCard", () => {
       el.hass = stubHass({ [garageEntity]: st("closed") }) as never;
       await el.updateComplete;
 
-      tap(el, garageIndex);
+      await tap(el, garageIndex);
       await el.updateComplete;
-      tap(el, garageIndex);
+      const line = el.shadowRoot!.querySelector(`svg line[data-d="${garageIndex}"]`)!;
+      line.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      line.dispatchEvent(new Event("pointerup", { bubbles: true }));
       await el.updateComplete;
       expect(el.shadowRoot!.querySelectorAll(".fp-dialog")).toHaveLength(1);
+      expect(el.shadowRoot!.querySelector(".fp-pop")).toBeNull(); // and no popup behind it
     });
 
     it("Escape cancels: closes the dialog and calls no service", async () => {
@@ -1006,7 +1041,7 @@ describe("FloorplanStudioCard", () => {
       el.hass = { ...stubHass({ [garageEntity]: st("closed") }), callService } as never;
       await el.updateComplete;
 
-      tap(el, garageIndex);
+      await tap(el, garageIndex);
       await el.updateComplete;
       el.shadowRoot!.querySelector(".fp-dialog-backdrop")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true }));
       await el.updateComplete;
@@ -1020,7 +1055,7 @@ describe("FloorplanStudioCard", () => {
       el.hass = stubHass({ [garageEntity]: st("closed") }) as never;
       await el.updateComplete;
 
-      tap(el, garageIndex);
+      await tap(el, garageIndex);
       await el.updateComplete;
       const cancelBtn = el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.cancel")!;
       const confirmBtn = el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.confirm")!;
@@ -1038,7 +1073,7 @@ describe("FloorplanStudioCard", () => {
       el.hass = stubHass({ [garageEntity]: st("closed") }) as never;
       await el.updateComplete;
 
-      tap(el, garageIndex);
+      await tap(el, garageIndex);
       await el.updateComplete;
       el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-dialog button.cancel")!.click();
       await el.updateComplete;
@@ -1053,7 +1088,7 @@ describe("FloorplanStudioCard", () => {
       el.hass = { ...stubHass(), callService } as never; // no cover.demo_garage_door entry at all
       await el.updateComplete;
 
-      expect(() => tap(el, garageIndex)).not.toThrow();
+      await expect(tap(el, garageIndex)).resolves.not.toThrow();
       await el.updateComplete;
       expect(dialogText(el)).toBe(`Open ${garageName}?`);
 
@@ -1343,7 +1378,7 @@ describe("FloorplanStudioCard", () => {
     function panelGroups(el: FloorplanStudioCard): [string, string[]][] {
       const groups = el.shadowRoot!.querySelectorAll(".fp-active-group");
       return [...groups].map((g) => [
-        g.querySelector(".fp-active-group-label")!.textContent!,
+        g.querySelector(".fp-cat-name")!.textContent!,
         [...g.querySelectorAll(".fp-active-row span")].map((s) => s.textContent!),
       ]);
     }
@@ -1363,11 +1398,56 @@ describe("FloorplanStudioCard", () => {
       expect(panel).toBeTruthy();
       expect(panel!.querySelector(".fp-active-count")!.textContent).toBe("5"); // 2 lights + camera (always) + media + person
       expect(panelGroups(el)).toEqual([
-        ["Light", ["Living light", "Bedroom light"]],
-        ["Camera", ["Hall camera"]],
-        ["Media player", ["Office speaker"]],
-        ["Person", ["Alex"]],
+        ["Lights", ["Living light", "Bedroom light"]],
+        ["Security", ["Hall camera"]],
+        ["Media", ["Office speaker"]],
+        ["People", ["Alex"]],
       ]);
+    });
+
+    it("S14.6: a category header is a button that folds its group, aria-expanded follows, and the fold is remembered per card", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "light.demo_living": st("on"), "media_player.demo_office": st("playing") }) as never;
+      await el.updateComplete;
+      const head = (cat: string) => el.shadowRoot!.querySelector<HTMLButtonElement>(`.fp-active-group[data-cat="${cat}"] button.fp-cat`)!;
+      const rows = (cat: string) => el.shadowRoot!.querySelectorAll(`.fp-active-group[data-cat="${cat}"] .fp-active-row`).length;
+      expect(head("lights").getAttribute("aria-expanded")).toBe("true");
+      expect(rows("lights")).toBe(1);
+      head("lights").click();
+      await el.updateComplete;
+      expect(head("lights").getAttribute("aria-expanded")).toBe("false");
+      expect(rows("lights")).toBe(0);
+      expect(head("lights").querySelector(".fp-active-count")!.textContent).toBe("1"); // the count stays
+      expect(rows("media")).toBe(1); // the others are untouched
+      // a second card with the same config reads the fold back
+      const el2 = await mount();
+      el2.setConfig({ layout: structuredClone(L) });
+      el2.hass = stubHass({ "light.demo_living": st("on"), "media_player.demo_office": st("playing") }) as never;
+      await el2.updateComplete;
+      expect(el2.shadowRoot!.querySelector('.fp-active-group[data-cat="lights"] button.fp-cat')!.getAttribute("aria-expanded")).toBe("false");
+      expect(el2.shadowRoot!.querySelectorAll('.fp-active-group[data-cat="media"] .fp-active-row').length).toBe(1);
+      // and a click again opens it, and storage that throws or holds junk never breaks the panel
+      head("lights").click();
+      await el.updateComplete;
+      expect(rows("lights")).toBe(1);
+    });
+
+    it("S14.6: junk in the fold storage opens every group", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      const keys = () => Object.keys(localStorage).filter((k) => k.startsWith("fp-active-cats:"));
+      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el.updateComplete;
+      el.shadowRoot!.querySelector<HTMLButtonElement>("button.fp-cat")!.click();
+      const k = keys()[0];
+      expect(k).toBeTruthy();
+      localStorage.setItem(k, "{not json");
+      const el2 = await mount();
+      el2.setConfig({ layout: structuredClone(L) });
+      el2.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el2.updateComplete;
+      expect(el2.shadowRoot!.querySelector("button.fp-cat")!.getAttribute("aria-expanded")).toBe("true");
     });
 
     it("a bound light is listed from its switch even with the light entity itself off (reuses classOf, S9.5 spec)", async () => {
@@ -1390,7 +1470,7 @@ describe("FloorplanStudioCard", () => {
       expect(el.shadowRoot!.querySelector(".fp-active-count")!.textContent).toBe("0");
     });
 
-    it("a real click on a row fires hass-more-info with that row's own entity, not another's", async () => {
+    it("a real click on a row opens that row's own popup (no operation), whose More info fires hass-more-info for its entity, not another's", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass({ "light.demo_living": st("on") }) as never;
@@ -1400,6 +1480,10 @@ describe("FloorplanStudioCard", () => {
       const rows = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-active-row")];
       const cameraRow = rows.find((r) => r.querySelector("span")?.textContent === "Hall camera")!;
       cameraRow.click();
+      await el.updateComplete;
+      expect(events).toHaveLength(0);
+      expect(el.shadowRoot!.querySelector(".fp-pop")!.getAttribute("aria-label")).toBe("Hall camera");
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-pop-more")!.click();
       expect(events).toHaveLength(1);
       expect(events[0]!.detail).toEqual({ entityId: "camera.demo_hall" });
     });

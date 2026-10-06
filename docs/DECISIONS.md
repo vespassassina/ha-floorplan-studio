@@ -2,6 +2,183 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: Sprint 14 review: rows open the popup, a narrow room panel is a sheet, a popup is bound to its card
+
+Supersedes the S14.2 row rule ("a type that never toggled goes straight to more-info") and the unbounded popup.
+- **Room-panel rows are the plan icon's twin.** Every row carries `data-x`, so a tap opens the popup whatever the type (a heater, a TV,
+  a lock: a button where the type has one, else name, state and More info); a hold opens more-info. `ROOM_ROW_TAP` stays as the old table
+  but the card no longer reads it. Before, the plan icon and its row of one device did two different things.
+- **Narrow room panel.** Under `ACTIVE_FOLD_BELOW_PX` (480 px, the card's own width, not the viewport's) an open room panel gets
+  `max-height: 45%` (its body already scrolls) and, if never dragged, docks at the bottom when the picked room's centre is in the upper half.
+  Measured at 375 px: 253x209 over a 359x259 plan, hiding 85 % of the picked room's bare floor; now 251x116, the room keeps at least
+  60 % of it (the test holds that). Chosen over docking below the plan, which would grow the card and move the plan under the finger.
+- **Popup height.** `max-height: calc(100% - 16px)` of the card; the sliders sit in their own scrolling block, so the primary button and
+  More info are always on screen (374 px tall in a 259 px card before).
+- **Kiosk.** The popup drops More info: a tap must not reach Home Assistant's dialog on a wall tablet.
+
+## 2026-10-06: Active list and Room panel by collapsible category (S14.6, item 12)
+
+Supersedes "grouped by type" (S9.5). **Categories** are a new pure module, `src/core/categories.ts`: `CATEGORY_OF` is a
+`Record<DeviceType, CategoryId>`, so a new device type does not compile until it is placed, and a test iterates `DEVICE_TYPES`.
+Ten fixed groups: lights, climate, security (camera, lock, motion, contact, vibration, radar), media, power (switch, plug, battery,
+inverter, UPS), covers, computers and network, sensors (temp, humidity), people, other. Order is the list's order, not
+`DEVICE_TYPES`'. Rows keep their input order inside a group.
+**State.** Every group starts open (nothing in the request asked for a default fold; a phone already folds the whole Active list).
+The fold is per card, in `localStorage` in try/catch, one key apart from the panel's position key (a bad entry in one costs not the
+other), with separate ids for the Active list (`a:`) and the Room panel (`r:`): folding Lights in a room must not hide them in the
+list below. **Studio parity:** none needed. The editor has no Active list and no Room panel (they are card chrome over live state);
+the editor's own Add > Unlinked list keeps its type grouping. Stated exception, like item 16.
+## 2026-10-06: S14.8, a plug is coloured by its draw (item 24)
+
+- **One source, three views.** `deviceMarkup` writes `--fp-heat` (0..1, rounded to 0.01) on the plug's icon group when the plug is
+  active and its power sensor reads; the 2D plan, the 2.5D plan and the 3D overlay all draw that same group, so one stylesheet rule
+  (`.dev-plug.on[style*="--fp-heat"]`) colours all three. A plug has no 3D body, so there is nothing else to tint.
+- **Opt-in in core, on in the card.** `RenderOpts.plugHeat` (a pair) turns it on; the card always passes it (default 0 and 2000 W),
+  the editor passes nothing. With the option absent the markup is byte for byte as before (hashed over the demo, 2D and 2.5D,
+  before and after: equal). A plug with no reading, or off, writes nothing and keeps `--fp-dev-plug`.
+- **Fixed ramp, not the accent.** Blue, amber, red as three tokens (`--fp-heat-cool/-mid/-hot`) declared once, ahead of the themes.
+  Reading `--fp-dev-plug` for the cool end failed in blueprint, where one-accent themes make the plug orange and the ramp
+  vanished. A theme may override the tokens. `colors.plug` still colours a plug that has no reading.
+- **Colour is not the only signal.** The tooltip and the popup already print the watts (S14.2's state text).
+- **Config.** `plug_heat_from` and `plug_heat_to`, two numbers, from below to, else 0 and 2000 (`heatRange`). Two keys, not a
+  list, so the visual editor has two plain fields.
+- **Not done, stated.** Only plugs: the schema allows `power` on a plug only, and a switch has no sensor field. Widening that is
+  a schema change for Diego to ask for.
+## 2026-10-06: S14.4, the card remembers its view per floor, 2D and 3D
+
+Spec item 8. Supersedes "one zoom, focus and turn per card" of the 0.12 view memory; everything else in that entry stands.
+
+- **Where.** The card's existing `fp-view:` entry gains `floors`, a list of `[floor key, {zoom, focus, rotation, cam}]` (a list, so a floor called `__proto__` is a string, as in the editor's `zooms`). `view`, `tilt`, `walls`, `theme`, `labels`, `names` and the shown `floor` stay per card. Same key, so two cards still do not clash. No second key: one write, one read.
+- **Turn per floor.** The spec says rotation is per floor. A floor stored without one starts at the config's `rotation`.
+- **3D camera as relative numbers.** `cam` is azimuth, polar, distance as a multiple of the framing distance, and the look-at offset from the floor's centre in cm. Absolute numbers would be wrong after a resize, a panel inset or a floor of another size. `Orbit.restore` bounds each number the way a drag does.
+- **What counts as touched.** The camera is stored only after the person moved it (`onCamera` from a drag, wheel or pinch). Not doing so would store the default camera for every floor visited and make Reset look like it did nothing. A floor with no stored camera keeps the old behaviour: the look carries over, the floor is framed.
+- **Reset.** Reset view and Reset camera clear the shown floor's zoom, turn and camera, not another floor's. Reset view still clears the card-wide choices as before.
+- **Blocked storage.** The map lives in memory too, so floors remember within the page; storage is the second copy.
+- **Old entries.** A stored entry with top-level `zoom`, `focus`, `rotation` moves to the floor it names in `floor`; with no floor named it is dropped (whose view it was cannot be said). One lost zoom at worst.
+- **Parity with the studio.** The editor already remembers a zoom per floor (`view-memory.ts`) and draws flat only, so it has no camera. Its one turn for all floors stays: the editor edits one layout across floors and a turn there is a viewpoint on the house, not on a floor. Not changed. If Diego wants a turn per floor in the editor too, it is a small change to `ViewMemory`.
+- **Not done.** A turn in 3D is not remembered apart from the camera azimuth. The 3D "top view" and "frame a room" (S15.5) will store through the same `cam`.
+## 2026-10-06: S14.7, room scenes: area first, an explicit list as the exception, lights-only presets without a confirm
+
+Diego, Sprint 14 item 19 (Hue scenes included).
+
+- **Which Home Assistant scene belongs to a room.** The room's area, as the spec says: a `scene.*` whose entity `area_id` (`hass.entities`),
+  else whose device's `area_id` (`hass.devices`), is the room's `area`. Hue scenes sit on the Hue room's device, so they come by the
+  second way with no setup. Nothing is stored for it: no schema change, and it follows the area in Home Assistant. For a scene with no
+  area, or in another one, the room has an optional explicit `haScenes` list (entity ids, `scene.*` only, edited under *also offer*
+  in the room panel). Alternative considered: an explicit list only. Rejected: every Hue room would need its scenes ticked by hand.
+- **Custom scenes** are `room.scenes`, optional, no version bump: `{ id, name, items: [{ entity, on, brightness?, kelvin?, hs? }] }`,
+  light or switch entities only, 12 scenes and 40 items at most. An older card never reads the field; `validate` checks every part
+  and never throws (the same discipline as the sensor lists). They are applied with the existing services, one call per item.
+- **All off needs no confirm.** The brief for this task asked for a confirm "consistent with S14.2". S14.2's rule (and the spec row for
+  item 19) says a light is exempt, and All off is lights only, so it follows the rule: no confirm. The rule is kept where it bites: a
+  custom scene that turns a *switch* off asks first (its button turns into "Confirm: name"). A Home Assistant scene is never confirmed:
+  the card cannot know what it switches off, and Home Assistant owns it. If Diego wants All off to ask, it is one line.
+- **Presets** act on the lights drawn in the room (`roomSummary`, the one rule for "a device of this room"), in one call each.
+  A room with no lights shows neither.
+- **The studio cannot capture live state.** The editor holds no entity states, so a new scene starts as every light and switch of the
+  room, on, and the person edits it. Capturing from the lamps is a possible later addition.
+- **Parity.** The editor lists and edits; the card shows and runs. A scene is not drawn on the plan, so there is nothing for the
+  two views to disagree about.
+
+## 2026-10-06: a slit window's head sits 40 cm under the ceiling, and is called "slit window" everywhere
+
+Diego, Sprint 14 items 1 and 2. Supersedes the "head at the ceiling" rule of the 2026-10-05 slit entry below (the rest of that
+entry stands: a kind, not a flag; read from the wall, never stored; no schema bump; the 2D band).
+
+**Gap.** `SLIT_HEAD_GAP` in `heights.ts` is `DEFAULT_FLOOR_HEIGHT - (window.sill + window.height)` = 250 - 210 = 40, derived from
+`DOOR_DEFAULTS.window` so the two cannot drift. A slit's head is `ceiling - 40`, its height stays 60, so its sill is
+`ceiling - 100`: 150 and 210 on 250, 200 and 260 on 300. It is per wall (`doorCeiling`), as before. An own `height` keeps that
+head, an own `sill` wins and the head follows it, clamped to the ceiling. On a wall too low for the gap the head is
+`min(ceiling, max(ceiling - 40, height))`: a 40 cm wall gives glass from 0 to 40, a 100 cm wall from 0 to 60, a 120 cm wall from 20 to 80;
+the sill is never negative and the head never over the wall. The 2.5D and 3D builders already took the span from `doorSpan`, so
+they now leave 40 cm of wall over the glass with no change of their own.
+
+**Existing layouts.** Nothing is stored for the defaults, so a slit with no own sill moves down 40 cm on update. Accepted: the
+slit was one day old, and a slit with an own sill is untouched.
+
+**The name.** Add, Openings and the wall menu already said "Slit window". The door type select listed the raw id `slit`; it now
+shows "slit window" (value still `slit`; the other kinds keep their ids as labels).
+## 2026-10-06: S14.2, a tap opens a popup; OFF asks; one state text
+
+- **A tap never operates.** On an icon, a door, an unlinked appliance or an Active row, in 2D and 3D, a tap opens a popup. The
+  popup's button does what the tap used to do. A hold still opens more-info. `bindDeviceActions` no longer calls a service at all;
+  `toggleEntity` is gone.
+- **`tap_action`.** It is not read anywhere in the card or the docs, so there was no config meaning to keep. None is added.
+- **Explicit services.** The button calls `turn_on` or `turn_off` by the entity's state, not `domain.toggle`. A lock calls
+  `lock.lock` or `lock.unlock` (the old `lock.toggle` does not exist in Home Assistant). A cover calls `open_cover` or
+  `close_cover`; a cover door still goes through its confirm dialog.
+- **Confirm before OFF** is an inline step in the popup (the button becomes Confirm turn off, with Cancel), for every type except a
+  light. A light's OFF is immediate. ON is immediate. `tests/card/popup-rules.test.ts` iterates `DEVICE_TYPES` and records the answer
+  per type, so a new type fails until someone decides.
+- **No toggle stays no toggle.** Media, speaker and the other `NO_TOGGLE` types get a popup with name, state and More info only
+  (`media_player.toggle` is ambiguous, S9.4). A vacuum tap still opens its own dialog.
+- **A device with several entities.** The primary button acts on the device's own entity. More info opens the chooser.
+- **Light controls.** Brightness only if `supported_color_modes` has a mode beyond `onoff` (or, with no modes listed, an own
+  `brightness` attribute); temperature only with `color_temp` (kelvin range from the entity, else 2000-6500); hue only with a colour
+  mode. `input` moves the shown number; `change` makes the one `light.turn_on`.
+- **One state text** (`src/core/state-text.ts`): the plan's rule everywhere, the state plus its unit, raw. A room mean drops its
+  trailing ".0" (48 %, not 48.0 %). A light on shows brightness as a percent, a cover its position, a plug its watts.
+- **Hover** is mouse only. In 3D it uses the pick on pointermove, once per animation frame, with no per-move allocation.
+  Anchor of the popup: the pointer, or the element's box for a keyboard or row activation.
+## 2026-10-06: effect size is a per-device percent, read by CSS and by the 3D pool; a siren is an entity domain
+
+S14.3, spec items 7 and 6. `Device.fx` is optional, a finite number in [25, 300] (percent of the type's own size, absent is 100).
+No schema bump: it is optional, the card ignores what it does not know, and a file without it draws as before. `validate` refuses
+a value outside the range; `migrate` drops it, as it does a bad height, so the file opens.
+**2D.** The aura's radius is `LIGHT_REACH * fx / 100`, and `viewBoxFor` widens by it. The rings and waves are CSS animations that
+scale about the icon, so the end size reads a custom property the icon group carries, `--fp-fx` (the fraction): the keyframes are
+`scale(calc(1 + k * var(--fp-fx, 1)))` with k 1.2 for the ping and 1.4 for the wave, which is today's 2.2 and 2.4 at the default.
+Scaling the end and not the start keeps every ring born at the disc; a small `fx` shortens the ring's reach, not its start. The
+property is written only when `fx` is not 100 and the device draws an effect, so unused, the demo's markup hashes the same
+before and after (sha256 524d66b3...a880 over every floor, bare and with live state, 2D and 2.5D, editor and card).
+**3D.** `LiveLight` carries `scale` (absent at 100, so the JSON is unchanged), and the floor pool (`POOL_REACH` 220) and the wall
+light (`GLOW_REACH` 300) reach that much further or shorter; a wall still cuts them. The icons are the 2D markup, so they scale too.
+`fxScale` reaches the chunk through `liveDeps`, as the other helpers do: the chunk still imports nothing from core.
+**Which types draw one.** `FX_TYPES` (light, speaker, media, motion, contact) plus any siren; a test iterates `DEVICE_TYPES` and
+fails for a new type until it says whether it draws one. The editor shows the field exactly there. A stored `fx` on a type that
+draws nothing is ignored, not cleared when the type changes.
+**Sirens.** HA has a `siren` domain and the schema has no siren type, so a siren is a device whose entity starts with `siren.`,
+whatever type it was given (an `other`, say). On, it draws two `.siren-ring` circles, like the waves but with an end scale of 4.8
+(twice the speaker's 2.4), a 3.5 px line against 2, a 1 s beat against 1.6 s, and the danger colour (the group takes class `siren`,
+which sets `--fp-dev` to `--fp-danger`, so the disc and glyph go red too). Reduced motion holds the rings at 3 times the icon
+against 1.5 (twice), opacity .8 against .6. This is also spec item 6; S14.2 keeps the siren's tap and its confirm-OFF.
+**The editor field** reuses the height field's behaviour (empty removes the key, junk is refused with the reason, a value out of
+range is clamped and says so), now one `optionalField` behind both. The existing height messages are unchanged.
+Tests: core (validate and migrate against hostile values, 2D scale at 50, 100, 150, 300 with asymmetric numbers, an iteration over
+every type), a Chromium pair that reads `getComputedStyle` and the running animation's end frame, the 3D pool and glow reach on
+the demo's living lamp, and the editor with a real mouse, run ten times.
+## 2026-10-06: S14.5, the open doorway is a solid band, devices hang lower, low walls are 110 cm
+
+Spec items 9, 10, 11. Supersedes the dashed, pulsing look of a tripped `open` door, and the line in 0.15 that 3D shows no
+state for it.
+
+- **Doorway band.** A tripped `open` door (contact open, unlocked, vibration, cover open) is a solid `--fp-open-door` band
+  across the gap: no dash, no pulse, no door look. 2D: the door line gets class `band` (dash none, opacity 1) and the
+  `door-alert` pulse line is not drawn for a doorway; `.door.door-open.band` has three classes so it beats `.door.open` and
+  the selected-faint rule (computed-style pair in `open-door.spec.ts`). 2.5D: the red frame polygon is the same band
+  (`.opn.band`, fill-opacity 1). 3D: a thin slab in the gap, tag `band`, 0.6 opacity, so the room behind still reads; it is
+  visible only while the door is tripped (`applyDoors`, no rebuild). A plain door keeps its dashes and pulse.
+- **Pickable when closed.** The slab is always in the scene and only toggled visible, so a tap there is a door tap even
+  when nothing is drawn, as 2D's always-present `door-hit` is. Cheaper than rebuilding picks on every state change. The
+  slab never blocks labels (`BLOCKS`).
+- **Mount heights (`DEVICE_Z`).** Ceiling: light 215 (was 250), camera, motion, radar, access point 205 (was 230); wall-high:
+  ac 195 (was 220), cover 175 (was 200); temp, humidity, climate 135 (was 150). A ceiling device hangs 35 cm under a 250
+  wall, 45 for a wall unit; a thermostat sits at switch height. Everything else was not floating, from the demo renders, and
+  is unchanged. Own `z` values stay. `ICON_MARGIN` 10 -> 25 so an icon on a lower ceiling still sits clear of the wall
+  top. `tests/core/heights.test.ts` pins every `DEVICE_TYPES` member.
+- **Wall height.** The spec said "low is about 60". It was 30. One constant, `CUT_WALL_HEIGHT`, now 110 for both low and the
+  cutaway's lowered walls. Looked at in the demo renders in all three wall modes: 110 reads as a wall you see over, a door
+  still shows its head, and lamps at 215 stay above it. 90 was not rendered; 110 was the spec's lean and looked right. 2D and 2.5D walls keep their own cutaway
+  heights; only 3D changed.
+
+## 2026-10-06: the size budget is raised for Sprints 14 and 15
+
+Diego said yes to +20 KB on the card and +40 KB on the 3D chunk (card 95,076 -> 115,000 gz, chunk 193,707 -> 233,000 gz)
+for the tap popup, effect sizes, scenes, view memory, and the light-through-windows and daylight maths. The limits in
+`tests/card/size-budget.spec.ts` are `CARD_GROWTH_LIMIT` 24,220 over the 90,780 pre-3D card and `CHUNK_LIMIT` 233,000.
+This supersedes the 5 KB / 200 KB figures of `docs/specs/real-3d.md` criterion 9. The scene builder stays injected, so
+a user of the 2D card never pays for three.js.
+
 ## 2026-10-06: the wall glow is clipped to the lamp's room, face by face
 
 Supersedes the "face looks into the lamp's room" test of the entry below. That test looked at one point, 2 cm in front of the

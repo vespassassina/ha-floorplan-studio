@@ -56,6 +56,8 @@ const STATES = {
 };
 // S7.6: after sunset, every device at rest but the kitchen light, so one room stays bright and the rest go dark.
 STATES.night = { ...STATES.off, "light.demo_kitchen": ["on", { rgb_color: [255, 170, 60] }], "sun.sun": "below_horizon" };
+// S14.2: the popup shots show the Living light with every control a colour lamp has (brightness, colour temperature, colour).
+const lamp = (hass, on) => on ? { ...hass, states: { ...hass.states, "light.demo_living": st("on", { friendly_name: "Living light", supported_color_modes: ["color_temp", "hs"], brightness: 128, min_color_temp_kelvin: 2200, max_color_temp_kelvin: 6500, color_temp_kelvin: 3000, hs_color: [30, 60] }) } } : hass;
 function hassFor(which, dark) {
   const states = {};
   for (const [id, v] of Object.entries(STATES[which])) states[id] = Array.isArray(v) ? st(v[0], v[1]) : st(v);
@@ -216,6 +218,13 @@ try {
   // Radiator, speaker and TV solids: ground floor, lit and at rest, tilt 0.5 and 1, turned 0 and 90, light and blueprint.
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const tilt of [0.5, 1]) for (const rotation of [0, 90]) for (const which of ["off", "on", "heating"])
     cardShots.push({ name: `card-ground-${which}-${t.id}-solids-tilt-${String(tilt).replace(".", "-")}-rot-${rotation}`, floor: "ground", which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view: "2.5d", cfg: { tilt, rotation, active_list: false }, dpr: 2 });
+  // S14.2: the popup after a real tap on the Living light (light: brightness, colour temperature and colour sliders) and on the
+  // plug (its confirm step), light and dark, wide and narrow; and the hover tooltip with a real mouse over the light.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [900, 375]) {
+    cardShots.push({ name: `card-ground-popup-${t.id}-${width}px`, floor: "ground", which: "on", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, width, dpr: 2, cfg: { active_list: false }, tap: 0 });
+    cardShots.push({ name: `card-ground-popup-confirm-${t.id}-${width}px`, floor: "ground", which: "on", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, width, dpr: 2, cfg: { active_list: false }, tap: 3, tap2: true });
+  }
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) cardShots.push({ name: `card-ground-tooltip-${t.id}`, floor: "ground", which: "on", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, dpr: 2, cfg: { active_list: false }, hover: 0 });
   cardShots.push({ name: "card-ground-on-blueprint-2-5d-375px", floor: "ground", which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", width: 375 });
   cardShots.push({ name: "card-ground-on-blueprint-2-5d-rot-45-375px", floor: "ground", which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", width: 375, cfg: { rotation: 45 } });
   for (const s of cardShots) {
@@ -230,7 +239,7 @@ try {
       const el = document.getElementById("c");
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
-    }, [{ layout: s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme, ...(s.view ? { view: s.view } : {}), ...(s.cfg ?? {}) }, hassFor(s.which, s.dark)]);
+    }, [{ layout: s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme, ...(s.view ? { view: s.view } : {}), ...(s.cfg ?? {}) }, lamp(hassFor(s.which, s.dark), s.tap === 0 || s.hover === 0)]);
     if (s.pick !== undefined) {
       // A real click on bare floor, found with elementFromPoint (CLAUDE.md finding 3), then the first details chevron.
       await page.evaluate(([reg]) => { const el = document.getElementById("c"); el.hass = { ...el.hass, ...reg }; return el.updateComplete; },
@@ -246,6 +255,22 @@ try {
         await page.locator("floorplan-studio-card").locator(".fp-room-devices .fp-info-btn").first().click();
       }
       await page.mouse.move(0, 0);
+    }
+    if (s.tap !== undefined || s.hover !== undefined) {
+      // Real mouse at the icon's own spot (CLAUDE.md finding 3), after checking the icon is the top element there.
+      const i = s.tap ?? s.hover;
+      const at = await page.evaluate((i) => {
+        const sr = document.getElementById("c").shadowRoot, r = sr.querySelector(`svg g[data-x="${i}"]`).getBoundingClientRect();
+        for (let a = 4; a < 12; a++) for (let b = 4; b < 12; b++) { const x = r.left + (r.width * a) / 16, y = r.top + (r.height * b) / 16; if (sr.elementFromPoint(x, y)?.closest(`g[data-x="${i}"]`)) return { x, y }; }
+        return null;
+      }, i);
+      if (!at) errors.push(`${s.name}: icon ${i} is covered`);
+      else if (s.hover !== undefined) { await page.mouse.move(at.x + 30, at.y + 30); await page.mouse.move(at.x, at.y, { steps: 4 }); await page.locator("floorplan-studio-card").locator(".fp-tip").waitFor(); }
+      else {
+        await page.mouse.click(at.x, at.y);
+        await page.locator("floorplan-studio-card").locator(".fp-pop").waitFor();
+        if (s.tap2) { await page.locator("floorplan-studio-card").locator(".fp-pop-do").click(); await page.locator("floorplan-studio-card").locator(".fp-pop-confirm, .fp-pop-cancel").first().waitFor(); }
+      }
     }
     const nodes = await page.evaluate(() => document.getElementById("c").shadowRoot.querySelectorAll("svg *").length);
     if (nodes < 10) errors.push(`${s.name}: the plan drew ${nodes} nodes; something is wrong before you even look`);
@@ -274,6 +299,11 @@ try {
     shots3d.push({ name: `card-ground-textured-night-${t.id}-3d`, floor: "ground", t, orbit: false, which: "night", tex: true });
     shots3d.push({ name: `card-ground-textured-night-${t.id}-3d-orbit`, floor: "ground", t, orbit: true, which: "night", tex: true });
   }
+  // S14.2: the popup after a real tap on the Living light in 3D, and the hover tooltip.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) {
+    shots3d.push({ name: `card-ground-popup-${t.id}-3d`, floor: "ground", t, orbit: false, tap: 0 });
+    shots3d.push({ name: `card-ground-tooltip-${t.id}-3d`, floor: "ground", t, orbit: false, hover: 0 });
+  }
   for (const s of shots3d) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: 2 });
     const page = await ctx.newPage();
@@ -293,7 +323,7 @@ try {
       const el = document.getElementById("c");
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
-    }, [{ layout: s.tex ? texLayout : s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.t.theme, view: "3d", active_list: !!s.pick }, hassFor(s.which ?? "on", s.t.dark)]);
+    }, [{ layout: s.tex ? texLayout : s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.t.theme, view: "3d", active_list: !!s.pick }, lamp(hassFor(s.which ?? "on", s.t.dark), s.tap === 0 || s.hover === 0)]);
     const holder = page.locator("floorplan-studio-card").locator(".fp-3d");
     try { await page.waitForFunction(() => +(document.getElementById("c").shadowRoot.querySelector(".fp-3d")?.dataset.drawn ?? 0) >= 1, null, { timeout: 15000 }); }
     catch { errors.push(`${s.name}: the 3D view never drew a frame (WebGL missing, or the chunk failed)`); }
@@ -310,7 +340,12 @@ try {
       await page.waitForTimeout(800);
       if (!(await holder.getAttribute("data-ring"))) errors.push(`${s.name}: the click at ${at.x},${at.y} picked no room`);
     }
-    await page.mouse.move(0, 0);
+    if (s.tap !== undefined || s.hover !== undefined) {
+      await page.waitForTimeout(800); // the camera settles after its first frame
+      const at = await page.evaluate((i) => globalThis.__fp3d.where("device", i), s.tap ?? s.hover);
+      if (s.hover !== undefined) { await page.mouse.move(at.x + 60, at.y + 60); await page.mouse.move(at.x, at.y, { steps: 4 }); await page.locator("floorplan-studio-card").locator(".fp-tip").waitFor(); }
+      else { await page.mouse.click(at.x, at.y); await page.locator("floorplan-studio-card").locator(".fp-pop").waitFor(); }
+    } else     await page.mouse.move(0, 0);
     await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });
     shots.push(s.name);
     await ctx.close();

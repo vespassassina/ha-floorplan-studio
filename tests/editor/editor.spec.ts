@@ -8400,7 +8400,7 @@ const HEIGHT_CASES: { name: string; open: (p: Page) => Promise<void>; id: string
   { name: "opening sill", open: (p) => addGap(p), id: "#osill", ph: "0", at: "openings[" },
   { name: "furniture", open: async (p) => { await menu(p, "Add"); await p.locator("#addFurn").selectOption("bed"); }, id: "#fuht", ph: "55", at: "furniture[" },
   { name: "unlinked", open: async (p) => { await menu(p, "Add"); await p.locator("#addUnlDev").selectOption("heater"); }, id: "#uuht", ph: "60", at: "unlinked[" },
-  { name: "device mount height", open: (p) => selectDev(p, 0), id: "#vz", ph: "250", at: "devices[" },
+  { name: "device mount height", open: (p) => selectDev(p, 0), id: "#vz", ph: "215", at: "devices[" },
 ];
 
 for (const c of HEIGHT_CASES) {
@@ -8461,6 +8461,60 @@ test("heights: a layout loaded with heights shows them in the fields", async ({ 
   await expect(page.locator("#dht")).toHaveValue("200");
   await selectDev(page, 0);
   await expect(page.locator("#vz")).toHaveValue("215");
+});
+
+// ---- S14.3: effect size per device -----------------------------------------------------------------------
+const fxOf = async (page: Page) => (await groundOf(page)).devices.map((d, i) => ({ i, fx: (d as { fx?: number }).fx })).filter((x) => x.fx !== undefined);
+
+test("effect size: a light's field shows 100 as the placeholder; a set is one undo step, the same value again adds none, Save accepts it", async ({ page }) => {
+  await selectDev(page, 0);
+  await expect(page.locator("label[for=vfx]")).toHaveText("effect size (%)");
+  await expect(page.locator("#vfx")).toHaveValue("");
+  await expect(page.locator("#vfx")).toHaveAttribute("placeholder", "100");
+  expect(await fxOf(page)).toEqual([]);
+  await setField(page, "#vfx", "150");
+  expect(await fxOf(page)).toEqual([{ i: 0, fx: 150 }]);
+  await setField(page, "#vfx", "150");
+  expect(await fxOf(page)).toEqual([{ i: 0, fx: 150 }]);
+  await savedValid(page);
+  await undoOnce(page); // one step set it, the repeat added none
+  expect(await fxOf(page)).toEqual([]);
+});
+
+test("effect size: clearing removes the key in one undo step; junk is refused with the reason, out of range is clamped to 25 or 300", async ({ page }) => {
+  await selectDev(page, 0);
+  await setField(page, "#vfx", "175");
+  await setField(page, "#vfx", "big");
+  await expect(page.locator("#status")).toContainText('"big" is not an effect size');
+  await expect(page.locator("#status")).toContainText("Kept 175");
+  await expect(page.locator("#vfx")).toHaveValue("175");
+  await setField(page, "#vfx", "5000");
+  await expect(page.locator("#status")).toContainText("used 300");
+  expect(await fxOf(page)).toEqual([{ i: 0, fx: 300 }]);
+  await setField(page, "#vfx", "1");
+  await expect(page.locator("#status")).toContainText("used 25");
+  expect(await fxOf(page)).toEqual([{ i: 0, fx: 25 }]);
+  await savedValid(page);
+  await setField(page, "#vfx", "175");
+  await setField(page, "#vfx", "");
+  expect(await fxOf(page)).toEqual([]); // removed, not written as 0 or ""
+  await undoOnce(page);
+  expect(await fxOf(page)).toEqual([{ i: 0, fx: 175 }]);
+});
+
+test("effect size: the field is on exactly the devices that draw an effect, and on a siren whatever its type", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.devices.push({ id: "siren-x", type: "other", entity: "siren.hall", x: 300, y: 330 });
+    el.layout = l;
+  }, EDITOR);
+  // light 0 and motion 5 draw one; the switch 2, plug 3 and temp 4 do not; the siren 8 does, though its type is "other".
+  const devs = (await groundOf(page)).devices;
+  for (const [i, want] of [[0, true], [2, false], [3, false], [4, false], [5, true], [8, true]] as const) {
+    await selectDev(page, i);
+    await expect(page.locator("#vz"), `device ${i} panel is open`).toBeVisible();
+    await expect(page.locator("#vfx"), `${devs[i].type} ${devs[i].entity}`).toHaveCount(want ? 1 : 0);
+  }
 });
 
 // ---- Plug power sensor (Diego, 2026-10: a plug is active only while it draws 2 W or more) ----------------

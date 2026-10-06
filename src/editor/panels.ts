@@ -1,12 +1,13 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";
-import { DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
+import { DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
+import { addScene, addSceneItem, removeScene, removeSceneItem, renameScene, roomSceneTargets, setRoomHaScenes, setSceneItem } from "./room-scenes-ops";
 import { GUIDE_STEPS } from "./guide";
 import "./combo";
 import type { ComboOption } from "./combo";
@@ -143,17 +144,25 @@ function number(c: PanelCtx, label: string, id: string, value: number | string, 
  * and the field goes back. `apply` gets the number, or undefined to remove it.
  */
 function heightField(c: PanelCtx, label: string, id: string, cur: unknown, fallback: number, apply: (n: number | undefined) => void) {
+  return optionalField(c, label, id, cur, fallback, apply, { noun: "a height", min: 0, max: MAX_HEIGHT, how: `cm from 0 to ${MAX_HEIGHT}`, unit: "cm" });
+}
+/** S14.3: the effect size of a device, a percent from `FX_MIN` to `FX_MAX`; empty removes it and the type's own size (100) applies. */
+const fxField = (c: PanelCtx, cur: unknown, apply: (n: number | undefined) => void) =>
+  optionalField(c, "effect size (%)", "vfx", cur, 100, apply, { noun: "an effect size", min: FX_MIN, max: FX_MAX, how: `a percent from ${FX_MIN} to ${FX_MAX}`, unit: "%" });
+/** The one optional-number field behind heights and the effect size: empty removes it, junk is refused with the reason, a value out of range is clamped and says so. */
+function optionalField(c: PanelCtx, label: string, id: string, cur: unknown, fallback: number, apply: (n: number | undefined) => void,
+  r: { noun: string; min: number; max: number; how: string; unit: string }) {
   const shown = typeof cur === "number" && Number.isFinite(cur) ? String(cur) : "";
   const on = (e: Event) => {
     const raw = (e.target as Input).value.trim();
     if (raw === "") apply(undefined);
     else {
       const n = Number(raw.replace(",", "."));
-      if (!Number.isFinite(n)) c.say(`"${raw}" is not a height. Use cm from 0 to ${MAX_HEIGHT}, or clear the field for the default ${fallback}. Kept ${shown || `the default ${fallback}`}.`);
+      if (!Number.isFinite(n)) c.say(`"${raw}" is not ${r.noun}. Use ${r.how}, or clear the field for the default ${fallback}. Kept ${shown || `the default ${fallback}`}.`);
       else {
-        const k = Math.min(MAX_HEIGHT, Math.max(0, n));
+        const k = Math.min(r.max, Math.max(r.min, n));
         apply(k);
-        if (k !== n) c.say(`${raw} cm is outside 0 to ${MAX_HEIGHT}; used ${k}.`); // after apply: an edit sets its own "Edited"
+        if (k !== n) c.say(`${raw} ${r.unit} is outside ${r.min} to ${r.max}; used ${k}.`); // after apply: an edit sets its own "Edited"
       }
     }
     c.refresh();
@@ -168,9 +177,11 @@ function rotateButtons(c: PanelCtx, id: string, turn: (deg: number) => void, opt
     ${[30, 45, 60, 90].map((n) => html`<button class="btn" id=${`${id}${n}`} ?disabled=${opts.disabled} aria-label=${`Turn ${n} degrees ${cw ? "clockwise" : "counter-clockwise"}`} @click=${() => turn(c.st.turnDir * n)}>${n}</button>`)}
     ${opts.reset ? html`<button class="btn" id=${`${id}reset`} @click=${opts.reset}>Reset</button>` : nothing}</div>`;
 }
-function select(label: string, id: string, value: string, options: readonly string[], on: (v: string) => void) {
-  return html`<label for=${id}>${label}</label><select id=${id} .value=${value} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${o}</option>`)}</select>`;
+function select(label: string, id: string, value: string, options: readonly string[], on: (v: string) => void, names: Record<string, string> = {}) {
+  return html`<label for=${id}>${label}</label><select id=${id} .value=${value} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${names[o] ?? o}</option>`)}</select>`;
 }
+/** What the door type select shows where it differs from the stored kind id (`slit` is stored, "slit window" is read). */
+const DOOR_KIND_NAMES: Record<string, string> = { slit: "slit window" };
 export const ROOM_LABELS: Record<RoomKind, string> = { room: "Room", garden: "Garden", pavement: "Pavement", fill: "Fill", terrace: "Terrace", structure: "Structure", zone: "Zone", water: "Water" };
 const kindSelect = (value: string, on: (v: string) => void) =>
   html`<label for="rk">kind</label><select id="rk" .value=${value} @change=${(e: Event) => on(val(e))}>${ROOM_KINDS.map((k) => html`<option value=${k} ?selected=${k === value}>${ROOM_LABELS[k]}</option>`)}</select>`;
@@ -481,7 +492,7 @@ function doorPanel(c: PanelCtx, i: number) {
     ${hint("Drag along the wall; drag an end to resize.")}
     ${heading("Identity")}
     ${text("name", "dn", d.name, (v) => c.commit((f) => { f.doors[i].name = v; }))}
-    ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }))}
+    ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }), DOOR_KIND_NAMES)}
     ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); f.doors[i].locked = true; }))}
     ${heightField(c, "height (cm)", "dht", d.height, dflt.head - dflt.sill, heightSetter(c, "doors", i, "height"))}
     ${d.kind === "window" || d.kind === "slit" || d.sill !== undefined ? heightField(c, "sill (cm)", "dsill", d.sill, dflt.sill, heightSetter(c, "doors", i, "sill")) : nothing}
@@ -544,6 +555,7 @@ function roomPanel(c: PanelCtx, i: number) {
     ${r.area ? nothing : entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}
     ${c.st.ha ? heading("Home Assistant") : nothing}
     ${roomSensors(c, i)}
+    ${roomScenesPanel(c, i)}
     ${haBox(c, i)}
     ${toPlace ? heading("Links") : nothing}
     ${placeAreaButton(c, i)}
@@ -577,6 +589,41 @@ function roomSensors(c: PanelCtx, i: number) {
       const write = (f: Floor, next: string[]) => setRoomList(f.rooms[i], field, next);
       return multiAttachField(c, id, label, r[field] ?? [], c.st.roomSensorChoices(i, field), (next) => c.commit((f) => write(f, next)), { apply: write, targetLabel: r.name || "the room" }, { grouped: (avail) => groupSensorChoices(c.st.layout, avail, c.st.floor, r.name), roundRemove: true });
     })}`;
+}
+
+/**
+ * S14.7: the room's scenes. Custom scenes (a name and, per light or switch, on or off and a brightness) are stored on the room; the card
+ * shows them as buttons. Home Assistant `scene.*` entities appear on the card by themselves when their area is the room's; "Also offer"
+ * adds scenes from elsewhere. Every gesture is one `commit`, one undo step.
+ */
+function roomScenesPanel(c: PanelCtx, i: number) {
+  const r = c.st.f.rooms[i];
+  if (!ROOM_OWNS[r.kind]) return nothing;
+  const targets = roomSceneTargets(c.st.f, i), label = (e: string) => targets.find((t) => t.entity === e)?.name || e;
+  const ha = c.st.ha;
+  const sceneRows = ha?.entities.filter((e) => e.domain === "scene") ?? [];
+  const inArea = r.area ? sceneRows.filter((e) => e.area === r.area) : [];
+  const extra = r.haScenes ?? [];
+  const more = sceneRows.filter((e) => !inArea.includes(e) && !extra.includes(e.id));
+  const nameOf = (id: string) => sceneRows.find((e) => e.id === id)?.name ?? id;
+  const w = (fn: (room: Room) => void) => c.commit((f) => { fn(f.rooms[i]); });
+  return html`${heading("Scenes")}
+    ${hint("Shown as buttons on the card.")}
+    ${(r.scenes ?? []).map((sc, k) => html`<div class="scene" data-scene=${sc.id}>
+      ${text("scene name", `rsc-name-${k}`, sc.name, (v) => { w((room) => { renameScene(room, sc.id, v); }); c.refresh(); })}
+      ${sc.items.map((it, j) => html`<div class="scene-item">
+        <span>${label(it.entity)}</span>
+        <select id=${`rsc-on-${k}-${j}`} aria-label=${`${label(it.entity)} state`} .value=${live(it.on ? "on" : "off")} @change=${(e: Event) => w((room) => { setSceneItem(room, sc.id, it.entity, { on: val(e) === "on" }); })}><option value="on">On</option><option value="off">Off</option></select>
+        ${it.entity.startsWith("light.") && it.on ? html`<input id=${`rsc-bri-${k}-${j}`} type="number" min="1" max="100" placeholder="brightness %" aria-label=${`${label(it.entity)} brightness percent`} .value=${live(it.brightness === undefined ? "" : String(it.brightness))} @change=${(e: Event) => { const n = numVal(e); w((room) => { setSceneItem(room, sc.id, it.entity, { brightness: n }); }); c.refresh(); }}>` : nothing}
+        <button class="btn keep" id=${`rsc-rm-${k}-${j}`} type="button" aria-label=${`Remove ${label(it.entity)} from the scene`} @click=${() => w((room) => { removeSceneItem(room, sc.id, it.entity); })}>Remove</button>
+      </div>`)}
+      ${(() => { const free = targets.filter((t) => !sc.items.some((it) => it.entity === t.entity)); return free.length ? html`<label for=${`rsc-add-${k}`}>add to scene</label><select id=${`rsc-add-${k}`} .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) w((room) => { addSceneItem(room, sc.id, v); }); c.refresh(); }}><option value="">(pick a light or switch)</option>${free.map((t) => html`<option value=${t.entity}>${t.name}</option>`)}</select>` : nothing; })()}
+      <p>${button(`rsc-del-${k}`, "Delete scene", () => w((room) => { removeScene(room, sc.id); }), "warn")}</p>
+    </div>`)}
+    <p>${button("rsc-add", "Add scene", () => w((room) => { addScene(room, targets.map((t) => t.entity)); }), "", "A new scene with every light and switch of the room, on. Edit it below.")}</p>
+    ${ha ? html`${inArea.length ? hint(`In this area: ${inArea.map((e) => e.name).join(", ")}`, true) : nothing}
+      ${extra.map((e, k) => html`<div class="scene-item"><span>${nameOf(e)}</span><button class="btn keep" id=${`rsc-ha-rm-${k}`} type="button" aria-label=${`Stop offering ${nameOf(e)}`} @click=${() => w((room) => { setRoomHaScenes(room, extra.filter((x) => x !== e)); })}>Remove</button></div>`)}
+      ${more.length ? html`<label for="rsc-ha-add">also offer</label><select id="rsc-ha-add" .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) w((room) => { setRoomHaScenes(room, [...extra, v]); }); c.refresh(); }}><option value="">(a Home Assistant scene)</option>${more.map((e) => html`<option value=${e.id}>${e.name}</option>`)}</select>` : nothing}` : nothing}`;
 }
 
 /** S4.15/S8.1: one button, counting what Home Assistant has in the room's area that the plan can show and does not yet; it opens the Place popup. */
@@ -786,6 +833,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${areaDiffField(c, i)}
     ${heading("Appearance")}
     ${heightField(c, "mount height (cm)", "vz", d.z, DEVICE_Z[d.type] ?? 100, heightSetter(c, "devices", i, "z"))}
+    ${drawsEffect(d) ? fxField(c, d.fx, heightSetter(c, "devices", i, "fx")) : nothing}
     ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}
     ${hasAutomations ? heading("Automations") : nothing}
     ${c.makeLight && c.st.canMakeLight(i) ? html`<p>${button("vmklight", "Create a light from this switch", () => c.makeLight!(i))}</p>${hint("Wraps this switch in a new HA light entity.")}` : nothing}

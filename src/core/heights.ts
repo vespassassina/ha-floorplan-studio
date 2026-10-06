@@ -32,12 +32,13 @@ export const UNLINKED_HEIGHTS: Record<DeviceType, number> = {
 
 /** Mount height of the real object an icon stands for. Same reasoning as UNLINKED_HEIGHTS, but where it is fixed, not its top. */
 export const DEVICE_Z: Record<DeviceType, number> = {
-  // Ceiling-mounted.
-  light: 250, camera: 230, motion: 230, radar: 230, access_point: 230,
-  // On the wall, up high.
-  ac: 220, cover: 200,
-  // Wall fittings at hand height (a switch is 120 by habit in Europe, a plug sits low).
-  switch: 120, plug: 30, contact: 120, vibration: 120, lock: 100, temp: 150, humidity: 150, climate: 150,
+  // Ceiling-mounted. The icon stands for the fitting, not for its mount: a pendant or a dome hangs 35-45 cm under a 250 cm ceiling in 3D,
+  // so it reads as in the room and not stuck to the slab (S14.5, Diego: "put all lights and high icons lower, they float too high").
+  light: 215, camera: 205, motion: 205, radar: 205, access_point: 205,
+  // On the wall, up high: 25 cm lower than the real unit's top edge, for the same reason.
+  ac: 195, cover: 175,
+  // Wall fittings at hand height (a switch is 120 by habit in Europe, a plug sits low; a thermostat or sensor at eye level, 135).
+  switch: 120, plug: 30, contact: 120, vibration: 120, lock: 100, temp: 135, humidity: 135, climate: 135,
   // Plant on the wall or a shelf.
   boiler: 120, battery: 120, inverter: 100, tv: 100, other: 100,
   // A speaker or media player is the 30 cm cabinet 2.5D draws (`deviceSolidTop`): the icon sits on top of it.
@@ -61,10 +62,15 @@ export const DOOR_DEFAULTS: Record<DoorKind, { height: number; sill: number }> =
   sealed: { height: 210, sill: 0 },
   window: { height: 120, sill: 90 },
   open: { height: 210, sill: 0 }, // a doorway: the cut of a door, nothing drawn in it
-  slit: { height: 60, sill: 190 }, // for the default 250 storey; see SLIT_HEIGHT and doorSpan: the real sill hangs from the wall's ceiling
+  slit: { height: 60, sill: 150 }, // for the default 250 storey; see SLIT_HEIGHT, SLIT_HEAD_GAP and doorSpan: the real sill follows the wall's ceiling
 };
-/** A slit window is this high, and hangs from the ceiling of the wall it sits in (Diego, 2026-10-05). */
+/** A slit window is this high (Diego, 2026-10-05). */
 export const SLIT_HEIGHT = 60;
+/**
+ * A slit window's head ends this far under the ceiling of its wall: as far as a window's does under the default wall,
+ * 250 - (sill 90 + height 120) = 40 cm (Diego, 2026-10-06; it used to touch the ceiling). Derived, so the two cannot drift.
+ */
+export const SLIT_HEAD_GAP = DEFAULT_FLOOR_HEIGHT - (DOOR_DEFAULTS.window.sill + DOOR_DEFAULTS.window.height);
 const OPENING_DEFAULT = { height: 210, sill: 0 };
 
 /** A usable value: a finite number from 0 to 1000. Anything else is "not set". */
@@ -113,15 +119,17 @@ export function edgeHeight(f: Floor, room: Room | null, edgeIndex: number): numb
 
 /**
  * `ceiling` is the top of the wall the door sits in (the storey height when it is not known). Only a slit reads it: its
- * default is 60 high with its head at the ceiling, so its sill is `ceiling - height`. An own `height` keeps the head at
- * the ceiling, an own `sill` wins and the head follows it; the head never passes the ceiling, and a wall lower than the
- * slit gives a slit as high as the wall.
+ * default is 60 high with its head SLIT_HEAD_GAP under the ceiling, so its sill is `ceiling - 40 - height` (150 on 250).
+ * An own `height` keeps that head, an own `sill` wins and the head follows it; the head never passes the ceiling and the
+ * sill is never negative. On a wall so low that the slit would not fit under the gap, the slit is as high as the wall
+ * allows: from 0, to the lower of its height and the wall.
  */
 export function doorSpan(door: Door, ceiling: number = DEFAULT_FLOOR_HEIGHT): { sill: number; head: number } {
   const kind = (door as { kind?: unknown })?.kind;
   if (kind === "slit") {
     const top = valid(ceiling) ? ceiling : DEFAULT_FLOOR_HEIGHT, h = Math.min(own(door, "height") ?? SLIT_HEIGHT, top);
-    const sill = Math.min(own(door, "sill") ?? top - h, top);
+    const head = Math.min(top, Math.max(top - SLIT_HEAD_GAP, h));
+    const sill = Math.min(own(door, "sill") ?? head - h, top);
     return { sill, head: Math.min(sill + h, top) };
   }
   const d = has(DOOR_DEFAULTS as Record<string, any>, kind) ? DOOR_DEFAULTS[kind as DoorKind] : DOOR_DEFAULTS.door;

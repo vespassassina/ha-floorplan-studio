@@ -28,7 +28,21 @@ export const MAX_ROOM_SENSORS = 20;
  *  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The
  *  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border
  *  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each. */
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[] }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[] }
+/** Most custom scenes one room may keep, and most lights or switches one scene may set. */
+export const MAX_ROOM_SCENES = 12;
+export const MAX_SCENE_ITEMS = 40;
+/**
+ * S14.7: one light or switch of a custom scene. `on` false turns it off; `brightness` (1-100 %), `kelvin` and `hs` ([hue 0-360,
+ * saturation 0-100]) only mean something for a light that is on, and a field left out leaves that setting as it is.
+ */
+export interface SceneItem { entity: string; on: boolean; brightness?: number; kelvin?: number; hs?: [number, number] }
+/**
+ * S14.7: a custom scene, stored on the room (optional, no schema bump: an older card ignores the field). The card applies it
+ * through the plain light and switch services, one call per item. `haScenes` on a room lists Home Assistant `scene.*` entities
+ * to offer for the room besides the ones whose area is the room's own.
+ */
+export interface RoomScene { id: string; name: string; items: SceneItem[] }
 export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge";
 /** A room edge is a wall kind, or "none": not drawn. The room stays closed for area and snapping. */
 export type EdgeKind = WallKind | "none";
@@ -47,7 +61,7 @@ export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape
  * glass door or window. render.ts only colours the opening from `cover` on a plain `door` or `sealed` kind;
  * on `window`/`glass` it is curtains, not a security state, and opening them never colours the window
  * (Diego, 2026-09-28 — the office window's curtains were flipping it orange).
- * `slit` (2026-10-05) is a window 60 cm high that hangs from the ceiling of its wall; its width is the length a to b.
+ * `slit` (2026-10-05) is a window 60 cm high whose head ends 40 cm under the ceiling of its wall, as a window's does (2026-10-06); its width is the length a to b.
  * It reads and behaves as a `window` in every other respect. Its default sill is read from the wall, never stored.
  * `open` (2026-10-05) is a doorway: the wall is cut as for a door (210 high from 0), but nothing is drawn in the gap. It is a
  * real Door, so it keeps a name, sensors, vibration, locks and a cover; unlike an `Opening` it can carry them. Closed and
@@ -76,9 +90,14 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * `power` (plugs only): the `sensor.*` (device class `power`) that measures the plug. A plug is active only while
  * that sensor reads at least 2 W (the card's `plug_watts` changes the 2); switched on and drawing nothing is idle.
  * Unset, the editor links the plug's sibling power sensor when it finds exactly one, and the card does the same at
- * runtime; with no sensor at all a plug is active whenever its switch is on. Must differ from `entity`.
+ * runtime; with no sensor at all a plug is active whenever its switch is on. Must differ from `entity`. S14.8: the same
+ * reading also tints the plug cool, warm or hot by how much it draws (the card's `plug_heat_from` and `plug_heat_to`); no sensor, no tint.
+ * `fx` (S14.3): the size of the effect the device draws, in percent of its type's own size, 25 to 300; absent is 100. It scales a
+ * lit lamp's aura (and its floor pool and wall light in 3D), a playing speaker's or media device's waves, a triggered motion or
+ * contact sensor's ring and a siren's rings (`FX_TYPES`, `isSiren`); on a device that draws none it is ignored. Not a schema bump:
+ * an old card ignores the field, and a layout without it draws as before.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
  *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. */
 export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number }
@@ -101,7 +120,7 @@ export interface Trace { src: string; x: number; y: number; w: number; rot: numb
 /** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. Heights, all optional, in cm, 0 to 1000
  *  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling
  *  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture
- *  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high from the ceiling of its wall); `z` on a Device is its mount height. */
+ *  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high, its head 40 under the ceiling of its wall); `z` on a Device is its mount height. */
 export interface Floor {
   ha?: string; height?: number; slab?: number; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[]; trace?: Trace;
@@ -150,6 +169,16 @@ export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
 export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
 export const STAIR_DIRECTIONS: readonly StairDirection[] = ["up", "down", "both"];
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed", "slit", "open"];
+/** S14.3: the least and most a device's effect size (`fx`, percent) may be. Absent reads as 100. */
+export const FX_MIN = 25, FX_MAX = 300;
+/** S14.3: the types that draw an effect the size scales: a lit lamp's aura, a playing speaker's or media device's waves, a triggered motion or contact sensor's ring. A siren is not a type; see `isSiren`. */
+export const FX_TYPES: readonly DeviceType[] = ["light", "speaker", "media", "motion", "contact"];
+/** S14.3 (spec item 6): a siren is any device whose entity is in HA's `siren` domain, whatever type the user gave it; while it is on it sends out the loudest rings. */
+export const isSiren = (d: { entity?: unknown }): boolean => typeof d.entity === "string" && d.entity.startsWith("siren.");
+/** Whether the device draws an effect `fx` can size: the editor offers the field exactly then. */
+export const drawsEffect = (d: { type?: unknown; entity?: unknown }): boolean => (FX_TYPES as readonly unknown[]).includes(d.type) || isSiren(d);
+/** The effect size as a fraction (1 = the type's own size). A missing or invalid `fx` reads as 1. */
+export const fxScale = (d: { fx?: unknown }): number => (typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX ? d.fx / 100 : 1);
 export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum"];
 /** The types that mean "something moved here": the room's motion border, the icon fade and the card's fade timer all read this one list. A plain occupancy or presence sensor is typed `motion` (ha.ts), so it is in. `person` is not: it says who is home, not that a room is in use. */
 export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];
@@ -259,6 +288,34 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       entityList(r, "temps", "sensor.name", ["sensor"], MAX_ROOM_SENSORS);
       entityList(r, "humidity", "sensor.name", ["sensor"], MAX_ROOM_SENSORS);
       entityList(r, "motion", "binary_sensor.name", ["binary_sensor", "group"], MAX_ROOM_SENSORS); // a group is a motion group (ha.ts isMotionGroup)
+      entityList(r, "haScenes", "scene.name", ["scene"], MAX_ROOM_SCENES * 4);
+      if (r.scenes !== undefined) {
+        const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+        if (!Array.isArray(r.scenes)) errors.push(`${at} ${r.id} scenes must be a list`);
+        else if (r.scenes.length > MAX_ROOM_SCENES) errors.push(`${at} ${r.id} scenes holds at most ${MAX_ROOM_SCENES}, found ${r.scenes.length}; remove the extra ones`);
+        else {
+          const ids = new Set<string>();
+          r.scenes.forEach((sc: unknown, k: number) => {
+            const w = `${at} ${r.id} scenes[${k}]`;
+            if (!isObj(sc)) { errors.push(`${w} must be an object`); return; }
+            if (typeof sc.id !== "string" || !sc.id) errors.push(`${w} id must be text`);
+            else if (ids.has(sc.id)) errors.push(`${w} duplicate id ${sc.id}`);
+            else ids.add(sc.id);
+            if (typeof sc.name !== "string" || !sc.name.trim()) errors.push(`${w} name must be text`);
+            if (!Array.isArray(sc.items)) { errors.push(`${w} items must be a list`); return; }
+            if (sc.items.length > MAX_SCENE_ITEMS) { errors.push(`${w} items holds at most ${MAX_SCENE_ITEMS}, found ${sc.items.length}`); return; }
+            sc.items.forEach((it: unknown, j: number) => {
+              const x = `${w} items[${j}]`;
+              if (!isObj(it)) { errors.push(`${x} must be an object`); return; }
+              if (typeof it.entity !== "string" || !/^(light|switch)\./.test(it.entity)) errors.push(`${x} entity must be a light or switch id like light.name`);
+              if (typeof it.on !== "boolean") errors.push(`${x} on must be true or false`);
+              if (it.brightness !== undefined && !(fin(it.brightness) && it.brightness >= 1 && it.brightness <= 100)) errors.push(`${x} brightness must be a number from 1 to 100`);
+              if (it.kelvin !== undefined && !(fin(it.kelvin) && it.kelvin >= 1000 && it.kelvin <= 10000)) errors.push(`${x} kelvin must be a number from 1000 to 10000`);
+              if (it.hs !== undefined && !(Array.isArray(it.hs) && it.hs.length === 2 && fin(it.hs[0]) && fin(it.hs[1]) && it.hs[0] >= 0 && it.hs[0] <= 360 && it.hs[1] >= 0 && it.hs[1] <= 100)) errors.push(`${x} hs must be [hue 0-360, saturation 0-100]`);
+            });
+          });
+        }
+      }
       if (Array.isArray(r.pts) && r.pts.length >= 3 && (!Array.isArray(r.wk) || r.wk.length !== r.pts.length))
         errors.push(`${at} ${r.id} wk must have ${r.pts.length} entries`);
       else if (Array.isArray(r.wk)) {
@@ -335,6 +392,9 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
           if (d.bound === d.entity) errors.push(`${at} ${d.id} bound must differ from entity`);
         }
       }
+      // S14.3: the effect size, a percent of the type's own ring, aura or wave. Optional; absent is 100.
+      if (d.fx !== undefined && !(typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX))
+        errors.push(`${at} ${d.id} fx must be a number from ${FX_MIN} to ${FX_MAX} (percent); leave it out for 100`);
       if (d.motion !== undefined) {
         if (!isEntity(d.motion)) errors.push(`${at} ${d.id} motion must be an entity id like binary_sensor.name`);
         else {

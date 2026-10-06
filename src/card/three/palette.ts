@@ -44,6 +44,7 @@ TABLE.set("unlinked", solid(mix("--fp-idle", 70, "--fp-bg")));
 // What the live state paints over the rest (S12.5): a door that is open or alarmed, a garage cover that is open, a radiator that is heating,
 // a TV screen that is on, a speaker's drivers, a room's motion edge, a lamp with no colour of its own. Every colour is a token.
 TABLE.set("open-door", solid("var(--fp-open-door)"));
+TABLE.set("door-band", { css: "var(--fp-open-door)", opacity: 0.6 }); // the slab in an open doorway while it is tripped: glass-like, alert colour
 TABLE.set("door-cover", solid("var(--fp-dev-cover)"));
 TABLE.set("body-heating", solid(mix("--fp-heater", 75, "--fp-bg")));
 TABLE.set("screen-on", solid("var(--fp-dev-tv)"));

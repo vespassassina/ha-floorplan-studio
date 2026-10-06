@@ -1,0 +1,36 @@
+// S14.7: the scene buttons of the card's Room section. The card owns the state (which scene waits for its confirm);
+// this draws it. Names go through lit's text bindings, which escape them (CLAUDE.md finding 2).
+import { css, html, nothing } from "lit";
+import type { RoomSceneMenu } from "../core";
+
+export const SCENES_CSS = css`
+  .fp-scenes { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
+  .fp-scene { min-height: 32px; max-width: 100%; padding: 0 10px; font: 12px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
+  .fp-scene:hover, .fp-scene:focus-visible { border-color: var(--fp-primary); }
+  .fp-scene.fp-scene-ha { border-style: dashed; }
+  .fp-scene.fp-scene-ask { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); font-weight: 600; }
+`;
+
+export interface ScenesView {
+  menu: RoomSceneMenu;
+  /** The key (`ha:<entity>`, `custom:<id>`) of the scene that waits for its confirm, or null. */
+  asking: string | null;
+  /** `key` is `ha:<entity>`, `custom:<id>`, `preset:on` or `preset:off`. */
+  run: (key: string) => void;
+  cancel: () => void;
+}
+
+/** Nothing for a room with no scene and no light, so the section never prints an empty label. */
+export function scenesTemplate(v: ScenesView) {
+  const { ha, custom, lights } = v.menu;
+  if (!ha.length && !custom.length && !lights.length) return nothing;
+  const btn = (key: string, label: string, cls = "") => v.asking === key
+    ? html`<button type="button" class="fp-scene fp-scene-ask" data-scene=${key} @click=${() => v.run(key)}>Confirm: ${label}</button><button type="button" class="fp-scene" @click=${v.cancel}>Cancel</button>`
+    : html`<button type="button" class="fp-scene ${cls}" data-scene=${key} @click=${() => v.run(key)}>${label}</button>`;
+  return html`<div class="fp-active-group-label">Scenes</div>
+    <div class="fp-scenes">
+      ${ha.map((s) => btn(`ha:${s.entity}`, s.name, "fp-scene-ha"))}
+      ${custom.map((s) => btn(`custom:${s.id}`, s.name))}
+      ${lights.length ? html`${btn("preset:off", "All off")}${btn("preset:on", "All on")}` : nothing}
+    </div>`;
+}

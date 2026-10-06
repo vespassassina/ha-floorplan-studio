@@ -266,11 +266,15 @@ async function tapDoor(page: Page, index: number) {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
+/** S14.2: a tap opens the popup; its primary button is what asks (a cover) or calls (a light). */
+async function popupDo(page: Page) { await page.locator("floorplan-studio-card").locator("css=.fp-pop .fp-pop-do").click(); }
+
 test("S2.7: a tap on the garage door's cover opens a real, visible dialog with Cancel focused by default", async ({ page }) => {
   await open(page);
   await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
 
   await tapDoor(page, GARAGE_DOOR_INDEX);
+  await popupDo(page);
 
   const card = page.locator("floorplan-studio-card");
   await expect(card.locator("css=.fp-dialog p")).toHaveText("Open Garage door?");
@@ -286,6 +290,7 @@ test("S2.7: Open calls cover.open_cover with the door's entity_id, and the dialo
   await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
 
   await tapDoor(page, GARAGE_DOOR_INDEX);
+  await popupDo(page);
   await page.locator("floorplan-studio-card").locator("css=.fp-dialog button.confirm").click();
 
   const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
@@ -298,6 +303,7 @@ test("S2.7: Cancel calls no service", async ({ page }) => {
   await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
 
   await tapDoor(page, GARAGE_DOOR_INDEX);
+  await popupDo(page);
   await page.locator("floorplan-studio-card").locator("css=.fp-dialog button.cancel").click();
 
   const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
@@ -309,6 +315,7 @@ test("S2.7: a tap on an open cover opens a dialog reading \"Close Garage door?\"
   await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "open", attributes: {}, last_changed: new Date().toISOString() } });
 
   await tapDoor(page, GARAGE_DOOR_INDEX);
+  await popupDo(page);
 
   const card = page.locator("floorplan-studio-card");
   await expect(card.locator("css=.fp-dialog p")).toHaveText("Close Garage door?");
@@ -335,8 +342,10 @@ test("S2.7 Break it: a second tap on the door while the dialog is open does not 
   await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
 
   await tapDoor(page, GARAGE_DOOR_INDEX);
-  await tapDoor(page, GARAGE_DOOR_INDEX);
-
+  await popupDo(page);
+  // the dialog is open: a tap on the door is behind its backdrop; a second press of the popup's own button (if it were
+  // still there) or a door tap by script must not open a second dialog
+  await page.locator("floorplan-studio-card").evaluate((el) => el.shadowRoot!.querySelector<SVGElement>('line[data-d="2"]:not(.door-hit)')!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, composed: true, button: 0 })));
   await expect(page.locator("floorplan-studio-card").locator("css=.fp-dialog")).toHaveCount(1);
 });
 
@@ -532,6 +541,7 @@ test.describe("S7.4 zoom and pan", () => {
     expect((await viewBox(page)).h).toBeGreaterThan(flat.h); // the lift widened the box
     const l = await lightAt(page);
     await page.mouse.click(l.x, l.y);
+    await popupDo(page);
     expect((await calls(page)).length).toBe(1); // a tap where the (lifted) icon is drawn reaches it
 
     await sel.selectOption("2d");
@@ -575,6 +585,7 @@ test.describe("S7.4 zoom and pan", () => {
     expect(await card(page).locator("css=svg text").count()).toBe(0);
     const l = await lightAt(page);
     await page.mouse.click(l.x, l.y);
+    await popupDo(page);
     expect((await calls(page)).length).toBe(1);
   });
 
@@ -601,7 +612,9 @@ test.describe("S7.4 zoom and pan", () => {
 
     const l2 = await lightAt(page);
     await page.mouse.click(l2.x, l2.y);
-    expect(await calls(page)).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]);
+    expect(await calls(page)).toEqual([]); // the tap opens the popup and calls nothing
+    await popupDo(page);
+    expect(await calls(page)).toEqual([["light", "turn_on", { entity_id: "light.demo_kitchen" }]]);
     expect(p.w).toBeLessThan(fit.w);
   });
 
@@ -677,7 +690,7 @@ test.describe("S7.4 zoom and pan", () => {
     await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(fit.w);
   });
 
-  test("the zoom survives a hass update, and resets on setConfig and on a floor change", async ({ page }) => {
+  test("the zoom survives a hass update; a floor comes back at the zoom it was left with (S14.4); a changed config starts clean", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo), floor: "all" }, states());
     const fit = await viewBox(page);
@@ -699,7 +712,7 @@ test.describe("S7.4 zoom and pan", () => {
     await expect(card(page).locator('css=.fp-stack button[aria-label="Fit"]')).toBeDisabled();
 
     await card(page).locator("css=.fp-floors button").nth(0).click();
-    expect(await viewBox(page)).toEqual(fit);
+    expect(await viewBox(page)).toEqual(z); // S14.4: the floor comes back as it was left, not at its fit
     await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').click();
     // A *changed* config: an identical one is the same card and now gets its remembered zoom back (view memory).
     // `floors` joins the storage key, so this is a fresh card; the switcher and the fit are the same as `floor: "all"`.
@@ -829,7 +842,7 @@ test.describe("S9.6 a card pinned to one room", () => {
     expect(await viewBox(page)).toEqual(home);
 
     // A double-tap resets the same way (S7.4's own reset path, `_fitView`, shared with the pinned "home").
-    const x = b.x + 10, y = b.y + b.height - 10;
+    const x = b.x + b.width - 10, y = b.y + b.height - 10; // bottom-right: the open Active panel (taller now, with scenes and category headers) covers the bottom-left
     await page.mouse.dblclick(x, y);
     await page.waitForTimeout(50);
     // The first double-tap, at fit already, zooms in 2x about the tap point instead of doing nothing.
@@ -845,7 +858,8 @@ test.describe("S9.6 a card pinned to one room", () => {
     const lb = (await light.boundingBox())!;
     // Finding 3: a real mouse click at real coordinates, not a dispatched event on an inner element.
     await page.mouse.click(lb.x + lb.width / 2, lb.y + lb.height / 2);
-    expect(await calls(page)).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]);
+    await popupDo(page);
+    expect(await calls(page)).toEqual([["light", "turn_on", { entity_id: "light.demo_kitchen" }]]);
 
     await expect(card(page).locator("css=.fp-active")).toHaveCount(1);
     await expect(card(page).locator("css=.fp-active-row")).not.toHaveCount(0);
@@ -959,7 +973,7 @@ test.describe("S7.4 touch", () => {
     // S8.12: the top-left corner is no longer clear of chrome on its own — with no floor config and the demo's
     // three floors, the default switcher (S8.12) now sits there. Bottom-left stays clear of it, of every device,
     // and of the zoom buttons (top-right).
-    const x = b.x + 10, y = b.y + b.height - 10;
+    const x = b.x + b.width - 10, y = b.y + b.height - 10; // bottom-right: the open Active panel (taller now, with scenes and category headers) covers the bottom-left
     await page.touchscreen.tap(x, y);
     await page.touchscreen.tap(x, y);
     await expect.poll(async () => (await viewBox(page)).w).toBeCloseTo(fit.w / 2, 3);
@@ -969,14 +983,15 @@ test.describe("S7.4 touch", () => {
     expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
   });
 
-  test("a double-tap on a light toggles it twice and does not zoom", async ({ page }) => {
+  test("a double-tap on a light opens then closes its popup, calls nothing and does not zoom", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const fit = await viewBox(page);
     const lb = (await card(page).locator('css=g[data-x="1"]').boundingBox())!;
     await page.touchscreen.tap(lb.x + lb.width / 2, lb.y + lb.height / 2);
     await page.touchscreen.tap(lb.x + lb.width / 2, lb.y + lb.height / 2);
-    await expect.poll(() => page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls.length)).toBe(2);
+    await expect(card(page).locator("css=.fp-pop")).toHaveCount(0); // opened by the first tap, closed by the second
+    expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
     expect(await viewBox(page)).toEqual(fit);
   });
 
@@ -1173,13 +1188,14 @@ test.describe("S7.5 kiosk mode", () => {
     await page.mouse.up();
   });
 
-  test("a plain tap still toggles a light under kiosk", async ({ page }) => {
+  test("a plain tap on a light under kiosk opens the popup, whose button turns it on", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo), kiosk: true }, states());
     const light = await lightAtForKiosk(page);
     await page.mouse.click(light.x, light.y);
+    await popupDo(page);
     const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
-    expect(calls).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]);
+    expect(calls).toEqual([["light", "turn_on", { entity_id: "light.demo_kitchen" }]]);
   });
 
   test("with floors: [first, ground] and kiosk: true the first listed floor shows and there is no switcher", async ({ page }) => {
@@ -1235,6 +1251,7 @@ test("S7.8: a real tap on a person opens more-info for the person and calls no s
   await g.scrollIntoViewIfNeeded();
   const box = (await g.boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.locator("floorplan-studio-card").locator("css=.fp-pop-more").click(); // a person has More info only
   await expect.poll(() => page.evaluate(() => (window as unknown as { __more: unknown[] }).__more)).toEqual([{ entityId: "person.test" }]);
   expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
 });
@@ -1730,8 +1747,9 @@ test("S9.2: a real click still hits the icon on a 2000 cm plan, drawn at 2x", as
   // 30 sits strictly between the two, so this fails if the scale-up ever regresses (confirmed by hand, see report).
   expect(box.width).toBeGreaterThan(30);
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await popupDo(page);
   const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
-  expect(calls).toEqual([["light", "toggle", { entity_id: "light.demo_big" }]]);
+  expect(calls).toEqual([["light", "turn_on", { entity_id: "light.demo_big" }]]);
 });
 
 // S9.5: the floating active-devices panel. Real page.mouse gestures at real coordinates throughout (CLAUDE.md
@@ -1764,6 +1782,8 @@ test.describe("S9.5: the active-devices panel", () => {
     const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" });
     const box = (await row.boundingBox())!;
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    expect(await moreInfo(page)).toEqual([]); // a tap opens the popup first
+    await page.locator("floorplan-studio-card").locator("css=.fp-pop-more").click();
     expect(await moreInfo(page)).toEqual([{ entityId: "camera.demo_hall" }]);
   });
 
@@ -1793,6 +1813,7 @@ test.describe("S9.5: the active-devices panel", () => {
     await expect(row).toHaveCount(1);
     const box = (await row.boundingBox())!;
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.locator("floorplan-studio-card").locator("css=.fp-pop-more").click();
     expect(await moreInfo(page)).toEqual([{ entityId: "binary_sensor.demo_front_door" }]);
   });
 
@@ -1857,7 +1878,8 @@ test.describe("S9.5: the active-devices panel", () => {
     await page.mouse.up();
 
     await page.mouse.click(lightBox.x + lightBox.width / 2, lightBox.y + lightBox.height / 2);
-    expect(await calls()).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]); // the plan itself still takes a plain click
+    await popupDo(page);
+    expect(await calls()).toEqual([["light", "turn_on", { entity_id: "light.demo_kitchen" }]]); // the plan itself still takes a plain click
   });
 
   test("the collapsed state survives a reload", async ({ page }) => {
@@ -2056,6 +2078,8 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     await g.scrollIntoViewIfNeeded();
     const box = (await g.boundingBox())!;
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    // S14.2: the tap opens the popup; its More info link is where several entities become the chooser
+    await page.locator("floorplan-studio-card").locator("css=.fp-pop-more").click();
     return box;
   }
 
@@ -2181,11 +2205,12 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
   test("Break it: a second tap at the radar's own spot lands on the backdrop and closes the dialog rather than opening a duplicate; a third tap opens a fresh one", async ({ page }) => {
     await open(page);
     await configureRecordingMoreInfo(page, { layout: structuredClone(demo), floor: "first" }, { states: states() });
-    await tapDevice(page, RADAR_IDX);
-    await tapDevice(page, RADAR_IDX);
+    const spot = await tapDevice(page, RADAR_IDX); // popup, then More info: the chooser is open
+    await page.mouse.click(spot.x + spot.width / 2, spot.y + spot.height / 2);
 
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-chooser-dialog")).toHaveCount(0);
+    await expect(card.locator("css=.fp-pop")).toHaveCount(0); // the closing tap landed on the backdrop, not the icon
     expect(await moreInfo(page)).toEqual([]); // the closing tap fired no more-info either
 
     await tapDevice(page, RADAR_IDX);
@@ -2249,6 +2274,7 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     await configureRecordingMoreInfo(page, { layout }, { states: {} });
 
     await tapDoor(page, 0);
+    await page.locator("floorplan-studio-card").locator("css=.fp-pop-more").click();
 
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Front door");
@@ -2266,6 +2292,7 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     await configureWithCallServiceSpy(page, { layout }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
 
     await tapDoor(page, GARAGE_DOOR_INDEX);
+    await popupDo(page);
 
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-dialog p")).toHaveText("Open Garage door?");
@@ -2317,7 +2344,8 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-chooser-dialog")).toHaveCount(0);
     await page.mouse.up();
-    await expect(card.locator("css=.fp-dialog p")).toHaveText("Open Garage door?"); // release still acts like a plain tap
+    await popupDo(page); // release still acts like a plain tap: the popup, whose button asks
+    await expect(card.locator("css=.fp-dialog p")).toHaveText("Open Garage door?");
   });
 
   // S10.3 review fix 3: an unlinked appliance (S4.25, `g[data-u]`) had no gesture wired to it before this fix — a
@@ -2339,12 +2367,15 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
       const box = (await g.boundingBox())!;
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     }
+    const moreInfoLink = (page: Page) => page.locator("floorplan-studio-card").locator("css=.fp-pop-more");
 
     test("two attached entities: a tap opens a chooser naming the unlinked item and listing both", async ({ page }) => {
       await open(page);
       await configureRecordingMoreInfo(page, { layout: withUnlinked(["sensor.boiler_temp", "sensor.boiler_pressure"]) }, { states: {} });
 
       await tapUnlinked(page);
+      expect(await moreInfo(page)).toEqual([]); // the tap only opens the popup
+      await moreInfoLink(page).click();
 
       const card = page.locator("floorplan-studio-card");
       await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Spare boiler");
@@ -2357,6 +2388,7 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
       await configureRecordingMoreInfo(page, { layout: withUnlinked(["sensor.boiler_temp"]) }, { states: {} });
 
       await tapUnlinked(page);
+      await moreInfoLink(page).click();
 
       expect(await moreInfo(page)).toEqual([{ entityId: "sensor.boiler_temp" }]);
       await expect(page.locator("floorplan-studio-card").locator("css=.fp-chooser-dialog")).toHaveCount(0);
@@ -2403,6 +2435,8 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     await configure(page, { layout }, { states: { "binary_sensor.demo_front_vibration": { state: "off", attributes: { friendly_name: payload }, last_changed: new Date().toISOString() } } });
 
     await tapDoor(page, 0);
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-pop")).toHaveAttribute("aria-label", payload); // the popup's own name is text too
+    await page.locator("floorplan-studio-card").locator("css=.fp-pop-more").click();
 
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText(payload);

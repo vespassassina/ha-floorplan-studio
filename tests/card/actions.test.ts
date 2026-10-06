@@ -1,44 +1,56 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HOLD_MS, TAP_SLOP_PX, bindDeviceActions, fireEvent, toggleEntity } from "../../src/card/actions";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { HOLD_MS, TAP_SLOP_PX, bindDeviceActions, fireEvent } from "../../src/card/actions";
+import type { TapTarget } from "../../src/card/actions";
 import { entitiesOfDoor } from "../../src/core";
 import type { Device, Door, Unlinked } from "../../src/core";
 import type { Hass } from "../../src/card/floorplan-studio-card";
+
+// S14.2: a tap never operates anything. It asks `openPopup` to show the device's popup; a hold opens more-info (or the
+// chooser). `callService` is on the host so that every test can say "and nothing was called".
 
 const LIGHT: Device = { id: "l1", type: "light", entity: "light.demo_living", x: 100, y: 100 };
 const SWITCH: Device = { id: "s1", type: "switch", entity: "switch.demo_hall", x: 200, y: 100 };
 const CAMERA: Device = { id: "c1", type: "camera", entity: "camera.demo_hall", x: 300, y: 100 };
 const MEDIA: Device = { id: "m1", type: "media", entity: "media_player.demo_office", x: 400, y: 100 };
-const SPEAKER: Device = { id: "sp1", type: "speaker", entity: "media_player.demo_kitchen_speaker", x: 500, y: 100 };
 const SENSOR_DOOR: Door = { id: "d1", name: "Front door", kind: "door", a: [0, 0], b: [100, 0], sensors: ["binary_sensor.demo_front_door"] };
 const COVER_DOOR: Door = { id: "d2", name: "Garage door", kind: "door", a: [0, 100], b: [100, 100], cover: "cover.demo_garage_door" };
+const COVER_AND_SENSOR_DOOR: Door = {
+  id: "d6", name: "Garage door", kind: "door", a: [0, 500], b: [100, 500],
+  cover: "cover.demo_garage_door", sensors: ["binary_sensor.demo_garage_contact"],
+};
+const MULTI_DOOR: Door = {
+  id: "d4", name: "Side door", kind: "door", a: [0, 300], b: [100, 300],
+  sensors: ["binary_sensor.side_contact"], vibration: ["binary_sensor.side_vibration"],
+};
+const NOTHING_DOOR: Door = { id: "d5", name: "Bare door", kind: "door", a: [0, 400], b: [100, 400] };
+const TWO_ATTACHED: Unlinked = { id: "u1", type: "other", name: "Water heater", x: 100, y: 100, rot: 0, scale: 1, attached: ["sensor.wh_temp", "sensor.wh_pressure"] };
+const ONE_ATTACHED: Unlinked = { id: "u2", type: "other", name: "Fuse box", x: 200, y: 100, rot: 0, scale: 1, attached: ["sensor.fuse_box"] };
+const NONE_ATTACHED: Unlinked = { id: "u3", type: "other", name: "Bookshelf", x: 300, y: 100, rot: 0, scale: 1 };
 
-/** A minimal `<svg><g data-x="0">...</g></svg>` with the icon's inner `<circle class="halo">` and `<path>`, matching what `renderFloor` emits. */
-function svgFixture(devices: Device[]): SVGSVGElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  devices.forEach((d, i) => {
-    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    g.setAttribute("data-x", String(i));
-    const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    halo.setAttribute("class", "halo");
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    g.append(halo, path);
+const NS = "http://www.w3.org/2000/svg";
+
+/** `<svg><g data-x="0">...</g></svg>` with the inner `<circle class="halo">` and `<path>`, as `renderFloor` emits. `attr` is `data-x` or `data-u`. */
+function svgFixture(count: number, attr = "data-x"): SVGSVGElement {
+  const svg = document.createElementNS(NS, "svg");
+  for (let i = 0; i < count; i++) {
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute(attr, String(i));
+    g.append(document.createElementNS(NS, "circle"), document.createElementNS(NS, "path"));
     svg.appendChild(g);
-  });
+  }
   document.body.appendChild(svg);
   return svg;
 }
 
-/** A minimal `<svg><line data-d="0">...</line></svg>` with the `<title>` child `renderFloor` emits on every door. */
-function doorSvgFixture(doors: Door[]): SVGSVGElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  doors.forEach((d, i) => {
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+/** `<svg><line data-d="0"><title/></line></svg>`, the `<title>` child `renderFloor` emits on every door. */
+function doorSvgFixture(count: number): SVGSVGElement {
+  const svg = document.createElementNS(NS, "svg");
+  for (let i = 0; i < count; i++) {
+    const line = document.createElementNS(NS, "line");
     line.setAttribute("data-d", String(i));
-    const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-    title.textContent = d.name;
-    line.appendChild(title);
+    line.appendChild(document.createElementNS(NS, "title"));
     svg.appendChild(line);
-  });
+  }
   document.body.appendChild(svg);
   return svg;
 }
@@ -47,16 +59,37 @@ function pointer(el: Element, type: "pointerdown" | "pointerup" | "pointercancel
   el.dispatchEvent(new Event(type, { bubbles: true }));
 }
 
-describe("actions: toggleEntity", () => {
-  it("calls hass.callService(domain, \"toggle\", { entity_id }) with the entity's own domain", () => {
-    const callService = vi.fn();
-    toggleEntity({ states: {}, callService } as unknown as Hass, "light.demo_living");
-    expect(callService).toHaveBeenCalledWith("light", "toggle", { entity_id: "light.demo_living" });
-  });
+/** A pointer event at client (x, y) with its own pointerId. jsdom has no PointerEvent, so a MouseEvent carries the coordinates. */
+function at(el: Element, type: string, x: number, y: number, id = 1) {
+  const e = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y });
+  Object.defineProperty(e, "pointerId", { value: id });
+  el.dispatchEvent(e);
+}
 
-  it("does nothing with no hass", () => {
-    expect(() => toggleEntity(undefined, "light.demo_living")).not.toThrow();
-  });
+type Opts = NonNullable<Parameters<typeof bindDeviceActions>[4]>;
+
+/** Everything a test needs: the svg, the host with its spies, the binder already bound, and a `tap` / `hold` helper. */
+function rig(o: { devices?: Device[]; doors?: Door[]; unlinked?: Unlinked; opts?: Opts; count?: number }) {
+  vi.useFakeTimers();
+  const callService = vi.fn(), moreInfo = vi.fn(), openPopup = vi.fn(), openChooser = vi.fn();
+  const svg = o.doors ? doorSvgFixture(o.doors.length) : svgFixture(o.unlinked ? 1 : (o.devices?.length ?? 1), o.unlinked ? "data-u" : "data-x");
+  const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+  host.addEventListener("hass-more-info", moreInfo);
+  const unbind = bindDeviceActions(
+    svg, host, (i) => o.devices?.[i], (i) => o.doors?.[i],
+    { openPopup, openChooser, getUnlinked: () => o.unlinked, ...o.opts },
+  );
+  const el = (i = 0) => svg.querySelector(`[data-x="${i}"], [data-d="${i}"], [data-u="${i}"]`)!;
+  const tap = (i = 0, ms = 50) => { pointer(el(i), "pointerdown"); vi.advanceTimersByTime(ms); pointer(el(i), "pointerup"); };
+  const hold = (i = 0) => { pointer(el(i), "pointerdown"); vi.advanceTimersByTime(HOLD_MS); };
+  const detail = () => (moreInfo.mock.calls[0]![0] as CustomEvent).detail;
+  return { svg, host, callService, moreInfo, openPopup, openChooser, unbind, el, tap, hold, detail };
+}
+
+afterEach(() => {
+  document.body.innerHTML = "";
+  vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("actions: fireEvent", () => {
@@ -73,1016 +106,425 @@ describe("actions: fireEvent", () => {
   });
 });
 
-describe("actions: bindDeviceActions", () => {
-  let callService: ReturnType<typeof vi.fn>;
-  let host: { hass: Hass } & EventTarget;
-  let svg: SVGSVGElement;
-  let unbind: () => void;
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-    callService = vi.fn();
-    svg = svgFixture([LIGHT, SWITCH]);
-    host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    unbind = bindDeviceActions(svg, host, (i) => [LIGHT, SWITCH][i]);
+describe("actions: a tap opens the popup and operates nothing (S14.2)", () => {
+  it("a tap on a light asks for the popup with that device and the pointer's position, and calls no service", () => {
+    const r = rig({ devices: [LIGHT, SWITCH] });
+    at(r.el(0), "pointerdown", 140, 90);
+    at(r.el(0), "pointerup", 140, 90);
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
+    const [target, where, from] = r.openPopup.mock.calls[0]! as [TapTarget, { x: number; y: number }, Element | null];
+    expect(target).toEqual({ device: LIGHT, index: 0 });
+    expect(where).toEqual({ x: 140, y: 90 });
+    expect(from).toBeNull(); // a plan icon is not a button: nothing to give focus back to
+    expect(r.callService).not.toHaveBeenCalled();
+    expect(r.moreInfo).not.toHaveBeenCalled();
   });
 
-  afterEach(() => {
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("the second device resolves to the second device", () => {
+    const r = rig({ devices: [LIGHT, SWITCH] });
+    r.tap(1);
+    expect(r.openPopup.mock.calls[0]![0]).toEqual({ device: SWITCH, index: 1 });
   });
 
-  it("pointerdown+up within 500 ms calls hass.callService once with light.toggle", () => {
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
+  it("a hold of HOLD_MS fires hass-more-info, not the popup, and the release does neither again", () => {
+    const r = rig({ devices: [LIGHT] });
+    r.hold();
+    expect(r.moreInfo).toHaveBeenCalledTimes(1);
+    expect(r.detail()).toEqual({ entityId: "light.demo_living" });
+    pointer(r.el(), "pointerup");
+    expect(r.openPopup).not.toHaveBeenCalled();
+    expect(r.callService).not.toHaveBeenCalled();
+  });
+
+  it("a release just before HOLD_MS is a tap", () => {
+    const r = rig({ devices: [LIGHT] });
+    r.tap(0, HOLD_MS - 1);
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
+    expect(r.moreInfo).not.toHaveBeenCalled();
+  });
+
+  it("two taps within 300 ms ask twice (no debounce eats input; the card turns the second into a close)", () => {
+    const r = rig({ devices: [LIGHT] });
+    r.tap(0, 50);
     vi.advanceTimersByTime(100);
-    pointer(g, "pointerup");
-    expect(callService).toHaveBeenCalledTimes(1);
-    expect(callService).toHaveBeenCalledWith("light", "toggle", { entity_id: "light.demo_living" });
+    r.tap(0, 50);
+    expect(r.openPopup).toHaveBeenCalledTimes(2);
   });
 
-  it("a hold of 500 ms or more fires hass-more-info instead of toggling, even before pointerup", () => {
-    const g = svg.querySelector('[data-x="0"]')!;
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(600);
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "light.demo_living" });
-    pointer(g, "pointerup");
-    expect(callService).not.toHaveBeenCalled(); // the hold consumed the gesture, so release does not also toggle
-  });
-
-  it("fires right at the HOLD_MS threshold", () => {
-    const g = svg.querySelector('[data-x="0"]')!;
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(HOLD_MS);
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-  });
-
-  it("two taps within 300 ms toggle twice, not once (S2.2 Break it: no debounce that eats input)", () => {
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    vi.advanceTimersByTime(100);
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(callService).toHaveBeenCalledTimes(2);
-  });
-
-  it("a tap on the inner path or halo still resolves to the device via closest(\"g[data-x]\") (CLAUDE.md finding 3)", () => {
-    const g = svg.querySelector('[data-x="1"]')!;
-    const path = g.querySelector("path")!;
-    pointer(path, "pointerdown"); // target is the inner <path>, not the <g data-x> itself
-    vi.advanceTimersByTime(50);
+  it("a tap on the inner path resolves through closest(\"g[data-x]\") (CLAUDE.md finding 3)", () => {
+    const r = rig({ devices: [LIGHT, SWITCH] });
+    const path = r.el(1).querySelector("path")!;
+    pointer(path, "pointerdown");
     pointer(path, "pointerup");
-    expect(callService).toHaveBeenCalledWith("switch", "toggle", { entity_id: "switch.demo_hall" });
+    expect(r.openPopup.mock.calls[0]![0]).toEqual({ device: SWITCH, index: 1 });
   });
 
-  it("pointercancel and pointerleave abandon the gesture: no toggle, no more-info", () => {
-    const g = svg.querySelector('[data-x="0"]')!;
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    pointer(g, "pointerdown");
+  it("a button[data-x] (an Active-list row) passes itself as the element to give focus back to", () => {
+    const r = rig({ devices: [LIGHT] });
+    const b = document.createElement("button");
+    b.setAttribute("data-x", "0");
+    r.svg.appendChild(b);
+    pointer(b, "pointerdown");
+    pointer(b, "pointerup");
+    expect(r.openPopup.mock.calls[0]![2]).toBe(b);
+  });
+
+  it("pointercancel and pointerleave abandon the gesture: no popup, no more-info", () => {
+    const r = rig({ devices: [LIGHT] });
+    pointer(r.el(), "pointerdown");
     vi.advanceTimersByTime(50);
-    pointer(g, "pointercancel");
+    pointer(r.el(), "pointercancel");
     vi.advanceTimersByTime(600);
-    pointer(g, "pointerup");
-    expect(callService).not.toHaveBeenCalled();
-    expect(moreInfo).not.toHaveBeenCalled();
+    pointer(r.el(), "pointerup");
+    pointer(r.el(), "pointerdown");
+    pointer(r.el(), "pointerleave");
+    pointer(r.el(), "pointerup");
+    expect(r.openPopup).not.toHaveBeenCalled();
+    expect(r.moreInfo).not.toHaveBeenCalled();
   });
 
-  it("a pointerdown outside any device (background) does nothing", () => {
-    pointer(svg, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(svg, "pointerup");
-    expect(callService).not.toHaveBeenCalled();
+  it("a press on the background does nothing", () => {
+    const r = rig({ devices: [LIGHT] });
+    pointer(r.svg, "pointerdown");
+    pointer(r.svg, "pointerup");
+    expect(r.openPopup).not.toHaveBeenCalled();
   });
 
-  it("the returned cleanup function removes the listeners", () => {
-    unbind();
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(callService).not.toHaveBeenCalled();
-    unbind = () => {}; // afterEach calls unbind() again; make it a no-op since we already unbound
-  });
-});
-
-describe("actions: bindDeviceActions on camera and media (S2.5)", () => {
-  let callService: ReturnType<typeof vi.fn>;
-  let host: { hass: Hass } & EventTarget;
-  let svg: SVGSVGElement;
-  let unbind: () => void;
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-    callService = vi.fn();
-    svg = svgFixture([CAMERA, MEDIA, SPEAKER]);
-    host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    unbind = bindDeviceActions(svg, host, (i) => [CAMERA, MEDIA, SPEAKER][i]);
+  it("the returned cleanup removes the listeners", () => {
+    const r = rig({ devices: [LIGHT] });
+    r.unbind();
+    r.tap();
+    expect(r.openPopup).not.toHaveBeenCalled();
   });
 
-  afterEach(() => {
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
-  });
-
-  it("a tap on a camera fires hass-more-info with its own entity, not a toggle", () => {
-    const g = svg.querySelector('[data-x="0"]')!;
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50); // well under HOLD_MS: a camera opens more-info on the plain tap, not only on a hold
-    pointer(g, "pointerup");
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "camera.demo_hall" });
-    expect(callService).not.toHaveBeenCalled();
-  });
-
-  it("a tap on a media player fires hass-more-info with its own entity, not a toggle", () => {
-    const g = svg.querySelector('[data-x="1"]')!;
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "media_player.demo_office" });
-    expect(callService).not.toHaveBeenCalled();
-  });
-
-  // S9.4: a speaker is a media_player device like MEDIA, and gets the same decision — it has no toggle either
-  // (NO_TOGGLE, src/card/actions.ts), for the same reason: media_player's own toggle is play/pause or power,
-  // never a clean on/off, so a tap opens more-info instead of guessing which one the user meant.
-  it("a tap on a speaker fires hass-more-info with its own entity, not a toggle", () => {
-    const g = svg.querySelector('[data-x="2"]')!;
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "media_player.demo_kitchen_speaker" });
-    expect(callService).not.toHaveBeenCalled();
-  });
-
-  it("pointercancel abandons a camera tap: no more-info", () => {
-    const g = svg.querySelector('[data-x="0"]')!;
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointercancel");
-    pointer(g, "pointerup");
-    expect(moreInfo).not.toHaveBeenCalled();
+  it("with no openPopup callback a tap still calls no service", () => {
+    const r = rig({ devices: [LIGHT], opts: { openPopup: undefined } });
+    r.tap();
+    expect(r.callService).not.toHaveBeenCalled();
+    expect(r.moreInfo).not.toHaveBeenCalled();
   });
 });
 
-const SENSOR_AND_COVER_DOOR: Door = {
-  id: "d3", name: "Back door", kind: "door", a: [0, 200], b: [100, 200],
-  sensors: ["binary_sensor.demo_back_door"], cover: "cover.demo_back_door",
-};
-
-describe("actions: bindDeviceActions on doors (S2.3)", () => {
-  let callService: ReturnType<typeof vi.fn>;
-  let host: { hass: Hass } & EventTarget;
-  let svg: SVGSVGElement;
-  let unbind: () => void;
-  let openCoverDialog: ReturnType<typeof vi.fn>;
-  const DOORS = [SENSOR_DOOR, COVER_DOOR, SENSOR_AND_COVER_DOOR];
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-    callService = vi.fn();
-    openCoverDialog = vi.fn();
-    svg = doorSvgFixture(DOORS);
-    host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    unbind = bindDeviceActions(svg, host, () => undefined, (i) => DOORS[i], openCoverDialog);
+// A camera, media player or speaker has no toggle (NO_TOGGLE): the popup shows name, state and More info only. That
+// is the popup's business (popup.ts); the binder's is to ask for it, the same as for any device.
+describe("actions: devices without a toggle ask for the popup too", () => {
+  it.each([CAMERA, MEDIA,
+    { id: "b", type: "battery", entity: "sensor.b", x: 1, y: 1 } as Device,
+    { id: "i", type: "inverter", entity: "sensor.i", x: 1, y: 1 } as Device,
+    { id: "sv", type: "server", entity: "sensor.sv", x: 1, y: 1 } as Device,
+    { id: "ap", type: "access_point", entity: "sensor.ap", x: 1, y: 1 } as Device,
+    { id: "p", type: "person", entity: "person.alex", x: 1, y: 1, room: "sensor.alex_room" } as Device,
+    { id: "r", type: "radar", entity: "binary_sensor.radar_presence", x: 1, y: 1 } as Device,
+  ])("$type: a tap asks for the popup, calls no service and opens no more-info", (dev) => {
+    const r = rig({ devices: [dev] });
+    r.tap();
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
+    expect(r.openPopup.mock.calls[0]![0]).toEqual({ device: dev, index: 0 });
+    expect(r.moreInfo).not.toHaveBeenCalled();
+    expect(r.callService).not.toHaveBeenCalled();
   });
 
-  afterEach(() => {
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("a hold on a camera still opens more-info directly", () => {
+    const r = rig({ devices: [CAMERA] });
+    r.hold();
+    expect(r.detail()).toEqual({ entityId: "camera.demo_hall" });
   });
 
-  it("a tap on a door with a sensor fires hass-more-info for that sensor, not a toggle (CLAUDE.md finding 3: line[data-d], not g[data-x])", () => {
-    const line = svg.querySelector('[data-d="0"]')!;
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    pointer(line, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(line, "pointerup");
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "binary_sensor.demo_front_door" });
-    expect(callService).not.toHaveBeenCalled();
+  it("a heater with two TRVs: a tap asks for the popup, a HOLD opens more-info for the heater's own entity", () => {
+    const dev: Device = { id: "h1", type: "heater", entity: "climate.demo_heater", name: "Living room heater", a: [0, 0], b: [10, 0], trvs: ["climate.trv1", "climate.trv2"] };
+    const r = rig({ devices: [dev] });
+    r.tap();
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
+    expect(r.openChooser).not.toHaveBeenCalled();
+    r.hold();
+    expect(r.detail()).toEqual({ entityId: "climate.demo_heater" });
+    expect(r.openChooser).not.toHaveBeenCalled();
+    pointer(r.el(), "pointerup");
+    expect(r.callService).not.toHaveBeenCalled();
   });
 
-  it("a tap on the door's inner <title> still resolves via closest(\"line[data-d]\")", () => {
-    const line = svg.querySelector('[data-d="0"]')!;
-    const title = line.querySelector("title")!;
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    pointer(title, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(title, "pointerup");
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-  });
-
-  it("S2.7: a tap on a door with a cover calls openCoverDialog with that door, not more-info or a toggle", () => {
-    const line = svg.querySelector('[data-d="1"]')!;
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    pointer(line, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(line, "pointerup");
-    expect(openCoverDialog).toHaveBeenCalledTimes(1);
-    expect(openCoverDialog).toHaveBeenCalledWith(COVER_DOOR);
-    expect(moreInfo).not.toHaveBeenCalled();
-    expect(callService).not.toHaveBeenCalled();
-  });
-
-  it("S2.7: a door with both a sensor and a cover resolves to the dialog, not more-info (dialog wins on tap)", () => {
-    const line = svg.querySelector('[data-d="2"]')!;
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    pointer(line, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(line, "pointerup");
-    expect(openCoverDialog).toHaveBeenCalledTimes(1);
-    expect(openCoverDialog).toHaveBeenCalledWith(SENSOR_AND_COVER_DOOR);
-    expect(moreInfo).not.toHaveBeenCalled();
-  });
-
-  it("S2.7: pointercancel abandons a cover door tap: openCoverDialog is not called", () => {
-    const line = svg.querySelector('[data-d="1"]')!;
-    pointer(line, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(line, "pointercancel");
-    pointer(line, "pointerup");
-    expect(openCoverDialog).not.toHaveBeenCalled();
-  });
-
-  it("pointercancel abandons a door tap: no more-info", () => {
-    const line = svg.querySelector('[data-d="0"]')!;
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    pointer(line, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(line, "pointercancel");
-    pointer(line, "pointerup");
-    expect(moreInfo).not.toHaveBeenCalled();
-  });
-});
-
-describe("actions: a battery, inverter, server or access point opens more-info on a tap (S2.13)", () => {
-  it.each(["battery", "inverter", "server", "access_point"] as const)("%s: tap fires hass-more-info with its own entity and calls no service", (type) => {
-    vi.useFakeTimers();
-    const callService = vi.fn();
-    const dev: Device = { id: "d1", type, entity: `sensor.demo_${type}`, x: 100, y: 100 };
-    const svg = svgFixture([dev]);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    const unbind = bindDeviceActions(svg, host, () => dev);
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: `sensor.demo_${type}` });
-    expect(callService).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("a light with a bound switch: a hold opens more-info for the light alone, never the chooser", () => {
+    const dev: Device = { id: "l1", type: "light", entity: "light.demo_living", bound: "switch.demo_living", x: 100, y: 100 };
+    const r = rig({ devices: [dev] });
+    r.hold();
+    expect(r.detail()).toEqual({ entityId: "light.demo_living" });
+    expect(r.openChooser).not.toHaveBeenCalled();
   });
 });
 
 describe("actions: a drag is a pan, not a tap (S7.4)", () => {
-  let callService: ReturnType<typeof vi.fn>;
-  let moreInfo: ReturnType<typeof vi.fn>;
-  let host: { hass: Hass } & EventTarget;
-  let svg: SVGSVGElement;
-  let unbind: () => void;
-
-  /** A pointer event at client (x, y) with its own pointerId. jsdom has no PointerEvent, so a MouseEvent carries the
-   * coordinates and the id is added on top. */
-  function at(el: Element, type: string, x: number, y: number, id = 1) {
-    const e = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y });
-    Object.defineProperty(e, "pointerId", { value: id });
-    el.dispatchEvent(e);
-  }
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-    callService = vi.fn();
-    moreInfo = vi.fn();
-    svg = svgFixture([LIGHT, CAMERA]);
-    host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    host.addEventListener("hass-more-info", moreInfo);
-    unbind = bindDeviceActions(svg, host, (i) => [LIGHT, CAMERA][i]);
-  });
-
-  afterEach(() => {
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
-  });
-
   it("TAP_SLOP_PX is 6", () => {
     expect(TAP_SLOP_PX).toBe(6);
   });
 
-  it("a press that moves 40 px before release does not toggle", () => {
-    const g = svg.querySelector('[data-x="0"]')!;
-    at(g, "pointerdown", 100, 100);
-    at(g, "pointermove", 120, 100);
-    at(g, "pointermove", 140, 100);
-    at(g, "pointerup", 140, 100);
-    expect(callService).not.toHaveBeenCalled();
+  it("a press that moves 40 px before release opens no popup", () => {
+    const r = rig({ devices: [LIGHT] });
+    at(r.el(), "pointerdown", 100, 100);
+    at(r.el(), "pointermove", 120, 100);
+    at(r.el(), "pointermove", 140, 100);
+    at(r.el(), "pointerup", 140, 100);
+    expect(r.openPopup).not.toHaveBeenCalled();
   });
 
-  it("a press that moves 7 px (just past the slop) does not toggle; 6 px still does", () => {
-    const g = svg.querySelector('[data-x="0"]')!;
-    at(g, "pointerdown", 100, 100);
-    at(g, "pointermove", 100, 107);
-    at(g, "pointerup", 100, 107);
-    expect(callService).not.toHaveBeenCalled();
-    at(g, "pointerdown", 100, 100);
-    at(g, "pointermove", 106, 100);
-    at(g, "pointerup", 106, 100);
-    expect(callService).toHaveBeenCalledTimes(1);
+  it("7 px is a drag; 6 px is still a tap", () => {
+    const r = rig({ devices: [LIGHT] });
+    at(r.el(), "pointerdown", 100, 100);
+    at(r.el(), "pointermove", 100, 107);
+    at(r.el(), "pointerup", 100, 107);
+    expect(r.openPopup).not.toHaveBeenCalled();
+    at(r.el(), "pointerdown", 100, 100);
+    at(r.el(), "pointermove", 106, 100);
+    at(r.el(), "pointerup", 106, 100);
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
   });
 
   it("moving past the slop cancels the hold timer: no more-info after HOLD_MS", () => {
-    const g = svg.querySelector('[data-x="0"]')!;
-    at(g, "pointerdown", 100, 100);
-    at(g, "pointermove", 130, 100);
+    const r = rig({ devices: [LIGHT] });
+    at(r.el(), "pointerdown", 100, 100);
+    at(r.el(), "pointermove", 130, 100);
     vi.advanceTimersByTime(HOLD_MS + 100);
-    at(g, "pointerup", 130, 100);
-    expect(moreInfo).not.toHaveBeenCalled();
-    expect(callService).not.toHaveBeenCalled();
+    at(r.el(), "pointerup", 130, 100);
+    expect(r.moreInfo).not.toHaveBeenCalled();
+    expect(r.openPopup).not.toHaveBeenCalled();
   });
 
-  it("a drag that starts on a camera does not open more-info either", () => {
-    const g = svg.querySelector('[data-x="1"]')!;
-    at(g, "pointerdown", 100, 100);
-    at(g, "pointermove", 100, 140);
-    at(g, "pointerup", 100, 140);
-    expect(moreInfo).not.toHaveBeenCalled();
+  it("a drag that starts on a camera opens nothing either", () => {
+    const r = rig({ devices: [CAMERA] });
+    at(r.el(), "pointerdown", 100, 100);
+    at(r.el(), "pointermove", 100, 140);
+    at(r.el(), "pointerup", 100, 140);
+    expect(r.openPopup).not.toHaveBeenCalled();
+    expect(r.moreInfo).not.toHaveBeenCalled();
   });
 
   it("a pointerup that never arrived does not leave every later tap read as a pinch", () => {
-    const g = svg.querySelector('[data-x="0"]')!;
+    const r = rig({ devices: [LIGHT] });
     const primary = (type: string, id: number) => {
       const e = new MouseEvent(type, { bubbles: true, clientX: 100, clientY: 100 });
       Object.defineProperty(e, "pointerId", { value: id });
       Object.defineProperty(e, "isPrimary", { value: true });
-      g.dispatchEvent(e);
+      r.el().dispatchEvent(e);
     };
     primary("pointerdown", 1); // its pointerup is lost somewhere outside
     primary("pointerdown", 2);
     primary("pointerup", 2);
-    expect(callService).toHaveBeenCalledTimes(1);
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
   });
 
-  it("a second finger down makes it a pinch: neither finger toggles on release", () => {
-    const g = svg.querySelector('[data-x="0"]')!;
-    at(g, "pointerdown", 100, 100, 1);
-    at(svg, "pointerdown", 300, 300, 2);
-    at(svg, "pointerup", 300, 300, 2);
-    at(g, "pointerup", 100, 100, 1);
-    expect(callService).not.toHaveBeenCalled();
-    // and the next plain tap works again
-    at(g, "pointerdown", 100, 100, 3);
-    at(g, "pointerup", 100, 100, 3);
-    expect(callService).toHaveBeenCalledTimes(1);
+  it("a second finger down makes it a pinch: neither finger opens the popup, and the next plain tap works", () => {
+    const r = rig({ devices: [LIGHT] });
+    at(r.el(), "pointerdown", 100, 100, 1);
+    at(r.svg, "pointerdown", 300, 300, 2);
+    at(r.svg, "pointerup", 300, 300, 2);
+    at(r.el(), "pointerup", 100, 100, 1);
+    expect(r.openPopup).not.toHaveBeenCalled();
+    at(r.el(), "pointerdown", 100, 100, 3);
+    at(r.el(), "pointerup", 100, 100, 3);
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("actions: longPress option (S7.5 kiosk)", () => {
-  let callService: ReturnType<typeof vi.fn>;
-  let moreInfo: ReturnType<typeof vi.fn>;
-  let host: { hass: Hass } & EventTarget;
-  let svg: SVGSVGElement;
-  let unbind: () => void;
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-    callService = vi.fn();
-    moreInfo = vi.fn();
-    svg = svgFixture([LIGHT, SWITCH]);
-    host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    host.addEventListener("hass-more-info", moreInfo);
-  });
-
-  afterEach(() => {
-    unbind();
-    document.body.innerHTML = "";
-    vi.restoreAllMocks();
-    vi.useRealTimers();
-  });
-
-  it("longPress: false never fires hass-more-info on a hold, and a plain release still toggles (a hold that removed this would fail)", () => {
-    unbind = bindDeviceActions(svg, host, (i) => [LIGHT, SWITCH][i], undefined, undefined, { longPress: false });
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
+  it("longPress: false never fires hass-more-info on a hold, and the release still asks for the popup", () => {
+    const r = rig({ devices: [LIGHT], opts: { longPress: false } });
+    pointer(r.el(), "pointerdown");
     vi.advanceTimersByTime(HOLD_MS + 100);
-    expect(moreInfo).not.toHaveBeenCalled();
-    pointer(g, "pointerup");
-    expect(callService).toHaveBeenCalledTimes(1);
-    expect(callService).toHaveBeenCalledWith("light", "toggle", { entity_id: "light.demo_living" });
+    expect(r.moreInfo).not.toHaveBeenCalled();
+    pointer(r.el(), "pointerup");
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
   });
 
-  it("longPress unset (default) still fires hass-more-info on the same hold, so the test above is not passing for nothing", () => {
-    unbind = bindDeviceActions(svg, host, (i) => [LIGHT, SWITCH][i]);
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(HOLD_MS + 100);
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-  });
-
-  it("longPress: true is the same as leaving it unset", () => {
-    unbind = bindDeviceActions(svg, host, (i) => [LIGHT, SWITCH][i], undefined, undefined, { longPress: true });
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(HOLD_MS + 100);
-    expect(moreInfo).toHaveBeenCalledTimes(1);
+  it("unset and true both fire more-info on the same hold, so the case above is not passing for nothing", () => {
+    for (const opts of [{}, { longPress: true }]) {
+      const r = rig({ devices: [LIGHT], opts });
+      r.hold();
+      expect(r.moreInfo).toHaveBeenCalledTimes(1);
+      r.unbind();
+    }
   });
 });
 
-describe("actions: a person opens more-info on a tap (S7.8)", () => {
-  it.each(["person.alex", "device_tracker.phone"])("%s: tap fires hass-more-info with its own entity and calls no service", (entity) => {
-    vi.useFakeTimers();
-    const callService = vi.fn();
-    const dev: Device = { id: "p1", type: "person", entity, x: 100, y: 100, room: "sensor.alex_room" };
-    const svg = svgFixture([dev]);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    const unbind = bindDeviceActions(svg, host, () => dev);
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: entity });
-    expect(callService).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
-  });
-});
+describe("actions: a vacuum opens its own dialog on a tap (S7.10)", () => {
+  const VAC: Device = { id: "v1", type: "vacuum", entity: "vacuum.hall", x: 100, y: 100 };
 
-describe("actions: a radar opens more-info on a tap, never toggles (S7.9)", () => {
-  it("with no targets attached, tap fires hass-more-info with the radar's own entity and calls no service", () => {
-    // S10.4: a radar's own x/y target entities are an attachment now routed through the chooser (see below) once
-    // there is more than one entity in total; with none attached, this is unchanged from before S10.4.
-    vi.useFakeTimers();
-    const callService = vi.fn();
-    const dev: Device = { id: "r1", type: "radar", entity: "binary_sensor.radar_presence", x: 100, y: 100 };
-    const svg = svgFixture([dev]);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    const unbind = bindDeviceActions(svg, host, () => dev);
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "binary_sensor.radar_presence" });
-    expect(callService).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
-  });
-});
-
-describe("actions: a vacuum opens its own dialog on a tap, never toggles or opens more-info (S7.10)", () => {
-  it("tap calls opts.openVacuumDialog with the vacuum device, fires no hass-more-info and no service", () => {
-    vi.useFakeTimers();
-    const callService = vi.fn();
-    const dev: Device = { id: "v1", type: "vacuum", entity: "vacuum.hall", x: 100, y: 100 };
-    const svg = svgFixture([dev]);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
+  it("tap calls openVacuumDialog with the device; no popup, no more-info, no service, even after a long press", () => {
     const openVacuumDialog = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => dev, undefined, undefined, { openVacuumDialog });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(600); // longer than HOLD_MS: a hold must not turn this into more-info either
-    pointer(g, "pointerup");
+    const r = rig({ devices: [VAC], opts: { openVacuumDialog } });
+    r.tap(0, 600);
     expect(openVacuumDialog).toHaveBeenCalledTimes(1);
-    expect(openVacuumDialog.mock.calls[0][0]).toBe(dev);
-    expect(moreInfo).not.toHaveBeenCalled();
-    expect(callService).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+    expect(openVacuumDialog.mock.calls[0]![0]).toBe(VAC);
+    expect(r.openPopup).not.toHaveBeenCalled();
+    expect(r.moreInfo).not.toHaveBeenCalled();
+    expect(r.callService).not.toHaveBeenCalled();
   });
 
-  it("Break it: with no openVacuumDialog callback given, a tap does nothing — never falls back to toggle or more-info", () => {
-    vi.useFakeTimers();
-    const callService = vi.fn();
-    const dev: Device = { id: "v1", type: "vacuum", entity: "vacuum.hall", x: 100, y: 100 };
-    const svg = svgFixture([dev]);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    const unbind = bindDeviceActions(svg, host, () => dev);
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(moreInfo).not.toHaveBeenCalled();
-    expect(callService).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("with no openVacuumDialog given a tap does nothing", () => {
+    const r = rig({ devices: [VAC] });
+    r.tap();
+    expect(r.openPopup).not.toHaveBeenCalled();
+    expect(r.moreInfo).not.toHaveBeenCalled();
+    expect(r.callService).not.toHaveBeenCalled();
   });
 });
 
-describe("actions: S10.4 a device or door naming more than one entity opens a chooser, not a guess", () => {
-  it("a radar with more than one target: tap calls opts.openChooser with the radar's own entity and every target's x/y, not hass-more-info", () => {
-    vi.useFakeTimers();
-    const callService = vi.fn();
-    const dev: Device = {
-      id: "r1", type: "radar", entity: "binary_sensor.radar_presence", x: 100, y: 100,
-      targets: [{ x: "sensor.r_tx", y: "sensor.r_ty" }],
-    };
-    const svg = svgFixture([dev]);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => dev, undefined, undefined, { openChooser });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(openChooser).toHaveBeenCalledTimes(1);
-    expect(openChooser).toHaveBeenCalledWith("binary_sensor.radar_presence", ["binary_sensor.radar_presence", "sensor.r_tx", "sensor.r_ty"]);
-    expect(moreInfo).not.toHaveBeenCalled();
-    expect(callService).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+describe("actions: doors (S2.3, S2.7, S14.2)", () => {
+  it("a tap on a door with a sensor asks for the popup with that door (CLAUDE.md finding 3: line[data-d])", () => {
+    const r = rig({ doors: [SENSOR_DOOR] });
+    r.tap();
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
+    expect(r.openPopup.mock.calls[0]![0]).toEqual({ door: SENSOR_DOOR, index: 0 });
+    expect(r.moreInfo).not.toHaveBeenCalled();
+    expect(r.callService).not.toHaveBeenCalled();
   });
 
-  it("Break it: a radar with more than one target and no openChooser callback given does nothing — never falls back to more-info on the first entity", () => {
-    vi.useFakeTimers();
-    const dev: Device = {
-      id: "r1", type: "radar", entity: "binary_sensor.radar_presence", x: 100, y: 100,
-      targets: [{ x: "sensor.r_tx", y: "sensor.r_ty" }],
-    };
-    const svg = svgFixture([dev]);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const unbind = bindDeviceActions(svg, host, () => dev);
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(moreInfo).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("a tap on the door's inner <title> still resolves via closest(\"line[data-d]\")", () => {
+    const r = rig({ doors: [SENSOR_DOOR] });
+    const title = r.el().querySelector("title")!;
+    pointer(title, "pointerdown");
+    pointer(title, "pointerup");
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
   });
 
-  it("a heater with two TRVs: a plain TAP opens the chooser, and calls no toggle service (S10.3 review fix 1)", () => {
-    vi.useFakeTimers();
-    const callService = vi.fn();
-    const dev: Device = { id: "h1", type: "heater", entity: "climate.demo_heater", name: "Living room heater", a: [0, 0], b: [10, 0], trvs: ["climate.trv1", "climate.trv2"] };
-    const svg = svgFixture([dev]);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => dev, undefined, undefined, { openChooser });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50); // a plain tap, well under HOLD_MS
-    pointer(g, "pointerup");
-    expect(openChooser).toHaveBeenCalledTimes(1);
-    expect(openChooser).toHaveBeenCalledWith("Living room heater", ["climate.demo_heater", "climate.trv1", "climate.trv2"]);
-    expect(callService).not.toHaveBeenCalled();
-    expect(moreInfo).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("a tap on a door with a cover asks for the popup, which owns the confirm dialog; no more-info, no chooser", () => {
+    const r = rig({ doors: [COVER_DOOR] });
+    r.tap();
+    expect(r.openPopup.mock.calls[0]![0]).toEqual({ door: COVER_DOOR, index: 0 });
+    expect(r.openChooser).not.toHaveBeenCalled();
+    expect(r.moreInfo).not.toHaveBeenCalled();
+    expect(r.callService).not.toHaveBeenCalled();
   });
 
-  it("a heater with two TRVs: a HOLD opens more-info for the heater's own entity, not the chooser (S10.3 review fix 1)", () => {
-    vi.useFakeTimers();
-    const callService = vi.fn();
-    const dev: Device = { id: "h1", type: "heater", entity: "climate.demo_heater", name: "Living room heater", a: [0, 0], b: [10, 0], trvs: ["climate.trv1", "climate.trv2"] };
-    const svg = svgFixture([dev]);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => dev, undefined, undefined, { openChooser });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(HOLD_MS);
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "climate.demo_heater" });
-    expect(openChooser).not.toHaveBeenCalled();
-    pointer(g, "pointerup");
-    expect(callService).not.toHaveBeenCalled(); // the hold consumed the gesture: release does not also toggle
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("a door with several entities asks for the popup on a tap; its chooser comes from the popup's More info", () => {
+    const r = rig({ doors: [MULTI_DOOR] });
+    r.tap();
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
+    expect(r.openChooser).not.toHaveBeenCalled();
+    expect(r.moreInfo).not.toHaveBeenCalled();
   });
 
-  it("a plain light (one entity): a plain tap still toggles, unaffected by the S10.3 review fix", () => {
-    vi.useFakeTimers();
-    const callService = vi.fn();
-    const dev: Device = { id: "l1", type: "light", entity: "light.demo_living", x: 100, y: 100 };
-    const svg = svgFixture([dev]);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => dev, undefined, undefined, { openChooser });
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(callService).toHaveBeenCalledWith("light", "toggle", { entity_id: "light.demo_living" });
-    expect(openChooser).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("a hold on a door with two entities opens the chooser with both", () => {
+    const r = rig({ doors: [MULTI_DOOR] });
+    r.hold();
+    expect(r.openChooser).toHaveBeenCalledWith("Side door", ["binary_sensor.side_contact", "binary_sensor.side_vibration"]);
+    expect(r.openPopup).not.toHaveBeenCalled();
   });
 
-  it("a heater with one TRV: holding it still opens plain more-info, not the chooser (exactly one entity)", () => {
-    vi.useFakeTimers();
-    const dev: Device = { id: "h1", type: "heater", entity: "climate.demo_heater", a: [0, 0], b: [10, 0], trvs: ["climate.demo_heater"] };
-    const svg = svgFixture([dev]);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => dev, undefined, undefined, { openChooser });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(HOLD_MS);
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "climate.demo_heater" });
-    expect(openChooser).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("a door with nothing attached and no cover: a tap and a hold do nothing", () => {
+    const r = rig({ doors: [NOTHING_DOOR] });
+    r.tap();
+    r.hold();
+    expect(r.openPopup).not.toHaveBeenCalled();
+    expect(r.openChooser).not.toHaveBeenCalled();
+    expect(r.moreInfo).not.toHaveBeenCalled();
   });
 
-  it("a light with a bound switch is unaffected: holding it still opens plain more-info for the light alone, never the chooser", () => {
-    // docs/DECISIONS.md and src/core/attachments.ts: light's bound switch keeps its own, pre-existing path.
-    vi.useFakeTimers();
-    const dev: Device = { id: "l1", type: "light", entity: "light.demo_living", bound: "switch.demo_living", x: 100, y: 100 };
-    const svg = svgFixture([dev]);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => dev, undefined, undefined, { openChooser });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-x="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(HOLD_MS);
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "light.demo_living" });
-    expect(openChooser).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("pointercancel abandons a door tap", () => {
+    const r = rig({ doors: [COVER_DOOR, MULTI_DOOR] });
+    for (const i of [0, 1]) {
+      pointer(r.el(i), "pointerdown");
+      pointer(r.el(i), "pointercancel");
+      pointer(r.el(i), "pointerup");
+    }
+    expect(r.openPopup).not.toHaveBeenCalled();
   });
-
-  const MULTI_DOOR: Door = {
-    id: "d4", name: "Side door", kind: "door", a: [0, 300], b: [100, 300],
-    sensors: ["binary_sensor.side_contact"], vibration: ["binary_sensor.side_vibration"],
-  };
-  const NOTHING_DOOR: Door = { id: "d5", name: "Bare door", kind: "door", a: [0, 400], b: [100, 400] };
-
-  it("a door with both a contact and a vibration sensor: tap calls opts.openChooser with the door's name and both entities", () => {
-    vi.useFakeTimers();
-    const callService = vi.fn();
-    const doors = [MULTI_DOOR];
-    const svg = doorSvgFixture(doors);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => undefined, (i) => doors[i], undefined, { openChooser });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const line = svg.querySelector('[data-d="0"]')!;
-    pointer(line, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(line, "pointerup");
-    expect(openChooser).toHaveBeenCalledTimes(1);
-    expect(openChooser).toHaveBeenCalledWith("Side door", ["binary_sensor.side_contact", "binary_sensor.side_vibration"]);
-    expect(moreInfo).not.toHaveBeenCalled();
-    expect(callService).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
-  });
-
-  it("a door with nothing attached and no cover: tap does nothing, not even the chooser", () => {
-    vi.useFakeTimers();
-    const doors = [NOTHING_DOOR];
-    const svg = doorSvgFixture(doors);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => undefined, (i) => doors[i], undefined, { openChooser });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const line = svg.querySelector('[data-d="0"]')!;
-    pointer(line, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(line, "pointerup");
-    expect(moreInfo).not.toHaveBeenCalled();
-    expect(openChooser).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
-  });
-
-  it("pointercancel abandons a would-be chooser tap on a door: openChooser is never called", () => {
-    vi.useFakeTimers();
-    const doors = [MULTI_DOOR];
-    const svg = doorSvgFixture(doors);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => undefined, (i) => doors[i], undefined, { openChooser });
-    const line = svg.querySelector('[data-d="0"]')!;
-    pointer(line, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(line, "pointercancel");
-    pointer(line, "pointerup");
-    expect(openChooser).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
-  });
-});
-
-describe("actions: S10.3 review fix 2 — a cover door's hold opens the chooser, cover included", () => {
-  const COVER_AND_SENSOR_DOOR: Door = {
-    id: "d6", name: "Garage door", kind: "door", a: [0, 500], b: [100, 500],
-    cover: "cover.demo_garage_door", sensors: ["binary_sensor.demo_garage_contact"],
-  };
-  const COVER_ONLY_DOOR: Door = { id: "d7", name: "Bay door", kind: "door", a: [0, 600], b: [100, 600], cover: "cover.demo_bay_door" };
 
   it("entitiesOfDoor includes the cover entity", () => {
     expect(entitiesOfDoor(COVER_AND_SENSOR_DOOR)).toEqual(["cover.demo_garage_door", "binary_sensor.demo_garage_contact"]);
   });
 
-  it("a tap on a door with a cover still opens the cover dialog, not the chooser", () => {
-    vi.useFakeTimers();
-    const doors = [COVER_AND_SENSOR_DOOR];
-    const svg = doorSvgFixture(doors);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const openCoverDialog = vi.fn();
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => undefined, (i) => doors[i], openCoverDialog, { openChooser });
-    const line = svg.querySelector('[data-d="0"]')!;
-    pointer(line, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(line, "pointerup");
-    expect(openCoverDialog).toHaveBeenCalledTimes(1);
-    expect(openCoverDialog).toHaveBeenCalledWith(COVER_AND_SENSOR_DOOR);
-    expect(openChooser).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("a HOLD on a door with a cover and a sensor opens the chooser, cover row included, not the popup", () => {
+    const r = rig({ doors: [COVER_AND_SENSOR_DOOR] });
+    r.hold();
+    expect(r.openChooser).toHaveBeenCalledWith("Garage door", ["cover.demo_garage_door", "binary_sensor.demo_garage_contact"]);
+    pointer(r.el(), "pointerup");
+    expect(r.openPopup).not.toHaveBeenCalled(); // the hold consumed the gesture
   });
 
-  it("a HOLD on a door with a cover opens the chooser, whose rows include the cover entity id — not the cover dialog", () => {
-    vi.useFakeTimers();
-    const doors = [COVER_AND_SENSOR_DOOR];
-    const svg = doorSvgFixture(doors);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const openCoverDialog = vi.fn();
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => undefined, (i) => doors[i], openCoverDialog, { openChooser });
-    const line = svg.querySelector('[data-d="0"]')!;
-    pointer(line, "pointerdown");
-    vi.advanceTimersByTime(HOLD_MS);
-    expect(openChooser).toHaveBeenCalledTimes(1);
-    expect(openChooser).toHaveBeenCalledWith("Garage door", ["cover.demo_garage_door", "binary_sensor.demo_garage_contact"]);
-    expect(openCoverDialog).not.toHaveBeenCalled();
-    pointer(line, "pointerup");
-    expect(openCoverDialog).not.toHaveBeenCalled(); // the hold consumed the gesture: release does not also open the dialog
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("a HOLD on a door with only a cover opens more-info for the cover", () => {
+    const r = rig({ doors: [COVER_DOOR] });
+    r.hold();
+    expect(r.detail()).toEqual({ entityId: "cover.demo_garage_door" });
+    expect(r.openChooser).not.toHaveBeenCalled();
   });
 
-  it("a HOLD on a door with only a cover (no other attachment) opens more-info for the cover, not the chooser", () => {
-    vi.useFakeTimers();
-    const doors = [COVER_ONLY_DOOR];
-    const svg = doorSvgFixture(doors);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const openCoverDialog = vi.fn();
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => undefined, (i) => doors[i], openCoverDialog, { openChooser });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const line = svg.querySelector('[data-d="0"]')!;
-    pointer(line, "pointerdown");
-    vi.advanceTimersByTime(HOLD_MS);
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "cover.demo_bay_door" });
-    expect(openChooser).not.toHaveBeenCalled();
-    expect(openCoverDialog).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
-  });
-
-  it("kiosk mode (longPress: false): a door with a cover starts no hold timer, so only the tap's cover dialog ever opens", () => {
-    vi.useFakeTimers();
-    const doors = [COVER_AND_SENSOR_DOOR];
-    const svg = doorSvgFixture(doors);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const openCoverDialog = vi.fn();
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => undefined, (i) => doors[i], openCoverDialog, { longPress: false, openChooser });
-    const line = svg.querySelector('[data-d="0"]')!;
-    pointer(line, "pointerdown");
+  it("kiosk mode: a door with a cover starts no hold timer, so only the tap's popup ever asks", () => {
+    const r = rig({ doors: [COVER_AND_SENSOR_DOOR], opts: { longPress: false } });
+    pointer(r.el(), "pointerdown");
     vi.advanceTimersByTime(HOLD_MS * 4);
-    expect(openChooser).not.toHaveBeenCalled();
-    pointer(line, "pointerup");
-    expect(openCoverDialog).toHaveBeenCalledTimes(1);
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+    expect(r.openChooser).not.toHaveBeenCalled();
+    pointer(r.el(), "pointerup");
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
   });
 });
 
-describe("actions: S10.3 review fix 3 — an unlinked appliance (g[data-u]) with attached entities", () => {
-  /** A minimal `<svg><g data-u="0">...</g></svg>`, matching what `renderFloor` emits for an Unlinked appliance. */
-  function unlinkedSvgFixture(count: number): SVGSVGElement {
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    for (let i = 0; i < count; i++) {
-      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      g.setAttribute("data-u", String(i));
-      const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      halo.setAttribute("class", "halo");
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      g.append(halo, path);
-      svg.appendChild(g);
+describe("actions: an unlinked appliance (g[data-u]) with attached entities", () => {
+  it("a tap asks for the popup with the appliance; with one or two attachments alike, and calls no service", () => {
+    for (const u of [TWO_ATTACHED, ONE_ATTACHED]) {
+      const r = rig({ unlinked: u });
+      r.tap();
+      expect(r.openPopup).toHaveBeenCalledTimes(1);
+      expect(r.openPopup.mock.calls[0]![0]).toEqual({ unlinked: u, index: 0 });
+      expect(r.moreInfo).not.toHaveBeenCalled();
+      expect(r.callService).not.toHaveBeenCalled();
+      r.unbind();
     }
-    document.body.appendChild(svg);
-    return svg;
-  }
-
-  const TWO_ATTACHED: Unlinked = { id: "u1", type: "other", name: "Water heater", x: 100, y: 100, rot: 0, scale: 1, attached: ["sensor.wh_temp", "sensor.wh_pressure"] };
-  const ONE_ATTACHED: Unlinked = { id: "u2", type: "other", name: "Fuse box", x: 200, y: 100, rot: 0, scale: 1, attached: ["sensor.fuse_box"] };
-  const NONE_ATTACHED: Unlinked = { id: "u3", type: "other", name: "Bookshelf", x: 300, y: 100, rot: 0, scale: 1 };
-
-  it("two attachments: tap calls opts.openChooser with the unlinked item's name and both entities", () => {
-    vi.useFakeTimers();
-    const svg = unlinkedSvgFixture(1);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => undefined, undefined, undefined, { openChooser, getUnlinked: () => TWO_ATTACHED });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-u="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(openChooser).toHaveBeenCalledTimes(1);
-    expect(openChooser).toHaveBeenCalledWith("Water heater", ["sensor.wh_temp", "sensor.wh_pressure"]);
-    expect(moreInfo).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
   });
 
-  it("one attachment: tap opens more-info for it directly, not the chooser", () => {
-    vi.useFakeTimers();
-    const svg = unlinkedSvgFixture(1);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => undefined, undefined, undefined, { openChooser, getUnlinked: () => ONE_ATTACHED });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-u="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "sensor.fuse_box" });
-    expect(openChooser).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("a hold with two attachments opens the chooser with both; with one it opens more-info", () => {
+    const two = rig({ unlinked: TWO_ATTACHED });
+    two.hold();
+    expect(two.openChooser).toHaveBeenCalledWith("Water heater", ["sensor.wh_temp", "sensor.wh_pressure"]);
+    two.unbind();
+    const one = rig({ unlinked: ONE_ATTACHED });
+    one.hold();
+    expect(one.detail()).toEqual({ entityId: "sensor.fuse_box" });
+    expect(one.openChooser).not.toHaveBeenCalled();
   });
 
-  it("no attachments: tap does nothing", () => {
-    vi.useFakeTimers();
-    const svg = unlinkedSvgFixture(1);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => undefined, undefined, undefined, { openChooser, getUnlinked: () => NONE_ATTACHED });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-u="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(moreInfo).not.toHaveBeenCalled();
-    expect(openChooser).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("no attachments: a tap does nothing", () => {
+    const r = rig({ unlinked: NONE_ATTACHED });
+    r.tap();
+    expect(r.openPopup).not.toHaveBeenCalled();
   });
 
   it("a tap on the inner path still resolves via closest(\"g[data-u]\") (CLAUDE.md finding 3)", () => {
-    vi.useFakeTimers();
-    const svg = unlinkedSvgFixture(1);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => undefined, undefined, undefined, { openChooser, getUnlinked: () => ONE_ATTACHED });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-u="0"]')!;
-    const path = g.querySelector("path")!;
+    const r = rig({ unlinked: ONE_ATTACHED });
+    const path = r.el().querySelector("path")!;
     pointer(path, "pointerdown");
-    vi.advanceTimersByTime(50);
     pointer(path, "pointerup");
-    expect(moreInfo).toHaveBeenCalledTimes(1);
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
   });
 
-  it("Break it: two attachments with no openChooser callback given does nothing — never falls back to more-info on the first entity", () => {
-    vi.useFakeTimers();
-    const svg = unlinkedSvgFixture(1);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const unbind = bindDeviceActions(svg, host, () => undefined, undefined, undefined, { getUnlinked: () => TWO_ATTACHED });
-    const moreInfo = vi.fn();
-    host.addEventListener("hass-more-info", moreInfo);
-    const g = svg.querySelector('[data-u="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointerup");
-    expect(moreInfo).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("two attachments with no openChooser given: a hold does nothing, never falls back to the first entity", () => {
+    const r = rig({ unlinked: TWO_ATTACHED, opts: { openChooser: undefined } });
+    r.hold();
+    expect(r.moreInfo).not.toHaveBeenCalled();
   });
 
-  it("pointercancel abandons an unlinked item's would-be chooser tap: openChooser is never called", () => {
-    vi.useFakeTimers();
-    const svg = unlinkedSvgFixture(1);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService: vi.fn() } as unknown as Hass });
-    const openChooser = vi.fn();
-    const unbind = bindDeviceActions(svg, host, () => undefined, undefined, undefined, { openChooser, getUnlinked: () => TWO_ATTACHED });
-    const g = svg.querySelector('[data-u="0"]')!;
-    pointer(g, "pointerdown");
-    vi.advanceTimersByTime(50);
-    pointer(g, "pointercancel");
-    pointer(g, "pointerup");
-    expect(openChooser).not.toHaveBeenCalled();
-    unbind();
-    document.body.innerHTML = "";
-    vi.useRealTimers();
+  it("pointercancel abandons an unlinked tap", () => {
+    const r = rig({ unlinked: TWO_ATTACHED });
+    pointer(r.el(), "pointerdown");
+    pointer(r.el(), "pointercancel");
+    pointer(r.el(), "pointerup");
+    expect(r.openPopup).not.toHaveBeenCalled();
   });
 });
 
 describe("actions: opts.resolve (S12.4, the 3D view picks with a ray)", () => {
-  afterEach(() => {
-    document.body.innerHTML = "";
-    vi.useRealTimers();
-  });
-
-  it("a press on a plain element toggles the device `resolve` names, and a null answer does nothing", () => {
-    vi.useFakeTimers();
-    const callService = vi.fn();
-    const svg = svgFixture([LIGHT, SWITCH]);
-    const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
-    let answer: Element | null = svg.querySelector('[data-x="1"]');
-    const unbind = bindDeviceActions(svg, host, (i) => [LIGHT, SWITCH][i], undefined, undefined, { resolve: () => answer });
-    pointer(svg, "pointerdown"); // the target is the svg itself, which carries no data-x
-    pointer(svg, "pointerup");
-    expect(callService).toHaveBeenCalledTimes(1);
-    expect(callService).toHaveBeenCalledWith("switch", "toggle", { entity_id: "switch.demo_hall" });
+  it("a press on a plain element asks for the popup of the device `resolve` names, and a null answer does nothing", () => {
+    const r = rig({ devices: [LIGHT, SWITCH] });
+    r.unbind();
+    let answer: Element | null = r.el(1);
+    const openPopup = vi.fn();
+    const unbind = bindDeviceActions(r.svg, r.host, (i) => [LIGHT, SWITCH][i], undefined, { openPopup, resolve: () => answer });
+    pointer(r.svg, "pointerdown"); // the target is the svg itself, which carries no data-x
+    pointer(r.svg, "pointerup");
+    expect(openPopup).toHaveBeenCalledTimes(1);
+    expect(openPopup.mock.calls[0]![0]).toEqual({ device: SWITCH, index: 1 });
     answer = null;
-    pointer(svg, "pointerdown");
-    pointer(svg, "pointerup");
-    expect(callService).toHaveBeenCalledTimes(1);
+    pointer(r.svg, "pointerdown");
+    pointer(r.svg, "pointerup");
+    expect(openPopup).toHaveBeenCalledTimes(1);
     unbind();
   });
 

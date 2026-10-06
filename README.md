@@ -47,9 +47,15 @@ A real house, on the card in 2.5D, three themes (room and device names blurred):
   waves. The plan darkens after sunset. Icons grow with a large house, and
   `icon_size` scales them further.
 - A floating **Active** list on the card: every light, sensor, camera, TV and
-  speaker that is on, on any floor. Tap a row for its more-info dialog; drag
+  speaker that is on, on any floor. Tap a row for the same popup as a tap on the plan; drag
   the list aside or fold it away. On a card narrower than 480 px it starts
   folded, so it does not cover the plan.
+- A tap on a device, door or Active row, in 2D and 3D, opens a small popup that
+  operates nothing: the name, the state, one big button (Turn on, Turn off,
+  Open, Close, Lock, Unlock), sliders for a light's brightness, colour
+  temperature and colour when it has them, and a More info link. Turning
+  anything but a light off asks once more. A hold still opens more-info. A
+  mouse hover shows the name and state.
 - Pinch, drag and double-tap to zoom and pan on a phone, Ctrl/Cmd+wheel and
   drag on a desktop. In the 3D view, drag turns the house; the middle button,
   or Space plus a drag, pans. A kiosk mode strips the card down to the plan for a

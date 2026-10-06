@@ -140,14 +140,16 @@ test.describe("rotation: the visible turn", () => {
 });
 
 test.describe("rotation: taps", () => {
-  test("a tap on a light after a turn still toggles that light (hit-test at real coordinates)", async ({ page }) => {
+  test("a tap on a light after a turn still reaches that light: its popup button makes the call (hit-test at real coordinates)", async ({ page }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground" });
     await button(page, "Rotate right").click();
     await settled(page);
     const at = await lightCentre(page);
     await page.mouse.click(at.x, at.y);
-    expect(await calls(page)).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]);
+    expect(await calls(page)).toEqual([]);
+    await page.locator("floorplan-studio-card").locator("css=.fp-pop-do").click();
+    expect(await calls(page)).toEqual([["light", "turn_on", { entity_id: "light.demo_kitchen" }]]);
   });
 
   test("a tap while the plan turns is ignored; the same tap after it settles acts", async ({ page }) => {
@@ -160,7 +162,8 @@ test.describe("rotation: taps", () => {
     await settled(page);
     const at = await lightCentre(page);
     await page.mouse.click(at.x, at.y);
-    expect(await calls(page)).toEqual([["light", "toggle", { entity_id: "light.demo_kitchen" }]]);
+    await page.locator("floorplan-studio-card").locator("css=.fp-pop-do").click();
+    expect(await calls(page)).toEqual([["light", "turn_on", { entity_id: "light.demo_kitchen" }]]);
   });
 
   // CLAUDE.md finding 10: the rule is read where it lands, on the elements that carry their own pointer-events.

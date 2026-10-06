@@ -35,6 +35,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `floors` | unset | an array of floor ids: shows a switcher over only these floors, in this order, defaulting to the first one. Takes precedence over `floor`. An id the layout doesn't have is dropped; if none of them match, this is the same as leaving `floors` unset |
 | `theme` | `blueprint` | `blueprint`, `light`, `midnight`, `slate`, `terminal`, `solarized`, or `ha` (see Themes, below) |
 | `fade` | `300` | seconds a motion sensor takes to fade from red to grey after it last went off |
+| `plug_heat_from`, `plug_heat_to` | `0`, `2000` | the draw range a plug's colour runs over, in watts: blue at the low end, amber half way, red at the high end. Two numbers with from below to; anything else is `0` and `2000`. See Plugs |
 | `plug_watts` | `2` | a plug is active from this many watts of measured power, not merely while switched on — see Plugs, below. A number `0` or more; anything else is `2` |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
 | `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons in the vertical stack at the top right, under the toolbar. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
@@ -84,6 +85,15 @@ two round drivers that light while it plays; a **TV** is a flat panel 100 cm
 wide and 6 thick on the nearest wall within 150 cm (free-standing, facing you,
 when there is none), its screen lit while it is on. `z` on a device moves the
 radiator's top and the TV's bottom.
+
+A device's `fx` (the editor's "effect size (%)", 25 to 300, default 100) scales
+the effect it draws: a lit lamp's aura, a playing speaker's or media player's
+waves, a triggered motion or contact sensor's ring and a siren's rings, in 2D,
+2.5D and 3D (a lamp's floor pool and wall light too). A **siren** (any device
+whose entity is `siren.*`) that is on sends out two red rings, twice as far as a
+speaker's waves, on a thicker line and a faster beat; with reduced motion they
+hold still at twice the size. Each type keeps its own base size, so 100 is what
+the card drew before the field existed.
 
 In the toolbar a small `View` dropdown switches between `2D` and
 `2.5D` for as long as the card is on screen. It keeps your zoom and pan, and a
@@ -143,10 +153,11 @@ and taps are unchanged. It works in 2D and 2.5D.
 - A door is a gap in the wall, a window is a band of glass above its sill, a
   slit window is a band of glass 60 cm high against the ceiling, a
   glass door is glass from the floor, a sealed door is a solid panel, an open
-  doorway is a gap with nothing in it (a red frame only while its sensor says open). The
+  doorway is a gap with nothing in it (while its sensor trips, a solid alert-colour band fills the gap: no dash, no pulse; in 3D a thin glass-like slab). The
   door line at floor level still shows open, closed and alert.
 - Furniture and appliances that no entity runs are boxes with their symbol
   on the lid. Heights come from the layout (`height`) or a default per kind.
+- Mount heights (S14.5): a ceiling light hangs at 215 cm, a camera, motion sensor, radar and access point at 205, an air conditioner at 195, a cover motor at 175, a thermostat or temperature sensor at 135; the editor's mount height field shows the preset and a device with its own `z` keeps it. In 3D an icon also stays 25 cm under the top of the walls.
 - A device mounted at 100 cm or more (a ceiling light, a camera, a smoke alarm)
   is drawn where it hangs, lifted with the walls, with its light radius, camera
   cone, rings, name and value. A small pin stays on the floor under it, joined by
@@ -243,7 +254,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#lens` Lengths | no | an editing aid |
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
-| `#filter` Filter by type | no | a work aid for a crowded plan; the card has the Active list, grouped by type |
+| `#filter` Filter by type | no | a work aid for a crowded plan; the card has the Active list, grouped by category |
 | Plan view, Tilt, Walls | card only | the View dropdown, the Tilt slider and the Walls select. The studio has no 2.5D since 0.14 (S12.1); the card keeps 2D and 2.5D, and gets 3D |
 | Room facts and device details panel | card only | the card's left panel (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
 
@@ -259,7 +270,8 @@ switch floors, zoom out past what fits, or reach Home Assistant's more-info
 dialog by holding a finger on a device. It hides the floor chips and the
 zoom +/−/fit buttons and the rotate buttons (`rotate_switch: true` brings
 those back), and a long press does nothing — a plain tap still
-toggles the device it lands on, exactly as without kiosk mode.
+opens the device's popup, whose button operates it, as without kiosk mode, but the popup has no
+**More info** link: nothing in kiosk mode reaches Home Assistant's dialog.
 
 `kiosk: true` shows the first floor and draws no switcher whatever would
 otherwise have produced one — `floors`, `floor: "all"`, or simply a
@@ -299,7 +311,7 @@ listed whatever its state — a camera is a view, not an on/off thing —
 except an `unavailable`/`unknown` one, or any device of any type with no
 entity configured: neither has a real more-info dialog to open.
 
-Rows are grouped by type, each with the type's own icon and colour — the
+Rows are grouped by category (Lights, Climate, Security, Media, Power, Covers, Computers and network, Sensors, People, Other, always in that order), and each category is a header button with a chevron, a name and a count that folds it (`aria-expanded`, Enter or Space). Every group starts open. The fold is remembered per card in the browser, apart for the Active list and the Room panel; storage that is blocked or holds junk just opens every group. Each row has its type's own icon and colour — the
 camera row's own icon is the panel's ink colour rather than the plan's
 camera tint, chosen to stay legible against the panel's background in
 every theme — and its name; a tap, click or Enter opens Home Assistant's
@@ -331,11 +343,22 @@ door or a stair), and the room is outlined with a dashed line. The Active panel 
 - temperature and humidity, the same mean the plan prints under the name;
 - motion, on or off, and since when;
 - the open doors and windows on the room's walls (an unlocked lock counts), and the lights that are on;
-- the room's devices, then the sensors the room owns that have no icon on the plan.
+- **Scenes** (S14.7): a button for each Home Assistant `scene.*` entity of the room (dashed border), for each custom scene saved on the
+  room, then **All off** and **All on**. See below;
+- the room's devices, then the sensors the room owns that have no icon on the plan, grouped by the same collapsible categories as the Active list.
 
-A light, switch, plug or cover row toggles when you tap it and opens
-Home Assistant's more-info when you hold it, as the icons on the plan do. Any
-other row opens more-info. Below, the Active list is cut to the room's
+**Scenes.** A scene button is one tap, no popup. A Home Assistant scene calls `scene.turn_on`. A scene belongs to the room when its
+area is the room's area (the scene entity's own `area_id` in `hass.entities`, else its device's `area_id` in `hass.devices`; the Hue
+integration puts its scenes on the Hue room's device, so Hue scenes appear on their own), or when the studio lists it in the room's
+`haScenes`. A custom scene is a name and a list of lights and switches, each on or off, a light with an optional brightness (1 to
+100 %), colour temperature (K) or colour (`hs`); it calls `light.turn_on` or `light.turn_off` per light and `switch.turn_on` or
+`switch.turn_off` per switch, with only the fields it sets. **All off** and **All on** are one `light.turn_off` or `light.turn_on` over the lights drawn
+in the room. They are lights only, so they do not ask first, the same as a light's popup (S14.2). A custom scene that turns a
+switch off asks first: its button turns into **Confirm: name** with a Cancel next to it. A room with no scene and no light shows no
+Scenes label. Scenes are in the Room section, so they need the Active panel (not `kiosk`, not `active_list: false`).
+
+A tap on a row opens the same popup as the icon on the plan, for every type (a radiator's has only **More info**); a hold opens
+Home Assistant's more-info. On a card under 480 px wide the open panel is a short sheet, at most 45 % of the card high with its list scrolling inside, docked on the half of the card away from the picked room. Below, the Active list is cut to the room's
 entities; **Show all** brings the rest back and keeps the room picked.
 
 Tap the room again, tap off any room, press Escape (with the pointer over the
@@ -368,12 +391,22 @@ back, reload or switch dashboard tab and the plan is as it was left, with no
 flash of the configured look. The floor and the Active list are remembered
 as before.
 
+**Zoom, spot, rotation and the 3D camera are remembered per floor.** Zoom in
+on the ground floor, turn the first floor, orbit the 3D model on either:
+switch floors and back and each is as you left it. A floor you never touched
+shows the config's look (in 3D, the way of looking carried over from the floor
+before, framed for itself). Reset view, and Reset camera in 3D, clear the
+floor on show and leave the others alone. With storage blocked the floors
+still remember until the page closes. Entries written by an older card (one
+zoom and turn for the whole card) move to the floor they were saved on.
+
 - **A remembered value wins over the config** for as long as the config is the
   same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `names`, `center`,
   `zoom_level`, the layout source or the floors in the card's YAML and that
   card starts with a clean memory: the new YAML is what you meant.
 - **Reset view** (the last button of the stack, greyed while nothing differs) puts
-  every one of these back to the card's config and forgets the memory. The
+  every one of these back to the card's config and forgets the memory (zoom,
+  turn and camera: of the floor on show only). The
   turn goes back the short way round. The floor stays. It is not the Fit
   button: Fit, or Home view on a pinned card, only changes zoom and position.
 - **Keys.** The card you hover or have focused listens; another card on the
@@ -467,10 +500,10 @@ device is grey; an active one takes its type's own colour — one
 differently:
 
 - **Light** — grey when off; on, it turns amber (or the bulb's own colour, if
-  it reports one) and grows a soft aura, 3 m across, on the plan. Tap toggles it; a long
+  it reports one) and grows a soft aura, 3 m across, on the plan. A tap opens its popup (Turn on or off, sliders); a long
   press opens Home Assistant's more-info dialog.
 - **Light with a bound switch** — one icon that lights up if either the light
-  or its switch is on. Tap always toggles the light itself; the switch is
+  or its switch is on. A tap's button always acts on the light itself; the switch is
   never one of the S10.4 chooser's entities (below) — it stays reachable from
   inside the light's own more-info dialog instead.
 - **Motion sensor** — red the moment it triggers, with a strong red disc and
@@ -496,8 +529,8 @@ differently:
   class (`curtain`, `blind`, `shade`, `shutter`, `awning`, `window`, `damper`),
   and a cover that reports no class, draws idle grey in every state. The class
   is read from the entity's state at draw time; nothing is stored in the layout.
-  A room that shows a cover entity follows the same rule. A tap still toggles
-  it. A door line with a `cover` draws orange when that cover is open (below).
+  A room that shows a cover entity follows the same rule. A tap opens its popup
+  (Open or Close). A door line with a `cover` draws orange when that cover is open (below).
 - **Contact sensor** — open shows the same red disc and pulsing ring. A door
   or window with a contact sensor turns red and dashed when open, over a wide
   pulsing red line; `open_color` recolours both to something other than red.
@@ -523,7 +556,7 @@ differently:
   rather than being fixed itself. Playing, two arcs pulse out from under
   its disc in its own colour, so a speaker mid-song reads as radiating
   sound on the plan. Reduced motion holds the arcs still, the same as a
-  motion sensor's ring. Tap always opens more-info: `media_player.toggle`
+  motion sensor's ring. The popup has More info only: `media_player.toggle`
   is play/pause or power, never a clean on/off, so guessing which one you
   meant would be worse than always asking.
 - **Camera** — a dark cone of view, turned to match the device's own
@@ -536,7 +569,7 @@ differently:
   attribute, names one of your rooms; the icon then glides there over 600 ms
   each time the sensor changes, and several people in the same room spread on
   a ring instead of stacking. No room sensor, or one that names no room on
-  the plan, leaves the icon where you placed it. Tap always opens more-info,
+  the plan, leaves the icon where you placed it. The popup has More info only,
   never a toggle.
 - **Radar (mmWave presence)** — a purple icon while its presence entity is on,
   plus one small dot per tracked target, turned by the device's own `rot` (0
@@ -569,8 +602,8 @@ differently:
   `sensor.office_radar_target_1_y` (Home Assistant's own generated entity ids
   for the `name`s above — repeat the `target_2`/`target_3` blocks and add a
   pair each for more than one tracked person).
-- **Cover on a door** — an open door draws orange; tapping it asks before
-  opening or closing.
+- **Cover on a door** — an open door draws orange; tapping it opens the popup,
+  and its button asks before opening or closing.
 - **Vacuum** — grey while docked, idle or paused; a teal icon while cleaning,
   its icon spinning slowly; teal, not spinning, while returning to dock; and
   `--fp-danger` red on an error state, neither on nor off. A tap opens a
@@ -600,6 +633,15 @@ simply does not link). Two candidates link nothing: a wrong guess would paint a
 plug by another plug's draw, so pick one in the editor. An explicit `power`
 always wins.
 
+**Colour by draw (S14.8).** A plug that is active and has a readable power sensor is
+tinted by how much it draws: blue at `plug_heat_from` (default 0 W) or less, amber
+half way, red at `plug_heat_to` (default 2000 W) or more, in 2D, 2.5D and 3D, in
+every theme (the ramp is three fixed tokens, `--fp-heat-cool`, `--fp-heat-mid` and
+`--fp-heat-hot`, not the theme's accent). Colour is not the only signal: the plan's
+tooltip and the tap popup say the watts (`plug: TV plug, 1500 W`). A plug with no
+sensor, an unreadable one, or one that is off keeps its own colour (`--fp-dev-plug`,
+or `colors.plug`), as before. Only plugs are tinted; a switch has no `power` field.
+
 What the card does when it cannot be sure:
 
 | Switch | Power sensor | Plug |
@@ -615,6 +657,36 @@ What the card does when it cannot be sure:
 room or a piece of furniture whose `entity` is the plug's switch follows the
 same rule for its "on" ring. A light bound to a plug's switch (`bound`) does
 not: it is a lamp, and on when its switch is.
+
+## Tap, hold and hover
+
+A tap never operates anything. On a device icon, a door, an unlinked appliance or a row of the Active list,
+in 2D and in 3D, it opens a small popup next to the icon:
+
+- the name and one line of state (the same text the hover tooltip and the plan's readouts use: `48 %`, `21.5 °C`,
+  a light's brightness as a percent, a cover's position, a plug's watts);
+- one primary button, 44 px tall: **Turn on**, **Turn off**, **Open**, **Close**, **Lock** or **Unlock**, a plain
+  `turn_on`, `turn_off`, `open_cover`, `close_cover`, `lock` or `unlock` call on the device's own entity;
+- a **More info** link, which opens Home Assistant's dialog (or the chooser when the object names several entities).
+
+The popup stays inside the card (on a short card its sliders scroll; the name, the state and the buttons stay in view). Only one is open at a time, across cards too. It also closes when the floor changes or the layout is replaced. It closes on Escape, on a tap anywhere else, or on a
+second tap of the same icon. Tapping another icon moves it. It is a non-modal `role="dialog"` named after the device;
+focus goes to its primary button and comes back to what opened it. A **hold** (long press) still opens more-info
+directly, as before.
+
+- **Turning something OFF asks first**, for every type except a light (a lock and a cover act at once; a media player or speaker has no on/off button): the button turns into **Confirm turn off**
+  next to Cancel. Turning ON is immediate. A light's OFF is immediate too. A lock and a cover keep their own
+  wording. A door with a `cover` keeps its confirm dialog, opened from the popup's button.
+- **A light** with brightness gets a slider (1-100 %); one with colour temperature gets a kelvin slider; one with a
+  colour mode (hs, xy, rgb) gets a hue slider. Moving a slider changes only the number shown; releasing it makes the
+  one `light.turn_on` call. A light that only switches on and off gets no slider.
+- **No toggle** (camera, media player, speaker, battery, inverter, server, access point, person, radar, vacuum):
+  name, state and More info only. A vacuum tap still opens its own dialog.
+- `tap_action` is not a card option and the popup does not read one.
+
+**Hover** (mouse only, not touch): over an icon, a door or an appliance a small tooltip shows the name and the state
+text, in 2D and in 3D. It goes when the pointer leaves, when you press, drag or scroll, and while a popup is open.
+The icon's own browser tooltip is replaced while it shows.
 
 ## Tapping an object with more than one entity
 
@@ -634,19 +706,15 @@ the vacuum dialog — is ever open at once.
 Which gesture reaches the chooser depends on what the object would otherwise
 do with a plain tap:
 
-- **A device that toggles** (a heater, an ac, a switch, a plug...): naming
-  more than one entity moves the chooser onto the plain **tap** — a tap no
-  longer toggles such a device, since guessing which of several entities it
-  meant was the exact problem this feature exists to fix. A **long press**
-  on it instead opens more-info for the device's own entity alone, the same
-  thing a long press always did before this feature existed. Naming exactly
-  one entity is untouched: tap toggles, long press opens more-info.
+- **A device that toggles** (a heater, an ac, a switch, a plug...): a tap
+  opens the popup (S14.2). Its button acts on the device's own entity only; its
+  **More info** link opens the chooser when the device names several entities.
+  A **long press** opens more-info for the device's own entity alone.
 - **A device with no toggle** (a camera, a radar, a person...) and a
-  non-cover door: unchanged from a device that toggles with one entity — a
-  plain tap resolves straight to more-info or the chooser, with no long
-  press involved (these never had one).
-- **A door with a `cover`**: a tap always opens the existing open/close
-  confirm dialog, whatever else is attached to the door — this is unaffected
+  non-cover door: a tap opens the popup with More info only; More info
+  resolves to more-info or the chooser as above.
+- **A door with a `cover`**: a tap opens the popup, whose Open or Close button opens the existing confirm
+  dialog, whatever else is attached to the door — this is unaffected
   by any of the above. A **long press** on it opens the chooser instead,
   listing every entity the door names, the cover included; with only the
   cover attached, a long press opens the cover's own more-info directly
@@ -654,8 +722,8 @@ do with a plain tap:
   press anywhere) such a door only ever opens the cover dialog, since no
   long press ever starts.
 - **An unlinked appliance** (a plan icon placed by type, with no linked
-  entity of its own — Add → Unlinked device in the editor): has no toggle
-  and no long press. A tap alone resolves through its `attached` list, the
+  entity of its own — Add → Unlinked device in the editor): has no toggle.
+  A tap opens a popup (name, More info); More info resolves through its `attached` list, the
   ordinary one-entity-more-info/several-entities-chooser rule.
 
 A light's `bound` switch is deliberately never offered here; see "Light with
@@ -704,7 +772,7 @@ with its own colour keeps it. There are no textures and no shadows.
   pan is never a tap. You cannot go under the floor. The camera starts south of the house at
   about 50 degrees; the card's `rotation` is the starting turn. The Reset view
   button puts the camera back.
-- Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 30 cm the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same select and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The Active list covers part of the view, so the camera frames the house in the rest. 2D and 2.5D are unchanged.
+- Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 110 cm (the same figure as `low`) the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same select and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The Active list covers part of the view, so the camera frames the house in the rest. 2D and 2.5D are unchanged.
 - The 3D code is loaded the first time you pick 3D, and only then (about 186 KB
   gzipped; the card file grew by about 3.5 KB). It draws only while something
   moves: a still model, a settled pulse and a Home Assistant update that changes

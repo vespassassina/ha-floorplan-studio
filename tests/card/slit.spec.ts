@@ -26,9 +26,9 @@ async function boot(page: Page, layout: unknown) {
   }, { layout });
 }
 
-test("2.5D: a slit's glass is 60 cm of a 250 cm wall, flush with the wall top, half the demo window's band", async ({ page }) => {
+test("2.5D: a slit's glass is 60 cm of a 250 cm wall, its head 40 cm under the wall top like a window's, half the demo window's band", async ({ page }) => {
   const l = structuredClone(demo);
-  l.floors.first.doors.push({ id: "slit1", name: "Slit", kind: "slit", a: [500, 0], b: [700, 0] }); // the back wall, in the Bathroom
+  l.floors.first.doors.push({ id: "slit1", name: "Slit window", kind: "slit", a: [500, 0], b: [700, 0] }); // the back wall, in the Bathroom
   await boot(page, l);
   await expect(card(page).locator("css=svg.fp-turning")).toHaveCount(0); // not mid-turn
   await expect(card(page).locator("css=svg polygon.glass.g-slit").first()).toBeAttached();
@@ -42,9 +42,11 @@ test("2.5D: a slit's glass is 60 cm of a 250 cm wall, flush with the wall top, h
   expect(r.slit.every((q) => Math.abs(q.top - r.slit[0].top) < 0.5 && Math.abs(q.h - r.slit[0].h) < 0.5)).toBe(true);
   // The window band is 120 cm high, the slit 60: half, in real pixels.
   expect(r.slit[0].h / r.win[0].h).toBeCloseTo(0.5, 1);
-  // The highest wall side on screen is the back wall's full 250 cm (nothing is above it): the slit's glass reaches that top.
-  const wallTop = Math.min(...r.walls.map((w) => w.top));
-  expect(Math.abs(wallTop - r.slit[0].top)).toBeLessThan(1.5);
+  // The highest wall side on screen is the back wall's full 250 cm (nothing is above it). A window's head is 40 cm under
+  // that (sill 90 + 120 high), so the slit's glass starts 40 cm of wall under the top: in real pixels, 40 cm = a third of the window band.
+  const wallTop = Math.min(...r.walls.map((w) => w.top)), pxPerCm = r.win[0].h / 120;
+  expect((r.slit[0].top - wallTop) / pxPerCm).toBeGreaterThan(38);
+  expect((r.slit[0].top - wallTop) / pxPerCm).toBeLessThan(42);
   // And the glass sits on a block of wall: the wall side beneath it ends where the glass begins.
   expect(r.walls.some((w) => Math.abs(w.top - r.slit[0].bottom) < 1.5 && w.left < r.slit[0].left && w.right > r.slit[0].left)).toBe(true); // (the block leans with the projection, so only overlap is asked)
 });

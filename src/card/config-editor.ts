@@ -15,6 +15,8 @@ const DEFAULT_FADE = 300;
 const DEFAULT_ROOM_GLOW = false;
 // Matches PLUG_ACTIVE_WATTS in core/power.ts, kept apart like the defaults around it.
 const DEFAULT_PLUG_WATTS = 2;
+// Matches HEAT_FROM and HEAT_TO in core/power.ts (S14.8).
+const DEFAULT_HEAT_FROM = 0, DEFAULT_HEAT_TO = 2000;
 const DEFAULT_KIOSK = false;
 const DEFAULT_ACTIVE_LIST = true;
 const DEFAULT_NIGHT = "auto";
@@ -256,6 +258,13 @@ export class FloorplanStudioCardEditor extends LitElement {
     this._set("plug_watts", raw !== "" && Number.isFinite(n) && n >= 0 ? n : DEFAULT_PLUG_WATTS, DEFAULT_PLUG_WATTS);
   }
 
+  private _onHeat(key: "plug_heat_from" | "plug_heat_to", dflt: number, e: Event): void {
+    // An emptied or non-numeric field is the default, left out of the payload. A pair that is no range is the card's to resolve (it falls back to 0 and 2000).
+    const raw = (e.target as HTMLInputElement).value.trim();
+    const n = Number(raw);
+    this._set(key, raw !== "" && Number.isFinite(n) ? n : dflt, dflt);
+  }
+
   private _onRoomGlow(e: Event): void {
     this._set("room_glow", (e.target as HTMLInputElement).checked, DEFAULT_ROOM_GLOW);
   }
@@ -441,6 +450,16 @@ export class FloorplanStudioCardEditor extends LitElement {
       <div class="row">
         <label class="main" for="plug_watts">Plug active from (W)</label>
         <input id="plug_watts" type="number" min="0" step="0.5" .value=${String(this._config.plug_watts ?? DEFAULT_PLUG_WATTS)} @change=${this._onPlugWatts} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="plug_heat_from">Plug colour from (W)</label>
+        <input id="plug_heat_from" type="number" step="50" .value=${String(this._config.plug_heat_from ?? DEFAULT_HEAT_FROM)} @change=${(e: Event) => this._onHeat("plug_heat_from", DEFAULT_HEAT_FROM, e)} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="plug_heat_to">Plug colour to (W)</label>
+        <input id="plug_heat_to" type="number" step="50" .value=${String(this._config.plug_heat_to ?? DEFAULT_HEAT_TO)} @change=${(e: Event) => this._onHeat("plug_heat_to", DEFAULT_HEAT_TO, e)} />
       </div>
 
       <div class="row">

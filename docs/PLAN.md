@@ -2502,3 +2502,27 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   glass in 2.5D and 3D, a window in every other respect, a thin band in 2D, Add, Openings, Slit window in the editor.
   Tests first: `tests/core/slit.test.ts` (25), `tests/editor/slit.spec.ts` (6), `tests/card/slit.spec.ts` (2).
   Choices in `docs/DECISIONS.md`.
+
+## Sprint 14 (0.16.0): interaction and polish
+
+Spec `docs/specs/card-polish-and-light.md`, items 1-12. Order and one outcome each, tests first:
+- [x] S14.1 Rename "slit window"; slit head 40 cm under the ceiling (items 1, 2). Core + editor. `task/S14.1`: the door type select reads "slit window" (the other labels already did), `SLIT_HEAD_GAP` = 40 in `heights.ts`, sill 150 and head 210 on 250.
+- [x] S14.2 Tap popup, hover name, confirm-OFF, live values, light controls (items 3, 4, 5, 17, 18; item 6 siren is a separate task). Card, both views. Raise the size budget first.
+- [x] S14.3 Effect size per device, editor field (item 7). Schema optional field, 2D and 3D. Done on `task/S14.3` (also item 6: a siren's louder rings). Tests: `tests/core/effect-size.test.ts`, `tests/card/effect-size-css.spec.ts`, the 3D block in `tests/card/card-3d-tex-glow.spec.ts`, `effect size:` in `tests/editor/editor.spec.ts`.
+- [x] S14.4 View memory per floor, 2D and 3D (item 8). `task/S14.4`: `FloorView` list in `view-state.ts`, `Orbit.state/restore`, `View3D.camera/setCamera/onCamera`, the card stashes and applies on a floor switch. Tests: `view-state.test.ts`, `three-orbit.test.ts`, `card-view-memory.test.ts` ("per floor"), `card-view-memory-3d.spec.ts`.
+- [x] S14.5 Open doorway alert band (item 9), lower presets (item 10), low and cutaway wall height (item 11).
+- [x] S14.6 Active list and Room panel by collapsible category (item 12).
+- [x] S14.8 Plug colour by power (item 24). `task/S14.8`: `powerHeat`/`heatRange` in `core/power.ts`, `--fp-heat` from `deviceMarkup`, card options `plug_heat_from`/`plug_heat_to`. Tests: `tests/core/plug-heat.test.ts`, `tests/card/plug-heat.spec.ts`, `plug_heat` in `tests/card/config-editor.spec.ts`.
+- [x] S14.7 Room scenes (item 19). Done on `task/S14.7`: `src/core/room-scenes.ts`, `src/card/room-scenes-ui.ts`, `src/editor/room-scenes-ops.ts`, the Scenes section of the Room panel. Tests: `tests/core/room-scenes.test.ts`, `tests/editor/room-scenes-ops.test.ts`, `tests/card/card-room-scenes.spec.ts`, `tests/editor/room-scenes.spec.ts`.
+Sprint review by Opus once the integrated build is done; then release 0.16.0 on Diego's yes.
+
+## Sprint 15 (0.17.0): light
+
+Items 13-15. Needs a short design pass first (S15.0: visibility-polygon maths in core, tested against walls and gaps).
+- S15.1 Core light maths: gaps, visibility polygon, light map per floor.
+- S15.2 3D: light from the device, passing gaps.
+- S15.3 Daylight from `sun.sun`, card option.
+
+Added 2026-10-06 (Diego's picks): S14.2 also does items 17-18 (live values, light slider); S14.7 room scenes (item 19);
+S14.8 plug colour by power (item 24); S15.3 also the evening tint (22); S15.4 open leaf, sash and 3D alert band (20);
+S15.5 top view and frame a room (21); S15.6 blob shadows (23). Not taken: room master switch, keyboard navigation.

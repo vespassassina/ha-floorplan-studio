@@ -339,7 +339,7 @@ test.describe("3D view: the overlay", () => {
     await expect(icon(page, 0)).toBeVisible(); // the icons stay, as in 2D
   });
 
-  test("an icon is a real glyph in the state's class, and a real click on it toggles that entity once, through the canvas", async ({ page }) => {
+  test("an icon is a real glyph in the state's class, and a real click on it opens that entity's popup, whose button makes the one call, through the canvas", async ({ page }) => {
     await boot(page, {}, { ...QUIET(), "light.demo_living": st("on", {}, iso(600)) });
     const i = icon(page, 0);
     await expect(i).toBeVisible();
@@ -349,9 +349,12 @@ test.describe("3D view: the overlay", () => {
     // the overlay never takes the pointer: what is under it is the canvas
     expect(await page.evaluate(([x, y]) => (document.getElementById("card")!.shadowRoot!.elementFromPoint(x, y) as HTMLElement | null)?.tagName, [x, y] as const)).toBe("CANVAS");
     await page.mouse.click(x, y);
-    await expect.poll(() => calls(page)).toEqual(["light.toggle light.demo_living"]);
+    await expect(card(page).locator("css=.fp-pop")).toBeVisible();
+    expect(await calls(page)).toEqual([]); // a tap operates nothing
+    await card(page).locator("css=.fp-pop-do").click();
+    await expect.poll(() => calls(page)).toEqual(["light.turn_off light.demo_living"]);
     await page.waitForTimeout(400);
-    expect(await calls(page)).toEqual(["light.toggle light.demo_living"]); // once
+    expect(await calls(page)).toEqual(["light.turn_off light.demo_living"]); // once
   });
 
   test("a drag that starts on an icon still turns the camera", async ({ page }) => {

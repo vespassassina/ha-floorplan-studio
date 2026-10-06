@@ -133,10 +133,18 @@ describe("wallZ: what stands of each solid when its wall is lowered", () => {
     const southFull = wallSolids(S).find((s) => range(s)[0] === 0 && range(s)[1] === 250)!;
     expect(wallZ(southFull, low, CUT_WALL_HEIGHT)).toEqual([0, CUT_WALL_HEIGHT]);
   });
-  it("the infill of a lowered wall is cut with it: glass above the cut is gone, a door's leaf is cut to the height", () => {
+  it("one figure for the cut and the low walls: 110 cm (S14.5, Diego: low was too low)", () => {
+    expect(CUT_WALL_HEIGHT).toBe(110);
+    const south = sc.solids.find((s) => s.kind === "wall" && keyOf(s.ref.poly!, s.ref.index!) === S && range(s)[0] === 0 && range(s)[1] === 250)!;
+    expect(wallZ(south, low, CUT_WALL_HEIGHT)).toEqual([0, 110]);
+  });
+  it("the infill of a lowered wall is cut with it: glass above the cut is gone, glass across it is cut to it, a door's leaf is cut to the height", () => {
     const glass = sc.solids.find((s) => s.kind === "opening" && s.tag === "glass")!, leaf = sc.solids.find((s) => s.kind === "opening" && s.tag === "door-leaf")!;
-    expect(range(glass)[0]).toBeGreaterThan(CUT_WALL_HEIGHT);
-    expect(wallZ(glass, low, CUT_WALL_HEIGHT)).toBeNull();
+    expect(range(glass)).toEqual([90, 210]); // a window: sill 90, 120 high; the cut passes through it
+    expect(wallZ(glass, low, CUT_WALL_HEIGHT)).toEqual([90, CUT_WALL_HEIGHT]);
+    const tall = buildScene(house({ doors: [{ id: "d", a: [100, 0], b: [200, 0], kind: "window", sill: 130, height: 60, sensors: [] }] as never })).solids.find((s) => s.kind === "opening" && s.tag === "glass")!;
+    expect(range(tall)[0]).toBeGreaterThan(CUT_WALL_HEIGHT);
+    expect(wallZ(tall, low, CUT_WALL_HEIGHT)).toBeNull();
     expect(wallZ(leaf, low, CUT_WALL_HEIGHT)).toEqual([0, CUT_WALL_HEIGHT]);
     expect(wallZ(glass, high, CUT_WALL_HEIGHT)).toEqual(range(glass));
   });

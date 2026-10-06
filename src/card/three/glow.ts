@@ -13,7 +13,7 @@ const GLOW_GAIN = 0.8;
 type Pt = readonly [number, number];
 /** One face of a wall solid as drawn: an edge of its ring, which way the ring is wound (`outwardSign`), and the z range it is drawn over. */
 export interface GlowSide { a: Pt; b: Pt; s: 1 | -1; z0: number; z1: number }
-export interface GlowSpec { at: Pt; lampZ: number; base: Poly; rgb: Rgb; level: number; room: number; boost: number }
+export interface GlowSpec { at: Pt; lampZ: number; base: Poly; rgb: Rgb; level: number; room: number; boost: number; /** S14.3: the lamp's effect size as a fraction (1 = 100 %); the wall light reaches `GLOW_REACH` times it. */ scale?: number }
 
 export function createGlow(scene: Scene) {
   let muted = false;
@@ -24,7 +24,7 @@ export function createGlow(scene: Scene) {
     mesh.frustumCulled = false; // the geometry is replaced; a stale bounding sphere would cull a patch that is on screen
     mesh.renderOrder = 2;
     scene.add(mesh);
-    return { mesh, mat, key: "", room: -1, faces: [] as { a: Pt; b: Pt; z0: number; z1: number }[] };
+    return { mesh, mat, key: "", room: -1, reach: GLOW_REACH, faces: [] as { a: Pt; b: Pt; z0: number; z1: number }[] };
   });
   return {
     /** Puts the lamps in the slots (the same order as the pools); the slots left over are hidden. A slot is rebuilt only when its lamp or the drawn walls (`version`) changed. */
@@ -32,17 +32,18 @@ export function createGlow(scene: Scene) {
       slots.forEach((slot, i) => {
         const p = specs[i];
         if (!p) { slot.mesh.visible = false; slot.key = ""; slot.room = -1; slot.faces = []; return; }
-        const key = JSON.stringify([p.at, p.lampZ, p.room, p.rgb, p.level, p.boost, p.base, version]);
+        const scale = p.scale ?? 1, reach = GLOW_REACH * scale, key = JSON.stringify([p.at, p.lampZ, p.room, p.rgb, p.level, p.boost, p.base, version, scale]);
         slot.room = p.room;
         if (key === slot.key) { slot.mesh.visible = slot.faces.length > 0 && !muted; return; }
         slot.key = key;
         const strength = 0.5 * Math.max(0, Math.min(1, p.level)) * p.boost * GLOW_GAIN, pos: number[] = [], col: number[] = [], index: number[] = [];
         slot.faces = [];
+        slot.reach = reach;
         for (const f of sides) {
           const lit = facing(f.a as never, f.b as never, f.s, p.base, p.at as never, rooms, p.room);
           if (!lit) continue;
           for (const span of lit.spans) {
-            const g = glowGrid(f.a as never, f.b as never, lit.n, f.z0, f.z1, p.at as never, p.lampZ, GLOW_REACH, GLOW_LIFT, span);
+            const g = glowGrid(f.a as never, f.b as never, lit.n, f.z0, f.z1, p.at as never, p.lampZ, reach, GLOW_LIFT, span);
             if (!g) continue;
             const base = pos.length / 3;
             pos.push(...g.pos);
@@ -64,7 +65,7 @@ export function createGlow(scene: Scene) {
     /** For the tests: hides the patches so a test can tell them from the pool light that also reaches the walls. */
     mute(on: boolean) { muted = on; for (const s of slots) s.mesh.visible = s.faces.length > 0 && !on; },
     /** For the tests: which room each slot lights, the stretches of faces it covers, and its vertices (x, up, plan y, flat). */
-    info: () => slots.map((s) => ({ room: s.room, visible: s.mesh.visible, faces: s.faces, pos: Array.from(s.mesh.geometry.getAttribute("position")?.array ?? []) })),
+    info: () => slots.map((s) => ({ room: s.room, visible: s.mesh.visible, reach: s.reach, faces: s.faces, pos: Array.from(s.mesh.geometry.getAttribute("position")?.array ?? []) })),
     dispose() { for (const s of slots) { scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mat.dispose(); } },
   };
 }

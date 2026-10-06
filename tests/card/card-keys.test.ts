@@ -255,7 +255,7 @@ describe("card keys are remembered like any other touch", () => {
     hover(el);
     press("ArrowRight");
     await settle(el);
-    expect(stored()[0].rotation).toBe(45);
+    expect(stored()[0].floors[0][1].rotation).toBe(45);
   });
 
   it("a zoom by key is in storage within 200 ms", async () => {
@@ -264,7 +264,7 @@ describe("card keys are remembered like any other touch", () => {
     hover(el);
     press("ArrowUp");
     await vi.advanceTimersByTimeAsync(200);
-    expect(stored()[0]?.zoom).toBeGreaterThan(1);
+    expect((stored()[0]?.floors as [string, { zoom?: number }][] | undefined)?.[0]?.[1].zoom).toBeGreaterThan(1);
   });
 });
 

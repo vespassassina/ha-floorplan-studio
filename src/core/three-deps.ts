@@ -7,7 +7,7 @@ import {
   DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, KERB_OUT, OPENING_FILL, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH,
   stairBlocks, turnAbout, tvPlacement, within,
 } from "./solids";
-import { DEVICE_TYPES, ROOM_KINDS, WALL_KINDS } from "./schema";
+import { DEVICE_TYPES, fxScale, ROOM_KINDS, WALL_KINDS } from "./schema";
 import { doorStateOf } from "./door-state";
 import { textureTile } from "./textures";
 import type { LiveDeps } from "./live-build";
@@ -21,7 +21,7 @@ export const sceneDeps: SceneDeps = {
   DEVICE_TYPES, ROOM_KINDS, WALL_KINDS,
 };
 export const liveDeps: LiveDeps = {
-  acMode, attachedTest, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, polyCentre, roomAt, roomReadout, ROOM_OWNS, doorStateOf,
+  acMode, attachedTest, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, polyCentre, roomAt, roomReadout, ROOM_OWNS, doorStateOf, fxScale,
 };
 export const textureDeps = { texture: textureTile };
 export type TextureDeps = typeof textureDeps;

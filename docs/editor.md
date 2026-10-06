@@ -72,7 +72,9 @@ A plug's panel has a Power sensor picker: the `sensor.*` of device class
 more. Placing a plug (Add, a room's area, the catalog) fills the picker when its
 Home Assistant device has exactly one power sensor; with two or none it stays
 empty and you pick. Empty also means the card looks for the sibling itself at
-runtime. One pick is one undo step; picking the same sensor again is none.
+runtime. One pick is one undo step; picking the same sensor again is none. The same sensor tints
+the plug in the card by its draw (card options `plug_heat_from` and `plug_heat_to`); the
+editor's own plan shows no live state, so the tint is for the card.
 
 ![The Living light selected: its panel shows type, entity, rotation, and what powers it.](img/editor-device-panel.png)
 
@@ -95,6 +97,13 @@ Junk is refused with the reason.
   (default 100 cm; 30 cm when it stands free); a speaker's cabinet is a fixed
   20 x 20 x 30 cm and ignores it, but its icon rides it: 30 cm (the top of the
   cabinet) by default, or the height you set.
+- **Device**, effect size (%) — on the devices that draw an effect (a light, a
+  speaker, a media player, a motion or contact sensor, and any device whose
+  entity is a `siren.*`): how big its aura, rings or waves are, 25 to 300, as a
+  percent of the type's own size. Empty is 100, shown as the placeholder; a
+  value outside the range is clamped and the status line says so. One undo step;
+  empty removes the key. The editor draws no live state, so the effect shows in
+  the card; the field is there so the layout carries the size.
 
 Stairs take the floor's height as their rise, and a structure line is flat.
 A stair has a Direction select: Auto (shown with what it resolves to on this
@@ -168,6 +177,14 @@ room, one undo step, ready to drag to their real place.
    unplaced, so it can't be placed a second time next to what already reads
    it. Detach it again (Remove, or clear the cover) and it goes back to
    `Device`, not back onto the plan.
+   **Room scenes.** A room's panel has a *Scenes* section (S14.7), on the kinds that take sensors. *Add scene* makes "Scene 1" with
+   every light and switch drawn in the room, on. Each scene has a name, one row per light or switch (On or Off, and for a light that
+   is on an optional brightness 1 to 100 %; empty leaves the brightness alone), a Remove per row, an *add to scene* menu for the
+   room's other lights and switches, and *Delete scene*. At most 12 scenes of 40 items. With Home Assistant connected the panel names
+   the scenes of the room's area (the card lists them by itself) and *also offer* adds a scene from elsewhere to the room's
+   `haScenes`. Every press, pick or change of a field is one undo step; the same value again is none. The studio does not read the
+   lights' live state, so a scene is built from the list, not captured from the lamps. The card shows the result as buttons
+   (docs/card.md, Picking a room).
    **Room sensors.** A room's panel has a *Sensors* section: temperature,
    humidity and motion pickers, the same as a door's contact sensors. Each lists
    only its own kind of entity (a `sensor` of class temperature or humidity; a

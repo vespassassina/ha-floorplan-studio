@@ -6,8 +6,8 @@ import { execFileSync } from "node:child_process";
 
 /** gzip -9 of dist/floorplan-studio-card.js built from the commit before the 3D work (36b22c4, the 0.13.x card), 2026-10-05. */
 const PRE_3D_CARD = 90780;
-const CARD_GROWTH_LIMIT = 5120;
-const CHUNK_LIMIT = 200000;
+const CARD_GROWTH_LIMIT = 24220; // card file ≤ 115,000 gz (Diego, 2026-10-06)
+const CHUNK_LIMIT = 233000; // Diego, 2026-10-06
 /** The size `gzip -9` gives, the figure this budget is written in (node's zlib at level 9 differs by about 0.3 percent). */
 const gz = (file: string) => execFileSync("gzip", ["-9", "-c"], { input: readFileSync(file), maxBuffer: 1 << 26 }).length;
 
