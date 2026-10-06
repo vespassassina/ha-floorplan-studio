@@ -56,9 +56,9 @@ describe("classOf for a plug: active only while it draws power", () => {
   it("switch off is off, whatever the sensor says", () => {
     expect(run("off", watts("500"))).toBe("off");
   });
-  it("switch unavailable or unknown stays unavailable", () => {
-    expect(run("unavailable", watts("500"))).toBe("unavailable");
-    expect(run("unknown", watts("500"))).toBe("unavailable");
+  it("switch unavailable or unknown reads as off, whatever the sensor says", () => {
+    expect(run("unavailable", watts("500"))).toBe("off");
+    expect(run("unknown", watts("500"))).toBe("off");
   });
   it("switch on, power unknown, unavailable, junk, another unit or not in the overlay: still on (a flaky sensor must not hide a plug)", () => {
     for (const p of [watts("unavailable"), watts("unknown"), watts("lots"), watts("50", "A"), undefined]) expect(run("on", p), JSON.stringify(p)).toBe("on");

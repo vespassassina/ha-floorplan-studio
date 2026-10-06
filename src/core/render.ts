@@ -532,8 +532,7 @@ const dead = (s: string) => s === "unavailable" || s === "unknown";
 function boundClassOf(d: Device, o: RenderOpts): Cls {
   const seen = [o.state?.[d.entity], d.bound ? o.state?.[d.bound] : undefined].filter((s) => s !== undefined);
   if (seen.some((s) => s.state === "on")) return "on";
-  if (seen.length && seen.every((s) => dead(s.state))) return "unavailable";
-  return "off";
+  return "off"; // Diego, 2026-10-06: a dead light or switch reads as off, not as a dimmed ghost
 }
 
 /** A light that is on takes its icon fill from `attributes.rgb_color` when present; unset otherwise, so `.dev.on path`'s `var(--fp-dev-fill,var(--fp-on))` falls through to the flat colour. Untrusted `state`: a malformed value is silently ignored, not thrown on. */
@@ -616,7 +615,7 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   if (d.type === "light" && d.bound) return boundClassOf(d, o);
   const s = o.state?.[d.entity];
   if (!s) return "off";
-  if (s.state === "unavailable" || s.state === "unknown") return "unavailable";
+  if (dead(s.state)) return d.type === "light" || d.type === "switch" || d.type === "plug" ? "off" : "unavailable";
   if (d.type === "ac") return acMode(d, o) ? "on" : "off";
   if (d.type === "plug") return plugOn(d, o, s) ? "on" : "off";
   if (d.type === "climate" || d.type === "heater") return s.attributes.hvac_action === "heating" ? "on" : "off";
