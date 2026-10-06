@@ -13,7 +13,7 @@ const POOL_LIFT = 0.6, RING_LIFT = 1;
 /** cm. The motion edge: a band this far in from the room's outline (past the wall), this wide. */
 export const EDGE_FROM = 12, EDGE_TO = 22;
 
-export interface PoolSpec { at: readonly [number, number]; z: number; base: Poly; rgb: Rgb; level: number; room: number; boost: number }
+export interface PoolSpec { at: readonly [number, number]; z: number; base: Poly; rgb: Rgb; level: number; room: number; boost: number; /** S14.3: the lamp's effect size as a fraction (1 = 100 %); the pool reaches `POOL_REACH` times it. */ scale?: number }
 
 /** `MAX_POOLS` flat discs of light, made once and moved: a lamp that turns on or off changes numbers, never the scene's children. */
 export function createPools(scene: Scene) {
@@ -34,7 +34,7 @@ export function createPools(scene: Scene) {
     mesh.frustumCulled = false; // the vertices move; a stale bounding sphere would cull a pool that is on screen
     mesh.renderOrder = 2;
     scene.add(mesh);
-    return { mesh, geo, mat, key: "", room: -1, colour: "#000000", strength: 0 };
+    return { mesh, geo, mat, key: "", room: -1, colour: "#000000", strength: 0, reach: POOL_REACH, extent: 0 };
   });
   return {
     /** Puts the lamps in the slots, nearest first; the slots left over are hidden. Only a slot whose lamp changed is touched. */
@@ -42,7 +42,7 @@ export function createPools(scene: Scene) {
       slots.forEach((s, i) => {
         const p = specs[i];
         if (!p) { s.mesh.visible = false; s.key = ""; s.room = -1; return; }
-        const key = JSON.stringify([p.at, p.z, p.room, p.rgb, p.level, p.boost, p.base]);
+        const scale = p.scale ?? 1, key = JSON.stringify([p.at, p.z, p.room, p.rgb, p.level, p.boost, p.base, scale]);
         s.mesh.visible = true;
         s.room = p.room;
         if (key === s.key) return;
@@ -51,18 +51,21 @@ export function createPools(scene: Scene) {
         const strength = 0.5 * Math.max(0, Math.min(1, p.level)) * p.boost, y = p.z + POOL_LIFT;
         pos.setXYZ(0, p.at[0], y, p.at[1]);
         col.setXYZ(0, p.rgb[0] * strength, p.rgb[1] * strength, p.rgb[2] * strength);
+        const reach = POOL_REACH * scale;
+        let extent = 0;
         for (let r = 0; r < RAYS; r++) {
           const ang = (r / RAYS) * Math.PI * 2, dx = Math.cos(ang), dy = Math.sin(ang);
           // The wall stops the light: the ray is shortened until its end lies in the room (exact for a room the lamp sees whole).
           let t = 1;
-          if (!inPoly(p.base, p.at[0] + dx * POOL_REACH, p.at[1] + dy * POOL_REACH)) {
+          if (!inPoly(p.base, p.at[0] + dx * reach, p.at[1] + dy * reach)) {
             let lo = 0, hi = 1;
-            for (let c = 0; c < CLIP_STEPS; c++) { const m = (lo + hi) / 2; if (inPoly(p.base, p.at[0] + dx * POOL_REACH * m, p.at[1] + dy * POOL_REACH * m)) lo = m; else hi = m; }
+            for (let c = 0; c < CLIP_STEPS; c++) { const m = (lo + hi) / 2; if (inPoly(p.base, p.at[0] + dx * reach * m, p.at[1] + dy * reach * m)) lo = m; else hi = m; }
             t = lo;
           }
           for (let k = 1; k <= RINGS; k++) {
-            const f = k / RINGS, len = POOL_REACH * t * f, v = 1 + (k - 1) * RAYS + r, fall = (1 - f) * (1 - f) * strength;
+            const f = k / RINGS, len = reach * t * f, v = 1 + (k - 1) * RAYS + r, fall = (1 - f) * (1 - f) * strength;
             pos.setXYZ(v, p.at[0] + dx * len, y, p.at[1] + dy * len);
+            if (len > extent) extent = len;
             col.setXYZ(v, p.rgb[0] * fall, p.rgb[1] * fall, p.rgb[2] * fall);
           }
         }
@@ -70,9 +73,11 @@ export function createPools(scene: Scene) {
         col.needsUpdate = true;
         s.colour = `#${new Color(p.rgb[0], p.rgb[1], p.rgb[2]).getHexString()}`;
         s.strength = strength;
+        s.reach = reach;
+        s.extent = extent;
       });
     },
-    info: () => slots.map((s) => ({ room: s.room, visible: s.mesh.visible, colour: s.colour, opacity: s.strength })),
+    info: () => slots.map((s) => ({ room: s.room, visible: s.mesh.visible, colour: s.colour, opacity: s.strength, reach: s.reach, extent: s.extent })),
     visible: () => slots.filter((s) => s.mesh.visible).length,
     dispose() { for (const s of slots) { scene.remove(s.mesh); s.geo.dispose(); s.mat.dispose(); } },
   };

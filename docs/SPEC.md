@@ -205,6 +205,19 @@ in `prompts/`, then fixed in the editor.
   it in when it places a plug whose HA device has exactly one power sensor,
   and the card does the same at runtime; with no sensor a plug is active
   whenever its switch is on.
+- `device.fx` (optional, S14.3): the size of the effect the device draws, in percent of its
+  type's own size: 25 to 300, absent is 100. A lit light's aura (and its floor pool and wall
+  light in 3D), a playing speaker's or media device's two waves, a triggered motion or contact
+  sensor's ring, and a siren's rings all scale with it; each type keeps its own base size, so
+  100 is today's pixels and a layout without the field is drawn byte for byte as before. A
+  device that draws no effect ignores it (`FX_TYPES` in `schema.ts` lists the types). `validate`
+  refuses anything but a finite number in [25, 300]; `migrate` drops a value that is not. No
+  schema bump: it is optional, and an older card ignores it.
+- A **siren** is any device whose `entity` is in HA's `siren` domain, whatever its `type`. While
+  it is on it sends out two rings in the danger colour, with twice the reach of a speaker's
+  waves (4.8 against 2.4 times the icon at the end of the beat), a thicker line and a faster
+  beat (1 s against 1.6 s). Under reduced motion the rings hold still at 3 times the icon, not
+  1.5, so the siren still reads louder. `fx` scales it like the other effects.
 - `device.motion` (lights only, optional, S8.7): the motion sensor or motion
   group entity this light was linked to through the editor's own "Turn on
   with... Create automation" flow. It records the link for the panel to show

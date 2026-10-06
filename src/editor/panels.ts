@@ -1,7 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";
-import { DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
+import { DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
@@ -143,17 +143,25 @@ function number(c: PanelCtx, label: string, id: string, value: number | string, 
  * and the field goes back. `apply` gets the number, or undefined to remove it.
  */
 function heightField(c: PanelCtx, label: string, id: string, cur: unknown, fallback: number, apply: (n: number | undefined) => void) {
+  return optionalField(c, label, id, cur, fallback, apply, { noun: "a height", min: 0, max: MAX_HEIGHT, how: `cm from 0 to ${MAX_HEIGHT}`, unit: "cm" });
+}
+/** S14.3: the effect size of a device, a percent from `FX_MIN` to `FX_MAX`; empty removes it and the type's own size (100) applies. */
+const fxField = (c: PanelCtx, cur: unknown, apply: (n: number | undefined) => void) =>
+  optionalField(c, "effect size (%)", "vfx", cur, 100, apply, { noun: "an effect size", min: FX_MIN, max: FX_MAX, how: `a percent from ${FX_MIN} to ${FX_MAX}`, unit: "%" });
+/** The one optional-number field behind heights and the effect size: empty removes it, junk is refused with the reason, a value out of range is clamped and says so. */
+function optionalField(c: PanelCtx, label: string, id: string, cur: unknown, fallback: number, apply: (n: number | undefined) => void,
+  r: { noun: string; min: number; max: number; how: string; unit: string }) {
   const shown = typeof cur === "number" && Number.isFinite(cur) ? String(cur) : "";
   const on = (e: Event) => {
     const raw = (e.target as Input).value.trim();
     if (raw === "") apply(undefined);
     else {
       const n = Number(raw.replace(",", "."));
-      if (!Number.isFinite(n)) c.say(`"${raw}" is not a height. Use cm from 0 to ${MAX_HEIGHT}, or clear the field for the default ${fallback}. Kept ${shown || `the default ${fallback}`}.`);
+      if (!Number.isFinite(n)) c.say(`"${raw}" is not ${r.noun}. Use ${r.how}, or clear the field for the default ${fallback}. Kept ${shown || `the default ${fallback}`}.`);
       else {
-        const k = Math.min(MAX_HEIGHT, Math.max(0, n));
+        const k = Math.min(r.max, Math.max(r.min, n));
         apply(k);
-        if (k !== n) c.say(`${raw} cm is outside 0 to ${MAX_HEIGHT}; used ${k}.`); // after apply: an edit sets its own "Edited"
+        if (k !== n) c.say(`${raw} ${r.unit} is outside ${r.min} to ${r.max}; used ${k}.`); // after apply: an edit sets its own "Edited"
       }
     }
     c.refresh();
@@ -788,6 +796,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${areaDiffField(c, i)}
     ${heading("Appearance")}
     ${heightField(c, "mount height (cm)", "vz", d.z, DEVICE_Z[d.type] ?? 100, heightSetter(c, "devices", i, "z"))}
+    ${drawsEffect(d) ? fxField(c, d.fx, heightSetter(c, "devices", i, "fx")) : nothing}
     ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}
     ${hasAutomations ? heading("Automations") : nothing}
     ${c.makeLight && c.st.canMakeLight(i) ? html`<p>${button("vmklight", "Create a light from this switch", () => c.makeLight!(i))}</p>${hint("Wraps this switch in a new HA light entity.")}` : nothing}

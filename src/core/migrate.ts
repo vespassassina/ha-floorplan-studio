@@ -1,5 +1,5 @@
 import { stairSteps } from "./geometry";
-import type { CatalogEntry, Device, DeviceType, Layout, Pt } from "./schema";
+import { FX_MIN, FX_MAX, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
 
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const KINDS: [string, string][] = [["rooms", "room"], ["walls", "wall"], ["stairs", "stairs"], ["doors", "door"], ["openings", "opening"], ["extras", "extra"], ["furniture", "furniture"], ["unlinked", "unlinked"]];
@@ -37,6 +37,11 @@ function dropBadHeights(f: any) {
   const bad = (v: unknown) => !(typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1000);
   for (const k of ["height", "slab"]) if (k in f && bad(f[k])) delete f[k];
   for (const [list, keys] of HEIGHT_KEYS) for (const o of f[list]) for (const k of keys) if (k in o && bad(o[k])) delete o[k];
+}
+
+/** S14.3: an effect size outside 25-300 (or not a number) is dropped, so the device draws at 100 and the file opens. */
+function dropBadFx(f: any) {
+  for (const d of f.devices) if ("fx" in d && !(typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX)) delete d.fx;
 }
 
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -83,7 +88,7 @@ export function migrate(x: unknown): Layout {
       d.id = d.id ?? `${d.type}-${fname}-${i + 1}`;
       return d;
     });
-    dropBadHeights(f);
+    dropBadHeights(f); dropBadFx(f);
     Object.defineProperty(floors, fname, { value: f, enumerable: true, writable: true, configurable: true });
   }
   const out: any = { version: 2, unit: "cm", north: src.north ?? 0, rotate: src.rotate ?? 0, floors, catalog: src.catalog };

@@ -2,7 +2,7 @@ import { DEVICE_ICONS, FURNITURE } from "./icons";
 import { dist, edgeKindsNear, stairSteps } from "./geometry";
 import { stairMarks } from "./stair-marks";
 import { resolveStairDirection, type FloorsAround } from "./stairs";
-import { DEVICE_TYPES, MAX_TRACE_BYTES, MOTION_TYPES, TRACE_SRC } from "./schema";
+import { DEVICE_TYPES, drawsEffect, fxScale, isSiren, MAX_TRACE_BYTES, MOTION_TYPES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
 import { esc, num, pts, tag } from "./fmt";
@@ -331,7 +331,7 @@ export const FLOORPLAN_CSS = `
 .dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
-.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}
+.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}
 /* S7.10: an error vacuum wears --fp-danger on its icon, two classes ahead of the plain idle-grey .dev path rule above. */
 .dev.danger path{fill:var(--fp-danger)}
 /* S4.25: an unlinked item has no on/off state of its own, so it never carries .on — it stays at the plain .dev
@@ -345,7 +345,7 @@ export const FLOORPLAN_CSS = `
    colour, and a ring pulses out from under it. An open contact door gets a wide pulsing line under its own. */
 .dev-motion.on .halo,.dev-contact.on .halo{fill-opacity:.6;stroke:var(--fp-dev);stroke-width:2}
 .ping{fill:none;stroke:var(--fp-dev);stroke-width:3;vector-effect:non-scaling-stroke;pointer-events:none;transform-box:fill-box;transform-origin:center;animation:fp-ping 1.6s ease-out infinite}
-@keyframes fp-ping{from{transform:scale(1);opacity:.9}to{transform:scale(2.2);opacity:0}}
+@keyframes fp-ping{from{transform:scale(1);opacity:.9}to{transform:scale(calc(1 + 1.2*var(--fp-fx,1)));opacity:0}}
 .door-alert{stroke:var(--fp-open-door);stroke-opacity:.45;stroke-linecap:butt;pointer-events:none;animation:fp-door 1.6s ease-in-out infinite alternate}
 @keyframes fp-door{from{stroke-opacity:.2}to{stroke-opacity:.6}}
 /* S9.4: a playing speaker or media device sends out two arcs from under its disc, the same pattern as the ping above
@@ -359,8 +359,12 @@ export const FLOORPLAN_CSS = `
    dropped below): the ".dev.on path{fill:...}" rule above only ever matches a <path>, never a <circle>. */
 .wave{fill:none;stroke:var(--fp-dev);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none;transform-box:fill-box;transform-origin:center;animation:fp-wave 1.6s ease-out infinite}
 .wave.w2{animation-delay:.8s}
-@keyframes fp-wave{from{transform:scale(1);opacity:.8}to{transform:scale(2.4);opacity:0}}
-@media (prefers-reduced-motion:reduce){.ping,.door-alert,.wave{animation:none}.ping,.wave{transform:scale(1.5);opacity:.6}}
+@keyframes fp-wave{from{transform:scale(1);opacity:.8}to{transform:scale(calc(1 + 1.4*var(--fp-fx,1)));opacity:0}}
+/* S14.3 (spec item 6): a siren's rings are the speaker's again, twice the radius at the end (4.8 against 2.4), a thicker line, a faster beat. */
+.siren-ring{fill:none;stroke:var(--fp-dev);stroke-width:3.5;vector-effect:non-scaling-stroke;pointer-events:none;transform-box:fill-box;transform-origin:center;animation:fp-siren 1s ease-out infinite}
+.siren-ring.w2{animation-delay:.5s}
+@keyframes fp-siren{from{transform:scale(1);opacity:1}to{transform:scale(calc(1 + 3.8*var(--fp-fx,1)));opacity:0}}
+@media (prefers-reduced-motion:reduce){.ping,.door-alert,.wave,.siren-ring{animation:none}.ping,.wave{transform:scale(calc(1 + .5*var(--fp-fx,1)));opacity:.6}.siren-ring{transform:scale(calc(1 + 2*var(--fp-fx,1)));opacity:.8}}
 .dev.unavailable{opacity:.45}
 .dev.dim{opacity:.3}
 /* S7.8: a person glides to the room its room sensor names. The position is an inline CSS transform, not an attribute, so
@@ -470,7 +474,7 @@ export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt
   const cx = content.map((p) => p[0]), cy = content.map((p) => p[1]);
   const near = (c: Pt, r: number) => c[0] >= Math.min(...cx) - r && c[0] <= Math.max(...cx) + r && c[1] >= Math.min(...cy) - r && c[1] <= Math.max(...cy) + r;
   for (const d of f.devices) {
-    const r = d.type === "light" ? LIGHT_REACH : d.type === "camera" ? DEVICE_REACH : 0;
+    const r = d.type === "light" ? LIGHT_REACH * fxScale(d) : d.type === "camera" ? DEVICE_REACH : 0;
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (r && c.every(Number.isFinite) && near(c, r)) boxes.push([turn(c), r]);
   }
@@ -879,7 +883,7 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
     // Value sensors in a garden room are outdoor sensors. Motion and contact keep their own state colours.
     const outdoor = (d.type === "temp" || d.type === "humidity") && f.rooms.some((r) => r.kind === "garden" && inside(floorAt, r.pts));
     const base = classOf(d, o), person = d.type === "person";
-    const cls = base + (outdoor ? " outdoor" : "") + personClass(d, o, base) + vacuumSpinClass(d, o);
+    const cls = base + (outdoor ? " outdoor" : "") + personClass(d, o, base) + vacuumSpinClass(d, o) + (isSiren(d) && base === "on" ? " siren" : "");
     const s = o.state?.[d.entity];
     const style: string[] = [];
     if (d.type === "motion" && s) {
@@ -894,6 +898,9 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
       const opacity = lightOpacity(s);
       if (opacity !== null) style.push(`--fp-dev-opacity:${num(opacity)}`);
     }
+    // S14.3: the effect size, a fraction the rings and waves read (`--fp-fx`, default 1 in the stylesheet). Written only when it
+    // changes something, so a layout that never sets it is drawn byte for byte as before.
+    if (drawsEffect(d) && fxScale(d) !== 1) style.push(`--fp-fx:${num(fxScale(d))}`);
     // S7.8: an away person carries a small grey dot on the disc's edge, so away reads without relying on the fade alone.
     const mark = person && cls.endsWith(" away") ? `<circle class="away-mark" cx="23" cy="1" r="4.5"/>` : "";
     // S8.13: a triggered motion or contact sensor sends out a ring from under its disc, so it reads at a glance.
@@ -913,7 +920,12 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
       ? `<circle class="wave" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
         `<circle class="wave w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
       : "";
-    const icon = `${ping}${wave}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
+    // S14.3 (spec item 6): a siren that is on sends out two rings, twice the radius of a speaker's and a harder pulse; same circle trick as the waves.
+    const siren = isSiren(d) && base === "on"
+      ? `<circle class="siren-ring" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
+        `<circle class="siren-ring w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
+      : "";
+    const icon = `${ping}${wave}${siren}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
   return { cls, base, style, icon, s };
 }
 
@@ -1040,6 +1052,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const c = iconAt(d, floorAt); // the aura hangs with the lamp, not on the floor under it
     const fill = lightFill(o.state?.[d.entity]);
     const style = fill ? ` style="--fp-aura:${fill}"` : "";
+    const reach = num(LIGHT_REACH * fxScale(d)); // S14.3: the lamp's own effect size; 150 at the default
     // The light stays in the room it hangs in: clipped to the smallest real room holding the lamp (`roomAt`: a zone, a structure
     // and a fill are not rooms; a lamp in no room, a garden lamp say, keeps the free circle). The clip is the floor polygon.
     const holder = roomAt(f, floorAt), own = holder < 0 ? null : ring(f.rooms[holder]);
@@ -1048,10 +1061,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const lift = c[0] !== floorAt[0] || c[1] !== floorAt[1] ? ` transform="translate(${at([c[0] - floorAt[0], c[1] - floorAt[1]])})"` : "";
       const cid = `fp-aura-${tag(`${pts(own)}${lift}`)}`;
       out.push(`<clipPath id="${cid}"${lift}><polygon points="${pts(own)}"/></clipPath>`);
-      out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${LIGHT_REACH}" clip-path="url(#${cid})"${style}/>`);
+      out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" clip-path="url(#${cid})"${style}/>`);
       return;
     }
-    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${LIGHT_REACH}"${style}/>`);
+    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}"${style}/>`);
   });
 
   const polys: { id: string; pts: Pt[]; wk?: EdgeKind[]; zone?: boolean }[] = [{ id: "o", pts: f.outline, wk: f.owk }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, wk: r.wk, zone: r.kind === "zone" }))];

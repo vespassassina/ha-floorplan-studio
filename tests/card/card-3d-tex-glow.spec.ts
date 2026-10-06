@@ -9,10 +9,10 @@ import { textureDeps } from "../../src/core/three-deps";
 // Pixels come from real screenshots; what is drawn (a map, a patch of glow) is read from the hook.
 
 interface Tex { id: string; rot: number; scale: number; tileCm: [number, number]; hasMap: boolean; wrap: [number, number]; srgb: boolean; anisotropy: number; verts: number; first: { x: number; y: number; u: number; v: number }[] }
-interface Glow { room: number; visible: boolean; faces: { a: [number, number]; b: [number, number]; z0: number; z1: number }[]; pos: number[] }
+interface Glow { room: number; visible: boolean; reach: number; faces: { a: [number, number]; b: [number, number]; z0: number; z1: number }[]; pos: number[] }
 interface Hook {
   textured(): Tex[];
-  live(): { glow: Glow[]; lifted: number[] };
+  live(): { glow: Glow[]; lifted: number[]; pools: { visible: boolean; room: number; reach: number; extent: number }[] };
   memory(): { geometries: number; textures: number };
   project(x: number, y: number, z: number): { x: number; y: number };
   look(az: number, polar: number): void;
@@ -324,5 +324,41 @@ test.describe("3D view: the lamp's light on the walls (S13)", () => {
     await setStates(page, LIVING_ON());
     const kAfter = meanLuma((await lumaOf(page, patch(k, 5))).l);
     expect(Math.abs(kAfter - kBefore)).toBeLessThanOrEqual(1.5);
+  });
+});
+
+test.describe("3D view: the lamp's effect size (S14.3)", () => {
+  // The living lamp stands at (250,200) in a 500 x 400 room: 200 cm from the north and south walls, 250 from the east and west.
+  // Its floor pool reaches 220 cm at 100 % and its wall light 300; `fx` scales both, a wall still cuts them short.
+  const read = async (page: Page, fx?: number) => {
+    const layout = structuredClone(demo);
+    if (fx !== undefined) (layout.floors.ground.devices[0] as { fx?: number }).fx = fx;
+    await boot(page, layout, { walls: "full" }, LIVING_ON());
+    const live = await hook(page, (h) => h.live());
+    const pool = live.pools.filter((p) => p.visible);
+    const g = live.glow[0]; // the lamp's slot, whether or not a wall is within its reach
+    expect(pool.length).toBe(1);
+    let far = 0; // the farthest a patch vertex lies from the lamp, on the plan
+    for (let i = 0; i < g.pos.length; i += 3) far = Math.max(far, Math.hypot(g.pos[i] - 250, g.pos[i + 2] - 200));
+    return { pool: pool[0], reach: g.reach, far, lit: g.visible };
+  };
+
+  test("the floor pool and the wall light reach 50 % / 100 % / 300 % of their own size; a wall still cuts them short", async ({ page }) => {
+    const half = await read(page, 50), same = await read(page), big = await read(page, 300);
+    expect([half.pool.reach, same.pool.reach, big.pool.reach]).toEqual([110, 220, 660]);
+    expect([half.reach, same.reach, big.reach]).toEqual([150, 300, 900]);
+    expect(half.pool.extent).toBeCloseTo(110, 3); // nothing in the way
+    expect(same.pool.extent).toBeCloseTo(220, 3); // the room is 250 wide to each side: still nothing in the way
+    expect(big.pool.extent).toBeGreaterThan(300); // reaches the corners of the room ...
+    expect(big.pool.extent).toBeLessThanOrEqual(Math.hypot(250, 200) + 0.5); // ... and no further
+    expect(half.lit).toBe(false); // 150 cm from a lamp that is 200 cm from its nearest wall: no wall is lit
+    expect([same.lit, big.lit]).toEqual([true, true]);
+    expect(same.far).toBeGreaterThan(220);
+    expect(big.far).toBeGreaterThan(same.far);
+  });
+
+  test("a layout with fx 100 draws the same as one without", async ({ page }) => {
+    const a = await read(page), b = await read(page, 100);
+    expect(b).toEqual(a);
   });
 });
