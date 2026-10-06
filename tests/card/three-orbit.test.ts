@@ -176,3 +176,67 @@ describe("Orbit with numbers too large for a camera", () => {
     expect(make().finite).toBe(true);
   });
 });
+
+describe("Orbit state and restore: the camera a floor is left with (S14.4)", () => {
+  /** A camera the user has moved on all four axes, with asymmetric numbers. */
+  const moved = () => { const o = make(); o.rotate(-130, 40); o.zoom(0.6); o.pan(90, -30, 600); return o; };
+
+  it("state is the camera as numbers that survive another size of view: the distance as a multiple of the framing one", () => {
+    const o = moved(), s = o.state();
+    expect(s.az).toBeCloseTo(o.azimuth, 10);
+    expect(s.polar).toBeCloseTo(o.polar, 10);
+    expect(s.zoom).toBeCloseTo(o.distance / o.framing, 10);
+    expect(s.dx).toBeCloseTo(o.target[0] - 500, 6); // the centre of the 1000 x 800 house
+    expect(s.dz).toBeCloseTo(o.target[2] - 400, 6);
+  });
+
+  it("restore puts a fresh camera exactly where the old one stood", () => {
+    const a = moved(), s = a.state(), b = make();
+    b.restore(s);
+    expect(b.azimuth).toBeCloseTo(a.azimuth, 10);
+    expect(b.polar).toBeCloseTo(a.polar, 10);
+    expect(b.distance).toBeCloseTo(a.distance, 6);
+    expect(b.target[0]).toBeCloseTo(a.target[0], 6);
+    expect(b.target[2]).toBeCloseTo(a.target[2], 6);
+    expect(b.target[1]).toBeCloseTo(a.target[1], 6); // pan never lifts the target
+  });
+
+  it("restore on another floor keeps the way of looking and the offset, in that floor's own frame", () => {
+    const small = { min: [0, 0, 0] as [number, number, number], max: [400, 300, 250] as [number, number, number] };
+    const b = new Orbit(small, 1.5, 40, 0);
+    b.restore({ az: 0.7, polar: 0.9, zoom: 0.5, dx: 20, dz: -10 });
+    expect(b.distance).toBeCloseTo(b.framing * 0.5, 6);
+    expect(b.target[0]).toBeCloseTo(220, 6);
+    expect(b.target[2]).toBeCloseTo(140, 6);
+  });
+
+  it("restore after the view changed size lands at the same multiple of the framing distance", () => {
+    const o = make(1.5);
+    o.restore({ az: 0, polar: 0.8, zoom: 0.5, dx: 0, dz: 0 });
+    o.setAspect(0.6);
+    expect(o.state().zoom).toBeCloseTo(o.distance / o.framing, 10); // read against the new framing
+    const p = make(0.6);
+    p.restore(o.state());
+    expect(p.distance).toBeCloseTo(o.distance, 6);
+  });
+
+  it("restore bounds what it is given: polar, distance and the offset stay inside what the camera allows; junk changes nothing", () => {
+    const o = make();
+    o.restore({ az: 0, polar: 99, zoom: 99, dx: 1e9, dz: -1e9 });
+    expect(o.polar).toBe(MAX_POLAR);
+    expect(o.distance).toBeCloseTo(o.framing * 4, 6);
+    expect(o.target[0]).toBeCloseTo(1000 + 500 + 100, 6); // the same limit a pan has: half the house and 100 cm past its edge
+    expect(o.target[2]).toBeCloseTo(0 - 400 - 100, 6);
+    const before = o.state();
+    for (const junk of [null, undefined, 7, "x", { az: NaN, polar: 1, zoom: 1, dx: 0, dz: 0 }, { az: 1 }] as never[]) o.restore(junk);
+    expect(o.state()).toEqual(before);
+  });
+
+  it("reset still goes to the first view after a restore", () => {
+    const o = make();
+    const first = o.state();
+    o.restore({ az: 2, polar: 1, zoom: 0.3, dx: 100, dz: 100 });
+    o.reset();
+    expect(o.state()).toEqual(first);
+  });
+});

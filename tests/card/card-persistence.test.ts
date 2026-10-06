@@ -71,7 +71,7 @@ describe("every touch is written soon", () => {
     await click(el, 'button[aria-label="Zoom in"]');
     expect(stored()).toEqual([]); // debounced: a burst writes once
     await vi.advanceTimersByTimeAsync(150);
-    expect(stored()[0]?.zoom).toBeGreaterThan(1);
+    expect((stored()[0]?.floors as [string, { zoom?: number }][] | undefined)?.[0]?.[1].zoom).toBeGreaterThan(1);
   });
 
   it("a hidden page flushes at once: a tab discarded in the background never fires pagehide", async () => {
@@ -82,7 +82,7 @@ describe("every touch is written soon", () => {
     Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
     document.dispatchEvent(new Event("visibilitychange"));
     delete (document as unknown as Record<string, unknown>).visibilityState;
-    expect(stored()[0]?.zoom).toBeGreaterThan(1);
+    expect((stored()[0]?.floors as [string, { zoom?: number }][] | undefined)?.[0]?.[1].zoom).toBeGreaterThan(1);
   });
 
   it("a visible page does not write on visibilitychange", async () => {

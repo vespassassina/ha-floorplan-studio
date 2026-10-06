@@ -17,7 +17,7 @@ import { viewKeyFor, type ViewKey } from "./view-keys";
 import type { View3D } from "./three/view3d";
 import type { Pick as Pick3D } from "./three/pick";
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
-import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type StoredView } from "./view-state";
+import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type FloorView, type StoredView } from "./view-state";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
 
@@ -389,6 +389,14 @@ export class FloorplanStudioCard extends LitElement {
   private _turnAngle = 0;
   /** A stored zoom and focus (plan cm) waiting for the first render, the first moment the fit box is known. */
   private _pendingView: { focus: Pt; zoom: number } | null = null;
+  /** S14.4: what the viewer left each floor looking like (2D zoom and spot, the turn, the 3D camera), by floor key. Kept
+   * in memory too, so a floor remembers even when storage is blocked. `_memFloor` is the floor the live view state
+   * (`_view`, `_pickedRot`, the camera) belongs to; `null` until the first render knows the floor. */
+  private _floorViews = new Map<string, FloorView>();
+  private _memFloor: string | null = null;
+  /** The floor key the 3D view's scene was built for, and whether the person moved its camera on that floor. */
+  private _view3dKey: string | null = null;
+  private _camMoved = false;
   /** The debounce timer for pan and zoom saves; non-null means there is something unsaved. */
   private _saveTimer: ReturnType<typeof setTimeout> | null = null;
   /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
@@ -474,6 +482,9 @@ export class FloorplanStudioCard extends LitElement {
     this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedRot = null;
     this._pendingView = null;
     this._shownFloor = null;
+    this._floorViews = new Map();
+    this._memFloor = null;
+    this._camMoved = false;
     let s: StoredView = {};
     try {
       const raw = globalThis.localStorage?.getItem(this._viewStorageKey());
@@ -487,9 +498,35 @@ export class FloorplanStudioCard extends LitElement {
     if (s.theme !== undefined) this._pickedTheme = s.theme as Theme;
     if (s.labels !== undefined) this._pickedLabels = s.labels;
     if (s.names !== undefined) this._pickedNames = s.names;
-    if (s.rotation !== undefined && s.rotation !== normaliseRotation(this._config.rotation)) this._pickedRot = s.rotation;
     if (s.floor !== undefined) this._shownFloor = s.floor; // an unknown id is ignored by _floorKey
-    if (s.zoom !== undefined && s.focus !== undefined) this._pendingView = { focus: s.focus, zoom: s.zoom };
+    for (const [k, fv] of s.floors ?? []) this._floorViews.set(k, fv); // the live fields follow once the first render knows the floor
+  }
+
+  /** Makes the live view state (zoom box, turn) the shown floor's own, when the shown floor is not the one it belongs
+   * to: on the first render, and on a floor switch. A floor with nothing remembered starts at the config's look. */
+  private _syncFloorMemory(): void {
+    const key = this._floorKey();
+    if (!key || key === this._memFloor) return;
+    const fv = this._floorViews.get(key);
+    this._pickedRot = fv?.rotation !== undefined && fv.rotation !== normaliseRotation(this._config.rotation) ? fv.rotation : null;
+    this._pendingView = fv?.zoom !== undefined && fv.focus ? { focus: fv.focus, zoom: fv.zoom } : null;
+    this._view = null;
+    this._memFloor = key;
+  }
+
+  /** The live view state of the shown floor, written into `_floorViews` (an empty one removes the entry). The 3D camera
+   * is read from the view only when the person has moved it on this floor; otherwise what was stored stays. */
+  private _stashFloor(): void {
+    const key = this._floorKey();
+    if (!key || key !== this._memFloor) return;
+    const fv: FloorView = {};
+    if (this._pickedRot !== null) fv.rotation = this._pickedRot;
+    const anchor = this._pendingView ?? this._anchorOfView();
+    if (anchor) { fv.zoom = anchor.zoom; fv.focus = anchor.focus; }
+    const cam = this._camMoved && this._view3d && this._view3dKey === key ? this._view3d.camera() : this._floorViews.get(key)?.cam;
+    if (cam) fv.cam = cam;
+    if (Object.keys(fv).length) this._floorViews.set(key, fv);
+    else this._floorViews.delete(key);
   }
 
   /** Writes what the person has chosen: only the picked fields, and the zoom and focus while zoomed. Nothing to
@@ -501,7 +538,6 @@ export class FloorplanStudioCard extends LitElement {
     }
     if (this._turn) return;
     const o: Record<string, unknown> = {};
-    if (this._pickedRot !== null) o.rotation = this._pickedRot;
     if (this._pickedView !== null) o.view = this._pickedView;
     if (this._pickedTilt !== null) o.tilt = this._pickedTilt;
     if (this._pickedWalls !== null) o.walls = this._pickedWalls;
@@ -509,9 +545,8 @@ export class FloorplanStudioCard extends LitElement {
     if (this._pickedLabels !== null) o.labels = this._pickedLabels;
     if (this._pickedNames !== null) o.names = this._pickedNames;
     if (this._shownFloor !== null) o.floor = this._shownFloor;
-    const pending = this._pendingView;
-    const anchor = pending ?? this._anchorOfView();
-    if (anchor) { o.zoom = anchor.zoom; o.focus = anchor.focus; }
+    this._stashFloor();
+    if (this._floorViews.size) o.floors = [...this._floorViews];
     try {
       const key = this._viewStorageKey();
       if (Object.keys(o).length) globalThis.localStorage?.setItem(key, JSON.stringify({ v: 1, ...o }));
@@ -1088,11 +1123,11 @@ export class FloorplanStudioCard extends LitElement {
    * floor already, not by which one is on screen (S2.4 review). */
   private _selectFloor(key: string): void {
     if (this._shownFloor === key) return;
+    this._settleTurn(false); // a turn in flight ends where it was going, under the floor it began on
+    this._saveViewNow(); // the floor just left keeps its zoom, turn and camera (S14.4)
     this._shownFloor = key;
     this._pickedRoom = null; // a room of the floor just left means nothing on this one
-    this._view = null;
-    this._pendingView = null;
-    if (this._turn) this._turn.anchor = null; // a zoom held for the old floor means nothing on this one
+    this._syncFloorMemory(); // and the floor now shown brings its own
     this._scheduleSave();
     this.requestUpdate();
   }
@@ -1277,9 +1312,11 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   private _dispose3d(): void {
+    if (this._view3d && this._camMoved) this._saveViewNow(); // the camera is read from the view: before it goes
     this._view3d?.dispose();
     this._view3d = null;
     this._view3dFloor = null;
+    this._view3dKey = null;
   }
 
   /** Brings the 3D view in line with what the card shows, after every render: loads the module on the first need, makes the
@@ -1299,6 +1336,7 @@ export class FloorplanStudioCard extends LitElement {
       try {
         this._view3d = lib3d.createView3D(host, {
           turnDeg: this._rotate()?.deg ?? 0,
+          onCamera: () => { this._camMoved = true; this._scheduleSave(); },
           deps: { scene: sceneDeps, live: liveDeps, texture: textureDeps.texture },
           onFail: (why, retry) => { this._retry3d = retry === true; this._fallback3d = `3D view unavailable: ${why}. Showing 2D.`; this._dispose3d(); this.requestUpdate(); },
         });
@@ -1318,6 +1356,13 @@ export class FloorplanStudioCard extends LitElement {
       this._view3dFloor = f;
       this._view3dAround = aroundKey;
       this._view3d.setFloor(f, around);
+      const key = this._floorKey()!;
+      if (key !== this._view3dKey) { // S14.4: another floor (or a new view) brings the camera its floor was left with
+        this._view3dKey = key;
+        const cam = this._floorViews.get(key)?.cam;
+        this._camMoved = cam !== undefined;
+        if (cam) this._view3d.setCamera(cam);
+      }
     }
     // The live state, decided by the plan's own rules (core/live.ts); the view changes its parts in place, and does nothing when it is the same as the last.
     const now = Date.now();
@@ -2168,6 +2213,7 @@ export class FloorplanStudioCard extends LitElement {
   protected render() {
     const f = this._floor();
     if (!f) return html`<p class="msg">${this._error ?? NO_LAYOUT}</p>`;
+    this._syncFloorMemory();
     const rotate = this._rotate();
     const view = this._planView();
     const fit = viewBoxFor(f, 60, rotate, view, this._tilt());
@@ -2224,7 +2270,7 @@ export class FloorplanStudioCard extends LitElement {
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
     const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>`;
     const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${this._fallback3d}</p>` : null;
-    const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label="Reset camera" title="Reset camera" @click=${() => this._view3d?.reset()}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
+    const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label="Reset camera" title="Reset camera" @click=${() => { this._forgetCamera(); this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
     return html`${this._floorChips()}${stage}${note}${this._activePanel()}${showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"}>${this._viewControls(this._viewPick())}</div>` : null}${stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
@@ -2310,7 +2356,7 @@ export class FloorplanStudioCard extends LitElement {
 
   /** Whether anything about the view differs from what the config alone would show: a pick, a zoom, a turn. */
   private _modified(): boolean {
-    return this._turn !== null || this._view !== null || this._pendingView !== null
+    return this._turn !== null || this._view !== null || this._pendingView !== null || this._camMoved
       || [this._pickedView, this._pickedTilt, this._pickedWalls, this._pickedTheme, this._pickedLabels, this._pickedNames, this._pickedRot].some((v) => v !== null);
   }
 
@@ -2321,6 +2367,7 @@ export class FloorplanStudioCard extends LitElement {
     this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = null;
     this._pendingView = null;
     this._view = null;
+    this._forgetCamera();
     const from = this._userAngle();
     this._startTurn(from + shortestDelta(from, normaliseRotation(this._config.rotation)), null);
     if (!this._turn) {
@@ -2328,6 +2375,18 @@ export class FloorplanStudioCard extends LitElement {
       this._saveViewNow();
     }
     this.requestUpdate();
+  }
+
+  /** The 3D camera goes back to its first view and the shown floor forgets it (Reset view, Reset camera). The floor's
+   * zoom and turn are not touched here: `_stashFloor` rewrites them from the live state. */
+  private _forgetCamera(): void {
+    this._view3d?.reset();
+    this._camMoved = false;
+    const key = this._floorKey(), fv = key ? this._floorViews.get(key) : undefined;
+    if (key && fv) {
+      delete fv.cam;
+      if (!Object.keys(fv).length) this._floorViews.delete(key);
+    }
   }
 
   private _resetButton() {

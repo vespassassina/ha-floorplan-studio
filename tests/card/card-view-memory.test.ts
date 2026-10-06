@@ -505,3 +505,141 @@ describe("Reset view", () => {
     expect(lastOpts().theme).toBe("light");
   });
 });
+
+describe("the view is remembered per floor (S14.4)", () => {
+  const chip = (el: FloorplanStudioCard, title: string) => [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-floors button")].find((b) => b.textContent === title)!;
+  const goTo = async (el: FloorplanStudioCard, title: string) => {
+    chip(el, title).click();
+    await el.updateComplete;
+  };
+  const close = (a: number[], b: number[]) => { for (let i = 0; i < 4; i++) expect(a[i]!).toBeCloseTo(b[i]!, 3); };
+  const entry = () => stored().map(([, v]) => JSON.parse(v) as { floors?: [string, Record<string, unknown>][]; floor?: string });
+  const floorEntry = (key: string) => entry()[0]?.floors?.find(([k]) => k === key)?.[1];
+
+  it("a floor comes back zoomed and turned as it was left; the other floor is not touched by it", async () => {
+    const el = await mount({ floor: "all" });
+    await click(el, "Zoom in");
+    await click(el, "Zoom in");
+    await click(el, "Rotate right");
+    const ground = vb(el);
+    expect(deg()).toBe(45);
+
+    await goTo(el, "First");
+    expect(deg()).toBe(0); // First was never turned
+    const homeFirst = viewBoxFor(L.floors.first!, 60, { deg: 0, pivot: planPivot(L) });
+    close(vb(el), [homeFirst.x, homeFirst.y, homeFirst.w, homeFirst.h]);
+    await click(el, "Rotate left");
+    await click(el, "Rotate left");
+    expect(deg()).toBe(270);
+
+    await goTo(el, "Ground");
+    expect(deg()).toBe(45);
+    close(vb(el), ground);
+    await goTo(el, "First");
+    expect(deg()).toBe(270);
+  });
+
+  it("goes to storage as a list of floors, and a fresh card brings each floor back", async () => {
+    const a = await mount({ floor: "all" });
+    await click(a, "Zoom in");
+    const ground = vb(a);
+    await goTo(a, "First");
+    await click(a, "Rotate right");
+    expect(entry()).toHaveLength(1);
+    expect(floorEntry("ground")).toMatchObject({ zoom: expect.any(Number), focus: expect.any(Array) });
+    expect(floorEntry("ground")!.rotation).toBeUndefined();
+    expect(floorEntry("first")).toEqual({ rotation: 45 });
+    a.remove();
+
+    const b = await mount({ floor: "all" });
+    expect(q(b, '.fp-floors button[aria-pressed="true"]')!.textContent).toBe("First");
+    expect(deg()).toBe(45);
+    await goTo(b, "Ground");
+    expect(deg()).toBe(0);
+    close(vb(b), ground);
+  });
+
+  it("works with storage blocked: the floors still remember within the page, and nothing throws", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new Error("blocked"); });
+    const el = await mount({ floor: "all" });
+    await click(el, "Zoom in");
+    await click(el, "Rotate right");
+    const ground = vb(el);
+    await goTo(el, "First");
+    expect(deg()).toBe(0);
+    await goTo(el, "Ground");
+    expect(deg()).toBe(45);
+    close(vb(el), ground);
+  });
+
+  it("Reset view forgets the shown floor's view and keeps the other floors'", async () => {
+    const el = await mount({ floor: "all" });
+    await click(el, "Zoom in");
+    await goTo(el, "First");
+    await click(el, "Rotate right");
+    expect(floorEntry("ground")).toBeDefined();
+    await click(el, "Reset view");
+    expect(deg()).toBe(0);
+    expect(floorEntry("first")).toBeUndefined();
+    expect(floorEntry("ground")).toBeDefined(); // not this floor's to forget
+    el.remove();
+    const b = await mount({ floor: "all" });
+    expect(q(b, '.fp-floors button[aria-pressed="true"]')!.textContent).toBe("First");
+    expect(deg()).toBe(0);
+    await goTo(b, "Ground");
+    expect(vb(b)[2]).toBeLessThan(viewBoxFor(L.floors.ground!, 60, { deg: 0, pivot: planPivot(L) }).w);
+  });
+
+  it("a switch that lands in the middle of a turn keeps the turn for the floor it began on", async () => {
+    mockMotion(false);
+    fakeClock();
+    const el = await mount({ floor: "all" });
+    await click(el, "Rotate right");
+    await advance(el, 100); // under the 350 ms it takes
+    await goTo(el, "First");
+    await advance(el, 600);
+    expect(deg()).toBe(0);
+    await goTo(el, "Ground");
+    await advance(el, 600);
+    expect(deg()).toBe(45);
+  });
+
+  it("an entry from before per-floor memory still opens: its zoom and turn go to the floor it names", async () => {
+    // No entry exists until something is chosen: make one, then overwrite it by hand in the old shape.
+    await click(await mount({ floor: "all" }), "Rotate right");
+    const [k] = stored()[0]!;
+    localStorage.setItem(k, JSON.stringify({ v: 1, floor: "first", rotation: 90, zoom: 2, focus: [300, 200] }));
+    document.body.innerHTML = "";
+    const el = await mount({ floor: "all" });
+    expect(q(el, '.fp-floors button[aria-pressed="true"]')!.textContent).toBe("First");
+    expect(deg()).toBe(90);
+    expect(vb(el)[2]).toBeLessThan(viewBoxFor(L.floors.first!, 60, { deg: 90, pivot: planPivot(L) }).w);
+  });
+
+  it("a camera stored for a floor survives a 2D session: zoom and turn saves do not drop it", async () => {
+    const el = await mount({ floor: "all" });
+    await click(el, "Zoom in");
+    el.remove(); // leaving flushes the debounced save
+    const [k, raw] = stored()[0]!;
+    const cam = { az: 0.7, polar: 0.9, zoom: 0.6, dx: 12, dz: -8 };
+    const o = JSON.parse(raw);
+    localStorage.setItem(k, JSON.stringify({ ...o, floors: o.floors.map(([f, v]: [string, object]) => [f, { ...v, cam }]) }));
+    const b = await mount({ floor: "all" });
+    await click(b, "Rotate right"); // a 2D save
+    await click(b, "Zoom in");
+    expect(floorEntry("ground")!.cam).toEqual(cam);
+  });
+
+  it("junk in a floor's stored entry is dropped for that floor only", async () => {
+    await click(await mount({ floor: "all" }), "Rotate right");
+    const [k] = stored()[0]!;
+    localStorage.setItem(k, JSON.stringify({ v: 1, floors: [["ground", { zoom: "x", rotation: 90 }], ["first", { rotation: 135, cam: 5 }], ["__proto__", { rotation: 45 }]] }));
+    document.body.innerHTML = "";
+    const el = await mount({ floor: "all" });
+    expect(deg()).toBe(90);
+    await goTo(el, "First");
+    expect(deg()).toBe(135);
+  });
+});

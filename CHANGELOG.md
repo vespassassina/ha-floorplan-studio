@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card: the view is remembered **per floor**. Zoom, the spot zoomed to and the turn in 2D and 2.5D, and the camera in 3D (angle, height, distance, look-at point), come back when you return to that floor and after a reload. Reset view and Reset camera forget the floor on show only. Browser storage only; with storage blocked a floor still remembers while the page is open. A turn used to be one for the whole card; an older entry moves to the floor it was saved on.
+
 - Editor: the door type select says "slit window" (the stored kind is still `slit`).
 - Window type **slit window**: its head now ends 40 cm under the ceiling of its wall, as a normal window's does (sill 90 + 120 high on a 250 wall), not at the ceiling. Default sill 150 and head 210 on a 250 cm wall; 200 and 260 on 300; on a wall too low for that it is as high as the wall allows (never below the floor, never over the wall). Height is still 60 and an own sill or height still wins. Slit windows already in a layout move down 40 cm: nothing is stored, so nothing needs migrating.
 - Card: a tap no longer operates a device. On an icon, a door, an appliance or an Active-list row, in 2D and 3D, it opens a small popup with the name, the state, one primary button (Turn on, Turn off, Open, Close, Lock, Unlock) and More info. It closes on Escape, an outside tap or a second tap. A long press still opens more-info. Types without a toggle show name, state and More info only.
