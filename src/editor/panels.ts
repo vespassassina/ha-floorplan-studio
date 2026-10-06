@@ -7,6 +7,7 @@ import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STA
 import type { CatalogEntry, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
+import { addScene, addSceneItem, removeScene, removeSceneItem, renameScene, roomSceneTargets, setRoomHaScenes, setSceneItem } from "./room-scenes-ops";
 import { GUIDE_STEPS } from "./guide";
 import "./combo";
 import type { ComboOption } from "./combo";
@@ -554,6 +555,7 @@ function roomPanel(c: PanelCtx, i: number) {
     ${r.area ? nothing : entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}
     ${c.st.ha ? heading("Home Assistant") : nothing}
     ${roomSensors(c, i)}
+    ${roomScenesPanel(c, i)}
     ${haBox(c, i)}
     ${toPlace ? heading("Links") : nothing}
     ${placeAreaButton(c, i)}
@@ -587,6 +589,41 @@ function roomSensors(c: PanelCtx, i: number) {
       const write = (f: Floor, next: string[]) => setRoomList(f.rooms[i], field, next);
       return multiAttachField(c, id, label, r[field] ?? [], c.st.roomSensorChoices(i, field), (next) => c.commit((f) => write(f, next)), { apply: write, targetLabel: r.name || "the room" }, { grouped: (avail) => groupSensorChoices(c.st.layout, avail, c.st.floor, r.name), roundRemove: true });
     })}`;
+}
+
+/**
+ * S14.7: the room's scenes. Custom scenes (a name and, per light or switch, on or off and a brightness) are stored on the room; the card
+ * shows them as buttons. Home Assistant `scene.*` entities appear on the card by themselves when their area is the room's; "Also offer"
+ * adds scenes from elsewhere. Every gesture is one `commit`, one undo step.
+ */
+function roomScenesPanel(c: PanelCtx, i: number) {
+  const r = c.st.f.rooms[i];
+  if (!ROOM_OWNS[r.kind]) return nothing;
+  const targets = roomSceneTargets(c.st.f, i), label = (e: string) => targets.find((t) => t.entity === e)?.name || e;
+  const ha = c.st.ha;
+  const sceneRows = ha?.entities.filter((e) => e.domain === "scene") ?? [];
+  const inArea = r.area ? sceneRows.filter((e) => e.area === r.area) : [];
+  const extra = r.haScenes ?? [];
+  const more = sceneRows.filter((e) => !inArea.includes(e) && !extra.includes(e.id));
+  const nameOf = (id: string) => sceneRows.find((e) => e.id === id)?.name ?? id;
+  const w = (fn: (room: Room) => void) => c.commit((f) => { fn(f.rooms[i]); });
+  return html`${heading("Scenes")}
+    ${hint("Shown as buttons on the card.")}
+    ${(r.scenes ?? []).map((sc, k) => html`<div class="scene" data-scene=${sc.id}>
+      ${text("scene name", `rsc-name-${k}`, sc.name, (v) => { w((room) => { renameScene(room, sc.id, v); }); c.refresh(); })}
+      ${sc.items.map((it, j) => html`<div class="scene-item">
+        <span>${label(it.entity)}</span>
+        <select id=${`rsc-on-${k}-${j}`} aria-label=${`${label(it.entity)} state`} .value=${live(it.on ? "on" : "off")} @change=${(e: Event) => w((room) => { setSceneItem(room, sc.id, it.entity, { on: val(e) === "on" }); })}><option value="on">On</option><option value="off">Off</option></select>
+        ${it.entity.startsWith("light.") && it.on ? html`<input id=${`rsc-bri-${k}-${j}`} type="number" min="1" max="100" placeholder="brightness %" aria-label=${`${label(it.entity)} brightness percent`} .value=${live(it.brightness === undefined ? "" : String(it.brightness))} @change=${(e: Event) => { const n = numVal(e); w((room) => { setSceneItem(room, sc.id, it.entity, { brightness: n }); }); c.refresh(); }}>` : nothing}
+        <button class="btn keep" id=${`rsc-rm-${k}-${j}`} type="button" aria-label=${`Remove ${label(it.entity)} from the scene`} @click=${() => w((room) => { removeSceneItem(room, sc.id, it.entity); })}>Remove</button>
+      </div>`)}
+      ${(() => { const free = targets.filter((t) => !sc.items.some((it) => it.entity === t.entity)); return free.length ? html`<label for=${`rsc-add-${k}`}>add to scene</label><select id=${`rsc-add-${k}`} .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) w((room) => { addSceneItem(room, sc.id, v); }); c.refresh(); }}><option value="">(pick a light or switch)</option>${free.map((t) => html`<option value=${t.entity}>${t.name}</option>`)}</select>` : nothing; })()}
+      <p>${button(`rsc-del-${k}`, "Delete scene", () => w((room) => { removeScene(room, sc.id); }), "warn")}</p>
+    </div>`)}
+    <p>${button("rsc-add", "Add scene", () => w((room) => { addScene(room, targets.map((t) => t.entity)); }), "", "A new scene with every light and switch of the room, on. Edit it below.")}</p>
+    ${ha ? html`${inArea.length ? hint(`In this area: ${inArea.map((e) => e.name).join(", ")}`, true) : nothing}
+      ${extra.map((e, k) => html`<div class="scene-item"><span>${nameOf(e)}</span><button class="btn keep" id=${`rsc-ha-rm-${k}`} type="button" aria-label=${`Stop offering ${nameOf(e)}`} @click=${() => w((room) => { setRoomHaScenes(room, extra.filter((x) => x !== e)); })}>Remove</button></div>`)}
+      ${more.length ? html`<label for="rsc-ha-add">also offer</label><select id="rsc-ha-add" .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) w((room) => { setRoomHaScenes(room, [...extra, v]); }); c.refresh(); }}><option value="">(a Home Assistant scene)</option>${more.map((e) => html`<option value=${e.id}>${e.name}</option>`)}</select>` : nothing}` : nothing}`;
 }
 
 /** S4.15/S8.1: one button, counting what Home Assistant has in the room's area that the plan can show and does not yet; it opens the Place popup. */

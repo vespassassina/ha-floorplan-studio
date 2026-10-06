@@ -1,10 +1,11 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, DEVICE_TYPE_LABELS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, clampTilt, groupActiveByType, ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, bindDeviceActions, fireEvent, type TapTarget } from "./actions";
 import { lightCaps, popupOp, type PopupOp } from "./popup";
+import { SCENES_CSS, scenesTemplate } from "./room-scenes-ui";
 import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind } from "./popup-ui";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
 // one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
@@ -301,7 +302,7 @@ export class FloorplanStudioCard extends LitElement {
     .fp-filter { display: flex; align-items: center; gap: 6px; font: 600 10px/1.6 system-ui, sans-serif; color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; }
     .fp-show-all { margin-left: auto; border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 system-ui, sans-serif; text-transform: none; letter-spacing: 0; border-radius: 4px; padding: 1px 6px; cursor: pointer; }
     .fp-show-all:hover, .fp-show-all:focus-visible { background: var(--fp-idle); }
-  `, POPUP_CSS];
+  `, POPUP_CSS, SCENES_CSS];
 
   private _config: FloorplanStudioCardConfig = {};
   private _hass?: Hass;
@@ -413,6 +414,8 @@ export class FloorplanStudioCard extends LitElement {
   /** S11.3: the room the person tapped, by floor key and room id (not index, so a reloaded layout keeps it), or null.
    *  Card chrome state, not a layout field: nothing here is saved, and a `hass` update leaves it alone. */
   private _pickedRoom: { floor: string; id: string } | null = null;
+  /** S14.7: the scene button (`custom:<id>`) that waits for its confirm, because it turns a switch off. */
+  private _sceneAsk: string | null = null;
   /** Whether the Active list is cut to the picked room's entities (the default on a pick); "Show all" turns it off. */
   private _roomFilter = true;
   /** S11.4: entities whose details are open, keyed by entity so the same device is open in both lists at once. */
@@ -1971,6 +1974,7 @@ export class FloorplanStudioCard extends LitElement {
     const key = this._floorKey();
     this._pickedRoom = room && key ? { floor: key, id: room.id } : null;
     this._roomFilter = true;
+    this._sceneAsk = null;
     this.requestUpdate();
   }
 
@@ -2066,6 +2070,35 @@ export class FloorplanStudioCard extends LitElement {
     </div>`;
   }
 
+  /** S14.7: the room's scene buttons: Home Assistant scenes, custom scenes, All off and All on. */
+  private _scenesBlock() {
+    const f = this._floor(), at = this._picked();
+    if (!f || at === null) return nothing;
+    const menu = roomScenes(f, at, this._hass);
+    return scenesTemplate({ menu, asking: this._sceneAsk, run: (key) => this._runScene(key), cancel: () => { this._sceneAsk = null; this.requestUpdate(); } });
+  }
+
+  /** One tap on a scene button. A Home Assistant scene is `scene.turn_on`; a custom scene and the presets go through the light and switch services (`customCalls`, `presetCalls`). A custom scene that turns a switch off asks first. */
+  private _runScene(key: string): void {
+    const f = this._floor(), at = this._picked(), call = this._hass?.callService;
+    if (!f || at === null || !call) return;
+    const [kind, id = ""] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
+    const send = (c: { domain: string; service: string; data: Record<string, unknown> }) => this._hass?.callService?.(c.domain, c.service, c.data);
+    if (kind === "ha") {
+      if (!roomScenes(f, at, this._hass).ha.some((s) => s.entity === id)) return;
+      send({ domain: "scene", service: "turn_on", data: { entity_id: id } });
+    } else if (kind === "preset") {
+      for (const c of presetCalls(id === "on" ? "on" : "off", roomScenes(f, at, this._hass).lights)) send(c);
+    } else if (kind === "custom") {
+      const scene = customScene(f, at, id);
+      if (!scene) return;
+      if (sceneNeedsConfirm(scene) && this._sceneAsk !== key) { this._sceneAsk = key; this.requestUpdate(); return; }
+      for (const c of customCalls(scene)) send(c);
+    }
+    this._sceneAsk = null;
+    this.requestUpdate();
+  }
+
   /** S11.3: the room section: name, the facts the plan only hints at, and the room's devices as rows that act. A fact with
    *  nothing behind it (no sensor, no state) is left out, never printed empty; doors and lights always say "none". */
   private _roomSection(s: RoomSummary) {
@@ -2083,6 +2116,7 @@ export class FloorplanStudioCard extends LitElement {
         <button type="button" class="fp-room-clear" aria-label="Clear the room selection" @click=${() => this._pickRoom(null)}>×</button>
       </div>
       <dl class="fp-room-facts">${facts.filter(([, v]) => v).map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
+      ${this._scenesBlock()}
       <div class="fp-active-group-label">Devices</div>
       <div class="fp-room-devices">
         ${s.devices.length || s.sensors.length ? [...s.devices.map((r) => this._roomDeviceRow(r)), ...s.sensors.map((r) => this._roomSensorRow(r))] : html`<p class="fp-active-empty">No devices in this room</p>`}

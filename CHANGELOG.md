@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Card: **room scenes**. With a room picked, its section lists scene buttons: the room's Home Assistant `scene.*` entities (by area; Hue scenes come this way), its custom scenes, then All off and All on. A tap is one `scene.turn_on`, or the light and switch services for a custom scene; All off and All on act on the room's lights only and do not ask, a custom scene that turns a switch off does.
+- Layout: a room may carry `scenes` (up to 12, each a name and up to 40 lights or switches with on, brightness, kelvin, hs) and `haScenes` (extra `scene.*` entities to offer). Both optional, no schema bump; an older card ignores them. `validate` checks both.
+- Editor: a *Scenes* section in the room panel: add, rename, set on or off and brightness, add and remove lights, delete, and offer a Home Assistant scene from elsewhere. One undo step each.
 - Editor: the door type select says "slit window" (the stored kind is still `slit`).
 - Window type **slit window**: its head now ends 40 cm under the ceiling of its wall, as a normal window's does (sill 90 + 120 high on a 250 wall), not at the ceiling. Default sill 150 and head 210 on a 250 cm wall; 200 and 260 on 300; on a wall too low for that it is as high as the wall allows (never below the floor, never over the wall). Height is still 60 and an own sill or height still wins. Slit windows already in a layout move down 40 cm: nothing is stored, so nothing needs migrating.
 - Card: a tap no longer operates a device. On an icon, a door, an appliance or an Active-list row, in 2D and 3D, it opens a small popup with the name, the state, one primary button (Turn on, Turn off, Open, Close, Lock, Unlock) and More info. It closes on Escape, an outside tap or a second tap. A long press still opens more-info. Types without a toggle show name, state and More info only.

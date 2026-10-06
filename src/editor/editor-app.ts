@@ -495,6 +495,7 @@ export class FloorplanStudioEditor extends LitElement {
     .habox-group>summary::before,.habox-sub>summary::before{content:"\\25B8";display:inline-block;width:1em;transition:transform .15s ease}
     .habox-group[open]>summary::before,.habox-sub[open]>summary::before{transform:rotate(90deg)}
     .habox-sub{padding-left:14px}
+    .scene{border:1px solid var(--line,#8884);border-radius:6px;padding:4px 6px;margin:4px 0} .scene-item{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:2px 0} .scene-item>span:first-child{flex:1;min-width:80px} .scene-item .btn,.scene-item select,.scene-item input{width:auto} .scene-item input[type=number]{width:90px}
     .harow2{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:2px 0} .harow2>span:first-child{flex:1;min-width:80px} .harow2 .btn{width:auto}
     aside{display:flex;flex-direction:column;gap:12px}
     aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}

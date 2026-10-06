@@ -41,7 +41,31 @@ export const MAX_ROOM_SENSORS = 20;
 `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows.  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each.
 
 ```ts
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[] }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[] }
+```
+
+## MAX_ROOM_SCENES
+
+Most custom scenes one room may keep, and most lights or switches one scene may set.
+
+```ts
+export const MAX_ROOM_SCENES = 12;
+```
+
+## SceneItem
+
+S14.7: one light or switch of a custom scene. `on` false turns it off; `brightness` (1-100 %), `kelvin` and `hs` ([hue 0-360, saturation 0-100]) only mean something for a light that is on, and a field left out leaves that setting as it is.
+
+```ts
+export interface SceneItem { entity: string; on: boolean; brightness?: number; kelvin?: number; hs?: [number, number] }
+```
+
+## RoomScene
+
+S14.7: a custom scene, stored on the room (optional, no schema bump: an older card ignores the field). The card applies it through the plain light and switch services, one call per item. `haScenes` on a room lists Home Assistant `scene.*` entities to offer for the room besides the ones whose area is the room's own.
+
+```ts
+export interface RoomScene { id: string; name: string; items: SceneItem[] }
 ```
 
 ## EdgeKind
@@ -78,7 +102,7 @@ export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape
 
 ## Door
 
-`sensors`/`vibration`/`locks` (S4.24): every contact sensor, vibration sensor and smart lock attached to this door or window — several of each allowed. An unlocked lock reads the opening as open, same as a triggered contact sensor (Diego, 2026-09-28). `cover` (a curtain/blind entity) is not restricted by kind — a plain door's garage opener is a cover too — it just doubles as the electric-curtain field on a glass door or window. render.ts only colours the opening from `cover` on a plain `door` or `sealed` kind; on `window`/`glass` it is curtains, not a security state, and opening them never colours the window (Diego, 2026-09-28 — the office window's curtains were flipping it orange). `slit` (2026-10-05) is a window 60 cm high that hangs from the ceiling of its wall; its width is the length a to b. It reads and behaves as a `window` in every other respect. Its default sill is read from the wall, never stored. `open` (2026-10-05) is a doorway: the wall is cut as for a door (210 high from 0), but nothing is drawn in the gap. It is a real Door, so it keeps a name, sensors, vibration, locks and a cover; unlike an `Opening` it can carry them. Closed and unselected it draws nothing; open, it shows the same alert as any door.
+`sensors`/`vibration`/`locks` (S4.24): every contact sensor, vibration sensor and smart lock attached to this door or window — several of each allowed. An unlocked lock reads the opening as open, same as a triggered contact sensor (Diego, 2026-09-28). `cover` (a curtain/blind entity) is not restricted by kind — a plain door's garage opener is a cover too — it just doubles as the electric-curtain field on a glass door or window. render.ts only colours the opening from `cover` on a plain `door` or `sealed` kind; on `window`/`glass` it is curtains, not a security state, and opening them never colours the window (Diego, 2026-09-28 — the office window's curtains were flipping it orange). `slit` (2026-10-05) is a window 60 cm high whose head ends 40 cm under the ceiling of its wall, as a window's does (2026-10-06); its width is the length a to b. It reads and behaves as a `window` in every other respect. Its default sill is read from the wall, never stored. `open` (2026-10-05) is a doorway: the wall is cut as for a door (210 high from 0), but nothing is drawn in the gap. It is a real Door, so it keeps a name, sensors, vibration, locks and a cover; unlike an `Opening` it can carry them. Closed and unselected it draws nothing; open, it shows the same alert as any door.
 
 ```ts
 export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; sensors?: string[]; vibration?: string[]; locks?: string[]; cover?: string; locked?: boolean; height?: number; sill?: number }
@@ -130,7 +154,7 @@ export interface Trace { src: string; x: number; y: number; w: number; rot: numb
 
 ## Floor
 
-`ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. Heights, all optional, in cm, 0 to 1000  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high from the ceiling of its wall); `z` on a Device is its mount height.
+`ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. Heights, all optional, in cm, 0 to 1000  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high, its head 40 under the ceiling of its wall); `z` on a Device is its mount height.
 
 ```ts
 export interface Floor {
