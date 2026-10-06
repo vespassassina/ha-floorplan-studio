@@ -103,6 +103,33 @@ try {
     await ctx.close();
   }
 
+  // card-3d.png: the same house in the 3D view. The 3D chunk is a second file the card fetches, so it is served from dist-test/ the way
+  // Home Assistant serves it (tests/card/helpers-3d.ts); nothing else is fetched.
+  {
+    const ctx3 = await browser.newContext({ viewport: { width: 1100, height: 760 }, colorScheme: "light", reducedMotion: "reduce" });
+    const p3 = await ctx3.newPage();
+    p3.on("pageerror", (e) => errors.push(`card-3d: ${e}`));
+    await p3.route("**/*", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.origin !== "http://fp.test") return route.abort();
+      if (url.pathname === "/harness.html") return route.fulfill({ body: readFileSync("tests/card/harness-static.html"), contentType: "text/html" });
+      const m = /^\/floorplan_studio_static\/([\w.-]+)$/.exec(url.pathname), file = m && resolve("dist-test", m[1]);
+      if (!file || !existsSync(file)) return route.fulfill({ status: 404, body: "not found" });
+      return route.fulfill({ body: readFileSync(file), contentType: "text/javascript" });
+    });
+    await p3.goto("http://fp.test/harness.html");
+    await p3.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await p3.evaluate(([config, h]) => { const el = document.getElementById("card"); el.setConfig(config); el.hass = h; return el.updateComplete; }, [{ layout, floor: "ground", view: "3d", theme: "blueprint" }, hass]);
+    await p3.locator("floorplan-studio-card canvas").waitFor();
+    let prev = "", same = 0;
+    for (let i = 0; i < 100 && same < 4; i++) { // the camera glides in: shoot once it has stood still
+      const now = await p3.locator("floorplan-studio-card canvas").evaluate((c) => c.parentElement.getAttribute("data-az") + c.parentElement.getAttribute("data-polar") + c.parentElement.getAttribute("data-dist"));
+      same = now === prev ? same + 1 : 0; prev = now; await p3.waitForTimeout(250);
+    }
+    await p3.locator("floorplan-studio-card").screenshot({ path: `${OUT}/card-3d.png` });
+    await ctx3.close();
+  }
+
   // editor-overview.png: the full editor, blueprint theme, demo loaded, nothing selected.
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: "light", reducedMotion: "reduce" });
   const page = await ctx.newPage();
@@ -116,6 +143,18 @@ try {
   await page.locator('details.menu > summary:text-is("Add")').click();
   await page.screenshot({ path: `${OUT}/editor-add-menu.png` });
   await page.mouse.click(500, 700); // empty canvas: closes the open menu, same as a user clicking away
+
+  // editor-room-panel.png: a room selected, its panel open, the sensor pickers in their framed boxes.
+  {
+    const room = await page.locator('polygon[data-r="0"]').first().boundingBox();
+    if (!room) errors.push("editor-room-panel: no box for polygon[data-r=\"0\"]");
+    else {
+      await page.mouse.click(room.x + room.width * 0.9, room.y + room.height * 0.9); // a point no device or furniture stands on
+      await page.locator("#panel").waitFor();
+      await page.screenshot({ path: `${OUT}/editor-room-panel.png` });
+      await page.keyboard.press("Escape");
+    }
+  }
 
   // editor-device-panel.png: a device selected, its panel open on the right.
   const box = await page.locator('g[data-x="0"]').first().boundingBox();
@@ -131,4 +170,4 @@ try {
 }
 
 if (errors.length) { for (const e of errors) console.error(e); process.exit(1); }
-console.log(`wrote ${OUT}/card-overview.png, card-phone.png, editor-overview.png, editor-add-menu.png, editor-device-panel.png`);
+console.log(`wrote ${OUT}/card-overview.png, card-phone.png, editor-overview.png, editor-add-menu.png, editor-device-panel.png, editor-room-panel.png, card-3d.png`);

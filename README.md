@@ -13,6 +13,10 @@ Assistant every day.
 |---|---|---|
 | ![The card: the demo ground floor, two lights and the hall motion sensor on.](docs/img/card-overview.png) | ![The same card at phone width: the Active list starts folded.](docs/img/card-phone.png) | ![The editor with the demo house loaded.](docs/img/editor-overview.png) |
 
+| The card in 3D | The editor, a room selected |
+|---|---|
+| ![The demo house in the 3D view: cutaway walls, lamps casting light, the Active list on the left.](docs/img/card-3d.png) | ![The editor with a room selected: Delete under the name, the temperature, humidity and motion sensor pickers each in a framed box.](docs/img/editor-room-panel.png) |
+
 A real house, on the card in 2.5D, three themes (room and device names blurred):
 
 | Home Assistant theme | Cyberpunk theme | Space theme, first floor |
