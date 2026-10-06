@@ -196,7 +196,6 @@ test.describe("S14 review 5: the room panel on a narrow card", () => {
       expect(await card(page).locator("css=.fp-active-body").evaluate((e) => e.scrollHeight > e.clientHeight)).toBe(true);
       const after = await bareFloor(page, 0);
       expect(after, `bare floor of the picked room: ${before} before, ${after} with the panel`).toBeGreaterThanOrEqual(before * 0.6);
-      await page.screenshot({ path: `/private/tmp/s14-narrow-${theme}.png` });
     });
   }
   test("at 900 px the panel keeps its place and its height (the cap is for narrow cards)", async ({ page }) => {
@@ -212,7 +211,6 @@ test.describe("S14 review 5: the room panel on a narrow card", () => {
     expect(panel.y - c.y).toBeLessThan(50);
     expect(panel.x - c.x).toBeLessThan(20);
     expect(panel.h).toBeGreaterThan(c.h * 0.6);
-    await page.screenshot({ path: "/private/tmp/s14-panel-900.png" });
   });
 });
 
@@ -241,7 +239,6 @@ test.describe("S14 recheck: every ground room stays mostly visible under the doc
             expect(await card(page).evaluate((el, [x, y]) => !!el.shadowRoot!.elementFromPoint(x!, y!)?.closest(".fp-active"), [x, y] as const), `the sheet is on top at ${x},${y}`).toBe(true);
           }
           const after = await bareFloor(page, i);
-          await page.screenshot({ path: `/private/tmp/s14-recheck-${width}-${theme}-${i}.png` });
           expect(after, `room ${i}: ${before} bare points before, ${after} with the sheet`).toBeGreaterThanOrEqual(before * min);
         });
       }
@@ -266,7 +263,6 @@ test.describe("S14 review 6: a tall popup in a short card", () => {
       expect(top, sel).toBe(true);
     }
     expect(await pop(page).locator("css=.fp-pop-sliders").evaluate((e) => e.scrollHeight > e.clientHeight)).toBe(true);
-    await page.screenshot({ path: "/private/tmp/s14-popup-375.png" });
     await page.mouse.click(...(await (async () => { const b = await boxOf(pop(page).locator("css=.fp-pop-do")); return [b.x + b.w / 2, b.y + b.h / 2] as [number, number]; })()));
     expect(await calls(page)).toEqual(["light.turn_off {\"entity_id\":\"light.demo_living\"}"]);
   });
