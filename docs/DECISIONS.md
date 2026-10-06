@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: A door's Delete moves above its sensors
+
+Diego, same rule as the room: the door and window panel's red Delete is now the first control after Identity, above Home Assistant. The "Danger" heading is gone. Test helpers `clickCm` and `dragCm` now scroll the plan into view first: a taller panel makes the page scroll when a panel control is clicked, which put plan coordinates off the viewport.
+
+## 2026-10-06: Room sensors sit in framed boxes; every humidity sensor is filed by floor and room
+
+Diego: group the dropdown and its list so it is clear where they are, smaller names, and humidity sensors "organized by floor and room same as the others". Each of the three kinds (temperature, humidity, motion) is now one `.sens-box` (thin frame, rounded, faint tint); names in it are 11 px. The cause of the humidity order: a sensor the plan had not met yet came from Home Assistant with no floor or room, so the picker put all of them under "Elsewhere". `EditorState.withPlanRoom` now gives such an entity the floor and room of the drawn room that has its HA area (first match, the rule `availableEntities` uses). No area, or an area with no drawn room, stays loose. Only the room sensor picker uses it.
+
+## 2026-10-06: A room's Delete moves under its name
+
+Supersedes the earlier "Delete stays next to Unsnap" exception. Diego: the red Delete in the room panel belongs before the sensors. It is now the first control after the name block, above Home Assistant, Sensors and Scenes; Unsnap stays with the rotation. The spec test now asserts order (Delete before `#rtemp` and `#runsnap`) and that it still deletes.
+
 ## 2026-10-06: Stale panel guard (0.16.3)
 
 Twice a cached old panel after an update looked like a product crash ("layout was not used", a locked 3D drag). The panel now asks `floorplan_studio/version` (any user, `{ version }`) at load and on every `visibilitychange` to visible, compares it with `CARD_VERSION` (injected at build; a `dev` build never compares) and, on a mismatch, shows a Reload banner and refuses Save. A failed or odd reply says nothing, so the guard cannot break an older integration. It cannot help a page that was already open before this release.

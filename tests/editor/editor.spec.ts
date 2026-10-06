@@ -402,7 +402,10 @@ const screenOf = (page: Page, x: number, y: number) =>
     const q = new DOMPoint(px as number, py as number).matrixTransform((g ?? svg).getScreenCTM()!);
     return { x: q.x, y: q.y };
   }, [EDITOR, x, y] as const);
+// A tall panel makes the page scroll when a control in it is clicked; bring the plan back before reading screen coordinates.
+const planInView = (page: Page) => page.evaluate((tag) => { (document.querySelector(tag as string) as any).shadowRoot.querySelector("svg").scrollIntoView({ block: "nearest" }); }, EDITOR);
 async function dragCm(page: Page, from: [number, number], to: [number, number], mods: string[] = []) {
+  await planInView(page);
   const a = await screenOf(page, ...from), b = await screenOf(page, ...to);
   for (const m of mods) await page.keyboard.down(m);
   await page.mouse.move(a.x, a.y);
@@ -1044,6 +1047,7 @@ test("a room corner dropped 8 cm from a zone corner does not snap onto it", asyn
 
 // ---- S1.8 zone selection ----
 async function clickCm(page: Page, x: number, y: number) {
+  await planInView(page);
   const c = await screenOf(page, x, y);
   await page.mouse.click(c.x, c.y);
 }
@@ -5589,6 +5593,8 @@ test("a custom room colour becomes a swatch (kept in layout.palette); textures p
   expect((await layoutOf(page)).palette).toEqual(["#12ab34"]);
   // Another room can use it from the swatches without opening the picker.
   const r1 = (await groundOf(page)).rooms[1].pts; // a point near a corner: the middle of a room may hold a device
+  // Filling the colour input scrolled the page to it, and the panel is tall: bring the plan back before reading screen coordinates.
+  await page.locator(`${EDITOR} svg`).first().scrollIntoViewIfNeeded();
   const other = await screenOf(page, Math.min(...r1.map((p) => p[0])) + 30, Math.min(...r1.map((p) => p[1])) + 30);
   await page.mouse.click(other.x, other.y);
   await expect(page.locator('.swatches[aria-label="Colours"] .sw.custom')).toHaveCount(1);
@@ -7610,11 +7616,52 @@ test("S5.5: on a narrow window the guide's own steps don't scroll away under the
   await expect(last).toBeVisible();
 });
 
-test("a room's Delete button sits next to Unsnap, not at the bottom of the panel", async ({ page }) => {
+test("a room's Delete button comes before the sensors, not next to Unsnap (Diego, 2026-10-06)", async ({ page }) => {
   await clickCm(page, 50, 200); // the living room
   await expect(page.locator("#rn")).toHaveValue("Living");
-  const row = page.locator("#runsnap").locator("xpath=..");
-  await expect(row.locator("#rdel")).toHaveCount(1);
+  await expect(page.locator("#runsnap").locator("xpath=..").locator("#rdel")).toHaveCount(0);
+  const before = (sel: string) => page.evaluate(([tag, sel]) => {
+    const r = (document.querySelector(tag as string) as HTMLElement).shadowRoot ?? document;
+    const del = r.querySelector("#rdel")!, other = r.querySelector(sel as string)!;
+    return !!(del.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING);
+  }, [EDITOR, sel]);
+  expect(await before("#rtemp")).toBe(true);
+  expect(await before("#runsnap")).toBe(true);
+  await page.locator("#rdel").click();
+  expect((await groundOf(page)).rooms.some((r: { name: string }) => r.name === "Living")).toBe(false);
+});
+
+test("Opus review CSS pair: each room sensor kind sits in a framed box, and its names are smaller than the form text (Diego, 2026-10-06)", async ({ page }) => {
+  await clickCm(page, 50, 200); // the living room
+  await expect(page.locator("#rn")).toHaveValue("Living");
+  await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any; el.st.edit((f: any) => { f.rooms[0].temps = ["sensor.zz_probe"]; }); el.requestUpdate(); }, EDITOR);
+  const row = page.locator(".sens-box .attach-row").first();
+  await expect(row).toBeVisible();
+  const css = await page.evaluate(([tag]) => {
+    const r = (document.querySelector(tag as string) as HTMLElement).shadowRoot ?? document;
+    const box = r.querySelector(".sens-box")!, rowEl = r.querySelector(".sens-box .attach-row")!, lab = r.querySelector("#rn")!;
+    const cs = getComputedStyle(box);
+    return { border: cs.borderTopWidth, radius: cs.borderTopLeftRadius, rowPx: parseFloat(getComputedStyle(rowEl).fontSize), formPx: parseFloat(getComputedStyle(lab).fontSize), hasPicker: !!box.querySelector("#rtemp"), hasRow: box.contains(rowEl) };
+  }, [EDITOR]);
+  expect(css.border).toBe("1px");
+  expect(css.radius).not.toBe("0px");
+  expect(css.hasPicker && css.hasRow).toBe(true);
+  expect(css.rowPx).toBeLessThan(css.formPx);
+  // one box per kind
+  await expect(page.locator(".sens-box")).toHaveCount(3);
+});
+
+test("a door's Delete button comes before its sensors, as in the room panel (Diego, 2026-10-06)", async ({ page }) => {
+  await addItem(page, "#addDoor");
+  const first = await page.evaluate((tag) => {
+    const r = (document.querySelector(tag as string) as HTMLElement).shadowRoot ?? document;
+    const del = r.querySelector("#deld")!, sens = r.querySelector("#dsens")!;
+    return !!(del.compareDocumentPosition(sens) & Node.DOCUMENT_POSITION_FOLLOWING);
+  }, EDITOR);
+  expect(first).toBe(true);
+  const n = (await groundOf(page)).doors.length;
+  await page.locator("#deld").click();
+  expect((await groundOf(page)).doors).toHaveLength(n - 1);
 });
 
 test("View menu shows the installed version, matching the integration manifest, at the top of the menu", async ({ page }) => {

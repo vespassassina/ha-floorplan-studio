@@ -457,8 +457,8 @@ const removeX = (id: string, name: string, on: () => void) =>
 function multiAttachField(
   c: PanelCtx, id: string, label: string, cur: string[], choices: CatalogEntry[], set: (next: string[]) => void,
   attach?: { apply: (f: Floor, next: string[]) => void; targetLabel: string; keepDeviceId?: string },
-  /** `grouped` orders the offered entries and names each one's heading; `roundRemove` shows Remove as a round red X. */
-  look?: { grouped?: (avail: CatalogEntry[]) => GroupedChoice[]; roundRemove?: boolean },
+  /** `grouped` orders the offered entries and names each one's heading; `roundRemove` shows Remove as a round red X; `boxed` draws a frame round the picker and its list. */
+  look?: { grouped?: (avail: CatalogEntry[]) => GroupedChoice[]; roundRemove?: boolean; boxed?: boolean },
 ) {
   const placed = placedEntities(c.st.layout);
   const nameOf = (entity: string) => { const e = c.st.layout.catalog.find((x) => x.entity === entity); return e ? (e.room ? `${e.room} - ${e.name}` : e.name) : entity; };
@@ -474,9 +474,10 @@ function multiAttachField(
     if (attach) c.attachEntity(v, (f) => attach.apply(f, [...cur, v]), attach.targetLabel, attach.keepDeviceId);
     else set([...cur, v]);
   };
-  return html`<label for=${id}>${label}</label>
+  const inner = html`<label for=${id}>${label}</label>
     ${combo(id, label, "", options, add, "add...")}
     ${cur.map((en, k) => html`<p class="attach-row">${nameOf(en)} ${look?.roundRemove ? removeX(`${id}-rm${k}`, nameOf(en), () => set(cur.filter((x) => x !== en))) : button(`${id}-rm${k}`, "Remove", () => set(cur.filter((x) => x !== en)), "warn")}</p>`)}`;
+  return look?.boxed ? html`<div class="sens-box">${inner}</div>` : inner;
 }
 
 function doorPanel(c: PanelCtx, i: number) {
@@ -496,6 +497,7 @@ function doorPanel(c: PanelCtx, i: number) {
     ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); f.doors[i].locked = true; }))}
     ${heightField(c, "height (cm)", "dht", d.height, dflt.head - dflt.sill, heightSetter(c, "doors", i, "height"))}
     ${d.kind === "window" || d.kind === "slit" || d.sill !== undefined ? heightField(c, "sill (cm)", "dsill", d.sill, dflt.sill, heightSetter(c, "doors", i, "sill")) : nothing}
+    <p>${button("deld", "Delete", () => { c.commit((f) => { f.doors.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${heading("Home Assistant")}
     ${multiAttachField(c, "dsens", "contact sensors", d.sensors ?? [], c.st.doorAttachChoices(d.id, "sensors"), setList("sensors"), { apply: mutateList("sensors"), targetLabel: d.name })}
     ${multiAttachField(c, "dvibr", "vibration sensors", d.vibration ?? [], c.st.doorAttachChoices(d.id, "vibration"), setList("vibration"), { apply: mutateList("vibration"), targetLabel: d.name })}
@@ -515,9 +517,7 @@ function doorPanel(c: PanelCtx, i: number) {
     ${heading("Appearance")}
     ${lockField(c, "dlock", "doors", i)}
     ${angleField(c, "drot", "doors", i)}
-    <label><input type="checkbox" id="dopen" .checked=${c.st.openDoor === d.id} @change=${(e: Event) => { c.st.openDoor = (e.target as HTMLInputElement).checked ? d.id : null; c.refresh(); }}> preview open</label>
-    ${heading("Danger")}
-    <p>${button("deld", "Delete", () => { c.commit((f) => { f.doors.splice(i, 1); }); c.select(null); }, "warn")}</p>`;
+    <label><input type="checkbox" id="dopen" .checked=${c.st.openDoor === d.id} @change=${(e: Event) => { c.st.openDoor = (e.target as HTMLInputElement).checked ? d.id : null; c.refresh(); }}> preview open</label>`;
 }
 
 function openingPanel(c: PanelCtx, i: number) {
@@ -553,6 +553,7 @@ function roomPanel(c: PanelCtx, i: number) {
     ${c.st.ha ? roomLink(c, c.st.ha, i) : html`${text("name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
     ${text("area id", "ra", r.area, (v) => c.commit((f) => { f.rooms[i].area = v; }), !!r.area, r.kind === "zone" ? "Maps this zone to a Home Assistant area." : undefined)}
     ${r.area ? nothing : entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}
+    <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${c.st.ha ? heading("Home Assistant") : nothing}
     ${roomSensors(c, i)}
     ${roomScenesPanel(c, i)}
@@ -571,8 +572,7 @@ function roomPanel(c: PanelCtx, i: number) {
     ${heightField(c, "ceiling height (cm)", "rht", r.height, c.st.f.height ?? DEFAULT_FLOOR_HEIGHT, heightSetter(c, "rooms", i, "height"))}
     ${roomTurn(c, i)}
     ${paintControls(c, "rooms", i, "r", r)}`;
-  // roomTurn's own Delete button stays next to Unsnap, not in a Danger section at the bottom — an earlier,
-  // deliberate decision (see docs/DECISIONS.md and editor.spec.ts "a room's Delete button sits next to Unsnap").
+  // The room's Delete sits right under the name, before the sensors (Diego, 2026-10-06; it was next to Unsnap, see docs/DECISIONS.md).
 }
 
 /**
@@ -587,7 +587,7 @@ function roomSensors(c: PanelCtx, i: number) {
   return html`${heading("Sensors")}
     ${ROOM_SENSORS.map(([field, id, label]) => {
       const write = (f: Floor, next: string[]) => setRoomList(f.rooms[i], field, next);
-      return multiAttachField(c, id, label, r[field] ?? [], c.st.roomSensorChoices(i, field), (next) => c.commit((f) => write(f, next)), { apply: write, targetLabel: r.name || "the room" }, { grouped: (avail) => groupSensorChoices(c.st.layout, avail, c.st.floor, r.name), roundRemove: true });
+      return multiAttachField(c, id, label, r[field] ?? [], c.st.roomSensorChoices(i, field), (next) => c.commit((f) => write(f, next)), { apply: write, targetLabel: r.name || "the room" }, { grouped: (avail) => groupSensorChoices(c.st.layout, avail, c.st.floor, r.name), roundRemove: true, boxed: true });
     })}`;
 }
 
@@ -780,8 +780,7 @@ function roomTurn(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i], id = `r${i}`;
   const free = r.free === true, locked = !free && snapped(c.st.f, id);
   return html`${rotateButtons(c, "rrot", (n) => c.commit((f) => rotatePoly(f, id, n)), { disabled: locked, label: "Room Rotation" })}
-    <p>${button("runsnap", free ? "Snap back" : "Unsnap", () => c.commit((f) => { if (free) delete f.rooms[i].free; else f.rooms[i].free = true; }))}
-    ${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>
+    <p>${button("runsnap", free ? "Snap back" : "Unsnap", () => c.commit((f) => { if (free) delete f.rooms[i].free; else f.rooms[i].free = true; }))}</p>
     ${free ? hint("Unsnapped: no longer joins its neighbours.") : locked ? hint("Shared corner: unsnap to rotate.") : nothing}`;
 }
 

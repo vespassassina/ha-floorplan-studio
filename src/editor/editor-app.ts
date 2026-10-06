@@ -369,6 +369,9 @@ export class FloorplanStudioEditor extends LitElement {
     /* Round red X, icon only: the room Sensors section's Remove. Square box so 50% is a circle. */
     .btn.rm-x{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:26px;height:26px;padding:0;border-radius:50%;background:var(--fp-danger);color:var(--fp-on-dark);border-color:var(--fp-danger);vertical-align:middle}
     .btn.rm-x svg{width:16px;height:16px;fill:currentColor;pointer-events:none}
+    /* The room Sensors section: one framed box per kind round its picker and its list, names smaller than the form text. */
+    .sens-box{border:1px solid var(--fp-primary);border-radius:6px;padding:6px 8px;margin:6px 0;background:color-mix(in srgb,var(--fp-primary) 7%,transparent)}
+    .sens-box .attach-row{font-size:11px}
     .menu{position:relative}
     .menu>summary{list-style:none;display:inline-block}
     .menu>summary::-webkit-details-marker{display:none}

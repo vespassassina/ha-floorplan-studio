@@ -170,3 +170,21 @@ describe("Attach to room: the same room rule as the panel (Opus review of Sprint
     expect(JSON.stringify(st.layout)).toBe(before);
   });
 });
+
+describe("roomSensorChoices: an HA sensor the plan has not met yet", () => {
+  it("takes its floor and room from its HA area, so the picker files it under that room, not 'Elsewhere'", () => {
+    const l = fresh();
+    l.floors.ground.rooms[1].area = "area_k"; // a room other than the one being edited
+    const room1 = l.floors.ground.rooms[1].name;
+    const st = new EditorState(l);
+    const ha = { areas: [{ id: "area_k", name: "K" }], entities: [
+      { id: "sensor.new_humidity", name: "New humidity", domain: "sensor", dc: "humidity", area: "area_k" },
+      { id: "sensor.loose_humidity", name: "Loose humidity", domain: "sensor", dc: "humidity", area: null },
+    ], devices: [] } as unknown as HaData;
+    st.ha = ha;
+    const out = st.roomSensorChoices(LIVING, "humidity").filter((c) => c.entity.startsWith("sensor.new") || c.entity.startsWith("sensor.loose"));
+    const byId = Object.fromEntries(out.map((c) => [c.entity, c]));
+    expect(byId["sensor.new_humidity"]).toMatchObject({ floor: "ground", room: room1 });
+    expect(byId["sensor.loose_humidity"]).toMatchObject({ floor: "", room: "" });
+  });
+});

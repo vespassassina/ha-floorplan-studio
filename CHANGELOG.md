@@ -2,6 +2,7 @@
 
 ## 0.16.3 - 2026-10-06
 
+- Studio, room panel: the temperature, humidity and motion pickers each sit in a framed box with their list, and the sensor names are smaller. Humidity (and any other) sensors not yet on the plan are now listed under the floor and room of their Home Assistant area, like the others, instead of all under "Elsewhere". Delete is the first control under the name, in the door and window panel too.
 - Studio: a page left open through an update no longer runs the old panel unnoticed. The panel asks the integration for the installed version (new `floorplan_studio/version` command) when it opens and whenever the tab becomes visible again; if it differs from its own build, a banner says so with a **Reload** button, and Save is refused until you reload. Pages that were open before this version do not have the check; it protects the updates after it.
 
 ## 0.16.2 - 2026-10-06
