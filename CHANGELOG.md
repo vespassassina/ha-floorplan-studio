@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.15.0 - 2026-10-06
+
+- Card: floor textures in 3D. A room or stair with a texture shows it on its floor, at the same size, turn and scale as in 2D; the flat colour shows until the tile is ready. A bad texture id or rotation falls back to the flat colour.
+- Card: a lit lamp now lights the walls of its own room in 3D, a soft glow in the lamp's colour out to about 3 m, only on faces that look at it and only up to the height the wall is drawn at.
+- Card: a lamp's glow in 3D now lights only the stretch of a wall that is in its own room. A long outer wall shared by several rooms used to light by its middle point, so a lamp lit the neighbour's part of it or none of its own; a room nested in another is no longer lit through.
+- Card: 3D shows one floor at a time. The dimmed stack of lower floors is gone (on a real layout the floors drifted out of line); the camera frames the floor you picked.
+- Card: 3D icons no longer float over the house. A device's icon and its ball stay at most 10 cm under the top of the floor's walls (a ceiling light or camera at 250 cm on a 250 cm floor now sits at 240); a low device, a socket say, keeps its own height.
+- Card: panning is back in 3D. Drag with the **middle mouse button**, or hold **Space** and drag with the left button (while the pointer is over the view; Space no longer scrolls the page there). Right-drag, Shift-drag and two fingers still pan; a plain drag still turns the house. A pan is never a tap.
+- Editor: a room's Sensors add menu is grouped by floor and room ("Ground · Kitchen"), the room you are editing first, then its floor's other rooms, then the other floors. Typing still filters by floor or room.
+- Editor: Remove on a room's sensor is a round red button with an X (still named "Remove ..." for screen readers and the tooltip).
+- Door type **open doorway** (`kind: open`): a door that is only a hole in the wall. The wall is cut as for a door (210 cm high, width a to b, height and sill editable) and nothing is drawn in the gap: no line in 2D, no leaf in 2.5D or 3D. Unlike an Opening it is a real door, so it keeps a name, contact sensors, vibration, locks and a cover. Add, Openings, Open doorway, or right-click a wall, Add an opening. Closed it draws nothing; when its contact says open, or a lock is unlocked, it wears the usual dashed red line and alert pulse in 2D and the red frame in 2.5D (3D shows no state for it). In the editor it shows a faint outline only while selected or hovered. No schema bump (still version 2). **A layout that uses `open` is refused by a card older than this release** (`kind must be one of door, glass, window, sealed`): update the card before saving one.
+
+- Window type **slit window** (`kind: slit`): a window 60 cm high that starts at the ceiling of the wall it sits in. Add, Openings, Slit window; its width is the Length field (a to b), height and sill are optional as for a window. Its default sill is read from the wall (250 cm wall: 190; 300 cm: 240; a wall under 60 cm gives a slit as high as the wall), an own sill or height wins, and the head never passes the wall. Glass in 2.5D and 3D, the same sensors, locks, curtain cover and tap as a window, and a thin band in the window colour in 2D. No schema bump (still version 2). **A layout that uses `slit` is refused by a card older than this release** (`kind must be one of door, glass, window, sealed`): update the card before saving one.
+
 ## 0.14.0 - 2026-10-05
 
 - Card: 3D now recovers. A failed load of the 3D code is tried again the next time you pick 3D; a lost graphics context (a driver reset, a tab left in the background) is waited for three seconds, and if it does not come back the card shows 2D and tries 3D once more when the tab is shown again or the card is placed again. A frame that cannot be drawn gives the 2D plan and one line, never a blank canvas.

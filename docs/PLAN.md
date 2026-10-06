@@ -2473,5 +2473,32 @@ Spec: `docs/specs/real-3d.md`. Proposed 2026-10-05.
   (`tests/card/card-3d-floors.spec.ts`, 5 tests). Performance and hostile layouts:
   `tests/card/card-3d-perf.spec.ts`, 12 tests, 120 runs at `--repeat-each=10` green; none needed a
   code change. Choices in `docs/DECISIONS.md`.
+- 3D fixes (task/3d-fixes), after the field report on 0.14.0: one floor at a time (the dimmed stack and its plumbing
+  removed), icons held under the wall top, panning by middle button and by Space plus a drag. Done, 2026-10-05. The
+  report's walls item was a data error in the layout, so `cut.ts` did not change. Tests: `tests/card/card-3d-pan.spec.ts`
+  (8), `tests/card/card-3d-icons.spec.ts` (1), `tests/card/card-3d-floors.spec.ts` (one-floor test), 4 in
+  `tests/core/scene.test.ts`. Choices in `docs/DECISIONS.md`.
 - Sprint 12 review fixes: chunk retry, lost-context recovery, draw guard, coordinate bound, nest budget, test hook
   compiled out of the shipped build, narrow-card inset, ring disposal, debug lines. Choices in `docs/DECISIONS.md`.
+- S13 (task/3d-textures-light): floor textures in 3D and the lamp's light on the walls of its own room. Done, 2026-10-05.
+  Textures: a room's or tread's top face wears its texture, same size, turn and scale as 2D (`src/card/three/tex.ts`,
+  `textureTile` in core handed over through `three-deps.ts`); flat colour until the tile is ready; textures freed on a
+  floor switch and on `dispose()`. Light: an additive patch per lamp on the inside faces of its room, reach 300 cm,
+  clipped to the drawn height (`glow.ts`, `light.ts`). Tests: `tests/card/three-glow.test.ts`, `three-tex.test.ts`,
+  `tests/card/card-3d-tex-glow.spec.ts` (12, `--repeat-each=10` green). Sizes: card 94700 gzip (budget 95900), chunk
+  193252 (budget 200000). Choices in `docs/DECISIONS.md`.
+
+## Open doorway (small task, 2026-10-05)
+
+- `task/open-door`, off `task/slit-window`. "To doors add as door type: open and do not draw the door." New `DoorKind`
+  `open`: a door's cut, nothing drawn; keeps name, sensors, vibration, locks, cover and live state. Add, Openings, Open
+  doorway, and the wall menu. Tests first: `tests/core/open-door.test.ts`, `tests/editor/open-door.spec.ts`,
+  `tests/card/open-door.spec.ts`. Choices in `docs/DECISIONS.md`.
+
+## Slit window (small task, 2026-10-05)
+
+- `task/slit-window`. "To the window type add a slit window, configurable width but only 60 cm high, starting from the ceiling."
+  New `DoorKind` `slit`: default 60 high, head at the ceiling of its own wall (`doorSpan(door, ceiling)`, `doorCeiling`),
+  glass in 2.5D and 3D, a window in every other respect, a thin band in 2D, Add, Openings, Slit window in the editor.
+  Tests first: `tests/core/slit.test.ts` (25), `tests/editor/slit.spec.ts` (6), `tests/card/slit.spec.ts` (2).
+  Choices in `docs/DECISIONS.md`.

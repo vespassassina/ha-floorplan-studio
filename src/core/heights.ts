@@ -1,6 +1,7 @@
 // Heights, in cm. The only place a default height lives: every other file asks a resolver here.
 // Defaults are read, never stored, so changing one later changes old plans (docs/specs/heights-and-2-5d.md).
 // Layout files are untrusted: every resolver takes junk (NaN, text, negative, over 1000) and falls back to the default.
+import { edgesNear } from "./geometry";
 import type { Device, Door, DoorKind, DeviceType, EdgeKind, Floor, FurnitureSymbol, Furniture, Layout, Opening, Room, Unlinked, Wall, WallKind } from "./schema";
 
 export const DEFAULT_FLOOR_HEIGHT = 250;
@@ -59,7 +60,11 @@ export const DOOR_DEFAULTS: Record<DoorKind, { height: number; sill: number }> =
   glass: { height: 210, sill: 0 },
   sealed: { height: 210, sill: 0 },
   window: { height: 120, sill: 90 },
+  open: { height: 210, sill: 0 }, // a doorway: the cut of a door, nothing drawn in it
+  slit: { height: 60, sill: 190 }, // for the default 250 storey; see SLIT_HEIGHT and doorSpan: the real sill hangs from the wall's ceiling
 };
+/** A slit window is this high, and hangs from the ceiling of the wall it sits in (Diego, 2026-10-05). */
+export const SLIT_HEIGHT = 60;
 const OPENING_DEFAULT = { height: 210, sill: 0 };
 
 /** A usable value: a finite number from 0 to 1000. Anything else is "not set". */
@@ -106,11 +111,37 @@ export function edgeHeight(f: Floor, room: Room | null, edgeIndex: number): numb
   return storeyOr(byKind, storey);
 }
 
-export function doorSpan(door: Door): { sill: number; head: number } {
+/**
+ * `ceiling` is the top of the wall the door sits in (the storey height when it is not known). Only a slit reads it: its
+ * default is 60 high with its head at the ceiling, so its sill is `ceiling - height`. An own `height` keeps the head at
+ * the ceiling, an own `sill` wins and the head follows it; the head never passes the ceiling, and a wall lower than the
+ * slit gives a slit as high as the wall.
+ */
+export function doorSpan(door: Door, ceiling: number = DEFAULT_FLOOR_HEIGHT): { sill: number; head: number } {
   const kind = (door as { kind?: unknown })?.kind;
+  if (kind === "slit") {
+    const top = valid(ceiling) ? ceiling : DEFAULT_FLOOR_HEIGHT, h = Math.min(own(door, "height") ?? SLIT_HEIGHT, top);
+    const sill = Math.min(own(door, "sill") ?? top - h, top);
+    return { sill, head: Math.min(sill + h, top) };
+  }
   const d = has(DOOR_DEFAULTS as Record<string, any>, kind) ? DOOR_DEFAULTS[kind as DoorKind] : DOOR_DEFAULTS.door;
   const sill = own(door, "sill") ?? d.sill;
   return { sill, head: sill + (own(door, "height") ?? d.height) };
+}
+
+/**
+ * The top of the wall a door sits in: the highest of the walls under its middle (two coincident walls draw as one, the
+ * taller, as the 3D scene does), or the storey when it sits in none. What a slit hangs from.
+ */
+export function doorCeiling(f: Floor, door: Door): number {
+  const a = door?.a, b = door?.b;
+  if (!Array.isArray(a) || !Array.isArray(b) || ![...a, ...b].every((n) => Number.isFinite(n))) return floorHeight(f);
+  const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (!l) return floorHeight(f);
+  const hosts = edgesNear(f, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], [(b[0] - a[0]) / l, (b[1] - a[1]) / l], 10);
+  const heights = hosts.map((e) => (e.poly === "w" ? wallHeight(f, f.walls[e.i]) : edgeHeight(f, e.poly === "o" ? null : f.rooms[Number(e.poly.slice(1))] ?? null, e.i)));
+  const top = Math.max(0, ...heights);
+  return top > 0 ? top : floorHeight(f);
 }
 
 export function openingSpan(op: Opening): { sill: number; head: number } {

@@ -180,6 +180,7 @@ test.describe("3D view: fallback (criterion 7)", () => {
 
 test.describe("3D view: lifecycle and hostile input", () => {
   test("20 connects and disconnects leave no renderer behind", async ({ page }) => {
+    test.setTimeout(90_000); // 20 software-GL renderers: ~13 s alone, over 30 s when the whole suite shares the machine
     await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
     await drawn(page);
     for (let i = 0; i < 20; i++) {

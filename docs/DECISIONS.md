@@ -2,6 +2,149 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: the wall glow is clipped to the lamp's room, face by face
+
+Supersedes the "face looks into the lamp's room" test of the entry below. That test looked at one point, 2 cm in front of the
+face's midpoint. An outer wall is one long face shared by several rooms (`collectWalls` merges only identical edges), so the
+midpoint decided for the whole face: in a 1000 x 400 outline split at x=500, a lamp in the east room lit the outline from
+x=407 to 793, 93 cm of it in the west room, and a lamp in the west room lit none of its own stretch. On the demo the
+first-floor Bedroom lamp lit 31 vertices outside its room. Now `facing` cuts the face wherever the line 2 cm in front of it
+crosses a room's edge, keeps the stretches whose middle is in the lamp's room, and `glowGrid` meshes each stretch (the 300 cm
+reach and the drawn height are unchanged; the cost is one small grid per stretch, still bounded). The room of a point is
+`roomOfPoint`'s (the highest room, then the smallest), so the inside face of a room nested in the lamp's room is not lit
+through the inner room. Tests: the two-room outline both ways, a nested room, a face in a neighbour's room that faces the
+lamp (fails without the room check), and a pixel-side check on the demo that no glow vertex lies more than 6 cm outside
+the lamp's room.
+
+Also: the 3D view no longer listens for `mousedown`. A cancelled `pointerdown` stops the compatibility mousedown in Chromium
+(the pan test now records it and sees none), and the autoscroll starts from that mousedown, so the listener was unreachable.
+
+## 2026-10-05: textures and wall light in 3D
+
+**Textures.** A room's or stair's top face wears its `Paint.texture` in 3D, at the size, turn and scale 2D uses. The tile is
+the same inline SVG, drawn through an `Image` onto a canvas (4 px per cm, longest side at most 512, least 32) and used as a
+`CanvasTexture` with repeat wrapping, mipmaps and anisotropy 4; no network, no new dependency. The UVs are plan cm over the
+tile's size times scale, turned by the texture's own rotation about the plan origin, as the SVG `patternTransform` does
+(the canvas is uploaded flipped, so v is negative). Only triangles that face up take the texture; sides and undersides keep
+the flat colour. Until the tile has loaded the face shows the texture's preview colour, then swaps and asks for a frame.
+Rasters are cached per (id, scale); each `texture()` call makes its own `CanvasTexture`, so a floor switch disposes
+the textures and the materials' maps and three's texture count returns to where it was (tested over repeated switches).
+The chunk does not import core (see `palette.ts`), so the card passes `textureTile` in through `three-deps.ts`. An unknown id,
+a non-string id, a NaN or huge rotation or scale give `null`, which is the flat colour: layout files are untrusted input,
+and `validate` does not see a layout handed to the view by other routes. The vertex-colour lift of a lit room still
+multiplies the texture (the textured material's colour is white and its vertex colours carry the lift). Cost: a lit lamp
+over very light wood washes the grain a little; the pattern still reads (looked at in both themes).
+
+**Light on the walls: a vertex-coloured additive patch, not a decal.** Alternatives: (1) a gradient texture per wall face,
+(2) real `PointLight` shading on the walls (already there, but it lights every wall, has no reach limit and does not respect
+the lamp's room), (3) per-lamp additive geometry. Chosen: 3. For each of the (at most `MAX_POOLS` = 8) lamps one mesh holds a
+small grid per wall face that looks into the lamp's own room and lies within 300 cm; each vertex carries the lamp's colour
+times `(1 - d/R)^2 * (0.35 + 0.65 * cos)`, with d the distance to the lamp and cos the angle to the face. It needs no
+textures to create, upload or free; it stops exactly at the drawn wall height, so a cut (lowered) wall has a low patch only;
+and it counts the distance across the room, which a flat decal does not. Face ownership uses the true outward normal of the
+wall ring: a face is lit when a point 2 cm in front of its middle falls in the lamp's room polygon. Door-jamb end caps sit on the room
+boundary and may take a sliver; accepted, they are a few cm wide. Off lamp, or a room that is not lit: the slot is hidden.
+Cost: a face is meshed in 25 cm cells (at most 12 by 6), so a very large wall gets a coarser patch. Test hook:
+`window.__fp3d.muteGlow(on)` (dist-test build only) hides the patches, because the pool light also brightens the wall and a
+pixel test of on against off proved nothing about the patch (it passed with the gain at 0 until this was found).
+
+## 2026-10-05: 3D fixes after 0.14.0 on the real layout
+
+**One floor at a time (supersedes "Floors" in the S12.6 entry).** The card draws only the selected floor. The dimmed floors
+below were built from each floor's own `floorElevation`, and on Diego's layout (garage, office, outdoor, 3 floors) they sat
+out of line with the selected floor. `BelowFloor`, `setFloor`'s third argument, `belowPlans`, `data-below`, the `DIM`
+opacity and the card's `_view3dBelow` are gone. The camera frames the one floor. `buildScene`'s `elevation` option stays in
+core (it is the plan's own, tested, and costs nothing). Cost: you no longer see the floor under you as context.
+
+**Icons stay under the walls.** A point device (light, camera, motion, radar, access point at 230 to 250 cm by default) was
+placed at its own `z`, which on a 250 cm floor is the wall top, so the icon read as flying over the house. `buildScene`
+now holds a point's `z` to the highest wall of the floor less `ICON_MARGIN` (10 cm), never below the slab; with no walls
+it is the floor's storey height. A body's icon (radiator, speaker, TV: top plus 6 cm) is held by the same margin in
+`anchorsOf` (`view3d.ts`). It is the one rule for the ball, the tap proxy and the icon, because all three read the point.
+2D and 2.5D do not use the scene: unchanged. Cost: a device the user mounted above the wall top is drawn lower than
+its `z`; the plan's number is untouched.
+
+**Panning: middle button and Space.** The view pans on a middle-button drag, on a left drag while Space is held, and as
+before on a right drag, Shift-drag and two fingers. The middle button's `pointerdown`, `mousedown` and `auxclick` are
+prevented (no browser autoscroll). Space is a window `keydown`/`keyup` pair, but it acts only while the pointer is over
+the canvas (`pointerenter`/`pointerleave`), not when the key starts in a control that Space activates (a button, a field),
+and with no Ctrl, Cmd or Alt; it is the same gate the card's own view keys use. It is taken (`preventDefault`) only then,
+so the page scrolls as usual elsewhere. Keyup and window `blur` end it. The mode is read at `pointerdown`, so releasing
+Space mid-drag does not turn the pan into a turn. The card's own Space (Reset view) never fires in 3D
+(`_doViewKey` returns false there), so the two do not collide. Pan moves past `DRAG_PX` set `dragged`, so it is never a tap,
+and the card already ignores a non-left button. Cost: a window-level listener per 3D view; chosen over a focusable canvas
+because Space must work from a plain hover, with no click first.
+
+**Item 1 of the field report (the office with no walls) was a data error in Diego's layout file, not a code defect.**
+`lowerWalls` and `wallZ` are unchanged: nothing was reproduced on the demo layout, so nothing was changed on a hunch.
+## 2026-10-05: room Sensors section, add menu order and Remove button
+
+The room panel's three sensor pickers group their options "<floor title> · <room>" and sort them (`groupSensorChoices`,
+`src/editor/sensor-order.ts`): the edited room, then the other rooms of its floor in the floor's room order, then the
+other floors in layout order. An entry with a floor but no room sits last in its floor under "<floor> · No room"; an entry
+with no known floor (an HA entity not catalogued yet, `unattachedHaChoices`, or a stale floor key) goes last under its
+room name or "Elsewhere". Never throws. Order inside a group is the incoming order. Door, heater and other lists keep the
+old room-name groups; `multiAttachField` takes an opt-in `look` argument.
+Remove on a room sensor is a round red icon-only button (`.btn.rm-x`, `--fp-danger`, white X, 26 px). The name is in
+`aria-label` and `title` ("Remove <room> - <sensor>"); the id `<picker>-rm<k>` is unchanged. The X path is `UI_ICONS.close` (mdiClose, inlined).
+## 2026-10-05: open doorway (`door.kind` `open`)
+
+**What.** A door that is only a hole in the wall: cut like a door (210 high from 0, width a to b, the same editable
+Length, height and sill), with nothing drawn in it. Diego: "to doors add as door type: open and do not draw the door."
+
+**Why not the existing `Opening`.** An `Opening` is its own list: no name, no sensors, no state. `open` is a real `Door`,
+so a doorway can carry a name, contact sensors, vibration, locks and a cover, and tell you when it is crossed or left
+unlocked. Use `Opening` for a plain gap, `open` when the gap has to talk to Home Assistant.
+
+**A kind.** `DoorKind` and `DOOR_KINDS` gain `open`; `DOOR_DEFAULTS.open` is a door's (210, 0); `OPENING_FILL.open` is a
+new value, `void`: a gap that draws nothing closed. `doorStateOf` is unchanged: it is not curtains, so an open `cover`
+colours it as it does a plain door. No schema bump (as for `slit`): a card older than this release refuses a layout that
+holds an `open` door (`kind must be one of ...`). The CHANGELOG says so.
+
+**How live state shows (decided).** Closed, unselected: nothing at all. Open (contact on, lock unlocked), vibrating or
+cover open: the same as any door, the dashed open-door line and the pulsing alert line in 2D, the red frame in the gap in
+2.5D. The sensor would be useless otherwise. In 3D nothing shows: the 3D live state lives on the door's leaf, and
+`open` has none (a known gap; `three/*` is left alone here).
+
+**2D.** The wall is cut by the same mask as an `Opening`, over `[...openings, ...open doors]`, so the plan shows a clean
+gap, not a coloured line over the wall. No visible `<line>`, no `<title>`. The invisible `door-hit` twin stays (finding
+3), with a class `door-hit-open`. A line is drawn only while selected (`door door-open sel`, 35 % opacity by a rule that
+excludes `.open`, `.alarm`, `.cover-open`, so state keeps its full colour) or showing state. The editor adds a faint
+outline on hover (`.door-hit-open:hover`, editor stylesheet only; the card has no hover). A layout with no `open` door
+draws byte for byte what it drew before (the demo's sha1, both floors, 2D and 2.5D, checked).
+
+**2.5D and 3D.** The span is the door's. `wallSolids` and `scene-build` cut between sill and head, add no leaf, glass or
+panel; the red frame appears in 2.5D only while open.
+
+## 2026-10-05: slit window (`door.kind` `slit`)
+
+**What.** A window 60 cm high whose head meets the ceiling of the wall it sits in. Width is the length from `a` to `b`
+(the editor's Length field, as for any door). Diego: "to the window type add a 'slit window', configurable width but
+only 60 cm high, starting from the ceiling."
+
+**A kind, not a flag.** `DoorKind` gains `slit` and `DOOR_KINDS` its member, so every per-kind table decides it
+(finding 17): `DOOR_DEFAULTS.slit` (60 high), `OPENING_FILL.slit` is glass, `doorStateOf` counts it as curtains (an open
+`cover` never colours it), the 3D palette gives `glass-slit` the window colour. Everything else is shared with `window`.
+
+**No schema bump.** Version stays 2. A bump exists for a change old files cannot be read through; this one only adds an
+enum member, so every old layout is still valid and migrates unchanged. The cost is one-way: a card or editor older than
+this release refuses a layout that holds a `slit` (`kind must be one of ...`), and nothing in the file says why. The
+CHANGELOG says so. Bumping would not help: the old validator rejects an unknown version just as hard.
+
+**The default is read from the wall, never stored.** `doorSpan(door, ceiling)` takes the top of the wall the door sits
+in (default: the storey, 250). Only a slit reads it: no own value gives sill `ceiling - 60`, head the ceiling; an own
+`height` keeps the head at the ceiling; an own `sill` wins and the head follows it, clamped to the ceiling; a wall under
+60 cm gives a slit as high as the wall. A wall's height is per wall and per room, so `solids.ts` and `scene-build.ts`
+resolve the span per wall (`Span.at(w.h)`), with `w.h` the model height, not the cutaway one: a lowered front wall hides
+the slit with the rest of the wall, as it hides a window. The panel's placeholders use `doorCeiling(floor, door)`: the
+highest of the walls under the door's middle, as the scene keeps the tallest of coincident walls. 2D is unaffected.
+
+**2D symbol.** The window line, class `door door-slit door-window` (so the window's colour rule applies, and no CSS rule
+was added or changed), at 0.4 of its wall's thickness (`SLIT_BAND` in `render.ts`, by the stroke-width attribute). A
+layout with no slit draws byte for byte what it drew before; the computed-style pair is in `tests/card/slit.spec.ts`.
+
+**Radiator.** `radiatorSpan` reads `DOOR_DEFAULTS.window.sill`, not a slit's, so a slit never lowers a radiator.
+
 ## 2026-10-05: Sprint 12 review fixes
 
 **Coordinate bound.** `validate` refuses any coordinate beyond +-1e7 cm (100 km) from the origin, on every point,

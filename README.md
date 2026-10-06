@@ -21,7 +21,7 @@ A real house, on the card in 2.5D, three themes (room and device names blurred):
 
 ## What you get
 
-- An editor panel in HA: draw floors, rooms, walls, doors, windows, stairs,
+- An editor panel in HA: draw floors, rooms, walls, doors, windows (also slit windows), open doorways, stairs,
   furniture. Attach rooms to areas and devices to entities from pickers.
 - A dumb light on a smart switch is one icon: bind the switch to the light
   ("Controlled by") and the plan shows both as one lamp.
@@ -51,7 +51,8 @@ A real house, on the card in 2.5D, three themes (room and device names blurred):
   the list aside or fold it away. On a card narrower than 480 px it starts
   folded, so it does not cover the plan.
 - Pinch, drag and double-tap to zoom and pan on a phone, Ctrl/Cmd+wheel and
-  drag on a desktop. A kiosk mode strips the card down to the plan for a
+  drag on a desktop. In the 3D view, drag turns the house; the middle button,
+  or Space plus a drag, pans. A kiosk mode strips the card down to the plan for a
   wall tablet.
 - Adding or editing the card shows a form, not raw YAML: theme, floors, fade,
   room glow, zoom, kiosk, night, icon size, open-door colour, the Active
