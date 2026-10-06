@@ -141,10 +141,30 @@ describe("furnitureHeight, unlinkedHeight, deviceZ", () => {
     expect(Number.isFinite(deviceZ(null as any))).toBe(true);
   });
   it("a few table values are the ones the spec names", () => {
-    expect(DEVICE_Z.light).toBe(250);
+    expect(DEVICE_Z.light).toBe(215);
     expect(DEVICE_Z.switch).toBe(120);
     expect(DEVICE_Z.plug).toBe(30);
     expect(DEVICE_Z.speaker).toBe(30); // the top of the 30 cm cabinet 2.5D draws, not a hook on the wall
     expect(DEVICE_Z.media).toBe(30);
+  });
+});
+
+describe("DEVICE_Z: every type's mount height is pinned (S14.5, Diego: lights and high icons float too high)", () => {
+  // One line per DEVICE_TYPES member: a new type fails here until someone writes down where it hangs (finding 17).
+  const PRESET: Record<string, number> = {
+    light: 215, camera: 205, motion: 205, radar: 205, access_point: 205, // ceiling: 35-45 cm under a 250 ceiling, not 20
+    ac: 195, cover: 175, // high on the wall, 25 cm lower
+    switch: 120, plug: 30, contact: 120, vibration: 120, lock: 100, temp: 135, humidity: 135, climate: 135,
+    boiler: 120, battery: 120, inverter: 100, tv: 100, other: 100, speaker: 30, media: 30,
+    heater: 60, computer: 75, server: 60, ups: 30, printer: 90, car: 150, person: 170, vacuum: 10,
+  };
+  it("the table is the one written here, type by type", () => {
+    expect(Object.keys(PRESET).sort()).toEqual([...DEVICE_TYPES].sort());
+    for (const t of DEVICE_TYPES) expect(DEVICE_Z[t], t).toBe(PRESET[t]);
+  });
+  it("the ceiling types clear a 250 ceiling by 35 cm or more; the high wall types are 25 cm lower than before", () => {
+    for (const t of ["light", "camera", "motion", "radar", "access_point"] as const) expect(250 - DEVICE_Z[t], t).toBeGreaterThanOrEqual(35);
+    expect(DEVICE_Z.ac).toBe(220 - 25);
+    expect(DEVICE_Z.cover).toBe(200 - 25);
   });
 });

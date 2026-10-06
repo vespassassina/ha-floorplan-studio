@@ -44,9 +44,16 @@ does not work well.
   counts as a tap.
 - H. Live state in 3D: a lit lamp lights its room (a light, not a flat
   circle); an open door or window opens; a heating radiator is tinted; a room
-  with motion gets the red edge; room readouts show as labels over the room.
+  with motion gets the red edge; room readouts show as labels over the room;
+  a tripped open doorway (`kind: open`, no leaf) shows a thin glass-like
+  alert-coloured slab in the gap (S14.5; closed, nothing).
   Icons and labels are HTML laid over the canvas, so they stay crisp and
   clickable and use the existing `data-x` hit rules (finding 3).
+- H2. Heights (S14.5): the "low" walls and the cutaway's lowered walls are one
+  figure, 110 cm (`CUT_WALL_HEIGHT`; it was 30). An icon's anchor is the
+  device's mount height (ceiling light 215, camera and sensors 205, AC 195,
+  cover 175, thermostat 135) held 25 cm under the wall top (`ICON_MARGIN`,
+  was 10).
 - I. Floors: only the selected floor is drawn, solid. Floors below and above
   are hidden. (A dimmed stack of the floors below was built in 0.14.0 and
   removed in the 3D fixes: on a real layout the floors drifted out of line.)

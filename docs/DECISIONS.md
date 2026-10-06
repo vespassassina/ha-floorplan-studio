@@ -2,6 +2,30 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-06: S14.5, the open doorway is a solid band, devices hang lower, low walls are 110 cm
+
+Spec items 9, 10, 11. Supersedes the dashed, pulsing look of a tripped `open` door, and the line in 0.15 that 3D shows no
+state for it.
+
+- **Doorway band.** A tripped `open` door (contact open, unlocked, vibration, cover open) is a solid `--fp-open-door` band
+  across the gap: no dash, no pulse, no door look. 2D: the door line gets class `band` (dash none, opacity 1) and the
+  `door-alert` pulse line is not drawn for a doorway; `.door.door-open.band` has three classes so it beats `.door.open` and
+  the selected-faint rule (computed-style pair in `open-door.spec.ts`). 2.5D: the red frame polygon is the same band
+  (`.opn.band`, fill-opacity 1). 3D: a thin slab in the gap, tag `band`, 0.6 opacity, so the room behind still reads; it is
+  visible only while the door is tripped (`applyDoors`, no rebuild). A plain door keeps its dashes and pulse.
+- **Pickable when closed.** The slab is always in the scene and only toggled visible, so a tap there is a door tap even
+  when nothing is drawn, as 2D's always-present `door-hit` is. Cheaper than rebuilding picks on every state change. The
+  slab never blocks labels (`BLOCKS`).
+- **Mount heights (`DEVICE_Z`).** Ceiling: light 215 (was 250), camera, motion, radar, access point 205 (was 230); wall-high:
+  ac 195 (was 220), cover 175 (was 200); temp, humidity, climate 135 (was 150). A ceiling device hangs 35 cm under a 250
+  wall, 45 for a wall unit; a thermostat sits at switch height. Everything else was not floating, from the demo renders, and
+  is unchanged. Own `z` values stay. `ICON_MARGIN` 10 -> 25 so an icon on a lower ceiling still sits clear of the wall
+  top. `tests/core/heights.test.ts` pins every `DEVICE_TYPES` member.
+- **Wall height.** The spec said "low is about 60". It was 30. One constant, `CUT_WALL_HEIGHT`, now 110 for both low and the
+  cutaway's lowered walls. Looked at in the demo renders in all three wall modes: 110 reads as a wall you see over, a door
+  still shows its head, and lamps at 215 stay above it. 90 was not rendered; 110 was the spec's lean and looked right. 2D and 2.5D walls keep their own cutaway
+  heights; only 3D changed.
+
 ## 2026-10-06: the size budget is raised for Sprints 14 and 15
 
 Diego said yes to +20 KB on the card and +40 KB on the 3D chunk (card 95,076 -> 115,000 gz, chunk 193,707 -> 233,000 gz)

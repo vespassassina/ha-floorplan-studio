@@ -187,7 +187,8 @@ describe("renderFloor", () => {
       const t = /<clipPath id="fp-aura-[^"]+" transform="translate\(([-\d.]+) ([-\d.]+)\)">/.exec(html);
       expect(+c[2], "the aura is lifted").toBeLessThan(200);
       expect(t, "a lifted clip carries the lift").not.toBeNull();
-      expect([+t![1], +t![2]]).toEqual([+c[1] - 650, +c[2] - 200]);
+      expect(+t![1]).toBeCloseTo(+c[1] - 650, 1); // the lift differs from the aura's by the lamp's plan position; 2 roundings can differ by 0.01
+      expect(+t![2]).toBeCloseTo(+c[2] - 200, 1);
     });
 
     it("ignores a zone: a lamp in the Reading corner clips to the room under it", () => {

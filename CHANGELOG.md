@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Card: a tripped **open doorway** (`kind: open`: its contact is open, its lock unlocked, a vibration or its cover open) is now a solid band in the alert colour (`--fp-open-door`) across the gap in 2D, 2.5D and 3D: no dash, no pulse, no door look. In 3D, where the doorway used to show nothing, a thin glass-like slab fills the gap while it is tripped, and a tap on it works like a tap on any door. Closed it still draws nothing. A plain door keeps its dashed line and pulse.
+- Card: **lower mount heights** in 3D and 2.5D. A ceiling light now hangs at 215 cm (was 250), a camera, motion sensor, radar and access point at 205 (was 230), an air conditioner at 195 (was 220), a cover motor at 175 (was 200), a thermostat, temperature and humidity sensor at 135 (was 150). An icon also stays 25 cm under the wall top (was 10). A device with its own mount height (`z`) keeps it; the editor's field shows the new preset.
+- Card: **walls in 3D**. The `low` walls and the cutaway's lowered walls are now 110 cm high (they were 30), so a low wall still shows into the rooms but reads as a wall. One figure for both modes.
+
 ## 0.15.0 - 2026-10-06
 
 - Card: floor textures in 3D. A room or stair with a texture shows it on its floor, at the same size, turn and scale as in 2D; the flat colour shows until the tile is ready. A bad texture id or rotation falls back to the flat colour.

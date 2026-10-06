@@ -8400,7 +8400,7 @@ const HEIGHT_CASES: { name: string; open: (p: Page) => Promise<void>; id: string
   { name: "opening sill", open: (p) => addGap(p), id: "#osill", ph: "0", at: "openings[" },
   { name: "furniture", open: async (p) => { await menu(p, "Add"); await p.locator("#addFurn").selectOption("bed"); }, id: "#fuht", ph: "55", at: "furniture[" },
   { name: "unlinked", open: async (p) => { await menu(p, "Add"); await p.locator("#addUnlDev").selectOption("heater"); }, id: "#uuht", ph: "60", at: "unlinked[" },
-  { name: "device mount height", open: (p) => selectDev(p, 0), id: "#vz", ph: "250", at: "devices[" },
+  { name: "device mount height", open: (p) => selectDev(p, 0), id: "#vz", ph: "215", at: "devices[" },
 ];
 
 for (const c of HEIGHT_CASES) {

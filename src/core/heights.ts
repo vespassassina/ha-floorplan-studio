@@ -32,12 +32,13 @@ export const UNLINKED_HEIGHTS: Record<DeviceType, number> = {
 
 /** Mount height of the real object an icon stands for. Same reasoning as UNLINKED_HEIGHTS, but where it is fixed, not its top. */
 export const DEVICE_Z: Record<DeviceType, number> = {
-  // Ceiling-mounted.
-  light: 250, camera: 230, motion: 230, radar: 230, access_point: 230,
-  // On the wall, up high.
-  ac: 220, cover: 200,
-  // Wall fittings at hand height (a switch is 120 by habit in Europe, a plug sits low).
-  switch: 120, plug: 30, contact: 120, vibration: 120, lock: 100, temp: 150, humidity: 150, climate: 150,
+  // Ceiling-mounted. The icon stands for the fitting, not for its mount: a pendant or a dome hangs 35-45 cm under a 250 cm ceiling in 3D,
+  // so it reads as in the room and not stuck to the slab (S14.5, Diego: "put all lights and high icons lower, they float too high").
+  light: 215, camera: 205, motion: 205, radar: 205, access_point: 205,
+  // On the wall, up high: 25 cm lower than the real unit's top edge, for the same reason.
+  ac: 195, cover: 175,
+  // Wall fittings at hand height (a switch is 120 by habit in Europe, a plug sits low; a thermostat or sensor at eye level, 135).
+  switch: 120, plug: 30, contact: 120, vibration: 120, lock: 100, temp: 135, humidity: 135, climate: 135,
   // Plant on the wall or a shelf.
   boiler: 120, battery: 120, inverter: 100, tv: 100, other: 100,
   // A speaker or media player is the 30 cm cabinet 2.5D draws (`deviceSolidTop`): the icon sits on top of it.

@@ -285,7 +285,8 @@ test.describe("3D view: the lamp's light on the walls (S13)", () => {
     const g = (await glow(page)).filter((x) => x.visible);
     expect(g.length).toBe(1);
     expect(g[0].faces.length).toBeGreaterThan(2);
-    for (const f of g[0].faces) { expect(f.z1).toBeLessThanOrEqual(60); expect(f.z1).toBeGreaterThan(0); } // CUT_WALL_HEIGHT, not the wall's 250
+    for (const f of g[0].faces) { expect(f.z1).toBeLessThanOrEqual(110); expect(f.z1).toBeGreaterThan(0); } // CUT_WALL_HEIGHT (110), not the wall's 250
+    expect(Math.max(...g[0].faces.map((f) => f.z1))).toBeGreaterThan(100); // it reaches the new height: a patch stopping at the old 30 or 60 fails
   });
 
   test("a full-height wall's glow reaches up the wall (the control for the lowered one)", async ({ page }) => {

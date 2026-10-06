@@ -2510,7 +2510,7 @@ Spec `docs/specs/card-polish-and-light.md`, items 1-12. Order and one outcome ea
 - S14.2 Tap popup, hover name, confirm-OFF, siren size (items 3-6). Card, both views. Raise the size budget first.
 - S14.3 Effect size per device, editor field (item 7). Schema optional field, 2D and 3D.
 - S14.4 View memory per floor, 2D and 3D (item 8).
-- S14.5 Open doorway alert band (item 9), lower presets (item 10), low and cutaway wall height (item 11).
+- [x] S14.5 Open doorway alert band (item 9), lower presets (item 10), low and cutaway wall height (item 11).
 - S14.6 Active list and Room panel by collapsible category (item 12).
 Sprint review by Opus once the integrated build is done; then release 0.16.0 on Diego's yes.
 
