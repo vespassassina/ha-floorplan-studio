@@ -94,3 +94,17 @@ test("a zone has no Scenes section (nothing on the card would show it)", async (
   }, EDITOR);
   await expect(page.locator("#rsc-new")).toHaveCount(0);
 });
+
+// S18.5, S18.6: the offer control says what it does; New scene is the highlighted button; the area's Home Assistant rows are a section of their own that folds.
+test("New scene is the primary button, the offer control is explained, and the area's rows sit in their own foldable section", async ({ page }) => {
+  await page.evaluate(([tag, ha]) => { (document.querySelector(tag as string) as any).ha = ha; }, [EDITOR, HA] as const);
+  await page.locator("#ra").selectOption("living");
+  await expect(page.locator("#rsc-new")).toHaveClass(/primary/);
+  await expect(page.locator('label[for="rsc-ha-add"]')).toHaveText("Offer another scene");
+  await expect(page.locator('details[data-sec="room:scenes"] .hint').filter({ hasText: "from another area" })).toBeVisible();
+  const sec = page.locator('details[data-sec="room:ha"]');
+  await expect(sec.locator(".habox")).toBeVisible();
+  await expect(page.locator('details[data-sec="room:scenes"] .habox')).toHaveCount(0); // not inside Scenes
+  await sec.locator("summary.pnl-h").click();
+  await expect(sec.locator(".habox")).toBeHidden();
+});

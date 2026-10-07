@@ -307,3 +307,34 @@ test("a device Home Assistant refuses is named, and one with an unknown state is
   await press(page, "#sceneTry");
   await expect(page.locator("#tryNote")).toContainText("Restore cannot put back switch.");
 });
+
+// S18.2: Try, Restore, Try again, Restore again: the second Restore still puts back what the light was before the first Try, even when the
+// state the editor holds has not caught up yet (it still says "on" after the first Restore turned the light off).
+test("a second Try after Restore still restores the original state, not the stale one", async ({ page }) => {
+  await withWriter(page);
+  await page.evaluate((tag) => { (document.querySelector(tag) as any).hassState = { "light.demo_living": { state: "off", attributes: {}, last_changed: "" } }; }, EDITOR);
+  await press(page, '[data-sdev="light.demo_living"] input[type=checkbox]');
+  await press(page, "#sceneTry");
+  await expect(page.locator("#tryNote")).toContainText("Sent.");
+  await page.evaluate((tag) => { (document.querySelector(tag) as any).hassState = { "light.demo_living": { state: "on", attributes: { brightness: 255, color_mode: "color_temp", color_temp_kelvin: 4000 }, last_changed: "" } }; }, EDITOR);
+  await press(page, "#sceneRestore");
+  await expect(page.locator("#tryNote")).toHaveText("Put back.");
+  await press(page, "#sceneTry"); // the editor's state is stale: it still says on and white
+  await expect(page.locator("#tryNote")).toContainText("Sent.");
+  await press(page, "#sceneRestore");
+  await expect(page.locator("#tryNote")).toHaveText("Put back.");
+  expect((await sent(page)).at(-1)).toEqual(["light", "turn_off", { entity_id: "light.demo_living" }]);
+});
+
+// S18.7: a popup opens inside the viewport, top and bottom, however the page is scrolled or short the window is.
+test("the designer opens inside a short viewport, with its name box and Save both visible", async ({ page }) => {
+  await page.locator("#sceneCancel").click();
+  await page.setViewportSize({ width: 924, height: 560 });
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await press(page, "#rsc-new");
+  const box = (await page.locator("#scenePanel").boundingBox())!;
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(560);
+  const name = (await page.locator("#sceneName").boundingBox())!;
+  expect(name.y).toBeGreaterThanOrEqual(0);
+});

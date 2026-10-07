@@ -190,6 +190,8 @@ export class FloorplanStudioEditor extends LitElement {
   private scenePos: { x: number; y: number } | null = null;
   /** S17.7: what the devices were doing before the first Try of this popup; empty when nothing is tried. */
   private sceneBackup: SceneItem[] = [];
+  /** S18.2: what each device was doing before the designer's first Try; kept across Restore, so a later Try cannot record a stale state as the original. */
+  private sceneOrigin: SceneItem[] = [];
   private sceneBusy = false;
   /** S8.5: Add > Device's floating panel: position (null when closed), the search text, and the four filter selects
    * (a value of "" is "All…"; "__none__" is the added "None" option). Reset every time the panel opens. */
@@ -1098,7 +1100,8 @@ export class FloorplanStudioEditor extends LitElement {
     this.requestUpdate();
   };
   /** Where a floating panel of width `w` opens: centred under the toolbar, never off the left edge. */
-  private panelPos(w: number) { return { x: Math.max(20, (window.innerWidth - w) / 2), y: this.panelTop() }; }
+  /** S18.7: centred in the viewport, whatever the page scroll or the toolbar's height. `h` is the panel's largest height (its CSS max-height). */
+  private panelPos(w: number, h = window.innerHeight * 0.8) { return { x: Math.max(20, (window.innerWidth - w) / 2), y: Math.max(8, Math.round((window.innerHeight - Math.min(h, window.innerHeight - 16)) / 2)) }; }
   /**
    * S8.10 follow-up (Opus review): a floating panel used to always open at a hardcoded y:90 — fine for the one-row
    * toolbar this was measured against, but the toolbar's own right-aligned cluster can wrap onto several rows at a
@@ -1161,13 +1164,13 @@ export class FloorplanStudioEditor extends LitElement {
     const sc = id === null ? undefined : r.scenes?.find((s) => s.id === id);
     if (id !== null && !sc) return;
     this.sceneDraft = newDraft(r.id, id, sc?.name ?? "", sc?.items ?? []);
-    this.scenePos = this.panelPos(660);
+    this.scenePos = this.panelPos(760, Math.min(900, window.innerHeight - 40));
     this.requestUpdate();
   }
   /** Closing without Save (Cancel, the X, Escape) puts back what a Try changed; Save leaves the devices as tried. */
   private closeScene(keepDevices = false) {
     const w = this.writer, back = this.sceneBackup;
-    this.sceneDraft = null; this.scenePos = null; this.sceneBackup = [];
+    this.sceneDraft = null; this.scenePos = null; this.sceneBackup = []; this.sceneOrigin = [];
     if (!keepDevices && w && back.length) void restoreScene(w, back);
     this.requestUpdate();
   }
@@ -1177,8 +1180,8 @@ export class FloorplanStudioEditor extends LitElement {
     if (!w || !d) return;
     if (!items.length) { d.trying = "Pick at least one device to try."; this.requestUpdate(); return; }
     this.sceneBusy = true; d.trying = "Sending…"; this.requestUpdate();
-    const r = await tryScene(w, items, this._hassStates ?? {}, this.sceneBackup);
-    this.sceneBackup = r.backup; this.sceneBusy = false;
+    const r = await tryScene(w, items, this._hassStates ?? {}, this.sceneOrigin);
+    this.sceneOrigin = r.backup; this.sceneBackup = r.backup; this.sceneBusy = false;
     d.trying = r.failed.length ? `Home Assistant refused ${r.failed.join(", ")}.` : r.unrestorable.length ? `Sent. Restore cannot put back ${r.unrestorable.join(", ")}: its state is unknown.` : "Sent. Restore puts the devices back.";
     this.requestUpdate();
   }

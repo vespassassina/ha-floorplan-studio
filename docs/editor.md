@@ -181,7 +181,7 @@ room, one undo step, ready to drag to their real place.
    every light and switch drawn in the room, on. Each scene has a name, one row per light or switch (On or Off, and for a light that
    is on an optional brightness 1 to 100 %; empty leaves the brightness alone), a Remove per row, an *add to scene* menu for the
    room's other lights and switches, and *Delete scene*. At most 12 scenes of 40 items. With Home Assistant connected the panel names
-   the scenes of the room's area (the card lists them by itself) and *also offer* adds a scene from elsewhere to the room's
+   the scenes of the room's area (the card lists them by itself) and *Offer another scene* adds a scene from elsewhere to the room's
    `haScenes`. Every press, pick or change of a field is one undo step; the same value again is none. The studio does not read the
    lights' live state, so a scene is built from the list, not captured from the lamps. The card shows the result as buttons
    (docs/card.md, Picking a room).
