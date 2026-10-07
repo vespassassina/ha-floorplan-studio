@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.0 - 2026-10-07
 
 - Card, studio: **Left and Right pan** the view a tenth of its width; they no longer turn the plan. The rotate buttons still do. In the card a key that cannot move anything (not zoomed in, or at the edge) is left to the page.
 - Studio: messages are **banners at the top**, coloured by situation (blue info, amber warning, red error), with a close button, gone after 20 seconds. The text in the toolbar is gone.
