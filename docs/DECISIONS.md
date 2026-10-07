@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: 375 px bare-floor threshold 0.87 to 0.85
+
+Filled furniture takes the pointer over its body (S18.8), so the kitchen table no longer counts as bare floor: room 1 measures 86.1 %. Diego's coordinator decided to lower `card-s14-review.spec.ts` from 0.87 to 0.85 at 375 px. Supersedes the "needs a decision" line of the entry below.
+
 ## 2026-10-07: furniture is filled, lit and loud (S18.8, S18.9, S18.13)
 
 A body shape in a furniture symbol carries class `ff`; `.furn .ff` fills it with 45% of the piece's `currentColor` in `--fp-room-empty` (the plain room most furniture stands on; `--fp-room` is dark in the dark themes and gave dark blobs on a light room, seen in the shots). On, `currentColor` is `--fp-active`, as before, so body and edge go amber. Filled furniture takes clicks over its whole body, where the outline took them only on its stroke; that is the point of S18.10. A tv or speaker piece whose entity is `playing` (exactly, as a speaker device) gets two `.wave` circles in `.furn-waves`, a sibling of the scaled symbol group (a non-uniform scale would squash them) and, in 2.5D, inside the piece's group at the lid; one helper, `furnitureWaves`, serves both paths. Waves take `--fp-active`, not the device's blue, so the piece reads one colour. Radius a quarter of the longer side, at least 15 cm. The computer symbol is a desk, monitor, keyboard and case, default 120 x 60 cm (was 60 x 40); stored sizes are untouched. Side effect: `card-s14-review.spec.ts` "room 1 keeps at least 87 %" now measures 86.1 % (557 of 647), because the kitchen table covers floor that used to count as bare; main measures above 87 %. Test left as is; needs a decision.
