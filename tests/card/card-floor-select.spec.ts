@@ -105,12 +105,14 @@ test.describe("S20.1 All off in the room panel", () => {
     expect(await calls(page)).toEqual([["light", "turn_off", { entity_id: ["light.demo_kitchen"] }]]);
   });
 
-  test("a lamp lit only by its bound relay is on in the plan, so it is in the call, by its light entity", async ({ page }) => {
+  test("a lamp lit only by its bound relay is not a target: its light entity is off, so there is no button for it and no call names it", async ({ page }) => {
     await boot(page, 1280, { ...STATES(), "light.demo_living": st("off"), "light.demo_living3": st("off") }); // relay still on
     await click(page, await floorPoint(page, 0));
-    await expect(factOf(page, "Lights on")).toHaveText("Living light");
+    await expect(factOf(page, "Lights on")).toHaveText("Living light"); // the plan still draws it on
+    await expect(allOff(page)).toHaveCount(0);
+    await setStates(page, { ...STATES(), "light.demo_living": st("off") }); // a second lamp is really on: the call names that one only
     await allOff(page).click();
-    expect(await calls(page)).toEqual([["light", "turn_off", { entity_id: ["light.demo_living"] }]]);
+    expect(await calls(page)).toEqual([["light", "turn_off", { entity_id: ["light.demo_living3"] }]]);
   });
 
   test("read-only Home Assistant (no callService) does not throw", async ({ page }) => {
@@ -208,6 +210,64 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     await card(page).evaluate((el, l) => { const e = el as unknown as { setConfig(c: unknown): void; updateComplete: Promise<unknown> }; e.setConfig({ layout: l }); return e.updateComplete; }, layout);
     await expect(panel(page)).toHaveCount(0);
     await expect(pill(page, "Ground")).not.toHaveClass(/fp-floor-picked/);
+  });
+
+  test("with the panel off (active_list: false) a pill only switches floor: nothing is selected, nothing opens", async ({ page }) => {
+    await boot(page, 1280, STATES(), { active_list: false });
+    await pill(page, "First").click();
+    await expect(pill(page, "First")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "First")).not.toHaveClass(/fp-floor-picked/);
+    await expect(pill(page, "First")).toHaveAttribute("aria-expanded", "false");
+    await expect(panel(page)).toHaveCount(0);
+  });
+
+  test("aria-expanded says the floor is selected, apart from aria-pressed, which says it is shown", async ({ page }) => {
+    await boot(page);
+    await expect(pill(page, "Ground")).toHaveAttribute("aria-expanded", "false");
+    await pill(page, "Ground").click();
+    await expect(pill(page, "Ground")).toHaveAttribute("aria-expanded", "true");
+    await expect(pill(page, "First")).toHaveAttribute("aria-expanded", "false");
+    await pill(page, "First").click();
+    await expect(pill(page, "Ground")).toHaveAttribute("aria-expanded", "false");
+    await expect(pill(page, "Ground")).toHaveAttribute("aria-pressed", "false");
+    await expect(pill(page, "First")).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("a double tap on the plan leaves the floor selection as it found it", async ({ page }) => {
+    await boot(page);
+    await pill(page, "Ground").click();
+    const at = await floorPoint(page, 0);
+    await page.mouse.dblclick(at.x, at.y);
+    await expect(panel(page).locator("css=.fp-room-name")).toHaveText("Ground");
+    await expect(pill(page, "Ground")).toHaveClass(/fp-floor-picked/);
+  });
+
+  test("the two All off buttons have names that tell them apart, and the name is text, not markup", async ({ page }) => {
+    const bad = structuredClone(layout);
+    bad.floors.ground.rooms[0].name = '"><b>x</b>';
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(URL_);
+    await page.addScriptTag({ content: CARD_JS, type: "module" });
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await card(page).evaluate((el, [l, s]) => { const e = el as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> }; e.setConfig({ layout: l }); e.hass = { states: s }; return e.updateComplete; }, [bad, STATES()] as const);
+    await click(page, await floorPoint(page, 0));
+    await card(page).locator("css=button.fp-scenes-head").click(); // the Scenes section starts folded
+    const names = await card(page).locator("css=button", { hasText: /^All off$/ }).evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label") ?? b.textContent!.trim()));
+    expect(names).toHaveLength(2);
+    expect(new Set(names).size).toBe(2);
+    await expect(allOff(page)).toHaveText("All off");
+    await expect(allOff(page)).toHaveAttribute("aria-label", 'Turn off all lights in "><b>x</b>');
+    await pill(page, "Ground").click();
+    await expect(allOff(page)).toHaveAttribute("aria-label", "Turn off all lights in Ground");
+  });
+
+  test("setConfig clears a picked room too", async ({ page }) => {
+    await boot(page);
+    await click(page, await floorPoint(page, 0));
+    await expect(panel(page)).toHaveCount(1);
+    await card(page).evaluate((el, l) => { const e = el as unknown as { setConfig(c: unknown): void; updateComplete: Promise<unknown> }; e.setConfig({ layout: l }); return e.updateComplete; }, layout);
+    await expect(panel(page)).toHaveCount(0);
+    expect(await picked(page)).toEqual([]);
   });
 
   test("the pill works from the keyboard", async ({ page }) => {

@@ -149,13 +149,13 @@ const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_PX = 24;
 /** One click of a zoom button. */
 const BUTTON_ZOOM = 1.5;
-/** The Scenes section starts folded, so its fold set entry means "opened by the user" (the other groups start open and the entry means folded). */
-/** What a double tap restores: the room or floor pick as it stood before the first tap changed it. */
 /** The words the side panel says for a room and for a floor (S20.2): the same panel, one subject. */
 interface Scope { unnamed: string; clear: string; noDevices: string; nothingOn: string; activeHere: string; onlyHere: string }
 const ROOM_SCOPE: Scope = { unnamed: "Unnamed room", clear: "Clear the room selection", noDevices: "No devices in this room", nothingOn: "Nothing on in this room", activeHere: "Active in this room", onlyHere: "This room only" };
 const FLOOR_SCOPE: Scope = { unnamed: "Unnamed floor", clear: "Clear the floor selection", noDevices: "No devices on this floor", nothingOn: "Nothing is on, on this floor", activeHere: "Active on this floor", onlyHere: "This floor only" };
+/** What a double tap restores: the room or floor pick as it stood before the first tap changed it. */
 interface PickMemo { pick: { floor: string; id: string } | null; floor: string | null; filter: boolean }
+/** The Scenes section starts folded, so its fold set entry means "opened by the user" (the other groups start open and the entry means folded). */
 const SCENES_OPEN = "r:scenes:open";
 /** S9.2: `icon_size` default and clamp range. */
 const DEFAULT_ICON_SIZE = 1;
@@ -1956,17 +1956,18 @@ export class FloorplanStudioCard extends LitElement {
     // aria-pressed marks the floor shown; the class marks the floor whose panel is open (S20.2), a separate fact.
     return html`<div class="fp-floors">
       ${list.map(
-        ([key, fl]) => html`<button type="button" class=${key === selected ? "fp-floor-picked" : ""} aria-pressed=${key === current ? "true" : "false"} @click=${() => this._tapFloorChip(key)}>${fl.title || key}</button>`,
+        ([key, fl]) => html`<button type="button" class=${key === selected ? "fp-floor-picked" : ""} aria-pressed=${key === current ? "true" : "false"} aria-expanded=${key === selected ? "true" : "false"} @click=${() => this._tapFloorChip(key)}>${fl.title || key}</button>`,
       )}
     </div>`;
   }
 
   /** S20.2: a pill shows its floor, as before, and selects it so the side panel opens on the floor. The selected floor's
-   *  pill again lets go. Kiosk has no pills, so it never gets here. */
+   *  pill again lets go. With the panel off (`active_list: false`) there is nowhere to show a floor, so it only switches, as a
+   *  room tap does nothing there. Kiosk has no pills, so it never gets here. */
   private _tapFloorChip(key: string): void {
     const letGo = this._pickedFloorKey() === key;
     this._selectFloor(key);
-    this._pickFloor(letGo ? null : key);
+    this._pickFloor(letGo || !this._activeListVisible() ? null : key);
   }
 
   /** The key of the selected floor while it is the one shown, else null (a floor the config no longer lists means nothing). */
@@ -2332,7 +2333,7 @@ export class FloorplanStudioCard extends LitElement {
         <button type="button" class="fp-room-clear" aria-label=${scope.clear} @click=${() => this._pickRoom(null)}>×</button>
       </div>
       <dl class="fp-room-facts">${facts.filter(([, v]) => v).map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
-      ${s.lightsOnEntities.length ? html`<div class="fp-alloff-row"><button type="button" class="fp-alloff" title="Turn off the lights that are on here" @click=${() => this._allOff(s.lightsOnEntities)}>All off</button></div>` : nothing}
+      ${s.lightsOnEntities.length ? html`<div class="fp-alloff-row"><button type="button" class="fp-alloff" aria-label=${`Turn off all lights in ${s.name || scope.unnamed}`} title="Turn off the lights that are on here" @click=${() => this._allOff(s.lightsOnEntities)}>All off</button></div>` : nothing}
       ${this._scenesBlock()}
       ${active}
       <div class="fp-active-group-label">Devices</div>

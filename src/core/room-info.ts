@@ -43,7 +43,7 @@ export interface RoomSummary {
   /** Names of the open (or unlocked) doors and windows whose line lies on one of the room's edges. */
   openings: string[];
   lightsOn: string[];
-  /** The entity ids behind `lightsOn`, once each: what the All off button turns off. */
+  /** The lights whose own entity is `on`, once each: what the All off button turns off. A subset of `lightsOn` (a bound lamp lit only by its relay is not in it). */
   lightsOnEntities: string[];
   devices: RoomDeviceRow[];
   sensors: RoomSensorRow[];
@@ -128,7 +128,12 @@ function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean,
     const on = classOf(d, { scale: 1, state, ...opts }) === "on";
     devices.push({ index: i, entity: d.entity, name: nameFor(d, state), type: d.type, state: stateText(state, d.entity), on, colorVar: on ? colorVarFor(d, state) : "--fp-ink" });
     for (const e of entitiesOfDevice(d)) entities.add(e);
-    if (d.type === "light" && on) { lightsOn.push(nameFor(d, state)); lightsOnEntities.add(d.entity); }
+    if (d.type === "light" && on) {
+      lightsOn.push(nameFor(d, state));
+      // All off acts on the light entity itself. A bound lamp lit only by its relay is on in the plan but is not a target:
+      // light.turn_off on an entity that is already off does nothing, and the button would promise more than it does.
+      if (stateOf(state, d.entity)?.state === "on") lightsOnEntities.add(d.entity);
+    }
   });
 
   // A linked tv, speaker or computer piece is a device of its type here; an entity a device already lists is not repeated.
