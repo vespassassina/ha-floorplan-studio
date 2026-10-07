@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.19.1 - 2026-10-07
+
 - Card: the device colours picked in the studio (`colors` in the layout) now show on the dashboard, in 2D, 2.5D and 3D. Only the editor drew them before.
 
 - Card: the hover tooltip goes when a zoom key moves its icon from under a pointer that did not move. It named an icon the pointer was no longer on.
