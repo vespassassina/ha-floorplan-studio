@@ -373,10 +373,29 @@ export function furnitureMode(m: Furniture): "box" | "pole" | "flat" {
 }
 
 /**
+ * S18.12: ` data-linked` for a tv, speaker or computer piece with an entity, else "". It tracks that device, and the stylesheet
+ * gives it its own idle colour. An attribute, not a class: the class list (`furn`, `on`) is pinned as it is by older tests.
+ * One function for the 2D and 2.5D draw paths.
+ */
+export function furnitureLinked(m: Furniture): string {
+  return pieceDevice(m) ? " data-linked" : "";
+}
+
+/**
+ * The device a linked piece stands for in the card: same type, entity and name, at the piece's own place. A tv, speaker or computer
+ * piece with an entity (S18.12 "linked") is, for its state, its Active row, its room row and its tap, that device (DECISIONS
+ * 2026-10-07). Null for any other piece. Built fresh each time, never stored, so the layout file is unchanged.
+ */
+export function pieceDevice(m: Furniture): Device | null {
+  if (typeof m?.entity !== "string" || !m.entity || (m.symbol !== "tv" && m.symbol !== "speaker" && m.symbol !== "computer")) return null;
+  return { id: m.id, type: m.symbol, entity: m.entity, ...(m.name ? { name: m.name } : {}), x: m.x, y: m.y };
+}
+
+/**
  * One piece of furniture as a block (or a trunk), its symbol drawn at the top. `symbol` is the symbol's own markup, and
  * the group wraps all of it, so a tap anywhere on the piece still reaches `data-f`.
  */
-export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on: boolean, symbol: string, px: Proj): Solid | null {
+export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on: boolean, symbol: string, px: Proj, waves?: string | null): Solid | null {
   const z0 = furnitureBottom(m), h = furnitureTop(m), c: Pt = [m.x, m.y];
   const base = ([[-m.w / 2, -m.h / 2], [m.w / 2, -m.h / 2], [m.w / 2, m.h / 2], [-m.w / 2, m.h / 2]] as Pt[]).map((q) => turnAbout([m.x + q[0], m.y + q[1]], m.rot, c));
   const top = px.lift(c, h);
@@ -384,7 +403,9 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
   if (mode === "box") { const p = prism(base, h, px, z0); if (!p) return null; body = p; }
   else body = `<line class="trunk" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(top[0])}" y2="${num(top[1])}"/>`;
   const sym = `<g transform="translate(${num(top[0])} ${num(top[1])}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)">${symbol}</g>`;
-  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}" color="var(--fp-furniture)">${body}${sym}</g>` };
+  // S18.9: a playing tv or speaker sends its waves from the lid, outside the scaled symbol group so they stay round.
+  const w = waves ? waves.replace("%AT%", `${num(top[0])} ${num(top[1])}`) : "";
+  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}" color="var(--fp-furniture)"${furnitureLinked(m)}>${body}${sym}${w}</g>` };
 }
 
 /** cm across the block under an unlinked appliance, times its own scale: a small thing, the icon says what it is. */
@@ -408,7 +429,7 @@ export const DEVICE_SOLID: Record<DeviceType, "radiator" | "speaker" | "tv" | "n
   light: "none", camera: "none", motion: "none", radar: "none", access_point: "none", ac: "none", speaker: "speaker", cover: "none",
   switch: "none", plug: "none", contact: "none", vibration: "none", lock: "none", temp: "none", humidity: "none", climate: "none",
   boiler: "none", battery: "none", inverter: "none", media: "speaker", tv: "tv", other: "none", heater: "radiator", computer: "none",
-  server: "none", ups: "none", printer: "none", car: "none", person: "none", vacuum: "none",
+  server: "none", ups: "none", printer: "none", car: "none", person: "none", vacuum: "none", siren: "none", alarm: "none",
 };
 const kindOf = (d: Device) => (has(DEVICE_SOLID, (d as { type?: unknown } | null)?.type) ? DEVICE_SOLID[d.type] : "none");
 

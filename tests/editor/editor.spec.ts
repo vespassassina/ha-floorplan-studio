@@ -4003,7 +4003,7 @@ const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first
 
 test("S1.36: Edit, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
   await openDevCols(page);
-  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(30); // S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum
+  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(32); // S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum; S18.14 added siren, alarm
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
   await expect(colourRow(page, "light").locator("button")).toHaveCount(1);
   await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
@@ -6218,6 +6218,55 @@ test("S4.18: the device panel's type selector changes a device's type and drops 
   const after = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
   expect(after.type).toBe("heater");
   expect(after.tempSensors).toEqual(["sensor.demo_bedroom_temperature"]);
+});
+
+// ---- S18.14: the type menu lists the popular types, a separator, then the rest A to Z; siren and alarm are types ----------
+
+test("S18.14: the device type select lists popular types, one unselectable separator, then A to Z; siren and alarm are chosen in one undo step each", async ({ page }) => {
+  const p = await screenOf(page, 180, 8); // demo's "Living radiator" heater
+  await page.mouse.click(p.x, p.y);
+  const sel = page.locator("#vtype");
+  await expect(sel).toHaveValue("heater");
+  // What the browser holds, not what the source says: an hr is a child of the select but never one of its options.
+  const kids = await sel.evaluate((s) => [...s.children].map((c) => (c.tagName === "HR" ? "---" : `${(c as HTMLOptionElement).value}|${c.textContent}`)));
+  expect(kids.slice(0, 8).map((k) => k.split("|")[0])).toEqual(["light", "switch", "motion", "contact", "temp", "speaker", "tv", "---"]);
+  expect(kids.filter((k) => k === "---")).toHaveLength(1);
+  const rest = kids.slice(8).map((k) => k.split("|")[1]);
+  expect(rest).toEqual([...rest].sort((a, b) => a.localeCompare(b, "en")));
+  expect(rest).toContain("Siren");
+  expect(rest).toContain("Alarm");
+  expect(await sel.evaluate((s: HTMLSelectElement) => s.options.length)).toBe(kids.length - 1); // the hr is not an option
+  const typeOf = async () => ((await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any).type;
+  await page.mouse.click(p.x, p.y);
+  await sel.selectOption("siren");
+  expect(await typeOf()).toBe("siren");
+  await page.mouse.click(p.x, p.y);
+  await sel.selectOption("alarm");
+  expect(await typeOf()).toBe("alarm");
+  await page.mouse.click(p.x, p.y);
+  await page.keyboard.press("Control+z");
+  expect(await typeOf()).toBe("siren"); // one step undoes the alarm
+  await page.keyboard.press("Control+z");
+  expect(await typeOf()).toBe("heater"); // one step undoes the siren
+  // The separator takes no index: option 6 is tv, option 7 is the first of the rest, so neither a click nor an arrow key can land on it.
+  // (Arrow keys open the list on macOS and step it elsewhere, so the test reads the option list the keys walk, not the key.)
+  await page.mouse.click(p.x, p.y);
+  await sel.selectOption({ index: 6 });
+  await expect(sel).toHaveValue("tv");
+  await sel.selectOption({ index: 7 });
+  await expect(sel).toHaveValue(kids[8].split("|")[0]);
+  expect(await sel.evaluate((s: HTMLSelectElement) => s.selectedOptions.length)).toBe(1);
+});
+
+test("S18.14: the unlinked device menu takes the same order: its placeholder, popular types, one separator, the rest A to Z", async ({ page }) => {
+  await menu(page, "Add");
+  const kids = await page.locator("#addUnlDev").evaluate((s) => [...s.children].map((c) => (c.tagName === "HR" ? "---" : `${(c as HTMLOptionElement).value}|${c.textContent}`)));
+  const popular = ["light", "speaker", "tv"]; // the popular types this menu offers, in POPULAR_TYPES order
+  expect(kids.slice(0, 5).map((k) => k.split("|")[0])).toEqual(["", ...popular, "---"]);
+  expect(kids.filter((k) => k === "---")).toHaveLength(1);
+  const rest = kids.slice(5).map((k) => k.split("|")[1]);
+  expect(rest).toEqual([...rest].sort((a, b) => a.localeCompare(b, "en")));
+  expect(rest.length).toBeGreaterThan(5);
 });
 
 // ---- S7.8: a person has a Room sensor picker, and only a person ------------------------------------------------
@@ -8628,4 +8677,151 @@ test("placing a catalogued plug from Add writes its device's one power sensor in
   const placed = (await groundOf(page)).devices.find((d) => d.id === "plug-free")!;
   expect(placed).toMatchObject({ type: "plug", power: "sensor.free_power" });
   await savedValid(page);
+});
+
+// S18.10: a thin tv and a small speaker are hard to grab. Real mouse at real coordinates (finding 3), pressed 6 px outside the
+// drawn edge of the piece, not on it. A press that lands on the room or the background moves nothing.
+for (const [sym, side] of [["tv", "below"], ["speaker", "right"]] as const) {
+  test(`S18.10: a ${sym} is picked 6 px outside its drawn edge and dragged`, async ({ page }) => {
+    await menu(page, "Add");
+    await page.locator("#addFurn").selectOption(sym);
+    const before = (await groundOf(page)).furniture.at(-1)!;
+    const n = (await groundOf(page)).furniture.length - 1;
+    await page.locator("#fixPlan").press("Escape"); // leaves nothing selected that could take the press
+    const box = (await page.locator(`${EDITOR} svg g[data-f="${n}"]`).boundingBox())!;
+    const at = side === "below" ? { x: box.x + box.width / 2, y: box.y + box.height + 6 } : { x: box.x + box.width + 6, y: box.y + box.height / 2 };
+    await page.mouse.move(at.x, at.y);
+    await page.mouse.down();
+    await page.mouse.move(at.x - 20, at.y - 10, { steps: 4 });
+    await page.mouse.move(at.x - 40, at.y - 20, { steps: 4 });
+    await page.mouse.up();
+    const after = (await groundOf(page)).furniture[n];
+    expect(after.x).toBeLessThan(before.x);
+    expect(after.y).toBeLessThan(before.y);
+    expect((await layoutOf(page)).floors.ground.furniture).toHaveLength(n + 1);
+  });
+}
+
+// Opus review of S18.10: the padded box must not take what is not small tv, speaker or computer furniture's. Real mouse at real
+// coordinates (finding 3). Pieces are written straight into the layout (like the S18.12 pair below), clear of every demo device.
+async function addPieces(page: Page, pieces: Record<string, unknown>[]) {
+  await page.evaluate(([tag, add]) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.furniture.push(...(add as unknown[]));
+    el.layout = l;
+  }, [EDITOR, pieces] as const);
+  await page.locator("#fixPlan").press("Escape"); // nothing selected that could take the press
+  return (await groundOf(page)).furniture.length - pieces.length;
+}
+const selOf = (page: Page) => page.evaluate((tag) => (document.querySelector(tag) as any).st.sel, EDITOR);
+const boxOf = async (page: Page, i: number) => (await page.locator(`${EDITOR} svg g[data-f="${i}"]`).boundingBox())!;
+
+test("S18.10 review: 6 px off a room edge, beside a tv that lies flush on it, picks the edge, not the tv's padded box", async ({ page }) => {
+  // The wall between Living and the Kitchen is x = 500. The tv stands on it, turned, and is 100 cm long: y 250 to 350. (On an external
+  // wall the line itself is 16 px wide and takes the press alone, so a test there passes without the fix.)
+  const n = await addPieces(page, [{ id: "flush-tv", symbol: "tv", x: 495, y: 300, rot: 90, w: 100, h: 10 }]);
+  const b = await boxOf(page, n);
+  const at = { x: b.x + b.width + 6, y: b.y + b.height + 4 }; // 6 px off the tv, past the wall line's own width, inside the 8 px edge reach, 4 px past the tv's end
+  await page.mouse.click(at.x, at.y);
+  expect((await selOf(page)).t).toBe("edge");
+});
+
+for (const symbol of ["toilet", "sink", "shower"]) {
+  test(`S18.10 review: a click just beside a small ${symbol} at fit zoom picks the room, not the ${symbol}`, async ({ page }) => {
+    const n = await addPieces(page, [{ id: `small-${symbol}`, symbol, x: 430, y: 300, rot: 0, w: 20, h: 20 }]);
+    const b = await boxOf(page, n);
+    expect(Math.min(b.width, b.height), "the piece is small on screen: it would have been padded").toBeLessThan(28);
+    await page.mouse.click(b.x + b.width + 5, b.y + b.height / 2);
+    expect(await selOf(page)).toEqual({ t: "room", i: 0 });
+  });
+}
+
+for (const symbol of ["tv", "speaker", "computer"]) {
+  test(`S18.10 review: a small ${symbol} is still picked 6 px outside its drawn edge`, async ({ page }) => {
+    const n = await addPieces(page, [{ id: `small-${symbol}`, symbol, x: 430, y: 300, rot: 0, w: 40, h: 16 }]);
+    const b = await boxOf(page, n);
+    expect(Math.min(b.width, b.height), "the piece is small on screen").toBeLessThan(28);
+    await page.mouse.click(b.x + b.width / 2, b.y + b.height + 6);
+    expect(await selOf(page)).toEqual({ t: "furn", i: n });
+  });
+}
+
+// S18.11: Add > Device places a tv, speaker or computer as a furniture piece that tracks the entity, not as an icon.
+const FURN_HA = { floors: [], areas: [], entities: [
+  { id: "media_player.lounge_tv", name: "Lounge TV", domain: "media_player", dc: "tv" },
+  { id: "media_player.kitchen_sp", name: "Kitchen speaker", domain: "media_player", dc: "speaker" },
+  { id: "media_player.plain", name: "Plain player", domain: "media_player" },
+] };
+for (const [id, name, sym] of [["media_player.lounge_tv", "Lounge TV", "tv"], ["media_player.kitchen_sp", "Kitchen speaker", "speaker"]] as const) {
+  test(`S18.11: an HA ${sym} player from Add > Device is a ${sym} piece with its entity, one undo step, and moves`, async ({ page }) => {
+    await setHa(page, FURN_HA);
+    const before = await groundOf(page);
+    await openDevice(page);
+    await page.locator(`#addDevPanel button[data-add="ha:${id}"]`).click();
+    const g = await groundOf(page);
+    expect(g.devices).toHaveLength(before.devices.length);
+    expect(g.furniture).toHaveLength(before.furniture.length + 1);
+    const m = g.furniture.at(-1)!;
+    expect(m).toMatchObject({ symbol: sym, entity: id, name });
+    expect(validate(await layoutOf(page)).ok).toBe(true);
+    await expect(page.locator(`#addDevPanel button[data-add="ha:${id}"]`)).toHaveCount(0); // placed: not offered again
+    await page.locator("#addDevClose").click();
+    // a real drag moves it (real mouse, finding 3)
+    const n = g.furniture.length - 1;
+    const box = (await page.locator(`${EDITOR} svg g[data-f="${n}"]`).boundingBox())!;
+    const c = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await page.mouse.move(c.x, c.y); await page.mouse.down();
+    await page.mouse.move(c.x - 30, c.y - 20, { steps: 4 }); await page.mouse.move(c.x - 60, c.y - 40, { steps: 4 });
+    await page.mouse.up();
+    expect((await groundOf(page)).furniture[n].x).toBeLessThan(m.x);
+    await page.locator("#undo").click(); // the move
+    await page.locator("#undo").click(); // the add: one step, piece and catalog entry together
+    const u = await layoutOf(page);
+    expect(u.floors.ground.furniture).toHaveLength(before.furniture.length);
+    expect(u.catalog.some((x) => x.entity === id)).toBe(false);
+  });
+}
+
+test("S18.11: a plain media player stays a device icon", async ({ page }) => {
+  await setHa(page, FURN_HA);
+  const before = await groundOf(page);
+  await openDevice(page);
+  await page.locator('#addDevPanel button[data-add="ha:media_player.plain"]').click();
+  const g = await groundOf(page);
+  expect(g.devices).toHaveLength(before.devices.length + 1);
+  expect(g.furniture).toHaveLength(before.furniture.length);
+});
+
+for (const [type, sym] of [["tv", "tv"], ["speaker", "speaker"], ["computer", "computer"]] as const) {
+  test(`S18.11: a catalog ${type} placed from Add > Device is a ${sym} piece with its entity`, async ({ page }) => {
+    await setCatalog(page, [{ id: `cat-${type}`, floor: "ground", room: "Living", type, name: `Cat ${type}`, entity: `media_player.cat_${type}` }]);
+    const before = await groundOf(page);
+    await openDevice(page);
+    await devItem(page, `cat-${type}`).click();
+    const g = await groundOf(page);
+    expect(g.devices).toHaveLength(before.devices.length);
+    expect(g.furniture.at(-1)).toMatchObject({ symbol: sym, entity: `media_player.cat_${type}`, name: `Cat ${type}` });
+    expect(validate(await layoutOf(page)).ok).toBe(true);
+    await expect(devItem(page, `cat-${type}`)).toHaveCount(0);
+    await page.locator("#addDevClose").click();
+    await page.locator("#undo").click();
+    expect((await groundOf(page)).furniture).toHaveLength(before.furniture.length);
+  });
+}
+
+// S18.12 CSS pair: a piece tracking an entity wears its own idle colour, not the furniture grey; on, the amber wins. Computed style, not text (finding 10).
+test("S18.12 CSS pair: a linked tv piece is not the plain furniture grey when idle, and --fp-active when on", async ({ page }) => {
+  await setTheme(page, "light");
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), g = l.floors.ground;
+    g.furniture.push({ id: "lk-1", symbol: "tv", x: 1900, y: 100, rot: 0, w: 120, h: 10, entity: "media_player.lk" }, { id: "lk-2", symbol: "tv", x: 1900, y: 300, rot: 0, w: 120, h: 10 });
+    el.layout = l;
+  }, EDITOR);
+  const n = (await groundOf(page)).furniture.length;
+  const colour = (i: number, on = false) => page.locator(`${EDITOR} svg g[data-f="${i}"]`).evaluate((e, on) => { if (on) e.classList.add("on"); const c = getComputedStyle(e).color; e.classList.remove("on"); return c; }, on);
+  const linked = await colour(n - 2), plain = await colour(n - 1);
+  expect(plain).toBe(rgb("#79766e"));
+  expect(linked).toBe(rgb("#2c7fb8")); // --fp-dev-tv, light
+  expect(linked).not.toBe(plain);
+  expect(await colour(n - 2, true)).toBe(rgb("#8a5117")); // --fp-active
 });

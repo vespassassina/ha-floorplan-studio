@@ -22,6 +22,7 @@ const WEARS_ON: Record<DeviceType, [state: string, attrs: Record<string, unknown
   switch: ["on", {}, true], temp: ["21", {}, false], humidity: ["50", {}, false], battery: ["on", {}, true], inverter: ["on", {}, true],
   server: ["on", {}, true], access_point: ["on", {}, true], lock: ["locked", {}, false], vibration: ["on", {}, true], other: ["on", {}, true],
   boiler: ["on", {}, true], car: ["on", {}, true], ups: ["on", {}, true], printer: ["on", {}, true], radar: ["on", {}, true], camera: ["idle", {}, false],
+  siren: ["on", {}, true], alarm: ["armed_away", {}, true], // S18.14
 };
 
 describe("covers with no garage, gate or door class draw idle (curtains, blinds, shutters)", () => {

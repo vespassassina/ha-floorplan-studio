@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+## 0.19.0 - 2026-10-07
+
+- Only a tv, speaker or computer takes the padded grab box in the editor; a small toilet, sink or shower no longer takes a click meant for its room. A wall or room edge within 8 px wins over a thin tv lying on it. An entity a piece already tracks is no longer offered to place a second time.
+- The device type menu puts the most used types first (light, switch, motion, window / door sensor, temperature, speaker, TV), then a separator, then every other type A to Z. The device panel, the Add device filter and the Unlinked device list all use it.
+- Siren and alarm are device types. A `siren.*` entity is placed as a siren and an `alarm_control_panel.*` as an alarm. A siren on is red (and sends rings, as before, when its entity is a siren). An alarm is red while armed, pending or triggered, grey when disarmed, and a tap opens more-info instead of toggling.
+- A tv, speaker or computer piece that tracks a device (it has an entity) is drawn in the tv blue when idle, so it reads apart from a plain decorative one. On, it takes the on colour as before. Same in the card and the editor, in 2D and 2.5D.
+- Add > Device places a tv, a speaker or a computer as the piece itself, not an icon: a media player Home Assistant calls a tv or speaker, and a catalog entry typed tv, speaker or computer. The piece tracks the entity, sits where a device would, is selected and moves like any furniture.
+- A thin tv or a small speaker is easy to pick up in the editor: a piece under 28 px on a side takes the press from 8 px around it, and drags as before.
+- Furniture is filled, not an outline: every symbol takes a body colour from the theme (light, dark and every theme), with the stroke kept as the edge. A piece with an entity that is on takes the on colour, body and edge.
+- A tv or speaker piece whose media player is playing sends out the same two waves a speaker device does, in 2D and 2.5D, in the on colour.
+- The computer is drawn as a desk seen from above, with a monitor, a keyboard and a case. New ones are 120 x 60 cm; computers already on a plan keep their size.
+- In the card, a tv, speaker or computer piece that tracks a device acts like that device. It is listed under Active while on (a paused tv counts, as for the tv device), appears in its room's device list and can be put in a room scene, a tap or a click in 3D opens its more-info instead of picking the room, and hovering names it. In 3D it takes the linked colour at rest and the on colour when on. A piece with no entity stays part of the room floor.
+
 ## 0.18.2 - 2026-10-07
 
 - 3D: a garden house or shed whose wall stands a few cm over the garden's border now shows its floor. It was hidden under the garden when a corner was just outside. A narrow room beside the garden still does not count as inside it.

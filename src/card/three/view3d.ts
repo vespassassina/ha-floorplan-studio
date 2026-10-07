@@ -97,7 +97,7 @@ const hex = (n: number) => n.toString(16).padStart(6, "0");
 const SWING = (70 * Math.PI) / 180;
 /** The lights' strength by day and by night, and how much more a lit room and a lamp's pool count at night, against the dark. */
 const DAY = { hemi: 1.6, sun: 1.9, boost: 1.3 }, NIGHT = { hemi: 0.5, sun: 0.35, boost: 3.5 };
-const EMPTY: Live3D = { pulse: [3, 1.4], night: false, labels: false, names: false, lights: [], doors: [], devices: [], rooms: [] };
+const EMPTY: Live3D = { pulse: [3, 1.4], night: false, labels: false, names: false, lights: [], doors: [], devices: [], pieces: [], rooms: [] };
 const hexOf = (c: Color) => `#${c.getHexString()}`;
 
 /** A CSS colour the browser accepts, as 0xRRGGBB, or `null`. Resolved on `probe`, which sits inside the card and so sees its tokens. */
@@ -153,6 +153,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   let lifts = new Map<number, Rgb>(), roomShapes: RoomShape[] = [];
   const roomSolid = new Map<number, { base: Poly; z: number }>();
   let parts: { index: number; tag: string; mesh: Mesh; mat: MeshLambertMaterial; rest: Color }[] = [];
+  /** A linked tv, speaker or computer piece: a mesh of its own (so its colour can follow the state), at rest in the linked colour, on in the plan's on colour. */
+  let pieceBodies: { index: number; mesh: Mesh; mat: MeshLambertMaterial; rest: Color; on: boolean }[] = [];
   let devBodies: { index: number; type: string; mesh: Mesh; mat: MeshLambertMaterial; rest: Color; lit: Mesh[]; on: boolean }[] = [];
   let ballIdx: number[] = [], ballRest: Color[] = [], anchors: Anchors = { devices: new Map(), rooms: new Map() };
   const overlay = createOverlay(container), pools = createPools(scene), rings = createRings(scene), glow = createGlow(scene);
@@ -403,6 +405,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       t.mat.needsUpdate = true;
     }
   }
+  const isPiece = (s: Solid) => s.kind === "furniture" && !!s.ref.entity;
   const isWall = (s: Solid) => s.kind === "wall" || s.kind === "opening";
   /** A door's leaf, a window's pane and an open doorway's alert band are parts of their own (they swing, vanish or appear with the state); a sealed panel stays in the wall. */
   const isPart = (s: Solid) => s.kind === "opening" && (s.tag === "door-leaf" || s.tag === "glass" || s.tag === "band");
@@ -412,7 +415,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     wallSides = []; glowSpecs = []; deviceZ = new Map();
     for (const x of parts) drop(x.mesh);
     for (const b of devBodies) { drop(b.mesh); b.lit.forEach(drop); }
-    parts = []; devBodies = []; ballIdx = []; ballRest = [];
+    for (const b of pieceBodies) drop(b.mesh);
+    parts = []; devBodies = []; pieceBodies = []; ballIdx = []; ballRest = [];
     rings.dispose();
     roomShapes = []; roomSolid.clear();
     if (ring) { scene.remove(ring); ring.geometry.dispose(); (ring.material as LineDashedMaterial).dispose(); ring = null; }
@@ -546,6 +550,26 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       devBodies.push({ index: s.ref.index, type: s.tag, mesh, mat, rest: p.colour, lit, on: false });
     }
   }
+  function buildPieces() {
+    for (const s of plan?.solids ?? []) {
+      if (!isPiece(s) || s.shape.type !== "prism" || typeof s.ref.index !== "number") continue;
+      const tris: Triangles = { position: [], normal: [] };
+      prismTriangles(s.shape.base, s.shape.z0, s.shape.z1, tris);
+      const geo = new BufferGeometry();
+      geo.setAttribute("position", new BufferAttribute(new Float32Array(tris.position), 3));
+      geo.setAttribute("normal", new BufferAttribute(new Float32Array(tris.normal), 3));
+      const p = paintOf(s.paint.role, s.paint.color), mat = new MeshLambertMaterial({ color: p.colour }), mesh = new Mesh(geo, mat);
+      scene.add(mesh);
+      pieceBodies.push({ index: s.ref.index, mesh, mat, rest: p.colour, on: false });
+    }
+  }
+  function applyPieces() {
+    const L = liveNow ?? EMPTY, on = paintOf("piece-on", undefined).colour;
+    for (const b of pieceBodies) {
+      b.on = !!L.pieces[b.index]?.on;
+      b.mat.color.copy(b.on ? on : b.rest);
+    }
+  }
   function applyDoors() {
     const L = liveNow ?? EMPTY, open = paintOf("open-door", undefined).colour, cover = paintOf("door-cover", undefined).colour;
     for (const x of parts) {
@@ -617,6 +641,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     overlay.set(L, anchors);
     applyBalls();
     applyBodies();
+    applyPieces();
     applyDoors();
     pulsing = applyRings();
     want();
@@ -641,7 +666,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     clear();
     builds++;
     if (!plan) { anchors = { devices: new Map(), rooms: new Map() }; applyLive(); return; }
-    meshes = meshesOf((s) => !isWall(s) && s.kind !== "device", (s) => (s.shape.type === "prism" ? [s.shape.z0, s.shape.z1] : null));
+    meshes = meshesOf((s) => !isWall(s) && s.kind !== "device" && !isPiece(s), (s) => (s.shape.type === "prism" ? [s.shape.z0, s.shape.z1] : null));
     applyTextures();
     // Rooms by index: where lamps and edges go, and which room a vertex belongs to.
     for (const s of plan.solids) {
@@ -657,6 +682,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     lowered = new Set();
     buildMarkers();
     buildBodies();
+    buildPieces();
     anchors = anchorsOf();
     picker = new Picker(plan.solids);
     buildWalls();
@@ -802,7 +828,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       /** The height range of everything drawn (cm, plan z): what the one-floor test reads. */
       floors() {
         let y0 = Infinity, y1 = -Infinity;
-        for (const m of [...meshes, ...wallMeshes, ...parts.map((x) => x.mesh), ...devBodies.map((x) => x.mesh)]) { const b = m.geometry.boundingBox ?? (m.geometry.computeBoundingBox(), m.geometry.boundingBox!); y0 = Math.min(y0, b.min.y + m.position.y); y1 = Math.max(y1, b.max.y + m.position.y); }
+        for (const m of [...meshes, ...wallMeshes, ...parts.map((x) => x.mesh), ...devBodies.map((x) => x.mesh), ...pieceBodies.map((x) => x.mesh)]) { const b = m.geometry.boundingBox ?? (m.geometry.computeBoundingBox(), m.geometry.boundingBox!); y0 = Math.min(y0, b.min.y + m.position.y); y1 = Math.max(y1, b.max.y + m.position.y); }
         return { extent: { y0, y1 } };
       },
       /** three's own count of what the graphics card holds: 21 floor switches must leave it where 2 did. */
@@ -825,6 +851,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
           builds, children: scene.children.length, pulsing,
           doors: parts.map((x) => ({ index: x.index, tag: x.tag, visible: x.mesh.visible, rot: x.mesh.rotation.y || 0, colour: hexOf(x.mat.color) })),
           bodies: devBodies.map(body),
+          pieces: pieceBodies.map((b) => ({ index: b.index, on: b.on, colour: hexOf(b.mat.color) })),
           balls: ballIdx.map((di, k) => { markers?.getColorAt(k, c); return { index: di, colour: hexOf(c), shown: true }; }),
           pools: pools.info(),
           glow: glow.info(),

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Floor, Furniture, Layout, Pt } from "../../src/core/schema";
-import { closedLoop, gridRound, pivotOnArc, roundStairs, rotateSegment, scaleFurniture, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "../../src/editor/ops";
+import { closedLoop, furnitureNear, gridRound, pivotOnArc, roundStairs, rotateSegment, scaleFurniture, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "../../src/editor/ops";
 
 const ground = () => structuredClone((demo as unknown as Layout).floors.ground);
 const FALLBACK: Pt = [123, 457];
@@ -275,5 +275,45 @@ describe("roomMiddle", () => {
     const l = room([[0, 0], [400, 0], [400, 100], [100, 100], [100, 400], [0, 400]]);
     const m = middleOf(floorOf(l), { t: "room", i: 0 }, 10)!;
     expect(m[0] >= 0 && m[0] <= 400 && m[1] >= 0 && m[1] <= 400 && (m[0] <= 100 || m[1] <= 100)).toBe(true);
+  });
+});
+
+describe("S18.10 furnitureNear: a small piece is grabbed from a padded box", () => {
+  const piece = (o: Partial<Furniture>): Furniture => ({ id: "f", symbol: "tv", x: 500, y: 300, rot: 0, w: 120, h: 10, ...o });
+  const floor = (...m: Furniture[]): Floor => ({ ...bareFloor([[0, 0], [1000, 0], [1000, 600], [0, 600]]), furniture: m });
+  it("finds a thin tv 6 screen px below its edge, not 30", () => {
+    const f = floor(piece({}));
+    expect(furnitureNear(f, [500, 305 + 6], 1)).toBe(0);
+    expect(furnitureNear(f, [500, 305 + 30], 1)).toBeNull();
+  });
+  it("pads in px, so zooming out grows the box in cm", () => {
+    expect(furnitureNear(floor(piece({})), [500, 305 + 20], 0.5)).toBe(0);
+  });
+  it("turns with the piece", () => {
+    const f = floor(piece({ rot: 90 })); // 10 wide, 120 tall on the plan
+    expect(furnitureNear(f, [505 + 6, 300], 1)).toBe(0);
+    expect(furnitureNear(f, [500, 305 + 6 + 60], 1)).toBeNull();
+  });
+  // Finding 4: 90 degrees swaps w and h, which a flipped rotation sign does too, so it cannot tell. 30 degrees can: the long axis
+  // points down-right (cos 30, sin 30), and a sign error would read the same point as far off the axis.
+  it("turns with the piece at 30 degrees: a point on the long axis is found, one past its end or off the axis is not", () => {
+    const f = floor(piece({ rot: 30 })), along = (d: number, side = 0): [number, number] => [500 + d * Math.cos(Math.PI / 6) - side * Math.sin(Math.PI / 6), 300 + d * Math.sin(Math.PI / 6) + side * Math.cos(Math.PI / 6)];
+    expect(furnitureNear(f, along(50), 1)).toBe(0);
+    expect(furnitureNear(f, along(-50), 1)).toBe(0);
+    expect(furnitureNear(f, along(0, 11), 1)).toBe(0); // 6 px outside the 10 cm depth, inside the pad
+    expect(furnitureNear(f, along(75), 1)).toBeNull(); // past the end (60 + 8)
+    expect(furnitureNear(f, along(0, 30), 1)).toBeNull();
+  });
+  it("only a tv, a speaker or a computer is padded: a toilet, a sink or a shower is left to the real hit", () => {
+    for (const symbol of ["toilet", "sink", "shower", "bathtub", "chair", "table", "sofa", "bed", "cabinet", "car", "tree", "patio-wood", "patio-concrete"] as const)
+      expect(furnitureNear(floor(piece({ symbol, w: 20, h: 20 })), [500, 300 + 10 + 6], 1), symbol).toBeNull();
+    for (const symbol of ["tv", "speaker", "computer"] as const)
+      expect(furnitureNear(floor(piece({ symbol, w: 20, h: 20 })), [500, 300 + 10 + 6], 1), symbol).toBe(0);
+  });
+  it("leaves a big piece to the real hit: no padding", () => {
+    expect(furnitureNear(floor(piece({ symbol: "sofa", w: 200, h: 90 })), [500, 345 + 6], 1)).toBeNull();
+  });
+  it("takes the topmost of two small pieces", () => {
+    expect(furnitureNear(floor(piece({}), piece({ symbol: "speaker", w: 25, h: 25, y: 308 })), [500, 305], 1)).toBe(1);
   });
 });

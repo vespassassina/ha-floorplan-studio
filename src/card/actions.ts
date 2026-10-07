@@ -1,9 +1,14 @@
-import type { Device, Door, Unlinked } from "../core";
-import { entitiesOfDevice, entitiesOfDoor, playerOf } from "../core";
+import type { Device, Door, Furniture, Unlinked } from "../core";
+import { entitiesOfDevice, entitiesOfDoor, pieceDevice, playerOf } from "../core";
 import type { Hass } from "./floorplan-studio-card";
 
 /** Device types a tap opens more-info for at once, never a toggle: a camera and a media player have none, and a battery, an inverter, a server or an access point is watched, not switched (S2.13). A vacuum is here too (S7.10), but its tap opens its own dialog, not more-info — see the `d.type === "vacuum"` branch below, checked before this set. S9.4: a speaker is a media_player device like `media`, and gets the same decision for the same reason — `media_player.toggle` is play/pause or power, never a clean on/off, so guessing which one the user meant is worse than always opening more-info. */
-export const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "speaker", "battery", "inverter", "server", "access_point", "person", "radar", "vacuum"]);
+export const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "speaker", "battery", "inverter", "server", "access_point", "person", "radar", "vacuum", "alarm"]);
+
+/** What a press on the plan can land on that is its own thing and never a room pick: a device icon, a door, an unlinked appliance, a linked furniture piece. */
+export const THINGS = "g[data-x], line[data-d], g[data-u], g[data-f][data-linked]";
+/** The letter of `THINGS`' attribute an element carries: `x` device, `d` door, `f` linked piece, else `u`. */
+export const thingKind = (el: Element): "x" | "d" | "u" | "f" => (el.hasAttribute("data-x") ? "x" : el.hasAttribute("data-d") ? "d" : el.hasAttribute("data-f") ? "f" : "u");
 
 /** A pointer held this long or longer is a hold, opening more-info instead of toggling. */
 export const HOLD_MS = 500;
@@ -55,6 +60,8 @@ export function bindDeviceActions(
     openChooser?: (title: string, entities: string[]) => void;
     openPopup?: (target: TapTarget, at: { x: number; y: number }, from: Element | null) => void;
     getUnlinked?: (index: number) => Unlinked | undefined;
+    /** A linked furniture piece (`g[data-f][data-linked]`, `pieceDevice`) by its index in the floor's `furniture`. */
+    getPiece?: (index: number) => Furniture | undefined;
     /** What a press lands on, when the DOM cannot say (the 3D view picks with a ray): an element that carries `data-x`,
      *  `data-d` or `data-u`, or null. Replaces the lookup of the event's target. */
     resolve?: (e: PointerEvent) => Element | null;
@@ -114,7 +121,7 @@ export function bindDeviceActions(
     }
     startX = pe.clientX ?? 0;
     startY = pe.clientY ?? 0;
-    const target = opts?.resolve ? opts.resolve(pe) : (e.target as Element | null)?.closest('g[data-x], button[data-x], line[data-d], g[data-u]');
+    const target = opts?.resolve ? opts.resolve(pe) : (e.target as Element | null)?.closest('g[data-x], button[data-x], line[data-d], g[data-u], g[data-f][data-linked]');
     if (!target) return;
     const at = { x: startX, y: startY };
     const popup = (t: TapTarget) => () => opts?.openPopup?.(t, at, target.tagName === "BUTTON" ? target : null);
@@ -126,6 +133,15 @@ export function bindDeviceActions(
       const ents = entitiesOfDoor(door);
       if (!door.cover && ents.length === 0) return; // no sensor, vibration, lock or cover: nothing to do
       arm(popup({ door, index: i }), moreInfoOf(door.name, ents));
+      return;
+    }
+
+    // A linked tv, speaker or computer piece is its device here, and a tv or speaker has no toggle: a tap or a hold is the entity's own more-info, no popup (as an unlinked appliance with a player).
+    if (target.hasAttribute("data-f")) {
+      const i = Number(target.getAttribute("data-f"));
+      const m = Number.isFinite(i) ? opts?.getPiece?.(i) : undefined;
+      const own = m && pieceDevice(m)?.entity;
+      if (own) arm(moreInfoOf(own, [own]), moreInfoOf(own, [own]));
       return;
     }
 

@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEFAULT_MOTION_FADE_S, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
+import { DEFAULT_MOTION_FADE_S, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -9,14 +9,14 @@ import { BANNER_MS, bannerLevel, isQuiet, type BannerLevel } from "./banner";
 import { PAN_STEP, isSaveChord, viewKeyFor, type ViewKey } from "../card/view-keys";
 import { readViewMemory, writeViewMemory } from "./view-memory";
 import { traceImage } from "./trace";
-import { roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
+import { furnitureNear, roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
 import { restoreScene, tryScene } from "./scene-try";
 import { cleanSceneItem } from "./room-scenes-ops";
 import type { SceneItem } from "../core";
 import { newDraft, sceneDesigner, type SceneDraft } from "./scene-designer";
 import { roomSceneTargets, saveScene } from "./room-scenes-ops";
-import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, type PanelCtx } from "./panels";
+import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, typeOptions, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
 import type { HaWriter, Labelled } from "./hass-write";
 import { motionLights, openAutomation, schedule, switchControls } from "./automations";
@@ -727,6 +727,14 @@ export class FloorplanStudioEditor extends LitElement {
 
   // ---- pointer -------------------------------------------------------------
 
+  /** S18.10: a small piece (a thin tv, a speaker) is picked from a padded box. It beats the room, the background and another
+   *  piece under it; a handle, device, door or wall element really under the pointer still wins. */
+  private padFurniture(hit: Hit, p: Pt): Hit {
+    if (hit.k !== "bg" && hit.k !== "room" && hit.k !== "stairs" && hit.k !== "furn") return hit;
+    const i = furnitureNear(this.st.f, p, this.scale);
+    return i === null ? hit : { k: "furn", i };
+  }
+
   private edgeNear(p: Pt): Hit | null {
     const th = 8 / this.scale, f = this.st.f;
     let best: { d: number; hit: Hit } | null = null;
@@ -789,8 +797,10 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.draw) { this.drawClick(p, ev.altKey, ev); return; }
     // A press elsewhere, or late, is not the second click of that pair; a third press means the user double-clicked on purpose.
     if (this.finished) { if (this.sameDouble(ev) && this.finished.presses === 0) this.finished.presses = 1; else this.finished = null; }
+    // The edge reach (8 px) goes first: a thin tv lying flush on a wall must not swallow it with its own padded box.
     let hit = hitOf(ev.target as Element);
     if (hit.k === "bg" || hit.k === "room" || hit.k === "stairs") hit = this.edgeNear(p) ?? hit;
+    hit = this.padFurniture(hit, p);
     const base = structuredClone(f);
     this.drag = null;
     switch (hit.k) {
@@ -1681,7 +1691,7 @@ export class FloorplanStudioEditor extends LitElement {
         ${selHtml("addDevArea", "area", "All areas", this.addDevArea, (v) => { this.addDevArea = v; })}
         ${all.length ? html`<select id="addDevType" aria-label="All types" .value=${live(this.addDevType)} @change=${(e: Event) => { this.addDevType = (e.target as HTMLSelectElement).value; this.requestUpdate(); }}>
           <option value="">All types</option>
-          ${typeOpts.map(([t, label]) => html`<option value=${t}>${label}</option>`)}
+          ${typeOptions(typeOpts)}
         </select>` : nothing}
       </div>
       ${all.length === 0 ? html`<span class="grp" id="addDevNone">Everything is on the plan</span>`
@@ -2123,14 +2133,18 @@ export class FloorplanStudioEditor extends LitElement {
     // id to an unrelated device (the bug placeArea's own fix, above, is against). Reuse it only when no floor's
     // device currently carries it; otherwise mint a fresh id and update the catalog entry in this same undo step
     // (already open: `st.snapshot()` ran before this method touched anything).
-    const claimed = Object.values(st.layout.floors).some((fl) => fl.devices.some((d) => d.id === c.id));
-    const devId = claimed ? newId(f, target, "device", st.layout) : c.id;
+    const symbol = furnitureForType(c.type);
+    const claimed = Object.values(st.layout.floors).some((fl) => [...fl.devices, ...fl.furniture].some((d) => d.id === c.id));
+    const devId = claimed ? newId(f, target, symbol ? "furniture" : "device", st.layout) : c.id;
     if (claimed) c.id = devId;
-    f.devices.push(c.type === "heater"
+    if (symbol) {
+      // S18.11: a tv, speaker or computer is placed as the piece itself, tracking the entity (same default size as Add > Furniture).
+      f.furniture.push({ id: devId, symbol, x: ctr[0], y: ctr[1], rot: 0, w: FURNITURE[symbol].w, h: FURNITURE[symbol].h, name: c.name, entity: c.entity });
+    } else f.devices.push(c.type === "heater"
       ? { id: devId, name: c.name, type: c.type, entity: c.entity, a: [ctr[0] - 50, ctr[1]], b: [ctr[0] + 50, ctr[1]] }
       : { id: devId, name: c.name, type: c.type, entity: c.entity, x: ctr[0], y: ctr[1], ...st.powerFor(c.type, c.entity) });
     st.replaceFloor(f);
-    st.sel = { t: "dev", i: f.devices.length - 1 };
+    st.sel = symbol ? { t: "furn", i: f.furniture.length - 1 } : { t: "dev", i: f.devices.length - 1 };
     const v = st.view;
     st.views[st.floor] = { ...v, x: ctr[0] - v.w / 2, y: ctr[1] - v.h / 2 };
     this.changed(`Placed ${c.name}${room ? ` in ${room.name}` : ""}. Drag it to its spot.`);
@@ -2710,7 +2724,7 @@ export class FloorplanStudioEditor extends LitElement {
           </select>
           <select id="addUnlDev" aria-label="Add unlinked device" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addUnlinked(el.value); el.value = ""; this.closeMenus(); }}>
             <option value="">Unlinked device…</option>
-            ${UNLINKED_TYPES.map((t) => html`<option value=${t}>${TYPE_LABELS.find((x) => x[0] === t)?.[1] ?? t}</option>`)}
+            ${typeOptions(TYPE_LABELS.filter(([t]) => (UNLINKED_TYPES as readonly string[]).includes(t)))}
           </select>
         </div></details>
         <details class="menu" id="mDraw" @toggle=${this.onMenuToggle}><summary class="btn">Draw</summary><div class="box">

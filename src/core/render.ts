@@ -11,9 +11,9 @@ import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 import { meanReading } from "./readings";
-import { DEVICE_SOLID, STEM_MIN_Z, furnitureMode, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
+import { DEVICE_SOLID, STEM_MIN_Z, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
-import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, RoomKind, Stairs } from "./schema";
+import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
 export interface RenderOpts {
@@ -97,7 +97,7 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
   cover: "#f28c28", battery: "#8b8578", inverter: "#8b8578", server: "#8b8578", access_point: "#8b8578",
   lock: "#d64545", vibration: "#d64545", other: "#8b8578",
   boiler: "#8b8578", car: "#8b8578", ups: "#8b8578", printer: "#8b8578", speaker: "#2c7fb8",
-  person: "#1b9e77", radar: "#6a3fbf", vacuum: "#2f8f8f",
+  person: "#1b9e77", radar: "#6a3fbf", vacuum: "#2f8f8f", siren: "#b02a2a", alarm: "#b02a2a",
 };
 
 // S1.53: the light and dark (now blueprint) token sets, each written once and interpolated wherever CSS needs it, so a new
@@ -259,7 +259,17 @@ export const FLOORPLAN_CSS = `
    close to a room's own colour, so reusing it as a stroke colour here made a sofa nearly vanish against the room
    under it in either theme (Opus review). --fp-active is its own token, amber like --fp-on, chosen per theme for
    at least 3:1 contrast against both --fp-room and --fp-bg (measured: light 5.0:1 / 5.6:1, dark 6.8:1 / 8.0:1). */
+/* S18.12: a tv, speaker or computer piece with an entity is tracking that device, so idle it wears the tv's own colour and not the
+   plain furniture grey. Before .furn.on, same specificity, so on still wins. */
+.furn[data-linked]{color:var(--fp-dev-tv)}
 .furn.on{color:var(--fp-active)}
+/* S18.8: furniture is filled, not an outline. The body takes the piece's own colour (currentColor: --fp-furniture, or --fp-active
+   when on) thinned into --fp-room-empty (the plain room, what most furniture stands on; --fp-room is dark in the dark themes and made dark blobs), so every theme and dark mode keep their hue and the stroke stays the edge.
+   .ff is on bodies only; lines in a symbol (a bed's pillow line) keep fill:none. */
+.furn .ff{fill:color-mix(in srgb,currentColor 45%,var(--fp-room-empty))}
+/* S18.9: the two waves of a playing tv or speaker piece. They sit beside the scaled symbol group (a non-uniform scale would
+   squash the circles), take --fp-dev from the on colour, and reuse .wave for shape, motion and reduced motion. */
+.furn-waves{--fp-dev:var(--fp-active)}
 /* S8.9: internal corners and T-joins at the new 10-20 cm thickness are kept gap-free by the round linecap already
    here (each segment's rounded end overlaps its neighbour's whatever the angle between them); only the numbers
    changed. External walls keep the square cap they always had (a mitred, not rounded, look for the house perimeter). */
@@ -340,7 +350,7 @@ export const FLOORPLAN_CSS = `
 .dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
-.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}
+.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-siren.on{--fp-dev:var(--fp-danger)} .dev-alarm.on{--fp-dev:var(--fp-danger)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}
 /* S14.8: a plug with a readable draw (renderFloor wrote --fp-heat, 0..1) runs cool -> mid -> hot. Same specificity class as .dev-plug.on plus an attribute, so it wins; a plug with no
    reading has no --fp-heat and keeps --fp-dev-plug, exactly as before. */
 .dev-plug.on[style*="--fp-heat"]{--fp-dev:color-mix(in oklch,color-mix(in oklch,var(--fp-heat-cool) calc((1 - min(var(--fp-heat) * 2,1)) * 100%),var(--fp-heat-mid)) calc((1 - max(var(--fp-heat) * 2 - 1,0)) * 100%),var(--fp-heat-hot))}
@@ -626,6 +636,8 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   // (unavailable/unknown are already handled above) counts.
   if (d.type === "tv") return s.state === "off" || s.state === "standby" ? "off" : "on";
   if (d.type === "person") return s.state === "home" ? "on" : "off";
+  // S18.14: an alarm panel is on in every state but disarmed: armed_*, arming, pending, triggered.
+  if (d.type === "alarm") return s.state === "disarmed" ? "off" : "on";
   // S7.10: docked/idle/paused read idle grey like an off device; cleaning and returning are both active (the
   // spin class, from vacuumSpinClass below, is what tells them apart); error is its own danger class, not on/off.
   if (d.type === "vacuum") {
@@ -685,6 +697,31 @@ function entityOn(o: RenderOpts, entity: string | undefined, plugs?: ReadonlyMap
   if (plug) return classOf(plug, o) === "on";
   if (entity.startsWith("cover.")) return coverActive(s); // a curtain behind a room does not light it either
   return ON_STATES.has(s.state);
+}
+
+/**
+ * Whether a piece of furniture reads "on". A linked tv, speaker or computer piece (`pieceDevice`) follows the rule of the device of
+ * its type (`classOf`: a paused tv is on, a speaker only while playing); the card's Active list, room rows and 3D view call this
+ * too, so none of them can disagree with the plan. Any other piece keeps `entityOn`: on, open or playing. A plug's switch keeps
+ * the plug's rule (`entityOn`) whatever the piece is.
+ */
+export function pieceOn(o: RenderOpts, m: Furniture, plugs?: ReadonlyMap<string, Device>): boolean {
+  const d = pieceDevice(m);
+  if (d && !plugs?.has(d.entity)) return classOf(d, o) === "on";
+  return entityOn(o, m.entity, plugs);
+}
+
+/**
+ * S18.9: the two waves of a tv or speaker piece whose entity is playing, as markup with `%AT%` where the centre goes (the 2D
+ * path puts the plan position there, 2.5D the lid's). Exactly "playing", as a speaker device: "on" is lit but silent. The
+ * radius is a quarter of the piece's longer side (the ring grows to 2.4 times that), at least 15 cm, so a 10 cm deep tv still sends out a visible ring.
+ */
+function furnitureWaves(o: RenderOpts, m: Furniture): string | null {
+  if ((m.symbol !== "tv" && m.symbol !== "speaker") || !m.entity || o.state?.[m.entity]?.state !== "playing") return null;
+  const r = num(Math.max(15, Math.max(m.w, m.h) / 4));
+  return `<g class="furn-waves" transform="translate(%AT%)">` +
+    `<circle class="wave" r="${r}" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
+    `<circle class="wave w2" r="${r}" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/></g>`;
 }
 
 /**
@@ -1147,7 +1184,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     solids.push(...wallSolids(f, px, wallsModeOf(o.walls), o.state));
     f.furniture.forEach((m, i) => {
       const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
-      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, entityOn(o, m.entity, plugs), sym.svg, px) : null;
+      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, pieceOn(o, m, plugs), sym.svg, px, furnitureWaves(o, m)) : null;
       if (s) solids.push(s);
     });
     for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
@@ -1285,8 +1322,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.furniture.forEach((m, i) => {
     const sym = FURNITURE[m.symbol];
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
-    const on = entityOn(o, m.entity, plugs) ? " on" : "";
-    out.push(`<g data-f="${i}" class="furn${on}" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
+    const on = pieceOn(o, m, plugs) ? " on" : "";
+    out.push(`<g data-f="${i}" class="furn${on}"${furnitureLinked(m)} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
+    const waves = furnitureWaves(o, m);
+    if (waves) out.push(waves.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
   });
 
   f.doors.forEach((d, i) => {

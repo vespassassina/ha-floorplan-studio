@@ -23,7 +23,7 @@ const KIND: Record<DeviceType, "radiator" | "speaker" | "tv" | "none"> = {
   light: "none", camera: "none", motion: "none", radar: "none", access_point: "none", ac: "none", speaker: "speaker", cover: "none",
   switch: "none", plug: "none", contact: "none", vibration: "none", lock: "none", temp: "none", humidity: "none", climate: "none",
   boiler: "none", battery: "none", inverter: "none", media: "speaker", tv: "tv", other: "none", heater: "radiator", computer: "none",
-  server: "none", ups: "none", printer: "none", car: "none", person: "none", vacuum: "none",
+  server: "none", ups: "none", printer: "none", car: "none", person: "none", vacuum: "none", siren: "none", alarm: "none",
 };
 
 describe("2.5D device solids", () => {

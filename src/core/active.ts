@@ -1,6 +1,7 @@
 import { DEVICE_TYPES } from "./schema";
 import type { Device, DeviceType, Door, Layout } from "./schema";
 import { acMode, classOf, type RenderOpts, type StateOverlay } from "./render";
+import { pieceDevice } from "./solids";
 
 /**
  * S9.5: one row the card's floating active-devices panel can show. `floor` is the layout's own floor key (not the
@@ -41,6 +42,7 @@ export const ACTIVE_LIST_RULE: Record<DeviceType, "on" | "always" | "cleaning" |
   cover: "on", switch: "never", temp: "never", humidity: "never", battery: "never", inverter: "never", server: "never",
   access_point: "never", lock: "never", vibration: "never", other: "never", boiler: "never", car: "never",
   ups: "never", printer: "never",
+  siren: "on", alarm: "on", // a sounding siren; an alarm panel that is armed or triggered
   radar: "on", // a radar that sees someone is motion like any other (MOTION_TYPES); it was "never" until 0.12.24
 };
 
@@ -62,6 +64,7 @@ const COLOR_VAR: Partial<Record<DeviceType, string>> = {
   climate: "--fp-dev-climate", tv: "--fp-dev-tv", media: "--fp-dev-media",
   plug: "--fp-dev-plug", computer: "--fp-dev-computer", camera: "--fp-ink", person: "--fp-dev-person",
   vacuum: "--fp-dev-vacuum", speaker: "--fp-dev-speaker", radar: "--fp-dev-radar",
+  siren: "--fp-danger", alarm: "--fp-danger", // no token of their own: the danger red every theme already has
 };
 
 /** What `renderFloor` takes besides state, so the list reads a plug exactly as the plan does. */
@@ -126,8 +129,11 @@ export function activeDevices(layout: Layout, state: StateOverlay | undefined, o
   for (const floor of Object.values(layout.floors)) {
     for (const d of floor.devices) if (typeof d.entity === "string" && d.entity) placed.add(d.entity);
   }
+  // A linked tv, speaker or computer piece is listed as the device of its type; an entity already listed (a device, or another piece) is not repeated.
+  const listed = new Set(placed);
   for (const [floorKey, floor] of Object.entries(layout.floors)) {
-    for (const d of floor.devices) {
+    const pieces = (floor.furniture ?? []).flatMap((m) => { const d = pieceDevice(m); return d && !listed.has(d.entity) && listed.add(d.entity) ? [d] : []; });
+    for (const d of [...floor.devices, ...pieces]) {
       if (!isActive(d, state, opts)) continue;
       out.push({ entity: d.entity, name: nameFor(d, state), type: d.type, floor: floorKey, colorVar: colorVarFor(d, state) });
     }

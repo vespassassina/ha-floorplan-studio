@@ -36,6 +36,9 @@ export const DEVICE_ICONS: Record<DeviceType, string> = {
   radar: "M12,2A10,10 0 1,0 22,12H12V2ZM12,10A2,2 0 1,0 12,14A2,2 0 1,0 12,10Z",
   // S7.10: mdiRobotVacuum, copied verbatim from Templarian/MaterialDesign's raw svg source (Apache 2.0), same as every icon above.
   vacuum: "M12,2C14.65,2 17.19,3.06 19.07,4.93L17.65,6.35C16.15,4.85 14.12,4 12,4C9.88,4 7.84,4.84 6.35,6.35L4.93,4.93C6.81,3.06 9.35,2 12,2M3.66,6.5L5.11,7.94C4.39,9.17 4,10.57 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12C20,10.57 19.61,9.17 18.88,7.94L20.34,6.5C21.42,8.12 22,10.04 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12C2,10.04 2.58,8.12 3.66,6.5M12,6A6,6 0 0,1 18,12C18,13.59 17.37,15.12 16.24,16.24L14.83,14.83C14.08,15.58 13.06,16 12,16C10.94,16 9.92,15.58 9.17,14.83L7.76,16.24C6.63,15.12 6,13.59 6,12A6,6 0 0,1 12,6M12,8A1,1 0 0,0 11,9A1,1 0 0,0 12,10A1,1 0 0,0 13,9A1,1 0 0,0 12,8Z",
+  // S18.14: mdiAlarmLight (a siren beacon) and mdiShieldHome (what HA shows for an alarm panel), from @mdi/js 7.4 (Apache 2.0).
+  siren: "M6,6.9L3.87,4.78L5.28,3.37L7.4,5.5L6,6.9M13,1V4H11V1H13M20.13,4.78L18,6.9L16.6,5.5L18.72,3.37L20.13,4.78M4.5,10.5V12.5H1.5V10.5H4.5M19.5,10.5H22.5V12.5H19.5V10.5M6,20H18A2,2 0 0,1 20,22H4A2,2 0 0,1 6,20M12,5A6,6 0 0,1 18,11V19H6V11A6,6 0 0,1 12,5Z",
+  alarm: "M11,13H13V16H16V11H18L12,6L6,11H8V16H11V13M12,1L21,5V11C21,16.55 17.16,21.74 12,23C6.84,21.74 3,16.55 3,11V5L12,1Z",
 };
 
 /** S9.5: the type heading the active-devices list panel groups rows under. Kept next to DEVICE_ICONS so a new
@@ -45,7 +48,7 @@ export const DEVICE_TYPE_LABELS: Record<DeviceType, string> = {
   motion: "Motion", contact: "Contact", camera: "Camera", climate: "Climate", ac: "AC", tv: "TV", computer: "Computer",
   media: "Media player", cover: "Cover", battery: "Battery", inverter: "Inverter", server: "Server",
   access_point: "Access point", lock: "Lock", vibration: "Vibration", other: "Other", boiler: "Boiler", car: "Car",
-  ups: "UPS", printer: "Printer", speaker: "Speaker", person: "Person", radar: "Radar", vacuum: "Vacuum",
+  ups: "UPS", printer: "Printer", speaker: "Speaker", person: "Person", radar: "Radar", vacuum: "Vacuum", siren: "Siren", alarm: "Alarm",
 };
 
 /** The card toolbar's own icons, 24x24 MDI paths (Apache 2.0) inlined like the ones above: no runtime import of
@@ -60,8 +63,12 @@ export const UI_ICONS = {
 } as const;
 
 const S = 'fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"';
-const r = (x: number, y: number, w: number, h: number, rx = 0) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" ${S}/>`;
-const c = (x: number, y: number, rr: number) => `<circle cx="${x}" cy="${y}" r="${rr}" ${S}/>`;
+// S18.8: a shape that is a body (not a line) carries class "ff"; the stylesheet fills it from the theme and the piece's own
+// colour (`.furn .ff`), so the markup holds no colour. The attribute set has no fill, or a presentation attribute would
+// compete with the rule (finding 18).
+const SB = 'class="ff" stroke="currentColor" stroke-width="3" stroke-linejoin="round"';
+const r = (x: number, y: number, w: number, h: number, rx = 0, part = "") => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" ${part ? `data-part="${part}" ` : ""}${SB}/>`;
+const c = (x: number, y: number, rr: number) => `<circle cx="${x}" cy="${y}" r="${rr}" ${SB}/>`;
 
 /** Top-down symbols drawn in a 100x100 box, stretched to `w` x `h` cm. Colour is `currentColor`. */
 export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: string }> = {
@@ -71,12 +78,14 @@ export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: str
   cabinet: { w: 100, h: 45, svg: r(4, 4, 92, 92, 2) + `<path d="M50 4 V96" ${S}/>` },
   chair: { w: 45, h: 45, svg: r(10, 10, 80, 80, 12) + `<path d="M10 20 H90" ${S}/>` },
   sink: { w: 60, h: 45, svg: r(4, 4, 92, 92, 6) + r(20, 20, 60, 60, 20) + c(50, 50, 4) },
-  toilet: { w: 40, h: 65, svg: r(20, 4, 60, 26, 4) + `<ellipse cx="50" cy="64" rx="36" ry="30" ${S}/>` },
+  toilet: { w: 40, h: 65, svg: r(20, 4, 60, 26, 4) + `<ellipse cx="50" cy="64" rx="36" ry="30" ${SB}/>` },
   shower: { w: 90, h: 90, svg: r(4, 4, 92, 92, 2) + c(50, 50, 8) + `<path d="M4 4 L96 96 M96 4 L4 96" ${S} stroke-opacity=".4"/>` },
   bathtub: { w: 170, h: 75, svg: r(4, 4, 92, 92, 14) + r(14, 14, 72, 72, 22) + c(88, 50, 3) },
   tv: { w: 120, h: 10, svg: r(2, 20, 96, 60, 4) },
   speaker: { w: 25, h: 25, svg: r(10, 4, 80, 92, 8) + c(50, 62, 20) + c(50, 26, 9) },
-  computer: { w: 60, h: 40, svg: r(20, 4, 60, 40, 3) + r(10, 54, 80, 36, 3) },
+  // S18.13: seen from above, the user at the bottom: a desk, the monitor along its back edge, a keyboard in front of it and
+  // the case standing beside. 120 x 60 cm is a real desk; a layout that stored its own w and h keeps them.
+  computer: { w: 120, h: 60, svg: r(2, 2, 96, 96, 3, "desk") + r(24, 10, 44, 8, 2, "monitor") + `<path d="M46 18 V30" ${S}/>` + r(26, 54, 40, 18, 3, "keyboard") + `<path d="M32 63 H60" ${S} stroke-opacity=".5"/>` + r(76, 10, 16, 42, 3, "case") + c(84, 20, 2.5) },
   tree: { w: 200, h: 200, svg: c(50, 50, 46) + c(50, 50, 8) },
   "patio-wood": { w: 300, h: 300, svg: r(2, 2, 96, 96, 0) + [20, 40, 60, 80].map((y) => `<path d="M2 ${y} H98" ${S} stroke-opacity=".5"/>`).join("") },
   "patio-concrete": { w: 300, h: 300, svg: r(2, 2, 96, 96, 0) + `<path d="M34 2 V98 M66 2 V98 M2 34 H98 M2 66 H98" ${S} stroke-opacity=".5"/>` },

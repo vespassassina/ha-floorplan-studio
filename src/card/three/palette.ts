@@ -9,7 +9,7 @@
 const ROOM_KINDS = ["room", "garden", "pavement", "fill", "terrace", "water"] as const; // a zone and a structure have no floor of their own
 const WALL_KINDS = ["wall", "boundary", "external", "fence", "edge", "parapet"] as const;
 const FURNITURE_SYMBOLS = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"] as const;
-const DEVICE_TYPES = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum"] as const;
+const DEVICE_TYPES = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm"] as const;
 
 export interface RoleStyle { css: string; opacity: number }
 
@@ -40,6 +40,9 @@ TABLE.set("panel", solid("var(--fp-sealed)"));
 TABLE.set("door-leaf", solid("var(--fp-door)"));
 TABLE.set("stair", solid(mix("--fp-tread", 70, "--fp-bg")));
 TABLE.set("ring", solid("var(--fp-ink)")); // the dashed outline of the picked room
+// A linked tv, speaker or computer piece: the tv's blue at rest (as `.furn[data-linked]` on the plan), the plan's on colour when on.
+TABLE.set("furniture-linked", solid(mix("--fp-dev-tv", 70, "--fp-furniture")));
+TABLE.set("piece-on", solid("var(--fp-active)"));
 TABLE.set("unlinked", solid(mix("--fp-idle", 70, "--fp-bg")));
 // What the live state paints over the rest (S12.5): a door that is open or alarmed, a garage cover that is open, a radiator that is heating,
 // a TV screen that is on, a speaker's drivers, a room's motion edge, a lamp with no colour of its own. Every colour is a token.

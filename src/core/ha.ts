@@ -34,6 +34,8 @@ const TYPE_RULES: Partial<Record<DeviceType, { domain: string; dcs?: string[]; n
   media: [{ domain: "media_player" }],
   tv: [{ domain: "media_player" }],
   cover: [{ domain: "cover" }],
+  siren: [{ domain: "siren" }],
+  alarm: [{ domain: "alarm_control_panel" }],
   battery: [{ domain: "sensor", dcs: ["battery"] }],
   person: [{ domain: "person" }, { domain: "device_tracker" }],
   // S7.9: the radar's own entity is its presence sensor, typically a binary_sensor.*occupancy; the target x/y pairs
@@ -75,6 +77,8 @@ export function typeForEntity(e: HaData["entities"][number], ha?: Pick<HaData, "
     case "media_player": return "media";
     case "person": case "device_tracker": return "person";
     case "vacuum": return "vacuum";
+    case "siren": return "siren";
+    case "alarm_control_panel": return "alarm";
     case "switch": return e.dc === "outlet" ? "plug" : "switch";
     case "sensor":
       if (e.dc === "temperature") return "temp";
@@ -88,6 +92,21 @@ export function typeForEntity(e: HaData["entities"][number], ha?: Pick<HaData, "
       return "other";
     default: return "other";
   }
+}
+
+/**
+ * S18.11: the furniture symbol an HA entity is placed as, or null for a device icon. Only a media_player that says it is a
+ * tv or a speaker (its `device_class`): a piece that tracks the player, drawn as the thing itself. A computer has no HA
+ * class, so no entity is ever guessed as one; that comes through `furnitureForType`.
+ */
+export function furnitureForEntity(e: HaData["entities"][number]): "tv" | "speaker" | null {
+  if (e.domain !== "media_player") return null;
+  return e.dc === "tv" || e.dc === "speaker" ? e.dc : null;
+}
+
+/** S18.11: the furniture symbol a catalog entry of `type` is placed as: tv, speaker and computer, the types a person owns one of. */
+export function furnitureForType(type: DeviceType): "tv" | "speaker" | "computer" | null {
+  return type === "tv" || type === "speaker" || type === "computer" ? type : null;
 }
 
 /** How many groups deep a motion group may nest. Real groups are one or two deep; the cap keeps junk cheap. */
@@ -109,7 +128,7 @@ function isMotionGroup(g: HaData["entities"][number], all: unknown, path: string
  * Noise: `other` is anything the plan has no icon of its own for (power, energy, illuminance, signal, a group, a
  * script...); a `battery` is a reading of another device, not a thing in the room; a `person` is not placed by area.
  */
-export const AREA_PLACEABLE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "inverter", "server", "access_point", "lock", "vibration", "boiler", "car", "ups", "printer", "speaker", "radar", "vacuum"]);
+export const AREA_PLACEABLE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "inverter", "server", "access_point", "lock", "vibration", "boiler", "car", "ups", "printer", "speaker", "radar", "vacuum", "siren", "alarm"]);
 export const AREA_NOISE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["other", "battery", "person"]);
 
 /** S8.1: the entities of HA area `area` that are not on the plan yet and that the plan has an icon for. Never throws. */

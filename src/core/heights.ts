@@ -30,6 +30,7 @@ export const UNLINKED_HEIGHTS: Record<DeviceType, number> = {
   light: 250, camera: 230, motion: 230, radar: 230, access_point: 230,
   // Small wall fittings at hand height.
   switch: 120, plug: 30, temp: 150, humidity: 150, contact: 120, vibration: 120, lock: 100,
+  siren: 230, alarm: 120, // a siren high on the wall or ceiling; an alarm keypad at hand height
   cover: 200, // a blind or curtain motor sits up at the head of the window
 };
 
@@ -48,6 +49,8 @@ export const DEVICE_Z: Record<DeviceType, number> = {
   speaker: 30, media: 30,
   // Floor or desk.
   heater: 60, computer: 75, server: 60, ups: 30, printer: 90, car: 150, person: 170, vacuum: 10,
+  // A siren high on the wall; an alarm keypad at hand height.
+  siren: 205, alarm: 120,
 };
 
 /** `storey` means the wall rises to the ceiling of its floor (or its room). */

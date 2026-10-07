@@ -22,8 +22,25 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["media", "Media players"], ["cover", "Covers"], ["battery", "Batteries"], ["inverter", "Inverters"], ["server", "Servers"],
   ["access_point", "Access points"], ["lock", "Door locks"], ["vibration", "Vibration sensors"], ["other", "Other"],
   ["boiler", "Boiler"], ["car", "Car"], ["ups", "UPS"], ["printer", "3D printer"], ["speaker", "Speaker"], ["person", "People"],
-  ["radar", "mmWave radar"], ["vacuum", "Vacuums"],
+  ["radar", "mmWave radar"], ["vacuum", "Vacuums"], ["siren", "Siren"], ["alarm", "Alarm"],
 ];
+
+/** S18.14: the types people place most, in the order the menu shows them. The rest follow a separator, A to Z. */
+export const POPULAR_TYPES: readonly DeviceType[] = ["light", "switch", "motion", "contact", "temp", "speaker", "tv"];
+
+/** The `pairs` split for a type menu: the popular ones first, in `POPULAR_TYPES` order, then the others A to Z by the label shown. Nothing is dropped or doubled. */
+export function typeMenu(pairs: readonly [DeviceType, string][] = TYPE_LABELS): { popular: [DeviceType, string][]; rest: [DeviceType, string][] } {
+  const popular = POPULAR_TYPES.flatMap((t) => pairs.filter(([x]) => x === t));
+  const rest = pairs.filter(([t]) => !POPULAR_TYPES.includes(t)).sort((a, b) => a[1].localeCompare(b[1], "en"));
+  return { popular, rest };
+}
+
+/** The `<option>`s of every device type select: popular, one `<hr>` (not an option, so it can be neither picked nor reached by keyboard), the rest. `selected` marks the current type. */
+export function typeOptions(pairs: readonly [DeviceType, string][] = TYPE_LABELS, selected?: string) {
+  const { popular, rest } = typeMenu(pairs);
+  const opt = ([t, label]: [DeviceType, string]) => html`<option value=${t} ?selected=${t === selected}>${label}</option>`;
+  return html`${popular.map(opt)}${popular.length && rest.length ? html`<hr>` : nothing}${rest.map(opt)}`;
+}
 
 export const WALL_LABELS: Record<EdgeKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge", parapet: "Balcony wall (parapet)", none: "Not drawn" };
 
@@ -895,7 +912,7 @@ function deviceTypeField(c: PanelCtx, i: number) {
     if (t !== "radar") delete dv.targets;
   });
   return html`<label for="vtype">type</label><select id="vtype" .value=${d.type} @change=${(e: Event) => set(val(e))}>
-    ${TYPE_LABELS.map(([t, lbl]) => html`<option value=${t} ?selected=${t === d.type}>${lbl}</option>`)}
+    ${typeOptions(TYPE_LABELS, d.type)}
   </select>`;
 }
 

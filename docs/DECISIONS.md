@@ -2,6 +2,56 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: the padded grab box is for a tv, speaker or computer, and the edge reach goes first (S18.10, review)
+
+Opus review: the S18.10 box took too much. Two changes, same pointer path.
+- Only a tv, speaker or computer is padded (`PADDED` in `ops.ts`). A toilet, sink or shower under 28 px at fit zoom took a click meant for its room; those have no thin shape the hand misses.
+- The edge reach (8 px, `edgeNear`) now runs before the pad when the real element is the background, a room or stairs. A thin tv lying flush on a wall no longer swallows the wall's edge within its box. A handle, device, door or wall element really under the pointer still wins, as before.
+- `addHaEntity` asks `placedEntities` (devices and linked pieces) instead of devices alone, so an entity a piece already tracks is not placed a second time, even when the catalog does not list it.
+
+## 2026-10-07: a linked piece carries device behaviour in the card (S18.15)
+
+Opus review of S18.8 to S18.14: a tv, speaker or computer piece with an entity did nothing in the card, and "every editor feature is in the card" did not hold. Diego's design: a linked piece behaves like a device there. One path, not copies:
+- `pieceDevice(m)` (`solids.ts`, next to `furnitureLinked`, which now calls it) builds the device a linked piece stands for: same type, entity, name, place. Never stored, so the layout file is unchanged. `pieceOn` (`render.ts`) is the one on rule: a linked piece follows `classOf` of that device (a paused or idle tv reads on, a speaker only while playing, unavailable never); any other piece keeps `entityOn` (on, open, playing). A plug's switch keeps the plug's rule. The plan, the Active list, room rows and 3D all call it. Side effect, wanted: a speaker piece whose entity is `on` but not `playing` is no longer lit; it was before, and the speaker device never was.
+- Active list, room rows (`roomSummary`, flagged `piece`, index in `furniture`) and scene targets take the piece as a device of its type; an entity already listed by a device, or by an earlier piece, is not listed again.
+- Tap and hold are the entity's more-info, no popup: `bindDeviceActions` takes `g[data-f][data-linked]` (selector `THINGS`, shared with hover and the outside-press test) and `getPiece`. Not `NO_TOGGLE`: that set is by device type, tv and computer are not in it, and a piece must never toggle by a tap whatever its entity. Its Active row and its room row do the same. An unlinked piece still picks the room. Hover shows the device's name and state line (`_targetOf("f", i)`).
+- 3D: the scene marks a linked piece (`ref.entity`, role `furniture-linked`), `liveOf` gives `pieces[i].on` from `pieceOn`, the view draws it as a mesh of its own (the merged furniture mesh skips it) in `furniture-linked` (the tv blue mixed 70% into the furniture colour) at rest and `piece-on` (`--fp-active`, as the plan's on colour) when on, and the picker returns `{ type: "piece" }`, which the card hands to the gesture code. No screen or driver glow on a piece, only the colour.
+
+## 2026-10-07: siren and alarm are device types, and the type menu has a popular block (S18.14)
+
+Diego: allow "alarm" and "siren" in a device's type; the most popular on top, a separator, the rest A to Z.
+
+**Menu.** One helper, `typeMenu` / `typeOptions` (`panels.ts`), builds every device type select: the device panel's `#vtype`, the Add > Device panel's type filter and the Add > Unlinked device list. Popular, in this order: light, switch, motion, contact (labelled "Window / door sensor"), temp (Temperature), speaker, tv. These are Diego's proposal from the open question; nobody countered it. Then one `<hr>`, then every other type A to Z by the label shown (localeCompare, English). `<hr>` is not an option: it has no index, cannot be picked and is not reached by `selectOption` or the arrow keys; Lit renders it inside `<select>` and Chromium shows a rule. No separator when a block is empty (a filtered list). A digit sorts before a letter, so "3D printer" opens the second block; the label is Diego's and I left it. The unlinked list keeps its curated subset (`UNLINKED_TYPES`) and gains no siren or alarm: an unlinked one has no state to show.
+
+**Types.** Both are real `DeviceType` members, appended to `DEVICE_TYPES` (the order the Active list groups by). The other design, mapping the menu entry onto an existing type, would have made "alarm" and "other" indistinguishable and left the entity picker with no rule. Every per-type table now decides them (finding 17), and the tests that pin those tables got a siren and an alarm row, nothing else changed in them:
+- `typeForEntity`: `siren.*` is siren, `alarm_control_panel.*` is alarm (both were `other`; no test pinned that). `TYPE_RULES` offers each its own domain; both are placeable from an area.
+- Icons: MDI `alarm-light` for the siren, `shield-home` (what HA shows) for the alarm, inlined (finding 9). Category: security. Heights: siren 205 cm mount, 230 cm unlinked top; alarm 120 (keypad). No 2.5D solid.
+- State: a siren is on while its entity is on (the default rule). An alarm is on in every state but `disarmed` (armed_*, arming, pending, triggered); `unavailable` stays unavailable. Both wear `--fp-danger`, the red every theme already has, so no new token and no theme-roles change. The Active list shows both when on and uses the same token.
+- Tap: a siren is not in `NO_TOGGLE`, so its popup offers on/off (the `siren` domain was already switchable). An alarm is in `NO_TOGGLE`: it opens more-info. Room-panel row tap stays more-info for both; that table's pin is four toggling types.
+- Rings: `isSiren` is unchanged, it still keys on the `siren.*` entity. A siren-typed device on a plain entity is red when on and draws no rings. Making the type draw them would have put `siren` in `FX_TYPES` and changed the size control for a case nobody asked for.
+
+Seen in `npm run shots`: siren with rings, a siren on a switch entity, an alarm armed (red) and disarmed (grey), in blueprint, light and Home Assistant dark.
+
+## 2026-10-07: a linked tv, speaker or computer wears its own idle colour (S18.12)
+
+"Connected" means the piece has an `entity`: it tracks that device. `furnitureLinked` (`solids.ts`, one function for the 2D and 2.5D draw paths) adds `data-linked` to a tv, speaker or computer piece with an entity (an attribute, not a class: the class list is pinned by S18.9 tests). `.furn[data-linked]` sets `color: var(--fp-dev-tv)`, before `.furn.on`, so the on colour (S18.9) still wins; the filled body follows `currentColor`. One token for the three symbols, not a new variable: it is the blue every theme already gives the tv, and the shots in light, Home Assistant dark and blueprint show it apart from the plain grey. Not by state (a player that is off or unavailable is still linked). Other symbols with an entity (a patio gate) are not linked: their entity drives on/off only. Shots now draw six such pieces in the Kitchen.
+
+## 2026-10-07: a tv, speaker or computer is added as furniture (S18.11)
+
+The rule is small. An HA entity is placed as a piece when it is a `media_player` whose `device_class` is `tv` or `speaker` (`furnitureForEntity`). A plain media player stays a `media` icon. HA has no computer class, so no entity is guessed as a computer: a catalog entry typed `tv`, `speaker` or `computer` is placed as a piece (`furnitureForType`), which is how a computer the user typed gets there. The piece has the symbol's default size, the entity and the name, sits where a device would (the area's room centre, else the viewport), is selected and is one undo step, with a catalog entry of the same id so a deleted piece can be placed again. `placedEntities` now counts a furniture piece's entity, or the placed piece would be offered again at once; as a side effect an entity already used by a furniture piece in an old layout is no longer offered as a device (the layout file is unchanged). Not changed: the batch place of a room's area (`placeArea`) still makes icons, and `typeForEntity` still says `media` (the list groups it under Media).
+
+## 2026-10-07: small furniture is grabbed from a padded box (S18.10)
+
+A tv is 10 cm deep: at the default zoom a few pixels, and the drawn shape took clicks only on that. `furnitureNear` (`ops.ts`) gives a piece under 28 screen px on a side a box 8 px bigger each way, at least 28 px across, turned with the piece. It is a fallback in code, as `edgeNear` is, not an invisible element: an overlay rect would sit above devices, doors and walls and take their clicks. It beats the room, the background and a bigger piece under it; any handle, device, door or wall really under the pointer still wins. Big pieces get no padding. Editor only; the card is not touched.
+
+## 2026-10-07: 375 px bare-floor threshold 0.87 to 0.85
+
+Filled furniture takes the pointer over its body (S18.8), so the kitchen table no longer counts as bare floor: room 1 measures 86.1 %. Diego's coordinator decided to lower `card-s14-review.spec.ts` from 0.87 to 0.85 at 375 px. Supersedes the "needs a decision" line of the entry below.
+
+## 2026-10-07: furniture is filled, lit and loud (S18.8, S18.9, S18.13)
+
+A body shape in a furniture symbol carries class `ff`; `.furn .ff` fills it with 45% of the piece's `currentColor` in `--fp-room-empty` (the plain room most furniture stands on; `--fp-room` is dark in the dark themes and gave dark blobs on a light room, seen in the shots). On, `currentColor` is `--fp-active`, as before, so body and edge go amber. Filled furniture takes clicks over its whole body, where the outline took them only on its stroke; that is the point of S18.10. A tv or speaker piece whose entity is `playing` (exactly, as a speaker device) gets two `.wave` circles in `.furn-waves`, a sibling of the scaled symbol group (a non-uniform scale would squash them) and, in 2.5D, inside the piece's group at the lid; one helper, `furnitureWaves`, serves both paths. Waves take `--fp-active`, not the device's blue, so the piece reads one colour. Radius a quarter of the longer side, at least 15 cm. The computer symbol is a desk, monitor, keyboard and case, default 120 x 60 cm (was 60 x 40); stored sizes are untouched. Side effect: `card-s14-review.spec.ts` "room 1 keeps at least 87 %" now measures 86.1 % (557 of 647), because the kitchen table covers floor that used to count as bare; main measures above 87 %. Test left as is; needs a decision.
+
 ## 2026-10-07: a shed over the border still nests (3D)
 
 Supersedes the 1 cm edge tolerance of 2026-10-06. A room nests above a bigger one when its middle is inside it and every corner is inside or within 30 cm of its edge. The middle test keeps a narrow room beside the garden from nesting. Diego's garden house floor was missing in 3D; not checked against his layout, the cause is inferred from the screenshot.

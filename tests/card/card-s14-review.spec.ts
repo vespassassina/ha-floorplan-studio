@@ -223,7 +223,7 @@ const roomPoint = (page: Page, i: number) => card(page).evaluate((el, i) => {
 
 test.describe("S14 recheck: every ground room stays mostly visible under the docked sheet", () => {
   // ground rooms: 0 Living, 1 Kitchen, 2 Hall, 3 Reading corner (a sofa covers it: no bare point to click, so left out); 4-6 are the garden, pavement and pond
-  for (const [width, min, rooms] of [[375, 0.87, [0, 1, 2, 4, 5, 6]], [320, 0.6, [2]]] as const) {
+  for (const [width, min, rooms] of [[375, 0.85, [0, 1, 2, 4, 5, 6]], [320, 0.6, [2]]] as const) {
     for (const theme of ["light", "dark"]) {
       for (const i of rooms) {
         test(`at ${width} px (${theme}) room ${i} keeps at least ${min * 100} % of its bare floor`, async ({ page }) => {

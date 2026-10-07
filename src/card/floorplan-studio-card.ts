@@ -1,9 +1,9 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEFAULT_MOTION_FADE_S, customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, heatRange, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { DEFAULT_MOTION_FADE_S, customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, DeviceType, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
-import { TAP_SLOP_PX, bindDeviceActions, fireEvent, type TapTarget } from "./actions";
+import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
 import { lightCaps, popupOp, type PopupOp } from "./popup";
 import { SCENES_CSS, scenesTemplate } from "./room-scenes-ui";
 import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind } from "./popup-ui";
@@ -1283,6 +1283,7 @@ export class FloorplanStudioCard extends LitElement {
             openChooser: (title, entities) => this._openChooserDialog(title, entities),
             openPopup: (t, at, from) => this._openPopup(t, at, from),
             getUnlinked: (i) => this._floor()?.unlinked[i],
+            getPiece: (i) => this._floor()?.furniture?.[i],
           })
         : null;
       this._unbindHover?.();
@@ -1428,9 +1429,10 @@ export class FloorplanStudioCard extends LitElement {
    *  tap toggles, hold opens more-info, `NO_TOGGLE` types do not toggle. Any other tap picks the room under it, or clears.
    *  A drag (the view says so), a pinch and a double tap pick nothing; a double tap puts the pick back as it was. */
   private _bind3d(host: HTMLElement): () => void {
-    const svgEl = (tag: string, attr: string, v: number): Element => {
+    const svgEl = (tag: string, attr: string, v: number, linked = false): Element => {
       const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
       el.setAttribute(attr, String(v));
+      if (linked) el.setAttribute("data-linked", "");
       return el;
     };
     const unbindGestures = bindDeviceActions(host, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], {
@@ -1439,10 +1441,11 @@ export class FloorplanStudioCard extends LitElement {
       openChooser: (title, entities) => this._openChooserDialog(title, entities),
       openPopup: (t, at, from) => this._openPopup(t, at, from),
       getUnlinked: (i) => this._floor()?.unlinked[i],
+      getPiece: (i) => this._floor()?.furniture?.[i],
       resolve: (e) => {
         if (e.pointerType === "mouse" && e.button !== 0) return null;
         const p = this._pick3d(e);
-        return !p ? null : p.type === "device" ? svgEl("g", "data-x", p.index) : p.type === "door" ? svgEl("line", "data-d", p.index) : p.type === "unlinked" ? svgEl("g", "data-u", p.index) : null;
+        return !p ? null : p.type === "device" ? svgEl("g", "data-x", p.index) : p.type === "door" ? svgEl("line", "data-d", p.index) : p.type === "unlinked" ? svgEl("g", "data-u", p.index) : p.type === "piece" ? svgEl("g", "data-f", p.index, true) : null;
       },
     });
     let start: { x: number; y: number } | null = null, pointers = 0;
@@ -1459,7 +1462,7 @@ export class FloorplanStudioCard extends LitElement {
       start = null;
       if (!s || this._view3d?.dragged !== false || Math.hypot(e.clientX - s.x, e.clientY - s.y) > TAP_SLOP_PX) { if (s && this._view3d?.dragged) this._closePopup(); last = null; return; }
       const p = this._pick3d({ clientX: s.x, clientY: s.y, timeStamp: -1 } as PointerEvent);
-      if (p && (p.type === "device" || p.type === "door" || p.type === "unlinked")) { last = null; return; } // its own thing, never a pick
+      if (p && (p.type === "device" || p.type === "door" || p.type === "unlinked" || p.type === "piece")) { last = null; return; } // its own thing, never a pick
       this._closePopup(); // a tap on anything else is an outside tap
       const now = performance.now();
       if (last && now - last.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - last.x, e.clientY - last.y) < DOUBLE_TAP_PX) {
@@ -1478,7 +1481,7 @@ export class FloorplanStudioCard extends LitElement {
     const hoverFrame = () => {
       hraf = 0;
       const p = this._view3d?.pick(hx, hy);
-      const t = p && !this._popup ? (p.type === "device" ? this._targetOf("x", p.index) : p.type === "door" ? this._targetOf("d", p.index) : p.type === "unlinked" ? this._targetOf("u", p.index) : null) : null;
+      const t = p && !this._popup ? (p.type === "device" ? this._targetOf("x", p.index) : p.type === "door" ? this._targetOf("d", p.index) : p.type === "unlinked" ? this._targetOf("u", p.index) : p.type === "piece" ? this._targetOf("f", p.index) : null) : null;
       if (t) this._showTip(t, hx, hy, null);
       else this._hideTip();
     };
@@ -1583,16 +1586,18 @@ export class FloorplanStudioCard extends LitElement {
     if (!this._popup) return;
     for (const n of e.composedPath()) {
       // Only what is in this card's own shadow tree counts as inside: an icon of another card must close this card's popup.
-      if (n instanceof Element && n.getRootNode() === this.shadowRoot && (n.classList.contains("fp-pop") || n.classList.contains("fp-3d") || n.matches("g[data-x], button[data-x], line[data-d], g[data-u], [data-pop]"))) return;
+      if (n instanceof Element && n.getRootNode() === this.shadowRoot && (n.classList.contains("fp-pop") || n.classList.contains("fp-3d") || n.matches(`${THINGS}, button[data-x], [data-pop]`))) return;
     }
     this._closePopup();
   };
 
   /** What index `i` of the shown floor is, as the gesture code names it. */
-  private _targetOf(kind: "x" | "d" | "u", i: number): TapTarget | null {
+  private _targetOf(kind: "x" | "d" | "u" | "f", i: number): TapTarget | null {
     const f = this._floor();
     if (!f || !Number.isFinite(i)) return null;
     if (kind === "x") { const device = f.devices[i]; return device ? { device, index: i } : null; }
+    // A linked piece speaks for its device (`pieceDevice`): the same name and state line as a device icon. `index` is the piece's, nothing reads it for a hover.
+    if (kind === "f") { const m = f.furniture?.[i], device = m && pieceDevice(m); return device ? { device, index: i } : null; }
     if (kind === "d") { const door = f.doors[i]; return door ? { door, index: i } : null; }
     const unlinked = f.unlinked?.[i];
     return unlinked ? { unlinked, index: i } : null;
@@ -1628,6 +1633,8 @@ export class FloorplanStudioCard extends LitElement {
 
   private _tapActiveRow(it: ActiveDevice, e: MouseEvent): void {
     const d = this._layout?.floors[it.floor]?.devices.find((x) => x.entity === it.entity);
+    // A row of a linked piece (no device of that entity) is the piece's tap on the plan: more-info.
+    if (!d && this._layout?.floors[it.floor]?.furniture?.some((m) => pieceDevice(m)?.entity === it.entity)) { fireEvent(this, "hass-more-info", { entityId: it.entity }); return; }
     const row = e.currentTarget as Element, b = row.getBoundingClientRect();
     const s = d ? this._deviceSubject(d, it.name) : { key: `d:${it.entity}`, name: it.name, type: it.type, entity: it.entity, entities: [it.entity] };
     this._openSubject(s, e.detail > 0 ? { x: e.clientX, y: e.clientY } : { x: b.left + b.width / 2, y: b.bottom }, row);
@@ -1751,8 +1758,8 @@ export class FloorplanStudioCard extends LitElement {
     const move = (e: Event) => {
       const pe = e as PointerEvent;
       if (pe.pointerType !== "mouse" || pe.buttons || this._popup) { this._hideTip(); return; }
-      const el = (pe.target as Element | null)?.closest?.("g[data-x], line[data-d], g[data-u]");
-      const kind = el?.hasAttribute("data-x") ? "x" : el?.hasAttribute("data-d") ? "d" : "u";
+      const el = (pe.target as Element | null)?.closest?.(THINGS);
+      const kind = el ? thingKind(el) : "u";
       const t = el ? this._targetOf(kind, Number(el.getAttribute(`data-${kind}`))) : null;
       if (t && el) this._showTip(t, pe.clientX, pe.clientY, el);
       else this._hideTip();
@@ -1783,7 +1790,7 @@ export class FloorplanStudioCard extends LitElement {
       this._tipTarget = t;
       this._tipHost = this.getBoundingClientRect();
       if (el) {
-        const kind = el.hasAttribute("data-x") ? "x" : el.hasAttribute("data-d") ? "d" : "u";
+        const kind = thingKind(el);
         this._tipSel = `[data-${kind}="${el.getAttribute(`data-${kind}`)}"]`;
         this._holdTipEl(el);
       }
@@ -2192,6 +2199,16 @@ export class FloorplanStudioCard extends LitElement {
   private _roomDeviceRow(r: RoomDeviceRow) {
     // S14 review: every row is the plan icon's twin (`data-x`): a tap opens the popup, a hold opens more-info, whatever the type.
     const click = (e: MouseEvent) => { if (e.detail === 0) this._keyToggle(r, e.currentTarget as Element); };
+    // A linked piece has no `data-x` (its index is in `furniture`, not `devices`): its row is its tap on the plan, more-info.
+    if (r.piece) {
+      return html`<div class="fp-item">
+      <button type="button" class=${r.on ? "fp-active-row" : "fp-active-row fp-off"} style="--fp-active-row-color:var(${r.colorVar})" @click=${() => fireEvent(this, "hass-more-info", { entityId: r.entity })}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${DEVICE_ICONS[r.type]}></path></svg>
+        <span>${r.name}</span><span class="fp-row-state">${r.state}</span>
+      </button>
+      ${this._infoButton(r.name, r.entity)}${this._infoBlock(r.entity)}
+    </div>`;
+    }
     return html`<div class="fp-item">
       <button type="button" class=${r.on ? "fp-active-row" : "fp-active-row fp-off"} data-x=${String(r.index)} style="--fp-active-row-color:var(${r.colorVar})" @click=${click}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${DEVICE_ICONS[r.type]}></path></svg>
@@ -2763,7 +2780,7 @@ export class FloorplanStudioCard extends LitElement {
       const tap = !panning && !pinched;
       panning = false;
       pinched = false;
-      const onThing = (e.target as Element | null)?.closest?.("g[data-x], line[data-d], g[data-u]");
+      const onThing = (e.target as Element | null)?.closest?.(THINGS);
       if (!tap || onThing) {
         lastTap = null;
         return;

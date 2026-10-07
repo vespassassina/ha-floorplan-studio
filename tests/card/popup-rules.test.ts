@@ -20,6 +20,8 @@ const CASE: Record<DeviceType, { entity: string; kind: Kind }> = {
   battery: { entity: "sensor.x", kind: "none" }, inverter: { entity: "sensor.x", kind: "none" }, server: { entity: "sensor.x", kind: "none" },
   access_point: { entity: "sensor.x", kind: "none" }, person: { entity: "person.x", kind: "none" }, radar: { entity: "binary_sensor.x", kind: "none" },
   vacuum: { entity: "vacuum.x", kind: "none" }, // its own dialog (S7.10)
+  // S18.14: a siren has a real on/off service; an alarm panel has none, so it opens more-info (NO_TOGGLE).
+  siren: { entity: "siren.x", kind: "confirm-off" }, alarm: { entity: "alarm_control_panel.x", kind: "none" },
 };
 
 describe("popupOp: the default operation per device type", () => {
