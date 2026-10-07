@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: Try and Restore (S17.7)
+
+`HaWriter.callService` is one service call; `tryScene` keeps each entity's first-seen state as a scene item (`itemFromState`) and sends `customCalls`, `restoreScene` sends the kept items. A second Try keeps the first backup. Closing the popup without Save restores; Save does not (the devices are as the saved scene says). Try asks no confirmation, unlike a card tap that turns a fan off: it is a preview and Restore undoes it. Unknown or unavailable devices are tried but cannot be restored, and the popup says so.
+
 ## 2026-10-07: Picture colours (S17.6)
 
 `dominantColours` (`image-colours.ts`) is a pure k-means over RGBA bytes: seeds are one pixel from a fixed LCG, then the farthest pixel from the seeds so far; 12 passes; at most 4096 sampled pixels; transparent pixels skipped; result by cluster size then hex. `readImageColours` draws the file to a canvas of at most 64 px and calls it. Choosing a picture fills the palette; Apply is still the separate press the spec asks for.

@@ -16,10 +16,11 @@ export interface SceneDraft {
   error: string;
   palette: string[];       // S17.5: the colours to deal out, 2 to 6
   note: string;            // what the last Apply did
+  trying: string;          // what the last Try or Restore did
 }
 export const DEFAULT_PALETTE = ["#ff8a3d", "#ffd23d", "#3d7bff"];
 export const newDraft = (room: string, id: string | null, name: string, items: SceneItem[]): SceneDraft =>
-  ({ room, id, name, items: new Map(items.map((it) => [it.entity, structuredClone(it)])), error: "", palette: [...DEFAULT_PALETTE], note: "" });
+  ({ room, id, name, items: new Map(items.map((it) => [it.entity, structuredClone(it)])), error: "", palette: [...DEFAULT_PALETTE], note: "", trying: "" });
 export interface DesignerDeps {
   draft: SceneDraft;
   pos: { x: number; y: number };
@@ -29,6 +30,8 @@ export interface DesignerDeps {
   refresh: () => void;
   close: () => void;
   save: () => void;
+  /** S17.7: present only with a writer. `hasBackup` is true after a Try that Restore has not yet undone. */
+  preview?: { hasBackup: boolean; busy: boolean; run: () => void; restore: () => void };
 }
 
 const LABEL: Record<string, string> = { brightness: "brightness %", kelvin: "kelvin", percentage: "speed %", position: "position %", temperature: "temp °C", volume: "volume %", hvac: "mode", source: "source" };
@@ -106,6 +109,11 @@ export function sceneDesigner(d: DesignerDeps) {
     ${palette}
     <div class="rows">${rows.length ? rows.map(row) : html`<p>No light, switch, fan, cover, climate or media player is placed in this room.</p>`}</div>
     ${draft.error ? html`<p class="warn-text" id="sceneError" role="alert">${draft.error}</p>` : nothing}
+    <div class="sd-try">${d.preview
+      ? html`<button class="btn keep" id="sceneTry" ?disabled=${d.preview.busy} title="Sends this scene to the real devices now. Restore puts them back." @click=${d.preview.run}>Try it</button>
+        <button class="btn keep" id="sceneRestore" ?disabled=${d.preview.busy || !d.preview.hasBackup} @click=${d.preview.restore}>Restore</button>`
+      : html`<button class="btn keep" id="sceneTry" disabled>Try it</button><button class="btn keep" id="sceneRestore" disabled>Restore</button><span id="tryNeeds">Trying a scene needs the studio connected to Home Assistant with write access.</span>`}
+      ${draft.trying ? html`<span id="tryNote" role="status">${draft.trying}</span>` : nothing}</div>
     <div class="sd-actions"><button class="btn primary keep" id="sceneSave" @click=${() => d.save()}>Save</button><button class="btn keep" id="sceneCancel" @click=${() => d.close()}>Cancel</button></div>
   </div>`;
 }

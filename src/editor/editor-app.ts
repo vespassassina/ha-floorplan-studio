@@ -11,6 +11,9 @@ import { readViewMemory, writeViewMemory } from "./view-memory";
 import { traceImage } from "./trace";
 import { roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
+import { restoreScene, tryScene } from "./scene-try";
+import { cleanSceneItem } from "./room-scenes-ops";
+import type { SceneItem } from "../core";
 import { newDraft, sceneDesigner, type SceneDraft } from "./scene-designer";
 import { roomSceneTargets, saveScene } from "./room-scenes-ops";
 import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, type PanelCtx } from "./panels";
@@ -185,6 +188,9 @@ export class FloorplanStudioEditor extends LitElement {
   private placeType: DeviceType | null = null;
   private sceneDraft: SceneDraft | null = null;
   private scenePos: { x: number; y: number } | null = null;
+  /** S17.7: what the devices were doing before the first Try of this popup; empty when nothing is tried. */
+  private sceneBackup: SceneItem[] = [];
+  private sceneBusy = false;
   /** S8.5: Add > Device's floating panel: position (null when closed), the search text, and the four filter selects
    * (a value of "" is "All…"; "__none__" is the added "None" option). Reset every time the panel opens. */
   private addDevPos: { x: number; y: number } | null = null;
@@ -433,6 +439,7 @@ export class FloorplanStudioEditor extends LitElement {
     #sceneName{width:260px}
     .sd-palette{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 10px}
     .sd-palette input[type=color]{width:36px;height:28px;padding:0}
+    .sd-try{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 10px}
     .sd-actions{display:flex;gap:8px;padding:8px 10px 10px}
     .warn-text{color:var(--fp-warn,#c0392b)}
     .place-panel{width:min(660px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
@@ -1157,7 +1164,33 @@ export class FloorplanStudioEditor extends LitElement {
     this.scenePos = this.panelPos(660);
     this.requestUpdate();
   }
-  private closeScene() { this.sceneDraft = null; this.scenePos = null; this.requestUpdate(); }
+  /** Closing without Save (Cancel, the X, Escape) puts back what a Try changed; Save leaves the devices as tried. */
+  private closeScene(keepDevices = false) {
+    const w = this.writer, back = this.sceneBackup;
+    this.sceneDraft = null; this.scenePos = null; this.sceneBackup = [];
+    if (!keepDevices && w && back.length) void restoreScene(w, back);
+    this.requestUpdate();
+  }
+  private draftItems(): SceneItem[] { return [...(this.sceneDraft?.items.values() ?? [])].flatMap((it) => { const c = cleanSceneItem(it); return c ? [c] : []; }); }
+  private async trySceneDraft() {
+    const w = this.writer, d = this.sceneDraft, items = this.draftItems();
+    if (!w || !d) return;
+    if (!items.length) { d.trying = "Pick at least one device to try."; this.requestUpdate(); return; }
+    this.sceneBusy = true; d.trying = "Sending…"; this.requestUpdate();
+    const r = await tryScene(w, items, this._hassStates ?? {}, this.sceneBackup);
+    this.sceneBackup = r.backup; this.sceneBusy = false;
+    d.trying = r.failed.length ? `Home Assistant refused ${r.failed.join(", ")}.` : r.unrestorable.length ? `Sent. Restore cannot put back ${r.unrestorable.join(", ")}: its state is unknown.` : "Sent. Restore puts the devices back.";
+    this.requestUpdate();
+  }
+  private async restoreSceneDraft() {
+    const w = this.writer, d = this.sceneDraft;
+    if (!w || !d) return;
+    this.sceneBusy = true; this.requestUpdate();
+    const failed = await restoreScene(w, this.sceneBackup);
+    this.sceneBackup = []; this.sceneBusy = false;
+    d.trying = failed.length ? `Could not put back ${failed.join(", ")}.` : "Put back.";
+    this.requestUpdate();
+  }
   /** Save: one `commit`, so one undo step; a refused draft stays open and says why. */
   private saveSceneDraft() {
     const d = this.sceneDraft;
@@ -1171,7 +1204,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (!check.ok) reason = check.reason;
     else this.commit((f) => { saveScene(f.rooms[i], d.id, d.name, items); });
     if (reason) { d.error = reason; this.requestUpdate(); return; }
-    this.closeScene();
+    this.closeScene(true);
   }
 
   // ---- S8.5: Add > Device — one floating panel over the catalog and HA entities ---------------------------------------
@@ -2405,7 +2438,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.addFloor(title)) { this.floorDone(`Added floor ${title}`); this.focus({ preventScroll: true }); }
   };
 
-  private setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; this.placePos = null; this.sceneDraft = null; this.scenePos = null; this.requestUpdate(); } // the Place popup belongs to a room of the floor it was opened on
+  private setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; this.placePos = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
 
   /** Cmd/Ctrl+S: the Save button's action, except that an empty plan says so instead of writing nothing useful. */
   private saveByKey() {
@@ -2769,7 +2802,7 @@ export class FloorplanStudioEditor extends LitElement {
           ${this.devColsPos ? this.devColsView(st) : nothing}
           ${this.haPos && this.writer ? this.haView() : nothing}
           ${(() => { const i = this.placeRoom === null ? -1 : st.f.rooms.findIndex((r) => r.id === this.placeRoom); return i >= 0 && this.placePos ? this.placeView(st, i) : nothing; })()}
-          ${(() => { const d = this.sceneDraft, i = d ? st.f.rooms.findIndex((r) => r.id === d.room) : -1; return d && i >= 0 && this.scenePos ? sceneDesigner({ draft: d, pos: this.scenePos, head: this.sceneHead, roomName: st.f.rooms[i].name, targets: roomSceneTargets(st.f, i), refresh: () => this.requestUpdate(), close: () => this.closeScene(), save: () => this.saveSceneDraft() }) : nothing; })()}
+          ${(() => { const d = this.sceneDraft, i = d ? st.f.rooms.findIndex((r) => r.id === d.room) : -1; return d && i >= 0 && this.scenePos ? sceneDesigner({ draft: d, pos: this.scenePos, head: this.sceneHead, roomName: st.f.rooms[i].name, targets: roomSceneTargets(st.f, i), refresh: () => this.requestUpdate(), close: () => this.closeScene(), save: () => this.saveSceneDraft(), preview: this.writer ? { hasBackup: this.sceneBackup.length > 0, busy: this.sceneBusy, run: () => void this.trySceneDraft(), restore: () => void this.restoreSceneDraft() } : undefined }) : nothing; })()}
           ${this.addDevPos ? this.addDevView(st) : nothing}
           ${this.installCodeOpen ? this.installCodeView() : nothing}
           ${this.traceOpen ? this.traceView() : nothing}

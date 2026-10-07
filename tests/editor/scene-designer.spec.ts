@@ -235,3 +235,75 @@ test("the same picture twice gives the same palette; a file that is not a pictur
   await expect(page.locator("#paletteNote")).toContainText("could not be read");
   expect(await read()).toEqual(first);
 });
+
+// S17.7: Try and Restore. The writer is a fake with the one method the real one has (src/editor/hass-write.ts `callService`); the
+// states are the shape the panel host sets as `hassState`.
+async function withWriter(page: Page, fail = "") {
+  await page.evaluate(([tag, f]) => {
+    const w = window as any; w.__calls = [];
+    const el = document.querySelector(tag as string) as any;
+    el.writer = { callService: async (c: any) => { w.__calls.push([c.domain, c.service, c.data]); if (f && c.data.entity_id === f) throw new Error("refused"); } };
+    el.hassState = {
+      "light.demo_living": { state: "on", attributes: { brightness: 255, color_mode: "color_temp", color_temp_kelvin: 4000 }, last_changed: "" },
+    };
+  }, [EDITOR, fail]);
+}
+const sent = (page: Page) => page.evaluate(() => (window as any).__calls as [string, string, Record<string, unknown>][]);
+
+test("without a writer Try and Restore are disabled and say why", async ({ page }) => {
+  await expect(page.locator("#sceneTry")).toBeDisabled();
+  await expect(page.locator("#sceneRestore")).toBeDisabled();
+  await expect(page.locator("#tryNeeds")).toContainText("needs the studio connected to Home Assistant");
+});
+
+test("Try sends the draft to the devices; Restore sends back what they were doing, and only then is it enabled", async ({ page }) => {
+  await withWriter(page);
+  await expect(page.locator("#tryNeeds")).toHaveCount(0);
+  await expect(page.locator("#sceneRestore")).toBeDisabled();
+  await press(page, "#sceneTry");
+  await expect(page.locator("#tryNote")).toHaveText("Pick at least one device to try.");
+  expect(await sent(page)).toEqual([]);
+  await press(page, '[data-sdev="light.demo_living"] input[type=checkbox]');
+  await page.locator("#sd-brightness-0").fill("10"); await page.locator("#sd-brightness-0").press("Tab");
+  await press(page, "#sceneTry");
+  await expect(page.locator("#tryNote")).toContainText("Sent.");
+  expect(await sent(page)).toEqual([["light", "turn_on", { entity_id: "light.demo_living", brightness_pct: 10 }]]);
+  expect(await scenes(page)).toHaveLength(0); // trying does not save
+  await expect(page.locator("#sceneRestore")).toBeEnabled();
+  await press(page, "#sceneRestore");
+  await expect(page.locator("#tryNote")).toHaveText("Put back.");
+  expect((await sent(page)).at(-1)).toEqual(["light", "turn_on", { entity_id: "light.demo_living", brightness_pct: 100, color_temp_kelvin: 4000 }]);
+  await expect(page.locator("#sceneRestore")).toBeDisabled();
+});
+
+test("Cancel after a Try puts the devices back; Save after a Try does not", async ({ page }) => {
+  await withWriter(page);
+  await press(page, '[data-sdev="light.demo_living"] input[type=checkbox]');
+  await press(page, "#sceneTry");
+  await expect(page.locator("#tryNote")).toContainText("Sent.");
+  await press(page, "#sceneCancel");
+  await expect(page.locator("#scenePanel")).toHaveCount(0);
+  await expect.poll(async () => (await sent(page)).length).toBe(2);
+  expect((await sent(page))[1][2]).toMatchObject({ entity_id: "light.demo_living", color_temp_kelvin: 4000 });
+  await press(page, "#rsc-new");
+  await page.locator("#sceneName").fill("Kept");
+  await press(page, '[data-sdev="light.demo_living"] input[type=checkbox]');
+  await press(page, "#sceneTry");
+  await expect(page.locator("#tryNote")).toContainText("Sent.");
+  await press(page, "#sceneSave");
+  await expect(page.locator("#scenePanel")).toHaveCount(0);
+  expect(await sent(page)).toHaveLength(3); // no restore
+  expect(await scenes(page)).toHaveLength(1);
+});
+
+test("a device Home Assistant refuses is named, and one with an unknown state is tried but flagged as not restorable", async ({ page }) => {
+  await withWriter(page, "light.demo_living");
+  await press(page, '[data-sdev="light.demo_living"] input[type=checkbox]');
+  await press(page, "#sceneTry");
+  await expect(page.locator("#tryNote")).toHaveText("Home Assistant refused light.demo_living.");
+  await withWriter(page);
+  await press(page, '[data-sdev="light.demo_living"] input[type=checkbox]'); // untick
+  await press(page, '[data-sdev^="switch."] input[type=checkbox]');
+  await press(page, "#sceneTry");
+  await expect(page.locator("#tryNote")).toContainText("Restore cannot put back switch.");
+});
