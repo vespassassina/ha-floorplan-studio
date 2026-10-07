@@ -12,6 +12,7 @@ const middle = (pts: number[][]) => [pts.reduce((s, p) => s + p[0], 0) / pts.len
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/standalone.html");
+  await page.locator("#fixPlan").uncheck(); // the plan opens fixed; these tests edit it
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
 });
 

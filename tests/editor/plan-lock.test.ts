@@ -27,6 +27,16 @@ describe("EditorState: plan lock", () => {
     expect(st.planBlocked).toBe(true);
   });
 
+  it("takes objects (heater, TV) like devices: add, move, remove; furniture stays locked", () => {
+    const st = locked();
+    expect(st.edit((f) => { f.unlinked.push({ id: "u9", type: "heater", x: 10, y: 10, rot: 0, scale: 1 } as never); })).toBe(true);
+    const n = st.f.unlinked.length - 1;
+    expect(st.edit((f) => { f.unlinked[n].x = 99; })).toBe(true);
+    expect(st.edit((f) => { f.unlinked.splice(n, 1); })).toBe(true);
+    expect(st.edit((f) => { f.furniture.push({ id: "m9", symbol: "tree", x: 1, y: 1, rot: 0, w: 50, h: 50 } as never); })).toBe(false);
+    expect(st.planBlocked).toBe(true);
+  });
+
   it("still takes an edit that touches devices only: move, rename, add, remove", () => {
     const st = locked(), n = st.f.devices.length;
     expect(st.edit((f) => { (f.devices[0] as any).x += 17; })).toBe(true);

@@ -14,7 +14,7 @@ import "./config-editor";
 import { defineElement } from "./define";
 import { CARD_VERSION } from "./version";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
-import { viewKeyFor, type ViewKey } from "./view-keys";
+import { PAN_STEP, viewKeyFor, type ViewKey } from "./view-keys";
 import type { View3D } from "./three/view3d";
 import type { Pick as Pick3D } from "./three/pick";
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
@@ -650,11 +650,16 @@ export class FloorplanStudioCard extends LitElement {
         if (this._zoomMode() === false) return false;
         this._zoomCentre(key === "zoomIn" ? BUTTON_ZOOM : 1 / BUTTON_ZOOM);
         return true;
-      case "rotateLeft":
-      case "rotateRight":
-        if (!this._rotateOn()) return false;
-        this._turnBy(key === "rotateLeft" ? -ROTATION_STEP : ROTATION_STEP);
+      case "panLeft":
+      case "panRight": {
+        if (this._zoomMode() === false) return false;
+        const v = this._current(), fit = this._fit;
+        if (!v || !fit) return false;
+        const to = clamp(panBy(v, (key === "panLeft" ? -PAN_STEP : PAN_STEP) * v.w, 0), fit);
+        if (sameView(to, v, fit)) return false; // at the edge, or not zoomed: nothing moved, so the page keeps the key
+        this._setView(to);
         return true;
+      }
       case "reset":
         if (this._hasViewControls()) {
           if (!this._modified()) return false;

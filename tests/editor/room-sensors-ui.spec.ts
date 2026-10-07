@@ -23,6 +23,7 @@ const center = async (page: Page, sel: string) => {
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/standalone.html");
+  await page.locator("#fixPlan").uncheck(); // the plan opens fixed; these tests edit it
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   // Asymmetric catalog: the edited room (Living, ground) is the LAST temperature entry, on the FIRST of three floors;
   // the first catalog entries belong to the last floor.

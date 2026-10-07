@@ -15,13 +15,42 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
 });
 
-test("the checkbox sits before the status label", async ({ page }) => {
-  const order = await page.evaluate((tag) => {
-    const r = document.querySelector(tag)!.shadowRoot ?? document.querySelector(tag)!;
-    const box = r.querySelector("#fixPlan")!, status = r.querySelector("#status")!;
-    return !!(box.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING);
-  }, EDITOR);
-  expect(order).toBe(true);
+test("a plan with rooms opens fixed, and the switch is loud: ticked, red, with a lock", async ({ page }) => {
+  await page.goto("/standalone.html");
+  await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+  await expect(page.locator("#fixPlan")).toBeChecked();
+  const label = page.locator("label.fixplan");
+  await expect(label).toHaveClass(/\bon\b/);
+  await expect(label).toContainText("🔒");
+  expect(await label.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(192, 57, 43)");
+  await page.locator("#fixPlan").uncheck();
+  await expect(label).not.toHaveClass(/\bon\b/);
+  expect(await label.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+});
+
+test("adding furniture while the plan is fixed shows a red banner with a close button, and adds nothing", async ({ page }) => {
+  const before = (await g(page)).furniture.length;
+  await page.locator('details.menu > summary:text-is("Add")').click();
+  await page.locator("#addFurn").selectOption("tree");
+  const banner = page.locator("#status");
+  await expect(banner).toContainText("plan is fixed");
+  await expect(page.locator(".banner.error")).toBeVisible();
+  expect((await g(page)).furniture.length).toBe(before);
+  await page.locator("#bannerClose").click();
+  await expect(banner).toHaveCount(0);
+});
+
+test("a banner closes itself after 20 seconds, not before", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/standalone.html");
+  await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+  await page.locator('details.menu > summary:text-is("Add")').click();
+  await page.locator("#addFurn").selectOption("tree");
+  await expect(page.locator("#status")).toBeVisible();
+  await page.clock.fastForward(19_000);
+  await expect(page.locator("#status")).toBeVisible();
+  await page.clock.fastForward(1_500);
+  await expect(page.locator("#status")).toHaveCount(0);
 });
 
 test("fixed: a door drag changes nothing, a device drag moves the device, then unticked the door moves again", async ({ page }) => {

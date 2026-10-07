@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Card, studio: **Left and Right pan** the view a tenth of its width; they no longer turn the plan. The rotate buttons still do. In the card a key that cannot move anything (not zoomed in, or at the edge) is left to the page.
+- Studio: messages are **banners at the top**, coloured by situation (blue info, amber warning, red error), with a close button, gone after 20 seconds. The text in the toolbar is gone.
+- Studio: **Fix plan** is on when a plan with something drawn opens, and it is a red pill with a lock while on. Adding furniture while the plan is fixed shows a red banner. Open file replaces the whole plan, so it ignores the lock.
 - Studio: with a room selected, a new furniture, object, device, door, zone or stairs is placed in the **middle of that room** (nudged 40 cm when something already stands there). Nothing selected: the old spots.
 
 ## 0.16.4 - 2026-10-06

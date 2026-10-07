@@ -54,7 +54,7 @@ test.describe("the floor survives a reload (default install: no floor pinned, a 
 });
 
 test.describe("the keys, with a real pointer and a real keyboard", () => {
-  test("hover the card: Up zooms in, Right turns 45 degrees, Space resets; the page does not scroll", async ({ page }) => {
+  test("hover the card: Up zooms in, Right pans, Space resets; the page does not scroll", async ({ page }) => {
     await page.goto(URL_);
     await boot(page, PINNED);
     await page.evaluate(() => { document.body.style.height = "4000px"; window.scrollTo(0, 0); });
@@ -62,9 +62,10 @@ test.describe("the keys, with a real pointer and a real keyboard", () => {
     const w0 = (await viewBox(page))[2]!;
     await page.keyboard.press("ArrowUp");
     await expect.poll(async () => (await viewBox(page))[2]!).toBeLessThan(w0);
+    const x0 = (await viewBox(page))[0]!;
     await page.keyboard.press("ArrowRight");
-    await settled(page);
-    expect(await planDeg(page)).toBe(45);
+    await expect.poll(async () => (await viewBox(page))[0]!).toBeGreaterThan(x0);
+    expect(await planDeg(page)).toBe(0);
     await page.keyboard.press("Space");
     await settled(page);
     expect(await planDeg(page)).toBe(0);
@@ -107,11 +108,11 @@ test.describe("the keys, with a real pointer and a real keyboard", () => {
     expect((await viewBox(page))[2]!).toBe(w0);
   });
 
-  test("a turn made by key is still there after a reload", async ({ page }) => {
+  test("a turn made by button is still there after a reload", async ({ page }) => {
     await page.goto(URL_);
     await boot(page, PINNED);
     await hoverCard(page);
-    await page.keyboard.press("ArrowLeft");
+    await button(page, "Rotate left").click();
     await settled(page);
     await page.reload();
     await boot(page, PINNED);

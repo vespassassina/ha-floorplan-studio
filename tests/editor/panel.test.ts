@@ -43,7 +43,8 @@ describe("<floorplan-studio-panel>", () => {
     // panel handing the stored layout down again would read as a fresh load: zoom reset, selection gone, edits reverted.
     const hass = stubHass(() => ({ layout: L }));
     const el = await mount(hass);
-    const st = (editorOf(el) as unknown as { st: { views: Record<string, unknown>; floor: string; edit(fn: (f: { title?: string }) => void): boolean; layout: Layout; hist: unknown[] } }).st;
+    const st = (editorOf(el) as unknown as { st: { views: Record<string, unknown>; floor: string; edit(fn: (f: { title?: string }) => void): boolean; layout: Layout; hist: unknown[]; planLocked: boolean } }).st;
+    st.planLocked = false; // a plan with rooms opens fixed; this test is about state surviving, so it edits the plan
     st.views[st.floor] = { x: 1, y: 2, w: 300, h: 200 };
     st.edit((f) => { f.title = "Edited by hand"; });
     const undo = st.hist.length;

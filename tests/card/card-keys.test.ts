@@ -11,7 +11,7 @@ import { renderFloor } from "../../src/core";
 import "../../src/card/floorplan-studio-card";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
 
-// The keys of the card: arrows zoom and rotate, Space resets. Who is listening is the point of these tests: the
+// The keys of the card: Up and Down zoom, Left and Right pan, Space resets. Who is listening is the point of these tests: the
 // card under the pointer or with focus, never a second card on the page, never someone typing.
 
 const L = demo as unknown as Layout;
@@ -30,6 +30,7 @@ async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<F
 }
 const q = <T extends Element>(el: FloorplanStudioCard, sel: string) => el.shadowRoot!.querySelector<T>(sel);
 const vbW = (el: FloorplanStudioCard) => Number(q<SVGSVGElement>(el, "svg")!.getAttribute("viewBox")!.split(/\s+/)[2]);
+const vbX = (el: FloorplanStudioCard) => Number(q<SVGSVGElement>(el, "svg")!.getAttribute("viewBox")!.split(/\s+/)[0]);
 const hover = (el: Element) => el.dispatchEvent(new Event("pointerenter"));
 const leave = (el: Element) => el.dispatchEvent(new Event("pointerleave"));
 /** Presses `key` where the event starts at `from` (document.body by default). Returns whether the card took it. */
@@ -70,14 +71,27 @@ describe("card keys: what each key does", () => {
     expect(vbW(el)).toBeGreaterThan(w0); // zooming out past fit is allowed down to MIN_ZOOM
   });
 
-  it("Left and Right turn the plan 45 degrees either way; the steps wrap", async () => {
+  it("Left and Right pan the view a tenth of its width either way, and never turn the plan", async () => {
     const el = await mount();
     hover(el);
+    expect(press("ArrowRight")).toBe(false); // not zoomed: the whole plan is on show, nothing to pan
+    press("ArrowUp");
+    press("ArrowUp");
+    await settle(el);
+    const x0 = vbX(el), w = vbW(el);
     press("ArrowRight");
     await settle(el);
-    expect(deg()).toBe(45);
+    expect(vbX(el) - x0).toBeCloseTo(w * 0.1, 4);
     press("ArrowLeft");
     press("ArrowLeft");
+    await settle(el);
+    expect(vbX(el) - x0).toBeCloseTo(-w * 0.1, 4);
+    expect(deg()).toBe(0);
+  });
+
+  it("the rotate buttons still turn the plan 45 degrees, and the steps wrap", async () => {
+    const el = await mount();
+    q<HTMLButtonElement>(el, 'button[aria-label="Rotate left"]')!.click();
     await settle(el);
     expect(deg()).toBe(315);
   });
@@ -87,9 +101,10 @@ describe("card keys: what each key does", () => {
     hover(el);
     const w0 = vbW(el);
     press("ArrowUp");
-    press("ArrowRight");
+    q<HTMLButtonElement>(el, 'button[aria-label="Rotate right"]')!.click();
     await settle(el);
     expect(vbW(el)).not.toBe(w0);
+    expect(deg()).toBe(45);
     expect(press(" ")).toBe(true);
     await settle(el);
     expect(deg()).toBe(0);
@@ -102,32 +117,31 @@ describe("card keys: what each key does", () => {
     expect(press(" ")).toBe(false);
   });
 
-  it("zoom: false: the zoom keys do nothing and the rotation keys still turn; view_switch: false: the other way round", async () => {
+  it("zoom: false: the zoom and pan keys do nothing; view_switch: false and rotate_switch: false leave them alone", async () => {
     const noZoom = await mount({ zoom: false });
     hover(noZoom);
     const w0 = vbW(noZoom);
     expect(press("ArrowUp")).toBe(false);
+    expect(press("ArrowRight")).toBe(false);
     expect(vbW(noZoom)).toBe(w0);
-    press("ArrowRight");
-    await settle(noZoom);
-    expect(deg()).toBe(45);
     noZoom.remove();
     const noSwitch = await mount({ view_switch: false });
     hover(noSwitch);
-    expect(press("ArrowRight")).toBe(true); // the rotate buttons are there without the View dropdown, so are the keys
     expect(press("ArrowUp")).toBe(true);
+    expect(press("ArrowRight")).toBe(true); // zoomed now, so there is something to pan
     noSwitch.remove();
     const noRotate = await mount({ rotate_switch: false });
     hover(noRotate);
-    expect(press("ArrowRight")).toBe(false);
     expect(press("ArrowUp")).toBe(true);
+    expect(press("ArrowRight")).toBe(true); // panning has nothing to do with the rotate pair
   });
 
-  it("kiosk draws no controls and takes no rotation or reset keys", async () => {
+  it("kiosk draws no controls and takes no reset key; its arrows still zoom and pan", async () => {
     const el = await mount({ kiosk: true });
     hover(el);
-    expect(press("ArrowLeft")).toBe(false);
-    expect(press(" ")).toBe(false);
+    expect(press(" ")).toBe(false); // nothing to reset yet
+    expect(press("ArrowUp")).toBe(true);
+    expect(press("ArrowLeft")).toBe(true);
   });
 
   it("other keys and Ctrl/Cmd chords pass", async () => {
@@ -232,9 +246,12 @@ describe("card keys: what they never take", () => {
     const el = await mount();
     hover(el);
     const labels = q<HTMLButtonElement>(el, 'button[aria-label="Labels"]')!;
+    press("ArrowUp");
+    await settle(el);
+    const x0 = vbX(el);
     expect(press("ArrowRight", labels)).toBe(true);
     await settle(el);
-    expect(deg()).toBe(45);
+    expect(vbX(el)).toBeGreaterThan(x0);
   });
 
   it("an open dialog keeps the keys", async () => {
@@ -250,10 +267,9 @@ describe("card keys: what they never take", () => {
 describe("card keys are remembered like any other touch", () => {
   const stored = () => Object.entries(localStorage).filter(([k]) => k.startsWith("fp-view:")).map(([, v]) => JSON.parse(v));
 
-  it("a turn by key is in storage the moment it settles", async () => {
+  it("a turn by button is in storage the moment it settles", async () => {
     const el = await mount();
-    hover(el);
-    press("ArrowRight");
+    q<HTMLButtonElement>(el, 'button[aria-label="Rotate right"]')!.click();
     await settle(el);
     expect(stored()[0].floors[0][1].rotation).toBe(45);
   });
@@ -268,7 +284,7 @@ describe("card keys are remembered like any other touch", () => {
   });
 });
 
-describe("rotate_switch: the pair and Left/Right follow the other controls unless the key says otherwise", () => {
+describe("rotate_switch: the pair follows the other controls unless the key says otherwise", () => {
   const btn = (el: FloorplanStudioCard, l: string) => q(el, `button[aria-label="${l}"]`);
   it("every config with zoom or the View dropdown draws the pair; no control at all draws none", async () => {
     for (const [cfg, want] of [
@@ -279,8 +295,6 @@ describe("rotate_switch: the pair and Left/Right follow the other controls unles
     ] as const) {
       const el = await mount(cfg);
       expect(btn(el, "Rotate left") !== null, JSON.stringify(cfg)).toBe(want);
-      hover(el);
-      expect(press("ArrowRight"), `key ${JSON.stringify(cfg)}`).toBe(want);
       el.remove();
     }
   });

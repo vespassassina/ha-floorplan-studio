@@ -27,7 +27,7 @@ const el = (html: string) => {
 describe("viewKeyOf", () => {
   it("maps the four arrows and Space", () => {
     const k = (key: string) => viewKeyOf({ key, ctrlKey: false, metaKey: false });
-    expect([k("ArrowUp"), k("ArrowDown"), k("ArrowLeft"), k("ArrowRight"), k(" ")]).toEqual(["zoomIn", "zoomOut", "rotateLeft", "rotateRight", "reset"]);
+    expect([k("ArrowUp"), k("ArrowDown"), k("ArrowLeft"), k("ArrowRight"), k(" ")]).toEqual(["zoomIn", "zoomOut", "panLeft", "panRight", "reset"]);
     expect(k("a")).toBeNull();
     expect(k("Enter")).toBeNull();
   });

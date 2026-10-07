@@ -14,6 +14,7 @@ const drawn = (page: Page, i: number) => page.locator(`${EDITOR} svg line.door[d
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/standalone.html");
+  await page.locator("#fixPlan").uncheck(); // the plan opens fixed; these tests edit it
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
 });
 

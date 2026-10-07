@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: Arrows pan, banners replace the status line, the plan opens fixed
+
+Diego asked for six things; three are done here. **Left and Right pan** (`PAN_STEP` 0.1 of the view width) in card and editor; they supersede "Left and Right turn the plan" (2026-09, 0.12.x). Rotation stays on the buttons. Why: turning on a key press was an accident waiting for anyone who scrolled sideways. **Banners:** `editor/banner.ts` classifies a message (info, warning, error) from its text; the editor shows it at the top for `BANNER_MS` (20 s) with a close button; "Ready" shows nothing. The old toolbar span is gone, the banner keeps the id `status` so the tests read it. The classification is a guess from words; a caller that knows passes the level (`planFixed` does). **Fix plan** now starts ticked when a plan with something drawn is loaded into a blank editor (the host's `layout`, and Open file). Furniture stays part of the plan (it is locked); devices, objects and lights stay editable. Open file ignores the lock: it is an explicit replace of everything.
+
 ## 2026-10-07: New things land in the middle of the selected room
 
 Diego: with a room, zone or area selected, a new furniture, object, device, door, zone or stairs is placed in the middle of it. `roomMiddle` (src/editor/ops.ts) gives the middle on the grid, a point inside even for an L-shaped room; furniture and objects are nudged 40 cm right when a point already stands there, so they never stack. With no room selected the old spots stay: furniture, stairs and zones outside the house at the top right, devices and doors at the view centre. Walls and structures keep theirs. His "lost tree" was this: furniture spawned outside the house, off screen. The tree is drawn above room textures in 2D (tested).
