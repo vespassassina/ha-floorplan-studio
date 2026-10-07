@@ -106,6 +106,16 @@ monLayout.floors.ground.devices.push({ id: "mon-speaker", type: "speaker", entit
 Object.assign(STATES.off, { "media_player.demo_tv_living": "off", "media_player.demo_sonos": "idle" });
 Object.assign(STATES.on, { "media_player.demo_tv_living": "on", "media_player.demo_sonos": "playing" });
 Object.assign(STATES.gone, { "media_player.demo_tv_living": "unavailable", "media_player.demo_sonos": "unavailable" });
+// S18.12: a tv, speaker and computer piece with an entity (tracking it) beside the same three without one, in the Kitchen.
+// Idle, the linked ones must read blue and the plain ones grey; on, linked ones go amber (and the tv and speaker send waves).
+const pc = (id, symbol, x, y, entity) => ({ id, symbol, x, y, rot: 0, w: symbol === "tv" ? 120 : symbol === "speaker" ? 25 : 120, h: symbol === "tv" ? 10 : symbol === "speaker" ? 25 : 60, ...(entity ? { entity } : {}) });
+monLayout.floors.ground.furniture.push(
+  pc("shot-tv-linked", "tv", 560, 40, "media_player.shot_tv"), pc("shot-tv-plain", "tv", 720, 40),
+  pc("shot-sp-linked", "speaker", 540, 100, "media_player.shot_sp"), pc("shot-sp-plain", "speaker", 620, 100),
+  pc("shot-pc-linked", "computer", 580, 160, "switch.shot_pc"), pc("shot-pc-plain", "computer", 720, 160));
+Object.assign(STATES.off, { "media_player.shot_tv": "off", "media_player.shot_sp": "idle", "switch.shot_pc": "off" });
+Object.assign(STATES.on, { "media_player.shot_tv": "playing", "media_player.shot_sp": "playing", "switch.shot_pc": "on" });
+Object.assign(STATES.gone, { "media_player.shot_tv": "unavailable", "media_player.shot_sp": "unavailable", "switch.shot_pc": "unavailable" });
 // S8.13: an open contact door and window draw their alert line in "on"; closed in "off", unknown in "gone".
 Object.assign(STATES.off, { "binary_sensor.demo_front_door": "off", "binary_sensor.demo_bedroom_window": "off" });
 Object.assign(STATES.on, { "binary_sensor.demo_front_door": "on", "binary_sensor.demo_bedroom_window": "on" });

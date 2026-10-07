@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: a linked tv, speaker or computer wears its own idle colour (S18.12)
+
+"Connected" means the piece has an `entity`: it tracks that device. `furnitureLinked` (`solids.ts`, one function for the 2D and 2.5D draw paths) adds `data-linked` to a tv, speaker or computer piece with an entity (an attribute, not a class: the class list is pinned by S18.9 tests). `.furn[data-linked]` sets `color: var(--fp-dev-tv)`, before `.furn.on`, so the on colour (S18.9) still wins; the filled body follows `currentColor`. One token for the three symbols, not a new variable: it is the blue every theme already gives the tv, and the shots in light, Home Assistant dark and blueprint show it apart from the plain grey. Not by state (a player that is off or unavailable is still linked). Other symbols with an entity (a patio gate) are not linked: their entity drives on/off only. Shots now draw six such pieces in the Kitchen.
+
 ## 2026-10-07: a tv, speaker or computer is added as furniture (S18.11)
 
 The rule is small. An HA entity is placed as a piece when it is a `media_player` whose `device_class` is `tv` or `speaker` (`furnitureForEntity`). A plain media player stays a `media` icon. HA has no computer class, so no entity is guessed as a computer: a catalog entry typed `tv`, `speaker` or `computer` is placed as a piece (`furnitureForType`), which is how a computer the user typed gets there. The piece has the symbol's default size, the entity and the name, sits where a device would (the area's room centre, else the viewport), is selected and is one undo step, with a catalog entry of the same id so a deleted piece can be placed again. `placedEntities` now counts a furniture piece's entity, or the placed piece would be offered again at once; as a side effect an entity already used by a furniture piece in an old layout is no longer offered as a device (the layout file is unchanged). Not changed: the batch place of a room's area (`placeArea`) still makes icons, and `typeForEntity` still says `media` (the list groups it under Media).

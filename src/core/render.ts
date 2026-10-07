@@ -11,7 +11,7 @@ import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 import { meanReading } from "./readings";
-import { DEVICE_SOLID, STEM_MIN_Z, furnitureMode, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
+import { DEVICE_SOLID, STEM_MIN_Z, furnitureLinked, furnitureMode, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
 
@@ -259,6 +259,9 @@ export const FLOORPLAN_CSS = `
    close to a room's own colour, so reusing it as a stroke colour here made a sofa nearly vanish against the room
    under it in either theme (Opus review). --fp-active is its own token, amber like --fp-on, chosen per theme for
    at least 3:1 contrast against both --fp-room and --fp-bg (measured: light 5.0:1 / 5.6:1, dark 6.8:1 / 8.0:1). */
+/* S18.12: a tv, speaker or computer piece with an entity is tracking that device, so idle it wears the tv's own colour and not the
+   plain furniture grey. Before .furn.on, same specificity, so on still wins. */
+.furn[data-linked]{color:var(--fp-dev-tv)}
 .furn.on{color:var(--fp-active)}
 /* S18.8: furniture is filled, not an outline. The body takes the piece's own colour (currentColor: --fp-furniture, or --fp-active
    when on) thinned into --fp-room-empty (the plain room, what most furniture stands on; --fp-room is dark in the dark themes and made dark blobs), so every theme and dark mode keep their hue and the stroke stays the edge.
@@ -1306,7 +1309,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const sym = FURNITURE[m.symbol];
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
     const on = entityOn(o, m.entity, plugs) ? " on" : "";
-    out.push(`<g data-f="${i}" class="furn${on}" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
+    out.push(`<g data-f="${i}" class="furn${on}"${furnitureLinked(m)} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
     const waves = furnitureWaves(o, m);
     if (waves) out.push(waves.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
   });

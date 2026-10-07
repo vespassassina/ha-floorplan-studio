@@ -8715,3 +8715,20 @@ for (const [type, sym] of [["tv", "tv"], ["speaker", "speaker"], ["computer", "c
     expect((await groundOf(page)).furniture).toHaveLength(before.furniture.length);
   });
 }
+
+// S18.12 CSS pair: a piece tracking an entity wears its own idle colour, not the furniture grey; on, the amber wins. Computed style, not text (finding 10).
+test("S18.12 CSS pair: a linked tv piece is not the plain furniture grey when idle, and --fp-active when on", async ({ page }) => {
+  await setTheme(page, "light");
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), g = l.floors.ground;
+    g.furniture.push({ id: "lk-1", symbol: "tv", x: 1900, y: 100, rot: 0, w: 120, h: 10, entity: "media_player.lk" }, { id: "lk-2", symbol: "tv", x: 1900, y: 300, rot: 0, w: 120, h: 10 });
+    el.layout = l;
+  }, EDITOR);
+  const n = (await groundOf(page)).furniture.length;
+  const colour = (i: number, on = false) => page.locator(`${EDITOR} svg g[data-f="${i}"]`).evaluate((e, on) => { if (on) e.classList.add("on"); const c = getComputedStyle(e).color; e.classList.remove("on"); return c; }, on);
+  const linked = await colour(n - 2), plain = await colour(n - 1);
+  expect(plain).toBe(rgb("#79766e"));
+  expect(linked).toBe(rgb("#2c7fb8")); // --fp-dev-tv, light
+  expect(linked).not.toBe(plain);
+  expect(await colour(n - 2, true)).toBe(rgb("#8a5117")); // --fp-active
+});

@@ -1532,6 +1532,23 @@ describe("S2.9: a room or a piece of furniture with an entity carries the on cla
     expect(furnClass(noEntity)).toEqual(["furn"]);
   });
 
+  // S18.12: a tv, speaker or computer piece with an entity is tracking it: its group carries `data-linked`, idle or on. Per symbol, so a new symbol must be decided (finding 17).
+  const linkedTag = (html: string) => /<g data-f="0"[^>]* data-linked[ >]/.test(html);
+  it("S18.12 every furniture symbol is decided: only a tv, speaker or computer with an entity is linked", () => {
+    for (const symbol of FURNITURE_SYMBOLS) {
+      expect(linkedTag(draw([], [furn({ symbol, entity: "media_player.x" })], { "media_player.x": st("idle") })), `${symbol} with an entity`).toBe(["tv", "speaker", "computer"].includes(symbol));
+      expect(linkedTag(draw([], [furn({ symbol })], {})), `${symbol} without one`).toBe(false);
+    }
+  });
+  it("S18.12 a linked piece that is on keeps its on class, in 2D and in 2.5D", () => {
+    const f = [furn({ symbol: "tv", entity: "media_player.x", w: 120, h: 10 })], state = { "media_player.x": st("playing") };
+    expect(furnClass(draw([], f, state))).toEqual(["furn", "on"]);
+    expect(linkedTag(draw([], f, state))).toBe(true);
+    const solid = renderFloor({ ...ground, rooms: [], devices: [], furniture: f, doors: [], walls: [], openings: [], stairs: [], extras: [] } as unknown as typeof ground, { ...base, view: "2.5d", state });
+    expect(solid.match(/<g data-f="0" class="([^"]*)"/)![1].split(" ")).toEqual(["furn", "on"]);
+    expect(linkedTag(solid)).toBe(true);
+  });
+
   // The ring pass is a second polygon over the walls, and it must never take a click. The pointer-events attribute
   // on the markup is not enough on its own: the editor sets .room{pointer-events:all}, and any author rule beats a
   // presentation attribute, so the ring needs a class of its own to outrank it.

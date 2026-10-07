@@ -373,6 +373,15 @@ export function furnitureMode(m: Furniture): "box" | "pole" | "flat" {
 }
 
 /**
+ * S18.12: ` data-linked` for a tv, speaker or computer piece with an entity, else "". It tracks that device, and the stylesheet
+ * gives it its own idle colour. An attribute, not a class: the class list (`furn`, `on`) is pinned as it is by older tests.
+ * One function for the 2D and 2.5D draw paths.
+ */
+export function furnitureLinked(m: Furniture): string {
+  return m.entity && (m.symbol === "tv" || m.symbol === "speaker" || m.symbol === "computer") ? " data-linked" : "";
+}
+
+/**
  * One piece of furniture as a block (or a trunk), its symbol drawn at the top. `symbol` is the symbol's own markup, and
  * the group wraps all of it, so a tap anywhere on the piece still reaches `data-f`.
  */
@@ -386,7 +395,7 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
   const sym = `<g transform="translate(${num(top[0])} ${num(top[1])}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)">${symbol}</g>`;
   // S18.9: a playing tv or speaker sends its waves from the lid, outside the scaled symbol group so they stay round.
   const w = waves ? waves.replace("%AT%", `${num(top[0])} ${num(top[1])}`) : "";
-  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}" color="var(--fp-furniture)">${body}${sym}${w}</g>` };
+  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}" color="var(--fp-furniture)"${furnitureLinked(m)}>${body}${sym}${w}</g>` };
 }
 
 /** cm across the block under an unlinked appliance, times its own scale: a small thing, the icon says what it is. */
