@@ -8,7 +8,7 @@ import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../c
 import { isSaveChord, viewKeyFor, type ViewKey } from "../card/view-keys";
 import { readViewMemory, writeViewMemory } from "./view-memory";
 import { traceImage } from "./trace";
-import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
+import { roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
@@ -1835,9 +1835,11 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private centre(): Pt { const v = this.st.view; return [Math.round(v.x + v.w / 2), Math.round(v.y + v.h / 2)]; }
   /** Where a new item (a wall, a structure, a zone, stairs, furniture) goes: outside the house, top right. */
-  private spawn(): Pt { return spawnPoint(this.st.f, this.centre(), this.st.snapGrid); }
+  private spawn(inRoom = false): Pt { return (inRoom ? this.middle() : null) ?? spawnPoint(this.st.f, this.centre(), this.st.snapGrid); }
+  /** The middle of the selected room, or null (Diego, 2026-10-07: new things land there). */
+  private middle(): Pt | null { return roomMiddle(this.st.f, this.st.sel, this.st.snapGrid); }
   /** Where a new device or unlinked appliance goes: the middle of the current viewport (Diego, 2026-09-28). */
-  private spawnDevice(): Pt { return spawnInView(this.st.f, this.centre(), this.st.snapGrid); }
+  private spawnDevice(): Pt { return spawnInView(this.st.f, this.middle() ?? this.centre(), this.st.snapGrid); }
   /** Brings all of `pts` into what the svg shows, with a 100 cm margin: pans by the least amount, and zooms out only when they do not fit. */
   private ensureVisible(...plan: Pt[]) {
     const st = this.st, v = st.view, s = this.scale, M = 100, r = st.rotation;
@@ -1916,7 +1918,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   private addDoor(kind: "door" | "window" | "slit" | "open", len: number, at?: Pt) {
     this.stopDraw();
-    const c = at ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
+    const c = at ?? this.middle() ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
     this.commit((f) => { f.doors.push({ id: newId(f, floor, "door"), name: `new ${kind === "slit" ? "slit window" : kind === "open" ? "open doorway" : kind}`, kind, ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
     this.st.sel = { t: "door", i: this.st.f.doors.length - 1 };
     this.requestUpdate();
@@ -1924,7 +1926,7 @@ export class FloorplanStudioEditor extends LitElement {
   /** An opening: a gap in a wall. Placed like a door on the edge nearest `at`, or the view centre when it is not given, else at that point. S4.27's wall context menu passes the right-click point. */
   private addOpeningGap(len = 120, at?: Pt) {
     this.stopDraw();
-    const c = at ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
+    const c = at ?? this.middle() ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
     this.commit((f) => { f.openings.push({ id: newId(f, floor, "opening"), ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
     this.st.sel = { t: "opening", i: this.st.f.openings.length - 1 };
     this.requestUpdate();
@@ -1947,7 +1949,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private addArea(kind: "zone") {
     this.stopDraw();
-    const p = this.spawn(), pts = squareAt(p, this.st.snapGrid), floor = this.st.floor, name = "New zone";
+    const p = this.spawn(true), pts = squareAt(p, this.st.snapGrid), floor = this.st.floor, name = "New zone";
     this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name, area: slug(name), kind, pts, wk: pts.map((): WallKind => "boundary") }); });
     this.ensureVisible(...pts);
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
@@ -1955,7 +1957,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private addStairs() {
     this.stopDraw();
-    const t = stairsAt(this.spawn(), this.st.snapGrid);
+    const t = stairsAt(this.spawn(true), this.st.snapGrid);
     this.st.addStairsEverywhere(t);
     this.changed("Added stairs to every floor");
     this.ensureVisible(...t.pts);
@@ -1963,7 +1965,7 @@ export class FloorplanStudioEditor extends LitElement {
   private addFurniture(symbol: string) {
     if (!(FURNITURE_SYMBOLS as readonly string[]).includes(symbol)) return;
     this.stopDraw();
-    const sym = symbol as keyof typeof FURNITURE, p = this.spawn(), [x, y] = p, floor = this.st.floor;
+    const sym = symbol as keyof typeof FURNITURE, p = this.middle() ? this.spawnDevice() : this.spawn(), [x, y] = p, floor = this.st.floor;
     this.commit((f) => { f.furniture.push({ id: newId(f, floor, "furniture"), symbol: sym, x, y, rot: 0, w: FURNITURE[sym].w, h: FURNITURE[sym].h }); });
     this.ensureVisible([x - FURNITURE[sym].w / 2, y - FURNITURE[sym].h / 2], [x + FURNITURE[sym].w / 2, y + FURNITURE[sym].h / 2]);
     this.st.sel = { t: "furn", i: this.st.f.furniture.length - 1 };

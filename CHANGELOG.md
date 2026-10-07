@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Studio: with a room selected, a new furniture, object, device, door, zone or stairs is placed in the **middle of that room** (nudged 40 cm when something already stands there). Nothing selected: the old spots.
+
 ## 0.16.4 - 2026-10-06
 
 - Card, studio, 3D: a light, switch or plug that is **unavailable or unknown is drawn as off**, no longer a dimmed ghost. Other device types keep the unavailable look.
