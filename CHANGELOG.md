@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.1 - 2026-10-07
 
 - Popups (scene designer, Place, Home Assistant, Add device) open centred in the viewport and fit it, however far the page is scrolled. The scene designer's name box and Save were cut off before.
 - Scene designer: Restore after a second Try still puts back what the device was doing before the first Try, even if the editor's copy of the state is stale. A light that was off no longer comes back on.
