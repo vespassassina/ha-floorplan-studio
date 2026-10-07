@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.0 - 2026-10-07
 
 - Scene designer: Try it sends the scene to the real devices; Restore puts back what they were doing before the first Try. Cancel, the X and Escape restore by themselves, Save does not. Needs the studio connected to Home Assistant with write access; without it the buttons are disabled and say so. A device Home Assistant refuses is named, and one with an unknown state is flagged as not restorable.
 - Scene designer: Colours from a picture. Choose an image and the palette takes its main colours (up to 6, biggest first); Apply to lights deals them out. Read in the browser, nothing is uploaded, and the same picture always gives the same colours. A file that is not a picture is refused with a message.
