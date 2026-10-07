@@ -42,9 +42,7 @@ async function boot(page: Page, width = 1100, extra: Record<string, unknown> = {
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
-const infos = (page: Page) => page.evaluate(() => (window as unknown as { __info: string[] }).__info);
 const pop = (page: Page) => card(page).locator("css=.fp-pop");
-const tip = (page: Page) => card(page).locator("css=.fp-tip");
 
 async function iconPoint(page: Page, i: number) {
   const p = await card(page).evaluate((el, i) => {

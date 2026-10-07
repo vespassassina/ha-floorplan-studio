@@ -41,9 +41,6 @@ async function boot(page: Page, width = 1100, extra: Record<string, unknown> = {
   }, [{ layout: structuredClone(demo), floor: "ground", ...extra }, STATES()] as const);
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
-const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
-const infos = (page: Page) => page.evaluate(() => (window as unknown as { __info: string[] }).__info);
-const pop = (page: Page) => card(page).locator("css=.fp-pop");
 const tip = (page: Page) => card(page).locator("css=.fp-tip");
 
 async function iconPoint(page: Page, i: number) {
@@ -60,7 +57,6 @@ async function iconPoint(page: Page, i: number) {
   expect(p.hit, `device ${i} is the top element at its centre (top: ${p.top})`).toBe(true);
   return p;
 }
-const tapIcon = async (page: Page, i: number) => { const p = await iconPoint(page, i); await page.mouse.click(p.x, p.y); return p; };
 // ground devices: 0 living light, 1 kitchen light, 2 hall switch, 3 TV plug, 4 temperature sensor, 6 camera
 
 
