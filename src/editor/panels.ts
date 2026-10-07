@@ -49,6 +49,8 @@ export interface PanelCtx {
   drawArea(area: { id: string; name: string }): void;
   /** S4.15: place the unplaced entities of room `roomIndex`'s HA area; S8.1: opens a popup to pick which. */
   placeArea(roomIndex: number): void;
+  /** S17.3: opens the scene designer on scene `id` of room `roomIndex` (null: a new scene). */
+  designScene(roomIndex: number, id: string | null): void;
   /** S4.5: create an HA group of the devices at `is` (all one kind), named `name`, after asking. Absent without a writer. */
   createGroup?: (is: number[], kind: "light" | "motion", name: string) => void;
   /** S4.6: build and create the "switch controls..." automation for the switch at `devIndex`, after asking, then open it in HA. Absent without a writer. */
@@ -642,8 +644,9 @@ function roomScenesPanel(c: PanelCtx, i: number) {
         <button class="btn keep" id=${`rsc-rm-${k}-${j}`} type="button" aria-label=${`Remove ${label(it.entity)} from the scene`} @click=${() => w((room) => { removeSceneItem(room, sc.id, it.entity); })}>Remove</button>
       </div>`)}
       ${(() => { const free = targets.filter((t) => !sc.items.some((it) => it.entity === t.entity)); return free.length ? html`<label for=${`rsc-add-${k}`}>add to scene</label><select id=${`rsc-add-${k}`} .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) w((room) => { addSceneItem(room, sc.id, v); }); c.refresh(); }}><option value="">(pick a light or switch)</option>${free.map((t) => html`<option value=${t.entity}>${t.name}</option>`)}</select>` : nothing; })()}
-      <p>${button(`rsc-del-${k}`, "Delete scene", () => w((room) => { removeScene(room, sc.id); }), "warn")}</p>
+      <p>${button(`rsc-edit-${k}`, "Edit in designer", () => c.designScene(i, sc.id))} ${button(`rsc-del-${k}`, "Delete scene", () => w((room) => { removeScene(room, sc.id); }), "warn")}</p>
     </div>`)}
+    <p>${button("rsc-new", "New scene", () => c.designScene(i, null), "", "Opens the scene designer.")}</p>
     <p>${button("rsc-add", "Add scene", () => w((room) => { addScene(room, targets.map((t) => t.entity)); }), "", "A new scene with every light and switch of the room, on. Edit it below.")}</p>
     ${ha ? html`${inArea.length ? hint(`In this area: ${inArea.map((e) => e.name).join(", ")}`, true) : nothing}
       ${extra.map((e, k) => html`<div class="scene-item"><span>${nameOf(e)}</span><button class="btn keep" id=${`rsc-ha-rm-${k}`} type="button" aria-label=${`Stop offering ${nameOf(e)}`} @click=${() => w((room) => { setRoomHaScenes(room, extra.filter((x) => x !== e)); })}>Remove</button></div>`)}

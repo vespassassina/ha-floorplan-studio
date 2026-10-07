@@ -11,6 +11,8 @@ import { readViewMemory, writeViewMemory } from "./view-memory";
 import { traceImage } from "./trace";
 import { roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
+import { sceneDesigner, type SceneDraft } from "./scene-designer";
+import { roomSceneTargets, saveScene } from "./room-scenes-ops";
 import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
 import type { HaWriter, Labelled } from "./hass-write";
@@ -181,6 +183,8 @@ export class FloorplanStudioEditor extends LitElement {
   private placePos: { x: number; y: number } | null = null;
   private placeOn = new Set<string>();
   private placeType: DeviceType | null = null;
+  private sceneDraft: SceneDraft | null = null;
+  private scenePos: { x: number; y: number } | null = null;
   /** S8.5: Add > Device's floating panel: position (null when closed), the search text, and the four filter selects
    * (a value of "" is "All…"; "__none__" is the added "None" option). Reset every time the panel opens. */
   private addDevPos: { x: number; y: number } | null = null;
@@ -422,6 +426,13 @@ export class FloorplanStudioEditor extends LitElement {
     .add-dev-panel .rows .btn{display:flex;flex-direction:column;align-items:flex-start;gap:0;min-width:0;text-align:left}
     .add-dev-panel .rows .btn .devrow-name{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .add-dev-panel .rows .btn small{opacity:.7}
+    .scene-panel{width:min(760px, 100vw - 24px);max-height:min(900px, 100vh - 40px)}
+    .sd-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--fp-idle)}
+    .sd-dev{display:flex;align-items:center;gap:6px;flex:1 1 180px;min-width:0}
+    .sd-row input[type=number],.sd-row input[type=text]{width:120px}
+    #sceneName{width:260px}
+    .sd-actions{display:flex;gap:8px;padding:8px 10px 10px}
+    .warn-text{color:var(--fp-warn,#c0392b)}
     .place-panel{width:min(660px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
     /* top:90px is only the fallback: installCodeView() always sets an inline top from panelTop(), which wins. */
     .installcode-panel{position:fixed;left:50%;top:90px;transform:translateX(-50%);z-index:30;width:520px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
@@ -700,7 +711,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.requestUpdate();
   };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, attachEntity: this.attachEntity, attachToRoom: this.attachToRoom, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, rotateItem: this.rotateItem, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, attachEntity: this.attachEntity, attachToRoom: this.attachToRoom, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, rotateItem: this.rotateItem, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), designScene: (i, id) => this.openScene(i, id), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------
@@ -1105,6 +1116,7 @@ export class FloorplanStudioEditor extends LitElement {
   private devColsHead = this.dragHead(() => this.devColsPos, (p) => { this.devColsPos = p; });
   private haHead = this.dragHead(() => this.haPos, (p) => { this.haPos = p; });
   private placeHead = this.dragHead(() => this.placePos, (p) => { this.placePos = p; });
+  private sceneHead = this.dragHead(() => this.scenePos, (p) => { this.scenePos = p; });
   private addDevHead = this.dragHead(() => this.addDevPos, (p) => { this.addDevPos = p; });
 
   /** S8.1: Edit, Home Assistant. Opening closes the menu it sits in and reloads the list (HA state moves on its own). */
@@ -1129,6 +1141,35 @@ export class FloorplanStudioEditor extends LitElement {
     const n = this.st.placeArea(i, new Set(ids));
     this.closePlace();
     if (n) this.changed(`Placed ${n} device${n === 1 ? "" : "s"}. Drag each to its spot.`);
+  }
+
+  // ---- S17.3: the scene designer popup --------------------------------------------------------------------------------
+
+  /** Opens the designer on a copy of scene `id` of room `i` (null: a new one). Nothing reaches the layout before Save. */
+  private openScene(i: number, id: string | null) {
+    const r = this.st.f.rooms[i];
+    if (!r) return;
+    const sc = id === null ? undefined : r.scenes?.find((s) => s.id === id);
+    if (id !== null && !sc) return;
+    this.sceneDraft = { room: r.id, id, name: sc?.name ?? "", items: new Map((sc?.items ?? []).map((it) => [it.entity, structuredClone(it)])), error: "" };
+    this.scenePos = this.panelPos(660);
+    this.requestUpdate();
+  }
+  private closeScene() { this.sceneDraft = null; this.scenePos = null; this.requestUpdate(); }
+  /** Save: one `commit`, so one undo step; a refused draft stays open and says why. */
+  private saveSceneDraft() {
+    const d = this.sceneDraft;
+    const i = d ? this.st.f.rooms.findIndex((r) => r.id === d.room) : -1;
+    if (!d || i < 0) { this.closeScene(); return; }
+    const order = roomSceneTargets(this.st.f, i).map((t) => t.entity);
+    const items = [...d.items.values()].sort((a, b) => (order.indexOf(a.entity) + 1 || 999) - (order.indexOf(b.entity) + 1 || 999));
+    let reason = "";
+    const probe = structuredClone(this.st.f.rooms[i]);
+    const check = saveScene(probe, d.id, d.name, items);
+    if (!check.ok) reason = check.reason;
+    else this.commit((f) => { saveScene(f.rooms[i], d.id, d.name, items); });
+    if (reason) { d.error = reason; this.requestUpdate(); return; }
+    this.closeScene();
   }
 
   // ---- S8.5: Add > Device — one floating panel over the catalog and HA entities ---------------------------------------
@@ -1788,6 +1829,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
     if (ev.key === "Escape" && this.haPos) { ev.preventDefault(); this.toggleHa(); return; }
+    if (ev.key === "Escape" && this.sceneDraft) { ev.preventDefault(); this.closeScene(); return; }
     if (ev.key === "Escape" && this.placeRoom !== null) { ev.preventDefault(); this.closePlace(); return; }
     if (ev.key === "Escape" && this.addDevPos) { ev.preventDefault(); this.closeAddDev(); return; }
     if (ev.key === "Escape" && this.installCodeOpen) { ev.preventDefault(); this.toggleInstallCode(); return; }
@@ -2361,7 +2403,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.addFloor(title)) { this.floorDone(`Added floor ${title}`); this.focus({ preventScroll: true }); }
   };
 
-  private setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; this.placePos = null; this.requestUpdate(); } // the Place popup belongs to a room of the floor it was opened on
+  private setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; this.placePos = null; this.sceneDraft = null; this.scenePos = null; this.requestUpdate(); } // the Place popup belongs to a room of the floor it was opened on
 
   /** Cmd/Ctrl+S: the Save button's action, except that an empty plan says so instead of writing nothing useful. */
   private saveByKey() {
@@ -2725,6 +2767,7 @@ export class FloorplanStudioEditor extends LitElement {
           ${this.devColsPos ? this.devColsView(st) : nothing}
           ${this.haPos && this.writer ? this.haView() : nothing}
           ${(() => { const i = this.placeRoom === null ? -1 : st.f.rooms.findIndex((r) => r.id === this.placeRoom); return i >= 0 && this.placePos ? this.placeView(st, i) : nothing; })()}
+          ${(() => { const d = this.sceneDraft, i = d ? st.f.rooms.findIndex((r) => r.id === d.room) : -1; return d && i >= 0 && this.scenePos ? sceneDesigner({ draft: d, pos: this.scenePos, head: this.sceneHead, roomName: st.f.rooms[i].name, targets: roomSceneTargets(st.f, i), refresh: () => this.requestUpdate(), close: () => this.closeScene(), save: () => this.saveSceneDraft() }) : nothing; })()}
           ${this.addDevPos ? this.addDevView(st) : nothing}
           ${this.installCodeOpen ? this.installCodeView() : nothing}
           ${this.traceOpen ? this.traceView() : nothing}

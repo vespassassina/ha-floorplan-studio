@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { validate } from "../../src/core/schema";
 import type { Floor, Room } from "../../src/core/schema";
 import { EditorState } from "../../src/editor/state";
-import { addScene, addSceneItem, removeScene, removeSceneItem, renameScene, roomSceneTargets, setRoomHaScenes, setSceneItem } from "../../src/editor/room-scenes-ops";
+import { addScene, addSceneItem, removeScene, removeSceneItem, renameScene, saveScene, roomSceneTargets, setRoomHaScenes, setSceneItem } from "../../src/editor/room-scenes-ops";
 
 // S14.7: the editor's writers for a room's custom scenes. Like setRoomList for sensors (CLAUDE.md finding 12), a
 // writer can commit an invalid layout (`EditorState.edit` does not validate), so every operation, in every order, must
@@ -109,5 +109,39 @@ describe("scene writers", () => {
     expect(st.edit((f) => { renameScene(f.rooms[0], id, "Scene 1"); })).toBe(false); // unchanged: no step
     expect(st.undo()).toBe(true);
     expect(st.f.rooms[0].scenes).toBeUndefined();
+  });
+});
+
+// S17.3: the designer's Save.
+describe("saveScene: the designer's Save", () => {
+  const room = () => ({ id: "r", name: "R", scenes: [{ id: "scene-1", name: "Old", items: [{ entity: "light.a", on: true }] }] }) as never as Room;
+  it("refuses an empty name and no devices, with the reason, changing nothing", () => {
+    const r = room();
+    expect(saveScene(r, null, "  ", [{ entity: "light.b", on: true }])).toEqual({ ok: false, reason: "Give the scene a name." });
+    expect(saveScene(r, null, "X", [{ entity: "lock.b", on: true }] as never)).toMatchObject({ ok: false });
+    expect(r.scenes).toHaveLength(1);
+  });
+  it("adds a new scene, or replaces one in place, and refuses a taken name", () => {
+    const r = room();
+    expect(saveScene(r, null, "Movie", [{ entity: "light.b", on: true, brightness: 30 }])).toEqual({ ok: true, id: "scene-2" });
+    expect(saveScene(r, "scene-1", "Old", [{ entity: "fan.x", on: true }])).toEqual({ ok: true, id: "scene-1" });
+    expect(r.scenes![0].items).toEqual([{ entity: "fan.x", on: true }]);
+    expect(saveScene(r, null, "Movie", [{ entity: "light.b", on: true }])).toMatchObject({ ok: false });
+  });
+  it("keeps only the fields of the type, only when on, clamped; duplicates dropped", () => {
+    const r = room();
+    saveScene(r, null, "S", [
+      { entity: "light.b", on: true, brightness: 500, kelvin: 2700, percentage: 5 } as never,
+      { entity: "light.b", on: true },
+      { entity: "light.c", on: false, brightness: 40 },
+      { entity: "cover.d", on: true, position: -9, volume: 3 } as never,
+      { entity: "climate.e", on: true, hvac: "  heat ", temperature: NaN } as never,
+    ]);
+    expect(r.scenes![1].items).toEqual([
+      { entity: "light.b", on: true, brightness: 100, kelvin: 2700 },
+      { entity: "light.c", on: false },
+      { entity: "cover.d", on: true, position: 0 },
+      { entity: "climate.e", on: true, hvac: "heat" },
+    ]);
   });
 });

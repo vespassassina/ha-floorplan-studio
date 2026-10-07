@@ -21,6 +21,7 @@ function baseCtx(st: EditorState): PanelCtx {
     scaleTexture: () => {},
     drawArea: () => {},
     placeArea: () => {},
+    designScene: () => {},
     moreInfo: () => {},
     say: () => {},
     refresh: () => {},

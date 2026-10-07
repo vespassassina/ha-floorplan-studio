@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: Scene designer popup (S17.3)
+
+The popup edits a draft held by the editor host; `saveScene` (room-scenes-ops) is the only writer and runs inside one `commit`, so Save is one undo step and Cancel none. A refused Save (no name, no device, duplicate name) keeps the popup open with the reason. A light holds a colour or a kelvin, never both: setting one clears the other. The old inline scene editor stays until S17.4 replaces it with the list.
+
 ## 2026-10-07: Scene item types (S17.2)
 
 `SCENE_DOMAINS` and `SCENE_FIELDS` in `schema.ts` are the one list of types and what each may set. `customCalls` turns an item into calls: cover off is `close_cover` (no confirm), climate is mode then temperature, media_player is on, volume (0-1), source. Unknown types are ignored by the card and refused by `validate`. `addScene` still seeds lights and switches only.
