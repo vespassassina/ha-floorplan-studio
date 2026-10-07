@@ -9,7 +9,7 @@ export type DeviceType =
   | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum";
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
-  | "bathtub" | "tv" | "computer" | "tree" | "patio-wood" | "patio-concrete" | "car";
+  | "bathtub" | "tv" | "computer" | "speaker" | "tree" | "patio-wood" | "patio-concrete" | "car";
 
 /** The twelve floor materials offered as swatches in the room panel (S1.35). Any #rrggbb is still valid on a room. */
 export const FLOOR_COLOURS: { name: string; hex: string }[] = [
@@ -99,8 +99,9 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  */
 export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
- *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. */
-export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number }
+ *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. `height` is the size of the piece, `z` its bottom above the floor
+ *  (a wall TV, a speaker): the top is z + height. */
+export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number; z?: number }
 /**
  * S4.25: an appliance placed on the plan with a fixed icon (by `type`, from `UNLINKED_TYPES`), not tied to a
  * single entity's state. `attached` is zero or more HA entities linked to it for reference only — it never
@@ -182,7 +183,7 @@ export const fxScale = (d: { fx?: unknown }): number => (typeof d.fx === "number
 export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum"];
 /** The types that mean "something moved here": the room's motion border, the icon fade and the card's fade timer all read this one list. A plain occupancy or presence sensor is typed `motion` (ha.ts), so it is in. `person` is not: it says who is home, not that a room is in use. */
 export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];
-export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"];
+export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"];
 /** S4.25: the appliance types offered in the Add > Unlinked device menu — a curated subset of DEVICE_TYPES, each with a fixed icon and no linked-entity state. "heatpump" reuses the "ac" icon and colour; there is no separate type for it. */
 export const UNLINKED_TYPES: readonly DeviceType[] = ["heater", "ac", "boiler", "battery", "computer", "tv", "car", "server", "ups", "inverter", "speaker", "printer", "light"];
 
@@ -437,6 +438,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     each("furniture", (m) => {
       oneOf(`${m.id} symbol`, m.symbol, FURNITURE_SYMBOLS);
       optHeight(m, "height");
+      optHeight(m, "z");
       optText(m, "name");
       if (m.entity !== undefined && !isEntity(m.entity)) errors.push(`${at} ${m.id} entity must be an entity id like sensor.name`);
       for (const k of ["x", "y", "rot", "w", "h"]) if (typeof m[k] !== "number" || !Number.isFinite(m[k])) errors.push(`${at} ${m.id} ${k} must be a number`);

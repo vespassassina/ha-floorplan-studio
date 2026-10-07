@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: Furniture bottom (`z`), TV and speaker at 100 cm
+
+`Furniture.z` is the bottom of a piece, `height` stays its own size, top = z + height. Defaults in `FURNITURE_Z`: tv 100, speaker 100, others 0. A new `speaker` symbol (25 x 25). The TV furniture is not snapped to a wall: Diego places it, `z` lifts it. Attaching a device is the existing furniture `entity` ("shows the state of"). Supersedes the TV standing on the floor at 60 cm top. The unlinked TV and speaker keep scale and height, and the panel now shows H x W x L.
+
 ## 2026-10-07: Room panel order, folded Scenes, media players open more-info
 
 Scenes folds by default (the fold set holds `r:scenes:open` for "opened", the reverse of the other groups). "Active in this room" moved into the room section between Scenes and Devices. A tap on any device whose entity is a `media_player.*` opens its more-info, as a speaker or TV placed as an appliance already did; the popup stays for a TV on a switch. Why (Diego): the player's own panel is better than a one-button popup.

@@ -1,7 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "./live-keep";
 import { repeat } from "lit/directives/repeat.js";
-import { DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
+import { DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
@@ -1118,6 +1118,8 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${number(c, "width (cm)", "fw", m.w, setSize("w"))}
     ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
     ${heightField(c, "height (cm)", "fuht", m.height, FURNITURE_HEIGHTS[m.symbol] ?? 100, heightSetter(c, "furniture", i, "height"))}
+    ${heightField(c, "bottom (cm)", "fuz", m.z, FURNITURE_Z[m.symbol] ?? 0, heightSetter(c, "furniture", i, "z"))}
+    <p class="hint" id="fusize">H ${Math.round(furnitureHeight(m))} × W ${Math.round(m.w)} × L ${Math.round(m.h)} cm</p>
     ${rotationSlider(c, "frot", "furniture", i, m.rot)}
     ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}
     ${heading("Danger")}
@@ -1147,6 +1149,7 @@ function unlinkedPanel(c: PanelCtx, i: number) {
     ${button("uuclr", "Use default colour", () => c.commit((f) => { delete f.unlinked[i].color; }))}
     ${number(c, "scale", "uusc", u.scale, (n) => c.commit((f) => { f.unlinked[i].scale = Math.min(4, Math.max(0.25, n)); }))}
     ${heightField(c, "height (cm)", "uuht", u.height, UNLINKED_HEIGHTS[u.type] ?? 100, heightSetter(c, "unlinked", i, "height"))}
+    <p class="hint" id="uusize">H ${Math.round(unlinkedHeight(u))} × W ${Math.round(UNLINKED_BASE * u.scale)} × L ${Math.round(UNLINKED_BASE * u.scale)} cm</p>
     ${rotationSlider(c, "uurot", "unlinked", i, u.rot)}
     ${rotateButtons(c, "uurot", (n) => c.commit((f) => { f.unlinked[i].rot = ((u.rot + n) % 360 + 360) % 360; }), { reset: () => { if (u.rot) c.commit((f) => { f.unlinked[i].rot = 0; }); } })}
     ${heading("Danger")}

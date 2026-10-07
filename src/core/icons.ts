@@ -75,6 +75,7 @@ export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: str
   shower: { w: 90, h: 90, svg: r(4, 4, 92, 92, 2) + c(50, 50, 8) + `<path d="M4 4 L96 96 M96 4 L4 96" ${S} stroke-opacity=".4"/>` },
   bathtub: { w: 170, h: 75, svg: r(4, 4, 92, 92, 14) + r(14, 14, 72, 72, 22) + c(88, 50, 3) },
   tv: { w: 120, h: 10, svg: r(2, 20, 96, 60, 4) },
+  speaker: { w: 25, h: 25, svg: r(10, 4, 80, 92, 8) + c(50, 62, 20) + c(50, 26, 9) },
   computer: { w: 60, h: 40, svg: r(20, 4, 60, 40, 3) + r(10, 54, 80, 36, 3) },
   tree: { w: 200, h: 200, svg: c(50, 50, 46) + c(50, 50, 8) },
   "patio-wood": { w: 300, h: 300, svg: r(2, 2, 96, 96, 0) + [20, 40, 60, 80].map((y) => `<path d="M2 ${y} H98" ${S} stroke-opacity=".5"/>`).join("") },

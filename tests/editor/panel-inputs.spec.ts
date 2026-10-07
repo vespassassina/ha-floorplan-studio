@@ -79,3 +79,20 @@ test("the height buttons stop at 0 and at the maximum", async ({ page }) => {
   await page.locator("#fuht-up").click();
   await expect(box).toHaveValue("1000");
 });
+
+test("a furniture TV hangs at 100 cm by default; bottom is editable; H x W x L is shown; the speaker is a piece too", async ({ page }) => {
+  await page.locator(`details.menu > summary:text-is("Add")`).click();
+  await page.locator("#addFurn").selectOption("tv");
+  const z = page.locator("#fuz");
+  await expect(z).toHaveAttribute("placeholder", "100");
+  await expect(page.locator("#fusize")).toHaveText("H 60 × W 120 × L 10 cm");
+  await page.locator("#fuz-up").click();
+  await expect(z).toHaveValue("110");
+  expect(JSON.parse(await layoutJson(page)).floors.ground.furniture.at(-1).z).toBe(110);
+  await z.fill("0"); await z.press("Enter");
+  expect(JSON.parse(await layoutJson(page)).floors.ground.furniture.at(-1).z).toBe(0); // on the floor, by choice
+  await page.locator("#fuht").fill("70"); await page.locator("#fuht").press("Enter");
+  await expect(page.locator("#fusize")).toHaveText("H 70 × W 120 × L 10 cm");
+  await page.locator("#fs").selectOption("speaker");
+  await expect(page.locator("#fusize")).toContainText("H 70");
+});

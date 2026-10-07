@@ -3,7 +3,7 @@ import { DEVICE_ICONS, FURNITURE } from "../../src/core/icons";
 import type { DeviceType, FurnitureSymbol } from "../../src/core/schema";
 
 const DEVICE_TYPES: DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum"];
-const SYMBOLS: FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"];
+const SYMBOLS: FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"];
 
 describe("icons", () => {
   it("has an MDI path for every device type and nothing else", () => {

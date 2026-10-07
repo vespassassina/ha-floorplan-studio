@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import { buildScene, ICON_MARGIN, type Solid } from "../../src/core/scene";
 import { deviceSolidTop, FURNITURE_SOLID, DEVICE_SOLID } from "../../src/core/solids";
-import { deviceZ, edgeHeight, floorHeight, furnitureHeight, radiatorSpan, unlinkedHeight, wallHeight, doorSpan, openingSpan } from "../../src/core/heights";
+import { deviceZ, edgeHeight, floorHeight, furnitureBottom, furnitureHeight, radiatorSpan, unlinkedHeight, wallHeight, doorSpan, openingSpan } from "../../src/core/heights";
 import { stairSteps } from "../../src/core/geometry";
 import { DEVICE_TYPES, FURNITURE_SYMBOLS, ROOM_KINDS, type DeviceType, type Floor, type FurnitureSymbol, type Layout, type RoomKind } from "../../src/core/schema";
 
@@ -314,7 +314,7 @@ describe("scene: furniture, unlinked, stairs", () => {
   const piece = (symbol: FurnitureSymbol, o = {}) => ({ id: "f", symbol, x: 300, y: 200, rot: 0, w: 120, h: 70, ...o });
   /** What a symbol becomes. Written out on purpose (finding 17). */
   const SYMBOL_DECISION: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
-    table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", tv: "box", computer: "box",
+    table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", tv: "box", computer: "box", speaker: "box",
     car: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
   };
   it("decides every FurnitureSymbol", () => {
@@ -326,8 +326,8 @@ describe("scene: furniture, unlinked, stairs", () => {
       expect(sol, s).toHaveLength(1);
       expect(sol[0].tag).toBe(s);
       expect(sol[0].ref.index).toBe(0);
-      expect(prism(sol[0]).z0).toBe(0);
-      expect(prism(sol[0]).z1).toBe(furnitureHeight(m as never));
+      expect(prism(sol[0]).z0).toBe(furnitureBottom(m as never));
+      expect(prism(sol[0]).z1).toBe(furnitureBottom(m as never) + furnitureHeight(m as never));
       if (SYMBOL_DECISION[s] === "pole") { expect(area(sol[0])).toBeLessThan(m.w * m.h / 10); expect(sol[0].ref.size).toEqual([120, 70]); }
       else expect(round(area(sol[0]))).toBe(120 * 70);
     }
