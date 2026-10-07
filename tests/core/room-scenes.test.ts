@@ -72,7 +72,7 @@ describe("customCalls: a custom scene through the light and switch services", ()
     ]);
   });
   it("skips what it cannot do: another domain, a bad entity, a malformed item, and never throws", () => {
-    const calls = customCalls({ id: "s", name: "x", items: [{ entity: "climate.x", on: true }, { entity: 5, on: true }, null, { entity: "light.ok", on: true, brightness: NaN }] } as never);
+    const calls = customCalls({ id: "s", name: "x", items: [{ entity: "lock.x", on: true }, { entity: 5, on: true }, null, { entity: "light.ok", on: true, brightness: NaN }] } as never);
     expect(calls).toEqual([{ domain: "light", service: "turn_on", data: { entity_id: "light.ok" } }]);
     for (const s of [null, 5, {}, { items: 7 }, { items: [[]] }]) expect(customCalls(s as never)).toEqual([]);
   });
@@ -153,5 +153,58 @@ describe("validate: the optional scene fields (layout files are untrusted)", () 
   });
   it("never throws on garbage in the scene fields", () => {
     for (const extra of [{ scenes: [[]] }, { scenes: [{ items: [null, 5, [], { hs: {} }] }] }, { scenes: [{ id: {}, name: [], items: [{ entity: {}, on: {}, brightness: {}, kelvin: {}, hs: null }] }] }, { haScenes: [null, {}, 5] }, { scenes: { length: 99 } }]) expect(() => validate(withRoom(extra))).not.toThrow();
+  });
+});
+
+// S17.2 (docs/specs/scene-designer.md): fan, cover, climate and media_player join light and switch. One list of what each
+// type may set, one function that turns an item into calls. A type outside the list is ignored, never an error.
+describe("customCalls: fan, cover, climate and media_player", () => {
+  const calls = (items: object[]) => customCalls({ id: "s", name: "x", items } as never);
+  it("fan: on with a speed, on bare, off", () => {
+    expect(calls([{ entity: "fan.a", on: true, percentage: 60 }, { entity: "fan.b", on: true }, { entity: "fan.c", on: false }])).toEqual([
+      { domain: "fan", service: "turn_on", data: { entity_id: "fan.a", percentage: 60 } },
+      { domain: "fan", service: "turn_on", data: { entity_id: "fan.b" } },
+      { domain: "fan", service: "turn_off", data: { entity_id: "fan.c" } },
+    ]);
+  });
+  it("cover: a position wins, else on opens and off closes", () => {
+    expect(calls([{ entity: "cover.a", on: true, position: 30 }, { entity: "cover.b", on: true }, { entity: "cover.c", on: false }])).toEqual([
+      { domain: "cover", service: "set_cover_position", data: { entity_id: "cover.a", position: 30 } },
+      { domain: "cover", service: "open_cover", data: { entity_id: "cover.b" } },
+      { domain: "cover", service: "close_cover", data: { entity_id: "cover.c" } },
+    ]);
+  });
+  it("climate: a mode and a temperature are two calls, bare on is turn_on, off is turn_off", () => {
+    expect(calls([{ entity: "climate.a", on: true, hvac: "heat", temperature: 21.5 }, { entity: "climate.b", on: true, temperature: 19 }, { entity: "climate.c", on: true }, { entity: "climate.d", on: false }])).toEqual([
+      { domain: "climate", service: "set_hvac_mode", data: { entity_id: "climate.a", hvac_mode: "heat" } },
+      { domain: "climate", service: "set_temperature", data: { entity_id: "climate.a", temperature: 21.5 } },
+      { domain: "climate", service: "set_temperature", data: { entity_id: "climate.b", temperature: 19 } },
+      { domain: "climate", service: "turn_on", data: { entity_id: "climate.c" } },
+      { domain: "climate", service: "turn_off", data: { entity_id: "climate.d" } },
+    ]);
+  });
+  it("media_player: on, then volume as a 0..1 level, then the source; off is turn_off", () => {
+    expect(calls([{ entity: "media_player.a", on: true, volume: 25, source: "Spotify" }, { entity: "media_player.b", on: false }])).toEqual([
+      { domain: "media_player", service: "turn_on", data: { entity_id: "media_player.a" } },
+      { domain: "media_player", service: "volume_set", data: { entity_id: "media_player.a", volume_level: 0.25 } },
+      { domain: "media_player", service: "select_source", data: { entity_id: "media_player.a", source: "Spotify" } },
+      { domain: "media_player", service: "turn_off", data: { entity_id: "media_player.b" } },
+    ]);
+  });
+  it("junk fields are dropped, never thrown on; an off item ignores its fields", () => {
+    expect(calls([
+      { entity: "fan.a", on: true, percentage: NaN }, { entity: "cover.a", on: true, position: "x" }, { entity: "climate.a", on: true, hvac: 5, temperature: Infinity },
+      { entity: "media_player.a", on: true, volume: NaN, source: 7 }, { entity: "fan.z", on: false, percentage: 50 },
+    ])).toEqual([
+      { domain: "fan", service: "turn_on", data: { entity_id: "fan.a" } },
+      { domain: "cover", service: "open_cover", data: { entity_id: "cover.a" } },
+      { domain: "climate", service: "turn_on", data: { entity_id: "climate.a" } },
+      { domain: "media_player", service: "turn_on", data: { entity_id: "media_player.a" } },
+      { domain: "fan", service: "turn_off", data: { entity_id: "fan.z" } },
+    ]);
+  });
+  it("turning a fan, climate or player OFF asks first; a cover and a light do not", () => {
+    for (const e of ["fan.a", "climate.a", "media_player.a"]) expect(sceneNeedsConfirm({ id: "s", name: "x", items: [{ entity: e, on: false }] })).toBe(true);
+    for (const e of ["cover.a", "light.a"]) expect(sceneNeedsConfirm({ id: "s", name: "x", items: [{ entity: e, on: false }] })).toBe(false);
   });
 });

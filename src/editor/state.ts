@@ -199,6 +199,13 @@ export class EditorState {
    *  across selecting another room and back, and across a `hass` update, because both leave this same `EditorState`
    *  instance in place. Kept for the session, never the layout or undo history. */
   haGroups = new Set<string>();
+  /** S17.1: which panel sections the user folded (`room:scenes`, ...). Kept in the browser, per editor, never in the layout. */
+  folded = new Set<string>(((): string[] => { try { const v = JSON.parse(localStorage.getItem("floorplan-studio:folds") ?? "[]"); return Array.isArray(v) ? v.filter((k) => typeof k === "string") : []; } catch { return []; } })());
+  setFolded(key: string, fold: boolean): void {
+    if (this.folded.has(key) === fold) return;
+    if (fold) this.folded.add(key); else this.folded.delete(key);
+    try { localStorage.setItem("floorplan-studio:folds", JSON.stringify([...this.folded])); } catch { /* private window: the fold lasts for the session */ }
+  }
   setHaGroup(key: string, open: boolean): void { if (open) this.haGroups.add(key); else this.haGroups.delete(key); }
   /** The floor panel is asking "Delete floor ...?". Any change of floor, undo or press on the plan cancels it. */
   /** The direction the rotation buttons turn: 1 clockwise, -1 counter-clockwise. Kept for the session. */

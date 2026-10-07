@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: Editor room panel sections fold (S17.1)
+
+Each section header is a controlled `<summary>`: the click flips `EditorState.folded` and re-renders, no native toggle event (a render between click and event reopened it). Stored in localStorage `floorplan-studio:folds`, per browser, never in the layout.
+
 ## 2026-10-07: Furniture bottom (`z`), TV and speaker at 100 cm
 
 `Furniture.z` is the bottom of a piece, `height` stays its own size, top = z + height. Defaults in `FURNITURE_Z`: tv 100, speaker 100, others 0. A new `speaker` symbol (25 x 25). The TV furniture is not snapped to a wall: Diego places it, `z` lifts it. Attaching a device is the existing furniture `entity` ("shows the state of"). Supersedes the TV standing on the floor at 60 cm top. The unlinked TV and speaker keep scale and height, and the panel now shows H x W x L.

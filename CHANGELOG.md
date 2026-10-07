@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Editor, room panel: Identity, Sensors, Scenes and Appearance fold by their header; the choice is remembered in the browser.
 - New: furniture `z`, the bottom of a piece above the floor. A TV hangs at 100 cm by default and a new `speaker` furniture piece stands at 100 cm; both editable in the panel (bottom, height, and an H × W × L readout), drawn lifted in 2.5D and 3D. Existing TV pieces move up to 100 cm unless you set the bottom to 0.
 
 - Fixed: number boxes in the editor panels (furniture width and depth, heights) no longer lose what you type. A re-render (the 1 s motion fade, a Home Assistant update) used to reset a box you were typing in.

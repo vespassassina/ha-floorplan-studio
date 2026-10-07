@@ -222,6 +222,8 @@ const hint = (t: string, dyn = false) => html`<p class="hint fit${dyn ? " dyn" :
  * moving to a Danger section at the bottom — an explicit earlier decision, see docs/DECISIONS.md.
  */
 const heading = (label: string) => html`<h4 class="pnl-h">${label}</h4>`;
+/** S17.1: a panel section that folds on a click on its title; the fold is remembered (`EditorState.folded`). */
+const section = (c: PanelCtx, key: string, label: string, body: unknown) => html`<details class="pnl-sec" data-sec=${key} .open=${live(!c.st.folded.has(key))}><summary class="pnl-h" @click=${(e: Event) => { e.preventDefault(); c.st.setFolded(key, !c.st.folded.has(key)); c.refresh(); }}>${label}</summary>${body}</details>`;
 
 // ---- Home Assistant pickers (S1.38): with HA data a name is chosen, not typed ----
 const byName = <T extends { name: string }>(l: readonly T[]) => [...l].sort((a, b) => a.name.localeCompare(b.name));
@@ -571,18 +573,18 @@ function roomPanel(c: PanelCtx, i: number) {
   return html`<strong>Room</strong>
     ${r.kind === "zone" ? hint("Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag body to move; corners to reshape.") : nothing}
-    ${heading("Identity")}
+    ${section(c, "room:identity", "Identity", html`
     ${c.st.ha ? roomLink(c, c.st.ha, i) : html`${text("name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
     ${text("area id", "ra", r.area, (v) => c.commit((f) => { f.rooms[i].area = v; }), !!r.area, r.kind === "zone" ? "Maps this zone to a Home Assistant area." : undefined)}
     ${r.area ? nothing : entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}
-    <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>
+    <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>`)}
     ${c.st.ha ? heading("Home Assistant") : nothing}
     ${roomSensors(c, i)}
     ${roomScenesPanel(c, i)}
     ${haBox(c, i)}
     ${toPlace ? heading("Links") : nothing}
     ${placeAreaButton(c, i)}
-    ${heading("Appearance")}
+    ${section(c, "room:appearance", "Appearance", html`
     ${kindSelect(r.kind, (v) => c.commit((f) => {
       const room = f.rooms[i];
       if (room.kind === v) return;
@@ -593,7 +595,7 @@ function roomPanel(c: PanelCtx, i: number) {
     }))}
     ${heightField(c, "ceiling height (cm)", "rht", r.height, c.st.f.height ?? DEFAULT_FLOOR_HEIGHT, heightSetter(c, "rooms", i, "height"))}
     ${roomTurn(c, i)}
-    ${paintControls(c, "rooms", i, "r", r)}`;
+    ${paintControls(c, "rooms", i, "r", r)}`)}`;
   // The room's Delete sits right under the name, before the sensors (Diego, 2026-10-06; it was next to Unsnap, see docs/DECISIONS.md).
 }
 
@@ -606,11 +608,11 @@ const ROOM_SENSORS: [RoomSensorField, string, string][] = [["temps", "rtemp", "t
 function roomSensors(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
   if (!ROOM_OWNS[r.kind]) return nothing;
-  return html`${heading("Sensors")}
+  return section(c, "room:sensors", "Sensors", html`
     ${ROOM_SENSORS.map(([field, id, label]) => {
       const write = (f: Floor, next: string[]) => setRoomList(f.rooms[i], field, next);
       return multiAttachField(c, id, label, r[field] ?? [], c.st.roomSensorChoices(i, field), (next) => c.commit((f) => write(f, next)), { apply: write, targetLabel: r.name || "the room" }, { grouped: (avail) => groupSensorChoices(c.st.layout, avail, c.st.floor, r.name), roundRemove: true, boxed: true });
-    })}`;
+    })}`);
 }
 
 /**
@@ -629,7 +631,7 @@ function roomScenesPanel(c: PanelCtx, i: number) {
   const more = sceneRows.filter((e) => !inArea.includes(e) && !extra.includes(e.id));
   const nameOf = (id: string) => sceneRows.find((e) => e.id === id)?.name ?? id;
   const w = (fn: (room: Room) => void) => c.commit((f) => { fn(f.rooms[i]); });
-  return html`${heading("Scenes")}
+  return section(c, "room:scenes", "Scenes", html`
     ${hint("Shown as buttons on the card.")}
     ${(r.scenes ?? []).map((sc, k) => html`<div class="scene" data-scene=${sc.id}>
       ${text("scene name", `rsc-name-${k}`, sc.name, (v) => { w((room) => { renameScene(room, sc.id, v); }); c.refresh(); })}
@@ -645,7 +647,7 @@ function roomScenesPanel(c: PanelCtx, i: number) {
     <p>${button("rsc-add", "Add scene", () => w((room) => { addScene(room, targets.map((t) => t.entity)); }), "", "A new scene with every light and switch of the room, on. Edit it below.")}</p>
     ${ha ? html`${inArea.length ? hint(`In this area: ${inArea.map((e) => e.name).join(", ")}`, true) : nothing}
       ${extra.map((e, k) => html`<div class="scene-item"><span>${nameOf(e)}</span><button class="btn keep" id=${`rsc-ha-rm-${k}`} type="button" aria-label=${`Stop offering ${nameOf(e)}`} @click=${() => w((room) => { setRoomHaScenes(room, extra.filter((x) => x !== e)); })}>Remove</button></div>`)}
-      ${more.length ? html`<label for="rsc-ha-add">also offer</label><select id="rsc-ha-add" .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) w((room) => { setRoomHaScenes(room, [...extra, v]); }); c.refresh(); }}><option value="">(a Home Assistant scene)</option>${more.map((e) => html`<option value=${e.id}>${e.name}</option>`)}</select>` : nothing}` : nothing}`;
+      ${more.length ? html`<label for="rsc-ha-add">also offer</label><select id="rsc-ha-add" .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) w((room) => { setRoomHaScenes(room, [...extra, v]); }); c.refresh(); }}><option value="">(a Home Assistant scene)</option>${more.map((e) => html`<option value=${e.id}>${e.name}</option>`)}</select>` : nothing}` : nothing}`);
 }
 
 /** S4.15/S8.1: one button, counting what Home Assistant has in the room's area that the plan can show and does not yet; it opens the Place popup. */
