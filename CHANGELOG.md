@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card: the device colours picked in the studio (`colors` in the layout) now show on the dashboard, in 2D, 2.5D and 3D. Only the editor drew them before.
+
 - Card: the hover tooltip goes when a zoom key moves its icon from under a pointer that did not move. It named an icon the pointer was no longer on.
 
 - Card: a temperature device on a switchable entity (a thermostat, a plug) no longer offers Turn on / Turn off in its popup. It opens more-info only.

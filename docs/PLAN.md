@@ -2584,7 +2584,7 @@ Each task: one outcome, one failing test first, one commit. Branch `task/s19-cle
 - [x] S19.D SPEC and README: siren, alarm, linked pieces, grouped type menu.
 - [x] S19.E1 Kiosk popup closes on Escape. Not reproduced: a kiosk popup with no button and a pointer off the card still closes on Escape (a click focuses the card, which then owns the keys), in 2D and 3D. Pinned with a 2D spec; no source change. A real wall tablet may differ; needs Diego's description.
 - [x] S19.E2 A stale tooltip goes when its target changes or leaves.
-- [ ] S19.E3 The card honours `layout.colors` as the editor does.
+- [x] S19.E3 The card honours `layout.colors` as the editor does.
 - [x] S19.E4 `temp` joins `NO_TOGGLE`.
 - [ ] S19.E5 Camera cone clip.
 - [ ] S19.E6 Remove unused scene writers.

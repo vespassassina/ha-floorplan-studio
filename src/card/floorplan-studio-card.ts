@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEFAULT_MOTION_FADE_S, customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { DEFAULT_MOTION_FADE_S, customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, DeviceType, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
@@ -2422,10 +2422,11 @@ export class FloorplanStudioCard extends LitElement {
       showNames: this._names(),
       around: floorsAroundKey(this._layout!, this._floorKey()!),
       selectedRoom: this._picked() ?? undefined,
+      colors: this._layout!.colors, // S19.E3: the studio's per-type colours, as the editor draws them
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>`;
+    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>`;
     const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${this._fallback3d}</p>` : null;
     const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label="Reset camera" title="Reset camera" @click=${() => { this._forgetCamera(); this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
     return html`${this._floorChips()}${stage}${note}${this._activePanel()}${showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"}>${this._viewControls(this._viewPick())}</div>` : null}${stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
