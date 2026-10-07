@@ -16,6 +16,7 @@ export type Pick =
   | { type: "device"; index: number }
   | { type: "door"; index: number }
   | { type: "unlinked"; index: number }
+  | { type: "piece"; index: number }
   | { type: "room"; index: number }
   | { type: "other" };
 
@@ -166,6 +167,7 @@ export class Picker {
       case "unlinked": return fin(i) ? { type: "unlinked", index: i } : { type: "other" };
       case "room": return fin(s.ref.room) ? { type: "room", index: s.ref.room } : { type: "other" };
       case "furniture": {
+        if (s.ref.entity && fin(i)) return { type: "piece", index: i }; // a linked tv, speaker or computer: its own thing, as a device
         const x = r.o[0] + r.d[0] * bestT, y = r.o[1] + r.d[1] * bestT, room = this.roomAt(x, y);
         return room === null ? { type: "other" } : { type: "room", index: room };
       }

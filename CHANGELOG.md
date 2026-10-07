@@ -10,6 +10,7 @@
 - Furniture is filled, not an outline: every symbol takes a body colour from the theme (light, dark and every theme), with the stroke kept as the edge. A piece with an entity that is on takes the on colour, body and edge.
 - A tv or speaker piece whose media player is playing sends out the same two waves a speaker device does, in 2D and 2.5D, in the on colour.
 - The computer is drawn as a desk seen from above, with a monitor, a keyboard and a case. New ones are 120 x 60 cm; computers already on a plan keep their size.
+- In the card, a tv, speaker or computer piece that tracks a device acts like that device. It is listed under Active while on (a paused tv counts, as for the tv device), appears in its room's device list and can be put in a room scene, a tap or a click in 3D opens its more-info instead of picking the room, and hovering names it. In 3D it takes the linked colour at rest and the on colour when on. A piece with no entity stays part of the room floor.
 
 ## 0.18.2 - 2026-10-07
 

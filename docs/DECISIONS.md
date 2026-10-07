@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: a linked piece carries device behaviour in the card (S18.15)
+
+Opus review of S18.8 to S18.14: a tv, speaker or computer piece with an entity did nothing in the card, and "every editor feature is in the card" did not hold. Diego's design: a linked piece behaves like a device there. One path, not copies:
+- `pieceDevice(m)` (`solids.ts`, next to `furnitureLinked`, which now calls it) builds the device a linked piece stands for: same type, entity, name, place. Never stored, so the layout file is unchanged. `pieceOn` (`render.ts`) is the one on rule: a linked piece follows `classOf` of that device (a paused or idle tv reads on, a speaker only while playing, unavailable never); any other piece keeps `entityOn` (on, open, playing). A plug's switch keeps the plug's rule. The plan, the Active list, room rows and 3D all call it. Side effect, wanted: a speaker piece whose entity is `on` but not `playing` is no longer lit; it was before, and the speaker device never was.
+- Active list, room rows (`roomSummary`, flagged `piece`, index in `furniture`) and scene targets take the piece as a device of its type; an entity already listed by a device, or by an earlier piece, is not listed again.
+- Tap and hold are the entity's more-info, no popup: `bindDeviceActions` takes `g[data-f][data-linked]` (selector `THINGS`, shared with hover and the outside-press test) and `getPiece`. Not `NO_TOGGLE`: that set is by device type, tv and computer are not in it, and a piece must never toggle by a tap whatever its entity. Its Active row and its room row do the same. An unlinked piece still picks the room. Hover shows the device's name and state line (`_targetOf("f", i)`).
+- 3D: the scene marks a linked piece (`ref.entity`, role `furniture-linked`), `liveOf` gives `pieces[i].on` from `pieceOn`, the view draws it as a mesh of its own (the merged furniture mesh skips it) in `furniture-linked` (the tv blue mixed 70% into the furniture colour) at rest and `piece-on` (`--fp-active`, as the plan's on colour) when on, and the picker returns `{ type: "piece" }`, which the card hands to the gesture code. No screen or driver glow on a piece, only the colour.
+
 ## 2026-10-07: siren and alarm are device types, and the type menu has a popular block (S18.14)
 
 Diego: allow "alarm" and "siren" in a device's type; the most popular on top, a separator, the rest A to Z.
