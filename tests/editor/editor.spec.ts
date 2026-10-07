@@ -8652,3 +8652,66 @@ for (const [sym, side] of [["tv", "below"], ["speaker", "right"]] as const) {
     expect((await layoutOf(page)).floors.ground.furniture).toHaveLength(n + 1);
   });
 }
+
+// S18.11: Add > Device places a tv, speaker or computer as a furniture piece that tracks the entity, not as an icon.
+const FURN_HA = { floors: [], areas: [], entities: [
+  { id: "media_player.lounge_tv", name: "Lounge TV", domain: "media_player", dc: "tv" },
+  { id: "media_player.kitchen_sp", name: "Kitchen speaker", domain: "media_player", dc: "speaker" },
+  { id: "media_player.plain", name: "Plain player", domain: "media_player" },
+] };
+for (const [id, name, sym] of [["media_player.lounge_tv", "Lounge TV", "tv"], ["media_player.kitchen_sp", "Kitchen speaker", "speaker"]] as const) {
+  test(`S18.11: an HA ${sym} player from Add > Device is a ${sym} piece with its entity, one undo step, and moves`, async ({ page }) => {
+    await setHa(page, FURN_HA);
+    const before = await groundOf(page);
+    await openDevice(page);
+    await page.locator(`#addDevPanel button[data-add="ha:${id}"]`).click();
+    const g = await groundOf(page);
+    expect(g.devices).toHaveLength(before.devices.length);
+    expect(g.furniture).toHaveLength(before.furniture.length + 1);
+    const m = g.furniture.at(-1)!;
+    expect(m).toMatchObject({ symbol: sym, entity: id, name });
+    expect(validate(await layoutOf(page)).ok).toBe(true);
+    await expect(page.locator(`#addDevPanel button[data-add="ha:${id}"]`)).toHaveCount(0); // placed: not offered again
+    await page.locator("#addDevClose").click();
+    // a real drag moves it (real mouse, finding 3)
+    const n = g.furniture.length - 1;
+    const box = (await page.locator(`${EDITOR} svg g[data-f="${n}"]`).boundingBox())!;
+    const c = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await page.mouse.move(c.x, c.y); await page.mouse.down();
+    await page.mouse.move(c.x - 30, c.y - 20, { steps: 4 }); await page.mouse.move(c.x - 60, c.y - 40, { steps: 4 });
+    await page.mouse.up();
+    expect((await groundOf(page)).furniture[n].x).toBeLessThan(m.x);
+    await page.locator("#undo").click(); // the move
+    await page.locator("#undo").click(); // the add: one step, piece and catalog entry together
+    const u = await layoutOf(page);
+    expect(u.floors.ground.furniture).toHaveLength(before.furniture.length);
+    expect(u.catalog.some((x) => x.entity === id)).toBe(false);
+  });
+}
+
+test("S18.11: a plain media player stays a device icon", async ({ page }) => {
+  await setHa(page, FURN_HA);
+  const before = await groundOf(page);
+  await openDevice(page);
+  await page.locator('#addDevPanel button[data-add="ha:media_player.plain"]').click();
+  const g = await groundOf(page);
+  expect(g.devices).toHaveLength(before.devices.length + 1);
+  expect(g.furniture).toHaveLength(before.furniture.length);
+});
+
+for (const [type, sym] of [["tv", "tv"], ["speaker", "speaker"], ["computer", "computer"]] as const) {
+  test(`S18.11: a catalog ${type} placed from Add > Device is a ${sym} piece with its entity`, async ({ page }) => {
+    await setCatalog(page, [{ id: `cat-${type}`, floor: "ground", room: "Living", type, name: `Cat ${type}`, entity: `media_player.cat_${type}` }]);
+    const before = await groundOf(page);
+    await openDevice(page);
+    await devItem(page, `cat-${type}`).click();
+    const g = await groundOf(page);
+    expect(g.devices).toHaveLength(before.devices.length);
+    expect(g.furniture.at(-1)).toMatchObject({ symbol: sym, entity: `media_player.cat_${type}`, name: `Cat ${type}` });
+    expect(validate(await layoutOf(page)).ok).toBe(true);
+    await expect(devItem(page, `cat-${type}`)).toHaveCount(0);
+    await page.locator("#addDevClose").click();
+    await page.locator("#undo").click();
+    expect((await groundOf(page)).furniture).toHaveLength(before.furniture.length);
+  });
+}

@@ -1,12 +1,14 @@
 import type { CatalogEntry, Device, Floor, Layout } from "./schema";
 
-/** Every entity that has an icon of its own on the plan. A light's `bound` switch has none unless it is a device too. */
+/** Every entity that has an icon of its own on the plan, or a furniture piece tracking it (S18.11). A light's `bound` switch has none unless it is a device too. */
 export function placedEntities(l: Layout): Set<string> {
   const out = new Set<string>();
   for (const f of Object.values(l.floors))
     for (const d of f.devices) {
       if (d.entity) out.add(d.entity);
     }
+  for (const f of Object.values(l.floors))
+    for (const m of f.furniture ?? []) if (typeof m?.entity === "string" && m.entity) out.add(m.entity);
   return out;
 }
 

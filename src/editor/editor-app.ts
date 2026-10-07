@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEFAULT_MOTION_FADE_S, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
+import { DEFAULT_MOTION_FADE_S, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -2131,14 +2131,18 @@ export class FloorplanStudioEditor extends LitElement {
     // id to an unrelated device (the bug placeArea's own fix, above, is against). Reuse it only when no floor's
     // device currently carries it; otherwise mint a fresh id and update the catalog entry in this same undo step
     // (already open: `st.snapshot()` ran before this method touched anything).
-    const claimed = Object.values(st.layout.floors).some((fl) => fl.devices.some((d) => d.id === c.id));
-    const devId = claimed ? newId(f, target, "device", st.layout) : c.id;
+    const symbol = furnitureForType(c.type);
+    const claimed = Object.values(st.layout.floors).some((fl) => [...fl.devices, ...fl.furniture].some((d) => d.id === c.id));
+    const devId = claimed ? newId(f, target, symbol ? "furniture" : "device", st.layout) : c.id;
     if (claimed) c.id = devId;
-    f.devices.push(c.type === "heater"
+    if (symbol) {
+      // S18.11: a tv, speaker or computer is placed as the piece itself, tracking the entity (same default size as Add > Furniture).
+      f.furniture.push({ id: devId, symbol, x: ctr[0], y: ctr[1], rot: 0, w: FURNITURE[symbol].w, h: FURNITURE[symbol].h, name: c.name, entity: c.entity });
+    } else f.devices.push(c.type === "heater"
       ? { id: devId, name: c.name, type: c.type, entity: c.entity, a: [ctr[0] - 50, ctr[1]], b: [ctr[0] + 50, ctr[1]] }
       : { id: devId, name: c.name, type: c.type, entity: c.entity, x: ctr[0], y: ctr[1], ...st.powerFor(c.type, c.entity) });
     st.replaceFloor(f);
-    st.sel = { t: "dev", i: f.devices.length - 1 };
+    st.sel = symbol ? { t: "furn", i: f.furniture.length - 1 } : { t: "dev", i: f.devices.length - 1 };
     const v = st.view;
     st.views[st.floor] = { ...v, x: ctr[0] - v.w / 2, y: ctr[1] - v.h / 2 };
     this.changed(`Placed ${c.name}${room ? ` in ${room.name}` : ""}. Drag it to its spot.`);

@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: a tv, speaker or computer is added as furniture (S18.11)
+
+The rule is small. An HA entity is placed as a piece when it is a `media_player` whose `device_class` is `tv` or `speaker` (`furnitureForEntity`). A plain media player stays a `media` icon. HA has no computer class, so no entity is guessed as a computer: a catalog entry typed `tv`, `speaker` or `computer` is placed as a piece (`furnitureForType`), which is how a computer the user typed gets there. The piece has the symbol's default size, the entity and the name, sits where a device would (the area's room centre, else the viewport), is selected and is one undo step, with a catalog entry of the same id so a deleted piece can be placed again. `placedEntities` now counts a furniture piece's entity, or the placed piece would be offered again at once; as a side effect an entity already used by a furniture piece in an old layout is no longer offered as a device (the layout file is unchanged). Not changed: the batch place of a room's area (`placeArea`) still makes icons, and `typeForEntity` still says `media` (the list groups it under Media).
+
 ## 2026-10-07: small furniture is grabbed from a padded box (S18.10)
 
 A tv is 10 cm deep: at the default zoom a few pixels, and the drawn shape took clicks only on that. `furnitureNear` (`ops.ts`) gives a piece under 28 screen px on a side a box 8 px bigger each way, at least 28 px across, turned with the piece. It is a fallback in code, as `edgeNear` is, not an invisible element: an overlay rect would sit above devices, doors and walls and take their clicks. It beats the room, the background and a bigger piece under it; any handle, device, door or wall really under the pointer still wins. Big pieces get no padding. Editor only; the card is not touched.

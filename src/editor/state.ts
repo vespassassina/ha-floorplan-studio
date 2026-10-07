@@ -1,4 +1,4 @@
-import { MAX_ROOM_SENSORS, DEVICE_TYPES, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 import { setRoomList, type RoomSensorField } from "./ops";
 import { normaliseRotation } from "../card/view-state";
@@ -521,6 +521,17 @@ export class EditorState {
     if (Object.values(this.layout.floors).some((f) => f.devices.some((d) => d.entity === e.id)) || this.layout.catalog.some((c) => c.entity === e.id)) return false;
     const next = structuredClone(this.layout);
     const f = next.floors[this.floor];
+    const symbol = furnitureForEntity(e);
+    if (symbol) {
+      // S18.11: a tv or speaker player is a piece that tracks it. The catalog entry keeps it re-placeable after a delete, as for a device.
+      const id = newId(f, this.floor, "furniture", next);
+      f.furniture.push({ id, symbol, x: ctr[0], y: ctr[1], rot: 0, w: FURNITURE[symbol].w, h: FURNITURE[symbol].h, name: e.name, entity: e.id });
+      next.catalog.push({ id, floor: this.floor, room: room ?? "", type: symbol, name: e.name, entity: e.id });
+      this.snapshot();
+      this.layout = next;
+      this.sel = { t: "furn", i: f.furniture.length - 1 };
+      return true;
+    }
     const id = newId(f, this.floor, "device", next);
     const type = typeForEntity(e, this.ha);
     f.devices.push({ id, name: e.name, type, entity: e.id, x: ctr[0], y: ctr[1], ...this.powerFor(type, e.id) });

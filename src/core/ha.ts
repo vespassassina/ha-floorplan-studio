@@ -90,6 +90,21 @@ export function typeForEntity(e: HaData["entities"][number], ha?: Pick<HaData, "
   }
 }
 
+/**
+ * S18.11: the furniture symbol an HA entity is placed as, or null for a device icon. Only a media_player that says it is a
+ * tv or a speaker (its `device_class`): a piece that tracks the player, drawn as the thing itself. A computer has no HA
+ * class, so no entity is ever guessed as one; that comes through `furnitureForType`.
+ */
+export function furnitureForEntity(e: HaData["entities"][number]): "tv" | "speaker" | null {
+  if (e.domain !== "media_player") return null;
+  return e.dc === "tv" || e.dc === "speaker" ? e.dc : null;
+}
+
+/** S18.11: the furniture symbol a catalog entry of `type` is placed as: tv, speaker and computer, the types a person owns one of. */
+export function furnitureForType(type: DeviceType): "tv" | "speaker" | "computer" | null {
+  return type === "tv" || type === "speaker" || type === "computer" ? type : null;
+}
+
 /** How many groups deep a motion group may nest. Real groups are one or two deep; the cap keeps junk cheap. */
 const MAX_GROUP_DEPTH = 4;
 

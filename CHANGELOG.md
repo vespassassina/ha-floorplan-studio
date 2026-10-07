@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add > Device places a tv, a speaker or a computer as the piece itself, not an icon: a media player Home Assistant calls a tv or speaker, and a catalog entry typed tv, speaker or computer. The piece tracks the entity, sits where a device would, is selected and moves like any furniture.
 - A thin tv or a small speaker is easy to pick up in the editor: a piece under 28 px on a side takes the press from 8 px around it, and drags as before.
 - Furniture is filled, not an outline: every symbol takes a body colour from the theme (light, dark and every theme), with the stroke kept as the edge. A piece with an entity that is on takes the on colour, body and edge.
 - A tv or speaker piece whose media player is playing sends out the same two waves a speaker device does, in 2D and 2.5D, in the on colour.
