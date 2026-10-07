@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: New things land in the middle of the selected room
+
+Diego: with a room, zone or area selected, a new furniture, object, device, door, zone or stairs is placed in the middle of it. `roomMiddle` (src/editor/ops.ts) gives the middle on the grid, a point inside even for an L-shaped room; furniture and objects are nudged 40 cm right when a point already stands there, so they never stack. With no room selected the old spots stay: furniture, stairs and zones outside the house at the top right, devices and doors at the view centre. Walls and structures keep theirs. His "lost tree" was this: furniture spawned outside the house, off screen. The tree is drawn above room textures in 2D (tested).
+
 ## 2026-10-06: Sprint 16 planned: car, camera thumbnail, vacuum path
 
 Diego asked for a car with attached sensors and devices, shown at home or away by its position; a floating camera thumbnail in every view with size and position set in the View menu; and vacuum paths for Roborock, Dreame and Roomba. Planned as S16.1 to S16.5 in `docs/PLAN.md`. The vacuum path is research first: the "Later" note says no common integration exposes coordinates, so S16.5 is built only if S16.4 finds data. Away is drawn as a person's is (35 %, away mark), never by moving the car with GPS.

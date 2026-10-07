@@ -1,4 +1,4 @@
-import { MAX_ROOM_SENSORS, contentPoints, dist, movePoints, polys, stairSteps, stitch } from "../core";
+import { MAX_ROOM_SENSORS, contentPoints, dist, movePoints, polyCentre, polys, stairSteps, stitch } from "../core";
 import type { Floor, Furniture, Pt, Room, Stairs, WallKind } from "../core";
 import { newId, type LooseRef, type PtRef } from "./state";
 
@@ -153,6 +153,18 @@ export function spawnPoint(f: Floor, fallback: Pt, grid = 10): Pt {
   const xs = pts.map((p) => p[0]);
   const g = (n: number) => gridRound(n, grid);
   return [g(Math.max(...xs) + 150), g(Math.min(...oys))];
+}
+
+/**
+ * Where a new thing goes when a room is selected (Diego, 2026-10-07): the middle of that room, on the grid, a point inside it
+ * even for an L. Null when the selection is not a room with a usable ring, so the caller keeps its own spot.
+ */
+export function roomMiddle(f: Floor, sel: { t: string; i?: number } | null, grid = 10): Pt | null {
+  if (sel?.t !== "room" || typeof sel.i !== "number") return null;
+  const pts = f.rooms[sel.i]?.pts;
+  if (!Array.isArray(pts) || pts.length < 3 || !pts.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]))) return null;
+  const m = polyCentre(pts);
+  return [gridRound(m[0], grid), gridRound(m[1], grid)];
 }
 
 /**
