@@ -10,14 +10,21 @@ const MAX_HA_SCENES = MAX_ROOM_SCENES * 4;
 const LIGHT_OR_SWITCH = /^(light|switch)\./;
 const SCENE_ENTITY = new RegExp(`^(${SCENE_DOMAINS.join("|")})\\.`);
 
-/** What a scene may set: the devices of a scene type (`SCENE_DOMAINS`) whose icon is inside the room, once each. */
+/** What a scene may set: the devices of a scene type (`SCENE_DOMAINS`, less climate) whose icon is inside the room, once each, then the covers of its doors and windows. */
 export function roomSceneTargets(f: Floor, roomIndex: number): { entity: string; name: string }[] {
   const seen = new Set<string>();
   const out: { entity: string; name: string }[] = [];
-  for (const d of roomSummary(f, roomIndex, undefined, {})?.devices ?? []) {
-    if (!SCENE_ENTITY.test(d.entity) || seen.has(d.entity)) continue;
+  const sum = roomSummary(f, roomIndex, undefined, {});
+  for (const d of sum?.devices ?? []) {
+    if (!SCENE_ENTITY.test(d.entity) || d.entity.startsWith("climate.") || seen.has(d.entity)) continue; // S18.4: a thermostat is not a scene device; an older file that names one still validates and runs
     seen.add(d.entity);
     out.push({ entity: d.entity, name: d.name });
+  }
+  // S18.4: a curtain, blind or garage door is the `cover` of a door or window, not a device with its own icon; the room's summary lists it among its entities.
+  for (const e of sum?.entities ?? []) {
+    if (!e.startsWith("cover.") || seen.has(e)) continue;
+    seen.add(e);
+    out.push({ entity: e, name: f.doors.find((d) => d.cover === e)?.name || e });
   }
   return out;
 }

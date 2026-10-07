@@ -583,7 +583,7 @@ function roomPanel(c: PanelCtx, i: number) {
     ${c.st.ha ? heading("Home Assistant") : nothing}
     ${roomSensors(c, i)}
     ${roomScenesPanel(c, i)}
-    ${haBox(c, i)}
+    ${c.st.ha ? section(c, "room:ha", "In this area (Home Assistant)", haBox(c, i)) : nothing}
     ${toPlace ? heading("Links") : nothing}
     ${placeAreaButton(c, i)}
     ${section(c, "room:appearance", "Appearance", html`
@@ -638,13 +638,13 @@ function roomScenesPanel(c: PanelCtx, i: number) {
     ${hint("Shown as buttons on the card.")}
     ${ha ? html`${inArea.map((e) => html`<div class="scene-item" data-ha-scene=${e.id}><span>${e.name}</span><small class="tag">Home Assistant · this area</small></div>`)}
       ${extra.map((e, k) => html`<div class="scene-item" data-ha-scene=${e}><span>${nameOf(e)}</span><small class="tag">Home Assistant · offered</small><button class="btn keep" id=${`rsc-ha-rm-${k}`} type="button" aria-label=${`Stop offering ${nameOf(e)}`} @click=${() => w((room) => { setRoomHaScenes(room, extra.filter((x) => x !== e)); })}>Remove</button></div>`)}
-      ${more.length ? html`<label for="rsc-ha-add">also offer</label><select id="rsc-ha-add" .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) w((room) => { setRoomHaScenes(room, [...extra, v]); }); c.refresh(); }}><option value="">(a Home Assistant scene)</option>${more.map((e) => html`<option value=${e.id}>${e.name}</option>`)}</select>` : nothing}` : nothing}
+      ${more.length ? html`${hint("Add a Home Assistant scene from another area to this room's card.")}<label for="rsc-ha-add">Offer another scene</label><select id="rsc-ha-add" .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) w((room) => { setRoomHaScenes(room, [...extra, v]); }); c.refresh(); }}><option value="">(a Home Assistant scene)</option>${more.map((e) => html`<option value=${e.id}>${e.name}</option>`)}</select>` : nothing}` : nothing}
     ${custom.map((sc, k) => html`<div class="scene-item" data-scene=${sc.id}>
       <span>${sc.name}</span><small class="tag">${sc.items.length} device${sc.items.length === 1 ? "" : "s"}</small>
       ${button(`rsc-edit-${k}`, "Edit", () => c.designScene(i, sc.id))}
       ${button(`rsc-del-${k}`, "Delete", () => w((room) => { removeScene(room, sc.id); }), "warn", "Removes the scene. Undo brings it back.")}
     </div>`)}
-    <p>${button("rsc-new", "New scene", () => c.designScene(i, null), "", "Opens the scene designer.")}</p>`);
+    <p>${button("rsc-new", "New scene", () => c.designScene(i, null), "primary", "Opens the scene designer.")}</p>`);
 }
 
 /** S4.15/S8.1: one button, counting what Home Assistant has in the room's area that the plan can show and does not yet; it opens the Place popup. */

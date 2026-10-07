@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: Sprint 18a, scene designer fixes
+
+Popups centre on the viewport (`panelPos` takes the panel's largest height): the old top came from the toolbar's rectangle, which is off-screen once the page scrolls. Try keeps a per-popup `sceneOrigin`, the first-seen state of each device, across Restore; before, Restore cleared the backup and the next Try could record a stale `on` as the original (the likely cause of an off light coming back white; not reproduced on a real HA). Covers of doors and windows join `roomSceneTargets` (a curtain is a door field, not a device). Climate leaves the designer; the schema and `customCalls` still accept it, so old files run. Colours from a picture still capped at 6; the report of four was not reproduced and needs the picture.
+
 ## 2026-10-07: Try and Restore (S17.7)
 
 `HaWriter.callService` is one service call; `tryScene` keeps each entity's first-seen state as a scene item (`itemFromState`) and sends `customCalls`, `restoreScene` sends the kept items. A second Try keeps the first backup. Closing the popup without Save restores; Save does not (the devices are as the saved scene says). Try asks no confirmation, unlike a card tap that turns a fan off: it is a preview and Restore undoes it. Unknown or unavailable devices are tried but cannot be restored, and the popup says so.

@@ -23,6 +23,22 @@ describe("roomSceneTargets: the lights and switches the room can put in a scene"
   });
 });
 
+describe("roomSceneTargets: curtains and covers on the room's doors and windows (S18.4)", () => {
+  it("lists a door's cover by the door's name, in the room whose edge it lies on, and not in another room", () => {
+    const f = demo.floors.ground as Floor;
+    expect(roomSceneTargets(f, 2)).toContainEqual({ entity: "cover.demo_garage_door", name: "Garage door" });
+    expect(roomSceneTargets(f, 0).map((x) => x.entity)).not.toContain("cover.demo_garage_door");
+  });
+});
+
+describe("roomSceneTargets: no thermostat in the designer (S18.4)", () => {
+  it("leaves out a climate device the room holds; validate still accepts climate in an older scene", () => {
+    const f = structuredClone(demo.floors.ground) as Floor;
+    f.devices.push({ id: "trv-1", type: "climate", entity: "climate.trv", name: "TRV", x: 100, y: 100 } as Floor["devices"][number]);
+    expect(roomSceneTargets(f, 0).map((x) => x.entity)).not.toContain("climate.trv");
+  });
+});
+
 describe("scene writers", () => {
   it("addScene names and ids it uniquely, fills it with the given entities switched on, and stops at the cap", () => {
     const r = roomOf();

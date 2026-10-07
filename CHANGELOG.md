@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Popups (scene designer, Place, Home Assistant, Add device) open centred in the viewport and fit it, however far the page is scrolled. The scene designer's name box and Save were cut off before.
+- Scene designer: Restore after a second Try still puts back what the device was doing before the first Try, even if the editor's copy of the state is stale. A light that was off no longer comes back on.
+- Scene designer: a curtain, blind or garage door (the cover of a door or window) can be set to open, closed or a position. Thermostats are no longer offered; scenes that already hold one still run.
+- Room panel: New scene is the highlighted button; "also offer" is now "Offer another scene" with a hint; the area's Home Assistant rows (devices, automations, scripts) sit in their own foldable section.
+
 ## 0.18.0 - 2026-10-07
 
 - Scene designer: Try it sends the scene to the real devices; Restore puts back what they were doing before the first Try. Cancel, the X and Escape restore by themselves, Save does not. Needs the studio connected to Home Assistant with write access; without it the buttons are disabled and say so. A device Home Assistant refuses is named, and one with an unknown state is flagged as not restorable.
