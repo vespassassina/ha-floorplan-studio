@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: a shed over the border still nests (3D)
+
+Supersedes the 1 cm edge tolerance of 2026-10-06. A room nests above a bigger one when its middle is inside it and every corner is inside or within 30 cm of its edge. The middle test keeps a narrow room beside the garden from nesting. Diego's garden house floor was missing in 3D; not checked against his layout, the cause is inferred from the screenshot.
+
 ## 2026-10-07: scenes are not the plan
 
 Fix plan compares the floor with devices and objects taken out; a room's `scenes` and `haScenes` sat inside that, so a fixed plan refused Save and the designer closed as if it had saved. `EditorState.plan` now leaves both out. `saveSceneDraft` keeps the designer open with a message when a save is refused. Found by Diego: the scene was made with Fix plan on.

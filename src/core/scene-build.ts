@@ -170,12 +170,16 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     const nestable = rooms.length <= NEST_LIMIT && points * points <= NEST_WORK;
     // A corner ON the bigger room's edge is in it: the even-odd `inside` is arbitrary there (a shed built against the garden's border
     // was never lifted and its floor was hidden), so a corner within a centimetre of an edge counts as inside.
-    const onEdge = (v: Pt, q: Pt[]) => q.some((a, k) => {
+    // A shed's wall often stands a few cm over the border (Diego, 2026-10-07: the garden house, a corner just outside), so a corner within
+    // SNAP cm of the edge counts as in, provided the shed's own middle is inside: a narrow room beside the garden is not in it.
+    const SNAP = 30;
+    const near = (v: Pt, q: Pt[], tol: number) => q.some((a, k) => {
       const b = q[(k + 1) % q.length], dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
       const t = l2 ? Math.max(0, Math.min(1, ((v[0] - a[0]) * dx + (v[1] - a[1]) * dy) / l2)) : 0;
-      return Math.hypot(v[0] - (a[0] + t * dx), v[1] - (a[1] + t * dy)) <= 1;
+      return Math.hypot(v[0] - (a[0] + t * dx), v[1] - (a[1] + t * dy)) <= tol;
     });
-    const nest = (i: number) => { const p = rings[i]; return p && nestable ? rings.reduce((n, q, j) => n + +(j !== i && !!q && areas[j] > areas[i] && p.every((v) => inside(v, q) || onEdge(v, q))), 0) : 0; };
+    const mid = (p: Pt[]): Pt => [p.reduce((s, v) => s + v[0], 0) / p.length, p.reduce((s, v) => s + v[1], 0) / p.length];
+    const nest = (i: number) => { const p = rings[i]; return p && nestable ? rings.reduce((n, q, j) => n + +(j !== i && !!q && areas[j] > areas[i] && inside(mid(p), q) && p.every((v) => inside(v, q) || near(v, q, SNAP))), 0) : 0; };
     rooms.forEach((r, i) => piece(() => {
       const p = rings[i];
       if (!p || !isObj(r) || !oneOf(ROOM_KINDS, r.kind) || r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name)) return;

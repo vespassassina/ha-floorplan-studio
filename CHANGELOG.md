@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.18.2 - 2026-10-07
 
+- 3D: a garden house or shed whose wall stands a few cm over the garden's border now shows its floor. It was hidden under the garden when a corner was just outside. A narrow room beside the garden still does not count as inside it.
 - Fix plan no longer blocks scenes. Saving, editing or deleting a room's scene, and offering a Home Assistant scene, work while the plan is fixed. Before, Save closed the designer and stored nothing. A refused save now keeps the designer open and says why.
 
 ## 0.18.1 - 2026-10-07

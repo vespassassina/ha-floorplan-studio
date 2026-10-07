@@ -292,6 +292,9 @@ describe("scene: a shed that touches the garden's edge", () => {
     "a corner on the garden's corner": [[0, 0], [100, 0], [100, 100], [0, 100]],
     "a side along the garden's edge": [[200, 0], [300, 0], [300, 100], [200, 100]],
     "the far corner on the edge": [[400, 400], [500, 400], [500, 500], [400, 500]],
+    // Diego, 2026-10-07: the garden house's floor was missing in 3D; its wall stands a few cm over the garden's border.
+    "a corner 6 cm outside the garden": [[400, 400], [506, 400], [506, 500], [400, 500]],
+    "a turned shed with two corners 20 cm outside": [[380, 400], [520, 380], [520, 500], [400, 520]],
   };
   for (const [name, pts] of Object.entries(cases)) it(`lifts a shed over the garden: ${name}`, () => {
     for (const order of [0, 1]) {
@@ -301,6 +304,12 @@ describe("scene: a shed that touches the garden's edge", () => {
       const small = r.find((s) => s.ref.room === (order ? 1 : 0))!, big = r.find((s) => s.ref.room === (order ? 0 : 1))!;
       expect(prism(small).z0, `order ${order}`).toBeGreaterThanOrEqual(prism(big).z1);
     }
+  });
+  it("a narrow room beside the garden does not nest in it, however close its far corners are", () => {
+    const a = { id: "a", name: "A", area: "", kind: "garden", pts: [[0, 0], [500, 0], [500, 500], [0, 500]], wk: [...WK] };
+    const b = { id: "b", name: "B", area: "", kind: "room", pts: [[500, 0], [520, 0], [520, 100], [500, 100]], wk: [...WK] };
+    const r = buildScene(floor({ owk: [...WK], rooms: [a, b] } as never)).solids.filter((s) => s.kind === "room");
+    expect(r.map((s) => prism(s).z0)).toEqual([0, 0]);
   });
   it("two rooms side by side do not nest", () => {
     const a = { id: "a", name: "A", area: "", kind: "room", pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: [...WK] };
