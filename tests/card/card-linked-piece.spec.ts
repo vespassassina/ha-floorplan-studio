@@ -21,7 +21,7 @@ const LINKED = layout.floors.ground.furniture.length - 2, PLAIN = LINKED + 1;
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-07T09:30:15Z" });
 const STATES = (tv: string) => ({ "light.demo_living": st("on"), "light.demo_kitchen": st("off"), "switch.demo_hall": st("off"), "switch.demo_tv_plug": st("on"), "media_player.demo_tv": st(tv, { friendly_name: "Living TV" }) });
 
-async function boot(page: Page, tv = "playing", width = 1280) {
+async function boot(page: Page, tv = "playing", width = 1280, view = "2d") {
   await page.setViewportSize({ width, height: 900 });
   await page.goto(URL_);
   await page.addScriptTag({ content: CARD_JS, type: "module" });
@@ -36,7 +36,7 @@ async function boot(page: Page, tv = "playing", width = 1280) {
       el.hass = { states, callService: (d: string, s: string, data: { entity_id: string }) => { w.__calls.push(`${d}.${s} ${data.entity_id}`); } };
       return el.updateComplete;
     },
-    [{ layout, floor: "ground" }, STATES(tv)] as const,
+    [{ layout, floor: "ground", view }, STATES(tv)] as const,
   );
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
@@ -86,6 +86,14 @@ test.describe("a linked tv piece in the card", () => {
     expect(await calls(page)).toEqual([]);
     expect(await picked(page)).toEqual([]);
     await expect(card(page).locator("css=.fp-pop")).toHaveCount(0);
+  });
+
+  test("in 2.5D its block takes the same real tap: more-info, no room pick", async ({ page }) => {
+    await boot(page, "playing", 1280, "2.5d");
+    const p = await piecePoint(page, LINKED);
+    await page.mouse.click(p.x, p.y);
+    expect(await infos(page)).toEqual(["media_player.demo_tv"]);
+    expect(await picked(page)).toEqual([]);
   });
 
   test("a tap on an unlinked piece still picks its room and opens no more-info", async ({ page }) => {
