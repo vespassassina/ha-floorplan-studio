@@ -2589,3 +2589,10 @@ Each task: one outcome, one failing test first, one commit. Branch `task/s19-cle
 - [ ] S19.E5 Camera cone clip. Skipped: the cone markup is pinned by regexes in tests/core/render.test.ts, a CSS `url(#id)` clip does not cross the shadow DOM, and it was not asked for as a fix. Needs a decision.
 - [x] S19.E6 Remove unused scene writers (`addScene`, `renameScene`, `addSceneItem`, `removeSceneItem`, `setSceneItem`); their tests now go through `saveScene`.
 Not in this sprint: car in 3D/2D, old worktree clean-up.
+
+## Sprint 20: floor select and All off (card)
+
+Diego, 2026-10-07: "when selecting a room, in the menu, lights, add an 'All Off' button. Allow selecting the floor (clicking on the floor pill name) same as rooms; doing so loads the side menu." Card only; branch `task/s20-floor-select`. Each task: one outcome, its failing test first.
+- [x] S20.1 All off in the room panel. One `light.turn_off` over the lights of the room that are on (`presetCalls`, the scene preset's builder). Hidden when none is on. Test: real clicks, a stub `callService`, exact call; lamp off, relay-bound lamp, plug not in it.
+- [x] S20.2 Select a floor from its pill. The pill shows the floor as before and opens the same side panel on a floor summary (`floorSummary`, one builder with `roomSummary`): lights on, devices, sensors, doors over every room. All off acts on the whole floor. A room pick replaces it; Escape, the empty plan, the x and the pill again clear it; a `hass` update keeps it; `setConfig` clears it. `aria-pressed` still marks the floor shown; the class `fp-floor-picked` marks the floor selected.
+
