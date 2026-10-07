@@ -5,17 +5,21 @@
 /** How far an arrow pans, as a share of the view's width. */
 export const PAN_STEP = 0.1;
 
-/** Left and Right pan the view (Diego, 2026-10-07; they used to turn it: the rotate buttons still do). */
-export type ViewKey = "zoomIn" | "zoomOut" | "panLeft" | "panRight" | "reset";
+/** The arrows pan, + and - zoom, [ and ] turn the plan (Diego, 2026-10-07; the arrows used to zoom and turn it). */
+export type ViewKey = "zoomIn" | "zoomOut" | "panLeft" | "panRight" | "panUp" | "panDown" | "rotateLeft" | "rotateRight" | "reset";
 
-/** Arrows and Space, plain or with Alt or Shift. Ctrl and Cmd belong to the browser and the OS (Cmd-Left is "back",
+/** Arrows, + - [ ] and Space, plain or with Alt or Shift. Ctrl and Cmd belong to the browser and the OS (Cmd-Left is "back",
  * Ctrl-Arrow switches desktops), so a chord with either is never a view key. Auto-repeat is fine: holding an arrow
- * keeps zooming. */
+ * keeps panning. */
 export function viewKeyOf(ev: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey">): ViewKey | null {
   if (ev.ctrlKey || ev.metaKey) return null;
   switch (ev.key) {
-    case "ArrowUp": return "zoomIn";
-    case "ArrowDown": return "zoomOut";
+    case "ArrowUp": return "panUp";
+    case "ArrowDown": return "panDown";
+    case "+": case "=": return "zoomIn"; // "=" is the same key without Shift
+    case "-": case "_": return "zoomOut";
+    case "[": return "rotateLeft";
+    case "]": return "rotateRight";
     case "ArrowLeft": return "panLeft";
     case "ArrowRight": return "panRight";
     case " ": case "Spacebar": return "reset";

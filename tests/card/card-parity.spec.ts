@@ -92,7 +92,7 @@ for (const row of MATRIX) {
     expect(await planDeg(page)).toBe(0);
     if (row.rotate) { await card(page).locator('css=button[aria-label="Rotate right"]').click(); await settled(page); expect(await planDeg(page)).toBe(45); }
     const w0 = await vbW(page); // after the turn: a turned plan has another bounding box
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("+");
     if (row.zoomKeys) {
       await expect.poll(() => vbW(page)).toBeLessThan(w0);
       const x0 = await vbX(page);
@@ -143,7 +143,7 @@ test("one click on the card, then the pointer away: the keys still reach it", as
   const box = (await card(page).boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.9); // empty plan, not a device
   await page.mouse.move(1, 1);
-  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("+");
   await settled(page);
   const x0 = await vbX(page);
   await page.keyboard.press("ArrowLeft");
@@ -156,7 +156,7 @@ test("in Home Assistant's shadow roots: one click on the card, then the pointer 
   const box = (await card(page).boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.9);
   await page.mouse.move(1, 1);
-  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("+");
   await settled(page);
   const x0 = await vbX(page);
   await page.keyboard.press("ArrowLeft");
@@ -167,7 +167,7 @@ test("in Home Assistant's shadow roots: the pointer over the card, no click, the
   await boot(page, BASE, 375, {}, true);
   const box = (await card(page).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.8);
-  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("+");
   await settled(page);
   const x0 = await vbX(page);
   await page.keyboard.press("ArrowRight");
@@ -180,7 +180,7 @@ test("in Home Assistant's shadow roots: after a click away from the card the key
   await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.9);
   await page.mouse.click(box.x + box.width + 20, 700); // the page, outside the card
   const w0 = await vbW(page);
-  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("+");
   await page.waitForTimeout(150);
   expect(await vbW(page)).toBe(w0);
 });
@@ -191,7 +191,7 @@ test("a click on a rotate button, then the keys: the keys still reach the card, 
   await settled(page);
   await page.mouse.move(1, 1);
   const w0 = await vbW(page);
-  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("+");
   await expect.poll(() => vbW(page)).toBeLessThan(w0);
   await page.keyboard.press("ArrowRight");
   await settled(page);

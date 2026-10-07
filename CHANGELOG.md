@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Keys, card and editor: the four arrows pan, `+` and `-` zoom, `[` and `]` turn
+  the plan 45 degrees, Space still resets. The arrows no longer zoom.
+- The editor's Help button is now "? Help" and opens with a controls table.
+
 ## 0.17.0 - 2026-10-07
 
 - Card, studio: **Left and Right pan** the view a tenth of its width; they no longer turn the plan. The rotate buttons still do. In the card a key that cannot move anything (not zoomed in, or at the edge) is left to the page.

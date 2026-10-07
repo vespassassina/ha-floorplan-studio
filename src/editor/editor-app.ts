@@ -439,6 +439,9 @@ export class FloorplanStudioEditor extends LitElement {
     .sub>summary::-webkit-details-marker{display:none}
     .sub>summary::after{content:" \\25B8"}
     .sub>.btn:not(summary){padding-left:20px}
+    .controls{border-collapse:collapse;width:100%;margin:8px 0}
+    .controls th,.controls td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--fp-line,#8884);vertical-align:top;font-weight:400}
+    .controls kbd{font:600 12px ui-monospace,monospace;white-space:nowrap}
     .guide summary{cursor:pointer;font-weight:600;list-style:none}
     .guide summary::-webkit-details-marker{display:none}
     .guide summary::before{content:"\\25B8";display:inline-block;width:1em;transition:transform .15s ease}
@@ -1694,7 +1697,7 @@ export class FloorplanStudioEditor extends LitElement {
     return Math.abs(was.w / fit.w - 1) < 1e-3 && Math.abs(was.h / fit.h - 1) < 1e-3;
   }
 
-  /** The Rotate view buttons and arrow keys: 45 degrees on top of `layout.rotate`, animated. View state only: the layout is never written and there is no undo step. */
+  /** The Rotate view buttons and the [ ] keys: 45 degrees on top of `layout.rotate`, animated. View state only: the layout is never written and there is no undo step. */
   private turnBy(delta: number) {
     this.startTurn((this.turn ? this.turn.to : this.st.viewRot) + delta, this.turn ? this.turn.whole : this.viewIsWhole());
   }
@@ -1749,10 +1752,10 @@ export class FloorplanStudioEditor extends LitElement {
     this.turn = null;
   }
 
-  /** Moves the view sideways by a share of its width, as a drag on the plan would. */
-  private panKey(share: number) {
+  /** Moves the view by a share of its width and height, as a drag on the plan would. */
+  private panKey(dx: number, dy: number) {
     const st = this.st, v = st.view;
-    st.views[st.floor] = panBy(v, share * v.w, 0);
+    st.views[st.floor] = panBy(v, dx * v.w, dy * v.h);
     this.requestUpdate();
   }
 
@@ -1760,7 +1763,12 @@ export class FloorplanStudioEditor extends LitElement {
     ev.preventDefault();
     if (key === "zoomIn") this.zoomBy(1 / 1.25);
     else if (key === "zoomOut") this.zoomBy(1.25);
-    else if (key === "panLeft" || key === "panRight") this.panKey(key === "panLeft" ? -PAN_STEP : PAN_STEP);
+    else if (key === "panLeft") this.panKey(-PAN_STEP, 0);
+    else if (key === "panRight") this.panKey(PAN_STEP, 0);
+    else if (key === "panUp") this.panKey(0, -PAN_STEP);
+    else if (key === "panDown") this.panKey(0, PAN_STEP);
+    else if (key === "rotateLeft") this.turnBy(-ROTATION_STEP);
+    else if (key === "rotateRight") this.turnBy(ROTATION_STEP);
     else this.resetView();
   }
 
@@ -2685,7 +2693,7 @@ export class FloorplanStudioEditor extends LitElement {
         </div></details>
         <!-- S8.10 follow-up: Help, then Undo and Redo as the cluster's last items, so Redo's own right edge is
              the one the toolbar-alignment acceptance test pins. -->
-        <button class="btn" id="help" aria-expanded=${pressed(st.helpOpen)} @click=${() => this.toggleHelp()}>Help</button>
+        <button class="btn" id="help" aria-expanded=${pressed(st.helpOpen)} title="Controls and a step-by-step guide" @click=${() => this.toggleHelp()}>? Help</button>
         <!-- S8.10 follow-up (Opus review): Undo and Redo as one flex item (nowrap inside), so wrapping ever moves
              the pair together onto the next row — two separate items let the row that fit Undo split Redo onto
              its own row alone. -->

@@ -31,6 +31,8 @@ async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<F
 const q = <T extends Element>(el: FloorplanStudioCard, sel: string) => el.shadowRoot!.querySelector<T>(sel);
 const vbW = (el: FloorplanStudioCard) => Number(q<SVGSVGElement>(el, "svg")!.getAttribute("viewBox")!.split(/\s+/)[2]);
 const vbX = (el: FloorplanStudioCard) => Number(q<SVGSVGElement>(el, "svg")!.getAttribute("viewBox")!.split(/\s+/)[0]);
+const vbY = (el: FloorplanStudioCard) => Number(q<SVGSVGElement>(el, "svg")!.getAttribute("viewBox")!.split(/\s+/)[1]);
+const vbH = (el: FloorplanStudioCard) => Number(q<SVGSVGElement>(el, "svg")!.getAttribute("viewBox")!.split(/\s+/)[3]);
 const hover = (el: Element) => el.dispatchEvent(new Event("pointerenter"));
 const leave = (el: Element) => el.dispatchEvent(new Event("pointerleave"));
 /** Presses `key` where the event starts at `from` (document.body by default). Returns whether the card took it. */
@@ -53,20 +55,20 @@ afterEach(() => {
 });
 
 describe("card keys: what each key does", () => {
-  it("Up zooms in, Down zooms out", async () => {
+  it("+ zooms in, - zooms out", async () => {
     const el = await mount();
     hover(el);
     const w0 = vbW(el);
-    expect(press("ArrowUp")).toBe(true);
+    expect(press("+")).toBe(true);
     await settle(el);
     const w1 = vbW(el);
     expect(w1).toBeLessThan(w0);
-    press("ArrowUp");
+    press("+");
     await settle(el);
     expect(vbW(el)).toBeLessThan(w1);
-    press("ArrowDown");
-    press("ArrowDown");
-    press("ArrowDown");
+    press("-");
+    press("-");
+    press("-");
     await settle(el);
     expect(vbW(el)).toBeGreaterThan(w0); // zooming out past fit is allowed down to MIN_ZOOM
   });
@@ -75,8 +77,8 @@ describe("card keys: what each key does", () => {
     const el = await mount();
     hover(el);
     expect(press("ArrowRight")).toBe(false); // not zoomed: the whole plan is on show, nothing to pan
-    press("ArrowUp");
-    press("ArrowUp");
+    press("+");
+    press("+");
     await settle(el);
     const x0 = vbX(el), w = vbW(el);
     press("ArrowRight");
@@ -87,6 +89,40 @@ describe("card keys: what each key does", () => {
     await settle(el);
     expect(vbX(el) - x0).toBeCloseTo(-w * 0.1, 4);
     expect(deg()).toBe(0);
+  });
+
+  it("Up and Down pan the view a tenth of its height either way", async () => {
+    const el = await mount();
+    hover(el);
+    expect(press("ArrowDown")).toBe(false); // not zoomed: nothing to pan
+    press("+");
+    press("+");
+    await settle(el);
+    const y0 = vbY(el), h = vbH(el), w0 = vbW(el);
+    expect(press("ArrowDown")).toBe(true);
+    await settle(el);
+    expect(vbY(el) - y0).toBeCloseTo(h * 0.1, 4);
+    press("ArrowUp");
+    press("ArrowUp");
+    await settle(el);
+    expect(vbY(el) - y0).toBeCloseTo(-h * 0.1, 4);
+    expect(vbW(el)).toBe(w0); // panning never zooms
+  });
+
+  it("[ and ] turn the plan 45 degrees; rotate_switch: false leaves them alone", async () => {
+    const el = await mount();
+    hover(el);
+    expect(press("]")).toBe(true);
+    await settle(el);
+    expect(deg()).toBe(45);
+    press("[");
+    press("[");
+    await settle(el);
+    expect(deg()).toBe(315);
+    el.remove();
+    const none = await mount({ rotate_switch: false });
+    hover(none);
+    expect(press("[")).toBe(false);
   });
 
   it("the rotate buttons still turn the plan 45 degrees, and the steps wrap", async () => {
@@ -100,7 +136,7 @@ describe("card keys: what each key does", () => {
     const el = await mount();
     hover(el);
     const w0 = vbW(el);
-    press("ArrowUp");
+    press("+");
     q<HTMLButtonElement>(el, 'button[aria-label="Rotate right"]')!.click();
     await settle(el);
     expect(vbW(el)).not.toBe(w0);
@@ -121,18 +157,18 @@ describe("card keys: what each key does", () => {
     const noZoom = await mount({ zoom: false });
     hover(noZoom);
     const w0 = vbW(noZoom);
-    expect(press("ArrowUp")).toBe(false);
+    expect(press("+")).toBe(false);
     expect(press("ArrowRight")).toBe(false);
     expect(vbW(noZoom)).toBe(w0);
     noZoom.remove();
     const noSwitch = await mount({ view_switch: false });
     hover(noSwitch);
-    expect(press("ArrowUp")).toBe(true);
+    expect(press("+")).toBe(true);
     expect(press("ArrowRight")).toBe(true); // zoomed now, so there is something to pan
     noSwitch.remove();
     const noRotate = await mount({ rotate_switch: false });
     hover(noRotate);
-    expect(press("ArrowUp")).toBe(true);
+    expect(press("+")).toBe(true);
     expect(press("ArrowRight")).toBe(true); // panning has nothing to do with the rotate pair
   });
 
@@ -140,7 +176,7 @@ describe("card keys: what each key does", () => {
     const el = await mount({ kiosk: true });
     hover(el);
     expect(press(" ")).toBe(false); // nothing to reset yet
-    expect(press("ArrowUp")).toBe(true);
+    expect(press("+")).toBe(true);
     expect(press("ArrowLeft")).toBe(true);
   });
 
@@ -148,7 +184,7 @@ describe("card keys: what each key does", () => {
     const el = await mount();
     hover(el);
     expect(press("a")).toBe(false);
-    expect(press("ArrowUp", document.body, { ctrlKey: true })).toBe(false);
+    expect(press("+", document.body, { ctrlKey: true })).toBe(false);
     expect(press("ArrowLeft", document.body, { metaKey: true })).toBe(false);
   });
 });
@@ -157,7 +193,7 @@ describe("card keys: which card listens", () => {
   it("a card nobody points at or focused ignores the keys", async () => {
     const el = await mount();
     const w0 = vbW(el);
-    expect(press("ArrowUp")).toBe(false);
+    expect(press("+")).toBe(false);
     await settle(el);
     expect(vbW(el)).toBe(w0);
   });
@@ -166,7 +202,7 @@ describe("card keys: which card listens", () => {
     const el = await mount();
     hover(el);
     leave(el);
-    expect(press("ArrowUp")).toBe(false);
+    expect(press("+")).toBe(false);
   });
 
   it("with two cards only the one under the pointer moves", async () => {
@@ -174,7 +210,7 @@ describe("card keys: which card listens", () => {
     const b = await mount();
     const [wa, wb] = [vbW(a), vbW(b)];
     hover(b);
-    press("ArrowUp");
+    press("+");
     await settle(a);
     await settle(b);
     expect(vbW(a)).toBe(wa);
@@ -188,7 +224,7 @@ describe("card keys: which card listens", () => {
     b.focus();
     expect(document.activeElement).toBe(b);
     const [wa, wb] = [vbW(a), vbW(b)];
-    press("ArrowUp");
+    press("+");
     await settle(a);
     await settle(b);
     expect(vbW(a)).toBe(wa);
@@ -199,7 +235,7 @@ describe("card keys: which card listens", () => {
     const el = await mount();
     el.focus();
     const w0 = vbW(el);
-    press("ArrowUp");
+    press("+");
     await settle(el);
     expect(vbW(el)).toBeLessThan(w0);
   });
@@ -208,7 +244,7 @@ describe("card keys: which card listens", () => {
     const el = await mount();
     hover(el);
     el.remove();
-    expect(press("ArrowUp")).toBe(false);
+    expect(press("+")).toBe(false);
   });
 });
 
@@ -219,7 +255,7 @@ describe("card keys: what they never take", () => {
     for (const tag of ["input", "textarea", "select"]) {
       const f = document.createElement(tag);
       document.body.appendChild(f);
-      expect(press("ArrowUp", f), tag).toBe(false);
+      expect(press("+", f), tag).toBe(false);
       expect(press("ArrowLeft", f), tag).toBe(false);
       expect(press(" ", f), tag).toBe(false);
     }
@@ -230,7 +266,7 @@ describe("card keys: what they never take", () => {
     hover(el);
     const tilt = q<HTMLInputElement>(el, 'input[type="range"][aria-label="Tilt"]')!;
     expect(press("ArrowLeft", tilt)).toBe(false);
-    expect(press("ArrowUp", tilt)).toBe(false);
+    expect(press("+", tilt)).toBe(false);
   });
 
   it("Space on a focused toolbar button still activates that button, not Reset view", async () => {
@@ -246,7 +282,7 @@ describe("card keys: what they never take", () => {
     const el = await mount();
     hover(el);
     const labels = q<HTMLButtonElement>(el, 'button[aria-label="Labels"]')!;
-    press("ArrowUp");
+    press("+");
     await settle(el);
     const x0 = vbX(el);
     expect(press("ArrowRight", labels)).toBe(true);
@@ -260,7 +296,7 @@ describe("card keys: what they never take", () => {
     (el as unknown as { _chooserDialog: unknown })._chooserDialog = { title: "x", entities: ["light.a", "light.b"] };
     el.requestUpdate();
     await settle(el);
-    expect(press("ArrowUp")).toBe(false);
+    expect(press("+")).toBe(false);
   });
 });
 
@@ -278,7 +314,7 @@ describe("card keys are remembered like any other touch", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"] });
     const el = await mount();
     hover(el);
-    press("ArrowUp");
+    press("+");
     await vi.advanceTimersByTimeAsync(200);
     expect((stored()[0]?.floors as [string, { zoom?: number }][] | undefined)?.[0]?.[1].zoom).toBeGreaterThan(1);
   });

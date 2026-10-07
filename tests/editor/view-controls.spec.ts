@@ -128,16 +128,16 @@ test.describe("rotate view buttons", () => {
 });
 
 test.describe("keys", () => {
-  test("Up zooms in, Down zooms out, Right and Left pan, Space resets (editor focused, nothing selected)", async ({ page }) => {
+  test("+ zooms in, - zooms out, the arrows pan, Space resets, Space resets (editor focused, nothing selected)", async ({ page }) => {
     await focusEditor(page);
     const w0 = (await viewBox(page))[2]!;
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("+");
     await expect.poll(async () => (await viewBox(page))[2]!).toBeLessThan(w0);
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("-");
+    await page.keyboard.press("-");
     await expect.poll(async () => (await viewBox(page))[2]!).toBeGreaterThan(w0);
-    await page.keyboard.press("ArrowUp");
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("+");
+    await page.keyboard.press("+");
     await expect.poll(async () => (await viewBox(page))[2]!).toBeLessThan(w0);
     const v0 = await viewBox(page);
     await page.keyboard.press("ArrowRight");
@@ -154,12 +154,33 @@ test.describe("keys", () => {
     await expect(page.locator("#undo")).toBeDisabled(); // none of it is an edit
   });
 
+  test("Up and Down pan vertically, [ and ] turn the plan 45 degrees, and neither touches the layout", async ({ page }) => {
+    await focusEditor(page);
+    await page.keyboard.press("+");
+    await page.keyboard.press("+");
+    const v0 = await viewBox(page);
+    await page.keyboard.press("ArrowDown");
+    await expect.poll(async () => (await viewBox(page))[1]!).toBeGreaterThan(v0[1]!);
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("ArrowUp");
+    await expect.poll(async () => (await viewBox(page))[1]!).toBeLessThan(v0[1]!);
+    expect((await viewBox(page))[2]!).toBeCloseTo(v0[2]!, 3);
+    await page.keyboard.press("]");
+    await settled(page);
+    expect(await planDeg(page)).toBe(45);
+    await page.keyboard.press("[");
+    await page.keyboard.press("[");
+    await settled(page);
+    expect(await planDeg(page)).toBe(315);
+    await expect(page.locator("#undo")).toBeDisabled();
+  });
+
   test("with a device selected the arrows still act on the view and never nudge the device", async ({ page }) => {
     await clickDevice(page);
     expect(await st(page, (s) => s.sel?.t)).toBe("dev");
     const before = await layoutJson(page);
     const x0 = (await viewBox(page))[0]!;
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("+");
     await page.keyboard.press("ArrowRight");
     await settled(page);
     expect(await layoutJson(page)).toBe(before);
@@ -173,7 +194,7 @@ test.describe("keys", () => {
     await page.keyboard.press("Alt+ArrowRight");
     await expect.poll(async () => (await viewBox(page))[0]!).toBeGreaterThan(x0);
     const w0 = (await viewBox(page))[2]!;
-    await page.keyboard.press("Alt+ArrowUp");
+    await page.keyboard.press("Alt+Equal");
     await expect.poll(async () => (await viewBox(page))[2]!).toBeLessThan(w0);
   });
 
@@ -191,7 +212,7 @@ test.describe("keys", () => {
     const input = page.locator("#panel #rn").first();
     await input.click();
     const w0 = (await viewBox(page))[2]!;
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("+");
     await page.keyboard.press("ArrowRight");
     await page.keyboard.type(" a b");
     await page.waitForTimeout(100);
@@ -212,7 +233,7 @@ test.describe("keys", () => {
     await page.evaluate(() => { const i = document.createElement("input"); i.id = "outside"; document.body.appendChild(i); (i as HTMLElement).blur(); });
     await page.locator("body").click({ position: { x: 5, y: 5 } });
     const w0 = (await viewBox(page))[2]!;
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("+");
     await page.waitForTimeout(100);
     expect((await viewBox(page))[2]!).toBe(w0);
   });
@@ -345,4 +366,15 @@ test("the Help panel lists the view keys", async ({ page }) => {
   await page.locator("#help").click();
   await expect(page.locator("#panel")).toContainText("Space");
   await expect(page.locator("#panel")).toContainText("Cmd/Ctrl+S");
+});
+
+test("the ? menu has a controls table with the view keys, and no step still says the arrows zoom", async ({ page }) => {
+  await expect(page.locator("#help")).toHaveText("? Help");
+  await page.locator("#help").click();
+  const rows = page.locator("#controls tr");
+  await expect(rows.first()).toContainText("Arrow keys");
+  await expect(page.locator("#controls")).toContainText("Zoom in and out");
+  await expect(page.locator("#controls")).toContainText("Turn the plan 45 degrees");
+  await expect(page.locator("#panel .guide")).not.toContainText("arrows zoom");
+  expect(await page.locator("#controls").evaluate((t) => getComputedStyle(t).borderCollapse)).toBe("collapse");
 });

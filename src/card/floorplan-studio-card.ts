@@ -624,7 +624,7 @@ export class FloorplanStudioCard extends LitElement {
     if (key && this._doViewKey(key)) ev.preventDefault();
   };
 
-  /** Whether the two rotate buttons exist, which is when Left and Right turn the plan. `rotate_switch` decides
+  /** Whether the two rotate buttons exist, which is when [ and ] turn the plan. `rotate_switch` decides
    * when it is a boolean; otherwise they come with any other control the card draws (zoom or the View dropdown)
    * and go with kiosk. Rotation does not depend on 2.5D: it turns the 2D plan too. */
   private _rotateOn(): boolean {
@@ -651,15 +651,24 @@ export class FloorplanStudioCard extends LitElement {
         this._zoomCentre(key === "zoomIn" ? BUTTON_ZOOM : 1 / BUTTON_ZOOM);
         return true;
       case "panLeft":
-      case "panRight": {
+      case "panRight":
+      case "panUp":
+      case "panDown": {
         if (this._zoomMode() === false) return false;
         const v = this._current(), fit = this._fit;
         if (!v || !fit) return false;
-        const to = clamp(panBy(v, (key === "panLeft" ? -PAN_STEP : PAN_STEP) * v.w, 0), fit);
+        const dx = key === "panLeft" ? -PAN_STEP * v.w : key === "panRight" ? PAN_STEP * v.w : 0;
+        const dy = key === "panUp" ? -PAN_STEP * v.h : key === "panDown" ? PAN_STEP * v.h : 0;
+        const to = clamp(panBy(v, dx, dy), fit);
         if (sameView(to, v, fit)) return false; // at the edge, or not zoomed: nothing moved, so the page keeps the key
         this._setView(to);
         return true;
       }
+      case "rotateLeft":
+      case "rotateRight":
+        if (!this._rotateOn()) return false;
+        this._turnBy(key === "rotateLeft" ? -ROTATION_STEP : ROTATION_STEP);
+        return true;
       case "reset":
         if (this._hasViewControls()) {
           if (!this._modified()) return false;

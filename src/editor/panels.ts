@@ -8,7 +8,7 @@ import type { CatalogEntry, DeviceType, Door, EdgeKind, Floor, StairDirection, H
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 import { addScene, addSceneItem, removeScene, removeSceneItem, renameScene, roomSceneTargets, setRoomHaScenes, setSceneItem } from "./room-scenes-ops";
-import { GUIDE_STEPS } from "./guide";
+import { GUIDE_STEPS, CONTROLS } from "./guide";
 import "./combo";
 import type { ComboOption } from "./combo";
 import { groupSensorChoices, type GroupedChoice } from "./sensor-order";
@@ -241,8 +241,11 @@ function entityField(c: PanelCtx, id: string, label: string, cur: string | undef
  * in the toolbar (editor-app.ts), which also gives focus back to itself when this panel's Close button is used.
  */
 export function helpPanel(close: () => void): TemplateResult {
-  return html`<strong>Help</strong>
+  return html`<strong>? Help</strong>
     <p><button class="btn" id="helpClose" @click=${close}>Close</button></p>
+    <table class="controls" id="controls" aria-label="Controls">
+      ${CONTROLS.map((c) => html`<tr><th scope="row"><kbd>${c.keys}</kbd></th><td>${c.does}</td></tr>`)}
+    </table>
     <ol class="guide">
       ${GUIDE_STEPS.map((s) => html`<li><details><summary>${s.title}</summary><p>${s.body}</p></details></li>`)}
     </ol>`;

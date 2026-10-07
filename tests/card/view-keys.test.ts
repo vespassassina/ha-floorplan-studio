@@ -25,9 +25,11 @@ const el = (html: string) => {
 };
 
 describe("viewKeyOf", () => {
-  it("maps the four arrows and Space", () => {
+  it("maps the arrows to pan, plus and minus to zoom, the brackets to rotate, and Space to reset", () => {
     const k = (key: string) => viewKeyOf({ key, ctrlKey: false, metaKey: false });
-    expect([k("ArrowUp"), k("ArrowDown"), k("ArrowLeft"), k("ArrowRight"), k(" ")]).toEqual(["zoomIn", "zoomOut", "panLeft", "panRight", "reset"]);
+    expect([k("ArrowUp"), k("ArrowDown"), k("ArrowLeft"), k("ArrowRight"), k(" ")]).toEqual(["panUp", "panDown", "panLeft", "panRight", "reset"]);
+    expect([k("+"), k("="), k("-"), k("_")]).toEqual(["zoomIn", "zoomIn", "zoomOut", "zoomOut"]);
+    expect([k("["), k("]")]).toEqual(["rotateLeft", "rotateRight"]);
     expect(k("a")).toBeNull();
     expect(k("Enter")).toBeNull();
   });
@@ -63,7 +65,7 @@ describe("who keeps the keys", () => {
     for (const h of ['<input type="checkbox">', "<button></button>", "<div></div>"]) {
       const e = el(h);
       expect(takesTyping(e), h).toBe(false);
-      expect(press(e, { key: "ArrowUp" }).answer, h).toBe("zoomIn");
+      expect(press(e, { key: "ArrowUp" }).answer, h).toBe("panUp");
     }
   });
   it("Space stays with whatever it activates, so a focused button still clicks", () => {
