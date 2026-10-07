@@ -2574,3 +2574,18 @@ Source: Diego's notes after 0.18.0, 2026-10-07. Each task: one outcome, one fail
 1. S18.1: where does the scene not show: the room's scene list in the editor, or the card?
 2. S18.12: "connected" means what? Playing, or grouped, or only the one the card tracks?
 3. S18.14: which types are "popular"? Proposal: light, switch, motion, door, temperature, speaker, tv.
+
+## Sprint 19: clean-up after 0.19.0
+
+Each task: one outcome, one failing test first, one commit. Branch `task/s19-cleanup`.
+- [x] S19.A Garden house floor missing in 3D. Not reproduced on the demo, but eight variants failed (a shed more than 30 cm over the border, half over, turned, bigger than the garden, across an L notch, crossing like a plus, two copies of one outline): neither room lifted, two fills at one height. Rule is now overlap, not corners.
+- [ ] S19.B `roomSummary` passes the plugs map to `pieceOn`, as `render.ts` does.
+- [ ] S19.C Look at siren, alarm, linked tv/speaker/computer pieces in `npm run shots`; fix what is wrong.
+- [ ] S19.D SPEC and README: siren, alarm, linked pieces, grouped type menu.
+- [ ] S19.E1 Kiosk popup closes on Escape.
+- [ ] S19.E2 A stale tooltip goes when its target changes or leaves.
+- [ ] S19.E3 The card honours `layout.colors` as the editor does.
+- [ ] S19.E4 `temp` joins `NO_TOGGLE`.
+- [ ] S19.E5 Camera cone clip.
+- [ ] S19.E6 Remove unused scene writers.
+Not in this sprint: car in 3D/2D, old worktree clean-up.

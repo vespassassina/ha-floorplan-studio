@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 3D: a room that overlaps a bigger one always sits above it. A garden house or shed that stood more than 30 cm over the garden's border, half over it, turned, across a notch, or was bigger than the garden, had its floor hidden under the other; now it shows. Rooms that only share a border stay level.
+
 ## 0.19.0 - 2026-10-07
 
 - Only a tv, speaker or computer takes the padded grab box in the editor; a small toilet, sink or shower no longer takes a click meant for its room. A wall or room edge within 8 px wins over a thin tv lying on it. An entity a piece already tracks is no longer offered to place a second time.
