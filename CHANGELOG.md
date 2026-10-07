@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Furniture is filled, not an outline: every symbol takes a body colour from the theme (light, dark and every theme), with the stroke kept as the edge. A piece with an entity that is on takes the on colour, body and edge.
+- A tv or speaker piece whose media player is playing sends out the same two waves a speaker device does, in 2D and 2.5D, in the on colour.
+- The computer is drawn as a desk seen from above, with a monitor, a keyboard and a case. New ones are 120 x 60 cm; computers already on a plan keep their size.
+
 ## 0.18.2 - 2026-10-07
 
 - 3D: a garden house or shed whose wall stands a few cm over the garden's border now shows its floor. It was hidden under the garden when a corner was just outside. A narrow room beside the garden still does not count as inside it.

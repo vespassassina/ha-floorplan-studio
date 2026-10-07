@@ -60,8 +60,12 @@ export const UI_ICONS = {
 } as const;
 
 const S = 'fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"';
-const r = (x: number, y: number, w: number, h: number, rx = 0) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" ${S}/>`;
-const c = (x: number, y: number, rr: number) => `<circle cx="${x}" cy="${y}" r="${rr}" ${S}/>`;
+// S18.8: a shape that is a body (not a line) carries class "ff"; the stylesheet fills it from the theme and the piece's own
+// colour (`.furn .ff`), so the markup holds no colour. The attribute set has no fill, or a presentation attribute would
+// compete with the rule (finding 18).
+const SB = 'class="ff" stroke="currentColor" stroke-width="3" stroke-linejoin="round"';
+const r = (x: number, y: number, w: number, h: number, rx = 0, part = "") => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" ${part ? `data-part="${part}" ` : ""}${SB}/>`;
+const c = (x: number, y: number, rr: number) => `<circle cx="${x}" cy="${y}" r="${rr}" ${SB}/>`;
 
 /** Top-down symbols drawn in a 100x100 box, stretched to `w` x `h` cm. Colour is `currentColor`. */
 export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: string }> = {
@@ -71,12 +75,14 @@ export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: str
   cabinet: { w: 100, h: 45, svg: r(4, 4, 92, 92, 2) + `<path d="M50 4 V96" ${S}/>` },
   chair: { w: 45, h: 45, svg: r(10, 10, 80, 80, 12) + `<path d="M10 20 H90" ${S}/>` },
   sink: { w: 60, h: 45, svg: r(4, 4, 92, 92, 6) + r(20, 20, 60, 60, 20) + c(50, 50, 4) },
-  toilet: { w: 40, h: 65, svg: r(20, 4, 60, 26, 4) + `<ellipse cx="50" cy="64" rx="36" ry="30" ${S}/>` },
+  toilet: { w: 40, h: 65, svg: r(20, 4, 60, 26, 4) + `<ellipse cx="50" cy="64" rx="36" ry="30" ${SB}/>` },
   shower: { w: 90, h: 90, svg: r(4, 4, 92, 92, 2) + c(50, 50, 8) + `<path d="M4 4 L96 96 M96 4 L4 96" ${S} stroke-opacity=".4"/>` },
   bathtub: { w: 170, h: 75, svg: r(4, 4, 92, 92, 14) + r(14, 14, 72, 72, 22) + c(88, 50, 3) },
   tv: { w: 120, h: 10, svg: r(2, 20, 96, 60, 4) },
   speaker: { w: 25, h: 25, svg: r(10, 4, 80, 92, 8) + c(50, 62, 20) + c(50, 26, 9) },
-  computer: { w: 60, h: 40, svg: r(20, 4, 60, 40, 3) + r(10, 54, 80, 36, 3) },
+  // S18.13: seen from above, the user at the bottom: a desk, the monitor along its back edge, a keyboard in front of it and
+  // the case standing beside. 120 x 60 cm is a real desk; a layout that stored its own w and h keeps them.
+  computer: { w: 120, h: 60, svg: r(2, 2, 96, 96, 3, "desk") + r(24, 10, 44, 8, 2, "monitor") + `<path d="M46 18 V30" ${S}/>` + r(26, 54, 40, 18, 3, "keyboard") + `<path d="M32 63 H60" ${S} stroke-opacity=".5"/>` + r(76, 10, 16, 42, 3, "case") + c(84, 20, 2.5) },
   tree: { w: 200, h: 200, svg: c(50, 50, 46) + c(50, 50, 8) },
   "patio-wood": { w: 300, h: 300, svg: r(2, 2, 96, 96, 0) + [20, 40, 60, 80].map((y) => `<path d="M2 ${y} H98" ${S} stroke-opacity=".5"/>`).join("") },
   "patio-concrete": { w: 300, h: 300, svg: r(2, 2, 96, 96, 0) + `<path d="M34 2 V98 M66 2 V98 M2 34 H98 M2 66 H98" ${S} stroke-opacity=".5"/>` },

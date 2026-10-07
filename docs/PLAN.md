@@ -2562,12 +2562,12 @@ Source: Diego's notes after 0.18.0, 2026-10-07. Each task: one outcome, one fail
 - S18.7 Popups open centred in the viewport and never cut off, whatever the side bar length. Place popup and scene designer both.
 
 ### Sprint 18b: furniture that reads
-- S18.8 Furniture is filled, in theme colours, not an outline. A test iterates every furniture kind (finding 17).
-- S18.9 An active furniture item (TV, speaker) takes the ON colour, with waves.
+- [x] S18.8 Furniture is filled, in theme colours, not an outline. A test iterates every furniture kind (finding 17).
+- [x] S18.9 An active furniture item (TV, speaker) takes the ON colour, with waves.
 - S18.10 Speakers and TVs are easy to grab: bigger hit area, `closest("g[data-x]")`, real-mouse test.
 - S18.11 Adding a connectable device (speaker, TV, computer) creates it as furniture directly, movable.
 - S18.12 A connected speaker or TV (actively tracking) gets its own colour. Needs a definition of "connected" from Diego.
-- S18.13 Computer drawn as a desk with case, monitor and keyboard.
+- [x] S18.13 Computer drawn as a desk with case, monitor and keyboard.
 - S18.14 Device type menu: popular types on top, a separator, the rest A to Z. Adds `alarm` and `siren` as choosable types. `isSiren` already keys on the entity domain; the type must agree.
 
 ### Open questions

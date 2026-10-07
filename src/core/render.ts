@@ -13,7 +13,7 @@ import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 import { meanReading } from "./readings";
 import { DEVICE_SOLID, STEM_MIN_Z, furnitureMode, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
-import type { Device, DeviceType, EdgeKind, Floor, Layout, Pt, RoomKind, Stairs } from "./schema";
+import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
 export interface RenderOpts {
@@ -260,6 +260,13 @@ export const FLOORPLAN_CSS = `
    under it in either theme (Opus review). --fp-active is its own token, amber like --fp-on, chosen per theme for
    at least 3:1 contrast against both --fp-room and --fp-bg (measured: light 5.0:1 / 5.6:1, dark 6.8:1 / 8.0:1). */
 .furn.on{color:var(--fp-active)}
+/* S18.8: furniture is filled, not an outline. The body takes the piece's own colour (currentColor: --fp-furniture, or --fp-active
+   when on) thinned into --fp-room-empty (the plain room, what most furniture stands on; --fp-room is dark in the dark themes and made dark blobs), so every theme and dark mode keep their hue and the stroke stays the edge.
+   .ff is on bodies only; lines in a symbol (a bed's pillow line) keep fill:none. */
+.furn .ff{fill:color-mix(in srgb,currentColor 45%,var(--fp-room-empty))}
+/* S18.9: the two waves of a playing tv or speaker piece. They sit beside the scaled symbol group (a non-uniform scale would
+   squash the circles), take --fp-dev from the on colour, and reuse .wave for shape, motion and reduced motion. */
+.furn-waves{--fp-dev:var(--fp-active)}
 /* S8.9: internal corners and T-joins at the new 10-20 cm thickness are kept gap-free by the round linecap already
    here (each segment's rounded end overlaps its neighbour's whatever the angle between them); only the numbers
    changed. External walls keep the square cap they always had (a mitred, not rounded, look for the house perimeter). */
@@ -685,6 +692,19 @@ function entityOn(o: RenderOpts, entity: string | undefined, plugs?: ReadonlyMap
   if (plug) return classOf(plug, o) === "on";
   if (entity.startsWith("cover.")) return coverActive(s); // a curtain behind a room does not light it either
   return ON_STATES.has(s.state);
+}
+
+/**
+ * S18.9: the two waves of a tv or speaker piece whose entity is playing, as markup with `%AT%` where the centre goes (the 2D
+ * path puts the plan position there, 2.5D the lid's). Exactly "playing", as a speaker device: "on" is lit but silent. The
+ * radius is a quarter of the piece's longer side (the ring grows to 2.4 times that), at least 15 cm, so a 10 cm deep tv still sends out a visible ring.
+ */
+function furnitureWaves(o: RenderOpts, m: Furniture): string | null {
+  if ((m.symbol !== "tv" && m.symbol !== "speaker") || !m.entity || o.state?.[m.entity]?.state !== "playing") return null;
+  const r = num(Math.max(15, Math.max(m.w, m.h) / 4));
+  return `<g class="furn-waves" transform="translate(%AT%)">` +
+    `<circle class="wave" r="${r}" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
+    `<circle class="wave w2" r="${r}" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/></g>`;
 }
 
 /**
@@ -1147,7 +1167,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     solids.push(...wallSolids(f, px, wallsModeOf(o.walls), o.state));
     f.furniture.forEach((m, i) => {
       const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
-      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, entityOn(o, m.entity, plugs), sym.svg, px) : null;
+      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, entityOn(o, m.entity, plugs), sym.svg, px, furnitureWaves(o, m)) : null;
       if (s) solids.push(s);
     });
     for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
@@ -1287,6 +1307,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
     const on = entityOn(o, m.entity, plugs) ? " on" : "";
     out.push(`<g data-f="${i}" class="furn${on}" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
+    const waves = furnitureWaves(o, m);
+    if (waves) out.push(waves.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
   });
 
   f.doors.forEach((d, i) => {

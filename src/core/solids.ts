@@ -376,7 +376,7 @@ export function furnitureMode(m: Furniture): "box" | "pole" | "flat" {
  * One piece of furniture as a block (or a trunk), its symbol drawn at the top. `symbol` is the symbol's own markup, and
  * the group wraps all of it, so a tap anywhere on the piece still reaches `data-f`.
  */
-export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on: boolean, symbol: string, px: Proj): Solid | null {
+export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on: boolean, symbol: string, px: Proj, waves?: string | null): Solid | null {
   const z0 = furnitureBottom(m), h = furnitureTop(m), c: Pt = [m.x, m.y];
   const base = ([[-m.w / 2, -m.h / 2], [m.w / 2, -m.h / 2], [m.w / 2, m.h / 2], [-m.w / 2, m.h / 2]] as Pt[]).map((q) => turnAbout([m.x + q[0], m.y + q[1]], m.rot, c));
   const top = px.lift(c, h);
@@ -384,7 +384,9 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
   if (mode === "box") { const p = prism(base, h, px, z0); if (!p) return null; body = p; }
   else body = `<line class="trunk" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(top[0])}" y2="${num(top[1])}"/>`;
   const sym = `<g transform="translate(${num(top[0])} ${num(top[1])}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)">${symbol}</g>`;
-  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}" color="var(--fp-furniture)">${body}${sym}</g>` };
+  // S18.9: a playing tv or speaker sends its waves from the lid, outside the scaled symbol group so they stay round.
+  const w = waves ? waves.replace("%AT%", `${num(top[0])} ${num(top[1])}`) : "";
+  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}" color="var(--fp-furniture)">${body}${sym}${w}</g>` };
 }
 
 /** cm across the block under an unlinked appliance, times its own scale: a small thing, the icon says what it is. */
