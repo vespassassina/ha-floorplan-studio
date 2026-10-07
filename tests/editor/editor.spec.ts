@@ -8629,3 +8629,26 @@ test("placing a catalogued plug from Add writes its device's one power sensor in
   expect(placed).toMatchObject({ type: "plug", power: "sensor.free_power" });
   await savedValid(page);
 });
+
+// S18.10: a thin tv and a small speaker are hard to grab. Real mouse at real coordinates (finding 3), pressed 6 px outside the
+// drawn edge of the piece, not on it. A press that lands on the room or the background moves nothing.
+for (const [sym, side] of [["tv", "below"], ["speaker", "right"]] as const) {
+  test(`S18.10: a ${sym} is picked 6 px outside its drawn edge and dragged`, async ({ page }) => {
+    await menu(page, "Add");
+    await page.locator("#addFurn").selectOption(sym);
+    const before = (await groundOf(page)).furniture.at(-1)!;
+    const n = (await groundOf(page)).furniture.length - 1;
+    await page.locator("#fixPlan").press("Escape"); // leaves nothing selected that could take the press
+    const box = (await page.locator(`${EDITOR} svg g[data-f="${n}"]`).boundingBox())!;
+    const at = side === "below" ? { x: box.x + box.width / 2, y: box.y + box.height + 6 } : { x: box.x + box.width + 6, y: box.y + box.height / 2 };
+    await page.mouse.move(at.x, at.y);
+    await page.mouse.down();
+    await page.mouse.move(at.x - 20, at.y - 10, { steps: 4 });
+    await page.mouse.move(at.x - 40, at.y - 20, { steps: 4 });
+    await page.mouse.up();
+    const after = (await groundOf(page)).furniture[n];
+    expect(after.x).toBeLessThan(before.x);
+    expect(after.y).toBeLessThan(before.y);
+    expect((await layoutOf(page)).floors.ground.furniture).toHaveLength(n + 1);
+  });
+}

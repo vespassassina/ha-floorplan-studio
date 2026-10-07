@@ -9,7 +9,7 @@ import { BANNER_MS, bannerLevel, isQuiet, type BannerLevel } from "./banner";
 import { PAN_STEP, isSaveChord, viewKeyFor, type ViewKey } from "../card/view-keys";
 import { readViewMemory, writeViewMemory } from "./view-memory";
 import { traceImage } from "./trace";
-import { roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
+import { furnitureNear, roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
 import { restoreScene, tryScene } from "./scene-try";
 import { cleanSceneItem } from "./room-scenes-ops";
@@ -727,6 +727,14 @@ export class FloorplanStudioEditor extends LitElement {
 
   // ---- pointer -------------------------------------------------------------
 
+  /** S18.10: a small piece (a thin tv, a speaker) is picked from a padded box. It beats the room, the background and another
+   *  piece under it; a handle, device, door or wall element really under the pointer still wins. */
+  private padFurniture(hit: Hit, p: Pt): Hit {
+    if (hit.k !== "bg" && hit.k !== "room" && hit.k !== "stairs" && hit.k !== "furn") return hit;
+    const i = furnitureNear(this.st.f, p, this.scale);
+    return i === null ? hit : { k: "furn", i };
+  }
+
   private edgeNear(p: Pt): Hit | null {
     const th = 8 / this.scale, f = this.st.f;
     let best: { d: number; hit: Hit } | null = null;
@@ -789,7 +797,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.draw) { this.drawClick(p, ev.altKey, ev); return; }
     // A press elsewhere, or late, is not the second click of that pair; a third press means the user double-clicked on purpose.
     if (this.finished) { if (this.sameDouble(ev) && this.finished.presses === 0) this.finished.presses = 1; else this.finished = null; }
-    let hit = hitOf(ev.target as Element);
+    let hit = this.padFurniture(hitOf(ev.target as Element), p);
     if (hit.k === "bg" || hit.k === "room" || hit.k === "stairs") hit = this.edgeNear(p) ?? hit;
     const base = structuredClone(f);
     this.drag = null;

@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: small furniture is grabbed from a padded box (S18.10)
+
+A tv is 10 cm deep: at the default zoom a few pixels, and the drawn shape took clicks only on that. `furnitureNear` (`ops.ts`) gives a piece under 28 screen px on a side a box 8 px bigger each way, at least 28 px across, turned with the piece. It is a fallback in code, as `edgeNear` is, not an invisible element: an overlay rect would sit above devices, doors and walls and take their clicks. It beats the room, the background and a bigger piece under it; any handle, device, door or wall really under the pointer still wins. Big pieces get no padding. Editor only; the card is not touched.
+
 ## 2026-10-07: 375 px bare-floor threshold 0.87 to 0.85
 
 Filled furniture takes the pointer over its body (S18.8), so the kitchen table no longer counts as bare floor: room 1 measures 86.1 %. Diego's coordinator decided to lower `card-s14-review.spec.ts` from 0.87 to 0.85 at 375 px. Supersedes the "needs a decision" line of the entry below.
