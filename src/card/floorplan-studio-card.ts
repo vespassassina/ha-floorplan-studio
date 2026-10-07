@@ -1956,7 +1956,7 @@ export class FloorplanStudioCard extends LitElement {
     // aria-pressed marks the floor shown; the class marks the floor whose panel is open (S20.2), a separate fact.
     return html`<div class="fp-floors">
       ${list.map(
-        ([key, fl]) => html`<button type="button" class=${key === selected ? "fp-floor-picked" : ""} aria-pressed=${key === current ? "true" : "false"} aria-expanded=${key === selected ? "true" : "false"} @click=${() => this._tapFloorChip(key)}>${fl.title || key}</button>`,
+        ([key, fl]) => html`<button type="button" class=${key === selected ? "fp-floor-picked" : ""} aria-pressed=${key === current ? "true" : "false"} aria-expanded=${this._activeListVisible() ? (key === selected ? "true" : "false") : nothing} @click=${() => this._tapFloorChip(key)}>${fl.title || key}</button>`,
       )}
     </div>`;
   }

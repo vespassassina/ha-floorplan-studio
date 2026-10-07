@@ -217,7 +217,7 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     await pill(page, "First").click();
     await expect(pill(page, "First")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "First")).not.toHaveClass(/fp-floor-picked/);
-    await expect(pill(page, "First")).toHaveAttribute("aria-expanded", "false");
+    await expect(pill(page, "First")).not.toHaveAttribute("aria-expanded", /.*/); // no panel can open, so nothing is announced as expandable
     await expect(panel(page)).toHaveCount(0);
   });
 
