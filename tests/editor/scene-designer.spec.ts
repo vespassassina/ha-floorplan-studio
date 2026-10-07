@@ -193,3 +193,45 @@ test("the same palette gives the same colours twice", async ({ page }) => {
   expect(await page.locator("#sd-col-0").inputValue()).toBe(first);
   expect(first).not.toBe("#ffffff");
 });
+
+// S17.6: the picture. The fixture is drawn in the page (a flat red half and a smaller blue half) and handed to the file box as a PNG.
+const picture = async (page: Page) => {
+  const url = await page.evaluate(() => {
+    const c = document.createElement("canvas"); c.width = 40; c.height = 20;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#ff0000"; g.fillRect(0, 0, 28, 20);
+    g.fillStyle = "#0000ff"; g.fillRect(28, 0, 12, 20);
+    return c.toDataURL("image/png");
+  });
+  return Buffer.from(url.split(",")[1], "base64");
+};
+
+test("a picture fills the palette with its colours, biggest first, and Apply puts them on the lights", async ({ page }) => {
+  await page.locator("#sp-image").setInputFiles({ name: "sunset.png", mimeType: "image/png", buffer: await picture(page) });
+  await expect(page.locator("#paletteNote")).toHaveText("Took 2 colours from sunset.png. Press Apply to lights.");
+  await expect(page.locator('#scenePalette input[type=color]')).toHaveCount(2);
+  const cols = await page.locator('#scenePalette input[type=color]').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value).sort());
+  expect(cols).toEqual(["#0000ff", "#ff0000"]);
+  await press(page, '[data-sdev="light.demo_living"] input[type=checkbox]');
+  await press(page, "#sp-apply");
+  await page.locator("#sceneName").fill("Sunset");
+  await press(page, "#sceneSave");
+  expect((await scenes(page))[0].items[0].hs).toEqual([0, 100]); // red is brighter than blue, so the one light takes red
+});
+
+test("the same picture twice gives the same palette; a file that is not a picture is refused with a message and changes nothing", async ({ page }) => {
+  const buffer = await picture(page);
+  const read = () => page.locator('#scenePalette input[type=color]').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+  await page.locator("#sp-image").setInputFiles({ name: "a.png", mimeType: "image/png", buffer });
+  await expect(page.locator("#paletteNote")).toContainText("Took 2");
+  const first = await read();
+  await page.locator("#sp-image").setInputFiles({ name: "b.png", mimeType: "image/png", buffer });
+  await expect(page.locator("#paletteNote")).toContainText("from b.png");
+  expect(await read()).toEqual(first);
+  await page.locator("#sp-image").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hello") });
+  await expect(page.locator("#paletteNote")).toContainText("notes.txt is not a picture");
+  expect(await read()).toEqual(first);
+  await page.locator("#sp-image").setInputFiles({ name: "broken.png", mimeType: "image/png", buffer: Buffer.from("not really a png") });
+  await expect(page.locator("#paletteNote")).toContainText("could not be read");
+  expect(await read()).toEqual(first);
+});

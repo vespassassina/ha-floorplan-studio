@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: Picture colours (S17.6)
+
+`dominantColours` (`image-colours.ts`) is a pure k-means over RGBA bytes: seeds are one pixel from a fixed LCG, then the farthest pixel from the seeds so far; 12 passes; at most 4096 sampled pixels; transparent pixels skipped; result by cluster size then hex. `readImageColours` draws the file to a canvas of at most 64 px and calls it. Choosing a picture fills the palette; Apply is still the separate press the spec asks for.
+
 ## 2026-10-07: Palette apply (S17.5)
 
 `spreadColours(palette, n)` in `scene-colour.ts`: invalid and repeated colours dropped, the brightest six kept and ordered by luminance (so pick order does not matter), light j gets colour j mod n. Supersedes the spec line "brightest to the largest area": a light has no area on the plan, so lights take colours in the order the room lists them. Round-robin, so neighbours differ.

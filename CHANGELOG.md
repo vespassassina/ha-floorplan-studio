@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Scene designer: Colours from a picture. Choose an image and the palette takes its main colours (up to 6, biggest first); Apply to lights deals them out. Read in the browser, nothing is uploaded, and the same picture always gives the same colours. A file that is not a picture is refused with a message.
 - Scene designer: a palette of 2 to 6 colours. Apply to lights gives each ticked light that is on a colour, brightest colour first, dealt round in turn. The same palette always gives the same result. Switches and other types are left alone, and a light's kelvin is replaced by its colour.
 - Editor, room panel: Scenes is now a list. Home Assistant scenes come first, marked (this area, or offered, with Remove); custom scenes follow with Edit (opens the designer) and Delete (one undo step). The inline per-light editor and Add scene are gone: New scene opens the designer.
 - Editor, scene designer: the room panel's Scenes section has New scene and Edit in designer. A popup lists the room's lights, switches, fans, covers, climate devices and media players; tick, set on or off and the fields of each type (brightness, kelvin or colour for a light), name it and Save. Cancel, the X and Escape change nothing; Save is one undo step.

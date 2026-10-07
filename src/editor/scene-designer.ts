@@ -2,6 +2,7 @@ import { html, nothing } from "lit";
 import { SCENE_FIELDS } from "../core";
 import type { SceneItem } from "../core";
 import { live } from "./live-keep";
+import { readImageColours } from "./image-colours";
 import { MAX_PALETTE, hexToHs, hsToHex, spreadColours } from "./scene-colour";
 
 // S17.3: the scene designer popup (docs/specs/scene-designer.md). A draft lives in the editor host while the popup is open; nothing
@@ -74,11 +75,24 @@ export function sceneDesigner(d: DesignerDeps) {
     draft.note = `Gave ${lights.length} light${lights.length === 1 ? "" : "s"} a colour from the palette.`;
     d.refresh();
   };
+  // S17.6: a picture fills the palette (a file that is not a picture is refused in words); Apply then deals it out like any palette.
+  const fromPicture = async (e: Event) => {
+    const input = e.target as HTMLInputElement, file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    try {
+      const cols = await readImageColours(file, MAX_PALETTE);
+      draft.palette.splice(0, draft.palette.length, ...cols);
+      draft.note = `Took ${cols.length} colour${cols.length === 1 ? "" : "s"} from ${file.name}. Press Apply to lights.`;
+    } catch (err) { draft.note = err instanceof Error ? err.message : "That picture could not be read."; }
+    d.refresh();
+  };
   const pal = draft.palette;
   const palette = html`<div class="sd-palette" id="scenePalette"><span>palette</span>
     ${pal.map((c, k) => html`<input type="color" id=${`sp-col-${k}`} aria-label=${`palette colour ${k + 1}`} .value=${live(c)} @input=${(e: Event) => { const v = (e.target as HTMLInputElement).value; if (hexToHs(v)) { pal[k] = v; } }}>
       ${pal.length > 2 ? html`<button class="btn keep" id=${`sp-rm-${k}`} aria-label=${`Remove palette colour ${k + 1}`} @click=${() => { pal.splice(k, 1); d.refresh(); }}>&times;</button>` : nothing}`)}
     ${pal.length < MAX_PALETTE ? html`<button class="btn keep" id="sp-add" @click=${() => { pal.push("#ffffff"); d.refresh(); }}>+</button>` : nothing}
+    <label class="btn keep" for="sp-image">Colours from a picture</label><input type="file" id="sp-image" accept="image/*" hidden @change=${fromPicture}>
     <button class="btn keep" id="sp-apply" @click=${apply}>Apply to lights</button>
     ${draft.note ? html`<span id="paletteNote" role="status">${draft.note}</span>` : nothing}
   </div>`;
