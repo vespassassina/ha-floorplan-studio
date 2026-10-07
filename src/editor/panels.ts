@@ -1,14 +1,14 @@
 import { html, nothing, type TemplateResult } from "lit";
-import { live } from "lit/directives/live.js";
+import { live } from "./live-keep";
 import { repeat } from "lit/directives/repeat.js";
-import { DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
+import { DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
-import { addScene, addSceneItem, removeScene, removeSceneItem, renameScene, roomSceneTargets, setRoomHaScenes, setSceneItem } from "./room-scenes-ops";
-import { GUIDE_STEPS } from "./guide";
+import { removeScene, setRoomHaScenes } from "./room-scenes-ops";
+import { GUIDE_STEPS, CONTROLS } from "./guide";
 import "./combo";
 import type { ComboOption } from "./combo";
 import { groupSensorChoices, type GroupedChoice } from "./sensor-order";
@@ -49,6 +49,8 @@ export interface PanelCtx {
   drawArea(area: { id: string; name: string }): void;
   /** S4.15: place the unplaced entities of room `roomIndex`'s HA area; S8.1: opens a popup to pick which. */
   placeArea(roomIndex: number): void;
+  /** S17.3: opens the scene designer on scene `id` of room `roomIndex` (null: a new scene). */
+  designScene(roomIndex: number, id: string | null): void;
   /** S4.5: create an HA group of the devices at `is` (all one kind), named `name`, after asking. Absent without a writer. */
   createGroup?: (is: number[], kind: "light" | "motion", name: string) => void;
   /** S4.6: build and create the "switch controls..." automation for the switch at `devIndex`, after asking, then open it in HA. Absent without a writer. */
@@ -169,7 +171,18 @@ function optionalField(c: PanelCtx, label: string, id: string, cur: unknown, fal
     }
     c.refresh();
   };
-  return html`<label for=${id}>${label}</label><input id=${id} type="text" inputmode="decimal" placeholder=${String(fallback)} .value=${live(shown)} @change=${on}>`;
+  // Up and down: a step of 10 from the value shown, or from the default when none is set, held to the field's range.
+  const step = (dir: 1 | -1, box: HTMLInputElement) => {
+    const now = typeof cur === "number" && Number.isFinite(cur) ? cur : fallback;
+    const k = Math.min(r.max, Math.max(r.min, now + dir * 10));
+    if (k !== cur) apply(k);
+    box.value = String(k); // a focused box is not re-rendered, so show the step here
+    c.refresh();
+  };
+  const boxOf = (e: Event) => (e.currentTarget as HTMLElement).closest(".stepper")!.querySelector("input")!;
+  const key = (e: KeyboardEvent) => { if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); step(e.key === "ArrowUp" ? 1 : -1, e.currentTarget as HTMLInputElement); } };
+  return html`<label for=${id}>${label}</label><span class="stepper"><input id=${id} type="text" inputmode="decimal" placeholder=${String(fallback)} .value=${live(shown)} @change=${on} @keydown=${key}>
+    <button type="button" class="btn step" id=${`${id}-up`} aria-label=${`${label} up`} @click=${(e: Event) => step(1, boxOf(e))}>▲</button><button type="button" class="btn step" id=${`${id}-down`} aria-label=${`${label} down`} @click=${(e: Event) => step(-1, boxOf(e))}>▼</button></span>`;
 }
 /** Rotation as buttons: 30, 45, 60 or 90 more degrees in the chosen direction, and Reset to 0 when `reset` is given. `turn` gets the signed degrees. */
 function rotateButtons(c: PanelCtx, id: string, turn: (deg: number) => void, opts: { reset?: () => void; disabled?: boolean; label?: string; title?: string } = {}) {
@@ -211,6 +224,8 @@ const hint = (t: string, dyn = false) => html`<p class="hint fit${dyn ? " dyn" :
  * moving to a Danger section at the bottom — an explicit earlier decision, see docs/DECISIONS.md.
  */
 const heading = (label: string) => html`<h4 class="pnl-h">${label}</h4>`;
+/** S17.1: a panel section that folds on a click on its title; the fold is remembered (`EditorState.folded`). */
+const section = (c: PanelCtx, key: string, label: string, body: unknown) => html`<details class="pnl-sec" data-sec=${key} .open=${live(!c.st.folded.has(key))}><summary class="pnl-h" @click=${(e: Event) => { e.preventDefault(); c.st.setFolded(key, !c.st.folded.has(key)); c.refresh(); }}>${label}</summary>${body}</details>`;
 
 // ---- Home Assistant pickers (S1.38): with HA data a name is chosen, not typed ----
 const byName = <T extends { name: string }>(l: readonly T[]) => [...l].sort((a, b) => a.name.localeCompare(b.name));
@@ -241,8 +256,11 @@ function entityField(c: PanelCtx, id: string, label: string, cur: string | undef
  * in the toolbar (editor-app.ts), which also gives focus back to itself when this panel's Close button is used.
  */
 export function helpPanel(close: () => void): TemplateResult {
-  return html`<strong>Help</strong>
+  return html`<strong>? Help</strong>
     <p><button class="btn" id="helpClose" @click=${close}>Close</button></p>
+    <table class="controls" id="controls" aria-label="Controls">
+      ${CONTROLS.map((c) => html`<tr><th scope="row"><kbd>${c.keys}</kbd></th><td>${c.does}</td></tr>`)}
+    </table>
     <ol class="guide">
       ${GUIDE_STEPS.map((s) => html`<li><details><summary>${s.title}</summary><p>${s.body}</p></details></li>`)}
     </ol>`;
@@ -557,18 +575,18 @@ function roomPanel(c: PanelCtx, i: number) {
   return html`<strong>Room</strong>
     ${r.kind === "zone" ? hint("Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag body to move; corners to reshape.") : nothing}
-    ${heading("Identity")}
+    ${section(c, "room:identity", "Identity", html`
     ${c.st.ha ? roomLink(c, c.st.ha, i) : html`${text("name", "rn", r.name, (v) => c.commit((f) => { f.rooms[i].name = v; }))}
     ${text("area id", "ra", r.area, (v) => c.commit((f) => { f.rooms[i].area = v; }), !!r.area, r.kind === "zone" ? "Maps this zone to a Home Assistant area." : undefined)}
     ${r.area ? nothing : entityField(c, "rent", "shows the state of", r.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.rooms[i], "entity", v); }))}`}
-    <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>
+    <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>`)}
     ${c.st.ha ? heading("Home Assistant") : nothing}
     ${roomSensors(c, i)}
     ${roomScenesPanel(c, i)}
     ${haBox(c, i)}
     ${toPlace ? heading("Links") : nothing}
     ${placeAreaButton(c, i)}
-    ${heading("Appearance")}
+    ${section(c, "room:appearance", "Appearance", html`
     ${kindSelect(r.kind, (v) => c.commit((f) => {
       const room = f.rooms[i];
       if (room.kind === v) return;
@@ -579,7 +597,7 @@ function roomPanel(c: PanelCtx, i: number) {
     }))}
     ${heightField(c, "ceiling height (cm)", "rht", r.height, c.st.f.height ?? DEFAULT_FLOOR_HEIGHT, heightSetter(c, "rooms", i, "height"))}
     ${roomTurn(c, i)}
-    ${paintControls(c, "rooms", i, "r", r)}`;
+    ${paintControls(c, "rooms", i, "r", r)}`)}`;
   // The room's Delete sits right under the name, before the sensors (Diego, 2026-10-06; it was next to Unsnap, see docs/DECISIONS.md).
 }
 
@@ -592,22 +610,22 @@ const ROOM_SENSORS: [RoomSensorField, string, string][] = [["temps", "rtemp", "t
 function roomSensors(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
   if (!ROOM_OWNS[r.kind]) return nothing;
-  return html`${heading("Sensors")}
+  return section(c, "room:sensors", "Sensors", html`
     ${ROOM_SENSORS.map(([field, id, label]) => {
       const write = (f: Floor, next: string[]) => setRoomList(f.rooms[i], field, next);
       return multiAttachField(c, id, label, r[field] ?? [], c.st.roomSensorChoices(i, field), (next) => c.commit((f) => write(f, next)), { apply: write, targetLabel: r.name || "the room" }, { grouped: (avail) => groupSensorChoices(c.st.layout, avail, c.st.floor, r.name), roundRemove: true, boxed: true });
-    })}`;
+    })}`);
 }
 
 /**
- * S14.7: the room's scenes. Custom scenes (a name and, per light or switch, on or off and a brightness) are stored on the room; the card
- * shows them as buttons. Home Assistant `scene.*` entities appear on the card by themselves when their area is the room's; "Also offer"
- * adds scenes from elsewhere. Every gesture is one `commit`, one undo step.
+ * S14.7, S17.4: the room's scenes, as a list. Home Assistant `scene.*` entities come first, marked "Home Assistant": the ones whose area is the
+ * room's appear on the card by themselves ("area"), "Also offer" adds scenes from elsewhere ("offered", with a Remove). They run on the card
+ * and are not edited here (Hue scenes live on the bridge). Custom scenes follow, each with Edit (the designer, S17.3) and Delete.
+ * Every gesture is one `commit`, one undo step.
  */
 function roomScenesPanel(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
   if (!ROOM_OWNS[r.kind]) return nothing;
-  const targets = roomSceneTargets(c.st.f, i), label = (e: string) => targets.find((t) => t.entity === e)?.name || e;
   const ha = c.st.ha;
   const sceneRows = ha?.entities.filter((e) => e.domain === "scene") ?? [];
   const inArea = r.area ? sceneRows.filter((e) => e.area === r.area) : [];
@@ -615,23 +633,18 @@ function roomScenesPanel(c: PanelCtx, i: number) {
   const more = sceneRows.filter((e) => !inArea.includes(e) && !extra.includes(e.id));
   const nameOf = (id: string) => sceneRows.find((e) => e.id === id)?.name ?? id;
   const w = (fn: (room: Room) => void) => c.commit((f) => { fn(f.rooms[i]); });
-  return html`${heading("Scenes")}
+  const custom = r.scenes ?? [];
+  return section(c, "room:scenes", "Scenes", html`
     ${hint("Shown as buttons on the card.")}
-    ${(r.scenes ?? []).map((sc, k) => html`<div class="scene" data-scene=${sc.id}>
-      ${text("scene name", `rsc-name-${k}`, sc.name, (v) => { w((room) => { renameScene(room, sc.id, v); }); c.refresh(); })}
-      ${sc.items.map((it, j) => html`<div class="scene-item">
-        <span>${label(it.entity)}</span>
-        <select id=${`rsc-on-${k}-${j}`} aria-label=${`${label(it.entity)} state`} .value=${live(it.on ? "on" : "off")} @change=${(e: Event) => w((room) => { setSceneItem(room, sc.id, it.entity, { on: val(e) === "on" }); })}><option value="on">On</option><option value="off">Off</option></select>
-        ${it.entity.startsWith("light.") && it.on ? html`<input id=${`rsc-bri-${k}-${j}`} type="number" min="1" max="100" placeholder="brightness %" aria-label=${`${label(it.entity)} brightness percent`} .value=${live(it.brightness === undefined ? "" : String(it.brightness))} @change=${(e: Event) => { const n = numVal(e); w((room) => { setSceneItem(room, sc.id, it.entity, { brightness: n }); }); c.refresh(); }}>` : nothing}
-        <button class="btn keep" id=${`rsc-rm-${k}-${j}`} type="button" aria-label=${`Remove ${label(it.entity)} from the scene`} @click=${() => w((room) => { removeSceneItem(room, sc.id, it.entity); })}>Remove</button>
-      </div>`)}
-      ${(() => { const free = targets.filter((t) => !sc.items.some((it) => it.entity === t.entity)); return free.length ? html`<label for=${`rsc-add-${k}`}>add to scene</label><select id=${`rsc-add-${k}`} .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) w((room) => { addSceneItem(room, sc.id, v); }); c.refresh(); }}><option value="">(pick a light or switch)</option>${free.map((t) => html`<option value=${t.entity}>${t.name}</option>`)}</select>` : nothing; })()}
-      <p>${button(`rsc-del-${k}`, "Delete scene", () => w((room) => { removeScene(room, sc.id); }), "warn")}</p>
+    ${ha ? html`${inArea.map((e) => html`<div class="scene-item" data-ha-scene=${e.id}><span>${e.name}</span><small class="tag">Home Assistant · this area</small></div>`)}
+      ${extra.map((e, k) => html`<div class="scene-item" data-ha-scene=${e}><span>${nameOf(e)}</span><small class="tag">Home Assistant · offered</small><button class="btn keep" id=${`rsc-ha-rm-${k}`} type="button" aria-label=${`Stop offering ${nameOf(e)}`} @click=${() => w((room) => { setRoomHaScenes(room, extra.filter((x) => x !== e)); })}>Remove</button></div>`)}
+      ${more.length ? html`<label for="rsc-ha-add">also offer</label><select id="rsc-ha-add" .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) w((room) => { setRoomHaScenes(room, [...extra, v]); }); c.refresh(); }}><option value="">(a Home Assistant scene)</option>${more.map((e) => html`<option value=${e.id}>${e.name}</option>`)}</select>` : nothing}` : nothing}
+    ${custom.map((sc, k) => html`<div class="scene-item" data-scene=${sc.id}>
+      <span>${sc.name}</span><small class="tag">${sc.items.length} device${sc.items.length === 1 ? "" : "s"}</small>
+      ${button(`rsc-edit-${k}`, "Edit", () => c.designScene(i, sc.id))}
+      ${button(`rsc-del-${k}`, "Delete", () => w((room) => { removeScene(room, sc.id); }), "warn", "Removes the scene. Undo brings it back.")}
     </div>`)}
-    <p>${button("rsc-add", "Add scene", () => w((room) => { addScene(room, targets.map((t) => t.entity)); }), "", "A new scene with every light and switch of the room, on. Edit it below.")}</p>
-    ${ha ? html`${inArea.length ? hint(`In this area: ${inArea.map((e) => e.name).join(", ")}`, true) : nothing}
-      ${extra.map((e, k) => html`<div class="scene-item"><span>${nameOf(e)}</span><button class="btn keep" id=${`rsc-ha-rm-${k}`} type="button" aria-label=${`Stop offering ${nameOf(e)}`} @click=${() => w((room) => { setRoomHaScenes(room, extra.filter((x) => x !== e)); })}>Remove</button></div>`)}
-      ${more.length ? html`<label for="rsc-ha-add">also offer</label><select id="rsc-ha-add" .value=${live("")} @change=${(e: Event) => { const v = val(e); if (v) w((room) => { setRoomHaScenes(room, [...extra, v]); }); c.refresh(); }}><option value="">(a Home Assistant scene)</option>${more.map((e) => html`<option value=${e.id}>${e.name}</option>`)}</select>` : nothing}` : nothing}`;
+    <p>${button("rsc-new", "New scene", () => c.designScene(i, null), "", "Opens the scene designer.")}</p>`);
 }
 
 /** S4.15/S8.1: one button, counting what Home Assistant has in the room's area that the plan can show and does not yet; it opens the Place popup. */
@@ -1104,6 +1117,8 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${number(c, "width (cm)", "fw", m.w, setSize("w"))}
     ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
     ${heightField(c, "height (cm)", "fuht", m.height, FURNITURE_HEIGHTS[m.symbol] ?? 100, heightSetter(c, "furniture", i, "height"))}
+    ${heightField(c, "bottom (cm)", "fuz", m.z, FURNITURE_Z[m.symbol] ?? 0, heightSetter(c, "furniture", i, "z"))}
+    <p class="hint" id="fusize">H ${Math.round(furnitureHeight(m))} × W ${Math.round(m.w)} × L ${Math.round(m.h)} cm</p>
     ${rotationSlider(c, "frot", "furniture", i, m.rot)}
     ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}
     ${heading("Danger")}
@@ -1133,6 +1148,7 @@ function unlinkedPanel(c: PanelCtx, i: number) {
     ${button("uuclr", "Use default colour", () => c.commit((f) => { delete f.unlinked[i].color; }))}
     ${number(c, "scale", "uusc", u.scale, (n) => c.commit((f) => { f.unlinked[i].scale = Math.min(4, Math.max(0.25, n)); }))}
     ${heightField(c, "height (cm)", "uuht", u.height, UNLINKED_HEIGHTS[u.type] ?? 100, heightSetter(c, "unlinked", i, "height"))}
+    <p class="hint" id="uusize">H ${Math.round(unlinkedHeight(u))} × W ${Math.round(UNLINKED_BASE * u.scale)} × L ${Math.round(UNLINKED_BASE * u.scale)} cm</p>
     ${rotationSlider(c, "uurot", "unlinked", i, u.rot)}
     ${rotateButtons(c, "uurot", (n) => c.commit((f) => { f.unlinked[i].rot = ((u.rot + n) % 360 + 360) % 360; }), { reset: () => { if (u.rot) c.commit((f) => { f.unlinked[i].rot = 0; }); } })}
     ${heading("Danger")}

@@ -197,6 +197,14 @@ describe("S4.7: runScene", () => {
   });
 });
 
+describe("S17.7: callService", () => {
+  it("sends the entity as the target and the rest as service data, through the writer", async () => {
+    const h = stub();
+    await makeWriter(h).callService({ domain: "light", service: "turn_on", data: { entity_id: "light.a", brightness_pct: 40 } });
+    expect(h.callWS).toHaveBeenCalledWith({ type: "call_service", domain: "light", service: "turn_on", service_data: { brightness_pct: 40 }, target: { entity_id: "light.a" } });
+  });
+});
+
 describe("confirm", () => {
   const open = () => { const host = document.createElement("div"); document.body.append(host); return { host, p: confirm(host, "Create a light", ["From switch.hall"]) }; };
   const q = (host: HTMLElement, sel: string) => host.querySelector(sel) as HTMLElement;

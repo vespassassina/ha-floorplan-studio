@@ -1,7 +1,7 @@
 // The 2.5D solids: walls, furniture, appliances and stairs drawn as extruded shapes. Pure string builders; `renderFloor`
 // decides when to call them and in what order (one draw path, CLAUDE.md finding 8). Nothing here knows the OBLIQUE
 // numbers: they arrive in a `Proj`, so this file never imports render.ts.
-import { deviceZ, deviceZOr, doorSpan, edgeHeight, floorHeight, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight } from "./heights";
+import { deviceZ, deviceZOr, doorSpan, edgeHeight, floorHeight, furnitureBottom, furnitureHeight, furnitureTop, openingSpan, radiatorSpan, unlinkedHeight, wallHeight } from "./heights";
 import { esc, num, pts, tag } from "./fmt";
 import { edgeKindAt, nearestEdge, stairSteps } from "./geometry";
 import { doorStateOf, type DoorState } from "./door-state";
@@ -43,7 +43,7 @@ export function tallestDrawn(f: Floor): number {
   (f.outline ?? []).forEach((_, i) => up(edgeHeight(f, null, i)));
   for (const r of f.rooms ?? []) if (r.kind !== "zone") (r.pts ?? []).forEach((_, i) => up(edgeHeight(f, r, i)));
   for (const w of f.walls ?? []) up(wallHeight(f, w));
-  for (const m of f.furniture ?? []) up(furnitureHeight(m));
+  for (const m of f.furniture ?? []) up(furnitureTop(m));
   for (const u of f.unlinked ?? []) up(unlinkedHeight(u));
   if ((f.stairs ?? []).length) up(floorHeight(f));
   for (const d of f.devices ?? []) {
@@ -363,7 +363,7 @@ function prism(base: Pt[], h: number, px: Proj, z0 = 0): string | null {
  * One entry per symbol, so a new FurnitureSymbol fails the test that walks the list until someone decides (finding 17).
  */
 export const FURNITURE_SOLID: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
-  table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", tv: "box", computer: "box",
+  table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", tv: "box", computer: "box", speaker: "box",
   car: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
 };
 /** How a piece of furniture draws in 2.5D. A piece that is not finite or not known is flat: the 2D path deals with it as ever. */
@@ -377,11 +377,11 @@ export function furnitureMode(m: Furniture): "box" | "pole" | "flat" {
  * the group wraps all of it, so a tap anywhere on the piece still reaches `data-f`.
  */
 export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on: boolean, symbol: string, px: Proj): Solid | null {
-  const h = furnitureHeight(m), c: Pt = [m.x, m.y];
+  const z0 = furnitureBottom(m), h = furnitureTop(m), c: Pt = [m.x, m.y];
   const base = ([[-m.w / 2, -m.h / 2], [m.w / 2, -m.h / 2], [m.w / 2, m.h / 2], [-m.w / 2, m.h / 2]] as Pt[]).map((q) => turnAbout([m.x + q[0], m.y + q[1]], m.rot, c));
   const top = px.lift(c, h);
   let body: string;
-  if (mode === "box") { const p = prism(base, h, px); if (!p) return null; body = p; }
+  if (mode === "box") { const p = prism(base, h, px, z0); if (!p) return null; body = p; }
   else body = `<line class="trunk" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(top[0])}" y2="${num(top[1])}"/>`;
   const sym = `<g transform="translate(${num(top[0])} ${num(top[1])}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)">${symbol}</g>`;
   return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}" color="var(--fp-furniture)">${body}${sym}</g>` };

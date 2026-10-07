@@ -410,15 +410,16 @@ zoom and turn for the whole card) move to the floor they were saved on.
   turn goes back the short way round. The floor stays. It is not the Fit
   button: Fit, or Home view on a pinned card, only changes zoom and position.
 - **Keys.** The card you hover or have focused listens; another card on the
-  page does not. Up and Down arrows zoom (not with `zoom: false`), Left and
-  Right turn (when the rotate buttons are there), Space is Reset view. The
+  page does not. The arrows pan, `+` and `-` zoom (neither with `zoom: false`),
+  `[` and `]` turn the plan (when the rotate buttons are there), Space is
+  Reset view. The
   keys work with the pointer over the card, no click needed, and after one
   click on it even when the pointer has moved off. The card tracks its own
   focus because in Home Assistant it sits inside several shadow roots, where
   the page's `document.activeElement` is never the card. Nothing fires while
   you type in a field, and Space on a focused button presses that button. Cover,
   vacuum and chooser dialogs take the keys while they are open. Under `kiosk`
-  there are no buttons and no rotation keys; the zoom keys still work, as the
+  there are no buttons and no rotation keys; the zoom and pan keys still work, as the
   zoom gestures do.
 - **When it is saved.** 150 ms after you touch zoom, focus, turn, view, tilt,
   walls, theme, names or floor, and again when the tab is hidden or closed. The

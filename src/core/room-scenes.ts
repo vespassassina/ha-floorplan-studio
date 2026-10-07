@@ -1,3 +1,4 @@
+import { SCENE_DOMAINS } from "./schema";
 import type { Floor, Room, RoomScene, SceneItem } from "./schema";
 import { roomSummary } from "./room-info";
 
@@ -46,27 +47,46 @@ export function haScenesFor(room: Room | null | undefined, hass: SceneHass | nul
   return rows.sort((a, b) => a.name.localeCompare(b.name) || a.entity.localeCompare(b.entity)).slice(0, MAX_HA_SCENES);
 }
 
-/** What a custom scene asks of Home Assistant: one call per light or switch it lists, with only the fields it sets. */
+/** What a custom scene asks of Home Assistant: the calls for each listed device, with only the fields it sets. A type outside `SCENE_DOMAINS` is ignored. */
 export function customCalls(scene: RoomScene | null | undefined): SceneCall[] {
   if (!isObj(scene) || !Array.isArray(scene.items)) return [];
   const calls: SceneCall[] = [];
   for (const it of scene.items as unknown[]) {
     if (!isObj(it) || typeof it.entity !== "string") continue;
-    const domain = it.entity.split(".")[0];
-    if (domain !== "light" && domain !== "switch") continue;
-    if (it.on !== true) { calls.push({ domain, service: "turn_off", data: { entity_id: it.entity } }); continue; }
-    const data: Record<string, unknown> = { entity_id: it.entity };
-    if (domain === "light") {
-      if (fin(it.brightness)) data.brightness_pct = it.brightness;
-      if (fin(it.kelvin)) data.color_temp_kelvin = it.kelvin;
-      if (Array.isArray(it.hs) && fin(it.hs[0]) && fin(it.hs[1])) data.hs_color = [it.hs[0], it.hs[1]];
+    const domain = it.entity.split(".")[0] as string;
+    if (!(SCENE_DOMAINS as readonly string[]).includes(domain)) continue;
+    const id = { entity_id: it.entity };
+    const add = (service: string, extra: Record<string, unknown> = {}) => calls.push({ domain, service, data: { ...id, ...extra } });
+    if (it.on !== true) { add(domain === "cover" ? "close_cover" : "turn_off"); continue; }
+    switch (domain) {
+      case "cover": if (fin(it.position)) add("set_cover_position", { position: it.position }); else add("open_cover"); break;
+      case "climate": {
+        const hvac = typeof it.hvac === "string" && it.hvac, t = fin(it.temperature);
+        if (hvac) add("set_hvac_mode", { hvac_mode: it.hvac });
+        if (t) add("set_temperature", { temperature: it.temperature });
+        if (!hvac && !t) add("turn_on");
+        break;
+      }
+      case "media_player":
+        add("turn_on");
+        if (fin(it.volume)) add("volume_set", { volume_level: it.volume / 100 });
+        if (typeof it.source === "string" && it.source) add("select_source", { source: it.source });
+        break;
+      default: {
+        const extra: Record<string, unknown> = {};
+        if (domain === "light") {
+          if (fin(it.brightness)) extra.brightness_pct = it.brightness;
+          if (fin(it.kelvin)) extra.color_temp_kelvin = it.kelvin;
+          if (Array.isArray(it.hs) && fin(it.hs[0]) && fin(it.hs[1])) extra.hs_color = [it.hs[0], it.hs[1]];
+        } else if (domain === "fan" && fin(it.percentage)) extra.percentage = it.percentage;
+        add("turn_on", extra);
+      }
     }
-    calls.push({ domain, service: "turn_on", data });
   }
   return calls;
 }
 
-/** S14.2's rule: turning anything but a light OFF asks first. A custom scene that turns a switch off does. */
+/** S14.2's rule: turning anything but a light OFF asks first. A custom scene that turns a switch, fan, climate or player off does; closing a cover does not. */
 export function sceneNeedsConfirm(scene: RoomScene | null | undefined): boolean {
   return customCalls(scene).some((c) => c.service === "turn_off" && c.domain !== "light");
 }

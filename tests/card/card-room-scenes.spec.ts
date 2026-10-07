@@ -48,7 +48,8 @@ async function boot(page: Page, width = 1280, theme?: string) {
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
-async function pickRoom(page: Page, i: number) {
+/** `unfold` (default) also opens the Scenes section, which starts folded; the tests of the fold itself pass false. */
+async function pickRoom(page: Page, i: number, unfold = true) {
   const p = await card(page).evaluate((el, i) => {
     const poly = el.shadowRoot!.querySelector<SVGPolygonElement>(`svg polygon[data-r="${i}"]`)!;
     const r = poly.getBoundingClientRect();
@@ -58,6 +59,8 @@ async function pickRoom(page: Page, i: number) {
   expect(p, `room ${i} has bare floor to click`).not.toBeNull();
   await page.mouse.click(p!.x, p!.y);
   await expect(card(page).locator("css=.fp-room")).toHaveCount(1);
+  const head = card(page).locator("css=button.fp-scenes-head");
+  if (unfold && (await head.count()) && (await head.getAttribute("aria-expanded")) === "false") await head.click();
 }
 /** A real click at the centre of the button, after checking it is the top element there. */
 async function press(page: Page, label: string | RegExp) {
@@ -69,6 +72,31 @@ async function press(page: Page, label: string | RegExp) {
   await page.mouse.click(p.x, p.y);
 }
 const labels = (page: Page) => card(page).locator("css=.fp-scene").allTextContents();
+
+test.describe("room menu layout", () => {
+  test("Scenes starts folded and opens and folds on its header; its buttons are only there when it is open", async ({ page }) => {
+    await boot(page);
+    await pickRoom(page, 0, false);
+    const head = card(page).locator("css=button.fp-scenes-head");
+    await expect(head).toHaveAttribute("aria-expanded", "false");
+    await expect(card(page).locator("css=.fp-scene")).toHaveCount(0);
+    await head.click();
+    await expect(head).toHaveAttribute("aria-expanded", "true");
+    expect((await labels(page)).length).toBeGreaterThan(0);
+    await head.click();
+    await expect(card(page).locator("css=.fp-scene")).toHaveCount(0);
+  });
+
+  test("Active in this room sits between Scenes and Devices", async ({ page }) => {
+    await boot(page);
+    await pickRoom(page, 0, false);
+    const y = (sel: string) => card(page).locator(sel).first().evaluate((el) => el.getBoundingClientRect().top);
+    const scenes = await y("css=button.fp-scenes-head"), active = await y("css=.fp-filter"), devices = await y("css=.fp-room .fp-active-group-label >> text=Devices");
+    expect(scenes).toBeLessThan(active);
+    expect(active).toBeLessThan(devices);
+    await expect(card(page).locator("css=.fp-filter")).toContainText("Active in this room");
+  });
+});
 
 for (const width of [1280, 375]) {
   test.describe(`room scenes at ${width} px`, () => {

@@ -221,7 +221,7 @@ test.describe("the room section and the filtered list", () => {
     });
     expect(await picked(page)).toEqual([0]);
     expect((await factsOf(page)).Temperature).toBe("26.2 °C"); // (30 + 22.4) / 2: the section follows the state
-    await expect(card(page).locator("css=.fp-room .fp-info")).toHaveCount(1);
+    await expect(card(page).locator("css=.fp-room-devices .fp-info")).toHaveCount(1);
   });
 
   test("a room with nothing in it says so, with no NaN or undefined", async ({ page }) => {

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.18.0 - 2026-10-07
+
+- Scene designer: Try it sends the scene to the real devices; Restore puts back what they were doing before the first Try. Cancel, the X and Escape restore by themselves, Save does not. Needs the studio connected to Home Assistant with write access; without it the buttons are disabled and say so. A device Home Assistant refuses is named, and one with an unknown state is flagged as not restorable.
+- Scene designer: Colours from a picture. Choose an image and the palette takes its main colours (up to 6, biggest first); Apply to lights deals them out. Read in the browser, nothing is uploaded, and the same picture always gives the same colours. A file that is not a picture is refused with a message.
+- Scene designer: a palette of 2 to 6 colours. Apply to lights gives each ticked light that is on a colour, brightest colour first, dealt round in turn. The same palette always gives the same result. Switches and other types are left alone, and a light's kelvin is replaced by its colour.
+- Editor, room panel: Scenes is now a list. Home Assistant scenes come first, marked (this area, or offered, with Remove); custom scenes follow with Edit (opens the designer) and Delete (one undo step). The inline per-light editor and Add scene are gone: New scene opens the designer.
+- Editor, scene designer: the room panel's Scenes section has New scene and Edit in designer. A popup lists the room's lights, switches, fans, covers, climate devices and media players; tick, set on or off and the fields of each type (brightness, kelvin or colour for a light), name it and Save. Cancel, the X and Escape change nothing; Save is one undo step.
+- Scenes: a scene item may now be a fan (speed), cover (position), climate (mode, temperature) or media player (volume, source), besides lights and switches. Files with these items validate; the card runs them. Turning a fan, climate or player off asks first.
+- Editor, room panel: Identity, Sensors, Scenes and Appearance fold by their header; the choice is remembered in the browser.
+- New: furniture `z`, the bottom of a piece above the floor. A TV hangs at 100 cm by default and a new `speaker` furniture piece stands at 100 cm; both editable in the panel (bottom, height, and an H × W × L readout), drawn lifted in 2.5D and 3D. Existing TV pieces move up to 100 cm unless you set the bottom to 0.
+
+- Fixed: number boxes in the editor panels (furniture width and depth, heights) no longer lose what you type. A re-render (the 1 s motion fade, a Home Assistant update) used to reset a box you were typing in.
+- Height boxes have up and down buttons and respond to the arrow keys: steps of 10 cm.
+
+- Keys, card and editor: the four arrows pan, `+` and `-` zoom, `[` and `]` turn
+  the plan 45 degrees, Space still resets. The arrows no longer zoom.
+- Card, room panel: Scenes starts folded (its header opens it, and the choice is remembered), and "Active in this room" now sits between Scenes and Devices.
+- Card: a tap on a device with a `media_player` entity (media, speaker, TV) opens that player's more-info at once, no popup.
+- The editor's Help button is now "? Help" and opens with a controls table.
+
 ## 0.17.0 - 2026-10-07
 
 - Card, studio: **Left and Right pan** the view a tenth of its width; they no longer turn the plan. The rotate buttons still do. In the card a key that cannot move anything (not zoomed in, or at the edge) is left to the page.

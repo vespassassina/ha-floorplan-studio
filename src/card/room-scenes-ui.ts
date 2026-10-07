@@ -18,6 +18,9 @@ export interface ScenesView {
   /** `key` is `ha:<entity>`, `custom:<id>`, `preset:on` or `preset:off`. */
   run: (key: string) => void;
   cancel: () => void;
+  /** Whether the section is open. It starts folded (Diego, 2026-10-07). */
+  open: boolean;
+  toggle: () => void;
 }
 
 /** Nothing for a room with no scene and no light, so the section never prints an empty label. */
@@ -27,10 +30,15 @@ export function scenesTemplate(v: ScenesView) {
   const btn = (key: string, label: string, cls = "") => v.asking === key
     ? html`<button type="button" class="fp-scene fp-scene-ask" data-scene=${key} @click=${() => v.run(key)}>Confirm: ${label}</button><button type="button" class="fp-scene" @click=${v.cancel}>Cancel</button>`
     : html`<button type="button" class="fp-scene ${cls}" data-scene=${key} @click=${() => v.run(key)}>${label}</button>`;
-  return html`<div class="fp-active-group-label">Scenes</div>
-    <div class="fp-scenes">
+  const count = ha.length + custom.length + (lights.length ? 2 : 0);
+  return html`<div class="fp-active-group">
+    <button type="button" class="fp-active-group-label fp-cat fp-scenes-head" aria-expanded=${v.open ? "true" : "false"} @click=${v.toggle}>
+      <span class="fp-cat-chev" aria-hidden="true">${v.open ? "▾" : "▸"}</span><span class="fp-cat-name">Scenes</span><span class="fp-active-count">${count}</span>
+    </button>
+    ${v.open ? html`<div class="fp-scenes">
       ${ha.map((s) => btn(`ha:${s.entity}`, s.name, "fp-scene-ha"))}
       ${custom.map((s) => btn(`custom:${s.id}`, s.name))}
       ${lights.length ? html`${btn("preset:off", "All off")}${btn("preset:on", "All on")}` : nothing}
-    </div>`;
+    </div>` : nothing}
+  </div>`;
 }

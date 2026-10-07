@@ -151,6 +151,8 @@ export function bindDeviceActions(
       return;
     }
     const own = d.entity;
+    // A media player has its own, better panel: a tap is its more-info, as for a speaker or TV placed as an appliance (Diego, 2026-10-07).
+    if (own?.startsWith("media_player.")) { arm(() => fireEvent(host, "hass-more-info", { entityId: own }), () => fireEvent(host, "hass-more-info", { entityId: own })); return; }
     arm(popup({ device: d, index: i }), own ? () => fireEvent(host, "hass-more-info", { entityId: own }) : undefined);
   };
 

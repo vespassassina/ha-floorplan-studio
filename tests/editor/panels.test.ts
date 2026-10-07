@@ -21,6 +21,7 @@ function baseCtx(st: EditorState): PanelCtx {
     scaleTexture: () => {},
     drawArea: () => {},
     placeArea: () => {},
+    designScene: () => {},
     moreInfo: () => {},
     say: () => {},
     refresh: () => {},
@@ -41,7 +42,7 @@ describe("devicePanel Links heading (Opus review of S8.9)", () => {
     const ctx = { ...baseCtx(st), areaDiff: () => ({ name: "Kitchen" }) }; // moveArea omitted on purpose
     const div = document.createElement("div");
     render(selectionPanel(ctx), div);
-    expect(div.querySelectorAll("h4.pnl-h").length ? [...div.querySelectorAll("h4.pnl-h")].map((h) => h.textContent) : []).not.toContain("Links");
+    expect(div.querySelectorAll("h4.pnl-h, summary.pnl-h").length ? [...div.querySelectorAll("h4.pnl-h, summary.pnl-h")].map((h) => h.textContent) : []).not.toContain("Links");
   });
 
   it("shows Links when both areaDiff and moveArea are given", () => {
@@ -50,7 +51,7 @@ describe("devicePanel Links heading (Opus review of S8.9)", () => {
     const ctx = { ...baseCtx(st), areaDiff: () => ({ name: "Kitchen" }), moveArea: () => {} };
     const div = document.createElement("div");
     render(selectionPanel(ctx), div);
-    const headings = [...div.querySelectorAll("h4.pnl-h")].map((h) => h.textContent);
+    const headings = [...div.querySelectorAll("h4.pnl-h, summary.pnl-h")].map((h) => h.textContent);
     expect(headings).toContain("Links");
   });
 });
@@ -64,7 +65,7 @@ describe("room Sensors section follows roomAt's rule (Opus review of Sprint 11, 
       st.sel = { t: "room", i: 0 };
       const div = document.createElement("div");
       render(selectionPanel(baseCtx(st)), div);
-      const headings = [...div.querySelectorAll("h4.pnl-h")].map((h) => h.textContent);
+      const headings = [...div.querySelectorAll("h4.pnl-h, summary.pnl-h")].map((h) => h.textContent);
       expect(headings.includes("Sensors"), kind).toBe(owns[kind]);
     }
   });

@@ -28,6 +28,8 @@ export interface HaWriter {
   createAutomation(cfg: AutomationConfig): Promise<string>;
   /** S4.7: runs a scene from the room box's "Run" button. */
   runScene(entityId: string): Promise<void>;
+  /** S17.7: one service call, as a scene item makes it (the scene designer's Try and Restore). */
+  callService(call: { domain: string; service: string; data: Record<string, unknown> }): Promise<void>;
 }
 
 /** The label everything the tool creates carries, so the person can find it in HA and remove it. */
@@ -157,6 +159,12 @@ export async function runScene(hass: WriteHass, entityId: string): Promise<void>
   await hass.callWS({ type: "call_service", domain: "scene", service: "turn_on", target: { entity_id: entityId } });
 }
 
+/** S17.7: one service call. `entity_id` goes in `target`, the rest in `service_data`. */
+export async function callService(hass: WriteHass, call: { domain: string; service: string; data: Record<string, unknown> }): Promise<void> {
+  const { entity_id, ...rest } = call.data;
+  await hass.callWS({ type: "call_service", domain: call.domain, service: call.service, service_data: rest, target: { entity_id } });
+}
+
 /** `openAutomation` actually lives in `automations.ts` (it touches no `hass`, and the editor must never import this
  * file) — re-exported here so the panel host and this file's own tests can still reach it from one place. */
 export { openAutomation } from "./automations";
@@ -179,5 +187,6 @@ export function makeWriter(hass: WriteHass): HaWriter {
     removeLabelled: (item) => removeLabelled(hass, item),
     createAutomation: (cfg) => createAutomation(hass, cfg),
     runScene: (id) => runScene(hass, id),
+    callService: (c) => callService(hass, c),
   };
 }

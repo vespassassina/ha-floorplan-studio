@@ -19,7 +19,7 @@ export * from "./heights";
 export { HEAT_FROM, HEAT_TO, PLUG_ACTIVE_WATTS, findPowerSensor, heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 export type { PowerCandidate } from "./power";
 export * from "./stairs";
-export { WALLS_LABELS, WALLS_MODES, wallsModeOf } from "./solids";
+export { UNLINKED_BASE, WALLS_LABELS, WALLS_MODES, wallsModeOf } from "./solids";
 export type { WallsMode } from "./solids";
 export { customCalls, customScene, haScenesFor, presetCalls, roomScenes, sceneNeedsConfirm } from "./room-scenes";
 export type { HaSceneRow, RoomSceneMenu, SceneCall, SceneHass } from "./room-scenes";

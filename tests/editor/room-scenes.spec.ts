@@ -33,61 +33,38 @@ test.beforeEach(async ({ page }) => {
   await page.locator("#fixPlan").uncheck(); // the plan opens fixed; these tests edit it
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   await clickCm(page, 150, 100); // Living, bare floor
-  await expect(page.locator("#rsc-add")).toBeVisible();
+  await expect(page.locator("#rsc-new")).toBeVisible();
 });
 
-test("Add scene fills a scene with the room's lights on; a second press makes a second scene; each is one undo step", async ({ page }) => {
-  expect((await roomOf(page)).scenes).toBeUndefined();
-  await press(page, "#rsc-add");
-  const r = await roomOf(page);
-  expect(r.scenes).toHaveLength(1);
-  expect(r.scenes![0].items.map((i) => i.entity)).toContain("light.demo_living");
-  expect(r.scenes![0].items.every((i) => i.on)).toBe(true);
-  await press(page, "#rsc-add");
-  expect((await roomOf(page)).scenes!.map((s) => s.name)).toEqual(["Scene 1", "Scene 2"]);
-  await undo(page);
-  expect((await roomOf(page)).scenes!.map((s) => s.name)).toEqual(["Scene 1"]);
-  await undo(page);
-  expect((await roomOf(page)).scenes).toBeUndefined();
+// S17.4: the list. Adding and editing happen in the designer (scene-designer.spec.ts); here the list itself.
+async function saveOne(page: Page, name: string) {
+  await press(page, "#rsc-new");
+  await page.locator("#sceneName").fill(name);
+  await press(page, "#sd-inc-0");
+  await press(page, "#sceneSave");
+  await expect(page.locator("#scenePanel")).toHaveCount(0);
+}
+
+test("custom scenes are listed by name with their device count, each with Edit and Delete", async ({ page }) => {
+  await saveOne(page, "Movie");
+  await saveOne(page, "Dinner");
+  const rows = page.locator("[data-scene]");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText("Movie");
+  await expect(rows.nth(0)).toContainText("1 device");
+  await expect(page.locator("#rsc-edit-1")).toBeVisible();
+  await expect(page.locator("#rsc-del-1")).toBeVisible();
 });
 
-test("rename, brightness, off and remove are one step each, and a repeated value is none", async ({ page }) => {
-  await press(page, "#rsc-add");
-  await page.locator("#rsc-name-0").fill("Movie");
-  await page.locator("#rsc-name-0").press("Tab");
-  expect((await roomOf(page)).scenes![0].name).toBe("Movie");
-  await page.locator("#rsc-bri-0-0").fill("20");
-  await page.locator("#rsc-bri-0-0").press("Tab");
-  expect((await roomOf(page)).scenes![0].items[0].brightness).toBe(20);
-  await page.locator("#rsc-bri-0-0").fill("20"); // the same value again
-  await page.locator("#rsc-bri-0-0").press("Tab");
-  await page.locator("#rsc-bri-0-0").fill("500");
-  await page.locator("#rsc-bri-0-0").press("Tab");
-  expect((await roomOf(page)).scenes![0].items[0].brightness).toBe(100);
-  await undo(page); // 500 -> back to 20: the repeat of 20 left no step
-  expect((await roomOf(page)).scenes![0].items[0].brightness).toBe(20);
-  await clickCm(page, 150, 100); // undo clears the selection: pick the room again
-  await page.locator("#rsc-on-0-0").selectOption("off");
-  expect((await roomOf(page)).scenes![0].items[0]).toEqual({ entity: "light.demo_living", on: false });
-  await expect(page.locator("#rsc-bri-0-0")).toHaveCount(0);
-  const before = (await roomOf(page)).scenes![0].items.length;
-  await press(page, "#rsc-rm-0-0");
-  expect((await roomOf(page)).scenes![0].items).toHaveLength(before - 1);
+test("Delete removes that scene in one undo step, Undo brings it back, the last one removes the key", async ({ page }) => {
+  await saveOne(page, "Movie");
+  await saveOne(page, "Dinner");
+  await press(page, "#rsc-del-0");
+  expect((await roomOf(page)).scenes!.map((s) => s.name)).toEqual(["Dinner"]);
   await undo(page);
-  expect((await roomOf(page)).scenes![0].items).toHaveLength(before);
-  await clickCm(page, 150, 100);
-  await page.locator("#rsc-name-0").fill("   "); // refused: the name stays
-  await page.locator("#rsc-name-0").press("Tab");
-  expect((await roomOf(page)).scenes![0].name).toBe("Movie");
-});
-
-test("add to scene puts a missing light or switch back; Delete scene removes it and the empty list goes", async ({ page }) => {
-  await press(page, "#rsc-add");
-  await press(page, "#rsc-rm-0-0");
-  const left = (await roomOf(page)).scenes![0].items.map((i) => i.entity);
-  expect(left).not.toContain("light.demo_living");
-  await page.locator("#rsc-add-0").selectOption("light.demo_living");
-  expect((await roomOf(page)).scenes![0].items.map((i) => i.entity)).toContain("light.demo_living");
+  expect((await roomOf(page)).scenes!.map((s) => s.name)).toEqual(["Movie", "Dinner"]);
+  await clickCm(page, 150, 100); // undo clears the selection
+  await press(page, "#rsc-del-1");
   await press(page, "#rsc-del-0");
   expect((await roomOf(page)).scenes).toBeUndefined();
 });
@@ -95,8 +72,10 @@ test("add to scene puts a missing light or switch back; Delete scene removes it 
 test("with Home Assistant: the room's area scenes are named, the others can be offered, and Remove stops offering", async ({ page }) => {
   await page.evaluate(([tag, ha]) => { (document.querySelector(tag as string) as any).ha = ha; }, [EDITOR, HA] as const);
   await page.locator("#ra").selectOption("living");
-  await expect(page.locator("#rsc-add")).toBeVisible();
-  await expect(page.getByText("In this area: Relax")).toBeVisible();
+  await expect(page.locator("#rsc-new")).toBeVisible();
+  await expect(page.locator("[data-ha-scene=\"scene.living_relax\"]")).toContainText("Relax");
+  await expect(page.locator("[data-ha-scene=\"scene.living_relax\"]")).toContainText("Home Assistant");
+  await expect(page.locator("[data-ha-scene=\"scene.living_relax\"] button")).toHaveCount(0); // not edited here
   const opts = await page.locator("#rsc-ha-add option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
   expect(opts).toEqual(["", "scene.kitchen_cook", "scene.hall_dim"]); // not the area's own, not offered twice
   await page.locator("#rsc-ha-add").selectOption("scene.hall_dim");
@@ -113,5 +92,5 @@ test("a zone has no Scenes section (nothing on the card would show it)", async (
     l.floors.ground.rooms[0].kind = "zone"; l.floors.ground.rooms[0].wk = l.floors.ground.rooms[0].pts.map(() => "boundary");
     el.layout = l;
   }, EDITOR);
-  await expect(page.locator("#rsc-add")).toHaveCount(0);
+  await expect(page.locator("#rsc-new")).toHaveCount(0);
 });

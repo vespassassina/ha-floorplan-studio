@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { OBLIQUE, renderFloor } from "../../src/core/render";
 import { DEVICE_TYPES, FURNITURE_SYMBOLS, type DeviceType, type Floor, type FurnitureSymbol } from "../../src/core/schema";
-import { FURNITURE_HEIGHTS, UNLINKED_HEIGHTS } from "../../src/core/heights";
+import { FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_HEIGHTS } from "../../src/core/heights";
 
 const R = OBLIQUE.rise, K = OBLIQUE.skew;
 const n = (v: number) => String(Math.round(v * 100) / 100);
@@ -22,7 +22,7 @@ const CORNERS: [number, number][] = [[260, 220], [340, 220], [340, 280], [260, 2
 
 /** What each symbol becomes in 2.5D. Written out here on purpose: a new FurnitureSymbol is a type error until someone decides. */
 const SOLID: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
-  table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", tv: "box", computer: "box",
+  table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", tv: "box", computer: "box", speaker: "box",
   car: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
 };
 /** Whether a device of each type, mounted at its default height, gets a stem up from its icon. */
@@ -37,7 +37,7 @@ describe("2.5D furniture", () => {
     expect(Object.keys(SOLID).sort()).toEqual([...FURNITURE_SYMBOLS].sort());
     for (const symbol of FURNITURE_SYMBOLS) {
       const html = deep(floor({ furniture: [piece(symbol)] as never }));
-      const h = FURNITURE_HEIGHTS[symbol];
+      const h = FURNITURE_HEIGHTS[symbol] + (FURNITURE_Z[symbol] ?? 0);
       if (SOLID[symbol] === "box") {
         expect(tops(html), symbol).toEqual([ring(CORNERS, h)]);
         expect(html, symbol).toContain(`translate(${n(300 + h * K * R)} ${n(250 - h * R)}) rotate(0)`);

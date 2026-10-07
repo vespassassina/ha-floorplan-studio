@@ -60,7 +60,7 @@ test.describe("the keys, with a real pointer and a real keyboard", () => {
     await page.evaluate(() => { document.body.style.height = "4000px"; window.scrollTo(0, 0); });
     await hoverCard(page);
     const w0 = (await viewBox(page))[2]!;
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("+");
     await expect.poll(async () => (await viewBox(page))[2]!).toBeLessThan(w0);
     const x0 = (await viewBox(page))[0]!;
     await page.keyboard.press("ArrowRight");
@@ -78,7 +78,7 @@ test.describe("the keys, with a real pointer and a real keyboard", () => {
     await boot(page, PINNED);
     await page.mouse.move(1, 1);
     const w0 = (await viewBox(page))[2]!;
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("+");
     await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(100);
     expect((await viewBox(page))[2]!).toBe(w0);
@@ -103,7 +103,7 @@ test.describe("the keys, with a real pointer and a real keyboard", () => {
     await page.locator("#q").focus();
     const w0 = (await viewBox(page))[2]!;
     await page.keyboard.type(" ");
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("+");
     await page.waitForTimeout(100);
     expect((await viewBox(page))[2]!).toBe(w0);
   });

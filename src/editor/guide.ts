@@ -1,5 +1,19 @@
 export interface GuideStep { title: string; body: string }
 
+/** The view keys, for the Help panel's controls table. The same keys the card takes (`view-keys.ts`). */
+export const CONTROLS: { keys: string; does: string }[] = [
+  { keys: "Arrow keys", does: "Pan the view up, down, left and right" },
+  { keys: "+  and  -", does: "Zoom in and out" },
+  { keys: "[  and  ]", does: "Turn the plan 45 degrees left and right" },
+  { keys: "Space", does: "Reset the view: the whole floor, upright" },
+  { keys: "Alt + drag", does: "Move a corner or a wall freely, without snapping" },
+  { keys: "Enter", does: "Close the shape you are drawing" },
+  { keys: "Escape", does: "Cancel drawing, close a menu" },
+  { keys: "Delete", does: "Remove the selected item" },
+  { keys: "Cmd/Ctrl + Z", does: "Undo (add Shift to redo)" },
+  { keys: "Cmd/Ctrl + S", does: "Save the plan" },
+];
+
 /**
  * The Help panel's steps, in order. Plain words for someone who has never seen the tool: say what they click and
  * what they will see happen, never "canvas", "polygon" or "viewport".
@@ -15,6 +29,5 @@ export const GUIDE_STEPS: GuideStep[] = [
   { title: "Add a device", body: "Open Add, then Devices, and pick one from the list, or open the Device menu to place one already in your catalog. Drag it where it belongs." },
   { title: "Attach it to Home Assistant", body: "Click the device you placed. Its panel opens on the right with a field for its entity — pick the right one from the list, so the plan shows its real state." },
   { title: "Add another floor", body: "Click the + next to the floor tabs at the top of the screen, and give the new floor a name. Click a tab any time to switch floors." },
-  { title: "Looking around with the keyboard", body: "Up and Down arrows zoom in and out. Left and Right arrows turn the view, 45 degrees at a time; so do the two turn buttons next to the zoom buttons. Space shows the whole floor again. Turning only changes how you look: it is not saved in your plan and Undo does not touch it. The editor remembers your zoom, turn, view, wall height and floor when you come back. These keys do nothing while you type in a box." },
   { title: "Save your plan", body: "Press Cmd/Ctrl+S, or open File, then Save. Running inside Home Assistant, this stores your plan for next time. In a plain browser window, use Export instead to download a copy." },
 ];

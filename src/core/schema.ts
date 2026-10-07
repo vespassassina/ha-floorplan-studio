@@ -9,7 +9,7 @@ export type DeviceType =
   | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum";
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
-  | "bathtub" | "tv" | "computer" | "tree" | "patio-wood" | "patio-concrete" | "car";
+  | "bathtub" | "tv" | "computer" | "speaker" | "tree" | "patio-wood" | "patio-concrete" | "car";
 
 /** The twelve floor materials offered as swatches in the room panel (S1.35). Any #rrggbb is still valid on a room. */
 export const FLOOR_COLOURS: { name: string; hex: string }[] = [
@@ -36,7 +36,19 @@ export const MAX_SCENE_ITEMS = 40;
  * S14.7: one light or switch of a custom scene. `on` false turns it off; `brightness` (1-100 %), `kelvin` and `hs` ([hue 0-360,
  * saturation 0-100]) only mean something for a light that is on, and a field left out leaves that setting as it is.
  */
-export interface SceneItem { entity: string; on: boolean; brightness?: number; kelvin?: number; hs?: [number, number] }
+export interface SceneItem {
+  entity: string; on: boolean; brightness?: number; kelvin?: number; hs?: [number, number];
+  /** fan speed, 0-100 % */ percentage?: number;
+  /** cover position, 0 closed to 100 open */ position?: number;
+  /** climate: mode (`heat`, `cool`, ...) and target temperature in degrees C */ hvac?: string; temperature?: number;
+  /** media_player: volume 0-100 % and source name */ volume?: number; source?: string;
+}
+/** S17.2: the device types a scene may set. A type outside this list is ignored by the card and refused by `validate`. */
+export const SCENE_DOMAINS = ["light", "switch", "fan", "cover", "climate", "media_player"] as const;
+/** What each type may set besides `on` (see `SceneItem`). The editor and `validate` read this one list. */
+export const SCENE_FIELDS: Record<(typeof SCENE_DOMAINS)[number], readonly string[]> = {
+  light: ["brightness", "kelvin", "hs"], switch: [], fan: ["percentage"], cover: ["position"], climate: ["hvac", "temperature"], media_player: ["volume", "source"],
+};
 /**
  * S14.7: a custom scene, stored on the room (optional, no schema bump: an older card ignores the field). The card applies it
  * through the plain light and switch services, one call per item. `haScenes` on a room lists Home Assistant `scene.*` entities
@@ -99,8 +111,9 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  */
 export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
- *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. */
-export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number }
+ *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. `height` is the size of the piece, `z` its bottom above the floor
+ *  (a wall TV, a speaker): the top is z + height. */
+export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number; z?: number }
 /**
  * S4.25: an appliance placed on the plan with a fixed icon (by `type`, from `UNLINKED_TYPES`), not tied to a
  * single entity's state. `attached` is zero or more HA entities linked to it for reference only — it never
@@ -182,7 +195,7 @@ export const fxScale = (d: { fx?: unknown }): number => (typeof d.fx === "number
 export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum"];
 /** The types that mean "something moved here": the room's motion border, the icon fade and the card's fade timer all read this one list. A plain occupancy or presence sensor is typed `motion` (ha.ts), so it is in. `person` is not: it says who is home, not that a room is in use. */
 export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];
-export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "tree", "patio-wood", "patio-concrete", "car"];
+export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"];
 /** S4.25: the appliance types offered in the Add > Unlinked device menu — a curated subset of DEVICE_TYPES, each with a fixed icon and no linked-entity state. "heatpump" reuses the "ac" icon and colour; there is no separate type for it. */
 export const UNLINKED_TYPES: readonly DeviceType[] = ["heater", "ac", "boiler", "battery", "computer", "tv", "car", "server", "ups", "inverter", "speaker", "printer", "light"];
 
@@ -307,11 +320,14 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
             sc.items.forEach((it: unknown, j: number) => {
               const x = `${w} items[${j}]`;
               if (!isObj(it)) { errors.push(`${x} must be an object`); return; }
-              if (typeof it.entity !== "string" || !/^(light|switch)\./.test(it.entity)) errors.push(`${x} entity must be a light or switch id like light.name`);
+              if (typeof it.entity !== "string" || !new RegExp(`^(${SCENE_DOMAINS.join("|")})\\.`).test(it.entity)) errors.push(`${x} entity must be a ${SCENE_DOMAINS.join(", ")} id like light.name`);
               if (typeof it.on !== "boolean") errors.push(`${x} on must be true or false`);
               if (it.brightness !== undefined && !(fin(it.brightness) && it.brightness >= 1 && it.brightness <= 100)) errors.push(`${x} brightness must be a number from 1 to 100`);
               if (it.kelvin !== undefined && !(fin(it.kelvin) && it.kelvin >= 1000 && it.kelvin <= 10000)) errors.push(`${x} kelvin must be a number from 1000 to 10000`);
               if (it.hs !== undefined && !(Array.isArray(it.hs) && it.hs.length === 2 && fin(it.hs[0]) && fin(it.hs[1]) && it.hs[0] >= 0 && it.hs[0] <= 360 && it.hs[1] >= 0 && it.hs[1] <= 100)) errors.push(`${x} hs must be [hue 0-360, saturation 0-100]`);
+              for (const [f, lo, hi] of [["percentage", 0, 100], ["position", 0, 100], ["temperature", 5, 35], ["volume", 0, 100]] as const)
+                if (it[f] !== undefined && !(fin(it[f]) && (it[f] as number) >= lo && (it[f] as number) <= hi)) errors.push(`${x} ${f} must be a number from ${lo} to ${hi}`);
+              for (const f of ["hvac", "source"]) if (it[f] !== undefined && !(typeof it[f] === "string" && it[f] && (it[f] as string).length <= 80)) errors.push(`${x} ${f} must be text of 1 to 80 characters`);
             });
           });
         }
@@ -437,6 +453,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     each("furniture", (m) => {
       oneOf(`${m.id} symbol`, m.symbol, FURNITURE_SYMBOLS);
       optHeight(m, "height");
+      optHeight(m, "z");
       optText(m, "name");
       if (m.entity !== undefined && !isEntity(m.entity)) errors.push(`${at} ${m.id} entity must be an entity id like sensor.name`);
       for (const k of ["x", "y", "rot", "w", "h"]) if (typeof m[k] !== "number" || !Number.isFinite(m[k])) errors.push(`${at} ${m.id} ${k} must be a number`);

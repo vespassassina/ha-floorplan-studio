@@ -2,6 +2,46 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: Try and Restore (S17.7)
+
+`HaWriter.callService` is one service call; `tryScene` keeps each entity's first-seen state as a scene item (`itemFromState`) and sends `customCalls`, `restoreScene` sends the kept items. A second Try keeps the first backup. Closing the popup without Save restores; Save does not (the devices are as the saved scene says). Try asks no confirmation, unlike a card tap that turns a fan off: it is a preview and Restore undoes it. Unknown or unavailable devices are tried but cannot be restored, and the popup says so.
+
+## 2026-10-07: Picture colours (S17.6)
+
+`dominantColours` (`image-colours.ts`) is a pure k-means over RGBA bytes: seeds are one pixel from a fixed LCG, then the farthest pixel from the seeds so far; 12 passes; at most 4096 sampled pixels; transparent pixels skipped; result by cluster size then hex. `readImageColours` draws the file to a canvas of at most 64 px and calls it. Choosing a picture fills the palette; Apply is still the separate press the spec asks for.
+
+## 2026-10-07: Palette apply (S17.5)
+
+`spreadColours(palette, n)` in `scene-colour.ts`: invalid and repeated colours dropped, the brightest six kept and ordered by luminance (so pick order does not matter), light j gets colour j mod n. Supersedes the spec line "brightest to the largest area": a light has no area on the plan, so lights take colours in the order the room lists them. Round-robin, so neighbours differ.
+
+## 2026-10-07: Scenes list replaces the inline editor (S17.4)
+
+The room panel lists HA scenes (marked, not editable) then custom ones with Edit and Delete; Delete asks nothing because Undo restores it. Supersedes the inline per-light editor and the one-click Add scene of S14.7. The writers `addScene`, `renameScene`, `addSceneItem`, `removeSceneItem` and `setSceneItem` are no longer used by the panel; they stay, with their tests, until a later clean-up.
+
+## 2026-10-07: Scene designer popup (S17.3)
+
+The popup edits a draft held by the editor host; `saveScene` (room-scenes-ops) is the only writer and runs inside one `commit`, so Save is one undo step and Cancel none. A refused Save (no name, no device, duplicate name) keeps the popup open with the reason. A light holds a colour or a kelvin, never both: setting one clears the other. The old inline scene editor stays until S17.4 replaces it with the list.
+
+## 2026-10-07: Scene item types (S17.2)
+
+`SCENE_DOMAINS` and `SCENE_FIELDS` in `schema.ts` are the one list of types and what each may set. `customCalls` turns an item into calls: cover off is `close_cover` (no confirm), climate is mode then temperature, media_player is on, volume (0-1), source. Unknown types are ignored by the card and refused by `validate`. `addScene` still seeds lights and switches only.
+
+## 2026-10-07: Editor room panel sections fold (S17.1)
+
+Each section header is a controlled `<summary>`: the click flips `EditorState.folded` and re-renders, no native toggle event (a render between click and event reopened it). Stored in localStorage `floorplan-studio:folds`, per browser, never in the layout.
+
+## 2026-10-07: Furniture bottom (`z`), TV and speaker at 100 cm
+
+`Furniture.z` is the bottom of a piece, `height` stays its own size, top = z + height. Defaults in `FURNITURE_Z`: tv 100, speaker 100, others 0. A new `speaker` symbol (25 x 25). The TV furniture is not snapped to a wall: Diego places it, `z` lifts it. Attaching a device is the existing furniture `entity` ("shows the state of"). Supersedes the TV standing on the floor at 60 cm top. The unlinked TV and speaker keep scale and height, and the panel now shows H x W x L.
+
+## 2026-10-07: Room panel order, folded Scenes, media players open more-info
+
+Scenes folds by default (the fold set holds `r:scenes:open` for "opened", the reverse of the other groups). "Active in this room" moved into the room section between Scenes and Devices. A tap on any device whose entity is a `media_player.*` opens its more-info, as a speaker or TV placed as an appliance already did; the popup stays for a TV on a switch. Why (Diego): the player's own panel is better than a one-button popup.
+
+## 2026-10-07: Arrows pan both ways, + - zoom, [ ] rotate
+
+Diego, after 0.17.0. All four arrows pan (`PAN_STEP` 0.1 of the view width or height). `+`/`=` zoom in, `-`/`_` zoom out, `[` and `]` turn the plan by `ROTATION_STEP`. Supersedes "Up and Down zoom" (0.12.x) and the Left/Right-only pan of the entry below. Space still resets. Same map in card and editor (`view-keys.ts`); `[` `]` need the rotate buttons in the card, as the buttons do. Why: zoom and rotate get keys that say what they do, and the arrows stay for moving.
+
 ## 2026-10-07: Arrows pan, banners replace the status line, the plan opens fixed
 
 Diego asked for six things; three are done here. **Left and Right pan** (`PAN_STEP` 0.1 of the view width) in card and editor; they supersede "Left and Right turn the plan" (2026-09, 0.12.x). Rotation stays on the buttons. Why: turning on a key press was an accident waiting for anyone who scrolled sideways. **Banners:** `editor/banner.ts` classifies a message (info, warning, error) from its text; the editor shows it at the top for `BANNER_MS` (20 s) with a close button; "Ready" shows nothing. The old toolbar span is gone, the banner keeps the id `status` so the tests read it. The classification is a guess from words; a caller that knows passes the level (`planFixed` does). **Fix plan** now starts ticked when a plan with something drawn is loaded into a blank editor (the host's `layout`, and Open file). Furniture stays part of the plan (it is locked); devices, objects and lights stay editable. Open file ignores the lock: it is an explicit replace of everything.
