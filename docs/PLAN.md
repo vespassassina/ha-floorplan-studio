@@ -2586,6 +2586,6 @@ Each task: one outcome, one failing test first, one commit. Branch `task/s19-cle
 - [x] S19.E2 A stale tooltip goes when its target changes or leaves.
 - [x] S19.E3 The card honours `layout.colors` as the editor does.
 - [x] S19.E4 `temp` joins `NO_TOGGLE`.
-- [ ] S19.E5 Camera cone clip.
-- [ ] S19.E6 Remove unused scene writers.
+- [ ] S19.E5 Camera cone clip. Skipped: the cone markup is pinned by regexes in tests/core/render.test.ts, a CSS `url(#id)` clip does not cross the shadow DOM, and it was not asked for as a fix. Needs a decision.
+- [x] S19.E6 Remove unused scene writers (`addScene`, `renameScene`, `addSceneItem`, `removeSceneItem`, `setSceneItem`); their tests now go through `saveScene`.
 Not in this sprint: car in 3D/2D, old worktree clean-up.

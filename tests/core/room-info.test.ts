@@ -250,13 +250,13 @@ describe("room rows: a piece whose entity a plug device also uses (S19.B)", () =
   const state: StateOverlay = { "switch.tv_plug": st("on"), "sensor.tv_watts": st("0.5", { unit_of_measurement: "W" }) };
   it("reads off, as the plan draws it, while the plug idles", () => {
     const f = floor([plug], { furniture: [piece] });
-    const row = roomSummary(f, 0, state)!.devices.find((d) => d.piece)!;
+    const row = roomSummary(f, 0, state, {})!.devices.find((d) => d.piece)!;
     expect(row.on).toBe(false);
-    expect(renderFloor(f, { state }).match(/<g[^>]*data-f="0"[^>]*>/)![0]).not.toMatch(/\bon\b/);
+    expect(renderFloor(f, { scale: 1, state }).match(/<g[^>]*data-f="0"[^>]*>/)![0]).not.toMatch(/\bon\b/);
   });
   it("reads on when the plug draws power, and the plan agrees", () => {
     const busy: StateOverlay = { ...state, "sensor.tv_watts": st("80", { unit_of_measurement: "W" }) };
     const f = floor([plug], { furniture: [piece] });
-    expect(roomSummary(f, 0, busy)!.devices.find((d) => d.piece)!.on).toBe(true);
+    expect(roomSummary(f, 0, busy, {})!.devices.find((d) => d.piece)!.on).toBe(true);
   });
 });
