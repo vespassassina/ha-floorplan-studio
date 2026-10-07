@@ -116,6 +116,15 @@ monLayout.floors.ground.furniture.push(
 Object.assign(STATES.off, { "media_player.shot_tv": "off", "media_player.shot_sp": "idle", "switch.shot_pc": "off" });
 Object.assign(STATES.on, { "media_player.shot_tv": "playing", "media_player.shot_sp": "playing", "switch.shot_pc": "on" });
 Object.assign(STATES.gone, { "media_player.shot_tv": "unavailable", "media_player.shot_sp": "unavailable", "switch.shot_pc": "unavailable" });
+// S18.14: a siren (rings while on), a siren-typed device on a plain entity (danger colour, no rings) and an alarm panel
+// (armed = danger red, disarmed = idle), in the Hall beside the vacuum. Off, on and gone, like the rest.
+monLayout.floors.ground.devices.push(
+  { id: "mon-siren", type: "siren", entity: "siren.demo_hall", name: "Hall siren", x: 360, y: 550 },
+  { id: "mon-siren-plain", type: "siren", entity: "switch.demo_horn", name: "Horn", x: 360, y: 500 },
+  { id: "mon-alarm", type: "alarm", entity: "alarm_control_panel.demo_home", name: "Alarm panel", x: 290, y: 550 });
+Object.assign(STATES.off, { "siren.demo_hall": "off", "switch.demo_horn": "off", "alarm_control_panel.demo_home": "disarmed" });
+Object.assign(STATES.on, { "siren.demo_hall": "on", "switch.demo_horn": "on", "alarm_control_panel.demo_home": "armed_away" });
+Object.assign(STATES.gone, { "siren.demo_hall": "unavailable", "switch.demo_horn": "unavailable", "alarm_control_panel.demo_home": "unavailable" });
 // S8.13: an open contact door and window draw their alert line in "on"; closed in "off", unknown in "gone".
 Object.assign(STATES.off, { "binary_sensor.demo_front_door": "off", "binary_sensor.demo_bedroom_window": "off" });
 Object.assign(STATES.on, { "binary_sensor.demo_front_door": "on", "binary_sensor.demo_bedroom_window": "on" });

@@ -97,7 +97,7 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
   cover: "#f28c28", battery: "#8b8578", inverter: "#8b8578", server: "#8b8578", access_point: "#8b8578",
   lock: "#d64545", vibration: "#d64545", other: "#8b8578",
   boiler: "#8b8578", car: "#8b8578", ups: "#8b8578", printer: "#8b8578", speaker: "#2c7fb8",
-  person: "#1b9e77", radar: "#6a3fbf", vacuum: "#2f8f8f",
+  person: "#1b9e77", radar: "#6a3fbf", vacuum: "#2f8f8f", siren: "#b02a2a", alarm: "#b02a2a",
 };
 
 // S1.53: the light and dark (now blueprint) token sets, each written once and interpolated wherever CSS needs it, so a new
@@ -350,7 +350,7 @@ export const FLOORPLAN_CSS = `
 .dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
-.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}
+.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-siren.on{--fp-dev:var(--fp-danger)} .dev-alarm.on{--fp-dev:var(--fp-danger)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}
 /* S14.8: a plug with a readable draw (renderFloor wrote --fp-heat, 0..1) runs cool -> mid -> hot. Same specificity class as .dev-plug.on plus an attribute, so it wins; a plug with no
    reading has no --fp-heat and keeps --fp-dev-plug, exactly as before. */
 .dev-plug.on[style*="--fp-heat"]{--fp-dev:color-mix(in oklch,color-mix(in oklch,var(--fp-heat-cool) calc((1 - min(var(--fp-heat) * 2,1)) * 100%),var(--fp-heat-mid)) calc((1 - max(var(--fp-heat) * 2 - 1,0)) * 100%),var(--fp-heat-hot))}
@@ -636,6 +636,8 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   // (unavailable/unknown are already handled above) counts.
   if (d.type === "tv") return s.state === "off" || s.state === "standby" ? "off" : "on";
   if (d.type === "person") return s.state === "home" ? "on" : "off";
+  // S18.14: an alarm panel is on in every state but disarmed: armed_*, arming, pending, triggered.
+  if (d.type === "alarm") return s.state === "disarmed" ? "off" : "on";
   // S7.10: docked/idle/paused read idle grey like an off device; cleaning and returning are both active (the
   // spin class, from vacuumSpinClass below, is what tells them apart); error is its own danger class, not on/off.
   if (d.type === "vacuum") {

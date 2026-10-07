@@ -4003,7 +4003,7 @@ const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first
 
 test("S1.36: Edit, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
   await openDevCols(page);
-  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(30); // S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum
+  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(32); // S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum; S18.14 added siren, alarm
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
   await expect(colourRow(page, "light").locator("button")).toHaveCount(1);
   await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
@@ -6218,6 +6218,55 @@ test("S4.18: the device panel's type selector changes a device's type and drops 
   const after = (await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any;
   expect(after.type).toBe("heater");
   expect(after.tempSensors).toEqual(["sensor.demo_bedroom_temperature"]);
+});
+
+// ---- S18.14: the type menu lists the popular types, a separator, then the rest A to Z; siren and alarm are types ----------
+
+test("S18.14: the device type select lists popular types, one unselectable separator, then A to Z; siren and alarm are chosen in one undo step each", async ({ page }) => {
+  const p = await screenOf(page, 180, 8); // demo's "Living radiator" heater
+  await page.mouse.click(p.x, p.y);
+  const sel = page.locator("#vtype");
+  await expect(sel).toHaveValue("heater");
+  // What the browser holds, not what the source says: an hr is a child of the select but never one of its options.
+  const kids = await sel.evaluate((s) => [...s.children].map((c) => (c.tagName === "HR" ? "---" : `${(c as HTMLOptionElement).value}|${c.textContent}`)));
+  expect(kids.slice(0, 8).map((k) => k.split("|")[0])).toEqual(["light", "switch", "motion", "contact", "temp", "speaker", "tv", "---"]);
+  expect(kids.filter((k) => k === "---")).toHaveLength(1);
+  const rest = kids.slice(8).map((k) => k.split("|")[1]);
+  expect(rest).toEqual([...rest].sort((a, b) => a.localeCompare(b, "en")));
+  expect(rest).toContain("Siren");
+  expect(rest).toContain("Alarm");
+  expect(await sel.evaluate((s: HTMLSelectElement) => s.options.length)).toBe(kids.length - 1); // the hr is not an option
+  const typeOf = async () => ((await groundOf(page)).devices.find((d: any) => d.id === "heater-living") as any).type;
+  await page.mouse.click(p.x, p.y);
+  await sel.selectOption("siren");
+  expect(await typeOf()).toBe("siren");
+  await page.mouse.click(p.x, p.y);
+  await sel.selectOption("alarm");
+  expect(await typeOf()).toBe("alarm");
+  await page.mouse.click(p.x, p.y);
+  await page.keyboard.press("Control+z");
+  expect(await typeOf()).toBe("siren"); // one step undoes the alarm
+  await page.keyboard.press("Control+z");
+  expect(await typeOf()).toBe("heater"); // one step undoes the siren
+  // The separator takes no index: option 6 is tv, option 7 is the first of the rest, so neither a click nor an arrow key can land on it.
+  // (Arrow keys open the list on macOS and step it elsewhere, so the test reads the option list the keys walk, not the key.)
+  await page.mouse.click(p.x, p.y);
+  await sel.selectOption({ index: 6 });
+  await expect(sel).toHaveValue("tv");
+  await sel.selectOption({ index: 7 });
+  await expect(sel).toHaveValue(kids[8].split("|")[0]);
+  expect(await sel.evaluate((s: HTMLSelectElement) => s.selectedOptions.length)).toBe(1);
+});
+
+test("S18.14: the unlinked device menu takes the same order: its placeholder, popular types, one separator, the rest A to Z", async ({ page }) => {
+  await menu(page, "Add");
+  const kids = await page.locator("#addUnlDev").evaluate((s) => [...s.children].map((c) => (c.tagName === "HR" ? "---" : `${(c as HTMLOptionElement).value}|${c.textContent}`)));
+  const popular = ["light", "speaker", "tv"]; // the popular types this menu offers, in POPULAR_TYPES order
+  expect(kids.slice(0, 5).map((k) => k.split("|")[0])).toEqual(["", ...popular, "---"]);
+  expect(kids.filter((k) => k === "---")).toHaveLength(1);
+  const rest = kids.slice(5).map((k) => k.split("|")[1]);
+  expect(rest).toEqual([...rest].sort((a, b) => a.localeCompare(b, "en")));
+  expect(rest.length).toBeGreaterThan(5);
 });
 
 // ---- S7.8: a person has a Room sensor picker, and only a person ------------------------------------------------

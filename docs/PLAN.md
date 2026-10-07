@@ -2568,7 +2568,7 @@ Source: Diego's notes after 0.18.0, 2026-10-07. Each task: one outcome, one fail
 - [x] S18.11 Adding a connectable device (speaker, TV, computer) creates it as furniture directly, movable.
 - [x] S18.12 A connected speaker or TV gets its own colour. Connected = the piece has an entity (Diego, via the coordinator).
 - [x] S18.13 Computer drawn as a desk with case, monitor and keyboard.
-- S18.14 Device type menu: popular types on top, a separator, the rest A to Z. Adds `alarm` and `siren` as choosable types. `isSiren` already keys on the entity domain; the type must agree.
+- [x] S18.14 Device type menu: popular types on top, a separator, the rest A to Z. Adds `alarm` and `siren` as choosable types. `isSiren` already keys on the entity domain; the type must agree.
 
 ### Open questions
 1. S18.1: where does the scene not show: the room's scene list in the editor, or the card?

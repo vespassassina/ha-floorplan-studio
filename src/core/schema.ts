@@ -6,7 +6,7 @@ export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
   | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover"
   | "battery" | "inverter" | "server" | "access_point" | "lock" | "vibration" | "other"
-  | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum";
+  | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum" | "siren" | "alarm";
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "tv" | "computer" | "speaker" | "tree" | "patio-wood" | "patio-concrete" | "car";
@@ -184,7 +184,7 @@ export const STAIR_DIRECTIONS: readonly StairDirection[] = ["up", "down", "both"
 export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed", "slit", "open"];
 /** S14.3: the least and most a device's effect size (`fx`, percent) may be. Absent reads as 100. */
 export const FX_MIN = 25, FX_MAX = 300;
-/** S14.3: the types that draw an effect the size scales: a lit lamp's aura, a playing speaker's or media device's waves, a triggered motion or contact sensor's ring. A siren is not a type; see `isSiren`. */
+/** S14.3: the types that draw an effect the size scales: a lit lamp's aura, a playing speaker's or media device's waves, a triggered motion or contact sensor's ring. A siren draws rings by its entity's domain (`isSiren`), not by the `siren` type; see there. */
 export const FX_TYPES: readonly DeviceType[] = ["light", "speaker", "media", "motion", "contact"];
 /** S14.3 (spec item 6): a siren is any device whose entity is in HA's `siren` domain, whatever type the user gave it; while it is on it sends out the loudest rings. */
 export const isSiren = (d: { entity?: unknown }): boolean => typeof d.entity === "string" && d.entity.startsWith("siren.");
@@ -192,7 +192,7 @@ export const isSiren = (d: { entity?: unknown }): boolean => typeof d.entity ===
 export const drawsEffect = (d: { type?: unknown; entity?: unknown }): boolean => (FX_TYPES as readonly unknown[]).includes(d.type) || isSiren(d);
 /** The effect size as a fraction (1 = the type's own size). A missing or invalid `fx` reads as 1. */
 export const fxScale = (d: { fx?: unknown }): number => (typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX ? d.fx / 100 : 1);
-export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum"];
+export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm"];
 /** The types that mean "something moved here": the room's motion border, the icon fade and the card's fade timer all read this one list. A plain occupancy or presence sensor is typed `motion` (ha.ts), so it is in. `person` is not: it says who is home, not that a room is in use. */
 export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"];

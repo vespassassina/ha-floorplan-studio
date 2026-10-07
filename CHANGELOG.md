@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The device type menu puts the most used types first (light, switch, motion, window / door sensor, temperature, speaker, TV), then a separator, then every other type A to Z. The device panel, the Add device filter and the Unlinked device list all use it.
+- Siren and alarm are device types. A `siren.*` entity is placed as a siren and an `alarm_control_panel.*` as an alarm. A siren on is red (and sends rings, as before, when its entity is a siren). An alarm is red while armed, pending or triggered, grey when disarmed, and a tap opens more-info instead of toggling.
 - A tv, speaker or computer piece that tracks a device (it has an entity) is drawn in the tv blue when idle, so it reads apart from a plain decorative one. On, it takes the on colour as before. Same in the card and the editor, in 2D and 2.5D.
 - Add > Device places a tv, a speaker or a computer as the piece itself, not an icon: a media player Home Assistant calls a tv or speaker, and a catalog entry typed tv, speaker or computer. The piece tracks the entity, sits where a device would, is selected and moves like any furniture.
 - A thin tv or a small speaker is easy to pick up in the editor: a piece under 28 px on a side takes the press from 8 px around it, and drags as before.

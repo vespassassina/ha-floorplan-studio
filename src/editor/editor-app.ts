@@ -16,7 +16,7 @@ import { cleanSceneItem } from "./room-scenes-ops";
 import type { SceneItem } from "../core";
 import { newDraft, sceneDesigner, type SceneDraft } from "./scene-designer";
 import { roomSceneTargets, saveScene } from "./room-scenes-ops";
-import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, type PanelCtx } from "./panels";
+import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, typeOptions, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
 import type { HaWriter, Labelled } from "./hass-write";
 import { motionLights, openAutomation, schedule, switchControls } from "./automations";
@@ -1689,7 +1689,7 @@ export class FloorplanStudioEditor extends LitElement {
         ${selHtml("addDevArea", "area", "All areas", this.addDevArea, (v) => { this.addDevArea = v; })}
         ${all.length ? html`<select id="addDevType" aria-label="All types" .value=${live(this.addDevType)} @change=${(e: Event) => { this.addDevType = (e.target as HTMLSelectElement).value; this.requestUpdate(); }}>
           <option value="">All types</option>
-          ${typeOpts.map(([t, label]) => html`<option value=${t}>${label}</option>`)}
+          ${typeOptions(typeOpts)}
         </select>` : nothing}
       </div>
       ${all.length === 0 ? html`<span class="grp" id="addDevNone">Everything is on the plan</span>`
@@ -2722,7 +2722,7 @@ export class FloorplanStudioEditor extends LitElement {
           </select>
           <select id="addUnlDev" aria-label="Add unlinked device" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addUnlinked(el.value); el.value = ""; this.closeMenus(); }}>
             <option value="">Unlinked device…</option>
-            ${UNLINKED_TYPES.map((t) => html`<option value=${t}>${TYPE_LABELS.find((x) => x[0] === t)?.[1] ?? t}</option>`)}
+            ${typeOptions(TYPE_LABELS.filter(([t]) => (UNLINKED_TYPES as readonly string[]).includes(t)))}
           </select>
         </div></details>
         <details class="menu" id="mDraw" @toggle=${this.onMenuToggle}><summary class="btn">Draw</summary><div class="box">

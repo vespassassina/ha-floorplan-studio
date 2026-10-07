@@ -29,7 +29,7 @@ const SOLID: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
 const STEM: Record<DeviceType, boolean> = {
   light: true, camera: true, motion: true, radar: true, access_point: true, ac: true, speaker: true, cover: true, switch: true, plug: false,
   contact: true, vibration: true, lock: true, temp: true, humidity: true, climate: true, boiler: true, battery: true, inverter: true, media: true, tv: true, other: true,
-  heater: false, computer: false, server: false, ups: false, printer: false, car: true, person: false, vacuum: false,
+  heater: false, computer: false, server: false, ups: false, printer: false, car: true, person: false, vacuum: false, siren: true, alarm: true,
 };
 
 describe("2.5D furniture", () => {

@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: siren and alarm are device types, and the type menu has a popular block (S18.14)
+
+Diego: allow "alarm" and "siren" in a device's type; the most popular on top, a separator, the rest A to Z.
+
+**Menu.** One helper, `typeMenu` / `typeOptions` (`panels.ts`), builds every device type select: the device panel's `#vtype`, the Add > Device panel's type filter and the Add > Unlinked device list. Popular, in this order: light, switch, motion, contact (labelled "Window / door sensor"), temp (Temperature), speaker, tv. These are Diego's proposal from the open question; nobody countered it. Then one `<hr>`, then every other type A to Z by the label shown (localeCompare, English). `<hr>` is not an option: it has no index, cannot be picked and is not reached by `selectOption` or the arrow keys; Lit renders it inside `<select>` and Chromium shows a rule. No separator when a block is empty (a filtered list). A digit sorts before a letter, so "3D printer" opens the second block; the label is Diego's and I left it. The unlinked list keeps its curated subset (`UNLINKED_TYPES`) and gains no siren or alarm: an unlinked one has no state to show.
+
+**Types.** Both are real `DeviceType` members, appended to `DEVICE_TYPES` (the order the Active list groups by). The other design, mapping the menu entry onto an existing type, would have made "alarm" and "other" indistinguishable and left the entity picker with no rule. Every per-type table now decides them (finding 17), and the tests that pin those tables got a siren and an alarm row, nothing else changed in them:
+- `typeForEntity`: `siren.*` is siren, `alarm_control_panel.*` is alarm (both were `other`; no test pinned that). `TYPE_RULES` offers each its own domain; both are placeable from an area.
+- Icons: MDI `alarm-light` for the siren, `shield-home` (what HA shows) for the alarm, inlined (finding 9). Category: security. Heights: siren 205 cm mount, 230 cm unlinked top; alarm 120 (keypad). No 2.5D solid.
+- State: a siren is on while its entity is on (the default rule). An alarm is on in every state but `disarmed` (armed_*, arming, pending, triggered); `unavailable` stays unavailable. Both wear `--fp-danger`, the red every theme already has, so no new token and no theme-roles change. The Active list shows both when on and uses the same token.
+- Tap: a siren is not in `NO_TOGGLE`, so its popup offers on/off (the `siren` domain was already switchable). An alarm is in `NO_TOGGLE`: it opens more-info. Room-panel row tap stays more-info for both; that table's pin is four toggling types.
+- Rings: `isSiren` is unchanged, it still keys on the `siren.*` entity. A siren-typed device on a plain entity is red when on and draws no rings. Making the type draw them would have put `siren` in `FX_TYPES` and changed the size control for a case nobody asked for.
+
+Seen in `npm run shots`: siren with rings, a siren on a switch entity, an alarm armed (red) and disarmed (grey), in blueprint, light and Home Assistant dark.
+
 ## 2026-10-07: a linked tv, speaker or computer wears its own idle colour (S18.12)
 
 "Connected" means the piece has an `entity`: it tracks that device. `furnitureLinked` (`solids.ts`, one function for the 2D and 2.5D draw paths) adds `data-linked` to a tv, speaker or computer piece with an entity (an attribute, not a class: the class list is pinned by S18.9 tests). `.furn[data-linked]` sets `color: var(--fp-dev-tv)`, before `.furn.on`, so the on colour (S18.9) still wins; the filled body follows `currentColor`. One token for the three symbols, not a new variable: it is the blue every theme already gives the tv, and the shots in light, Home Assistant dark and blueprint show it apart from the plain grey. Not by state (a player that is off or unavailable is still linked). Other symbols with an entity (a patio gate) are not linked: their entity drives on/off only. Shots now draw six such pieces in the Kitchen.

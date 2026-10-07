@@ -36,6 +36,9 @@ export const DEVICE_ICONS: Record<DeviceType, string> = {
   radar: "M12,2A10,10 0 1,0 22,12H12V2ZM12,10A2,2 0 1,0 12,14A2,2 0 1,0 12,10Z",
   // S7.10: mdiRobotVacuum, copied verbatim from Templarian/MaterialDesign's raw svg source (Apache 2.0), same as every icon above.
   vacuum: "M12,2C14.65,2 17.19,3.06 19.07,4.93L17.65,6.35C16.15,4.85 14.12,4 12,4C9.88,4 7.84,4.84 6.35,6.35L4.93,4.93C6.81,3.06 9.35,2 12,2M3.66,6.5L5.11,7.94C4.39,9.17 4,10.57 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12C20,10.57 19.61,9.17 18.88,7.94L20.34,6.5C21.42,8.12 22,10.04 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12C2,10.04 2.58,8.12 3.66,6.5M12,6A6,6 0 0,1 18,12C18,13.59 17.37,15.12 16.24,16.24L14.83,14.83C14.08,15.58 13.06,16 12,16C10.94,16 9.92,15.58 9.17,14.83L7.76,16.24C6.63,15.12 6,13.59 6,12A6,6 0 0,1 12,6M12,8A1,1 0 0,0 11,9A1,1 0 0,0 12,10A1,1 0 0,0 13,9A1,1 0 0,0 12,8Z",
+  // S18.14: mdiAlarmLight (a siren beacon) and mdiShieldHome (what HA shows for an alarm panel), from @mdi/js 7.4 (Apache 2.0).
+  siren: "M6,6.9L3.87,4.78L5.28,3.37L7.4,5.5L6,6.9M13,1V4H11V1H13M20.13,4.78L18,6.9L16.6,5.5L18.72,3.37L20.13,4.78M4.5,10.5V12.5H1.5V10.5H4.5M19.5,10.5H22.5V12.5H19.5V10.5M6,20H18A2,2 0 0,1 20,22H4A2,2 0 0,1 6,20M12,5A6,6 0 0,1 18,11V19H6V11A6,6 0 0,1 12,5Z",
+  alarm: "M11,13H13V16H16V11H18L12,6L6,11H8V16H11V13M12,1L21,5V11C21,16.55 17.16,21.74 12,23C6.84,21.74 3,16.55 3,11V5L12,1Z",
 };
 
 /** S9.5: the type heading the active-devices list panel groups rows under. Kept next to DEVICE_ICONS so a new
@@ -45,7 +48,7 @@ export const DEVICE_TYPE_LABELS: Record<DeviceType, string> = {
   motion: "Motion", contact: "Contact", camera: "Camera", climate: "Climate", ac: "AC", tv: "TV", computer: "Computer",
   media: "Media player", cover: "Cover", battery: "Battery", inverter: "Inverter", server: "Server",
   access_point: "Access point", lock: "Lock", vibration: "Vibration", other: "Other", boiler: "Boiler", car: "Car",
-  ups: "UPS", printer: "Printer", speaker: "Speaker", person: "Person", radar: "Radar", vacuum: "Vacuum",
+  ups: "UPS", printer: "Printer", speaker: "Speaker", person: "Person", radar: "Radar", vacuum: "Vacuum", siren: "Siren", alarm: "Alarm",
 };
 
 /** The card toolbar's own icons, 24x24 MDI paths (Apache 2.0) inlined like the ones above: no runtime import of

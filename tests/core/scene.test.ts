@@ -437,7 +437,7 @@ describe("scene: devices match the 2.5D numbers", () => {
     light: "none", camera: "none", motion: "none", radar: "none", access_point: "none", ac: "none", speaker: "speaker", cover: "none",
     switch: "none", plug: "none", contact: "none", vibration: "none", lock: "none", temp: "none", humidity: "none", climate: "none",
     boiler: "none", battery: "none", inverter: "none", media: "speaker", tv: "tv", other: "none", heater: "radiator", computer: "none",
-    server: "none", ups: "none", printer: "none", car: "none", person: "none", vacuum: "none",
+    server: "none", ups: "none", printer: "none", car: "none", person: "none", vacuum: "none", siren: "none", alarm: "none",
   };
   it("decides every DeviceType: a solid for the three, a point at deviceZ for the rest", () => {
     expect(Object.keys(KIND).sort()).toEqual([...DEVICE_TYPES].sort());
