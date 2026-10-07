@@ -80,3 +80,17 @@ describe("EditorState: plan lock", () => {
     expect(st.edit((f) => { f.rooms[0].name = "Changed"; })).toBe(true);
   });
 });
+
+describe("EditorState: plan lock and scenes", () => {
+  beforeEach(() => localStorage.clear());
+  it("a room's scenes and offered Home Assistant scenes are not the plan: they save while it is fixed, and the room's shape still cannot change", () => {
+    const st = locked();
+    expect(st.edit((f) => { f.rooms[0].scenes = [{ id: "s1", name: "Movie", items: [{ entity: "light.demo_living", on: true }] }]; })).toBe(true);
+    expect(st.planBlocked).toBe(false);
+    expect(st.edit((f) => { f.rooms[0].haScenes = ["scene.x"]; })).toBe(true);
+    expect(st.edit((f) => { delete f.rooms[0].scenes; })).toBe(true);
+    expect(st.edit((f) => { f.rooms[0].name = "Changed"; })).toBe(false);
+    expect(st.planBlocked).toBe(true);
+    expect(st.edit((f) => { f.rooms[0].scenes = [{ id: "s2", name: "X", items: [{ entity: "light.demo_living", on: true }] }]; f.rooms[0].name = "Changed"; })).toBe(false); // both at once is still a plan change
+  });
+});

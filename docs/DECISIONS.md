@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: scenes are not the plan
+
+Fix plan compares the floor with devices and objects taken out; a room's `scenes` and `haScenes` sat inside that, so a fixed plan refused Save and the designer closed as if it had saved. `EditorState.plan` now leaves both out. `saveSceneDraft` keeps the designer open with a message when a save is refused. Found by Diego: the scene was made with Fix plan on.
+
 ## 2026-10-07: Sprint 18a, scene designer fixes
 
 Popups centre on the viewport (`panelPos` takes the panel's largest height): the old top came from the toolbar's rectangle, which is off-screen once the page scrolls. Try keeps a per-popup `sceneOrigin`, the first-seen state of each device, across Restore; before, Restore cleared the backup and the next Try could record a stale `on` as the original (the likely cause of an off light coming back white; not reproduced on a real HA). Covers of doors and windows join `roomSceneTargets` (a curtain is a door field, not a device). Climate leaves the designer; the schema and `customCalls` still accept it, so old files run. Colours from a picture still capped at 6; the report of four was not reproduced and needs the picture.

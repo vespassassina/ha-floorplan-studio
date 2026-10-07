@@ -338,3 +338,14 @@ test("the designer opens inside a short viewport, with its name box and Save bot
   const name = (await page.locator("#sceneName").boundingBox())!;
   expect(name.y).toBeGreaterThanOrEqual(0);
 });
+
+// With Fix plan on, Save still stores the scene: a scene is not the plan's shape.
+test("Save works while the plan is fixed", async ({ page }) => {
+  await page.locator("#fixPlan").check();
+  await page.locator("#sceneName").fill("Fixed");
+  await press(page, "#sd-inc-0");
+  await press(page, "#sceneSave");
+  await expect(page.locator("#scenePanel")).toHaveCount(0);
+  expect((await scenes(page)).map((s) => s.name)).toEqual(["Fixed"]);
+  await expect(page.locator('[data-scene] >> text=Fixed')).toBeVisible();
+});

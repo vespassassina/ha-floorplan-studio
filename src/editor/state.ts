@@ -250,7 +250,7 @@ export class EditorState {
   planBlocked = false;
   private planOpen(): boolean { this.planBlocked = this.planLocked; return !this.planLocked; }
   /** The floor with its devices and objects (heater, TV...) taken out: what a plan lock holds still. Walls, rooms, doors, windows, areas, stairs and furniture are the plan. */
-  private static plan(f: Floor): string { return JSON.stringify({ ...f, devices: [], unlinked: [] }); }
+  private static plan(f: Floor): string { return JSON.stringify({ ...f, devices: [], unlinked: [], rooms: f.rooms.map((r) => ({ ...r, scenes: undefined, haScenes: undefined })) }); } // scenes are what a room offers, not its shape: a fixed plan still takes them (2026-10-07)
 
   /** Adds a floor last and selects it, with the outline (and its wall kinds), and the stairs, of the first floor (the lowest) and nothing else, so a house is not traced twice. Deep copies; the stairs get ids of the new floor. The key is the slug of the title, with -2, -3 on a clash. Returns the key, or "" for an empty title. */
   addFloor(title: string): string {

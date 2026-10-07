@@ -1206,6 +1206,7 @@ export class FloorplanStudioEditor extends LitElement {
     const check = saveScene(probe, d.id, d.name, items);
     if (!check.ok) reason = check.reason;
     else this.commit((f) => { saveScene(f.rooms[i], d.id, d.name, items); });
+    if (!reason && this.st.planBlocked) reason = "The plan is fixed, so this scene was not saved. Untick Fix plan and save again."; // never close on a refused save
     if (reason) { d.error = reason; this.requestUpdate(); return; }
     this.closeScene(true);
   }

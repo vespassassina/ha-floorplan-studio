@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix plan no longer blocks scenes. Saving, editing or deleting a room's scene, and offering a Home Assistant scene, work while the plan is fixed. Before, Save closed the designer and stored nothing. A refused save now keeps the designer open and says why.
+
 ## 0.18.1 - 2026-10-07
 
 - Popups (scene designer, Place, Home Assistant, Add device) open centred in the viewport and fit it, however far the page is scrolled. The scene designer's name box and Save were cut off before.
