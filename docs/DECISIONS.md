@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: Scenes list replaces the inline editor (S17.4)
+
+The room panel lists HA scenes (marked, not editable) then custom ones with Edit and Delete; Delete asks nothing because Undo restores it. Supersedes the inline per-light editor and the one-click Add scene of S14.7. The writers `addScene`, `renameScene`, `addSceneItem`, `removeSceneItem` and `setSceneItem` are no longer used by the panel; they stay, with their tests, until a later clean-up.
+
 ## 2026-10-07: Scene designer popup (S17.3)
 
 The popup edits a draft held by the editor host; `saveScene` (room-scenes-ops) is the only writer and runs inside one `commit`, so Save is one undo step and Cancel none. A refused Save (no name, no device, duplicate name) keeps the popup open with the reason. A light holds a colour or a kelvin, never both: setting one clears the other. The old inline scene editor stays until S17.4 replaces it with the list.

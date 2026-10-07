@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Editor, room panel: Scenes is now a list. Home Assistant scenes come first, marked (this area, or offered, with Remove); custom scenes follow with Edit (opens the designer) and Delete (one undo step). The inline per-light editor and Add scene are gone: New scene opens the designer.
 - Editor, scene designer: the room panel's Scenes section has New scene and Edit in designer. A popup lists the room's lights, switches, fans, covers, climate devices and media players; tick, set on or off and the fields of each type (brightness, kelvin or colour for a light), name it and Save. Cancel, the X and Escape change nothing; Save is one undo step.
 - Scenes: a scene item may now be a fan (speed), cover (position), climate (mode, temperature) or media player (volume, source), besides lights and switches. Files with these items validate; the card runs them. Turning a fan, climate or player off asks first.
 - Editor, room panel: Identity, Sensors, Scenes and Appearance fold by their header; the choice is remembered in the browser.

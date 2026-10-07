@@ -24,7 +24,7 @@ async function openRoom(page: Page) {
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   const p = await screenOf(page, 150, 100);
   await page.mouse.click(p.x, p.y);
-  await expect(page.locator("#rsc-add")).toBeVisible();
+  await expect(page.locator("#rsc-new")).toBeVisible();
 }
 
 test("a room section folds on a click on its title and opens again; the others stay as they were", async ({ page }) => {
@@ -33,10 +33,10 @@ test("a room section folds on a click on its title and opens again; the others s
   await expect(scenes).toHaveJSProperty("open", true);
   await press(page, 'details[data-sec="room:scenes"] > summary');
   await expect(scenes).toHaveJSProperty("open", false);
-  await expect(page.locator("#rsc-add")).toBeHidden();
+  await expect(page.locator("#rsc-new")).toBeHidden();
   await expect(identity).toHaveJSProperty("open", true);
   await press(page, 'details[data-sec="room:scenes"] > summary');
-  await expect(page.locator("#rsc-add")).toBeVisible();
+  await expect(page.locator("#rsc-new")).toBeVisible();
 });
 
 test("a folded section stays folded when another room is picked and after a reload", async ({ page }) => {
