@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.19.0 - 2026-10-07
+
 - Only a tv, speaker or computer takes the padded grab box in the editor; a small toilet, sink or shower no longer takes a click meant for its room. A wall or room edge within 8 px wins over a thin tv lying on it. An entity a piece already tracks is no longer offered to place a second time.
 - The device type menu puts the most used types first (light, switch, motion, window / door sensor, temperature, speaker, TV), then a separator, then every other type A to Z. The device panel, the Add device filter and the Unlinked device list all use it.
 - Siren and alarm are device types. A `siren.*` entity is placed as a siren and an `alarm_control_panel.*` as an alarm. A siren on is red (and sends rings, as before, when its entity is a siren). An alarm is red while armed, pending or triggered, grey when disarmed, and a tap opens more-info instead of toggling.
