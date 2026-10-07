@@ -11,7 +11,7 @@ import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 import { meanReading } from "./readings";
-import { DEVICE_SOLID, STEM_MIN_Z, furnitureLinked, furnitureMode, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
+import { DEVICE_SOLID, STEM_MIN_Z, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
 
@@ -700,6 +700,18 @@ function entityOn(o: RenderOpts, entity: string | undefined, plugs?: ReadonlyMap
 }
 
 /**
+ * Whether a piece of furniture reads "on". A linked tv, speaker or computer piece (`pieceDevice`) follows the rule of the device of
+ * its type (`classOf`: a paused tv is on, a speaker only while playing); the card's Active list, room rows and 3D view call this
+ * too, so none of them can disagree with the plan. Any other piece keeps `entityOn`: on, open or playing. A plug's switch keeps
+ * the plug's rule (`entityOn`) whatever the piece is.
+ */
+export function pieceOn(o: RenderOpts, m: Furniture, plugs?: ReadonlyMap<string, Device>): boolean {
+  const d = pieceDevice(m);
+  if (d && !plugs?.has(d.entity)) return classOf(d, o) === "on";
+  return entityOn(o, m.entity, plugs);
+}
+
+/**
  * S18.9: the two waves of a tv or speaker piece whose entity is playing, as markup with `%AT%` where the centre goes (the 2D
  * path puts the plan position there, 2.5D the lid's). Exactly "playing", as a speaker device: "on" is lit but silent. The
  * radius is a quarter of the piece's longer side (the ring grows to 2.4 times that), at least 15 cm, so a 10 cm deep tv still sends out a visible ring.
@@ -1172,7 +1184,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     solids.push(...wallSolids(f, px, wallsModeOf(o.walls), o.state));
     f.furniture.forEach((m, i) => {
       const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
-      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, entityOn(o, m.entity, plugs), sym.svg, px, furnitureWaves(o, m)) : null;
+      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, pieceOn(o, m, plugs), sym.svg, px, furnitureWaves(o, m)) : null;
       if (s) solids.push(s);
     });
     for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
@@ -1310,7 +1322,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   f.furniture.forEach((m, i) => {
     const sym = FURNITURE[m.symbol];
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
-    const on = entityOn(o, m.entity, plugs) ? " on" : "";
+    const on = pieceOn(o, m, plugs) ? " on" : "";
     out.push(`<g data-f="${i}" class="furn${on}"${furnitureLinked(m)} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
     const waves = furnitureWaves(o, m);
     if (waves) out.push(waves.replace("%AT%", `${num(m.x)} ${num(m.y)}`));

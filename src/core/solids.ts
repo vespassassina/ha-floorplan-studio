@@ -378,7 +378,17 @@ export function furnitureMode(m: Furniture): "box" | "pole" | "flat" {
  * One function for the 2D and 2.5D draw paths.
  */
 export function furnitureLinked(m: Furniture): string {
-  return m.entity && (m.symbol === "tv" || m.symbol === "speaker" || m.symbol === "computer") ? " data-linked" : "";
+  return pieceDevice(m) ? " data-linked" : "";
+}
+
+/**
+ * The device a linked piece stands for in the card: same type, entity and name, at the piece's own place. A tv, speaker or computer
+ * piece with an entity (S18.12 "linked") is, for its state, its Active row, its room row and its tap, that device (DECISIONS
+ * 2026-10-07). Null for any other piece. Built fresh each time, never stored, so the layout file is unchanged.
+ */
+export function pieceDevice(m: Furniture): Device | null {
+  if (typeof m?.entity !== "string" || !m.entity || (m.symbol !== "tv" && m.symbol !== "speaker" && m.symbol !== "computer")) return null;
+  return { id: m.id, type: m.symbol, entity: m.entity, ...(m.name ? { name: m.name } : {}), x: m.x, y: m.y };
 }
 
 /**

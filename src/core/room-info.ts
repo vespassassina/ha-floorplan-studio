@@ -1,5 +1,6 @@
 import type { Device, DeviceType, Door, Floor, Pt, Room } from "./schema";
-import { classOf, roomAt, type StateOverlay } from "./render";
+import { classOf, pieceOn, roomAt, type StateOverlay } from "./render";
+import { pieceDevice } from "./solids";
 import { onEdge } from "./geometry";
 import { doorStateOf } from "./door-state";
 import { entitiesOfDevice, entitiesOfDoor } from "./attachments";
@@ -27,7 +28,8 @@ export const ROOM_ROW_TAP: Record<DeviceType, "toggle" | "more-info"> = {
 };
 
 /** `colorVar`: the `--fp-*` property the row's icon takes (its on colour while on, the panel's own ink while off, finding 9). */
-export interface RoomDeviceRow { index: number; entity: string; name: string; type: DeviceType; state: string; on: boolean; colorVar: string }
+/** `piece`: the row is a linked furniture piece (`pieceDevice`) and `index` is its index in `furniture`, not in `devices`. */
+export interface RoomDeviceRow { index: number; piece?: true; entity: string; name: string; type: DeviceType; state: string; on: boolean; colorVar: string }
 export interface RoomSensorRow { entity: string; name: string; kind: "temps" | "humidity" | "motion"; state: string }
 export interface RoomSummary {
   name: string;
@@ -107,6 +109,15 @@ export function roomSummary(f: Floor, index: number, state: StateOverlay | undef
     devices.push({ index: i, entity: d.entity, name: nameFor(d, state), type: d.type, state: stateText(state, d.entity), on, colorVar: on ? colorVarFor(d, state) : "--fp-ink" });
     for (const e of entitiesOfDevice(d)) entities.add(e);
     if (d.type === "light" && on) lightsOn.push(nameFor(d, state));
+  });
+
+  // A linked tv, speaker or computer piece is a device of its type here; an entity a device already lists is not repeated.
+  (f.furniture ?? []).forEach((m, i) => {
+    const d = pieceDevice(m);
+    if (!d || !finite([m.x, m.y]) || roomAt(f, [m.x, m.y]) !== index || devices.some((r) => r.entity === d.entity)) return;
+    const on = pieceOn({ scale: 1, state, ...opts }, m);
+    devices.push({ index: i, piece: true, entity: d.entity, name: nameFor(d, state), type: d.type, state: stateText(state, d.entity), on, colorVar: on ? colorVarFor(d, state) : "--fp-ink" });
+    entities.add(d.entity);
   });
 
   const sensors: RoomSensorRow[] = [];

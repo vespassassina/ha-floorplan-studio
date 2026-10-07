@@ -1,6 +1,7 @@
 import { DEVICE_TYPES } from "./schema";
 import type { Device, DeviceType, Door, Layout } from "./schema";
 import { acMode, classOf, type RenderOpts, type StateOverlay } from "./render";
+import { pieceDevice } from "./solids";
 
 /**
  * S9.5: one row the card's floating active-devices panel can show. `floor` is the layout's own floor key (not the
@@ -128,8 +129,11 @@ export function activeDevices(layout: Layout, state: StateOverlay | undefined, o
   for (const floor of Object.values(layout.floors)) {
     for (const d of floor.devices) if (typeof d.entity === "string" && d.entity) placed.add(d.entity);
   }
+  // A linked tv, speaker or computer piece is listed as the device of its type; an entity already listed (a device, or another piece) is not repeated.
+  const listed = new Set(placed);
   for (const [floorKey, floor] of Object.entries(layout.floors)) {
-    for (const d of floor.devices) {
+    const pieces = (floor.furniture ?? []).flatMap((m) => { const d = pieceDevice(m); return d && !listed.has(d.entity) && listed.add(d.entity) ? [d] : []; });
+    for (const d of [...floor.devices, ...pieces]) {
       if (!isActive(d, state, opts)) continue;
       out.push({ entity: d.entity, name: nameFor(d, state), type: d.type, floor: floorKey, colorVar: colorVarFor(d, state) });
     }
