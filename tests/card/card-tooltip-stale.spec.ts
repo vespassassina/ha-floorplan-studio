@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-// S19.E1 (kiosk popup and Escape). Same harness as card-popup.spec.ts.
+// S19.E2 (a stale tooltip goes when its target changes or leaves). Same harness as card-popup.spec.ts.
 // Was: S14.2 (docs/specs/card-polish-and-light.md, items 3, 4, 5, 17, 18) in the 2D plan: a tap opens a popup and operates
 // nothing, its button makes the one call, OFF asks first except for a light, a slider's release is one light.turn_on,
 // and a mouse hover names the icon. Every click and move is a real page.mouse event at the centre of an icon that is
