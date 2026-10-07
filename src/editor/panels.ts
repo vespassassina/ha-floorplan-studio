@@ -1,5 +1,5 @@
 import { html, nothing, type TemplateResult } from "lit";
-import { live } from "lit/directives/live.js";
+import { live } from "./live-keep";
 import { repeat } from "lit/directives/repeat.js";
 import { DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, floorsAroundKey, resolveStairDirection } from "../core";
@@ -169,7 +169,18 @@ function optionalField(c: PanelCtx, label: string, id: string, cur: unknown, fal
     }
     c.refresh();
   };
-  return html`<label for=${id}>${label}</label><input id=${id} type="text" inputmode="decimal" placeholder=${String(fallback)} .value=${live(shown)} @change=${on}>`;
+  // Up and down: a step of 10 from the value shown, or from the default when none is set, held to the field's range.
+  const step = (dir: 1 | -1, box: HTMLInputElement) => {
+    const now = typeof cur === "number" && Number.isFinite(cur) ? cur : fallback;
+    const k = Math.min(r.max, Math.max(r.min, now + dir * 10));
+    if (k !== cur) apply(k);
+    box.value = String(k); // a focused box is not re-rendered, so show the step here
+    c.refresh();
+  };
+  const boxOf = (e: Event) => (e.currentTarget as HTMLElement).closest(".stepper")!.querySelector("input")!;
+  const key = (e: KeyboardEvent) => { if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); step(e.key === "ArrowUp" ? 1 : -1, e.currentTarget as HTMLInputElement); } };
+  return html`<label for=${id}>${label}</label><span class="stepper"><input id=${id} type="text" inputmode="decimal" placeholder=${String(fallback)} .value=${live(shown)} @change=${on} @keydown=${key}>
+    <button type="button" class="btn step" id=${`${id}-up`} aria-label=${`${label} up`} @click=${(e: Event) => step(1, boxOf(e))}>▲</button><button type="button" class="btn step" id=${`${id}-down`} aria-label=${`${label} down`} @click=${(e: Event) => step(-1, boxOf(e))}>▼</button></span>`;
 }
 /** Rotation as buttons: 30, 45, 60 or 90 more degrees in the chosen direction, and Reset to 0 when `reset` is given. `turn` gets the signed degrees. */
 function rotateButtons(c: PanelCtx, id: string, turn: (deg: number) => void, opts: { reset?: () => void; disabled?: boolean; label?: string; title?: string } = {}) {

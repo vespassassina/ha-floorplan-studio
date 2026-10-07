@@ -1,5 +1,5 @@
 import { LitElement, css, html, nothing } from "lit";
-import { live } from "lit/directives/live.js";
+import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { DEFAULT_MOTION_FADE_S, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
@@ -439,6 +439,7 @@ export class FloorplanStudioEditor extends LitElement {
     .sub>summary::-webkit-details-marker{display:none}
     .sub>summary::after{content:" \\25B8"}
     .sub>.btn:not(summary){padding-left:20px}
+    .stepper{display:flex;gap:2px;align-items:stretch} .stepper input{flex:1;min-width:0} .btn.step{padding:0 6px;min-width:26px}
     .controls{border-collapse:collapse;width:100%;margin:8px 0}
     .controls th,.controls td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--fp-line,#8884);vertical-align:top;font-weight:400}
     .controls kbd{font:600 12px ui-monospace,monospace;white-space:nowrap}

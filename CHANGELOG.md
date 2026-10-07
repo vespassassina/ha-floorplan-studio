@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed: number boxes in the editor panels (furniture width and depth, heights) no longer lose what you type. A re-render (the 1 s motion fade, a Home Assistant update) used to reset a box you were typing in.
+- Height boxes have up and down buttons and respond to the arrow keys: steps of 10 cm.
+
 - Keys, card and editor: the four arrows pan, `+` and `-` zoom, `[` and `]` turn
   the plan 45 degrees, Space still resets. The arrows no longer zoom.
 - Card, room panel: Scenes starts folded (its header opens it, and the choice is remembered), and "Active in this room" now sits between Scenes and Devices.
