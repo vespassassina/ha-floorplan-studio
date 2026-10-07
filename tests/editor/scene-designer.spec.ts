@@ -126,3 +126,70 @@ test("a name that is typed survives a re-render while the box has focus", async 
   await expect(page.locator("#sceneName")).toHaveValue("Dinner");
   void firstRow;
 });
+
+// S17.5: the palette. A second lamp is put in the Living room so two lights can be told apart.
+async function twoLights(page: Page) {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.devices.push({ id: "light-lamp", type: "light", entity: "light.demo_lamp", name: "Lamp", x: 100, y: 100 });
+    el.layout = l;
+  }, EDITOR);
+  await press(page, "#sceneCancel");
+  await page.mouse.click(2, 2);
+  const p = await screenOf(page, 150, 300);
+  await page.mouse.click(p.x, p.y);
+  await press(page, "#rsc-new");
+  await expect(page.locator("#scenePanel")).toBeVisible();
+}
+const setColour = (page: Page, id: string, hex: string) => page.locator(id).fill(hex);
+
+test("Apply deals the palette to the ticked lights that are on, brightest colour first, and saves it", async ({ page }) => {
+  await twoLights(page);
+  const lights = page.locator('#scenePanel .sd-row[data-sdev^="light."]');
+  expect(await lights.count()).toBe(2);
+  await page.locator("#sceneName").fill("Party");
+  await setColour(page, "#sp-col-0", "#0000ff");
+  await setColour(page, "#sp-col-1", "#ffff00");
+  await press(page, "#sp-add"); // the third stays white
+  await press(page, "#sp-apply");
+  await expect(page.locator("#paletteNote")).toHaveText("Tick at least one light that is on.");
+  await press(page, '[data-sdev="light.demo_living"] input[type=checkbox]'); await press(page, '[data-sdev="light.demo_lamp"] input[type=checkbox]');
+  await press(page, "#sp-apply");
+  await expect(page.locator("#paletteNote")).toContainText("2 lights");
+  await press(page, "#sceneSave");
+  const items = (await scenes(page))[0].items;
+  // white (255,255,255) is the brightest, then yellow, then blue: the first two lights get white and yellow
+  expect(Object.fromEntries(items.map((i) => [i.entity, i.hs]))).toEqual({ "light.demo_living": [0, 0], "light.demo_lamp": [60, 100] });
+  expect(items.every((i) => i.kelvin === undefined)).toBe(true);
+});
+
+test("Apply skips a light that is off, replaces a kelvin, and leaves a switch alone; palette colours add up to 6 and down to 2", async ({ page }) => {
+  await press(page, "#sceneCancel");
+  await press(page, "#rsc-new");
+  await page.locator("#sceneName").fill("Mix");
+  await press(page, "#sd-inc-0");
+  await page.locator("#sd-kelvin-0").fill("2700"); await page.locator("#sd-kelvin-0").press("Tab");
+  await press(page, "#sd-inc-1"); // the TV plug, a switch
+  await press(page, "#sp-apply");
+  await press(page, "#sceneSave");
+  const items = (await scenes(page))[0].items;
+  expect(items[0].hs).toBeDefined();
+  expect(items[0].kelvin).toBeUndefined();
+  expect(items[1]).toEqual({ entity: expect.stringMatching(/^switch\./), on: true });
+  await press(page, "#rsc-new");
+  for (let k = 0; k < 5; k++) if (await page.locator("#sp-add").count()) await press(page, "#sp-add");
+  await expect(page.locator('#scenePalette input[type=color]')).toHaveCount(6);
+  await expect(page.locator("#sp-add")).toHaveCount(0);
+  for (let k = 0; k < 6; k++) if (await page.locator("#sp-rm-0").count()) await press(page, "#sp-rm-0");
+  await expect(page.locator('#scenePalette input[type=color]')).toHaveCount(2);
+  await expect(page.locator("#sp-rm-0")).toHaveCount(0);
+});
+
+test("the same palette gives the same colours twice", async ({ page }) => {
+  await press(page, "#sd-inc-0");
+  await press(page, "#sp-apply");
+  const first = await page.locator("#sd-col-0").inputValue();
+  await press(page, "#sp-apply");
+  expect(await page.locator("#sd-col-0").inputValue()).toBe(first);
+  expect(first).not.toBe("#ffffff");
+});

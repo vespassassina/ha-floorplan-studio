@@ -2,7 +2,7 @@ import { html, nothing } from "lit";
 import { SCENE_FIELDS } from "../core";
 import type { SceneItem } from "../core";
 import { live } from "./live-keep";
-import { hexToHs, hsToHex } from "./scene-colour";
+import { MAX_PALETTE, hexToHs, hsToHex, spreadColours } from "./scene-colour";
 
 // S17.3: the scene designer popup (docs/specs/scene-designer.md). A draft lives in the editor host while the popup is open; nothing
 // reaches the layout until Save, which is one `commit` (`saveScene`), so Cancel changes nothing and Save is one undo step.
@@ -13,7 +13,12 @@ export interface SceneDraft {
   name: string;
   items: Map<string, SceneItem>; // the devices ticked in, by entity
   error: string;
+  palette: string[];       // S17.5: the colours to deal out, 2 to 6
+  note: string;            // what the last Apply did
 }
+export const DEFAULT_PALETTE = ["#ff8a3d", "#ffd23d", "#3d7bff"];
+export const newDraft = (room: string, id: string | null, name: string, items: SceneItem[]): SceneDraft =>
+  ({ room, id, name, items: new Map(items.map((it) => [it.entity, structuredClone(it)])), error: "", palette: [...DEFAULT_PALETTE], note: "" });
 export interface DesignerDeps {
   draft: SceneDraft;
   pos: { x: number; y: number };
@@ -60,6 +65,23 @@ export function sceneDesigner(d: DesignerDeps) {
         ${it.on ? (SCENE_FIELDS[domain] ?? []).map((f) => field(it, f, j)) : nothing}` : nothing}
     </div>`;
   };
+  // S17.5: the palette goes to the ticked lights that are on, in the order the room lists them; a light holds a colour or a kelvin, so kelvin goes.
+  const apply = () => {
+    const lights = rows.filter((t) => t.entity.startsWith("light.") && draft.items.get(t.entity)?.on);
+    const cols = spreadColours(draft.palette, lights.length);
+    if (!cols.length) { draft.note = "Tick at least one light that is on."; d.refresh(); return; }
+    lights.forEach((t, j) => { const it = draft.items.get(t.entity)!; it.hs = cols[j]; delete it.kelvin; });
+    draft.note = `Gave ${lights.length} light${lights.length === 1 ? "" : "s"} a colour from the palette.`;
+    d.refresh();
+  };
+  const pal = draft.palette;
+  const palette = html`<div class="sd-palette" id="scenePalette"><span>palette</span>
+    ${pal.map((c, k) => html`<input type="color" id=${`sp-col-${k}`} aria-label=${`palette colour ${k + 1}`} .value=${live(c)} @input=${(e: Event) => { const v = (e.target as HTMLInputElement).value; if (hexToHs(v)) { pal[k] = v; } }}>
+      ${pal.length > 2 ? html`<button class="btn keep" id=${`sp-rm-${k}`} aria-label=${`Remove palette colour ${k + 1}`} @click=${() => { pal.splice(k, 1); d.refresh(); }}>&times;</button>` : nothing}`)}
+    ${pal.length < MAX_PALETTE ? html`<button class="btn keep" id="sp-add" @click=${() => { pal.push("#ffffff"); d.refresh(); }}>+</button>` : nothing}
+    <button class="btn keep" id="sp-apply" @click=${apply}>Apply to lights</button>
+    ${draft.note ? html`<span id="paletteNote" role="status">${draft.note}</span>` : nothing}
+  </div>`;
   return html`<div class="fpanel scene-panel" id="scenePanel" role="dialog" aria-label="Scene designer" style="left:${p.x}px;top:${p.y}px" @keydown=${esc}>
     <div class="fpanel-head" @pointerdown=${d.head.down} @pointermove=${d.head.move} @pointerup=${d.head.up} @pointercancel=${d.head.up}>
       <button class="btn keep" id="sceneClose" aria-label="Close" @click=${() => d.close()}>&times;</button>
@@ -67,6 +89,7 @@ export function sceneDesigner(d: DesignerDeps) {
     </div>
     <p><label for="sceneName">name</label> <input id="sceneName" type="text" maxlength="60" .value=${live(draft.name)} @input=${(e: Event) => { draft.name = (e.target as HTMLInputElement).value; }}></p>
     <p>Tick the devices this scene sets, then say what each one does.</p>
+    ${palette}
     <div class="rows">${rows.length ? rows.map(row) : html`<p>No light, switch, fan, cover, climate or media player is placed in this room.</p>`}</div>
     ${draft.error ? html`<p class="warn-text" id="sceneError" role="alert">${draft.error}</p>` : nothing}
     <div class="sd-actions"><button class="btn primary keep" id="sceneSave" @click=${() => d.save()}>Save</button><button class="btn keep" id="sceneCancel" @click=${() => d.close()}>Cancel</button></div>

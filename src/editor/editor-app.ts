@@ -11,7 +11,7 @@ import { readViewMemory, writeViewMemory } from "./view-memory";
 import { traceImage } from "./trace";
 import { roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
-import { sceneDesigner, type SceneDraft } from "./scene-designer";
+import { newDraft, sceneDesigner, type SceneDraft } from "./scene-designer";
 import { roomSceneTargets, saveScene } from "./room-scenes-ops";
 import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
@@ -431,6 +431,8 @@ export class FloorplanStudioEditor extends LitElement {
     .sd-dev{display:flex;align-items:center;gap:6px;flex:1 1 180px;min-width:0}
     .sd-row input[type=number],.sd-row input[type=text]{width:120px}
     #sceneName{width:260px}
+    .sd-palette{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 10px}
+    .sd-palette input[type=color]{width:36px;height:28px;padding:0}
     .sd-actions{display:flex;gap:8px;padding:8px 10px 10px}
     .warn-text{color:var(--fp-warn,#c0392b)}
     .place-panel{width:min(660px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
@@ -1151,7 +1153,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (!r) return;
     const sc = id === null ? undefined : r.scenes?.find((s) => s.id === id);
     if (id !== null && !sc) return;
-    this.sceneDraft = { room: r.id, id, name: sc?.name ?? "", items: new Map((sc?.items ?? []).map((it) => [it.entity, structuredClone(it)])), error: "" };
+    this.sceneDraft = newDraft(r.id, id, sc?.name ?? "", sc?.items ?? []);
     this.scenePos = this.panelPos(660);
     this.requestUpdate();
   }

@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: Palette apply (S17.5)
+
+`spreadColours(palette, n)` in `scene-colour.ts`: invalid and repeated colours dropped, the brightest six kept and ordered by luminance (so pick order does not matter), light j gets colour j mod n. Supersedes the spec line "brightest to the largest area": a light has no area on the plan, so lights take colours in the order the room lists them. Round-robin, so neighbours differ.
+
 ## 2026-10-07: Scenes list replaces the inline editor (S17.4)
 
 The room panel lists HA scenes (marked, not editable) then custom ones with Edit and Delete; Delete asks nothing because Undo restores it. Supersedes the inline per-light editor and the one-click Add scene of S14.7. The writers `addScene`, `renameScene`, `addSceneItem`, `removeSceneItem` and `setSceneItem` are no longer used by the panel; they stay, with their tests, until a later clean-up.

@@ -18,3 +18,21 @@ export function hexToHs(hex: string): [number, number] | null {
   if (d) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
   return [Math.round(((h * 60) + 360) % 360), Math.round(max ? (d / max) * 100 : 0)];
 }
+
+export const MAX_PALETTE = 6;
+const luma = (hex: string) => { const n = parseInt(hex.slice(1), 16); return 0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255); };
+
+/**
+ * S17.5: a palette dealt over `count` lights. Colours that are not #rrggbb or that repeat are dropped, the brightest six are kept and
+ * ordered brightest first (so the order the user picked them in does not change the result), then light j gets colour j mod n. Pure:
+ * the same palette and count always give the same list.
+ */
+export function spreadColours(palette: string[], count: number): [number, number][] {
+  if (!(count > 0)) return [];
+  const seen = new Set<string>();
+  const ok = palette.flatMap((c) => { const h = typeof c === "string" ? c.toLowerCase() : ""; if (!hexToHs(h) || seen.has(h)) return []; seen.add(h); return [h]; });
+  ok.sort((a, b) => luma(b) - luma(a) || (a < b ? -1 : 1));
+  const use = ok.slice(0, MAX_PALETTE).map((h) => hexToHs(h) as [number, number]);
+  if (!use.length) return [];
+  return Array.from({ length: Math.floor(count) }, (_, j) => [...use[j % use.length]] as [number, number]);
+}
