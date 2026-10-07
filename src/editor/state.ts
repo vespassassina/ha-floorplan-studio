@@ -1,4 +1,4 @@
-import { FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 import { setRoomList, type RoomSensorField } from "./ops";
 import { normaliseRotation } from "../card/view-state";
@@ -518,7 +518,7 @@ export class EditorState {
   }
 
   private addHaEntity(e: HaData["entities"][number], ctr: Pt, room?: string): boolean {
-    if (Object.values(this.layout.floors).some((f) => f.devices.some((d) => d.entity === e.id)) || this.layout.catalog.some((c) => c.entity === e.id)) return false;
+    if (placedEntities(this.layout).has(e.id) || this.layout.catalog.some((c) => c.entity === e.id)) return false;
     const next = structuredClone(this.layout);
     const f = next.floors[this.floor];
     const symbol = furnitureForEntity(e);

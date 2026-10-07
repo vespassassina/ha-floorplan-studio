@@ -47,6 +47,14 @@ describe("S18.11 addEntity", () => {
     st.addEntity({ id: "media_player.sp", name: "Kitchen speaker", domain: "media_player", dc: "speaker" }, [500, 40]);
     expect(st.f.furniture[0]).toMatchObject({ symbol: "speaker", x: 500, y: 40, w: FURNITURE.speaker.w, h: FURNITURE.speaker.h });
   });
+  it("an entity a piece already tracks is refused even when the catalog does not list it (a hand-edited or loaded layout)", () => {
+    const l = layout();
+    (l.floors.ground.furniture as unknown[]).push({ id: "furniture-ground-1", symbol: "tv", x: 50, y: 50, rot: 0, w: 100, h: 10, entity: "media_player.tv" });
+    const st = new EditorState(l);
+    expect(st.addEntity({ id: "media_player.tv", name: "TV", domain: "media_player" }, [10, 10])).toBe(false);
+    expect(st.f.devices).toHaveLength(0);
+    expect(st.canUndo).toBe(false);
+  });
   it("a plain media_player stays a device icon", () => {
     const st = new EditorState(layout());
     st.addEntity({ id: "media_player.x", name: "X", domain: "media_player" }, [10, 10]);
