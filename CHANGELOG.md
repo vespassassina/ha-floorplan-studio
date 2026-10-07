@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Card: the room panel has an All off button. It turns off the lights of that room that are on, in one call, and is not shown when none is on.
+- Card: a floor pill now also selects its floor and opens the side panel on it, as a room does: the lights on, every device, sensor and open door of the floor, and an All off for the whole floor. Picking a room, Escape, a tap on the empty plan, the x or the same pill again lets go. The pill of the selected floor gets a ring.
+
 ## 0.19.1 - 2026-10-07
 
 - Card: the device colours picked in the studio (`colors` in the layout) now show on the dashboard, in 2D, 2.5D and 3D. Only the editor drew them before.

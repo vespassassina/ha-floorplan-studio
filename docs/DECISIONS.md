@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: All off in the panel, and a floor pill that selects its floor (S20.1, S20.2)
+
+Diego asked for both in the card; the editor is not touched.
+
+**All off.** A button in the room panel, under the facts. It is hidden when no light of the room is on (a disabled button would sit there saying nothing; the "Lights on" line already says "none"). Press: `presetCalls("off", lightsOnEntities)`, the builder the Scenes section's All off already uses, so the routing by domain is one piece of code. In practice it is one `light.turn_off` with the entity ids. `lightsOnEntities` comes from the same loop as `lightsOn`, so the button and the "Lights on" line cannot disagree. "On" is the plan's rule: a light bound to a relay is on while either is on, and the call names the light entity, never the relay (the card toggles light entities). A lamp lit only by its relay is therefore in the call; if HA's light is already off, turn_off does nothing and the plan keeps drawing it on. No confirm (lights only, as the preset). No `callService` (read-only HA) means no call and no error.
+
+**Floor select.** One subject for the panel: `_pickedRoom` or `_pickedFloor`, never both; a room pick clears the floor, a floor pick clears the room, every clear path (`_pickRoom(null)`, Escape, empty plan, x) clears both. The pill still switches floor; if the floor is already shown it only selects. The selected floor's pill, pressed again, lets go. `aria-pressed` still means "this floor is shown"; the selection is the class `fp-floor-picked`, a 2 px ring in `--fp-primary` with a gap in `--fp-bg`, so it reads next to the fill of the shown pill. A double tap on the plan restores the floor pick as well as the room's. The selection is card state: a `hass` update keeps it, a floor switch by any other means drops it. `setConfig` now clears the room pick too; it did not before (a new config with the same floor kept the old room).
+
+**What the floor summary counts.** `floorSummary` and `roomSummary` are one function (`summarise`) over a set of rooms and a membership test. Floor: every room's temperature, humidity and motion lists (each entity once), every door on any room's edge (each once), every device with an entity and every linked piece on the floor, also one that stands in no room (it is on the floor, and All off must reach it). A person never has a row, as in a room. Name is the floor title (the key if empty). Area is left out: rooms, zones and structures overlap, so a sum would lie. The Scenes section is not shown for a floor (scenes belong to rooms). Side effect: a room that lists one sensor twice now lists it once.
+
+Kiosk has no pills, so nothing changes there. README does not list card interactions; not touched.
+
 ## 2026-10-07: SPEC and README bring in siren, alarm, linked pieces and the type menu (S19.D)
 
 Supersedes the spec text on `device.type`, `furniture.symbol`, the colour table and the editor's type picker. The spec is fixed, so this is a change record, not an edit in secret. Nothing new was decided: each addition restates an entry below (S18.11, S18.12, S18.14, S18.15). Added: `speaker`, `siren`, `alarm` in the `device.type` list (speaker was missing); `speaker` in `furniture.symbol`; a linked-piece paragraph; table rows for siren, alarm and a linked piece; the grouped type menu. No schema change, no behaviour change.
