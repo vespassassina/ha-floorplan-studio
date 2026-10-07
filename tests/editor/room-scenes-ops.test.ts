@@ -17,7 +17,7 @@ describe("roomSceneTargets: the lights and switches the room can put in a scene"
     const t = roomSceneTargets(f, 0);
     expect(t.map((x) => x.entity)).toContain("light.demo_living");
     expect(t.map((x) => x.entity)).not.toContain("light.demo_kitchen");
-    expect(t.every((x) => /^(light|switch)\./.test(x.entity))).toBe(true);
+    expect(t.every((x) => /^(light|switch|fan|cover|climate|media_player)\./.test(x.entity))).toBe(true);
     expect(new Set(t.map((x) => x.entity)).size).toBe(t.length);
     expect(roomSceneTargets(f, 99)).toEqual([]);
   });

@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: Scene item types (S17.2)
+
+`SCENE_DOMAINS` and `SCENE_FIELDS` in `schema.ts` are the one list of types and what each may set. `customCalls` turns an item into calls: cover off is `close_cover` (no confirm), climate is mode then temperature, media_player is on, volume (0-1), source. Unknown types are ignored by the card and refused by `validate`. `addScene` still seeds lights and switches only.
+
 ## 2026-10-07: Editor room panel sections fold (S17.1)
 
 Each section header is a controlled `<summary>`: the click flips `EditorState.folded` and re-renders, no native toggle event (a render between click and event reopened it). Stored in localStorage `floorplan-studio:folds`, per browser, never in the layout.

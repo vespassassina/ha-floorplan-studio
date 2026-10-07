@@ -136,7 +136,7 @@ describe("validate: the optional scene fields (layout files are untrusted)", () 
     ["items not a list", { scenes: [{ id: "a", name: "A", items: "x" }] }, /items/],
     ["too many scenes", { scenes: Array.from({ length: 13 }, (_, i) => ({ id: `s${i}`, name: "n", items: [] })) }, /at most 12/],
     ["too many items", { scenes: [{ id: "a", name: "A", items: Array.from({ length: 41 }, () => ({ entity: "light.x", on: true })) }] }, /at most 40/],
-    ["an item entity that is a sensor", { scenes: [{ id: "a", name: "A", items: [{ entity: "sensor.x", on: true }] }] }, /light or switch/],
+    ["an item entity that is a sensor", { scenes: [{ id: "a", name: "A", items: [{ entity: "sensor.x", on: true }] }] }, /entity must be a light, switch/],
     ["on not a boolean", { scenes: [{ id: "a", name: "A", items: [{ entity: "light.x", on: "yes" }] }] }, /on must be/],
     ["brightness 0", { scenes: [{ id: "a", name: "A", items: [{ entity: "light.x", on: true, brightness: 0 }] }] }, /brightness/],
     ["brightness 101", { scenes: [{ id: "a", name: "A", items: [{ entity: "light.x", on: true, brightness: 101 }] }] }, /brightness/],
@@ -144,12 +144,22 @@ describe("validate: the optional scene fields (layout files are untrusted)", () 
     ["kelvin 500", { scenes: [{ id: "a", name: "A", items: [{ entity: "light.x", on: true, kelvin: 500 }] }] }, /kelvin/],
     ["hs out of range", { scenes: [{ id: "a", name: "A", items: [{ entity: "light.x", on: true, hs: [361, 10] }] }] }, /hs/],
     ["hs with one number", { scenes: [{ id: "a", name: "A", items: [{ entity: "light.x", on: true, hs: [1] }] }] }, /hs/],
+    ["a fan at 150 %", { scenes: [{ id: "a", name: "A", items: [{ entity: "fan.x", on: true, percentage: 150 }] }] }, /percentage/],
+    ["a cover position of NaN", { scenes: [{ id: "a", name: "A", items: [{ entity: "cover.x", on: true, position: NaN }] }] }, /position/],
+    ["a climate temperature of 80", { scenes: [{ id: "a", name: "A", items: [{ entity: "climate.x", on: true, temperature: 80 }] }] }, /temperature/],
+    ["a climate mode that is a number", { scenes: [{ id: "a", name: "A", items: [{ entity: "climate.x", on: true, hvac: 5 }] }] }, /hvac/],
+    ["a player volume of -1", { scenes: [{ id: "a", name: "A", items: [{ entity: "media_player.x", on: true, volume: -1 }] }] }, /volume/],
+    ["a lock in a scene", { scenes: [{ id: "a", name: "A", items: [{ entity: "lock.x", on: true }] }] }, /entity must be a/],
     ["haScenes not a list", { haScenes: "scene.a" }, /haScenes/],
     ["haScenes naming a light", { haScenes: ["light.a"] }, /scene\.name/],
   ])("refuses %s", (_n, extra, re) => {
     const e = errors(withRoom(extra));
     expect(e.length, JSON.stringify(e)).toBeGreaterThan(0);
     expect(e.join("\n")).toMatch(re);
+  });
+  it("accepts every type with its fields", () => {
+    const items = [{ entity: "fan.x", on: true, percentage: 50 }, { entity: "cover.x", on: true, position: 0 }, { entity: "climate.x", on: true, hvac: "heat", temperature: 21 }, { entity: "media_player.x", on: true, volume: 30, source: "TV" }];
+    expect(errors(withRoom({ scenes: [{ id: "a", name: "A", items }] }))).toEqual([]);
   });
   it("never throws on garbage in the scene fields", () => {
     for (const extra of [{ scenes: [[]] }, { scenes: [{ items: [null, 5, [], { hs: {} }] }] }, { scenes: [{ id: {}, name: [], items: [{ entity: {}, on: {}, brightness: {}, kelvin: {}, hs: null }] }] }, { haScenes: [null, {}, 5] }, { scenes: { length: 99 } }]) expect(() => validate(withRoom(extra))).not.toThrow();

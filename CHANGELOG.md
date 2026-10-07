@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Scenes: a scene item may now be a fan (speed), cover (position), climate (mode, temperature) or media player (volume, source), besides lights and switches. Files with these items validate; the card runs them. Turning a fan, climate or player off asks first.
 - Editor, room panel: Identity, Sensors, Scenes and Appearance fold by their header; the choice is remembered in the browser.
 - New: furniture `z`, the bottom of a piece above the floor. A TV hangs at 100 cm by default and a new `speaker` furniture piece stands at 100 cm; both editable in the panel (bottom, height, and an H × W × L readout), drawn lifted in 2.5D and 3D. Existing TV pieces move up to 100 cm unless you set the bottom to 0.
 
