@@ -2585,7 +2585,7 @@ Each task: one outcome, one failing test first, one commit. Branch `task/s19-cle
 - [ ] S19.E1 Kiosk popup closes on Escape.
 - [ ] S19.E2 A stale tooltip goes when its target changes or leaves.
 - [ ] S19.E3 The card honours `layout.colors` as the editor does.
-- [ ] S19.E4 `temp` joins `NO_TOGGLE`.
+- [x] S19.E4 `temp` joins `NO_TOGGLE`.
 - [ ] S19.E5 Camera cone clip.
 - [ ] S19.E6 Remove unused scene writers.
 Not in this sprint: car in 3D/2D, old worktree clean-up.
