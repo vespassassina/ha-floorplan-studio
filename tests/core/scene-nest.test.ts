@@ -54,3 +54,51 @@ describe("scene: overlapping rooms are never at one height (S19.A)", () => {
     expect(heights(floor([R("a", "room", rect(0, 0, 100, 100)), R("b", "room", rect(100, 0, 200, 100))]))).toEqual({ "room:0": 0, "room:1": 0 });
   });
 });
+
+// Review of S19.A: overlap is not transitive, so counting every bigger room that overlaps gave a shed on a terrace the terrace's
+// height. The rule is a height per room: one step above the highest bigger DRAWN room it overlaps.
+describe("scene: a room sits one step above the highest bigger drawn room it overlaps", () => {
+  const garden = R("g", "garden", rect(0, 0, 500, 500));
+  const terrace = R("t", "room", rect(400, 100, 700, 400));
+  const shed = R("s", "room", rect(550, 150, 650, 250)); // on the terrace, wholly outside the garden
+  it("shed on terrace on garden, in every array order", () => {
+    const all = [garden, terrace, shed];
+    const perms = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+    for (const p of perms) {
+      const rooms = p.map((k) => all[k]), h = heights(floor(rooms));
+      const at = (k: number) => h[`room:${p.indexOf(k)}`];
+      expect([at(0), at(1), at(2)], `order ${p}`).toEqual([0, 1, 2]);
+    }
+  });
+  it("a zone is not drawn, so it is not a bigger room", () => {
+    const zone = R("z", "zone", rect(0, 0, 300, 300)), a = R("a", "room", rect(200, 0, 500, 200)), b = R("b", "room", rect(400, 50, 480, 150));
+    for (const rooms of [[zone, a, b], [b, a, zone], [a, zone, b]]) {
+      const h = heights(floor(rooms)), at = (id: string) => h[`room:${rooms.findIndex((r) => r.id === id)}`];
+      expect([at("a"), at("b")], rooms.map((r) => r.id).join()).toEqual([0, 1]);
+    }
+  });
+  it("a structure and an unnamed fill are not bigger rooms either", () => {
+    const rooms = [R("st", "structure", rect(0, 0, 500, 500)), R("f", "fill", rect(0, 0, 500, 500), { name: "" }), R("a", "room", rect(100, 100, 200, 200))];
+    expect(heights(floor(rooms))).toEqual({ "room:2": 0 });
+  });
+  it("never throws on degenerate rooms, and they do not lift others", () => {
+    const bad: unknown[] = [
+      R("n", "room", [[NaN, 0], [10, 0], [10, 10]]), R("two", "room", [[0, 0], [500, 500]]), R("x", "room", [[0, 0], [500, 500], [500, 0], [0, 500]]),
+      R("huge", "room", rect(-1e300, -1e300, 1e300, 1e300)), R("str", "room", "nope" as never), { id: "q", name: "q", kind: "room", pts: 5 }, null, 7,
+    ];
+    let h: Record<string, number> = {};
+    expect(() => { h = heights(floor([...bad, R("ok", "room", rect(100, 100, 200, 200))])); }).not.toThrow();
+    expect(h[`room:${bad.length}`]).toBeLessThanOrEqual(bad.length);
+    expect(heights(floor([R("n", "room", [[NaN, 0], [10, 0], [10, 10]]), R("ok", "room", rect(100, 100, 200, 200))]))["room:1"]).toBe(0);
+  });
+});
+
+describe("scene: a chain of nested rooms climbs one step each", () => {
+  it("a room in a room in a room, in every array order", () => {
+    const all = [R("a", "garden", rect(0, 0, 500, 500)), R("b", "room", rect(100, 100, 400, 400)), R("c", "room", rect(200, 200, 300, 300))];
+    for (const p of [[0, 1, 2], [2, 1, 0], [1, 2, 0], [2, 0, 1]]) {
+      const h = heights(floor(p.map((k) => all[k])));
+      expect([0, 1, 2].map((k) => h[`room:${p.indexOf(k)}`]), `order ${p}`).toEqual([0, 1, 2]);
+    }
+  });
+});
