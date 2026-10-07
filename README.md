@@ -26,7 +26,10 @@ A real house, on the card in 2.5D, three themes (room and device names blurred):
 ## What you get
 
 - An editor panel in HA: draw floors, rooms, walls, doors, windows (also slit windows), open doorways, stairs,
-  furniture. Attach rooms to areas and devices to entities from pickers.
+  furniture. Attach rooms to areas and devices to entities from pickers. The
+  device type menu lists the common types first (light, switch, motion,
+  window / door sensor, temperature, speaker, TV), then the rest A to Z,
+  including siren and alarm.
 - A dumb light on a smart switch is one icon: bind the switch to the light
   ("Controlled by") and the plan shows both as one lamp.
 - A 2.5D view, in the card (`view: 2.5d`, or the View dropdown beside the zoom
@@ -48,7 +51,9 @@ A real house, on the card in 2.5D, three themes (room and device names blurred):
   pool of light; motion pings and fades from red to grey, and its room gets a
   thin red line inside the walls while it is on; an open door or
   window turns red and dashed; a TV turns blue; a playing speaker sends out
-  waves. The plan darkens after sunset. Icons grow with a large house, and
+  waves; a siren or an armed alarm turns red. A TV, speaker or computer drawn as
+  furniture and linked to an entity acts like the device of that type: blue at
+  rest, the on colour when on, tap for more-info. The plan darkens after sunset. Icons grow with a large house, and
   `icon_size` scales them further.
 - A floating **Active** list on the card: every light, sensor, camera, TV and
   speaker that is on, on any floor. Tap a row for the same popup as a tap on the plan; drag

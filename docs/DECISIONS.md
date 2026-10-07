@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: SPEC and README bring in siren, alarm, linked pieces and the type menu (S19.D)
+
+Supersedes the spec text on `device.type`, `furniture.symbol`, the colour table and the editor's type picker. The spec is fixed, so this is a change record, not an edit in secret. Nothing new was decided: each addition restates an entry below (S18.11, S18.12, S18.14, S18.15). Added: `speaker`, `siren`, `alarm` in the `device.type` list (speaker was missing); `speaker` in `furniture.symbol`; a linked-piece paragraph; table rows for siren, alarm and a linked piece; the grouped type menu. No schema change, no behaviour change.
+
 ## 2026-10-07: rooms nest by overlap, not by corners (S19.A)
 
 Supersedes the 30 cm corner rule of the entry "a shed over the border still nests". Diego's garden house floor was not reproduced on the demo, nor confirmed on his layout. Instead of a bigger tolerance, a variant sweep: a shed 40 and 60 cm over the corner, half over the border, turned, bigger than the garden, across the notch of an L garden, two rooms crossing like a plus, two copies of one outline. All eight left both fills at one height. Rule now: a room is lifted one step per bigger room it overlaps (a vertex deeper than 1 cm inside the other, a middle inside, or two edges crossing); equal areas by array order. Rooms that only share a border stay level. Cost is the same bound as before (`NEST_WORK`). Side effect: a neighbour drawn a few cm into another is lifted 1 cm; not visible.

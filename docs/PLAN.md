@@ -2581,7 +2581,7 @@ Each task: one outcome, one failing test first, one commit. Branch `task/s19-cle
 - [x] S19.A Garden house floor missing in 3D. Not reproduced on the demo, but eight variants failed (a shed more than 30 cm over the border, half over, turned, bigger than the garden, across an L notch, crossing like a plus, two copies of one outline): neither room lifted, two fills at one height. Rule is now overlap, not corners.
 - [x] S19.B `roomSummary` passes the plugs map to `pieceOn`, as `render.ts` does.
 - [x] S19.C Look at siren, alarm, linked tv/speaker/computer pieces in `npm run shots`; fix what is wrong. Nothing visibly wrong; added a pin for the one state the shots do not draw (speaker piece `on`, not playing).
-- [ ] S19.D SPEC and README: siren, alarm, linked pieces, grouped type menu.
+- [x] S19.D SPEC and README: siren, alarm, linked pieces, grouped type menu.
 - [ ] S19.E1 Kiosk popup closes on Escape.
 - [ ] S19.E2 A stale tooltip goes when its target changes or leaves.
 - [ ] S19.E3 The card honours `layout.colors` as the editor does.
