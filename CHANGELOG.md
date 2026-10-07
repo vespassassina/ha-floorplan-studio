@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card: the hover tooltip goes when a zoom key moves its icon from under a pointer that did not move. It named an icon the pointer was no longer on.
+
 - Card: a temperature device on a switchable entity (a thermostat, a plug) no longer offers Turn on / Turn off in its popup. It opens more-info only.
 
 - Room panel: a tv, speaker or computer piece that shares its entity with a plug (in another room) now reads on or off by the plug's power, as the plan draws it. The row used the tv rule and could say on while the plan said off.

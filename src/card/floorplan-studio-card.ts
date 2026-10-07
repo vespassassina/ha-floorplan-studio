@@ -363,6 +363,8 @@ export class FloorplanStudioCard extends LitElement {
   /** The tooltip's subject and the selector of its plan element, so a re-render (which replaces the plan's elements) can refresh its text and take the new element's `<title>` out again. */
   private _tipTarget: TapTarget | null = null;
   private _tipSel: string | null = null;
+  /** Where the pointer was when the tooltip last moved: a render checks the plan element is still under it (a zoom or turn moves icons under a still pointer). */
+  private _tipAt: { x: number; y: number } | null = null;
   /** S7.4: the zoomed viewBox, or `null` for fit. Card state: reset by `setConfig` and a floor change, never by `hass`. */
   private _view: View | null = null;
   /** S12.3: the live 3D view, the floor and stair context it was built for, and why 3D cannot run (`null` while it can). */
@@ -1795,6 +1797,7 @@ export class FloorplanStudioCard extends LitElement {
         this._holdTipEl(el);
       }
     }
+    this._tipAt = el || this._tipSel ? { x, y } : null;
     const h = this._tipHost!, w = tip.offsetWidth, ht = tip.offsetHeight;
     const left = Math.max(4, Math.min(h.width - w - 4, x - h.left + 12));
     const below = y - h.top + 18;
@@ -1821,6 +1824,9 @@ export class FloorplanStudioCard extends LitElement {
       const el = this.shadowRoot?.querySelector(`svg ${this._tipSel}`) ?? null;
       if (!el) { this._hideTip(); return; }
       if (el !== this._tipEl) { this._tipTitle = null; this._holdTipEl(el); } // the old element and its title are gone with the old drawing
+      // A zoom or a turn moves the icon from under a pointer that did not move, and no pointermove follows: a tooltip names what is under the pointer.
+      const at = this._tipAt, top = at ? this.shadowRoot?.elementFromPoint(at.x, at.y)?.closest(THINGS) ?? null : el;
+      if (top !== el) { this._hideTip(); return; }
     }
   }
 
@@ -1829,6 +1835,7 @@ export class FloorplanStudioCard extends LitElement {
     this._tipKey = null;
     this._tipTarget = null;
     this._tipSel = null;
+    this._tipAt = null;
     const tip = this.shadowRoot?.querySelector<HTMLElement>(".fp-tip");
     if (tip) tip.hidden = true;
     this._tipEl?.removeAttribute("aria-describedby");
