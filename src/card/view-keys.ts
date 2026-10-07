@@ -2,7 +2,11 @@
  * decisions over a key event, no DOM state and no handlers. Each host decides when it is listening (the card:
  * focused or hovered; the editor: focus inside it) and what each action does. */
 
-export type ViewKey = "zoomIn" | "zoomOut" | "rotateLeft" | "rotateRight" | "reset";
+/** How far an arrow pans, as a share of the view's width. */
+export const PAN_STEP = 0.1;
+
+/** Left and Right pan the view (Diego, 2026-10-07; they used to turn it: the rotate buttons still do). */
+export type ViewKey = "zoomIn" | "zoomOut" | "panLeft" | "panRight" | "reset";
 
 /** Arrows and Space, plain or with Alt or Shift. Ctrl and Cmd belong to the browser and the OS (Cmd-Left is "back",
  * Ctrl-Arrow switches desktops), so a chord with either is never a view key. Auto-repeat is fine: holding an arrow
@@ -12,8 +16,8 @@ export function viewKeyOf(ev: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey">
   switch (ev.key) {
     case "ArrowUp": return "zoomIn";
     case "ArrowDown": return "zoomOut";
-    case "ArrowLeft": return "rotateLeft";
-    case "ArrowRight": return "rotateRight";
+    case "ArrowLeft": return "panLeft";
+    case "ArrowRight": return "panRight";
     case " ": case "Spacebar": return "reset";
     default: return null;
   }

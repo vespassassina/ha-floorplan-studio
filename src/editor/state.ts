@@ -242,8 +242,8 @@ export class EditorState {
   planLocked = false;
   planBlocked = false;
   private planOpen(): boolean { this.planBlocked = this.planLocked; return !this.planLocked; }
-  /** The floor with its devices taken out: what a plan lock holds still. */
-  private static plan(f: Floor): string { return JSON.stringify({ ...f, devices: [] }); }
+  /** The floor with its devices and objects (heater, TV...) taken out: what a plan lock holds still. Walls, rooms, doors, windows, areas, stairs and furniture are the plan. */
+  private static plan(f: Floor): string { return JSON.stringify({ ...f, devices: [], unlinked: [] }); }
 
   /** Adds a floor last and selects it, with the outline (and its wall kinds), and the stairs, of the first floor (the lowest) and nothing else, so a house is not traced twice. Deep copies; the stairs get ids of the new floor. The key is the slug of the title, with -2, -3 on a clash. Returns the key, or "" for an empty title. */
   addFloor(title: string): string {
@@ -324,7 +324,7 @@ export class EditorState {
 
   /** Swap the current floor without touching history (used while dragging). */
   replaceFloor(f: Floor) {
-    if (this.planLocked) f = { ...this.f, devices: f.devices }; // the plan holds still; a device may still follow the pointer
+    if (this.planLocked) f = { ...this.f, devices: f.devices, unlinked: f.unlinked }; // the plan holds still; a device or an object may still follow the pointer
     for (const t of f.stairs) t.steps = stairSteps(t);
     this.layout.floors[this.floor] = f;
   }

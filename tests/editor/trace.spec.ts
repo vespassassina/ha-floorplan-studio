@@ -48,6 +48,7 @@ const natural = (page: Page, src: string) => page.evaluate((s) => new Promise<[n
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/standalone.html");
+  await page.locator("#fixPlan").uncheck(); // the plan opens fixed; these tests edit it
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
 });
 
@@ -238,6 +239,7 @@ test("when the autosave has no room for the trace image, the status says so", as
     Storage.prototype.setItem = function (k: string, v: string) { if (v.includes("data:image")) throw new DOMException("quota", "QuotaExceededError"); return real.call(this, k, v); };
   });
   await page.goto("/standalone.html");
+  await page.locator("#fixPlan").uncheck(); // the plan opens fixed; these tests edit it
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   await load(page, await png(page, 20, 10));
   await expect(page.locator("#status")).toContainText("no room for the trace image");

@@ -30,6 +30,7 @@ const HA = { floors: [], areas: [{ id: "living", name: "Living" }, { id: "kitche
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/standalone.html");
+  await page.locator("#fixPlan").uncheck(); // the plan opens fixed; these tests edit it
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   await clickCm(page, 150, 100); // Living, bare floor
   await expect(page.locator("#rsc-add")).toBeVisible();

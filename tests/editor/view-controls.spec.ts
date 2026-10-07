@@ -36,6 +36,7 @@ const clickDevice = async (page: Page) => {
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/standalone.html");
+  await page.locator("#fixPlan").uncheck(); // the plan opens fixed; these tests edit it
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
 });
 
@@ -127,7 +128,7 @@ test.describe("rotate view buttons", () => {
 });
 
 test.describe("keys", () => {
-  test("Up zooms in, Down zooms out, Right and Left turn, Space resets (editor focused, nothing selected)", async ({ page }) => {
+  test("Up zooms in, Down zooms out, Right and Left pan, Space resets (editor focused, nothing selected)", async ({ page }) => {
     await focusEditor(page);
     const w0 = (await viewBox(page))[2]!;
     await page.keyboard.press("ArrowUp");
@@ -135,13 +136,16 @@ test.describe("keys", () => {
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("ArrowDown");
     await expect.poll(async () => (await viewBox(page))[2]!).toBeGreaterThan(w0);
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("ArrowUp");
+    await expect.poll(async () => (await viewBox(page))[2]!).toBeLessThan(w0);
+    const v0 = await viewBox(page);
     await page.keyboard.press("ArrowRight");
-    await settled(page);
-    expect(await planDeg(page)).toBe(45);
+    await expect.poll(async () => (await viewBox(page))[0]!).toBeGreaterThan(v0[0]!);
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("ArrowLeft");
-    await settled(page);
-    expect(await planDeg(page)).toBe(315);
+    await expect.poll(async () => (await viewBox(page))[0]!).toBeLessThan(v0[0]!);
+    expect(await planDeg(page)).toBe(0);
     await page.keyboard.press("Space");
     await settled(page);
     expect(await planDeg(page)).toBe(0);
@@ -154,19 +158,20 @@ test.describe("keys", () => {
     await clickDevice(page);
     expect(await st(page, (s) => s.sel?.t)).toBe("dev");
     const before = await layoutJson(page);
+    const x0 = (await viewBox(page))[0]!;
     await page.keyboard.press("ArrowUp");
     await page.keyboard.press("ArrowRight");
     await settled(page);
     expect(await layoutJson(page)).toBe(before);
-    expect(await planDeg(page)).toBe(45);
+    expect((await viewBox(page))[0]!).toBeGreaterThan(x0);
     expect(await st(page, (s) => s.sel?.t)).toBe("dev"); // selection survives a view key
   });
 
   test("Alt+arrows are the view keys too", async ({ page }) => {
     await focusEditor(page);
+    const x0 = (await viewBox(page))[0]!;
     await page.keyboard.press("Alt+ArrowRight");
-    await settled(page);
-    expect(await planDeg(page)).toBe(45);
+    await expect.poll(async () => (await viewBox(page))[0]!).toBeGreaterThan(x0);
     const w0 = (await viewBox(page))[2]!;
     await page.keyboard.press("Alt+ArrowUp");
     await expect.poll(async () => (await viewBox(page))[2]!).toBeLessThan(w0);

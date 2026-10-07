@@ -21,6 +21,7 @@ const marks = (page: Page, cls: string) => page.locator(`${EDITOR} svg g[data-s]
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/standalone.html");
+  await page.locator("#fixPlan").uncheck(); // the plan opens fixed; these tests edit it
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   await clickCm(page, 740, 500); // the ground flight, by a real click
   await expect(page.locator("#sdir")).toBeVisible();

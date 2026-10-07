@@ -77,6 +77,7 @@ test("autosave key and Reset work under file://", async ({ page }) => {
   await expect(page.locator("svg polygon[data-r]").first()).toBeVisible();
   expect(await layoutOf(page)).toEqual(stored);
 
+  await page.locator("#fixPlan").uncheck(); // a restored plan with rooms opens fixed, and Reset is a plan edit
   page.once("dialog", (d) => d.accept());
   await page.locator("details.menu > summary", { hasText: "File" }).click();
   await page.locator("#reset").click();

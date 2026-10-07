@@ -52,6 +52,7 @@ const planDeg = (page: Page) => card(page).evaluate((el) => {
   const m = el.shadowRoot!.querySelector("svg g.plan-turn")?.getAttribute("transform")?.match(/^rotate\((-?[\d.]+)/);
   return m ? Number(m[1]) : 0;
 });
+const vbX = (page: Page) => card(page).evaluate((el) => Number(el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/)[0]));
 const vbW = (page: Page) => card(page).evaluate((el) => Number(el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/)[2]));
 const settled = (page: Page) => expect(card(page).locator("css=svg.fp-turning")).toHaveCount(0);
 
@@ -85,11 +86,19 @@ for (const row of MATRIX) {
     // The pointer over the card, no click: the keys belong to the card under it.
     const box = (await card(page).boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.8);
+    // The arrows no longer turn the plan (Diego, 2026-10-07): the rotate pair does, by click; Up zooms, then Right pans.
     await page.keyboard.press("ArrowRight");
-    if (row.rotate) { await settled(page); expect(await planDeg(page)).toBe(45); } else { await page.waitForTimeout(150); expect(await planDeg(page)).toBe(0); }
+    await page.waitForTimeout(150);
+    expect(await planDeg(page)).toBe(0);
+    if (row.rotate) { await card(page).locator('css=button[aria-label="Rotate right"]').click(); await settled(page); expect(await planDeg(page)).toBe(45); }
     const w0 = await vbW(page); // after the turn: a turned plan has another bounding box
     await page.keyboard.press("ArrowUp");
-    if (row.zoomKeys) await expect.poll(() => vbW(page)).toBeLessThan(w0); else { await page.waitForTimeout(150); expect(await vbW(page)).toBe(w0); }
+    if (row.zoomKeys) {
+      await expect.poll(() => vbW(page)).toBeLessThan(w0);
+      const x0 = await vbX(page);
+      await page.keyboard.press("ArrowRight");
+      await expect.poll(() => vbX(page)).toBeGreaterThan(x0);
+    } else { await page.waitForTimeout(150); expect(await vbW(page)).toBe(w0); }
   });
 }
 
@@ -134,9 +143,12 @@ test("one click on the card, then the pointer away: the keys still reach it", as
   const box = (await card(page).boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.9); // empty plan, not a device
   await page.mouse.move(1, 1);
-  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowUp");
   await settled(page);
-  expect(await planDeg(page)).toBe(315);
+  const x0 = await vbX(page);
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(() => vbX(page)).toBeLessThan(x0);
+  expect(await planDeg(page)).toBe(0);
 });
 
 test("in Home Assistant's shadow roots: one click on the card, then the pointer away, the keys still reach it", async ({ page }) => {
@@ -144,18 +156,22 @@ test("in Home Assistant's shadow roots: one click on the card, then the pointer 
   const box = (await card(page).boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.9);
   await page.mouse.move(1, 1);
-  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowUp");
   await settled(page);
-  expect(await planDeg(page)).toBe(315);
+  const x0 = await vbX(page);
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(() => vbX(page)).toBeLessThan(x0);
 });
 
 test("in Home Assistant's shadow roots: the pointer over the card, no click, the keys reach it", async ({ page }) => {
   await boot(page, BASE, 375, {}, true);
   const box = (await card(page).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.8);
-  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowUp");
   await settled(page);
-  expect(await planDeg(page)).toBe(45);
+  const x0 = await vbX(page);
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => vbX(page)).toBeGreaterThan(x0);
 });
 
 test("in Home Assistant's shadow roots: after a click away from the card the keys stop", async ({ page }) => {
@@ -163,19 +179,23 @@ test("in Home Assistant's shadow roots: after a click away from the card the key
   const box = (await card(page).boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.9);
   await page.mouse.click(box.x + box.width + 20, 700); // the page, outside the card
-  await page.keyboard.press("ArrowLeft");
+  const w0 = await vbW(page);
+  await page.keyboard.press("ArrowUp");
   await page.waitForTimeout(150);
-  expect(await planDeg(page)).toBe(0);
+  expect(await vbW(page)).toBe(w0);
 });
 
-test("a click on a rotate button, then the keys: the keys still turn", async ({ page }) => {
+test("a click on a rotate button, then the keys: the keys still reach the card, and still do not turn it", async ({ page }) => {
   await boot(page, BASE, 1280);
   await card(page).locator('css=button[aria-label="Rotate right"]').click();
   await settled(page);
   await page.mouse.move(1, 1);
+  const w0 = await vbW(page);
+  await page.keyboard.press("ArrowUp");
+  await expect.poll(() => vbW(page)).toBeLessThan(w0);
   await page.keyboard.press("ArrowRight");
   await settled(page);
-  expect(await planDeg(page)).toBe(90);
+  expect(await planDeg(page)).toBe(45);
 });
 
 test("2.5D: the rotate buttons turn the plan and it keeps its depth", async ({ page }) => {

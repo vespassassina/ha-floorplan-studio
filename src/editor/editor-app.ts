@@ -3,12 +3,13 @@ import { live } from "lit/directives/live.js";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { DEFAULT_MOTION_FADE_S, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
-import { MAX_ZOOM } from "../card/viewport";
+import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
-import { isSaveChord, viewKeyFor, type ViewKey } from "../card/view-keys";
+import { BANNER_MS, bannerLevel, isQuiet, type BannerLevel } from "./banner";
+import { PAN_STEP, isSaveChord, viewKeyFor, type ViewKey } from "../card/view-keys";
 import { readViewMemory, writeViewMemory } from "./view-memory";
 import { traceImage } from "./trace";
-import { gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
+import { roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
 import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
@@ -136,6 +137,7 @@ export class FloorplanStudioEditor extends LitElement {
     demo: { attribute: false },
     errors: { state: true },
     status: { state: true },
+    banner: { state: true },
     addingFloor: { state: true },
     haList: { state: true },
     haListLoading: { state: true },
@@ -147,6 +149,8 @@ export class FloorplanStudioEditor extends LitElement {
   declare demo: Layout | undefined;
   declare errors: string[];
   declare status: string;
+  declare banner: { text: string; level: BannerLevel } | null;
+  private bannerTimer: ReturnType<typeof setTimeout> | undefined;
   declare addingFloor: boolean;
   /** S4.10: everything floorplan-studio labelled in Home Assistant, loaded fresh each time the Home Assistant menu opens. `null` before the first load. */
   declare haList: Labelled[] | null;
@@ -206,6 +210,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.floor = "";
     this.errors = [];
     this.status = "Ready";
+    this.banner = null;
     this.addingFloor = false;
     this.haList = null;
     this.haListLoading = false;
@@ -292,6 +297,8 @@ export class FloorplanStudioEditor extends LitElement {
     if (!r.ok) { this.errors = r.errors; return; }
     this.errors = [];
     this.st.setLayout(r.layout, this.floor);
+    // Opening a plan that already has something drawn starts with the plan fixed; a blank one is for drawing.
+    if (isBlank(old) && !isBlank(r.layout)) this.st.planLocked = true;
     if (!this.viewRestored) {
       this.viewRestored = true;
       // A floor the host asked for wins over the remembered one.
@@ -504,7 +511,13 @@ export class FloorplanStudioEditor extends LitElement {
        the packed block's right edge, and every item after status keeps a fixed distance from that right edge, so
        Filter's x never moves when the status text changes — see the "moves no button" acceptance test). max-width
        still caps an extreme message so text-overflow:ellipsis clips it instead of ever forcing a wrap. */
-    .fixplan{display:inline-flex;align-items:center;gap:4px;margin:0;font-size:.85em;opacity:1;white-space:nowrap}
+    .fixplan{display:inline-flex;align-items:center;gap:6px;margin:0;padding:3px 10px;border:2px solid currentColor;border-radius:999px;font-size:.9em;font-weight:600;opacity:1;white-space:nowrap;cursor:pointer}
+    .fixplan.on{background:#c0392b;border-color:#c0392b;color:#fff}
+    .banner{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:10px;max-width:min(40em,calc(100vw - 24px));padding:8px 8px 8px 14px;border:1px solid;border-radius:6px;font-size:.9em;box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none}
+    .banner.info{background:#e8f1fb;color:#123a63;border-color:#6c9bd1}
+    .banner.warning{background:#fff4d6;color:#5c4200;border-color:#d9a400}
+    .banner.error{background:#fde4e1;color:#7a1410;border-color:#d4483f}
+    .banner-x{pointer-events:auto;flex:none;border:0;background:transparent;color:inherit;font-size:1.3em;line-height:1;cursor:pointer;padding:0 6px}
     .status{flex:0 1 auto;max-width:16em;font-size:.85em;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .room{pointer-events:all}
     .opening{pointer-events:stroke}
@@ -549,7 +562,17 @@ export class FloorplanStudioEditor extends LitElement {
     try { return matchMedia("(prefers-color-scheme: dark)").matches; } catch { return false; }
   }
 
+  /** Shows a message as a top banner for 20 s, coloured by its situation. `level` overrides the guess from the text. */
+  private notify(text: string, level?: BannerLevel) {
+    clearTimeout(this.bannerTimer);
+    if (isQuiet(text)) { this.banner = null; return; }
+    this.banner = { text, level: level ?? bannerLevel(text) };
+    this.bannerTimer = setTimeout(() => { this.banner = null; }, BANNER_MS);
+  }
+  private closeBanner() { clearTimeout(this.bannerTimer); this.banner = null; this.status = ""; }
+
   protected willUpdate(changed: Map<string, unknown>) {
+    if (changed.has("status")) this.notify(this.status);
     if (changed.has("floor") && this.floor && this.floor !== this.st.floor && hasOwn(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
     // Always named, never left to inherit: blueprint unless the viewer chose otherwise. Reflected on the host itself, not just the svg,
     // so the editor's own chrome (menus, panels, buttons) themes with the plan. data-mode is for the ha theme only.
@@ -604,7 +627,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); else if (this.st.planBlocked) this.planFixed(); };
   /** The one reply to a change the plan lock refused ("Fix plan" is ticked). */
-  private planFixed(): boolean { this.status = "The plan is fixed. Untick Fix plan to change it; devices stay editable"; this.requestUpdate(); return true; }
+  private planFixed(): boolean { this.status = "The plan is fixed. Untick Fix plan to change it. Devices and objects stay editable"; this.notify(this.status, "error"); this.requestUpdate(); return true; }
   /** S10.2: `PanelCtx.attachEntity` — names the entity (its catalog name, escaped by lit's own text interpolation)
    *  and `label` (the door/device/item) in the status line only when an icon was actually pulled off the plan. */
   private attachEntity = (entity: string, apply: (f: Floor) => void, label: string, keepDeviceId?: string) => {
@@ -851,7 +874,7 @@ export class FloorplanStudioEditor extends LitElement {
         this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: ev.button, moved: false };
     }
     // Fix plan: a press still selects, so a wall or a room can be looked at, but only a device (or the view) follows the pointer.
-    if (st.planLocked && this.drag && this.drag.type !== "pan" && this.drag.type !== "dev") { this.drag = null; this.planFixed(); }
+    if (st.planLocked && this.drag && this.drag.type !== "pan" && this.drag.type !== "dev" && this.drag.type !== "unl") { this.drag = null; this.planFixed(); }
     capture();
     this.requestUpdate();
   };
@@ -1726,12 +1749,18 @@ export class FloorplanStudioEditor extends LitElement {
     this.turn = null;
   }
 
+  /** Moves the view sideways by a share of its width, as a drag on the plan would. */
+  private panKey(share: number) {
+    const st = this.st, v = st.view;
+    st.views[st.floor] = panBy(v, share * v.w, 0);
+    this.requestUpdate();
+  }
+
   private doViewKey(key: ViewKey, ev: KeyboardEvent) {
     ev.preventDefault();
     if (key === "zoomIn") this.zoomBy(1 / 1.25);
     else if (key === "zoomOut") this.zoomBy(1.25);
-    else if (key === "rotateLeft") this.turnBy(-ROTATION_STEP);
-    else if (key === "rotateRight") this.turnBy(ROTATION_STEP);
+    else if (key === "panLeft" || key === "panRight") this.panKey(key === "panLeft" ? -PAN_STEP : PAN_STEP);
     else this.resetView();
   }
 
@@ -1835,9 +1864,11 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private centre(): Pt { const v = this.st.view; return [Math.round(v.x + v.w / 2), Math.round(v.y + v.h / 2)]; }
   /** Where a new item (a wall, a structure, a zone, stairs, furniture) goes: outside the house, top right. */
-  private spawn(): Pt { return spawnPoint(this.st.f, this.centre(), this.st.snapGrid); }
+  private spawn(inRoom = false): Pt { return (inRoom ? this.middle() : null) ?? spawnPoint(this.st.f, this.centre(), this.st.snapGrid); }
+  /** The middle of the selected room, or null (Diego, 2026-10-07: new things land there). */
+  private middle(): Pt | null { return roomMiddle(this.st.f, this.st.sel, this.st.snapGrid); }
   /** Where a new device or unlinked appliance goes: the middle of the current viewport (Diego, 2026-09-28). */
-  private spawnDevice(): Pt { return spawnInView(this.st.f, this.centre(), this.st.snapGrid); }
+  private spawnDevice(): Pt { return spawnInView(this.st.f, this.middle() ?? this.centre(), this.st.snapGrid); }
   /** Brings all of `pts` into what the svg shows, with a 100 cm margin: pans by the least amount, and zooms out only when they do not fit. */
   private ensureVisible(...plan: Pt[]) {
     const st = this.st, v = st.view, s = this.scale, M = 100, r = st.rotation;
@@ -1916,7 +1947,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   private addDoor(kind: "door" | "window" | "slit" | "open", len: number, at?: Pt) {
     this.stopDraw();
-    const c = at ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
+    const c = at ?? this.middle() ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
     this.commit((f) => { f.doors.push({ id: newId(f, floor, "door"), name: `new ${kind === "slit" ? "slit window" : kind === "open" ? "open doorway" : kind}`, kind, ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
     this.st.sel = { t: "door", i: this.st.f.doors.length - 1 };
     this.requestUpdate();
@@ -1924,7 +1955,7 @@ export class FloorplanStudioEditor extends LitElement {
   /** An opening: a gap in a wall. Placed like a door on the edge nearest `at`, or the view centre when it is not given, else at that point. S4.27's wall context menu passes the right-click point. */
   private addOpeningGap(len = 120, at?: Pt) {
     this.stopDraw();
-    const c = at ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
+    const c = at ?? this.middle() ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
     this.commit((f) => { f.openings.push({ id: newId(f, floor, "opening"), ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
     this.st.sel = { t: "opening", i: this.st.f.openings.length - 1 };
     this.requestUpdate();
@@ -1947,7 +1978,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private addArea(kind: "zone") {
     this.stopDraw();
-    const p = this.spawn(), pts = squareAt(p, this.st.snapGrid), floor = this.st.floor, name = "New zone";
+    const p = this.spawn(true), pts = squareAt(p, this.st.snapGrid), floor = this.st.floor, name = "New zone";
     this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name, area: slug(name), kind, pts, wk: pts.map((): WallKind => "boundary") }); });
     this.ensureVisible(...pts);
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
@@ -1955,15 +1986,16 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private addStairs() {
     this.stopDraw();
-    const t = stairsAt(this.spawn(), this.st.snapGrid);
+    const t = stairsAt(this.spawn(true), this.st.snapGrid);
     this.st.addStairsEverywhere(t);
     this.changed("Added stairs to every floor");
     this.ensureVisible(...t.pts);
   }
   private addFurniture(symbol: string) {
     if (!(FURNITURE_SYMBOLS as readonly string[]).includes(symbol)) return;
+    if (this.st.planLocked) { this.planFixed(); return; }
     this.stopDraw();
-    const sym = symbol as keyof typeof FURNITURE, p = this.spawn(), [x, y] = p, floor = this.st.floor;
+    const sym = symbol as keyof typeof FURNITURE, p = this.middle() ? this.spawnDevice() : this.spawn(), [x, y] = p, floor = this.st.floor;
     this.commit((f) => { f.furniture.push({ id: newId(f, floor, "furniture"), symbol: sym, x, y, rot: 0, w: FURNITURE[sym].w, h: FURNITURE[sym].h }); });
     this.ensureVisible([x - FURNITURE[sym].w / 2, y - FURNITURE[sym].h / 2], [x + FURNITURE[sym].w / 2, y + FURNITURE[sym].h / 2]);
     this.st.sel = { t: "furn", i: this.st.f.furniture.length - 1 };
@@ -2404,12 +2436,12 @@ export class FloorplanStudioEditor extends LitElement {
   }
   /** Validates first; on any problem lists them and leaves the current layout untouched. */
   private applyLayout(x: unknown, status: string) {
-    if (this.st.planLocked) { this.planFixed(); return; }
     const r = loadLayout(x);
     if (!r.ok) { this.errors = r.errors; this.status = "Could not use that layout"; return; }
     this.stopDraw();
     this.errors = [];
     this.st.setLayout(structuredClone(r.layout), undefined, true);
+    this.st.planLocked = !isBlank(r.layout);
     this.floor = this.st.floor;
     this.refreshNames();
     this.changed(status);
@@ -2546,6 +2578,7 @@ export class FloorplanStudioEditor extends LitElement {
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const pressed = (b: boolean) => (b ? "true" : "false");
     return html`
+      ${this.banner ? html`<div class="banner ${this.banner.level}"><span class="banner-text" id="status" role=${this.banner.level === "error" ? "alert" : "status"}>${this.banner.text}</span><button class="banner-x" id="bannerClose" aria-label="Close message" @click=${() => this.closeBanner()}>×</button></div>` : nothing}
       <div class="bar">
         ${Object.entries(st.layout.floors).map(([name, fl]) => html`<button class="chip" data-f=${name} aria-pressed=${pressed(name === st.floor)} @click=${() => this.setFloor(name)}>${fl.title || name}</button>`)}
         ${this.addingFloor
@@ -2554,8 +2587,7 @@ export class FloorplanStudioEditor extends LitElement {
         <div class="bar-right">
         <!-- S8.10 follow-up: status is the cluster's first item; growing it moves only its own left edge, never
              a button after it (see .status's own comment above). -->
-        <label class="fixplan" title="Lock the plan: walls, rooms, doors, stairs and furniture stay as they are. Lights and other devices stay editable"><input type="checkbox" id="fixPlan" .checked=${live(st.planLocked)} @change=${(e: Event) => { st.planLocked = (e.target as HTMLInputElement).checked; if (st.planLocked) this.stopDraw(); this.status = st.planLocked ? "Plan fixed: only devices can change" : "Plan unlocked"; this.requestUpdate(); }}> Fix plan</label>
-        <span class="status" id="status" role="status" title=${this.status}>${this.status}</span>
+        <label class="fixplan ${st.planLocked ? "on" : ""}" title="Lock the plan: walls, rooms, areas, doors, windows, stairs and furniture stay as they are. Devices and objects can still be added, moved and removed"><input type="checkbox" id="fixPlan" .checked=${live(st.planLocked)} @change=${(e: Event) => { st.planLocked = (e.target as HTMLInputElement).checked; if (st.planLocked) this.stopDraw(); this.status = st.planLocked ? "Plan fixed: only devices and objects can change" : "Plan unlocked"; this.requestUpdate(); }}> ${st.planLocked ? "🔒" : "🔓"} Fix plan</label>
         <details class="menu" id="filter" @toggle=${this.onMenuToggle}><summary class="btn" aria-label="Filter devices">${st.filter.length ? `Filter: ${st.filter.length} type${st.filter.length > 1 ? "s" : ""}` : `Filter: all (${f.devices.length})`}</summary><div class="box">
           <button class="btn keep" id="filterAll" ?disabled=${!st.filter.length} @click=${() => { st.filter = []; st.sel = null; this.requestUpdate(); }}>All</button>
           ${TYPE_LABELS.filter(([t]) => counts[t]).map(([t, label]) => html`<button class="btn keep" data-filter=${t} aria-pressed=${pressed(st.filter.includes(t))} @click=${() => { st.filter = st.filter.includes(t) ? st.filter.filter((x) => x !== t) : [...st.filter, t]; st.sel = null; this.requestUpdate(); }}>${label} (${counts[t]})</button>`)}
@@ -2673,8 +2705,8 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="zin" title="Zoom in" aria-label="Zoom in" @click=${() => this.zoomBy(1 / 1.25)}>+</button>
             <button class="btn" id="zout" title="Zoom out" aria-label="Zoom out" @click=${() => this.zoomBy(1.25)}>&minus;</button>
             <button class="btn" id="zreset" title="Reset view: fit the whole floor, plan upright (Space)" aria-label="Reset view" @click=${() => this.resetView()}>0</button>
-            <button class="btn" id="vrotl" title="Rotate view left (Left arrow)" aria-label="Rotate view left" @click=${() => this.turnBy(-ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateLeft} fill="currentColor"/></svg></button>
-            <button class="btn" id="vrotr" title="Rotate view right (Right arrow)" aria-label="Rotate view right" @click=${() => this.turnBy(ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateRight} fill="currentColor"/></svg></button>
+            <button class="btn" id="vrotl" title="Rotate view left" aria-label="Rotate view left" @click=${() => this.turnBy(-ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateLeft} fill="currentColor"/></svg></button>
+            <button class="btn" id="vrotr" title="Rotate view right" aria-label="Rotate view right" @click=${() => this.turnBy(ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateRight} fill="currentColor"/></svg></button>
           </div>
           ${this.ctxMenu ? this.ctxMenuView(this.ctxMenu) : nothing}
           ${this.devColsPos ? this.devColsView(st) : nothing}

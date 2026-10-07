@@ -148,6 +148,7 @@ async function setGrid(page: Page, g: number) {
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/standalone.html");
+  await page.locator("#fixPlan").uncheck(); // the plan opens fixed; these tests edit it
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
 });
 
@@ -309,6 +310,8 @@ test("a reload restores the edit from localStorage and Reset starts from scratch
   await page.reload();
   await expect(page.locator("svg polygon[data-r]").first()).toBeVisible();
   expect((await groundOf(page)).rooms[0].pts[1]).toEqual(edited.rooms[0].pts[1]);
+  await expect(page.locator("#fixPlan")).toBeChecked(); // a restored plan with rooms opens fixed
+  await page.locator("#fixPlan").uncheck();
   page.once("dialog", (d) => d.accept());
   await menu(page, "File");
   await page.locator("#reset").click();
@@ -7752,23 +7755,21 @@ test("S7.2: the floor panel says Need help and its button opens Help", async ({ 
   await expect(page.locator("#panel .guide")).toBeVisible();
 });
 
-test("S7.2: the status line sits in the toolbar's right-aligned cluster, and Save still writes Saved there", async ({ page }) => {
-  const status = page.locator(".bar #status");
-  await expect(status).toHaveCount(1);
-  await expect(status).toBeVisible();
-  await expect(status).toHaveAttribute("role", "status");
-  await expect(page.locator(`${EDITOR} aside #status`)).toHaveCount(0);
-  // S8.10 follow-up: status is now the right-aligned cluster's first item (Filter through Redo follow it), so its
-  // own right edge sits at or before Filter's left edge, not after Redo's.
-  const filter = await page.locator("#filter").boundingBox(), box = await status.boundingBox(), bar = await page.locator(".bar").boundingBox();
-  expect(box!.x + box!.width).toBeLessThanOrEqual(filter!.x + 0.5);
-  expect(box!.x).toBeGreaterThanOrEqual(bar!.x);
-  expect(box!.x + box!.width).toBeLessThanOrEqual(bar!.x + bar!.width + 0.5);
+test("messages are banners at the top, not text in the toolbar: Save still says Saved there, with a close button", async ({ page }) => {
+  await expect(page.locator(".bar #status")).toHaveCount(0);
+  if (await page.locator("#bannerClose").count()) await page.locator("#bannerClose").click(); // whatever the page said while loading
+  await expect(page.locator("#status")).toHaveCount(0);
   await menu(page, "File");
   const dl = page.waitForEvent("download");
   await page.locator("#save").click();
   await dl;
+  const status = page.locator("#status");
   await expect(status).toHaveText("Saved");
+  await expect(page.locator(".banner.info")).toBeVisible();
+  const b = (await page.locator(".banner").boundingBox())!, bar = (await page.locator(".bar").boundingBox())!;
+  expect(b.y).toBeLessThan(bar.y + bar.height + 20); // at the top of the editor, just under the toolbar
+  await page.locator("#bannerClose").click();
+  await expect(status).toHaveCount(0);
 });
 
 test("S7.2: an open menu draws above the Device colours panel, so File, Save is still the top element under the mouse", async ({ page }) => {
@@ -7781,34 +7782,18 @@ test("S7.2: an open menu draws above the Device colours panel, so File, Save is 
   expect(top).toBe("save");
 });
 
-test("S7.2 break it: a 200-character status ellipsises, keeps the full text in title, and the toolbar does not grow", async ({ page }) => {
+test("break it: a 200-character message wraps inside the banner, keeps the toolbar's height, and is an error banner", async ({ page }) => {
   const bar = page.locator(`${EDITOR} .bar`);
   const before = (await bar.boundingBox())!;
   const long = ("Could not create the automation: the server said no " + "x".repeat(200)).slice(0, 200);
-  expect(long).toHaveLength(200);
   await page.evaluate(([tag, m]) => (document.querySelector(tag) as any).saveDone(false, m), [EDITOR, long] as const);
-  const status = page.locator(".bar #status");
-  await expect(status).toHaveText(long);
-  await expect(status).toHaveAttribute("title", long);
-  const after = (await bar.boundingBox())!;
-  expect(after.height).toBe(before.height);
-  const got = await status.evaluate((el) => {
-    const s = getComputedStyle(el);
-    return { overflow: s.textOverflow, ws: s.whiteSpace, clipped: el.scrollWidth > el.clientWidth, right: el.getBoundingClientRect().right };
-  });
-  expect(got.overflow).toBe("ellipsis");
-  expect(got.ws).toBe("nowrap");
-  expect(got.clipped).toBe(true);
-  expect(got.right).toBeLessThanOrEqual(after.x + after.width + 0.5);
-  // At 1280 the floor chips, status, and the whole menu/Undo/Redo cluster all share the toolbar's one row (S8.10
-  // follow-up: status has no fixed flex-basis any more, only a max-width cap, so even a 200-char message stays
-  // capped and ellipsised rather than growing the cluster's total content width past what fits on one line).
-  const mid = async (sel: string) => { const b = (await page.locator(sel).first().boundingBox())!; return b.y + b.height / 2; };
-  const topRow = await mid("#redo");
-  expect(Math.abs((await mid(".bar [data-f]")) - topRow)).toBeLessThan(2);
-  const statusRow = await mid(".bar #status");
-  expect(Math.abs((await mid("#help")) - statusRow)).toBeLessThan(6); // Help is taller than the status text; same line, not same centre to the px
-  expect(Math.abs(statusRow - topRow)).toBeLessThan(2); // status shares that same single row too, not a wrapped line of its own
+  await expect(page.locator("#status")).toHaveText(long);
+  await expect(page.locator(".banner.error")).toBeVisible();
+  expect((await bar.boundingBox())!.height).toBe(before.height);
+  const vw = page.viewportSize()!.width;
+  const b = (await page.locator(".banner").boundingBox())!;
+  expect(b.x).toBeGreaterThanOrEqual(0);
+  expect(b.x + b.width).toBeLessThanOrEqual(vw);
 });
 
 test("S7.6: View, Preview night darkens the plan, survives a reload, and is never written to the layout", async ({ page }) => {

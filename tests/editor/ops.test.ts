@@ -254,3 +254,26 @@ describe("scaleFurniture (S1.51)", () => {
     expect(next.w).not.toBe(m.w); // yet the box did resize: the drag was decomposed onto the piece's own frame
   });
 });
+
+
+// Diego, 2026-10-07: with a room selected, a new furniture, object, device, door or zone lands in the middle of that room.
+import { roomMiddle as middleOf } from "../../src/editor/ops";
+describe("roomMiddle", () => {
+  const room = (pts: [number, number][], kind = "room") => ({ id: "r", name: "R", area: "", kind, pts, wk: pts.map(() => "wall") });
+  const floorOf = (...rooms: unknown[]) => ({ rooms } as never);
+  it("is the middle of the selected room, on the grid", () => {
+    expect(middleOf(floorOf(room([[0, 0], [100, 0], [100, 100], [0, 100]]), room([[300, 40], [700, 40], [700, 240], [300, 240]])), { t: "room", i: 1 }, 10)).toEqual([500, 140]);
+  });
+  it("is null with nothing, a non-room, a missing room or a ring too short selected", () => {
+    const f = floorOf(room([[0, 0], [10, 0]]));
+    expect(middleOf(f, null, 10)).toBeNull();
+    expect(middleOf(f, { t: "dev", i: 0 } as never, 10)).toBeNull();
+    expect(middleOf(f, { t: "room", i: 5 }, 10)).toBeNull();
+    expect(middleOf(f, { t: "room", i: 0 }, 10)).toBeNull();
+  });
+  it("stays inside an L-shaped room whose average point is outside", () => {
+    const l = room([[0, 0], [400, 0], [400, 100], [100, 100], [100, 400], [0, 400]]);
+    const m = middleOf(floorOf(l), { t: "room", i: 0 }, 10)!;
+    expect(m[0] >= 0 && m[0] <= 400 && m[1] >= 0 && m[1] <= 400 && (m[0] <= 100 || m[1] <= 100)).toBe(true);
+  });
+});
