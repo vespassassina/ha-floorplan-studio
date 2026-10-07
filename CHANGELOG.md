@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Room panel: a tv, speaker or computer piece that shares its entity with a plug (in another room) now reads on or off by the plug's power, as the plan draws it. The row used the tv rule and could say on while the plan said off.
+
 - 3D: a room that overlaps a bigger one always sits above it. A garden house or shed that stood more than 30 cm over the garden's border, half over it, turned, across a notch, or was bigger than the garden, had its floor hidden under the other; now it shows. Rooms that only share a border stay level.
 
 ## 0.19.0 - 2026-10-07
