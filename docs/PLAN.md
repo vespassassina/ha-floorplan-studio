@@ -2547,3 +2547,30 @@ Items 13-15. Needs a short design pass first (S15.0: visibility-polygon maths in
 Added 2026-10-06 (Diego's picks): S14.2 also does items 17-18 (live values, light slider); S14.7 room scenes (item 19);
 S14.8 plug colour by power (item 24); S15.3 also the evening tint (22); S15.4 open leaf, sash and 3D alert band (20);
 S15.5 top view and frame a room (21); S15.6 blob shadows (23). Not taken: room master switch, keyboard navigation.
+
+## Sprint 18 (0.19.0): field report on the scene designer and furniture
+
+Source: Diego's notes after 0.18.0, 2026-10-07. Each task: one outcome, one failing test first. Proposed, not yet approved.
+
+### Sprint 18a: scene designer fixes (small, ship first)
+- S18.1 A saved scene shows. Reproduce "I added a scene but it won't show" (list, card, or both), then fix. Find the cause before the fix.
+- S18.2 Restore puts a light back off. `itemFromState` keeps `off` as a state, and `restoreScene` sends `turn_off` for it. Today a light that was off came back white.
+- S18.3 Colours from a picture returns up to six colours, not four. Check `dominantColours` k and the 64 px sample.
+- S18.4 Scenes drop climate (TRV) and gain cover (curtains) as a first-class device with an open/closed/position field. Climate stays valid in old files.
+- S18.5 "Also offer" gets a plain label and a one-line hint. Today nobody can tell what it does.
+- S18.6 New scene button is the primary button. A spacer line under it. Devices, automations and the rest move into their own foldable section.
+- S18.7 Popups open centred in the viewport and never cut off, whatever the side bar length. Place popup and scene designer both.
+
+### Sprint 18b: furniture that reads
+- S18.8 Furniture is filled, in theme colours, not an outline. A test iterates every furniture kind (finding 17).
+- S18.9 An active furniture item (TV, speaker) takes the ON colour, with waves.
+- S18.10 Speakers and TVs are easy to grab: bigger hit area, `closest("g[data-x]")`, real-mouse test.
+- S18.11 Adding a connectable device (speaker, TV, computer) creates it as furniture directly, movable.
+- S18.12 A connected speaker or TV (actively tracking) gets its own colour. Needs a definition of "connected" from Diego.
+- S18.13 Computer drawn as a desk with case, monitor and keyboard.
+- S18.14 Device type menu: popular types on top, a separator, the rest A to Z. Adds `alarm` and `siren` as choosable types. `isSiren` already keys on the entity domain; the type must agree.
+
+### Open questions
+1. S18.1: where does the scene not show: the room's scene list in the editor, or the card?
+2. S18.12: "connected" means what? Playing, or grouped, or only the one the card tracks?
+3. S18.14: which types are "popular"? Proposal: light, switch, motion, door, temperature, speaker, tv.
