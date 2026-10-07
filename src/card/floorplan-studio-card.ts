@@ -149,6 +149,8 @@ const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_PX = 24;
 /** One click of a zoom button. */
 const BUTTON_ZOOM = 1.5;
+/** The Scenes section starts folded, so its fold set entry means "opened by the user" (the other groups start open and the entry means folded). */
+const SCENES_OPEN = "r:scenes:open";
 /** S9.2: `icon_size` default and clamp range. */
 const DEFAULT_ICON_SIZE = 1;
 const ICON_SIZE_MIN = 0.5;
@@ -2216,7 +2218,7 @@ export class FloorplanStudioCard extends LitElement {
     const f = this._floor(), at = this._picked();
     if (!f || at === null) return nothing;
     const menu = roomScenes(f, at, this._hass);
-    return scenesTemplate({ menu, asking: this._sceneAsk, run: (key) => this._runScene(key), cancel: () => { this._sceneAsk = null; this.requestUpdate(); } });
+    return scenesTemplate({ menu, asking: this._sceneAsk, run: (key) => this._runScene(key), cancel: () => { this._sceneAsk = null; this.requestUpdate(); }, open: this._foldedCats.has(SCENES_OPEN), toggle: () => this._toggleCat(SCENES_OPEN) });
   }
 
   /** One tap on a scene button. A Home Assistant scene is `scene.turn_on`; a custom scene and the presets go through the light and switch services (`customCalls`, `presetCalls`). A custom scene that turns a switch off asks first. */
@@ -2242,7 +2244,7 @@ export class FloorplanStudioCard extends LitElement {
 
   /** S11.3: the room section: name, the facts the plan only hints at, and the room's devices as rows that act. A fact with
    *  nothing behind it (no sensor, no state) is left out, never printed empty; doors and lights always say "none". */
-  private _roomSection(s: RoomSummary) {
+  private _roomSection(s: RoomSummary, active: unknown) {
     const facts: [string, string][] = [
       ["Area", s.areaM2 === null ? "" : `${s.areaM2} m²`],
       ["Temperature", s.temperature],
@@ -2258,6 +2260,7 @@ export class FloorplanStudioCard extends LitElement {
       </div>
       <dl class="fp-room-facts">${facts.filter(([, v]) => v).map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
       ${this._scenesBlock()}
+      ${active}
       <div class="fp-active-group-label">Devices</div>
       <div class="fp-room-devices">
         ${s.devices.length || s.sensors.length
@@ -2321,9 +2324,8 @@ export class FloorplanStudioCard extends LitElement {
         ? null
         : html`<div class="fp-active-body">
             ${summary
-              ? html`${this._roomSection(summary)}
-                <div class="fp-filter"><span>${this._roomFilter ? "Active in this room" : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => { this._roomFilter = !this._roomFilter; this.requestUpdate(); }}>${this._roomFilter ? "Show all" : "This room only"}</button></div>
-                <div class="fp-filtered">${list}</div>`
+              ? this._roomSection(summary, html`<div class="fp-filter"><span>${this._roomFilter ? "Active in this room" : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => { this._roomFilter = !this._roomFilter; this.requestUpdate(); }}>${this._roomFilter ? "Show all" : "This room only"}</button></div>
+                <div class="fp-filtered">${list}</div>`)
               : list}
           </div>`}
     </div>`;

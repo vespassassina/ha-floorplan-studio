@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: Room panel order, folded Scenes, media players open more-info
+
+Scenes folds by default (the fold set holds `r:scenes:open` for "opened", the reverse of the other groups). "Active in this room" moved into the room section between Scenes and Devices. A tap on any device whose entity is a `media_player.*` opens its more-info, as a speaker or TV placed as an appliance already did; the popup stays for a TV on a switch. Why (Diego): the player's own panel is better than a one-button popup.
+
 ## 2026-10-07: Arrows pan both ways, + - zoom, [ ] rotate
 
 Diego, after 0.17.0. All four arrows pan (`PAN_STEP` 0.1 of the view width or height). `+`/`=` zoom in, `-`/`_` zoom out, `[` and `]` turn the plan by `ROTATION_STEP`. Supersedes "Up and Down zoom" (0.12.x) and the Left/Right-only pan of the entry below. Space still resets. Same map in card and editor (`view-keys.ts`); `[` `]` need the rotate buttons in the card, as the buttons do. Why: zoom and rotate get keys that say what they do, and the arrows stay for moving.

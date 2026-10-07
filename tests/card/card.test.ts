@@ -521,7 +521,7 @@ describe("FloorplanStudioCard", () => {
       expect(callService).not.toHaveBeenCalled();
     });
 
-    it("a tap on the media player opens a popup with More info only, not a toggle, and it takes the on class while playing", async () => {
+    it("a tap on the media player opens its more-info at once, not a popup or a toggle, and it takes the on class while playing", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floor: "first" });
       const callService = vi.fn();
@@ -535,8 +535,7 @@ describe("FloorplanStudioCard", () => {
       g.dispatchEvent(new Event("pointerdown", { bubbles: true }));
       g.dispatchEvent(new Event("pointerup", { bubbles: true }));
       await el.updateComplete;
-      expect(el.shadowRoot!.querySelector(".fp-pop-do")).toBeNull();
-      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-pop-more")!.click();
+      expect(el.shadowRoot!.querySelector(".fp-pop")).toBeNull();
       expect(moreInfo).toHaveBeenCalledTimes(1);
       expect((moreInfo.mock.calls[0][0] as CustomEvent).detail).toEqual({ entityId: "media_player.demo_office" });
       expect(callService).not.toHaveBeenCalled();

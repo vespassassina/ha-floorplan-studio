@@ -4,6 +4,8 @@
 
 - Keys, card and editor: the four arrows pan, `+` and `-` zoom, `[` and `]` turn
   the plan 45 degrees, Space still resets. The arrows no longer zoom.
+- Card, room panel: Scenes starts folded (its header opens it, and the choice is remembered), and "Active in this room" now sits between Scenes and Devices.
+- Card: a tap on a device with a `media_player` entity (media, speaker, TV) opens that player's more-info at once, no popup.
 - The editor's Help button is now "? Help" and opens with a controls table.
 
 ## 0.17.0 - 2026-10-07

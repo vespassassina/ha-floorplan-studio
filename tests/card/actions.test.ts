@@ -208,7 +208,7 @@ describe("actions: a tap opens the popup and operates nothing (S14.2)", () => {
 // A camera, media player or speaker has no toggle (NO_TOGGLE): the popup shows name, state and More info only. That
 // is the popup's business (popup.ts); the binder's is to ask for it, the same as for any device.
 describe("actions: devices without a toggle ask for the popup too", () => {
-  it.each([CAMERA, MEDIA,
+  it.each([CAMERA,
     { id: "b", type: "battery", entity: "sensor.b", x: 1, y: 1 } as Device,
     { id: "i", type: "inverter", entity: "sensor.i", x: 1, y: 1 } as Device,
     { id: "sv", type: "server", entity: "sensor.sv", x: 1, y: 1 } as Device,
@@ -222,6 +222,25 @@ describe("actions: devices without a toggle ask for the popup too", () => {
     expect(r.openPopup.mock.calls[0]![0]).toEqual({ device: dev, index: 0 });
     expect(r.moreInfo).not.toHaveBeenCalled();
     expect(r.callService).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    MEDIA,
+    { id: "sp", type: "speaker", entity: "media_player.kitchen", x: 1, y: 1 } as Device,
+    { id: "tv", type: "tv", entity: "media_player.lounge_tv", x: 1, y: 1 } as Device,
+  ])("$type with a media_player: a tap opens that player's more-info at once, with no popup (Diego, 2026-10-07)", (dev) => {
+    const r = rig({ devices: [dev] });
+    r.tap();
+    expect(r.openPopup).not.toHaveBeenCalled();
+    expect(r.detail()).toEqual({ entityId: dev.entity });
+    expect(r.callService).not.toHaveBeenCalled();
+  });
+
+  it("a tv on a switch (no media_player) still gets the popup, so its toggle stays reachable", () => {
+    const dev = { id: "tv2", type: "tv", entity: "switch.tv_plug", x: 1, y: 1 } as Device;
+    const r = rig({ devices: [dev] });
+    r.tap();
+    expect(r.openPopup).toHaveBeenCalledTimes(1);
   });
 
   it("a hold on a camera still opens more-info directly", () => {
