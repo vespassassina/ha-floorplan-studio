@@ -275,16 +275,17 @@ export function setRoomList(r: Room, field: RoomSensorField, next: string[]): vo
 
 /** S18.10: a piece shorter than this on screen, in px, is hard to press. */
 const SMALL_PX = 28, FURN_PAD_PX = 8;
+const PADDED: ReadonlySet<string> = new Set(["tv", "speaker", "computer"]); // thin things the hand misses; a toilet or sink is not
 
 /**
- * The topmost small piece of furniture whose padded box holds `p`, or null. Small is under 28 screen px on a side; its box grows
+ * The topmost small tv, speaker or computer whose padded box holds `p`, or null. Small is under 28 screen px on a side; its box grows
  * 8 px each way, at least 28 px across, so a thin tv or a speaker can be picked just outside its drawn edge. `scale` is screen px
  * per cm. A big piece gets no padding: the real element under the pointer already answers for it.
  */
 export function furnitureNear(f: Floor, p: Pt, scale: number): number | null {
   for (let i = f.furniture.length - 1; i >= 0; i--) {
     const m = f.furniture[i];
-    if (Math.min(m.w, m.h) * scale >= SMALL_PX) continue;
+    if (!PADDED.has(m.symbol) || Math.min(m.w, m.h) * scale >= SMALL_PX) continue;
     const rad = (-m.rot * Math.PI) / 180, dx = p[0] - m.x, dy = p[1] - m.y;
     const lx = dx * Math.cos(rad) - dy * Math.sin(rad), ly = dx * Math.sin(rad) + dy * Math.cos(rad);
     const half = (len: number) => Math.max(len / 2 + FURN_PAD_PX / scale, SMALL_PX / 2 / scale);

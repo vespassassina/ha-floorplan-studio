@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-07: the padded grab box is for a tv, speaker or computer, and the edge reach goes first (S18.10, review)
+
+Opus review: the S18.10 box took too much. Two changes, same pointer path.
+- Only a tv, speaker or computer is padded (`PADDED` in `ops.ts`). A toilet, sink or shower under 28 px at fit zoom took a click meant for its room; those have no thin shape the hand misses.
+- The edge reach (8 px, `edgeNear`) now runs before the pad when the real element is the background, a room or stairs. A thin tv lying flush on a wall no longer swallows the wall's edge within its box. A handle, device, door or wall element really under the pointer still wins, as before.
+- `addHaEntity` asks `placedEntities` (devices and linked pieces) instead of devices alone, so an entity a piece already tracks is not placed a second time, even when the catalog does not list it.
+
 ## 2026-10-07: a linked piece carries device behaviour in the card (S18.15)
 
 Opus review of S18.8 to S18.14: a tv, speaker or computer piece with an entity did nothing in the card, and "every editor feature is in the card" did not hold. Diego's design: a linked piece behaves like a device there. One path, not copies:

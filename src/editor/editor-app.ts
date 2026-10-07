@@ -797,8 +797,10 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.draw) { this.drawClick(p, ev.altKey, ev); return; }
     // A press elsewhere, or late, is not the second click of that pair; a third press means the user double-clicked on purpose.
     if (this.finished) { if (this.sameDouble(ev) && this.finished.presses === 0) this.finished.presses = 1; else this.finished = null; }
-    let hit = this.padFurniture(hitOf(ev.target as Element), p);
+    // The edge reach (8 px) goes first: a thin tv lying flush on a wall must not swallow it with its own padded box.
+    let hit = hitOf(ev.target as Element);
     if (hit.k === "bg" || hit.k === "room" || hit.k === "stairs") hit = this.edgeNear(p) ?? hit;
+    hit = this.padFurniture(hit, p);
     const base = structuredClone(f);
     this.drag = null;
     switch (hit.k) {

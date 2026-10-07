@@ -8702,6 +8702,50 @@ for (const [sym, side] of [["tv", "below"], ["speaker", "right"]] as const) {
   });
 }
 
+// Opus review of S18.10: the padded box must not take what is not small tv, speaker or computer furniture's. Real mouse at real
+// coordinates (finding 3). Pieces are written straight into the layout (like the S18.12 pair below), clear of every demo device.
+async function addPieces(page: Page, pieces: Record<string, unknown>[]) {
+  await page.evaluate(([tag, add]) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.furniture.push(...(add as unknown[]));
+    el.layout = l;
+  }, [EDITOR, pieces] as const);
+  await page.locator("#fixPlan").press("Escape"); // nothing selected that could take the press
+  return (await groundOf(page)).furniture.length - pieces.length;
+}
+const selOf = (page: Page) => page.evaluate((tag) => (document.querySelector(tag) as any).st.sel, EDITOR);
+const boxOf = async (page: Page, i: number) => (await page.locator(`${EDITOR} svg g[data-f="${i}"]`).boundingBox())!;
+
+test("S18.10 review: 6 px off a room edge, beside a tv that lies flush on it, picks the edge, not the tv's padded box", async ({ page }) => {
+  // The wall between Living and the Kitchen is x = 500. The tv stands on it, turned, and is 100 cm long: y 250 to 350. (On an external
+  // wall the line itself is 16 px wide and takes the press alone, so a test there passes without the fix.)
+  const n = await addPieces(page, [{ id: "flush-tv", symbol: "tv", x: 495, y: 300, rot: 90, w: 100, h: 10 }]);
+  const b = await boxOf(page, n);
+  const at = { x: b.x + b.width + 6, y: b.y + b.height + 4 }; // 6 px off the tv, past the wall line's own width, inside the 8 px edge reach, 4 px past the tv's end
+  await page.mouse.click(at.x, at.y);
+  expect((await selOf(page)).t).toBe("edge");
+});
+
+for (const symbol of ["toilet", "sink", "shower"]) {
+  test(`S18.10 review: a click just beside a small ${symbol} at fit zoom picks the room, not the ${symbol}`, async ({ page }) => {
+    const n = await addPieces(page, [{ id: `small-${symbol}`, symbol, x: 430, y: 300, rot: 0, w: 20, h: 20 }]);
+    const b = await boxOf(page, n);
+    expect(Math.min(b.width, b.height), "the piece is small on screen: it would have been padded").toBeLessThan(28);
+    await page.mouse.click(b.x + b.width + 5, b.y + b.height / 2);
+    expect(await selOf(page)).toEqual({ t: "room", i: 0 });
+  });
+}
+
+for (const symbol of ["tv", "speaker", "computer"]) {
+  test(`S18.10 review: a small ${symbol} is still picked 6 px outside its drawn edge`, async ({ page }) => {
+    const n = await addPieces(page, [{ id: `small-${symbol}`, symbol, x: 430, y: 300, rot: 0, w: 40, h: 16 }]);
+    const b = await boxOf(page, n);
+    expect(Math.min(b.width, b.height), "the piece is small on screen").toBeLessThan(28);
+    await page.mouse.click(b.x + b.width / 2, b.y + b.height + 6);
+    expect(await selOf(page)).toEqual({ t: "furn", i: n });
+  });
+}
+
 // S18.11: Add > Device places a tv, speaker or computer as a furniture piece that tracks the entity, not as an icon.
 const FURN_HA = { floors: [], areas: [], entities: [
   { id: "media_player.lounge_tv", name: "Lounge TV", domain: "media_player", dc: "tv" },
