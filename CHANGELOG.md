@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Card and studio (groundwork): one search index over floors, rooms and devices. A query matches names, entity ids, rooms, floors and types, ignores case and accents, and ranks the exact name first.
+- Card and studio (groundwork): one search box, opened with ⌘K, Ctrl+K or /. Arrows move through the results, Enter picks, Escape clears and then closes. Each result shows its room, floor and type.
+
 ## 0.21.0 - 2026-10-08
 
 - Card and studio: room names are solid, not faded. Each name is the text colour mixed into the room it sits on, at 12 px (outdoor names and zones at 10, outdoor in italic), in Home Assistant's own font. Readings keep their number and unit together and line up digit for digit.

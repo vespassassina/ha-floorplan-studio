@@ -2,6 +2,26 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: the search box's keys and focus (S24.2)
+
+- **`isSearchChord` lives in `view-keys.ts`**, beside `isSaveChord` and `takesTyping`, and `search-box.ts` re-exports it. A host can test the chord without loading the element, and "/" in a text field uses the same `takesTyping` rule as the view keys.
+- **"/" is allowed with Shift.** On an Italian or German keyboard "/" is Shift-7. Alt and Ctrl or Cmd with "/" are not the chord. Cmd-K and Ctrl-K are, without Alt or Shift, also from a text field.
+- **Escape on an empty box closes it: focus goes back to where it was when the host called `focus()`, and `fp-close` fires.** So the host's chord works again at once, and a host that shows the box as a popover can hide it. Both Escapes stop there; the host's own Escape (deselect, cancel a tool) does not also run.
+- **A pick clears the query and keeps focus in the box**, ready for the next search; the host moves focus if it wants to.
+- **Hover is a light tint, the active option is inverted** (`--fp-ink` on `--fp-bg`, as in `<fp-combo>`). Two inverted rows, one under the mouse and one under the keyboard, read as two choices.
+- **The Playwright harness is served by the test dev server through Vite's `/@fs/` path** (`tests/card/search-harness.html`), so the element is compiled from this tree with no extra build entry.
+
+## 2026-10-08: one search index, ranked in tiers (S24.1)
+
+`src/core/search.ts` builds the entries once and ranks a query by tier, not by a score.
+- **Ties go to the shorter name, then layout order.** The plan named one "guest bedroom bedside lamp"; the stress house has two (left, right) and a bedside plug, all on the same tier for "bedside guest". The shorter name first puts the left lamp on top, and a room ("Guest bedroom") before the devices named after it.
+- **An exact entity id is tier 0**, beside an exact name: pasting an id must land on its device.
+- **The last tier searches name, entity, room, floor and type together**, so "second light bedside" works. Words split on anything that is not a letter or digit in any script.
+- **Rooms of every kind with a name are entries**, zones too: a zone is a named place a person looks for. Their type label is "Room".
+- **A linked piece (tv, speaker, computer) is a device entry**, flagged `piece`, its index into `furniture`; the same rule as the Active list.
+- **A person has no room**: its drawn spot comes from sensors, not its stored point (as in the room summary).
+- `room-info.ts`'s private `centre` is now exported as `deviceCentre`, so search finds a device's room with the same point and `roomAt` as the room summary.
+
 ## 2026-10-08: the faint dash is a zone's only (Opus review of Sprint 23, S4)
 
 S23.7 said "a zone is a 1 px dash at 35 % with no halo", but the rule sat on `.e.nw`, which every `boundary` edge carries. An open plan's line between two real rooms went faint too. A zone's edges now carry `zn` as well, and the S23.7 style is `.e.nw.zn` and `.eh.nw.zn`. A boundary between rooms, on a free wall or on the outline goes back to what it drew before: a 1.5 cm dash 8 6 over a 3.5 cm halo.

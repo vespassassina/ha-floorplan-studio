@@ -2684,12 +2684,12 @@ every CSS rule that matters gets its `getComputedStyle` pair (finding 10); real 
 phone bottom sheet and ⋯ menu (sprint 29), drag from the Outline onto the plan (sprint 26).
 
 Wave 1, core (parallel):
-- [ ] S24.1 (F1, U9) One search index. `src/core/search.ts` builds entries for floors, rooms and devices (friendly name,
+- [x] S24.1 (F1, U9) One search index. `src/core/search.ts` builds entries for floors, rooms and devices (friendly name,
       entity id, room, floor, type label) and ranks a query: exact name, then name prefix, then word prefix, then
       substring, then entity id, then room. Case and accents ignored; several words must all match. Test: on
       `tests/fixtures/stress-layout.json`, "bedside guest" ranks the guest bedroom bedside lamp first, an entity id
       finds its device, an empty query returns nothing, 437 devices query in under 5 ms.
-- [ ] S24.2 One search box for both apps. `<fp-search>` in `src/card/search-box.ts`: an ARIA combobox (input,
+- [x] S24.2 One search box for both apps. `<fp-search>` in `src/card/search-box.ts`: an ARIA combobox (input,
       listbox, `aria-activedescendant`), each option shows name and "room · floor · type", arrows move, Enter picks
       and fires `fp-pick`, Escape clears then closes. The host binds ⌘K, Ctrl+K and `/` on itself, never `window`
       (finding 6). Colours only through `--fp-*`. Test: Playwright on a harness page, real keyboard, every step.

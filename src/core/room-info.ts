@@ -78,7 +78,8 @@ export function formatChanged(iso: unknown): string {
   return Number.isFinite(t) ? new Date(t).toLocaleString("sv-SE") : "unknown";
 }
 
-const centre = (d: Device): Pt | null => {
+/** Where a device stands on the plan: its point, or a line device's middle; null when not finite. Shared with search. */
+export const deviceCentre = (d: Device): Pt | null => {
   const p: unknown = "a" in d && "b" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [(d as { x: number }).x, (d as { y: number }).y];
   return finite(p) ? p : null;
 };
@@ -146,7 +147,7 @@ function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean,
   const lightsOn: string[] = [];
   const offEntities = new Set<string>();
   f.devices.forEach((d, i) => {
-    const c = centre(d);
+    const c = deviceCentre(d);
     // A person's drawn position comes from a room sensor at render time, not from x and y: listing one by its stored
     // point would put it in the wrong room, so a person never has a row here.
     if (!c || d.type === "person" || typeof d.entity !== "string" || !d.entity || !member(roomAt(f, c))) return;
