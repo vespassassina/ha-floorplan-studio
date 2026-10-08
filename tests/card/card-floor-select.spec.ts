@@ -201,11 +201,14 @@ test.describe("S20.2 selecting a floor from its pill", () => {
   test("the selection survives a hass update and follows the state", async ({ page }) => {
     await boot(page);
     await pill(page, "Ground").click();
-    await card(page).locator("css=.fp-room-devices .fp-info-btn").first().click(); // an open details block must survive too
+    // S24.7: a row's details live in its popup now (the ▸ chevron went); an open popup with its Details open must survive too
+    await card(page).locator("css=.fp-room-devices .fp-active-row").first().click();
+    await card(page).locator("css=.fp-pop .fp-pop-info > summary").click();
+    await expect(card(page).locator("css=.fp-pop .fp-pop-info[open]")).toHaveCount(1);
     await setStates(page, { ...STATES(), "light.demo_kitchen": st("off") });
     await expect(pill(page, "Ground")).toHaveClass(/fp-floor-picked/);
     await expect(factOf(page, "Lights on")).toHaveText("Living light, demo_living3");
-    await expect(card(page).locator("css=.fp-room-devices .fp-info")).toHaveCount(1);
+    await expect(card(page).locator("css=.fp-pop .fp-pop-info[open]")).toHaveCount(1);
   });
 
   test("setConfig clears it", async ({ page }) => {

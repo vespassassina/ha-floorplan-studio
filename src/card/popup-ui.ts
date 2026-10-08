@@ -1,6 +1,6 @@
 // S14.2: the tap popup's markup and its placement. The card owns the state (floorplan-studio-card.ts); this draws it.
 import { css, html, nothing } from "lit";
-import type { Device, Door } from "../core";
+import type { Device, Door, InfoRow } from "../core";
 import type { LightCaps, PopupOp } from "./popup";
 
 /** What a popup is about: a device, a door or an appliance, reduced to what the popup reads. `key` tells one subject from another (a second tap on the same one closes). */
@@ -35,6 +35,9 @@ export interface PopupView {
   caps: LightCaps | null;
   /** brightness percent, kelvin, hue degrees; null when the light does not say. */
   level: Record<SliderKind, number | null>;
+  /** S24.7 (A3): what Home Assistant's registries know (`deviceInfo`), folded under "Details". It replaces the ▸ chevron every
+   *  row used to carry. Empty in kiosk, as More info is. */
+  info: InfoRow[];
   act(): void;
   cancel(): void;
   more(): void;
@@ -63,6 +66,12 @@ export const POPUP_CSS = css`
   .fp-pop input.fp-pop-hue { background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); border-radius: 8px; height: 20px; margin: 12px 0; -webkit-appearance: none; appearance: none; }
   .fp-pop input.fp-pop-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 28px; border-radius: 6px; background: var(--fp-ink); border: 2px solid var(--fp-room); }
   .fp-pop input.fp-pop-hue::-moz-range-thumb { width: 22px; height: 28px; border-radius: 6px; background: var(--fp-ink); border: 2px solid var(--fp-room); }
+  /* S24.7: the details the row chevron used to open, folded under the buttons. */
+  .fp-pop-info summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; font-size: 12px; opacity: 0.8; }
+  .fp-pop-info dl { margin: 4px 0 0; font-size: 11px; line-height: 1.4; }
+  .fp-pop-info dl > div { display: flex; gap: 6px; }
+  .fp-pop-info dt { flex: 0 0 84px; opacity: 0.8; }
+  .fp-pop-info dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
   .fp-tip { position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; max-width: min(260px, 90%); padding: 4px 8px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); font: 12px/1.3 var(--fp-font, system-ui, sans-serif); display: flex; flex-direction: column; }
   .fp-tip[hidden] { display: none; }
   .fp-tip b { font-weight: 600; overflow-wrap: anywhere; }
@@ -98,6 +107,7 @@ export function popupTemplate(v: PopupView) {
     </div>` : nothing}
     ${primary}
     ${s.entities.length && !v.kiosk ? html`<button type="button" class="fp-pop-more" @click=${v.more}>More info</button>` : nothing}
+    ${v.info.length && !v.kiosk ? html`<details class="fp-pop-info"><summary>Details</summary><dl>${v.info.map((r) => html`<div><dt>${r.label}</dt><dd>${r.value}</dd></div>`)}</dl></details>` : nothing}
   </div>`;
 }
 
