@@ -102,6 +102,34 @@ test.describe("S24.2 <fp-search>", () => {
     expect(await inBox(page)).toBe(true);
   });
 
+  test("S24.R3: two shadow roots down, Escape twice gives focus back to the host that opened it", async ({ page }) => {
+    await page.goto(`/@fs${resolve("tests/card/search-nest.html")}`);
+    await page.waitForFunction(() => (window as unknown as { ready?: boolean }).ready === true);
+    /** The focus path through every shadow root, outermost first. */
+    const where = () => page.evaluate(() => {
+      let a: Element | null = document.activeElement;
+      const path: string[] = [];
+      while (a) { path.push(a.tagName.toLowerCase() + (a.id ? `#${a.id}` : "")); a = a.shadowRoot?.activeElement ?? null; }
+      return path.join(" > ");
+    });
+    const value = () => page.evaluate(() => (document.getElementById("app")!.shadowRoot!.getElementById("panel")!.shadowRoot!.getElementById("box")!.shadowRoot!.querySelector("input") as HTMLInputElement).value);
+    const plan = await page.evaluate(() => {
+      const r = document.getElementById("app")!.shadowRoot!.getElementById("panel")!.shadowRoot!.querySelector(".plan")!.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await page.mouse.click(plan.x, plan.y);
+    expect(await where()).toBe("x-app#app > x-panel#panel > div#host");
+    await page.keyboard.press("/");
+    expect(await where()).toBe("x-app#app > x-panel#panel > fp-search#box > input");
+    await page.keyboard.type("kitchen");
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+    expect(await where()).toBe("x-app#app > x-panel#panel > div#host");
+    await page.keyboard.press("/");
+    expect(await where()).toBe("x-app#app > x-panel#panel > fp-search#box > input");
+    expect(await value()).toBe("");
+  });
+
   test("Ctrl-K and Cmd-K open it; / typed in another text field stays a slash", async ({ page }) => {
     await open(page);
     await focusHost(page);

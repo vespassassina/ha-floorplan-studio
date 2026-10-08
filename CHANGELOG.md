@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card and Studio: closing the search with Escape gives the keyboard back. Before, the box kept focus inside Home Assistant and the next / typed a slash.
 - Card and Studio: search finds "Søren" from "soren" and "Große" from "grosse": ø, ß, æ, ł, đ, þ and œ fold to plain letters.
 - Card: a search at the top of the Overview, opened with ⌘K, Ctrl+K or / while the card is under the pointer or has focus. Enter on a device goes to it as a row tap does; on a room, opens the room; on a floor, shows it.
 - Card: "Turn off on this floor…" lists what is on (lights with their relays, switches, plugs, media), grouped with counts and all ticked. One button turns off what stays ticked.

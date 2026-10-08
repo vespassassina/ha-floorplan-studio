@@ -2747,3 +2747,7 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       the layout).
 - [x] S24.R10b Search: `normalize` folds the letters NFD leaves whole (ø, ß, æ, ł, đ, þ, œ, ð, ı), so "Soren" finds
       "Søren" and "grosse" finds "Große".
+- [x] S24.R3 Search: Escape twice gives focus back. `focus()` recorded `document.activeElement`, a shadow host that
+      cannot take focus, so the input kept it and the next `/` typed a slash. It now records the deepest focused
+      element; with nothing to go back to the input blurs. Tests: the card hovered, and a harness two shadow roots
+      deep like Home Assistant's panel.
