@@ -1,9 +1,10 @@
-/** What the editor remembers of how the plan is looked at, between reloads: the names toggle, the turn, the floor on show, and the zoom and centre of each floor that is not shown whole.
+/** What the editor remembers of how the plan is looked at, between reloads: the names toggle, the turn, the floor on show, the hidden Layers, and the zoom and centre of each floor that is not shown whole.
  * One entry per page (origin), not per document: it says nothing about the plan itself, and a plan that is replaced
  * or edited keeps its view. The theme, the grid and night preview have keys of their own (state.ts) and are not
  * repeated here. The editor draws flat only (S12.1), so an older entry's `mode`, `tilt` and `walls` are ignored. Storage is untrusted, so every field is checked on its own and nothing here throws. */
 import { normaliseRotation } from "../card/view-state";
 import { MAX_ZOOM, MIN_ZOOM, type Pt } from "../card/viewport";
+import { parseLayers, type LayerId } from "../core/layers";
 
 export const VIEW_MEMORY_KEY = "floorplan-studio:view";
 
@@ -15,6 +16,8 @@ export interface ViewMemory {
   rotation?: number;
   /** [floor key, zoom against the floor's fit, centre in plan cm]. A list, not an object: a floor may be named `__proto__`. */
   zooms?: [string, FloorZoom][];
+  /** S24.6: the Layers the viewer hid. Left out when none is. */
+  hidden?: LayerId[];
 }
 
 const MAX_ZOOMS = 50;
@@ -33,6 +36,8 @@ export function parseViewMemory(raw: unknown): ViewMemory {
   if (typeof r.floor === "string" && r.floor.length > 0 && r.floor.length <= 200) out.floor = r.floor;
   if (typeof r.labels === "boolean") out.labels = r.labels;
   if (isNum(r.rotation)) out.rotation = normaliseRotation(r.rotation);
+  const hidden = parseLayers(r.hidden);
+  if (hidden.length) out.hidden = hidden;
   if (Array.isArray(r.zooms)) {
     const zooms: [string, FloorZoom][] = [];
     for (const e of r.zooms) {

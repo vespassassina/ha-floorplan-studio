@@ -4,7 +4,7 @@ import { test, expect, type Page } from "@playwright/test";
 // Escape and hands focus back to its own button. The key is handled on the editor host (finding 6).
 
 const EDITOR = "floorplan-studio-editor";
-const MENUS = ["filter", "mAdd", "mDraw", "mOpt", "mEdit", "mFile"];
+const MENUS = ["mAdd", "mDraw", "mOpt", "mEdit", "mFile"];
 const focusedId = (page: Page) => page.evaluate((tag) => {
   const a = (document.querySelector(tag) as any).shadowRoot.activeElement as HTMLElement | null;
   return a?.tagName === "SUMMARY" ? (a.parentElement as HTMLElement).id : a?.id ?? a?.tagName ?? null;

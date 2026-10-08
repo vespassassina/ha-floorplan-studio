@@ -458,6 +458,36 @@ export function unplacedDevicesInArea(l: Layout, ha: HaData | undefined, area: s
 }
 
 /**
+ * S24.6 (U16): the room right-click's "Add device from <room>" rows: what is unplaced in the area, with Place's own
+ * noise rule (`AREA_PLACEABLE_TYPES`), so a plug's power reading or a scene is not offered there either. A merely
+ * catalogued entity stays out, as before: placing from this menu does not reuse a catalog entry.
+ */
+export function areaMenuEntities(l: Layout, ha: HaData | undefined, area: string | undefined): HaData["entities"] {
+  if (!ha) return [];
+  return unplacedDevicesInArea(l, ha, area).filter((e) => AREA_PLACEABLE_TYPES.has(typeForEntity(e, ha)));
+}
+
+/**
+ * S24.6 (U16): HA's areas for a picker, once per id, by name. A name two areas share gets its floor after a dash
+ * ("Stair hall - First"), or the area id when it has no floor, so the rows can be told apart. `name` stays HA's own:
+ * it is what a linked room is called. Rows that are not areas are skipped; never throws.
+ */
+export function areaChoices(ha: HaData): { id: string; name: string; label: string }[] {
+  const seen = new Set<string>(), list: { id: string; name: string; floor_id?: string }[] = [];
+  for (const a of Array.isArray(ha?.areas) ? ha.areas : []) {
+    if (!a || typeof a.id !== "string" || !a.id || typeof a.name !== "string" || seen.has(a.id)) continue;
+    seen.add(a.id);
+    list.push(a);
+  }
+  list.sort((a, b) => a.name.localeCompare(b.name));
+  const key = (n: string) => n.trim().toLowerCase();
+  const uses = new Map<string, number>();
+  for (const a of list) uses.set(key(a.name), (uses.get(key(a.name)) ?? 0) + 1);
+  const floorName = (id: string | undefined) => (Array.isArray(ha.floors) ? ha.floors.find((f) => f?.id === id)?.name : undefined);
+  return list.map((a) => ({ id: a.id, name: a.name, label: (uses.get(key(a.name)) ?? 0) > 1 ? `${a.name.trim()} - ${floorName(a.floor_id) || a.id}` : a.name }));
+}
+
+/**
  * S8.5/S8.6: one row of the merged Add > Device panel — either an unplaced `layout.catalog` entry, an unplaced
  * device-less HA entity (`unplacedHaEntities`), or one row per unplaced HA device (its main entity, `mainEntity`),
  * the same "devices, not entities" rule as the Place popup and the room menu. `key` is unique across all three:

@@ -131,3 +131,23 @@ describe("EditorState: export and import of the view", () => {
     expect(st.viewRot).toBe(90);
   });
 });
+
+describe("S24.6: the hidden layers are view memory", () => {
+  it("parses only known layer ids, and leaves the field out when none", () => {
+    expect(parseViewMemory({ hidden: ["lights", "nope", "lights", 3, "furniture"] }).hidden).toEqual(["lights", "furniture"]);
+    expect(parseViewMemory({ hidden: "lights" })).toEqual({});
+    expect(parseViewMemory({ hidden: [] })).toEqual({});
+  });
+  it("round trips through exportView and importView; nothing hidden writes nothing", () => {
+    const a = new EditorState(fresh());
+    expect(a.exportView().hidden).toBeUndefined();
+    a.hidden = ["climate", "lights"];
+    const m = parseViewMemory(JSON.stringify(a.exportView()));
+    expect(m.hidden).toEqual(["lights", "climate"]); // layer order
+    const b = new EditorState(fresh());
+    b.importView(m);
+    expect(b.hidden).toEqual(["lights", "climate"]);
+    b.importView({});
+    expect(b.hidden).toEqual([]);
+  });
+});

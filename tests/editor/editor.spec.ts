@@ -1749,53 +1749,15 @@ test("draw items keep the single-shape Add items: Zone still adds a square in on
   expect((await groundOf(page)).rooms.at(-1)!.kind).toBe("zone");
 });
 
-test("the plan filter checks several device types at once, dropping any one un-checks it, All clears the filter", async ({ page }) => {
-  const total = await page.locator("svg .dev").count();
-  const lights = await page.locator("svg .dev-light").count(), switches = await page.locator("svg .dev-switch").count();
-  expect(total).toBeGreaterThan(lights + switches); // the demo has other device types too, or this test proves nothing
-
-  await page.locator("#filter summary").click();
-  await page.locator('#filter [data-filter="light"]').click();
-  await expect(page.locator("svg .dev:visible")).toHaveCount(lights);
-  await expect(page.locator('#filter [data-filter="light"]')).toHaveAttribute("aria-pressed", "true");
-
-  await page.locator('#filter [data-filter="switch"]').click();
-  await expect(page.locator("svg .dev:visible")).toHaveCount(lights + switches);
-  await expect(page.locator("#filter summary")).toHaveText("Filter: 2 types");
-
-  await page.locator('#filter [data-filter="light"]').click(); // un-check one, the other stays checked
-  await expect(page.locator("svg .dev:visible")).toHaveCount(switches);
-  await expect(page.locator('#filter [data-filter="switch"]')).toHaveAttribute("aria-pressed", "true");
-
-  await page.locator("#filterAll").click();
-  await expect(page.locator("svg .dev:visible")).toHaveCount(total);
-  await expect(page.locator("#filter summary")).toHaveText(`Filter: all (${total})`);
-});
-
-test("Opus review CSS pair: a pressed filter-menu row is visually highlighted, not just aria-pressed", async ({ page }) => {
-  const styleOf = (sel: string) => page.locator(sel).evaluate((el) => { const s = getComputedStyle(el); return { bg: s.backgroundColor, color: s.color }; });
-  await page.locator("#filter summary").click();
-  const before = await styleOf('#filter [data-filter="light"]');
-  await page.locator('#filter [data-filter="light"]').click();
-  const pressed = await styleOf('#filter [data-filter="light"]');
-  const stillUnpressed = await styleOf('#filter [data-filter="switch"]');
-  expect(pressed).not.toEqual(before); // pressing must change the row's own look
-  expect(pressed).not.toEqual(stillUnpressed); // ...and set it apart from a row that is not pressed
-});
-
-test("the plan filter hides device types with no instance on the current floor, keeps the ones that have some", async ({ page }) => {
-  await page.locator("#filter summary").click();
-  await expect(page.locator('#filter [data-filter="light"]')).toBeVisible(); // ground has 2
-  await expect(page.locator('#filter [data-filter="humidity"]')).toHaveCount(0); // ground has 0
-  await expect(page.locator('#filter [data-filter="tv"]')).toHaveCount(0); // ground has 0
-});
+// S24.6: the Filter menu is gone. Its three tests and its CSS pair moved to tests/editor/studio-layers.spec.ts as Layers
+// tests: hide a family in one click, a family with nothing on the floor dimmed, a hidden row struck through.
 
 // ---- S1.12/S8.5 Add > Device panel --------------------------------------------
 const search = (page: Page) => page.locator("#addDevSearch");
 const shown = (page: Page) => page.locator("#addDevPanel button[data-add]:visible");
 
-test("the toolbar order is Filter, Add, Draw, View, Edit, File; Device… is a button of Add, right after Areas", async ({ page }) => {
-  await expect(page.locator("details.menu > summary")).toHaveText(["Filter: all (8)", "Add", "Draw", "View", "Edit", "File"]); // S8.1: Filter, and an Edit menu
+test("the toolbar order is Add, Draw, View, Edit, File; Device… is a button of Add, right after Areas", async ({ page }) => {
+  await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Draw", "View", "Edit", "File"]); // S8.1: an Edit menu; S24.6: Filter gone, Layers is a tab
   await expect(page.locator("#mAdd select")).toHaveCount(2); // furniture and unlinked-device selects (S4.25)
   await menu(page, "Add");
   const subs = await page.locator("#mAdd > .box > *").evaluateAll((els) => els.map((e) => e.id || e.tagName));
@@ -1854,11 +1816,11 @@ test("S8.10 follow-up: the right-aligned cluster is tight — equal gaps, Redo f
   const bar = (await page.locator(".bar").boundingBox())!;
   const redo = (await page.locator("#redo").boundingBox())!;
   expect(bar.x + bar.width - (redo.x + redo.width), "Redo right edge vs toolbar right edge").toBeLessThanOrEqual(4);
-  const filterXBefore = (await page.locator("#filter").boundingBox())!.x;
+  const filterXBefore = (await page.locator("#mAdd").boundingBox())!.x; // S24.6: Add, now the cluster's first menu
   await page.evaluate(([tag, m]) => (document.querySelector(tag) as any).saveDone(true, m), [EDITOR, "Saved to Home Assistant"] as const);
   await expect(page.locator("#status")).toHaveText("Saved to Home Assistant");
-  const filterXAfter = (await page.locator("#filter").boundingBox())!.x;
-  expect(filterXAfter, "Filter's x must not move when the status text changes").toBeCloseTo(filterXBefore, 0);
+  const filterXAfter = (await page.locator("#mAdd").boundingBox())!.x;
+  expect(filterXAfter, "Add's x must not move when the status text changes").toBeCloseTo(filterXBefore, 0);
 });
 
 test("S8.10 follow-up: at 380 wide the right-aligned cluster takes its own full-width row below the floor chips, right-aligned, chips top-aligned", async ({ page }) => {
@@ -1893,7 +1855,7 @@ test("S8.10 follow-up: at 380 wide the right-aligned cluster takes its own full-
 // carries a box that can run off the left edge once the box is wider than the space to that button's left — found
 // at 380 (View -96..128px) and even 600 (Filter -10..214px). Every menu, every width the toolbar actually uses.
 test("S8.10 follow-up (Opus review): every menu's dropdown box stays inside the viewport at every toolbar width", async ({ page }) => {
-  const menus = ["filter", "mAdd", "mDraw", "mOpt", "mEdit", "mFile"];
+  const menus = ["mAdd", "mDraw", "mOpt", "mEdit", "mFile"]; // S24.6: no Filter menu
   for (const width of [380, 600, 769, 1280]) {
     await page.setViewportSize({ width, height: 800 });
     for (const id of menus) {

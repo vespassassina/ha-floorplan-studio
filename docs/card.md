@@ -234,7 +234,7 @@ controls (View, Tilt, Walls, Theme, Labels, Names). On a card too short for the 
 the stack lays out as a row under the floor chips.
 
 "Everything you do in the studio you can do in the card", for **viewing**. Each
-control of the editor's View menu, its zoom group and its Filter menu, and what
+control of the editor's View menu, its zoom group and its Layers tab, and what
 the card does about it. A test (`tests/card/view-parity.spec.ts`) reads the
 editor and fails on a control that has no row here, so a new one gets a decision.
 
@@ -254,7 +254,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#lens` Lengths | no | an editing aid |
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
-| `#filter` Filter by type | no | a work aid for a crowded plan; the card has the Active list, grouped by category |
+| `#tabLayers` Layers (hide a family) | no | not yet: the card's layer chips come in S24.8; until then it has the Active list, grouped by category |
 | Plan view, Tilt, Walls | card only | the View dropdown, the Tilt slider and the Walls select. The studio has no 2.5D since 0.14 (S12.1); the card keeps 2D and 2.5D, and gets 3D |
 | Room facts and device details panel | card only | the card's left panel (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
 
