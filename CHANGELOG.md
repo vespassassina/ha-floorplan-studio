@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Card: low batteries show up as Home Assistant reports them. A Zigbee2MQTT `battery` attribute, a battery sensor or low-battery sensor placed on the plan, and the battery sensor of a placed device's own HA device all count. A home battery's charge still does not.
+- Card: a jammed lock is in Attention, as "jammed".
+- Card: a lamp that is on and low on battery stays under Active as well as in Attention.
+- Card: the ring round a located device keeps its own animation; it shared a name with the Studio's ring.
+- Card and Studio: closing the search with Escape gives the keyboard back. Before, the box kept focus inside Home Assistant and the next / typed a slash.
+- Card and Studio: search finds "Søren" from "soren" and "Große" from "grosse": ø, ß, æ, ł, đ, þ and œ fold to plain letters.
 - Studio: adding an appliance names its type as you read it in the menu: "Added UPS; hidden by Layers", not "Added ups".
 - Studio: a click no longer picks a small TV, speaker or computer that Layers hides. It used to select the invisible piece and bring it back.
 - Studio: a search for a TV or speaker whose id repeats on another floor now marks its own row in the Outline, not the other floor's.

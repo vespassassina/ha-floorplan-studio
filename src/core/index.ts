@@ -13,9 +13,9 @@ export { attachedEntities, groupKind, placedEntities, unplacedCatalog } from "./
 export { ACTIVE_LIST_RULE, activeDevices, groupActiveByType } from "./active";
 export type { ActiveDevice, ThingRef } from "./active";
 export { ATTENTION_KINDS, ATTENTION_RULE, BATTERY_LOW, attention } from "./attention";
-export type { Attention, AttentionItem, AttentionKind, AttentionRef, AttentionRule, FloorAttention } from "./attention";
+export type { Attention, AttentionItem, AttentionKind, AttentionRef, AttentionRegistry, AttentionRule, FloorAttention } from "./attention";
 export { CATEGORIES, CATEGORY_OF, groupByCategory } from "./categories";
-export { LAYERS, layerCounts, layerOfType, layersSummary, parseLayers, soloLayer, toggleLayer } from "./layers";
+export { LAYERS, layerCounts, layerHides, layerOfType, layersSummary, parseLayers, soloLayer, toggleLayer } from "./layers";
 export type { LayerId } from "./layers";
 export type { CategoryGroup, CategoryId } from "./categories";
 export { entitiesOfDevice, entitiesOfDoor, moreInfoEntities, playerOf } from "./attachments";

@@ -30,9 +30,13 @@ export interface SearchEntry {
   typeLabel?: string;
 }
 
+/** Letters that are not a base letter plus a mark, so NFD leaves them whole: "Søren" must find "soren" too (S24.R10b). */
+const FOLD: Record<string, string> = { ø: "o", ß: "ss", æ: "ae", ł: "l", đ: "d", þ: "th", œ: "oe", ð: "d", ı: "i" };
+const FOLDABLE = new RegExp(`[${Object.keys(FOLD).join("")}]`, "g");
+
 /** Lower case, accents off, runs of white space as one: "Salle  à manger" and "salle a manger" are one query. */
 export function normalize(s: string): string {
-  return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim().replace(/\s+/g, " ");
+  return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(FOLDABLE, (c) => FOLD[c]!).trim().replace(/\s+/g, " ");
 }
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null;

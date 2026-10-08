@@ -2,6 +2,38 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Sprint 24 review fixes, core and card (S24.R)
+
+- **Low battery reads what Home Assistant really sends** (S24.R1). Supersedes part of "Low battery is a device's own
+  battery" (S24.3). Three paths, the first with a reading decides: the entity is a battery entity itself (a battery
+  `binary_sensor` on is low; HA has no level there, so the row says "battery low"); a `battery_level` or `battery`
+  attribute (Zigbee2MQTT and some others name it `battery`); else a battery entity of the same HA device, through
+  `hass.entities[id].device_id`. The card already read that registry for the plug power link (S14.x), so the shape is
+  the frontend's own. A device that reports its own attribute is not second-guessed by a sibling.
+- **Home battery or device battery: the type decides, the registry can overrule.** HA gives both `device_class:
+  battery` and `%`, so unit and class cannot tell them apart. The storage types (`battery`, `inverter`, `ups`, `car`)
+  keep their charge out of Attention and do not look for a sibling (an inverter's device holds the house battery's
+  charge). A `battery` icon whose entity HA files `entity_category: diagnostic` is a device's battery: Zigbee2MQTT,
+  ZHA and most integrations file a device's own battery so, and a house battery's charge is its device's main reading.
+  `typeForEntity` still guesses `battery` for a battery sensor; we did not change the guess, the diagnostic flag covers
+  the real case. Assumption, not checked against Diego's HA: siblings are not required to be diagnostic, so an
+  integration that files a house battery's charge on the same device as a placed light or switch would raise it.
+- **The battery item stays on the placed thing.** `entity` is the motion sensor, not its battery sensor; `source` and
+  `level` say where the reading came from. So the row's room, its place on the plan, the room filter and the floor's
+  count of things all work as for any other item.
+- **Jammed is its own kind, between open and unlocked** (S24.R2). A jammed lock cannot lock; someone must go, which is
+  more than an unlocked one and less than a door standing open. Row text "jammed". Locking and unlocking stay calm.
+- **Active leaves out only what Attention already says** (S24.R6). An item of kind `battery-low` says nothing about on
+  or off, so a lamp that is on and low is listed in both; an open door is listed once.
+- **The card's pulse ring keyframes are `fp-pulse-ring`** (S24.R7). They shared `fp-locate` with the plan's own ring
+  in one shadow root, where the later rule wins: the card's box-shadow would replace the plan ring's grow-and-fade.
+- **`render.ts` imports `layerHides`** from `layers.ts` (S24.R11). Supersedes "render.ts still has its private copy"
+  (Studio fixes, below): one rule decides what Layers leaves off the plan and what the Studio's pick skips.
+- **`attention().floors` has no prototype** (S24.R9): a floor key `__proto__` is a floor.
+- **Search folds a short, explicit list of letters** that Unicode does not decompose: ø o, ß ss, æ ae, ł l, đ d, ð d,
+  þ th, œ oe, ı i. A list, not a transliteration library (no dependency, a few bytes in the card). Both sides fold, so
+  typing "ø" still finds "Søren". A letter not on the list matches only itself.
+
 ## 2026-10-09: Sprint 24 review fixes, Studio (S24.R4, S24.R8, S24.R10a)
 
 - **An Outline row for a device or piece is `d:<floor>:<id>`** (`deviceNodeId`). Validate keeps a piece's id unique on

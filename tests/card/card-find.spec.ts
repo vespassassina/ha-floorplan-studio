@@ -129,6 +129,20 @@ test.describe("S24.8 search in the card", () => {
     expect(await page.inputValue("#other")).toBe("/");
   });
 
+  test("S24.R3: Escape twice gives focus back: the input lets go, and / opens the search again, not a slash", async ({ page }) => {
+    await boot(page);
+    await hover(page);
+    await page.keyboard.press("/");
+    expect(await focused(page)).toBe("fp-search>input");
+    await page.keyboard.type("kitchen");
+    await page.keyboard.press("Escape"); // clears
+    await page.keyboard.press("Escape"); // closes
+    expect(await focused(page)).not.toBe("fp-search>input");
+    await page.keyboard.press("/");
+    expect(await focused(page)).toBe("fp-search>input");
+    await expect(card(page).locator("css=fp-search input")).toHaveValue("");
+  });
+
   test("a card that is neither focused nor hovered leaves / alone", async ({ page }) => {
     await boot(page);
     await page.mouse.move(2, 2); // the page's margin, outside the card

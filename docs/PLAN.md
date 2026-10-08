@@ -2753,3 +2753,23 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       type id. It now says the type's label in lower case, an initialism kept: "Added UPS", "Added server"
       (`typeNoun`, `src/editor/panels.ts`). Test: every `DEVICE_TYPES` member reads without an underscore; the status
       line after Add > Unlinked device under hidden Power and Computing.
+
+### Fixes from the Sprint 24 review (core and card)
+
+- [x] S24.R5 Search: a test that fails without the shorter-name tie-break (two name prefixes, the longer first in
+      the layout).
+- [x] S24.R10b Search: `normalize` folds the letters NFD leaves whole (ø, ß, æ, ł, đ, þ, œ, ð, ı), so "Soren" finds
+      "Søren" and "grosse" finds "Große".
+- [x] S24.R3 Search: Escape twice gives focus back. `focus()` recorded `document.activeElement`, a shadow host that
+      cannot take focus, so the input kept it and the next `/` typed a slash. It now records the deepest focused
+      element; with nothing to go back to the input blurs. Tests: the card hovered, and a harness two shadow roots
+      deep like Home Assistant's panel.
+- [x] S24.R1 Low battery as HA reports it: a `battery` attribute, a battery sensor or binary_sensor placed as an icon,
+      and the battery entity of a placed device's own HA device (`hass.entities`). Storage types never; a `battery`
+      icon only when HA files its entity as diagnostic.
+- [x] S24.R2 A jammed lock raises Jammed, between Open and Unlocked.
+- [x] S24.R6 A device that is on stays in Active when its battery is low.
+- [x] S24.R7 The card's pulse keyframes renamed `fp-pulse-ring`; a test reads both rings' keyframes.
+- [x] S24.R9 `attention().floors` is a null-prototype object; a floor named `__proto__` is counted.
+- [x] S24.R11 `render.ts` drops its private copy of the Layers rule and imports `layerHides`; `src/core/index.ts`
+      exports it. No behaviour change: the existing Layers tests stay green.

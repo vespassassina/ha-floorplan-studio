@@ -9,7 +9,7 @@ export type { SearchEntry } from "../core/search";
  * most `limit` ranked results (`searchIndex`), the active one named by `aria-activedescendant`. Arrows move (and wrap),
  * Enter or a click picks: `fp-pick` fires with the entry in `detail`, bubbling and composed, and the box clears for the
  * next search. Escape clears the query; on an empty query it closes: focus goes back where it was before `focus()`
- * and `fp-close` fires. The host owns the chord: it binds `isSearchChord` on itself and calls `focus()` (finding 6).
+ * (the deepest focused element, through shadow roots), else the input lets go of it, and `fp-close` fires. The host owns the chord: it binds `isSearchChord` on itself and calls `focus()` (finding 6).
  * Matches the idioms of the editor's `<fp-combo>`; colours only through `--fp-*` (finding 9).
  */
 export class FpSearch extends LitElement {
@@ -57,8 +57,11 @@ export class FpSearch extends LitElement {
 
   /** Focus the input and select what is in it: the host's ⌘K or / handler calls this. */
   override focus(options?: FocusOptions) {
-    const from = document.activeElement;
-    if (from instanceof HTMLElement && from !== this) this.returnTo = from;
+    // The element that really has focus, through every shadow root: `document.activeElement` is only the outermost
+    // host (the card, or Home Assistant's app), and focusing a host does nothing (S24.R3).
+    let from = document.activeElement;
+    while (from?.shadowRoot?.activeElement) from = from.shadowRoot.activeElement;
+    if (from instanceof HTMLElement && from !== this && !this.renderRoot?.contains(from) && from !== document.body) this.returnTo = from;
     const input = this.input;
     if (!input) { super.focus(options); return; }
     input.focus(options);
@@ -88,7 +91,9 @@ export class FpSearch extends LitElement {
     const back = this.returnTo;
     this.returnTo = null;
     if (back?.isConnected && back !== this) back.focus();
-    else this.input?.blur();
+    // Nothing to go back to, or it would not take focus (a host, the page): let go, so the next / is the chord again.
+    const input = this.input;
+    if (input && this.shadowRoot?.activeElement === input) input.blur();
     this.dispatchEvent(new CustomEvent("fp-close", { bubbles: true, composed: true }));
   }
 

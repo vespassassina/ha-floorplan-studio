@@ -13,7 +13,7 @@ import { pieceDevice } from "./solids";
  */
 
 /** The kinds, most severe first: the order the Overview lists them in. `unavailable` is last and folded into one row. */
-export const ATTENTION_KINDS = ["alarm-triggered", "alarm-armed", "open", "unlocked", "leak", "smoke", "battery-low", "unavailable"] as const;
+export const ATTENTION_KINDS = ["alarm-triggered", "alarm-armed", "open", "jammed", "unlocked", "leak", "smoke", "battery-low", "unavailable"] as const;
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
 /**
@@ -23,16 +23,17 @@ export type AttentionKind = (typeof ATTENTION_KINDS)[number];
  *   delay) is not yet triggered; it says so in the state text.
  * - `open`: a contact sensor that is `on`; a cover only while `coverActive` says so (a garage door, gate or door
  *   standing open, the plan's own rule), never a blind or curtain.
- * - `unlocked`: a lock whose state is `unlocked`. Jammed, locking and unlocking are not.
+ * - `unlocked`: a lock whose state is `unlocked` is unlocked; one that is `jammed` is jammed (S24.R2: it cannot lock,
+ *   a person must go). Locking and unlocking are neither.
  * - `hazard`: an `other` device whose entity is a `binary_sensor` that is `on`, by its `device_class`: `moisture` is a
  *   leak; `smoke`, `carbon_monoxide` and `gas` are smoke. HA has no device type for these (`typeForEntity` makes them
- *   `other`), so the class read at runtime decides, as for a cover. An `other` with `device_class: battery` and a
- *   numeric state under 20 (`BATTERY_LOW`) is a low battery.
+ *   `other`), so the class read at runtime decides, as for a cover.
  * - `none`: only when unavailable. A siren sounding, a vibration sensor, a vacuum in error: not asked for here. The
  *   `battery` type is a home storage battery: its charge is not an alert.
- * Besides its rule, any placed device, and any lock or contact sensor a door carries, whose `battery_level` attribute
- * is a number under 20 is a low battery, one item per entity. A lock can be unlocked and low at once: two items, one
- * thing on the floor's count.
+ * Besides its rule, a device's own battery (S24.R1, `batteryOf`): any placed device, and any lock or contact sensor a
+ * door carries, is low when its entity is a battery entity that reads low, else its `battery_level` or `battery`
+ * attribute is a number under 20, else (no such attribute) a battery entity of its own HA device reads low. One item
+ * per placed entity. A lock can be unlocked and low at once: two items, one thing on the floor's count.
  */
 export type AttentionRule = "alarm" | "open" | "unlocked" | "hazard" | "none";
 export const ATTENTION_RULE: Record<DeviceType, AttentionRule> = {
@@ -42,6 +43,10 @@ export const ATTENTION_RULE: Record<DeviceType, AttentionRule> = {
   vibration: "none", boiler: "none", car: "none", ups: "none", printer: "none", speaker: "none", person: "none", radar: "none",
   vacuum: "none", siren: "none",
 };
+
+/** The device types whose battery is their charge, a reading, not a maintenance job: a home storage battery, an
+ *  inverter, a UPS, a car. Their own battery entity, or one of their HA device, is never a low battery (S24.R1). */
+const STORAGE: ReadonlySet<DeviceType> = new Set<DeviceType>(["battery", "inverter", "ups", "car"]);
 
 /** Percent. A battery reading under this is low. */
 export const BATTERY_LOW = 20;
@@ -69,7 +74,15 @@ export interface AttentionItem {
   state: string;
   /** The entity's raw `last_changed`, for an age; "" when HA gave none. */
   lastChanged: string;
+  /** battery-low only: the level in percent, when HA gave a number (a battery binary_sensor gives none). */
+  level?: number;
+  /** battery-low only: the battery entity of the same HA device that reported it, when it is not `entity` itself.
+   *  `state` and `lastChanged` are then that entity's. */
+  source?: string;
 }
+
+/** HA's entity registry, as the frontend's `hass.entities` holds it (display entries): only the fields read here. */
+export type AttentionRegistry = Record<string, { device_id?: string | null; entity_category?: string | null } | undefined>;
 
 /** Per floor, for the floor tabs ("Ground · 3"). `count` is the number of things (a device, a piece or a door) with at
  *  least one item, not the number of items. It leaves the unavailable out: they have their own folded row, and two
@@ -93,20 +106,71 @@ const centre = (d: Device): Pt | null => {
   return finite(p) ? p : null;
 };
 
-/** A number under `BATTERY_LOW`: a finite number, or a plain decimal string. Anything else is not low. */
-const low = (v: unknown): boolean => {
-  const n = typeof v === "number" ? v : typeof v === "string" && DECIMAL.test(v.trim()) ? Number(v) : Number.NaN;
-  return Number.isFinite(n) && n < BATTERY_LOW;
-};
+/** A finite number, or a plain decimal string; anything else is NaN. */
+const num = (v: unknown): number => (typeof v === "number" ? v : typeof v === "string" && DECIMAL.test(v.trim()) ? Number(v) : Number.NaN);
+/** A number under `BATTERY_LOW`. Anything else is not low. */
+const low = (v: unknown): boolean => { const n = num(v); return Number.isFinite(n) && n < BATTERY_LOW; };
 const attrs = (s: StateOverlay[string]): Record<string, unknown> => (s.attributes && typeof s.attributes === "object" && !Array.isArray(s.attributes) ? s.attributes : {});
+const own = <T>(m: unknown, k: string): T | undefined => (m && typeof m === "object" && Object.prototype.hasOwnProperty.call(m, k) ? (m as Record<string, T>)[k] : undefined);
 
-/** What a device in state `s` raises: its rule's kind, then a low battery of its own. */
-function deviceKinds(d: Device, s: StateOverlay[string]): AttentionKind[] {
-  const k = ruleKind(d, s);
-  const out: AttentionKind[] = k ? [k] : [];
-  if (k !== "battery-low" && low(attrs(s).battery_level)) out.push("battery-low");
+/** A low reading: the level when there is one. */
+interface Low { level?: number }
+/** `entity` in state `s` as a battery entity (`device_class: battery`): a sensor under 20 %, or a binary_sensor that is
+ *  `on` (HA's "low"). Null when it is no battery entity or not low. */
+function batteryEntityLow(entity: string, s: StateOverlay[string]): Low | null {
+  if (attrs(s).device_class !== "battery") return null;
+  if (entity.startsWith("binary_sensor.")) return s.state === "on" ? {} : null;
+  return entity.startsWith("sensor.") && low(s.state) ? { level: num(s.state) } : null;
+}
+
+/** HA device id -> its battery entities, from the registry and the states: what `batteryOf` reads for a device that
+ *  reports no battery of its own. Built once per call; junk rows are skipped. */
+function batteriesByDevice(reg: AttentionRegistry | undefined, state: StateOverlay | undefined): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  if (!reg || typeof reg !== "object" || Array.isArray(reg)) return out;
+  for (const id of Object.keys(reg)) {
+    const dev = own<{ device_id?: unknown }>(reg, id)?.device_id;
+    if (typeof dev !== "string" || !dev || (!id.startsWith("sensor.") && !id.startsWith("binary_sensor."))) continue;
+    const s = stateOf(state, id);
+    if (!s || attrs(s).device_class !== "battery") continue;
+    out.set(dev, [...(out.get(dev) ?? []), id]);
+  }
   return out;
 }
+
+/** What raised a low battery for a thing's entity: the entity itself or another battery entity (`source`). */
+interface BatteryHit extends Low { source?: string; s: StateOverlay[string] }
+
+/**
+ * S24.R1: the battery of the thing behind `entity` (state `s`), when it is low. In order, the first that has a reading
+ * decides: the entity is itself a battery entity (a `battery`-type icon only when HA files it `diagnostic`: a home
+ * battery's charge is its device's main reading); a `battery_level` or `battery` attribute; a battery entity of the same
+ * HA device (`hass.entities[...].device_id`), the lowest, unless that entity is placed as its own icon. A storage type
+ * (`STORAGE`) reads none of these but an attribute.
+ */
+function batteryOf(entity: string, type: DeviceType | undefined, s: StateOverlay[string], ctx: BatteryCtx): BatteryHit | null {
+  const storage = !!type && STORAGE.has(type);
+  if (attrs(s).device_class === "battery") {
+    if (storage && own<{ entity_category?: unknown }>(ctx.reg, entity)?.entity_category !== "diagnostic") return null;
+    const hit = batteryEntityLow(entity, s);
+    return hit ? { ...hit, s } : null;
+  }
+  const a = attrs(s);
+  for (const v of [a.battery_level, a.battery]) {
+    if (Number.isFinite(num(v))) return low(v) ? { level: num(v), s } : null;
+  }
+  if (storage) return null;
+  const dev = own<{ device_id?: unknown }>(ctx.reg, entity)?.device_id;
+  if (typeof dev !== "string" || !dev) return null;
+  let best: BatteryHit | null = null;
+  for (const b of ctx.byDevice.get(dev) ?? []) {
+    if (b === entity || ctx.placed.has(b)) continue;
+    const bs = stateOf(ctx.state, b), hit = bs && bs.state !== "unavailable" ? batteryEntityLow(b, bs) : null;
+    if (hit && (!best || (hit.level ?? -1) < (best.level ?? -1))) best = { ...hit, source: b, s: bs! };
+  }
+  return best;
+}
+interface BatteryCtx { reg: AttentionRegistry | undefined; state: StateOverlay | undefined; byDevice: Map<string, string[]>; placed: Set<string> }
 
 /** What `ATTENTION_RULE` raises for a device in state `s`, or null. */
 function ruleKind(d: Device, s: StateOverlay[string]): AttentionKind | null {
@@ -114,10 +178,9 @@ function ruleKind(d: Device, s: StateOverlay[string]): AttentionKind | null {
   switch (ATTENTION_RULE[d.type]) {
     case "alarm": return v === "triggered" ? "alarm-triggered" : v.startsWith("armed_") || v === "arming" || v === "pending" ? "alarm-armed" : null;
     case "open": return (d.type === "cover" ? coverActive(s) : v === "on") ? "open" : null;
-    case "unlocked": return v === "unlocked" ? "unlocked" : null;
+    case "unlocked": return v === "unlocked" ? "unlocked" : v === "jammed" ? "jammed" : null;
     case "hazard": {
       const dc = attrs(s).device_class;
-      if (dc === "battery") return low(v) ? "battery-low" : null;
       if (!d.entity.startsWith("binary_sensor.") || v !== "on") return null;
       return typeof dc !== "string" ? null : LEAK_CLASSES.has(dc) ? "leak" : SMOKE_CLASSES.has(dc) ? "smoke" : null;
     }
@@ -125,14 +188,25 @@ function ruleKind(d: Device, s: StateOverlay[string]): AttentionKind | null {
   }
 }
 
-/** Everything that needs attention across every floor of `layout`. */
-export function attention(layout: Layout, state: StateOverlay | undefined): Attention {
-  const items: AttentionItem[] = [], unavailable: AttentionItem[] = [], floors: Record<string, FloorAttention> = {};
+/** Everything that needs attention across every floor of `layout`. `reg` is HA's entity registry (`hass.entities`), for
+ *  the battery sensor of a placed device's own HA device; without it a device's battery is only what its state says. */
+export function attention(layout: Layout, state: StateOverlay | undefined, reg?: AttentionRegistry): Attention {
+  // A floor key is layout data: `__proto__` must be a floor, not the object's prototype (finding 1, S24.R9).
+  const items: AttentionItem[] = [], unavailable: AttentionItem[] = [], floors: Record<string, FloorAttention> = Object.create(null);
   const floorList = layout && typeof layout.floors === "object" && layout.floors ? Object.entries(layout.floors) : [];
   // An entity drawn as its own icon is reported by that icon; a door lists only what is attached and nowhere else.
   const placed = new Set<string>();
   for (const [, f] of floorList) for (const d of list<Device>(f?.devices)) if (typeof d?.entity === "string" && d.entity) placed.add(d.entity);
   const seen = new Set<string>(); // an entity on two icons is reported once
+  const ctx: BatteryCtx = { reg, state, byDevice: batteriesByDevice(reg, state), placed };
+  const sources = new Set<string>(); // a device's battery sensor read for two of its entities is reported once
+  /** The battery-low item's own fields for `entity`, or null when its battery is fine or already reported. */
+  const battery = (entity: string, type: DeviceType | undefined, s: StateOverlay[string]) => {
+    const hit = batteryOf(entity, type, s, ctx);
+    if (!hit || (hit.source && sources.has(hit.source))) return null;
+    if (hit.source) sources.add(hit.source);
+    return { ...(hit.level !== undefined ? { level: hit.level } : {}), ...(hit.source ? { source: hit.source } : {}), state: hit.s.state, lastChanged: typeof hit.s.last_changed === "string" ? hit.s.last_changed : "" };
+  };
 
   for (const [key, f] of floorList) {
     floors[key] = { count: 0, unavailable: 0, alarm: false };
@@ -151,10 +225,13 @@ export function attention(layout: Layout, state: StateOverlay | undefined): Atte
       const s = stateOf(state, d.entity);
       if (!s) continue;
       seen.add(d.entity);
-      const kinds: AttentionKind[] = s.state === "unavailable" ? ["unavailable"] : deviceKinds(d, s);
-      if (!kinds.length) continue;
+      const k = s.state === "unavailable" ? "unavailable" : ruleKind(d, s);
+      const bat = s.state === "unavailable" ? null : battery(d.entity, d.type, s);
+      if (!k && !bat) continue;
       const room = p ? roomName(f, p) : undefined;
-      for (const kind of kinds) add({ kind, at, name: nameFor(d, state), ...(room ? { room } : {}), type: d.type, ...base(s, d.entity) });
+      const item = { at, name: nameFor(d, state), ...(room ? { room } : {}), type: d.type, ...base(s, d.entity) };
+      if (k) add({ kind: k, ...item });
+      if (bat) add({ kind: "battery-low", ...item, ...bat });
     }
 
     list<Door>(f.doors).forEach((door, i) => {
@@ -173,10 +250,12 @@ export function attention(layout: Layout, state: StateOverlay | undefined): Atte
       };
       if (ds.contact || ds.cover) raise("open", (s) => s.state === "on" || s.state === "open", [...sensors, ...(ds.cover ? cover : [])]);
       if (ds.unlocked) raise("unlocked", (s) => s.state === "unlocked", locks);
+      raise("jammed", (s) => s.state === "jammed", locks);
       raise("unavailable", (s) => s.state === "unavailable", [...sensors, ...locks, ...own(door.vibration), ...cover]);
       for (const e of new Set([...sensors, ...locks])) {
         const s = stateOf(state, e);
-        if (s && s.state !== "unavailable" && low(attrs(s).battery_level)) add({ kind: "battery-low", at, name, ...(room ? { room } : {}), ...base(s, e) });
+        const bat = s && s.state !== "unavailable" ? battery(e, undefined, s) : null;
+        if (bat) add({ kind: "battery-low", at, name, ...(room ? { room } : {}), ...base(s!, e), ...bat });
       }
     });
   }
