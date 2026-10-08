@@ -144,3 +144,25 @@ describe("glowGrid: the glow of one wall face", () => {
     expect(grid([0, 0], [10, 0], [0, 1], 5, 5)).toBeNull();
   });
 });
+
+// S23.8 (V14): on a light theme the walls are pale, so an additive glow in the lamp's own colour at full strength washes them
+// to white. There the glow is warm white (#ffd9a0) and its strength is capped at .35; a dark theme keeps the lamp's colour.
+describe("glowTint: the colour a wall patch adds per unit of light", () => {
+  it("a dark theme: the lamp's colour times the strength, uncapped", async () => {
+    const { glowTint } = await import("../../src/card/three/glow");
+    expect(glowTint([1, 0.5, 0.25], 0.8, false)).toEqual([0.8, 0.4, 0.2]);
+  });
+  it("a light theme: warm white, whatever the lamp's colour, and the strength capped at .35", async () => {
+    const { glowTint, WARM_WHITE, LIGHT_GLOW_CAP } = await import("../../src/card/three/glow");
+    expect(LIGHT_GLOW_CAP).toBe(0.35);
+    expect(WARM_WHITE.map((v) => Math.round(v * 255))).toEqual([0xff, 0xd9, 0xa0]);
+    const t = glowTint([0, 0, 1], 2.08, true); // the night boost: 0.5 x 3.5 x 0.8 x level 1 is far above the cap
+    expect(t.map((v) => +v.toFixed(4))).toEqual(WARM_WHITE.map((v) => +(v * 0.35).toFixed(4)));
+    const low = glowTint([0, 0, 1], 0.2, true); // under the cap: the strength itself
+    expect(low.map((v) => +v.toFixed(4))).toEqual(WARM_WHITE.map((v) => +(v * 0.2).toFixed(4)));
+  });
+  it("never throws and never gives NaN on junk", async () => {
+    const { glowTint } = await import("../../src/card/three/glow");
+    for (const s of [NaN, -1, Infinity]) for (const light of [true, false]) for (const v of glowTint([NaN, 1, 1] as never, s, light)) { expect(Number.isFinite(v)).toBe(true); expect(v).toBeGreaterThanOrEqual(0); }
+  });
+});

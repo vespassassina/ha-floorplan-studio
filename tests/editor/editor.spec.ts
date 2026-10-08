@@ -3623,9 +3623,10 @@ test("S1.31: the cone is dark grey at 25 % alpha in the browser, the disc is 75 
   await expect(cone).toHaveCount(1);
   const st = await cone.evaluate((el) => { const s = getComputedStyle(el); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents }; });
   expect(st).toEqual({ fill: "rgb(74, 74, 72)", op: "0.25", pe: "none" });
-  // the disc behind every icon is its own: white at 50 % (Diego, 2026-09-23), a 1 px grey border (S1.45)
-  const disc = await page.locator("svg .dev .halo").evaluateAll((els) => [...new Set(els.map((e) => { const s = getComputedStyle(e); return [s.fill, s.fillOpacity, s.stroke, s.strokeWidth].join("|"); }))]);
-  expect(disc).toEqual(["rgb(255, 255, 255)|0.5|rgb(139, 133, 120)|1px"]);
+  // S23.4: an off icon has no visible disc and no border (it was white at 50 % with a grey ring, 2026-09-23); the clear
+  // disc is still painted, so it takes the click
+  const disc = await page.locator("svg .dev .halo").evaluateAll((els) => [...new Set(els.map((e) => { const s = getComputedStyle(e); return [s.fill, s.fillOpacity, s.stroke].join("|"); }))]);
+  expect(disc).toEqual(["rgb(255, 255, 255)|0|none"]);
   // the cone is 100 cm deep: its box is 100 cm tall on screen (rot 0 points up)
   const box = await cone.evaluate((el) => el.getBoundingClientRect().height);
   const one = Math.abs((await screenOf(page, CAM.x, CAM.y - 100)).y - (await screenOf(page, CAM.x, CAM.y)).y);
@@ -4690,7 +4691,7 @@ test("Opus review a11y: the turn buttons are a labelled group and their names ca
 
 // ---- Opus review: every CSS rule that render.test.ts only matches as a string is checked here in the browser ----
 
-const rgb = (hex: string) => { const n = parseInt(hex.slice(1), 16); return `rgb(${n >> 16}, ${(n >> 8) & 255}, ${n & 255})`; };
+const rgb = (hex: string) => { const h = hex.length === 4 ? [...hex.slice(1)].map((c) => c + c).join("") : hex.slice(1), n = parseInt(h, 16); return `rgb(${n >> 16}, ${(n >> 8) & 255}, ${n & 255})`; };
 /** Adds shapes below the house: one room per kind, one wall per kind, a room with a "none" edge, a temp sensor in a garden. */
 async function addCssFixtures(page: Page) {
   await setTheme(page, "light"); // the CSS pairs below pin light values; blueprint is the default since S2.12
@@ -4809,7 +4810,7 @@ test("Opus review CSS pair: the palette variables equal DEVICE_COLOURS, camera a
   expect(out).toBe(rgb("#3f8f4f"));
 });
 
-test("Opus review CSS pair: a lamp's aura fills with --fp-aura at --fp-alpha and lets a real click pass through to the room under it (render.test.ts:S2.8)", async ({ page }) => {
+test("Opus review CSS pair: a lamp's aura fills with --fp-aura at .55, screens on blueprint (S23.8) and lets a real click pass through to the room under it (render.test.ts:S2.8)", async ({ page }) => {
   // The editor has no live `hass` state, so no aura is ever drawn by renderFloor here; this pins the .aura rule
   // itself the way the motion-fade pair above pins .dev-motion, by putting a circle with that one class on the
   // live stylesheet and reading it back through getComputedStyle in the real browser (CLAUDE.md finding 10: the
@@ -4824,26 +4825,30 @@ test("Opus review CSS pair: a lamp's aura fills with --fp-aura at --fp-alpha and
     circle.setAttribute("r", "100");
     svg.querySelector('polygon[data-r="0"]')!.after(circle);
   }, EDITOR);
-  const style = await page.locator("svg circle.aura").evaluate((e) => { const s = getComputedStyle(e); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents }; });
+  const style = await page.locator("svg circle.aura").evaluate((e) => { const s = getComputedStyle(e); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents, blend: s.mixBlendMode }; });
   expect(style.fill).toBe(rgb("#ff8a1f")); // blueprint's --fp-aura collapses to the single accent
-  expect(style.op).toBe("0.25");
+  expect(style.op).toBe("0.55"); // S23.8: the falloff mask thins it from the lamp out, so the core is stronger than the old flat .25
+  expect(style.blend).toBe("screen"); // blueprint is a dark theme: light adds
   expect(style.pe).toBe("none");
   await page.mouse.click(c.x, c.y); // the aura visually covers this point; pointer-events:none must let the click fall through to the room
   await expect(page.locator("#rk")).toHaveValue("room");
   await expect(page.locator("#ra")).toHaveValue("living");
 });
 
-test("Opus review CSS pair: a motion sensor that is on still fades: the fill follows --fp-fade (render.test.ts:107)", async ({ page }) => {
+// S23.4: an on sensor is a solid disc with an ink glyph; the fade now drives the glyph of a sensor that has gone off.
+test("Opus review CSS pair: a motion sensor that went off still fades: the fill follows --fp-fade (render.test.ts:107)", async ({ page }) => {
   const g = page.locator("svg g.dev-motion").first();
   const fillAt = (fade: string, on: boolean) => g.evaluate((e, [f, o]) => { e.classList.toggle("on", o as boolean); (e as SVGElement).style.setProperty("--fp-fade", f as string); return getComputedStyle(e.querySelector("path:not(.halo)")!).fill; }, [fade, on] as const);
   // color-mix computes to color(srgb r g b) in 0..1, a plain colour to rgb(r, g, b) in 0..255: compare in 0..255
   const chan = (c: string) => (c.startsWith("color(") ? c.match(/[\d.]+/g)!.slice(-3).map((n) => Math.round(+n * 255)) : c.match(/\d+/g)!.map(Number));
   const idle = chan(await fillAt("0", false));
-  expect(chan(await fillAt("1", true))).toEqual([255, 138, 31]); // fully faded in: blueprint's motion colour collapses to the single accent
-  expect(chan(await fillAt("0", true))).toEqual(idle);          // fully faded out: idle, not the "on" colour
-  const half = chan(await fillAt("0.5", true));
+  expect(chan(await fillAt("1", false))).toEqual([255, 138, 31]); // fully faded in: blueprint's motion colour collapses to the single accent
+  const half = chan(await fillAt("0.5", false));
   expect(half).not.toEqual(idle);
-  expect(half).not.toEqual([214, 69, 69]);
+  expect(half).not.toEqual([255, 138, 31]);
+  // on: the glyph is the ink on the disc, whatever the fade (g.dev.on path outranks .dev.dev-motion path, finding 10)
+  expect(chan(await fillAt("0.5", true))).toEqual(chan(await fillAt("1", true)));
+  expect(chan(await fillAt("1", true))).not.toEqual([255, 138, 31]);
 });
 
 test("Opus review CSS pair: S8.13 a triggered motion sensor pings in its own colour and its disc beats a lit lamp's (render.test.ts:S8.13)", async ({ page }) => {
@@ -4861,9 +4866,11 @@ test("Opus review CSS pair: S8.13 a triggered motion sensor pings in its own col
   expect(motion.fill).toBe("none");
   expect(motion.pe).toBe("none");
   expect(motion.anim).toBe("fp-ping");
-  expect(motion.haloOp).toBe("0.6");
-  expect(motion.haloStroke).toBe(rgb(motion.dev));
-  expect(Number(light.haloOp)).toBeLessThan(Number(motion.haloOp));
+  // S23.4: every on disc is solid; a triggered one is set apart by its outline ring (and the ping), a lit lamp has none
+  expect(motion.haloOp).toBe("1");
+  expect(light.haloOp).toBe("1");
+  expect(motion.haloStroke).not.toBe("none");
+  expect(light.haloStroke).toBe("none");
 });
 
 test("Opus review CSS pair: S8.13 under reduced motion nothing pulses: the ping holds at 1.5x and 60 %, the door line at 45 %", async ({ page }) => {
@@ -5033,6 +5040,7 @@ test("Opus review CSS pair: S9.4 under reduced motion the speaker's arcs hold st
 
 test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-dev per type, icon and halo)", async ({ page }) => {
   await addCssFixtures(page);
+  // S23.4: the disc wears the colour, solid; the glyph wears the ink picked for it (--fp-dev-ink), never the colour itself.
   // The editor has no live hass state, so .on is never set by renderFloor here; toggling it by hand pins the CSS
   // rule itself in a real browser, the same technique as the motion-fade pair test above.
   const read = (type: string) => page.locator(`svg g.dev-${type}`).first().evaluate((e) => {
@@ -5040,48 +5048,48 @@ test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-d
     const s = getComputedStyle(e);
     const path = e.querySelector("path:not(.halo)")!;
     const halo = e.querySelector(".halo")!;
-    const r = { devVar: s.getPropertyValue("--fp-dev").trim(), pathFill: getComputedStyle(path).fill, haloFill: getComputedStyle(halo).fill, haloOp: getComputedStyle(halo).fillOpacity };
+    const r = { devVar: s.getPropertyValue("--fp-dev").trim(), ink: s.getPropertyValue("--fp-dev-ink").trim(), pathFill: getComputedStyle(path).fill, haloFill: getComputedStyle(halo).fill, haloOp: getComputedStyle(halo).fillOpacity };
     e.classList.remove("on");
     return r;
   });
   const light = await read("light");
   expect(light.devVar).toBe("#e0a800");
-  expect(light.pathFill).toBe(rgb("#e0a800"));
+  expect(light.pathFill).toBe(rgb(light.ink)); expect(light.ink).not.toBe("#e0a800");
   expect(light.haloFill).toBe(rgb("#e0a800"));
-  expect(light.haloOp).toBe("0.25");
+  expect(light.haloOp).toBe("1"); // S23.4: a solid disc
 
   const heater = await read("heater");
-  expect(heater.pathFill).toBe(rgb("#e8801a"));
+  expect(heater.pathFill).toBe(rgb(heater.ink)); expect(heater.ink).not.toBe("#e8801a");
   expect(heater.haloFill).toBe(rgb("#e8801a"));
 
   const climate = await read("climate");
-  expect(climate.pathFill).toBe(rgb("#e8801a"));
+  expect(climate.pathFill).toBe(rgb(climate.ink)); expect(climate.ink).not.toBe("#e8801a");
   expect(climate.haloFill).toBe(rgb("#e8801a"));
 
   const tv = await read("tv");
-  expect(tv.pathFill).toBe(rgb("#2c7fb8"));
+  expect(tv.pathFill).toBe(rgb(tv.ink)); expect(tv.ink).not.toBe("#2c7fb8");
   expect(tv.haloFill).toBe(rgb("#2c7fb8"));
 
   const plug = await read("plug");
-  expect(plug.pathFill).toBe(rgb("#2c7fb8"));
+  expect(plug.pathFill).toBe(rgb(plug.ink)); expect(plug.ink).not.toBe("#2c7fb8");
   expect(plug.haloFill).toBe(rgb("#2c7fb8"));
 
   const computer = await read("computer");
-  expect(computer.pathFill).toBe(rgb("#2c7fb8"));
+  expect(computer.pathFill).toBe(rgb(computer.ink)); expect(computer.ink).not.toBe("#2c7fb8");
   expect(computer.haloFill).toBe(rgb("#2c7fb8"));
 
   const contact = await read("contact");
-  expect(contact.pathFill).toBe(rgb("#d64545"));
+  expect(contact.pathFill).toBe(rgb(contact.ink)); expect(contact.ink).not.toBe("#d64545");
   expect(contact.haloFill).toBe(rgb("#d64545"));
 
   // switch and humidity draw no brighter on than off: --fp-dev falls back to idle grey.
   const sw = await read("switch");
   expect(sw.devVar).toBe("#8b8578");
-  expect(sw.pathFill).toBe(rgb("#8b8578"));
+  expect(sw.pathFill).toBe(rgb(sw.ink)); expect(sw.ink).not.toBe("#8b8578");
   expect(sw.haloFill).toBe(rgb("#8b8578"));
   const hum = await read("humidity");
   expect(hum.devVar).toBe("#8b8578");
-  expect(hum.pathFill).toBe(rgb("#8b8578"));
+  expect(hum.pathFill).toBe(rgb(hum.ink)); expect(hum.ink).not.toBe("#8b8578");
 
   // motion: the icon path keeps following --fp-fade (the S1.6 fix), but the halo reads --fp-dev normally, red.
   const motion = await page.locator("svg g.dev-motion").first().evaluate((e) => {
@@ -5097,16 +5105,18 @@ test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-d
   expect(motion.haloFill).toBe(rgb("#d64545"));
 });
 
-test("Opus review CSS pair: S2.9 break-it, a light that is on and unavailable keeps the unavailable opacity (render.test.ts:S2.9)", async ({ page }) => {
+// S23.5: unavailable is no longer a 45 % ghost but its own mark; the colour rule must still never paint over it.
+test("Opus review CSS pair: S2.9 break-it, a light that is on and unavailable keeps the unavailable mark (render.test.ts:S2.9)", async ({ page }) => {
   const g = page.locator("svg g.dev-light").first();
   const opacityWith = (on: boolean, unavailable: boolean) => g.evaluate((e, [o, u]) => {
     e.classList.toggle("on", o as boolean);
     e.classList.toggle("unavailable", u as boolean);
-    return getComputedStyle(e).opacity;
+    const h = getComputedStyle(e.querySelector(".halo")!);
+    return `${getComputedStyle(e).opacity}|${h.fillOpacity}|${h.strokeDasharray === "none" ? "solid" : "dashed"}`;
   }, [on, unavailable] as const);
-  expect(await opacityWith(false, false)).toBe("1");
-  expect(await opacityWith(true, false)).toBe("1");
-  expect(await opacityWith(true, true)).toBe("0.45"); // the colour rule never overrides unavailable
+  expect(await opacityWith(false, false)).toBe("1|0|solid");
+  expect(await opacityWith(true, false)).toBe("1|1|solid");
+  expect(await opacityWith(true, true)).toBe("1|0|dashed"); // the colour rule never overrides unavailable
   await opacityWith(false, false); // leave the fixture clean
 });
 
@@ -5444,11 +5454,11 @@ const DARK_TH = { bg: "rgb(12, 21, 33)", room: "rgb(19, 34, 55)", wall: "rgb(99,
 const MIDNIGHT_TH = { bg: "rgb(13, 21, 34)" };
 const LIGHT_TH = { bg: "rgb(244, 240, 230)", room: ROOM_EMPTY, wall: "rgb(43, 42, 39)", text: "rgb(58, 58, 58)", outline: "rgb(255, 255, 255)" };
 
-test("CSS pair: an off icon's disc is 50 % in every theme (Diego, 2026-09-23)", async ({ page }) => {
+test("CSS pair: an off icon has no disc in every theme (S23.4; was 50 %, Diego, 2026-09-23)", async ({ page }) => {
   for (const t of ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha"] as const) {
     await setTheme(page, t);
     const ops = await page.locator("svg .dev:not(.on) .halo").evaluateAll((els) => [...new Set(els.map((e) => getComputedStyle(e).fillOpacity))]);
-    expect(ops, t).toEqual(["0.5"]);
+    expect(ops, t).toEqual(["0"]);
   }
 });
 
@@ -6330,8 +6340,8 @@ test("Opus review CSS pair: S7.8 a person glides (transform .6s), is 35 % when a
     const glide = { prop: cs().transitionProperty, dur: cs().transitionDuration };
     const plain = { op: cs().opacity, fill: getComputedStyle(path).fill };
     e.classList.add("away"); const away = cs().opacity; e.classList.remove("away");
-    e.classList.add("on", "home"); const home = { op: cs().opacity, fill: getComputedStyle(path).fill };
-    e.classList.add("unavailable"); e.classList.remove("on", "home"); const gone = cs().opacity;
+    e.classList.add("on", "home"); const home = { op: cs().opacity, fill: getComputedStyle(e.querySelector(".halo")!).fill }; // S23.4: the disc wears it
+    e.classList.add("unavailable"); e.classList.remove("on", "home"); const gone = `${cs().opacity}|${getComputedStyle(e.querySelector(".halo")!).strokeDasharray !== "none"}`;
     return { glide, plain, away, home, gone };
   });
   expect(got.glide).toEqual({ prop: "transform", dur: "0.6s" });
@@ -6339,7 +6349,7 @@ test("Opus review CSS pair: S7.8 a person glides (transform .6s), is 35 % when a
   expect(got.away).toBe("0.35");
   expect(got.home).toEqual({ op: "1", fill: rgb("#1b9e77") });
   expect(got.plain.fill).not.toBe(rgb("#1b9e77"));
-  expect(got.gone).toBe("0.45");
+  expect(got.gone).toBe("1|true"); // S23.5: unavailable is the dashed ring, not a 45 % ghost
 });
 
 test("S7.9: the Targets field shows only for a radar, add/remove writes target pairs, and changing type away drops them", async ({ page }) => {
@@ -6380,9 +6390,8 @@ test("Opus review CSS pair: S7.9 a radar wears --fp-dev-radar when on, and a tar
     el.layout = l;
   }, EDITOR);
   const got = await page.locator("svg g.dev-radar").first().evaluate((e) => {
-    const path = e.querySelector("path:not(.halo)")!;
     e.classList.add("on");
-    const on = { fill: getComputedStyle(path).fill, devVar: getComputedStyle(e).getPropertyValue("--fp-dev").trim() };
+    const on = { fill: getComputedStyle(e.querySelector(".halo")!).fill, devVar: getComputedStyle(e).getPropertyValue("--fp-dev").trim() }; // S23.4: the disc
     e.classList.remove("on");
     const target = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     target.setAttribute("class", "target");
@@ -6411,7 +6420,7 @@ test("Opus review CSS pair: S7.10 a vacuum wears --fp-dev-vacuum when on, and sp
   const got = await page.locator("svg g.dev-vacuum").first().evaluate((e) => {
     const path = e.querySelector("path:not(.halo)")!;
     e.classList.add("on");
-    const on = { fill: getComputedStyle(path).fill, devVar: getComputedStyle(e).getPropertyValue("--fp-dev").trim() };
+    const on = { fill: getComputedStyle(e.querySelector(".halo")!).fill, devVar: getComputedStyle(e).getPropertyValue("--fp-dev").trim() }; // S23.4: the disc
     const notSpinning = getComputedStyle(path).animationName;
     e.classList.add("spin");
     const spinning = { animationName: getComputedStyle(path).animationName, animationDuration: getComputedStyle(path).animationDuration };

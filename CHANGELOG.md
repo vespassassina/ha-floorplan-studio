@@ -7,6 +7,9 @@
 - Card and studio: a room's name stays in its room. It slides beside an icon, shrinks, and when every spot is covered sits on a small plate over the icons.
 - Card and Studio: dark themes no longer show empty rooms as light grey boxes. Empty rooms, midnight's garden, terrace and pavement, and furniture take the theme's own colours. Your own room paint is dimmed on dark themes, never changed. The checkerboard is softer.
 - Card and Studio: doors and windows look like a floor plan. A door is a gap in the wall with a thin leaf and a swing arc into the room; a window is three thin lines across the wall. Glass doors and windows share one blue. Red still means open. Gardens, terraces, pavement and water lose their outline, and zones are a faint thin dash.
+- Card and studio: a lit lamp's glow now looks like light. It is brightest at the lamp and fades to nothing at its edge, stays inside the lamp's room, and blends with the floor: it brightens a dark theme and tints a light one instead of laying a flat disc over it. In 3D on a light theme, the glow on the walls is a capped warm white instead of the lamp's colour, which washed pale walls out.
+- Card and studio: a device whose entity is unavailable or unknown now has its own mark: a dashed orange ring, a grey glyph and a small slashed badge. This holds for lights, switches and plugs too, which used to look simply off. A lamp with a relay is marked only when both are dead.
+- Card and studio: a device that is off is now its glyph alone, in a quiet grey, with no disc behind it. A device that is on is a solid disc in its colour, and the glyph on it is dark or light, whichever reads (at least 4.5:1 in every theme). A lit lamp's own colour, a plug's heat and a layout's own device colours get their readable glyph too. Blueprint's idle grey is no longer blue.
 
 ## 0.20.2 - 2026-10-08
 

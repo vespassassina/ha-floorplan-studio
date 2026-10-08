@@ -6,6 +6,7 @@ import { resolveStairDirection, type FloorsAround } from "./stairs";
 import { DEVICE_TYPES, drawsEffect, fxScale, isSiren, MAX_TRACE_BYTES, MOTION_TYPES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
+import { heatColour, inkFor, mixSrgb, themeExtras } from "./ink";
 import { esc, num, pts, tag } from "./fmt";
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
@@ -171,6 +172,27 @@ const HA_LIGHT = haTokens(LIGHT_TOKENS, { ink: "#2b2a27", text: "#3a3a3a", bg: "
 const HA_DARK = haTokens(MIDNIGHT_TOKENS, { ink: "#d8e2f2", text: "#d8e2f2", bg: "#0d1522", room: "#14213a", wall: "#8fb4f0", wallExternal: "#b4cdf7", outline: "#0d1522", disc: "#14213a", measure: "#8fb4f0" });
 
 
+/* S23.4 and S23.8: what each theme adds on top of its tokens (ink.ts `themeExtras`): a glyph ink per disc colour, picked for
+   4.5:1 on that solid disc, and the glow's blend (screen on a dark theme, multiply on a light one). Written once here, after
+   the token constants, so no theme constant had to change. Blueprint's idle is the one token it replaces (V11): shade .42 of
+   its base was a saturated mid-blue that made "off" read as active; 55 % of its foreground into its background is a quiet
+   blue-grey, and every token that was the old idle (the camera and garden-sensor tints) follows it. */
+const tokenOf = (t: string, k: string) => new RegExp(`(?:^|;)\\s*${k}:([^;]+)`).exec(t)?.[1].trim() ?? "";
+const BLUEPRINT_IDLE = mixSrgb(tokenOf(BLUEPRINT_TOKENS, "--fp-ink"), tokenOf(BLUEPRINT_TOKENS, "--fp-bg"), 0.55);
+const themeSel = (n: string, extra = "") => `:host([data-theme="${n}"]${extra}),:host([data-theme="${n}"]${extra}) .fp,[data-theme="${n}"]${extra}`;
+const THEME_EXTRAS = [
+  `:host,.fp{${themeExtras(BLUEPRINT_TOKENS, true, BLUEPRINT_IDLE)}}`,
+  `:host,.fp,[data-theme]{--fp-pure-black:#000;--fp-pure-white:#fff}`,
+  ...([["blueprint", BLUEPRINT_TOKENS, true, BLUEPRINT_IDLE], ["midnight", MIDNIGHT_TOKENS, true], ["light", LIGHT_TOKENS, false], ["slate", SLATE_TOKENS, false],
+    ["terminal", TERMINAL_TOKENS, true], ["solarized", SOLARIZED_TOKENS, true], ["ha", HA_LIGHT, false], ["coffee", COFFEE_TOKENS, true], ["a-team", A_TEAM_TOKENS, true],
+    ["space", SPACE_TOKENS, true], ["cyberpunk", CYBERPUNK_TOKENS, true], ["carpenter-brut", CARPENTER_BRUT_TOKENS, true], ["beach-house", BEACH_HOUSE_TOKENS, false]] as const)
+    .map(([n, t, dark, idle]) => `${themeSel(n)}{${themeExtras(t, dark, idle)}}`),
+  `${themeSel("ha", '[data-mode="dark"]')}{${themeExtras(HA_DARK, true)}}`,
+].join("\n");
+/** The ink for a colour only the state or the layout knows (a lamp's rgb, a plug's heat, `layout.colors`): black or white, through a token, so the markup carries no literal colour. */
+const inkVar = (c: string) => (inkFor(c) === "#000" ? "var(--fp-pure-black)" : "var(--fp-pure-white)");
+
+
 /**
  * S8.9 (Diego, 2026-09-26): internal walls thicker than before, external walls thicker still, in plan cm. Named
  * once so the stylesheet below, a door or window's own stroke (`wallWidthAt`) and the unit test that pins every
@@ -185,6 +207,9 @@ const WALL_HALO_EXTRA = 2;
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
 /** A room's motion border pulses this many times, each this many seconds, when its sensor trips. */
 export const MOTION_PULSES = 3, MOTION_PULSE_S = 1.4;
+
+/** S2.9: --fp-dev per type when on. A constant so S23.4 can derive the matching ink rule from the same list. */
+const DEV_ON_RULES = `.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-siren.on{--fp-dev:var(--fp-danger)} .dev-alarm.on{--fp-dev:var(--fp-danger)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}`;
 
 export const FLOORPLAN_CSS = `
 :host,.fp{${BLUEPRINT_TOKENS}}
@@ -210,6 +235,7 @@ export const FLOORPLAN_CSS = `
 :host([data-theme="cyberpunk"]),:host([data-theme="cyberpunk"]) .fp,[data-theme="cyberpunk"]{${CYBERPUNK_TOKENS}}
 :host([data-theme="carpenter-brut"]),:host([data-theme="carpenter-brut"]) .fp,[data-theme="carpenter-brut"]{${CARPENTER_BRUT_TOKENS}}
 :host([data-theme="beach-house"]),:host([data-theme="beach-house"]) .fp,[data-theme="beach-house"]{${BEACH_HOUSE_TOKENS}}
+${THEME_EXTRAS}
 /* 2.5D shades, derived from the theme's own wall colour so every theme has them with no per-theme edit. A custom property
    that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own. */
 :host,.fp,[data-theme]{--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) 55%,var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg))}
@@ -363,25 +389,34 @@ export const FLOORPLAN_CSS = `
    leaf and swing arc (door, glass) or three hairlines (window, slit), red only while open, alarmed or its cover is open. */
 .door.quiet{stroke:transparent} .door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
 .door-sym.k-glass{stroke:var(--fp-glass)} .door-sym.k-window,.door-sym.k-slit{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
-.dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}
+.dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle);fill-opacity:.7}
+/* S23.4 (V10): an on glyph is ink on its solid disc, 4.5:1 in every theme. g.dev.on path (0,2,2) on purpose: it must beat
+   .dev.dev-motion path's fade, .dev.outdoor path and .dev-camera path, and still lose to the camera cone (0,3,1). */
+g.dev.on path{fill:var(--fp-dev-ink,var(--fp-on-dark));fill-opacity:1}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
-.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-siren.on{--fp-dev:var(--fp-danger)} .dev-alarm.on{--fp-dev:var(--fp-danger)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}
+${DEV_ON_RULES}
+/* S23.4: the glyph ink that goes with each --fp-dev above, the same rules with -ink appended to the token (themeExtras writes one per colour). */
+${DEV_ON_RULES.replace(/\{--fp-dev:var\((--fp-[a-z-]+)\)\}/g, "{--fp-dev-ink:var($1-ink)}")}
 /* S14.8: a plug with a readable draw (renderFloor wrote --fp-heat, 0..1) runs cool -> mid -> hot. Same specificity class as .dev-plug.on plus an attribute, so it wins; a plug with no
    reading has no --fp-heat and keeps --fp-dev-plug, exactly as before. */
 .dev-plug.on[style*="--fp-heat"]{--fp-dev:color-mix(in oklch,color-mix(in oklch,var(--fp-heat-cool) calc((1 - min(var(--fp-heat) * 2,1)) * 100%),var(--fp-heat-mid)) calc((1 - max(var(--fp-heat) * 2 - 1,0)) * 100%),var(--fp-heat-hot))}
 /* S7.10: an error vacuum wears --fp-danger on its icon, two classes ahead of the plain idle-grey .dev path rule above. */
-.dev.danger path{fill:var(--fp-danger)}
+.dev.danger path{fill:var(--fp-danger)} .dev.danger .halo{fill:var(--fp-danger);fill-opacity:1;stroke:none} g.dev.danger path{fill:var(--fp-danger-ink);fill-opacity:1}
 /* S4.25: an unlinked item has no on/off state of its own, so it never carries .on — it stays at the plain .dev
    path idle-grey rule above unless the instance has its own --fp-dev-fill colour override, which this rule
    (three classes, out-specifies the two-class .dev path default) lets through. */
 .dev.unl path{fill:var(--fp-dev-fill,var(--fp-idle))}
-.dev .halo{fill:var(--fp-disc);fill-opacity:var(--fp-disc-alpha);stroke:var(--fp-halo);stroke-width:1;vector-effect:non-scaling-stroke}
-.dev.on .halo{fill:var(--fp-dev);fill-opacity:var(--fp-alpha)}
-.aura{fill:var(--fp-aura);fill-opacity:var(--fp-alpha);pointer-events:none}
+/* S23.4 (V9): off is quiet, the glyph alone. The disc stays painted at fill-opacity 0, not fill:none, so it still takes the click. On is a solid disc. */
+.dev .halo{fill:var(--fp-disc);fill-opacity:0;stroke:none;stroke-width:1;vector-effect:non-scaling-stroke}
+.dev.on .halo{fill:var(--fp-dev-fill,var(--fp-dev));fill-opacity:1;stroke:none}
+/* S23.8 (V13): a lamp's light falls off from the lamp (the shared #fp-lamp-falloff mask, alpha 1 at the lamp, .33 at 60 %, 0 at
+   the reach) and blends like light: screen over a dark theme, multiply over a light one (--fp-glow-blend, ink.ts themeExtras). */
+.aura{fill:var(--fp-aura);fill-opacity:calc(.55 * var(--fp-dev-opacity,1));mix-blend-mode:var(--fp-glow-blend,normal);pointer-events:none}
+mask.fp-falloff{mask-type:alpha}
 /* S8.13: a triggered motion or contact sensor. Its disc is filled harder than any other on disc and ringed in its own
    colour, and a ring pulses out from under it. An open contact door gets a wide pulsing line under its own. */
-.dev-motion.on .halo,.dev-contact.on .halo{fill-opacity:.6;stroke:var(--fp-dev);stroke-width:2}
+.dev-motion.on .halo,.dev-contact.on .halo{stroke:var(--fp-outline);stroke-width:2}
 .ping{fill:none;stroke:var(--fp-dev);stroke-width:3;vector-effect:non-scaling-stroke;pointer-events:none;transform-box:fill-box;transform-origin:center;animation:fp-ping 1.6s ease-out infinite}
 @keyframes fp-ping{from{transform:scale(1);opacity:.9}to{transform:scale(calc(1 + 1.2*var(--fp-fx,1)));opacity:0}}
 .door-alert{stroke:var(--fp-open-door);stroke-opacity:.45;stroke-linecap:butt;pointer-events:none;animation:fp-door 1.6s ease-in-out infinite alternate}
@@ -403,11 +438,15 @@ export const FLOORPLAN_CSS = `
 .siren-ring.w2{animation-delay:.5s}
 @keyframes fp-siren{from{transform:scale(1);opacity:1}to{transform:scale(calc(1 + 3.8*var(--fp-fx,1)));opacity:0}}
 @media (prefers-reduced-motion:reduce){.ping,.door-alert,.wave,.siren-ring{animation:none}.ping,.wave{transform:scale(calc(1 + .5*var(--fp-fx,1)));opacity:.6}.siren-ring{transform:scale(calc(1 + 2*var(--fp-fx,1)));opacity:.8}}
-.dev.unavailable{opacity:.45}
+/* S23.5 (V12): unavailable is its own mark, not a faded off: no disc, a dashed warn ring, the glyph at idle and a slash badge
+   (.gone-mark, a circle and a line, so no path rule paints it). g.dev.unavailable path (0,2,2) outranks the per-type tints. */
+.dev.unavailable .halo{fill-opacity:0;stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2}
+g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
+.gone-mark{pointer-events:none} .gone-mark circle{fill:var(--fp-bg);stroke:var(--fp-warn);stroke-width:1.5;vector-effect:non-scaling-stroke} .gone-mark line{stroke:var(--fp-warn);stroke-width:1.5;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .dev.dim{opacity:.3}
 /* S7.8: a person glides to the room its room sensor names. The position is an inline CSS transform, not an attribute, so
    this rule can animate it; the card replays the old position before the new one (a FLIP), because each render builds new
-   nodes. Away is a person at 35 %, with the away mark in the group; unavailable stays .45 like every device. */
+   nodes. Away is a person at 35 %, with the away mark in the group; unavailable wears the gone mark like every device. */
 .dev-person{transition:transform .6s ease} .dev-person.away{opacity:.35} .dev-person .away-mark{fill:var(--fp-idle);stroke:var(--fp-outline);stroke-width:1;vector-effect:non-scaling-stroke}
 @media (prefers-reduced-motion:reduce){.dev-person{transition:none}}
 /* S7.9: a radar target dot, one per tracked person, in the radar's own colour, taking no clicks. */
@@ -564,7 +603,8 @@ const dead = (s: string) => s === "unavailable" || s === "unknown";
 function boundClassOf(d: Device, o: RenderOpts): Cls {
   const seen = [o.state?.[d.entity], d.bound ? o.state?.[d.bound] : undefined].filter((s) => s !== undefined);
   if (seen.some((s) => s.state === "on")) return "on";
-  return "off"; // Diego, 2026-10-06: a dead light or switch reads as off, not as a dimmed ghost
+  // S23.5: dead only when nothing we heard says otherwise; a relay that reports off still tells us the lamp is off
+  return seen.length > 0 && seen.every((s) => dead(s.state)) ? "unavailable" : "off";
 }
 
 /** A light that is on takes its icon fill from `attributes.rgb_color` when present; unset otherwise, so `.dev.on path`'s `var(--fp-dev-fill,var(--fp-on))` falls through to the flat colour. Untrusted `state`: a malformed value is silently ignored, not thrown on. */
@@ -680,7 +720,7 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   if (d.type === "light" && d.bound) return boundClassOf(d, o);
   const s = o.state?.[d.entity];
   if (!s) return "off";
-  if (dead(s.state)) return d.type === "light" || d.type === "switch" || d.type === "plug" ? "off" : "unavailable";
+  if (dead(s.state)) return "unavailable"; // S23.5: every type, a light, switch or plug too: "I don't know" is not "off"
   if (d.type === "ac") return acMode(d, o) ? "on" : "off";
   if (d.type === "plug") return plugOn(d, o, s) ? "on" : "off";
   if (d.type === "climate" || d.type === "heater") return s.attributes.hvac_action === "heating" ? "on" : "off";
@@ -909,7 +949,7 @@ export function roomReadout(r: Floor["rooms"][number], state: StateOverlay | und
 }
 /** `layout.colors` as the custom properties the plan sets on a group (known types, strict colours only), so a device keeps its own colour. */
 export function deviceColourVars(colors: RenderOpts["colors"]): string[] {
-  return Object.entries(colors ?? {}).filter(([t, v]) => (DEVICE_TYPES as readonly string[]).includes(t) && typeof v === "string" && COLOR.test(v)).map(([t, v]) => `--fp-dev-${t}:${v}`);
+  return Object.entries(colors ?? {}).filter(([t, v]) => (DEVICE_TYPES as readonly string[]).includes(t) && typeof v === "string" && COLOR.test(v)).flatMap(([t, v]) => [`--fp-dev-${t}:${v}`, `--fp-dev-${t}-ink:${inkVar(v as string)}`]);
 }
 
 export interface RoomMotion { radar: boolean; on: boolean; v: number }
@@ -1000,20 +1040,22 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
     // future rule (S2.9's aura) can read the same `--fp-dev-fill` instead of a second, possibly different, source.
     if (d.type === "light" && cls === "on" && s) {
       const fill = lightFill(s);
-      if (fill) style.push(`--fp-dev-fill:${fill}`);
+      if (fill) style.push(`--fp-dev-fill:${fill}`, `--fp-dev-ink:${inkVar(fill)}`);
       const opacity = lightOpacity(s);
       if (opacity !== null) style.push(`--fp-dev-opacity:${num(opacity)}`);
     }
     // S14.8: a plug's draw as a fraction of the card's range; the stylesheet's `.dev-plug.on` rule turns it into a colour. Only with a readable sensor.
     if (d.type === "plug" && base === "on" && o.plugHeat !== undefined) {
       const w = plugWatts(d, o);
-      if (w !== null) { const [from, to] = heatRange(o.plugHeat); style.push(`--fp-heat:${num(Math.round(powerHeat(w, from, to) * 100) / 100)}`); }
+      if (w !== null) { const [from, to] = heatRange(o.plugHeat), heat = Math.round(powerHeat(w, from, to) * 100) / 100; style.push(`--fp-heat:${num(heat)}`, `--fp-dev-ink:${inkVar(heatColour(heat))}`); }
     }
     // S14.3: the effect size, a fraction the rings and waves read (`--fp-fx`, default 1 in the stylesheet). Written only when it
     // changes something, so a layout that never sets it is drawn byte for byte as before.
     if (drawsEffect(d) && fxScale(d) !== 1) style.push(`--fp-fx:${num(fxScale(d))}`);
     // S7.8: an away person carries a small grey dot on the disc's edge, so away reads without relying on the fade alone.
     const mark = person && cls.endsWith(" away") ? `<circle class="away-mark" cx="23" cy="1" r="4.5"/>` : "";
+    // S23.5: an unavailable device carries a slashed badge on the disc's edge, so dead reads without relying on colour.
+    const gone = base === "unavailable" ? `<g class="gone-mark"><circle cx="23" cy="1" r="5"/><line x1="19.8" y1="4.2" x2="26.2" y2="-2.2"/></g>` : "";
     // S8.13: a triggered motion or contact sensor sends out a ring from under its disc, so it reads at a glance.
     const ping = (d.type === "motion" || d.type === "contact") && base === "on" ? `<circle class="ping" cx="12" cy="12" r="16"/>` : "";
     // S9.4: a speaker or media device playing sends out two arcs, staggered — exactly "playing", not the generic
@@ -1036,7 +1078,7 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
       ? `<circle class="siren-ring" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
         `<circle class="siren-ring w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
       : "";
-    const icon = `${ping}${wave}${siren}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
+    const icon = `${ping}${wave}${siren}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}${gone}`;
   return { cls, base, style, icon, s };
 }
 
@@ -1160,6 +1202,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // devices loop below, so two overlapping auras never sit between one lamp's icon and the next lamp's icon; the
   // icons themselves (drawn after every aura) stay on top and legible. The colour is the lamp's own rgb_color, read
   // the same way as the device group's --fp-dev-fill (S2.2): from the light entity's own state, never the bound switch's.
+  let falloff = false; // S23.8: the shared falloff mask, written once before the first aura that needs it
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (d.type !== "light") return;
@@ -1168,9 +1211,16 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const floorAt = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (!floorAt.every(Number.isFinite)) return;
     const c = iconAt(d, floorAt); // the aura hangs with the lamp, not on the floor under it
-    const fill = lightFill(o.state?.[d.entity]);
-    const style = fill ? ` style="--fp-aura:${fill}"` : "";
+    const fill = lightFill(o.state?.[d.entity]), level = lightOpacity(o.state?.[d.entity]);
+    // S23.4: a dimmed lamp's brightness moved here from its glyph, which is now solid ink on a solid disc.
+    const vars = [fill ? `--fp-aura:${fill}` : "", level !== null ? `--fp-dev-opacity:${num(level)}` : ""].filter(Boolean);
+    const style = vars.length ? ` style="${vars.join(";")}"` : "";
     const reach = num(LIGHT_REACH * fxScale(d)); // S14.3: the lamp's own effect size; 150 at the default
+    if (!falloff) {
+      falloff = true;
+      out.push(`<defs><radialGradient id="fp-lamp-grad"><stop offset="0" stop-opacity="1"/><stop offset=".6" stop-opacity=".33"/><stop offset="1" stop-opacity="0"/></radialGradient>` +
+        `<mask id="fp-lamp-falloff" class="fp-falloff" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#fp-lamp-grad)"/></mask></defs>`);
+    }
     // The light stays in the room it hangs in: clipped to the smallest real room holding the lamp (`roomAt`: a zone, a structure
     // and a fill are not rooms; a lamp in no room, a garden lamp say, keeps the free circle). The clip is the floor polygon.
     const holder = roomAt(f, floorAt), own = holder < 0 ? null : ring(f.rooms[holder]);
@@ -1179,10 +1229,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const lift = c[0] !== floorAt[0] || c[1] !== floorAt[1] ? ` transform="translate(${at([c[0] - floorAt[0], c[1] - floorAt[1]])})"` : "";
       const cid = `fp-aura-${tag(`${pts(own)}${lift}`)}`;
       out.push(`<clipPath id="${cid}"${lift}><polygon points="${pts(own)}"/></clipPath>`);
-      out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" clip-path="url(#${cid})"${style}/>`);
+      out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" clip-path="url(#${cid})" mask="url(#fp-lamp-falloff)"${style}/>`);
       return;
     }
-    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}"${style}/>`);
+    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" mask="url(#fp-lamp-falloff)"${style}/>`);
   });
 
   const polys: { id: string; pts: Pt[]; wk?: EdgeKind[]; zone?: boolean }[] = [{ id: "o", pts: f.outline, wk: f.owk }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, wk: r.wk, zone: r.kind === "zone" }))];
@@ -1601,7 +1651,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1;
     const rot = typeof u.rot === "number" && Number.isFinite(u.rot) && u.rot !== 0 ? u.rot : 0;
     const uk = k * scale;
-    const style = u.color && COLOR.test(u.color) ? ` style="--fp-dev-fill:${u.color}"` : "";
+    const style = u.color && COLOR.test(u.color) ? ` style="--fp-dev-fill:${u.color};--fp-dev-ink:${inkVar(u.color)}"` : "";
     const label = u.name ?? u.id;
     // A speaker or TV linked to a media player shows that player: playing is on, with the same two waves a speaker device draws.
     const player = playerOf(u), playing = !!player && o.state?.[player]?.state === "playing";

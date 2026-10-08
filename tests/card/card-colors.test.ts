@@ -22,7 +22,7 @@ describe("the card draws layout.colors (S19.E3)", () => {
     const el = await mount(withColors({ light: "#123456", tv: "#abcdef" }));
     const g = el.shadowRoot!.querySelector<SVGGElement>("svg g.dev-colours")!;
     expect(g, "a dev-colours group").toBeTruthy();
-    expect(g.getAttribute("style")).toBe("--fp-dev-light:#123456;--fp-dev-tv:#abcdef");
+    expect(g.getAttribute("style")).toBe("--fp-dev-light:#123456;--fp-dev-light-ink:var(--fp-pure-white);--fp-dev-tv:#abcdef;--fp-dev-tv-ink:var(--fp-pure-black)"); // S23.4: each with its ink
     expect(g.querySelector('[data-x="0"]'), "the plan is inside it").toBeTruthy();
   });
   it("draws no group when the layout has no colours: the plan is as it was", async () => {

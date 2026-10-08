@@ -76,7 +76,7 @@ describe("a plug's --fp-heat on the plan", () => {
     const f = { ...structuredClone(ground), devices: [plug()] } as never;
     for (const view of ["2d", "2.5d"] as const) {
       const svg = renderFloor(f, { scale: 1, view, state: { "switch.p": st("on"), "sensor.p": W("1500") }, plugHeat: [0, 2000] });
-      expect(svg, view).toMatch(/<g data-x="0" class="dev dev-plug on"[^>]*style="--fp-heat:0\.75"/);
+      expect(svg, view).toMatch(/<g data-x="0" class="dev dev-plug on"[^>]*style="--fp-heat:0\.75;--fp-dev-ink:var\(--fp-pure-[a-z]+\)"/); // S23.4: the heat colour carries its own glyph ink
       expect(svg, view).toContain("1500 W");
     }
   });

@@ -9,7 +9,7 @@ import { textureDeps } from "../../src/core/three-deps";
 // Pixels come from real screenshots; what is drawn (a map, a patch of glow) is read from the hook.
 
 interface Tex { id: string; rot: number; scale: number; tileCm: [number, number]; hasMap: boolean; wrap: [number, number]; srgb: boolean; anisotropy: number; verts: number; first: { x: number; y: number; u: number; v: number }[] }
-interface Glow { room: number; visible: boolean; reach: number; faces: { a: [number, number]; b: [number, number]; z0: number; z1: number }[]; pos: number[] }
+interface Glow { room: number; visible: boolean; reach: number; faces: { a: [number, number]; b: [number, number]; z0: number; z1: number }[]; pos: number[]; col: number[] }
 interface Hook {
   textured(): Tex[];
   live(): { glow: Glow[]; lifted: number[]; pools: { visible: boolean; room: number; reach: number; extent: number }[] };
@@ -253,6 +253,31 @@ test.describe("3D view: the lamp's light on the walls (S13)", () => {
     expect((await glow(page)).filter((x) => x.visible).map((x) => x.room).sort()).toEqual([0, 1]);
     await setStates(page, QUIET());
     expect((await glow(page)).filter((x) => x.visible)).toEqual([]);
+  });
+
+  // S23.8 (V14): on a light theme the patch is warm white #ffd9a0 and never adds more than .35; a dark theme keeps the lamp's colour.
+  // A blue lamp at night (boost 3.5), 40 cm off the living room's west wall, is the hard case: uncapped, the patch nearest it adds
+  // well over .35 (the dark themes below prove it), so the light themes exercise the cap and not a value already under it.
+  test("the wall glow is warm white and capped at .35 on a light theme, and the lamp's own colour on a dark one", async ({ page }) => {
+    const BLUE = () => ({ ...QUIET(), "light.demo_living": st("on", { rgb_color: [40, 80, 255], brightness: 255 }, iso(5)) });
+    const peak = (g: Glow) => [0, 1, 2].map((c) => Math.max(...g.col.filter((_, i) => i % 3 === c)));
+    for (const [theme, kind] of [["light", "light"], ["beach-house", "light"], ["blueprint", "dark"], ["midnight", "dark"]] as const) {
+      const layout = structuredClone(demo);
+      (layout.floors.ground.devices[0] as { x: number }).x = 40;
+      await boot(page, layout, { walls: "full", theme, night: "on" }, BLUE());
+      const g = (await glow(page)).find((x) => x.visible)!;
+      expect(g, theme).toBeTruthy();
+      const [r, gg, b] = peak(g);
+      if (kind === "light") {
+        expect(Math.max(r, gg, b), `${theme} cap`).toBeLessThanOrEqual(0.35 + 1e-6);
+        expect(r, `${theme} warm`).toBeGreaterThan(gg);
+        expect(gg, `${theme} warm`).toBeGreaterThan(b);
+        expect(b / r, `${theme} #ffd9a0`).toBeCloseTo(0xa0 / 0xff, 2);
+      } else {
+        expect(b / r, `${theme} the lamp's own blue`).toBeCloseTo(255 / 40, 1);
+        expect(b, `${theme} uncapped`).toBeGreaterThan(0.35);
+      }
+    }
   });
 
   /** How far (cm) the point (x, y) is from the axis-aligned box x0..x1 by y0..y1: 0 inside it. */

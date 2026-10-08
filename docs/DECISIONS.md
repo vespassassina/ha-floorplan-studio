@@ -79,6 +79,37 @@ Details of the V16 and V23 decisions below. The values, per theme:
 
 Tests changed on purpose: theme-roles.test.ts ("room-empty is the one fixed grey"); editor.spec.ts, the blueprint room in the theme table and the furniture-token pair (midnight is no longer #79766e); card-3d-tex-glow.spec.ts, the checkerboard's luma spread (238 over 42 is now 204 over 135) and its square counter, which now reads the 10th to 90th percentile so a lamp on the line no longer sets the band.
 
+## 2026-10-08: light is light (S23.8, V13, V14)
+
+Supersedes the flat 25 % aura (`--fp-alpha`, S2.8) and, on light themes, the lamp-coloured 3D wall glow.
+- **2D falloff.** Each aura circle takes `mask="url(#fp-lamp-falloff)"`, one shared mask written once before the first aura: a radial gradient, alpha 1 at the lamp, .33 at 60 %, 0 at the reach, in `objectBoundingBox` units so it fits every circle. `mask-type:alpha` is set in CSS (`mask.fp-falloff`), not as an attribute (finding 18). The ids avoid the word "glow", which tests use to find the room glow class.
+- **Clip.** Unchanged: the aura keeps the room clip it already had (S21.1). The new pixel test proves it holds.
+- **Strength.** `fill-opacity` is `.55` times the lamp's brightness. The mask thins it, so the core is brighter than the old flat .25 and the edge is gone.
+- **Blend.** `mix-blend-mode: var(--fp-glow-blend)`. `themeExtras` writes `screen` for a dark theme and `multiply` for a light one, so a new theme gets the right blend with no new token. HA's own theme follows its mode.
+- **3D.** view3d reads `--fp-glow-blend` off its probe; `multiply` means a light theme. There `glowTint` paints the walls `#ffd9a0` warm white, capped at .35, whatever the boost (night is 3.5x). A dark theme keeps the lamp's own colour, uncapped.
+Tests changed on purpose (finding 19): the aura markup regexes in render.test.ts and room-at.test.ts (the mask attribute), the `.aura` rule string, and the editor's aura pair, which pinned `0.25` and now pins `0.55` and `screen`. New: tests/card/light-glow.spec.ts (pixel probes just outside the wall, the same distance inside, near and far; the blend per theme against the background's luminance), a 3D wall-colour test in card-3d-tex-glow.spec.ts, and `glowTint` units.
+
+## 2026-10-08: unavailable is its own mark (S23.5, V12)
+
+Supersedes "Unavailable lights and switches read as off" (2026-10-06) and the 45 % opacity of S2.6. "Off" and "I don't know" are different facts; drawing a dead lamp as off told the user it was off.
+- `classOf` returns `unavailable` for every type whose state is `unavailable` or `unknown`. A bound light is unavailable only when every state it has is dead: a relay that says off still says the lamp is off, and one that says on lights it. No state at all is still off.
+- The mark: no disc (the halo stays painted at 0 so it takes the click), a dashed `--fp-warn` ring, the glyph at `--fp-idle` .7, and `<g class="gone-mark">`, a circle in `--fp-bg` and a slash in `--fp-warn` at the disc's top right, with no pointer events. A circle and a line, not a path, so no glyph rule paints it. The group is no longer at 45 %.
+- `g.dev.unavailable path` (0,2,2) outranks the per-type tints; weakened to `.dev.unavailable path`, the Playwright pair fails on the motion glyph.
+- In 3D the ball of an unavailable device is idle like an off one; its HTML icon carries the ring and badge.
+Tests changed on purpose (finding 19): the dead light, plug and bound-light classes in render.test.ts, card.test.ts, live.test.ts and plug-power.test.ts; three editor Playwright pairs that pinned the 45 % ghost; one comment in card-3d-live.spec.ts.
+
+## 2026-10-08: off is quiet, on is solid (S23.4, V9 first rule, V10, V11)
+
+Supersedes "an off icon's disc is 50 % in every theme" (2026-09-23) and the 60 % disc of an on motion or contact sensor (S8.13).
+- **Off and idle.** No disc: the halo is still painted at fill-opacity 0 so it takes the click, with no ring. The glyph is `--fp-idle` at .7.
+- **On.** The disc is `--fp-dev` (or the lamp's rgb, the plug's heat, a layout colour) at full opacity. The glyph is `--fp-dev-ink`. Per theme, `themeExtras` (src/core/ink.ts) writes an `-ink` for every `--fp-dev-*`, idle and danger: the theme's own dark ink, else its light ink, if it reaches 4.5:1, else pure black or white (one always clears 4.58:1). A colour only the state knows gets black or white at render time, as `var(--fp-pure-black|white)` so the markup carries no hex. The heat ramp's ink is picked from the same oklch mix the stylesheet does.
+- **Brightness** moved from the glyph to the glow: the aura's alpha is scaled by the lamp's brightness (`--fp-dev-opacity`). A dim lamp keeps a solid disc.
+- **Motion and contact** on: the solid disc plus an outline ring (`--fp-outline`, 2 px) and the ping, so a trigger still stands out from a lit lamp.
+- **Blueprint idle** is `color-mix(ink 55 %, bg)`, #888f99, saturation under .15 (it was #2b5697, about .5). Tokens that equalled the old idle (camera, garden tints) follow it.
+- The on glyph rule is `g.dev.on path` (0,2,2) so it beats `.dev.dev-motion path` and the outdoor and camera tints; the camera cone (0,3,1) keeps its own fill.
+- 3D: a ball takes the disc's colour when the disc shows, else the glyph's.
+Tests changed on purpose (finding 19): 21 Playwright tests read the on colour off the glyph or pinned the 50 % disc, the 60 % motion disc, a 25 % lamp halo or blueprint's old idle. They now read the disc, the ink, 0 and #888f99. Unit: the aura, halo and on rules in render.test.ts, the colour-and-ink style strings in render.test.ts and card-colors.test.ts, and the plug's heat style.
+
 ## 2026-10-08: the popup is placed inside what the user sees (S22.2)
 
 `placeNear` (popup-ui.ts) clamps to the host's box cut to the visual viewport (`window.visualViewport`, else the window), not to the host alone. Below the point first, above it when there is no room below, then clamped into that box. Its height is capped to the box less 16 px (the CSS cap the popup had for a host in full view), so in a very short window the sliders scroll and the button stays on screen. A host with less than 40 px showing falls back to its own box, the old rule. Not chosen: `position: fixed` (it would escape the card's stacking and need its own z-index and theme scope). The popup is placed when it opens and on each render, not on a page scroll.

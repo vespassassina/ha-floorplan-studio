@@ -850,14 +850,14 @@ describe("FloorplanStudioCard", () => {
   });
 
   describe("S2.6: unavailable entities carry the unavailable class (already built by S2.2/S2.5's classOf)", () => {
-    it("an unavailable light's device group gets the off class", async () => {
+    it("an unavailable light's device group gets the unavailable class (S23.5; it was off from 2026-10-06)", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floor: "first" });
       el.hass = stubHass({ "light.demo_bedroom": st("unavailable") }) as never;
       await el.updateComplete;
       const bedroomIndex = L.floors.first.devices.findIndex((d) => d.entity === "light.demo_bedroom");
       const g = el.shadowRoot!.querySelector(`svg [data-x="${bedroomIndex}"]`)!;
-      expect(g.getAttribute("class")).toMatch(/\boff\b/);
+      expect(g.getAttribute("class")).toMatch(/\bunavailable\b/);
     });
   });
 
@@ -1177,14 +1177,14 @@ describe("FloorplanStudioCard", () => {
       expect(classOf(el, "switch.demo_computer", l)).not.toMatch(/\bon\b/);
     });
 
-    it("Break it: a light that is on and unavailable reads as off, never on", async () => {
+    it("Break it: a light that is on and unavailable reads as unavailable, never on (S23.5)", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floor: "first" });
       el.hass = stubHass({ "light.demo_bedroom": st("unavailable") }) as never;
       await el.updateComplete;
       const bedroomIndex = L.floors.first.devices.findIndex((d) => d.entity === "light.demo_bedroom");
       const g = el.shadowRoot!.querySelector(`svg [data-x="${bedroomIndex}"]`)!;
-      expect(g.getAttribute("class")).toMatch(/\boff\b/);
+      expect(g.getAttribute("class")).toMatch(/\bunavailable\b/);
       expect(g.getAttribute("class")).not.toMatch(/\bon\b/);
     });
   });
