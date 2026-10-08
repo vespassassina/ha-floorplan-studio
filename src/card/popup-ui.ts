@@ -1,6 +1,6 @@
 // S14.2: the tap popup's markup and its placement. The card owns the state (floorplan-studio-card.ts); this draws it.
 import { css, html, nothing } from "lit";
-import type { Door } from "../core";
+import type { Device, Door } from "../core";
 import type { LightCaps, PopupOp } from "./popup";
 
 /** What a popup is about: a device, a door or an appliance, reduced to what the popup reads. `key` tells one subject from another (a second tap on the same one closes). */
@@ -16,6 +16,8 @@ export interface PopupSubject {
   door?: Door;
   /** A plug's power sensor, for the state line. */
   powerEntity?: string;
+  /** S22.1: a light with a `bound` relay: its state line and its button count the relay (`lampOp`). */
+  lamp?: Device;
 }
 
 export type SliderKind = "b" | "t" | "h";

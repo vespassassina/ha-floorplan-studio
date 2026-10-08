@@ -2627,7 +2627,7 @@ Separate product, not in this repo: the FloorPlan Digital Twin iOS app. A RoomPl
 ## Sprint 22 (0.20.2): hotfix from the review
 
 Branch `task/s22-hotfix`. Each task: one outcome, its failing test first.
-- [ ] S22.1 (C1) A lamp lit by its bound relay can be turned off from the card. Its popup reads on, names the relay, and Turn off calls `switch.turn_off` on the relay (and `light.turn_off` on the light if that is on). Room and floor All off add every bound relay that is on. The relay is offered in the More info chooser. Test: real clicks, stub `callService`, exact calls.
+- [x] S22.1 (C1) A lamp lit by its bound relay can be turned off from the card. Its popup reads on, names the relay, and Turn off calls `switch.turn_off` on the relay (and `light.turn_off` on the light if that is on). Room and floor All off add every bound relay that is on. The relay is offered in the More info chooser. Test: real clicks, stub `callService`, exact calls.
 - [ ] S22.2 (C3) The device popup stays inside the visible viewport on a card taller than the screen. Test: a tap near the bottom of a tall card, popup box inside `innerHeight`.
 - [ ] S22.3 (U11) The Studio's Place and Add panels fit the window; their buttons are reachable. Test: 1440x900 and 1024x768, the Place button inside the viewport and clickable.
 - [ ] S22.4 (U1) A refused edit snaps back in its field, and the status line offers Unlock. Test: rename under a fixed plan, field shows the old name; Unlock, rename works.

@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: how a relay-lit lamp is turned off (S22.1)
+
+Details of the change the entry below records. One rule, `lampOffEntities` (room-info.ts): a lamp's light entity when it is `on`, then its `bound` relay when that is `on`. The popup's Turn off (`lampOffCalls`) and the room and floor All off (`RoomSummary.offEntities`, which replaces `lightsOnEntities`) both send it through `presetCalls`, so a `switch.*` relay gets `switch.turn_off` and any other domain `homeassistant.turn_off`. A relay several lamps share is in the list once.
+- **No confirm.** A switch's Turn off normally asks first. Here the relay is the lamp, so it acts at once, as a light's and as All off do.
+- **State line.** Only when the relay is on and the light entity is not, the popup and the tooltip read "on · via <relay friendly name or entity id>". With the light on, its own line stays (brightness). With the relay on and the light unavailable, the button is still Turn off.
+- **More info.** A new `moreInfoEntities` adds `bound` after `entitiesOfDevice`, so the chooser lists the light, then the relay. `entitiesOfDevice` is unchanged: it also says which entities a room owns, and a relay elsewhere is not that room's.
+- Turn on is as before: `light.turn_on` on the light. A room panel row still shows the light entity's own state; not changed here.
+Tests changed on purpose: three S20.1/S20.2 Playwright tests (card-floor-select.spec.ts) and one unit test (room-info.test.ts) that pinned "a relay-lit lamp is not a target"; the Active row test in card-room-select.spec.ts, whose More info now opens the chooser for the demo's bound Living light.
+
 ## 2026-10-08: the 2026-10-08 review becomes sprints 22 to 30, and three earlier decisions change
 
 Diego said yes to the review's plan (docs/PLAN.md, "Roadmap after the 2026-10-08 review"). He did not answer the open questions, so the defaults the review proposed stand:

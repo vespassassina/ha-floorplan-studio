@@ -43,8 +43,9 @@ export interface RoomSummary {
   /** Names of the open (or unlocked) doors and windows whose line lies on one of the room's edges. */
   openings: string[];
   lightsOn: string[];
-  /** The lights whose own entity is `on`, once each: what the All off button turns off. A subset of `lightsOn` (a bound lamp lit only by its relay is not in it). */
-  lightsOnEntities: string[];
+  /** S22.1: what the All off button turns off, once each: for every lamp in `lightsOn`, `lampOffEntities` (its light entity if
+   *  that is on, its bound relay if that is on). A relay several lamps share is listed once. */
+  offEntities: string[];
   devices: RoomDeviceRow[];
   sensors: RoomSensorRow[];
   /** Every entity that belongs to the room: its devices (and what they attach), its sensors, its doors' sensors. */
@@ -91,6 +92,17 @@ function doorsOf(f: Floor, ring: Pt[]): Door[] {
 
 const SENSOR_KINDS = ["temps", "humidity", "motion"] as const;
 
+/** S22.1: what turning a lamp off must reach. The plan draws a bound light on while either entity is on (render.ts
+ *  `boundClassOf`), so: its light entity when that is `on`, then its `bound` relay when that is `on`. Empty for a lamp
+ *  drawn off. The one rule behind the lamp's popup and All off. */
+export function lampOffEntities(d: Device, state: StateOverlay | undefined): string[] {
+  const out: string[] = [];
+  if (typeof d.entity === "string" && d.entity && stateOf(state, d.entity)?.state === "on") out.push(d.entity);
+  const relay = d.type === "light" && typeof d.bound === "string" && d.bound ? d.bound : "";
+  if (relay && relay !== d.entity && stateOf(state, relay)?.state === "on") out.push(relay);
+  return out;
+}
+
 const ringOf = (r: Room): Pt[] => (Array.isArray(r.pts) && r.pts.length >= 3 && r.pts.every(finite) ? r.pts : []);
 
 /** The summary of `f.rooms[index]`, or null when there is no such room. */
@@ -119,7 +131,7 @@ function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean,
   const devices: RoomDeviceRow[] = [];
   const entities = new Set<string>();
   const lightsOn: string[] = [];
-  const lightsOnEntities = new Set<string>();
+  const offEntities = new Set<string>();
   f.devices.forEach((d, i) => {
     const c = centre(d);
     // A person's drawn position comes from a room sensor at render time, not from x and y: listing one by its stored
@@ -130,9 +142,8 @@ function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean,
     for (const e of entitiesOfDevice(d)) entities.add(e);
     if (d.type === "light" && on) {
       lightsOn.push(nameFor(d, state));
-      // All off acts on the light entity itself. A bound lamp lit only by its relay is on in the plan but is not a target:
-      // light.turn_off on an entity that is already off does nothing, and the button would promise more than it does.
-      if (stateOf(state, d.entity)?.state === "on") lightsOnEntities.add(d.entity);
+      // S22.1: a lamp drawn on must be one All off turns off, also one lit only by its relay (supersedes the S20.1 rule).
+      for (const e of lampOffEntities(d, state)) offEntities.add(e);
     }
   });
 
@@ -174,7 +185,7 @@ function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean,
     areaM2,
     temperature: meanReading(lists.temps, state),
     humidity: meanReading(lists.humidity, state),
-    motion, openings, lightsOn, lightsOnEntities: [...lightsOnEntities], devices, sensors, entities,
+    motion, openings, lightsOn, offEntities: [...offEntities], devices, sensors, entities,
   };
 }
 

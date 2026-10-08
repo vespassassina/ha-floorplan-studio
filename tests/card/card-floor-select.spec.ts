@@ -11,8 +11,8 @@ const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
 const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 
-// Ground: Living (room 0) gets two more lamps, one off and one on; Kitchen's lamp is on. The Living lamp is bound to a switch (the
-// card still acts on the light entity), and the TV plug (a switch) is on in the Living room: neither may appear in the call.
+// Ground: Living (room 0) gets two more lamps, one off and one on; Kitchen's lamp is on. The Living lamp is bound to a relay that is
+// on: S22.1 adds it to All off as one switch.turn_off. The TV plug (a switch) is on in the Living room and is never in the call.
 const layout = structuredClone(demo);
 const lamp = (id: string, x: number, y: number) => ({ id, type: "light", entity: `light.${id}`, name: id, x, y });
 layout.floors.ground.devices.push(lamp("demo_living2", 100, 100), lamp("demo_living3", 150, 300));
@@ -75,12 +75,15 @@ async function backgroundPoint(page: Page) {
 const factOf = (page: Page, label: string) => panel(page).locator("css=.fp-room-facts > div", { has: page.locator(`dt:text-is("${label}")`) }).locator("dd");
 
 test.describe("S20.1 All off in the room panel", () => {
-  test("one light.turn_off with only the lights that are on; not the lamp that is off, the switch-bound relay or the plug", async ({ page }) => {
+  test("one light.turn_off with the lights that are on and one switch.turn_off on the bound relay that is on; not the lamp that is off or the plug", async ({ page }) => {
     await boot(page);
     await click(page, await floorPoint(page, 0));
     await expect(panel(page).locator("css=.fp-room-name")).toHaveText("Living");
     await allOff(page).click();
-    expect(await calls(page)).toEqual([["light", "turn_off", { entity_id: ["light.demo_living", "light.demo_living3"] }]]);
+    expect(await calls(page)).toEqual([
+      ["light", "turn_off", { entity_id: ["light.demo_living", "light.demo_living3"] }],
+      ["switch", "turn_off", { entity_id: ["switch.demo_living_relay"] }],
+    ]);
   });
 
   test("it follows hass: gone when every light of the room is off, and nothing is called without a press", async ({ page }) => {
@@ -105,14 +108,13 @@ test.describe("S20.1 All off in the room panel", () => {
     expect(await calls(page)).toEqual([["light", "turn_off", { entity_id: ["light.demo_kitchen"] }]]);
   });
 
-  test("a lamp lit only by its bound relay is not a target: its light entity is off, so there is no button for it and no call names it", async ({ page }) => {
+  test("a lamp lit only by its bound relay is a target (S22.1, supersedes S20.1): the button shows and the call names the relay, not the light", async ({ page }) => {
     await boot(page, 1280, { ...STATES(), "light.demo_living": st("off"), "light.demo_living3": st("off") }); // relay still on
     await click(page, await floorPoint(page, 0));
-    await expect(factOf(page, "Lights on")).toHaveText("Living light"); // the plan still draws it on
-    await expect(allOff(page)).toHaveCount(0);
-    await setStates(page, { ...STATES(), "light.demo_living": st("off") }); // a second lamp is really on: the call names that one only
+    await expect(factOf(page, "Lights on")).toHaveText("Living light"); // the plan draws it on
+    await expect(allOff(page)).toHaveCount(1);
     await allOff(page).click();
-    expect(await calls(page)).toEqual([["light", "turn_off", { entity_id: ["light.demo_living3"] }]]);
+    expect(await calls(page)).toEqual([["switch", "turn_off", { entity_id: ["switch.demo_living_relay"] }]]);
   });
 
   test("read-only Home Assistant (no callService) does not throw", async ({ page }) => {
@@ -148,7 +150,10 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     await expect(card(page).locator("css=.fp-room-devices .fp-active-row", { hasText: "Kitchen light" })).toHaveCount(1);
     await expect(card(page).locator("css=.fp-room-devices .fp-active-row", { hasText: "Living light" })).toHaveCount(1);
     await allOff(page).click();
-    expect(await calls(page)).toEqual([["light", "turn_off", { entity_id: ["light.demo_living", "light.demo_kitchen", "light.demo_living3"] }]]);
+    expect(await calls(page)).toEqual([
+      ["light", "turn_off", { entity_id: ["light.demo_living", "light.demo_kitchen", "light.demo_living3"] }],
+      ["switch", "turn_off", { entity_id: ["switch.demo_living_relay"] }],
+    ]);
   });
 
   test("a room pick replaces the floor selection, and the pill lets go", async ({ page }) => {

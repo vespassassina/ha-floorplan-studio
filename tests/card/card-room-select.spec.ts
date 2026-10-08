@@ -254,7 +254,7 @@ test.describe("device details", () => {
     await expect(item.locator("css=.fp-info")).toHaveCount(0); // the second click folds it
   });
 
-  test("the Active list rows have the chevron too, and the row's own tap opens the popup, whose More info opens more-info", async ({ page }) => {
+  test("the Active list rows have the chevron too, and the row's own tap opens the popup, whose More info opens the chooser (the lamp and its relay, S22.1)", async ({ page }) => {
     await boot(page, 1280);
     const item = info(page, ".fp-active-body");
     await item.locator("css=.fp-info-btn").click();
@@ -263,6 +263,9 @@ test.describe("device details", () => {
     await item.locator("css=.fp-active-row").click();
     expect(await infos(page)).toEqual([]);
     await card(page).locator("css=.fp-pop-more").click();
+    const choices = card(page).locator("css=.fp-chooser-dialog .fp-chooser-list button");
+    await expect(choices).toHaveCount(2); // light.demo_living and its bound switch.demo_living_relay
+    await choices.first().click();
     expect(await infos(page)).toEqual(["light.demo_living"]);
   });
 
