@@ -9,6 +9,7 @@
 - Studio: the Help guide names the buttons and menus as they are, shows them in bold, and starts with Fix plan.
 - Studio: Escape closes an open toolbar menu and puts focus back on its button.
 - Studio: an edit refused because the plan is fixed now puts the old value back in its field, and the message has an Untick Fix plan button.
+- Studio: every change the fixed plan refuses now says so, with the Untick Fix plan button: a room colour or texture, a texture or furniture slider, a floor's name, order or removal, Add floor, Add stairs and Rotate the plan. Before, these did nothing without a word, and a picked colour snapped back silently.
 
 ## 0.20.1 - 2026-10-08
 

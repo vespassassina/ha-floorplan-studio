@@ -65,3 +65,89 @@ test("a room kind refused by Fix plan snaps back in its select", async ({ page }
   await expect(page.locator("#status")).toContainText("plan is fixed");
   await expect(page.locator("#rk")).toHaveValue("room");
 });
+
+// Opus review of Sprint 22: writers outside `edit` (paint, the floor writers, the plan rotation, add floor, add stairs)
+// were refused without a word, so the colour input snapped back silently. Each must raise the same banner.
+const banner = (page: Page) => page.locator(".banner #bannerUnfix");
+const openEdit = (page: Page) => clickBox(page, "#mEdit > summary");
+
+test("a colour swatch refused by Fix plan leaves the room as it was and offers to untick Fix plan", async ({ page }) => {
+  const c = await screenOf(page, 60, 200); // inside Living
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#rn")).toHaveValue("Living");
+  const before = (await layoutOf(page)).floors.ground.rooms.find((r) => r.name === "Living")!;
+  const sw = page.locator('#panel .swatches[aria-label="Colours"] button.sw').nth(2);
+  await sw.scrollIntoViewIfNeeded(); // the room panel is long; the swatches may sit below the fold
+  const b = (await sw.boundingBox())!;
+  await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+  await expect(banner(page)).toBeVisible();
+  const after = (await layoutOf(page)).floors.ground.rooms.find((r) => r.name === "Living")!;
+  expect(after.color).toBe(before.color);
+  expect(after.texture).toBe(before.texture);
+});
+
+test("a floor rename refused by Fix plan snaps back and offers to untick Fix plan", async ({ page }) => {
+  await expect(page.locator("#ft")).toHaveValue("Ground");
+  await clickBox(page, "#ft");
+  await page.locator("#ft").press("ControlOrMeta+a");
+  await page.keyboard.type("Loft");
+  await page.keyboard.press("Enter");
+  await expect(banner(page)).toBeVisible();
+  await expect(page.locator("#ft")).toHaveValue("Ground");
+  expect((await layoutOf(page)).floors.ground.title).toBe("Ground");
+});
+
+test("moving a floor refused by Fix plan keeps the order and offers to untick Fix plan", async ({ page }) => {
+  await clickBox(page, "#fup");
+  await expect(banner(page)).toBeVisible();
+  expect(Object.keys((await layoutOf(page)).floors)).toEqual(["ground", "first", "test"]);
+});
+
+test("deleting a floor refused by Fix plan keeps it and offers to untick Fix plan", async ({ page }) => {
+  await clickBox(page, "#fdel");
+  await clickBox(page, "#fdelyes");
+  await expect(banner(page)).toBeVisible();
+  expect(Object.keys((await layoutOf(page)).floors)).toEqual(["ground", "first", "test"]);
+});
+
+test("rotating the plan refused by Fix plan keeps the angle and offers to untick Fix plan", async ({ page }) => {
+  await openEdit(page);
+  await clickBox(page, "#rotr");
+  await expect(banner(page)).toBeVisible();
+  expect((await layoutOf(page)).rotate ?? 0).toBe(0);
+  await expect(page.locator("#rotv")).toContainText("0°");
+});
+
+test("adding a floor refused by Fix plan adds nothing and offers to untick Fix plan", async ({ page }) => {
+  await openEdit(page);
+  await clickBox(page, "#addFloor");
+  await expect(page.locator("#newFloor")).toBeFocused();
+  await page.keyboard.type("Loft");
+  await page.keyboard.press("Enter");
+  await expect(banner(page)).toBeVisible();
+  expect(Object.keys((await layoutOf(page)).floors)).toEqual(["ground", "first", "test"]);
+});
+
+test("adding stairs refused by Fix plan adds none, says so and offers to untick Fix plan", async ({ page }) => {
+  const n = (await layoutOf(page)).floors.ground.stairs.length;
+  await clickBox(page, "#mAdd > summary");
+  await clickBox(page, "#addAreas > summary");
+  await clickBox(page, "#addStairs");
+  await expect(banner(page)).toBeVisible();
+  await expect(page.locator("#status")).not.toContainText("Added stairs");
+  expect((await layoutOf(page)).floors.ground.stairs).toHaveLength(n);
+});
+
+test("turning furniture with its slider under Fix plan keeps it still and offers to untick Fix plan", async ({ page }) => {
+  const c = await screenOf(page, 250, 320); // the sofa
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#frotsl")).toBeVisible();
+  if (await banner(page).count()) await clickBox(page, ".banner #bannerClose"); // a press on furniture already warns that it will not move
+  await expect(banner(page)).toHaveCount(0);
+  await page.locator("#frotsl").scrollIntoViewIfNeeded();
+  const b = (await page.locator("#frotsl").boundingBox())!;
+  await page.mouse.click(b.x + b.width * 0.75, b.y + b.height / 2); // a click on the track: one input, one change
+  await expect(banner(page)).toBeVisible();
+  expect((await layoutOf(page)).floors.ground.furniture[0].rot).toBe(0);
+  await expect(page.locator("#frotval")).toHaveText("0°");
+});

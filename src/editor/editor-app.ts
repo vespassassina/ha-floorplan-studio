@@ -660,7 +660,9 @@ export class FloorplanStudioEditor extends LitElement {
     this.emit("layout-changed");
     this.requestUpdate();
   }
-  private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); else if (this.st.planBlocked) this.planFixed(); };
+  private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); else this.refused(); };
+  /** A writer said no. When the plan lock is why, say so and offer the way out; otherwise redraw, so a field shows the layout again. */
+  private refused() { if (this.st.planBlocked) this.planFixed(); else this.requestUpdate(); }
   /** The one reply to a change the plan lock refused ("Fix plan" is ticked). */
   private planFixed(): boolean {
     this.status = "The plan is fixed. Devices and objects stay editable";
@@ -697,6 +699,7 @@ export class FloorplanStudioEditor extends LitElement {
    * pattern a mouse drag uses); `commit`, once at release, records the whole drag as one step — none if it ended back
    * where it started (mirrors `begin()`/`onUp` for a pointer drag). */
   private rotateTexture = (on: "rooms" | "stairs", i: number, rot: number, phase: "live" | "commit") => {
+    if (this.st.planLocked) { this.planFixed(); return; } // a texture is the plan; the slider snaps back on the redraw
     // A commit with no prior live tick (a click on the track, or an arrow key) still needs a "before": take it now,
     // before the value below is applied.
     if (!this.textureRotGesture) this.textureRotGesture = structuredClone(this.st.layout);
@@ -713,6 +716,7 @@ export class FloorplanStudioEditor extends LitElement {
   };
   /** The furniture and unlinked panels' rotation slider. Same live/commit gesture as `rotateTexture`. */
   private rotateItem = (on: "furniture" | "unlinked", i: number, rot: number, phase: "live" | "commit") => {
+    if (on === "furniture" && this.st.planLocked) { this.planFixed(); return; } // furniture is the plan; an object is not
     if (!this.itemRotGesture) this.itemRotGesture = structuredClone(this.st.layout);
     const g = structuredClone(this.st.f);
     const o = g[on][i];
@@ -726,6 +730,7 @@ export class FloorplanStudioEditor extends LitElement {
   };
   /** S4.19: the paint panel's scale slider. Same live/commit gesture as `rotateTexture`. */
   private scaleTexture = (on: "rooms" | "stairs", i: number, scale: number, phase: "live" | "commit") => {
+    if (this.st.planLocked) { this.planFixed(); return; }
     if (!this.textureScaleGesture) this.textureScaleGesture = structuredClone(this.st.layout);
     const g = structuredClone(this.st.f);
     const shape = g[on][i];
@@ -739,7 +744,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.requestUpdate();
   };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, attachEntity: this.attachEntity, attachToRoom: this.attachToRoom, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, rotateItem: this.rotateItem, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), designScene: (i, id) => this.openScene(i, id), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, attachEntity: this.attachEntity, attachToRoom: this.attachToRoom, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); else this.refused(); }, rotateTexture: this.rotateTexture, rotateItem: this.rotateItem, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), designScene: (i, id) => this.openScene(i, id), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------
@@ -1988,6 +1993,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private rotatePlan(step: number) {
     if (this.st.setRotate((this.st.layout.rotate ?? 0) + step)) this.changed(`Plan rotated to ${this.st.layout.rotate}°`);
+    else this.refused();
   }
   private centre(): Pt { const v = this.st.view; return [Math.round(v.x + v.w / 2), Math.round(v.y + v.h / 2)]; }
   /** Where a new item (a wall, a structure, a zone, stairs, furniture) goes: outside the house, top right. */
@@ -2114,7 +2120,7 @@ export class FloorplanStudioEditor extends LitElement {
   private addStairs() {
     this.stopDraw();
     const t = stairsAt(this.spawn(true), this.st.snapGrid);
-    this.st.addStairsEverywhere(t);
+    if (!this.st.addStairsEverywhere(t)) { this.refused(); return; }
     this.changed("Added stairs to every floor");
     this.ensureVisible(...t.pts);
   }
@@ -2455,13 +2461,13 @@ export class FloorplanStudioEditor extends LitElement {
   private floorDone(status: string) { this.stopDraw(); this.floor = this.st.floor; this.changed(status); }
   private renameFloor(key: string, title: string) {
     if (this.st.renameFloor(key, title)) this.floorDone(`Renamed floor to ${title.trim()}`);
-    else this.requestUpdate();
+    else this.refused();
   }
-  private moveFloor(key: string, delta: number) { if (this.st.moveFloor(key, delta)) this.floorDone(delta > 0 ? "Moved floor up" : "Moved floor down"); }
+  private moveFloor(key: string, delta: number) { if (this.st.moveFloor(key, delta)) this.floorDone(delta > 0 ? "Moved floor up" : "Moved floor down"); else this.refused(); }
   private deleteFloor(key: string) {
     const title = (hasOwn(this.st.layout.floors, key) ? this.st.layout.floors[key].title : "") || key;
     if (this.st.deleteFloor(key)) { this.floorDone(`Deleted floor ${title}`); this.focus({ preventScroll: true }); }
-    else this.requestUpdate();
+    else this.refused();
   }
   private async startAddFloor() {
     this.addingFloor = true;
@@ -2477,6 +2483,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (!title) { this.status = "Type a name for the floor, or press Esc"; return; }
     this.addingFloor = false;
     if (this.st.addFloor(title)) { this.floorDone(`Added floor ${title}`); this.focus({ preventScroll: true }); }
+    else this.refused();
   };
 
   private setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; this.placePos = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on

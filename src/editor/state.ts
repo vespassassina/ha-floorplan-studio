@@ -269,13 +269,14 @@ export class EditorState {
     return key;
   }
 
-  /** Adds the same stairs to every floor, each with an id of its own, as one undo step; selects the one on the current floor. A floor that has stairs gets another: two flights are legitimate. */
-  addStairsEverywhere(t: Omit<Stairs, "id">): void {
-    if (!this.planOpen()) return;
+  /** Adds the same stairs to every floor, each with an id of its own, as one undo step; selects the one on the current floor. A floor that has stairs gets another: two flights are legitimate. False when the plan is fixed. */
+  addStairsEverywhere(t: Omit<Stairs, "id">): boolean {
+    if (!this.planOpen()) return false;
     this.snapshot();
     for (const [key, fl] of Object.entries(this.layout.floors)) fl.stairs.push({ ...structuredClone(t), id: newId(fl, key, "stairs") });
     this.sel = { t: "stairs", i: this.f.stairs.length - 1 };
     this.confirmDelete = false;
+    return true;
   }
 
   /** Changes the title only; the key stays. False for an empty title, the same title or an unknown key. */
