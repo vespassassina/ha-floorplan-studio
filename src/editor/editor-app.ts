@@ -10,7 +10,7 @@ import { PAN_STEP, isSaveChord, isSearchChord, viewKeyFor, type ViewKey } from "
 import "../card/search-box";
 import type { FpSearch } from "../card/search-box";
 import { layoutEntries, type SearchEntry } from "../core/search";
-import { buildOutline, filterOutline, outlineKey, outlineView, visibleRows, type OutlineNode, type OutlineRow } from "./outline";
+import { buildOutline, deviceNodeId, filterOutline, outlineKey, outlineView, visibleRows, type OutlineNode, type OutlineRow } from "./outline";
 import { readViewMemory, writeViewMemory } from "./view-memory";
 import { traceImage } from "./trace";
 import { furnitureNear, roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
@@ -18,9 +18,10 @@ import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
 import { restoreScene, tryScene } from "./scene-try";
 import { cleanSceneItem } from "./room-scenes-ops";
 import type { SceneItem } from "../core";
+import { layerHides } from "../core/layers";
 import { newDraft, sceneDesigner, type SceneDraft } from "./scene-designer";
 import { roomSceneTargets, saveScene } from "./room-scenes-ops";
-import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, typeOptions, type PanelCtx } from "./panels";
+import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, typeNoun, typeOptions, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
 import type { HaWriter, Labelled } from "./hass-write";
 import { motionLights, openAutomation, schedule, switchControls } from "./automations";
@@ -834,7 +835,8 @@ export class FloorplanStudioEditor extends LitElement {
    *  piece under it; a handle, device, door or wall element really under the pointer still wins. */
   private padFurniture(hit: Hit, p: Pt): Hit {
     if (hit.k !== "bg" && hit.k !== "room" && hit.k !== "stairs" && hit.k !== "furn") return hit;
-    const i = furnitureNear(this.st.f, p, this.scale);
+    // S24.R8: the plan's own Layers rule, with the selection kept as renderFloor keeps it: hidden is not pickable.
+    const st = this.st, i = furnitureNear(st.f, p, this.scale, (j) => layerHides(st.hidden, "furn", j, undefined, st.sel && "i" in st.sel ? st.sel : null));
     return i === null ? hit : { k: "furn", i };
   }
 
@@ -2116,7 +2118,7 @@ export class FloorplanStudioEditor extends LitElement {
         const d = f.devices[i];
         if (d) { st.sel = { t: "dev", i }; this.centreOn("a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y]); this.pulse("dev", i); }
       }
-      this.revealInOutline(`d:${e.id}`);
+      this.revealInOutline(deviceNodeId(e));
       // S24.6: search and the Outline do not follow Layers. The pick is selected and drawn; the banner says why the rest of its family is not.
       const fam: LayerId | undefined = e.piece ? (f.furniture[i] ? "furniture" : undefined) : f.devices[i] && layerOfType(f.devices[i].type);
       if (fam && st.hidden.includes(fam)) {
@@ -2464,7 +2466,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (!this.st.edit((f) => { f.unlinked.push({ id: newId(f, floor, "unl"), type: t, x, y, rot: 0, scale: 1 }); })) { this.refused(); return; }
     this.ensureVisible([x - 30, y - 30], [x + 30, y + 30]);
     this.st.sel = { t: "unl", i: this.st.f.unlinked.length - 1 };
-    this.placedNote(before, "Edited", `Added ${t}`);
+    this.placedNote(before, "Edited", `Added ${typeNoun(t)}`);
   }
   private placeDevice(id: string) {
     const st = this.st, c = st.layout.catalog.find((x) => x.id === id), before = this.counted();

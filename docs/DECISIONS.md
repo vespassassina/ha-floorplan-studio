@@ -2,6 +2,19 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Sprint 24 review fixes, Studio (S24.R4, S24.R8, S24.R10a)
+
+- **An Outline row for a device or piece is `d:<floor>:<id>`** (`deviceNodeId`). Validate keeps a piece's id unique on
+  its floor only, and a device's id unique among devices only, so the bare id could name two rows. The id, not the
+  index, so the active row stays on its thing when another is deleted. Rooms keep `r:<floor>:<index>`, as before.
+- **What Layers hides is not pickable; what the plan keeps is.** The rule moved to `layerHides` in `src/core/layers.ts`
+  and the Studio's padded pick asks it with the selection, as `renderFloor` keeps the selection drawn. A piece found by
+  search while hidden is drawn and can be grabbed; let go, it cannot. `render.ts` still has its private copy of the rule:
+  that file was another coder's in this round. It should import `layerHides` when the branches meet.
+- **A type in a sentence is its singular label** (`DEVICE_TYPE_LABELS`), lower case unless it starts with two capitals,
+  so "UPS", "AC" and "TV" stay as they are. `TYPE_LABELS` is the menu's plural ("Access points"), wrong after "Added".
+  Furniture keeps its symbol ("Added sofa"): the Furniture menu lists symbols too, and none has an underscore.
+
 ## 2026-10-09: the card's layer chips (S24.8, part 2)
 
 - **Supersedes "Layer chips are not in this part"** (part 1, below). The chips fill the `.fp-ov-layers` slot.

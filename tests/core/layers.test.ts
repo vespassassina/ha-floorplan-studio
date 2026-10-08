@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEVICE_TYPES, type Floor } from "../../src/core/schema";
 import { CATEGORIES } from "../../src/core/categories";
-import { LAYERS, layerCounts, layerOfType, layersSummary, parseLayers, soloLayer, toggleLayer, type LayerId } from "../../src/core/layers";
+import { LAYERS, layerCounts, layerHides, layerOfType, layersSummary, parseLayers, soloLayer, toggleLayer, type LayerId } from "../../src/core/layers";
 import { renderFloor } from "../../src/core/render";
 
 describe("S24.6 layers", () => {
@@ -104,5 +104,21 @@ describe("S24.6 renderFloor hides layers", () => {
     expect(renderFloor(floor, { ...base, hiddenLayers: [] })).toBe(renderFloor(floor, base));
     const all: LayerId[] = LAYERS.map((l) => l.id);
     expect(icons(renderFloor(floor, { ...base, hiddenLayers: all }))).toEqual([]);
+  });
+});
+
+describe("S24.R8 layerHides: one rule for what the plan draws and what a click picks", () => {
+  it("hides by family, keeps what `keep` names, and never throws on junk", () => {
+    expect(layerHides([], "furn", 0)).toBe(false);
+    expect(layerHides(undefined, "furn", 0)).toBe(false);
+    expect(layerHides(["furniture"], "furn", 2)).toBe(true);
+    expect(layerHides(["furniture"], "dev", 2, "light")).toBe(false);
+    expect(layerHides(["lights"], "dev", 2, "light")).toBe(true);
+    expect(layerHides(["lights"], "unl", 2, "light")).toBe(true);
+    expect(layerHides(["furniture"], "furn", 2, undefined, { t: "furn", i: 2 })).toBe(false);
+    expect(layerHides(["furniture"], "furn", 2, undefined, { t: "dev", i: 2 }, { t: "furn", i: 1 })).toBe(true);
+    expect(layerHides(["furniture"], "furn", 2, undefined, null, { t: "furn", i: 2 })).toBe(false);
+    expect(layerHides(["other"], "dev", 0, "nonsense" as never)).toBe(true);
+    expect(layerHides("lights" as never, "dev", 0, "light")).toBe(false);
   });
 });

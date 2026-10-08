@@ -280,12 +280,13 @@ const PADDED: ReadonlySet<string> = new Set(["tv", "speaker", "computer"]); // t
 /**
  * The topmost small tv, speaker or computer whose padded box holds `p`, or null. Small is under 28 screen px on a side; its box grows
  * 8 px each way, at least 28 px across, so a thin tv or a speaker can be picked just outside its drawn edge. `scale` is screen px
- * per cm. A big piece gets no padding: the real element under the pointer already answers for it.
+ * per cm. A big piece gets no padding: the real element under the pointer already answers for it. `skip` leaves out a
+ * piece the plan does not draw (Layers): a click must not pick what is not there.
  */
-export function furnitureNear(f: Floor, p: Pt, scale: number): number | null {
+export function furnitureNear(f: Floor, p: Pt, scale: number, skip?: (i: number) => boolean): number | null {
   for (let i = f.furniture.length - 1; i >= 0; i--) {
     const m = f.furniture[i];
-    if (!PADDED.has(m.symbol) || Math.min(m.w, m.h) * scale >= SMALL_PX) continue;
+    if (!PADDED.has(m.symbol) || Math.min(m.w, m.h) * scale >= SMALL_PX || skip?.(i)) continue;
     const rad = (-m.rot * Math.PI) / 180, dx = p[0] - m.x, dy = p[1] - m.y;
     const lx = dx * Math.cos(rad) - dy * Math.sin(rad), ly = dx * Math.sin(rad) + dy * Math.cos(rad);
     const half = (len: number) => Math.max(len / 2 + FURN_PAD_PX / scale, SMALL_PX / 2 / scale);
