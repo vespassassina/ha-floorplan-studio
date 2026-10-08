@@ -4,6 +4,8 @@
 
 - Card: a device popup now always opens where you can see it. On a card taller than the screen, a tap low on the plan put it below the bottom edge; now it opens above the point, and a very short window makes it scroll inside instead.
 - Card: a lamp lit by the relay that powers it can now be turned off from the card. Its popup reads "on · via" the relay, and Turn off switches the relay off (and the light too if it is on). Room and floor All off also switch off such relays, each once. More info offers the relay next to the light.
+- Studio: the Place and Add device popups fit the window. A long list scrolls inside the popup and its Place button stays in view; before, it could sit below the bottom of the screen.
+- Studio: the side panel scrolls on its own, so the plan stays where it is. A room with Home Assistant devices left to place shows Place first, under its title.
 
 ## 0.20.1 - 2026-10-08
 

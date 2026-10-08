@@ -425,7 +425,8 @@ export class FloorplanStudioEditor extends LitElement {
     .prow-text{flex:1;display:flex;flex-direction:column;gap:0;min-width:0}
     .prow-name{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .prow small{opacity:.7}
-    .fpanel>.btn{margin:8px 10px 10px;width:auto;align-self:flex-start}
+    /* S22.3: only the list (.rows, overflow:auto) shrinks in a popup capped by the window; the action buttons stay in view. */
+    .fpanel>.btn{margin:8px 10px 10px;width:auto;align-self:flex-start;flex:none}
     /* S8.8: 50% larger than the S8.5 baseline (520x642 / 440x642 measured at an 800px-tall viewport, panel maxed
        out): width and max-height both grow by half, clamped so a small screen still fits it — see docs/DECISIONS.md. */
     .add-dev-panel{width:min(780px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
@@ -506,12 +507,14 @@ export class FloorplanStudioEditor extends LitElement {
     .habox-sub{padding-left:14px}
     .scene{border:1px solid var(--line,#8884);border-radius:6px;padding:4px 6px;margin:4px 0} .scene-item{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:2px 0} .scene-item>span:first-child{flex:1;min-width:80px} .scene-item .btn,.scene-item select,.scene-item input{width:auto} .scene-item input[type=number]{width:90px} .scene-item .tag{opacity:.7}
     .harow2{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:2px 0} .harow2>span:first-child{flex:1;min-width:80px} .harow2 .btn{width:auto}
-    aside{display:flex;flex-direction:column;gap:12px}
+    /* S22.6: the aside is its own scroll container, as tall as the canvas beside it (same height rule, same floor), so
+       a long room panel scrolls inside it and the plan stays put; before, it grew the page and scrolling it moved the plan away. */
+    aside{display:flex;flex-direction:column;gap:12px;overflow:auto;max-height:max(420px, var(--fp-editor-height,calc(100vh - 150px)))}
     aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}
     aside input:not([type=checkbox]),aside select{width:100%;box-sizing:border-box}
     /* S10.1: fp-combo sizes itself (its own :host rule); margin-top here only matches the spacing a select/input
-       gets from the label above it. aside has no overflow of its own, so the combo's dropdown (position:absolute,
-       inside its shadow root) is never clipped. */
+       gets from the label above it. Since S22.6 the aside scrolls, so a combo's dropdown (position:absolute, inside
+       its shadow root) that reaches past the aside's bottom extends the scroll area instead of spilling over the page. */
     aside fp-combo{margin-top:2px}
     .row{display:flex;gap:6px}
     /* S8.9.1 / Opus review of S8.9: hints are written to fit one line at the sidebar's own width; nowrap+ellipsis
@@ -1111,7 +1114,10 @@ export class FloorplanStudioEditor extends LitElement {
   };
   /** Where a floating panel of width `w` opens: centred under the toolbar, never off the left edge. */
   /** S18.7: centred in the viewport, whatever the page scroll or the toolbar's height. `h` is the panel's largest height (its CSS max-height). */
-  private panelPos(w: number, h = window.innerHeight * 0.8) { return { x: Math.max(20, (window.innerWidth - w) / 2), y: Math.max(8, Math.round((window.innerHeight - Math.min(h, window.innerHeight - 16)) / 2)) }; }
+  /** S22.3: `h` defaults to the tallest a Place or Add popup may grow (CSS `100vh - 40px`), not 80vh: placed as if
+   *  shorter, a long popup ran off the bottom of the window and its Place button could not be reached. Callers pass
+   *  the popup's real CSS width for the same reason (Add was placed as if 520 px wide and ran off the right edge). */
+  private panelPos(w: number, h = window.innerHeight - 40) { return { x: Math.max(0, Math.round((window.innerWidth - w) / 2)), y: Math.max(8, Math.round((window.innerHeight - Math.min(h, window.innerHeight - 16)) / 2)) }; }
   /**
    * S8.10 follow-up (Opus review): a floating panel used to always open at a hardcoded y:90 — fine for the one-row
    * toolbar this was measured against, but the toolbar's own right-aligned cluster can wrap onto several rows at a
@@ -1154,7 +1160,7 @@ export class FloorplanStudioEditor extends LitElement {
   private openPlace(i: number) {
     const r = this.st.f.rooms[i];
     if (!r) return;
-    this.placeRoom = r.id; this.placeOn = new Set(); this.placeType = null; this.placePos = this.panelPos(440);
+    this.placeRoom = r.id; this.placeOn = new Set(); this.placeType = null; this.placePos = this.panelPos(Math.min(660, window.innerWidth - 24)); // .place-panel width
     this.requestUpdate();
   }
   private closePlace() { this.placeRoom = null; this.placePos = null; this.requestUpdate(); }
@@ -1226,7 +1232,7 @@ export class FloorplanStudioEditor extends LitElement {
   /** Closes the Add menu and opens the panel, filters reset, search focused. */
   private openAddDev() {
     this.closeMenus();
-    this.addDevPos = this.panelPos(520);
+    this.addDevPos = this.panelPos(Math.min(780, window.innerWidth - 24)); // .add-dev-panel width
     this.addDevQuery = ""; this.addDevFloor = ""; this.addDevRoom = ""; this.addDevArea = ""; this.addDevType = "";
     this.requestUpdate();
     void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLInputElement>("#addDevSearch")?.focus({ preventScroll: true }));
