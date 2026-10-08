@@ -3,7 +3,7 @@ import { demo } from "./helpers-3d";
 import { FLOORPLAN_CSS, THEMES, renderFloor } from "../../src/core/render";
 import { DEVICE_TYPES } from "../../src/core/schema";
 
-// S23.4 (V9 first rule, V10, V11): off is quiet, on is solid. Read back from Chromium (finding 10: a CSS string is blind to
+// S23.4 (V9 first rule, V10, V11): off is quiet, on is solid. S23.5 (V12): unavailable is its own mark. Read back from Chromium (finding 10: a CSS string is blind to
 // specificity; `.dev.dev-motion path` and the per-type rules both compete with the on glyph). The markup is renderFloor's own.
 
 const st = (state: string, attributes: object = {}) => ({ state, attributes, last_changed: "2026-09-19T10:00:00Z" });
@@ -28,9 +28,15 @@ const read = (page: Page) => page.evaluate(() => {
   const x = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!;
   const rgb = (c: string) => { x.clearRect(0, 0, 1, 1); x.fillStyle = "#000"; x.fillStyle = c; x.fillRect(0, 0, 1, 1); return Array.from(x.getImageData(0, 0, 1, 1).data).slice(0, 3); };
   const idle = getComputedStyle(document.querySelector("#p")!).getPropertyValue("--fp-idle").trim();
-  return { idle: rgb(idle), devs: [...document.querySelectorAll("#p g[data-x]")].map((g) => {
+  const tok = (n: string) => rgb(getComputedStyle(document.querySelector("#p")!).getPropertyValue(n).trim());
+  return { idle: rgb(idle), warn: tok("--fp-warn"), bg: tok("--fp-bg"), devs: [...document.querySelectorAll("#p g[data-x]")].map((g) => {
     const h = getComputedStyle(g.querySelector(".halo")!), p = getComputedStyle(g.querySelector("path:not(.cone)")!);
-    return { cls: g.getAttribute("class")!, disc: rgb(h.fill), discOp: parseFloat(h.fillOpacity), stroke: h.stroke, glyph: rgb(p.fill), glyphOp: parseFloat(p.fillOpacity) * parseFloat(p.opacity) };
+    const mark = g.querySelector(".gone-mark"), mc = mark && getComputedStyle(mark.querySelector("circle")!), ml = mark && getComputedStyle(mark.querySelector("line")!);
+    return {
+      cls: g.getAttribute("class")!, groupOp: parseFloat(getComputedStyle(g).opacity), disc: rgb(h.fill), discOp: parseFloat(h.fillOpacity), stroke: h.stroke, ring: h.stroke === "none" ? null : rgb(h.stroke), dash: h.strokeDasharray,
+      glyph: rgb(p.fill), glyphOp: parseFloat(p.fillOpacity) * parseFloat(p.opacity),
+      mark: mark && { fill: rgb(mc!.fill), stroke: rgb(mc!.stroke), line: rgb(ml!.stroke), display: getComputedStyle(mark).display, pe: getComputedStyle(mark).pointerEvents },
+    };
   }) };
 });
 const lum = (c: number[]) => { const l = c.map((v) => { const s = v / 255; return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }); return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2]; };
@@ -71,6 +77,41 @@ for (const theme of THEMES_ALL) {
     }
   });
 }
+
+for (const theme of THEMES_ALL) {
+  test(`${theme}: unavailable is its own mark, a dashed warn ring, the glyph at idle and a slash badge, for every type (S23.5)`, async ({ page }) => {
+    const gone = Object.fromEntries(ALL.map((d, i) => [d.entity, st(i % 2 ? "unavailable" : "unknown")]));
+    const off = Object.fromEntries(ALL.map((d) => [d.entity, { ...st(d.type === "alarm" ? "disarmed" : "off"), last_changed: "2026-09-18T10:00:00Z" }]));
+    await page.setContent(plan(theme, markup(gone)));
+    const g = await read(page);
+    await page.setContent(plan(theme, markup(off)));
+    const o = await read(page);
+    for (const [i, d] of g.devs.entries()) {
+      const type = ALL[i].type;
+      expect(d.cls, type).toMatch(/ unavailable\b/);
+      expect(d.groupOp, `${type}: no faded ghost`).toBe(1);
+      expect(d.discOp, `${type} disc`).toBe(0);
+      expect(d.ring, `${type} ring`).toEqual(g.warn);
+      expect(d.dash, `${type} dashed`).not.toBe("none");
+      expect(d.glyph, `${type} glyph`).toEqual(g.idle); // the camera's own tint too: dead is dead
+      expect(d.glyphOp, `${type} glyph opacity`).toBeCloseTo(0.7, 5);
+      expect(d.mark, `${type} badge`).toEqual({ fill: g.bg, stroke: g.warn, line: g.warn, display: "inline", pe: "none" });
+      // and it differs from off, in the DOM and in computed style
+      expect(o.devs[i].mark, `${type} off has no badge`).toBeNull();
+      expect(o.devs[i].ring, `${type} off has no ring`).toBeNull();
+    }
+  });
+}
+
+test("an unavailable device still takes a click on its disc, and the badge does not steal it", async ({ page }) => {
+  await page.setContent(plan("light", markup({ "x.d1": st("unavailable") })));
+  const box = (await page.locator('#p g[data-x="1"] .halo').boundingBox())!;
+  const at = (x: number, y: number) => page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.closest("g[data-x]")?.getAttribute("data-x") ?? null, [x, y]);
+  expect(await at(box.x + box.width / 2, box.y + 3)).toBe("1");
+  const mark = (await page.locator('#p g[data-x="1"] .gone-mark circle').boundingBox())!;
+  const top = await page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.closest(".gone-mark") ? "mark" : "other", [mark.x + mark.width / 2, mark.y + mark.height / 2]);
+  expect(top).toBe("other");
+});
 
 test("an off device still takes a click on its disc area (the clear disc is painted, not fill:none)", async ({ page }) => {
   await page.setContent(plan("light", markup({ "x.d1": st("off") })));

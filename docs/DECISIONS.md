@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: unavailable is its own mark (S23.5, V12)
+
+Supersedes "Unavailable lights and switches read as off" (2026-10-06) and the 45 % opacity of S2.6. "Off" and "I don't know" are different facts; drawing a dead lamp as off told the user it was off.
+- `classOf` returns `unavailable` for every type whose state is `unavailable` or `unknown`. A bound light is unavailable only when every state it has is dead: a relay that says off still says the lamp is off, and one that says on lights it. No state at all is still off.
+- The mark: no disc (the halo stays painted at 0 so it takes the click), a dashed `--fp-warn` ring, the glyph at `--fp-idle` .7, and `<g class="gone-mark">`, a circle in `--fp-bg` and a slash in `--fp-warn` at the disc's top right, with no pointer events. A circle and a line, not a path, so no glyph rule paints it. The group is no longer at 45 %.
+- `g.dev.unavailable path` (0,2,2) outranks the per-type tints; weakened to `.dev.unavailable path`, the Playwright pair fails on the motion glyph.
+- In 3D the ball of an unavailable device is idle like an off one; its HTML icon carries the ring and badge.
+Tests changed on purpose (finding 19): the dead light, plug and bound-light classes in render.test.ts, card.test.ts, live.test.ts and plug-power.test.ts; three editor Playwright pairs that pinned the 45 % ghost; one comment in card-3d-live.spec.ts.
+
 ## 2026-10-08: off is quiet, on is solid (S23.4, V9 first rule, V10, V11)
 
 Supersedes "an off icon's disc is 50 % in every theme" (2026-09-23) and the 60 % disc of an on motion or contact sensor (S8.13).

@@ -148,11 +148,11 @@ describe("renderFloor", () => {
     expect(group).not.toContain("--fp-dev-opacity");
   });
 
-  it("marks unavailable and unknown entities, except lights and switches, which read as off (Diego, 2026-10-06)", () => {
+  it("marks unavailable and unknown entities, lights and switches too (S23.5; supersedes 2026-10-06, which drew them off)", () => {
     const html = renderFloor(ground, { ...base, state: { "light.demo_living": st("unavailable"), "light.demo_kitchen": st("unknown"), "switch.demo_tv_plug": st("unavailable"), "camera.demo_hall": st("unavailable") } });
-    expect(html).toMatch(/data-x="0"[^>]*class="dev dev-light bound off"/);
-    expect(html).toMatch(/data-x="1"[^>]*class="dev dev-light off"/);
-    expect(html).toMatch(/data-x="3"[^>]*class="dev dev-plug off"/);
+    expect(html).toMatch(/data-x="0"[^>]*class="dev dev-light bound unavailable"/);
+    expect(html).toMatch(/data-x="1"[^>]*class="dev dev-light unavailable"/);
+    expect(html).toMatch(/data-x="3"[^>]*class="dev dev-plug unavailable"/);
     expect(html).toMatch(/data-x="6"[^>]*class="dev dev-camera unavailable"/);
   });
 
@@ -744,9 +744,9 @@ describe("bound light", () => {
   it("is off when both are off", () => {
     expect(cls(g({ [L1]: st("off"), [S1]: st("off") }))).toBe("dev dev-light bound off");
   });
-  it("is off, never dimmed, when every present state is unavailable or unknown", () => {
-    expect(cls(g({ [L1]: st("unavailable"), [S1]: st("unknown") }))).toBe("dev dev-light bound off");
-    expect(cls(g({ [L1]: st("unavailable") }))).toBe("dev dev-light bound off");
+  it("is unavailable when every present state is unavailable or unknown, else what the live one says (S23.5)", () => {
+    expect(cls(g({ [L1]: st("unavailable"), [S1]: st("unknown") }))).toBe("dev dev-light bound unavailable");
+    expect(cls(g({ [L1]: st("unavailable") }))).toBe("dev dev-light bound unavailable");
     expect(cls(g({ [L1]: st("unavailable"), [S1]: st("on") }))).toBe("dev dev-light bound on");
     expect(cls(g({ [L1]: st("unavailable"), [S1]: st("off") }))).toBe("dev dev-light bound off");
   });
@@ -1476,9 +1476,9 @@ describe("S2.9: a device wears its colour when it is on", () => {
     expect(FLOORPLAN_CSS).toContain(".dev-switch.on{--fp-dev:var(--fp-idle)}");
   });
 
-  it("Break it: an unavailable light reads as off, never on, whatever the colour rule says", () => {
+  it("Break it: an unavailable light reads as unavailable, never on, whatever the colour rule says (S23.5)", () => {
     const html = draw([dev("light", "light.x")], { "light.x": st("unavailable") });
-    expect(classOfDev(html)).toContain("off");
+    expect(classOfDev(html)).toContain("unavailable");
     expect(classOfDev(html)).not.toContain("on");
   });
 });

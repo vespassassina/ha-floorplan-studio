@@ -5086,16 +5086,18 @@ test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-d
   expect(motion.haloFill).toBe(rgb("#d64545"));
 });
 
-test("Opus review CSS pair: S2.9 break-it, a light that is on and unavailable keeps the unavailable opacity (render.test.ts:S2.9)", async ({ page }) => {
+// S23.5: unavailable is no longer a 45 % ghost but its own mark; the colour rule must still never paint over it.
+test("Opus review CSS pair: S2.9 break-it, a light that is on and unavailable keeps the unavailable mark (render.test.ts:S2.9)", async ({ page }) => {
   const g = page.locator("svg g.dev-light").first();
   const opacityWith = (on: boolean, unavailable: boolean) => g.evaluate((e, [o, u]) => {
     e.classList.toggle("on", o as boolean);
     e.classList.toggle("unavailable", u as boolean);
-    return getComputedStyle(e).opacity;
+    const h = getComputedStyle(e.querySelector(".halo")!);
+    return `${getComputedStyle(e).opacity}|${h.fillOpacity}|${h.strokeDasharray === "none" ? "solid" : "dashed"}`;
   }, [on, unavailable] as const);
-  expect(await opacityWith(false, false)).toBe("1");
-  expect(await opacityWith(true, false)).toBe("1");
-  expect(await opacityWith(true, true)).toBe("0.45"); // the colour rule never overrides unavailable
+  expect(await opacityWith(false, false)).toBe("1|0|solid");
+  expect(await opacityWith(true, false)).toBe("1|1|solid");
+  expect(await opacityWith(true, true)).toBe("1|0|dashed"); // the colour rule never overrides unavailable
   await opacityWith(false, false); // leave the fixture clean
 });
 
@@ -6316,7 +6318,7 @@ test("Opus review CSS pair: S7.8 a person glides (transform .6s), is 35 % when a
     const plain = { op: cs().opacity, fill: getComputedStyle(path).fill };
     e.classList.add("away"); const away = cs().opacity; e.classList.remove("away");
     e.classList.add("on", "home"); const home = { op: cs().opacity, fill: getComputedStyle(e.querySelector(".halo")!).fill }; // S23.4: the disc wears it
-    e.classList.add("unavailable"); e.classList.remove("on", "home"); const gone = cs().opacity;
+    e.classList.add("unavailable"); e.classList.remove("on", "home"); const gone = `${cs().opacity}|${getComputedStyle(e.querySelector(".halo")!).strokeDasharray !== "none"}`;
     return { glide, plain, away, home, gone };
   });
   expect(got.glide).toEqual({ prop: "transform", dur: "0.6s" });
@@ -6324,7 +6326,7 @@ test("Opus review CSS pair: S7.8 a person glides (transform .6s), is 35 % when a
   expect(got.away).toBe("0.35");
   expect(got.home).toEqual({ op: "1", fill: rgb("#1b9e77") });
   expect(got.plain.fill).not.toBe(rgb("#1b9e77"));
-  expect(got.gone).toBe("0.45");
+  expect(got.gone).toBe("1|true"); // S23.5: unavailable is the dashed ring, not a 45 % ghost
 });
 
 test("S7.9: the Targets field shows only for a radar, add/remove writes target pairs, and changing type away drops them", async ({ page }) => {

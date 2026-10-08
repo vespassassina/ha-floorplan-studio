@@ -419,11 +419,15 @@ ${DEV_ON_RULES.replace(/\{--fp-dev:var\((--fp-[a-z-]+)\)\}/g, "{--fp-dev-ink:var
 .siren-ring.w2{animation-delay:.5s}
 @keyframes fp-siren{from{transform:scale(1);opacity:1}to{transform:scale(calc(1 + 3.8*var(--fp-fx,1)));opacity:0}}
 @media (prefers-reduced-motion:reduce){.ping,.door-alert,.wave,.siren-ring{animation:none}.ping,.wave{transform:scale(calc(1 + .5*var(--fp-fx,1)));opacity:.6}.siren-ring{transform:scale(calc(1 + 2*var(--fp-fx,1)));opacity:.8}}
-.dev.unavailable{opacity:.45}
+/* S23.5 (V12): unavailable is its own mark, not a faded off: no disc, a dashed warn ring, the glyph at idle and a slash badge
+   (.gone-mark, a circle and a line, so no path rule paints it). g.dev.unavailable path (0,2,2) outranks the per-type tints. */
+.dev.unavailable .halo{fill-opacity:0;stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2}
+g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
+.gone-mark{pointer-events:none} .gone-mark circle{fill:var(--fp-bg);stroke:var(--fp-warn);stroke-width:1.5;vector-effect:non-scaling-stroke} .gone-mark line{stroke:var(--fp-warn);stroke-width:1.5;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .dev.dim{opacity:.3}
 /* S7.8: a person glides to the room its room sensor names. The position is an inline CSS transform, not an attribute, so
    this rule can animate it; the card replays the old position before the new one (a FLIP), because each render builds new
-   nodes. Away is a person at 35 %, with the away mark in the group; unavailable stays .45 like every device. */
+   nodes. Away is a person at 35 %, with the away mark in the group; unavailable wears the gone mark like every device. */
 .dev-person{transition:transform .6s ease} .dev-person.away{opacity:.35} .dev-person .away-mark{fill:var(--fp-idle);stroke:var(--fp-outline);stroke-width:1;vector-effect:non-scaling-stroke}
 @media (prefers-reduced-motion:reduce){.dev-person{transition:none}}
 /* S7.9: a radar target dot, one per tracked person, in the radar's own colour, taking no clicks. */
@@ -574,7 +578,8 @@ const dead = (s: string) => s === "unavailable" || s === "unknown";
 function boundClassOf(d: Device, o: RenderOpts): Cls {
   const seen = [o.state?.[d.entity], d.bound ? o.state?.[d.bound] : undefined].filter((s) => s !== undefined);
   if (seen.some((s) => s.state === "on")) return "on";
-  return "off"; // Diego, 2026-10-06: a dead light or switch reads as off, not as a dimmed ghost
+  // S23.5: dead only when nothing we heard says otherwise; a relay that reports off still tells us the lamp is off
+  return seen.length > 0 && seen.every((s) => dead(s.state)) ? "unavailable" : "off";
 }
 
 /** A light that is on takes its icon fill from `attributes.rgb_color` when present; unset otherwise, so `.dev.on path`'s `var(--fp-dev-fill,var(--fp-on))` falls through to the flat colour. Untrusted `state`: a malformed value is silently ignored, not thrown on. */
@@ -657,7 +662,7 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   if (d.type === "light" && d.bound) return boundClassOf(d, o);
   const s = o.state?.[d.entity];
   if (!s) return "off";
-  if (dead(s.state)) return d.type === "light" || d.type === "switch" || d.type === "plug" ? "off" : "unavailable";
+  if (dead(s.state)) return "unavailable"; // S23.5: every type, a light, switch or plug too: "I don't know" is not "off"
   if (d.type === "ac") return acMode(d, o) ? "on" : "off";
   if (d.type === "plug") return plugOn(d, o, s) ? "on" : "off";
   if (d.type === "climate" || d.type === "heater") return s.attributes.hvac_action === "heating" ? "on" : "off";
@@ -991,6 +996,8 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
     if (drawsEffect(d) && fxScale(d) !== 1) style.push(`--fp-fx:${num(fxScale(d))}`);
     // S7.8: an away person carries a small grey dot on the disc's edge, so away reads without relying on the fade alone.
     const mark = person && cls.endsWith(" away") ? `<circle class="away-mark" cx="23" cy="1" r="4.5"/>` : "";
+    // S23.5: an unavailable device carries a slashed badge on the disc's edge, so dead reads without relying on colour.
+    const gone = base === "unavailable" ? `<g class="gone-mark"><circle cx="23" cy="1" r="5"/><line x1="19.8" y1="4.2" x2="26.2" y2="-2.2"/></g>` : "";
     // S8.13: a triggered motion or contact sensor sends out a ring from under its disc, so it reads at a glance.
     const ping = (d.type === "motion" || d.type === "contact") && base === "on" ? `<circle class="ping" cx="12" cy="12" r="16"/>` : "";
     // S9.4: a speaker or media device playing sends out two arcs, staggered — exactly "playing", not the generic
@@ -1013,7 +1020,7 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
       ? `<circle class="siren-ring" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
         `<circle class="siren-ring w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
       : "";
-    const icon = `${ping}${wave}${siren}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
+    const icon = `${ping}${wave}${siren}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}${gone}`;
   return { cls, base, style, icon, s };
 }
 
