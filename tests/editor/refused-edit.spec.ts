@@ -151,3 +151,47 @@ test("turning furniture with its slider under Fix plan keeps it still and offers
   expect((await layoutOf(page)).floors.ground.furniture[0].rot).toBe(0);
   await expect(page.locator("#frotval")).toHaveText("0°");
 });
+
+// Opus re-check: `planBlocked` went stale. After a lock refusal and Untick Fix plan, an empty floor title was refused for
+// its own reason, and the banner still said the plan was fixed while the box was unticked.
+test("after Untick Fix plan, an empty or unchanged floor title is not blamed on the lock", async ({ page }) => {
+  const ft = page.locator("#ft");
+  const enter = async (text: string) => {
+    await clickBox(page, "#ft");
+    await ft.press("ControlOrMeta+a");
+    if (text) await page.keyboard.type(text); else await page.keyboard.press("Backspace");
+    await page.keyboard.press("Enter");
+  };
+  await enter("Loft");
+  await expect(banner(page)).toBeVisible();
+  await clickBox(page, ".banner #bannerUnfix");
+  await expect(page.locator("#fixPlan")).not.toBeChecked();
+  await enter("");
+  await expect(ft).toHaveValue("Ground");
+  await enter("  Ground  ");
+  await expect(ft).toHaveValue("Ground");
+  await expect(page.locator(".banner #bannerUnfix")).toHaveCount(0);
+  await expect(page.getByText("plan is fixed")).toHaveCount(0);
+});
+
+// Opus re-check nit: a refused slider warned on every input tick of a drag. One drag, one warning.
+test("dragging the furniture slider under Fix plan warns once, not on every tick", async ({ page }) => {
+  const c = await screenOf(page, 250, 320); // the sofa
+  await page.mouse.click(c.x, c.y);
+  if (await banner(page).count()) await clickBox(page, ".banner #bannerClose");
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, orig = el.planFixed.bind(el);
+    el.__warned = 0;
+    el.planFixed = () => { el.__warned++; return orig(); };
+  }, EDITOR);
+  const sl = page.locator("#frotsl");
+  await sl.scrollIntoViewIfNeeded();
+  const b = (await sl.boundingBox())!, y = b.y + b.height / 2;
+  await page.mouse.move(b.x + 4, y);
+  await page.mouse.down();
+  for (let k = 1; k <= 8; k++) await page.mouse.move(b.x + 4 + (b.width - 8) * k / 8, y);
+  await page.mouse.up();
+  await expect(banner(page)).toBeVisible();
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).__warned, EDITOR)).toBe(1);
+  expect((await layoutOf(page)).floors.ground.furniture[0].rot).toBe(0);
+});

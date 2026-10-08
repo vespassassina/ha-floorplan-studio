@@ -662,7 +662,9 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); else this.refused(); };
   /** A writer said no. When the plan lock is why, say so and offer the way out; otherwise redraw, so a field shows the layout again. */
-  private refused() { if (this.st.planBlocked) this.planFixed(); else this.requestUpdate(); }
+  private refused() { if (this.st.planLocked && this.st.planBlocked) this.planFixed(); else this.requestUpdate(); }
+  /** A slider refused by the lock warns once per drag: while its banner shows, a later tick only snaps the slider back. */
+  private slideRefused() { if (this.banner?.action?.id === "bannerUnfix") this.requestUpdate(); else this.planFixed(); }
   /** The one reply to a change the plan lock refused ("Fix plan" is ticked). */
   private planFixed(): boolean {
     this.status = "The plan is fixed. Devices and objects stay editable";
@@ -673,6 +675,7 @@ export class FloorplanStudioEditor extends LitElement {
   /** The toolbar's Fix plan box and the banner's Untick Fix plan button both come here. */
   private setPlanLocked(on: boolean) {
     this.st.planLocked = on;
+    this.st.planBlocked = false; // a refusal from before belongs to the old setting
     if (on) this.stopDraw();
     this.status = on ? "Plan fixed: only devices and objects can change" : "Plan unlocked";
     this.requestUpdate();
@@ -699,7 +702,7 @@ export class FloorplanStudioEditor extends LitElement {
    * pattern a mouse drag uses); `commit`, once at release, records the whole drag as one step — none if it ended back
    * where it started (mirrors `begin()`/`onUp` for a pointer drag). */
   private rotateTexture = (on: "rooms" | "stairs", i: number, rot: number, phase: "live" | "commit") => {
-    if (this.st.planLocked) { this.planFixed(); return; } // a texture is the plan; the slider snaps back on the redraw
+    if (this.st.planLocked) { this.slideRefused(); return; } // a texture is the plan; the slider snaps back on the redraw
     // A commit with no prior live tick (a click on the track, or an arrow key) still needs a "before": take it now,
     // before the value below is applied.
     if (!this.textureRotGesture) this.textureRotGesture = structuredClone(this.st.layout);
@@ -716,7 +719,7 @@ export class FloorplanStudioEditor extends LitElement {
   };
   /** The furniture and unlinked panels' rotation slider. Same live/commit gesture as `rotateTexture`. */
   private rotateItem = (on: "furniture" | "unlinked", i: number, rot: number, phase: "live" | "commit") => {
-    if (on === "furniture" && this.st.planLocked) { this.planFixed(); return; } // furniture is the plan; an object is not
+    if (on === "furniture" && this.st.planLocked) { this.slideRefused(); return; } // furniture is the plan; an object is not
     if (!this.itemRotGesture) this.itemRotGesture = structuredClone(this.st.layout);
     const g = structuredClone(this.st.f);
     const o = g[on][i];
@@ -730,7 +733,7 @@ export class FloorplanStudioEditor extends LitElement {
   };
   /** S4.19: the paint panel's scale slider. Same live/commit gesture as `rotateTexture`. */
   private scaleTexture = (on: "rooms" | "stairs", i: number, scale: number, phase: "live" | "commit") => {
-    if (this.st.planLocked) { this.planFixed(); return; }
+    if (this.st.planLocked) { this.slideRefused(); return; }
     if (!this.textureScaleGesture) this.textureScaleGesture = structuredClone(this.st.layout);
     const g = structuredClone(this.st.f);
     const shape = g[on][i];
