@@ -6,6 +6,7 @@
 - Card and studio (groundwork): one search box, opened with ⌘K, Ctrl+K or /. Arrows move through the results, Enter picks, Escape clears and then closes. Each result shows its room, floor and type.
 - Card: the card file is a quarter smaller (109 to 84 KB gzipped). The build drops the code's comments and spaces; the panel (158 to 131 KB) and the 3D view (196 to 145 KB) shrink too.
 - Card and Studio: a plan in another theme placed inside a solarized one keeps its own colour for garden, terrace, pavement and water names.
+- Card: switching floors in 3D no longer stalls. Each switch compiled the 3D view's shaders again, which took most of a second on a slow tablet; the view now keeps them while it is open.
 
 ## 0.21.0 - 2026-10-08
 
