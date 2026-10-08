@@ -2672,3 +2672,62 @@ Branch `task/s23-visual`. From the visual review (V-ids, review of 2026-10-08). 
       quote state.
 - [ ] S23.F5 Left by the coders: paint dim in 3D; a heavier dash on a selected zone; 3D walls on HA dark still mix 55 %;
       JSDoc still ships in the card (about 16 KB gzip); `docs/img/themes/*.png` are out of date.
+
+## Sprint 24 (0.22.0): find and navigate
+
+Branch `task/s24-find`. From the UX reviews of 2026-10-08 (U-, C-, F-, G-, A-ids). Goal: on the stress house (437
+devices) any device is two keystrokes away, and the card says what is wrong before what is on. Design rules from the
+review: one search everywhere (⌘K or `/`), Enter goes to the thing; chrome sits beside the plan, not over it; a list row
+is one target. Each task: one outcome, its failing test first; per-type rules iterate `DEVICE_TYPES` (finding 17);
+every CSS rule that matters gets its `getComputedStyle` pair (finding 10); real `page.mouse` and `page.keyboard`
+(finding 3). Out of scope here: per-device lock and the Inspector (sprint 26), semantic zoom and room badges (sprint 25),
+phone bottom sheet and ⋯ menu (sprint 29), drag from the Outline onto the plan (sprint 26).
+
+Wave 1, core (parallel):
+- [ ] S24.1 (F1, U9) One search index. `src/core/search.ts` builds entries for floors, rooms and devices (friendly name,
+      entity id, room, floor, type label) and ranks a query: exact name, then name prefix, then word prefix, then
+      substring, then entity id, then room. Case and accents ignored; several words must all match. Test: on
+      `tests/fixtures/stress-layout.json`, "bedside guest" ranks the guest bedroom bedside lamp first, an entity id
+      finds its device, an empty query returns nothing, 437 devices query in under 5 ms.
+- [ ] S24.2 One search box for both apps. `<fp-search>` in `src/card/search-box.ts`: an ARIA combobox (input,
+      listbox, `aria-activedescendant`), each option shows name and "room · floor · type", arrows move, Enter picks
+      and fires `fp-pick`, Escape clears then closes. The host binds ⌘K, Ctrl+K and `/` on itself, never `window`
+      (finding 6). Colours only through `--fp-*`. Test: Playwright on a harness page, real keyboard, every step.
+- [ ] S24.3 (G1, G2, G3) What is wrong. `src/core/attention.ts`: triggered alarm, then armed alarm, open doors and
+      windows, unlocked locks, water and smoke on, low battery (under 20 %), unavailable (one folded row with a count).
+      Per-floor counts and an alarm flag for the floor tabs. Room and floor facts split "Open" from "Unlocked"; an
+      unlocked lock is no longer "open". Cameras leave the Active list (`ACTIVE_LIST_RULE` no longer "always").
+      Test: iterate `DEVICE_TYPES`, each type's attention rule written down; the stress fixture's counts by hand.
+- [ ] S24.4 (S23.F5, S23.F3) Room for the sprint in the card budget: JSDoc out of the shipped card, the size limit
+      unchanged; `--fp-text-out` in the generic defaults. Test: the size test; a nested group under solarized keeps
+      its own theme's outdoor ink.
+
+Wave 2, the apps (Studio and card in parallel, two tasks each in order):
+- [ ] S24.5 (U9, U20) Studio search and Outline. `<fp-search>` in the top bar; Enter switches floor, selects, centres
+      at no less than 1:1 and pulses the device. A left column with an Outline tab: floors › rooms › devices with
+      counts, a filter field, a tree with arrow keys; a click or Enter selects and centres. The last node, "Unplaced
+      from HA", groups entities by area; a click opens Add > Device with it picked. The canvas `svg` gets
+      `role="img"` and `aria-label="Floor plan, <floor>"`. The column collapses with a button and starts collapsed
+      under 1100 px. Test: on the stress layout, `/`, a few letters, Enter: the device is selected and its icon's box
+      sits in the canvas centre; the same through the tree by keyboard alone.
+- [ ] S24.6 (U6, U17, U16) Studio Layers replace Filter. A Layers tab beside Outline: one eye per family (the card's
+      categories plus Furniture), all visible by default, one click hides, alt-click shows only that family. The
+      status line names what is hidden ("Layers: lights hidden", "3 of 10 hidden"). Placing under a hidden layer says
+      "Placed 7; 3 hidden by Layers [Show]". Room-scoped lists show friendly names with the id as small text, reuse
+      Place's filter, and dedupe areas by id with the floor added when names repeat. Test: hide lights in one click,
+      no light icon drawn; the status text; the Filter menu is gone.
+- [ ] S24.7 (G1, G2, F2, F3, A3, S22.F4) Card Overview sheet. The Active panel becomes the Overview: Attention on top,
+      then Active by category with state text on each row; scope is the shown floor by default with an "All floors"
+      toggle; the header shows count chips ("6 lights · 2 alerts") instead of one number. A row tap switches floor,
+      pans to the device, pulses it and opens its popup. The whole row is the target; the ▸ chevron goes, its details
+      move into the popup. A relay-lit lamp's row reads on, via the relay. Floor tabs read "Ground · 3" and turn
+      `--fp-warn` on an alarm. Test: a `floor: ground` card on the stress layout lists ground only; a row tap on
+      another floor's device (All floors) switches floor and the popup opens for it.
+- [ ] S24.8 (F1, C2, layers) Card search, floor off, layers. `<fp-search>` at the top of the sheet and on ⌘K and `/`;
+      Enter locates like a row tap. "Turn off on this floor…" opens a checklist (lights with their relays, switches,
+      plugs, media) with counts and one confirm; the exact service calls follow. Room "All off" becomes "Lights off";
+      the preset All off leaves Scenes where the room button exists. Layer chips in the sheet, one per family, per
+      viewer (kept in view memory). Test: on the stress layout, `/`, letters, Enter opens the popup of the right
+      device on its floor; the checklist sends exactly the calls ticked; a hidden family draws no icon.
+- [ ] S24.9 Verify: lint, unit, Playwright bare; new tests `--repeat-each=10`; `npm run shots` looked at; the
+      sprint test, "find a named device on the stress house in two actions, by keyboard alone", in both apps.
