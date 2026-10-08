@@ -103,6 +103,19 @@ export function lampOffEntities(d: Device, state: StateOverlay | undefined): str
   return out;
 }
 
+export const ALL_OFF_TITLE = "Turn off the lights that are on here";
+export const ALL_OFF_SHARED = `${ALL_OFF_TITLE} (a shared relay also turns off lamps elsewhere)`;
+
+/** Sprint 22 review: the All off button's title. A relay it switches off also darkens every other lamp bound to it, so
+ *  when such a lamp stands outside `s` (elsewhere on `floorKey`, or on another floor) the title says so. */
+export function allOffTitle(floors: Record<string, Floor>, floorKey: string, s: RoomSummary): string {
+  const off = new Set(s.offEntities);
+  const inside = new Set(s.devices.filter((r) => !r.piece).map((r) => r.index));
+  const shared = Object.entries(floors).some(([k, f]) => Array.isArray(f?.devices) && f.devices.some((d, i) =>
+    d?.type === "light" && typeof d.bound === "string" && off.has(d.bound) && !(k === floorKey && inside.has(i))));
+  return shared ? ALL_OFF_SHARED : ALL_OFF_TITLE;
+}
+
 const ringOf = (r: Room): Pt[] => (Array.isArray(r.pts) && r.pts.length >= 3 && r.pts.every(finite) ? r.pts : []);
 
 /** The summary of `f.rooms[index]`, or null when there is no such room. */

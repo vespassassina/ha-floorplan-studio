@@ -3,7 +3,7 @@ import type { Device, DeviceType, Door, Floor, Pt } from "../../src/core/schema"
 import { DEVICE_TYPES } from "../../src/core/schema";
 import { FLOORPLAN_CSS, renderFloor, type StateOverlay } from "../../src/core/render";
 import { NO_TOGGLE } from "../../src/card/actions";
-import { ROOM_ROW_TAP, deviceInfo, filterToRoom, floorSummary, formatChanged, meanReading, roomAreaM2, roomSummary } from "../../src/core/room-info";
+import { ALL_OFF_TITLE, ALL_OFF_SHARED, ROOM_ROW_TAP, allOffTitle, deviceInfo, filterToRoom, floorSummary, formatChanged, meanReading, roomAreaM2, roomSummary } from "../../src/core/room-info";
 
 // S11.3 and S11.4 (spec docs/specs/room-sensors.md, criteria 5 and 6). Pure builders: what the card's left panel shows.
 const st = (state: string, attributes: Record<string, unknown> = {}, last_changed = "2026-10-04T10:00:00Z") => ({ state, attributes, last_changed });
@@ -314,5 +314,47 @@ describe("review fixes to the summaries (S20)", () => {
     const s = roomSummary(f, 0, STATE, {})!;
     expect(s.sensors.map((r) => r.entity)).toEqual(["sensor.t1", "sensor.t2"]);
     expect(s.temperature).toBe("21.7 °C"); // (21 + 22.4) / 2, not (21 + 21 + 22.4) / 3 = 21.5
+  });
+});
+
+describe("allOffTitle (Sprint 22 review): All off says when a shared relay reaches lamps elsewhere", () => {
+  // Living's lamp and the Study's lamp share switch.relay; the first floor's landing lamp shares switch.stairs with Living.
+  const lamp = dev("light", "light.lamp", 100, 100, { bound: "switch.relay" });
+  const study = dev("light", "light.study", 600, 100, { bound: "switch.relay" });
+  const hall = dev("light", "light.hall", 200, 100, { bound: "switch.stairs" });
+  const landing = dev("light", "light.landing", 100, 100, { bound: "switch.stairs" });
+  const state: StateOverlay = { "light.lamp": st("off"), "light.study": st("off"), "switch.relay": st("on"), "light.hall": st("off"), "switch.stairs": st("off"), "light.landing": st("off") };
+  const floors = (ground: Floor, first: Floor = floor([])) => ({ ground, first });
+
+  it("a relay that lamps outside the room share: the title says so", () => {
+    const f = floor([lamp, study]);
+    expect(allOffTitle(floors(f), "ground", roomSummary(f, 0, state, {})!)).toBe(ALL_OFF_SHARED);
+  });
+  it("the floor's All off holds both lamps of that relay: the old title", () => {
+    const f = floor([lamp, study]);
+    expect(allOffTitle(floors(f), "ground", floorSummary(f, state, {}))).toBe(ALL_OFF_TITLE);
+  });
+  it("a relay only this room's lamps use, or no relay at all: the old title", () => {
+    const f = floor([lamp, dev("light", "light.plain", 600, 100)]);
+    expect(allOffTitle(floors(f), "ground", roomSummary(f, 0, state, {})!)).toBe(ALL_OFF_TITLE);
+    expect(allOffTitle(floors(f), "ground", roomSummary(f, 1, { ...state, "light.plain": st("on") }, {})!)).toBe(ALL_OFF_TITLE);
+  });
+  it("a lamp on another floor on the relay counts, for a room and for the whole floor", () => {
+    const f = floor([hall]), up = floor([landing]);
+    const on = { ...state, "switch.stairs": st("on") };
+    expect(allOffTitle(floors(f, up), "ground", roomSummary(f, 0, on, {})!)).toBe(ALL_OFF_SHARED);
+    expect(allOffTitle(floors(f, up), "ground", floorSummary(f, on, {}))).toBe(ALL_OFF_SHARED);
+  });
+  it("a relay All off does not switch (it is off) is not mentioned", () => {
+    const f = floor([hall, lamp]), up = floor([landing]);
+    expect(allOffTitle(floors(f, up), "ground", roomSummary(f, 0, state, {})!)).toBe(ALL_OFF_TITLE);
+  });
+  it("the shared title is the old one with the warning after it", () => {
+    expect(ALL_OFF_SHARED.startsWith(ALL_OFF_TITLE)).toBe(true);
+    expect(ALL_OFF_SHARED).toContain("elsewhere");
+  });
+  it("survives junk floors", () => {
+    const f = floor([lamp]);
+    expect(allOffTitle({ ground: f, bad: { devices: 5 } as unknown as Floor }, "ground", roomSummary(f, 0, state, {})!)).toBe(ALL_OFF_TITLE);
   });
 });
