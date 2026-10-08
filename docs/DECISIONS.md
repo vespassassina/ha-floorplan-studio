@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: HA dark 2.5D walls are dark slabs (Opus review of Sprint 23, S2)
+
+In Home Assistant's dark mode `--fp-wall` is HA's primary text colour, a light grey, so a wall's side face, 55 % of it into the card background, was a light grey slab. S23.6 made the rooms dark and showed it. `--fp-wall-side` now takes `--fp-wall-side-share` of the wall: 55 % on every theme, 30 % on HA dark. The share is a variable of its own, so the generic rule, which comes after THEME_EXTRAS at the same specificity, cannot beat it; every theme sets 55 % so a theme group inside an HA dark host does not inherit 30 %. Every other theme's side is unchanged (a computed-style pair checks each). 3D walls still mix 55 % (`three/palette.ts`); not changed here.
+
 ## 2026-10-08: stylesheet comments do not ship (Opus review of Sprint 23, M2)
 
 The card was 117123 gzip against its 115000 budget. The limit stays. Vite's lib mode does not minify template contents, so every `/* */` inside a `css` block and inside `FLOORPLAN_CSS` shipped. `scripts/strip-css-comments.mjs`, a Vite plugin on the card, panel and editor builds, removes them before esbuild: the card is 107924 gzip.

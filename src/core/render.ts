@@ -182,12 +182,13 @@ const BLUEPRINT_IDLE = mixSrgb(tokenOf(BLUEPRINT_TOKENS, "--fp-ink"), tokenOf(BL
 const themeSel = (n: string, extra = "") => `:host([data-theme="${n}"]${extra}),:host([data-theme="${n}"]${extra}) .fp,[data-theme="${n}"]${extra}`;
 const THEME_EXTRAS = [
   `:host,.fp{${themeExtras(BLUEPRINT_TOKENS, true, BLUEPRINT_IDLE)}}`,
-  `:host,.fp,[data-theme]{--fp-pure-black:#000;--fp-pure-white:#fff}`,
+  `:host,.fp,[data-theme]{--fp-pure-black:#000;--fp-pure-white:#fff;--fp-wall-side-share:55%}`,
   ...([["blueprint", BLUEPRINT_TOKENS, true, BLUEPRINT_IDLE], ["midnight", MIDNIGHT_TOKENS, true], ["light", LIGHT_TOKENS, false], ["slate", SLATE_TOKENS, false],
     ["terminal", TERMINAL_TOKENS, true], ["solarized", SOLARIZED_TOKENS, true], ["ha", HA_LIGHT, false], ["coffee", COFFEE_TOKENS, true], ["a-team", A_TEAM_TOKENS, true],
     ["space", SPACE_TOKENS, true], ["cyberpunk", CYBERPUNK_TOKENS, true], ["carpenter-brut", CARPENTER_BRUT_TOKENS, true], ["beach-house", BEACH_HOUSE_TOKENS, false]] as const)
     .map(([n, t, dark, idle]) => `${themeSel(n)}{${themeExtras(t, dark, idle)}}`),
-  `${themeSel("ha", '[data-mode="dark"]')}{${themeExtras(HA_DARK, true)}}`,
+  // Opus review S2: HA dark's wall is its light text colour, so 55 % of it made light grey 2.5D slabs. The generic rule below reads this share.
+  `${themeSel("ha", '[data-mode="dark"]')}{${themeExtras(HA_DARK, true)};--fp-wall-side-share:30%}`,
 ].join("\n");
 /** The ink for a colour only the state or the layout knows (a lamp's rgb, a plug's heat, `layout.colors`): black or white, through a token, so the markup carries no literal colour. */
 const inkVar = (c: string) => (inkFor(c) === "#000" ? "var(--fp-pure-black)" : "var(--fp-pure-white)");
@@ -237,8 +238,10 @@ export const FLOORPLAN_CSS = `
 :host([data-theme="beach-house"]),:host([data-theme="beach-house"]) .fp,[data-theme="beach-house"]{${BEACH_HOUSE_TOKENS}}
 ${THEME_EXTRAS}
 /* 2.5D shades, derived from the theme's own wall colour so every theme has them with no per-theme edit. A custom property
-   that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own. */
-:host,.fp,[data-theme]{--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) 55%,var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg))}
+   that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own.
+   The side is 55% wall unless the theme sets --fp-wall-side-share (HA dark, whose wall is its light text colour). The share
+   is its own variable, never a second --fp-wall-side, so this rule, later and as specific as THEME_EXTRAS, cannot beat it. */
+:host,.fp,[data-theme]{--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) var(--fp-wall-side-share,55%),var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg))}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
    Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
    or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,

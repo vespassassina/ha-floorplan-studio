@@ -50,3 +50,50 @@ test("2.5D CSS pair: boxes, glass, panels, stems and trunks resolve in every the
     expect([r.objPe, r.glassPe, r.stemPe, r.trunkPe], t).toEqual(["none", "none", "none", "none"]);
   }
 });
+
+// Opus review of Sprint 23, S2: in Home Assistant's dark mode --fp-wall is HA's primary text colour, a light grey, so a side
+// face 55% of it into the card background was a light grey slab on a dark plan. On HA dark the face takes less of the wall
+// (--fp-wall-side-share) and stays closer to the dark card than to the light text. Read in a shadow root through :host, as the
+// card draws it, and in a nested theme group; with HA's own dark variables set. Every other theme keeps 55%.
+const HA_DARK_VARS = "--primary-text-color:#e1e1e1;--card-background-color:#1c1c1c;--secondary-background-color:#282828;--secondary-text-color:#9b9b9b";
+const lum = (rgb: number[]) => { const [r, g, b] = rgb.map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const ratio = (a: number[], b: number[]) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+const rgbOf = (css: string): number[] => {
+  const m = /color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)/.exec(css);
+  if (m) return [m[1], m[2], m[3]].map((v) => Number(v) * 255);
+  return (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+};
+/** The side face, the wall, the background and the old 55% mix, as Chromium paints them in probe group `g`. */
+const readSide = (g: Element) => {
+  const c = (el: Element, p: string) => getComputedStyle(el).getPropertyValue(p).trim();
+  const [side, wall, bg, at55] = [...g.children];
+  return { side: c(side, "fill"), wall: c(wall, "fill"), bg: c(bg, "fill"), at55: c(at55, "fill") };
+};
+const PROBES = `<polygon class="ws" points="0,0 1,0 1,1"/><rect style="fill:var(--fp-wall)"/><rect style="fill:var(--fp-bg)"/><rect style="fill:color-mix(in srgb,var(--fp-wall) 55%,var(--fp-bg))"/>`;
+
+test("2.5D CSS pair: on Home Assistant dark a wall's side is dark, nearer the card than the text; through :host and in a theme group", async ({ page }) => {
+  await page.setContent(`<!DOCTYPE html><html><body style="${HA_DARK_VARS}"><div id="host" data-theme="ha" data-mode="dark"></div>
+<style>${FLOORPLAN_CSS}</style><svg><g data-theme="ha" data-mode="dark" data-probe>${PROBES}</g></svg></body></html>`);
+  await page.evaluate(([css, probes]) => {
+    document.getElementById("host")!.attachShadow({ mode: "open" }).innerHTML = `<style>${css}</style><svg class="fp"><g data-probe id="in-host">${probes}</g></svg>`;
+  }, [FLOORPLAN_CSS, PROBES] as const);
+  const viaHost = await page.locator("#in-host").evaluate(readSide), inGroup = await page.locator("body > svg [data-probe]").evaluate(readSide);
+  for (const [where, r] of [["host", viaHost], ["group", inGroup]] as const) {
+    expect(rgbOf(r.wall), `${where}: HA's text colour reached the wall`).toEqual([225, 225, 225]);
+    expect(r.side, `${where}: not the 55% slab`).not.toBe(r.at55);
+    const toBg = ratio(rgbOf(r.side), rgbOf(r.bg)), toWall = ratio(rgbOf(r.side), rgbOf(r.wall));
+    expect(toBg, `${where}: ${r.side} is nearer the card ${r.bg} than the text ${r.wall}`).toBeLessThan(toWall);
+    expect(toBg, `${where}: still a face, not the floor`).toBeGreaterThan(1.5);
+  }
+});
+
+test("2.5D CSS pair: every theme but Home Assistant dark keeps its side at 55% of the wall", async ({ page }) => {
+  await page.setContent(`<!DOCTYPE html><html><body style="${HA_DARK_VARS}"><style>${FLOORPLAN_CSS}</style><svg>${THEMES.map((t) =>
+    `<g data-theme="${t}" id="l-${t}" data-probe>${PROBES}</g>`).join("")}<g data-theme="midnight" data-mode="dark" id="d-midnight" data-probe>${PROBES}</g>
+<g data-theme="ha" data-mode="dark"><g data-theme="blueprint" id="nested" data-probe>${PROBES}</g></g></svg></body></html>`);
+  // "nested": a theme group inside an HA dark one does not inherit HA dark's share.
+  for (const id of [...THEMES.map((t) => `l-${t}`), "d-midnight", "nested"]) {
+    const r = await page.locator(`#${id}`).evaluate(readSide);
+    expect(r.side, id).toBe(r.at55);
+  }
+});
