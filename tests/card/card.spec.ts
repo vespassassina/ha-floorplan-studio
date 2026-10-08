@@ -999,11 +999,11 @@ test.describe("S7.4 touch", () => {
   });
 
   /** Two fingers through CDP (Playwright's touchscreen has only tap). One session for the whole gesture: CDP keeps
-   * the touch state per session. */
+   * the touch state per session. `timestamp` (seconds) replaces the dispatch time, which load makes noise. */
   async function toucher(page: Page) {
     const cdp = await page.context().newCDPSession(page);
-    return (type: "touchStart" | "touchMove" | "touchEnd", touchPoints: { x: number; y: number; id: number }[]) =>
-      cdp.send("Input.dispatchTouchEvent", { type, touchPoints });
+    return (type: "touchStart" | "touchMove" | "touchEnd", touchPoints: { x: number; y: number; id: number }[], timestamp?: number) =>
+      cdp.send("Input.dispatchTouchEvent", { type, touchPoints, ...(timestamp === undefined ? {} : { timestamp }) });
   }
 
   test("a two-finger pinch inside the plan zooms in", async ({ page }) => {
@@ -1032,13 +1032,22 @@ test.describe("S7.4 touch", () => {
     const b = await svgBox(page);
     const x = b.x + b.width / 2, y0 = b.y + b.height - 40;
     const touch = await toucher(page);
+    // S24.F1: the swipe carries its own clock, 16 ms a step, and the finger rests 100 ms before it lifts. Stamped with
+    // dispatch times, it ended in a fling whose speed was whatever the machine's load made it: the page went on
+    // scrolling after the reset below (its tail, or Playwright scrolling Zoom in back into view, left the page at
+    // 1 px before the second swipe began), or flung back to 0. A finger at rest has no speed, so there is no fling,
+    // and `scrollend` marks the end of the page's scroll.
     const swipeUp = async () => {
-      await touch("touchStart", [{ x, y: y0, id: 1 }]);
-      for (let s = 1; s <= 8; s++) await touch("touchMove", [{ x, y: y0 - s * 30, id: 1 }]);
-      await touch("touchEnd", []);
+      const t0 = Date.now() / 1000;
+      await touch("touchStart", [{ x, y: y0, id: 1 }], t0);
+      for (let s = 1; s <= 8; s++) await touch("touchMove", [{ x, y: y0 - s * 30, id: 1 }], t0 + s * 0.016);
+      await touch("touchEnd", [], t0 + 8 * 0.016 + 0.1);
     };
+    type Ended = { __scrollEnded: Promise<void> };
+    await page.evaluate(() => { (window as unknown as Ended).__scrollEnded = new Promise((r) => addEventListener("scrollend", () => r(), { once: true })); });
     await swipeUp();
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(50);
+    await page.evaluate(() => (window as unknown as Ended).__scrollEnded);
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(50);
     expect(await viewBox(page)).toEqual(fit);
     expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
 
@@ -1047,12 +1056,10 @@ test.describe("S7.4 touch", () => {
     await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').tap();
     const z = await viewBox(page);
     expect(z.w).toBeLessThan(fit.w);
-    // S8.2 review: the two taps just added `touch-action: none` to the svg (`.fp-zoomed`); Chromium applies
-    // touch-action on the compositor thread, a frame or two after the main-thread style/class change, so a touch
-    // that starts in the same tick can occasionally scroll the page by a stray pixel before it takes effect. Two
-    // rendered frames is the standard wait for a style change to have actually been committed and painted; it is
-    // not a blind sleep, and its absence was a real, reproducible (about 1 swipe in 10) race, not test flakiness.
-    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    // Nothing has moved the page since the reset, so the last line measures only the swipe below. S8.2 waited two
+    // frames here for `fp-zoomed` to reach the compositor; that was the same fling misread. 400 swipes under load
+    // with no frame wait never scrolled the page (S24.F1).
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
     await swipeUp();
     await expect.poll(async () => (await viewBox(page)).y).toBeGreaterThan(z.y);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);

@@ -638,7 +638,54 @@ Cmd-K or Ctrl-K anywhere, `/` outside a text field.
 
 ## Editor
 
-- Toolbar: floor chips, the device filter ("Filter: all (N)"), menus Add /
+- Search and Outline (S24.5). The top bar holds `<fp-search>` after the floor
+  chips ("Search or run a command ⌘K"); Cmd-K, Ctrl-K or `/` focuses it,
+  bound on the editor host. Its entries are the plan's (search index above)
+  and six commands that run the menus' own code: Fix or Unfix plan, Draw
+  room, Add device…, Zoom to fit, Undo, Save. A pick goes there: a floor
+  switches; a room or device switches floor, is selected, and is centred
+  with the zoom kept or raised to fit, never zoomed out further than fit; a
+  device or piece is ringed (renderFloor's `locate`: three pulses, a still
+  ring under reduced motion). Selecting is not an edit: no undo step. Focus
+  returns to the editor after a pick, so Delete and the arrows act on it.
+  The Outline shows where the pick is: its floor and room open, its row the
+  tree's tab stop and scrolled into view.
+- Left column, beside the canvas, never over it: tabs (Outline, Layers), collapsed to a 36 px rail by a button, open at 260 px. It starts
+  open at 1100 px wide and more. Under 900 px it stacks above the canvas.
+  The Outline: a filter field (every word, in names and entity ids; the
+  branches holding a match open) and an ARIA tree, floors › rooms ›
+  devices with device counts, "No room" last on a floor, a light with a
+  relay as "Floor lamp → Relay 3". Only open branches render. The floor on
+  show starts open. Keys follow the WAI-ARIA tree pattern (Up, Down, Home,
+  End, Right opens then enters, Left closes then goes up, Enter or Space
+  goes); the arrows stay in the tree and do not pan the plan. A click or
+  Enter on a floor, room or device goes there as a search pick does. The
+  last node, "Unplaced from HA · N", groups what Place would offer by HA
+  area; an entity opens Add > Device listing only it, its row focused, so
+  Enter places it.
+- Layers (S24.6, replaced the Filter menu): one row per family, the card's
+  categories then Furniture (`LAYERS`, `src/core/layers.ts`). Each row is a
+  button with `aria-pressed` (shown), an eye, the label and the count on the
+  floor on show; a family with none here is dimmed, still listed. A click
+  hides or shows the family; Alt-click (Option) shows only that one, and
+  again shows all. Show all clears it. A device or unlinked appliance belongs
+  to its type's family; every furniture piece, a linked tv too, to Furniture.
+  `renderFloor`'s `hiddenLayers` draws none of a hidden family, except the
+  selection (`selection`, `keep`). The hidden set is part of the remembered
+  view. When anything is hidden the toolbar shows `#layersNote` ("Layers:
+  lights hidden", "Layers: 3 of 11 hidden", "Layers: only security shown");
+  it opens the tab. Search and the Outline do not follow Layers: a hidden
+  pick is selected and drawn, and the banner says "Hidden by Layers: lights"
+  with Show. A placement (Place, Add device, Add furniture or unlinked, the
+  room menu, the catalog) that lands on a hidden family says "Placed 4
+  devices; 3 hidden by Layers" with Show. Fit ignores Layers.
+- Room-scoped lists (S24.6): the room's right-click lists what Place lists
+  (`areaMenuEntities`), each by name with the entity id in small type. A
+  sensor picker shows the HA name with the id small, never the raw id alone.
+  The area select lists an area once by id, and two areas of one name carry
+  their floor ("Stair hall - Ground") (`areaChoices`).
+- The canvas `svg` has `role="img"` and `aria-label="Floor plan, <floor>"`.
+- Toolbar: floor chips, the Layers line when something is hidden, menus Add /
   Draw / View / Edit / File, Help, Undo, Redo, the status line. View holds
   what only changes the look (snap, measure grid, lengths, names, Preview
   night, theme, Re-center, Fit to window). Edit holds what changes the plan

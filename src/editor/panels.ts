@@ -2,7 +2,7 @@ import { html, nothing, type TemplateResult } from "lit";
 import { live } from "./live-keep";
 import { repeat } from "lit/directives/repeat.js";
 import { DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
-import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, floorsAroundKey, resolveStairDirection } from "../core";
+import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -350,10 +350,10 @@ function floorPanel(c: PanelCtx) {
 /** S4.2: HA areas no room or zone on any floor uses, as buttons that start drawing a room for one. Nothing when every area is on the plan. */
 function unplacedAreas(c: PanelCtx, ha: HaData) {
   const used = new Set(Object.values(c.st.layout.floors).flatMap((f) => f.rooms.map((r: Room) => r.area).filter(Boolean)));
-  const list = byName(ha.areas).filter((a) => !used.has(a.id));
+  const list = areaChoices(ha).filter((a) => !used.has(a.id)); // S24.6 (U16): an area once, its floor when two share a name
   if (!list.length) return nothing;
   return html`<div id="unplacedAreas"><strong>Areas not on the plan (${list.length})</strong>
-    <div class="row">${list.map((a) => html`<button class="btn" @click=${() => c.drawArea(a)}>${a.name}</button>`)}</div>
+    <div class="row">${list.map((a) => html`<button class="btn" @click=${() => c.drawArea(a)}>${a.label}</button>`)}</div>
     ${hint("Click one, then draw its room.")}</div>`;
 }
 
@@ -507,12 +507,18 @@ function multiAttachField(
   look?: { grouped?: (avail: CatalogEntry[]) => GroupedChoice[]; roundRemove?: boolean; boxed?: boolean },
 ) {
   const placed = placedEntities(c.st.layout);
-  const nameOf = (entity: string) => { const e = c.st.layout.catalog.find((x) => x.entity === entity); return e ? (e.room ? `${e.room} - ${e.name}` : e.name) : entity; };
+  // S24.6 (U16): a friendly name first: the catalog's, else Home Assistant's, and only then the raw id.
+  const nameOf = (entity: string) => {
+    const e = c.st.layout.catalog.find((x) => x.entity === entity);
+    if (e) return e.room ? `${e.room} - ${e.name}` : e.name;
+    return c.st.ha?.entities.find((x) => x.id === entity)?.name || entity;
+  };
+  const row = (en: string) => { const n = nameOf(en); return n === en ? html`${en}` : html`${n} <small class="eid">${en}</small>`; };
   const avail = choices.filter((s) => !cur.includes(s.entity));
   // S10.2 behaviour 2: an entity already placed as an icon is still offered, labelled so the user can tell; the
   // suffix is appended to the label only, so `filterCombo`'s name match (label+value+group) still finds it by name.
   const entries = look?.grouped ? look.grouped(avail) : avail.map((s) => ({ entry: s, group: s.room }));
-  const options: ComboOption[] = entries.map(({ entry: s, group }) => ({ value: s.entity, label: placed.has(s.entity) ? `${s.name} (on plan)` : s.name, group }));
+  const options: ComboOption[] = entries.map(({ entry: s, group }) => ({ value: s.entity, label: placed.has(s.entity) ? `${s.name} (on plan)` : s.name, sub: s.name === s.entity ? undefined : s.entity, group }));
   // Picking adds to the list and clears itself: the combo's own value never lingers on the picked entity, unlike a
   // native `<select>` whose "add..." placeholder simply gets reselected next render.
   const add = (v: string) => {
@@ -522,7 +528,7 @@ function multiAttachField(
   };
   const inner = html`<label for=${id}>${label}</label>
     ${combo(id, label, "", options, add, "add...")}
-    ${cur.map((en, k) => html`<p class="attach-row">${nameOf(en)} ${look?.roundRemove ? removeX(`${id}-rm${k}`, nameOf(en), () => set(cur.filter((x) => x !== en))) : button(`${id}-rm${k}`, "Remove", () => set(cur.filter((x) => x !== en)), "warn")}</p>`)}`;
+    ${cur.map((en, k) => html`<p class="attach-row">${row(en)} ${look?.roundRemove ? removeX(`${id}-rm${k}`, nameOf(en), () => set(cur.filter((x) => x !== en))) : button(`${id}-rm${k}`, "Remove", () => set(cur.filter((x) => x !== en)), "warn")}</p>`)}`;
   return look?.boxed ? html`<div class="sens-box">${inner}</div>` : inner;
 }
 
@@ -683,7 +689,7 @@ function roomLink(c: PanelCtx, ha: HaData, i: number) {
   const r = c.st.f.rooms[i], key = c.st.floor;
   const used = new Set<string>();
   for (const [fk, fl] of Object.entries(c.st.layout.floors)) fl.rooms.forEach((o: Room, j: number) => { if (o.area && !(fk === key && j === i)) used.add(o.area); });
-  const areas = byName(ha.areas), free = areas.filter((a) => !used.has(a.id)), taken = areas.filter((a) => used.has(a.id));
+  const areas = areaChoices(ha), free = areas.filter((a) => !used.has(a.id)), taken = areas.filter((a) => used.has(a.id));
   const unknown = !!r.area && !areas.some((a) => a.id === r.area);
   const norm = (t: string) => t.trim().toLowerCase();
   const hits = !r.area || unknown ? areas.filter((a) => r.name.trim() && norm(a.name) === norm(r.name)) : [];
@@ -695,7 +701,8 @@ function roomLink(c: PanelCtx, ha: HaData, i: number) {
     });
     if (hit && used.has(hit.id)) c.say(`${hit.name} is already on the plan`);
   };
-  const opt = (a: { id: string; name: string }) => html`<option value=${a.id} ?selected=${a.id === r.area}>${a.name}</option>`;
+  // S24.6 (U16): an area HA sends twice is listed once; two areas of one name carry their floor.
+  const opt = (a: { id: string; label: string }) => html`<option value=${a.id} ?selected=${a.id === r.area}>${a.label}</option>`;
   return html`${hits.length === 1 ? html`<p><button class="btn" id="rmatch" @click=${() => pick(hits[0].id)}>Link to the Home Assistant area ${hits[0].name}</button></p>` : nothing}
     <label for="ra">area</label><select id="ra" @change=${(e: Event) => pick(val(e))}>
       <option value="" ?selected=${!r.area}>(no area — custom)</option>

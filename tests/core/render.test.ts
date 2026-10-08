@@ -366,16 +366,14 @@ describe("renderFloor", () => {
     expect(renderFloor(ground, { ...base, editor: true })).toContain("data-h=");
   });
 
-  it("filters devices by type and keeps the selected one", () => {
-    const html = renderFloor(ground, { ...base, filter: ["switch"], selection: { t: "dev", i: 0 } });
-    expect(html.match(/<g[^>]*data-x="/g)).toHaveLength(2);
-  });
-
-  it("filters devices by several types at once", () => {
-    const both = renderFloor(ground, { ...base, filter: ["switch", "light"] }).match(/<g[^>]*data-x="/g)?.length;
-    const single = renderFloor(ground, { ...base, filter: ["switch"] }).match(/<g[^>]*data-x="/g)?.length ?? 0;
-    expect(both).toBeGreaterThan(single); // adding a second type shows more devices than either alone
-    expect(renderFloor(ground, { ...base, filter: [...DEVICE_TYPES] })).toBe(renderFloor(ground, { ...base, filter: [] })); // every type checked equals no filter at all
+  // S24.6: Layers replaced the type filter; tests/core/layers.test.ts has the rest.
+  it("hides a layer's devices and keeps the selected one", () => {
+    const all = renderFloor(ground, base).match(/<g[^>]*data-x="/g)?.length ?? 0;
+    const lights = ground.devices.filter((d) => d.type === "light").length;
+    expect(lights).toBeGreaterThan(1); // or keeping one proves nothing
+    expect(renderFloor(ground, { ...base, hiddenLayers: ["lights"] }).match(/<g[^>]*data-x="/g)?.length ?? 0).toBe(all - lights);
+    const html = renderFloor(ground, { ...base, hiddenLayers: ["lights"], selection: { t: "dev", i: 0 } });
+    expect(html.match(/<g[^>]*data-x="/g)).toHaveLength(all - lights + 1);
   });
 
   it("escapes names", () => {

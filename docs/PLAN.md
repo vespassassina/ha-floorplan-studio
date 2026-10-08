@@ -2703,14 +2703,14 @@ Wave 1, core (parallel):
       its own theme's outdoor ink.
 
 Wave 2, the apps (Studio and card in parallel, two tasks each in order):
-- [ ] S24.5 (U9, U20) Studio search and Outline. `<fp-search>` in the top bar; Enter switches floor, selects, centres
+- [x] S24.5 (U9, U20) Studio search and Outline. `<fp-search>` in the top bar; Enter switches floor, selects, centres
       at no less than 1:1 and pulses the device. A left column with an Outline tab: floors › rooms › devices with
       counts, a filter field, a tree with arrow keys; a click or Enter selects and centres. The last node, "Unplaced
       from HA", groups entities by area; a click opens Add > Device with it picked. The canvas `svg` gets
       `role="img"` and `aria-label="Floor plan, <floor>"`. The column collapses with a button and starts collapsed
       under 1100 px. Test: on the stress layout, `/`, a few letters, Enter: the device is selected and its icon's box
       sits in the canvas centre; the same through the tree by keyboard alone.
-- [ ] S24.6 (U6, U17, U16) Studio Layers replace Filter. A Layers tab beside Outline: one eye per family (the card's
+- [x] S24.6 (U6, U17, U16) Studio Layers replace Filter. A Layers tab beside Outline: one eye per family (the card's
       categories plus Furniture), all visible by default, one click hides, alt-click shows only that family. The
       status line names what is hidden ("Layers: lights hidden", "3 of 10 hidden"). Placing under a hidden layer says
       "Placed 7; 3 hidden by Layers [Show]". Room-scoped lists show friendly names with the id as small text, reuse
@@ -2733,3 +2733,11 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       pending; their slot (`.fp-ov-layers`) is in the sheet.
 - [ ] S24.9 Verify: lint, unit, Playwright bare; new tests `--repeat-each=10`; `npm run shots` looked at; the
       sprint test, "find a named device on the stress house in two actions, by keyboard alone", in both apps.
+
+### Follow-ups found during Sprint 24
+
+- [x] S24.F1 `card.spec.ts:1058` "S7.15: a vertical swipe … pans the plan once zoomed" failed once under full-suite
+      load: the page scrolled 1 px (`scrollY` 1, expected 0). Passes alone 30 of 30. A race in the card's touch
+      handling (finding 13): find it, no retries. Done: the race was in the test, not the card. The first swipe's
+      fling outlived the reset; the swipe now carries its own timestamps and rests before it lifts (no fling), and
+      waits for `scrollend`. See DECISIONS 2026-10-09.

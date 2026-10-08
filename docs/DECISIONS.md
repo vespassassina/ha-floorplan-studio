@@ -39,6 +39,62 @@ Newest first. A change supersedes; nothing is edited.
 - **Layer chips are not in this part.** A marked empty slot (`.fp-ov-layers`, `data-slot="layers"`) waits beside the scope
   toggle and hides while empty.
 
+## 2026-10-09: Studio Layers replace Filter (S24.6)
+
+- **A view keeps the hidden families, not the shown ones.** Empty is the default, so a family added later starts
+  visible and an old remembered view needs nothing.
+- **Families are the card's categories plus Furniture** (`src/core/layers.ts`), so the Studio and the card (S24.8) group
+  alike. An unlinked appliance follows its type: hiding lights hides an unlinked lamp too. Every furniture piece, a
+  linked tv or speaker piece included, is Furniture: it draws as furniture.
+- **The selection is always drawn**, a device by `selection`, a piece or unlinked appliance by the new `keep`. Hiding the
+  family of what is selected lets the selection go: an invisible handle helps nobody.
+- **Alt-click on the family that is already the only one shown shows all again**, so one gesture undoes itself.
+- **Summary wording**: one hidden names it, all but one says "only X shown", all says "all hidden", else "N of 11".
+- **The note is a toolbar button, not a banner.** It stays while anything is hidden and opens the tab. Banners are for
+  events: a pick or a placement under a hidden layer, each with Show, which shows only the families concerned.
+- **Fit ignores Layers**, as Filter did. A view setting must not move the frame.
+- **The room's right-click uses Place's filter** (`areaMenuEntities`), not `areaToPlace`: `addFromArea` takes an HA
+  entity, and a catalogued one is refused there.
+- **A repeated area name gets the HA floor name, else the id.** Names are trimmed and compared without case.
+- **The eye paths live in the editor**, not in core's `UI_ICONS`, which the card bundle carries whole.
+- **The card's view-parity row is `#tabLayers`, "no" for now**, with why: the card's chips are S24.8.
+## 2026-10-09: the S7.15 swipe flake was a fling in the test (S24.F1)
+
+- **Cause.** The test drove its swipes through CDP without timestamps, so Chromium stamped each touch with its
+  dispatch time and turned the lift into a fling whose speed was whatever the load made it. The page kept scrolling
+  for up to a second after `touchEnd`. The test reset the page with `scrollTo(0, 0)` while the fling still ran; its
+  tail, or Playwright scrolling Zoom in back into view, left `scrollY` at 1 or 2 before the second swipe began. A probe
+  logging every scroll event caught 7 failures in 400 runs under load, all already off 0 before the second
+  touchstart; `touch-action` read `none` at every one. The card never let the page move. The probe also showed a
+  fling backwards to 0, which the old `scrollY > 50` poll passed mid-swipe and never saw.
+- **Superseded: S8.2's two-frame wait.** It assumed `fp-zoomed` reached the compositor a frame late. It was the same
+  fling. Removed; 400 runs with no frame wait never scrolled during the second swipe.
+- **Fix, in the test only.** The swipe carries its own clock (16 ms a step) and rests 100 ms before it lifts, so it
+  has no speed and no fling; the test waits for `scrollend` and asserts `scrollY` is 0 before the second swipe.
+  200 of 200 at load 22 to 27, where the old test failed 1 in 80 at load 7. With `fp-zoomed` set to `pan-y` the test
+  still fails (`scrollY` 240). `toucher` takes an optional `timestamp`.
+- **Lesson.** A synthetic touch gesture stamped by dispatch time has load-dependent speed. Give it a clock and wait
+  for `scrollend`, not for a scroll position. Log every scroll event before blaming the product.
+
+## 2026-10-08: Studio search and Outline (S24.5)
+
+- **"Centres at no less than 1:1" means never zoomed out further than fit.** The plan has no fixed px-per-cm; fit is the
+  only scale a person knows. A pick keeps the zoom when it is closer than fit, else zooms in to fit, and centres.
+- **An unplaced entity opens Add > Device listing only it, its row focused**, rather than placing it at once. Placing
+  is an edit and lands where the viewport is; one Enter more keeps that edit a choice.
+- **After a pick, focus goes back to the editor host**, so Delete, the arrows and the next `/` act at once. Add device…
+  keeps its own focus.
+- **Six commands only**: Fix or Unfix plan, Draw room, Add device…, Zoom to fit, Undo, Save. Each calls the code its menu
+  calls. More can follow when a menu item is asked for twice.
+- **The tree is flat rows** with `aria-level`, `aria-setsize` and `aria-posinset`, not nested groups, so only open
+  branches render and the 437 devices of the stress house cost nothing while their rooms are shut. Roving tabindex.
+- **The floor on show starts open**; the rest are shut. A pick opens the branches above it and scrolls its row into the
+  tree's own view (not the page's), without taking focus.
+- **The ring is in `renderFloor`** (`locate`), one draw path, so the card can use it (S24.7). Three pulses, then gone
+  after 2.4 s; under reduced motion a still ring. Its own `@media` block: the existing reduced-motion rule is pinned.
+- **The column takes canvas width.** Four editor tests that measure in screen px (snap radius, icon overlap, the HA
+  popover over a plan point) shut it first (`shutSide` in `editor.spec.ts`), and wait for the editor to measure again.
+
 ## 2026-10-08: the card's Overview sheet (S24.7)
 
 - **Active leaves out what Attention lists.** A triggered alarm or an open garage would otherwise be two rows. The Active count and chips count the rest.
