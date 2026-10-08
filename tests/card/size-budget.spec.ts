@@ -16,6 +16,14 @@ test("the card file grew by at most 5 KB gzipped over the card before 3D", () =>
   expect(size, `card is ${size} gzip, ${size - PRE_3D_CARD} over the pre-3D ${PRE_3D_CARD}`).toBeLessThanOrEqual(PRE_3D_CARD + CARD_GROWTH_LIMIT);
 });
 
+// Opus review of Sprint 23, M2: the comments inside the card's stylesheets do not ship (scripts/strip-css-comments.mjs), the rules do.
+test("the built card carries the stylesheets' rules but not their comments", () => {
+  const src = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  // One comment each from FLOORPLAN_CSS (render.ts), the card's own css`` and the popup's css``.
+  for (const comment of ["S23.1: one label style", "S8.2: height 100% on both", "S14.2: the tap popup and the hover tooltip"]) expect(src, comment).not.toContain(comment);
+  for (const rule of [".lbl-on{pointer-events:none}", "@keyframes fp-motion-pulse", ".fp-pop-confirm"]) expect(src, rule).toContain(rule);
+});
+
 test("the 3D chunk is at most 200 KB gzipped, and it is the only chunk", () => {
   const chunks = readdirSync("dist").filter((f) => /^floorplan-studio-3d-.*\.js$/.test(f));
   expect(chunks).toHaveLength(1);

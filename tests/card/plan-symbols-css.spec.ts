@@ -10,7 +10,8 @@ const body = `<path class="door-sym k-door" d="M0 0L0 10"/><path class="door-sym
 <path class="door-sym k-door open" d="M0 0L0 10"/><path class="door-sym k-window alarm" d="M0 0L0 10"/><path class="door-sym k-door cover-open" d="M0 0L0 10"/>
 <line class="door door-door quiet" x1="0" y1="0" x2="10" y2="0"/><line class="door door-door open" x1="0" y1="0" x2="10" y2="0"/>
 <line class="door door-window door-slit quiet" x1="0" y1="0" x2="10" y2="0"/><line class="door door-door sel" x1="0" y1="0" x2="10" y2="0"/>
-<line class="e nw" x1="0" y1="0" x2="10" y2="0"/><line class="eh nw" x1="0" y1="0" x2="10" y2="0"/>
+<line class="e nw zn" x1="0" y1="0" x2="10" y2="0"/><line class="eh nw zn" x1="0" y1="0" x2="10" y2="0"/>
+<line class="e nw" id="rb" x1="0" y1="0" x2="10" y2="0"/><line class="eh nw" id="rbh" x1="0" y1="0" x2="10" y2="0"/>
 <rect class="p-door" style="fill:var(--fp-door)"/><rect class="p-window" style="fill:var(--fp-window)"/><rect class="p-glass" style="fill:var(--fp-glass)"/>
 <rect class="p-red" style="fill:var(--fp-open-door)"/><rect class="p-wall" style="fill:var(--fp-wall)"/>`;
 const html = `<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg>${CASES.map((c, i) => `<g id="c${i}" data-theme="${c.t}" data-mode="${c.mode}">${body}</g>`).join("")}</svg></body></html>`;
@@ -52,7 +53,7 @@ test("S23.7 CSS pair: door, glass and window symbols take their tokens, glass is
 test("S23.7 CSS pair: a zone is a 1 px dash at 35 % with no halo, in every theme", async ({ page }) => {
   await page.setContent(html);
   const r = await page.evaluate((n) => Array.from({ length: n }, (_, i) => {
-    const g = document.getElementById(`c${i}`)!, e = getComputedStyle(g.querySelector("line.e.nw")!), h = getComputedStyle(g.querySelector("line.eh.nw")!);
+    const g = document.getElementById(`c${i}`)!, e = getComputedStyle(g.querySelector("line.e.nw.zn")!), h = getComputedStyle(g.querySelector("line.eh.nw.zn")!);
     return { w: e.strokeWidth, op: e.strokeOpacity, dash: e.strokeDasharray, ve: e.vectorEffect, halo: h.display, stroke: e.stroke, wall: getComputedStyle(g.querySelector(".p-wall")!).fill };
   }), CASES.length);
   CASES.forEach((c, i) => {
@@ -63,5 +64,26 @@ test("S23.7 CSS pair: a zone is a 1 px dash at 35 % with no halo, in every theme
     expect(v.dash, tag).not.toBe("none");
     expect(v.halo, `${tag}: no white halo under a zone`).toBe("none");
     expect(v.stroke, tag).toBe(v.wall);
+  });
+});
+
+// Opus review of Sprint 23, S4: the faint zone dash is a zone's alone. A boundary between two real rooms (an open plan)
+// keeps what it drew before S23.7: a 1.5 cm dash 8 6 at full strength, scaling with the plan, over a 3.5 cm halo.
+test("S4 CSS pair: a boundary between rooms keeps its 1.5 cm dash and its halo, in every theme", async ({ page }) => {
+  await page.setContent(html);
+  const r = await page.evaluate((n) => Array.from({ length: n }, (_, i) => {
+    const g = document.getElementById(`c${i}`)!, e = getComputedStyle(g.querySelector("#rb")!), h = getComputedStyle(g.querySelector("#rbh")!);
+    return { w: e.strokeWidth, op: e.strokeOpacity, dash: e.strokeDasharray, ve: e.vectorEffect, stroke: e.stroke, halo: h.display, hw: h.strokeWidth, hdash: h.strokeDasharray, wall: getComputedStyle(g.querySelector(".p-wall")!).fill };
+  }), CASES.length);
+  CASES.forEach((c, i) => {
+    const v = r[i], tag = `${c.t}/${c.mode}`;
+    expect(v.w, tag).toBe("1.5px");
+    expect(v.ve, `${tag}: scales with the plan`).toBe("none");
+    expect(v.op, tag).toBe("1");
+    expect(v.dash, tag).toBe("8px, 6px");
+    expect(v.stroke, tag).toBe(v.wall);
+    expect(v.halo, `${tag}: the halo is drawn`).not.toBe("none");
+    expect(v.hw, tag).toBe("3.5px");
+    expect(v.hdash, tag).toBe("8px, 6px");
   });
 });

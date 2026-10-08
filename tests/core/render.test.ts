@@ -401,16 +401,18 @@ describe("zones and water", () => {
     expect(ground.rooms[wi]).toMatchObject({ kind: "water", area: "" }); // water is scenery, not an HA area
     for (const p of ground.rooms[zi].pts) expect(p[0] >= 0 && p[0] <= 500 && p[1] >= 0 && p[1] <= 400).toBe(true);
   });
-  it("draws every zone edge dotted (class nw), never solid, with no editor handles", () => {
+  it("draws every zone edge dotted (class nw zn), never solid, with no editor handles", () => {
     const edges = html.match(new RegExp(`<line class="[^"]*" data-e="r${zi}:\\d+"`, "g")) ?? [];
     expect(edges).toHaveLength(ground.rooms[zi].pts.length);
-    for (const e of edges) expect(e).toContain('class="e nw"');
+    // Opus review of Sprint 23, S4: zn marks a zone, so the faint dash and the missing halo stay off a room's boundary.
+    for (const e of edges) expect(e).toContain('class="e nw zn"');
+    expect(html).toMatch(new RegExp(`<line class="eh nw zn" x1=`));
     expect(html).not.toContain("data-h=");
   });
   it("draws a zone edge dotted even if its wk says wall", () => {
     const f = structuredClone(ground);
     f.rooms[zi].wk = f.rooms[zi].wk.map((): WallKind => "wall");
-    expect(renderFloor(f, { scale: 0.5 })).toContain(`<line class="e nw" data-e="r${zi}:0"`);
+    expect(renderFloor(f, { scale: 0.5 })).toContain(`<line class="e nw zn" data-e="r${zi}:0"`);
   });
   it("the zone has no fill and a small name label; the water has class water and the --fp-water fill", () => {
     expect(html).toMatch(new RegExp(`<polygon data-r="${zi}" class="room room-zone"`));
@@ -866,8 +868,8 @@ describe("wall kinds", () => {
   // same as before) — pinning every kind here means a future kind fails until someone writes down its own thickness,
   // the same guard the review asked for on DEVICE_TYPES/RoomKind.
   it("S8.9: pins every WallKind's own line thickness", () => {
-    // S23.7: boundary (a zone's dash) is a 1 px non-scaling hairline now, was 1.5 cm.
-    const THICKNESS: Record<(typeof kinds)[number], number> = { wall: 10, boundary: 1, external: 20, fence: 1.5, edge: 1.5 };
+    // A boundary between rooms stays 1.5 cm. The 1 px hairline of S23.7 is a zone's alone (class zn; Opus review of Sprint 23, S4).
+    const THICKNESS: Record<(typeof kinds)[number], number> = { wall: 10, boundary: 1.5, external: 20, fence: 1.5, edge: 1.5 };
     const html = renderFloor(withWalls(), base);
     kinds.forEach((k, i) => {
       const cls = line(html, i)!; // "e", "e nw", "e external", "e fence", "e edge"
@@ -1152,6 +1154,8 @@ describe("room edge kinds (S1.17)", () => {
     const cls = (id: string) => html.match(new RegExp(`<line class="([^"]*)" data-e="${id}"`))?.[1];
     expect([0, 1, 2, 3].map((i) => cls(`r0:${i}`))).toEqual(["e", "e nw", "e external", "e fence"]);
     expect(cls("r1:0")).toBe("e edge");
+    // A room's boundary is not a zone: no zn on it or on its halo (Opus review of Sprint 23, S4).
+    expect(html).not.toMatch(/class="eh? nw zn" data-e="r0:/);
   });
   it("a zone edge stays dotted whatever wk says, and a hostile kind is escaped", () => {
     const f = structuredClone(ground);
@@ -1159,7 +1163,7 @@ describe("room edge kinds (S1.17)", () => {
     f.rooms[zi].wk = ["fence", "fence", "fence", "fence"];
     f.rooms[0].wk[0] = '"><script>x</script>' as never;
     const html = renderFloor(f, base);
-    expect(html).toContain(`class="e nw" data-e="r${zi}:0"`);
+    expect(html).toContain(`class="e nw zn" data-e="r${zi}:0"`);
     expect(html).not.toContain("<script>");
   });
 });
@@ -1869,7 +1873,7 @@ describe("S1.35b: a white twin under every edge", () => {
     f.walls.push({ id: "w1", a: [100, 700], b: [300, 700], kind: "fence" });
     const html = renderFloor(f, base);
     const twins = [...html.matchAll(/<line class="eh[^"]*"[^>]*>/g)];
-    const edges = [...html.matchAll(/<line class="e(?: nw| external| fence| edge)?" data-[ew]=[^>]*>/g)];
+    const edges = [...html.matchAll(/<line class="e(?: nw zn| nw| external| fence| edge)?" data-[ew]=[^>]*>/g)];
     // S23.7: an outdoor kind's boundary edge draws no line at all
     const outdoor = (r: (typeof f.rooms)[number], i: number) => ["garden", "terrace", "pavement", "water"].includes(r.kind) && r.wk[i] === "boundary";
     const n = f.outline.length + f.rooms.reduce((s, r) => s + r.pts.filter((_, i) => !outdoor(r, i)).length, 0) + f.walls.length;

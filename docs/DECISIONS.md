@@ -2,6 +2,23 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: the faint dash is a zone's only (Opus review of Sprint 23, S4)
+
+S23.7 said "a zone is a 1 px dash at 35 % with no halo", but the rule sat on `.e.nw`, which every `boundary` edge carries. An open plan's line between two real rooms went faint too. A zone's edges now carry `zn` as well, and the S23.7 style is `.e.nw.zn` and `.eh.nw.zn`. A boundary between rooms, on a free wall or on the outline goes back to what it drew before: a 1.5 cm dash 8 6 over a 3.5 cm halo.
+- Tests changed on purpose: the zone class strings in `tests/core/render.test.ts` and `plan-symbols.test.ts` (` zn` added), S8.9's boundary thickness back to 1.5, S1.35b's edge regex, and the render snapshot (only ` zn` added). `plan-symbols-css.spec.ts` reads both a zone and a room boundary.
+
+## 2026-10-08: HA dark 2.5D walls are dark slabs (Opus review of Sprint 23, S2)
+
+In Home Assistant's dark mode `--fp-wall` is HA's primary text colour, a light grey, so a wall's side face, 55 % of it into the card background, was a light grey slab. S23.6 made the rooms dark and showed it. `--fp-wall-side` now takes `--fp-wall-side-share` of the wall: 55 % on every theme, 30 % on HA dark. The share is a variable of its own, so the generic rule, which comes after THEME_EXTRAS at the same specificity, cannot beat it; every theme sets 55 % so a theme group inside an HA dark host does not inherit 30 %. Every other theme's side is unchanged (a computed-style pair checks each). 3D walls still mix 55 % (`three/palette.ts`); not changed here.
+
+## 2026-10-08: stylesheet comments do not ship (Opus review of Sprint 23, M2)
+
+The card was 117123 gzip against its 115000 budget. The limit stays. Vite's lib mode does not minify template contents, so every `/* */` inside a `css` block and inside `FLOORPLAN_CSS` shipped. `scripts/strip-css-comments.mjs`, a Vite plugin on the card, panel and editor builds, removes them before esbuild: the card is 107924 gzip.
+- **What it touches.** A template tagged `css`, or one assigned to a const whose name ends in `CSS`. The source is parsed with TypeScript, so no other template, string or regex is read. Inside a stylesheet a comment is a `/*` outside a quoted string, a `url()` and a `${}`; a comment that spans a `${}` goes with it. An unclosed comment fails the build, naming the file.
+- **The comments stay in the source**, where they are read. Nothing else changes in the output.
+- **Not done:** the JSDoc comments of the code still ship (about 16 KB gzip more). Lib mode keeps them; removing them is a separate change.
+- Tests: `tests/card/strip-css-comments.test.ts` (strings, `url()`, substitutions, other templates, the real `render.ts`) and a check in `size-budget.spec.ts` that the built card holds the rules and not the comments.
+
 ## 2026-10-08: names stay in their room (S23.3)
 
 The old search tried rows above and below the centroid and took a free spot in the next room before a covered one in its own. The 2.5D Hall name landed in the Cloakroom; names sat under discs. Now a name is placed only where its whole box (padded 2k, eight points) is in its room and in no smaller named room.

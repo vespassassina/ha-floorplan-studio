@@ -182,12 +182,13 @@ const BLUEPRINT_IDLE = mixSrgb(tokenOf(BLUEPRINT_TOKENS, "--fp-ink"), tokenOf(BL
 const themeSel = (n: string, extra = "") => `:host([data-theme="${n}"]${extra}),:host([data-theme="${n}"]${extra}) .fp,[data-theme="${n}"]${extra}`;
 const THEME_EXTRAS = [
   `:host,.fp{${themeExtras(BLUEPRINT_TOKENS, true, BLUEPRINT_IDLE)}}`,
-  `:host,.fp,[data-theme]{--fp-pure-black:#000;--fp-pure-white:#fff}`,
+  `:host,.fp,[data-theme]{--fp-pure-black:#000;--fp-pure-white:#fff;--fp-wall-side-share:55%}`,
   ...([["blueprint", BLUEPRINT_TOKENS, true, BLUEPRINT_IDLE], ["midnight", MIDNIGHT_TOKENS, true], ["light", LIGHT_TOKENS, false], ["slate", SLATE_TOKENS, false],
     ["terminal", TERMINAL_TOKENS, true], ["solarized", SOLARIZED_TOKENS, true], ["ha", HA_LIGHT, false], ["coffee", COFFEE_TOKENS, true], ["a-team", A_TEAM_TOKENS, true],
     ["space", SPACE_TOKENS, true], ["cyberpunk", CYBERPUNK_TOKENS, true], ["carpenter-brut", CARPENTER_BRUT_TOKENS, true], ["beach-house", BEACH_HOUSE_TOKENS, false]] as const)
     .map(([n, t, dark, idle]) => `${themeSel(n)}{${themeExtras(t, dark, idle)}}`),
-  `${themeSel("ha", '[data-mode="dark"]')}{${themeExtras(HA_DARK, true)}}`,
+  // Opus review S2: HA dark's wall is its light text colour, so 55 % of it made light grey 2.5D slabs. The generic rule below reads this share.
+  `${themeSel("ha", '[data-mode="dark"]')}{${themeExtras(HA_DARK, true)};--fp-wall-side-share:30%}`,
 ].join("\n");
 /** The ink for a colour only the state or the layout knows (a lamp's rgb, a plug's heat, `layout.colors`): black or white, through a token, so the markup carries no literal colour. */
 const inkVar = (c: string) => (inkFor(c) === "#000" ? "var(--fp-pure-black)" : "var(--fp-pure-white)");
@@ -237,8 +238,10 @@ export const FLOORPLAN_CSS = `
 :host([data-theme="beach-house"]),:host([data-theme="beach-house"]) .fp,[data-theme="beach-house"]{${BEACH_HOUSE_TOKENS}}
 ${THEME_EXTRAS}
 /* 2.5D shades, derived from the theme's own wall colour so every theme has them with no per-theme edit. A custom property
-   that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own. */
-:host,.fp,[data-theme]{--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) 55%,var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg))}
+   that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own.
+   The side is 55% wall unless the theme sets --fp-wall-side-share (HA dark, whose wall is its light text colour). The share
+   is its own variable, never a second --fp-wall-side, so this rule, later and as specific as THEME_EXTRAS, cannot beat it. */
+:host,.fp,[data-theme]{--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) var(--fp-wall-side-share,55%),var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg))}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
    Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
    or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,
@@ -311,12 +314,14 @@ ${THEME_EXTRAS}
 /* S8.9: internal corners and T-joins at the new 10-20 cm thickness are kept gap-free by the round linecap already
    here (each segment's rounded end overlaps its neighbour's whatever the angle between them); only the numbers
    changed. External walls keep the square cap they always had (a mitred, not rounded, look for the house perimeter). */
-.e{stroke:var(--fp-wall);stroke-width:${WALL_WIDTH};stroke-linecap:round} .e.nw{stroke-dasharray:4 3;stroke-width:1;vector-effect:non-scaling-stroke;stroke-opacity:.35}
+/* A boundary between rooms (an open plan) is a 1.5 cm dash. A zone (zn) is fainter: a 1 px non-scaling dash at 35 %
+   with no halo (S23.7); the Opus review of Sprint 23 (S4) scoped that to zones. */
+.e{stroke:var(--fp-wall);stroke-width:${WALL_WIDTH};stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5} .e.nw.zn{stroke-dasharray:4 3;stroke-width:1;vector-effect:non-scaling-stroke;stroke-opacity:.35}
 /* 2.5D: the top of a wall. Same stroke as the flat wall, from its own token, and before the .external and .fence rules
    below so an equal-specificity kind rule still wins. */
 .e.top{stroke:var(--fp-wall-top)}
 .e.external{stroke:var(--fp-wall-external);stroke-width:${WALL_WIDTH_EXTERNAL};stroke-linecap:square} .e.parapet{stroke:var(--fp-wall-external);stroke-width:${WALL_WIDTH_EXTERNAL};stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
-.eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{display:none} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.parapet{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
+.eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.nw.zn{display:none} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.parapet{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
 /* 2.5D solids take no clicks: a tap or a pick goes through to the floor-level shape under them, as in 2D. Furniture is the
    exception: its group is data-f, so a tap on the block reaches it as it reaches the flat symbol. */
 .ws,.glass,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk,.wfoot,.wl,.door-leaf,.opn{pointer-events:none}
@@ -458,7 +463,7 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 @keyframes fp-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
-.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none} .lbl-tag{fill:var(--fp-outline);stroke:none;pointer-events:none}
+.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none} .lbl-tag{fill:var(--fp-outline);stroke:none;pointer-events:none} .lbl-on{pointer-events:none}
 /* S23.1: one label style. A name is never faded: it is the text colour mixed into the surface it sits on (--fp-under,
    set per name by renderFloor), solid, so it reads as part of the room yet clears 4.5:1 on it. 92% is the least text
    that passes on every theme's surface (light garden 4.56, terminal pavement 4.67). A device's or an extra's name sits on
@@ -1246,7 +1251,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const outdoor = kind === "boundary" && P.id !== "o" && OUTDOOR_KINDS.includes(f.rooms[Number(P.id.slice(1))]?.kind);
       if (kind === "none" || outdoor) { if (o.editor) guides.push({ cls: "e none", attr: ` data-e="${P.id}:${i}"`, a, b }); return; } // not drawn: the editor keeps a faint guide so it can be picked again
       if (x25 && !P.zone && edgeHeight(f, P.id === "o" ? null : f.rooms[Number(P.id.slice(1))], i) > 0) return; // a wall with height is drawn as a solid below
-      edgeLines.push({ cls: edgeClass(kind), attr: ` data-e="${P.id}:${i}"`, a, b });
+      edgeLines.push({ cls: edgeClass(kind) + (P.zone ? " zn" : ""), attr: ` data-e="${P.id}:${i}"`, a, b });
     });
   f.walls.forEach((w, i) => { if (!(x25 && wallHeight(f, w) > 0)) edgeLines.push({ cls: edgeClass(w.kind), attr: ` data-w="${i}"`, a: w.a, b: w.b }); });
   const seg = (a: Pt, b: Pt) => `x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"`;
