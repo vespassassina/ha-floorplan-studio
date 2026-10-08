@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Card and studio: a camera's cone stops at the walls of the room the camera stands in, as a lamp's light does. A camera in no room (a garden camera) keeps its whole cone.
+- Card and studio: a camera's cone stops at the walls of the room the camera stands in, as a lamp's light does. The room is the one the camera looks into, so a camera on a wall aiming out keeps its whole cone, as one in no room does.
 - Card: a tap on a humidity, motion, contact or vibration device no longer offers a switch. Like temperature, they open the entity's details only. Before, one set to a switchable entity showed "Turn off".
 
 ## 0.20.0 - 2026-10-08

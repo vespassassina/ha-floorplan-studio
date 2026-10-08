@@ -1644,8 +1644,8 @@ describe("camera cone clip (S21.1): the cone stops at the walls of its room", ()
   });
 
   it("the clip lines up with the plan: through the clip's transform and then the group's, a corner returns to the plan point", () => {
-    for (const rot of [0, 90, 215]) for (const scale of [0.5, 2]) {
-      const html = draw([cam(250, 150, rot)], { scale });
+    for (const rot of [0, 90, 215]) for (const scale of [0.5, 2]) for (const turn of [undefined, { deg: 90, pivot: [300, 150] }]) {
+      const html = draw([cam(250, 150, rot)], { scale, ...(turn ? { rotate: turn } : {}) });
       const c = clipOf(html, coneRef(html)!)!, g = groupTransform(html);
       for (const v of c.pts) {
         const back = apply(g, apply(c.transform, v));
@@ -1669,6 +1669,26 @@ describe("camera cone clip (S21.1): the cone stops at the walls of its room", ()
     const html = draw([cam(450, 150)]);
     expect(html).toMatch(/<path class="cone" d="[^"]+"\/>/);
     expect(html).not.toContain("<clipPath");
+  });
+
+  // A wall is on the room's edge, and `inside` counts the north and west edge in, the south and east edge out. So the room is
+  // found by a probe 15 cm ahead of the camera, in the way it looks: aiming out finds no room, aiming in finds this one.
+  const WALLS: [string, number, number, number, number][] = [["north", 150, 0, 180, 0], ["east", 300, 150, 270, 90], ["south", 150, 300, 0, 180], ["west", 0, 150, 90, 270]];
+  for (const [wall, x, y, rotIn, rotOut] of WALLS) {
+    it(`on the ${wall} wall, aiming out keeps the free cone and aiming in clips to the room`, () => {
+      const out = draw([cam(x, y, rotOut)]);
+      expect(out).not.toContain("clip-path");
+      expect(out).not.toContain("<clipPath");
+      const inn = draw([cam(x, y, rotIn)]);
+      expect(clipOf(inn, coneRef(inn)!)!.pts).toEqual(room.pts);
+    });
+  }
+
+  it("on the wall two rooms share, the cone clips to the room it looks into", () => {
+    const b = { ...room, id: "b", name: "B", pts: [[300, 0], [600, 0], [600, 300], [300, 300]] };
+    const toB = draw([cam(300, 150, 90)], {}, [room, b]), toA = draw([cam(300, 150, 270)], {}, [room, b]);
+    expect(clipOf(toB, coneRef(toB)!)!.pts).toEqual(b.pts);
+    expect(clipOf(toA, coneRef(toA)!)!.pts).toEqual(room.pts);
   });
 
   it("a zone is not a room: the clip is the room under it", () => {

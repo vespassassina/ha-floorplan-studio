@@ -1417,7 +1417,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       // shadow root (a `url()` in CSS would not) and no stylesheet rule can outrank it. A clip applies in the cone's own frame,
       // the group's, so the room polygon (plan coordinates, lifted with the icon in 2.5D) is carried into that frame by the
       // inverse of the group's transform: undo the shift, the scale (the same rounded `k` the group wears), then the turn.
-      const holder = roomAt(f, floorAt), own = holder < 0 ? null : ring(f.rooms[holder]);
+      // Which room: the one 15 cm ahead of the camera. A camera hangs on a wall, which is the room's edge, and `inside` counts
+      // the north and west edge in and the south and east edge out, so the camera's own point picks a room by which wall it is on.
+      // Ahead, a camera that looks into a room finds it, one that looks out finds none (free cone), and one on a wall two rooms share
+      // finds the room it faces. Left: a camera within 15 cm of a wall it faces looks past the room (rare, a camera is on its wall).
+      const ra = (rot * Math.PI) / 180;
+      const holder = roomAt(f, [floorAt[0] + 15 * Math.sin(ra), floorAt[1] - 15 * Math.cos(ra)]), own = holder < 0 ? null : ring(f.rooms[holder]);
       if (own) {
         const kk = +num(k), gx = +num(c[0] - 12 * k), gy = +num(c[1] - 12 * k);
         const to = `${rot ? `rotate(${num(-rot)} 12 12) ` : ""}scale(${+(1 / kk).toPrecision(8)}) translate(${num(c[0] - floorAt[0] - gx)} ${num(c[1] - floorAt[1] - gy)})`;

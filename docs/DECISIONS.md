@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: the cone's room is the one it looks into (S21.1, supersedes the room rule of the entry below)
+
+Opus review: the entry below took the room holding the camera's own point (`roomAt(floorAt)`). A camera is mounted on a wall, which is the room's edge, and `inside` counts the north and west edge in and the south and east edge out. So a camera on a wall aiming out lost its cone or kept it by which wall it hung on, and one on a wall two rooms share took whichever room `inside` favoured, not the one it faced.
+Rule now: probe a point 15 cm ahead of the camera, `floorAt + 15 * [sin(rot), -cos(rot)]` (rot 0 looks up, 90 looks right; the plan's turn is outside the group and does not enter). `roomAt(probe)` is the holder: aiming into a room clips to it, aiming out finds no room and keeps the free cone, and on a shared wall the room faced wins. The clip polygon and its transform are unchanged. Tests: a 300 x 300 room, a camera on each of four walls aiming out (no clip) and in (clipped); a shared wall both ways; the transform round trip also with the plan turned 90 degrees. The demo snapshot did not change.
+Remaining edge: a camera within 15 cm of a wall it faces probes past that wall, so it loses its cone or clips to the next room. A camera sits on its wall or well clear of the one it faces, so this is rare; not handled. A zone, a structure and a fill still do not count as rooms.
+
 ## 2026-10-08: the camera cone is clipped to its room, and four sensor types stop toggling (S21.1, S21.2)
 
 **Cone clip.** Supersedes "the camera cone is not clipped (not asked)" (2026-10-04, the aura entry). Nothing in the docs says what a clip should be, so I took the simplest meaningful rule, the one the lamp already has: the cone is clipped to the polygon of the smallest real room holding the camera (`roomAt`; a zone, a structure and a fill are not rooms). No room, no clip. No margin: the cone's tip sits on the camera, and the wall is drawn over the edge. Not chosen: the floor's viewBox (the cone never reached beyond it, the box widens for it), and a clip to the camera's side of a wall (needs wall geometry nobody asked for).
