@@ -163,7 +163,7 @@ const UNAVAILABLE_OPEN = "a:unavailable:open";
 const LOCATE_ZOOM = 2;
 const PULSE_MS = 2400;
 /** S24.7: one Overview row, an Attention item or an active device, with where it is (`at`) so a tap can go there. */
-interface OverviewRow { entity: string; name: string; floor: string; at: ThingRef; room?: string; state: string; type?: DeviceType; colorVar: string; attn: boolean }
+interface OverviewRow { entity: string; name: string; floor: string; at: ThingRef; room?: string; state: string; age?: string; type?: DeviceType; colorVar: string; attn: boolean }
 /** What an Attention row says after its name. Every kind is a decision (finding 17): a new kind fails to compile here. */
 const ATTENTION_TEXT: Record<AttentionKind, (it: AttentionItem, level: string) => string> = {
   "alarm-triggered": () => "triggered",
@@ -366,6 +366,7 @@ export class FloorplanStudioCard extends LitElement {
     .fp-ov-where { font-size: 10px; color: var(--fp-text); display: flex; gap: 4px; flex-wrap: wrap; }
     .fp-row-floor { border: 1px solid var(--fp-idle); border-radius: 4px; padding: 0 3px; line-height: 1.3; }
     .fp-ov-row .fp-row-state { white-space: normal; max-width: 45%; }
+    .fp-ov-age { white-space: nowrap; }
     .fp-ov-hint { margin: 8px 2px 0; font: 10px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     /* One target per row, finger-sized on a touch screen (S24.7). */
     @media (pointer: coarse) { .fp-active-row { min-height: 40px; } }
@@ -2474,7 +2475,7 @@ export class FloorplanStudioCard extends LitElement {
     const level = typeof lvl === "number" && Number.isFinite(lvl) ? String(Math.round(lvl)) : typeof lvl === "string" && /^\d+(\.\d+)?$/.test(lvl.trim()) ? String(Math.round(Number(lvl))) : "";
     const age = formatAge(it.lastChanged, now);
     const what = ATTENTION_TEXT[it.kind]?.(it, level) ?? it.kind;
-    return { entity: it.entity, name: it.name, floor: it.floor, at: { what: it.at.what, index: it.at.index }, ...(it.room ? { room: it.room } : {}), state: age ? `${what} · ${age}` : what, ...(it.type ? { type: it.type } : {}), colorVar: "--fp-warn", attn: true };
+    return { entity: it.entity, name: it.name, floor: it.floor, at: { what: it.at.what, index: it.at.index }, ...(it.room ? { room: it.room } : {}), state: what, ...(age ? { age } : {}), ...(it.type ? { type: it.type } : {}), colorVar: "--fp-warn", attn: true };
   }
 
   /** An active device as a row, its state in the popup's own words (`_subjectText`): a relay-lit lamp reads "on · via …". */
@@ -2494,7 +2495,7 @@ export class FloorplanStudioCard extends LitElement {
       <span class="fp-ov-text"><span class="fp-ov-name">${o.name}</span>${o.room || badge
         ? html`<span class="fp-ov-where">${o.room ?? ""}${badge ? html`<span class="fp-row-floor">${this._floorTitle(o.floor)}</span>` : nothing}</span>`
         : nothing}</span>
-      <span class="fp-row-state">${o.state}</span>
+      <span class="fp-row-state">${o.state}${o.age ? html` · <span class="fp-ov-age">${o.age}</span>` : nothing}</span>
     </button>`;
   }
 

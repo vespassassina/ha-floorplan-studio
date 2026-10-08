@@ -92,6 +92,8 @@ test.describe("S24.7 the Overview sheet", () => {
     const first = panel.locator("css=.fp-ov-attn .fp-active-row").first();
     await expect(first).toHaveAttribute("data-entity", "alarm_control_panel.home");
     await expect(first.locator("css=.fp-row-state")).toHaveText(/^triggered · (\d+ (min|h|d)|now)$/);
+    // CSS pair (finding 10): the age never breaks across lines ("3" / "min" read as two things in the 200 px panel).
+    expect(await first.locator("css=.fp-ov-age").evaluate((e) => getComputedStyle(e).whiteSpace)).toBe("nowrap");
     // What is in Attention is not repeated in Active: the alarm, the gate, the mailbox and the patio door's contact are
     // on, but listed once, above. Active is the two lamps. The header counts both, short.
     expect(entities.filter((e) => e === "binary_sensor.mailbox")).toHaveLength(1);
