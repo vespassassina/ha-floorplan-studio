@@ -23,10 +23,9 @@ const RAISE: Record<string, [ReturnType<typeof st>, string][]> = {
   alarm: [[st("triggered"), "alarm-triggered"], [st("armed_away"), "alarm-armed"], [st("armed_night"), "alarm-armed"], [st("arming"), "alarm-armed"], [st("pending"), "alarm-armed"]],
   open: [[st("on"), "open"]],
   unlocked: [[st("unlocked"), "unlocked"]],
-  battery: [[st("19.9", { unit_of_measurement: "%" }), "battery-low"], [st("0"), "battery-low"]],
 };
 const CALM: Record<string, ReturnType<typeof st>[]> = {
-  alarm: [st("disarmed")], open: [st("off")], unlocked: [st("locked"), st("jammed")], battery: [st("20"), st("80"), st("abc"), st("")],
+  alarm: [st("disarmed")], open: [st("off")], unlocked: [st("locked"), st("jammed")],
 };
 /** Every state that raises anything for some type: a type whose rule is "none" must raise nothing on any of them. */
 const ALL_LOUD = [st("on"), st("open", { device_class: "garage" }), st("unlocked"), st("triggered"), st("armed_away"), st("5"), st("on", { device_class: "moisture" }), st("on", { device_class: "smoke" })];
@@ -42,6 +41,11 @@ describe("S24.3: every DeviceType has a written attention rule (finding 17)", ()
     const kinds = (s: ReturnType<typeof st>) => attention(one([dev(t, e)]), { [e]: s }).items.map((i) => i.kind);
     expect(attention(one([dev(t, e)]), { [e]: st("unavailable") }).unavailable.map((i) => i.entity)).toEqual([e]);
     expect(kinds(st("unavailable"))).toEqual([]);
+    // A device's own battery (coordinator, S24.3): any type, by a numeric battery_level under 20.
+    expect(kinds(st("zzz", { battery_level: 12 })), `${t} battery_level 12`).toEqual(["battery-low"]);
+    expect(kinds(st("zzz", { battery_level: "19.5" })), `${t} battery_level "19.5"`).toEqual(["battery-low"]);
+    for (const v of [20, 80, "abc", null, "", Number.NaN]) expect(kinds(st("zzz", { battery_level: v })), `${t} battery_level ${String(v)}`).toEqual([]);
+    expect(kinds(st("unavailable", { battery_level: 5 }))).toEqual([]);
     if (rule === "none") {
       for (const s of ALL_LOUD) expect(kinds(s), `${t} ${s.state}`).toEqual([]);
       return;
@@ -64,6 +68,27 @@ describe("S24.3: every DeviceType has a written attention rule (finding 17)", ()
     for (const s of CALM[rule]!) expect(kinds(s), `${t} ${s.state}`).toEqual([]);
   });
 
+  it("low battery is a device's battery, never a home battery's charge (coordinator, S24.3)", () => {
+    const l = one([
+      dev("battery", "sensor.home_soc", { name: "Home battery" }), dev("lock", "lock.front", { name: "Front lock" }),
+      dev("other", "sensor.remote_battery", { name: "Remote battery" }), dev("other", "sensor.door_battery", { name: "Door battery" }),
+      dev("other", "sensor.plain", { name: "Plain" }),
+    ]);
+    const a = attention(l, {
+      "sensor.home_soc": st("10", { device_class: "battery" }), "lock.front": st("locked", { battery_level: 12 }),
+      "sensor.remote_battery": st("15", { device_class: "battery" }), "sensor.door_battery": st("20", { device_class: "battery" }),
+      "sensor.plain": st("3"),
+    });
+    expect(a.items.map((i) => [i.kind, i.name, i.entity])).toEqual([["battery-low", "Front lock", "lock.front"], ["battery-low", "Remote battery", "sensor.remote_battery"]]);
+    expect(attention(l, { "sensor.remote_battery": st("abc", { device_class: "battery" }), "lock.front": st("locked", { battery_level: {} }) }).items).toEqual([]);
+  });
+
+  it("an unlocked lock with a low battery is both", () => {
+    const a = attention(one([dev("lock", "lock.front", { name: "Front lock" })]), { "lock.front": st("unlocked", { battery_level: 5 }) });
+    expect(a.items.map((i) => i.kind)).toEqual(["unlocked", "battery-low"]);
+    expect(a.floors.g!.count).toBe(2);
+  });
+
   it("a hazard needs a binary sensor: a numeric moisture sensor reading 'on' is not a leak", () => {
     expect(attention(one([dev("other", "sensor.soil")]), { "sensor.soil": st("on", { device_class: "moisture" }) }).items).toEqual([]);
   });
@@ -72,12 +97,12 @@ describe("S24.3: every DeviceType has a written attention rule (finding 17)", ()
 describe("attention: items", () => {
   it("orders by severity, then name, and says where each thing is", () => {
     const l = one([
-      dev("lock", "lock.b", { name: "B lock" }), dev("lock", "lock.a", { name: "A lock" }), dev("battery", "sensor.bat", { name: "Remote" }),
+      dev("lock", "lock.b", { name: "B lock" }), dev("lock", "lock.a", { name: "A lock" }), dev("other", "sensor.bat", { name: "Remote" }),
       dev("alarm", "alarm_control_panel.h", { name: "Panel" }), dev("contact", "binary_sensor.c", { name: "Fridge" }),
       dev("other", "binary_sensor.leak", { name: "Sink" }), dev("other", "binary_sensor.smoke", { name: "Smoke" }),
     ]);
     const a = attention(l, {
-      "lock.b": st("unlocked"), "lock.a": st("unlocked"), "sensor.bat": st("7"), "alarm_control_panel.h": st("armed_home"),
+      "lock.b": st("unlocked"), "lock.a": st("unlocked"), "sensor.bat": st("7", { device_class: "battery" }), "alarm_control_panel.h": st("armed_home"),
       "binary_sensor.c": st("on", {}, "2026-10-08T09:00:00Z"), "binary_sensor.leak": st("on", { device_class: "moisture" }), "binary_sensor.smoke": st("on", { device_class: "smoke" }),
     });
     expect(a.items.map((i) => [i.kind, i.name])).toEqual([
@@ -132,12 +157,13 @@ describe("attention: items", () => {
   });
 
   it("untrusted state and layout never throw and never make up an item", () => {
-    const l = one([dev("battery", "sensor.b"), dev("alarm", "alarm_control_panel.a"), dev("lock", ""), dev("contact", 5 as unknown as string)], [door("d", "D", { locks: "lock.x", sensors: [null, 3] })]);
-    const junk = { "sensor.b": { state: 5, attributes: null }, "alarm_control_panel.a": { state: "triggered" }, "lock.x": st("unlocked") } as unknown as StateOverlay;
+    const l = one([dev("other", "sensor.b"), dev("alarm", "alarm_control_panel.a"), dev("lock", ""), dev("contact", 5 as unknown as string)], [door("d", "D", { locks: "lock.x", sensors: [null, 3] })]);
+    const junk = { "sensor.b": { state: 5, attributes: null }, "alarm_control_panel.x": { state: "on", attributes: { battery_level: "5" } }, "alarm_control_panel.a": { state: "triggered" }, "lock.x": st("unlocked") } as unknown as StateOverlay;
     expect(() => attention(l, junk)).not.toThrow();
     expect(attention(l, junk).items.map((i) => i.kind)).toEqual(["alarm-triggered"]);
-    expect(attention(l, { "sensor.b": st(" 12 ") }).items.map((i) => i.kind)).toEqual(["battery-low"]);
-    expect(attention(l, { "sensor.b": st("1e1") }).items).toEqual([]);
+    expect(attention(l, { "sensor.b": st(" 12 ", { device_class: "battery" }) }).items.map((i) => i.kind)).toEqual(["battery-low"]);
+    expect(attention(l, { "sensor.b": st("1e1", { device_class: "battery" }) }).items).toEqual([]);
+    expect(attention(l, { "alarm_control_panel.a": { state: "disarmed", attributes: [5] } } as unknown as StateOverlay).items).toEqual([]);
     expect(attention(l, undefined)).toEqual({ items: [], unavailable: [], floors: { g: { count: 0, unavailable: 0, alarm: false } } });
     const broken = { version: 2, floors: { g: { title: "G", devices: 5, doors: null, rooms: "x", furniture: [null] } } } as unknown as Layout;
     expect(attention(broken, { x: st("on") })).toEqual({ items: [], unavailable: [], floors: { g: { count: 0, unavailable: 0, alarm: false } } });
@@ -150,7 +176,8 @@ describe("attention: items", () => {
  *
  * Ground: alarm triggered (1); open: Living patio door (contact), Garage door (its own garage opener), Mailbox (contact
  * icon), Driveway gate (a gate cover icon) (4); unlocked: Key cabinet (lock icon), Front door (one of its two locks),
- * Garage side door (its only lock) (3); battery-low: Home battery at 15 (1). 9 items. Unavailable: Garage camera, Living
+ * Garage side door (its only lock) (3); battery-low: Key cabinet, its lock's battery_level at 12 (1). 9 items. The Home
+ * battery at 15 % is a storage battery's charge, not a low battery, and is not counted. Unavailable: Garage camera, Living
  * spot 1 (2); Living spot 2 is unknown, not counted.
  * First: open: Master bedroom window 1 (1); leak: Master bath leak (1). 2 items. Unavailable: Master bedroom spot 1, and
  * Bedroom 2 window 1 by its contact sensor (2).
@@ -167,7 +194,7 @@ describe("attention on the stress house, counted by hand", () => {
     "binary_sensor.garage_door_contact": st("off"), "cover.garage_door": st("open"),
     "binary_sensor.mailbox": st("on"), "binary_sensor.kitchen_fridge_door": st("off"),
     "cover.driveway_gate": st("open", { device_class: "gate" }), "cover.living_blind": st("open", { device_class: "blind" }),
-    "lock.cloakroom_cabinet": st("unlocked"),
+    "lock.cloakroom_cabinet": st("unlocked", { battery_level: 12 }),
     "binary_sensor.front_door_contact": st("off"), "lock.front_door": st("locked"), "lock.front_door_deadbolt": st("unlocked"),
     "lock.garage_side_door": st("unlocked"),
     "sensor.home_battery_soc": st("15", { unit_of_measurement: "%" }),
@@ -194,7 +221,7 @@ describe("attention on the stress house, counted by hand", () => {
       "alarm-triggered: Alarm panel",
       "open: Driveway gate", "open: Garage door", "open: Library window 1", "open: Living patio door", "open: Mailbox", "open: Master bedroom window 1",
       "unlocked: Front door", "unlocked: Garage side door", "unlocked: Key cabinet",
-      "leak: Master bath leak", "smoke: Server room smoke", "battery-low: Home battery",
+      "leak: Master bath leak", "smoke: Server room smoke", "battery-low: Key cabinet",
     ]);
     expect(a.unavailable.map((i) => `${i.floor}: ${i.name}`)).toEqual([
       "first: Bedroom 2 window 1", "ground: Garage camera", "second: Guest bedroom spot 1", "second: Library TV", "ground: Living spot 1", "first: Master bedroom spot 1",

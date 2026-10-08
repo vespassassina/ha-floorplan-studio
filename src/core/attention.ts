@@ -25,16 +25,18 @@ export type AttentionKind = (typeof ATTENTION_KINDS)[number];
  * - `open`: a contact sensor that is `on`; a cover only while `coverActive` says so (a garage door, gate or door
  *   standing open, the plan's own rule), never a blind or curtain.
  * - `unlocked`: a lock whose state is `unlocked`. Jammed, locking and unlocking are not.
- * - `battery`: a numeric state under 20 (`BATTERY_LOW`). A `battery_level` attribute on another device is not read:
- *   such a battery is placed as its own `battery` icon if it matters.
  * - `hazard`: an `other` device whose entity is a `binary_sensor` that is `on`, by its `device_class`: `moisture` is a
  *   leak; `smoke`, `carbon_monoxide` and `gas` are smoke. HA has no device type for these (`typeForEntity` makes them
- *   `other`), so the class read at runtime decides, as for a cover.
- * - `none`: only when unavailable. A siren sounding, a vibration sensor, a vacuum in error: not asked for here.
+ *   `other`), so the class read at runtime decides, as for a cover. An `other` with `device_class: battery` and a
+ *   numeric state under 20 (`BATTERY_LOW`) is a low battery.
+ * - `none`: only when unavailable. A siren sounding, a vibration sensor, a vacuum in error: not asked for here. The
+ *   `battery` type is a home storage battery: its charge is not an alert.
+ * Besides its rule, any placed device whose `battery_level` attribute is a number under 20 is a low battery: a lock
+ * can be unlocked and low at once, two items.
  */
-export type AttentionRule = "alarm" | "open" | "unlocked" | "battery" | "hazard" | "none";
+export type AttentionRule = "alarm" | "open" | "unlocked" | "hazard" | "none";
 export const ATTENTION_RULE: Record<DeviceType, AttentionRule> = {
-  alarm: "alarm", contact: "open", cover: "open", lock: "unlocked", battery: "battery", other: "hazard",
+  alarm: "alarm", contact: "open", cover: "open", lock: "unlocked", battery: "none", other: "hazard",
   heater: "none", light: "none", switch: "none", plug: "none", temp: "none", humidity: "none", motion: "none", camera: "none",
   climate: "none", ac: "none", tv: "none", computer: "none", media: "none", inverter: "none", server: "none", access_point: "none",
   vibration: "none", boiler: "none", car: "none", ups: "none", printer: "none", speaker: "none", person: "none", radar: "none",
@@ -90,17 +92,32 @@ const centre = (d: Device): Pt | null => {
   return finite(p) ? p : null;
 };
 
+/** A number under `BATTERY_LOW`: a finite number, or a plain decimal string. Anything else is not low. */
+const low = (v: unknown): boolean => {
+  const n = typeof v === "number" ? v : typeof v === "string" && DECIMAL.test(v.trim()) ? Number(v) : Number.NaN;
+  return Number.isFinite(n) && n < BATTERY_LOW;
+};
+const attrs = (s: StateOverlay[string]): Record<string, unknown> => (s.attributes && typeof s.attributes === "object" && !Array.isArray(s.attributes) ? s.attributes : {});
+
+/** What a device in state `s` raises: its rule's kind, then a low battery of its own. */
+function deviceKinds(d: Device, s: StateOverlay[string]): AttentionKind[] {
+  const k = ruleKind(d, s);
+  const out: AttentionKind[] = k ? [k] : [];
+  if (k !== "battery-low" && low(attrs(s).battery_level)) out.push("battery-low");
+  return out;
+}
+
 /** What `ATTENTION_RULE` raises for a device in state `s`, or null. */
-function deviceKind(d: Device, s: StateOverlay[string]): AttentionKind | null {
+function ruleKind(d: Device, s: StateOverlay[string]): AttentionKind | null {
   const v = s.state;
   switch (ATTENTION_RULE[d.type]) {
     case "alarm": return v === "triggered" ? "alarm-triggered" : v.startsWith("armed_") || v === "arming" || v === "pending" ? "alarm-armed" : null;
     case "open": return (d.type === "cover" ? coverActive(s) : v === "on") ? "open" : null;
     case "unlocked": return v === "unlocked" ? "unlocked" : null;
-    case "battery": return DECIMAL.test(v.trim()) && Number(v) < BATTERY_LOW ? "battery-low" : null;
     case "hazard": {
+      const dc = attrs(s).device_class;
+      if (dc === "battery") return low(v) ? "battery-low" : null;
       if (!d.entity.startsWith("binary_sensor.") || v !== "on") return null;
-      const dc = s.attributes && typeof s.attributes === "object" ? s.attributes.device_class : undefined;
       return typeof dc !== "string" ? null : LEAK_CLASSES.has(dc) ? "leak" : SMOKE_CLASSES.has(dc) ? "smoke" : null;
     }
     default: return null;
@@ -148,10 +165,10 @@ export function attention(layout: Layout, state: StateOverlay | undefined): Atte
       const s = stateOf(state, d.entity);
       if (!s) continue;
       seen.add(d.entity);
-      const kind: AttentionKind | null = s.state === "unavailable" ? "unavailable" : deviceKind(d, s);
-      if (!kind) continue;
+      const kinds: AttentionKind[] = s.state === "unavailable" ? ["unavailable"] : deviceKinds(d, s);
+      if (!kinds.length) continue;
       const room = p ? roomName(f, p) : undefined;
-      add({ kind, at, name: nameFor(d, state), ...(room ? { room } : {}), type: d.type, ...base(s, d.entity) });
+      for (const kind of kinds) add({ kind, at, name: nameFor(d, state), ...(room ? { room } : {}), type: d.type, ...base(s, d.entity) });
     }
 
     list<Door>(f.doors).forEach((door, i) => {
