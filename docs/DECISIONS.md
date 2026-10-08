@@ -19,6 +19,31 @@ The card was 117123 gzip against its 115000 budget. The limit stays. Vite's lib 
 - **Not done:** the JSDoc comments of the code still ship (about 16 KB gzip more). Lib mode keeps them; removing them is a separate change.
 - Tests: `tests/card/strip-css-comments.test.ts` (strings, `url()`, substitutions, other templates, the real `render.ts`) and a check in `size-budget.spec.ts` that the built card holds the rules and not the comments.
 
+## 2026-10-08: every name clears 4.5:1, midnight and solarized too (S23 review S6)
+
+S23.6 left six pairs as `test.fixme`: water in midnight and Home Assistant dark (which falls back to midnight), and solarized's garden, terrace, pavement and water. They are real tests now; there is no exception list.
+- **Midnight takes its outdoor and fill colours from its own ramp.** Water was light's #a9cfe3 (a light name on it, 1.2:1); it is #1f4a78, a deeper blue that still reads as water. The stair fill was light's #c4c0b8, a pale block on navy, by the same copy; it is #1a2a46 with a #3a5684 hatch.
+- **Midnight's glass and window are #5fa8e8.** Light's #2c7fb8 was 2.8:1 on the dark window pane, under the 3:1 a line needs (WCAG 1.4.11). The TV keeps #2c7fb8 (S9.3). Light (2.4:1) and solarized (2.8:1) are under 3:1 too; not changed here, the test lists them.
+- **A theme may give outdoor names their own ink, `--fp-text-out`.** `.lbl[data-rl].out` mixes it, falling back to `--fp-text`, so no other theme changes. Solarized sets base2 #eee8d5: base1 is near 3.2:1 on its outdoor shades, and darkening those shades enough would make them the room's colour.
+- **Solarized water is #15608c**, Solarized blue 55 % over base03. On the full blue no Solarized text colour reaches 4.5:1. Windows keep the full blue.
+
+## 2026-10-08: labels keep inside the card at 375 px (S23 review S3)
+
+At 375 px "Garden" ran under the button stack and the stress layout put names below the view box. Placement knew the plan, not the frame it is shown in.
+- **`bounds` in `RenderOpts`.** A rect in plan units. Every name, tag and leader box must lie inside it, inset k/2 so rounding cannot push an edge out. Without it nothing changes, byte for byte, so the editor and the 3D overlay are as before.
+- **The card passes the fit box minus the stack.** `_measurePx` reads `.fp-stack`. A column at the right covers a strip of the plan; its width in plan units, plus 4 px of air, comes off the right. A stack laid out as a row sits above the plan and costs nothing. The card re-renders only when the strip moves by more than 0.5 % of the fit width.
+- **An outdoor name may use bare ground.** A garden, terrace, pavement or water too small for its name first tries the space beside or above or below it that no other room covers, close enough to still overlap its width or height, before a leader. Demo ground at 375 px went from 4 leaders to 2.
+- **A leader is pulled into bounds**, its foot clamped to a spot still in the room.
+- **The disc floor stays at 28 px.** The leaders left at 375 px come from areas too small for an 11 px name (the reading-corner zone, the garden, the pond), not from crowded discs. Lowering discs to 24 px would split `k` between text and discs and shrink values and extras with them, for no label gained.
+
+## 2026-10-08: a window fills its cut (S23 review S1)
+
+The wall is cut `wallWidthAt + OPENING_EXTRA` wide, but a room polygon stops at the wall's centre line. On an outer wall the outer half of a window's gap showed the board, and three bare hairlines read as a hole.
+- **A pane over the whole cut.** `.win-pane`, opaque, `color-mix(--fp-window 22%, --fp-room-empty)`; red-tinted the same way while open or alarmed. Drawn under the door line and the hairlines, `data-dp`, no clicks. A window and a slit both get it: the cut does not narrow for a slit.
+- **Jambs.** A hairline across each end of the cut (`.win-jamb`, `data-dj`), window colour, red with the state like the symbol.
+- **2D only.** In 2.5D the raised wall carries the glass on its face and hides the floor-level cut; a floor pane there read as a box in front of the wall.
+- **Doors stay a gap.** A door or glass door in an outer wall shows the board in the outer half of its gap. That is a doorway to the outside and reads as one, so it is left as is.
+
 ## 2026-10-08: names stay in their room (S23.3)
 
 The old search tried rows above and below the centroid and took a free spot in the next room before a covered one in its own. The 2.5D Hall name landed in the Cloakroom; names sat under discs. Now a name is placed only where its whole box (padded 2k, eight points) is in its room and in no smaller named room.

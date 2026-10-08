@@ -87,3 +87,64 @@ test("S4 CSS pair: a boundary between rooms keeps its 1.5 cm dash and its halo, 
     expect(v.hdash, tag).toBe("8px, 6px");
   });
 });
+
+// S1 (Opus review of S23): a window's pane fills the cut, so its outer half no longer shows the board. Read back in every
+// theme: an opaque glass tint that is neither the board nor the bare room, takes no clicks, and red-tinted while open.
+const paneBody = `<path class="win-pane k-window" d="M0 0L10 0L10 10L0 10Z"/><path class="win-pane k-slit" d="M0 0L10 0L10 10L0 10Z"/>
+<path class="win-pane k-window open" d="M0 0L10 0L10 10L0 10Z"/><path class="win-jamb k-window" d="M0 0L0 10"/>
+<path class="win-jamb k-window alarm" d="M0 0L0 10"/>
+<rect class="p-bg" style="fill:var(--fp-bg)"/><rect class="p-empty" style="fill:var(--fp-room-empty)"/><rect class="p-window" style="fill:var(--fp-window)"/>
+<rect class="p-red" style="fill:var(--fp-open-door)"/>`;
+const paneHtml = `<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg>${CASES.map((c, i) => `<g id="c${i}" data-theme="${c.t}" data-mode="${c.mode}">${paneBody}</g>`).join("")}</svg></body></html>`;
+
+test("S1 CSS pair: a window's pane is an opaque glass tint, not the board and not the bare room; jambs are window hairlines", async ({ page }) => {
+  await page.setContent(paneHtml);
+  const r = await page.evaluate((n) => Array.from({ length: n }, (_, i) => {
+    const g = document.getElementById(`c${i}`)!, cs = (sel: string) => getComputedStyle(g.querySelector(sel)!);
+    const pane = (sel: string) => { const c = cs(sel); return { fill: c.fill, fo: c.fillOpacity, op: c.opacity, stroke: c.stroke, pe: c.pointerEvents }; };
+    const j = (sel: string) => { const c = cs(sel); return { stroke: c.stroke, w: c.strokeWidth, ve: c.vectorEffect, pe: c.pointerEvents, fill: c.fill }; };
+    return {
+      win: pane(".win-pane.k-window:not(.open)"), slit: pane(".win-pane.k-slit"), open: pane(".win-pane.open"),
+      jamb: j(".win-jamb:not(.alarm)"), jambAlarm: j(".win-jamb.alarm"),
+      bg: cs(".p-bg").fill, empty: cs(".p-empty").fill, window: cs(".p-window").fill, red: cs(".p-red").fill,
+    };
+  }), CASES.length);
+  CASES.forEach((c, i) => {
+    const v = r[i], tag = `${c.t}/${c.mode}`;
+    for (const p of [v.win, v.slit]) {
+      expect(p.fill, `${tag}: the pane paints`).not.toBe("none");
+      expect(p.fill, tag).not.toBe("rgba(0, 0, 0, 0)");
+      expect(p.fill, `${tag}: not the board`).not.toBe(v.bg);
+      expect(p.fill, `${tag}: not the bare room either, it is glass`).not.toBe(v.empty);
+      expect(p.fo, `${tag}: opaque, so the board cannot show through`).toBe("1");
+      expect(p.op, tag).toBe("1");
+      expect(p.stroke, tag).toBe("none");
+      expect(p.pe, `${tag}: the pane takes no clicks`).toBe("none");
+    }
+    expect(v.slit.fill, tag).toBe(v.win.fill);
+    expect(v.open.fill, `${tag}: an open window's pane is not the closed tint`).not.toBe(v.win.fill);
+    expect(v.jamb.stroke, tag).toBe(v.window);
+    expect(v.jamb.w, tag).toBe("1px");
+    expect(v.jamb.ve, tag).toBe("non-scaling-stroke");
+    expect(v.jamb.pe, tag).toBe("none");
+    expect(v.jamb.fill, tag).toBe("none");
+    expect(v.jambAlarm.stroke, `${tag}: red with a state`).toBe(v.red);
+  });
+});
+
+// S23 review S1/S6: midnight's window hairlines were #2c7fb8 on a navy pane, 2.8:1, faint beside the pale wall. A line
+// that marks a thing on the plan needs 3:1 on what is behind it (WCAG 1.4.11). Pinned for midnight and Home Assistant
+// dark, which falls back to it; the other themes are listed in the message so a change to them shows.
+test("S6: midnight's window line clears 3:1 on its pane", async ({ page }) => {
+  await page.setContent(paneHtml);
+  const rgb = (css: string): number[] => { const m = /color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)/.exec(css); return m ? [m[1], m[2], m[3]].map((v) => Number(v) * 255) : (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number); };
+  const lum = (c: number[]) => { const [r, g, b] = c.map((v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const ratio = (a: number[], b: number[]) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+  const r = await page.evaluate((n) => Array.from({ length: n }, (_, i) => {
+    const g = document.getElementById(`c${i}`)!, cs = (sel: string) => getComputedStyle(g.querySelector(sel)!);
+    return { line: cs(".win-jamb:not(.alarm)").stroke, pane: cs(".win-pane.k-window:not(.open)").fill };
+  }), CASES.length);
+  const all = CASES.map((c, i) => ({ tag: `${c.t}/${c.mode}`, k: ratio(rgb(r[i].line), rgb(r[i].pane)) }));
+  const seen = all.map((x) => `${x.tag} ${x.k.toFixed(2)}`).join(", ");
+  for (const x of all.filter((a) => a.tag === "midnight/light" || a.tag === "ha/dark")) expect(x.k, `${x.tag} (${seen})`).toBeGreaterThanOrEqual(3);
+});

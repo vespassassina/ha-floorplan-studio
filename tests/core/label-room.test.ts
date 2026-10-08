@@ -130,6 +130,18 @@ describe("S23.3: a room's name stays in its room", () => {
     expect(html2).not.toContain("lbl-tag");
   });
 
+  it("a zone's name keeps off a device disc over the zone's centroid, and stays in the zone", () => {
+    // S23 review S6 (issue 6): zones avoid discs because discs go into `placed` first; nothing pinned it.
+    const zone = { ...room("Reading nook", sq(100, 100, 400, 200)), kind: "zone", wk: Array(4).fill("boundary") } as unknown as Floor["rooms"][number];
+    const f = plain([room("Lounge", sq(0, 0, 600, 400)), zone], [{ id: "t", type: "temp", entity: "sensor.t", x: 300, y: 200 }]);
+    const html = renderFloor(f, { scale: 1 }), t = names(html).find((x) => x.zone)!, d = discs(html);
+    expect(t, "the zone's name").toBeTruthy();
+    expect(d).toHaveLength(1);
+    expect(meet(d[0], [300 - 16, 200 - 16, 32, 32])).toBe(true); // the disc sits on the centroid
+    expect(meet(t.box, d[0]), `zone name at ${t.box.map(Math.round)}`).toBe(false);
+    for (const c of corners(t.box)) expect(inside(c, zone.pts), `corner ${c.map(Math.round)}`).toBe(true);
+  });
+
   it("a tag's name is escaped like any other (finding 2)", () => {
     const devices = [];
     for (let x = 10; x < 300; x += 20) for (let y = 10; y < 120; y += 20) devices.push({ id: `s${x}-${y}`, type: "temp", entity: `sensor.t${x}_${y}`, x, y });

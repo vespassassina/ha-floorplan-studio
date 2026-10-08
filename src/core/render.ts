@@ -25,6 +25,10 @@ export interface RenderOpts {
    *  under `NAME_MIN_PX` and, with it, no device disc under 28 px. Omitted (the editor, whose `scale` is already its
    *  zoom), nothing changes. */
   px?: number;
+  /** S23 review S3: the part of the drawing, in its on-screen frame (the view box's own units), a room name, its tag and
+   *  its leader may use: the card passes its fit box less the strip its controls cover. A candidate that leaves it is
+   *  rejected. Omitted (the editor), nothing changes. */
+  bounds?: { x: number; y: number; w: number; h: number };
   state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
@@ -126,9 +130,13 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ro
    none needed lightening. Only the neutrals (ink, bg, room, wall, disc, halo, tread, outline, measure,
    wall-external/-fence) change, because those are the tokens a dark background actually breaks. Renamed to "midnight" on
    2026-09-22 when "blueprint" moved on to the role-generated palette below (Diego's brief: four roles - a blue base, a white
-   foreground, a terminal-green line colour and a saturated orange accent). */
+   foreground, a terminal-green line colour and a saturated orange accent). S23 review S6: water and the stair fill were
+   still light's pale #a9cfe3 and #c4c0b8, a light name on light water (1.2:1) and a pale block on a navy plan. Both now
+   come from the navy ramp: water a deeper blue, the fill a step above the room with a hatch the wall blue would draw.
+   Glass and window are a lighter blue, #5fa8e8: light's #2c7fb8 was 2.8:1 on the dark window pane, under the 3:1 a
+   line on the plan needs. The TV keeps #2c7fb8 (S9.3). */
 const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp-room-empty:var(--fp-room);--fp-garden:#1d2a42;--fp-terrace:#21304c;--fp-pavement:#233352;--fp-wall:#8fb4f0;--fp-idle:#8b8578;
---fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#2c7fb8;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
+--fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#5fa8e8;--fp-window:#5fa8e8;--fp-sealed:#9a8f80;--fp-water:#1f4a78;--fp-fill:#1a2a46;--fp-fill-line:#3a5684;
 --fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-speaker:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
 
@@ -157,11 +165,13 @@ const BEACH_HOUSE_TOKENS = rolesToTokens({ base: "#e3cd9c", fg: "#3a3226", fgAlp
    The dark variant, base03 background, base1 body text; each device type keeps its own Solarized hue rather than collapsing
    to one accent, demonstrating the per-type override the theme format supports. S9.3: --fp-dev-tv was #6c71c4 (Solarized
    violet), which read as blue-ish but was not blue; it is now #268bd2, Solarized's own blue (the same hex as --fp-window
-   and --fp-dev-ac-cool here) — TV is the one exception to "each type keeps its own hue" too. */
+   and --fp-dev-ac-cool here) — TV is the one exception to "each type keeps its own hue" too. S23 review S6: base1 is
+   near 3.2:1 on the outdoor shades and 1.3:1 on the blue, so outdoor names take base2 (--fp-text-out) and water is
+   Solarized blue 55 % over base03, #15608c; windows keep the full blue. */
 const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#06323d;--fp-garden:#11424f;--fp-terrace:#124c5b;--fp-pavement:#135161;--fp-wall:#93a1a1;--fp-idle:#586e75;
---fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#dc322f;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#268bd2;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#268bd2;--fp-fill:#073642;--fp-fill-line:#586e75;
+--fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#dc322f;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#268bd2;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#15608c;--fp-fill:#073642;--fp-fill-line:#586e75;
 --fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-speaker:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
---fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact)`;
+--fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact);--fp-text-out:#eee8d5`;
 /* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
    fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
    nothing. Not mapped, on purpose: primary, danger, warn. HA's error and warning colours fail 4.5:1 against the fixed white or dark text on our
@@ -394,6 +404,10 @@ ${THEME_EXTRAS}
    leaf and swing arc (door, glass) or three hairlines (window, slit), red only while open, alarmed or its cover is open. */
 .door.quiet{stroke:transparent} .door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
 .door-sym.k-glass{stroke:var(--fp-glass)} .door-sym.k-window,.door-sym.k-slit{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
+/* S1 (Opus review of S23): a window's pane fills the whole cut, so the outer half of the gap on an outer wall is glass, not the
+   board; opaque, a glass tint mixed into the bare room. Its jambs are window hairlines, red with the state like the symbol. */
+.win-pane{fill:color-mix(in srgb,var(--fp-window) 22%,var(--fp-room-empty));stroke:none;pointer-events:none} .win-pane.open,.win-pane.alarm{fill:color-mix(in srgb,var(--fp-open-door) 22%,var(--fp-room-empty))}
+.win-jamb{fill:none;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none} .win-jamb.open,.win-jamb.alarm,.win-jamb.cover-open{stroke:var(--fp-open-door)}
 .dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle);fill-opacity:.7}
 /* S23.4 (V10): an on glyph is ink on its solid disc, 4.5:1 in every theme. g.dev.on path (0,2,2) on purpose: it must beat
    .dev.dev-motion path's fade, .dev.outdoor path and .dev-camera path, and still lose to the camera cone (0,3,1). */
@@ -469,7 +483,7 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
    that passes on every theme's surface (light garden 4.56, terminal pavement 4.67). A device's or an extra's name sits on
    no one surface and keeps the plain text colour. One font, Home Assistant's own. */
 :host,svg{--fp-font:var(--ha-font-family-body,var(--paper-font-body1_-_font-family,system-ui,sans-serif))}
-.lbl,.val{font-family:var(--fp-font)} .lbl{font-weight:500} .lbl[data-rl]{--fp-label:color-mix(in srgb,var(--fp-text) 92%,var(--fp-under,var(--fp-room-empty)));fill:var(--fp-label)} .lbl.out{font-style:italic} .val{font-variant-numeric:tabular-nums}
+.lbl,.val{font-family:var(--fp-font)} .lbl{font-weight:500} .lbl[data-rl]{--fp-label:color-mix(in srgb,var(--fp-text) 92%,var(--fp-under,var(--fp-room-empty)));fill:var(--fp-label)} .lbl.out{font-style:italic} .lbl[data-rl].out{--fp-label:color-mix(in srgb,var(--fp-text-out,var(--fp-text)) 92%,var(--fp-under,var(--fp-room-empty)))} .val{font-variant-numeric:tabular-nums}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
 .sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}`;
 
@@ -684,6 +698,17 @@ function doorSymbol(f: Floor, kind: unknown, a: Pt, b: Pt): string {
   // From the leaf (n) to the wall (u): clockwise on screen (y down) when n x u > 0, SVG's sweep-flag 1.
   const sweep = n[0] * u[1] - n[1] * u[0] > 0 ? 1 : 0;
   return `M${num(a[0])} ${num(a[1])}L${num(tip[0])} ${num(tip[1])}A${num(len)} ${num(len)} 0 0 ${sweep} ${num(b[0])} ${num(b[1])}`;
+}
+
+/** S1 (Opus review of S23): a window's pane and jambs, or null for any other kind. The wall is cut wider than the room
+ *  polygon, which stops at the wall's centre line, so on an outer wall the outer half of the gap showed the board and the
+ *  window read as a hole. The pane fills the whole cut (the same width as the mask line), the jambs close its two ends. */
+function windowPane(f: Floor, kind: unknown, a: Pt, b: Pt): { pane: string; jambs: string } | null {
+  const len = dist(a, b);
+  if (!PANE_KINDS.includes(kind as string) || !(len > 0) || ![a[0], a[1], b[0], b[1]].every(Number.isFinite)) return null;
+  const h = (wallWidthAt(f, a, b) + OPENING_EXTRA) / 2, n: Pt = [((b[1] - a[1]) / len) * h, (-(b[0] - a[0]) / len) * h];
+  const p = (q: Pt, s: number) => `${num(q[0] + n[0] * s)} ${num(q[1] + n[1] * s)}`;
+  return { pane: `M${p(a, 1)}L${p(b, 1)}L${p(b, -1)}L${p(a, -1)}Z`, jambs: `M${p(a, 1)}L${p(a, -1)}M${p(b, 1)}L${p(b, -1)}` };
 }
 
 /** S2.10: what an air conditioner is doing, read from the entity at render time and never stored. `off`, `unavailable` and `unknown` win over everything; otherwise `hvac_action` decides, and `state` stands in when the attribute is missing. */
@@ -1329,6 +1354,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const cs = Math.cos((planDeg * Math.PI) / 180), sn = Math.sin((planDeg * Math.PI) / 180);
   /** The plan point that shows `dx` right of and `dy` below `a` on the screen: the screen vector turned back into the plan. */
   const screenOff = (a: Pt, dx: number, dy: number): Pt => (planDeg ? [a[0] + dx * cs + dy * sn, a[1] - dx * sn + dy * cs] : [a[0] + dx, a[1] + dy]);
+  // S23 review S3: the bounds a name, its tag and its leader must stay in (`RenderOpts.bounds`); none, no limit.
+  // Held in by k/2 so a box that lands on the edge stays inside once its numbers are rounded for the markup.
+  const B = o.bounds && [o.bounds.x, o.bounds.y, o.bounds.w, o.bounds.h].every(Number.isFinite) && o.bounds.w > k && o.bounds.h > k
+    ? { x: o.bounds.x + k / 2, y: o.bounds.y + k / 2, w: o.bounds.w - k, h: o.bounds.h - k } : null;
+  const inB = (b: Box) => !B || (b[0] >= B.x && b[1] >= B.y && b[0] + b[2] <= B.x + B.w && b[1] + b[3] <= B.y + B.h);
   const textBox = (a: Pt, size: number, len: number): Box => { const [x, y] = toScreen(a), w = len * 0.6 * size; return [x - w / 2, y - 0.75 * size, w, size]; };
   const place = (cands: Pt[], size: number, text: unknown): Pt => {
     const len = String(text).length, at = cands.find((c) => !placed.some((q) => meets(textBox(c, size, len), q))) ?? cands[0];
@@ -1425,11 +1455,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!c0.every(Number.isFinite)) { const size = base; return { at: place(rows(c0), size, r.name), size }; }
     const clear = (p: Pt) => inPoly(p, r.pts) && !inner.some((q) => inPoly(p, q));
     // A box fits when its corners and edge midpoints, 2k inside it, are all in the room: a room is a polygon, not a box.
-    const fits = (c: Pt, size: number) => {
-      const [x, y, w, h] = textBox(c, size, len), d = 2 * k;
-      return [[x - d, y - d], [x + w + d, y - d], [x + w + d, y + h + d], [x - d, y + h + d], [x + w / 2, y - d], [x + w / 2, y + h + d], [x - d, y + h / 2], [x + w + d, y + h / 2]]
-        .every((p) => clear(fromScreen(p as Pt)));
-    };
+    const ring = ([x, y, w, h]: Box, d = 2 * k): Pt[] => [[x - d, y - d], [x + w + d, y - d], [x + w + d, y + h + d], [x - d, y + h + d], [x + w / 2, y - d], [x + w / 2, y + h + d], [x - d, y + h / 2], [x + w + d, y + h / 2]];
+    const fits = (c: Pt, size: number) => inB(textBox(c, size, len)) && ring(textBox(c, size, len)).every((p) => clear(fromScreen(p)));
     const sizes: number[] = [];
     for (let s = base; s > floor * 1.001; s *= 0.85) sizes.push(s);
     sizes.push(floor);
@@ -1451,18 +1478,52 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const pl = pole(r.pts, inner), anchor = inC0 || !pl ? c0 : pl;
     const next = (pl ? search(pl) : null) ?? (inC0 ? null : search(c0));
     if (next) return next;
+    // S23 review S3: an outdoor name that fits nowhere inside may sit just beside its area on space no room covers,
+    // free and in bounds, before a tag over its icons or a leader.
+    if (OUTDOOR.has(r.kind)) {
+      const owned = f.rooms.filter((q) => q !== r && q.kind !== "zone" && Array.isArray(q.pts) && q.pts.length > 2).map((q) => q.pts);
+      const bare = (p: Pt) => clear(p) || !owned.some((q) => inPoly(p, q));
+      const sx = r.pts.map((p) => toScreen(p)[0]), sy = r.pts.map((p) => toScreen(p)[1]), m = GAP * k, st = 8 * k;
+      const [x0, y0, x1, y1] = [Math.min(...sx), Math.min(...sy), Math.max(...sx), Math.max(...sy)], [ax, ay] = toScreen(anchor);
+      for (const size of sizes) {
+        // Screen points for the baseline middle: under and over the area's box, slid across in 8k steps while the name
+        // still overlaps the area's width, and beside it, slid down; nearest the anchor first.
+        const w = len * 0.6 * size, n = Math.floor((w + x1 - x0) / 2 / st), spots: Pt[] = [];
+        for (let j = -n; j <= n; j++) spots.push([(x0 + x1) / 2 + j * st, y1 + m + 0.75 * size], [(x0 + x1) / 2 + j * st, y0 - m - 0.25 * size]);
+        for (let y = y0 + 0.75 * size; y <= y1 - 0.25 * size + 1e-9; y += st) spots.push([x1 + m + w / 2, y], [x0 - m - w / 2, y]);
+        spots.sort((a, b) => Math.hypot(a[0] - ax, a[1] - ay) - Math.hypot(b[0] - ax, b[1] - ay));
+        for (const sp of spots) {
+          const c = fromScreen(sp), box = textBox(c, size, len);
+          if (!inB(box) || placed.some((q) => meets(box, q)) || !ring(box).every((p) => bare(fromScreen(p)))) continue;
+          placed.push(box); words.add(box);
+          return { at: c, size };
+        }
+      }
+    }
     const tag = best.tag;
     if (tag) { const box = textBox(tag.at, tag.size, len); placed.push(box); words.add(box); return tag; }
     const size = floor;
-    const ys = r.pts.map((p) => toScreen(p)[1]), ay = toScreen(anchor)[1];
-    const above = screenOff(anchor, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay), below = screenOff(anchor, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay);
+    // The leader starts at the anchor, moved into bounds when the room reaches in (a garden half under the controls).
+    const from = ((): Pt => {
+      if (!B) return anchor;
+      const [ax, ay] = toScreen(anchor), q = fromScreen([Math.min(Math.max(ax, B.x + k), B.x + B.w - k), Math.min(Math.max(ay, B.y + k), B.y + B.h - k)]);
+      return clear(q) ? q : anchor;
+    })();
+    const ys = r.pts.map((p) => toScreen(p)[1]), ay = toScreen(from)[1];
+    // Off the room above or below, then slid sideways and clamped into bounds; the leader runs from `from` to the box.
+    const intoB = (c: Pt): Pt => {
+      if (!B) return c;
+      const [x, y, w, h] = textBox(c, size, len), dx = Math.max(B.x - x, 0) + Math.min(B.x + B.w - (x + w), 0), dy = Math.max(B.y - y, 0) + Math.min(B.y + B.h - (y + h), 0);
+      return dx || dy ? screenOff(c, dx, dy) : c;
+    };
+    const above = intoB(screenOff(from, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay)), below = intoB(screenOff(from, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay));
     // The leader is one more thing that must not run across another text: its own thin box counts too.
-    const leaderBox = (c: Pt): Box => { const [x, y] = toScreen(anchor), cy = toScreen(c)[1]; return [x - k / 2, Math.min(y, cy), k, Math.abs(cy - y)]; };
+    const leaderBox = (c: Pt): Box => { const [x, y] = toScreen(from), [cx, cy] = toScreen(c); return [Math.min(x, cx) - k / 2, Math.min(y, cy), Math.abs(cx - x) + k, Math.abs(cy - y)]; };
     const free = (c: Pt) => !placed.some((q) => meets(textBox(c, size, len), q));
     const at = [below, above].find((c) => free(c) && !placed.some((q) => meets(leaderBox(c), q))) ?? [below, above].find(free) ?? below;
     const box = textBox(at, size, len);
     placed.push(box); words.add(box);
-    return { at, size, from: anchor };
+    return { at, size, from };
   };
   const nameAt: Label[] = [], zoneAt: Label[] = [];
   // S23.1: a room's name is 12, an outdoor name, like a zone's, 10: smaller than a room, never fainter.
@@ -1525,8 +1586,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S23.7: a door or window is its symbol (below); its own line stays for the title, the selection and the alert look, and
     // paints nothing while the door is closed and not selected (`quiet`).
     const sym = doorSymbol(f, d.kind, d.a, d.b), quiet = sym && !sel && !open && !vibrating && !coverOpen;
+    const state = `${vibrating ? " alarm" : ""}${open ? " open" : ""}${coverOpen ? " cover-open" : ""}`, pane = x25 ? null : windowPane(f, d.kind, d.a, d.b);
+    // S1: a window's pane goes under its own line and the hairlines; the jambs go on top. Not in 2.5D: the raised wall
+    // carries the glass on its face and hides the floor-level cut.
+    if (pane) out.push(`<path data-dp="${i}" class="win-pane k-${esc(String(d.kind))}${state}" d="${pane.pane}"/>`);
     out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}${quiet ? " quiet" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`);
-    if (sym) out.push(`<path data-ds="${i}" class="door-sym k-${esc(String(d.kind))}${vibrating ? " alarm" : ""}${open ? " open" : ""}${coverOpen ? " cover-open" : ""}" d="${sym}"/>`);
+    if (sym) out.push(`<path data-ds="${i}" class="door-sym k-${esc(String(d.kind))}${state}" d="${sym}"/>`);
+    if (pane) out.push(`<path data-dj="${i}" class="win-jamb k-${esc(String(d.kind))}${state}" d="${pane.jambs}"/>`);
   });
 
   const tags: string[] = [], len = (s: unknown) => String(s).length;
