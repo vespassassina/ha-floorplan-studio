@@ -1,6 +1,7 @@
 import { DEVICE_TYPES } from "./schema";
-import type { Device, DeviceType, Door, Layout } from "./schema";
-import { acMode, classOf, type RenderOpts, type StateOverlay } from "./render";
+import type { Device, DeviceType, Door, Floor, Layout, Pt } from "./schema";
+import { acMode, classOf, ROOM_OWNS, roomAt, type RenderOpts, type StateOverlay } from "./render";
+import { onEdge } from "./geometry";
 import { pieceDevice } from "./solids";
 
 /**
@@ -15,6 +16,41 @@ export interface ActiveDevice {
   type: DeviceType;
   floor: string;
   colorVar: string;
+  /** S24.7 (F2): where the row's thing is on its floor, so a tap can switch floor and find it: an index into
+   *  `devices`, `furniture` (a linked piece) or `doors` (a sensor the door carries). */
+  at: ThingRef;
+  /** The room it stands in (`roomAt`), or the first room a door borders; absent when none. */
+  room?: string;
+}
+
+/** A thing on a floor: the index into the floor's `devices`, `furniture` or `doors`. */
+export interface ThingRef { what: "device" | "piece" | "door"; index: number }
+
+const finitePt = (p: unknown): p is Pt => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]);
+const roomList = (f: Floor): Floor["rooms"] => (Array.isArray(f.rooms) ? f.rooms : []);
+
+/** The name of the room `p` is in (`roomAt`, the plan's own rule), or undefined. Shared with attention.ts. */
+export function roomNameAt(f: Floor, p: Pt): string | undefined {
+  const name = roomList(f)[roomAt(f, p)]?.name;
+  return typeof name === "string" && name ? name : undefined;
+}
+
+/** The first room (layout order) that may own a device (`ROOM_OWNS`) and has door `index` on one of its edges. */
+export function doorRoomName(f: Floor, index: number): string | undefined {
+  for (const r of roomList(f)) {
+    const ring: unknown[] = Array.isArray(r?.pts) ? r.pts : [];
+    if (!r || !ROOM_OWNS[r.kind] || ring.length < 3 || !ring.every(finitePt) || typeof r.name !== "string" || !r.name) continue;
+    const pts = ring as Pt[];
+    if (pts.some((a, i) => onEdge(f, a, pts[(i + 1) % pts.length]!).doors.includes(index))) return r.name;
+  }
+  return undefined;
+}
+
+/** Where a device stands: its point, or a line device's middle; null when not finite. A person moves: no stored room. */
+function standsAt(d: Device): Pt | null {
+  if (d.type === "person") return null;
+  const p: unknown = "a" in d && "b" in d && finitePt(d.a) && finitePt(d.b) ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [(d as { x: number }).x, (d as { y: number }).y];
+  return finitePt(p) ? p : null;
 }
 
 /**
@@ -104,7 +140,7 @@ export function nameFor(d: Device, state: StateOverlay | undefined): string {
  *  the list when it is on, under the door's own name, so pulling a sensor off the plan into a door (S10.3's other
  *  half) never makes it vanish from here. `field` picks which of the door's own entity lists to read; `placed` is
  *  every entity that already has a device icon somewhere in the layout, so that one is never listed twice. */
-function doorAttachedRows(door: Door, field: "sensors" | "vibration", state: StateOverlay | undefined, placed: ReadonlySet<string>, floorKey: string): ActiveDevice[] {
+function doorAttachedRows(door: Door, field: "sensors" | "vibration", state: StateOverlay | undefined, placed: ReadonlySet<string>, floorKey: string, at: ThingRef, room: () => string | undefined): ActiveDevice[] {
   const type: DeviceType = field === "sensors" ? "contact" : "vibration";
   const list = door[field];
   if (!Array.isArray(list)) return [];
@@ -112,7 +148,8 @@ function doorAttachedRows(door: Door, field: "sensors" | "vibration", state: Sta
   for (const e of list) {
     if (typeof e !== "string" || !e || placed.has(e)) continue;
     if (state?.[e]?.state !== "on") continue;
-    out.push({ entity: e, name: door.name ?? e, type, floor: floorKey, colorVar: "--fp-open-door" });
+    const r = room();
+    out.push({ entity: e, name: door.name ?? e, type, floor: floorKey, colorVar: "--fp-open-door", at, ...(r ? { room: r } : {}) });
   }
   return out;
 }
@@ -131,15 +168,21 @@ export function activeDevices(layout: Layout, state: StateOverlay | undefined, o
   // A linked tv, speaker or computer piece is listed as the device of its type; an entity already listed (a device, or another piece) is not repeated.
   const listed = new Set(placed);
   for (const [floorKey, floor] of Object.entries(layout.floors)) {
-    const pieces = (floor.furniture ?? []).flatMap((m) => { const d = pieceDevice(m); return d && !listed.has(d.entity) && listed.add(d.entity) ? [d] : []; });
-    for (const d of [...floor.devices, ...pieces]) {
+    const things: { d: Device; at: ThingRef }[] = floor.devices.map((d, index) => ({ d, at: { what: "device", index } }));
+    (floor.furniture ?? []).forEach((m, index) => { const d = pieceDevice(m); if (d && !listed.has(d.entity) && listed.add(d.entity)) things.push({ d, at: { what: "piece", index } }); });
+    for (const { d, at } of things) {
       if (!isActive(d, state, opts)) continue;
-      out.push({ entity: d.entity, name: nameFor(d, state), type: d.type, floor: floorKey, colorVar: colorVarFor(d, state) });
+      const p = standsAt(d), room = p ? roomNameAt(floor, p) : undefined;
+      out.push({ entity: d.entity, name: nameFor(d, state), type: d.type, floor: floorKey, colorVar: colorVarFor(d, state), at, ...(room ? { room } : {}) });
     }
-    for (const door of floor.doors ?? []) {
-      out.push(...doorAttachedRows(door, "sensors", state, placed, floorKey));
-      out.push(...doorAttachedRows(door, "vibration", state, placed, floorKey));
-    }
+    (floor.doors ?? []).forEach((door, index) => {
+      // The room is looked up only for a door that lists something: `onEdge` over every room is not free.
+      let room: string | undefined | null = null;
+      const roomOnce = () => (room === null ? (room = doorRoomName(floor, index)) : room);
+      const at: ThingRef = { what: "door", index };
+      out.push(...doorAttachedRows(door, "sensors", state, placed, floorKey, at, roomOnce));
+      out.push(...doorAttachedRows(door, "vibration", state, placed, floorKey, at, roomOnce));
+    });
   }
   return out;
 }

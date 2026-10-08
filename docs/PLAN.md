@@ -2716,7 +2716,7 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       "Placed 7; 3 hidden by Layers [Show]". Room-scoped lists show friendly names with the id as small text, reuse
       Place's filter, and dedupe areas by id with the floor added when names repeat. Test: hide lights in one click,
       no light icon drawn; the status text; the Filter menu is gone.
-- [ ] S24.7 (G1, G2, F2, F3, A3, S22.F4) Card Overview sheet. The Active panel becomes the Overview: Attention on top,
+- [x] S24.7 (G1, G2, F2, F3, A3, S22.F4) Card Overview sheet. The Active panel becomes the Overview: Attention on top,
       then Active by category with state text on each row; scope is the shown floor by default with an "All floors"
       toggle; the header shows count chips ("6 lights · 2 alerts") instead of one number. A row tap switches floor,
       pans to the device, pulses it and opens its popup. The whole row is the target; the ▸ chevron goes, its details

@@ -42,10 +42,10 @@ async function boot(page: Page, width: number, extra: Record<string, unknown> = 
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
-const names = (page: Page) => card(page).locator("css=.fp-active-body > .fp-active-group .fp-cat-name").allTextContents();
+const names = (page: Page) => card(page).locator("css=.fp-active-body .fp-ov-act > .fp-active-group .fp-cat-name").allTextContents();
 
 /** A real click at the header's centre, after checking that the header is the top element there. */
-async function clickHead(page: Page, cat: string, list = ".fp-active-body > .fp-active-group") {
+async function clickHead(page: Page, cat: string, list = ".fp-active-body .fp-ov-act > .fp-active-group") {
   const p = await card(page).evaluate((el, sel) => {
     const b = el.shadowRoot!.querySelector<HTMLElement>(sel)!;
     b.scrollIntoView({ block: "nearest" });
@@ -55,8 +55,8 @@ async function clickHead(page: Page, cat: string, list = ".fp-active-body > .fp-
   expect(p.hit, `the ${cat} header is the top element at its centre`).toBe(true);
   await page.mouse.click(p.x, p.y);
 }
-const rowsIn = (page: Page, cat: string, list = ".fp-active-body > .fp-active-group") => card(page).locator(`css=${list}[data-cat="${cat}"] .fp-active-row`).count();
-const expanded = (page: Page, cat: string, list = ".fp-active-body > .fp-active-group") => card(page).locator(`css=${list}[data-cat="${cat}"] > button.fp-cat`).getAttribute("aria-expanded");
+const rowsIn = (page: Page, cat: string, list = ".fp-active-body .fp-ov-act > .fp-active-group") => card(page).locator(`css=${list}[data-cat="${cat}"] .fp-active-row`).count();
+const expanded = (page: Page, cat: string, list = ".fp-active-body .fp-ov-act > .fp-active-group") => card(page).locator(`css=${list}[data-cat="${cat}"] > button.fp-cat`).getAttribute("aria-expanded");
 
 for (const width of [1100, 375]) {
   for (const theme of ["light", "midnight"]) {
@@ -147,7 +147,7 @@ test.describe("the Room panel is grouped too", () => {
       expect(await rowsIn(page, "lights", room)).toBe(0);
       expect(await expanded(page, "lights", room)).toBe("false");
       // the Active list below shows the same category, and it is still open: the two lists fold apart
-      expect(await expanded(page, "lights", ".fp-filtered > .fp-active-group")).toBe("true");
+      expect(await expanded(page, "lights", ".fp-filtered .fp-ov-act > .fp-active-group")).toBe("true");
     });
   }
 });
