@@ -1,9 +1,8 @@
 import type { Device, DeviceType, Door, Floor, Layout, Pt } from "./schema";
-import { ROOM_OWNS, roomAt, type StateOverlay } from "./render";
+import { type StateOverlay } from "./render";
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
-import { onEdge } from "./geometry";
-import { nameFor } from "./active";
+import { doorRoomName as doorRoom, nameFor, roomNameAt as roomName } from "./active";
 import { stateOf } from "./readings";
 import { pieceDevice } from "./solids";
 
@@ -125,21 +124,6 @@ function ruleKind(d: Device, s: StateOverlay[string]): AttentionKind | null {
     default: return null;
   }
 }
-
-/** The first room (layout order) that may own a device (`ROOM_OWNS`) and has the door on one of its edges. */
-function doorRoom(f: Floor, index: number): string | undefined {
-  for (const r of list<Floor["rooms"][number]>(f.rooms)) {
-    const ring = list<Pt>(r?.pts);
-    if (!r || !ROOM_OWNS[r.kind] || ring.length < 3 || !ring.every(finite) || typeof r.name !== "string" || !r.name) continue;
-    if (ring.some((a, i) => onEdge(f, a, ring[(i + 1) % ring.length]!).doors.includes(index))) return r.name;
-  }
-  return undefined;
-}
-
-const roomName = (f: Floor, p: Pt): string | undefined => {
-  const name = list<Floor["rooms"][number]>(f.rooms)[roomAt(f, p)]?.name;
-  return typeof name === "string" && name ? name : undefined;
-};
 
 /** Everything that needs attention across every floor of `layout`. */
 export function attention(layout: Layout, state: StateOverlay | undefined): Attention {

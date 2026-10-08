@@ -77,7 +77,7 @@ describe("render: a linked speaker piece whose entity is on but not playing (S19
 describe("the Active list takes a linked piece", () => {
   it("lists a playing tv piece as a tv, with the tv colour and its own name; a paused tv too, an off one not", () => {
     const f = floorOf([piece("tv", "media_player.x", { name: "Big screen" })]);
-    expect(activeDevices(layoutOf(f), { "media_player.x": st("playing") })).toEqual([{ entity: "media_player.x", name: "Big screen", type: "tv", floor: "f", colorVar: "--fp-dev-tv" }]);
+    expect(activeDevices(layoutOf(f), { "media_player.x": st("playing") })).toEqual([{ entity: "media_player.x", name: "Big screen", type: "tv", floor: "f", colorVar: "--fp-dev-tv", at: { what: "piece", index: 0 }, room: "Living" }]);
     expect(activeDevices(layoutOf(f), { "media_player.x": st("paused") })).toHaveLength(1);
     expect(activeDevices(layoutOf(f), { "media_player.x": st("off") })).toEqual([]);
   });

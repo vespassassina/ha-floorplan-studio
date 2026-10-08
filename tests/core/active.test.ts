@@ -153,14 +153,14 @@ describe("S10.3: a door's own contact/vibration sensors join the active list und
   it("a contact sensor attached to a door is listed under the door's name when on, not when off", () => {
     const l = layoutWithDoor({ sensors: ["binary_sensor.front"] });
     const on = activeDevices(l, { "binary_sensor.front": st("on") });
-    expect(on).toEqual([{ entity: "binary_sensor.front", name: "Front door", type: "contact", floor: "f", colorVar: "--fp-open-door" }]);
+    expect(on).toEqual([{ entity: "binary_sensor.front", name: "Front door", type: "contact", floor: "f", colorVar: "--fp-open-door", at: { what: "door", index: 0 } }]);
     expect(activeDevices(l, { "binary_sensor.front": st("off") })).toEqual([]);
   });
 
   it("a vibration sensor attached to a door is listed under the door's name, as type vibration", () => {
     const l = layoutWithDoor({ vibration: ["binary_sensor.shake"] });
     const on = activeDevices(l, { "binary_sensor.shake": st("on") });
-    expect(on).toEqual([{ entity: "binary_sensor.shake", name: "Front door", type: "vibration", floor: "f", colorVar: "--fp-open-door" }]);
+    expect(on).toEqual([{ entity: "binary_sensor.shake", name: "Front door", type: "vibration", floor: "f", colorVar: "--fp-open-door", at: { what: "door", index: 0 } }]);
     expect(activeDevices(l, { "binary_sensor.shake": st("off") })).toEqual([]);
   });
 
@@ -183,7 +183,7 @@ describe("S10.3: a door's own contact/vibration sensors join the active list und
       },
     };
     const items = activeDevices(layout, { "binary_sensor.front": st("on") });
-    expect(items).toEqual([{ entity: "binary_sensor.front", name: "binary_sensor.front", type: "contact", floor: "f", colorVar: "--fp-dev-contact" }]);
+    expect(items).toEqual([{ entity: "binary_sensor.front", name: "binary_sensor.front", type: "contact", floor: "f", colorVar: "--fp-dev-contact", at: { what: "device", index: 0 } }]);
   });
 
   it("both a contact and a vibration sensor on the same door each get their own row", () => {

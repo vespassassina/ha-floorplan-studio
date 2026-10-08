@@ -83,6 +83,29 @@ export function formatChanged(iso: unknown): string {
   return Number.isFinite(t) ? new Date(t).toLocaleString("sv-SE") : "unknown";
 }
 
+/** S24.7: how long ago, short, for an Attention row: "now" under a minute, then "12 min", "3 h", "2 d", rounded down.
+ *  "" for anything that is not a date in the past (untrusted, finding 1): a row then shows no age rather than a wrong one. */
+export function formatAge(iso: unknown, now: number = Date.now()): string {
+  const t = typeof iso === "string" ? Date.parse(iso) : NaN;
+  const s = (now - t) / 1000;
+  if (!Number.isFinite(s) || s < 0) return "";
+  if (s < 60) return "now";
+  if (s < 3600) return `${Math.floor(s / 60)} min`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h`;
+  return `${Math.floor(s / 86400)} d`;
+}
+
+/** S22.1, S22.F4: a lamp lit only by its bound relay reads as the plan draws it, on, and names what keeps it on:
+ *  "on · via Hall relay" (the relay's friendly name, else its id). null when that is not the case. One text for the
+ *  card's popup, its Overview rows and the room panel's rows. */
+export function relayText(d: Device, state: StateOverlay | undefined): string | null {
+  const relay = d.type === "light" && typeof d.bound === "string" && d.bound && d.bound !== d.entity ? d.bound : "";
+  const rs = relay ? stateOf(state, relay) : undefined;
+  if (!rs || rs.state !== "on" || stateOf(state, d.entity)?.state === "on") return null;
+  const friendly = rs.attributes?.friendly_name;
+  return `on · via ${typeof friendly === "string" && friendly ? friendly : relay}`;
+}
+
 /** Where a device stands on the plan: its point, or a line device's middle; null when not finite. Shared with search. */
 export const deviceCentre = (d: Device): Pt | null => {
   const p: unknown = "a" in d && "b" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [(d as { x: number }).x, (d as { y: number }).y];
@@ -157,7 +180,7 @@ function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean,
     // point would put it in the wrong room, so a person never has a row here.
     if (!c || d.type === "person" || typeof d.entity !== "string" || !d.entity || !member(roomAt(f, c))) return;
     const on = classOf(d, { scale: 1, state, ...opts }) === "on";
-    devices.push({ index: i, entity: d.entity, name: nameFor(d, state), type: d.type, state: stateText(state, d.entity), on, colorVar: on ? colorVarFor(d, state) : "--fp-ink" });
+    devices.push({ index: i, entity: d.entity, name: nameFor(d, state), type: d.type, state: relayText(d, state) ?? stateText(state, d.entity), on, colorVar: on ? colorVarFor(d, state) : "--fp-ink" });
     for (const e of entitiesOfDevice(d)) entities.add(e);
     if (d.type === "light" && on) {
       lightsOn.push(nameFor(d, state));
