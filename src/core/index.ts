@@ -30,3 +30,5 @@ export type { InfoHass, InfoRow, RoomDeviceRow, RoomSensorRow, RoomSummary } fro
 export { meanText, readingText, stateText } from "./state-text";
 export { buildSearchIndex, entryDetail, layoutEntries, normalize, searchIndex } from "./search";
 export type { SearchEntry, SearchIndex } from "./search";
+export { FLOOR_OFF_GROUP, OFF_GROUPS, OFF_GROUP_LABEL, floorOffCalls, floorOffRows } from "./floor-off";
+export type { OffGroup, OffRow } from "./floor-off";
