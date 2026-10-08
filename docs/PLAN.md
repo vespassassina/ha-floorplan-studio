@@ -2672,3 +2672,4 @@ Branch `task/s23-visual`. From the visual review (V-ids, review of 2026-10-08). 
       quote state.
 - [ ] S23.F5 Left by the coders: paint dim in 3D; a heavier dash on a selected zone; 3D walls on HA dark still mix 55 %;
       JSDoc still ships in the card (about 16 KB gzip); `docs/img/themes/*.png` are out of date.
+- [x] S23.F6 Door swing arcs removed (Diego, 2026-10-08).

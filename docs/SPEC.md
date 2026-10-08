@@ -323,7 +323,7 @@ is a distinct signal, light spilling into a room, and a warm tint is the
 honest metaphor there.
 
 Plan symbols (S23.7). A door or glass door is a gap cut in the wall with a 1 px leaf, square to the wall and as long as the
-opening, and a 90° arc; the leaf swings into the indoor room, else any room, else the smaller one. A window is three
+opening, and no swing arc (S23.F6); the leaf stands into the indoor room, else any room, else the smaller one. A window is three
 hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a window or slit
 also fills its whole cut with an opaque pane, a glass tint of the room colour, closed at each end by a hairline jamb, so
 the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors,

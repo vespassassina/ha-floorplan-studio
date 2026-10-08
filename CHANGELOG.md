@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card and studio: doors lose their swing arc. A door is the gap in the wall and its thin leaf into the room.
+
 ## 0.21.0 - 2026-10-08
 
 - Card and studio: room names are solid, not faded. Each name is the text colour mixed into the room it sits on, at 12 px (outdoor names and zones at 10, outdoor in italic), in Home Assistant's own font. Readings keep their number and unit together and line up digit for digit.

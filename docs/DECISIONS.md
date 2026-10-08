@@ -2,6 +2,19 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: no door swing arcs (S23.F6)
+
+Supersedes the arc in "plan symbols (S23.7)" below. Diego: "the door arcs are horrendous, remove them all". A door or glass
+door is now the gap in the wall and the 1 px leaf from the hinge `a`, square to the wall, `|ab|` long, on the room side as
+before. The arc and its sweep flag are gone, in 2D and 2.5D (one draw path). 3D never drew an arc; its leaf, which
+turns about the hinge when the door is open, is unchanged. Windows, open doorways and red-when-open are unchanged.
+- The leaf stays so a door still reads as a door (the coordinator's call, not Diego's). Dropping it later is one branch
+  in `doorSymbol` (`render.ts`); the room-side probe exists only for the leaf and would go with it.
+- No CSS rule styled the arc alone: `.door-sym` draws the leaf and the window hairlines, so it stays.
+- Tests changed on purpose: `plan-symbols.test.ts` (the leaf is the whole path; no `A`/`a` in any symbol, no circle or
+  ellipse, for every door kind in 2D and 2.5D; the gap is still cut; the sweep-flag test is deleted) and the render
+  snapshot (only the three arcs removed).
+
 ## 2026-10-08: the faint dash is a zone's only (Opus review of Sprint 23, S4)
 
 S23.7 said "a zone is a 1 px dash at 35 % with no halo", but the rule sat on `.e.nw`, which every `boundary` edge carries. An open plan's line between two real rooms went faint too. A zone's edges now carry `zn` as well, and the S23.7 style is `.e.nw.zn` and `.eh.nw.zn`. A boundary between rooms, on a free wall or on the outline goes back to what it drew before: a 1.5 cm dash 8 6 over a 3.5 cm halo.
