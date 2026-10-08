@@ -2693,7 +2693,7 @@ Wave 1, core (parallel):
       listbox, `aria-activedescendant`), each option shows name and "room · floor · type", arrows move, Enter picks
       and fires `fp-pick`, Escape clears then closes. The host binds ⌘K, Ctrl+K and `/` on itself, never `window`
       (finding 6). Colours only through `--fp-*`. Test: Playwright on a harness page, real keyboard, every step.
-- [ ] S24.3 (G1, G2, G3) What is wrong. `src/core/attention.ts`: triggered alarm, then armed alarm, open doors and
+- [x] S24.3 (G1, G2, G3) What is wrong. `src/core/attention.ts`: triggered alarm, then armed alarm, open doors and
       windows, unlocked locks, water and smoke on, low battery (under 20 %), unavailable (one folded row with a count).
       Per-floor counts and an alarm flag for the floor tabs. Room and floor facts split "Open" from "Unlocked"; an
       unlocked lock is no longer "open". Cameras leave the Active list (`ACTIVE_LIST_RULE` no longer "always").

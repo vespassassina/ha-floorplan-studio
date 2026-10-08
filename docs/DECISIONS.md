@@ -2,6 +2,20 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: what needs attention, and open is not unlocked (S24.3, G1, G2, G3)
+
+The review found one "Active" number holding ten idle cameras, an armed alarm with no state, and a door called open because its lock was unlocked. `src/core/attention.ts` now lists what is wrong, apart from what is on. Pure; the panel that shows it comes next.
+- **Cameras leave the Active list.** `ACTIVE_LIST_RULE.camera` is `"never"`; the `"always"` rule is gone. Supersedes S9.5's "listed whatever its state". Tests that leaned on the Hall camera row now use other rows; the S9.5 camera row colour pair is replaced by a test that no camera state makes a row. `COLOR_VAR.camera` stays.
+- **Open and Unlocked are separate facts.** `doorStateOf` adds `contact` and `unlocked`; `open` stays their union and still drives the plan's red (2026-09-28 holds). `RoomSummary.openings` holds contact-open doors only; `unlocked` and `hasLocks` are new. "Unlocked" shows only where a door in scope has a lock, so a room without locks does not read "Unlocked: none".
+- **Kinds and order:** triggered alarm, armed alarm, open, unlocked, leak, smoke, low battery, unavailable. Pending (the entry delay) counts as armed, not triggered.
+- **Unavailable means `unavailable`.** `unknown` and a missing state are not counted: HA reports `unknown` for sensors that have simply not reported since a restart, and counting them would bury the list.
+- **A floor's count leaves unavailable out**, which has its own number; it includes an armed alarm. `alarm` is true only for a triggered one.
+- **Water and smoke** are `other` devices, since HA has no type for them: a `binary_sensor` that is on, by device class. `moisture` is a leak; `smoke`, `carbon_monoxide` and `gas` are smoke.
+- **Low battery** reads only a `battery` device's numeric state, under 20. A `battery_level` attribute on another device is not read. In the stress fixture `battery` is a home battery's charge, so a low charge is flagged; the same rule, said here so nobody is surprised.
+- **A cover is open** only as the plan says (`coverActive`: garage, gate, door). A door's own garage opener counts as open; a window's curtain does not.
+- **Not in Attention:** a sounding siren, a vibration sensor, a vacuum in error. Not asked for; each is a one-line change in `ATTENTION_RULE`.
+- **Each thing is reported once.** An entity placed as its own icon is reported by the icon, not again by its door. A door's room is the first room in layout order on whose edge it sits.
+
 ## 2026-10-08: the faint dash is a zone's only (Opus review of Sprint 23, S4)
 
 S23.7 said "a zone is a 1 px dash at 35 % with no halo", but the rule sat on `.e.nw`, which every `boundary` edge carries. An open plan's line between two real rooms went faint too. A zone's edges now carry `zn` as well, and the S23.7 style is `.e.nw.zn` and `.eh.nw.zn`. A boundary between rooms, on a free wall or on the outline goes back to what it drew before: a 1.5 cm dash 8 6 over a 3.5 cm halo.
