@@ -389,6 +389,10 @@ ${THEME_EXTRAS}
    leaf and swing arc (door, glass) or three hairlines (window, slit), red only while open, alarmed or its cover is open. */
 .door.quiet{stroke:transparent} .door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
 .door-sym.k-glass{stroke:var(--fp-glass)} .door-sym.k-window,.door-sym.k-slit{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
+/* S1 (Opus review of S23): a window's pane fills the whole cut, so the outer half of the gap on an outer wall is glass, not the
+   board; opaque, a glass tint mixed into the bare room. Its jambs are window hairlines, red with the state like the symbol. */
+.win-pane{fill:color-mix(in srgb,var(--fp-window) 22%,var(--fp-room-empty));stroke:none;pointer-events:none} .win-pane.open,.win-pane.alarm{fill:color-mix(in srgb,var(--fp-open-door) 22%,var(--fp-room-empty))}
+.win-jamb{fill:none;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none} .win-jamb.open,.win-jamb.alarm,.win-jamb.cover-open{stroke:var(--fp-open-door)}
 .dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle);fill-opacity:.7}
 /* S23.4 (V10): an on glyph is ink on its solid disc, 4.5:1 in every theme. g.dev.on path (0,2,2) on purpose: it must beat
    .dev.dev-motion path's fade, .dev.outdoor path and .dev-camera path, and still lose to the camera cone (0,3,1). */
@@ -679,6 +683,17 @@ function doorSymbol(f: Floor, kind: unknown, a: Pt, b: Pt): string {
   // From the leaf (n) to the wall (u): clockwise on screen (y down) when n x u > 0, SVG's sweep-flag 1.
   const sweep = n[0] * u[1] - n[1] * u[0] > 0 ? 1 : 0;
   return `M${num(a[0])} ${num(a[1])}L${num(tip[0])} ${num(tip[1])}A${num(len)} ${num(len)} 0 0 ${sweep} ${num(b[0])} ${num(b[1])}`;
+}
+
+/** S1 (Opus review of S23): a window's pane and jambs, or null for any other kind. The wall is cut wider than the room
+ *  polygon, which stops at the wall's centre line, so on an outer wall the outer half of the gap showed the board and the
+ *  window read as a hole. The pane fills the whole cut (the same width as the mask line), the jambs close its two ends. */
+function windowPane(f: Floor, kind: unknown, a: Pt, b: Pt): { pane: string; jambs: string } | null {
+  const len = dist(a, b);
+  if (!PANE_KINDS.includes(kind as string) || !(len > 0) || ![a[0], a[1], b[0], b[1]].every(Number.isFinite)) return null;
+  const h = (wallWidthAt(f, a, b) + OPENING_EXTRA) / 2, n: Pt = [((b[1] - a[1]) / len) * h, (-(b[0] - a[0]) / len) * h];
+  const p = (q: Pt, s: number) => `${num(q[0] + n[0] * s)} ${num(q[1] + n[1] * s)}`;
+  return { pane: `M${p(a, 1)}L${p(b, 1)}L${p(b, -1)}L${p(a, -1)}Z`, jambs: `M${p(a, 1)}L${p(a, -1)}M${p(b, 1)}L${p(b, -1)}` };
 }
 
 /** S2.10: what an air conditioner is doing, read from the entity at render time and never stored. `off`, `unavailable` and `unknown` win over everything; otherwise `hvac_action` decides, and `state` stands in when the attribute is missing. */
@@ -1520,8 +1535,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S23.7: a door or window is its symbol (below); its own line stays for the title, the selection and the alert look, and
     // paints nothing while the door is closed and not selected (`quiet`).
     const sym = doorSymbol(f, d.kind, d.a, d.b), quiet = sym && !sel && !open && !vibrating && !coverOpen;
+    const state = `${vibrating ? " alarm" : ""}${open ? " open" : ""}${coverOpen ? " cover-open" : ""}`, pane = x25 ? null : windowPane(f, d.kind, d.a, d.b);
+    // S1: a window's pane goes under its own line and the hairlines; the jambs go on top. Not in 2.5D: the raised wall
+    // carries the glass on its face and hides the floor-level cut.
+    if (pane) out.push(`<path data-dp="${i}" class="win-pane k-${esc(String(d.kind))}${state}" d="${pane.pane}"/>`);
     out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}${quiet ? " quiet" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`);
-    if (sym) out.push(`<path data-ds="${i}" class="door-sym k-${esc(String(d.kind))}${vibrating ? " alarm" : ""}${open ? " open" : ""}${coverOpen ? " cover-open" : ""}" d="${sym}"/>`);
+    if (sym) out.push(`<path data-ds="${i}" class="door-sym k-${esc(String(d.kind))}${state}" d="${sym}"/>`);
+    if (pane) out.push(`<path data-dj="${i}" class="win-jamb k-${esc(String(d.kind))}${state}" d="${pane.jambs}"/>`);
   });
 
   const tags: string[] = [], len = (s: unknown) => String(s).length;

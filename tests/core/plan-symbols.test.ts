@@ -79,6 +79,52 @@ describe("S23.7 plan symbols", () => {
     expect(symOf(html, 2)).toBeNull();
   });
 
+  // S1 (Opus review of S23): the wall is cut wider than the room polygon, so the outer half of a window's gap showed the
+  // board and the window read as a hole. A pane fills the whole cut, under the hairlines, with a jamb at each end.
+  const paneOf = (html: string, i = 0) => html.match(new RegExp(`<path data-dp="${i}" class="([^"]*)" d="([^"]*)"/>`));
+  const jambOf = (html: string, i = 0) => html.match(new RegExp(`<path data-dj="${i}" class="([^"]*)" d="([^"]*)"/>`));
+
+  it("a window fills the whole cut with a pane, under its hairlines, with a jamb across each end", () => {
+    const html = renderFloor(floor(hallAbove, [door("window", [100, 0], [300, 0])]), opts);
+    const p = paneOf(html)!, j = jambOf(html)!;
+    expect(p, "a pane").toBeTruthy();
+    expect(p[1].split(" ")).toEqual(expect.arrayContaining(["win-pane", "k-window"]));
+    // the cut is the 10 cm wall + OPENING_EXTRA (4): 14 cm, so the pane spans y -7..7 and x 100..300
+    const xy = nums(p[2]);
+    expect(xy).toHaveLength(8);
+    const xs = xy.filter((_, k) => k % 2 === 0), ys = xy.filter((_, k) => k % 2 === 1);
+    expect([Math.min(...xs), Math.max(...xs)]).toEqual([100, 300]);
+    expect([Math.min(...ys), Math.max(...ys)]).toEqual([-7, 7]);
+    expect(p[2]).toMatch(/Z$/);
+    // the pane is drawn first, so the hairlines and jambs sit on it
+    expect(html.indexOf('data-dp="0"')).toBeLessThan(html.indexOf('data-ds="0"'));
+    expect(html.indexOf('data-dp="0"')).toBeLessThan(html.indexOf('data-dj="0"'));
+    expect(j[1].split(" ")).toEqual(expect.arrayContaining(["win-jamb", "k-window"]));
+    const segs = j[2].match(/M[^M]+/g)!;
+    expect(segs).toHaveLength(2);
+    expect(segs.map((s) => nums(s))).toEqual([[100, -7, 100, 7], [300, -7, 300, 7]]);
+  });
+
+  it("a slit gets a pane over the whole cut too (the cut does not narrow); doors, sealed and open doorways get none", () => {
+    const html = renderFloor(floor(hallAbove, [door("slit", [100, 0], [300, 0]), door("door", [100, 300], [190, 300]), door("glass", [200, 300], [290, 300]), door("sealed", [300, 300], [390, 300]), door("open", [0, 300], [90, 300])]), opts);
+    const ys = nums(paneOf(html, 0)![2]).filter((_, k) => k % 2 === 1);
+    expect([Math.min(...ys), Math.max(...ys)]).toEqual([-7, 7]);
+    for (const i of [1, 2, 3, 4]) { expect(paneOf(html, i), `door ${i}`).toBeNull(); expect(jambOf(html, i)).toBeNull(); }
+  });
+
+  it("2.5D draws no pane: the raised wall carries the glass on its face and hides the floor-level cut", () => {
+    const html = renderFloor(floor(hallAbove, [door("window", [100, 0], [300, 0])]), { ...opts, view: "2.5d" } as never);
+    expect(symOf(html), "the hairlines stay").toBeTruthy();
+    expect(paneOf(html)).toBeNull();
+    expect(jambOf(html)).toBeNull();
+  });
+
+  it("an open or alarmed window's pane carries the state, so it can turn red with the hairlines", () => {
+    const d = door("window", [100, 0], [300, 0], { sensors: ["binary_sensor.w"] });
+    const open = renderFloor(floor(hallAbove, [d]), { ...opts, state: { "binary_sensor.w": st("on") } });
+    expect(paneOf(open)![1].split(" ")).toContain("open");
+  });
+
   it("doors and windows cut a gap in the wall; a sealed door does not", () => {
     const html = renderFloor(floor(hallAbove, [door("door", [100, 300], [190, 300]), door("window", [100, 0], [300, 0]), door("sealed", [200, 300], [290, 300])]), opts);
     const mask = html.match(/<mask id="fp-open-mask-[^"]*"[^>]*>(.*?)<\/mask>/)![1];

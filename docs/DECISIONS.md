@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: a window fills its cut (S23 review S1)
+
+The wall is cut `wallWidthAt + OPENING_EXTRA` wide, but a room polygon stops at the wall's centre line. On an outer wall the outer half of a window's gap showed the board, and three bare hairlines read as a hole.
+- **A pane over the whole cut.** `.win-pane`, opaque, `color-mix(--fp-window 22%, --fp-room-empty)`; red-tinted the same way while open or alarmed. Drawn under the door line and the hairlines, `data-dp`, no clicks. A window and a slit both get it: the cut does not narrow for a slit.
+- **Jambs.** A hairline across each end of the cut (`.win-jamb`, `data-dj`), window colour, red with the state like the symbol.
+- **2D only.** In 2.5D the raised wall carries the glass on its face and hides the floor-level cut; a floor pane there read as a box in front of the wall.
+- **Doors stay a gap.** A door or glass door in an outer wall shows the board in the outer half of its gap. That is a doorway to the outside and reads as one, so it is left as is.
+
 ## 2026-10-08: names stay in their room (S23.3)
 
 The old search tried rows above and below the centroid and took a free spot in the next room before a covered one in its own. The 2.5D Hall name landed in the Cloakroom; names sat under discs. Now a name is placed only where its whole box (padded 2k, eight points) is in its room and in no smaller named room.

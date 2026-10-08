@@ -65,3 +65,47 @@ test("S23.7 CSS pair: a zone is a 1 px dash at 35 % with no halo, in every theme
     expect(v.stroke, tag).toBe(v.wall);
   });
 });
+
+// S1 (Opus review of S23): a window's pane fills the cut, so its outer half no longer shows the board. Read back in every
+// theme: an opaque glass tint that is neither the board nor the bare room, takes no clicks, and red-tinted while open.
+const paneBody = `<path class="win-pane k-window" d="M0 0L10 0L10 10L0 10Z"/><path class="win-pane k-slit" d="M0 0L10 0L10 10L0 10Z"/>
+<path class="win-pane k-window open" d="M0 0L10 0L10 10L0 10Z"/><path class="win-jamb k-window" d="M0 0L0 10"/>
+<path class="win-jamb k-window alarm" d="M0 0L0 10"/>
+<rect class="p-bg" style="fill:var(--fp-bg)"/><rect class="p-empty" style="fill:var(--fp-room-empty)"/><rect class="p-window" style="fill:var(--fp-window)"/>
+<rect class="p-red" style="fill:var(--fp-open-door)"/>`;
+const paneHtml = `<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg>${CASES.map((c, i) => `<g id="c${i}" data-theme="${c.t}" data-mode="${c.mode}">${paneBody}</g>`).join("")}</svg></body></html>`;
+
+test("S1 CSS pair: a window's pane is an opaque glass tint, not the board and not the bare room; jambs are window hairlines", async ({ page }) => {
+  await page.setContent(paneHtml);
+  const r = await page.evaluate((n) => Array.from({ length: n }, (_, i) => {
+    const g = document.getElementById(`c${i}`)!, cs = (sel: string) => getComputedStyle(g.querySelector(sel)!);
+    const pane = (sel: string) => { const c = cs(sel); return { fill: c.fill, fo: c.fillOpacity, op: c.opacity, stroke: c.stroke, pe: c.pointerEvents }; };
+    const j = (sel: string) => { const c = cs(sel); return { stroke: c.stroke, w: c.strokeWidth, ve: c.vectorEffect, pe: c.pointerEvents, fill: c.fill }; };
+    return {
+      win: pane(".win-pane.k-window:not(.open)"), slit: pane(".win-pane.k-slit"), open: pane(".win-pane.open"),
+      jamb: j(".win-jamb:not(.alarm)"), jambAlarm: j(".win-jamb.alarm"),
+      bg: cs(".p-bg").fill, empty: cs(".p-empty").fill, window: cs(".p-window").fill, red: cs(".p-red").fill,
+    };
+  }), CASES.length);
+  CASES.forEach((c, i) => {
+    const v = r[i], tag = `${c.t}/${c.mode}`;
+    for (const p of [v.win, v.slit]) {
+      expect(p.fill, `${tag}: the pane paints`).not.toBe("none");
+      expect(p.fill, tag).not.toBe("rgba(0, 0, 0, 0)");
+      expect(p.fill, `${tag}: not the board`).not.toBe(v.bg);
+      expect(p.fill, `${tag}: not the bare room either, it is glass`).not.toBe(v.empty);
+      expect(p.fo, `${tag}: opaque, so the board cannot show through`).toBe("1");
+      expect(p.op, tag).toBe("1");
+      expect(p.stroke, tag).toBe("none");
+      expect(p.pe, `${tag}: the pane takes no clicks`).toBe("none");
+    }
+    expect(v.slit.fill, tag).toBe(v.win.fill);
+    expect(v.open.fill, `${tag}: an open window's pane is not the closed tint`).not.toBe(v.win.fill);
+    expect(v.jamb.stroke, tag).toBe(v.window);
+    expect(v.jamb.w, tag).toBe("1px");
+    expect(v.jamb.ve, tag).toBe("non-scaling-stroke");
+    expect(v.jamb.pe, tag).toBe("none");
+    expect(v.jamb.fill, tag).toBe("none");
+    expect(v.jambAlarm.stroke, `${tag}: red with a state`).toBe(v.red);
+  });
+});
