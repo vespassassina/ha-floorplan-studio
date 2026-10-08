@@ -2684,7 +2684,7 @@ every CSS rule that matters gets its `getComputedStyle` pair (finding 10); real 
 phone bottom sheet and ⋯ menu (sprint 29), drag from the Outline onto the plan (sprint 26).
 
 Wave 1, core (parallel):
-- [ ] S24.1 (F1, U9) One search index. `src/core/search.ts` builds entries for floors, rooms and devices (friendly name,
+- [x] S24.1 (F1, U9) One search index. `src/core/search.ts` builds entries for floors, rooms and devices (friendly name,
       entity id, room, floor, type label) and ranks a query: exact name, then name prefix, then word prefix, then
       substring, then entity id, then room. Case and accents ignored; several words must all match. Test: on
       `tests/fixtures/stress-layout.json`, "bedside guest" ranks the guest bedroom bedside lamp first, an entity id

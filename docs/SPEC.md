@@ -578,6 +578,19 @@ terrace and pavement take ramp shades on the generated themes. The values per th
 
 `ha` is untouched by this system: its neutrals still come from Home Assistant's CSS variables, with `midnight`'s fixed hexes as the fallback, not blueprint's new palette.
 
+## Search (both apps)
+
+One index, `src/core/search.ts` (S24.1). Entries are every floor, every named room and every device and linked piece
+(tv, speaker, computer), each with its name (the plan name, else HA's friendly name, else the entity id), entity id,
+room (`roomAt`; none for a person or a device outside every room), floor and type label. An entry carries what going
+there needs: floor key, room index, device index (furniture index for a piece). A host may add its own command entries
+(`kind: "command"`, an id and a name); they rank like the rest.
+
+Ranking: exact name or entity id, then name prefix, then every word a prefix of a word in the name, then every word in
+the name, then every word in the entity id, then every word somewhere in name, entity, room, floor or type. Ties go to
+the shorter name, then layout order. Case and accents are ignored; several words must all match; a blank query matches
+nothing. A layout of the wrong shape is skipped, never thrown on.
+
 ## Editor
 
 - Toolbar: floor chips, the device filter ("Filter: all (N)"), menus Add /

@@ -26,3 +26,5 @@ export type { HaSceneRow, RoomSceneMenu, SceneCall, SceneHass } from "./room-sce
 export { ALL_OFF_SHARED, ALL_OFF_TITLE, ROOM_ROW_TAP, allOffTitle, deviceInfo, filterToRoom, formatChanged, floorSummary, lampOffEntities, roomAreaM2, roomSummary } from "./room-info";
 export type { InfoHass, InfoRow, RoomDeviceRow, RoomSensorRow, RoomSummary } from "./room-info";
 export { meanText, readingText, stateText } from "./state-text";
+export { buildSearchIndex, entryDetail, layoutEntries, normalize, searchIndex } from "./search";
+export type { SearchEntry, SearchIndex } from "./search";
