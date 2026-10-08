@@ -122,3 +122,32 @@ test.describe("S23.1 CSS pair: one label style", () => {
     });
   }
 });
+
+// S23.3: a name whose every spot is covered is drawn on a plate over the icons. The plate is the outline colour, solid,
+// and takes no clicks (the icons under it still do); the name on it mixes into that plate, so it reads in every theme.
+const TAGGED = (() => {
+  const devices = [];
+  for (let x = 10; x < 300; x += 20) for (let y = 10; y < 120; y += 20) devices.push({ id: `s${x}-${y}`, type: "temp", entity: `sensor.t${x}_${y}`, x, y });
+  const pts: [number, number][] = [[0, 0], [300, 0], [300, 120], [0, 120]];
+  return { ...FLOOR, rooms: [room(0, "room", "Den", pts)], devices } as unknown as Floor;
+})();
+test.describe("S23.3 CSS pair: a name on a tag", () => {
+  for (const c of CASES) {
+    test(`the plate is solid --fp-outline, takes no clicks, and its name is at least 4.5:1 on it, ${c.id}`, async ({ page }) => {
+      await page.setContent(`<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg class="fp" id="s" viewBox="0 0 300 120" width="600" height="240">${renderFloor(TAGGED, { scale: 1, theme: c.t, dark: c.dark })}</svg></body></html>`);
+      const r = await page.locator("#s").evaluate((svg) => {
+        const probe = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        probe.setAttribute("style", "fill:var(--fp-outline)");
+        svg.querySelector("g")!.appendChild(probe);
+        const outline = getComputedStyle(probe).fill;
+        probe.remove();
+        const plate = getComputedStyle(svg.querySelector("rect.lbl-tag")!), text = getComputedStyle(svg.querySelector("text.lbl-on")!);
+        return { outline, fill: plate.fill, op: plate.fillOpacity, opacity: plate.opacity, events: plate.pointerEvents, text: text.fill, textOpacity: text.opacity };
+      });
+      expect(r.fill).toBe(r.outline);
+      expect([r.op, r.opacity, r.textOpacity]).toEqual(["1", "1", "1"]);
+      expect(r.events).toBe("none");
+      expect(ratio(rgbOf(r.text), rgbOf(r.fill)), `${r.text} on ${r.fill}`).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+});

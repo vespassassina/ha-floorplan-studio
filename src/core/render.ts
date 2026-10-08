@@ -416,7 +416,7 @@ export const FLOORPLAN_CSS = `
 @keyframes fp-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
-.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none}
+.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none} .lbl-tag{fill:var(--fp-outline);stroke:none;pointer-events:none}
 /* S23.1: one label style. A name is never faded: it is the text colour mixed into the surface it sits on (--fp-under,
    set per name by renderFloor), solid, so it reads as part of the room yet clears 4.5:1 on it. 92% is the least text
    that passes on every theme's surface (light garden 4.56, terminal pavement 4.67). A device's or an extra's name sits on
@@ -1230,7 +1230,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // The icons go in first, so nothing may hide one; then room names (what a person reads), room labels, zone labels,
   // extras' names, and last the sensor values, in the device loop below. A text takes the first free candidate; with
   // none free it keeps its first one regardless, so nothing is ever dropped (a name longer than its room, say).
-  const placed: Box[] = [];
+  const placed: Box[] = [], words = new Set<Box>(); // `words`: the boxes in `placed` that are text (a tag may cover an icon, never a text)
   const toScreen = (p: Pt): Pt => (turn ? rotateAbout(p, turn.deg, turn.pivot) : p);
   const cs = Math.cos((planDeg * Math.PI) / 180), sn = Math.sin((planDeg * Math.PI) / 180);
   /** The plan point that shows `dx` right of and `dy` below `a` on the screen: the screen vector turned back into the plan. */
@@ -1238,20 +1238,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const textBox = (a: Pt, size: number, len: number): Box => { const [x, y] = toScreen(a), w = len * 0.6 * size; return [x - w / 2, y - 0.75 * size, w, size]; };
   const place = (cands: Pt[], size: number, text: unknown): Pt => {
     const len = String(text).length, at = cands.find((c) => !placed.some((q) => meets(textBox(c, size, len), q))) ?? cands[0];
-    placed.push(textBox(at, size, len));
+    const box = textBox(at, size, len);
+    placed.push(box); words.add(box);
     return at;
   };
   const inPoly = inside, centroid = polyCentre;
-  /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 12k name either way.
-   * The ones inside the room come first: a name goes to the next room only when no spot in its own is free.
-   * `avoid` are smaller rooms drawn inside this one (a pond in a garden): a name on one hides under its fill. */
-  const rows = (a: Pt, poly?: Pt[], avoid: Pt[][] = []): Pt[] => {
-    const all = [0, 32, -32, 64, -64].map((dy) => screenOff(a, 0, dy * k));
-    if (!poly) return all;
-    const ok = (c: Pt, i: number) => (i === 0 || inPoly(c, poly)) && !avoid.some((q) => inPoly(c, q));
-    const ins = all.filter(ok);
-    return [...ins, ...all.filter((c, i) => !ok(c, i))];
-  };
+  /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 12k name either way. An extra's
+   *  name; a room's name has its own search (placeName). */
+  const rows = (a: Pt): Pt[] => [0, 32, -32, 64, -64].map((dy) => screenOff(a, 0, dy * k));
   const disc = (c: Pt, r: number) => { const [x, y] = toScreen(c); placed.push([x - r, y - r, 2 * r, 2 * r]); };
   // S7.8: a person whose room sensor names a room stands at that room's centroid, the same point its name is tried at
   // first. Several in one room stand on a ring round it, in device order, far enough apart that their 16k discs never
@@ -1288,7 +1282,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
     if (iconHidden(d)) return;
     const c = centreOf(d, i);
-    if (c.every(Number.isFinite)) disc(iconAt(d, c), 16 * k);
+    if (!c.every(Number.isFinite)) return;
+    const top = iconAt(d, c);
+    disc(top, 16 * k);
+    if (top !== c) disc(c, 4 * k); // S23.3: a 2.5D stem's foot, its 3k dot and a margin; no name sits on it either
   });
   for (const u of f.unlinked ?? []) {
     const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1;
@@ -1302,37 +1299,84 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   }
   const named = (r: Floor["rooms"][number]) => !!r.name && r.kind !== "fill";
   const area = (p: Pt[]) => Math.abs(p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0)) / 2;
-  /** The width of the room along the screen row through `a`, on the stretch that holds `a`; 0 when the row misses the room. */
-  const chordAt = (poly: Pt[], a: Pt): number => {
-    const sp = poly.map(toScreen), [ax, ay] = toScreen(a), xs: number[] = [];
-    for (let i = 0, j = sp.length - 1; i < sp.length; j = i++) if ((sp[i][1] > ay) !== (sp[j][1] > ay)) xs.push(sp[i][0] + ((ay - sp[i][1]) * (sp[j][0] - sp[i][0])) / (sp[j][1] - sp[i][1]));
-    xs.sort((p, q) => p - q);
-    for (let i = 0; i + 1 < xs.length; i += 2) if (ax >= xs[i] && ax <= xs[i + 1]) return xs[i + 1] - xs[i];
-    return 0;
-  };
   const GAP = 4; // plan units (times k) between a room and a name put outside it
-  /** Where a room's name goes and at what size. Too wide for the room at its anchor row: shrink to `floor` (centred);
-   * still too wide: just outside the room, above or below, on a leader line back to the anchor. Never dropped. */
-  type Label = { at: Pt; size: number; from?: Pt };
+  const fromScreen = (p: Pt): Pt => (turn ? rotateAbout(p, -turn.deg, turn.pivot) : p);
+  /** S23.3: the point of a room furthest from its edges and from the rooms inside it, on a 16 x 16 grid over its box.
+   *  An L-shaped or a ring-shaped room has its centroid outside itself; this is where its name goes instead. */
+  const pole = (poly: Pt[], holes: Pt[][]): Pt | null => {
+    const xs = poly.map((p) => p[0]), ys = poly.map((p) => p[1]), x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs) - x0, h = Math.max(...ys) - y0;
+    const edgeDist = (p: Pt, q: Pt[]) => Math.min(...q.map((a, i) => { const b = q[(i + 1) % q.length], dx = b[0] - a[0], dy = b[1] - a[1], l = dx * dx + dy * dy, s = l ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l)) : 0; return Math.hypot(p[0] - a[0] - s * dx, p[1] - a[1] - s * dy); }));
+    let best: Pt | null = null, far = -1;
+    for (let i = 0; i < 16; i++) for (let j = 0; j < 16; j++) {
+      const c: Pt = [x0 + ((i + 0.5) * w) / 16, y0 + ((j + 0.5) * h) / 16];
+      if (!inPoly(c, poly) || holes.some((q) => inPoly(c, q))) continue;
+      const d = Math.min(edgeDist(c, poly), ...holes.map((q) => edgeDist(c, q)));
+      if (d > far) { far = d; best = c; }
+    }
+    return best;
+  };
+  /** S23.3: screen offsets tried round a name's anchor, nearest first: 24k and 48k steps across (half a name) and 16k
+   *  steps down (a name's height), so a name slides beside a disc as well as above or below it. */
+  const OFFSETS: Pt[] = [0, 24, -24, 48, -48, 96, -96, 144, -144].flatMap((dx) => [0, 16, -16, 32, -32, 48, -48, 64, -64].map((dy): Pt => [dx, dy]))
+    .sort((a, b) => Math.hypot(a[0], a[1] * 2) - Math.hypot(b[0], b[1] * 2));
+  /** Where a room's name goes and at what size (S23.3). Inside its own room and off the rooms drawn in it, always:
+   *  the first free spot round the anchor at the full size, then the same at sizes shrunk by 0.85 down to `floor`.
+   *  Every spot that fits covered: a tag on top (`tag`), drawn over the icons at the largest size that fits.
+   *  Fits nowhere at `floor`: just outside the room, above or below, on a leader line back to the anchor. Never dropped. */
+  type Label = { at: Pt; size: number; from?: Pt; tag?: boolean };
   const placeName = (r: Floor["rooms"][number], base0: number, floor0: number): Label => {
     const base = Math.max(base0, nameMin), floor = Math.max(floor0, nameMin); // S23.2: never under 11 px when the size is known
     const mine = area(r.pts), inner = f.rooms.filter((q) => q !== r && named(q) && q.kind !== "zone" && area(q.pts) < mine).map((q) => q.pts);
-    const anchor = centroid(r.pts), len = String(r.name).length, room = chordAt(r.pts, anchor);
-    const size = Math.max(floor, Math.min(base, room / (len * 0.6)));
-    if (!anchor.every(Number.isFinite) || len * 0.6 * size <= room) return { at: place(rows(anchor, r.pts, inner), size, r.name), size };
+    const c0 = centroid(r.pts), len = String(r.name).length;
+    if (!c0.every(Number.isFinite)) { const size = base; return { at: place(rows(c0), size, r.name), size }; }
+    const clear = (p: Pt) => inPoly(p, r.pts) && !inner.some((q) => inPoly(p, q));
+    // A box fits when its corners and edge midpoints, 2k inside it, are all in the room: a room is a polygon, not a box.
+    const fits = (c: Pt, size: number) => {
+      const [x, y, w, h] = textBox(c, size, len), d = 2 * k;
+      return [[x - d, y - d], [x + w + d, y - d], [x + w + d, y + h + d], [x - d, y + h + d], [x + w / 2, y - d], [x + w / 2, y + h + d], [x - d, y + h / 2], [x + w + d, y + h / 2]]
+        .every((p) => clear(fromScreen(p as Pt)));
+    };
+    const sizes: number[] = [];
+    for (let s = base; s > floor * 1.001; s *= 0.85) sizes.push(s);
+    sizes.push(floor);
+    const best: { tag: Label | null } = { tag: null }; // the largest covered spot that fits, for a tag
+    const search = (a: Pt): Label | null => {
+      for (const size of sizes) for (const [dx, dy] of OFFSETS) {
+        const c = screenOff(a, dx * k, dy * k);
+        if (!fits(c, size)) continue;
+        const box = textBox(c, size, len);
+        if (!placed.some((q) => meets(box, q))) { placed.push(box); words.add(box); return { at: c, size }; }
+        if ((!best.tag || size > best.tag.size) && ![...words].some((q) => meets(box, q))) best.tag = { at: c, size, tag: true };
+      }
+      return null;
+    };
+    // Round the centroid when it is in the room, else round the pole first; then the other. A pond in a garden pushes
+    // the pole to one side, while the free strip may be beside the centroid. The pole is a grid search: only on demand.
+    const inC0 = clear(c0), first = inC0 ? search(c0) : null;
+    if (first) return first;
+    const pl = pole(r.pts, inner), anchor = inC0 || !pl ? c0 : pl;
+    const next = (pl ? search(pl) : null) ?? (inC0 ? null : search(c0));
+    if (next) return next;
+    const tag = best.tag;
+    if (tag) { const box = textBox(tag.at, tag.size, len); placed.push(box); words.add(box); return tag; }
+    const size = floor;
     const ys = r.pts.map((p) => toScreen(p)[1]), ay = toScreen(anchor)[1];
     const above = screenOff(anchor, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay), below = screenOff(anchor, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay);
     // The leader is one more thing that must not run across another text: its own thin box counts too.
     const leaderBox = (c: Pt): Box => { const [x, y] = toScreen(anchor), cy = toScreen(c)[1]; return [x - k / 2, Math.min(y, cy), k, Math.abs(cy - y)]; };
     const free = (c: Pt) => !placed.some((q) => meets(textBox(c, size, len), q));
     const at = [below, above].find((c) => free(c) && !placed.some((q) => meets(leaderBox(c), q))) ?? [below, above].find(free) ?? below;
-    placed.push(textBox(at, size, len));
+    const box = textBox(at, size, len);
+    placed.push(box); words.add(box);
     return { at, size, from: anchor };
   };
   const nameAt: Label[] = [], zoneAt: Label[] = [];
   // S23.1: a room's name is 12, an outdoor name, like a zone's, 10: smaller than a room, never fainter.
   const OUTDOOR = new Set<RoomKind>(["garden", "terrace", "pavement", "water"]);
-  f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 10 : 12) * k, 7 * k); });
+  // S23.3: the smallest room first. It has the fewest spots, and a pond whose name goes outside on a leader then takes
+  // its spot before the garden round it picks one there.
+  const bySize = f.rooms.map((r, i) => [area(r.pts), i] as const).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, i]) => i);
+  for (const i of bySize) { const r = f.rooms[i]; if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 10 : 12) * k, 7 * k); }
   f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 10 * k, 6 * k); });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
@@ -1387,9 +1431,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`);
   });
 
+  const tags: string[] = [], len = (s: unknown) => String(s).length;
   f.rooms.forEach((r, i) => {
     if (!showText || !r.name || r.kind === "fill") return;
-    const zone = r.kind === "zone", { at: [x, y], size, from } = (zone ? zoneAt : nameAt)[i];
+    const zone = r.kind === "zone", { at: [x, y], size, from, tag } = (zone ? zoneAt : nameAt)[i];
     // The leader runs from the room's anchor to the edge of the text box nearest it, and is drawn under the text.
     if (from) {
       const down = toScreen([x, y])[1] > toScreen(from)[1], [ex, ey] = screenOff([x, y], 0, down ? -0.75 * size - 0.5 * k : 0.25 * size + 0.5 * k);
@@ -1397,6 +1442,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     }
     // S23.1: one style for every name; the class says what it is, `--fp-under` what it sits on (a zone: the room under it).
     const cls = zone ? "lbl zone" : OUTDOOR.has(r.kind) ? "lbl out" : "lbl";
+    // S23.3: a name whose every spot is covered is a tag, drawn after the icons on its own plate (see below).
+    if (tag) return void tags.push(`<rect class="lbl-tag"${up(x, y)} x="${num(x - (len(r.name) * 0.6 * size) / 2 - 2 * k)}" y="${num(y - 0.75 * size - k)}" width="${num(len(r.name) * 0.6 * size + 4 * k)}" height="${num(size + 2 * k)}" rx="${num(3 * k)}"/>`,
+      `<text class="${cls} lbl-on" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" style="--fp-under:var(--fp-outline)">${esc(r.name)}</text>`);
     const under = zone ? underOf(f.rooms[roomAt(f, centroid(r.pts))] ?? { kind: "room" }) : underOf(r);
     out.push(`<text class="${cls}" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}"${under}>${esc(r.name)}</text>`);
   });
@@ -1527,6 +1575,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
   });
 
+  out.push(...tags); // S23.3: over every icon, under the editor's handles
   if (o.editor)
     for (const P of polys) P.pts.forEach((p, j) => out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
   const body = out.join("\n");

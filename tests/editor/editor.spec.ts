@@ -4385,10 +4385,18 @@ test("S1.42: at plan rotations 0, 45, 90 and 135 no name box overlaps a device h
     const boxes = await page.evaluate((tag) => {
       const root = document.querySelector(tag)!.shadowRoot!;
       const r = (e: Element) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
-      return { names: [...root.querySelectorAll("text.lbl")].filter((t) => t.textContent && ["Living", "Kitchen", "Hall", "Reading corner"].includes(t.textContent)).map((t) => [t.textContent, ...r(t)]),
+      // S23.3: a name with every spot in its room covered is a tag drawn over the icons (`lbl-on`), on purpose: at 45
+      // degrees the Reading corner zone is a diamond whose only spot that fits holds a lamp. A tag is drawn after the
+      // last icon, so it is read, not hidden.
+      const all = [...root.querySelectorAll("text.lbl")].filter((t) => t.textContent && ["Living", "Kitchen", "Hall", "Reading corner"].includes(t.textContent));
+      const lastIcon = [...root.querySelectorAll("g[data-x]")].pop()!;
+      return { names: all.filter((t) => !t.classList.contains("lbl-on")).map((t) => [t.textContent, ...r(t)]), count: all.length,
+        tagsOnTop: all.filter((t) => t.classList.contains("lbl-on")).every((t) => !!(lastIcon.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING)),
         halos: [...root.querySelectorAll("circle.halo")].map(r) };
     }, EDITOR);
-    expect(boxes.names, `rotation ${deg}`).toHaveLength(4);
+    expect(boxes.count, `rotation ${deg}`).toBe(4);
+    expect(boxes.tagsOnTop, `rotation ${deg}`).toBe(true);
+    expect(boxes.names.length, `rotation ${deg}`).toBeGreaterThanOrEqual(3);
     expect(boxes.halos.length).toBeGreaterThan(3);
     for (const [name, l, t, rr, b] of boxes.names as [string, number, number, number, number][])
       for (const h of boxes.halos) expect(l < h[2] && rr > h[0] && t < h[3] && b > h[1], `rotation ${deg}: ${name} ${[l, t, rr, b]} under a halo ${h}`).toBe(false);

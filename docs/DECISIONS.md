@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: names stay in their room (S23.3)
+
+The old search tried rows above and below the centroid and took a free spot in the next room before a covered one in its own. The 2.5D Hall name landed in the Cloakroom; names sat under discs. Now a name is placed only where its whole box (padded 2k, eight points) is in its room and in no smaller named room.
+- **Candidates.** The centroid, or the pole of inaccessibility (a 16 by 16 grid, computed only when the centroid is not clear), then offsets of up to 144 left and right and 64 up and down, nearest first, horizontal moves cheaper than vertical. Sizes step down by 0.85 to 7k (6k for a zone; the S23.2 floor still holds) before the name leaves its room.
+- **A tag when every spot is covered.** The largest spot in the room that touches no other text gets the name on an `--fp-outline` plate, drawn after the icons. A tag may cover icons, never text. The leader stays only for a room too small for its name at the floor size.
+- **2.5D stem feet are obstacles**, a 4k disc where the stem meets the floor.
+- **Smallest room first**, so a small room is not crowded out by a big neighbour's name. Zones after rooms.
+- **The baseline stays at the anchor**, not the box centre, to keep every other label where it was. Pavement shrinks a step at scale 0.5 for it.
+- Tests changed on purpose: S1.42 (a name now slides sideways, not to a row), the S7.1 break-it test (a covered Store gets a tag), the zone size test, the card's lamp-pin test (the name keeps off the pin; a tap on it picks the room), the editor's rotation test (a tag may sit over icons). `rows()` stays for extras.
+
 ## 2026-10-08: an 11 px floor on the card (S23.2)
 
 `renderFloor` takes `px`, screen px per plan unit. With it, `k` is never under `NAME_MIN_PX / (12 * px)` (11 px for a 12k name), and a name shrunk to fit its room is never under `NAME_MIN_PX / px`. One `k` for text and discs, so the plan keeps its proportions and a 32k disc lands at 29 px or more. Without `px` (the editor, the 3D overlay) nothing changes, byte for byte. The floor lives in `renderFloor`, so the editor could use it the day it wants to (finding 8).
