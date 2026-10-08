@@ -1,0 +1,124 @@
+import { test, expect } from "@playwright/test";
+import { FLOORPLAN_CSS, THEMES, renderFloor } from "../../src/core/render";
+import type { Floor, RoomKind } from "../../src/core/schema";
+
+// S23.1 (V2, V7, V8): one label style, read back from Chromium (finding 10). A name is a solid colour mixed into the
+// room it sits on, never faded with opacity; one font for the plan; values are tabular. The contrast pairs are the
+// computed fill of a name against the computed fill of the room under it, in every theme.
+
+const sq = (x: number, y: number, s: number): [number, number][] => [[x, y], [x + s, y], [x + s, y + s], [x, y + s]];
+const room = (i: number, kind: RoomKind, name: string, pts: [number, number][]) => ({ id: `r${i}`, name, area: "", kind, pts, wk: pts.map(() => "wall") });
+/** One room of every kind that draws a name, side by side, and a zone inside the plain room. */
+const NAMED: RoomKind[] = ["room", "structure", "garden", "terrace", "pavement", "water"];
+const FLOOR = {
+  title: "T", outline: sq(0, 0, 6000), walls: [], stairs: [], doors: [], openings: [], extras: [], furniture: [], unlinked: [],
+  rooms: [...NAMED.map((k, i) => room(i, k, `N-${k}`, sq(i * 1000, 0, 1000))), room(NAMED.length, "zone", "N-zone", sq(100, 600, 300))],
+  devices: [{ id: "t", type: "temp", entity: "sensor.t", x: 500, y: 300 }],
+} as unknown as Floor;
+const STATE = { "sensor.t": { state: "21.5", attributes: { unit_of_measurement: "°C" }, last_changed: "2026-10-08T10:00:00Z" } };
+
+/** Every theme, and Home Assistant's in both modes. */
+const CASES = [...THEMES.map((t) => ({ t, dark: false, id: t })), { t: "ha" as const, dark: true, id: "ha-dark" }];
+const page_ = () => `<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style>${CASES.map((c) =>
+  `<svg class="fp" id="s-${c.id}" viewBox="0 0 6000 1000" width="1200" height="200">${renderFloor(FLOOR, { scale: 1, theme: c.t, dark: c.dark, state: STATE })}</svg>`).join("")}</body></html>`;
+
+const lum = (rgb: number[]) => { const [r, g, b] = rgb.map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const ratio = (a: number[], b: number[]) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+/** `rgb(r, g, b)` or Chromium's `color(srgb r g b)` for a color-mix(), both as 0-255. */
+const rgbOf = (css: string): number[] => {
+  const m = /color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)/.exec(css);
+  if (m) return [m[1], m[2], m[3]].map((v) => Number(v) * 255);
+  return (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+};
+
+/** The colour a reader sees: the fill blended over the room by the text's own opacity (a faded name is a weaker name). */
+const seen = (r: { fill: string; under: string; opacity: string }) => { const f = rgbOf(r.fill), u = rgbOf(r.under), a = Number(r.opacity); return f.map((v, i) => v * a + u[i] * (1 - a)); };
+
+/** What sits under each name: its own room, and the plain room for the zone. */
+const UNDER: Record<string, string> = { ...Object.fromEntries(NAMED.map((k, i) => [`N-${k}`, String(i)])), "N-zone": "0" };
+/** The surfaces S23.6 changes. Dark themes still paint an unpainted room `#d6d6d2`, a light grey no light text clears;
+ * midnight (and Home Assistant's dark fallback, which is midnight) keeps fixed light outdoor hexes. Solarized keeps its
+ * own fixed outdoor hexes, a mid grey and a blue that no colour of its palette clears 4.5:1 on. Each is a test.fixme below,
+ * never a lower bar here. */
+const EMPTY_GREY = ["blueprint", "midnight", "terminal", "solarized", "coffee", "ha-dark"];
+const fixme = (id: string, name: string): string | null => {
+  const on = name === "N-zone" ? "room" : name.slice(2);
+  if ((on === "room" || on === "structure") && EMPTY_GREY.includes(id)) return "S23.6: dark themes take the empty room from their ramp, not #d6d6d2";
+  if (["garden", "terrace", "pavement", "water"].includes(on) && (id === "midnight" || id === "ha-dark")) return "S23.6: midnight's gardens, terrace, pavement (and water) come from the ramp";
+  if (["garden", "terrace", "pavement", "water"].includes(on) && id === "solarized") return "S23.6: solarized's fixed outdoor hexes (#586e75, #657b83, #268bd2) need a theme decision";
+  return null;
+};
+
+type Read = { name: string; fill: string; under: string; opacity: string; weight: string; style: string; family: string; stroke: string; outline: string; size: string };
+const readAll = (page: import("@playwright/test").Page, id: string) => page.locator(`#s-${id}`).evaluate((svg, UNDER) => {
+  const probe = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  probe.setAttribute("style", "fill:var(--fp-outline)");
+  svg.querySelector("g")!.appendChild(probe);
+  const outline = getComputedStyle(probe).fill;
+  probe.remove();
+  return [...svg.querySelectorAll("text.lbl")].map((el) => {
+    const c = getComputedStyle(el), name = el.textContent ?? "";
+    const under = svg.querySelector(`polygon[data-r="${UNDER[name]}"]`)!;
+    return { name, fill: c.fill, under: getComputedStyle(under).fill, opacity: c.opacity, weight: c.fontWeight, style: c.fontStyle, family: c.fontFamily, stroke: c.stroke, outline, size: c.fontSize };
+  });
+}, UNDER) as Promise<Read[]>;
+
+test.describe("S23.1 CSS pair: one label style", () => {
+  test("every name is solid, weight 500, one font, halo at --fp-outline; outdoor names are italic", async ({ page }) => {
+    await page.setContent(page_());
+    for (const c of CASES) {
+      const all = await readAll(page, c.id);
+      expect(all.length, c.id).toBe(NAMED.length + 1);
+      for (const r of all) {
+        const tag = `${c.id} ${r.name}`;
+        expect(r.opacity, tag).toBe("1");
+        expect(r.weight, tag).toBe("500");
+        expect(r.family, tag).toBe("system-ui, sans-serif");
+        expect(r.stroke, tag).toBe(r.outline);
+        expect(r.style, tag).toBe(["N-garden", "N-terrace", "N-pavement", "N-water"].includes(r.name) ? "italic" : "normal");
+        expect(r.fill, `${tag}: a colour of its own, not the room's`).not.toBe(r.under);
+      }
+    }
+  });
+
+  test("the plan font follows Home Assistant's body font when the host has one", async ({ page }) => {
+    await page.setContent(page_());
+    await page.evaluate(() => document.documentElement.style.setProperty("--ha-font-family-body", "Roboto, Noto, sans-serif"));
+    const family = await page.locator("#s-blueprint text.lbl").first().evaluate((el) => getComputedStyle(el).fontFamily);
+    expect(family).toBe("Roboto, Noto, sans-serif");
+    const val = await page.locator("#s-blueprint text.val").first().evaluate((el) => { const c = getComputedStyle(el); return [c.fontFamily, c.fontVariantNumeric]; });
+    expect(val).toEqual(["Roboto, Noto, sans-serif", "tabular-nums"]);
+  });
+
+  test("the label is the text mixed into its room: a different room gives a different label colour", async ({ page }) => {
+    await page.setContent(page_());
+    const all = await readAll(page, "light");
+    const fills = new Set(all.map((r) => r.fill));
+    expect(fills.size, JSON.stringify(all.map((r) => [r.name, r.fill]))).toBeGreaterThan(3);
+  });
+
+  for (const c of CASES) {
+    test(`contrast: every name is at least 4.5:1 on its room, ${c.id}`, async ({ page }) => {
+      await page.setContent(page_());
+      const all = await readAll(page, c.id);
+      let checked = 0;
+      for (const r of all) {
+        if (fixme(c.id, r.name)) continue;
+        const k = ratio(seen(r), rgbOf(r.under));
+        expect(k, `${c.id} ${r.name}: ${r.fill} on ${r.under}`).toBeGreaterThanOrEqual(4.5);
+        checked++;
+      }
+      expect(checked + all.filter((r) => fixme(c.id, r.name)).length).toBe(NAMED.length + 1);
+    });
+  }
+
+  // The pairs that wait for S23.6. Each names its theme and room, so S23.6 deletes the line when it lands.
+  for (const c of CASES) for (const n of [...NAMED.map((k) => `N-${k}`), "N-zone"]) {
+    const why = fixme(c.id, n);
+    if (why) test.fixme(`contrast: ${c.id} ${n} reaches 4.5:1 (${why})`, async ({ page }) => {
+      await page.setContent(page_());
+      const r = (await readAll(page, c.id)).find((x) => x.name === n)!;
+      expect(ratio(seen(r), rgbOf(r.under))).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+});

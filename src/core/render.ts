@@ -90,6 +90,15 @@ export type Theme = (typeof THEMES)[number];
 const paintAttr = (r: { color?: string; texture?: string; textureRot?: number; textureScale?: number }) =>
   typeof r.texture === "string" && TEXTURE_IDS.includes(r.texture) ? ` fill="url(#${texturePatternId(r.texture, normTextureRot(r.textureRot), normTextureScale(r.textureScale))})"` : typeof r.color === "string" && COLOR.test(r.color) ? ` fill="${r.color}"` : "";
 
+/** S23.1: the surface each kind paints when it has no paint of its own, the colour a name on it mixes into. A zone and a
+ *  fill draw no surface of their own; a zone's name takes the room under it. A new kind fails a test until it is decided. */
+const SURFACE: Record<RoomKind, string> = { room: "--fp-room-empty", structure: "--fp-room-empty", garden: "--fp-garden", terrace: "--fp-terrace", pavement: "--fp-pavement", water: "--fp-water", fill: "--fp-fill", zone: "--fp-room-empty" };
+/** The ` style` that tells a name's `--fp-label` what it sits on: the room's own colour when it has a valid one, else its kind's token. */
+const underOf = (r: { kind: RoomKind; color?: unknown; texture?: unknown }): string => {
+  const own = !(typeof r.texture === "string" && TEXTURE_IDS.includes(r.texture)) && typeof r.color === "string" && COLOR.test(r.color);
+  return ` style="--fp-under:${own ? String(r.color) : `var(${SURFACE[r.kind] ?? "--fp-room-empty"})`}"`;
+};
+
 /** The colour each device type has when `layout.colors` says nothing: the `--fp-dev-*` defaults below; types with none of their own use the idle grey. */
 export const DEVICE_COLOURS: Record<DeviceType, string> = {
   heater: "#e8801a", light: "#e0a800", switch: "#8b8578", plug: "#2c7fb8", temp: "#8b8578", humidity: "#8b8578", motion: "#d64545",
@@ -403,7 +412,13 @@ export const FLOORPLAN_CSS = `
 @keyframes fp-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
-.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl.zone{opacity:.5} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none}
+.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none}
+/* S23.1: one label style. A name is never faded: it is the text colour mixed into the surface it sits on (--fp-under,
+   set per name by renderFloor), solid, so it reads as part of the room yet clears 4.5:1 on it. 92% is the least text
+   that passes on every theme's surface (light garden 4.56, terminal pavement 4.67). A device's or an extra's name sits on
+   no one surface and keeps the plain text colour. One font, Home Assistant's own. */
+:host,svg{--fp-font:var(--ha-font-family-body,var(--paper-font-body1_-_font-family,system-ui,sans-serif))}
+.lbl,.val{font-family:var(--fp-font)} .lbl{font-weight:500} .lbl[data-rl]{--fp-label:color-mix(in srgb,var(--fp-text) 92%,var(--fp-under,var(--fp-room-empty)));fill:var(--fp-label)} .lbl.out{font-style:italic} .val{font-variant-numeric:tabular-nums}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
 .sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}`;
 
@@ -1304,8 +1319,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     return { at, size, from: anchor };
   };
   const nameAt: Label[] = [], zoneAt: Label[] = [];
-  f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, 11 * k, 7 * k); });
-  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 8 * k, 6 * k); });
+  // S23.1: a room's name is 12, an outdoor name, like a zone's, 10: smaller than a room, never fainter.
+  const OUTDOOR = new Set<RoomKind>(["garden", "terrace", "pavement", "water"]);
+  f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 10 : 12) * k, 7 * k); });
+  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 10 * k, 6 * k); });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
   // S8.9 part 3: the opening's own stroke must cover whichever wall it is on, now that walls no longer share one width.
@@ -1367,9 +1384,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const down = toScreen([x, y])[1] > toScreen(from)[1], [ex, ey] = screenOff([x, y], 0, down ? -0.75 * size - 0.5 * k : 0.25 * size + 0.5 * k);
       out.push(`<line class="lbl-leader" stroke-width="${num(k)}" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(ex)}" y2="${num(ey)}"/>`);
     }
-    out.push(zone
-      ? `<text class="lbl zone" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}">${esc(r.name)}</text>`
-      : `<text class="lbl" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" font-weight="600" opacity=".5">${esc(r.name)}</text>`);
+    // S23.1: one style for every name; the class says what it is, `--fp-under` what it sits on (a zone: the room under it).
+    const cls = zone ? "lbl zone" : OUTDOOR.has(r.kind) ? "lbl out" : "lbl";
+    const under = zone ? underOf(f.rooms[roomAt(f, centroid(r.pts))] ?? { kind: "room" }) : underOf(r);
+    out.push(`<text class="${cls}" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}"${under}>${esc(r.name)}</text>`);
   });
 
   // S11.1: the readout of a room's own sensors, a small line under its name (or at its anchor when it has none). Placed like
@@ -1463,7 +1481,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       // Anything that is not a finite number reads as "–". `unknown` and `unavailable` are only the two HA spells for it;
       // an integration can report an empty string, a comma decimal or a word, and printing "not-a-number °C" is worse than saying nothing.
       const bad = !/^-?\d+(\.\d+)?$/.test(s.state.trim()) || !Number.isFinite(Number(s.state));
-      const unit = typeof s.attributes.unit_of_measurement === "string" ? ` ${s.attributes.unit_of_measurement}` : "";
+      const unit = typeof s.attributes.unit_of_measurement === "string" ? `\u202F${s.attributes.unit_of_measurement}` : ""; // S23.1: never wraps
       const text = bad ? "–" : s.state + unit, vs = 11 * k, gap = 16 * k + 2 * k; // 2k clear of the 16k disc
       // S7.1: below the icon, then above, then to the right (the box centred on the icon's centre line).
       const [vx, vy] = place([screenOff(c, 0, gap + 0.75 * vs), screenOff(c, 0, -gap - 0.25 * vs), screenOff(c, gap + (text.length * 0.6 * vs) / 2, 0.25 * vs)], vs, text);

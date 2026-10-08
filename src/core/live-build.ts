@@ -77,7 +77,7 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
         let value = "";
         if ((d.type === "temp" || d.type === "humidity") && s) {
           const bad = !/^-?\d+(\.\d+)?$/.test(s.state.trim()) || !Number.isFinite(Number(s.state));
-          value = bad ? "–" : s.state + (typeof s.attributes.unit_of_measurement === "string" ? ` ${s.attributes.unit_of_measurement}` : "");
+          value = bad ? "–" : s.state + (typeof s.attributes.unit_of_measurement === "string" ? `\u202F${s.attributes.unit_of_measurement}` : ""); // S23.1: as render.ts
         }
         const where = d.type === "person" ? personRoom(d, rooms, o) : -1, ring = where >= 0 ? ringOf(rooms[where]) : null;
         out[i] = { type: String(d.type), klass: `dev dev-${d.type}${ac}${bound} ${cls}`, style: style.join(";"), icon, name: String(d.name ?? d.id ?? ""), value, state: base, playing: (d.type === "speaker" || d.type === "media") && s?.state === "playing", ...(ring ? { at: polyCentre(ring) } : {}) };

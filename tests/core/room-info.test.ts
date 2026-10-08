@@ -57,10 +57,10 @@ describe("roomAreaM2", () => {
 
 describe("meanReading", () => {
   it("is the mean to 0.1 with the first unit, and the card's readout reads the same function", () => {
-    expect(meanReading(["sensor.t1", "sensor.t2"], STATE)).toBe("21.7 °C");
+    expect(meanReading(["sensor.t1", "sensor.t2"], STATE)).toBe("21.7\u202F°C");
   });
   it("skips unreadable states, and is empty with none", () => {
-    expect(meanReading(["sensor.x", "sensor.t1"], { ...STATE, "sensor.x": st("unavailable") })).toBe("21 °C");
+    expect(meanReading(["sensor.x", "sensor.t1"], { ...STATE, "sensor.x": st("unavailable") })).toBe("21\u202F°C");
     expect(meanReading(["sensor.x"], { "sensor.x": st("unknown") })).toBe("");
     expect(meanReading(["sensor.t1"], undefined)).toBe("");
   });
@@ -69,9 +69,9 @@ describe("meanReading", () => {
 describe("meanReading with mixed units (Opus review of Sprint 11)", () => {
   const mix = { "sensor.c": st("21", { unit_of_measurement: "°C" }), "sensor.f": st("70", { unit_of_measurement: "°F" }), "sensor.c2": st("22", { unit_of_measurement: "°C" }) };
   it("averages only the readings in the first unit seen, never a bare mean of Celsius and Fahrenheit", () => {
-    expect(meanReading(["sensor.c", "sensor.f"], mix)).toBe("21 °C");
-    expect(meanReading(["sensor.f", "sensor.c"], mix)).toBe("70 °F");
-    expect(meanReading(["sensor.c", "sensor.f", "sensor.c2"], mix)).toBe("21.5 °C");
+    expect(meanReading(["sensor.c", "sensor.f"], mix)).toBe("21\u202F°C");
+    expect(meanReading(["sensor.f", "sensor.c"], mix)).toBe("70\u202F°F");
+    expect(meanReading(["sensor.c", "sensor.f", "sensor.c2"], mix)).toBe("21.5\u202F°C");
   });
 });
 
@@ -80,8 +80,8 @@ describe("roomSummary", () => {
     const s = sum();
     expect(s.name).toBe("Living");
     expect(s.areaM2).toBe(14.4);
-    expect(s.temperature).toBe("21.7 °C");
-    expect(s.humidity).toBe("48 %");
+    expect(s.temperature).toBe("21.7\u202F°C");
+    expect(s.humidity).toBe("48\u202F%");
   });
   it("reports motion on, with when it changed", () => {
     expect(sum().motion).toEqual({ on: true, since: "2026-10-04T09:30:00Z" });
@@ -285,7 +285,7 @@ describe("floorSummary (S20.2): the same rules over every room of the floor", ()
   });
   it("gathers the rooms' sensors, doors and readouts", () => {
     expect(s.sensors.map((r) => r.entity)).toEqual(["sensor.t1", "sensor.t2", "sensor.h1", "binary_sensor.m1"]);
-    expect(s.temperature).toBe("21.7 °C");
+    expect(s.temperature).toBe("21.7\u202F°C");
     expect(s.openings).toEqual(["Hall door", "Back door", "Study window"]); // each door once, though the Hall door borders both rooms
   });
   it("lists a linked piece anywhere on the floor, once", () => {
@@ -313,7 +313,7 @@ describe("review fixes to the summaries (S20)", () => {
     const f = floor([], { rooms: [room("Living", sq(0, 0, 450, 320), { temps: ["sensor.t1", "sensor.t1", "sensor.t2"] })] });
     const s = roomSummary(f, 0, STATE, {})!;
     expect(s.sensors.map((r) => r.entity)).toEqual(["sensor.t1", "sensor.t2"]);
-    expect(s.temperature).toBe("21.7 °C"); // (21 + 22.4) / 2, not (21 + 21 + 22.4) / 3 = 21.5
+    expect(s.temperature).toBe("21.7\u202F°C"); // (21 + 22.4) / 2, not (21 + 21 + 22.4) / 3 = 21.5
   });
 });
 

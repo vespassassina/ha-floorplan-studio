@@ -48,16 +48,16 @@ describe("render: the room readout", () => {
   const unit = { unit_of_measurement: "°C" };
   it("shows the mean of two sensors rounded to 0.1, with the unit, under the room name", () => {
     const html = draw([room({ temps: ["sensor.a", "sensor.b"] })], [], { "sensor.a": st("21", unit), "sensor.b": st("22.4", unit) });
-    expect(readout(html)).toEqual(["21.7 °C"]);
+    expect(readout(html)).toEqual(["21.7\u202F°C"]);
     expect(html.indexOf('class="val"')).toBeGreaterThan(html.indexOf(">Office</text>"));
   });
   it("joins temperature and humidity", () => {
     const html = draw([room({ temps: ["sensor.a"], humidity: ["sensor.h"] })], [], { "sensor.a": st("20.5", unit), "sensor.h": st("55", { unit_of_measurement: "%" }) });
-    expect(readout(html)).toEqual(["20.5 °C · 55 %"]);
+    expect(readout(html)).toEqual(["20.5\u202F°C · 55\u202F%"]);
   });
   it("ignores unavailable, unknown and junk states; nothing at all is drawn when none is readable, never NaN", () => {
     const html = draw([room({ temps: ["sensor.a", "sensor.b", "sensor.c"] })], [], { "sensor.a": st("20", unit), "sensor.b": st("unavailable", unit), "sensor.c": st("1,5", unit) });
-    expect(readout(html)).toEqual(["20 °C"]);
+    expect(readout(html)).toEqual(["20\u202F°C"]);
     const none = draw([room({ temps: ["sensor.a", "sensor.b"], humidity: ["sensor.h"] })], [], { "sensor.a": st("unavailable"), "sensor.b": st("unknown") });
     expect(readout(none)).toEqual([]);
     expect(none).not.toMatch(/NaN|undefined/);

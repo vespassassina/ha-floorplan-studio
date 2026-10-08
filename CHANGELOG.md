@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card and studio: room names are solid, not faded. Each name is the text colour mixed into the room it sits on, at 12 px (outdoor names and zones at 10, outdoor in italic), in Home Assistant's own font. Readings keep their number and unit together and line up digit for digit.
+
 ## 0.20.2 - 2026-10-08
 
 - Card: a device popup now always opens where you can see it. On a card taller than the screen, a tap low on the plan put it below the bottom edge; now it opens above the point, and a very short window makes it scroll inside instead.

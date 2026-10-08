@@ -41,7 +41,7 @@ describe("renderFloor", () => {
     f.extras.push({ id: "x1", name: "shed", a: [100, 450], b: [200, 520] });
     const html = renderFloor(f, { ...base, showNames: true });
     const firstDevice = html.indexOf("data-x=");
-    const roomName = html.indexOf("font-weight=\"600\"");
+    const roomName = html.indexOf("data-rl="); // S23.1: a room name has no weight attribute of its own any more
     for (const under of ['data-s="0"', 'data-e="s0:0"', 'class="opening"', 'class="extra"', ">shed</text>"]) {
       const at = html.indexOf(under);
       expect(at, under).toBeGreaterThan(-1);
@@ -334,13 +334,13 @@ describe("renderFloor", () => {
 
   it("shows temperature and humidity as labels with units", () => {
     const html = renderFloor(ground, { ...base, state: { "sensor.demo_living_temperature": st("21.5", { attributes: { unit_of_measurement: "°C" } }) } });
-    expect(html).toContain("21.5 °C");
+    expect(html).toContain("21.5\u202F°C");
   });
 
   it("S2.5: shows a humidity label with its unit", () => {
     const f = { ...ground, devices: [{ id: "h", type: "humidity", entity: "sensor.demo_bathroom_humidity", x: 100, y: 100 }] } as unknown as typeof ground;
     const html = renderFloor(f, { ...base, state: { "sensor.demo_bathroom_humidity": st("48", { attributes: { unit_of_measurement: "%" } }) } });
-    expect(html).toContain("48 %");
+    expect(html).toContain("48\u202F%");
   });
 
   it("shows a dash for an unknown sensor value", () => {
@@ -2138,8 +2138,8 @@ describe("S7.1: labels never overprint each other", () => {
     ] as never;
     f.devices = [{ id: "t", type: "temp", entity: "sensor.t", x: 100, y: 150 }] as never;
     const html = renderFloor(f, { scale: 1, now: NOW, state: { "sensor.t": st("21.5", { attributes: { unit_of_measurement: "°C" } }) } });
-    expect(html).toMatch(/<text class="lbl" x="100" y="100"[^>]*font-weight="600" opacity="\.5">Study</); // the name goes first and keeps its centroid
-    for (const t of [">Desk corner<", ">21.5 °C<"]) expect(html).toContain(t);
+    expect(html).toMatch(/<text class="lbl" x="100" y="100"[^>]*>Study</); // the name goes first and keeps its centroid
+    for (const t of [">Desk corner<", ">21.5\u202F°C<"]) expect(html).toContain(t);
     expect(clashes(html)).toEqual([]);
   });
 
@@ -2211,9 +2211,9 @@ describe("S7.1: labels never overprint each other", () => {
     });
 
   it("a name longer than its room shrinks, stays above the floor, draws whole and needs no leader", () => {
-    const html = renderFloor(roomLayout("Utility room", 60), { scale: 1 }); // 12 characters: 79 wide at 11, the room is 60
+    const html = renderFloor(roomLayout("Utility room", 60), { scale: 1 }); // 12 characters: 86 wide at 12, the room is 60
     const t = labelOf(html, "Utility room");
-    expect(t.size).toBeLessThan(11);
+    expect(t.size).toBeLessThan(12);
     expect(t.size).toBeGreaterThanOrEqual(7);
     expect(t.x).toBe(30);
     expect(t.size * 0.6 * 12).toBeLessThanOrEqual(60 + 0.05); // it now fits the room
@@ -2222,7 +2222,7 @@ describe("S7.1: labels never overprint each other", () => {
 
   it("a name that fits keeps its full size", () => {
     const t = labelOf(renderFloor(roomLayout("Store", 100), { scale: 1 }), "Store");
-    expect(t.size).toBe(11);
+    expect(t.size).toBe(12); // S23.1: a room name is 12
   });
 
   it("a zone label shrinks to 6k at the least", () => {
@@ -2608,11 +2608,12 @@ describe("0.12.16: room names sit inside their room, small and half transparent"
     const f = mk(ell, "room"); f.devices = [{ id: "l", type: "light", entity: "light.a", x: 25, y: 25 }] as never;
     expect(inside(at(renderFloor(f, { scale: 1 }), "Laundry"), ell)).toBe(true);
   });
-  it("a room name is 11, a zone name 8 (times the scale), and both are drawn at half opacity", () => {
+  it("S23.1: a room name is 12, a zone name 10 (times the scale), and neither is faded", () => {
     const html = renderFloor(mk([[0, 0], [200, 0], [200, 200], [0, 200]], "room"), { scale: 1 });
-    expect(html).toMatch(/<text class="lbl"[^>]*font-size="11"[^>]*opacity="\.5"[^>]*>Laundry</);
-    expect(renderFloor(mk([[0, 0], [200, 0], [200, 200], [0, 200]], "zone"), { scale: 1 })).toMatch(/<text class="lbl zone"[^>]*font-size="8"[^>]*>Laundry</);
-    expect(FLOORPLAN_CSS).toMatch(/\.lbl\.zone\{opacity:\.5\}/);
+    expect(html).toMatch(/<text class="lbl"[^>]*font-size="12"[^>]*>Laundry</);
+    const zone = renderFloor(mk([[0, 0], [200, 0], [200, 200], [0, 200]], "zone"), { scale: 1 });
+    expect(zone).toMatch(/<text class="lbl zone"[^>]*font-size="10"[^>]*>Laundry</);
+    for (const h of [html, zone]) expect(h).not.toMatch(/<text class="lbl[^>]*opacity=/);
   });
 });
 

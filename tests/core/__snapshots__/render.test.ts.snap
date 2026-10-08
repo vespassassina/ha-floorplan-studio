@@ -97,14 +97,14 @@ exports[`renderFloor > S5.1: matches the snapshot for a floor carrying every FUR
 <line data-d="1" class="door door-glass" x1="0" y1="120" x2="0" y2="280" stroke-width="20"><title>Patio door</title></line>
 <line data-d="2" class="door-hit" x1="800" y1="450" x2="800" y2="550" stroke-width="22"/>
 <line data-d="2" class="door door-door" x1="800" y1="450" x2="800" y2="550" stroke-width="20"><title>Garage door</title></line>
-<text class="lbl" x="250" y="264" data-rl="0" text-anchor="middle" font-size="22" font-weight="600" opacity=".5">Living</text>
-<text class="lbl" x="650" y="264" data-rl="1" text-anchor="middle" font-size="22" font-weight="600" opacity=".5">Kitchen</text>
-<text class="lbl" x="400" y="564" data-rl="2" text-anchor="middle" font-size="22" font-weight="600" opacity=".5">Hall</text>
-<text class="lbl zone" x="400" y="26" data-rl="3" text-anchor="middle" font-size="14.29">Reading corner</text>
-<text class="lbl" x="850" y="396" data-rl="4" text-anchor="middle" font-size="22" font-weight="600" opacity=".5">Garden</text>
-<text class="lbl" x="600" y="615" data-rl="5" text-anchor="middle" font-size="22" font-weight="600" opacity=".5">Pavement</text>
+<text class="lbl" x="250" y="264" data-rl="0" text-anchor="middle" font-size="24" style="--fp-under:var(--fp-room-empty)">Living</text>
+<text class="lbl" x="650" y="264" data-rl="1" text-anchor="middle" font-size="24" style="--fp-under:var(--fp-room-empty)">Kitchen</text>
+<text class="lbl" x="400" y="564" data-rl="2" text-anchor="middle" font-size="24" style="--fp-under:var(--fp-room-empty)">Hall</text>
+<text class="lbl zone" x="400" y="26" data-rl="3" text-anchor="middle" font-size="14.29" style="--fp-under:var(--fp-room-empty)">Reading corner</text>
+<text class="lbl out" x="850" y="524" data-rl="4" text-anchor="middle" font-size="20" style="--fp-under:var(--fp-garden)">Garden</text>
+<text class="lbl out" x="600" y="615" data-rl="5" text-anchor="middle" font-size="20" style="--fp-under:var(--fp-pavement)">Pavement</text>
 <line class="lbl-leader" stroke-width="2" x1="837" y1="464" x2="837" y2="423"/>
-<text class="lbl" x="837" y="418.5" data-rl="6" text-anchor="middle" font-size="14" font-weight="600" opacity=".5">Garden pond</text>
+<text class="lbl out" x="837" y="418.5" data-rl="6" text-anchor="middle" font-size="14" style="--fp-under:var(--fp-water)">Garden pond</text>
 <g data-x="0" class="dev dev-light bound off" transform="translate(226 176) scale(2)"><title>light: Living light + switch.demo_living_relay</title><circle class="halo" cx="12" cy="12" r="16"/><path d="M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z"/></g>
 <g data-x="1" class="dev dev-light off" transform="translate(626 176) scale(2)"><title>light: Kitchen light</title><circle class="halo" cx="12" cy="12" r="16"/><path d="M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z"/></g>
 <g data-x="2" class="dev dev-switch off" transform="translate(76 476) scale(2)"><title>switch: Hall switch</title><circle class="halo" cx="12" cy="12" r="16"/><path d="M8 6V18H16V6H8M14 10H10V8H14V10M19.4 1.6C19 1.2 18.5 1 18 1H6C5.5 1 5 1.2 4.6 1.6C4.2 2 4 2.5 4 3V21C4 21.5 4.2 22 4.6 22.4C5 22.8 5.5 23 6 23H18C18.5 23 19 22.8 19.4 22.4C19.8 22 20 21.5 20 21V3C20 2.5 19.8 2 19.4 1.6M18 21H6V3H18V21Z"/></g>
@@ -200,14 +200,14 @@ exports[`renderFloor > matches the snapshot for the demo ground floor without st
 <line data-d="1" class="door door-glass" x1="0" y1="120" x2="0" y2="280" stroke-width="20"><title>Patio door</title></line>
 <line data-d="2" class="door-hit" x1="800" y1="450" x2="800" y2="550" stroke-width="22"/>
 <line data-d="2" class="door door-door" x1="800" y1="450" x2="800" y2="550" stroke-width="20"><title>Garage door</title></line>
-<text class="lbl" x="250" y="264" data-rl="0" text-anchor="middle" font-size="22" font-weight="600" opacity=".5">Living</text>
-<text class="lbl" x="650" y="264" data-rl="1" text-anchor="middle" font-size="22" font-weight="600" opacity=".5">Kitchen</text>
-<text class="lbl" x="400" y="564" data-rl="2" text-anchor="middle" font-size="22" font-weight="600" opacity=".5">Hall</text>
-<text class="lbl zone" x="400" y="26" data-rl="3" text-anchor="middle" font-size="14.29">Reading corner</text>
-<text class="lbl" x="850" y="396" data-rl="4" text-anchor="middle" font-size="22" font-weight="600" opacity=".5">Garden</text>
-<text class="lbl" x="600" y="615" data-rl="5" text-anchor="middle" font-size="22" font-weight="600" opacity=".5">Pavement</text>
+<text class="lbl" x="250" y="264" data-rl="0" text-anchor="middle" font-size="24" style="--fp-under:var(--fp-room-empty)">Living</text>
+<text class="lbl" x="650" y="264" data-rl="1" text-anchor="middle" font-size="24" style="--fp-under:var(--fp-room-empty)">Kitchen</text>
+<text class="lbl" x="400" y="564" data-rl="2" text-anchor="middle" font-size="24" style="--fp-under:var(--fp-room-empty)">Hall</text>
+<text class="lbl zone" x="400" y="26" data-rl="3" text-anchor="middle" font-size="14.29" style="--fp-under:var(--fp-room-empty)">Reading corner</text>
+<text class="lbl out" x="850" y="524" data-rl="4" text-anchor="middle" font-size="20" style="--fp-under:var(--fp-garden)">Garden</text>
+<text class="lbl out" x="600" y="615" data-rl="5" text-anchor="middle" font-size="20" style="--fp-under:var(--fp-pavement)">Pavement</text>
 <line class="lbl-leader" stroke-width="2" x1="837" y1="464" x2="837" y2="423"/>
-<text class="lbl" x="837" y="418.5" data-rl="6" text-anchor="middle" font-size="14" font-weight="600" opacity=".5">Garden pond</text>
+<text class="lbl out" x="837" y="418.5" data-rl="6" text-anchor="middle" font-size="14" style="--fp-under:var(--fp-water)">Garden pond</text>
 <g data-x="0" class="dev dev-light bound off" transform="translate(226 176) scale(2)"><title>light: Living light + switch.demo_living_relay</title><circle class="halo" cx="12" cy="12" r="16"/><path d="M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z"/></g>
 <g data-x="1" class="dev dev-light off" transform="translate(626 176) scale(2)"><title>light: Kitchen light</title><circle class="halo" cx="12" cy="12" r="16"/><path d="M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z"/></g>
 <g data-x="2" class="dev dev-switch off" transform="translate(76 476) scale(2)"><title>switch: Hall switch</title><circle class="halo" cx="12" cy="12" r="16"/><path d="M8 6V18H16V6H8M14 10H10V8H14V10M19.4 1.6C19 1.2 18.5 1 18 1H6C5.5 1 5 1.2 4.6 1.6C4.2 2 4 2.5 4 3V21C4 21.5 4.2 22 4.6 22.4C5 22.8 5.5 23 6 23H18C18.5 23 19 22.8 19.4 22.4C19.8 22 20 21.5 20 21V3C20 2.5 19.8 2 19.4 1.6M18 21H6V3H18V21Z"/></g>

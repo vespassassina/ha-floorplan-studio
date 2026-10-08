@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: one label style (S23.1)
+
+Supersedes the 0.12.16 "small and half transparent" names. A name is never faded. `--fp-label` is `color-mix(in srgb, var(--fp-text) 92%, var(--fp-under))`, where `renderFloor` sets `--fp-under` on each name to what it sits on: the room's own `#rrggbb` paint, else its kind's token (`SURFACE` in render.ts; a zone takes the room under it). 92% is the least text that clears 4.5:1 on every theme surface that S23.6 does not change; 85% failed light's garden and terminal's pavement. Room names 12k, outdoor and zone names 10k, weight 500, outdoor in italic. `--fp-font` is Home Assistant's body font (`--ha-font-family-body`, then the older paper variable), else system-ui; it is used for names, values and the card chrome, not for the studio or the config editor. Values use tabular figures and U+202F before the unit (`meanReading`, a sensor's value, the live overlay); the popup's own state line keeps its plain space.
+- **Contrast pairs that wait for S23.6, marked `test.fixme` (labels-css.spec.ts), never a lower bar.** The `#d6d6d2` empty room on blueprint, midnight, terminal, solarized, coffee and HA dark (light text on light grey, 1.1 to 1.8:1). Midnight's and HA dark's fixed light outdoor hexes. Solarized's outdoor hexes (`#586e75`, `#657b83`, `#268bd2`): no colour of its palette clears 4.5:1 on them, so they need a theme decision, not only the ramp.
+- The 3D overlay's room names take weight 500 and the font, to match.
+- The mix applies to room and zone names only (`.lbl[data-rl]`). Device and extra names sit on a disc or anywhere, so they keep `--fp-text`.
+
 ## 2026-10-08: the popup is placed inside what the user sees (S22.2)
 
 `placeNear` (popup-ui.ts) clamps to the host's box cut to the visual viewport (`window.visualViewport`, else the window), not to the host alone. Below the point first, above it when there is no room below, then clamped into that box. Its height is capped to the box less 16 px (the CSS cap the popup had for a host in full view), so in a very short window the sliders scroll and the button stays on screen. A host with less than 40 px showing falls back to its own box, the old rule. Not chosen: `position: fixed` (it would escape the card's stacking and need its own z-index and theme scope). The popup is placed when it opens and on each render, not on a page scroll.
