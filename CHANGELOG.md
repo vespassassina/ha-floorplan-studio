@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Studio: find anything on the plan. Press / or ⌘K, type a few letters, Enter: the Studio switches floor, selects the device or room, centres it and rings it a moment. The same box runs a few commands (Fix plan, Draw room, Add device, Zoom to fit, Undo, Save).
+- Studio: an Outline beside the plan lists floors, rooms and devices with counts, filters by name or entity id, and works with the arrow keys. Its last branch, "Unplaced from HA", lists what Home Assistant has that the plan does not, by area; a click starts adding it. The column folds to a thin rail and starts folded on a window under 1100 px.
 - Card and studio (groundwork): one search index over floors, rooms and devices. A query matches names, entity ids, rooms, floors and types, ignores case and accents, and ranks the exact name first.
 - Card and studio (groundwork): one search box, opened with ⌘K, Ctrl+K or /. Arrows move through the results, Enter picks, Escape clears and then closes. Each result shows its room, floor and type.
 - Card: the card file is a quarter smaller (109 to 84 KB gzipped). The build drops the code's comments and spaces; the panel (158 to 131 KB) and the 3D view (196 to 145 KB) shrink too.

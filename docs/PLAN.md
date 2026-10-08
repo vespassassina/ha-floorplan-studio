@@ -2703,7 +2703,7 @@ Wave 1, core (parallel):
       its own theme's outdoor ink.
 
 Wave 2, the apps (Studio and card in parallel, two tasks each in order):
-- [ ] S24.5 (U9, U20) Studio search and Outline. `<fp-search>` in the top bar; Enter switches floor, selects, centres
+- [x] S24.5 (U9, U20) Studio search and Outline. `<fp-search>` in the top bar; Enter switches floor, selects, centres
       at no less than 1:1 and pulses the device. A left column with an Outline tab: floors › rooms › devices with
       counts, a filter field, a tree with arrow keys; a click or Enter selects and centres. The last node, "Unplaced
       from HA", groups entities by area; a click opens Add > Device with it picked. The canvas `svg` gets

@@ -2,6 +2,25 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: Studio search and Outline (S24.5)
+
+- **"Centres at no less than 1:1" means never zoomed out further than fit.** The plan has no fixed px-per-cm; fit is the
+  only scale a person knows. A pick keeps the zoom when it is closer than fit, else zooms in to fit, and centres.
+- **An unplaced entity opens Add > Device listing only it, its row focused**, rather than placing it at once. Placing
+  is an edit and lands where the viewport is; one Enter more keeps that edit a choice.
+- **After a pick, focus goes back to the editor host**, so Delete, the arrows and the next `/` act at once. Add device…
+  keeps its own focus.
+- **Six commands only**: Fix or Unfix plan, Draw room, Add device…, Zoom to fit, Undo, Save. Each calls the code its menu
+  calls. More can follow when a menu item is asked for twice.
+- **The tree is flat rows** with `aria-level`, `aria-setsize` and `aria-posinset`, not nested groups, so only open
+  branches render and the 437 devices of the stress house cost nothing while their rooms are shut. Roving tabindex.
+- **The floor on show starts open**; the rest are shut. A pick opens the branches above it and scrolls its row into the
+  tree's own view (not the page's), without taking focus.
+- **The ring is in `renderFloor`** (`locate`), one draw path, so the card can use it (S24.7). Three pulses, then gone
+  after 2.4 s; under reduced motion a still ring. Its own `@media` block: the existing reduced-motion rule is pinned.
+- **The column takes canvas width.** Four editor tests that measure in screen px (snap radius, icon overlap, the HA
+  popover over a plan point) shut it first (`shutSide` in `editor.spec.ts`), and wait for the editor to measure again.
+
 ## 2026-10-08: the search box's keys and focus (S24.2)
 
 - **`isSearchChord` lives in `view-keys.ts`**, beside `isSaveChord` and `takesTyping`, and `search-box.ts` re-exports it. A host can test the chord without loading the element, and "/" in a text field uses the same `takesTyping` rule as the view keys.
