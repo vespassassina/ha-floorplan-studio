@@ -10,7 +10,7 @@ import { PAN_STEP, isSaveChord, isSearchChord, viewKeyFor, type ViewKey } from "
 import "../card/search-box";
 import type { FpSearch } from "../card/search-box";
 import { layoutEntries, type SearchEntry } from "../core/search";
-import { buildOutline, filterOutline, outlineKey, outlineView, visibleRows, type OutlineNode, type OutlineRow } from "./outline";
+import { buildOutline, deviceNodeId, filterOutline, outlineKey, outlineView, visibleRows, type OutlineNode, type OutlineRow } from "./outline";
 import { readViewMemory, writeViewMemory } from "./view-memory";
 import { traceImage } from "./trace";
 import { furnitureNear, roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
@@ -2116,7 +2116,7 @@ export class FloorplanStudioEditor extends LitElement {
         const d = f.devices[i];
         if (d) { st.sel = { t: "dev", i }; this.centreOn("a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y]); this.pulse("dev", i); }
       }
-      this.revealInOutline(`d:${e.id}`);
+      this.revealInOutline(deviceNodeId(e));
       // S24.6: search and the Outline do not follow Layers. The pick is selected and drawn; the banner says why the rest of its family is not.
       const fam: LayerId | undefined = e.piece ? (f.furniture[i] ? "furniture" : undefined) : f.devices[i] && layerOfType(f.devices[i].type);
       if (fam && st.hidden.includes(fam)) {

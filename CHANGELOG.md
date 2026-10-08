@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: a search for a TV or speaker whose id repeats on another floor now marks its own row in the Outline, not the other floor's.
 - Card: a search at the top of the Overview, opened with ⌘K, Ctrl+K or / while the card is under the pointer or has focus. Enter on a device goes to it as a row tap does; on a room, opens the room; on a floor, shows it.
 - Card: "Turn off on this floor…" lists what is on (lights with their relays, switches, plugs, media), grouped with counts and all ticked. One button turns off what stays ticked.
 - Card: a Layers button in the Overview unfolds one chip per family on the floor (Lights, Climate, … Furniture). A click hides that family on the plan, Alt-click shows it alone. Each viewer's choice is remembered. Search still finds a hidden device, draws it, and offers Show.

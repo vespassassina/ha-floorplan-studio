@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Sprint 24 review fixes, Studio (S24.R4, S24.R8, S24.R10a)
+
+- **An Outline row for a device or piece is `d:<floor>:<id>`** (`deviceNodeId`). Validate keeps a piece's id unique on
+  its floor only, and a device's id unique among devices only, so the bare id could name two rows. The id, not the
+  index, so the active row stays on its thing when another is deleted. Rooms keep `r:<floor>:<index>`, as before.
+
 ## 2026-10-09: the card's layer chips (S24.8, part 2)
 
 - **Supersedes "Layer chips are not in this part"** (part 1, below). The chips fill the `.fp-ov-layers` slot.

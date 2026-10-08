@@ -2740,3 +2740,7 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       handling (finding 13): find it, no retries. Done: the race was in the test, not the card. The first swipe's
       fling outlived the reset; the swipe now carries its own timestamps and rests before it lifts (no fling), and
       waits for `scrollend`. See DECISIONS 2026-10-09.
+- [x] S24.R4 (Opus review 4) The Outline keyed a device or piece row by its bare id, and a piece's id is unique on its
+      floor only. Two linked TVs with the id `tv` on Ground and First: "First TV" selected First on the plan but opened
+      Ground › Living and marked no row. Row ids are now `d:<floor>:<id>`. Test: that layout, `/`, Enter, the First row
+      marked, for a piece and for a device sharing an id with a piece on another floor.
