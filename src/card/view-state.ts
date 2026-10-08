@@ -1,6 +1,6 @@
 /** The card's view memory and rotation, as pure maths and parsing. No DOM, no storage handle: the card reads and
  * writes `localStorage` itself and hands the raw string here. */
-import { WALLS_MODES, clampTilt } from "../core";
+import { WALLS_MODES, clampTilt, parseLayers, type LayerId } from "../core";
 import { MAX_ZOOM, MIN_ZOOM, type Pt, type View } from "./viewport";
 
 /** A user turn is a multiple of this many degrees. */
@@ -69,6 +69,8 @@ export interface StoredView {
   names?: boolean;
   /** The floor the person switched to (a key of the layout's `floors`); the card ignores one it does not have. */
   floor?: string;
+  /** The families this viewer hid with the layer chips (S24.8); missing or empty draws everything. */
+  layers?: LayerId[];
 }
 
 /** Further than this from the origin is not a plan in cm; the bound keeps later arithmetic finite. */
@@ -133,5 +135,7 @@ export function parseStoredView(raw: unknown, isView: (v: unknown) => boolean, t
   if (typeof r.labels === "boolean") out.labels = r.labels;
   if (typeof r.names === "boolean") out.names = r.names;
   if (validKey(r.floor)) out.floor = r.floor;
+  const layers = parseLayers(r.layers);
+  if (layers.length) out.layers = layers;
   return out;
 }
