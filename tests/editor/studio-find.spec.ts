@@ -222,3 +222,37 @@ test("Opus review CSS pair: the pulse ring animates, and stands still under redu
   expect(await ring.evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
   expect(Number(await ring.evaluate((el) => getComputedStyle(el).opacity))).toBeGreaterThan(0.5);
 });
+
+test("S24.R4: one id on two floors, a search reveals the picked floor's row in the Outline, for a piece and a device", async ({ page }) => {
+  // Ids are unique per floor only (validate accepts this; device ids alone are unique in the layout). The Outline used to
+  // key a row by the bare id, so "First TV" opened Ground's branch and marked no row. A device may share its id with a
+  // piece on another floor too.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/standalone.html");
+  await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+  await page.evaluate((tag) => {
+    const ed = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(ed.layout));
+    l.floors.ground.furniture.push({ id: "tv", symbol: "tv", x: 420, y: 200, rot: 0, w: 100, h: 10, entity: "media_player.g_tv", name: "Ground TV" });
+    l.floors.first.furniture.push({ id: "tv", symbol: "tv", x: 300, y: 200, rot: 0, w: 100, h: 10, entity: "media_player.f_tv", name: "First TV" });
+    l.floors.ground.furniture.push({ id: "twin", symbol: "speaker", x: 420, y: 260, rot: 0, w: 20, h: 20, entity: "media_player.g_twin", name: "Ground twin" });
+    l.floors.first.devices.push({ id: "twin", type: "light", entity: "light.f_twin", name: "First twin", x: 300, y: 260 });
+    ed.layout = l;
+  }, EDITOR);
+  for (const [query, name, sel] of [["First TV", "First TV", "furn"], ["First twin", "First twin", "dev"]] as const) {
+    await page.locator(`${EDITOR} .canvas > svg`).click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("/");
+    await page.keyboard.type(query);
+    await expect(page.locator(`${EDITOR} fp-search [role="option"]`).first()).toContainText(name);
+    await page.keyboard.press("Enter");
+    const s = await state(page);
+    expect(s.floor).toBe("first");
+    expect(s.sel?.t).toBe(sel);
+    const row = page.locator(`${EDITOR} #outlineTree [role="treeitem"][aria-selected="true"]`);
+    await expect(row).toHaveCount(1);
+    await expect(row.locator(".tl")).toHaveText(name);
+    await expect(row).toBeInViewport();
+  }
+  // every row of the tree has its own id
+  const ids = await page.evaluate((tag) => [...(document.querySelector(tag) as any).shadowRoot.querySelectorAll("#outlineTree [data-node]")].map((r: any) => r.dataset.node as string), EDITOR);
+  expect(new Set(ids).size).toBe(ids.length);
+});

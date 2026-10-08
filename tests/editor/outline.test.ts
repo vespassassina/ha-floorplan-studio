@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { migrate } from "../../src/core/migrate";
 import type { HaData, Layout } from "../../src/core";
-import { buildOutline, filterOutline, outlineKey, visibleRows, type OutlineNode } from "../../src/editor/outline";
+import { buildOutline, deviceNodeId, filterOutline, outlineKey, visibleRows, type OutlineNode } from "../../src/editor/outline";
 
 // S24.5 (U9, U20): the Studio's Outline. floors › rooms › devices with counts, "No room" per floor, and "Unplaced from
 // HA" last, grouped by area with Place's own filter. Pure: the tree element renders what these return.
@@ -69,6 +69,22 @@ describe("S24.5 outline model", () => {
   it("a junk layout gives an empty tree, never a throw (finding 1)", () => {
     expect(buildOutline({ floors: { x: 5, __proto__: { rooms: 5 } } } as unknown as Layout, undefined, undefined)).toEqual([]);
     expect(buildOutline(null as unknown as Layout, undefined, undefined)).toEqual([]);
+  });
+
+  it("S24.R4: one id on two floors gives two rows with their own ids, for pieces and for a device beside a piece", () => {
+    const tv = (name: string, entity: string, id = "tv") => ({ id, symbol: "tv", x: 50, y: 50, rot: 0, w: 100, h: 10, entity, name });
+    const l = tiny({
+      ground: floor({ furniture: [tv("Ground TV", "media_player.g"), tv("Ground twin", "media_player.gt", "twin")] }),
+      first: floor({ title: "F", furniture: [tv("First TV", "media_player.f")], devices: [{ id: "twin", type: "light", entity: "light.ft", name: "First twin", x: 10, y: 10 }] }),
+    });
+    const t = buildOutline(l, undefined, undefined);
+    const ids: string[] = [];
+    const walk = (ns: OutlineNode[]) => ns.forEach((n) => { ids.push(n.id); if (n.children) walk(n.children); });
+    walk(t);
+    expect(new Set(ids).size).toBe(ids.length);
+    const first = t[1].children!.flatMap((n) => n.children!);
+    expect(first.map((n) => [n.label, n.id])).toEqual([["First twin", deviceNodeId(first[0].entry!)], ["First TV", deviceNodeId(first[1].entry!)]]);
+    expect(deviceNodeId(first[1].entry!)).not.toBe(deviceNodeId(t[0].children![0].children![0].entry!));
   });
 });
 

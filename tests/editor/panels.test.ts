@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { render } from "lit";
 import demo from "../../demo/layout.json";
-import { ROOM_KINDS, type Layout } from "../../src/core/schema";
+import { DEVICE_TYPES, ROOM_KINDS, type Layout } from "../../src/core/schema";
 import { EditorState } from "../../src/editor/state";
-import { selectionPanel, type PanelCtx } from "../../src/editor/panels";
+import { selectionPanel, typeNoun, type PanelCtx } from "../../src/editor/panels";
 
 const fresh = () => structuredClone(demo) as unknown as Layout;
 
@@ -100,4 +100,18 @@ describe("changing a room's kind (Opus re-check of Sprint 11, D)", () => {
       expect([back.kind, back.temps, back.humidity, back.motion]).toEqual(["room", ["sensor.a"], ["sensor.b"], ["binary_sensor.c"]]);
       expect(st.canUndo).toBe(false);
     });
+});
+
+describe("S24.R10a typeNoun: a type as a word in a sentence", () => {
+  it("every type reads as its label, never its raw id; an initialism keeps its capitals (finding 17)", () => {
+    const seen: Record<string, string> = {};
+    for (const t of DEVICE_TYPES) {
+      const w = typeNoun(t);
+      expect(w, t).not.toMatch(/_/);
+      expect(w, t).not.toBe("");
+      seen[t] = w;
+    }
+    expect([seen.access_point, seen.ups, seen.ac, seen.tv, seen.server, seen.media]).toEqual(["access point", "UPS", "AC", "TV", "server", "media player"]);
+    expect(typeNoun("nonsense" as never)).toBe("device");
+  });
 });

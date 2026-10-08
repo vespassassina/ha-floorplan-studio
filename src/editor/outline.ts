@@ -11,7 +11,7 @@ import type { HaData, Layout, StateOverlay } from "../core";
  * The model and the keys are pure; the editor keeps which branches are open and which row is active.
  */
 export interface OutlineNode {
-  /** Unique in the tree: "f:<floor>", "r:<floor>:<room>", "n:<floor>", "d:<entry id>", "u", "a:<area>", "e:<entity>". */
+  /** Unique in the tree: "f:<floor>", "r:<floor>:<room>", "n:<floor>", "d:<floor>:<entry id>", "u", "a:<area>", "e:<entity>". */
   id: string;
   kind: "floor" | "room" | "noroom" | "device" | "unplaced" | "area" | "entity";
   label: string;
@@ -25,6 +25,10 @@ export interface OutlineNode {
   entity?: string;
   children?: OutlineNode[];
 }
+
+/** A device or piece's row id. Floor-scoped: a piece's id is unique on its floor only, and a device may share its id
+ *  with a piece on another floor (validate allows both), so the bare id could name two rows. */
+export const deviceNodeId = (e: SearchEntry): string => `d:${e.floor ?? ""}:${e.id}`;
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null;
 const text = (x: unknown): string => (typeof x === "string" ? x : "");
@@ -63,7 +67,7 @@ export function buildOutline(layout: Layout, state: StateOverlay | undefined, ha
       }
       const d = !e.piece && e.device !== undefined ? (layout.floors[fk]?.devices?.[e.device] as unknown) : undefined;
       const bound = isObj(d) && d.type === "light" ? text(d.bound) : "";
-      home.children!.push({ id: `d:${e.id}`, kind: "device", label: e.name, entry: e, ...(bound ? { via: relayName(bound, entries, state, ha) } : {}) });
+      home.children!.push({ id: deviceNodeId(e), kind: "device", label: e.name, entry: e, ...(bound ? { via: relayName(bound, entries, state, ha) } : {}) });
       home.count!++;
       fl.count!++;
     }
