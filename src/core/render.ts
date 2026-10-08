@@ -458,7 +458,7 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 @keyframes fp-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
-.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none} .lbl-tag{fill:var(--fp-outline);stroke:none;pointer-events:none}
+.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none} .lbl-tag{fill:var(--fp-outline);stroke:none;pointer-events:none} .lbl-on{pointer-events:none}
 /* S23.1: one label style. A name is never faded: it is the text colour mixed into the surface it sits on (--fp-under,
    set per name by renderFloor), solid, so it reads as part of the room yet clears 4.5:1 on it. 92% is the least text
    that passes on every theme's surface (light garden 4.56, terminal pavement 4.67). A device's or an extra's name sits on

@@ -138,11 +138,13 @@ test.describe("S23.3 CSS pair: a name on a tag", () => {
         const outline = getComputedStyle(probe).fill;
         probe.remove();
         const plate = getComputedStyle(svg.querySelector("rect.lbl-tag")!), text = getComputedStyle(svg.querySelector("text.lbl-on")!);
-        return { outline, fill: plate.fill, op: plate.fillOpacity, opacity: plate.opacity, events: plate.pointerEvents, text: text.fill, textOpacity: text.opacity };
+        return { outline, fill: plate.fill, op: plate.fillOpacity, opacity: plate.opacity, events: plate.pointerEvents, textEvents: text.pointerEvents, text: text.fill, textOpacity: text.opacity };
       });
       expect(r.fill).toBe(r.outline);
       expect([r.op, r.opacity, r.textOpacity]).toEqual(["1", "1", "1"]);
       expect(r.events).toBe("none");
+      // Opus review M1: the name on the plate takes no clicks either, or a tap on a device under it picks the room.
+      expect(r.textEvents).toBe("none");
       expect(ratio(rgbOf(r.text), rgbOf(r.fill)), `${r.text} on ${r.fill}`).toBeGreaterThanOrEqual(4.5);
     });
   }

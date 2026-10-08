@@ -4404,6 +4404,35 @@ test("S1.42: at plan rotations 0, 45, 90 and 135 no name box overlaps a device h
   }
 });
 
+test("Opus review M1: a click on a device under a tagged name selects the device, not the room", async ({ page }) => {
+  // A small room packed with switches: every spot is covered, so its name goes on a tag over them (S23.3).
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), g = l.floors.ground;
+    const pts = [[0, 0], [300, 0], [300, 120], [0, 120]];
+    g.rooms = [{ id: "den", name: "Den", area: "", kind: "room", pts, wk: pts.map(() => "wall") }];
+    g.devices = [];
+    for (let x = 10; x < 300; x += 20) for (let y = 10; y < 120; y += 20) g.devices.push({ id: `s${x}-${y}`, type: "switch", entity: `switch.s${x}_${y}`, x, y });
+    g.doors = []; g.stairs = []; g.furniture = []; g.extras = []; g.unlinked = []; g.openings = []; g.walls = [];
+    el.layout = l;
+  }, EDITOR);
+  await expect(page.locator("svg text.lbl-on").first()).toBeVisible();
+  const hit = await page.evaluate((tag) => {
+    const root = document.querySelector(tag)!.shadowRoot!;
+    for (const text of root.querySelectorAll("svg text.lbl-on")) {
+      const t = text.getBoundingClientRect();
+      for (const g of root.querySelectorAll("svg g[data-x]")) {
+        const h = g.querySelector(".halo")!.getBoundingClientRect(), x = h.x + h.width / 2, y = h.y + h.height / 2;
+        if (x > t.left + 2 && x < t.right - 2 && y > t.top + 2 && y < t.bottom - 2) return { x, y, i: g.getAttribute("data-x") };
+      }
+    }
+    return null;
+  }, EDITOR);
+  expect(hit, "a device sits under a tagged name").not.toBeNull();
+  await page.mouse.click(hit!.x, hit!.y);
+  await expect(page.locator("g.dev.sel")).toHaveCount(1);
+  await expect(page.locator("g.dev.sel")).toHaveAttribute("data-x", hit!.i!);
+});
+
 // ---- rotation buttons (S1.43) -----------------------------------------------------------
 
 test("S1.43: stairs turn by the pressed amount, in the chosen direction, and Reset returns to 0", async ({ page }) => {
