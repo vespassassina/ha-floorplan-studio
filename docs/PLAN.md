@@ -2731,3 +2731,9 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       device on its floor; the checklist sends exactly the calls ticked; a hidden family draws no icon.
 - [ ] S24.9 Verify: lint, unit, Playwright bare; new tests `--repeat-each=10`; `npm run shots` looked at; the
       sprint test, "find a named device on the stress house in two actions, by keyboard alone", in both apps.
+
+### Follow-ups found during Sprint 24
+
+- [ ] S24.F1 `card.spec.ts:1058` "S7.15: a vertical swipe … pans the plan once zoomed" failed once under full-suite
+      load: the page scrolled 1 px (`scrollY` 1, expected 0). Passes alone 30 of 30. A race in the card's touch
+      handling (finding 13): find it, no retries.
