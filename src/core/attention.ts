@@ -32,7 +32,7 @@ export type AttentionKind = (typeof ATTENTION_KINDS)[number];
  *   `battery` type is a home storage battery: its charge is not an alert.
  * Besides its rule, a device's own battery (S24.R1, `batteryOf`): any placed device, and any lock or contact sensor a
  * door carries, is low when its entity is a battery entity that reads low, else its `battery_level` or `battery`
- * attribute is a number under 20, else (no such attribute) a battery entity of its own HA device reads low. One item
+ * attribute is a number under 20, else (no such attribute) a diagnostic battery entity of its own HA device reads low. One item
  * per placed entity. A lock can be unlocked and low at once: two items, one thing on the floor's count.
  */
 export type AttentionRule = "alarm" | "open" | "unlocked" | "hazard" | "none";
@@ -120,6 +120,9 @@ interface Low { level?: number }
 function batteryEntityLow(entity: string, s: StateOverlay[string]): Low | null {
   if (attrs(s).device_class !== "battery") return null;
   if (entity.startsWith("binary_sensor.")) return s.state === "on" ? {} : null;
+  // A reading in volts (or any unit but %) is not a charge level: 2.9 V is not 2.9 % (S24.R12).
+  const unit = attrs(s).unit_of_measurement;
+  if (unit !== undefined && unit !== null && unit !== "" && unit !== "%") return null;
   return entity.startsWith("sensor.") && low(s.state) ? { level: num(s.state) } : null;
 }
 
@@ -145,7 +148,8 @@ interface BatteryHit extends Low { source?: string; s: StateOverlay[string] }
  * S24.R1: the battery of the thing behind `entity` (state `s`), when it is low. In order, the first that has a reading
  * decides: the entity is itself a battery entity (a `battery`-type icon only when HA files it `diagnostic`: a home
  * battery's charge is its device's main reading); a `battery_level` or `battery` attribute; a battery entity of the same
- * HA device (`hass.entities[...].device_id`), the lowest, unless that entity is placed as its own icon. A storage type
+ * HA device (`hass.entities[...].device_id`) that HA files `diagnostic`, the lowest, unless that entity is placed as its
+ * own icon. A battery sensor counts only in % or with no unit. A storage type
  * (`STORAGE`) reads none of these but an attribute.
  */
 function batteryOf(entity: string, type: DeviceType | undefined, s: StateOverlay[string], ctx: BatteryCtx): BatteryHit | null {
@@ -164,7 +168,9 @@ function batteryOf(entity: string, type: DeviceType | undefined, s: StateOverlay
   if (typeof dev !== "string" || !dev) return null;
   let best: BatteryHit | null = null;
   for (const b of ctx.byDevice.get(dev) ?? []) {
-    if (b === entity || ctx.placed.has(b)) continue;
+    // Only a diagnostic battery entity is a device's own battery; a home battery's or a car's charge on the device of a
+    // switch or plug is its main reading, filed without a category, and 10 % of it at night is normal (S24.R12).
+    if (b === entity || ctx.placed.has(b) || own<{ entity_category?: unknown }>(ctx.reg, b)?.entity_category !== "diagnostic") continue;
     const bs = stateOf(ctx.state, b), hit = bs && bs.state !== "unavailable" ? batteryEntityLow(b, bs) : null;
     if (hit && (!best || (hit.level ?? -1) < (best.level ?? -1))) best = { ...hit, source: b, s: bs! };
   }

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Card: low batteries show up as Home Assistant reports them. A Zigbee2MQTT `battery` attribute, a battery sensor or low-battery sensor placed on the plan, and the battery sensor of a placed device's own HA device all count. A home battery's charge still does not.
+- Card: a home battery or car at 10 % no longer reads as a low battery on the switch or plug that shares its Home Assistant device. Only a battery sensor Home Assistant files as diagnostic counts there. A battery sensor in volts is not read as a percentage.
 - Card: a jammed lock is in Attention, as "jammed".
 - Card: a lamp that is on and low on battery stays under Active as well as in Attention.
 - Card: the ring round a located device keeps its own animation; it shared a name with the Studio's ring.

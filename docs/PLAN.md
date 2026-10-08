@@ -2771,5 +2771,8 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
 - [x] S24.R6 A device that is on stays in Active when its battery is low.
 - [x] S24.R7 The card's pulse keyframes renamed `fp-pulse-ring`; a test reads both rings' keyframes.
 - [x] S24.R9 `attention().floors` is a null-prototype object; a floor named `__proto__` is counted.
+- [x] S24.R12 A sibling battery sensor counts only when HA files it diagnostic, so a home battery's or a car's charge
+      on a switch's or plug's device is not an alert; the lowest of several is reported (now tested); a battery
+      sensor in volts is not read as %.
 - [x] S24.R11 `render.ts` drops its private copy of the Layers rule and imports `layerHides`; `src/core/index.ts`
       exports it. No behaviour change: the existing Layers tests stay green.
