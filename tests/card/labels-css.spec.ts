@@ -36,15 +36,6 @@ const seen = (r: { fill: string; under: string; opacity: string }) => { const f 
 
 /** What sits under each name: its own room, and the plain room for the zone. */
 const UNDER: Record<string, string> = { ...Object.fromEntries(NAMED.map((k, i) => [`N-${k}`, String(i)])), "N-zone": "0" };
-/** The pairs S23.6 left short. Midnight (and Home Assistant's dark fallback, which is midnight) keeps its light water
- * #a9cfe3, and solarized's outdoor names, its base0 on the new ramp teal, stay near 3.2:1. Each is a test.fixme
- * below, never a lower bar here. */
-const fixme = (id: string, name: string): string | null => {
-  if (name === "N-water" && (id === "midnight" || id === "ha-dark")) return "midnight keeps its light water #a9cfe3";
-  if (["N-garden", "N-terrace", "N-pavement", "N-water"].includes(name) && id === "solarized") return "solarized's outdoor names are near 3.2:1 on the ramp teal";
-  return null;
-};
-
 type Read = { name: string; fill: string; under: string; opacity: string; weight: string; style: string; family: string; stroke: string; outline: string; size: string };
 const readAll = (page: import("@playwright/test").Page, id: string) => page.locator(`#s-${id}`).evaluate((svg, UNDER) => {
   const probe = document.createElementNS("http://www.w3.org/2000/svg", "rect");
@@ -93,30 +84,51 @@ test.describe("S23.1 CSS pair: one label style", () => {
     expect(fills.size, JSON.stringify(all.map((r) => [r.name, r.fill]))).toBeGreaterThan(3);
   });
 
+  // S23 review S6: a theme may give outdoor names an ink of their own (--fp-text-out). Solarized does: its base1 is near
+  // 3.2:1 on its outdoor shades. A theme without one keeps --fp-text, so the out name and a plain name on the same
+  // surface are the same colour there.
+  test("S6 CSS pair: an outdoor name takes --fp-text-out where the theme has one, --fp-text where it does not", async ({ page }) => {
+    await page.setContent(page_());
+    const pair = (id: string) => page.locator(`#s-${id}`).evaluate((svg) => {
+      const mk = (cls: string) => {
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("class", cls); t.setAttribute("data-rl", "0"); t.setAttribute("style", "--fp-under:var(--fp-garden)");
+        svg.querySelector("g")!.appendChild(t);
+        const fill = getComputedStyle(t).fill; t.remove(); return fill;
+      };
+      return { out: mk("lbl out"), plain: mk("lbl") };
+    });
+    const sol = await pair("solarized");
+    expect(sol.out, "solarized: its outdoor ink").not.toBe(sol.plain);
+    for (const id of ["light", "blueprint", "midnight"]) { const r = await pair(id); expect(r.out, id).toBe(r.plain); }
+  });
+
+  // S23 review S6: midnight's stair fill was light's #c4c0b8, a pale block on a navy plan. A dark theme's fill is dark.
+  test("S6 CSS pair: midnight and Home Assistant dark have a dark stair fill and water", async ({ page }) => {
+    await page.setContent(page_());
+    for (const id of ["midnight", "ha-dark"]) {
+      const [fill, water, bg] = await page.locator(`#s-${id}`).evaluate((svg) => ["--fp-fill", "--fp-water", "--fp-bg"].map((v) => {
+        const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        r.setAttribute("style", `fill:var(${v})`); svg.querySelector("g")!.appendChild(r);
+        const c = getComputedStyle(r).fill; r.remove(); return c;
+      }));
+      expect(lum(rgbOf(fill)), `${id} fill ${fill}`).toBeLessThan(0.1);
+      expect(lum(rgbOf(water)), `${id} water ${water}`).toBeLessThan(0.15);
+      expect(water, `${id}: water is not the background`).not.toBe(bg);
+    }
+  });
+
   for (const c of CASES) {
     test(`contrast: every name is at least 4.5:1 on its room, ${c.id}`, async ({ page }) => {
       await page.setContent(page_());
       const all = await readAll(page, c.id);
-      let checked = 0;
-      for (const r of all) {
-        if (fixme(c.id, r.name)) continue;
-        const k = ratio(seen(r), rgbOf(r.under));
-        expect(k, `${c.id} ${r.name}: ${r.fill} on ${r.under}`).toBeGreaterThanOrEqual(4.5);
-        checked++;
-      }
-      expect(checked + all.filter((r) => fixme(c.id, r.name)).length).toBe(NAMED.length + 1);
+      expect(all.length).toBe(NAMED.length + 1);
+      const short = all.map((r) => ({ r, k: ratio(seen(r), rgbOf(r.under)) })).filter((x) => x.k < 4.5)
+        .map(({ r, k }) => `${r.name} ${k.toFixed(2)}:1 (${r.fill} on ${r.under})`);
+      expect(short, c.id).toEqual([]);
     });
   }
 
-  // The pairs S23.6 left short. Each names its theme and room; delete the line in fixme() when it is fixed.
-  for (const c of CASES) for (const n of [...NAMED.map((k) => `N-${k}`), "N-zone"]) {
-    const why = fixme(c.id, n);
-    if (why) test.fixme(`contrast: ${c.id} ${n} reaches 4.5:1 (${why})`, async ({ page }) => {
-      await page.setContent(page_());
-      const r = (await readAll(page, c.id)).find((x) => x.name === n)!;
-      expect(ratio(seen(r), rgbOf(r.under))).toBeGreaterThanOrEqual(4.5);
-    });
-  }
 });
 
 // S23.3: a name whose every spot is covered is drawn on a plate over the icons. The plate is the outline colour, solid,

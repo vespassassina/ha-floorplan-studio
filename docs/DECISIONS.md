@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: every name clears 4.5:1, midnight and solarized too (S23 review S6)
+
+S23.6 left six pairs as `test.fixme`: water in midnight and Home Assistant dark (which falls back to midnight), and solarized's garden, terrace, pavement and water. They are real tests now; there is no exception list.
+- **Midnight takes its outdoor and fill colours from its own ramp.** Water was light's #a9cfe3 (a light name on it, 1.2:1); it is #1f4a78, a deeper blue that still reads as water. The stair fill was light's #c4c0b8, a pale block on navy, by the same copy; it is #1a2a46 with a #3a5684 hatch.
+- **Midnight's glass and window are #5fa8e8.** Light's #2c7fb8 was 2.8:1 on the dark window pane, under the 3:1 a line needs (WCAG 1.4.11). The TV keeps #2c7fb8 (S9.3). Light (2.4:1) and solarized (2.8:1) are under 3:1 too; not changed here, the test lists them.
+- **A theme may give outdoor names their own ink, `--fp-text-out`.** `.lbl[data-rl].out` mixes it, falling back to `--fp-text`, so no other theme changes. Solarized sets base2 #eee8d5: base1 is near 3.2:1 on its outdoor shades, and darkening those shades enough would make them the room's colour.
+- **Solarized water is #15608c**, Solarized blue 55 % over base03. On the full blue no Solarized text colour reaches 4.5:1. Windows keep the full blue.
+
 ## 2026-10-08: labels keep inside the card at 375 px (S23 review S3)
 
 At 375 px "Garden" ran under the button stack and the stress layout put names below the view box. Placement knew the plan, not the frame it is shown in.
