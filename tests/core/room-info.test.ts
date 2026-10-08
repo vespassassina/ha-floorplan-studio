@@ -91,8 +91,16 @@ describe("roomSummary", () => {
     expect(sum(STATE, floor(DEVICES), 1).motion).toBeNull();
   });
   it("lists the open doors and windows that border this room, by name, and only those", () => {
-    expect(sum().openings).toEqual(["Hall door", "Back door"]); // Big window is closed; Study window is the other room's
+    expect(sum().openings).toEqual(["Hall door"]); // Big window is closed; Study window is the other room's; Back door is only unlocked
     expect(sum(STATE, floor(DEVICES), 1).openings).toEqual(["Hall door", "Study window"]);
+  });
+  it("S24.3 (G3): a door left unlocked is Unlocked, not Open; one both open and unlocked is in both", () => {
+    expect(sum().unlocked).toEqual(["Back door"]);
+    expect(sum().hasLocks).toBe(true);
+    expect(sum(STATE, floor(DEVICES), 1)).toMatchObject({ unlocked: [], hasLocks: false }); // the Study has no door with a lock
+    const both = sum({ ...STATE, "binary_sensor.hall_contact": st("off"), "binary_sensor.back": st("on") }, floor(DEVICES, { doors: [door("d4", "Back door", "door", [0, 100], [0, 200], { locks: ["lock.back"], sensors: ["binary_sensor.back"] })] }));
+    expect([both.openings, both.unlocked]).toEqual([["Back door"], ["Back door"]]);
+    expect(sum({ ...STATE, "lock.back": st("locked") }).unlocked).toEqual([]);
   });
   it("lists the lights that are on in this room by name, not the one in the other room", () => {
     expect(sum().lightsOn).toEqual(["lamp"]);
@@ -116,6 +124,7 @@ describe("roomSummary", () => {
     expect(s.temperature).toBe("");
     expect(s.motion).toBeNull();
     expect(s.openings).toEqual([]);
+    expect(s.unlocked).toEqual([]);
     expect(s.lightsOn).toEqual([]);
     expect(s.devices[0]!.state).toBe("no state");
     expect(JSON.stringify(s)).not.toMatch(/NaN|undefined/);
@@ -286,7 +295,8 @@ describe("floorSummary (S20.2): the same rules over every room of the floor", ()
   it("gathers the rooms' sensors, doors and readouts", () => {
     expect(s.sensors.map((r) => r.entity)).toEqual(["sensor.t1", "sensor.t2", "sensor.h1", "binary_sensor.m1"]);
     expect(s.temperature).toBe("21.7\u202F°C");
-    expect(s.openings).toEqual(["Hall door", "Back door", "Study window"]); // each door once, though the Hall door borders both rooms
+    expect(s.openings).toEqual(["Hall door", "Study window"]); // each door once, though the Hall door borders both rooms
+    expect(s.unlocked).toEqual(["Back door"]);
   });
   it("lists a linked piece anywhere on the floor, once", () => {
     const piece = { id: "tv1", symbol: "tv", x: 600, y: 200, rot: 0, w: 100, h: 10, entity: "media_player.tv", name: "Telly" };

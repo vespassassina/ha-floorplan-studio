@@ -40,8 +40,13 @@ export interface RoomSummary {
   humidity: string;
   /** null when the room has no readable motion sensor. `since` is the raw `last_changed`: of the newest sensor that is on, else of the newest. */
   motion: { on: boolean; since: string } | null;
-  /** Names of the open (or unlocked) doors and windows whose line lies on one of the room's edges. */
+  /** Names of the doors and windows whose line lies on one of the room's edges and whose contact sensor is on. S24.3
+   *  (G3): an unlocked lock no longer counts here; it is in `unlocked`. */
   openings: string[];
+  /** Names of the same doors and windows with a lock left unlocked. A door both open and unlocked is in both lists. */
+  unlocked: string[];
+  /** Whether any of those doors carries a lock: the panel says "Unlocked: none" only then, not in a room with no lock. */
+  hasLocks: boolean;
   lightsOn: string[];
   /** S22.1: what the All off button turns off, once each: for every lamp in `lightsOn`, `lampOffEntities` (its light entity if
    *  that is on, its bound relay if that is on). A relay several lamps share is listed once. */
@@ -181,10 +186,14 @@ function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean,
     }
   }
 
-  const openings: string[] = [];
+  const openings: string[] = [], unlocked: string[] = [];
+  let hasLocks = false;
   for (const door of new Set(rooms.flatMap((r) => { const ring = ringOf(r); return ring.length ? doorsOf(f, ring) : []; }))) {
     for (const e of entitiesOfDoor(door)) entities.add(e);
-    if (doorStateOf(door, state).open) openings.push(door.name || door.kind);
+    const ds = doorStateOf(door, state);
+    if (ds.contact) openings.push(door.name || door.kind);
+    if (ds.unlocked) unlocked.push(door.name || door.kind);
+    hasLocks ||= strings(door.locks).length > 0;
   }
 
   const seen = lists.motion.flatMap((e) => { const s = stateOf(state, e); return s && s.state !== "unavailable" && s.state !== "unknown" ? [s] : []; });
@@ -198,7 +207,7 @@ function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean,
     areaM2,
     temperature: meanReading(lists.temps, state),
     humidity: meanReading(lists.humidity, state),
-    motion, openings, lightsOn, offEntities: [...offEntities], devices, sensors, entities,
+    motion, openings, unlocked, hasLocks, lightsOn, offEntities: [...offEntities], devices, sensors, entities,
   };
 }
 
