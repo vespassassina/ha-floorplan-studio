@@ -863,7 +863,8 @@ describe("wall kinds", () => {
   // same as before) — pinning every kind here means a future kind fails until someone writes down its own thickness,
   // the same guard the review asked for on DEVICE_TYPES/RoomKind.
   it("S8.9: pins every WallKind's own line thickness", () => {
-    const THICKNESS: Record<(typeof kinds)[number], number> = { wall: 10, boundary: 1.5, external: 20, fence: 1.5, edge: 1.5 };
+    // S23.7: boundary (a zone's dash) is a 1 px non-scaling hairline now, was 1.5 cm.
+    const THICKNESS: Record<(typeof kinds)[number], number> = { wall: 10, boundary: 1, external: 20, fence: 1.5, edge: 1.5 };
     const html = renderFloor(withWalls(), base);
     kinds.forEach((k, i) => {
       const cls = line(html, i)!; // "e", "e nw", "e external", "e fence", "e edge"
@@ -998,9 +999,10 @@ describe("S8.11: an opening is a real hole, cut from the wall layer with a <mask
     expect(id, html).toBeTruthy();
     const block = maskBlock(html, id!);
     expect(block, html).toBeTruthy();
-    // A full-cover base (so untouched wall pixels stay visible) plus one black cut line per opening.
+    // A full-cover base (so untouched wall pixels stay visible) plus one black cut line per opening, and (S23.7) per
+    // door or window drawn as a plan symbol: every door kind but sealed.
     expect(block).toMatch(/fill="white"/);
-    expect([...block!.matchAll(/<line[^>]*stroke="black"[^>]*\/>/g)]).toHaveLength(f.openings.length);
+    expect([...block!.matchAll(/<line[^>]*stroke="black"[^>]*\/>/g)]).toHaveLength(f.openings.length + f.doors.filter((d) => d.kind !== "sealed").length);
   });
 
   it("every wall halo and stroke line (.eh/.e), including the external outline, sits inside the masked group", () => {
@@ -1016,7 +1018,7 @@ describe("S8.11: an opening is a real hole, cut from the wall layer with a <mask
   });
 
   it("a floor with no openings draws its walls with no mask at all", () => {
-    const html = renderFloor(ground, base); // demo ground floor: no openings by default in this fixture
+    const html = renderFloor({ ...ground, doors: [] }, base); // no openings, and (S23.7) no doors, which cut the wall too
     expect(wallGroupMaskId(html)).toBeUndefined();
     expect(html).not.toContain("<mask");
   });
@@ -1101,7 +1103,7 @@ describe("fill is hatched (S1.15)", () => {
     expect(FLOORPLAN_CSS).toContain("--fp-fill-line:#9a958b");
   });
   it("emits no defs on a floor without a fill room", () => {
-    expect(renderFloor(ground, base)).not.toContain("<defs>");
+    expect(renderFloor({ ...ground, doors: [] }, base)).not.toContain("<defs>"); // S23.7: a door's wall cut is a defs of its own
   });
   it("two fill rooms still emit one defs", () => {
     expect(renderFloor(withFill(2), base).match(/<defs>/g)).toHaveLength(1);
@@ -1863,7 +1865,9 @@ describe("S1.35b: a white twin under every edge", () => {
     const html = renderFloor(f, base);
     const twins = [...html.matchAll(/<line class="eh[^"]*"[^>]*>/g)];
     const edges = [...html.matchAll(/<line class="e(?: nw| external| fence| edge)?" data-[ew]=[^>]*>/g)];
-    const n = f.outline.length + f.rooms.reduce((s, r) => s + r.pts.length, 0) + f.walls.length;
+    // S23.7: an outdoor kind's boundary edge draws no line at all
+    const outdoor = (r: (typeof f.rooms)[number], i: number) => ["garden", "terrace", "pavement", "water"].includes(r.kind) && r.wk[i] === "boundary";
+    const n = f.outline.length + f.rooms.reduce((s, r) => s + r.pts.filter((_, i) => !outdoor(r, i)).length, 0) + f.walls.length;
     expect(twins).toHaveLength(n);
     expect(edges).toHaveLength(n);
     expect(twins.every((m) => !m[0].includes("data-"))).toBe(true);

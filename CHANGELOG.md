@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Card and Studio: dark themes no longer show empty rooms as light grey boxes. Empty rooms, midnight's garden, terrace and pavement, and furniture take the theme's own colours. Your own room paint is dimmed on dark themes, never changed. The checkerboard is softer.
+- Card and Studio: doors and windows look like a floor plan. A door is a gap in the wall with a thin leaf and a swing arc into the room; a window is three thin lines across the wall. Glass doors and windows share one blue. Red still means open. Gardens, terraces, pavement and water lose their outline, and zones are a faint thin dash.
 
 ## 0.20.2 - 2026-10-08
 

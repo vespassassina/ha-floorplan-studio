@@ -2,6 +2,31 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: plan symbols (S23.7)
+
+Details of V19 and V20.
+
+- A door or glass door is a gap in the wall, a 1 px leaf from the hinge `a`, `|ab|` long and square to the wall, and a
+  90° arc back to `b`. The leaf swings to the room side: probe half a leaf out on each side; an indoor room (`room`)
+  wins, then any room, then the smaller one; with no room on either side it goes left of `a`→`b`.
+- A window is three hairlines along the opening, at the wall's two faces and its middle. A slit spans its narrower
+  band (`SLIT_BAND`).
+- Doors, glass doors, windows and slits now cut the wall (the opening mask). Sealed doors do not, and draw no symbol.
+- A closed, unselected door's own line paints nothing (`.door.quiet`). Open, alarm and cover-open keep the red line and
+  turn the symbol red; selection keeps the line. The hit line and `data-d` are unchanged; the symbol carries `data-ds`
+  and takes no clicks.
+- `--fp-glass` is the window blue. Per theme: light and midnight #2c7fb8 (was #1b9e77), solarized #268bd2 (was
+  #2aa198), the generated themes already used fg for both. Doors stay `--fp-door`.
+- Garden, terrace, pavement and water draw no boundary outline. The editor keeps its faint `e none` guide. A real wall
+  kind on an outdoor room (a fence) still draws.
+- A zone is a 1 px dash (4 3), non-scaling, at 35 % opacity, with no halo.
+- 2.5D draws the same symbols on the floor. 3D openings stay for sprint 28.
+
+Tests changed on purpose: `tests/core/open-door.test.ts` (quiet class; doors are cut, sealed not),
+`tests/core/render.test.ts` (zone 1 px; mask count includes doors; no-mask cases drop the doors; edge count leaves out
+outdoor boundaries), `tests/core/slit.test.ts` and `tests/core/solids-openings.test.ts` (quiet class), the render
+snapshot, and `tests/card/card.spec.ts` S8.11 (card2 drops the window too, since a window now makes a mask).
+
 ## 2026-10-08: every surface follows the theme (S23.6)
 
 Details of the V16 and V23 decisions below. The values, per theme:

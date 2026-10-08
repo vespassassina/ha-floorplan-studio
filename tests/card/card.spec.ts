@@ -1507,7 +1507,7 @@ test("S8.11: two cards showing the same floor mint the same (content-derived) ma
 
   const html1 = await svgHtml(page, "card"), html2 = await svgHtml(page, "card2");
   const ids1 = maskIdsIn(html1), ids2 = maskIdsIn(html2);
-  expect(ids1, "the first floor's one opening should produce exactly one mask").toHaveLength(1);
+  expect(ids1, "the first floor's opening and window share exactly one mask").toHaveLength(1);
   expect(ids2).toEqual(ids1); // same content -> same deterministic id, in each card's own scope
   expect(html1).toContain(`mask="url(#${ids1[0]})"`);
   expect(html2).toContain(`mask="url(#${ids2[0]})"`);
@@ -1515,10 +1515,12 @@ test("S8.11: two cards showing the same floor mint the same (content-derived) ma
   // Mutate only card2 (a different opening: different content -> a different id, or none at all here) and
   // confirm card1's own svg — id, mask content, everything — is untouched by whatever card2 now does.
   const layout2 = structuredClone(demo);
+  // S23.7: a window cuts the wall too, so card2 drops the window as well as the opening
   layout2.floors.first.openings = [];
+  layout2.floors.first.doors = [];
   await configureId(page, "card2", { layout: layout2, floor: "first" }, { states: {} });
   const html2b = await svgHtml(page, "card2");
-  expect(maskIdsIn(html2b), "card2 now has no openings, so no mask at all").toHaveLength(0);
+  expect(maskIdsIn(html2b), "card2 now has no openings or windows, so no mask at all").toHaveLength(0);
   const html1b = await svgHtml(page, "card");
   expect(html1b).toBe(html1); // card1 rendered nothing new: still the same markup, same mask, same id
 });

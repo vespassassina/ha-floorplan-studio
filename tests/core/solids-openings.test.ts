@@ -76,7 +76,7 @@ describe("2.5D openings", () => {
     const html = renderFloor(f, { scale: 1, view: "2.5d", state: { "binary_sensor.d": { state: "on", attributes: {}, last_changed: "2026-09-19T10:00:00Z" } } });
     expect(html).toMatch(/<line data-d="0" class="door door-door open" [^>]*stroke-width="4"/);
     expect(html).toContain('class="door-alert"');
-    expect(flat(f)).toMatch(/<line data-d="0" class="door door-door" [^>]*stroke-width="20"/);
+    expect(flat(f)).toMatch(/<line data-d="0" class="door door-door quiet" [^>]*stroke-width="20"/); // S23.7: closed, the line is quiet
   });
 
   it("decides every DoorKind (a new kind fails here until someone chooses what fills its hole)", () => {
