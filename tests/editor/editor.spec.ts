@@ -405,6 +405,16 @@ const screenOf = (page: Page, x: number, y: number) =>
     const q = new DOMPoint(px as number, py as number).matrixTransform((g ?? svg).getScreenCTM()!);
     return { x: q.x, y: q.y };
   }, [EDITOR, x, y] as const);
+/** S24.5: the Outline column (open from 1100 px) narrows the plan. A test whose geometry was written for the full-width
+ *  canvas (a snap radius or an icon overlap in screen pixels, a popover over a plan point) shuts it first, so it keeps
+ *  the scale it was written for. */
+async function shutSide(page: Page) {
+  const b = page.locator(`${EDITOR} #sideToggle`);
+  if ((await b.getAttribute("aria-expanded")) === "true") await b.click();
+  await expect(b).toHaveAttribute("aria-expanded", "false");
+  // The plan is drawn for the new width only after the editor measured it (ResizeObserver): wait for that, not for the button.
+  await expect.poll(() => page.evaluate((tag) => { const el = document.querySelector(tag) as any; return Math.abs(el.rect.w - el.shadowRoot.querySelector(".canvas > svg").getBoundingClientRect().width) < 1; }, EDITOR)).toBe(true);
+}
 // A tall panel makes the page scroll when a control in it is clicked; bring the plan back before reading screen coordinates.
 const planInView = (page: Page) => page.evaluate((tag) => { (document.querySelector(tag as string) as any).shadowRoot.querySelector("svg").scrollIntoView({ block: "nearest" }); }, EDITOR);
 async function dragCm(page: Page, from: [number, number], to: [number, number], mods: string[] = []) {
@@ -430,6 +440,7 @@ test("stairs draw edges and corner handles, and a corner can be dragged", async 
 });
 
 test("Shift while dragging a stairs corner moves only that corner", async ({ page }) => {
+  await shutSide(page);
   // put another polygon's corner on the stairs corner, so Shift has something to leave behind
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
@@ -2520,6 +2531,7 @@ test("a dragged zone corner dropped 4 cm from a room corner lands on the grid, n
 });
 
 test("a dragged zone corner lines up with another corner of the same zone, and with nothing else", async ({ page }) => {
+  await shutSide(page);
   const g0 = await groundOf(page), zi = g0.rooms.findIndex((r) => r.kind === "zone"), z = g0.rooms[zi];
   // (460, 140) is corner 2; drop it 3 cm from x = 340, the x of corners 0 and 3: it lines up with them
   await dragCm(page, z.pts[2] as [number, number], [343, 160]);
@@ -4405,6 +4417,7 @@ test("S1.42: at plan rotations 0, 45, 90 and 135 no name box overlaps a device h
 });
 
 test("Opus review M1: a click on a device under a tagged name selects the device, not the room", async ({ page }) => {
+  await shutSide(page);
   // A small room packed with switches: every spot is covered, so its name goes on a tag over them (S23.3).
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), g = l.floors.ground;
@@ -6073,6 +6086,7 @@ const LABELLED = [
 ];
 
 test("S8.1: Edit, Home Assistant is disabled until something labelled is listed; it opens a popover with X top-left and an explanation, rows open the item in HA, and the menu closes", async ({ page }) => {
+  await shutSide(page);
   await withHaMenu(page, { list: [] });
   await menu(page, "Edit");
   await expect(haBtn(page)).toBeDisabled();

@@ -617,6 +617,33 @@ Cmd-K or Ctrl-K anywhere, `/` outside a text field.
 
 ## Editor
 
+- Search and Outline (S24.5). The top bar holds `<fp-search>` after the floor
+  chips ("Search or run a command ⌘K"); Cmd-K, Ctrl-K or `/` focuses it,
+  bound on the editor host. Its entries are the plan's (search index above)
+  and six commands that run the menus' own code: Fix or Unfix plan, Draw
+  room, Add device…, Zoom to fit, Undo, Save. A pick goes there: a floor
+  switches; a room or device switches floor, is selected, and is centred
+  with the zoom kept or raised to fit, never zoomed out further than fit; a
+  device or piece is ringed (renderFloor's `locate`: three pulses, a still
+  ring under reduced motion). Selecting is not an edit: no undo step. Focus
+  returns to the editor after a pick, so Delete and the arrows act on it.
+  The Outline shows where the pick is: its floor and room open, its row the
+  tree's tab stop and scrolled into view.
+- Left column, beside the canvas, never over it: tabs (Outline; Layers is
+  S24.6), collapsed to a 36 px rail by a button, open at 260 px. It starts
+  open at 1100 px wide and more. Under 900 px it stacks above the canvas.
+  The Outline: a filter field (every word, in names and entity ids; the
+  branches holding a match open) and an ARIA tree, floors › rooms ›
+  devices with device counts, "No room" last on a floor, a light with a
+  relay as "Floor lamp → Relay 3". Only open branches render. The floor on
+  show starts open. Keys follow the WAI-ARIA tree pattern (Up, Down, Home,
+  End, Right opens then enters, Left closes then goes up, Enter or Space
+  goes); the arrows stay in the tree and do not pan the plan. A click or
+  Enter on a floor, room or device goes there as a search pick does. The
+  last node, "Unplaced from HA · N", groups what Place would offer by HA
+  area; an entity opens Add > Device listing only it, its row focused, so
+  Enter places it.
+- The canvas `svg` has `role="img"` and `aria-label="Floor plan, <floor>"`.
 - Toolbar: floor chips, the device filter ("Filter: all (N)"), menus Add /
   Draw / View / Edit / File, Help, Undo, Redo, the status line. View holds
   what only changes the look (snap, measure grid, lengths, names, Preview
