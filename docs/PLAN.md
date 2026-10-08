@@ -2640,7 +2640,7 @@ Branch `task/s22-hotfix`. Each task: one outcome, its failing test first.
 Fixed on `task/s22-fix`: every Fix plan refusal raises the Untick Fix plan banner (paint, floors, rotate, add floor,
 add stairs, texture and furniture sliders); the menu Escape tests fail with the early return removed; All off's title
 warns about a shared relay. Still open, each with its failing test first:
-- [ ] S22.F1 `card-3d-floors.spec.ts:86` "20 switches" times out under full-suite parallel load (about 12 s alone, 30 s budget). It predates Sprint 22. Find the cause (finding 13); no retries, no longer timeout.
+- [x] S22.F1 `card-3d-floors.spec.ts:86` "20 switches" times out under full-suite parallel load (about 12 s alone, 30 s budget). It predates Sprint 22. Find the cause (finding 13); no retries, no longer timeout. Done: every switch recompiled the 3D shader programs; the view now keeps one material per program (DECISIONS 2026-10-08). 29 s alone before, 4.5 s after.
 - [ ] S22.F2 A lamp whose relay is off and whose bulb is unavailable cannot be turned on from the card. Turn on should call the relay. Test: real tap, stub `callService`, exact call.
 - [ ] S22.F3 The guide test checks control names, not menu paths. Test: each "[Menu], then [Item]" path in the guide opens with real clicks.
 - [ ] S22.F4 A room panel row for a relay-lit lamp shows the light's own state ("off") while the plan draws it on. Test: the row reads on, via the relay.

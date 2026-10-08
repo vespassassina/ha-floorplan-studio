@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card: switching floors in 3D no longer stalls. Each switch compiled the 3D view's shaders again, which took most of a second on a slow tablet; the view now keeps them while it is open.
+
 ## 0.21.0 - 2026-10-08
 
 - Card and studio: room names are solid, not faded. Each name is the text colour mixed into the room it sits on, at 12 px (outdoor names and zones at 10, outdoor in italic), in Home Assistant's own font. Readings keep their number and unit together and line up digit for digit.

@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: the 3D view keeps its shader programs across floors (S22.F1)
+
+The "20 switches" test in `card-3d-floors.spec.ts` took 23 to 29 s alone and timed out under the full suite. A CPU profile put the time in native code, not JS: three.js destroys a shader program when the last material using it is disposed, and a floor switch disposed every material of the old floor before the new one was drawn. So every switch compiled its programs again, four of them, about 0.7 s a switch in the tests' software GL. Compile time is CPU time in software GL, so the test slows with machine load: the same code took 23 s and 29 s alone on 2026-10-08, against 12 s when first logged. Not bisected.
+- **The fix is in the product.** `view3d.ts` `retire`: the first material to give up a program is kept, unused and out of the scene, until the view ends or its context is restored; any other is disposed as before. One material per program, no buffers and no maps. Geometries and textures still go at once, so the leak check reads the same counts.
+- **Not chosen:** disposing the old materials one frame later. It saves a program the next floor uses, but a program one floor needs and the next does not (the textured top on ground and first, none on test) still dies in between: 35 compiles in 21 switches instead of 84. Sharing materials across floors would need every part to stop mutating its own colour.
+- The test now also reads the live program ids (a test-hook read, `programs()`) and requires them unchanged after 21 switches. The test's own work is unchanged: 21 switches, the same memory, children and renderer checks. Alone it takes about 4.5 s.
+
 ## 2026-10-08: the faint dash is a zone's only (Opus review of Sprint 23, S4)
 
 S23.7 said "a zone is a 1 px dash at 35 % with no halo", but the rule sat on `.e.nw`, which every `boundary` edge carries. An open plan's line between two real rooms went faint too. A zone's edges now carry `zn` as well, and the S23.7 style is `.e.nw.zn` and `.eh.nw.zn`. A boundary between rooms, on a free wall or on the outline goes back to what it drew before: a 1.5 cm dash 8 6 over a 3.5 cm halo.
