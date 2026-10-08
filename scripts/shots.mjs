@@ -219,6 +219,9 @@ try {
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [375, 1000])
     cardShots.push({ name: `card-ground-roompicked-${t.id}-${width}px`, floor: "ground", which: "roomsensors", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, width, dpr: 2, rooms: true, pick: 0 });
   cardShots.push({ name: "card-ground-roompicked-blueprint-2-5d", floor: "ground", which: "roomsensors", dark: false, theme: "blueprint", vars: "", page: "#0d1522", width: 1000, dpr: 2, rooms: true, pick: 0, view: "2.5d" });
+  // S20.2: a floor pill pressed by a real click: the pill's ring and the floor's panel with its All off, at 1000 and 375 px.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [375, 1000])
+    cardShots.push({ name: `card-ground-floorpicked-${t.id}-${width}px`, floor: "ground", which: "on", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, width, dpr: 2, cfg: { floor: "all" }, pill: "Ground" });
   // 2.5D: both floors, at rest and lit, in the default, a light and a dark theme (the three that read differently).
   for (const floor of Object.keys(layout.floors)) for (const which of ["off", "on"]) for (const t of THEMES.filter((x) => ["blueprint", "light", "ha-dark"].includes(x.id)))
     cardShots.push({ name: `card-${floor}-${which}-${t.id}-2-5d`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view: "2.5d" });
@@ -273,6 +276,11 @@ try {
         await page.mouse.click(at.x, at.y);
         await page.locator("floorplan-studio-card").locator(".fp-room-devices .fp-info-btn").first().click();
       }
+      await page.mouse.move(0, 0);
+    }
+    if (s.pill) {
+      await page.locator("floorplan-studio-card").locator(".fp-floors button", { hasText: s.pill }).click();
+      await page.locator("floorplan-studio-card").locator(".fp-room").waitFor();
       await page.mouse.move(0, 0);
     }
     if (s.tap !== undefined || s.hover !== undefined) {

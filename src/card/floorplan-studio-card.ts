@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEFAULT_MOTION_FADE_S, customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { DEFAULT_MOTION_FADE_S, customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, floorSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, DeviceType, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
@@ -149,6 +149,12 @@ const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_PX = 24;
 /** One click of a zoom button. */
 const BUTTON_ZOOM = 1.5;
+/** The words the side panel says for a room and for a floor (S20.2): the same panel, one subject. */
+interface Scope { unnamed: string; clear: string; noDevices: string; nothingOn: string; activeHere: string; onlyHere: string }
+const ROOM_SCOPE: Scope = { unnamed: "Unnamed room", clear: "Clear the room selection", noDevices: "No devices in this room", nothingOn: "Nothing on in this room", activeHere: "Active in this room", onlyHere: "This room only" };
+const FLOOR_SCOPE: Scope = { unnamed: "Unnamed floor", clear: "Clear the floor selection", noDevices: "No devices on this floor", nothingOn: "Nothing is on, on this floor", activeHere: "Active on this floor", onlyHere: "This floor only" };
+/** What a double tap restores: the room or floor pick as it stood before the first tap changed it. */
+interface PickMemo { pick: { floor: string; id: string } | null; floor: string | null; filter: boolean }
 /** The Scenes section starts folded, so its fold set entry means "opened by the user" (the other groups start open and the entry means folded). */
 const SCENES_OPEN = "r:scenes:open";
 /** S9.2: `icon_size` default and clamp range. */
@@ -222,6 +228,8 @@ export class FloorplanStudioCard extends LitElement {
        aria-pressed, not by this colour alone (CLAUDE.md finding: a toggle must not state its direction twice —
        one attribute serves both the visual state and the accessible one, no added "(current)" text). */
     .fp-floors button[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); }
+    /* S20.2: the floor whose panel is open. A ring in the primary colour, so it reads beside the fill that marks the floor shown. */
+    .fp-floors button.fp-floor-picked { box-shadow: 0 0 0 2px var(--fp-bg), 0 0 0 4px var(--fp-primary); }
     /* S2.7: the cover confirm dialog is card chrome too (same reasoning as .fp-floors above) — it acts on the
        real home, so it sits over the whole card, not only the plan. */
     .fp-dialog-backdrop { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.35); }
@@ -313,6 +321,10 @@ export class FloorplanStudioCard extends LitElement {
     .fp-room-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
     .fp-room-clear { flex: 0 0 24px; width: 24px; height: 24px; border: none; background: transparent; color: inherit; font: 14px/1 system-ui, sans-serif; border-radius: 4px; cursor: pointer; }
     .fp-room-clear:hover, .fp-room-clear:focus-visible { background: var(--fp-idle); }
+    /* S20.1: the same look as a scene button, with classes of its own so the Scenes section's tests and counts stay about scenes. */
+    .fp-alloff-row { margin: 2px 0 6px; }
+    .fp-alloff { min-height: 32px; padding: 0 10px; font: 12px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; cursor: pointer; }
+    .fp-alloff:hover, .fp-alloff:focus-visible { border-color: var(--fp-primary); }
     .fp-room-facts { margin: 4px 0 6px; font: 12px/1.4 system-ui, sans-serif; }
     .fp-filter { display: flex; align-items: center; gap: 6px; font: 600 10px/1.6 system-ui, sans-serif; color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; }
     .fp-show-all { margin-left: auto; border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 system-ui, sans-serif; text-transform: none; letter-spacing: 0; border-radius: 4px; padding: 1px 6px; cursor: pointer; }
@@ -435,6 +447,9 @@ export class FloorplanStudioCard extends LitElement {
   /** S11.3: the room the person tapped, by floor key and room id (not index, so a reloaded layout keeps it), or null.
    *  Card chrome state, not a layout field: nothing here is saved, and a `hass` update leaves it alone. */
   private _pickedRoom: { floor: string; id: string } | null = null;
+  /** S20.2: the floor key whose pill was pressed, or null. Like `_pickedRoom` it is card chrome, and it excludes it: a room
+   *  pick clears the floor and a floor pick clears the room, so the one panel always has one subject. */
+  private _pickedFloor: string | null = null;
   /** S14.7: the scene button (`custom:<id>`) that waits for its confirm, because it turns a switch off. */
   private _sceneAsk: string | null = null;
   /** Whether the Active list is cut to the picked room's entities (the default on a pick); "Show all" turns it off. */
@@ -619,7 +634,7 @@ export class FloorplanStudioCard extends LitElement {
     if (!this.isConnected || !this._ownsViewKeys()) return;
     if (this._coverDialog || this._vacuumDialog || this._chooserDialog) return; // a dialog has its own keys
     if (ev.key === "Escape" && this._popup) { this._closePopup(); ev.preventDefault(); return; }
-    if (ev.key === "Escape" && this._pickedRoom) { // S11.3: the same ownership gate as the view keys, so another card never loses its room
+    if (ev.key === "Escape" && (this._pickedRoom || this._pickedFloor)) { // S11.3: the same ownership gate as the view keys, so another card never loses its room
       this._pickRoom(null);
       ev.preventDefault();
       return;
@@ -832,6 +847,8 @@ export class FloorplanStudioCard extends LitElement {
     this._urlRequested = false;
     this._wsRequested = false;
     this._shownFloor = null;
+    this._pickedRoom = null;
+    this._pickedFloor = null;
     this._view = null;
     this._fallback3d = null;
     this._loadViewState();
@@ -1169,6 +1186,7 @@ export class FloorplanStudioCard extends LitElement {
     this._saveViewNow(); // the floor just left keeps its zoom, turn and camera (S14.4)
     this._shownFloor = key;
     this._pickedRoom = null; // a room of the floor just left means nothing on this one
+    this._pickedFloor = null;
     this._syncFloorMemory(); // and the floor now shown brings its own
     this._scheduleSave();
     this.requestUpdate();
@@ -1451,7 +1469,7 @@ export class FloorplanStudioCard extends LitElement {
       },
     });
     let start: { x: number; y: number } | null = null, pointers = 0;
-    let last: { t: number; x: number; y: number; before: { pick: { floor: string; id: string } | null; filter: boolean } } | null = null;
+    let last: { t: number; x: number; y: number; before: PickMemo } | null = null;
     const onDown = (e: PointerEvent) => {
       if (e.isPrimary) pointers = 0;
       pointers++;
@@ -1472,7 +1490,7 @@ export class FloorplanStudioCard extends LitElement {
         last = null;
         return;
       }
-      last = { t: now, x: e.clientX, y: e.clientY, before: { pick: this._pickedRoom, filter: this._roomFilter } };
+      last = { t: now, x: e.clientX, y: e.clientY, before: { pick: this._pickedRoom, floor: this._pickedFloor, filter: this._roomFilter } };
       if (!this._activeListVisible()) return;
       const room = p?.type === "room" ? p.index : null;
       this._pickRoom(room !== null && this._picked() !== room ? room : null);
@@ -1934,12 +1952,35 @@ export class FloorplanStudioCard extends LitElement {
     if (this._kiosk()) return null; // S7.5: no switcher in kiosk mode, even with floors or floor: "all" configured
     const list = this._floorList();
     if (!list) return null;
-    const current = this._floorKey();
+    const current = this._floorKey(), selected = this._pickedFloorKey();
+    // aria-pressed marks the floor shown; the class marks the floor whose panel is open (S20.2), a separate fact.
     return html`<div class="fp-floors">
       ${list.map(
-        ([key, fl]) => html`<button type="button" aria-pressed=${key === current ? "true" : "false"} @click=${() => this._selectFloor(key)}>${fl.title || key}</button>`,
+        ([key, fl]) => html`<button type="button" class=${key === selected ? "fp-floor-picked" : ""} aria-pressed=${key === current ? "true" : "false"} aria-expanded=${this._activeListVisible() ? (key === selected ? "true" : "false") : nothing} @click=${() => this._tapFloorChip(key)}>${fl.title || key}</button>`,
       )}
     </div>`;
+  }
+
+  /** S20.2: a pill shows its floor, as before, and selects it so the side panel opens on the floor. The selected floor's
+   *  pill again lets go. With the panel off (`active_list: false`) there is nowhere to show a floor, so it only switches, as a
+   *  room tap does nothing there. Kiosk has no pills, so it never gets here. */
+  private _tapFloorChip(key: string): void {
+    const letGo = this._pickedFloorKey() === key;
+    this._selectFloor(key);
+    this._pickFloor(letGo || !this._activeListVisible() ? null : key);
+  }
+
+  /** The key of the selected floor while it is the one shown, else null (a floor the config no longer lists means nothing). */
+  private _pickedFloorKey(): string | null {
+    return this._pickedFloor !== null && this._pickedFloor === this._floorKey() ? this._pickedFloor : null;
+  }
+
+  private _pickFloor(key: string | null): void {
+    this._pickedRoom = null;
+    this._pickedFloor = key;
+    this._roomFilter = true;
+    this._sceneAsk = null;
+    this.requestUpdate();
   }
 
   /** S9.5: hidden under `kiosk` (a wall tablet shows only the plan) and under `active_list: false`. Untrusted
@@ -2132,6 +2173,7 @@ export class FloorplanStudioCard extends LitElement {
     const room = i === null ? undefined : this._floor()?.rooms[i];
     const key = this._floorKey();
     this._pickedRoom = room && key ? { floor: key, id: room.id } : null;
+    this._pickedFloor = null;
     this._roomFilter = true;
     this._sceneAsk = null;
     this.requestUpdate();
@@ -2166,8 +2208,9 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** What a double tap restores: the pick as it was before its first tap, which `_tapRoom` already changed. */
-  private _restorePick(before: { pick: { floor: string; id: string } | null; filter: boolean }): void {
+  private _restorePick(before: PickMemo): void {
     this._pickedRoom = before.pick;
+    this._pickedFloor = before.floor;
     this._roomFilter = before.filter;
     this.requestUpdate();
   }
@@ -2266,9 +2309,16 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
+  /** S20.1: the room's or floor's All off. One call per domain over the lights that are on (`presetCalls`, the scene preset's
+   *  own builder): in practice one `light.turn_off`. A light that is off is not in the list, so it is not called. */
+  private _allOff(lights: string[]): void {
+    for (const c of presetCalls("off", lights)) this._hass?.callService?.(c.domain, c.service, c.data);
+    this.requestUpdate();
+  }
+
   /** S11.3: the room section: name, the facts the plan only hints at, and the room's devices as rows that act. A fact with
    *  nothing behind it (no sensor, no state) is left out, never printed empty; doors and lights always say "none". */
-  private _roomSection(s: RoomSummary, active: unknown) {
+  private _roomSection(s: RoomSummary, active: unknown, scope: Scope) {
     const facts: [string, string][] = [
       ["Area", s.areaM2 === null ? "" : `${s.areaM2} m²`],
       ["Temperature", s.temperature],
@@ -2279,10 +2329,11 @@ export class FloorplanStudioCard extends LitElement {
     ];
     return html`<div class="fp-room">
       <div class="fp-room-head">
-        <span class="fp-room-name">${s.name || "Unnamed room"}</span>
-        <button type="button" class="fp-room-clear" aria-label="Clear the room selection" @click=${() => this._pickRoom(null)}>×</button>
+        <span class="fp-room-name">${s.name || scope.unnamed}</span>
+        <button type="button" class="fp-room-clear" aria-label=${scope.clear} @click=${() => this._pickRoom(null)}>×</button>
       </div>
       <dl class="fp-room-facts">${facts.filter(([, v]) => v).map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
+      ${s.lightsOnEntities.length ? html`<div class="fp-alloff-row"><button type="button" class="fp-alloff" aria-label=${`Turn off all lights in ${s.name || scope.unnamed}`} title="Turn off the lights that are on here" @click=${() => this._allOff(s.lightsOnEntities)}>All off</button></div>` : nothing}
       ${this._scenesBlock()}
       ${active}
       <div class="fp-active-group-label">Devices</div>
@@ -2290,7 +2341,7 @@ export class FloorplanStudioCard extends LitElement {
         ${s.devices.length || s.sensors.length
           ? groupByCategory([...s.devices.map((r) => ({ type: r.type, tpl: this._roomDeviceRow(r) })), ...s.sensors.map((r) => ({ type: (r.kind === "temps" ? "temp" : r.kind) as DeviceType, tpl: this._roomSensorRow(r) }))])
               .map((g) => this._catGroup("r", g.id, g.label, g.items.length, g.items.map((i) => i.tpl)))
-          : html`<p class="fp-active-empty">No devices in this room</p>`}
+          : html`<p class="fp-active-empty">${scope.noDevices}</p>`}
       </div>
     </div>`;
   }
@@ -2308,7 +2359,11 @@ export class FloorplanStudioCard extends LitElement {
     const state = this._stateForRender();
     const opts = { plugWatts: plugThreshold(this._config.plug_watts), powerLinks: this._powerLinks() };
     const at = this._picked(), floor = this._floor();
-    const summary = at !== null && floor ? roomSummary(floor, at, state, opts) : null;
+    const floorKey = this._pickedFloorKey();
+    // S20.2: the panel's one subject is the picked room, else the selected floor, summed over its rooms by the same builder.
+    const summary = at !== null && floor ? roomSummary(floor, at, state, opts) : floorKey && floor ? floorSummary(floor, state, opts) : null;
+    if (summary && at === null && floorKey && !summary.name) summary.name = floorKey;
+    const scope = at === null && floorKey ? FLOOR_SCOPE : ROOM_SCOPE;
     let items = activeDevices(this._layout, state, opts);
     if (summary && this._roomFilter) items = filterToRoom(items, summary);
     const groups = groupByCategory(items);
@@ -2325,12 +2380,12 @@ export class FloorplanStudioCard extends LitElement {
     </button>${this._infoButton(it.name, it.entity)}${this._infoBlock(it.entity)}</div>`;
     const list = groups.length
       ? groups.map((g) => this._catGroup("a", g.id, g.label, g.items.length, g.items.map(row)))
-      : html`<p class="fp-active-empty">${summary && this._roomFilter ? "Nothing on in this room" : "Nothing on"}</p>`;
+      : html`<p class="fp-active-empty">${summary && this._roomFilter ? scope.nothingOn : "Nothing on"}</p>`;
     const folded = this._activeCollapsed && !summary;
     // No `style=` binding here on purpose (Opus review findings 3/4): Lit would rewrite the whole `style`
     // attribute on every render, wiping out the position `_positionActivePanel` sets imperatively after render —
     // that function is the only thing that ever touches this element's inline position.
-    return html`<div class=${summary ? "fp-active fp-room-open" : "fp-active"} role="region" aria-label=${summary ? summary.name || "Unnamed room" : "Active devices"}>
+    return html`<div class=${summary ? "fp-active fp-room-open" : "fp-active"} role="region" aria-label=${summary ? summary.name || scope.unnamed : "Active devices"}>
       <div class="fp-active-head" @pointerdown=${(e: PointerEvent) => this._onActiveDragStart(e)}>
         <span class="fp-active-title">Active</span>
         <span class="fp-active-count">${count}</span>
@@ -2348,8 +2403,8 @@ export class FloorplanStudioCard extends LitElement {
         ? null
         : html`<div class="fp-active-body">
             ${summary
-              ? this._roomSection(summary, html`<div class="fp-filter"><span>${this._roomFilter ? "Active in this room" : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => { this._roomFilter = !this._roomFilter; this.requestUpdate(); }}>${this._roomFilter ? "Show all" : "This room only"}</button></div>
-                <div class="fp-filtered">${list}</div>`)
+              ? this._roomSection(summary, html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => { this._roomFilter = !this._roomFilter; this.requestUpdate(); }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
+                <div class="fp-filtered">${list}</div>`, scope)
               : list}
           </div>`}
     </div>`;
@@ -2727,7 +2782,7 @@ export class FloorplanStudioCard extends LitElement {
     let start = { x: 0, y: 0 };
     let panning = false;
     let pinched = false;
-    let lastTap: { t: number; x: number; y: number; before: { pick: { floor: string; id: string } | null; filter: boolean } } | null = null;
+    let lastTap: { t: number; x: number; y: number; before: PickMemo } | null = null;
 
     /** Screen point to plan point under view `v`. */
     const toPlan = (v: View, cx: number, cy: number): Pt => {
@@ -2805,7 +2860,7 @@ export class FloorplanStudioCard extends LitElement {
         else this._setView(zoomAt(home, 2, ...toPlan(home, e.clientX, e.clientY)));
         return;
       }
-      lastTap = { t: now, x: e.clientX, y: e.clientY, before: { pick: this._pickedRoom, filter: this._roomFilter } };
+      lastTap = { t: now, x: e.clientX, y: e.clientY, before: { pick: this._pickedRoom, floor: this._pickedFloor, filter: this._roomFilter } };
       this._tapRoom(e);
     };
 

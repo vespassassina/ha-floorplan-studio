@@ -3,7 +3,7 @@ import type { Device, DeviceType, Door, Floor, Pt } from "../../src/core/schema"
 import { DEVICE_TYPES } from "../../src/core/schema";
 import { FLOORPLAN_CSS, renderFloor, type StateOverlay } from "../../src/core/render";
 import { NO_TOGGLE } from "../../src/card/actions";
-import { ROOM_ROW_TAP, deviceInfo, filterToRoom, formatChanged, meanReading, roomAreaM2, roomSummary } from "../../src/core/room-info";
+import { ROOM_ROW_TAP, deviceInfo, filterToRoom, floorSummary, formatChanged, meanReading, roomAreaM2, roomSummary } from "../../src/core/room-info";
 
 // S11.3 and S11.4 (spec docs/specs/room-sensors.md, criteria 5 and 6). Pure builders: what the card's left panel shows.
 const st = (state: string, attributes: Record<string, unknown> = {}, last_changed = "2026-10-04T10:00:00Z") => ({ state, attributes, last_changed });
@@ -258,5 +258,61 @@ describe("room rows: a piece whose entity a plug device also uses (S19.B)", () =
     const busy: StateOverlay = { ...state, "sensor.tv_watts": st("80", { unit_of_measurement: "W" }) };
     const f = floor([plug], { furniture: [piece] });
     expect(roomSummary(f, 0, busy, {})!.devices.find((d) => d.piece)!.on).toBe(true);
+  });
+});
+
+describe("floorSummary (S20.2): the same rules over every room of the floor", () => {
+  const outside = dev("light", "light.yard", 2000, 2000); // on the floor, in no room
+  const f = floor([...DEVICES, outside]);
+  const state: StateOverlay = { ...STATE, "light.yard": st("on") };
+  const s = floorSummary(f, state, {});
+  it("is named by the floor's title and has no area", () => {
+    expect(s.name).toBe("Ground");
+    expect(s.areaM2).toBeNull();
+  });
+  it("lists the lights on across both rooms and the one in no room, each entity once", () => {
+    expect(s.lightsOn).toEqual(["lamp", "desk", "yard"]);
+    expect(s.lightsOnEntities).toEqual(["light.lamp", "light.desk", "light.yard"]);
+  });
+  it("a room's All off list holds only its own lights", () => {
+    expect(roomSummary(f, 0, state, {})!.lightsOnEntities).toEqual(["light.lamp"]);
+    expect(roomSummary(f, 1, state, {})!.lightsOnEntities).toEqual(["light.desk"]);
+  });
+  it("lists every device of the floor but a person, and owns their entities", () => {
+    expect(s.devices.map((r) => r.entity)).toEqual(["light.lamp", "light.floor", "switch.fan", "camera.cam", "light.desk", "binary_sensor.placed_motion", "climate.rad", "light.yard"]);
+    expect(s.entities.has("climate.trv")).toBe(true);
+    expect(s.entities.has("person.diego")).toBe(false);
+  });
+  it("gathers the rooms' sensors, doors and readouts", () => {
+    expect(s.sensors.map((r) => r.entity)).toEqual(["sensor.t1", "sensor.t2", "sensor.h1", "binary_sensor.m1"]);
+    expect(s.temperature).toBe("21.7 °C");
+    expect(s.openings).toEqual(["Hall door", "Back door", "Study window"]); // each door once, though the Hall door borders both rooms
+  });
+  it("lists a linked piece anywhere on the floor, once", () => {
+    const piece = { id: "tv1", symbol: "tv", x: 600, y: 200, rot: 0, w: 100, h: 10, entity: "media_player.tv", name: "Telly" };
+    const g = floorSummary(floor(DEVICES, { furniture: [piece] }), { ...STATE, "media_player.tv": st("playing") }, {});
+    expect(g.devices.filter((r) => r.piece).map((r) => [r.entity, r.on])).toEqual([["media_player.tv", true]]);
+  });
+  it("survives junk: no rooms, a bad title", () => {
+    const bad = { ...floor([]), rooms: 5, title: 7 } as unknown as Floor;
+    expect(floorSummary(bad, undefined, {})).toMatchObject({ name: "", devices: [], lightsOnEntities: [] });
+  });
+});
+
+describe("review fixes to the summaries (S20)", () => {
+  it("All off targets a light only when its own entity is on, not when its bound relay lights it", () => {
+    const bound = dev("light", "light.bound", 100, 200, { bound: "switch.relay" });
+    const f = floor([bound, dev("light", "light.plain", 200, 200)]);
+    const state: StateOverlay = { "light.bound": st("off"), "switch.relay": st("on"), "light.plain": st("on") };
+    const s = roomSummary(f, 0, state, {})!;
+    expect(s.lightsOn).toEqual(["bound", "plain"]); // the plan draws the bound lamp on
+    expect(s.lightsOnEntities).toEqual(["light.plain"]);
+    expect(floorSummary(f, state, {}).lightsOnEntities).toEqual(["light.plain"]);
+  });
+  it("a sensor a room lists twice appears once, as a row and in the mean", () => {
+    const f = floor([], { rooms: [room("Living", sq(0, 0, 450, 320), { temps: ["sensor.t1", "sensor.t1", "sensor.t2"] })] });
+    const s = roomSummary(f, 0, STATE, {})!;
+    expect(s.sensors.map((r) => r.entity)).toEqual(["sensor.t1", "sensor.t2"]);
+    expect(s.temperature).toBe("21.7 °C"); // (21 + 22.4) / 2, not (21 + 21 + 22.4) / 3 = 21.5
   });
 });

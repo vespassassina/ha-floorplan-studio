@@ -43,6 +43,8 @@ export interface RoomSummary {
   /** Names of the open (or unlocked) doors and windows whose line lies on one of the room's edges. */
   openings: string[];
   lightsOn: string[];
+  /** The lights whose own entity is `on`, once each: what the All off button turns off. A subset of `lightsOn` (a bound lamp lit only by its relay is not in it). */
+  lightsOnEntities: string[];
   devices: RoomDeviceRow[];
   sensors: RoomSensorRow[];
   /** Every entity that belongs to the room: its devices (and what they attach), its sensors, its doors' sensors. */
@@ -89,26 +91,49 @@ function doorsOf(f: Floor, ring: Pt[]): Door[] {
 
 const SENSOR_KINDS = ["temps", "humidity", "motion"] as const;
 
+const ringOf = (r: Room): Pt[] => (Array.isArray(r.pts) && r.pts.length >= 3 && r.pts.every(finite) ? r.pts : []);
+
 /** The summary of `f.rooms[index]`, or null when there is no such room. */
 export function roomSummary(f: Floor, index: number, state: StateOverlay | undefined, opts: ActiveOpts): RoomSummary | null {
   const r: Room | undefined = Number.isInteger(index) ? f.rooms[index] : undefined;
   if (!r) return null;
-  const ring: Pt[] = Array.isArray(r.pts) && r.pts.length >= 3 && r.pts.every(finite) ? r.pts : [];
-  const lists = { temps: strings(r.temps), humidity: strings(r.humidity), motion: strings(r.motion) };
+  // A device counts in the one room `roomAt` gives it (the smallest), so a closet's lamp is not also the hall's.
+  return summarise(f, [r], (at) => at === index, typeof r.name === "string" ? r.name : "", roomAreaM2(ringOf(r)), state, opts);
+}
+
+/** S20.2: the same summary for a whole floor: every room's sensors and doors, and every device and linked piece on the
+ *  floor, also one that stands outside every room (it is still on the floor, and All off must reach it). The name is the
+ *  floor's title; the area is null (rooms, zones and structures overlap, so a sum would lie). Same rules as a room's. */
+export function floorSummary(f: Floor, state: StateOverlay | undefined, opts: ActiveOpts): RoomSummary {
+  const rooms = Array.isArray(f.rooms) ? f.rooms : [];
+  return summarise(f, rooms, () => true, typeof f.title === "string" ? f.title : "", null, state, opts);
+}
+
+function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean, name: string, areaM2: number | null, state: StateOverlay | undefined, opts: ActiveOpts): RoomSummary {
+  const lists = {
+    temps: [...new Set(rooms.flatMap((r) => strings(r.temps)))],
+    humidity: [...new Set(rooms.flatMap((r) => strings(r.humidity)))],
+    motion: [...new Set(rooms.flatMap((r) => strings(r.motion)))],
+  };
 
   const devices: RoomDeviceRow[] = [];
   const entities = new Set<string>();
   const lightsOn: string[] = [];
+  const lightsOnEntities = new Set<string>();
   f.devices.forEach((d, i) => {
     const c = centre(d);
-    // A device counts in the one room `roomAt` gives it (the smallest), so a closet's lamp is not also the hall's.
     // A person's drawn position comes from a room sensor at render time, not from x and y: listing one by its stored
     // point would put it in the wrong room, so a person never has a row here.
-    if (!c || d.type === "person" || typeof d.entity !== "string" || !d.entity || roomAt(f, c) !== index) return;
+    if (!c || d.type === "person" || typeof d.entity !== "string" || !d.entity || !member(roomAt(f, c))) return;
     const on = classOf(d, { scale: 1, state, ...opts }) === "on";
     devices.push({ index: i, entity: d.entity, name: nameFor(d, state), type: d.type, state: stateText(state, d.entity), on, colorVar: on ? colorVarFor(d, state) : "--fp-ink" });
     for (const e of entitiesOfDevice(d)) entities.add(e);
-    if (d.type === "light" && on) lightsOn.push(nameFor(d, state));
+    if (d.type === "light" && on) {
+      lightsOn.push(nameFor(d, state));
+      // All off acts on the light entity itself. A bound lamp lit only by its relay is on in the plan but is not a target:
+      // light.turn_off on an entity that is already off does nothing, and the button would promise more than it does.
+      if (stateOf(state, d.entity)?.state === "on") lightsOnEntities.add(d.entity);
+    }
   });
 
   // A linked tv, speaker or computer piece is a device of its type here; an entity a device already lists is not repeated.
@@ -116,7 +141,7 @@ export function roomSummary(f: Floor, index: number, state: StateOverlay | undef
   const plugs = new Map(f.devices.filter((d) => d.type === "plug" && d.entity).map((d) => [d.entity, d]));
   (f.furniture ?? []).forEach((m, i) => {
     const d = pieceDevice(m);
-    if (!d || !finite([m.x, m.y]) || roomAt(f, [m.x, m.y]) !== index || devices.some((r) => r.entity === d.entity)) return;
+    if (!d || !finite([m.x, m.y]) || !member(roomAt(f, [m.x, m.y])) || devices.some((r) => r.entity === d.entity)) return;
     const on = pieceOn({ scale: 1, state, ...opts }, m, plugs);
     devices.push({ index: i, piece: true, entity: d.entity, name: nameFor(d, state), type: d.type, state: stateText(state, d.entity), on, colorVar: on ? colorVarFor(d, state) : "--fp-ink" });
     entities.add(d.entity);
@@ -133,11 +158,9 @@ export function roomSummary(f: Floor, index: number, state: StateOverlay | undef
   }
 
   const openings: string[] = [];
-  if (ring.length) {
-    for (const door of doorsOf(f, ring)) {
-      for (const e of entitiesOfDoor(door)) entities.add(e);
-      if (doorStateOf(door, state).open) openings.push(door.name || door.kind);
-    }
+  for (const door of new Set(rooms.flatMap((r) => { const ring = ringOf(r); return ring.length ? doorsOf(f, ring) : []; }))) {
+    for (const e of entitiesOfDoor(door)) entities.add(e);
+    if (doorStateOf(door, state).open) openings.push(door.name || door.kind);
   }
 
   const seen = lists.motion.flatMap((e) => { const s = stateOf(state, e); return s && s.state !== "unavailable" && s.state !== "unknown" ? [s] : []; });
@@ -147,11 +170,11 @@ export function roomSummary(f: Floor, index: number, state: StateOverlay | undef
   const motion = seen.length ? { on: lit.length > 0, since: newest(lit.length ? lit : seen).last_changed } : null;
 
   return {
-    name: typeof r.name === "string" ? r.name : "",
-    areaM2: roomAreaM2(ring),
+    name,
+    areaM2,
     temperature: meanReading(lists.temps, state),
     humidity: meanReading(lists.humidity, state),
-    motion, openings, lightsOn, devices, sensors, entities,
+    motion, openings, lightsOn, lightsOnEntities: [...lightsOnEntities], devices, sensors, entities,
   };
 }
 
