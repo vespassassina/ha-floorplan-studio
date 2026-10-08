@@ -20,11 +20,11 @@ const CSS = `.fp3-ov{position:absolute;inset:0;overflow:hidden;pointer-events:no
 .fp3-dev,.fp3-rm{position:absolute;left:0;top:0;will-change:transform}
 .fp3-dev{width:0;height:0}
 .fp3-ic{position:absolute;left:-${ICON_PX / 2}px;top:-${ICON_PX / 2}px;width:${ICON_PX}px;height:${ICON_PX}px;overflow:visible}
-.fp3-dv,.fp3-dn{position:absolute;left:0;transform:translateX(-50%);white-space:nowrap;font:11px/1.2 system-ui,sans-serif}
+.fp3-dv,.fp3-dn{position:absolute;left:0;transform:translateX(-50%);white-space:nowrap;font:11px/1.2 var(--fp-font,system-ui,sans-serif)}
 .fp3-dv{top:${ICON_PX / 2 + 1}px}
 .fp3-dn{top:${ICON_PX / 2 + 13}px;opacity:.85}
 .fp3-dv,.fp3-dn,.fp3-name,.fp3-val{color:var(--fp-text);text-shadow:0 0 2px var(--fp-outline),0 0 2px var(--fp-outline),0 0 3px var(--fp-outline),0 0 5px var(--fp-outline)}
-.fp3-rm{text-align:center;white-space:nowrap;font:600 12px/1.25 system-ui,sans-serif}
+.fp3-rm{text-align:center;white-space:nowrap;font:500 12px/1.25 var(--fp-font,system-ui,sans-serif)}
 .fp3-name,.fp3-val{display:block}
 .fp3-val{font-weight:400;font-size:11px}`;
 
@@ -124,7 +124,9 @@ export function createOverlay(container: HTMLElement) {
       const it = icons.get(i), path = it?.g.querySelector("path");
       if (!it || !path) return null;
       const op = (e: Element) => { const v = parseFloat(getComputedStyle(e).opacity); return Number.isFinite(v) ? v : 1; };
-      return { css: getComputedStyle(path).fill, opacity: op(it.g) * op(path) };
+      // S23.4: an on device is a solid disc with an ink glyph, so its colour is the disc's; off has no disc and the glyph is the colour.
+      const halo = it.g.querySelector(".halo"), src = halo && parseFloat(getComputedStyle(halo).fillOpacity) > 0 ? halo : path;
+      return { css: getComputedStyle(src).fill, opacity: op(it.g) * op(src) };
     },
     /** Test and debug: which devices and rooms have an element, and whether it is on show. */
     state: () => ({ icons: [...icons].map(([i, it]) => ({ i, shown: it.shown })), rooms: [...rooms].map(([r, it]) => ({ r, shown: it.shown })) }),

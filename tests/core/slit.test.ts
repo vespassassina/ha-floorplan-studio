@@ -160,7 +160,7 @@ describe("slit: 2D", () => {
     const lines = [...html.matchAll(/<line data-d="(\d)" class="door door-(\w+)[^"]*"[^>]*stroke-width="([\d.]+)"/g)].map((m) => [m[1], m[2], Number(m[3])]);
     expect(lines[0]).toEqual(["0", "slit", expect.any(Number)]);
     expect(lines[1][1]).toBe("window");
-    expect(html).toMatch(/class="door door-slit door-window"/); // the window's colour rule, no new CSS
+    expect(html).toMatch(/class="door door-slit door-window quiet"/); // the window's colour rule, no new CSS; S23.7: quiet while closed, the symbol shows it
     expect(lines[0][2] as number).toBeLessThan(lines[1][2] as number);
     expect(lines[0][2] as number).toBeGreaterThan(0);
   });

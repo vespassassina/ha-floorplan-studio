@@ -2,6 +2,156 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: the faint dash is a zone's only (Opus review of Sprint 23, S4)
+
+S23.7 said "a zone is a 1 px dash at 35 % with no halo", but the rule sat on `.e.nw`, which every `boundary` edge carries. An open plan's line between two real rooms went faint too. A zone's edges now carry `zn` as well, and the S23.7 style is `.e.nw.zn` and `.eh.nw.zn`. A boundary between rooms, on a free wall or on the outline goes back to what it drew before: a 1.5 cm dash 8 6 over a 3.5 cm halo.
+- Tests changed on purpose: the zone class strings in `tests/core/render.test.ts` and `plan-symbols.test.ts` (` zn` added), S8.9's boundary thickness back to 1.5, S1.35b's edge regex, and the render snapshot (only ` zn` added). `plan-symbols-css.spec.ts` reads both a zone and a room boundary.
+
+## 2026-10-08: HA dark 2.5D walls are dark slabs (Opus review of Sprint 23, S2)
+
+In Home Assistant's dark mode `--fp-wall` is HA's primary text colour, a light grey, so a wall's side face, 55 % of it into the card background, was a light grey slab. S23.6 made the rooms dark and showed it. `--fp-wall-side` now takes `--fp-wall-side-share` of the wall: 55 % on every theme, 30 % on HA dark. The share is a variable of its own, so the generic rule, which comes after THEME_EXTRAS at the same specificity, cannot beat it; every theme sets 55 % so a theme group inside an HA dark host does not inherit 30 %. Every other theme's side is unchanged (a computed-style pair checks each). 3D walls still mix 55 % (`three/palette.ts`); not changed here.
+
+## 2026-10-08: stylesheet comments do not ship (Opus review of Sprint 23, M2)
+
+The card was 117123 gzip against its 115000 budget. The limit stays. Vite's lib mode does not minify template contents, so every `/* */` inside a `css` block and inside `FLOORPLAN_CSS` shipped. `scripts/strip-css-comments.mjs`, a Vite plugin on the card, panel and editor builds, removes them before esbuild: the card is 107924 gzip.
+- **What it touches.** A template tagged `css`, or one assigned to a const whose name ends in `CSS`. The source is parsed with TypeScript, so no other template, string or regex is read. Inside a stylesheet a comment is a `/*` outside a quoted string, a `url()` and a `${}`; a comment that spans a `${}` goes with it. An unclosed comment fails the build, naming the file.
+- **The comments stay in the source**, where they are read. Nothing else changes in the output.
+- **Not done:** the JSDoc comments of the code still ship (about 16 KB gzip more). Lib mode keeps them; removing them is a separate change.
+- Tests: `tests/card/strip-css-comments.test.ts` (strings, `url()`, substitutions, other templates, the real `render.ts`) and a check in `size-budget.spec.ts` that the built card holds the rules and not the comments.
+
+## 2026-10-08: every name clears 4.5:1, midnight and solarized too (S23 review S6)
+
+S23.6 left six pairs as `test.fixme`: water in midnight and Home Assistant dark (which falls back to midnight), and solarized's garden, terrace, pavement and water. They are real tests now; there is no exception list.
+- **Midnight takes its outdoor and fill colours from its own ramp.** Water was light's #a9cfe3 (a light name on it, 1.2:1); it is #1f4a78, a deeper blue that still reads as water. The stair fill was light's #c4c0b8, a pale block on navy, by the same copy; it is #1a2a46 with a #3a5684 hatch.
+- **Midnight's glass and window are #5fa8e8.** Light's #2c7fb8 was 2.8:1 on the dark window pane, under the 3:1 a line needs (WCAG 1.4.11). The TV keeps #2c7fb8 (S9.3). Light (2.4:1) and solarized (2.8:1) are under 3:1 too; not changed here, the test lists them.
+- **A theme may give outdoor names their own ink, `--fp-text-out`.** `.lbl[data-rl].out` mixes it, falling back to `--fp-text`, so no other theme changes. Solarized sets base2 #eee8d5: base1 is near 3.2:1 on its outdoor shades, and darkening those shades enough would make them the room's colour.
+- **Solarized water is #15608c**, Solarized blue 55 % over base03. On the full blue no Solarized text colour reaches 4.5:1. Windows keep the full blue.
+
+## 2026-10-08: labels keep inside the card at 375 px (S23 review S3)
+
+At 375 px "Garden" ran under the button stack and the stress layout put names below the view box. Placement knew the plan, not the frame it is shown in.
+- **`bounds` in `RenderOpts`.** A rect in plan units. Every name, tag and leader box must lie inside it, inset k/2 so rounding cannot push an edge out. The editor and the 3D overlay pass none. (Corrected by the re-check: the bare-ground step below is not gated on bounds, so the editor moves too, e.g. demo Garden and Pavement at scale 0.25 leave their leaders. That is wanted; one draw path.)
+- **The card passes the fit box minus the stack.** `_measurePx` reads `.fp-stack`. A column at the right covers a strip of the plan; its width in plan units, plus 4 px of air, comes off the right. A stack laid out as a row sits above the plan and costs nothing. The card re-renders only when the strip moves by more than 0.5 % of the fit width.
+- **An outdoor name may use bare ground.** A garden, terrace, pavement or water too small for its name first tries the space beside or above or below it that no other room covers, close enough to still overlap its width or height, before a leader. Demo ground at 375 px went from 4 leaders to 2.
+- **A leader is pulled into bounds**, its foot clamped to a spot still in the room.
+- **The disc floor stays at 28 px.** The leaders left at 375 px come from areas too small for an 11 px name (the reading-corner zone, the garden, the pond), not from crowded discs. Lowering discs to 24 px would split `k` between text and discs and shrink values and extras with them, for no label gained.
+
+## 2026-10-08: a window fills its cut (S23 review S1)
+
+The wall is cut `wallWidthAt + OPENING_EXTRA` wide, but a room polygon stops at the wall's centre line. On an outer wall the outer half of a window's gap showed the board, and three bare hairlines read as a hole.
+- **A pane over the whole cut.** `.win-pane`, opaque, `color-mix(--fp-window 22%, --fp-room-empty)`; red-tinted the same way while open or alarmed. Drawn under the door line and the hairlines, `data-dp`, no clicks. A window and a slit both get it: the cut does not narrow for a slit.
+- **Jambs.** A hairline across each end of the cut (`.win-jamb`, `data-dj`), window colour, red with the state like the symbol.
+- **2D only.** In 2.5D the raised wall carries the glass on its face and hides the floor-level cut; a floor pane there read as a box in front of the wall.
+- **Doors stay a gap.** A door or glass door in an outer wall shows the board in the outer half of its gap. That is a doorway to the outside and reads as one, so it is left as is.
+
+## 2026-10-08: names stay in their room (S23.3)
+
+The old search tried rows above and below the centroid and took a free spot in the next room before a covered one in its own. The 2.5D Hall name landed in the Cloakroom; names sat under discs. Now a name is placed only where its whole box (padded 2k, eight points) is in its room and in no smaller named room.
+- **Candidates.** The centroid, or the pole of inaccessibility (a 16 by 16 grid, computed only when the centroid is not clear), then offsets of up to 144 left and right and 64 up and down, nearest first, horizontal moves cheaper than vertical. Sizes step down by 0.85 to 7k (6k for a zone; the S23.2 floor still holds) before the name leaves its room.
+- **A tag when every spot is covered.** The largest spot in the room that touches no other text gets the name on an `--fp-outline` plate, drawn after the icons. A tag may cover icons, never text. The leader stays only for a room too small for its name at the floor size.
+- **2.5D stem feet are obstacles**, a 4k disc where the stem meets the floor.
+- **Smallest room first**, so a small room is not crowded out by a big neighbour's name. Zones after rooms.
+- **The baseline stays at the anchor**, not the box centre, to keep every other label where it was. Pavement shrinks a step at scale 0.5 for it.
+- Tests changed on purpose: S1.42 (a name now slides sideways, not to a row), the S7.1 break-it test (a covered Store gets a tag), the zone size test, the card's lamp-pin test (the name keeps off the pin; a tap on it picks the room), the editor's rotation test (a tag may sit over icons). `rows()` stays for extras.
+
+## 2026-10-08: an 11 px floor on the card (S23.2)
+
+`renderFloor` takes `px`, screen px per plan unit. With it, `k` is never under `NAME_MIN_PX / (12 * px)` (11 px for a 12k name), and a name shrunk to fit its room is never under `NAME_MIN_PX / px`. One `k` for text and discs, so the plan keeps its proportions and a 32k disc lands at 29 px or more. Without `px` (the editor, the 3D overlay) nothing changes, byte for byte. The floor lives in `renderFloor`, so the editor could use it the day it wants to (finding 8).
+- **The card measures at fit, not at the view on show.** `px` is the svg's box over the fit view box. Like S9.2's icon scale it follows the card's size, never its zoom: zooming in only enlarges, a pinned card draws icons at the same scale as the whole-floor card, and a pinch costs no second render. Zooming out past fit can still draw under 11 px; that is the user's choice.
+- **When the card renders twice.** After a render and on a resize the card measures, and re-renders only when the floor changes `k` or binds a shrunk name now or did before. The first card at 1000 px kept a name at 8.5 px because only `k` was compared; the wide-card test caught it.
+- Not done here: placing labels in CSS px outright (sprint 25).
+
+## 2026-10-08: one label style (S23.1)
+
+Supersedes the 0.12.16 "small and half transparent" names. A name is never faded. `--fp-label` is `color-mix(in srgb, var(--fp-text) 92%, var(--fp-under))`, where `renderFloor` sets `--fp-under` on each name to what it sits on: the room's own `#rrggbb` paint, else its kind's token (`SURFACE` in render.ts; a zone takes the room under it). 92% is the least text that clears 4.5:1 on every theme surface that S23.6 does not change; 85% failed light's garden and terminal's pavement. Room names 12k, outdoor and zone names 10k, weight 500, outdoor in italic. `--fp-font` is Home Assistant's body font (`--ha-font-family-body`, then the older paper variable), else system-ui; it is used for names, values and the card chrome, not for the studio or the config editor. Values use tabular figures and U+202F before the unit (`meanReading`, a sensor's value, the live overlay); the popup's own state line keeps its plain space.
+- **Contrast pairs that wait for S23.6, marked `test.fixme` (labels-css.spec.ts), never a lower bar.** The `#d6d6d2` empty room on blueprint, midnight, terminal, solarized, coffee and HA dark (light text on light grey, 1.1 to 1.8:1). Midnight's and HA dark's fixed light outdoor hexes. Solarized's outdoor hexes (`#586e75`, `#657b83`, `#268bd2`): no colour of its palette clears 4.5:1 on them, so they need a theme decision, not only the ramp.
+- The 3D overlay's room names take weight 500 and the font, to match.
+- The mix applies to room and zone names only (`.lbl[data-rl]`). Device and extra names sit on a disc or anywhere, so they keep `--fp-text`.
+
+## 2026-10-08: plan symbols (S23.7)
+
+Details of V19 and V20.
+
+- A door or glass door is a gap in the wall, a 1 px leaf from the hinge `a`, `|ab|` long and square to the wall, and a
+  90° arc back to `b`. The leaf swings to the room side: probe half a leaf out on each side; an indoor room (`room`)
+  wins, then any room, then the smaller one; with no room on either side it goes left of `a`→`b`.
+- A window is three hairlines along the opening, at the wall's two faces and its middle. A slit spans its narrower
+  band (`SLIT_BAND`).
+- Doors, glass doors, windows and slits now cut the wall (the opening mask). Sealed doors do not, and draw no symbol.
+- A closed, unselected door's own line paints nothing (`.door.quiet`). Open, alarm and cover-open keep the red line and
+  turn the symbol red; selection keeps the line. The hit line and `data-d` are unchanged; the symbol carries `data-ds`
+  and takes no clicks.
+- `--fp-glass` is the window blue. Per theme: light and midnight #2c7fb8 (was #1b9e77), solarized #268bd2 (was
+  #2aa198), the generated themes already used fg for both. Doors stay `--fp-door`.
+- Garden, terrace, pavement and water draw no boundary outline. The editor keeps its faint `e none` guide. A real wall
+  kind on an outdoor room (a fence) still draws.
+- A zone is a 1 px dash (4 3), non-scaling, at 35 % opacity, with no halo.
+- 2.5D draws the same symbols on the floor. 3D openings stay for sprint 28.
+
+Tests changed on purpose: `tests/core/open-door.test.ts` (quiet class; doors are cut, sealed not),
+`tests/core/render.test.ts` (zone 1 px; mask count includes doors; no-mask cases drop the doors; edge count leaves out
+outdoor boundaries), `tests/core/slit.test.ts` and `tests/core/solids-openings.test.ts` (quiet class), the render
+snapshot, and `tests/card/card.spec.ts` S8.11 (card2 drops the window too, since a window now makes a mask).
+
+## 2026-10-08: every surface follows the theme (S23.6)
+
+Details of the V16 and V23 decisions below. The values, per theme:
+
+| Theme | Empty room | Furniture | Garden / terrace / pavement |
+|---|---|---|---|
+| blueprint | #132237 | #3975cf | ramp |
+| terminal | #1d2d28 | #63a68f | ramp |
+| coffee | #30231a | #b17a57 | ramp |
+| a-team | #282222 | #8e7a7a | ramp |
+| space | #141b36 | #3a58ce | ramp |
+| cyberpunk | #280842 | #8e1ced | ramp |
+| carpenter-brut | #391115 | #da2e40 | ramp |
+| midnight | #14213a (`var(--fp-room)`) | #3f66b0 | #1d2a42 / #21304c / #233352 |
+| ha, dark | `var(--fp-room)`, HA's secondary background | #3f66b0 | as midnight |
+| solarized | #06323d | #586e75 | #11424f / #124c5b / #135161 |
+| light, ha light | #d6d6d2 | #79766e | unchanged |
+| slate | #d6d6d2 | #7b7b69 | ramp |
+| beach-house | #d6d6d2 | #b28a32 | ramp |
+
+- **Empty room.** `rolesToTokens` gives a dark theme its room shade (ramp .08), the colour 3D already paints floors with. The four hand-set `roomEmpty` values went; the option stays. Solarized is #06323d, not base02 #073642: a name (`--fp-text` 92 % into the room, the S23.1 label) measured 4.33:1 on base02 and 4.57:1 here, and the room still stands 1.09:1 off the board.
+- **Furniture.** A ramp shade at .62, a step past the wall edge (.55): at .55 beach-house's sand measured 1.77:1 on the grey room, under the 1.8 the test asks. The body is still 45 % of that into the empty room.
+- **Paint.** `--fp-paint-dim` is `brightness(.62) saturate(.85)` on a dark theme and `none` on a light one, applied as a filter to a room or stair with its own `fill`. The colour itself is never changed. The on ring (`fill="none"`) is left alone. Not in 3D yet.
+- **Checker.** #cfccc4 on #8a877f, about 2:1 (was #eeece5 on #2a2b2d, about 12:1).
+- **Not changed.** Midnight water (#a9cfe3) and fill (#c4c0b8) stay light; the brief named garden, terrace and pavement only.
+
+Tests changed on purpose: theme-roles.test.ts ("room-empty is the one fixed grey"); editor.spec.ts, the blueprint room in the theme table and the furniture-token pair (midnight is no longer #79766e); card-3d-tex-glow.spec.ts, the checkerboard's luma spread (238 over 42 is now 204 over 135) and its square counter, which now reads the 10th to 90th percentile so a lamp on the line no longer sets the band.
+
+## 2026-10-08: light is light (S23.8, V13, V14)
+
+Supersedes the flat 25 % aura (`--fp-alpha`, S2.8) and, on light themes, the lamp-coloured 3D wall glow.
+- **2D falloff.** Each aura circle takes `mask="url(#fp-lamp-falloff)"`, one shared mask written once before the first aura: a radial gradient, alpha 1 at the lamp, .33 at 60 %, 0 at the reach, in `objectBoundingBox` units so it fits every circle. `mask-type:alpha` is set in CSS (`mask.fp-falloff`), not as an attribute (finding 18). The ids avoid the word "glow", which tests use to find the room glow class.
+- **Clip.** Unchanged: the aura keeps the room clip it already had (S21.1). The new pixel test proves it holds.
+- **Strength.** `fill-opacity` is `.55` times the lamp's brightness. The mask thins it, so the core is brighter than the old flat .25 and the edge is gone.
+- **Blend.** `mix-blend-mode: var(--fp-glow-blend)`. `themeExtras` writes `screen` for a dark theme and `multiply` for a light one, so a new theme gets the right blend with no new token. HA's own theme follows its mode.
+- **3D.** view3d reads `--fp-glow-blend` off its probe; `multiply` means a light theme. There `glowTint` paints the walls `#ffd9a0` warm white, capped at .35, whatever the boost (night is 3.5x). A dark theme keeps the lamp's own colour, uncapped.
+Tests changed on purpose (finding 19): the aura markup regexes in render.test.ts and room-at.test.ts (the mask attribute), the `.aura` rule string, and the editor's aura pair, which pinned `0.25` and now pins `0.55` and `screen`. New: tests/card/light-glow.spec.ts (pixel probes just outside the wall, the same distance inside, near and far; the blend per theme against the background's luminance), a 3D wall-colour test in card-3d-tex-glow.spec.ts, and `glowTint` units.
+
+## 2026-10-08: unavailable is its own mark (S23.5, V12)
+
+Supersedes "Unavailable lights and switches read as off" (2026-10-06) and the 45 % opacity of S2.6. "Off" and "I don't know" are different facts; drawing a dead lamp as off told the user it was off.
+- `classOf` returns `unavailable` for every type whose state is `unavailable` or `unknown`. A bound light is unavailable only when every state it has is dead: a relay that says off still says the lamp is off, and one that says on lights it. No state at all is still off.
+- The mark: no disc (the halo stays painted at 0 so it takes the click), a dashed `--fp-warn` ring, the glyph at `--fp-idle` .7, and `<g class="gone-mark">`, a circle in `--fp-bg` and a slash in `--fp-warn` at the disc's top right, with no pointer events. A circle and a line, not a path, so no glyph rule paints it. The group is no longer at 45 %.
+- `g.dev.unavailable path` (0,2,2) outranks the per-type tints; weakened to `.dev.unavailable path`, the Playwright pair fails on the motion glyph.
+- In 3D the ball of an unavailable device is idle like an off one; its HTML icon carries the ring and badge.
+Tests changed on purpose (finding 19): the dead light, plug and bound-light classes in render.test.ts, card.test.ts, live.test.ts and plug-power.test.ts; three editor Playwright pairs that pinned the 45 % ghost; one comment in card-3d-live.spec.ts.
+
+## 2026-10-08: off is quiet, on is solid (S23.4, V9 first rule, V10, V11)
+
+Supersedes "an off icon's disc is 50 % in every theme" (2026-09-23) and the 60 % disc of an on motion or contact sensor (S8.13).
+- **Off and idle.** No disc: the halo is still painted at fill-opacity 0 so it takes the click, with no ring. The glyph is `--fp-idle` at .7.
+- **On.** The disc is `--fp-dev` (or the lamp's rgb, the plug's heat, a layout colour) at full opacity. The glyph is `--fp-dev-ink`. Per theme, `themeExtras` (src/core/ink.ts) writes an `-ink` for every `--fp-dev-*`, idle and danger: the theme's own dark ink, else its light ink, if it reaches 4.5:1, else pure black or white (one always clears 4.58:1). A colour only the state knows gets black or white at render time, as `var(--fp-pure-black|white)` so the markup carries no hex. The heat ramp's ink is picked from the same oklch mix the stylesheet does.
+- **Brightness** moved from the glyph to the glow: the aura's alpha is scaled by the lamp's brightness (`--fp-dev-opacity`). A dim lamp keeps a solid disc.
+- **Motion and contact** on: the solid disc plus an outline ring (`--fp-outline`, 2 px) and the ping, so a trigger still stands out from a lit lamp.
+- **Blueprint idle** is `color-mix(ink 55 %, bg)`, #888f99, saturation under .15 (it was #2b5697, about .5). Tokens that equalled the old idle (camera, garden tints) follow it.
+- The on glyph rule is `g.dev.on path` (0,2,2) so it beats `.dev.dev-motion path` and the outdoor and camera tints; the camera cone (0,3,1) keeps its own fill.
+- 3D: a ball takes the disc's colour when the disc shows, else the glyph's.
+Tests changed on purpose (finding 19): 21 Playwright tests read the on colour off the glyph or pinned the 50 % disc, the 60 % motion disc, a 25 % lamp halo or blueprint's old idle. They now read the disc, the ink, 0 and #888f99. Unit: the aura, halo and on rules in render.test.ts, the colour-and-ink style strings in render.test.ts and card-colors.test.ts, and the plug's heat style.
+
 ## 2026-10-08: the popup is placed inside what the user sees (S22.2)
 
 `placeNear` (popup-ui.ts) clamps to the host's box cut to the visual viewport (`window.visualViewport`, else the window), not to the host alone. Below the point first, above it when there is no room below, then clamped into that box. Its height is capped to the box less 16 px (the CSS cap the popup had for a host in full view), so in a very short window the sliders scroll and the button stays on screen. A host with less than 40 px showing falls back to its own box, the old rule. Not chosen: `position: fixed` (it would escape the card's stacking and need its own z-index and theme scope). The popup is placed when it opens and on each render, not on a page scroll.

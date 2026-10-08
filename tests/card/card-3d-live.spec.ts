@@ -225,7 +225,7 @@ test.describe("3D view: devices", () => {
     const off = (await ball(0)).colour;
     await setStates(page, { ...QUIET(), "light.demo_living": st("on", {}, iso(5)), "light.demo_kitchen": st("unavailable") });
     expect((await ball(0)).colour).not.toBe(off);
-    expect((await ball(1)).colour).toBe(off); // Diego, 2026-10-06: unavailable reads as off
+    expect((await ball(1)).colour).toBe(off); // S23.5: the ball of an unavailable lamp is idle, like off; its icon carries the dashed ring and badge
     expect((await ball(1)).colour).not.toBe((await ball(0)).colour);
     await setStates(page, QUIET());
     expect((await ball(0)).colour).toBe(off);
@@ -316,7 +316,7 @@ test.describe("3D view: the overlay", () => {
     await boot(page, {}, QUIET(), layout);
     await expect(roomLabel(page, 0).locator("css=.fp3-name")).toHaveText("Living");
     const readout = await roomLabel(page, 0).locator("css=.fp3-val").textContent();
-    expect(readout).toMatch(/^21(\.0)? °C$/);
+    expect(readout).toMatch(/^21(\.0)?\u202F°C$/); // S23.1: a narrow no-break space before the unit
     // the same state, the same layout, drawn in 2D
     const twoD = await page.evaluate(([layout, states]) => {
       const el = document.getElementById("card") as unknown as HTMLElement & { setConfig(c: unknown): void; updateComplete: Promise<unknown> };

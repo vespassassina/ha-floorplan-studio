@@ -41,7 +41,7 @@ describe("renderFloor", () => {
     f.extras.push({ id: "x1", name: "shed", a: [100, 450], b: [200, 520] });
     const html = renderFloor(f, { ...base, showNames: true });
     const firstDevice = html.indexOf("data-x=");
-    const roomName = html.indexOf("font-weight=\"600\"");
+    const roomName = html.indexOf("data-rl="); // S23.1: a room name has no weight attribute of its own any more
     for (const under of ['data-s="0"', 'data-e="s0:0"', 'class="opening"', 'class="extra"', ">shed</text>"]) {
       const at = html.indexOf(under);
       expect(at, under).toBeGreaterThan(-1);
@@ -148,11 +148,11 @@ describe("renderFloor", () => {
     expect(group).not.toContain("--fp-dev-opacity");
   });
 
-  it("marks unavailable and unknown entities, except lights and switches, which read as off (Diego, 2026-10-06)", () => {
+  it("marks unavailable and unknown entities, lights and switches too (S23.5; supersedes 2026-10-06, which drew them off)", () => {
     const html = renderFloor(ground, { ...base, state: { "light.demo_living": st("unavailable"), "light.demo_kitchen": st("unknown"), "switch.demo_tv_plug": st("unavailable"), "camera.demo_hall": st("unavailable") } });
-    expect(html).toMatch(/data-x="0"[^>]*class="dev dev-light bound off"/);
-    expect(html).toMatch(/data-x="1"[^>]*class="dev dev-light off"/);
-    expect(html).toMatch(/data-x="3"[^>]*class="dev dev-plug off"/);
+    expect(html).toMatch(/data-x="0"[^>]*class="dev dev-light bound unavailable"/);
+    expect(html).toMatch(/data-x="1"[^>]*class="dev dev-light unavailable"/);
+    expect(html).toMatch(/data-x="3"[^>]*class="dev dev-plug unavailable"/);
     expect(html).toMatch(/data-x="6"[^>]*class="dev dev-camera unavailable"/);
   });
 
@@ -173,7 +173,7 @@ describe("renderFloor", () => {
       const f = structuredClone(ground);
       f.devices[1] = { ...f.devices[1], x: 2000, y: 2000 } as typeof f.devices[number];
       const html = renderFloor(f, { ...base, state: on });
-      expect(html).toMatch(/<circle class="aura" cx="2000" cy="2000" r="150"\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="2000" cy="2000" r="150" mask="url\(#fp-lamp-falloff\)"\/>/);
       expect(html).not.toContain('<clipPath id="fp-aura-'); // S21.1: the demo camera now has a clip of its own (fp-cone-), so the lamp's is named
     });
 
@@ -203,7 +203,7 @@ describe("renderFloor", () => {
   describe("S2.8: a lit lamp casts an aura", () => {
     it("draws one circle.aura of radius 150 (S8.13: 1.5x the old 100) at a lit light's centre", () => {
       const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
-      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")? mask="url\(#fp-lamp-falloff\)"\/>/);
     });
 
     it("draws no aura for a light that is off, unavailable or unknown", () => {
@@ -219,18 +219,18 @@ describe("renderFloor", () => {
 
     it("a light with rgb_color sets --fp-aura on its own circle through style", () => {
       const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0, 0] } }) } });
-      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")? style="--fp-aura:rgb\(255,0,0\)"\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")? mask="url\(#fp-lamp-falloff\)" style="--fp-aura:rgb\(255,0,0\)"\/>/);
     });
 
     it("a light with no rgb_color carries no --fp-aura, so the default CSS variable applies", () => {
       const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
-      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")? mask="url\(#fp-lamp-falloff\)"\/>/);
       expect(html).not.toContain("--fp-aura");
     });
 
     it("a bound light's aura follows the switch's on state but keeps the default colour (no rgb_color on the light entity itself)", () => {
       const html = renderFloor(ground, { ...base, state: { "switch.demo_living_relay": st("on") } }); // light.demo_living itself missing from state
-      expect(html).toMatch(/<circle class="aura" cx="250" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="250" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")? mask="url\(#fp-lamp-falloff\)"\/>/);
     });
 
     it("every aura is drawn before every device group, so overlapping auras never hide an icon", () => {
@@ -249,8 +249,8 @@ describe("renderFloor", () => {
       expect(aura).toBeGreaterThan(lastRoom);
     });
 
-    it("the .aura rule reads --fp-aura at --fp-alpha and never catches the pointer", () => {
-      expect(FLOORPLAN_CSS).toMatch(/\.aura\{fill:var\(--fp-aura\);fill-opacity:var\(--fp-alpha\);pointer-events:none\}/);
+    it("the .aura rule reads --fp-aura at .55 (times the lamp's brightness, S23.4), blends by theme kind (S23.8) and never catches the pointer", () => {
+      expect(FLOORPLAN_CSS).toMatch(/\.aura\{fill:var\(--fp-aura\);fill-opacity:calc\(\.55 \* var\(--fp-dev-opacity,1\)\);mix-blend-mode:var\(--fp-glow-blend,normal\);pointer-events:none\}/);
       expect(FLOORPLAN_CSS).toContain("--fp-aura:#f0c419");
     });
   });
@@ -334,13 +334,13 @@ describe("renderFloor", () => {
 
   it("shows temperature and humidity as labels with units", () => {
     const html = renderFloor(ground, { ...base, state: { "sensor.demo_living_temperature": st("21.5", { attributes: { unit_of_measurement: "°C" } }) } });
-    expect(html).toContain("21.5 °C");
+    expect(html).toContain("21.5\u202F°C");
   });
 
   it("S2.5: shows a humidity label with its unit", () => {
     const f = { ...ground, devices: [{ id: "h", type: "humidity", entity: "sensor.demo_bathroom_humidity", x: 100, y: 100 }] } as unknown as typeof ground;
     const html = renderFloor(f, { ...base, state: { "sensor.demo_bathroom_humidity": st("48", { attributes: { unit_of_measurement: "%" } }) } });
-    expect(html).toContain("48 %");
+    expect(html).toContain("48\u202F%");
   });
 
   it("shows a dash for an unknown sensor value", () => {
@@ -401,16 +401,18 @@ describe("zones and water", () => {
     expect(ground.rooms[wi]).toMatchObject({ kind: "water", area: "" }); // water is scenery, not an HA area
     for (const p of ground.rooms[zi].pts) expect(p[0] >= 0 && p[0] <= 500 && p[1] >= 0 && p[1] <= 400).toBe(true);
   });
-  it("draws every zone edge dotted (class nw), never solid, with no editor handles", () => {
+  it("draws every zone edge dotted (class nw zn), never solid, with no editor handles", () => {
     const edges = html.match(new RegExp(`<line class="[^"]*" data-e="r${zi}:\\d+"`, "g")) ?? [];
     expect(edges).toHaveLength(ground.rooms[zi].pts.length);
-    for (const e of edges) expect(e).toContain('class="e nw"');
+    // Opus review of Sprint 23, S4: zn marks a zone, so the faint dash and the missing halo stay off a room's boundary.
+    for (const e of edges) expect(e).toContain('class="e nw zn"');
+    expect(html).toMatch(new RegExp(`<line class="eh nw zn" x1=`));
     expect(html).not.toContain("data-h=");
   });
   it("draws a zone edge dotted even if its wk says wall", () => {
     const f = structuredClone(ground);
     f.rooms[zi].wk = f.rooms[zi].wk.map((): WallKind => "wall");
-    expect(renderFloor(f, { scale: 0.5 })).toContain(`<line class="e nw" data-e="r${zi}:0"`);
+    expect(renderFloor(f, { scale: 0.5 })).toContain(`<line class="e nw zn" data-e="r${zi}:0"`);
   });
   it("the zone has no fill and a small name label; the water has class water and the --fp-water fill", () => {
     expect(html).toMatch(new RegExp(`<polygon data-r="${zi}" class="room room-zone"`));
@@ -418,8 +420,10 @@ describe("zones and water", () => {
     expect(html).toMatch(new RegExp(`<polygon data-r="${wi}" class="[^"]*\\bwater\\b[^"]*"`));
     expect(FLOORPLAN_CSS).toMatch(/--fp-water:#[0-9a-f]{3,8}/i);
     expect(FLOORPLAN_CSS).toMatch(/\.room-water:not\(\[fill\]\)\{[^}]*fill:var\(--fp-water\)/);
-    // 134 wide at 16 (scale 0.5) in a 120 zone: shrunk to fit (2026-10-02), 120 / (14 x 0.6)
-    expect(html).toMatch(/<text class="lbl zone"[^>]*font-size="14\.29"[^>]*>Reading corner<\/text>/);
+    // Too wide at 20 (scale 0.5) for a 120 zone: shrunk until it fits inside it, padding and all (S23.3), never under 12 (6k).
+    const size = Number(html.match(/<text class="lbl zone"[^>]*font-size="([\d.]+)"[^>]*>Reading corner<\/text>/)![1]);
+    expect(size).toBeLessThan(14.29);
+    expect(size).toBeGreaterThanOrEqual(12);
   });
   it("puts no literal colour in the zone and water markup", () => {
     const mine = html.split("\n").filter((l) => new RegExp(`data-(r="(${zi}|${wi})"|e="r(${zi}|${wi}):)`).test(l)).join("\n");
@@ -448,7 +452,7 @@ describe("S8.13: brighter alerts, wider light", () => {
   it("a lit lamp's aura is 1.5 times the old 100 cm, and a camera's cone keeps 100", () => {
     expect(LIGHT_REACH).toBe(150);
     expect(DEVICE_REACH).toBe(100);
-    expect(draw([dev("light", "light.l")], { "light.l": st("on") })).toMatch(/<circle class="aura" cx="400" cy="300" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/);
+    expect(draw([dev("light", "light.l")], { "light.l": st("on") })).toMatch(/<circle class="aura" cx="400" cy="300" r="150"(?: clip-path="url\(#[^)]+\)")? mask="url\(#fp-lamp-falloff\)"\/>/);
   });
 
   it("a triggered motion or contact sensor carries a ping ring under its disc; idle, off, unavailable or another type do not", () => {
@@ -484,7 +488,8 @@ describe("S8.13: brighter alerts, wider light", () => {
 
   it("the alert rules: a ping pulses in the sensor's own colour, a triggered disc is stronger than any other on disc, the door alert is contact red, and none take the pointer", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.ping\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-ping/);
-    expect(FLOORPLAN_CSS).toMatch(/\.dev-motion\.on \.halo,\.dev-contact\.on \.halo\{fill-opacity:\.6;stroke:var\(--fp-dev\);stroke-width:2\}/);
+    // S23.4: every on disc is solid now, so a triggered one is set apart by its outline ring and the ping, not by a harder fill
+    expect(FLOORPLAN_CSS).toMatch(/\.dev-motion\.on \.halo,\.dev-contact\.on \.halo\{stroke:var\(--fp-outline\);stroke-width:2\}/);
     expect(FLOORPLAN_CSS).toMatch(/\.door-alert\{stroke:var\(--fp-open-door\);[^}]*stroke-linecap:butt;[^}]*pointer-events:none/);
     expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave,\.siren-ring\{animation:none\}/);
   });
@@ -743,9 +748,9 @@ describe("bound light", () => {
   it("is off when both are off", () => {
     expect(cls(g({ [L1]: st("off"), [S1]: st("off") }))).toBe("dev dev-light bound off");
   });
-  it("is off, never dimmed, when every present state is unavailable or unknown", () => {
-    expect(cls(g({ [L1]: st("unavailable"), [S1]: st("unknown") }))).toBe("dev dev-light bound off");
-    expect(cls(g({ [L1]: st("unavailable") }))).toBe("dev dev-light bound off");
+  it("is unavailable when every present state is unavailable or unknown, else what the live one says (S23.5)", () => {
+    expect(cls(g({ [L1]: st("unavailable"), [S1]: st("unknown") }))).toBe("dev dev-light bound unavailable");
+    expect(cls(g({ [L1]: st("unavailable") }))).toBe("dev dev-light bound unavailable");
     expect(cls(g({ [L1]: st("unavailable"), [S1]: st("on") }))).toBe("dev dev-light bound on");
     expect(cls(g({ [L1]: st("unavailable"), [S1]: st("off") }))).toBe("dev dev-light bound off");
   });
@@ -863,6 +868,7 @@ describe("wall kinds", () => {
   // same as before) — pinning every kind here means a future kind fails until someone writes down its own thickness,
   // the same guard the review asked for on DEVICE_TYPES/RoomKind.
   it("S8.9: pins every WallKind's own line thickness", () => {
+    // A boundary between rooms stays 1.5 cm. The 1 px hairline of S23.7 is a zone's alone (class zn; Opus review of Sprint 23, S4).
     const THICKNESS: Record<(typeof kinds)[number], number> = { wall: 10, boundary: 1.5, external: 20, fence: 1.5, edge: 1.5 };
     const html = renderFloor(withWalls(), base);
     kinds.forEach((k, i) => {
@@ -998,9 +1004,10 @@ describe("S8.11: an opening is a real hole, cut from the wall layer with a <mask
     expect(id, html).toBeTruthy();
     const block = maskBlock(html, id!);
     expect(block, html).toBeTruthy();
-    // A full-cover base (so untouched wall pixels stay visible) plus one black cut line per opening.
+    // A full-cover base (so untouched wall pixels stay visible) plus one black cut line per opening, and (S23.7) per
+    // door or window drawn as a plan symbol: every door kind but sealed.
     expect(block).toMatch(/fill="white"/);
-    expect([...block!.matchAll(/<line[^>]*stroke="black"[^>]*\/>/g)]).toHaveLength(f.openings.length);
+    expect([...block!.matchAll(/<line[^>]*stroke="black"[^>]*\/>/g)]).toHaveLength(f.openings.length + f.doors.filter((d) => d.kind !== "sealed").length);
   });
 
   it("every wall halo and stroke line (.eh/.e), including the external outline, sits inside the masked group", () => {
@@ -1016,7 +1023,7 @@ describe("S8.11: an opening is a real hole, cut from the wall layer with a <mask
   });
 
   it("a floor with no openings draws its walls with no mask at all", () => {
-    const html = renderFloor(ground, base); // demo ground floor: no openings by default in this fixture
+    const html = renderFloor({ ...ground, doors: [] }, base); // no openings, and (S23.7) no doors, which cut the wall too
     expect(wallGroupMaskId(html)).toBeUndefined();
     expect(html).not.toContain("<mask");
   });
@@ -1101,7 +1108,7 @@ describe("fill is hatched (S1.15)", () => {
     expect(FLOORPLAN_CSS).toContain("--fp-fill-line:#9a958b");
   });
   it("emits no defs on a floor without a fill room", () => {
-    expect(renderFloor(ground, base)).not.toContain("<defs>");
+    expect(renderFloor({ ...ground, doors: [] }, base)).not.toContain("<defs>"); // S23.7: a door's wall cut is a defs of its own
   });
   it("two fill rooms still emit one defs", () => {
     expect(renderFloor(withFill(2), base).match(/<defs>/g)).toHaveLength(1);
@@ -1147,6 +1154,8 @@ describe("room edge kinds (S1.17)", () => {
     const cls = (id: string) => html.match(new RegExp(`<line class="([^"]*)" data-e="${id}"`))?.[1];
     expect([0, 1, 2, 3].map((i) => cls(`r0:${i}`))).toEqual(["e", "e nw", "e external", "e fence"]);
     expect(cls("r1:0")).toBe("e edge");
+    // A room's boundary is not a zone: no zn on it or on its halo (Opus review of Sprint 23, S4).
+    expect(html).not.toMatch(/class="eh? nw zn" data-e="r0:/);
   });
   it("a zone edge stays dotted whatever wk says, and a hostile kind is escaped", () => {
     const f = structuredClone(ground);
@@ -1154,7 +1163,7 @@ describe("room edge kinds (S1.17)", () => {
     f.rooms[zi].wk = ["fence", "fence", "fence", "fence"];
     f.rooms[0].wk[0] = '"><script>x</script>' as never;
     const html = renderFloor(f, base);
-    expect(html).toContain(`class="e nw" data-e="r${zi}:0"`);
+    expect(html).toContain(`class="e nw zn" data-e="r${zi}:0"`);
     expect(html).not.toContain("<script>");
   });
 });
@@ -1320,7 +1329,8 @@ describe("devices sit on top (S1.29)", () => {
   it("the halo is a class, with no inline fill", () => {
     expect(html).toContain('<circle class="halo" cx="12" cy="12" r="16"/>'); // the icon is 12 out, the disc 3 more plus one
     expect(html).not.toContain("fill-opacity");
-    expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{fill:var\(--fp-disc\);fill-opacity:var\(--fp-disc-alpha\);stroke:var\(--fp-halo\);stroke-width:1;vector-effect:non-scaling-stroke\}/);
+    // S23.4: off is the glyph alone; the disc stays painted (fill-opacity 0, not fill:none) so it still takes the click
+    expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{fill:var\(--fp-disc\);fill-opacity:0;stroke:none;stroke-width:1;vector-effect:non-scaling-stroke\}/);
     expect(FLOORPLAN_CSS).toContain("--fp-halo:#8b8578");
     expect(FLOORPLAN_CSS).toContain("--fp-disc:#fff");
     expect(FLOORPLAN_CSS).toContain("--fp-disc-alpha:.5");
@@ -1402,9 +1412,9 @@ describe("S2.9: a device wears its colour when it is on", () => {
       expect(FLOORPLAN_CSS, type).toContain(`.dev-${type}.on{--fp-dev:${value}}`);
   });
 
-  it("the two shared rules read --fp-dev on the icon and the halo, and the halo keeps --fp-alpha (25%) while on", () => {
-    expect(FLOORPLAN_CSS).toContain(".dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}");
-    expect(FLOORPLAN_CSS).toContain(".dev.on .halo{fill:var(--fp-dev);fill-opacity:var(--fp-alpha)}");
+  it("S23.4: on is a solid disc in --fp-dev (or the lamp's own colour) with the glyph in --fp-dev-ink", () => {
+    expect(FLOORPLAN_CSS).toContain("g.dev.on path{fill:var(--fp-dev-ink,var(--fp-on-dark));fill-opacity:1}");
+    expect(FLOORPLAN_CSS).toContain(".dev.on .halo{fill:var(--fp-dev-fill,var(--fp-dev));fill-opacity:1;stroke:none}");
   });
 
   it("a contact device carries the on class, and the old --fp-open override on .dev-contact.on path is gone (a second source of the same colour)", () => {
@@ -1474,9 +1484,9 @@ describe("S2.9: a device wears its colour when it is on", () => {
     expect(FLOORPLAN_CSS).toContain(".dev-switch.on{--fp-dev:var(--fp-idle)}");
   });
 
-  it("Break it: an unavailable light reads as off, never on, whatever the colour rule says", () => {
+  it("Break it: an unavailable light reads as unavailable, never on, whatever the colour rule says (S23.5)", () => {
     const html = draw([dev("light", "light.x")], { "light.x": st("unavailable") });
-    expect(classOfDev(html)).toContain("off");
+    expect(classOfDev(html)).toContain("unavailable");
     expect(classOfDev(html)).not.toContain("on");
   });
 });
@@ -1810,13 +1820,14 @@ describe("device colours (S1.36)", () => {
   });
   it("puts each chosen colour in one style as --fp-dev-<type>, around the drawing", () => {
     const html = renderFloor(ground, { scale: 0.5, colors: { light: "#aabbcc", camera: "#112233" } });
-    expect(html.startsWith('<g class="dev-colours" style="--fp-dev-light:#aabbcc;--fp-dev-camera:#112233">')).toBe(true);
+    // S23.4: each with its glyph ink, through a token (black or white for a colour no theme chose)
+    expect(html.startsWith('<g class="dev-colours" style="--fp-dev-light:#aabbcc;--fp-dev-light-ink:var(--fp-pure-black);--fp-dev-camera:#112233;--fp-dev-camera-ink:var(--fp-pure-white)">')).toBe(true);
     expect(html.endsWith("</g>")).toBe(true);
     expect(renderFloor(ground, { scale: 0.5 })).toBe(html.slice(html.indexOf(">") + 1, -4)); // the rest is unchanged
   });
   it("skips what is not a device type or #rrggbb, so nothing untrusted reaches the attribute", () => {
     const html = renderFloor(ground, { scale: 0.5, colors: { fridge: "#aabbcc", light: 'red;" onload="x', tv: "#abcdef" } as any });
-    expect(html).toContain('style="--fp-dev-tv:#abcdef"');
+    expect(html).toContain('style="--fp-dev-tv:#abcdef;--fp-dev-tv-ink:var(--fp-pure-black)"');
     expect(html).not.toContain("fridge"); expect(html).not.toContain("onload");
     expect(renderFloor(ground, { scale: 0.5, colors: { light: "nope" } as any })).toBe(renderFloor(ground, { scale: 0.5 }));
   });
@@ -1862,8 +1873,10 @@ describe("S1.35b: a white twin under every edge", () => {
     f.walls.push({ id: "w1", a: [100, 700], b: [300, 700], kind: "fence" });
     const html = renderFloor(f, base);
     const twins = [...html.matchAll(/<line class="eh[^"]*"[^>]*>/g)];
-    const edges = [...html.matchAll(/<line class="e(?: nw| external| fence| edge)?" data-[ew]=[^>]*>/g)];
-    const n = f.outline.length + f.rooms.reduce((s, r) => s + r.pts.length, 0) + f.walls.length;
+    const edges = [...html.matchAll(/<line class="e(?: nw zn| nw| external| fence| edge)?" data-[ew]=[^>]*>/g)];
+    // S23.7: an outdoor kind's boundary edge draws no line at all
+    const outdoor = (r: (typeof f.rooms)[number], i: number) => ["garden", "terrace", "pavement", "water"].includes(r.kind) && r.wk[i] === "boundary";
+    const n = f.outline.length + f.rooms.reduce((s, r) => s + r.pts.filter((_, i) => !outdoor(r, i)).length, 0) + f.walls.length;
     expect(twins).toHaveLength(n);
     expect(edges).toHaveLength(n);
     expect(twins.every((m) => !m[0].includes("data-"))).toBe(true);
@@ -1890,18 +1903,32 @@ describe("S1.42: a device never hides a room name", () => {
   const cy = 100;
 
   it("stays put with no device near", () => { expect(nameY(floor("room", []))).toBe(cy); expect(nameY(floor("room", [[20, 20]]))).toBe(cy); });
-  it("moves down 32k when a device sits on the centroid", () => { expect(nameY(floor("room", [[200, 100]]))).toBe(cy + 32 * k); });
-  it("moves up when the spot below is taken too", () => { expect(nameY(floor("room", [[200, 100], [200, 100 + 32 * k]]))).toBe(cy - 32 * k); });
-  // S7.1: two more rows, 64k below then 64k above, before the centroid is kept regardless.
-  const three: [number, number][] = [[200, 100], [200, 100 + 32 * k], [200, 100 - 32 * k]];
-  it("S7.1: moves 64k down when the three near spots are taken", () => { expect(nameY(floor("room", three))).toBe(cy + 64 * k); });
-  it("S7.1: moves 64k up when 64k down is taken too", () => { expect(nameY(floor("room", [...three, [200, 100 + 64 * k]]))).toBe(cy - 64 * k); });
-  it("stays at the centroid when all five spots are taken, so nothing is dropped", () => {
-    expect(nameY(floor("room", [...three, [200, 100 + 64 * k], [200, 100 - 64 * k]]))).toBe(cy);
+  // S23.3 replaced the five fixed rows (centroid, 32k and 64k below and above) with a search round the centroid that
+  // also steps sideways and shrinks before it gives up; a covered room gets a tag. These pin what a reader sees: the
+  // name leaves the icon, stays in the room, and goes to the nearest free spot.
+  const nameAt = (html: string) => { const m = html.match(/<text class="lbl[^"]*"[^>]* x="([\d.-]+)" y="([\d.-]+)"[^>]*font-size="([\d.]+)"[^>]*>Lounge</)!; return [Number(m[1]), Number(m[2]), Number(m[3])]; };
+  const nameBox = (html: string) => { const [x, y, s] = nameAt(html), w = 6 * 0.6 * s; return [x - w / 2, y - 0.75 * s, w, s]; };
+  const offDiscs = (html: string, devs: [number, number][]) => {
+    const [x, y, w, h] = nameBox(html);
+    expect(x >= 0 && x + w <= 400 && y >= 0 && y + h <= 200, `in the room: ${[x, y, w, h].map(Math.round)}`).toBe(true);
+    for (const [dx, dy] of devs) expect(x < dx + 16 * k && dx - 16 * k < x + w && y < dy + 16 * k && dy - 16 * k < y + h, `on the icon at ${dx},${dy}`).toBe(false);
+  };
+  it("moves off a device that sits on the centroid, to the nearest free spot: beside it, 48k across", () => {
+    const html = floor("room", [[200, 100]]);
+    offDiscs(html, [[200, 100]]);
+    expect(nameAt(html).slice(0, 2)).toEqual([200 + 48 * k, cy]);
+  });
+  it("moves off a column of five devices through the centroid, where the old rows kept it on one", () => {
+    const five: [number, number][] = [[200, 100], [200, 100 + 32 * k], [200, 100 - 32 * k], [200, 100 + 64 * k], [200, 100 - 64 * k]];
+    offDiscs(floor("room", five), five);
+    expect(floor("room", five)).not.toContain("lbl-on");
+  });
+  it("moves off a row of devices across the centroid, above or below it", () => {
+    const row: [number, number][] = [40, 120, 200, 280, 360].map((x) => [x, 100]);
+    offDiscs(floor("room", row), row);
   });
   // S7.15: a door is an obstacle too (the demo's "Garden pond" sat across the garage door). A door's box is its
-  // line widened by half its 22-unit stroke on every side. The name skips the centroid (on the door) and the row
-  // below (the door reaches down to y 161), and lands on the row above (its box ends at y 43, the door starts at 49).
+  // line widened by half its 22-unit stroke on every side.
   const withDoor = (a: [number, number], b: [number, number]) => {
     const f = structuredClone(ground);
     f.rooms = [{ id: "r", name: "Lounge", kind: "room", area: "", pts: [[0, 0], [400, 0], [400, 200], [0, 200]] } as never];
@@ -1909,17 +1936,21 @@ describe("S1.42: a device never hides a room name", () => {
     f.doors = [{ id: "d", name: "Door", kind: "door", a, b } as never];
     return renderFloor(f, { scale: 0.5 });
   };
-  it("S7.15: moves off a door that runs through the centroid", () => { expect(nameY(withDoor([200, 60], [200, 150]))).toBe(cy - 32 * k); });
+  it("S7.15: moves off a door that runs through the centroid", () => {
+    const [x, , w] = nameBox(withDoor([200, 60], [200, 150]));
+    expect(x > 211 || x + w < 189, `name ${x}..${x + w} across the door`).toBe(true);
+  });
   it("S7.15: a door whose stroke just reaches the name's box counts, one 1 unit further does not", () => {
     // The name box at the centroid spans y 83.5..105.5 (22 tall, baseline 0.75 down). A horizontal door at y 116 with
     // stroke 22 reaches up to 105 and overlaps; at y 117 its edge only touches the box, which does not count.
-    expect(nameY(withDoor([100, 116], [300, 116]))).toBe(cy + 32 * k);
-    expect(nameY(withDoor([100, 117], [300, 117]))).toBe(cy);
+    expect(nameAt(withDoor([100, 116], [300, 116])).slice(0, 2)).not.toEqual([200, cy]);
+    expect(nameAt(withDoor([100, 117], [300, 117])).slice(0, 2)).toEqual([200, cy]);
   });
   it("S7.15: a door far from the name leaves it at the centroid", () => { expect(nameY(withDoor([50, 190], [350, 190]))).toBe(cy); });
-  it("a zone follows the same steps with its smaller size", () => {
-    expect(nameY(floor("zone", [[200, 100]]))).toBe(cy + 32 * k);
-    expect(nameY(floor("zone", [[200, 100], [200, 100 + 32 * k]]))).toBe(cy - 32 * k);
+  it("a zone follows the same search with its smaller size", () => {
+    const one = floor("zone", [[200, 100]]);
+    offDiscs(one, [[200, 100]]);
+    expect(nameAt(one)[2]).toBe(10 * k);
   });
   it("counts only devices the filter draws", () => { expect(nameY(floor("room", [[200, 100]], "heater"))).toBe(cy); });
   it("a device far to the side does not move the name", () => { expect(nameY(floor("room", [[380, 100]]))).toBe(cy); });
@@ -2138,8 +2169,8 @@ describe("S7.1: labels never overprint each other", () => {
     ] as never;
     f.devices = [{ id: "t", type: "temp", entity: "sensor.t", x: 100, y: 150 }] as never;
     const html = renderFloor(f, { scale: 1, now: NOW, state: { "sensor.t": st("21.5", { attributes: { unit_of_measurement: "°C" } }) } });
-    expect(html).toMatch(/<text class="lbl" x="100" y="100"[^>]*font-weight="600" opacity="\.5">Study</); // the name goes first and keeps its centroid
-    for (const t of [">Desk corner<", ">21.5 °C<"]) expect(html).toContain(t);
+    expect(html).toMatch(/<text class="lbl" x="100" y="100"[^>]*>Study</); // the name goes first and keeps its centroid
+    for (const t of [">Desk corner<", ">21.5\u202F°C<"]) expect(html).toContain(t);
     expect(clashes(html)).toEqual([]);
   });
 
@@ -2170,13 +2201,15 @@ describe("S7.1: labels never overprint each other", () => {
     expect(renderFloor(f, { scale: 1 })).toMatch(new RegExp(`<text class="lbl" x="50" y="50"[^>]*>${long}<`));
   });
 
-  it("break it: with every candidate row taken, a name still draws at the centroid, the one documented overlap", () => {
+  it("break it: with every spot in the room taken, the name is a tag on top, the one documented overlap (S23.3)", () => {
     const f = bare(structuredClone(ground));
     f.rooms = [{ id: "s", name: "Store", kind: "room", area: "", pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: ["wall", "wall", "wall", "wall"] }] as never;
-    f.devices = [0, 32, -32, 64, -64].map((d, i) => ({ id: `d${i}`, type: "switch", entity: `switch.d${i}`, x: 50, y: 50 + d })) as never;
+    f.devices = [10, 30, 50, 70, 90].flatMap((x) => [10, 30, 50, 70, 90].map((y) => ({ id: `d${x}-${y}`, type: "switch", entity: `switch.d${x}_${y}`, x, y }))) as never;
     const html = renderFloor(f, { scale: 1 });
-    expect(html).toMatch(/<text class="lbl" x="50" y="50"[^>]*>Store</);
-    expect(clashes(html)).toEqual(['"Store" on icon 0']);
+    expect(html).toMatch(/<text class="lbl lbl-on" [^>]*>Store</);
+    const out = clashes(html);
+    expect(out.length).toBeGreaterThan(0);
+    for (const c of out) expect(c).toMatch(/^"Store" on icon \d+$/);
   });
 
   // 2026-10-02: small rooms. A name wider than its room shrinks (floor 7k) and, when even that is too wide, goes
@@ -2211,9 +2244,9 @@ describe("S7.1: labels never overprint each other", () => {
     });
 
   it("a name longer than its room shrinks, stays above the floor, draws whole and needs no leader", () => {
-    const html = renderFloor(roomLayout("Utility room", 60), { scale: 1 }); // 12 characters: 79 wide at 11, the room is 60
+    const html = renderFloor(roomLayout("Utility room", 60), { scale: 1 }); // 12 characters: 86 wide at 12, the room is 60
     const t = labelOf(html, "Utility room");
-    expect(t.size).toBeLessThan(11);
+    expect(t.size).toBeLessThan(12);
     expect(t.size).toBeGreaterThanOrEqual(7);
     expect(t.x).toBe(30);
     expect(t.size * 0.6 * 12).toBeLessThanOrEqual(60 + 0.05); // it now fits the room
@@ -2222,7 +2255,7 @@ describe("S7.1: labels never overprint each other", () => {
 
   it("a name that fits keeps its full size", () => {
     const t = labelOf(renderFloor(roomLayout("Store", 100), { scale: 1 }), "Store");
-    expect(t.size).toBe(11);
+    expect(t.size).toBe(12); // S23.1: a room name is 12
   });
 
   it("a zone label shrinks to 6k at the least", () => {
@@ -2608,11 +2641,12 @@ describe("0.12.16: room names sit inside their room, small and half transparent"
     const f = mk(ell, "room"); f.devices = [{ id: "l", type: "light", entity: "light.a", x: 25, y: 25 }] as never;
     expect(inside(at(renderFloor(f, { scale: 1 }), "Laundry"), ell)).toBe(true);
   });
-  it("a room name is 11, a zone name 8 (times the scale), and both are drawn at half opacity", () => {
+  it("S23.1: a room name is 12, a zone name 10 (times the scale), and neither is faded", () => {
     const html = renderFloor(mk([[0, 0], [200, 0], [200, 200], [0, 200]], "room"), { scale: 1 });
-    expect(html).toMatch(/<text class="lbl"[^>]*font-size="11"[^>]*opacity="\.5"[^>]*>Laundry</);
-    expect(renderFloor(mk([[0, 0], [200, 0], [200, 200], [0, 200]], "zone"), { scale: 1 })).toMatch(/<text class="lbl zone"[^>]*font-size="8"[^>]*>Laundry</);
-    expect(FLOORPLAN_CSS).toMatch(/\.lbl\.zone\{opacity:\.5\}/);
+    expect(html).toMatch(/<text class="lbl"[^>]*font-size="12"[^>]*>Laundry</);
+    const zone = renderFloor(mk([[0, 0], [200, 0], [200, 200], [0, 200]], "zone"), { scale: 1 });
+    expect(zone).toMatch(/<text class="lbl zone"[^>]*font-size="10"[^>]*>Laundry</);
+    for (const h of [html, zone]) expect(h).not.toMatch(/<text class="lbl[^>]*opacity=/);
   });
 });
 

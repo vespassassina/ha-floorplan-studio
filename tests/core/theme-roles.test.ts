@@ -15,7 +15,7 @@ describe("theme-roles (S4.21)", () => {
       "--fp-sealed", "--fp-water", "--fp-fill", "--fp-fill-line", "--fp-tread", "--fp-halo", "--fp-alpha", "--fp-disc",
       "--fp-disc-alpha", "--fp-outline", "--fp-text", "--fp-warn", "--fp-danger", "--fp-primary", "--fp-wall-external",
       "--fp-wall-fence", "--fp-wall-edge", "--fp-measure", "--fp-glow", "--fp-aura", "--fp-active", "--fp-on-dark", "--fp-on-light",
-      "--fp-furniture", "--fp-night",
+      "--fp-furniture", "--fp-night", "--fp-paint-dim",
       // the device types render.ts's CSS actually reads a dedicated colour for; the rest (switch, temp, humidity,
       // battery, inverter, server, access_point, other) fall back to --fp-idle in the stylesheet, no token of their own.
       "--fp-dev-light", "--fp-dev-motion", "--fp-dev-contact", "--fp-dev-heater", "--fp-dev-climate", "--fp-dev-ac-cool",
@@ -43,9 +43,26 @@ describe("theme-roles (S4.21)", () => {
     expect(withOverride.get("--fp-dev-tv")).toBe("#2c7fb8"); // the attempted override is ignored
   });
 
-  it("room-empty is the one fixed grey, in every theme, never the base shade (standing decision, 2026-06)", () => {
-    expect(tokenPairs(rolesToTokens(BASE)).get("--fp-room-empty")).toBe("#d6d6d2");
+  it("S23.6: a dark theme's empty room is its own room shade; a light theme keeps the classic grey", () => {
+    const dark = tokenPairs(rolesToTokens(BASE));
+    expect(dark.get("--fp-room-empty")).toBe(dark.get("--fp-room"));
+    expect(dark.get("--fp-room-empty")).not.toBe("#d6d6d2");
     expect(tokenPairs(rolesToTokens({ ...BASE, dark: false })).get("--fp-room-empty")).toBe("#d6d6d2");
+    expect(tokenPairs(rolesToTokens({ ...BASE, roomEmpty: "#242424" })).get("--fp-room-empty")).toBe("#242424"); // an explicit choice still wins
+  });
+
+  it("S23.6: furniture follows the ramp, not one fixed grey, light or dark", () => {
+    const other: ThemeRoles = { ...BASE, base: "#6b2d14" };
+    for (const dark of [true, false]) {
+      const a = tokenPairs(rolesToTokens({ ...BASE, dark })).get("--fp-furniture"), b = tokenPairs(rolesToTokens({ ...other, dark })).get("--fp-furniture");
+      expect(a, `dark ${dark}`).not.toBe("#79766e");
+      expect(a, `dark ${dark}: a different base, a different furniture colour`).not.toBe(b);
+    }
+  });
+
+  it("S23.6: user paint is dimmed on a dark theme only, through --fp-paint-dim", () => {
+    expect(tokenPairs(rolesToTokens(BASE)).get("--fp-paint-dim")).toMatch(/brightness\(0?\.\d+\)/);
+    expect(tokenPairs(rolesToTokens({ ...BASE, dark: false })).get("--fp-paint-dim")).toBe("none");
   });
 
   it("warn, danger, primary, on-dark and on-light are the same fixed pair regardless of the roles given: UI chrome, not device state", () => {

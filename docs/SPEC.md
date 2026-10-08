@@ -95,7 +95,7 @@ in `prompts/`, then fixed in the editor.
   `--fp-dev-ac-heat`, orange), one knob cannot name two of them. Decided in
   S2.10; a cool and a heat knob can come later if anyone asks.
 - `room.kind`: room, garden, pavement, fill, terrace, structure, zone, water.
-  `room.area` is the HA area id. A zone is a dotted subdivision inside a room
+  `room.area` is the HA area id. A zone is a dashed subdivision inside a room
   (a reading corner, a kitchen in an open living room): every edge is a
   `boundary`, may carry its own HA area. Water is a pool, pond or lake. Fill is
   drawn grey with diagonal hatching: floor area that is not a usable room.
@@ -155,10 +155,14 @@ in `prompts/`, then fixed in the editor.
 - `room.free` (optional): the user has unsnapped this room, so its corners are
   no snap, stitch or merge target and it can be rotated even where it still
   touches a neighbour.
-- `wall.kind`: wall (internal), boundary (dotted), external, fence, edge
-  (outdoor boundary such as a property line), parapet (a balcony's half wall:
-  120 cm tall, 20 cm thick as an external wall). The same six are the kinds of
-  a room edge.
+- `wall.kind`: wall (internal), boundary (no wall: the line between two rooms
+  of an open plan), external, fence, edge (outdoor boundary such as a property
+  line), parapet (a balcony's half wall: 120 cm tall, 20 cm thick as an
+  external wall). The same six are the kinds of a room edge. A boundary is a
+  1.5 cm dash (8 6) over its white twin. On a zone it is fainter: a 1 px dash
+  (4 3) at 35 %, the same width at any zoom, with no twin (S23.7). A boundary
+  edge of a garden, terrace, pavement or water draws nothing; the editor keeps
+  its faint guide (S23.7).
 - `stairs.shape`: straight (a polygon with treads drawn across it) or round (a
   spiral of outer diameter `dia` around an empty well of diameter `inner`,
   treads drawn as spokes). There is no curved shape: an angled or curved
@@ -267,22 +271,37 @@ in `prompts/`, then fixed in the editor.
 
 ## Card behaviours
 
-Every wall and edge line has a white twin under it, so a dark line stays visible on a dark floor.
-Every text on the plan (room, zone, device and extra names, values, edge lengths) is dark grey (`--fp-text`, #3a3a3a) with a white outline (`--fp-outline`), on any background.
-Every device icon sits on a white disc at 75 % alpha with a 1 px grey border,
-three units wider than the icon, and is drawn
-above everything else on the plan, room names included. A room name that would
-sit under a device moves down, or up, by 32 units; if both spots are taken it
-stays where it is. When a device is active, the icon and its halo (the disc)
+Every wall and edge line has a white twin under it (`--fp-outline`), so a dark line stays visible on a dark floor. A zone's
+dashed edge has none.
+Every text on the plan has an outline in `--fp-outline` and is never faded with opacity (S23.1). A room or zone name is
+`--fp-label`: `--fp-text` mixed 92 % into what the name sits on (the room's own paint, else its kind's colour; a zone
+takes the room under it), so it reads at 4.5:1 or better in every theme and on every surface. A theme may give outdoor
+names their own ink, `--fp-text-out` (solarized: base2), mixed the same way; it falls back to `--fp-text`. Device and
+extra names and values keep `--fp-text`. Room names
+are 12k, outdoor and zone names 10k, weight 500, outdoor names in italic. The font is `--fp-font`: Home Assistant's body
+font, else system-ui. Values use tabular figures and a narrow space before the unit. On the card a name is never under
+11 px, and a shrunk name never under that floor either (S23.2; `px` in `renderFloor`, measured at fit, not at zoom).
+Every device icon sits on a disc three units wider than the icon (the halo), and is drawn above everything else on the
+plan, room names included. A name stays in its own room (S23.3): it goes only where its whole box is inside the room and
+inside no smaller named room, clear of icons and other text. It tries the centroid (or the room's pole of
+inaccessibility), then spots up to 144 units left and right and 64 up and down, nearest first, then smaller sizes. When
+every spot is covered it goes on a tag, an `--fp-outline` plate drawn over the icons; neither plate nor name takes a click,
+so a tap there reaches the device under it. A garden, terrace, pavement or water too small for its name first tries the
+bare ground beside it that no other room covers; a leader is left only after that, for an area too small for its name at
+the floor size. On the card every name, tag and leader stays inside the plan's frame, minus the strip a column of
+controls covers (`bounds` in `RenderOpts`); the editor and the 3D overlay pass no bounds.
+When a device is active, the icon and its halo (the disc)
 take the colour of its type (S2.9): one `--fp-dev-<type>` variable per type,
-set on the device group as `--fp-dev` when it carries the `on` class and read
-by both the icon fill and the halo fill (the halo keeps its 25 % alpha). A
-switch or a humidity sensor falls back to idle grey, so those two look the
-same on and off. A contact device draws red whether it is a device icon or a
-door sensor. An unavailable device keeps its 45 % opacity styling regardless
-of the colour rule, no strikethrough — a drawn line across a device icon this
-small reads as noise, not signal, and Home Assistant's own dashboards dim an
-unavailable entity rather than strike it through. The camera cone stays at 25 % alpha,
+set on the device group as `--fp-dev` when it carries the `on` class. Since
+S23.4 the halo is a solid disc in that colour and the glyph on it wears
+`--fp-dev-ink`, the theme's ink that reads at 4.5:1 or better on it (else pure
+black or white). An off or idle device has no disc: its glyph alone, in
+`--fp-idle` at .7. A switch or a humidity sensor falls back to an idle grey
+disc when on. A contact device draws red whether it is a device icon or a
+door sensor. An unavailable or unknown device, of any type (S23.5), is its own
+mark: no disc, a dashed `--fp-warn` ring, the glyph at idle and a small slashed
+badge on the disc's edge, whatever the colour rule says. A bound light is
+unavailable only when every state it has is dead. The camera cone stays at 25 % alpha,
 its own grey. A room with an `entity` (never a room with an `area`) draws an
 outline in `--fp-active` while that entity is on, open or playing; the fill
 never moves. An earlier version tinted the fill instead, mixing 25 %
@@ -303,6 +322,15 @@ fainter, when it is on. `room_glow` (below) keeps the fill-mix mechanism: it
 is a distinct signal, light spilling into a room, and a warm tint is the
 honest metaphor there.
 
+Plan symbols (S23.7). A door or glass door is a gap cut in the wall with a 1 px leaf, square to the wall and as long as the
+opening, and a 90° arc; the leaf swings into the indoor room, else any room, else the smaller one. A window is three
+hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a window or slit
+also fills its whole cut with an opaque pane, a glass tint of the room colour, closed at each end by a hairline jamb, so
+the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors,
+windows and slits cut the wall; a sealed door does not and draws no symbol. Doors wear `--fp-door`, windows and slits
+`--fp-window`, glass doors `--fp-glass`, which is the window blue in every theme. A closed door's own line paints nothing;
+open, alarm and an open cover draw it and the symbol red. The symbols take no clicks; the hit line under them does. 2.5D draws the same symbols on the floor.
+
 S14.2 (interaction model): a tap on a device, a door, an unlinked appliance or an Active row never operates it. Wherever
 the "Click" column below says "toggle", "more-info" or "chooser" for a tap, read: the tap opens a popup (name, state, one
 44 px primary button, More info). The button does the old toggle as `turn_on` / `turn_off` / `open_cover` / `close_cover` /
@@ -314,15 +342,15 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 
 | Entity domain / device type | Idle | Active | Colour | Click |
 |---|---|---|---|---|
-| light | grey icon | yellow icon and halo, brightness as opacity, plus a round aura 300 cm across (S8.13) in the same colour at 25 % alpha, drawn under walls, doors and names | `--fp-dev-light` (#e0a800) | popup (Turn on/off); long press: more-info |
+| light | grey icon | a solid yellow disc with the glyph in its ink; brightness scales the aura, not the disc (S23.4); plus a round aura 300 cm across (S8.13) in the same colour, 55 % at the lamp and falling to nothing at its edge (S23.8), clipped to the lamp's room, screen-blended on a dark theme and multiplied on a light one, drawn under walls, doors and names | `--fp-dev-light` (#e0a800) | popup (Turn on/off); long press: more-info |
 | smart light (`rgb_color`) | grey icon | icon, halo and aura in the light's own colour from HA, yellow when it reports none | the light's own `rgb_color`, or `--fp-dev-light` | popup (Turn on/off); long press: more-info |
 | light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | as light | popup for the light entity; long press: more-info for it (the switch is reachable from that dialog — `bound` is deliberately never one of S10.4's chooser entities, see docs/DECISIONS.md) |
 | switch (wall switch) | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | popup (Turn on/off) |
 | plug | grey | blue icon and halo while it draws `plug_watts` (2 W) or more; a plug switched on but idle stays grey. With no power sensor: while the switch is on | `--fp-dev-plug` (#2c7fb8) | popup (Turn on/off) |
 | binary_sensor on a door or window, or an attached `lock` left unlocked | door drawn normally | door drawn red and dashed, over a wide red line pulsing under it (S8.13 line, S9.1 dash; steady under reduced motion), the same for an open contact or an unlocked lock (2026-09-28). A cover door's own open state is undashed and keeps its plain orange, even on a door with both | `--fp-open-door`, default `var(--fp-dev-contact)` (#d64545); card's `open_color` overrides both the door and the line (S9.1) | more-info for its one entity; a door naming more than one (a contact sensor and a vibration sensor, or either plus a `lock`) opens a chooser listing all of them instead (S10.4). Never on a door with a `cover`: a plain tap there always opens its own confirm dialog, but a long press opens the chooser instead, the cover entity included (S10.3 review) |
 | door with a `vibration` sensor triggered | door drawn normally | door drawn the same red as an open contact, over the same pulsing alert line, but solid — dashed still means "open" alone. Open and vibrating together stay dashed (open wins the dash) and share one alert line, not two (S10.3) | `--fp-open-door`, same token and `open_color` override as an open contact | more-info (on the vibration sensor; it also joins the Active panel under the door's name); as above, a chooser instead when the door names more than one entity (S10.4), the long-press chooser on a `cover` door (S10.3 review) |
-| contact (device icon) | grey | red icon, halo filled at 60 % and ringed red, and a red ring pulsing out from under the disc (S8.13) | `--fp-dev-contact` (#d64545) | more-info |
-| motion (binary_sensor motion/occupancy) | grey | icon red, fading to grey over `fade` seconds (default 120) from the moment it goes off (`last_changed`); halo red at once, filled at 60 % and ringed red, with a red ring pulsing out from under the disc while it is on (S8.13) | `--fp-dev-motion` (#d64545) | more-info |
+| contact (device icon) | grey | a solid red disc with a 2 px `--fp-outline` ring (S23.4), and a red ring pulsing out from under the disc (S8.13) | `--fp-dev-contact` (#d64545) | more-info |
+| motion (binary_sensor motion/occupancy) | grey | icon red, fading to grey over `fade` seconds (default 120) from the moment it goes off (`last_changed`); halo a solid red disc at once with a 2 px `--fp-outline` ring (S23.4), and a red ring pulsing out from under the disc while it is on (S8.13) | `--fp-dev-motion` (#d64545) | more-info |
 | temp, humidity (sensor) | grey icon, value as a label next to it | humidity: grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
 | temp or humidity sensor inside a room of kind garden | green icon (class `outdoor`, from the centre of the icon) | as its type | `--fp-dev-garden` (#3f8f4f) idle, as its type when on | more-info |
 | heater, climate (TRV, thermostat) | heater bar grey with target; icon and halo grey | orange icon and halo when heating | `--fp-dev-heater` / `--fp-dev-climate` (#e8801a) | with `trvs`/`tempSensors` attached: tap opens a chooser listing the heater plus all of them, never a guess (S10.4); long press opens more-info for the heater alone (S10.3 review). With none attached: popup; long press: more-info, unchanged |
@@ -346,7 +374,7 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 | vacuum (`vacuum.*`) | `docked`, `idle`, `paused`: grey icon, no brighter than off | `cleaning`: teal icon and halo, slowly spinning; `returning`: teal icon and halo, not spinning; `error`: `--fp-danger` icon, neither on nor off | `--fp-dev-vacuum` (#2f8f8f) / `--fp-danger` (#b02a2a) on error | opens a dialog: Start, Pause, Return to dock, each a `vacuum.*` service call; Cancel closes it. `unavailable`/`unknown` disables the three actions, Cancel stays enabled |
 | room with `entity` | own kind colour, no outline | own kind colour, unmoved, plus an outline when the entity is on, open or playing | `--fp-active` stroke (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | furniture with `entity` | idle grey (`currentColor`) | `--fp-active`, chosen per theme for at least 3:1 contrast against both `--fp-room` and `--fp-bg` | `--fp-active` (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
-| unavailable / unknown | 45 % opacity, no strikethrough | — | — | more-info |
+| unavailable / unknown (any type, S23.5) | no disc, a dashed `--fp-warn` ring, the glyph at `--fp-idle` .7, and a small badge (a circle in `--fp-bg` with a `--fp-warn` slash) at the disc's top right; not faded | — | `--fp-warn` | more-info |
 | night (S7.6) | day: no overlay | after sunset every room (outdoor kinds too; zones, structures and stairs share their room's) is covered by `--fp-night`; a room with an on light inside it stays clear | `--fp-night` (rgba(4, 10, 30, .45), every theme) | none |
 
 S10.4: wherever the table above says "more-info" or "chooser" for a device,
@@ -521,7 +549,7 @@ card. The editor is unchanged — it always passed its own zoom, never `1`.
 
 **View memory per floor (S14.4).** The card remembers, per browser, what each floor was left looking like: in 2D and 2.5D the zoom, the spot zoomed to and the turn; in 3D the camera (azimuth, polar angle, distance, look-at point). Coming back to a floor, by its chip or by a reload, restores it; a floor never touched starts at the config's look. Storage is `localStorage` only, in a `floors` list of `[floor key, view]` inside the card's `fp-view:` entry, wrapped in try/catch; with storage blocked the floors still remember for the life of the page. The 3D distance is stored as a multiple of the distance that frames the floor and the look-at point as an offset from the floor's centre, so a restore in a differently shaped card frames the same. Reset view (and Reset camera, in 3D) clears the shown floor's memory and no other floor's. Every stored number is untrusted and bounded on read. The editor already keeps its own zoom per floor and does not draw 3D; its single turn stays single (see DECISIONS, 2026-10-06 S14.4).
 
-`theme` is blueprint unless the dashboard says otherwise. `light` is the paper-and-ink set; `midnight` is the project's first dark theme, kept under its own name once blueprint moved on to a new palette (2026-09-22). `ha` inherits the dashboard's own theme: ground from `--card-background-color`, rooms from `--secondary-background-color`, walls and text from `--primary-text-color`, measure marks from `--secondary-text-color`. Each has the plain light or midnight set as its fallback, chosen by `hass.themes.darkMode`, so a dashboard that defines none of them still draws. Warn, danger and primary (the UI chrome, not a device's own colour) never follow the theme: they and their on-dark/on-light text are the same fixed pair everywhere, because they already clear 4.5:1 against it. The card ignores the OS colour scheme.
+`theme` is blueprint unless the dashboard says otherwise. `light` is the paper-and-ink set; `midnight` is the project's first dark theme, kept under its own name once blueprint moved on to a new palette (2026-09-22). `ha` inherits the dashboard's own theme: ground from `--card-background-color`, rooms from `--secondary-background-color`, walls and text from `--primary-text-color`, measure marks from `--secondary-text-color`. Each has the plain light or midnight set as its fallback, chosen by `hass.themes.darkMode`, so a dashboard that defines none of them still draws. In HA's dark mode a 2.5D wall's side face is 30 % of the wall into the background, not the 55 % every other theme uses, so a light wall colour still makes a dark slab (Opus review of Sprint 23, S2). Warn, danger and primary (the UI chrome, not a device's own colour) never follow the theme: they and their on-dark/on-light text are the same fixed pair everywhere, because they already clear 4.5:1 against it. The card ignores the OS colour scheme.
 
 ### Role-generated themes (S4.21, 2026-09-22)
 
@@ -539,11 +567,12 @@ card. The editor is unchanged — it always passed its own zoom, never `1`.
 | `carpenter-brut` | near-black maroon | pale pink | dark crimson | hot pink |
 | `beach-house` | sand (light) | driftwood brown | sea teal | palm green |
 
-A theme's role definition may also override `roomEmpty`, the fill an unpainted room gets (below): left out, every theme
-shares the same light grey; `a-team`, `space`, `cyberpunk` and `carpenter-brut` each set their own dark shade instead, since
-that fixed light grey read as a hole punched through their own dark, saturated walls (Diego, 2026-09-28). `coffee` and
-`beach-house` keep the shared default — coffee's own base already warms the plan enough around it, and beach-house is a
-light theme like `light`/`slate`, where the shared grey was never the problem.
+Every surface follows the theme (S23.6). An unpainted room on a dark theme takes the theme's own room shade from its ramp
+(blueprint #132237, midnight and HA dark `--fp-room`, solarized #06323d); a light theme keeps the light grey #d6d6d2. A
+theme's role definition may still override `roomEmpty`. Furniture is a ramp shade too, not one flat grey. On a dark theme a
+room or stair painted its own colour is dimmed by a filter (`--fp-paint-dim`); the stored colour never changes. Garden,
+terrace and pavement take ramp shades on the generated themes. The values per theme are in docs/DECISIONS.md, 2026-10-08
+(S23.6).
 
 `solarized` is bespoke, not role-generated: the real Solarized dark palette (base03 ground through base3 linework, its eight accent hues), each device type kept in its own Solarized colour rather than collapsed to one accent — Diego's call, 2026-09-22, real Solarized fidelity over reuse.
 
@@ -564,7 +593,7 @@ light theme like `light`/`slate`, where the shared grey was never the problem.
 - Draw is its own menu: room, zone, water, outline, wall of any kind, opening,
   structure line, by clicking points (double-click or Enter ends, Esc cancels).
   Walls that close, a click back on the first corner after three or more,
-  become a room (wall, external), a zone (dotted) or a garden (fence, edge)
+  become a room (wall, external), a zone (dashed) or a garden (fence, edge)
   and the walls go. It has no HA area yet, is selected, and its name field
   has focus. One undo removes it. The perimeter outline is not converted.
 - A new wall, structure, zone, stairs or piece of furniture lands top right,

@@ -96,7 +96,7 @@ test("S7.11: the card never draws a floor's trace image, even one that is on", a
   expect(counts.images).toBe(0);
 });
 
-test("S2.2 review: a lit light's rgb_color resolves through the cascade to the icon's actual computed fill", async ({ page }) => {
+test("S2.2 review: a lit light's rgb_color resolves through the cascade to the disc's actual computed fill (S23.4: the disc wears it)", async ({ page }) => {
   await open(page);
   await configure(
     page,
@@ -105,8 +105,7 @@ test("S2.2 review: a lit light's rgb_color resolves through the cascade to the i
   );
   const fill = await page.locator("floorplan-studio-card").evaluate((el) => {
     const g = el.shadowRoot!.querySelector('g[data-x="1"]')!;
-    const path = g.querySelector("path")!;
-    return getComputedStyle(path).fill;
+    return getComputedStyle(g.querySelector(".halo")!).fill;
   });
   expect(fill).toBe("rgb(255, 0, 0)");
 });
@@ -120,8 +119,7 @@ test("S2.2 review: with no rgb_color the icon's computed fill falls back to --fp
   );
   const fill = await page.locator("floorplan-studio-card").evaluate((el) => {
     const g = el.shadowRoot!.querySelector('g[data-x="1"]')!;
-    const path = g.querySelector("path")!;
-    return getComputedStyle(path).fill;
+    return getComputedStyle(g.querySelector(".halo")!).fill;
   });
   expect(fill).not.toBe("rgb(255, 0, 0)");
 });
@@ -138,7 +136,7 @@ test("S2.5 CSS pair: the heater bar's stroke is idle grey off and the heater col
     { layout: structuredClone(demo) },
     { states: { "climate.demo_living": { state: "heat", attributes: { hvac_action: "idle" }, last_changed: new Date().toISOString() } } },
   );
-  expect(await heaterStroke()).toBe("rgb(43, 86, 151)"); // blueprint's --fp-idle, #2b5697
+  expect(await heaterStroke()).toBe("rgb(136, 143, 153)"); // blueprint's --fp-idle, #888f99 since S23.4 (V11: a desaturated idle; was #2b5697)
 
   await configure(
     page,
@@ -399,7 +397,11 @@ test("S2.10 CSS pair: an air conditioner's icon is blue cooling, orange heating,
   const idx = layout.floors.ground.devices.length - 1;
   const fillFor = async (state: string, attributes: Record<string, unknown>) => {
     await configure(page, { layout, theme: "light" }, { states: { "climate.demo_ac": { state, attributes, last_changed: new Date().toISOString() } } });
-    return page.locator("floorplan-studio-card").evaluate((el, i) => getComputedStyle(el.shadowRoot!.querySelector(`g[data-x="${i}"] path:not(.cone)`)!).fill, idx);
+    // S23.4: on, the disc wears the colour; off, there is no disc and the glyph is idle. Read the disc when it shows.
+    return page.locator("floorplan-studio-card").evaluate((el, i) => {
+      const g = el.shadowRoot!.querySelector(`g[data-x="${i}"]`)!, h = getComputedStyle(g.querySelector(".halo")!);
+      return parseFloat(h.fillOpacity) > 0 ? h.fill : getComputedStyle(g.querySelector("path:not(.cone)")!).fill;
+    }, idx);
   };
   expect(await fillFor("cool", { hvac_action: "cooling" })).toBe("rgb(44, 127, 184)");
   expect(await fillFor("heat", { hvac_action: "heating" })).toBe("rgb(232, 128, 26)");
@@ -408,8 +410,8 @@ test("S2.10 CSS pair: an air conditioner's icon is blue cooling, orange heating,
   expect(await fillFor("off", { hvac_action: "cooling" })).toBe(idle);
 });
 
-// S2.13: the four monitored types draw their own icon in the idle grey on the round disc, whatever the entity says.
-test("S2.13 CSS pair: battery, inverter, server and access point draw an icon in idle grey on the disc", async ({ page }) => {
+// S2.13: the four monitored types wear the idle grey whatever the entity says. S23.4: "on", that grey is the solid disc.
+test("S2.13 CSS pair: battery, inverter, server and access point draw an icon on an idle grey disc", async ({ page }) => {
   await open(page);
   const layout = structuredClone(demo);
   const types = ["battery", "inverter", "server", "access_point"];
@@ -420,7 +422,7 @@ test("S2.13 CSS pair: battery, inverter, server and access point draw an icon in
     const idle = getComputedStyle(el.shadowRoot!.querySelector("svg")!).getPropertyValue("--fp-idle").trim();
     return { idle, items: Array.from({ length: n as number }, (_, k) => {
       const g = el.shadowRoot!.querySelector(`g[data-x="${(f as number) + k}"]`)!;
-      return { d: g.querySelector("path")!.getAttribute("d")!.length, fill: getComputedStyle(g.querySelector("path")!).fill, halo: !!g.querySelector("circle.halo") };
+      return { d: g.querySelector("path")!.getAttribute("d")!.length, fill: getComputedStyle(g.querySelector("circle.halo")!).fill, halo: !!g.querySelector("circle.halo") };
     }) };
   }, [first, types.length]);
   const rgb = (h: string) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(", ")})`;
@@ -1507,7 +1509,7 @@ test("S8.11: two cards showing the same floor mint the same (content-derived) ma
 
   const html1 = await svgHtml(page, "card"), html2 = await svgHtml(page, "card2");
   const ids1 = maskIdsIn(html1), ids2 = maskIdsIn(html2);
-  expect(ids1, "the first floor's one opening should produce exactly one mask").toHaveLength(1);
+  expect(ids1, "the first floor's opening and window share exactly one mask").toHaveLength(1);
   expect(ids2).toEqual(ids1); // same content -> same deterministic id, in each card's own scope
   expect(html1).toContain(`mask="url(#${ids1[0]})"`);
   expect(html2).toContain(`mask="url(#${ids2[0]})"`);
@@ -1515,10 +1517,12 @@ test("S8.11: two cards showing the same floor mint the same (content-derived) ma
   // Mutate only card2 (a different opening: different content -> a different id, or none at all here) and
   // confirm card1's own svg — id, mask content, everything — is untouched by whatever card2 now does.
   const layout2 = structuredClone(demo);
+  // S23.7: a window cuts the wall too, so card2 drops the window as well as the opening
   layout2.floors.first.openings = [];
+  layout2.floors.first.doors = [];
   await configureId(page, "card2", { layout: layout2, floor: "first" }, { states: {} });
   const html2b = await svgHtml(page, "card2");
-  expect(maskIdsIn(html2b), "card2 now has no openings, so no mask at all").toHaveLength(0);
+  expect(maskIdsIn(html2b), "card2 now has no openings or windows, so no mask at all").toHaveLength(0);
   const html1b = await svgHtml(page, "card");
   expect(html1b).toBe(html1); // card1 rendered nothing new: still the same markup, same mask, same id
 });
@@ -2614,7 +2618,7 @@ test("CSS pair: an open garage cover is drawn in the cover colour, an open curta
   const idx = devices.length - 1;
   const read = () => page.locator("floorplan-studio-card").evaluate((el, i) => {
     const g = el.shadowRoot!.querySelector(`svg g[data-x="${i}"]`)!;
-    return { fill: getComputedStyle(g.querySelector("path:not(.halo)")!).fill, cover: getComputedStyle(g).getPropertyValue("--fp-dev-cover").trim() };
+    return { fill: getComputedStyle(g.querySelector(".halo")!).fill, cover: getComputedStyle(g).getPropertyValue("--fp-dev-cover").trim() }; // S23.4: the disc wears it
   }, idx);
   const rgbOf = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ")})`;
   const now = new Date().toISOString();

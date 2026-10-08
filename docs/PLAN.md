@@ -2645,3 +2645,30 @@ warns about a shared relay. Still open, each with its failing test first:
 - [ ] S22.F3 The guide test checks control names, not menu paths. Test: each "[Menu], then [Item]" path in the guide opens with real clicks.
 - [ ] S22.F4 A room panel row for a relay-lit lamp shows the light's own state ("off") while the plan draws it on. Test: the row reads on, via the relay.
 - [ ] S22.F5 The "Plan unlocked" toast overlaps the top of the Place popup at 1024x768. Test: the two boxes do not intersect.
+
+## Sprint 23 (0.21.0): visual foundations
+
+Branch `task/s23-visual`. From the visual review (V-ids, review of 2026-10-08). Direction: calm plan, live accents; off is quiet, on is solid. Each task: one outcome, its failing test first; every rule that matters gets its `getComputedStyle` pair (finding 10); every per-type rule iterates `DEVICE_TYPES` (finding 17). Out of scope here: semantic zoom and count chips (sprint 25), reference-scale placement (sprint 25), 3D shadows, trees and openings (sprint 28), card chrome (sprint 29).
+- [x] S23.1 (V2, V7, V8) One label style. Room names lose `opacity=".5"`; new token `--fp-label` (text mixed into the room colour), 12 px, weight 500, halo at `--fp-outline`. One `--fp-font` (HA's body font, else system-ui) for labels, values and chrome. Values use tabular-nums and a narrow no-break space before the unit. Zone and outdoor names: 10 px, 500, no opacity, outdoor in italic. Test: computed-style pairs; a contrast test over every theme, label against its room, at least 4.5:1.
+- [x] S23.2 (V1) An 11 px floor. On a narrow card, room names never render under 11 CSS px and device discs never under 28 CSS px. Test: the card at 390 px wide, measured boxes of a room name and a disc.
+- [x] S23.3 (V3, V6) Names stay in their room. More candidates (horizontal offsets, the pole of inaccessibility), a smaller font (down to 7k) before leaving the room, a tag on top when every spot is covered, and 2.5D stem feet count as obstacles. Test: on the demo and the stress layout, no room name's box lies in another room, and none sits under a device disc; 2.5D Hall stays in Hall.
+- [x] S23.4 (V9 first rule, V10, V11) Off is quiet, on is solid. Off and idle devices: glyph only, no disc, `--fp-idle` at .7. On: a filled `--fp-dev` disc with an ink glyph chosen per theme for 4.5:1. Blueprint idle is desaturated. Test: iterate `DEVICE_TYPES` x every theme, on-glyph contrast at least 4.5:1; computed-style pairs for off and on.
+- [x] S23.5 (V12) Unavailable is its own mark: a dashed `--fp-warn` ring, the glyph at idle, a small slash badge. A dead light, switch or plug is drawn unavailable, not off. Test: iterate `DEVICE_TYPES`, unavailable differs from off in the DOM and in computed style.
+- [x] S23.6 (V16, V17, V23) Every surface follows the theme. Dark themes take empty rooms from their ramp; midnight gardens, terrace and pavement come from the ramp; furniture takes body and edge from the ramp; user paint is dimmed on dark themes (`--fp-paint-dim`), never recoloured; the checker texture is softened. Test: over every theme, empty room vs board and label vs empty room contrast; computed-style pairs.
+- [x] S23.7 (V19, V20) Plan symbols. A door is a gap, a 1 px leaf and a 90° swing arc; a window is three hairlines across the wall; `--fp-glass` is window blue; red only when open. Outdoor kinds draw no outline; zones a 1 px dash at 35 %. 2D and 2.5D. Test: unit on the drawn paths (arc present, three lines), computed-style pairs, open still red.
+- [x] S23.8 (V13, V14) Light is light. 2D glow is a radial falloff clipped to the light's room (the cone's clipPath), screen-blended on dark themes, multiply on light. 3D light-theme glow capped and warm-white. Test: a pixel probe just outside the room's wall shows no glow; computed blend per theme kind.
+- [x] S23.9 Verify: lint, unit, Playwright bare; `npm run shots` on every theme, looked at, before and after in the report.
+
+### Follow-ups from the Sprint 23 review
+
+- [ ] S23.F1 Leaders at 375 px with the controls in a column: add each placed leader to the obstacles and prefer spots off
+      other rooms' interiors. "Garden pond" crosses the Hall's outer wall and the Garden leader runs through it
+      (`render.ts` leader fallback).
+- [ ] S23.F2 Window lines under 3:1 on the new pane in light (2.4) and solarized (2.8). Try the pane as `--fp-bg` mixed
+      15 % glass, and check the cut does not read as a hole again.
+- [ ] S23.F3 Put `--fp-text-out` in the generic `:host,.fp,[data-theme]` defaults so a nested theme group cannot inherit
+      solarized's outdoor ink.
+- [ ] S23.F4 `strip-css-comments.mjs`: inside `url(`, skip a leading quoted string first, so `url("a)b")` cannot flip the
+      quote state.
+- [ ] S23.F5 Left by the coders: paint dim in 3D; a heavier dash on a selected zone; 3D walls on HA dark still mix 55 %;
+      JSDoc still ships in the card (about 16 KB gzip); `docs/img/themes/*.png` are out of date.

@@ -636,7 +636,9 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     pools.set(pickLights(here, centre, MAX_POOLS).map((l) => { const r = roomSolid.get(l.room)!; return { at: l.at, z: r.z, base: r.base, rgb: l.rgb, level: l.level, room: l.room, boost: mode.boost, scale: l.scale }; }));
     container.dataset.pools = `${pools.visible()}/${here.length}`;
     // The same lamps light the walls of their rooms: a lamp's own height is its icon's (held under the walls), else a standing lamp's.
-    glowSpecs = pickLights(here, centre, MAX_POOLS).map((l) => { const r = roomSolid.get(l.room)!; return { at: l.at, lampZ: deviceZ.get(l.device) ?? r.z + 200, base: r.base, rgb: l.rgb, level: l.level, room: l.room, boost: mode.boost, scale: l.scale }; });
+    // S23.8: the theme kind is the one the 2D glow blends by (`--fp-glow-blend`, ink.ts themeExtras): multiply means a light theme.
+    const light = getComputedStyle(probe).getPropertyValue("--fp-glow-blend").trim() === "multiply";
+    glowSpecs = pickLights(here, centre, MAX_POOLS).map((l) => { const r = roomSolid.get(l.room)!; return { at: l.at, lampZ: deviceZ.get(l.device) ?? r.z + 200, base: r.base, rgb: l.rgb, level: l.level, room: l.room, boost: mode.boost, scale: l.scale, light }; });
     glow.set(glowSpecs, wallSides, sidesVersion, roomShapes);
     overlay.set(L, anchors);
     applyBalls();

@@ -6,6 +6,7 @@ import { resolveStairDirection, type FloorsAround } from "./stairs";
 import { DEVICE_TYPES, drawsEffect, fxScale, isSiren, MAX_TRACE_BYTES, MOTION_TYPES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
+import { heatColour, inkFor, mixSrgb, themeExtras } from "./ink";
 import { esc, num, pts, tag } from "./fmt";
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
@@ -20,6 +21,14 @@ export interface RenderOpts {
   /** S11.3: the room the card has picked (its left panel shows it); drawn with an outline, class `picked`. The editor draws its own selection in an overlay and never passes this. */
   selectedRoom?: number;
   scale: number; selection?: { t: string; i: number } | null; showNames?: boolean; filter?: DeviceType[];
+  /** S23.2: screen pixels per plan unit, when the host knows it (the card measures its own plan). Then no name draws
+   *  under `NAME_MIN_PX` and, with it, no device disc under 28 px. Omitted (the editor, whose `scale` is already its
+   *  zoom), nothing changes. */
+  px?: number;
+  /** S23 review S3: the part of the drawing, in its on-screen frame (the view box's own units), a room name, its tag and
+   *  its leader may use: the card passes its fit box less the strip its controls cover. A candidate that leaves it is
+   *  rejected. Omitted (the editor), nothing changes. */
+  bounds?: { x: number; y: number; w: number; h: number };
   state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
@@ -90,6 +99,15 @@ export type Theme = (typeof THEMES)[number];
 const paintAttr = (r: { color?: string; texture?: string; textureRot?: number; textureScale?: number }) =>
   typeof r.texture === "string" && TEXTURE_IDS.includes(r.texture) ? ` fill="url(#${texturePatternId(r.texture, normTextureRot(r.textureRot), normTextureScale(r.textureScale))})"` : typeof r.color === "string" && COLOR.test(r.color) ? ` fill="${r.color}"` : "";
 
+/** S23.1: the surface each kind paints when it has no paint of its own, the colour a name on it mixes into. A zone and a
+ *  fill draw no surface of their own; a zone's name takes the room under it. A new kind fails a test until it is decided. */
+const SURFACE: Record<RoomKind, string> = { room: "--fp-room-empty", structure: "--fp-room-empty", garden: "--fp-garden", terrace: "--fp-terrace", pavement: "--fp-pavement", water: "--fp-water", fill: "--fp-fill", zone: "--fp-room-empty" };
+/** The ` style` that tells a name's `--fp-label` what it sits on: the room's own colour when it has a valid one, else its kind's token. */
+const underOf = (r: { kind: RoomKind; color?: unknown; texture?: unknown }): string => {
+  const own = !(typeof r.texture === "string" && TEXTURE_IDS.includes(r.texture)) && typeof r.color === "string" && COLOR.test(r.color);
+  return ` style="--fp-under:${own ? String(r.color) : `var(${SURFACE[r.kind] ?? "--fp-room-empty"})`}"`;
+};
+
 /** The colour each device type has when `layout.colors` says nothing: the `--fp-dev-*` defaults below; types with none of their own use the idle grey. */
 export const DEVICE_COLOURS: Record<DeviceType, string> = {
   heater: "#e8801a", light: "#e0a800", switch: "#8b8578", plug: "#2c7fb8", temp: "#8b8578", humidity: "#8b8578", motion: "#d64545",
@@ -103,8 +121,8 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
 // S1.53: the light and dark (now blueprint) token sets, each written once and interpolated wherever CSS needs it, so a new
 // token can never be added to one selector and forgotten in another. The "ha" theme is built from the same two.
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-room-empty:#d6d6d2;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
---fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-speaker:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
+--fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#2c7fb8;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-speaker:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
 /* Midnight (Diego's call, 2026-09-21, ex-"blueprint"): a deep navy ground, blue linework for walls, cool-white text, from the
    reference screenshot he supplied. It replaced HA's night-blue; light is unchanged. Every accent that carries meaning (device colours, the warn/danger/primary
@@ -112,10 +130,14 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ro
    none needed lightening. Only the neutrals (ink, bg, room, wall, disc, halo, tread, outline, measure,
    wall-external/-fence) change, because those are the tokens a dark background actually breaks. Renamed to "midnight" on
    2026-09-22 when "blueprint" moved on to the role-generated palette below (Diego's brief: four roles - a blue base, a white
-   foreground, a terminal-green line colour and a saturated orange accent). */
-const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp-room-empty:#d6d6d2;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#8fb4f0;--fp-idle:#8b8578;
---fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#1b9e77;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-speaker:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
+   foreground, a terminal-green line colour and a saturated orange accent). S23 review S6: water and the stair fill were
+   still light's pale #a9cfe3 and #c4c0b8, a light name on light water (1.2:1) and a pale block on a navy plan. Both now
+   come from the navy ramp: water a deeper blue, the fill a step above the room with a hatch the wall blue would draw.
+   Glass and window are a lighter blue, #5fa8e8: light's #2c7fb8 was 2.8:1 on the dark window pane, under the 3:1 a
+   line on the plan needs. The TV keeps #2c7fb8 (S9.3). */
+const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp-room-empty:var(--fp-room);--fp-garden:#1d2a42;--fp-terrace:#21304c;--fp-pavement:#233352;--fp-wall:#8fb4f0;--fp-idle:#8b8578;
+--fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#5fa8e8;--fp-window:#5fa8e8;--fp-sealed:#9a8f80;--fp-water:#1f4a78;--fp-fill:#1a2a46;--fp-fill-line:#3a5684;
+--fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-speaker:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
 
 // The three role-generated themes (2026-09-22, Diego's brief): each is one base hue shaded into every structural token, one
@@ -127,14 +149,12 @@ const SLATE_TOKENS = rolesToTokens({ base: "#9a9a96", fg: "#2b2a27", fgAlpha: .5
 const TERMINAL_TOKENS = rolesToTokens({ base: "#0c1512", fg: "#35d47a", fgAlpha: .5, line: "#35d47a", accent: "#ffb000", dark: true });
 
 // Five more role-generated presets (2026-09-28, Diego's picks), the same four-colour system as the three above.
-// coffee's own base already carries a warm brown across bg/walls, so the default grey `roomEmpty` sits fine against
-// it; a-team/space/cyberpunk/carpenter-brut are dark and far more saturated, and the same fixed light grey read as a
-// hole punched in the plan (Diego, 2026-09-28) - each gets its own dark roomEmpty instead, a shade of its own base.
+// S23.6: like every dark generated theme, their empty room is their own room shade (rolesToTokens).
 const COFFEE_TOKENS = rolesToTokens({ base: "#2b1d14", fg: "#f3e5d0", fgAlpha: .5, line: "#a9713c", accent: "#f2a134", dark: true });
-const A_TEAM_TOKENS = rolesToTokens({ base: "#141414", fg: "#e8e8e8", fgAlpha: .5, line: "#cc1f1f", accent: "#d4af37", dark: true, roomEmpty: "#242424" });
-const SPACE_TOKENS = rolesToTokens({ base: "#050814", fg: "#eaf2ff", fgAlpha: .5, line: "#4fd8ff", accent: "#b14aff", dark: true, roomEmpty: "#141b33" });
-const CYBERPUNK_TOKENS = rolesToTokens({ base: "#0b0014", fg: "#00e5ff", fgAlpha: .5, line: "#ff2bd6", accent: "#f9f002", dark: true, roomEmpty: "#22093a" });
-const CARPENTER_BRUT_TOKENS = rolesToTokens({ base: "#170406", fg: "#ffd9e8", fgAlpha: .5, line: "#8f1022", accent: "#ff2f6e", dark: true, roomEmpty: "#2b0a10" });
+const A_TEAM_TOKENS = rolesToTokens({ base: "#141414", fg: "#e8e8e8", fgAlpha: .5, line: "#cc1f1f", accent: "#d4af37", dark: true });
+const SPACE_TOKENS = rolesToTokens({ base: "#050814", fg: "#eaf2ff", fgAlpha: .5, line: "#4fd8ff", accent: "#b14aff", dark: true });
+const CYBERPUNK_TOKENS = rolesToTokens({ base: "#0b0014", fg: "#00e5ff", fgAlpha: .5, line: "#ff2bd6", accent: "#f9f002", dark: true });
+const CARPENTER_BRUT_TOKENS = rolesToTokens({ base: "#170406", fg: "#ffd9e8", fgAlpha: .5, line: "#8f1022", accent: "#ff2f6e", dark: true });
 
 // beach-house (2026-09-28, Diego's pick): a light theme, sand for the base (bg through walls), sea teal for the
 // measurement line, palm-green as the one accent for anything "on". fg is a driftwood-dark brown-grey, enough
@@ -145,11 +165,13 @@ const BEACH_HOUSE_TOKENS = rolesToTokens({ base: "#e3cd9c", fg: "#3a3226", fgAlp
    The dark variant, base03 background, base1 body text; each device type keeps its own Solarized hue rather than collapsing
    to one accent, demonstrating the per-type override the theme format supports. S9.3: --fp-dev-tv was #6c71c4 (Solarized
    violet), which read as blue-ish but was not blue; it is now #268bd2, Solarized's own blue (the same hex as --fp-window
-   and --fp-dev-ac-cool here) — TV is the one exception to "each type keeps its own hue" too. */
-const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#d6d6d2;--fp-garden:#586e75;--fp-terrace:#657b83;--fp-pavement:#586e75;--fp-wall:#93a1a1;--fp-idle:#586e75;
---fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#dc322f;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#2aa198;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#268bd2;--fp-fill:#073642;--fp-fill-line:#586e75;
---fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-speaker:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#79766e;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
---fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact)`;
+   and --fp-dev-ac-cool here) — TV is the one exception to "each type keeps its own hue" too. S23 review S6: base1 is
+   near 3.2:1 on the outdoor shades and 1.3:1 on the blue, so outdoor names take base2 (--fp-text-out) and water is
+   Solarized blue 55 % over base03, #15608c; windows keep the full blue. */
+const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#06323d;--fp-garden:#11424f;--fp-terrace:#124c5b;--fp-pavement:#135161;--fp-wall:#93a1a1;--fp-idle:#586e75;
+--fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#dc322f;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#268bd2;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#15608c;--fp-fill:#073642;--fp-fill-line:#586e75;
+--fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-speaker:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
+--fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact);--fp-text-out:#eee8d5`;
 /* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
    fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
    nothing. Not mapped, on purpose: primary, danger, warn. HA's error and warning colours fail 4.5:1 against the fixed white or dark text on our
@@ -158,6 +180,28 @@ const haTokens = (base: string, fb: Record<string, string>) => `${base};
 --fp-ink:var(--primary-text-color,${fb.ink});--fp-text:var(--primary-text-color,${fb.text});--fp-bg:var(--card-background-color,${fb.bg});--fp-room:var(--secondary-background-color,${fb.room});--fp-wall:var(--primary-text-color,${fb.wall});--fp-wall-external:var(--primary-text-color,${fb.wallExternal});--fp-outline:var(--card-background-color,${fb.outline});--fp-disc:var(--card-background-color,${fb.disc});--fp-measure:var(--secondary-text-color,${fb.measure})`;
 const HA_LIGHT = haTokens(LIGHT_TOKENS, { ink: "#2b2a27", text: "#3a3a3a", bg: "#f4f0e6", room: "#e9e3d3", wall: "#2b2a27", wallExternal: "#1a1917", outline: "#fff", disc: "#fff", measure: "#3a3a3a" });
 const HA_DARK = haTokens(MIDNIGHT_TOKENS, { ink: "#d8e2f2", text: "#d8e2f2", bg: "#0d1522", room: "#14213a", wall: "#8fb4f0", wallExternal: "#b4cdf7", outline: "#0d1522", disc: "#14213a", measure: "#8fb4f0" });
+
+
+/* S23.4 and S23.8: what each theme adds on top of its tokens (ink.ts `themeExtras`): a glyph ink per disc colour, picked for
+   4.5:1 on that solid disc, and the glow's blend (screen on a dark theme, multiply on a light one). Written once here, after
+   the token constants, so no theme constant had to change. Blueprint's idle is the one token it replaces (V11): shade .42 of
+   its base was a saturated mid-blue that made "off" read as active; 55 % of its foreground into its background is a quiet
+   blue-grey, and every token that was the old idle (the camera and garden-sensor tints) follows it. */
+const tokenOf = (t: string, k: string) => new RegExp(`(?:^|;)\\s*${k}:([^;]+)`).exec(t)?.[1].trim() ?? "";
+const BLUEPRINT_IDLE = mixSrgb(tokenOf(BLUEPRINT_TOKENS, "--fp-ink"), tokenOf(BLUEPRINT_TOKENS, "--fp-bg"), 0.55);
+const themeSel = (n: string, extra = "") => `:host([data-theme="${n}"]${extra}),:host([data-theme="${n}"]${extra}) .fp,[data-theme="${n}"]${extra}`;
+const THEME_EXTRAS = [
+  `:host,.fp{${themeExtras(BLUEPRINT_TOKENS, true, BLUEPRINT_IDLE)}}`,
+  `:host,.fp,[data-theme]{--fp-pure-black:#000;--fp-pure-white:#fff;--fp-wall-side-share:55%}`,
+  ...([["blueprint", BLUEPRINT_TOKENS, true, BLUEPRINT_IDLE], ["midnight", MIDNIGHT_TOKENS, true], ["light", LIGHT_TOKENS, false], ["slate", SLATE_TOKENS, false],
+    ["terminal", TERMINAL_TOKENS, true], ["solarized", SOLARIZED_TOKENS, true], ["ha", HA_LIGHT, false], ["coffee", COFFEE_TOKENS, true], ["a-team", A_TEAM_TOKENS, true],
+    ["space", SPACE_TOKENS, true], ["cyberpunk", CYBERPUNK_TOKENS, true], ["carpenter-brut", CARPENTER_BRUT_TOKENS, true], ["beach-house", BEACH_HOUSE_TOKENS, false]] as const)
+    .map(([n, t, dark, idle]) => `${themeSel(n)}{${themeExtras(t, dark, idle)}}`),
+  // Opus review S2: HA dark's wall is its light text colour, so 55 % of it made light grey 2.5D slabs. The generic rule below reads this share.
+  `${themeSel("ha", '[data-mode="dark"]')}{${themeExtras(HA_DARK, true)};--fp-wall-side-share:30%}`,
+].join("\n");
+/** The ink for a colour only the state or the layout knows (a lamp's rgb, a plug's heat, `layout.colors`): black or white, through a token, so the markup carries no literal colour. */
+const inkVar = (c: string) => (inkFor(c) === "#000" ? "var(--fp-pure-black)" : "var(--fp-pure-white)");
 
 
 /**
@@ -174,6 +218,9 @@ const WALL_HALO_EXTRA = 2;
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
 /** A room's motion border pulses this many times, each this many seconds, when its sensor trips. */
 export const MOTION_PULSES = 3, MOTION_PULSE_S = 1.4;
+
+/** S2.9: --fp-dev per type when on. A constant so S23.4 can derive the matching ink rule from the same list. */
+const DEV_ON_RULES = `.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-siren.on{--fp-dev:var(--fp-danger)} .dev-alarm.on{--fp-dev:var(--fp-danger)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}`;
 
 export const FLOORPLAN_CSS = `
 :host,.fp{${BLUEPRINT_TOKENS}}
@@ -199,19 +246,23 @@ export const FLOORPLAN_CSS = `
 :host([data-theme="cyberpunk"]),:host([data-theme="cyberpunk"]) .fp,[data-theme="cyberpunk"]{${CYBERPUNK_TOKENS}}
 :host([data-theme="carpenter-brut"]),:host([data-theme="carpenter-brut"]) .fp,[data-theme="carpenter-brut"]{${CARPENTER_BRUT_TOKENS}}
 :host([data-theme="beach-house"]),:host([data-theme="beach-house"]) .fp,[data-theme="beach-house"]{${BEACH_HOUSE_TOKENS}}
+${THEME_EXTRAS}
 /* 2.5D shades, derived from the theme's own wall colour so every theme has them with no per-theme edit. A custom property
-   that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own. */
-:host,.fp,[data-theme]{--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) 55%,var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg))}
+   that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own.
+   The side is 55% wall unless the theme sets --fp-wall-side-share (HA dark, whose wall is its light text colour). The share
+   is its own variable, never a second --fp-wall-side, so this rule, later and as specific as THEME_EXTRAS, cannot beat it. */
+:host,.fp,[data-theme]{--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) var(--fp-wall-side-share,55%),var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg))}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
    Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
    or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,
    which outranks every rule here on specificity and so blanked out the kind colour entirely — a glowing water room
    went plain yellow, not a tinted blue). */
-/* --fp-room-empty (Diego's call, 2026-09-21): a plain "room" or "structure" with no colour or texture of its own reads as
-   not-yet-painted, the same light gray in every theme — blueprint, light, and ha (HA's --secondary-background-color no
-   longer reaches this one fill; every other --fp-* token still follows HA as before). Garden, terrace, pavement, water
-   and zone keep their own kind colour: only the plain, unpainted room is "undefined". */
+/* --fp-room-empty: a plain "room" or "structure" with no colour or texture of its own reads as not-yet-painted. A light
+   theme keeps the light grey (Diego, 2026-09-21); a dark theme uses its own room shade (S23.6), so ha in dark mode follows
+   HA's --secondary-background-color again. Garden, terrace, pavement, water and zone keep their own kind colour. */
 .room:not([fill]){--fp-room-fill:var(--fp-room-empty);fill:var(--fp-room-fill)} .room-garden:not([fill]){--fp-room-fill:var(--fp-garden);fill:var(--fp-room-fill)} .room-terrace:not([fill]){--fp-room-fill:var(--fp-terrace);fill:var(--fp-room-fill)} .room-pavement:not([fill]){--fp-room-fill:var(--fp-pavement);fill:var(--fp-room-fill)}
+/* S23.6: a room or stair with its own paint is dimmed on a dark theme (--fp-paint-dim), never recoloured. The on ring carries fill="none" and is left alone. */
+.room[fill]:not([fill="none"]){filter:var(--fp-paint-dim)}
 .room.room-fill{--fp-room-fill:var(--fp-fill);fill:url(#fp-hatch)} .room-zone:not([fill]){--fp-room-fill:transparent;fill:none} .room-water:not([fill]){--fp-room-fill:var(--fp-water);fill:var(--fp-room-fill)}
 /* S2.6: room_glow. Three classes (.room.glow:not([fill])) outrank every rule above (two classes each), so which
    wins is settled by specificity, not source order (CLAUDE.md finding 10: a [fill] attribute beat a class once
@@ -273,12 +324,14 @@ export const FLOORPLAN_CSS = `
 /* S8.9: internal corners and T-joins at the new 10-20 cm thickness are kept gap-free by the round linecap already
    here (each segment's rounded end overlaps its neighbour's whatever the angle between them); only the numbers
    changed. External walls keep the square cap they always had (a mitred, not rounded, look for the house perimeter). */
-.e{stroke:var(--fp-wall);stroke-width:${WALL_WIDTH};stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5}
+/* A boundary between rooms (an open plan) is a 1.5 cm dash. A zone (zn) is fainter: a 1 px non-scaling dash at 35 %
+   with no halo (S23.7); the Opus review of Sprint 23 (S4) scoped that to zones. */
+.e{stroke:var(--fp-wall);stroke-width:${WALL_WIDTH};stroke-linecap:round} .e.nw{stroke-dasharray:8 6;stroke-width:1.5} .e.nw.zn{stroke-dasharray:4 3;stroke-width:1;vector-effect:non-scaling-stroke;stroke-opacity:.35}
 /* 2.5D: the top of a wall. Same stroke as the flat wall, from its own token, and before the .external and .fence rules
    below so an equal-specificity kind rule still wins. */
 .e.top{stroke:var(--fp-wall-top)}
 .e.external{stroke:var(--fp-wall-external);stroke-width:${WALL_WIDTH_EXTERNAL};stroke-linecap:square} .e.parapet{stroke:var(--fp-wall-external);stroke-width:${WALL_WIDTH_EXTERNAL};stroke-linecap:square} .e.fence{stroke:var(--fp-wall-fence);stroke-width:1.5;stroke-dasharray:10 4 2 4;stroke-linecap:butt} .e.edge{stroke:var(--fp-wall-edge);stroke-width:1.5}
-.eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.parapet{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
+.eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.nw.zn{display:none} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.parapet{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
 /* 2.5D solids take no clicks: a tap or a pick goes through to the floor-level shape under them, as in 2D. Furniture is the
    exception: its group is data-f, so a tap on the block reaches it as it reaches the flat symbol. */
 .ws,.glass,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk,.wfoot,.wl,.door-leaf,.opn{pointer-events:none}
@@ -347,25 +400,42 @@ export const FLOORPLAN_CSS = `
 /* S8.9 finding 3: a door's own stroke is now as thin as the internal wall it sits on, so this invisible twin
    (drawn first, same data-d, at the old fixed 22 cm) keeps the click target exactly as wide as it always was. */
 .door-hit{stroke:transparent;pointer-events:stroke;cursor:move}
-.dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle)} .dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}
+/* S23.7: plan symbols. A door's or window's own line is quiet while it is closed and not selected; the symbol is a 1 px
+   leaf and swing arc (door, glass) or three hairlines (window, slit), red only while open, alarmed or its cover is open. */
+.door.quiet{stroke:transparent} .door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
+.door-sym.k-glass{stroke:var(--fp-glass)} .door-sym.k-window,.door-sym.k-slit{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
+/* S1 (Opus review of S23): a window's pane fills the whole cut, so the outer half of the gap on an outer wall is glass, not the
+   board; opaque, a glass tint mixed into the bare room. Its jambs are window hairlines, red with the state like the symbol. */
+.win-pane{fill:color-mix(in srgb,var(--fp-window) 22%,var(--fp-room-empty));stroke:none;pointer-events:none} .win-pane.open,.win-pane.alarm{fill:color-mix(in srgb,var(--fp-open-door) 22%,var(--fp-room-empty))}
+.win-jamb{fill:none;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none} .win-jamb.open,.win-jamb.alarm,.win-jamb.cover-open{stroke:var(--fp-open-door)}
+.dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle);fill-opacity:.7}
+/* S23.4 (V10): an on glyph is ink on its solid disc, 4.5:1 in every theme. g.dev.on path (0,2,2) on purpose: it must beat
+   .dev.dev-motion path's fade, .dev.outdoor path and .dev-camera path, and still lose to the camera cone (0,3,1). */
+g.dev.on path{fill:var(--fp-dev-ink,var(--fp-on-dark));fill-opacity:1}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
-.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-siren.on{--fp-dev:var(--fp-danger)} .dev-alarm.on{--fp-dev:var(--fp-danger)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}
+${DEV_ON_RULES}
+/* S23.4: the glyph ink that goes with each --fp-dev above, the same rules with -ink appended to the token (themeExtras writes one per colour). */
+${DEV_ON_RULES.replace(/\{--fp-dev:var\((--fp-[a-z-]+)\)\}/g, "{--fp-dev-ink:var($1-ink)}")}
 /* S14.8: a plug with a readable draw (renderFloor wrote --fp-heat, 0..1) runs cool -> mid -> hot. Same specificity class as .dev-plug.on plus an attribute, so it wins; a plug with no
    reading has no --fp-heat and keeps --fp-dev-plug, exactly as before. */
 .dev-plug.on[style*="--fp-heat"]{--fp-dev:color-mix(in oklch,color-mix(in oklch,var(--fp-heat-cool) calc((1 - min(var(--fp-heat) * 2,1)) * 100%),var(--fp-heat-mid)) calc((1 - max(var(--fp-heat) * 2 - 1,0)) * 100%),var(--fp-heat-hot))}
 /* S7.10: an error vacuum wears --fp-danger on its icon, two classes ahead of the plain idle-grey .dev path rule above. */
-.dev.danger path{fill:var(--fp-danger)}
+.dev.danger path{fill:var(--fp-danger)} .dev.danger .halo{fill:var(--fp-danger);fill-opacity:1;stroke:none} g.dev.danger path{fill:var(--fp-danger-ink);fill-opacity:1}
 /* S4.25: an unlinked item has no on/off state of its own, so it never carries .on — it stays at the plain .dev
    path idle-grey rule above unless the instance has its own --fp-dev-fill colour override, which this rule
    (three classes, out-specifies the two-class .dev path default) lets through. */
 .dev.unl path{fill:var(--fp-dev-fill,var(--fp-idle))}
-.dev .halo{fill:var(--fp-disc);fill-opacity:var(--fp-disc-alpha);stroke:var(--fp-halo);stroke-width:1;vector-effect:non-scaling-stroke}
-.dev.on .halo{fill:var(--fp-dev);fill-opacity:var(--fp-alpha)}
-.aura{fill:var(--fp-aura);fill-opacity:var(--fp-alpha);pointer-events:none}
+/* S23.4 (V9): off is quiet, the glyph alone. The disc stays painted at fill-opacity 0, not fill:none, so it still takes the click. On is a solid disc. */
+.dev .halo{fill:var(--fp-disc);fill-opacity:0;stroke:none;stroke-width:1;vector-effect:non-scaling-stroke}
+.dev.on .halo{fill:var(--fp-dev-fill,var(--fp-dev));fill-opacity:1;stroke:none}
+/* S23.8 (V13): a lamp's light falls off from the lamp (the shared #fp-lamp-falloff mask, alpha 1 at the lamp, .33 at 60 %, 0 at
+   the reach) and blends like light: screen over a dark theme, multiply over a light one (--fp-glow-blend, ink.ts themeExtras). */
+.aura{fill:var(--fp-aura);fill-opacity:calc(.55 * var(--fp-dev-opacity,1));mix-blend-mode:var(--fp-glow-blend,normal);pointer-events:none}
+mask.fp-falloff{mask-type:alpha}
 /* S8.13: a triggered motion or contact sensor. Its disc is filled harder than any other on disc and ringed in its own
    colour, and a ring pulses out from under it. An open contact door gets a wide pulsing line under its own. */
-.dev-motion.on .halo,.dev-contact.on .halo{fill-opacity:.6;stroke:var(--fp-dev);stroke-width:2}
+.dev-motion.on .halo,.dev-contact.on .halo{stroke:var(--fp-outline);stroke-width:2}
 .ping{fill:none;stroke:var(--fp-dev);stroke-width:3;vector-effect:non-scaling-stroke;pointer-events:none;transform-box:fill-box;transform-origin:center;animation:fp-ping 1.6s ease-out infinite}
 @keyframes fp-ping{from{transform:scale(1);opacity:.9}to{transform:scale(calc(1 + 1.2*var(--fp-fx,1)));opacity:0}}
 .door-alert{stroke:var(--fp-open-door);stroke-opacity:.45;stroke-linecap:butt;pointer-events:none;animation:fp-door 1.6s ease-in-out infinite alternate}
@@ -387,11 +457,15 @@ export const FLOORPLAN_CSS = `
 .siren-ring.w2{animation-delay:.5s}
 @keyframes fp-siren{from{transform:scale(1);opacity:1}to{transform:scale(calc(1 + 3.8*var(--fp-fx,1)));opacity:0}}
 @media (prefers-reduced-motion:reduce){.ping,.door-alert,.wave,.siren-ring{animation:none}.ping,.wave{transform:scale(calc(1 + .5*var(--fp-fx,1)));opacity:.6}.siren-ring{transform:scale(calc(1 + 2*var(--fp-fx,1)));opacity:.8}}
-.dev.unavailable{opacity:.45}
+/* S23.5 (V12): unavailable is its own mark, not a faded off: no disc, a dashed warn ring, the glyph at idle and a slash badge
+   (.gone-mark, a circle and a line, so no path rule paints it). g.dev.unavailable path (0,2,2) outranks the per-type tints. */
+.dev.unavailable .halo{fill-opacity:0;stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2}
+g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
+.gone-mark{pointer-events:none} .gone-mark circle{fill:var(--fp-bg);stroke:var(--fp-warn);stroke-width:1.5;vector-effect:non-scaling-stroke} .gone-mark line{stroke:var(--fp-warn);stroke-width:1.5;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .dev.dim{opacity:.3}
 /* S7.8: a person glides to the room its room sensor names. The position is an inline CSS transform, not an attribute, so
    this rule can animate it; the card replays the old position before the new one (a FLIP), because each render builds new
-   nodes. Away is a person at 35 %, with the away mark in the group; unavailable stays .45 like every device. */
+   nodes. Away is a person at 35 %, with the away mark in the group; unavailable wears the gone mark like every device. */
 .dev-person{transition:transform .6s ease} .dev-person.away{opacity:.35} .dev-person .away-mark{fill:var(--fp-idle);stroke:var(--fp-outline);stroke-width:1;vector-effect:non-scaling-stroke}
 @media (prefers-reduced-motion:reduce){.dev-person{transition:none}}
 /* S7.9: a radar target dot, one per tracked person, in the radar's own colour, taking no clicks. */
@@ -403,7 +477,13 @@ export const FLOORPLAN_CSS = `
 @keyframes fp-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
-.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl.zone{opacity:.5} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none}
+.heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none} .lbl-tag{fill:var(--fp-outline);stroke:none;pointer-events:none} .lbl-on{pointer-events:none}
+/* S23.1: one label style. A name is never faded: it is the text colour mixed into the surface it sits on (--fp-under,
+   set per name by renderFloor), solid, so it reads as part of the room yet clears 4.5:1 on it. 92% is the least text
+   that passes on every theme's surface (light garden 4.56, terminal pavement 4.67). A device's or an extra's name sits on
+   no one surface and keeps the plain text colour. One font, Home Assistant's own. */
+:host,svg{--fp-font:var(--ha-font-family-body,var(--paper-font-body1_-_font-family,system-ui,sans-serif))}
+.lbl,.val{font-family:var(--fp-font)} .lbl{font-weight:500} .lbl[data-rl]{--fp-label:color-mix(in srgb,var(--fp-text) 92%,var(--fp-under,var(--fp-room-empty)));fill:var(--fp-label)} .lbl.out{font-style:italic} .lbl[data-rl].out{--fp-label:color-mix(in srgb,var(--fp-text-out,var(--fp-text)) 92%,var(--fp-under,var(--fp-room-empty)))} .val{font-variant-numeric:tabular-nums}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
 .sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}`;
 
@@ -542,7 +622,8 @@ const dead = (s: string) => s === "unavailable" || s === "unknown";
 function boundClassOf(d: Device, o: RenderOpts): Cls {
   const seen = [o.state?.[d.entity], d.bound ? o.state?.[d.bound] : undefined].filter((s) => s !== undefined);
   if (seen.some((s) => s.state === "on")) return "on";
-  return "off"; // Diego, 2026-10-06: a dead light or switch reads as off, not as a dimmed ghost
+  // S23.5: dead only when nothing we heard says otherwise; a relay that reports off still tells us the lamp is off
+  return seen.length > 0 && seen.every((s) => dead(s.state)) ? "unavailable" : "off";
 }
 
 /** A light that is on takes its icon fill from `attributes.rgb_color` when present; unset otherwise, so `.dev.on path`'s `var(--fp-dev-fill,var(--fp-on))` falls through to the flat colour. Untrusted `state`: a malformed value is silently ignored, not thrown on. */
@@ -586,6 +667,50 @@ export function roomAt(f: Floor, p: Pt): number {
   return best;
 }
 
+/** S23.7: the kinds drawn as a plan symbol, and so cut out of the wall like an opening. Sealed keeps its dashed line; an
+ *  open doorway is already cut and draws nothing. */
+const SWING_KINDS: readonly string[] = ["door", "glass"], PANE_KINDS: readonly string[] = ["window", "slit"];
+const OUTDOOR_KINDS: readonly RoomKind[] = ["garden", "terrace", "pavement", "water"];
+const ringArea = (p: Pt[]) => Math.abs(p.reduce((n, q, k) => n + q[0] * p[(k + 1) % p.length][1] - p[(k + 1) % p.length][0] * q[1], 0)) / 2;
+
+/** S23.7: the `d` of a door's or window's plan symbol, or "" when it has none (sealed, open, a zero-length or broken door).
+ *  A door: a leaf from the hinge `a`, square to the wall and |ab| long, then a quarter arc of radius |ab| back to `b`. It
+ *  swings to the room side: the side whose probe point is in an indoor room, else in any room, else the smaller room, else
+ *  the left of a to b. A window: three hairlines along the opening, at the wall's two faces and its middle; a slit's span
+ *  its narrower band (SLIT_BAND). */
+function doorSymbol(f: Floor, kind: unknown, a: Pt, b: Pt): string {
+  const len = dist(a, b);
+  if (!(len > 0) || ![a[0], a[1], b[0], b[1]].every(Number.isFinite)) return "";
+  const u: Pt = [(b[0] - a[0]) / len, (b[1] - a[1]) / len], left: Pt = [u[1], -u[0]];
+  if (PANE_KINDS.includes(kind as string)) {
+    const half = (wallWidthAt(f, a, b) * (kind === "slit" ? SLIT_BAND : 1)) / 2;
+    return [-half, 0, half].map((t) => `M${num(a[0] + left[0] * t)} ${num(a[1] + left[1] * t)}L${num(b[0] + left[0] * t)} ${num(b[1] + left[1] * t)}`).join("");
+  }
+  if (!SWING_KINDS.includes(kind as string)) return "";
+  const m = mid(a, b);
+  const sideOf = (n: Pt) => {
+    const i = roomAt(f, [m[0] + n[0] * len / 2, m[1] + n[1] * len / 2]), r = i < 0 ? null : f.rooms[i];
+    return { indoor: r?.kind === "room", any: !!r, area: r ? ringArea(r.pts) : Infinity };
+  };
+  const right: Pt = [-left[0], -left[1]], L = sideOf(left), R = sideOf(right);
+  const goRight = R.indoor !== L.indoor ? R.indoor : R.any !== L.any ? R.any : R.area < L.area;
+  const n = goRight ? right : left, tip: Pt = [a[0] + n[0] * len, a[1] + n[1] * len];
+  // From the leaf (n) to the wall (u): clockwise on screen (y down) when n x u > 0, SVG's sweep-flag 1.
+  const sweep = n[0] * u[1] - n[1] * u[0] > 0 ? 1 : 0;
+  return `M${num(a[0])} ${num(a[1])}L${num(tip[0])} ${num(tip[1])}A${num(len)} ${num(len)} 0 0 ${sweep} ${num(b[0])} ${num(b[1])}`;
+}
+
+/** S1 (Opus review of S23): a window's pane and jambs, or null for any other kind. The wall is cut wider than the room
+ *  polygon, which stops at the wall's centre line, so on an outer wall the outer half of the gap showed the board and the
+ *  window read as a hole. The pane fills the whole cut (the same width as the mask line), the jambs close its two ends. */
+function windowPane(f: Floor, kind: unknown, a: Pt, b: Pt): { pane: string; jambs: string } | null {
+  const len = dist(a, b);
+  if (!PANE_KINDS.includes(kind as string) || !(len > 0) || ![a[0], a[1], b[0], b[1]].every(Number.isFinite)) return null;
+  const h = (wallWidthAt(f, a, b) + OPENING_EXTRA) / 2, n: Pt = [((b[1] - a[1]) / len) * h, (-(b[0] - a[0]) / len) * h];
+  const p = (q: Pt, s: number) => `${num(q[0] + n[0] * s)} ${num(q[1] + n[1] * s)}`;
+  return { pane: `M${p(a, 1)}L${p(b, 1)}L${p(b, -1)}L${p(a, -1)}Z`, jambs: `M${p(a, 1)}L${p(a, -1)}M${p(b, 1)}L${p(b, -1)}` };
+}
+
 /** S2.10: what an air conditioner is doing, read from the entity at render time and never stored. `off`, `unavailable` and `unknown` win over everything; otherwise `hvac_action` decides, and `state` stands in when the attribute is missing. */
 export function acMode(d: Device, o: RenderOpts): "cool" | "heat" | null {
   const s = o.state?.[d.entity];
@@ -625,7 +750,7 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   if (d.type === "light" && d.bound) return boundClassOf(d, o);
   const s = o.state?.[d.entity];
   if (!s) return "off";
-  if (dead(s.state)) return d.type === "light" || d.type === "switch" || d.type === "plug" ? "off" : "unavailable";
+  if (dead(s.state)) return "unavailable"; // S23.5: every type, a light, switch or plug too: "I don't know" is not "off"
   if (d.type === "ac") return acMode(d, o) ? "on" : "off";
   if (d.type === "plug") return plugOn(d, o, s) ? "on" : "off";
   if (d.type === "climate" || d.type === "heater") return s.attributes.hvac_action === "heating" ? "on" : "off";
@@ -854,7 +979,7 @@ export function roomReadout(r: Floor["rooms"][number], state: StateOverlay | und
 }
 /** `layout.colors` as the custom properties the plan sets on a group (known types, strict colours only), so a device keeps its own colour. */
 export function deviceColourVars(colors: RenderOpts["colors"]): string[] {
-  return Object.entries(colors ?? {}).filter(([t, v]) => (DEVICE_TYPES as readonly string[]).includes(t) && typeof v === "string" && COLOR.test(v)).map(([t, v]) => `--fp-dev-${t}:${v}`);
+  return Object.entries(colors ?? {}).filter(([t, v]) => (DEVICE_TYPES as readonly string[]).includes(t) && typeof v === "string" && COLOR.test(v)).flatMap(([t, v]) => [`--fp-dev-${t}:${v}`, `--fp-dev-${t}-ink:${inkVar(v as string)}`]);
 }
 
 export interface RoomMotion { radar: boolean; on: boolean; v: number }
@@ -945,20 +1070,22 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
     // future rule (S2.9's aura) can read the same `--fp-dev-fill` instead of a second, possibly different, source.
     if (d.type === "light" && cls === "on" && s) {
       const fill = lightFill(s);
-      if (fill) style.push(`--fp-dev-fill:${fill}`);
+      if (fill) style.push(`--fp-dev-fill:${fill}`, `--fp-dev-ink:${inkVar(fill)}`);
       const opacity = lightOpacity(s);
       if (opacity !== null) style.push(`--fp-dev-opacity:${num(opacity)}`);
     }
     // S14.8: a plug's draw as a fraction of the card's range; the stylesheet's `.dev-plug.on` rule turns it into a colour. Only with a readable sensor.
     if (d.type === "plug" && base === "on" && o.plugHeat !== undefined) {
       const w = plugWatts(d, o);
-      if (w !== null) { const [from, to] = heatRange(o.plugHeat); style.push(`--fp-heat:${num(Math.round(powerHeat(w, from, to) * 100) / 100)}`); }
+      if (w !== null) { const [from, to] = heatRange(o.plugHeat), heat = Math.round(powerHeat(w, from, to) * 100) / 100; style.push(`--fp-heat:${num(heat)}`, `--fp-dev-ink:${inkVar(heatColour(heat))}`); }
     }
     // S14.3: the effect size, a fraction the rings and waves read (`--fp-fx`, default 1 in the stylesheet). Written only when it
     // changes something, so a layout that never sets it is drawn byte for byte as before.
     if (drawsEffect(d) && fxScale(d) !== 1) style.push(`--fp-fx:${num(fxScale(d))}`);
     // S7.8: an away person carries a small grey dot on the disc's edge, so away reads without relying on the fade alone.
     const mark = person && cls.endsWith(" away") ? `<circle class="away-mark" cx="23" cy="1" r="4.5"/>` : "";
+    // S23.5: an unavailable device carries a slashed badge on the disc's edge, so dead reads without relying on colour.
+    const gone = base === "unavailable" ? `<g class="gone-mark"><circle cx="23" cy="1" r="5"/><line x1="19.8" y1="4.2" x2="26.2" y2="-2.2"/></g>` : "";
     // S8.13: a triggered motion or contact sensor sends out a ring from under its disc, so it reads at a glance.
     const ping = (d.type === "motion" || d.type === "contact") && base === "on" ? `<circle class="ping" cx="12" cy="12" r="16"/>` : "";
     // S9.4: a speaker or media device playing sends out two arcs, staggered — exactly "playing", not the generic
@@ -981,12 +1108,18 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
       ? `<circle class="siren-ring" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
         `<circle class="siren-ring w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
       : "";
-    const icon = `${ping}${wave}${siren}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
+    const icon = `${ping}${wave}${siren}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}${gone}`;
   return { cls, base, style, icon, s };
 }
 
+/** S23.2 (V1): the smallest a room name may render, in CSS px, on a card that knows its size. */
+export const NAME_MIN_PX = 11;
+
 export function renderFloor(f: Floor, o: RenderOpts): string {
-  const k = 1 / (o.scale || 1);
+  // S23.2: a floor in screen space. k never lets a 12k name fall under 11 px, so a 32k disc never falls under 29 px.
+  // One factor for text and discs keeps the plan's proportions; full CSS-px placement is sprint 25.
+  const screenPx = typeof o.px === "number" && Number.isFinite(o.px) && o.px > 0 ? o.px : 0;
+  const k = Math.max(1 / (o.scale || 1), screenPx ? NAME_MIN_PX / (12 * screenPx) : 0), nameMin = screenPx ? NAME_MIN_PX / screenPx : 0;
   const turn = o.rotate && o.rotate.deg % 360 ? o.rotate : null, planDeg = turn ? turn.deg : 0;
   /** Attribute that keeps a text upright in a turned plan: turns it back about its own anchor. */
   const up = (x: number, y: number) => (turn ? ` transform="rotate(${num(-planDeg)} ${num(x)} ${num(y)})"` : "");
@@ -1041,7 +1174,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // end, in every direction, not only along the wall — the opening's ends read as concave arcs instead of a square
   // cut, and the erosion reaches past the opening's own span. "butt" cuts exactly at `a` and `b`, wider across only.
   // An open doorway (kind "open") is cut like an opening: it is a door that draws nothing, so the wall must not show through it.
-  const doorways = f.doors.filter((d) => d.kind === "open");
+  // S23.7: a door or window is drawn as a plan symbol in a gap, so it is cut the same way.
+  const doorways = f.doors.filter((d) => d.kind === "open" || SWING_KINDS.includes(d.kind) || PANE_KINDS.includes(d.kind));
   const openingLines = [...f.openings, ...doorways].map((op) => `<line x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke="black" stroke-width="${wallWidthAt(f, op.a, op.b) + OPENING_EXTRA}" stroke-linecap="butt"/>`);
   const maskId = openingLines.length ? `fp-open-mask-${tag(openingLines.join(""))}` : "";
   // Opus review (2026-09-26): `<mask>` itself carries no x/y/width/height, so its region defaults to -10%/120% of
@@ -1098,6 +1232,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // devices loop below, so two overlapping auras never sit between one lamp's icon and the next lamp's icon; the
   // icons themselves (drawn after every aura) stay on top and legible. The colour is the lamp's own rgb_color, read
   // the same way as the device group's --fp-dev-fill (S2.2): from the light entity's own state, never the bound switch's.
+  let falloff = false; // S23.8: the shared falloff mask, written once before the first aura that needs it
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (d.type !== "light") return;
@@ -1106,9 +1241,16 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const floorAt = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (!floorAt.every(Number.isFinite)) return;
     const c = iconAt(d, floorAt); // the aura hangs with the lamp, not on the floor under it
-    const fill = lightFill(o.state?.[d.entity]);
-    const style = fill ? ` style="--fp-aura:${fill}"` : "";
+    const fill = lightFill(o.state?.[d.entity]), level = lightOpacity(o.state?.[d.entity]);
+    // S23.4: a dimmed lamp's brightness moved here from its glyph, which is now solid ink on a solid disc.
+    const vars = [fill ? `--fp-aura:${fill}` : "", level !== null ? `--fp-dev-opacity:${num(level)}` : ""].filter(Boolean);
+    const style = vars.length ? ` style="${vars.join(";")}"` : "";
     const reach = num(LIGHT_REACH * fxScale(d)); // S14.3: the lamp's own effect size; 150 at the default
+    if (!falloff) {
+      falloff = true;
+      out.push(`<defs><radialGradient id="fp-lamp-grad"><stop offset="0" stop-opacity="1"/><stop offset=".6" stop-opacity=".33"/><stop offset="1" stop-opacity="0"/></radialGradient>` +
+        `<mask id="fp-lamp-falloff" class="fp-falloff" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#fp-lamp-grad)"/></mask></defs>`);
+    }
     // The light stays in the room it hangs in: clipped to the smallest real room holding the lamp (`roomAt`: a zone, a structure
     // and a fill are not rooms; a lamp in no room, a garden lamp say, keeps the free circle). The clip is the floor polygon.
     const holder = roomAt(f, floorAt), own = holder < 0 ? null : ring(f.rooms[holder]);
@@ -1117,10 +1259,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const lift = c[0] !== floorAt[0] || c[1] !== floorAt[1] ? ` transform="translate(${at([c[0] - floorAt[0], c[1] - floorAt[1]])})"` : "";
       const cid = `fp-aura-${tag(`${pts(own)}${lift}`)}`;
       out.push(`<clipPath id="${cid}"${lift}><polygon points="${pts(own)}"/></clipPath>`);
-      out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" clip-path="url(#${cid})"${style}/>`);
+      out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" clip-path="url(#${cid})" mask="url(#fp-lamp-falloff)"${style}/>`);
       return;
     }
-    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}"${style}/>`);
+    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" mask="url(#fp-lamp-falloff)"${style}/>`);
   });
 
   const polys: { id: string; pts: Pt[]; wk?: EdgeKind[]; zone?: boolean }[] = [{ id: "o", pts: f.outline, wk: f.owk }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, wk: r.wk, zone: r.kind === "zone" }))];
@@ -1130,9 +1272,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     P.pts.forEach((a, i) => {
       // The outline defaults external (the house perimeter, S1.52); a room with no wk yet is never valid, so "wall" is only a defensive fallback.
       const b = P.pts[(i + 1) % P.pts.length], kind = P.zone ? "boundary" : P.wk ? P.wk[i] : P.id === "o" ? "external" : "wall";
-      if (kind === "none") { if (o.editor) guides.push({ cls: "e none", attr: ` data-e="${P.id}:${i}"`, a, b }); return; } // not drawn: the editor keeps a faint guide so it can be picked again
+      // S23.7: an outdoor kind's no-wall edge draws no outline either; the editor keeps the same faint guide.
+      const outdoor = kind === "boundary" && P.id !== "o" && OUTDOOR_KINDS.includes(f.rooms[Number(P.id.slice(1))]?.kind);
+      if (kind === "none" || outdoor) { if (o.editor) guides.push({ cls: "e none", attr: ` data-e="${P.id}:${i}"`, a, b }); return; } // not drawn: the editor keeps a faint guide so it can be picked again
       if (x25 && !P.zone && edgeHeight(f, P.id === "o" ? null : f.rooms[Number(P.id.slice(1))], i) > 0) return; // a wall with height is drawn as a solid below
-      edgeLines.push({ cls: edgeClass(kind), attr: ` data-e="${P.id}:${i}"`, a, b });
+      edgeLines.push({ cls: edgeClass(kind) + (P.zone ? " zn" : ""), attr: ` data-e="${P.id}:${i}"`, a, b });
     });
   f.walls.forEach((w, i) => { if (!(x25 && wallHeight(f, w) > 0)) edgeLines.push({ cls: edgeClass(w.kind), attr: ` data-w="${i}"`, a: w.a, b: w.b }); });
   const seg = (a: Pt, b: Pt) => `x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"`;
@@ -1205,28 +1349,27 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // The icons go in first, so nothing may hide one; then room names (what a person reads), room labels, zone labels,
   // extras' names, and last the sensor values, in the device loop below. A text takes the first free candidate; with
   // none free it keeps its first one regardless, so nothing is ever dropped (a name longer than its room, say).
-  const placed: Box[] = [];
+  const placed: Box[] = [], words = new Set<Box>(); // `words`: the boxes in `placed` that are text (a tag may cover an icon, never a text)
   const toScreen = (p: Pt): Pt => (turn ? rotateAbout(p, turn.deg, turn.pivot) : p);
   const cs = Math.cos((planDeg * Math.PI) / 180), sn = Math.sin((planDeg * Math.PI) / 180);
   /** The plan point that shows `dx` right of and `dy` below `a` on the screen: the screen vector turned back into the plan. */
   const screenOff = (a: Pt, dx: number, dy: number): Pt => (planDeg ? [a[0] + dx * cs + dy * sn, a[1] - dx * sn + dy * cs] : [a[0] + dx, a[1] + dy]);
+  // S23 review S3: the bounds a name, its tag and its leader must stay in (`RenderOpts.bounds`); none, no limit.
+  // Held in by k/2 so a box that lands on the edge stays inside once its numbers are rounded for the markup.
+  const B = o.bounds && [o.bounds.x, o.bounds.y, o.bounds.w, o.bounds.h].every(Number.isFinite) && o.bounds.w > k && o.bounds.h > k
+    ? { x: o.bounds.x + k / 2, y: o.bounds.y + k / 2, w: o.bounds.w - k, h: o.bounds.h - k } : null;
+  const inB = (b: Box) => !B || (b[0] >= B.x && b[1] >= B.y && b[0] + b[2] <= B.x + B.w && b[1] + b[3] <= B.y + B.h);
   const textBox = (a: Pt, size: number, len: number): Box => { const [x, y] = toScreen(a), w = len * 0.6 * size; return [x - w / 2, y - 0.75 * size, w, size]; };
   const place = (cands: Pt[], size: number, text: unknown): Pt => {
     const len = String(text).length, at = cands.find((c) => !placed.some((q) => meets(textBox(c, size, len), q))) ?? cands[0];
-    placed.push(textBox(at, size, len));
+    const box = textBox(at, size, len);
+    placed.push(box); words.add(box);
     return at;
   };
   const inPoly = inside, centroid = polyCentre;
-  /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 12k name either way.
-   * The ones inside the room come first: a name goes to the next room only when no spot in its own is free.
-   * `avoid` are smaller rooms drawn inside this one (a pond in a garden): a name on one hides under its fill. */
-  const rows = (a: Pt, poly?: Pt[], avoid: Pt[][] = []): Pt[] => {
-    const all = [0, 32, -32, 64, -64].map((dy) => screenOff(a, 0, dy * k));
-    if (!poly) return all;
-    const ok = (c: Pt, i: number) => (i === 0 || inPoly(c, poly)) && !avoid.some((q) => inPoly(c, q));
-    const ins = all.filter(ok);
-    return [...ins, ...all.filter((c, i) => !ok(c, i))];
-  };
+  /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 12k name either way. An extra's
+   *  name; a room's name has its own search (placeName). */
+  const rows = (a: Pt): Pt[] => [0, 32, -32, 64, -64].map((dy) => screenOff(a, 0, dy * k));
   const disc = (c: Pt, r: number) => { const [x, y] = toScreen(c); placed.push([x - r, y - r, 2 * r, 2 * r]); };
   // S7.8: a person whose room sensor names a room stands at that room's centroid, the same point its name is tried at
   // first. Several in one room stand on a ring round it, in device order, far enough apart that their 16k discs never
@@ -1263,7 +1406,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
     if (iconHidden(d)) return;
     const c = centreOf(d, i);
-    if (c.every(Number.isFinite)) disc(iconAt(d, c), 16 * k);
+    if (!c.every(Number.isFinite)) return;
+    const top = iconAt(d, c);
+    disc(top, 16 * k);
+    if (top !== c) disc(c, 4 * k); // S23.3: a 2.5D stem's foot, its 3k dot and a margin; no name sits on it either
   });
   for (const u of f.unlinked ?? []) {
     const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1;
@@ -1277,35 +1423,116 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   }
   const named = (r: Floor["rooms"][number]) => !!r.name && r.kind !== "fill";
   const area = (p: Pt[]) => Math.abs(p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0)) / 2;
-  /** The width of the room along the screen row through `a`, on the stretch that holds `a`; 0 when the row misses the room. */
-  const chordAt = (poly: Pt[], a: Pt): number => {
-    const sp = poly.map(toScreen), [ax, ay] = toScreen(a), xs: number[] = [];
-    for (let i = 0, j = sp.length - 1; i < sp.length; j = i++) if ((sp[i][1] > ay) !== (sp[j][1] > ay)) xs.push(sp[i][0] + ((ay - sp[i][1]) * (sp[j][0] - sp[i][0])) / (sp[j][1] - sp[i][1]));
-    xs.sort((p, q) => p - q);
-    for (let i = 0; i + 1 < xs.length; i += 2) if (ax >= xs[i] && ax <= xs[i + 1]) return xs[i + 1] - xs[i];
-    return 0;
-  };
   const GAP = 4; // plan units (times k) between a room and a name put outside it
-  /** Where a room's name goes and at what size. Too wide for the room at its anchor row: shrink to `floor` (centred);
-   * still too wide: just outside the room, above or below, on a leader line back to the anchor. Never dropped. */
-  type Label = { at: Pt; size: number; from?: Pt };
-  const placeName = (r: Floor["rooms"][number], base: number, floor: number): Label => {
+  const fromScreen = (p: Pt): Pt => (turn ? rotateAbout(p, -turn.deg, turn.pivot) : p);
+  /** S23.3: the point of a room furthest from its edges and from the rooms inside it, on a 16 x 16 grid over its box.
+   *  An L-shaped or a ring-shaped room has its centroid outside itself; this is where its name goes instead. */
+  const pole = (poly: Pt[], holes: Pt[][]): Pt | null => {
+    const xs = poly.map((p) => p[0]), ys = poly.map((p) => p[1]), x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs) - x0, h = Math.max(...ys) - y0;
+    const edgeDist = (p: Pt, q: Pt[]) => Math.min(...q.map((a, i) => { const b = q[(i + 1) % q.length], dx = b[0] - a[0], dy = b[1] - a[1], l = dx * dx + dy * dy, s = l ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l)) : 0; return Math.hypot(p[0] - a[0] - s * dx, p[1] - a[1] - s * dy); }));
+    let best: Pt | null = null, far = -1;
+    for (let i = 0; i < 16; i++) for (let j = 0; j < 16; j++) {
+      const c: Pt = [x0 + ((i + 0.5) * w) / 16, y0 + ((j + 0.5) * h) / 16];
+      if (!inPoly(c, poly) || holes.some((q) => inPoly(c, q))) continue;
+      const d = Math.min(edgeDist(c, poly), ...holes.map((q) => edgeDist(c, q)));
+      if (d > far) { far = d; best = c; }
+    }
+    return best;
+  };
+  /** S23.3: screen offsets tried round a name's anchor, nearest first: 24k and 48k steps across (half a name) and 16k
+   *  steps down (a name's height), so a name slides beside a disc as well as above or below it. */
+  const OFFSETS: Pt[] = [0, 24, -24, 48, -48, 96, -96, 144, -144].flatMap((dx) => [0, 16, -16, 32, -32, 48, -48, 64, -64].map((dy): Pt => [dx, dy]))
+    .sort((a, b) => Math.hypot(a[0], a[1] * 2) - Math.hypot(b[0], b[1] * 2));
+  /** Where a room's name goes and at what size (S23.3). Inside its own room and off the rooms drawn in it, always:
+   *  the first free spot round the anchor at the full size, then the same at sizes shrunk by 0.85 down to `floor`.
+   *  Every spot that fits covered: a tag on top (`tag`), drawn over the icons at the largest size that fits.
+   *  Fits nowhere at `floor`: just outside the room, above or below, on a leader line back to the anchor. Never dropped. */
+  type Label = { at: Pt; size: number; from?: Pt; tag?: boolean };
+  const placeName = (r: Floor["rooms"][number], base0: number, floor0: number): Label => {
+    const base = Math.max(base0, nameMin), floor = Math.max(floor0, nameMin); // S23.2: never under 11 px when the size is known
     const mine = area(r.pts), inner = f.rooms.filter((q) => q !== r && named(q) && q.kind !== "zone" && area(q.pts) < mine).map((q) => q.pts);
-    const anchor = centroid(r.pts), len = String(r.name).length, room = chordAt(r.pts, anchor);
-    const size = Math.max(floor, Math.min(base, room / (len * 0.6)));
-    if (!anchor.every(Number.isFinite) || len * 0.6 * size <= room) return { at: place(rows(anchor, r.pts, inner), size, r.name), size };
-    const ys = r.pts.map((p) => toScreen(p)[1]), ay = toScreen(anchor)[1];
-    const above = screenOff(anchor, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay), below = screenOff(anchor, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay);
+    const c0 = centroid(r.pts), len = String(r.name).length;
+    if (!c0.every(Number.isFinite)) { const size = base; return { at: place(rows(c0), size, r.name), size }; }
+    const clear = (p: Pt) => inPoly(p, r.pts) && !inner.some((q) => inPoly(p, q));
+    // A box fits when its corners and edge midpoints, 2k inside it, are all in the room: a room is a polygon, not a box.
+    const ring = ([x, y, w, h]: Box, d = 2 * k): Pt[] => [[x - d, y - d], [x + w + d, y - d], [x + w + d, y + h + d], [x - d, y + h + d], [x + w / 2, y - d], [x + w / 2, y + h + d], [x - d, y + h / 2], [x + w + d, y + h / 2]];
+    const fits = (c: Pt, size: number) => inB(textBox(c, size, len)) && ring(textBox(c, size, len)).every((p) => clear(fromScreen(p)));
+    const sizes: number[] = [];
+    for (let s = base; s > floor * 1.001; s *= 0.85) sizes.push(s);
+    sizes.push(floor);
+    const best: { tag: Label | null } = { tag: null }; // the largest covered spot that fits, for a tag
+    const search = (a: Pt): Label | null => {
+      for (const size of sizes) for (const [dx, dy] of OFFSETS) {
+        const c = screenOff(a, dx * k, dy * k);
+        if (!fits(c, size)) continue;
+        const box = textBox(c, size, len);
+        if (!placed.some((q) => meets(box, q))) { placed.push(box); words.add(box); return { at: c, size }; }
+        if ((!best.tag || size > best.tag.size) && ![...words].some((q) => meets(box, q))) best.tag = { at: c, size, tag: true };
+      }
+      return null;
+    };
+    // Round the centroid when it is in the room, else round the pole first; then the other. A pond in a garden pushes
+    // the pole to one side, while the free strip may be beside the centroid. The pole is a grid search: only on demand.
+    const inC0 = clear(c0), first = inC0 ? search(c0) : null;
+    if (first) return first;
+    const pl = pole(r.pts, inner), anchor = inC0 || !pl ? c0 : pl;
+    const next = (pl ? search(pl) : null) ?? (inC0 ? null : search(c0));
+    if (next) return next;
+    // S23 review S3: an outdoor name that fits nowhere inside may sit just beside its area on space no room covers,
+    // free and in bounds, before a tag over its icons or a leader.
+    if (OUTDOOR.has(r.kind)) {
+      const owned = f.rooms.filter((q) => q !== r && q.kind !== "zone" && Array.isArray(q.pts) && q.pts.length > 2).map((q) => q.pts);
+      const bare = (p: Pt) => clear(p) || !owned.some((q) => inPoly(p, q));
+      const sx = r.pts.map((p) => toScreen(p)[0]), sy = r.pts.map((p) => toScreen(p)[1]), m = GAP * k, st = 8 * k;
+      const [x0, y0, x1, y1] = [Math.min(...sx), Math.min(...sy), Math.max(...sx), Math.max(...sy)], [ax, ay] = toScreen(anchor);
+      for (const size of sizes) {
+        // Screen points for the baseline middle: under and over the area's box, slid across in 8k steps while the name
+        // still overlaps the area's width, and beside it, slid down; nearest the anchor first.
+        const w = len * 0.6 * size, n = Math.floor((w + x1 - x0) / 2 / st), spots: Pt[] = [];
+        for (let j = -n; j <= n; j++) spots.push([(x0 + x1) / 2 + j * st, y1 + m + 0.75 * size], [(x0 + x1) / 2 + j * st, y0 - m - 0.25 * size]);
+        for (let y = y0 + 0.75 * size; y <= y1 - 0.25 * size + 1e-9; y += st) spots.push([x1 + m + w / 2, y], [x0 - m - w / 2, y]);
+        spots.sort((a, b) => Math.hypot(a[0] - ax, a[1] - ay) - Math.hypot(b[0] - ax, b[1] - ay));
+        for (const sp of spots) {
+          const c = fromScreen(sp), box = textBox(c, size, len);
+          if (!inB(box) || placed.some((q) => meets(box, q)) || !ring(box).every((p) => bare(fromScreen(p)))) continue;
+          placed.push(box); words.add(box);
+          return { at: c, size };
+        }
+      }
+    }
+    const tag = best.tag;
+    if (tag) { const box = textBox(tag.at, tag.size, len); placed.push(box); words.add(box); return tag; }
+    const size = floor;
+    // The leader starts at the anchor, moved into bounds when the room reaches in (a garden half under the controls).
+    const from = ((): Pt => {
+      if (!B) return anchor;
+      const [ax, ay] = toScreen(anchor), q = fromScreen([Math.min(Math.max(ax, B.x + k), B.x + B.w - k), Math.min(Math.max(ay, B.y + k), B.y + B.h - k)]);
+      return clear(q) ? q : anchor;
+    })();
+    const ys = r.pts.map((p) => toScreen(p)[1]), ay = toScreen(from)[1];
+    // Off the room above or below, then slid sideways and clamped into bounds; the leader runs from `from` to the box.
+    const intoB = (c: Pt): Pt => {
+      if (!B) return c;
+      const [x, y, w, h] = textBox(c, size, len), dx = Math.max(B.x - x, 0) + Math.min(B.x + B.w - (x + w), 0), dy = Math.max(B.y - y, 0) + Math.min(B.y + B.h - (y + h), 0);
+      return dx || dy ? screenOff(c, dx, dy) : c;
+    };
+    const above = intoB(screenOff(from, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay)), below = intoB(screenOff(from, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay));
     // The leader is one more thing that must not run across another text: its own thin box counts too.
-    const leaderBox = (c: Pt): Box => { const [x, y] = toScreen(anchor), cy = toScreen(c)[1]; return [x - k / 2, Math.min(y, cy), k, Math.abs(cy - y)]; };
+    const leaderBox = (c: Pt): Box => { const [x, y] = toScreen(from), [cx, cy] = toScreen(c); return [Math.min(x, cx) - k / 2, Math.min(y, cy), Math.abs(cx - x) + k, Math.abs(cy - y)]; };
     const free = (c: Pt) => !placed.some((q) => meets(textBox(c, size, len), q));
     const at = [below, above].find((c) => free(c) && !placed.some((q) => meets(leaderBox(c), q))) ?? [below, above].find(free) ?? below;
-    placed.push(textBox(at, size, len));
-    return { at, size, from: anchor };
+    const box = textBox(at, size, len);
+    placed.push(box); words.add(box);
+    return { at, size, from };
   };
   const nameAt: Label[] = [], zoneAt: Label[] = [];
-  f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, 11 * k, 7 * k); });
-  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 8 * k, 6 * k); });
+  // S23.1: a room's name is 12, an outdoor name, like a zone's, 10: smaller than a room, never fainter.
+  const OUTDOOR = new Set<RoomKind>(["garden", "terrace", "pavement", "water"]);
+  // S23.3: the smallest room first. It has the fewest spots, and a pond whose name goes outside on a leader then takes
+  // its spot before the garden round it picks one there.
+  const bySize = f.rooms.map((r, i) => [area(r.pts), i] as const).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, i]) => i);
+  for (const i of bySize) { const r = f.rooms[i]; if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 10 : 12) * k, 7 * k); }
+  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 10 * k, 6 * k); });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
   // S8.9 part 3: the opening's own stroke must cover whichever wall it is on, now that walls no longer share one width.
@@ -1356,20 +1583,34 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<line data-d="${i}" class="door-hit${doorway ? " door-hit-open" : ""}" ${seg} stroke-width="${DOOR_HIT_WIDTH}"/>`);
     // A doorway draws nothing of its own: only its state (open, vibrating, cover open) or the editor's selection shows a line.
     if (doorway && !sel && !open && !vibrating && !coverOpen) return;
-    out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`);
+    // S23.7: a door or window is its symbol (below); its own line stays for the title, the selection and the alert look, and
+    // paints nothing while the door is closed and not selected (`quiet`).
+    const sym = doorSymbol(f, d.kind, d.a, d.b), quiet = sym && !sel && !open && !vibrating && !coverOpen;
+    const state = `${vibrating ? " alarm" : ""}${open ? " open" : ""}${coverOpen ? " cover-open" : ""}`, pane = x25 ? null : windowPane(f, d.kind, d.a, d.b);
+    // S1: a window's pane goes under its own line and the hairlines; the jambs go on top. Not in 2.5D: the raised wall
+    // carries the glass on its face and hides the floor-level cut.
+    if (pane) out.push(`<path data-dp="${i}" class="win-pane k-${esc(String(d.kind))}${state}" d="${pane.pane}"/>`);
+    out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}${quiet ? " quiet" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`);
+    if (sym) out.push(`<path data-ds="${i}" class="door-sym k-${esc(String(d.kind))}${state}" d="${sym}"/>`);
+    if (pane) out.push(`<path data-dj="${i}" class="win-jamb k-${esc(String(d.kind))}${state}" d="${pane.jambs}"/>`);
   });
 
+  const tags: string[] = [], len = (s: unknown) => String(s).length;
   f.rooms.forEach((r, i) => {
     if (!showText || !r.name || r.kind === "fill") return;
-    const zone = r.kind === "zone", { at: [x, y], size, from } = (zone ? zoneAt : nameAt)[i];
+    const zone = r.kind === "zone", { at: [x, y], size, from, tag } = (zone ? zoneAt : nameAt)[i];
     // The leader runs from the room's anchor to the edge of the text box nearest it, and is drawn under the text.
     if (from) {
       const down = toScreen([x, y])[1] > toScreen(from)[1], [ex, ey] = screenOff([x, y], 0, down ? -0.75 * size - 0.5 * k : 0.25 * size + 0.5 * k);
       out.push(`<line class="lbl-leader" stroke-width="${num(k)}" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(ex)}" y2="${num(ey)}"/>`);
     }
-    out.push(zone
-      ? `<text class="lbl zone" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}">${esc(r.name)}</text>`
-      : `<text class="lbl" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" font-weight="600" opacity=".5">${esc(r.name)}</text>`);
+    // S23.1: one style for every name; the class says what it is, `--fp-under` what it sits on (a zone: the room under it).
+    const cls = zone ? "lbl zone" : OUTDOOR.has(r.kind) ? "lbl out" : "lbl";
+    // S23.3: a name whose every spot is covered is a tag, drawn after the icons on its own plate (see below).
+    if (tag) return void tags.push(`<rect class="lbl-tag"${up(x, y)} x="${num(x - (len(r.name) * 0.6 * size) / 2 - 2 * k)}" y="${num(y - 0.75 * size - k)}" width="${num(len(r.name) * 0.6 * size + 4 * k)}" height="${num(size + 2 * k)}" rx="${num(3 * k)}"/>`,
+      `<text class="${cls} lbl-on" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" style="--fp-under:var(--fp-outline)">${esc(r.name)}</text>`);
+    const under = zone ? underOf(f.rooms[roomAt(f, centroid(r.pts))] ?? { kind: "room" }) : underOf(r);
+    out.push(`<text class="${cls}" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}"${under}>${esc(r.name)}</text>`);
   });
 
   // S11.1: the readout of a room's own sensors, a small line under its name (or at its anchor when it has none). Placed like
@@ -1463,7 +1704,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       // Anything that is not a finite number reads as "–". `unknown` and `unavailable` are only the two HA spells for it;
       // an integration can report an empty string, a comma decimal or a word, and printing "not-a-number °C" is worse than saying nothing.
       const bad = !/^-?\d+(\.\d+)?$/.test(s.state.trim()) || !Number.isFinite(Number(s.state));
-      const unit = typeof s.attributes.unit_of_measurement === "string" ? ` ${s.attributes.unit_of_measurement}` : "";
+      const unit = typeof s.attributes.unit_of_measurement === "string" ? `\u202F${s.attributes.unit_of_measurement}` : ""; // S23.1: never wraps
       const text = bad ? "–" : s.state + unit, vs = 11 * k, gap = 16 * k + 2 * k; // 2k clear of the 16k disc
       // S7.1: below the icon, then above, then to the right (the box centred on the icon's centre line).
       const [vx, vy] = place([screenOff(c, 0, gap + 0.75 * vs), screenOff(c, 0, -gap - 0.25 * vs), screenOff(c, gap + (text.length * 0.6 * vs) / 2, 0.25 * vs)], vs, text);
@@ -1481,7 +1722,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1;
     const rot = typeof u.rot === "number" && Number.isFinite(u.rot) && u.rot !== 0 ? u.rot : 0;
     const uk = k * scale;
-    const style = u.color && COLOR.test(u.color) ? ` style="--fp-dev-fill:${u.color}"` : "";
+    const style = u.color && COLOR.test(u.color) ? ` style="--fp-dev-fill:${u.color};--fp-dev-ink:${inkVar(u.color)}"` : "";
     const label = u.name ?? u.id;
     // A speaker or TV linked to a media player shows that player: playing is on, with the same two waves a speaker device draws.
     const player = playerOf(u), playing = !!player && o.state?.[player]?.state === "playing";
@@ -1498,6 +1739,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
   });
 
+  out.push(...tags); // S23.3: over every icon, under the editor's handles
   if (o.editor)
     for (const P of polys) P.pts.forEach((p, j) => out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
   const body = out.join("\n");
