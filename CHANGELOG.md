@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card and Studio: dark themes no longer show empty rooms as light grey boxes. Empty rooms, midnight's garden, terrace and pavement, and furniture take the theme's own colours. Your own room paint is dimmed on dark themes, never changed. The checkerboard is softer.
+
 ## 0.20.2 - 2026-10-08
 
 - Card: a device popup now always opens where you can see it. On a card taller than the screen, a tap low on the plan put it below the bottom edge; now it opens above the point, and a very short window makes it scroll inside instead.

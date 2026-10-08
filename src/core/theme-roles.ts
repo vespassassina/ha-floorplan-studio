@@ -7,10 +7,9 @@ import type { DeviceType } from "./schema";
  * "live" - on-state devices, the on-room ring, warnings, the primary action button. `dark` picks which end of the base ramp is
  * the background: true puts the darkest shade at the back (paper is `base`, lines are `fg`), false puts the lightest there.
  * `devices` overrides `accent` for specific device types, for a theme that wants its on-state colours to stay distinct instead
- * of collapsing to one; a type left out uses `accent`. `roomEmpty` overrides the "not yet painted" room fill (Diego's original
- * call, 2026-09-21: the same light grey `#d6d6d2` in every theme); a saturated dark theme needs its own dark shade there
- * instead, or the plain grey box reads as a hole against the theme's own dark walls (Diego, 2026-09-28). Left out, the
- * classic grey still applies — only a theme that asks for it deviates. */
+ * of collapsing to one; a type left out uses `accent`. `roomEmpty` overrides the "not yet painted" room fill. Left out, a light
+ * theme keeps the classic grey `#d6d6d2` (Diego, 2026-09-21) and a dark theme uses its own room shade (S23.6, 2026-10-08):
+ * the light grey read as a hole punched in a dark plan. */
 export interface ThemeRoles {
   base: string;
   fg: string;
@@ -55,7 +54,7 @@ function hslToHex(h: number, s: number, l: number): string {
 /** One structural surface's position on the base ramp: 0 is the background, 1 is the strongest linework (an external wall). */
 const RAMP: [string, number][] = [
   ["bg", 0], ["room", 0.08], ["garden", 0.14], ["water", 0.16], ["terrace", 0.18], ["pavement", 0.20], ["fill", 0.22],
-  ["fillLine", 0.30], ["idle", 0.42], ["sealed", 0.42], ["tread", 0.55], ["wallEdge", 0.55], ["wallFence", 0.55],
+  ["fillLine", 0.30], ["idle", 0.42], ["sealed", 0.42], ["tread", 0.55], ["wallEdge", 0.55], ["wallFence", 0.55], ["furniture", 0.62],
   ["wall", 0.78], ["wallExternal", 0.92],
 ];
 
@@ -85,7 +84,7 @@ export function rolesToTokens(roles: ThemeRoles): string {
   const devFor = (t: DeviceType) => roles.devices?.[t] ?? roles.accent;
   const acCool = roles.devices?.ac ?? roles.accent, acHeat = roles.devices?.ac ?? roles.accent;
   return [
-    `--fp-ink:${roles.fg}`, `--fp-bg:${shades.bg}`, `--fp-room:${shades.room}`, `--fp-room-empty:${roles.roomEmpty ?? "#d6d6d2"}`,
+    `--fp-ink:${roles.fg}`, `--fp-bg:${shades.bg}`, `--fp-room:${shades.room}`, `--fp-room-empty:${roles.roomEmpty ?? (roles.dark ? shades.room : "#d6d6d2")}`,
     `--fp-garden:${shades.garden}`, `--fp-terrace:${shades.terrace}`, `--fp-pavement:${shades.pavement}`,
     `--fp-wall:${shades.wall}`, `--fp-idle:${shades.idle}`,
     `--fp-on:${roles.accent}`, `--fp-open:${roles.accent}`, `--fp-motion:${devFor("motion")}`, `--fp-heater:${devFor("heater")}`,
@@ -108,9 +107,11 @@ export function rolesToTokens(roles: ThemeRoles): string {
     // warn/danger/primary and their on-dark/on-light text stay the same fixed pair in every theme, generated or not
     // (matching midnight and light before them): they are UI chrome, not "device on" state, and each already clears
     // 4.5:1 against its own fixed text colour - collapsing them into the accent broke that pairing (Opus review, 2026-09-22).
-    // --fp-furniture is the same kind of fixed pair: a neutral grey for furniture lines, deliberately not shared with
-    // --fp-idle, so changing idle-device colouring never moves furniture and vice versa (Diego, 2026-09-23).
-    `--fp-warn:#f28c28`, `--fp-danger:#b02a2a`, `--fp-primary:#1f6699`, `--fp-furniture:#79766e`,
+    // --fp-furniture (S23.6) is a ramp shade a step past the edge (.62: at .55 beach-house's sand was 1.77:1 on the grey room), so furniture belongs to the theme; still not --fp-idle, so changing
+    // idle-device colouring never moves furniture and vice versa (Diego, 2026-09-23).
+    `--fp-warn:#f28c28`, `--fp-danger:#b02a2a`, `--fp-primary:#1f6699`, `--fp-furniture:${shades.furniture}`,
+    // S23.6: paint the user chose is dimmed on a dark theme, never recoloured; a light theme shows it as chosen.
+    `--fp-paint-dim:${roles.dark ? "brightness(.62) saturate(.85)" : "none"}`,
     `--fp-wall-external:${shades.wallExternal}`, `--fp-wall-fence:${shades.wallFence}`,
     `--fp-wall-edge:${shades.wallEdge}`, `--fp-measure:${roles.line}`, `--fp-glow:${roles.accent}`, `--fp-aura:${roles.accent}`,
     `--fp-active:${roles.accent}`,

@@ -22,7 +22,8 @@ const parquet = (id: string, name: string, base: string, line: string): Texture 
   id, name, preview: base, w: 40, h: 40,
   tile: `<rect width="40" height="40" fill="${base}"/><g stroke="${line}" fill="none"><path d="M0 .5H40M0 20.5H40M.5 0V40M20.5 0V40" stroke-width="1.5"/><path d="M0 7H20M0 14H20M27 20V40M34 20V40" stroke-width=".6" opacity=".5"/><path d="M27 0V20M34 0V20M0 27H20M0 34H20" stroke-width=".6" opacity=".5" transform="translate(20,0)"/><path d="M0 27H20M0 34H20" stroke-width=".6" opacity=".5" transform="translate(0,0)"/></g>`,
 });
-/** Two-tone 50 cm squares, the classic checkerboard. */
+/** Two-tone 50 cm squares, the classic checkerboard. S23.6: softened to two greys about 2:1 apart (was cream on near-black,
+ * about 12:1), so a checkered floor no longer shouts over the plan's walls and labels. */
 const checker = (id: string, name: string, a: string, b: string): Texture => ({
   id, name, preview: a, w: 50, h: 50,
   tile: `<rect width="50" height="50" fill="${a}"/><rect x="0" y="0" width="25" height="25" fill="${b}"/><rect x="25" y="25" width="25" height="25" fill="${b}"/>`,
@@ -39,7 +40,7 @@ export const TEXTURES: Texture[] = [
   stone("stone-bluegrey", "Dark blue-grey stone tiles", "#3f4a5a", "#29313d"),
   stone("stone-black", "Black stone tiles", "#2a2b2d", "#484a4d"),
   stone("stone-terracotta", "Terracotta tiles", "#c1592f", "#8f3f1d"),
-  checker("checker-classic", "Checkerboard", "#eeece5", "#2a2b2d"),
+  checker("checker-classic", "Checkerboard", "#cfccc4", "#8a877f"),
 ];
 
 export const TEXTURE_IDS: string[] = TEXTURES.map((t) => t.id);

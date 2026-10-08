@@ -2,6 +2,34 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: every surface follows the theme (S23.6)
+
+Details of the V16 and V23 decisions below. The values, per theme:
+
+| Theme | Empty room | Furniture | Garden / terrace / pavement |
+|---|---|---|---|
+| blueprint | #132237 | #3975cf | ramp |
+| terminal | #1d2d28 | #63a68f | ramp |
+| coffee | #30231a | #b17a57 | ramp |
+| a-team | #282222 | #8e7a7a | ramp |
+| space | #141b36 | #3a58ce | ramp |
+| cyberpunk | #280842 | #8e1ced | ramp |
+| carpenter-brut | #391115 | #da2e40 | ramp |
+| midnight | #14213a (`var(--fp-room)`) | #3f66b0 | #1d2a42 / #21304c / #233352 |
+| ha, dark | `var(--fp-room)`, HA's secondary background | #3f66b0 | as midnight |
+| solarized | #06323d | #586e75 | #11424f / #124c5b / #135161 |
+| light, ha light | #d6d6d2 | #79766e | unchanged |
+| slate | #d6d6d2 | #7b7b69 | ramp |
+| beach-house | #d6d6d2 | #b28a32 | ramp |
+
+- **Empty room.** `rolesToTokens` gives a dark theme its room shade (ramp .08), the colour 3D already paints floors with. The four hand-set `roomEmpty` values went; the option stays. Solarized is #06323d, not base02 #073642: a name (`--fp-text` 92 % into the room, the S23.1 label) measured 4.33:1 on base02 and 4.57:1 here, and the room still stands 1.09:1 off the board.
+- **Furniture.** A ramp shade at .62, a step past the wall edge (.55): at .55 beach-house's sand measured 1.77:1 on the grey room, under the 1.8 the test asks. The body is still 45 % of that into the empty room.
+- **Paint.** `--fp-paint-dim` is `brightness(.62) saturate(.85)` on a dark theme and `none` on a light one, applied as a filter to a room or stair with its own `fill`. The colour itself is never changed. The on ring (`fill="none"`) is left alone. Not in 3D yet.
+- **Checker.** #cfccc4 on #8a877f, about 2:1 (was #eeece5 on #2a2b2d, about 12:1).
+- **Not changed.** Midnight water (#a9cfe3) and fill (#c4c0b8) stay light; the brief named garden, terrace and pavement only.
+
+Tests changed on purpose: theme-roles.test.ts ("room-empty is the one fixed grey"); editor.spec.ts, the blueprint room in the theme table and the furniture-token pair (midnight is no longer #79766e); card-3d-tex-glow.spec.ts, the checkerboard's luma spread (238 over 42 is now 204 over 135) and its square counter, which now reads the 10th to 90th percentile so a lamp on the line no longer sets the band.
+
 ## 2026-10-08: the popup is placed inside what the user sees (S22.2)
 
 `placeNear` (popup-ui.ts) clamps to the host's box cut to the visual viewport (`window.visualViewport`, else the window), not to the host alone. Below the point first, above it when there is no room below, then clamped into that box. Its height is capped to the box less 16 px (the CSS cap the popup had for a host in full view), so in a very short window the sliders scroll and the button stays on screen. A host with less than 40 px showing falls back to its own box, the old rule. Not chosen: `position: fixed` (it would escape the card's stacking and need its own z-index and theme scope). The popup is placed when it opens and on each render, not on a page scroll.
