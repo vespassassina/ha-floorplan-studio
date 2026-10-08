@@ -2,6 +2,24 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: the card's Overview sheet (S24.7)
+
+- **Active leaves out what Attention lists.** A triggered alarm or an open garage would otherwise be two rows. The Active count and chips count the rest.
+- **The alerts chip counts Attention rows; a floor tab counts things** (S24.3's `floors.count`). A lock that is unlocked and low on battery is two rows, one thing on the tab.
+- **Alerts come first in the chips** ("2 alerts · 6 lights"), against the wireframe's order. Folded, the header is one line that ends in an ellipsis; what is wrong must survive the cut.
+- **Folded, the header is one line and the crumb hides.** Two lines covered a device and a door at 375 px that a person could tap before S24.7 (`card-room-select`, `label-tag-tap`).
+- **The panel stays `min(200px, 45%)` wide.** A wider panel (250 px) hid plan icons that existing tests tap at 375 px. Rows wrap their name and room instead; the age never breaks.
+- **The category labels stay** ("Lights", "Security"), not the wireframe's "Lights on": the folds and their stored ids are S14.6's.
+- **The pulse is card chrome**, a `.fp-pulse` ring placed over the icon after each render, not a `renderFloor` option. Nothing on the plan changes, so the studio needs no twin (finding 8 holds: the plan is still drawn by one path).
+- **3D: a row tap switches floor and opens the popup, no pan, no ring.** The 3D camera has no "centre on a point" yet; the ring looks for the 2D svg and hides without it.
+- **A card pinned to one floor with "All floors" on** opens another floor's popup and does not switch, since it cannot show that floor.
+- **A linked piece's row locates it, then opens more-info**, as its tap on the plan does.
+- **`zoom: false` keeps the zoom on show**; otherwise the locate zooms to 2× or closer, never out.
+- **Unavailable is folded by default** (`a:unavailable:open` in the fold set, the "opened" pattern of Scenes).
+- **The scope toggle shows only when the card can show more than one floor**, and `all` is kept in `fp-active-panel:` beside the position.
+- **The search slot is an empty `div` that hides itself** (`:empty`), so S24.8 adds the box without moving the rest.
+- **A phone's popup may cover the thing it located.** On a 390 x 410 card the popup beside the row overlaps the centred lamp; the ring shows once the popup closes. Left for review; a bottom sheet is the likely fix.
+
 ## 2026-10-08: the search box's keys and focus (S24.2)
 
 - **`isSearchChord` lives in `view-keys.ts`**, beside `isSaveChord` and `takesTyping`, and `search-box.ts` re-exports it. A host can test the chord without loading the element, and "/" in a text field uses the same `takesTyping` rule as the view keys.

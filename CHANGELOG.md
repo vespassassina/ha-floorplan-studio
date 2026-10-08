@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Card: the Active list is now the Overview. What needs attention comes first, with how long ago it changed; what is on follows by category. It lists the floor on show; "All floors" lists them all, each row with its floor. The header counts things in short chips ("2 alerts · 6 lights").
+- Card: tapping a row in the Overview goes to the device: the plan switches floor, centres on it, rings it and opens its popup. In 3D it switches floor and opens the popup.
+- Card: the small ▸ arrow on each row is gone. A device's details (maker, model, firmware, entity, last changed) are under Details in its popup.
+- Card: floor tabs show how many things need attention ("Ground · 3") and turn orange while an alarm is triggered.
+- Card: a lamp lit by its relay reads "on · via" the relay in every list, not off.
 - Card and studio (groundwork): one search index over floors, rooms and devices. A query matches names, entity ids, rooms, floors and types, ignores case and accents, and ranks the exact name first.
 - Card and studio (groundwork): one search box, opened with ⌘K, Ctrl+K or /. Arrows move through the results, Enter picks, Escape clears and then closes. Each result shows its room, floor and type.
 - Card: the card file is a quarter smaller (109 to 84 KB gzipped). The build drops the code's comments and spaces; the panel (158 to 131 KB) and the 3D view (196 to 145 KB) shrink too.
