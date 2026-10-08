@@ -3,8 +3,12 @@ import type { StateOverlay } from "./render";
 
 /** What the live state says about a door or window. The 2D line and the 2.5D wall face both read this, so they cannot disagree. */
 export interface DoorState {
-  /** A contact sensor is on, or a smart lock was left unlocked: the opening is open, drawn red. */
+  /** A contact sensor is on, or a smart lock was left unlocked: the opening is drawn open, red. */
   open: boolean;
+  /** S24.3 (G3): a contact sensor is on. The facts and Attention say "Open" for this alone. */
+  contact: boolean;
+  /** S24.3 (G3): a smart lock was left unlocked. The facts and Attention say "Unlocked", never "Open". */
+  unlocked: boolean;
   /** A vibration sensor is on: the same red, solid. */
   alarm: boolean;
   /** The door's own cover (a garage opener, a shutter) is open: drawn in the cover's colour. Never on a window or glass door: there `cover` is curtains. */
@@ -19,8 +23,11 @@ export interface DoorState {
 export function doorStateOf(d: Door, state: StateOverlay | undefined): DoorState {
   const on = (list: unknown, want: string) => Array.isArray(list) && list.some((e) => typeof e === "string" && state?.[e]?.state === want);
   const curtain = d.kind === "window" || d.kind === "glass" || d.kind === "slit";
+  const contact = on(d.sensors, "on"), unlocked = on(d.locks, "unlocked");
   return {
-    open: on(d.sensors, "on") || on(d.locks, "unlocked"),
+    open: contact || unlocked, // the plan draws both red; only the words tell them apart
+    contact,
+    unlocked,
     alarm: on(d.vibration, "on"),
     cover: !curtain && typeof d.cover === "string" && state?.[d.cover]?.state === "open",
   };

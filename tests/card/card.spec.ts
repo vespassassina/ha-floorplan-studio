@@ -864,7 +864,8 @@ test.describe("S9.6 a card pinned to one room", () => {
     expect(await calls(page)).toEqual([["light", "turn_on", { entity_id: "light.demo_kitchen" }]]);
 
     await expect(card(page).locator("css=.fp-active")).toHaveCount(1);
-    await expect(card(page).locator("css=.fp-active-row")).not.toHaveCount(0);
+    // S24.3: nothing in states() is on now that the camera is no longer listed; the panel says so instead of a row.
+    await expect(card(page).locator("css=.fp-active-empty")).toHaveText("Nothing on");
   });
 
   test("the icon scale matches the whole-floor card at the same zoom: S9.2's scale still reads fit, not the pin", async ({ page }) => {
@@ -1782,13 +1783,15 @@ test.describe("S9.5: the active-devices panel", () => {
 
   test("a real click on a panel row fires hass-more-info with that row's own entity", async ({ page }) => {
     await open(page);
-    await configureRecordingMoreInfo(page, { layout: structuredClone(demo) }, { states: states() });
-    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" });
+    // S24.3: the Hall camera row this test used is no longer listed. The hall motion sensor stands in: one entity, no
+    // operation (the living light names a relay too, so its More info opens a chooser instead).
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo) }, { states: { ...states(), "binary_sensor.demo_hall_motion": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall motion" });
     const box = (await row.boundingBox())!;
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     expect(await moreInfo(page)).toEqual([]); // a tap opens the popup first
     await page.locator("floorplan-studio-card").locator("css=.fp-pop-more").click();
-    expect(await moreInfo(page)).toEqual([{ entityId: "camera.demo_hall" }]);
+    expect(await moreInfo(page)).toEqual([{ entityId: "binary_sensor.demo_hall_motion" }]);
   });
 
   // Opus review CSS pair (CLAUDE.md finding 10): the camera row's icon used to take `--fp-dev-camera`, which
@@ -1798,12 +1801,15 @@ test.describe("S9.5: the active-devices panel", () => {
   // reads by (`.fp-active{color:var(--fp-ink)}`), which is picked precisely so it is never the same shade as the
   // background it sits on. Reading the resolved `fill`, not just asserting the source string, is what makes this
   // a real Chromium check and not a text match blind to which rule actually won (CLAUDE.md finding 10 itself).
-  test("S9.5 CSS pair: a camera row's icon resolves to --fp-ink (legible on --fp-room), not --fp-dev-camera", async ({ page }) => {
-    await open(page);
-    await configure(page, { layout: structuredClone(demo) }, { states: states() });
-    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" });
-    const fill = await row.locator("css=svg").evaluate((el) => getComputedStyle(el).fill);
-    expect(fill).toBe(DARK_INK); // blueprint's --fp-ink/--fp-text, #eef3fb — not --fp-dev-camera's idle navy
+  // S24.3 (G1): that camera row is gone. A camera is never on the Active list, so the pair above has no row to read; the
+  // colour rule itself is still unit-tested (`colorVarFor`, active.test.ts). This checks the row stays gone in a real card.
+  test("S24.3: a camera has no Active row, whatever its state", async ({ page }) => {
+    for (const s of ["idle", "streaming", "recording"]) {
+      await open(page);
+      await configure(page, { layout: structuredClone(demo) }, { states: { ...states(), "camera.demo_hall": { state: s, attributes: {}, last_changed: new Date().toISOString() } } });
+      await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Living light" }), s).toHaveCount(1);
+      await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" }), s).toHaveCount(0);
+    }
   });
 
   // S10.3: the demo's front door (doors[0]) carries a contact sensor (binary_sensor.demo_front_door) that is not

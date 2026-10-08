@@ -2335,7 +2335,9 @@ export class FloorplanStudioCard extends LitElement {
       ["Temperature", s.temperature],
       ["Humidity", s.humidity],
       ["Motion", s.motion ? `${s.motion.on ? "on" : "off"} since ${formatChanged(s.motion.since)}` : ""],
-      ["Open doors and windows", s.openings.join(", ") || "none"],
+      // S24.3 (G3): an unlocked door is not an open one. "Unlocked" shows only where a door carries a lock.
+      ["Open", s.openings.join(", ") || "none"],
+      ["Unlocked", s.hasLocks ? s.unlocked.join(", ") || "none" : ""],
       ["Lights on", s.lightsOn.join(", ") || "none"],
     ];
     return html`<div class="fp-room">

@@ -1428,10 +1428,10 @@ describe("FloorplanStudioCard", () => {
 
       const panel = el.shadowRoot!.querySelector(".fp-active");
       expect(panel).toBeTruthy();
-      expect(panel!.querySelector(".fp-active-count")!.textContent).toBe("5"); // 2 lights + camera (always) + media + person
+      // S24.3 (G1): the Hall camera is no longer listed whatever its state; it was the fifth row until then.
+      expect(panel!.querySelector(".fp-active-count")!.textContent).toBe("4"); // 2 lights + media + person
       expect(panelGroups(el)).toEqual([
         ["Lights", ["Living light", "Bedroom light"]],
-        ["Security", ["Hall camera"]],
         ["Media", ["Office speaker"]],
         ["People", ["Alex"]],
       ]);
@@ -1491,7 +1491,7 @@ describe("FloorplanStudioCard", () => {
       expect(names).toContain("Living light");
     });
 
-    it("says 'Nothing on' when nothing is active but the camera still keeps the panel open (a camera is always listed)", async () => {
+    it("says 'Nothing on' when nothing is active (the camera is left out as it was when a camera was always listed)", async () => {
       const el = await mount();
       const noCam = structuredClone(L);
       noCam.floors.ground.devices = noCam.floors.ground.devices.filter((d) => d.type !== "camera");
@@ -1505,19 +1505,20 @@ describe("FloorplanStudioCard", () => {
     it("a real click on a row opens that row's own popup (no operation), whose More info fires hass-more-info for its entity, not another's", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
-      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      // S24.3: the Hall camera row this test clicked is no longer listed; a playing speaker has no operation either.
+      el.hass = stubHass({ "light.demo_living": st("on"), "media_player.demo_office": st("playing") }) as never;
       await el.updateComplete;
       const events: CustomEvent[] = [];
       el.addEventListener("hass-more-info", (e) => events.push(e as CustomEvent));
       const rows = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-active-row")];
-      const cameraRow = rows.find((r) => r.querySelector("span")?.textContent === "Hall camera")!;
-      cameraRow.click();
+      const mediaRow = rows.find((r) => r.querySelector("span")?.textContent === "Office speaker")!;
+      mediaRow.click();
       await el.updateComplete;
       expect(events).toHaveLength(0);
-      expect(el.shadowRoot!.querySelector(".fp-pop")!.getAttribute("aria-label")).toBe("Hall camera");
+      expect(el.shadowRoot!.querySelector(".fp-pop")!.getAttribute("aria-label")).toBe("Office speaker");
       el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-pop-more")!.click();
       expect(events).toHaveLength(1);
-      expect(events[0]!.detail).toEqual({ entityId: "camera.demo_hall" });
+      expect(events[0]!.detail).toEqual({ entityId: "media_player.demo_office" });
     });
 
     it("the collapse button hides the body but keeps the header and count, and is reachable by keyboard as a real button", async () => {
@@ -1531,7 +1532,7 @@ describe("FloorplanStudioCard", () => {
       collapseBtn.click();
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
-      expect(el.shadowRoot!.querySelector(".fp-active-count")!.textContent).toBe("2"); // the light plus the always-listed camera
+      expect(el.shadowRoot!.querySelector(".fp-active-count")!.textContent).toBe("1"); // the light; S24.3: the camera is no longer listed
     });
 
     it("kiosk hides the panel even though active_list defaults to shown", async () => {

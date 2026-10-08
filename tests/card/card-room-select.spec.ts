@@ -32,7 +32,7 @@ const REGISTRY = {
   areas: { living: { area_id: "living", name: "Living room" } },
 };
 
-async function boot(page: Page, width: number, opts: { registry?: boolean; states?: Record<string, unknown> } = {}) {
+async function boot(page: Page, width: number, opts: { registry?: boolean; states?: Record<string, unknown>; layout?: typeof layout } = {}) {
   await page.setViewportSize({ width, height: 900 });
   await page.goto(URL_);
   await page.addScriptTag({ content: CARD_JS, type: "module" });
@@ -47,7 +47,7 @@ async function boot(page: Page, width: number, opts: { registry?: boolean; state
       el.hass = { states, ...(registry as object), callService: (d: string, s: string, data: { entity_id: string }) => { w.__calls.push(`${d}.${s} ${data.entity_id}`); } };
       return el.updateComplete;
     },
-    [{ layout, floor: "ground" }, { ...STATES(), ...(opts.states ?? {}) }, opts.registry === false ? {} : REGISTRY] as const,
+    [{ layout: opts.layout ?? layout, floor: "ground" }, { ...STATES(), ...(opts.states ?? {}) }, opts.registry === false ? {} : REGISTRY] as const,
   );
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
@@ -94,6 +94,20 @@ const click = async (page: Page, p: { x: number; y: number }) => { await page.mo
 const room = (page: Page) => card(page).locator("css=.fp-room");
 const factsOf = (page: Page) => room(page).locator("css=.fp-room-facts > div").evaluateAll((rows) => Object.fromEntries(rows.map((r) => [r.querySelector("dt")!.textContent!.trim(), r.querySelector("dd")!.textContent!.trim()])));
 
+test("S24.3 (G3): a door left unlocked reads Unlocked, not Open; the room with no lock says nothing of locks", async ({ page }) => {
+  const locked = structuredClone(layout);
+  const patio = (locked.floors.ground.doors as { name: string; locks?: string[] }[]).find((d) => d.name === "Patio door")!;
+  patio.locks = ["lock.demo_patio"];
+  await boot(page, 1280, { layout: locked, states: { "binary_sensor.demo_patio_door": st("off"), "lock.demo_patio": st("unlocked") } });
+  await click(page, await floorPoint(page, 0));
+  await expect(room(page).locator("css=.fp-room-name")).toHaveText("Living");
+  expect(await factsOf(page)).toMatchObject({ Open: "none", Unlocked: "Patio door" });
+  expect(Object.keys(await factsOf(page))).not.toContain("Open doors and windows");
+  await click(page, await floorPoint(page, 0)); // clear, then a room whose doors carry no lock
+  await click(page, await floorPoint(page, 1));
+  expect(Object.keys(await factsOf(page))).not.toContain("Unlocked");
+});
+
 for (const width of [1280, 375]) {
   test.describe(`room selection at ${width} px`, () => {
     test("a real tap on bare floor outlines the room and opens its section, with the facts from its own sensors and doors", async ({ page }) => {
@@ -108,7 +122,7 @@ for (const width of [1280, 375]) {
       expect(covered, "the room section is not under anything").toBe(false);
       expect(await factsOf(page)).toMatchObject({
         Area: "20 m²", Temperature: "21.7\u202F°C", Humidity: "48\u202F%", Motion: expect.stringMatching(/^on since \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/),
-        "Open doors and windows": "Patio door", "Lights on": "Living light",
+        Open: "Patio door", "Lights on": "Living light",
       });
     });
 
@@ -172,7 +186,7 @@ test.describe("the room section and the filtered list", () => {
     const text = inRoom.join("|");
     expect(text).toContain("Living light");
     expect(text).not.toContain("Kitchen light");
-    expect(text).not.toContain("Hall camera"); // a camera is always listed, but this one stands in the Hall
+    expect(text).not.toContain("Hall camera"); // S24.3: a camera is never listed now; it also stands in the Hall
     await card(page).locator("css=.fp-show-all").click();
     expect(await picked(page)).toEqual([0]); // Show all drops the filter, not the selection
     expect((await card(page).locator("css=.fp-filtered .fp-active-row").allTextContents()).join("|")).toContain("Kitchen light");

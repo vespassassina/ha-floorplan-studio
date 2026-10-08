@@ -7,6 +7,8 @@
 - Card: the card file is a quarter smaller (109 to 84 KB gzipped). The build drops the code's comments and spaces; the panel (158 to 131 KB) and the 3D view (196 to 145 KB) shrink too.
 - Card and Studio: a plan in another theme placed inside a solarized one keeps its own colour for garden, terrace, pavement and water names.
 - Card: switching floors in 3D no longer stalls. Each switch compiled the 3D view's shaders again, which took most of a second on a slow tablet; the view now keeps them while it is open.
+- Card: a door left unlocked is no longer called open. The room and floor facts read "Open" and "Unlocked" apart; "Unlocked" shows only where a door has a lock. The plan still draws both red.
+- Card: cameras are no longer in the Active list. A camera is a view, not something switched on.
 
 ## 0.21.0 - 2026-10-08
 

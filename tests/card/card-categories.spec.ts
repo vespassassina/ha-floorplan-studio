@@ -18,6 +18,8 @@ const STATES = () => ({
   "switch.demo_hall": st("off"), "switch.demo_tv_plug": st("on"),
   "sensor.demo_living_temperature": st("21.5", { unit_of_measurement: "°C" }),
   "climate.demo_living": st("heat"), "camera.demo_hall": st("idle"),
+  // S24.3: a camera is no longer listed, so the hall motion sensor is what fills the Security group these tests fold.
+  "binary_sensor.demo_hall_motion": st("on"),
 });
 
 async function boot(page: Page, width: number, extra: Record<string, unknown> = {}, fresh = true) {
@@ -61,7 +63,7 @@ for (const width of [1100, 375]) {
     test.describe(`categories at ${width} px, theme ${theme}`, () => {
       test("the Active list is ordered by category; a real click folds one group and a second opens it", async ({ page }) => {
         await boot(page, width, { theme });
-        // the demo lists the plug (power) before the camera (security); the fixed category order puts lights, security, power
+        // the demo lists the plug (power) before the motion sensor (security); the fixed category order puts lights, security, power
         const got = await names(page);
         expect(got.slice(0, 3)).toEqual(["Lights", "Security", "Power"]);
         expect(await rowsIn(page, "lights")).toBe(2);
