@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: the popup is placed inside what the user sees (S22.2)
+
+`placeNear` (popup-ui.ts) clamps to the host's box cut to the visual viewport (`window.visualViewport`, else the window), not to the host alone. Below the point first, above it when there is no room below, then clamped into that box. Its height is capped to the box less 16 px (the CSS cap the popup had for a host in full view), so in a very short window the sliders scroll and the button stays on screen. A host with less than 40 px showing falls back to its own box, the old rule. Not chosen: `position: fixed` (it would escape the card's stacking and need its own z-index and theme scope). The popup is placed when it opens and on each render, not on a page scroll.
+
 ## 2026-10-08: how a relay-lit lamp is turned off (S22.1)
 
 Details of the change the entry below records. One rule, `lampOffEntities` (room-info.ts): a lamp's light entity when it is `on`, then its `bound` relay when that is `on`. The popup's Turn off (`lampOffCalls`) and the room and floor All off (`RoomSummary.offEntities`, which replaces `lightsOnEntities`) both send it through `presetCalls`, so a `switch.*` relay gets `switch.turn_off` and any other domain `homeassistant.turn_off`. A relay several lamps share is in the list once.

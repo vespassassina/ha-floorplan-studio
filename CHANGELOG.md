@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card: a device popup now always opens where you can see it. On a card taller than the screen, a tap low on the plan put it below the bottom edge; now it opens above the point, and a very short window makes it scroll inside instead.
 - Card: a lamp lit by the relay that powers it can now be turned off from the card. Its popup reads "on · via" the relay, and Turn off switches the relay off (and the light too if it is on). Room and floor All off also switch off such relays, each once. More info offers the relay next to the light.
 
 ## 0.20.1 - 2026-10-08
