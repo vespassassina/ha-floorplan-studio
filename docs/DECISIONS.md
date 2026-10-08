@@ -2,6 +2,26 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Studio Layers replace Filter (S24.6)
+
+- **A view keeps the hidden families, not the shown ones.** Empty is the default, so a family added later starts
+  visible and an old remembered view needs nothing.
+- **Families are the card's categories plus Furniture** (`src/core/layers.ts`), so the Studio and the card (S24.8) group
+  alike. An unlinked appliance follows its type: hiding lights hides an unlinked lamp too. Every furniture piece, a
+  linked tv or speaker piece included, is Furniture: it draws as furniture.
+- **The selection is always drawn**, a device by `selection`, a piece or unlinked appliance by the new `keep`. Hiding the
+  family of what is selected lets the selection go: an invisible handle helps nobody.
+- **Alt-click on the family that is already the only one shown shows all again**, so one gesture undoes itself.
+- **Summary wording**: one hidden names it, all but one says "only X shown", all says "all hidden", else "N of 11".
+- **The note is a toolbar button, not a banner.** It stays while anything is hidden and opens the tab. Banners are for
+  events: a pick or a placement under a hidden layer, each with Show, which shows only the families concerned.
+- **Fit ignores Layers**, as Filter did. A view setting must not move the frame.
+- **The room's right-click uses Place's filter** (`areaMenuEntities`), not `areaToPlace`: `addFromArea` takes an HA
+  entity, and a catalogued one is refused there.
+- **A repeated area name gets the HA floor name, else the id.** Names are trimmed and compared without case.
+- **The eye paths live in the editor**, not in core's `UI_ICONS`, which the card bundle carries whole.
+- **The card's view-parity row is `#tabLayers`, "no" for now**, with why: the card's chips are S24.8.
+
 ## 2026-10-08: Studio search and Outline (S24.5)
 
 - **"Centres at no less than 1:1" means never zoomed out further than fit.** The plan has no fixed px-per-cm; fit is the
