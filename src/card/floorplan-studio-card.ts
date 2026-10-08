@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { ALL_OFF_TITLE, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
-import type { OffRow, SearchEntry } from "../core";
+import { ALL_OFF_TITLE, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import type { LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
@@ -357,10 +357,18 @@ export class FloorplanStudioCard extends LitElement {
     .fp-ov-search:empty { display: none; }
     /* S24.8: the search at the top of the sheet; its list drops over the rows below. */
     .fp-ov-search { margin: 2px 0 6px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); }
-    .fp-ov-scopes { display: flex; justify-content: flex-end; margin-bottom: 4px; }
-    /* S24.8: the slot the layer chips go in, one per family; empty until they land. */
+    /* S24.8: one row of tools: Turn off on this floor…, Layers, All floors. */
+    .fp-ov-scopes { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
+    .fp-ov-scopes .fp-floor-off { margin-right: auto; }
+    /* S24.8: the layer chips, one per family, unfolded by the Layers button; and the note for a kept thing. */
     .fp-ov-layers:empty { display: none; }
-    .fp-ov-off { margin: 0 0 6px; }
+    .fp-ov-layers { margin: 0 0 6px; }
+    .fp-layer-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    .fp-layer, .fp-layers-toggle, .fp-layer-note button { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 8px; cursor: pointer; min-height: 24px; }
+    .fp-layer[aria-pressed="false"] { border-style: dashed; text-decoration: line-through; }
+    .fp-layers-toggle[aria-expanded="true"] { border-color: var(--fp-ink); }
+    .fp-layer:hover, .fp-layer:focus-visible, .fp-layers-toggle:hover, .fp-layers-toggle:focus-visible, .fp-layer-note button:hover, .fp-layer-note button:focus-visible { border-color: var(--fp-primary); }
+    .fp-layer-note { margin: 4px 0 0; font: 12px/1.4 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
     .fp-floor-off:disabled { opacity: 0.5; cursor: default; }
     .fp-floor-off:disabled:hover { border-color: var(--fp-idle); }
     .fp-ov-scope { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 10px; cursor: pointer; min-height: 24px; }
@@ -442,6 +450,12 @@ export class FloorplanStudioCard extends LitElement {
    *  does not vanish under the finger while a light goes off elsewhere), and which rows are ticked. Same one-dialog rules. */
   private _offDialog: { floor: string; title: string; rows: OffRow[]; ticked: boolean[] } | null = null;
   private _offDialogWasOpen = false;
+  /** S24.8: the families this viewer hid with the layer chips, kept in the view memory. */
+  private _hiddenLayers: LayerId[] = [];
+  /** What search or a row tap located under a hidden family: drawn anyway (`keep`) on its floor, with a note and Show. */
+  private _kept: { floor: string; t: "dev" | "furn"; i: number; fam: LayerId } | null = null;
+  /** Whether the layer chips are unfolded (the Layers button). Not remembered: folded is where a sheet starts. */
+  private _layersOpen = false;
   /** S24.8 (F1): the search's entries, built once per layout and state source, not per keystroke (`<fp-search>` indexes on a new array). */
   private _searchMemo: { layout: Layout; known: boolean; floors: string; entries: SearchEntry[] } | null = null;
   /** S14.2: the tap popup, or `null` for none. One at a time; `s.key` is who it is about, `x`/`y` where the pointer landed (client px), `opener` the
@@ -603,6 +617,7 @@ export class FloorplanStudioCard extends LitElement {
     this._floorViews = new Map();
     this._memFloor = null;
     this._camMoved = false;
+    this._kept = null;
     let s: StoredView = {};
     try {
       const raw = globalThis.localStorage?.getItem(this._viewStorageKey());
@@ -617,6 +632,7 @@ export class FloorplanStudioCard extends LitElement {
     if (s.labels !== undefined) this._pickedLabels = s.labels;
     if (s.names !== undefined) this._pickedNames = s.names;
     if (s.floor !== undefined) this._shownFloor = s.floor; // an unknown id is ignored by _floorKey
+    this._hiddenLayers = s.layers ?? [];
     for (const [k, fv] of s.floors ?? []) this._floorViews.set(k, fv); // the live fields follow once the first render knows the floor
   }
 
@@ -663,6 +679,7 @@ export class FloorplanStudioCard extends LitElement {
     if (this._pickedLabels !== null) o.labels = this._pickedLabels;
     if (this._pickedNames !== null) o.names = this._pickedNames;
     if (this._shownFloor !== null) o.floor = this._shownFloor;
+    if (this._hiddenLayers.length) o.layers = this._hiddenLayers;
     this._stashFloor();
     if (this._floorViews.size) o.floors = [...this._floorViews];
     try {
@@ -1277,6 +1294,7 @@ export class FloorplanStudioCard extends LitElement {
     this._settleTurn(false); // a turn in flight ends where it was going, under the floor it began on
     this._saveViewNow(); // the floor just left keeps its zoom, turn and camera (S14.4)
     this._shownFloor = key;
+    this._kept = null; // a kept thing is kept on its floor only, and only until the person looks elsewhere
     this._pickedRoom = null; // a room of the floor just left means nothing on this one
     this._pickedFloor = null;
     this._syncFloorMemory(); // and the floor now shown brings its own
@@ -1796,6 +1814,9 @@ export class FloorplanStudioCard extends LitElement {
       }
       this._startPulse({ floor: ref.floor, what: ref.what, index: ref.index });
     }
+    // S24.8: search and rows do not follow Layers. A thing of a hidden family is drawn anyway, and the sheet says why it is alone.
+    const fam: LayerId | null = device ? layerOfType(device.type) : piece ? "furniture" : null;
+    this._kept = shows && fam && this._hiddenLayers.includes(fam) ? { floor: ref.floor, t: device ? "dev" : "furn", i: ref.index, fam } : null;
     const point = at ?? (() => { const b = (from ?? this).getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.bottom }; })();
     if (piece) { const d = pieceDevice(piece); if (d) fireEvent(this, "hass-more-info", { entityId: d.entity }); }
     else if (device) this._openSubject(this._deviceSubject(device), point, from);
@@ -2630,9 +2651,8 @@ export class FloorplanStudioCard extends LitElement {
               ? this._roomSection(summary, html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => { this._roomFilter = !this._roomFilter; this.requestUpdate(); }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
                 <div class="fp-filtered">${list}</div>`, scope)
               : html`<div class="fp-ov-search" data-slot="search"><fp-search .entries=${this._searchEntries()} label="Search the plan" placeholder="Search rooms and devices" @fp-pick=${(e: CustomEvent<SearchEntry>) => this._onSearchPick(e)}></fp-search></div>
-                ${many ? html`<div class="fp-ov-scopes"><button type="button" class="fp-ov-scope" aria-pressed=${this._overviewAll ? "true" : "false"} @click=${() => this._toggleOverviewAll()}>All floors</button></div>` : nothing}
-                <div class="fp-ov-layers" data-slot="layers"></div>
-                ${this._floor() ? html`<div class="fp-ov-off">${this._floorOffButton()}</div>` : nothing}
+                <div class="fp-ov-scopes">${this._floorOffButton()}${this._layersToggle()}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${this._overviewAll ? "true" : "false"} @click=${() => this._toggleOverviewAll()}>All floors</button>` : nothing}</div>
+                <div class="fp-ov-layers" data-slot="layers">${this._layerChips()}</div>
                 ${list}
                 <p class="fp-ov-hint">Tap a row: the plan goes to it.</p>`}
           </div>`}
@@ -2697,6 +2717,45 @@ export class FloorplanStudioCard extends LitElement {
       this._pickRoom(e.room);
       void this.updateComplete.then(() => this.shadowRoot?.querySelector<HTMLElement>(".fp-room-clear")?.focus());
     }
+  }
+
+  // ---- S24.8: layer chips --------------------------------------------------------------------------------------------------------
+
+  /** The Layers button in the tools row: it unfolds the chips, and counts what is hidden ("Layers · 2 hidden"), with the
+   *  Studio's sentence as its title ("Layers: lights hidden"), so a folded sheet still tells. Short, so it shares a line
+   *  with All floors in a 260 px sheet. Folded by default: the sheet covers no more of the plan. Not in live 3D. */
+  private _layersToggle() {
+    if (!this._floor() || this._shows3d()) return nothing;
+    const n = this._hiddenLayers.length;
+    return html`<button type="button" class="fp-layers-toggle" aria-expanded=${this._layersOpen ? "true" : "false"} title=${layersSummary(this._hiddenLayers) || "Hide or show families on the plan"} @click=${() => { this._layersOpen = !this._layersOpen; this.requestUpdate(); }}>${n ? `Layers · ${n} hidden` : "Layers"}</button>`;
+  }
+
+  /** One text chip per family with something on the floor on show (`layerCounts`); pressed means shown. A click hides or
+   *  shows the family, Alt-click shows it alone (again: all). Not in live 3D, which draws every family. Then, unfolded or
+   *  not, the note for a thing located under a hidden family, with Show for that family. */
+  private _layerChips() {
+    const f = this._floor();
+    if (!f || this._shows3d()) return nothing;
+    const n = layerCounts(f), hidden = this._hiddenLayers, k = this._keptHere();
+    const word = (id: LayerId) => (LAYERS.find((l) => l.id === id)?.label ?? id).toLowerCase();
+    const chips = LAYERS.filter((l) => n[l.id] > 0).map((l) => {
+      const shown = !hidden.includes(l.id);
+      return html`<button type="button" class="fp-layer" data-layer=${l.id} aria-pressed=${shown ? "true" : "false"} title=${`${shown ? "Hide" : "Show"} ${word(l.id)} (${n[l.id]}). Alt-click: ${word(l.id)} only`} @click=${(e: MouseEvent) => this._setLayers(e.altKey ? soloLayer(hidden, l.id) : toggleLayer(hidden, l.id))}>${l.label}</button>`;
+    });
+    return html`${this._layersOpen ? html`<div class="fp-layer-chips">${chips}</div>` : nothing}${k ? html`<p class="fp-layer-note" role="status">Hidden by Layers: ${word(k.fam)} <button type="button" @click=${() => this._setLayers(hidden.filter((x) => x !== k.fam))}>Show</button></p>` : nothing}`;
+  }
+
+  private _setLayers(next: LayerId[]): void {
+    this._hiddenLayers = next;
+    this._kept = null;
+    this._saveViewNow();
+    this.requestUpdate();
+  }
+
+  /** The kept thing when it is on the floor on show and its family is still hidden. */
+  private _keptHere() {
+    const k = this._kept;
+    return k && k.floor === this._floorKey() && this._hiddenLayers.includes(k.fam) ? k : null;
   }
 
   // ---- S24.8 (C2): Turn off on this floor… --------------------------------------------------------------------------------------
@@ -2808,6 +2867,8 @@ export class FloorplanStudioCard extends LitElement {
       showNames: this._names(),
       around: floorsAroundKey(this._layout!, this._floorKey()!),
       selectedRoom: this._picked() ?? undefined,
+      hiddenLayers: this._hiddenLayers,
+      keep: this._keptHere(),
       colors: this._layout!.colors, // S19.E3: the studio's per-type colours, as the editor draws them
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):

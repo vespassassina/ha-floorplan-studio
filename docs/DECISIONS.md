@@ -2,6 +2,28 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: the card's layer chips (S24.8, part 2)
+
+- **Supersedes "Layer chips are not in this part"** (part 1, below). The chips fill the `.fp-ov-layers` slot.
+- **Text chips, not eyes.** The eye paths stay in the editor; the card bundle carries no new icon. Pressed means shown;
+  a hidden chip is dashed and struck through, so the state does not rest on colour.
+- **One chip per family with something on the floor on show**, devices and unlinked appliances by type, pieces as
+  Furniture (`layerCounts`). A family the floor lacks has no chip, though it stays hidden if the viewer hid it.
+- **Per viewer, not per floor.** The hidden list sits in the card's view memory beside the theme and the names toggle,
+  and holds on every floor, as the Studio's does. Junk in storage is dropped by `parseLayers`.
+- **Not in live 3D.** The 3D view draws every family; chips that did nothing there would lie. They come back with 2D.
+- **Search and row taps do not follow Layers**, as in the Studio. The located thing is drawn by `keep` and the chips
+  end in "Hidden by Layers: lights" with Show. A note in the sheet, not a banner: the card has no banners. A floor change
+  or any chip click drops the kept thing, so it never lingers as an exception nobody asked for.
+- **The chips fold under a Layers button**, in one row with "Turn off on this floor…" and "All floors". Eleven chips
+  are three lines in a 260 px sheet; always open, the taller sheet covered plan points the popup and wheel tests use,
+  which a viewer would hit too. Folded, the button still counts what is hidden ("Layers · 2 hidden"; the Studio's
+  `layersSummary` sentence is its title, too long for one line beside All floors). The fold is not
+  remembered: a sheet starts folded. This supersedes part 1's place for "Turn off on this floor…" (under the scope
+  toggle): it now starts the tools row, so the Overview is one row shorter than in part 1.
+- **Chips are in the Overview only.** A picked room's section is about that room; the chips return with the Overview.
+- **The parity row `#tabLayers` is now "yes"**, checked by the Layers button on the 2.5D demo card.
+
 ## 2026-10-09: the card's search, "Turn off on this floor…" and "Lights off" (S24.8, part 1)
 
 - **The chord is taken under the view keys' gate**: the card focused, else hovered, as the arrows are. The card's key
