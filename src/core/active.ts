@@ -24,20 +24,20 @@ export interface ActiveDevice {
  *   motion, contact, heater, climate, ac, tv, media, plug, computer, person, and cover: only a garage door, gate or
  *   door is ever "on" (`coverActive`, Diego 2026-10-03), a curtain or blind is not. The list and the plan can
  *   never disagree about one of these.
- * - `"always"`: camera. A camera is a view, not an on/off thing (the maintainer's own words) — it is always
- *   worth a glance, "streaming" or not.
  * - `"cleaning"`: vacuum. `classOf` reads both "cleaning" and "returning" as one active colour on the plan (S7.10:
  *   `.dev-vacuum.on`), but the maintainer's brief for this list asks only for "vacuums that are cleaning" — a
  *   robot on its way back to the dock is winding down, not something to check. So vacuum is the one type whose
  *   list membership is narrower than its plan colour, not merely reused from it.
- * - `"never"`: every other type — a sensor with no on/off shape of its own (temp, humidity), a plain switch or
+ * - `"never"`: camera (S24.3, G1: until then "always", which put ten cameras in "Active 150" whatever their state; a
+ *   camera is a view, not something on, and "recording" or "streaming" is its normal state, so no state of it is
+ *   "on" either), and every other type — a sensor with no on/off shape of its own (temp, humidity), a plain switch or
  *   lock (not asked for), or a type the card only ever watches through its own dialog (battery, inverter, server,
  *   access_point, boiler, car, ups, printer, other). A radar is "on" like a motion sensor (`MOTION_TYPES`).
  */
-export const ACTIVE_LIST_RULE: Record<DeviceType, "on" | "always" | "cleaning" | "never"> = {
+export const ACTIVE_LIST_RULE: Record<DeviceType, "on" | "cleaning" | "never"> = {
   light: "on", motion: "on", contact: "on", heater: "on", climate: "on", ac: "on", tv: "on", media: "on",
   plug: "on", computer: "on", person: "on", speaker: "on",
-  camera: "always",
+  camera: "never",
   vacuum: "cleaning",
   cover: "on", switch: "never", temp: "never", humidity: "never", battery: "never", inverter: "never", server: "never",
   access_point: "never", lock: "never", vibration: "never", other: "never", boiler: "never", car: "never",
@@ -87,7 +87,6 @@ function isActive(d: Device, state: StateOverlay | undefined, opts: ActiveOpts):
   const rule = ACTIVE_LIST_RULE[d.type];
   const s = state?.[d.entity]?.state;
   if (s === "unavailable" || s === "unknown") return false;
-  if (rule === "always") return true;
   if (rule === "never") return false;
   if (rule === "cleaning") return s === "cleaning";
   return classOf(d, { scale: 1, state, ...opts }) === "on";
