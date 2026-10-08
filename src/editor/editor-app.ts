@@ -154,7 +154,8 @@ export class FloorplanStudioEditor extends LitElement {
   declare demo: Layout | undefined;
   declare errors: string[];
   declare status: string;
-  declare banner: { text: string; level: BannerLevel } | null;
+  /** `action`: one button in the banner that undoes what the message is about (S22.4: Untick Fix plan). */
+  declare banner: { text: string; level: BannerLevel; action?: { id: string; label: string; run: () => void } } | null;
   private bannerTimer: ReturnType<typeof setTimeout> | undefined;
   declare addingFloor: boolean;
   /** S4.10: everything floorplan-studio labelled in Home Assistant, loaded fresh each time the Home Assistant menu opens. `null` before the first load. */
@@ -550,6 +551,7 @@ export class FloorplanStudioEditor extends LitElement {
     .banner.info{background:#e8f1fb;color:#123a63;border-color:#6c9bd1}
     .banner.warning{background:#fff4d6;color:#5c4200;border-color:#d9a400}
     .banner.error{background:#fde4e1;color:#7a1410;border-color:#d4483f}
+    .banner-act{pointer-events:auto;flex:none;border:1px solid currentColor;border-radius:4px;background:transparent;color:inherit;font:inherit;font-weight:600;cursor:pointer;padding:2px 8px}
     .banner-x{pointer-events:auto;flex:none;border:0;background:transparent;color:inherit;font-size:1.3em;line-height:1;cursor:pointer;padding:0 6px}
     .status{flex:0 1 auto;max-width:16em;font-size:.85em;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .room{pointer-events:all}
@@ -596,16 +598,16 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   /** Shows a message as a top banner for 20 s, coloured by its situation. `level` overrides the guess from the text. */
-  private notify(text: string, level?: BannerLevel) {
+  private notify(text: string, level?: BannerLevel, action?: { id: string; label: string; run: () => void }) {
     clearTimeout(this.bannerTimer);
     if (isQuiet(text)) { this.banner = null; return; }
-    this.banner = { text, level: level ?? bannerLevel(text) };
+    this.banner = { text, level: level ?? bannerLevel(text), action };
     this.bannerTimer = setTimeout(() => { this.banner = null; }, BANNER_MS);
   }
   private closeBanner() { clearTimeout(this.bannerTimer); this.banner = null; this.status = ""; }
 
   protected willUpdate(changed: Map<string, unknown>) {
-    if (changed.has("status")) this.notify(this.status);
+    if (changed.has("status") && this.banner?.text !== this.status) this.notify(this.status); // already shown by an explicit notify, with its level and action
     if (changed.has("floor") && this.floor && this.floor !== this.st.floor && hasOwn(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
     // Always named, never left to inherit: blueprint unless the viewer chose otherwise. Reflected on the host itself, not just the svg,
     // so the editor's own chrome (menus, panels, buttons) themes with the plan. data-mode is for the ha theme only.
@@ -660,7 +662,19 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); else if (this.st.planBlocked) this.planFixed(); };
   /** The one reply to a change the plan lock refused ("Fix plan" is ticked). */
-  private planFixed(): boolean { this.status = "The plan is fixed. Untick Fix plan to change it. Devices and objects stay editable"; this.notify(this.status, "error"); this.requestUpdate(); return true; }
+  private planFixed(): boolean {
+    this.status = "The plan is fixed. Devices and objects stay editable";
+    this.notify(this.status, "error", { id: "bannerUnfix", label: "Untick Fix plan", run: () => this.setPlanLocked(false) });
+    this.requestUpdate();
+    return true;
+  }
+  /** The toolbar's Fix plan box and the banner's Untick Fix plan button both come here. */
+  private setPlanLocked(on: boolean) {
+    this.st.planLocked = on;
+    if (on) this.stopDraw();
+    this.status = on ? "Plan fixed: only devices and objects can change" : "Plan unlocked";
+    this.requestUpdate();
+  }
   /** S10.2: `PanelCtx.attachEntity` — names the entity (its catalog name, escaped by lit's own text interpolation)
    *  and `label` (the door/device/item) in the status line only when an icon was actually pulled off the plan. */
   private attachEntity = (entity: string, apply: (f: Floor) => void, label: string, keepDeviceId?: string) => {
@@ -1878,6 +1892,9 @@ export class FloorplanStudioEditor extends LitElement {
     if (isSaveChord(ev) && !ev.defaultPrevented && !ev.isComposing) { ev.preventDefault(); this.saveByKey(); return; }
     const vk = viewKeyFor(ev);
     if (vk) { this.doViewKey(vk, ev); return; }
+    // S22.5: Escape closes an open toolbar menu first, and does nothing else on that press. Ahead of the input check,
+    // since Filter holds checkboxes and Add holds selects. Focus goes back to the menu's own button.
+    if (ev.key === "Escape" && !ev.defaultPrevented && this.closeMenuByKey()) { ev.preventDefault(); return; }
     const t = ev.composedPath()[0] as HTMLElement | undefined;
     if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); this.undo(!ev.shiftKey); return; }
@@ -2692,7 +2709,7 @@ export class FloorplanStudioEditor extends LitElement {
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const pressed = (b: boolean) => (b ? "true" : "false");
     return html`
-      ${this.banner ? html`<div class="banner ${this.banner.level}"><span class="banner-text" id="status" role=${this.banner.level === "error" ? "alert" : "status"}>${this.banner.text}</span><button class="banner-x" id="bannerClose" aria-label="Close message" @click=${() => this.closeBanner()}>×</button></div>` : nothing}
+      ${this.banner ? html`<div class="banner ${this.banner.level}"><span class="banner-text" id="status" role=${this.banner.level === "error" ? "alert" : "status"}>${this.banner.text}</span>${this.banner.action ? html`<button class="banner-act" id=${this.banner.action.id} @click=${this.banner.action.run}>${this.banner.action.label}</button>` : nothing}<button class="banner-x" id="bannerClose" aria-label="Close message" @click=${() => this.closeBanner()}>×</button></div>` : nothing}
       <div class="bar">
         ${Object.entries(st.layout.floors).map(([name, fl]) => html`<button class="chip" data-f=${name} aria-pressed=${pressed(name === st.floor)} @click=${() => this.setFloor(name)}>${fl.title || name}</button>`)}
         ${this.addingFloor
@@ -2701,7 +2718,7 @@ export class FloorplanStudioEditor extends LitElement {
         <div class="bar-right">
         <!-- S8.10 follow-up: status is the cluster's first item; growing it moves only its own left edge, never
              a button after it (see .status's own comment above). -->
-        <label class="fixplan ${st.planLocked ? "on" : ""}" title="Lock the plan: walls, rooms, areas, doors, windows, stairs and furniture stay as they are. Devices and objects can still be added, moved and removed"><input type="checkbox" id="fixPlan" .checked=${live(st.planLocked)} @change=${(e: Event) => { st.planLocked = (e.target as HTMLInputElement).checked; if (st.planLocked) this.stopDraw(); this.status = st.planLocked ? "Plan fixed: only devices and objects can change" : "Plan unlocked"; this.requestUpdate(); }}> ${st.planLocked ? "🔒" : "🔓"} Fix plan</label>
+        <label class="fixplan ${st.planLocked ? "on" : ""}" title="Lock the plan: walls, rooms, areas, doors, windows, stairs and furniture stay as they are. Devices and objects can still be added, moved and removed"><input type="checkbox" id="fixPlan" .checked=${live(st.planLocked)} @change=${(e: Event) => this.setPlanLocked((e.target as HTMLInputElement).checked)}> ${st.planLocked ? "🔒" : "🔓"} Fix plan</label>
         <details class="menu" id="filter" @toggle=${this.onMenuToggle}><summary class="btn" aria-label="Filter devices">${st.filter.length ? `Filter: ${st.filter.length} type${st.filter.length > 1 ? "s" : ""}` : `Filter: all (${f.devices.length})`}</summary><div class="box">
           <button class="btn keep" id="filterAll" ?disabled=${!st.filter.length} @click=${() => { st.filter = []; st.sel = null; this.requestUpdate(); }}>All</button>
           ${TYPE_LABELS.filter(([t]) => counts[t]).map(([t, label]) => html`<button class="btn keep" data-filter=${t} aria-pressed=${pressed(st.filter.includes(t))} @click=${() => { st.filter = st.filter.includes(t) ? st.filter.filter((x) => x !== t) : [...st.filter, t]; st.sel = null; this.requestUpdate(); }}>${label} (${counts[t]})</button>`)}
@@ -2883,6 +2900,14 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.setHelp(!wasOpen);
     this.requestUpdate();
     if (wasOpen) this.renderRoot.querySelector<HTMLButtonElement>("#help")?.focus({ preventScroll: true });
+  }
+
+  /** Closes every open toolbar menu and its submenus, and focuses the button of the first one. False when none was open. */
+  private closeMenuByKey(): boolean {
+    const open = [...this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]")];
+    open.forEach((m) => { m.open = false; this.closeSubs(m); });
+    open[0]?.querySelector<HTMLElement>(":scope > summary")?.focus({ preventScroll: true });
+    return open.length > 0;
   }
 
   private closeMenus() {

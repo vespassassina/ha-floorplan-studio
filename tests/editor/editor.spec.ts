@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { DEVICE_COLOURS, planPivot, rotateAbout, viewBoxFor } from "../../src/core/render";
 import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
-import { GUIDE_STEPS } from "../../src/editor/guide";
+import { GUIDE_STEPS, plainBody } from "../../src/editor/guide";
 import { decodePng, pixelAt } from "../core/util/png";
 
 // Every pointer action goes through page.mouse at real screen coordinates, so the
@@ -7580,7 +7580,7 @@ test("S5.5: Help opens a step-by-step guide, matching GUIDE_STEPS, and closes wi
   expect(await steps.count()).toBe(GUIDE_STEPS.length);
   for (let i = 0; i < GUIDE_STEPS.length; i++) {
     await expect(steps.nth(i)).toContainText(GUIDE_STEPS[i].title);
-    await expect(steps.nth(i)).toContainText(GUIDE_STEPS[i].body);
+    await expect(steps.nth(i)).toContainText(plainBody(GUIDE_STEPS[i].body));
   }
   await page.keyboard.press("Escape");
   await expect(help).toHaveAttribute("aria-expanded", "false");
@@ -7596,7 +7596,7 @@ test("S5.5: each guide step is a collapsible section, closed by default, with a 
   await first.locator("summary").click();
   await expect(first).toHaveJSProperty("open", true);
   await expect(first.locator("p")).toBeVisible();
-  await expect(first.locator("p")).toContainText(GUIDE_STEPS[0].body);
+  await expect(first.locator("p")).toContainText(plainBody(GUIDE_STEPS[0].body));
   // a second step opens independently, the first stays open
   const second = page.locator("#panel .guide > li").nth(1).locator("details");
   await second.locator("summary").click();
