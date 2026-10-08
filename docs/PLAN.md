@@ -2734,6 +2734,8 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
 
 ### Follow-ups found during Sprint 24
 
-- [ ] S24.F1 `card.spec.ts:1058` "S7.15: a vertical swipe … pans the plan once zoomed" failed once under full-suite
+- [x] S24.F1 `card.spec.ts:1058` "S7.15: a vertical swipe … pans the plan once zoomed" failed once under full-suite
       load: the page scrolled 1 px (`scrollY` 1, expected 0). Passes alone 30 of 30. A race in the card's touch
-      handling (finding 13): find it, no retries.
+      handling (finding 13): find it, no retries. Done: the race was in the test, not the card. The first swipe's
+      fling outlived the reset; the swipe now carries its own timestamps and rests before it lifts (no fling), and
+      waits for `scrollend`. See DECISIONS 2026-10-09.

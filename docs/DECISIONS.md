@@ -21,6 +21,23 @@ Newest first. A change supersedes; nothing is edited.
 - **A repeated area name gets the HA floor name, else the id.** Names are trimmed and compared without case.
 - **The eye paths live in the editor**, not in core's `UI_ICONS`, which the card bundle carries whole.
 - **The card's view-parity row is `#tabLayers`, "no" for now**, with why: the card's chips are S24.8.
+## 2026-10-09: the S7.15 swipe flake was a fling in the test (S24.F1)
+
+- **Cause.** The test drove its swipes through CDP without timestamps, so Chromium stamped each touch with its
+  dispatch time and turned the lift into a fling whose speed was whatever the load made it. The page kept scrolling
+  for up to a second after `touchEnd`. The test reset the page with `scrollTo(0, 0)` while the fling still ran; its
+  tail, or Playwright scrolling Zoom in back into view, left `scrollY` at 1 or 2 before the second swipe began. A probe
+  logging every scroll event caught 7 failures in 400 runs under load, all already off 0 before the second
+  touchstart; `touch-action` read `none` at every one. The card never let the page move. The probe also showed a
+  fling backwards to 0, which the old `scrollY > 50` poll passed mid-swipe and never saw.
+- **Superseded: S8.2's two-frame wait.** It assumed `fp-zoomed` reached the compositor a frame late. It was the same
+  fling. Removed; 400 runs with no frame wait never scrolled during the second swipe.
+- **Fix, in the test only.** The swipe carries its own clock (16 ms a step) and rests 100 ms before it lifts, so it
+  has no speed and no fling; the test waits for `scrollend` and asserts `scrollY` is 0 before the second swipe.
+  200 of 200 at load 22 to 27, where the old test failed 1 in 80 at load 7. With `fp-zoomed` set to `pan-y` the test
+  still fails (`scrollY` 240). `toucher` takes an optional `timestamp`.
+- **Lesson.** A synthetic touch gesture stamped by dispatch time has load-dependent speed. Give it a clock and wait
+  for `scrollend`, not for a scroll position. Log every scroll event before blaming the product.
 
 ## 2026-10-08: Studio search and Outline (S24.5)
 
