@@ -25,6 +25,10 @@ export interface RenderOpts {
    *  under `NAME_MIN_PX` and, with it, no device disc under 28 px. Omitted (the editor, whose `scale` is already its
    *  zoom), nothing changes. */
   px?: number;
+  /** S23 review S3: the part of the drawing, in its on-screen frame (the view box's own units), a room name, its tag and
+   *  its leader may use: the card passes its fit box less the strip its controls cover. A candidate that leaves it is
+   *  rejected. Omitted (the editor), nothing changes. */
+  bounds?: { x: number; y: number; w: number; h: number };
   state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
@@ -1339,6 +1343,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const cs = Math.cos((planDeg * Math.PI) / 180), sn = Math.sin((planDeg * Math.PI) / 180);
   /** The plan point that shows `dx` right of and `dy` below `a` on the screen: the screen vector turned back into the plan. */
   const screenOff = (a: Pt, dx: number, dy: number): Pt => (planDeg ? [a[0] + dx * cs + dy * sn, a[1] - dx * sn + dy * cs] : [a[0] + dx, a[1] + dy]);
+  // S23 review S3: the bounds a name, its tag and its leader must stay in (`RenderOpts.bounds`); none, no limit.
+  // Held in by k/2 so a box that lands on the edge stays inside once its numbers are rounded for the markup.
+  const B = o.bounds && [o.bounds.x, o.bounds.y, o.bounds.w, o.bounds.h].every(Number.isFinite) && o.bounds.w > k && o.bounds.h > k
+    ? { x: o.bounds.x + k / 2, y: o.bounds.y + k / 2, w: o.bounds.w - k, h: o.bounds.h - k } : null;
+  const inB = (b: Box) => !B || (b[0] >= B.x && b[1] >= B.y && b[0] + b[2] <= B.x + B.w && b[1] + b[3] <= B.y + B.h);
   const textBox = (a: Pt, size: number, len: number): Box => { const [x, y] = toScreen(a), w = len * 0.6 * size; return [x - w / 2, y - 0.75 * size, w, size]; };
   const place = (cands: Pt[], size: number, text: unknown): Pt => {
     const len = String(text).length, at = cands.find((c) => !placed.some((q) => meets(textBox(c, size, len), q))) ?? cands[0];
@@ -1435,11 +1444,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!c0.every(Number.isFinite)) { const size = base; return { at: place(rows(c0), size, r.name), size }; }
     const clear = (p: Pt) => inPoly(p, r.pts) && !inner.some((q) => inPoly(p, q));
     // A box fits when its corners and edge midpoints, 2k inside it, are all in the room: a room is a polygon, not a box.
-    const fits = (c: Pt, size: number) => {
-      const [x, y, w, h] = textBox(c, size, len), d = 2 * k;
-      return [[x - d, y - d], [x + w + d, y - d], [x + w + d, y + h + d], [x - d, y + h + d], [x + w / 2, y - d], [x + w / 2, y + h + d], [x - d, y + h / 2], [x + w + d, y + h / 2]]
-        .every((p) => clear(fromScreen(p as Pt)));
-    };
+    const ring = ([x, y, w, h]: Box, d = 2 * k): Pt[] => [[x - d, y - d], [x + w + d, y - d], [x + w + d, y + h + d], [x - d, y + h + d], [x + w / 2, y - d], [x + w / 2, y + h + d], [x - d, y + h / 2], [x + w + d, y + h / 2]];
+    const fits = (c: Pt, size: number) => inB(textBox(c, size, len)) && ring(textBox(c, size, len)).every((p) => clear(fromScreen(p)));
     const sizes: number[] = [];
     for (let s = base; s > floor * 1.001; s *= 0.85) sizes.push(s);
     sizes.push(floor);
@@ -1461,18 +1467,52 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const pl = pole(r.pts, inner), anchor = inC0 || !pl ? c0 : pl;
     const next = (pl ? search(pl) : null) ?? (inC0 ? null : search(c0));
     if (next) return next;
+    // S23 review S3: an outdoor name that fits nowhere inside may sit just beside its area on space no room covers,
+    // free and in bounds, before a tag over its icons or a leader.
+    if (OUTDOOR.has(r.kind)) {
+      const owned = f.rooms.filter((q) => q !== r && q.kind !== "zone" && Array.isArray(q.pts) && q.pts.length > 2).map((q) => q.pts);
+      const bare = (p: Pt) => clear(p) || !owned.some((q) => inPoly(p, q));
+      const sx = r.pts.map((p) => toScreen(p)[0]), sy = r.pts.map((p) => toScreen(p)[1]), m = GAP * k, st = 8 * k;
+      const [x0, y0, x1, y1] = [Math.min(...sx), Math.min(...sy), Math.max(...sx), Math.max(...sy)], [ax, ay] = toScreen(anchor);
+      for (const size of sizes) {
+        // Screen points for the baseline middle: under and over the area's box, slid across in 8k steps while the name
+        // still overlaps the area's width, and beside it, slid down; nearest the anchor first.
+        const w = len * 0.6 * size, n = Math.floor((w + x1 - x0) / 2 / st), spots: Pt[] = [];
+        for (let j = -n; j <= n; j++) spots.push([(x0 + x1) / 2 + j * st, y1 + m + 0.75 * size], [(x0 + x1) / 2 + j * st, y0 - m - 0.25 * size]);
+        for (let y = y0 + 0.75 * size; y <= y1 - 0.25 * size + 1e-9; y += st) spots.push([x1 + m + w / 2, y], [x0 - m - w / 2, y]);
+        spots.sort((a, b) => Math.hypot(a[0] - ax, a[1] - ay) - Math.hypot(b[0] - ax, b[1] - ay));
+        for (const sp of spots) {
+          const c = fromScreen(sp), box = textBox(c, size, len);
+          if (!inB(box) || placed.some((q) => meets(box, q)) || !ring(box).every((p) => bare(fromScreen(p)))) continue;
+          placed.push(box); words.add(box);
+          return { at: c, size };
+        }
+      }
+    }
     const tag = best.tag;
     if (tag) { const box = textBox(tag.at, tag.size, len); placed.push(box); words.add(box); return tag; }
     const size = floor;
-    const ys = r.pts.map((p) => toScreen(p)[1]), ay = toScreen(anchor)[1];
-    const above = screenOff(anchor, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay), below = screenOff(anchor, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay);
+    // The leader starts at the anchor, moved into bounds when the room reaches in (a garden half under the controls).
+    const from = ((): Pt => {
+      if (!B) return anchor;
+      const [ax, ay] = toScreen(anchor), q = fromScreen([Math.min(Math.max(ax, B.x + k), B.x + B.w - k), Math.min(Math.max(ay, B.y + k), B.y + B.h - k)]);
+      return clear(q) ? q : anchor;
+    })();
+    const ys = r.pts.map((p) => toScreen(p)[1]), ay = toScreen(from)[1];
+    // Off the room above or below, then slid sideways and clamped into bounds; the leader runs from `from` to the box.
+    const intoB = (c: Pt): Pt => {
+      if (!B) return c;
+      const [x, y, w, h] = textBox(c, size, len), dx = Math.max(B.x - x, 0) + Math.min(B.x + B.w - (x + w), 0), dy = Math.max(B.y - y, 0) + Math.min(B.y + B.h - (y + h), 0);
+      return dx || dy ? screenOff(c, dx, dy) : c;
+    };
+    const above = intoB(screenOff(from, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay)), below = intoB(screenOff(from, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay));
     // The leader is one more thing that must not run across another text: its own thin box counts too.
-    const leaderBox = (c: Pt): Box => { const [x, y] = toScreen(anchor), cy = toScreen(c)[1]; return [x - k / 2, Math.min(y, cy), k, Math.abs(cy - y)]; };
+    const leaderBox = (c: Pt): Box => { const [x, y] = toScreen(from), [cx, cy] = toScreen(c); return [Math.min(x, cx) - k / 2, Math.min(y, cy), Math.abs(cx - x) + k, Math.abs(cy - y)]; };
     const free = (c: Pt) => !placed.some((q) => meets(textBox(c, size, len), q));
     const at = [below, above].find((c) => free(c) && !placed.some((q) => meets(leaderBox(c), q))) ?? [below, above].find(free) ?? below;
     const box = textBox(at, size, len);
     placed.push(box); words.add(box);
-    return { at, size, from: anchor };
+    return { at, size, from };
   };
   const nameAt: Label[] = [], zoneAt: Label[] = [];
   // S23.1: a room's name is 12, an outdoor name, like a zone's, 10: smaller than a room, never fainter.

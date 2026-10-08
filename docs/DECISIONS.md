@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: labels keep inside the card at 375 px (S23 review S3)
+
+At 375 px "Garden" ran under the button stack and the stress layout put names below the view box. Placement knew the plan, not the frame it is shown in.
+- **`bounds` in `RenderOpts`.** A rect in plan units. Every name, tag and leader box must lie inside it, inset k/2 so rounding cannot push an edge out. Without it nothing changes, byte for byte, so the editor and the 3D overlay are as before.
+- **The card passes the fit box minus the stack.** `_measurePx` reads `.fp-stack`. A column at the right covers a strip of the plan; its width in plan units, plus 4 px of air, comes off the right. A stack laid out as a row sits above the plan and costs nothing. The card re-renders only when the strip moves by more than 0.5 % of the fit width.
+- **An outdoor name may use bare ground.** A garden, terrace, pavement or water too small for its name first tries the space beside or above or below it that no other room covers, close enough to still overlap its width or height, before a leader. Demo ground at 375 px went from 4 leaders to 2.
+- **A leader is pulled into bounds**, its foot clamped to a spot still in the room.
+- **The disc floor stays at 28 px.** The leaders left at 375 px come from areas too small for an 11 px name (the reading-corner zone, the garden, the pond), not from crowded discs. Lowering discs to 24 px would split `k` between text and discs and shrink values and extras with them, for no label gained.
+
 ## 2026-10-08: a window fills its cut (S23 review S1)
 
 The wall is cut `wallWidthAt + OPENING_EXTRA` wide, but a room polygon stops at the wall's centre line. On an outer wall the outer half of a window's gap showed the board, and three bare hairlines read as a hole.
