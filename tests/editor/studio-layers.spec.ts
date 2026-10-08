@@ -291,3 +291,17 @@ test("S24.R8: a click never picks what Layers hides: a small tv piece under hidd
   await page.mouse.click(lamp.x, lamp.y);
   expect((await sel())?.t).toBe("dev");
 });
+
+test("S24.R10a: adding an appliance under a hidden layer names its type as people read it, not its id", async ({ page }) => {
+  // The line used the raw type id: "Added ups; hidden by Layers". Now the type's label, lower case unless it is an
+  // initialism: "Added UPS", "Added server".
+  await load(page);
+  await openLayers(page);
+  await clickAt(page, `${EDITOR} #layersPanel [data-layer="power"]`);
+  await clickAt(page, `${EDITOR} #layersPanel [data-layer="computing"]`);
+  for (const [type, text] of [["ups", "Added UPS; hidden by Layers"], ["server", "Added server; hidden by Layers"]] as const) {
+    await clickAt(page, `${EDITOR} #mAdd > summary`);
+    await page.locator(`${EDITOR} #addUnlDev`).selectOption(type);
+    await expect(page.locator(`${EDITOR} #status`)).toHaveText(text);
+  }
+});

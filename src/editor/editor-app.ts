@@ -21,7 +21,7 @@ import type { SceneItem } from "../core";
 import { layerHides } from "../core/layers";
 import { newDraft, sceneDesigner, type SceneDraft } from "./scene-designer";
 import { roomSceneTargets, saveScene } from "./room-scenes-ops";
-import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, typeOptions, type PanelCtx } from "./panels";
+import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, typeNoun, typeOptions, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
 import type { HaWriter, Labelled } from "./hass-write";
 import { motionLights, openAutomation, schedule, switchControls } from "./automations";
@@ -2466,7 +2466,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (!this.st.edit((f) => { f.unlinked.push({ id: newId(f, floor, "unl"), type: t, x, y, rot: 0, scale: 1 }); })) { this.refused(); return; }
     this.ensureVisible([x - 30, y - 30], [x + 30, y + 30]);
     this.st.sel = { t: "unl", i: this.st.f.unlinked.length - 1 };
-    this.placedNote(before, "Edited", `Added ${t}`);
+    this.placedNote(before, "Edited", `Added ${typeNoun(t)}`);
   }
   private placeDevice(id: string) {
     const st = this.st, c = st.layout.catalog.find((x) => x.id === id), before = this.counted();

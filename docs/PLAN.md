@@ -2749,3 +2749,7 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       The pick now skips what `layerHides` (`src/core/layers.ts`) leaves off the plan, the selection kept as the plan
       keeps it. Devices have no computed pick; a hidden one has no element to hit. Test: real `page.mouse` in the
       padding, hidden, shown, and kept by a search.
+- [x] S24.R10a (Opus review 10a) Adding an appliance under a hidden layer said "Added ups; hidden by Layers", the raw
+      type id. It now says the type's label in lower case, an initialism kept: "Added UPS", "Added server"
+      (`typeNoun`, `src/editor/panels.ts`). Test: every `DEVICE_TYPES` member reads without an underscore; the status
+      line after Add > Unlinked device under hidden Power and Computing.

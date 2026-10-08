@@ -1,7 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "./live-keep";
 import { repeat } from "lit/directives/repeat.js";
-import { DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
+import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
@@ -24,6 +24,13 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["boiler", "Boiler"], ["car", "Car"], ["ups", "UPS"], ["printer", "3D printer"], ["speaker", "Speaker"], ["person", "People"],
   ["radar", "mmWave radar"], ["vacuum", "Vacuums"], ["siren", "Siren"], ["alarm", "Alarm"],
 ];
+
+/** A type as a word in a sentence ("Added access point"): its label, lower case unless it is an initialism (UPS, AC, TV).
+ *  Never the raw id: "access_point" and "ups" are for files, not people. */
+export function typeNoun(t: DeviceType): string {
+  const l = Object.hasOwn(DEVICE_TYPE_LABELS, t) ? DEVICE_TYPE_LABELS[t] : "device";
+  return /^[A-Z][A-Z0-9]/.test(l) ? l : l[0].toLowerCase() + l.slice(1);
+}
 
 /** S18.14: the types people place most, in the order the menu shows them. The rest follow a separator, A to Z. */
 export const POPULAR_TYPES: readonly DeviceType[] = ["light", "switch", "motion", "contact", "temp", "speaker", "tv"];

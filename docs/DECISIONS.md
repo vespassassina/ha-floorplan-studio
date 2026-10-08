@@ -11,6 +11,9 @@ Newest first. A change supersedes; nothing is edited.
   and the Studio's padded pick asks it with the selection, as `renderFloor` keeps the selection drawn. A piece found by
   search while hidden is drawn and can be grabbed; let go, it cannot. `render.ts` still has its private copy of the rule:
   that file was another coder's in this round. It should import `layerHides` when the branches meet.
+- **A type in a sentence is its singular label** (`DEVICE_TYPE_LABELS`), lower case unless it starts with two capitals,
+  so "UPS", "AC" and "TV" stay as they are. `TYPE_LABELS` is the menu's plural ("Access points"), wrong after "Added".
+  Furniture keeps its symbol ("Added sofa"): the Furniture menu lists symbols too, and none has an underscore.
 
 ## 2026-10-09: the card's layer chips (S24.8, part 2)
 

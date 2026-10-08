@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: adding an appliance names its type as you read it in the menu: "Added UPS; hidden by Layers", not "Added ups".
 - Studio: a click no longer picks a small TV, speaker or computer that Layers hides. It used to select the invisible piece and bring it back.
 - Studio: a search for a TV or speaker whose id repeats on another floor now marks its own row in the Outline, not the other floor's.
 - Card: a search at the top of the Overview, opened with ⌘K, Ctrl+K or / while the card is under the pointer or has focus. Enter on a device goes to it as a row tap does; on a room, opens the room; on a floor, shows it.
