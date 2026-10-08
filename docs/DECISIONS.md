@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: stylesheet comments do not ship (Opus review of Sprint 23, M2)
+
+The card was 117123 gzip against its 115000 budget. The limit stays. Vite's lib mode does not minify template contents, so every `/* */` inside a `css` block and inside `FLOORPLAN_CSS` shipped. `scripts/strip-css-comments.mjs`, a Vite plugin on the card, panel and editor builds, removes them before esbuild: the card is 107924 gzip.
+- **What it touches.** A template tagged `css`, or one assigned to a const whose name ends in `CSS`. The source is parsed with TypeScript, so no other template, string or regex is read. Inside a stylesheet a comment is a `/*` outside a quoted string, a `url()` and a `${}`; a comment that spans a `${}` goes with it. An unclosed comment fails the build, naming the file.
+- **The comments stay in the source**, where they are read. Nothing else changes in the output.
+- **Not done:** the JSDoc comments of the code still ship (about 16 KB gzip more). Lib mode keeps them; removing them is a separate change.
+- Tests: `tests/card/strip-css-comments.test.ts` (strings, `url()`, substitutions, other templates, the real `render.ts`) and a check in `size-budget.spec.ts` that the built card holds the rules and not the comments.
+
 ## 2026-10-08: names stay in their room (S23.3)
 
 The old search tried rows above and below the centroid and took a free spot in the next room before a covered one in its own. The 2.5D Hall name landed in the Cloakroom; names sat under discs. Now a name is placed only where its whole box (padded 2k, eight points) is in its room and in no smaller named room.
