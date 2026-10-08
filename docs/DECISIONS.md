@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: the faint dash is a zone's only (Opus review of Sprint 23, S4)
+
+S23.7 said "a zone is a 1 px dash at 35 % with no halo", but the rule sat on `.e.nw`, which every `boundary` edge carries. An open plan's line between two real rooms went faint too. A zone's edges now carry `zn` as well, and the S23.7 style is `.e.nw.zn` and `.eh.nw.zn`. A boundary between rooms, on a free wall or on the outline goes back to what it drew before: a 1.5 cm dash 8 6 over a 3.5 cm halo.
+- Tests changed on purpose: the zone class strings in `tests/core/render.test.ts` and `plan-symbols.test.ts` (` zn` added), S8.9's boundary thickness back to 1.5, S1.35b's edge regex, and the render snapshot (only ` zn` added). `plan-symbols-css.spec.ts` reads both a zone and a room boundary.
+
 ## 2026-10-08: HA dark 2.5D walls are dark slabs (Opus review of Sprint 23, S2)
 
 In Home Assistant's dark mode `--fp-wall` is HA's primary text colour, a light grey, so a wall's side face, 55 % of it into the card background, was a light grey slab. S23.6 made the rooms dark and showed it. `--fp-wall-side` now takes `--fp-wall-side-share` of the wall: 55 % on every theme, 30 % on HA dark. The share is a variable of its own, so the generic rule, which comes after THEME_EXTRAS at the same specificity, cannot beat it; every theme sets 55 % so a theme group inside an HA dark host does not inherit 30 %. Every other theme's side is unchanged (a computed-style pair checks each). 3D walls still mix 55 % (`three/palette.ts`); not changed here.

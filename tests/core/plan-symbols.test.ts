@@ -115,7 +115,7 @@ describe("S23.7 plan symbols", () => {
     const rooms = [box("hall", "room", 0, 0, 400, 300), ...(["garden", "terrace", "pavement", "water"] as RoomKind[]).map((k, i) => box(k, k, 500 + i * 200, 0, 650 + i * 200, 150, "boundary")), box("rug", "zone", 50, 50, 150, 150, "boundary")];
     const html = renderFloor(floor(rooms, []), opts);
     for (let i = 1; i <= 4; i++) expect(html, rooms[i].kind).not.toMatch(new RegExp(`class="e[^"]*" data-e="r${i}:`));
-    expect(html).toMatch(/class="e nw" data-e="r5:0"/);
+    expect(html).toMatch(/class="e nw zn" data-e="r5:0"/);
     const ed = renderFloor(floor(rooms, []), { ...opts, editor: true } as never);
     for (let i = 1; i <= 4; i++) expect(ed, rooms[i].kind).toMatch(new RegExp(`class="e none" data-e="r${i}:0"`));
     // a real wall on an outdoor room (a garden fence, say) still draws
