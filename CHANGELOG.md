@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Studio: the Place and Add device popups fit the window. A long list scrolls inside the popup and its Place button stays in view; before, it could sit below the bottom of the screen.
+
 ## 0.20.1 - 2026-10-08
 
 - Card and studio: a camera's cone stops at the walls of the room the camera stands in, as a lamp's light does. The room is the one the camera looks into, so a camera on a wall aiming out keeps its whole cone, as one in no room does.
