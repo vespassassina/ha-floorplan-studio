@@ -507,12 +507,14 @@ export class FloorplanStudioEditor extends LitElement {
     .habox-sub{padding-left:14px}
     .scene{border:1px solid var(--line,#8884);border-radius:6px;padding:4px 6px;margin:4px 0} .scene-item{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:2px 0} .scene-item>span:first-child{flex:1;min-width:80px} .scene-item .btn,.scene-item select,.scene-item input{width:auto} .scene-item input[type=number]{width:90px} .scene-item .tag{opacity:.7}
     .harow2{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:2px 0} .harow2>span:first-child{flex:1;min-width:80px} .harow2 .btn{width:auto}
-    aside{display:flex;flex-direction:column;gap:12px}
+    /* S22.6: the aside is its own scroll container, as tall as the canvas beside it (same height rule, same floor), so
+       a long room panel scrolls inside it and the plan stays put; before, it grew the page and scrolling it moved the plan away. */
+    aside{display:flex;flex-direction:column;gap:12px;overflow:auto;max-height:max(420px, var(--fp-editor-height,calc(100vh - 150px)))}
     aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}
     aside input:not([type=checkbox]),aside select{width:100%;box-sizing:border-box}
     /* S10.1: fp-combo sizes itself (its own :host rule); margin-top here only matches the spacing a select/input
-       gets from the label above it. aside has no overflow of its own, so the combo's dropdown (position:absolute,
-       inside its shadow root) is never clipped. */
+       gets from the label above it. Since S22.6 the aside scrolls, so a combo's dropdown (position:absolute, inside
+       its shadow root) that reaches past the aside's bottom extends the scroll area instead of spilling over the page. */
     aside fp-combo{margin-top:2px}
     .row{display:flex;gap:6px}
     /* S8.9.1 / Opus review of S8.9: hints are written to fit one line at the sidebar's own width; nowrap+ellipsis

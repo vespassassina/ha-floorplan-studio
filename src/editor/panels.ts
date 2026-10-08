@@ -588,8 +588,9 @@ function openingPanel(c: PanelCtx, i: number) {
 
 function roomPanel(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
-  const toPlace = c.st.areaToPlace(i).length;
+  // S22.6: the Place entry comes first, under the title: on a room with HA devices left to place it is the main action, and lower down it sat below the fold.
   return html`<strong>Room</strong>
+    ${placeAreaButton(c, i)}
     ${r.kind === "zone" ? hint("Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag body to move; corners to reshape.") : nothing}
     ${section(c, "room:identity", "Identity", html`
@@ -601,8 +602,6 @@ function roomPanel(c: PanelCtx, i: number) {
     ${roomSensors(c, i)}
     ${roomScenesPanel(c, i)}
     ${c.st.ha ? section(c, "room:ha", "In this area (Home Assistant)", haBox(c, i)) : nothing}
-    ${toPlace ? heading("Links") : nothing}
-    ${placeAreaButton(c, i)}
     ${section(c, "room:appearance", "Appearance", html`
     ${kindSelect(r.kind, (v) => c.commit((f) => {
       const room = f.rooms[i];

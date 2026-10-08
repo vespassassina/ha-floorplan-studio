@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Studio: the Place and Add device popups fit the window. A long list scrolls inside the popup and its Place button stays in view; before, it could sit below the bottom of the screen.
+- Studio: the side panel scrolls on its own, so the plan stays where it is. A room with Home Assistant devices left to place shows Place first, under its title.
 
 ## 0.20.1 - 2026-10-08
 

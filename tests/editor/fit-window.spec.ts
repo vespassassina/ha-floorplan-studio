@@ -79,5 +79,31 @@ for (const [width, height] of [[1440, 900], [1024, 768]] as const) {
       await inViewport(page, "#addDevClose");
       expect(await page.locator("#addDevPanel .rows").evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
     });
+
+    test("S22.6: Place devices is the room panel's first entry, in view with no scroll", async ({ page }) => {
+      await selectLiving(page);
+      await inViewport(page, "#rplace");
+      // above the first section heading (Identity), right under the panel's title
+      const place = (await page.locator("#rplace").boundingBox())!, first = (await page.locator(`${EDITOR} aside .pnl-h`).first().boundingBox())!;
+      expect(place.y).toBeLessThan(first.y);
+    });
+
+    test("S22.6: the room aside scrolls on its own; the plan stays put", async ({ page }) => {
+      await selectLiving(page);
+      const aside = page.locator(`${EDITOR} aside`), svg = page.locator(`${EDITOR} .canvas > svg`);
+      // Every section open: the room panel is then taller than any window here.
+      await page.evaluate((tag) => { for (const d of (document.querySelector(tag) as any).shadowRoot.querySelectorAll("aside details")) d.open = true; }, EDITOR);
+      expect(await aside.evaluate((el) => el.scrollHeight)).toBeGreaterThan(height);
+      const svgTop = await svg.evaluate((el) => el.getBoundingClientRect().top);
+      const a = (await aside.boundingBox())!;
+      await page.mouse.move(a.x + a.width / 2, a.y + Math.min(a.height, height - a.y) / 2);
+      await page.mouse.wheel(0, 400);
+      await expect.poll(() => aside.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+      expect(await svg.evaluate((el) => el.getBoundingClientRect().top)).toBe(svgTop);
+      expect(await page.evaluate(() => window.scrollY)).toBe(0);
+      // the aside ends inside the window, so its last control can be scrolled to
+      const b = (await aside.boundingBox())!;
+      expect(b.y + b.height).toBeLessThanOrEqual(height);
+    });
   });
 }
