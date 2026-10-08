@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: the 2026-10-08 review becomes sprints 22 to 30, and three earlier decisions change
+
+Diego said yes to the review's plan (docs/PLAN.md, "Roadmap after the 2026-10-08 review"). He did not answer the open questions, so the defaults the review proposed stand:
+- **Relay-lit lamps (C1, sprint 22).** Supersedes "a lamp lit only by its relay is not a target" (2026-10-07, All off). A lamp drawn on must be one the card can turn off. All off and the lamp's popup call `switch.turn_off` on a bound relay that is on. The relay joins the More info chooser. The stress run left 6 of 25 lamps on after All off, with no way to turn them off.
+- **Dark-theme empty rooms (V16, sprint 23).** Supersedes the 2026-09-21 choice of `#d6d6d2` for every theme. Each dark theme takes its empty-room colour from its own ramp. Blueprint room names measured 1.15:1 on it.
+- **Furniture colour (V23, sprint 23).** Supersedes the 2026-09-23 flat grey. Furniture takes its colour from the theme ramp.
+- **Name.** Two other repos are called Floorplan Studio. We keep the name.
+- **Digital Twin app.** A separate repo in `~/Documents/XCode/FloorPlanTwin`. A spike only, after sprint 24.
+
 ## 2026-10-08: the cone's room is the one it looks into (S21.1, supersedes the room rule of the entry below)
 
 Opus review: the entry below took the room holding the camera's own point (`roomAt(floorAt)`). A camera is mounted on a wall, which is the room's edge, and `inside` counts the north and west edge in and the south and east edge out. So a camera on a wall aiming out lost its cone or kept it by which wall it hung on, and one on a wall two rooms share took whichever room `inside` favoured, not the one it faced.

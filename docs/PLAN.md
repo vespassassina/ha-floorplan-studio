@@ -2603,3 +2603,34 @@ Branch `task/s21-open-items`. Each task: one outcome, its failing test first.
 - [x] S21.1 Camera cone clip (was S19.E5). The cone stops at the walls of the room its camera stands in; a camera in no room keeps the free cone. An inline `<clipPath>` in the same svg, named by a `clip-path` attribute on the cone, so it resolves inside the card's shadow root and the editor's. Tests: unit (id, polygon, transform round trip, 2.5D lift, no-room, ids), a Playwright pixel check that fails without the clip. The two pinned snapshots and one regex were changed on purpose.
 - [x] S21.2 Humidity, motion, contact and vibration join `NO_TOGGLE`, as `temp` did in S19.E4. A test iterates `DEVICE_TYPES`: each type is in `NO_TOGGLE` or in a written list of types that toggle, with the reason.
 - [x] S21.3 Verify: `npm run lint`, `npm test`, `npx playwright test`, each read bare.
+
+## Roadmap after the 2026-10-08 review (sprints 22 to 30)
+
+Diego, 2026-10-08: "do a review of the menus, submenus, right click menus, general user interface and usability of the studio and the card [...] propose a plan to make it better, cleaner, easier to use and navigate when one like me has hundreds of devices." Added: auto-align floors, floors below in 3D, an animated floor switch, "no cramming stuff in stacks". He said yes to this plan on 2026-10-08.
+
+Review basis: a seeded stress house (3 floors, 46 rooms, 437 devices, 718 entities), three Opus reviews, 81 findings. Ids below: U = Studio, C/F/G/L/A/H = card, V = visual. Direction: one side sheet in the card (Overview › Floor › Room › Device), one Inspector and an Outline in the Studio, one ⌘K search in both, the same context menu per object everywhere. Off is quiet, on is solid.
+
+| Sprint | Release | Goal | Exit test |
+|---|---|---|---|
+| 22 | 0.20.2 | Hotfix: C1, C3, U11, U1, U4, U12, U23 | A relay-lit lamp turns off from the card, real clicks |
+| 23 | 0.21.0 | Visual foundations: off quiet, on solid, label token and 11 px floor, label placement, theme ramp for empty rooms and furniture, door arcs and three-line windows, glow falloff, unavailable mark | `npm run shots` on every theme, looked at; contrast test over every theme |
+| 24 | 0.22.0 | Find and navigate: ⌘K search, Studio Outline, Layers replace Filter, card Overview sheet with Attention and Active by floor, rows locate devices, floor counts | Find a named device on the stress house in 2 actions, keyboard only |
+| 25 | 0.23.0 | Scale on the plan: semantic zoom, room badges with rollups, spiderfy, CSS-px label placement, incremental render | One sensor update writes only its device |
+| 26 | 0.24.0 | Studio editing at scale: Inspector modes, marquee and multi-select, bulk Controlled by, one Lock, context menus, menu clean-up, status bar, typed lengths, 15° snap | Bind 20 lights in 3 actions, one undo step |
+| 27 | 0.25.0 | Floors: floor offset in the schema, Align to floor below with a score, ghost floor in 2D, floors below in 3D (off, ghost, solid), animated switch with a reduced-motion cut | A misaligned floor aligns within 2 cm; both motion paths tested |
+| 28 | 0.26.0 | 2.5D and 3D polish: shadows, lighting, tree crowns, framed openings, 3D label collision | Shots at 4x, three themes |
+| 29 | 0.27.0 | Card layout and touch: chrome around the plan, fit to height, phone bottom sheet, ⋯ menu, 44 px targets, keyboard on the plan | Tablet and phone tasks at target tap counts |
+| 30 | 0.28.0 | Extras: saved views, favourites, heat map, dashboard strategy, tap_action, fan type | One acceptance test each |
+
+Separate product, not in this repo: the FloorPlan Digital Twin iOS app. A RoomPlan spike (T0) after sprint 24, in its own repo, after its own design and spec.
+
+## Sprint 22 (0.20.2): hotfix from the review
+
+Branch `task/s22-hotfix`. Each task: one outcome, its failing test first.
+- [ ] S22.1 (C1) A lamp lit by its bound relay can be turned off from the card. Its popup reads on, names the relay, and Turn off calls `switch.turn_off` on the relay (and `light.turn_off` on the light if that is on). Room and floor All off add every bound relay that is on. The relay is offered in the More info chooser. Test: real clicks, stub `callService`, exact calls.
+- [ ] S22.2 (C3) The device popup stays inside the visible viewport on a card taller than the screen. Test: a tap near the bottom of a tall card, popup box inside `innerHeight`.
+- [ ] S22.3 (U11) The Studio's Place and Add panels fit the window; their buttons are reachable. Test: 1440x900 and 1024x768, the Place button inside the viewport and clickable.
+- [ ] S22.4 (U1) A refused edit snaps back in its field, and the status line offers Unlock. Test: rename under a fixed plan, field shows the old name; Unlock, rename works.
+- [ ] S22.5 (U4) Escape closes an open toolbar menu. Test: open each menu, Escape, menu gone, focus back on its button.
+- [ ] S22.6 (U12) The room aside scrolls on its own; the plan stays put. Test: scroll the aside, the canvas bounding box does not move.
+- [ ] S22.7 (U23) The guide matches the UI. Test: every control the guide names exists by its label.
