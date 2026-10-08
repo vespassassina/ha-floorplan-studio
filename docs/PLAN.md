@@ -2740,3 +2740,10 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       handling (finding 13): find it, no retries. Done: the race was in the test, not the card. The first swipe's
       fling outlived the reset; the swipe now carries its own timestamps and rests before it lifts (no fling), and
       waits for `scrollend`. See DECISIONS 2026-10-09.
+
+### Fixes from the Sprint 24 review (core and card)
+
+- [x] S24.R5 Search: a test that fails without the shorter-name tie-break (two name prefixes, the longer first in
+      the layout).
+- [x] S24.R10b Search: `normalize` folds the letters NFD leaves whole (ø, ß, æ, ł, đ, þ, œ, ð, ı), so "Soren" finds
+      "Søren" and "grosse" finds "Große".

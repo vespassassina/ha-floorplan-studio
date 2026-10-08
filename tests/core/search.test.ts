@@ -91,6 +91,28 @@ describe("S24.1 ranking", () => {
     expect(normalize("  Éé  ÀB ")).toBe("ee ab");
   });
 
+  it("S24.R5: in one tier the shorter name wins over layout order", () => {
+    // Both are a name prefix of "desk" (tier 1); the longer one comes first in the layout, so only the length rule
+    // puts "Desk" first.
+    const es: SearchEntry[] = [
+      { kind: "device", id: "long", name: "Desk lamp left", entity: "light.a" },
+      { kind: "device", id: "short", name: "Desk", entity: "light.b" },
+      { kind: "device", id: "mid", name: "Desk lamp", entity: "light.c" },
+    ];
+    expect(searchIndex(buildSearchIndex(es), "des").map((e) => e.id)).toEqual(["short", "mid", "long"]);
+  });
+
+  it("S24.R10b: letters NFD does not split are folded too: ø, ß, æ, ł, đ, þ, œ", () => {
+    expect(normalize("Søren Øster")).toBe("soren oster");
+    expect(normalize("Straße")).toBe("strasse");
+    expect(normalize("Æble Łódź Đakovo Þór Œuvre")).toBe("aeble lodz dakovo thor oeuvre");
+    const ix = buildSearchIndex([{ kind: "room", id: "s", name: "Søren's room" }, { kind: "room", id: "g", name: "Große Küche" }]);
+    expect(searchIndex(ix, "soren").map((e) => e.id)).toEqual(["s"]);
+    expect(searchIndex(ix, "grosse kuche").map((e) => e.id)).toEqual(["g"]);
+    // The query folds the same way, so typing the letter itself still finds it.
+    expect(searchIndex(ix, "SØREN").map((e) => e.id)).toEqual(["s"]);
+  });
+
   it("several words must all match, across name, room, floor and type", () => {
     expect(q("guest bedside zzz")).toEqual([]);
     const r = q("second light bedside");

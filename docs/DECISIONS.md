@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Sprint 24 review fixes, core and card (S24.R)
+
+- **Search folds a short, explicit list of letters** that Unicode does not decompose: ø o, ß ss, æ ae, ł l, đ d, ð d,
+  þ th, œ oe, ı i. A list, not a transliteration library (no dependency, a few bytes in the card). Both sides fold, so
+  typing "ø" still finds "Søren". A letter not on the list matches only itself.
+
 ## 2026-10-09: the card's layer chips (S24.8, part 2)
 
 - **Supersedes "Layer chips are not in this part"** (part 1, below). The chips fill the `.fp-ov-layers` slot.
