@@ -2596,3 +2596,10 @@ Diego, 2026-10-07: "when selecting a room, in the menu, lights, add an 'All Off'
 - [x] S20.1 All off in the room panel. One `light.turn_off` over the lights of the room whose own entity is on (`presetCalls`, the scene preset's builder); a lamp lit only by its bound relay is not a target. Hidden when none is. Accessible name "Turn off all lights in <name>". Test: real clicks, a stub `callService`, exact call; lamp off, relay-bound lamp, plug not in it.
 - [x] S20.2 Select a floor from its pill. The pill shows the floor as before and opens the same side panel on a floor summary (`floorSummary`, one builder with `roomSummary`): lights on, devices, sensors, doors over every room. All off acts on the whole floor. A room pick replaces it; Escape, the empty plan, the x and the pill again clear it; a `hass` update keeps it; `setConfig` clears it. `aria-pressed` still marks the floor shown; `aria-expanded` and the class `fp-floor-picked` mark the floor selected. With `active_list: false` a pill only switches. Opus review fixes done 2026-10-07.
 
+
+## Sprint 21: open items
+
+Branch `task/s21-open-items`. Each task: one outcome, its failing test first.
+- [x] S21.1 Camera cone clip (was S19.E5). The cone stops at the walls of the room its camera stands in; a camera in no room keeps the free cone. An inline `<clipPath>` in the same svg, named by a `clip-path` attribute on the cone, so it resolves inside the card's shadow root and the editor's. Tests: unit (id, polygon, transform round trip, 2.5D lift, no-room, ids), a Playwright pixel check that fails without the clip. The two pinned snapshots and one regex were changed on purpose.
+- [x] S21.2 Humidity, motion, contact and vibration join `NO_TOGGLE`, as `temp` did in S19.E4. A test iterates `DEVICE_TYPES`: each type is in `NO_TOGGLE` or in a written list of types that toggle, with the reason.
+- [x] S21.3 Verify: `npm run lint`, `npm test`, `npx playwright test`, each read bare.

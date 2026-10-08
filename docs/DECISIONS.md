@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: the camera cone is clipped to its room, and four sensor types stop toggling (S21.1, S21.2)
+
+**Cone clip.** Supersedes "the camera cone is not clipped (not asked)" (2026-10-04, the aura entry). Nothing in the docs says what a clip should be, so I took the simplest meaningful rule, the one the lamp already has: the cone is clipped to the polygon of the smallest real room holding the camera (`roomAt`; a zone, a structure and a fill are not rooms). No room, no clip. No margin: the cone's tip sits on the camera, and the wall is drawn over the edge. Not chosen: the floor's viewBox (the cone never reached beyond it, the box widens for it), and a clip to the camera's side of a wall (needs wall geometry nobody asked for).
+Mechanism: an inline `<clipPath>` before the device group, in the same svg, named by a `clip-path` attribute on the cone path. An attribute, not a CSS `url()`: it resolves in the shadow root of the card and the editor, which share `renderFloor` (finding 8), and no stylesheet rule sets `clip-path`, so none can outrank it (finding 18; a unit test pins that). A clip applies in the referencing element's frame, and the cone lives in the device group's (translate, scale, turn about the icon). So the clipPath carries `transform="rotate(-rot 12 12) scale(1/k) translate(...)"`, the inverse of the group's, and its polygon stays in plan coordinates. In 2.5D the translate includes the icon's lift, as the aura's clip does. The id is `fp-cone-` and a hash of polygon and transform: equal ids mean equal definitions, so two cards (two shadow roots) or two cameras in one room cannot collide. A camera on the outer wall aiming out of its room shows no cone; the cone is not painted past the room at all. Known edge, accepted.
+Tests changed on purpose: the two `renderFloor` snapshots (the demo Hall camera gains a clipPath and an attribute); the cone regex in "camera cone (S1.31)" accepts the optional `clip-path` attribute, as the aura tests already do; "leaves the aura unclipped" asserted no `<clipPath` at all and now names `fp-aura-`, since the demo camera has one.
+
+**Sensors.** `humidity`, `motion`, `contact` and `vibration` join `NO_TOGGLE`, as `temp` did (S19.E4): the popup button follows the entity's domain, so one on a switchable entity offered "Turn off". A new test iterates `DEVICE_TYPES`: each is in `NO_TOGGLE` or in a written list of toggling types with a reason. Lights, switches, plugs, climate types, tv, computer, lock, cover, siren (toggle) and the rest keep their behaviour; alarm stays no-toggle.
+
 ## 2026-10-07: All off in the panel, and a floor pill that selects its floor (S20.1, S20.2)
 
 Diego asked for both in the card; the editor is not touched.
