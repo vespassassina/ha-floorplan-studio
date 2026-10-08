@@ -172,6 +172,7 @@ const ATTENTION_TEXT: Record<AttentionKind, (it: AttentionItem, level: string) =
   "alarm-triggered": () => "triggered",
   "alarm-armed": (it) => it.state.replace(/_/g, " "),
   open: () => "open",
+  jammed: () => "jammed",
   unlocked: () => "unlocked",
   leak: () => "leak",
   smoke: () => "smoke",
@@ -389,8 +390,9 @@ export class FloorplanStudioCard extends LitElement {
     /* One target per row, finger-sized on a touch screen (S24.7). */
     @media (pointer: coarse) { .fp-active-row { min-height: 40px; } }
     /* S24.7: the ring a row tap puts on its thing. Card chrome over the plan, never a hit target. Reduced motion: a steady ring. */
-    .fp-pulse { position: absolute; z-index: 1; pointer-events: none; box-sizing: border-box; border: 3px solid var(--fp-primary); border-radius: 50%; transform: translate(-50%, -50%); animation: fp-locate 0.8s ease-out 3; }
-    @keyframes fp-locate { 0% { opacity: 1; box-shadow: 0 0 0 0 var(--fp-primary); } 100% { opacity: 0.6; box-shadow: 0 0 0 10px transparent; } }
+    .fp-pulse { position: absolute; z-index: 1; pointer-events: none; box-sizing: border-box; border: 3px solid var(--fp-primary); border-radius: 50%; transform: translate(-50%, -50%); animation: fp-pulse-ring 0.8s ease-out 3; }
+    /* Not fp-locate: that is the plan's own ring (render.ts), and one name in one shadow root means one wins (S24.R7). */
+    @keyframes fp-pulse-ring { 0% { opacity: 1; box-shadow: 0 0 0 0 var(--fp-primary); } 100% { opacity: 0.6; box-shadow: 0 0 0 10px transparent; } }
     @media (prefers-reduced-motion: reduce) { .fp-pulse { animation: none; } }
     .fp-room { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--fp-idle); }
     .fp-room-head { display: flex; align-items: center; gap: 6px; font: 600 13px/1.3 var(--fp-font, system-ui, sans-serif); }
@@ -556,7 +558,7 @@ export class FloorplanStudioCard extends LitElement {
   private _pulse: ({ floor: string } & ThingRef) | null = null;
   private _pulseTimer: ReturnType<typeof setTimeout> | null = null;
   /** `attention()` for the layout and states on show, computed once per pair: the pills and the Overview both read it. */
-  private _attnMemo: { layout: Layout; states: unknown; a: Attention } | null = null;
+  private _attnMemo: { layout: Layout; states: unknown; reg: unknown; a: Attention } | null = null;
   private _actionsPanel: HTMLElement | null = null;
   private _unbindPanel: (() => void) | null = null;
   /** S12.4: the 3D host the taps are bound on, and what unbinds them. */
@@ -2529,12 +2531,13 @@ export class FloorplanStudioCard extends LitElement {
 
   /** `attention()` for the layout and states on show; computed once per pair (the pills and the Overview both read it). */
   private _attention(): Attention | null {
-    const layout = this._layout, states = this._stateForRender();
+    const layout = this._layout, states = this._stateForRender(), reg = this._hass?.entities;
     if (!layout) return null;
     const m = this._attnMemo;
-    if (m && m.layout === layout && m.states === states) return m.a;
-    const a = attention(layout, states);
-    this._attnMemo = { layout, states, a };
+    if (m && m.layout === layout && m.states === states && m.reg === reg) return m.a;
+    // The registry finds a placed device's battery sensor on its own HA device (S24.R1).
+    const a = attention(layout, states, reg);
+    this._attnMemo = { layout, states, reg, a };
     return a;
   }
 
@@ -2544,8 +2547,8 @@ export class FloorplanStudioCard extends LitElement {
 
   /** An Attention item as a row: the name, then what is wrong and for how long ("open · 12 min"). */
   private _attnRow(it: AttentionItem, now: number): OverviewRow {
-    const a = this._hass?.states?.[it.entity]?.attributes, lvl = a?.battery_level ?? (it.kind === "battery-low" && it.type === "other" ? it.state : undefined);
-    const level = typeof lvl === "number" && Number.isFinite(lvl) ? String(Math.round(lvl)) : typeof lvl === "string" && /^\d+(\.\d+)?$/.test(lvl.trim()) ? String(Math.round(Number(lvl))) : "";
+    // `attention` read the level, from whichever entity or attribute reported it (S24.R1).
+    const level = typeof it.level === "number" && Number.isFinite(it.level) ? String(Math.round(it.level)) : "";
     const age = formatAge(it.lastChanged, now);
     const what = ATTENTION_TEXT[it.kind]?.(it, level) ?? it.kind;
     return { entity: it.entity, name: it.name, floor: it.floor, at: { what: it.at.what, index: it.at.index }, ...(it.room ? { room: it.room } : {}), state: what, ...(age ? { age } : {}), ...(it.type ? { type: it.type } : {}), colorVar: "--fp-warn", attn: true };
@@ -2621,7 +2624,9 @@ export class FloorplanStudioCard extends LitElement {
     const a = this._attention() ?? { items: [], unavailable: [], floors: {} };
     const inScope = <T extends { floor: string; entity: string }>(list: T[]): T[] => (summary && this._roomFilter ? filterToRoom(list.filter((x) => x.floor === shown), summary) : all ? list : list.filter((x) => x.floor === shown));
     const attn: Attention = { items: inScope(a.items), unavailable: inScope(a.unavailable), floors: a.floors };
-    const flagged = new Set(attn.items.map((it) => it.entity));
+    // Only what Attention says about the same fact leaves Active (an open door, an unlocked lock). A low battery says
+    // nothing about on or off: a lamp that is on and low is in both (S24.R6).
+    const flagged = new Set(attn.items.filter((it) => it.kind !== "battery-low").map((it) => it.entity));
     const items = inScope(activeDevices(this._layout, state, opts)).filter((it) => !flagged.has(it.entity));
     const badge = all && many;
     const list = this._overviewList(attn, items, badge, summary && this._roomFilter ? scope.nothingOn : "Nothing on");

@@ -524,16 +524,17 @@ meant for one floor; `floor:` picks which one.
 
 Rows are grouped by category (S14.6, `src/core/categories.ts`: `CATEGORY_OF` places every `DeviceType` in one of ten categories, `CATEGORIES` fixes their order: lights, climate, security, media, power, covers, computers and network, sensors, people, other; a type nobody placed falls to "other"). Each category is a header `<button aria-expanded>` that folds its rows; groups start open and the fold is kept per card (`localStorage`, try/catch, key `fp-active-cats:<hash of the same source seed>`, separate ids for the Active list and the Room panel, which is grouped the same way). Each row has that type's icon and colour — a `camera` row is the one exception, taking `--fp-ink` (the panel's own text colour) rather than `--fp-dev-camera`, since that token is tuned for the plan's own room background and read illegibly close to the panel's `--fp-room` background in the dark themes (Opus review finding 10) — and its `name ?? friendly_name ?? entity`; a click or Enter fires `hass-more-info` for that entity, the same event the plan's own tap already fires. The header shows "Active", a live count and a collapse toggle (since S24.7 a crumb and count chips); dragging the header repositions the panel. Its position is kept as a fraction of the card's own free space and reapplied after every render and on a `ResizeObserver` of the card's host, not only while dragging (Opus review findings 3 and 4), so it can never be lost off-screen — including after the card itself is resized, or after a collapse/drag-to-bottom/expand cycle. With nothing yet stored and the card narrower than 500px, the panel starts collapsed and takes `min(200px, 45%)` of the width instead of a flat 200px (Opus review finding 5, an assumption: 500px as "phone width" is not tested against a real device, only Chromium's viewport emulation). Position and collapsed state are kept in `localStorage`, wrapped in try/catch, under a key hashed from the layout's *source* — `layout_url`, else `"inline"` for a config `layout`, else `"ws"` for the websocket fetch — plus the card's own `floor`/`floors` (Opus review finding 7: the old key hashed the layout's *content*, so two cards in websocket mode, the default install with no `layout`/`layout_url`, shared one key even when pinned to different floors, and an inline layout's own autosave changed the key on every edit). `kiosk: true` hides the panel too — a wall tablet shows only the plan.
 
-**Attention (S24.3, G2 and G3).** `src/core/attention.ts` lists what is wrong in the house, before what is on. `attention(layout, state)` is pure and reads every floor. It returns `items`, `unavailable` and `floors`. Kinds, most severe first (`ATTENTION_KINDS`):
+**Attention (S24.3, G2 and G3).** `src/core/attention.ts` lists what is wrong in the house, before what is on. `attention(layout, state, reg?)` is pure and reads every floor; `reg` is Home Assistant's entity registry (the card passes `hass.entities`). It returns `items`, `unavailable` and `floors`. Kinds, most severe first (`ATTENTION_KINDS`):
 
 1. `alarm-triggered`: an `alarm` whose state is `triggered`.
 2. `alarm-armed`: `armed_*`, `arming` or `pending`.
 3. `open`: a `contact` that is `on`; a `cover` only while `coverActive` says so (garage, gate or door, never a blind); a door whose own contact sensor is on, or whose own garage or door cover stands open.
-4. `unlocked`: a `lock`, or a door's lock, whose state is `unlocked`.
-5. `leak`: an `other` `binary_sensor` that is `on` with device class `moisture`.
-6. `smoke`: the same with `smoke`, `carbon_monoxide` or `gas`.
-7. `battery-low`: a device's own battery. Any placed device, or any lock or contact sensor a door carries, whose `battery_level` attribute is a number under 20 (`BATTERY_LOW`), one item per entity; or an `other` device with `device_class: battery` whose state is a number under 20. A `battery` device is a home storage battery: its charge is never an alert. A device can raise two kinds, an unlocked lock with a low battery for one.
-8. `unavailable`: any device or door entity whose state is `unavailable`. `unknown` and a missing state are not. These go to their own list, sorted by name, for one folded row with a count.
+4. `jammed`: a `lock`, or a door's lock, whose state is `jammed` (S24.R2): it cannot lock, a person must go.
+5. `unlocked`: a `lock`, or a door's lock, whose state is `unlocked`.
+6. `leak`: an `other` `binary_sensor` that is `on` with device class `moisture`.
+7. `smoke`: the same with `smoke`, `carbon_monoxide` or `gas`.
+8. `battery-low`: a device's own battery (S24.R1). For any placed device, and any lock or contact sensor a door carries, the first of these with a reading decides: the entity is itself a battery entity (`device_class: battery`: a `sensor` under 20 %, `BATTERY_LOW`, or a `binary_sensor` that is `on`); its `battery_level` or `battery` attribute (Zigbee2MQTT's name) is a number under 20; with neither, a battery entity of the same HA device (`reg[entity].device_id`) reads low, the lowest if several, unless that entity is placed as its own icon. One item per placed entity; a battery entity found for two of them is reported once. The item stays on the placed entity and carries `level` (when a number) and `source` (the battery entity, when another). The storage types, `battery`, `inverter`, `ups` and `car`, read only an attribute: their charge is a reading, not an alert. A `battery` icon whose entity HA files as `diagnostic` is a device's battery after all and reads as one. A device can raise two kinds, an unlocked lock with a low battery for one.
+9. `unavailable`: any device or door entity whose state is `unavailable`. `unknown` and a missing state are not. These go to their own list, sorted by name, for one folded row with a count.
 
 `ATTENTION_RULE` writes down each `DeviceType`'s rule (`alarm`, `open`, `unlocked`, `hazard` or `none`); a test iterates `DEVICE_TYPES`. Items sort by kind, then name. Each carries its floor, where it is (`device`, `piece` or `door` and an index), the entity, a name, its room, its type, the raw state and `last_changed`. An entity placed as its own icon is reported by the icon, not again by its door; an entity on two icons is reported once. A door's room is the first room in layout order that borders it. `floors[key]` holds `count` (the things, a device, piece or door, with at least one item: an unlocked lock with a low battery is two items and one thing; unavailable left out), `unavailable` and `alarm` (an alarm on that floor is triggered), for every floor of the layout. Junk input reports nothing and never throws.
 
@@ -544,8 +545,8 @@ Rows are grouped by category (S14.6, `src/core/categories.ts`: `CATEGORY_OF` pla
 1. the search box, `<fp-search>` in `<div class="fp-ov-search" data-slot="search">` (S24.8);
 2. one row of tools (`.fp-ov-scopes`): "Turn off on this floor…" (S24.8, below), the Layers button (S24.8, below, not in live 3D), and an "All floors" toggle (`aria-pressed`), only on a card that can show more than one floor;
 3. the layer chips while unfolded, and the note for a kept thing, in `<div class="fp-ov-layers" data-slot="layers">`, hidden while empty;
-4. "Attention · N": `attention()` items in its order, each row with its state ("triggered", "open", "unlocked", "battery 12 %") and its age since `last_changed` ("12 min", `formatAge`), then "Unavailable" with a count, folded until opened;
-5. "Active · N": `activeDevices()` by category, the S14.6 folds kept, leaving out any entity already in Attention;
+4. "Attention · N": `attention()` items in its order, each row with its state ("triggered", "open", "jammed", "unlocked", "battery 12 %", "battery low") and its age since `last_changed` ("12 min", `formatAge`), then "Unavailable" with a count, folded until opened;
+5. "Active · N": `activeDevices()` by category, the S14.6 folds kept, leaving out any entity already in Attention for a kind other than `battery-low` (S24.R6: a lamp on and low is in both);
 6. the hint "Tap a row: the plan goes to it."
 
 The scope is the floor on show by default; "All floors" lists every floor and badges each row with its floor. The toggle is kept with the panel's position (`all` in `fp-active-panel:`). With a room or floor picked, the lists are cut to it as before (S11.3, S20.2). A row is one `<button>` (at least 40 px under `pointer: coarse`) with the icon, the name, the room and the state; the state is the popup's own text, so a lamp lit by its relay reads "on · via" the relay. The ▸ details chevron is gone from every row, room rows too; the same details (manufacturer, model, firmware, area, entity, state, last changed) are a `<details>` "Details" in the device's popup, not in kiosk.
@@ -627,7 +628,8 @@ there needs: floor key, room index, device index (furniture index for a piece). 
 
 Ranking: exact name or entity id, then name prefix, then every word a prefix of a word in the name, then every word in
 the name, then every word in the entity id, then every word somewhere in name, entity, room, floor or type. Ties go to
-the shorter name, then layout order. Case and accents are ignored; several words must all match; a blank query matches
+the shorter name, then layout order. Case and accents are ignored, and ø, ß, æ, ł, đ, ð, þ, œ and ı fold to plain
+letters (S24.R10b); several words must all match; a blank query matches
 nothing. A layout of the wrong shape is skipped, never thrown on.
 
 The box is `<fp-search>` (`src/card/search-box.ts`, S24.2), one element for both apps. It takes `entries` and `limit`
@@ -635,7 +637,8 @@ The box is `<fp-search>` (`src/card/search-box.ts`, S24.2), one element for both
 "room · floor · type". Nothing shows for an empty query; "No match" when nothing matches. Up and Down move and wrap,
 the active option stays scrolled into view. Enter or a click fires `fp-pick` (bubbling, composed, the entry in
 `detail`) and clears the box. Escape clears the query; on an empty query it closes: focus returns to where it was when
-the host called `focus()`, and `fp-close` fires. Each host binds `isSearchChord` (`src/card/view-keys.ts`) on itself:
+the host called `focus()` (the deepest focused element, through shadow roots), else the input blurs, and `fp-close`
+fires (S24.R3). Each host binds `isSearchChord` (`src/card/view-keys.ts`) on itself:
 Cmd-K or Ctrl-K anywhere, `/` outside a text field.
 
 ## Editor
