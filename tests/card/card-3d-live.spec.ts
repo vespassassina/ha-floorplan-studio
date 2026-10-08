@@ -316,7 +316,7 @@ test.describe("3D view: the overlay", () => {
     await boot(page, {}, QUIET(), layout);
     await expect(roomLabel(page, 0).locator("css=.fp3-name")).toHaveText("Living");
     const readout = await roomLabel(page, 0).locator("css=.fp3-val").textContent();
-    expect(readout).toMatch(/^21(\.0)? °C$/);
+    expect(readout).toMatch(/^21(\.0)?\u202F°C$/); // S23.1: a narrow no-break space before the unit
     // the same state, the same layout, drawn in 2D
     const twoD = await page.evaluate(([layout, states]) => {
       const el = document.getElementById("card") as unknown as HTMLElement & { setConfig(c: unknown): void; updateComplete: Promise<unknown> };

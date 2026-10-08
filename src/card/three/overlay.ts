@@ -20,11 +20,11 @@ const CSS = `.fp3-ov{position:absolute;inset:0;overflow:hidden;pointer-events:no
 .fp3-dev,.fp3-rm{position:absolute;left:0;top:0;will-change:transform}
 .fp3-dev{width:0;height:0}
 .fp3-ic{position:absolute;left:-${ICON_PX / 2}px;top:-${ICON_PX / 2}px;width:${ICON_PX}px;height:${ICON_PX}px;overflow:visible}
-.fp3-dv,.fp3-dn{position:absolute;left:0;transform:translateX(-50%);white-space:nowrap;font:11px/1.2 system-ui,sans-serif}
+.fp3-dv,.fp3-dn{position:absolute;left:0;transform:translateX(-50%);white-space:nowrap;font:11px/1.2 var(--fp-font,system-ui,sans-serif)}
 .fp3-dv{top:${ICON_PX / 2 + 1}px}
 .fp3-dn{top:${ICON_PX / 2 + 13}px;opacity:.85}
 .fp3-dv,.fp3-dn,.fp3-name,.fp3-val{color:var(--fp-text);text-shadow:0 0 2px var(--fp-outline),0 0 2px var(--fp-outline),0 0 3px var(--fp-outline),0 0 5px var(--fp-outline)}
-.fp3-rm{text-align:center;white-space:nowrap;font:600 12px/1.25 system-ui,sans-serif}
+.fp3-rm{text-align:center;white-space:nowrap;font:500 12px/1.25 var(--fp-font,system-ui,sans-serif)}
 .fp3-name,.fp3-val{display:block}
 .fp3-val{font-weight:400;font-size:11px}`;
 

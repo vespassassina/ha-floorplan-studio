@@ -45,14 +45,14 @@ export interface PopupView {
 
 export const POPUP_CSS = css`
   /* S14.2: the tap popup and the hover tooltip are card chrome like the dialogs, outside the plan. The popup's buttons are 44 px tall, a touch target. */
-  .fp-pop { position: absolute; z-index: 3; box-sizing: border-box; width: min(240px, calc(100% - 8px)); max-height: calc(100% - 16px); display: flex; flex-direction: column; gap: 8px; padding: 12px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 10px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); font: 13px/1.3 system-ui, sans-serif; }
+  .fp-pop { position: absolute; z-index: 3; box-sizing: border-box; width: min(240px, calc(100% - 8px)); max-height: calc(100% - 16px); display: flex; flex-direction: column; gap: 8px; padding: 12px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 10px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); font: 13px/1.3 var(--fp-font, system-ui, sans-serif); }
   /* The sliders scroll inside the card-high cap; the name, the state and the buttons stay put. */
   .fp-pop-sliders { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; flex: 0 1 auto; }
   .fp-pop > * { flex-shrink: 0; }
   .fp-pop > .fp-pop-sliders { flex-shrink: 1; }
   .fp-pop-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
   .fp-pop-state { opacity: 0.8; overflow-wrap: anywhere; }
-  .fp-pop button { min-height: 44px; font: 14px/1.2 system-ui, sans-serif; color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; padding: 0 12px; cursor: pointer; }
+  .fp-pop button { min-height: 44px; font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; padding: 0 12px; cursor: pointer; }
   .fp-pop button.fp-pop-primary { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); font-weight: 600; }
   .fp-pop button.fp-pop-more { background: transparent; border-color: transparent; text-decoration: underline; min-height: 36px; }
   .fp-pop-confirm { display: flex; gap: 8px; }
@@ -63,7 +63,7 @@ export const POPUP_CSS = css`
   .fp-pop input.fp-pop-hue { background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); border-radius: 8px; height: 20px; margin: 12px 0; -webkit-appearance: none; appearance: none; }
   .fp-pop input.fp-pop-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 28px; border-radius: 6px; background: var(--fp-ink); border: 2px solid var(--fp-room); }
   .fp-pop input.fp-pop-hue::-moz-range-thumb { width: 22px; height: 28px; border-radius: 6px; background: var(--fp-ink); border: 2px solid var(--fp-room); }
-  .fp-tip { position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; max-width: min(260px, 90%); padding: 4px 8px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); font: 12px/1.3 system-ui, sans-serif; display: flex; flex-direction: column; }
+  .fp-tip { position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; max-width: min(260px, 90%); padding: 4px 8px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); font: 12px/1.3 var(--fp-font, system-ui, sans-serif); display: flex; flex-direction: column; }
   .fp-tip[hidden] { display: none; }
   .fp-tip b { font-weight: 600; overflow-wrap: anywhere; }
   .fp-tip span { opacity: 0.8; }

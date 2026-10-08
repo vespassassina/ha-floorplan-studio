@@ -16,9 +16,9 @@ describe("stateText: one text for the plan, the popup and the tooltip", () => {
   });
   it("a room's mean reading drops the trailing .0, so 48 % reads 48 % everywhere (it printed 48.0 % before)", () => {
     const s = { "sensor.h": st("48", { unit_of_measurement: "%" }), "sensor.h2": st("48", { unit_of_measurement: "%" }) };
-    expect(meanReading(["sensor.h", "sensor.h2"], s as never)).toBe("48 %");
+    expect(meanReading(["sensor.h", "sensor.h2"], s as never)).toBe("48\u202F%");
     const t = { "sensor.a": st("21", { unit_of_measurement: "°C" }), "sensor.b": st("22.4", { unit_of_measurement: "°C" }) };
-    expect(meanReading(["sensor.a", "sensor.b"], t as never)).toBe("21.7 °C");
+    expect(meanReading(["sensor.a", "sensor.b"], t as never)).toBe("21.7\u202F°C");
   });
   it("a light says its brightness in percent, asymmetric values so a swap fails", () => {
     expect(stateText("light", st("on", { brightness: 128 }))).toBe("50 %");

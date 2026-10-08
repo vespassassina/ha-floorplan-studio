@@ -107,7 +107,7 @@ for (const width of [1280, 375]) {
       const covered = await room(page).evaluate((el) => { const r = el.getBoundingClientRect(); return !(el.getRootNode() as ShadowRoot).elementFromPoint(r.x + 8, r.y + 8)?.closest(".fp-room"); });
       expect(covered, "the room section is not under anything").toBe(false);
       expect(await factsOf(page)).toMatchObject({
-        Area: "20 m²", Temperature: "21.7 °C", Humidity: "48 %", Motion: expect.stringMatching(/^on since \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/),
+        Area: "20 m²", Temperature: "21.7\u202F°C", Humidity: "48\u202F%", Motion: expect.stringMatching(/^on since \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/),
         "Open doors and windows": "Patio door", "Lights on": "Living light",
       });
     });
@@ -220,7 +220,7 @@ test.describe("the room section and the filtered list", () => {
       return e.updateComplete;
     });
     expect(await picked(page)).toEqual([0]);
-    expect((await factsOf(page)).Temperature).toBe("26.2 °C"); // (30 + 22.4) / 2: the section follows the state
+    expect((await factsOf(page)).Temperature).toBe("26.2\u202F°C"); // (30 + 22.4) / 2: the section follows the state
     await expect(card(page).locator("css=.fp-room-devices .fp-info")).toHaveCount(1);
   });
 

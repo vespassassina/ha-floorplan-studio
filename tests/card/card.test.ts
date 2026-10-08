@@ -479,12 +479,12 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass({ "sensor.demo_living_temperature": st("21.5", { attributes: { unit_of_measurement: "°C" } }) }) as never;
       await el.updateComplete;
-      expect(el.shadowRoot!.querySelector("svg")!.textContent).toContain("21.5 °C");
+      expect(el.shadowRoot!.querySelector("svg")!.textContent).toContain("21.5\u202F°C");
 
       el.setConfig({ layout: structuredClone(L), floor: "first" });
       el.hass = stubHass({ "sensor.demo_bathroom_humidity": st("48", { attributes: { unit_of_measurement: "%" } }) }) as never;
       await el.updateComplete;
-      expect(el.shadowRoot!.querySelector("svg")!.textContent).toContain("48 %");
+      expect(el.shadowRoot!.querySelector("svg")!.textContent).toContain("48\u202F%");
       expect(el.shadowRoot!.querySelector(`svg [data-x="${humidityIndex}"]`)).not.toBeNull(); // the humidity device itself is on this floor
     });
 

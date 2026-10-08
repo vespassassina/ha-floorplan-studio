@@ -2,6 +2,30 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: names stay in their room (S23.3)
+
+The old search tried rows above and below the centroid and took a free spot in the next room before a covered one in its own. The 2.5D Hall name landed in the Cloakroom; names sat under discs. Now a name is placed only where its whole box (padded 2k, eight points) is in its room and in no smaller named room.
+- **Candidates.** The centroid, or the pole of inaccessibility (a 16 by 16 grid, computed only when the centroid is not clear), then offsets of up to 144 left and right and 64 up and down, nearest first, horizontal moves cheaper than vertical. Sizes step down by 0.85 to 7k (6k for a zone; the S23.2 floor still holds) before the name leaves its room.
+- **A tag when every spot is covered.** The largest spot in the room that touches no other text gets the name on an `--fp-outline` plate, drawn after the icons. A tag may cover icons, never text. The leader stays only for a room too small for its name at the floor size.
+- **2.5D stem feet are obstacles**, a 4k disc where the stem meets the floor.
+- **Smallest room first**, so a small room is not crowded out by a big neighbour's name. Zones after rooms.
+- **The baseline stays at the anchor**, not the box centre, to keep every other label where it was. Pavement shrinks a step at scale 0.5 for it.
+- Tests changed on purpose: S1.42 (a name now slides sideways, not to a row), the S7.1 break-it test (a covered Store gets a tag), the zone size test, the card's lamp-pin test (the name keeps off the pin; a tap on it picks the room), the editor's rotation test (a tag may sit over icons). `rows()` stays for extras.
+
+## 2026-10-08: an 11 px floor on the card (S23.2)
+
+`renderFloor` takes `px`, screen px per plan unit. With it, `k` is never under `NAME_MIN_PX / (12 * px)` (11 px for a 12k name), and a name shrunk to fit its room is never under `NAME_MIN_PX / px`. One `k` for text and discs, so the plan keeps its proportions and a 32k disc lands at 29 px or more. Without `px` (the editor, the 3D overlay) nothing changes, byte for byte. The floor lives in `renderFloor`, so the editor could use it the day it wants to (finding 8).
+- **The card measures at fit, not at the view on show.** `px` is the svg's box over the fit view box. Like S9.2's icon scale it follows the card's size, never its zoom: zooming in only enlarges, a pinned card draws icons at the same scale as the whole-floor card, and a pinch costs no second render. Zooming out past fit can still draw under 11 px; that is the user's choice.
+- **When the card renders twice.** After a render and on a resize the card measures, and re-renders only when the floor changes `k` or binds a shrunk name now or did before. The first card at 1000 px kept a name at 8.5 px because only `k` was compared; the wide-card test caught it.
+- Not done here: placing labels in CSS px outright (sprint 25).
+
+## 2026-10-08: one label style (S23.1)
+
+Supersedes the 0.12.16 "small and half transparent" names. A name is never faded. `--fp-label` is `color-mix(in srgb, var(--fp-text) 92%, var(--fp-under))`, where `renderFloor` sets `--fp-under` on each name to what it sits on: the room's own `#rrggbb` paint, else its kind's token (`SURFACE` in render.ts; a zone takes the room under it). 92% is the least text that clears 4.5:1 on every theme surface that S23.6 does not change; 85% failed light's garden and terminal's pavement. Room names 12k, outdoor and zone names 10k, weight 500, outdoor in italic. `--fp-font` is Home Assistant's body font (`--ha-font-family-body`, then the older paper variable), else system-ui; it is used for names, values and the card chrome, not for the studio or the config editor. Values use tabular figures and U+202F before the unit (`meanReading`, a sensor's value, the live overlay); the popup's own state line keeps its plain space.
+- **Contrast pairs that wait for S23.6, marked `test.fixme` (labels-css.spec.ts), never a lower bar.** The `#d6d6d2` empty room on blueprint, midnight, terminal, solarized, coffee and HA dark (light text on light grey, 1.1 to 1.8:1). Midnight's and HA dark's fixed light outdoor hexes. Solarized's outdoor hexes (`#586e75`, `#657b83`, `#268bd2`): no colour of its palette clears 4.5:1 on them, so they need a theme decision, not only the ramp.
+- The 3D overlay's room names take weight 500 and the font, to match.
+- The mix applies to room and zone names only (`.lbl[data-rl]`). Device and extra names sit on a disc or anywhere, so they keep `--fp-text`.
+
 ## 2026-10-08: the popup is placed inside what the user sees (S22.2)
 
 `placeNear` (popup-ui.ts) clamps to the host's box cut to the visual viewport (`window.visualViewport`, else the window), not to the host alone. Below the point first, above it when there is no room below, then clamped into that box. Its height is capped to the box less 16 px (the CSS cap the popup had for a host in full view), so in a very short window the sliders scroll and the button stays on screen. A host with less than 40 px showing falls back to its own box, the old rule. Not chosen: `position: fixed` (it would escape the card's stacking and need its own z-index and theme scope). The popup is placed when it opens and on each render, not on a page scroll.

@@ -2483,10 +2483,12 @@ test("Add, Door lands on a free wall when that is the nearest edge, along its di
   expect(len(d)).toBe(90);
 });
 
-test("a zone's plan label is drawn muted: its class has a rule, unlike a room label", async ({ page }) => {
-  const style = (sel: string) => page.locator(sel).first().evaluate((el) => { const c = getComputedStyle(el); return { fill: c.fill, opacity: c.opacity }; });
-  const zone = await style("svg text.lbl.zone"), room = await style("svg text.lbl:not(.zone)");
-  expect(zone).not.toEqual(room);
+test("S23.1: a zone's plan label is solid like a room's, and smaller", async ({ page }) => {
+  const style = (sel: string) => page.locator(sel).first().evaluate((el) => { const c = getComputedStyle(el); return { opacity: c.opacity, weight: c.fontWeight, size: parseFloat(c.fontSize) }; });
+  const zone = await style("svg text.lbl.zone[data-rl]"), room = await style("svg text.lbl:not(.zone):not(.out)[data-rl]");
+  expect([zone.opacity, zone.weight]).toEqual(["1", "500"]);
+  expect([room.opacity, room.weight]).toEqual(["1", "500"]);
+  expect(zone.size).toBeLessThanOrEqual(room.size);
 });
 
 test("a floor property named like an Object.prototype key does not cancel a draw or change the floor", async ({ page }) => {
@@ -4383,10 +4385,18 @@ test("S1.42: at plan rotations 0, 45, 90 and 135 no name box overlaps a device h
     const boxes = await page.evaluate((tag) => {
       const root = document.querySelector(tag)!.shadowRoot!;
       const r = (e: Element) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
-      return { names: [...root.querySelectorAll("text.lbl")].filter((t) => t.textContent && ["Living", "Kitchen", "Hall", "Reading corner"].includes(t.textContent)).map((t) => [t.textContent, ...r(t)]),
+      // S23.3: a name with every spot in its room covered is a tag drawn over the icons (`lbl-on`), on purpose: at 45
+      // degrees the Reading corner zone is a diamond whose only spot that fits holds a lamp. A tag is drawn after the
+      // last icon, so it is read, not hidden.
+      const all = [...root.querySelectorAll("text.lbl")].filter((t) => t.textContent && ["Living", "Kitchen", "Hall", "Reading corner"].includes(t.textContent));
+      const lastIcon = [...root.querySelectorAll("g[data-x]")].pop()!;
+      return { names: all.filter((t) => !t.classList.contains("lbl-on")).map((t) => [t.textContent, ...r(t)]), count: all.length,
+        tagsOnTop: all.filter((t) => t.classList.contains("lbl-on")).every((t) => !!(lastIcon.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING)),
         halos: [...root.querySelectorAll("circle.halo")].map(r) };
     }, EDITOR);
-    expect(boxes.names, `rotation ${deg}`).toHaveLength(4);
+    expect(boxes.count, `rotation ${deg}`).toBe(4);
+    expect(boxes.tagsOnTop, `rotation ${deg}`).toBe(true);
+    expect(boxes.names.length, `rotation ${deg}`).toBeGreaterThanOrEqual(3);
     expect(boxes.halos.length).toBeGreaterThan(3);
     for (const [name, l, t, rr, b] of boxes.names as [string, number, number, number, number][])
       for (const h of boxes.halos) expect(l < h[2] && rr > h[0] && t < h[3] && b > h[1], `rotation ${deg}: ${name} ${[l, t, rr, b]} under a halo ${h}`).toBe(false);
@@ -4469,17 +4479,24 @@ test("S1.46: room, zone, device and extra names and the edge length are dark gre
   await menu(page, "View"); // S8.1: Names lives in View
   await page.locator("#names").click();
   await page.mouse.click(...Object.values(await screenOf(page, 500, 200)) as [number, number]); // a click on the shared edge shows its length
-  const kinds = ["svg text.lbl:not(.zone)", "svg text.lbl.zone", "svg text.len"];
+  const kinds = ["svg text.lbl[data-rl]:not(.zone)", "svg text.lbl.zone", "svg text.len"];
   const widths: string[] = [];
   for (const sel of kinds) {
-    const st = await page.locator(sel).first().evaluate((el) => { const s = getComputedStyle(el); return [s.fill, s.stroke, s.paintOrder.split(" ")[0], s.strokeWidth]; });
-    expect(st.slice(0, 3), sel).toEqual(["rgb(58, 58, 58)", "rgb(255, 255, 255)", "stroke"]);
+    const st = await page.locator(sel).first().evaluate((el) => { const s = getComputedStyle(el); return [s.fill, s.stroke, s.paintOrder.split(" ")[0], s.strokeWidth, s.getPropertyValue("--fp-under").trim()]; });
+    // S23.1: a room or zone name is the text mixed into what it sits on; the edge length keeps the plain text colour.
+    if (sel === "svg text.len") expect(st[0], sel).toBe("rgb(58, 58, 58)");
+    else expectNear(st[0], mix92("rgb(58, 58, 58)", st[4]), sel);
+    expect(st.slice(1, 3), sel).toEqual(["rgb(255, 255, 255)", "stroke"]);
     widths.push(st[3]);
   }
   expect(widths, "the edge length outline is as wide as the names' (3, not 3 x zoom)").toEqual(["3px", "3px", "3px"]);
-  const names = await page.locator("svg text.lbl").evaluateAll((els) => els.map((el) => { const s = getComputedStyle(el); return [el.textContent, s.fill, s.stroke]; }));
+  const names = await page.locator("svg text.lbl").evaluateAll((els) => els.map((el) => { const s = getComputedStyle(el); return [el.textContent, s.fill, s.stroke, el.hasAttribute("data-rl") ? s.getPropertyValue("--fp-under").trim() : ""]; }));
   expect(names.length).toBeGreaterThan(8); // rooms, the zone, device names, the extra
-  for (const [t, fill, stroke] of names) { expect(fill, String(t)).toBe("rgb(58, 58, 58)"); expect(stroke, String(t)).toBe("rgb(255, 255, 255)"); }
+  for (const [t, fill, stroke, under] of names) {
+    if (under) expectNear(fill, mix92("rgb(58, 58, 58)", under), String(t)); // a room's name: mixed into the room
+    else expect(fill, String(t)).toBe("rgb(58, 58, 58)"); // a device's or an extra's name: the plain text colour
+    expect(stroke, String(t)).toBe("rgb(255, 255, 255)");
+  }
   expect(names.some(([t]) => t === "Shed")).toBe(true);
 });
 
@@ -5416,6 +5433,10 @@ test("S1.51 break it: a corner dragged past its opposite one clamps at 5 cm inst
 // line (measure) #35d47a. An unpainted room (the demo's Living, room 0) is --fp-room-empty, #d6d6d2 = rgb(214, 214, 210)
 // in every theme, unchanged since 2026-09-22.
 const ROOM_EMPTY = "rgb(214, 214, 210)";
+/** S23.1: a room name's fill is `color-mix(in srgb, text 92%, the room)`. Chromium reports it as `color(srgb r g b)`. */
+const colourOf = (css: string): number[] => { const h = /^#([0-9a-f]{6})$/i.exec(css.trim()); if (h) return [0, 2, 4].map((i) => parseInt(h[1].slice(i, i + 2), 16)); const m = /color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)/.exec(css); return m ? [m[1], m[2], m[3]].map((v) => Number(v) * 255) : (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number); };
+const mix92 = (text: string, under: string) => { const a = colourOf(text), b = colourOf(under); return a.map((v, i) => 0.92 * v + 0.08 * b[i]); };
+const expectNear = (css: string, rgb: number[], what: string) => colourOf(css).forEach((v, i) => expect(Math.abs(v - rgb[i]), `${what}: ${css} vs ${rgb.map(Math.round)}`).toBeLessThan(1.5));
 const DARK_TH = { bg: "rgb(12, 21, 33)", room: ROOM_EMPTY, wall: "rgb(99, 148, 221)", text: "rgb(238, 243, 251)", outline: "rgb(12, 21, 33)", disc: "rgb(238, 243, 251)", measure: "rgb(53, 212, 122)" };
 // Midnight (the old default, ex-"blueprint", renamed 2026-09-22): ground #0d1522, room #14213a, wall #8fb4f0, text
 // #d8e2f2. Still what the ha theme's dark-mode fallback uses (Diego's call: ha stays untouched by the new palettes).
@@ -5442,7 +5463,7 @@ test("S2.12: blueprint, the default, has the dark page background, room fill, wa
     const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
     const host = document.querySelector(tag) as HTMLElement;
     const room = root.querySelector('svg polygon[data-r="0"]')!, wall = root.querySelector("svg line.e")!;
-    const lbl = root.querySelector("svg text.lbl")!, halo = root.querySelector("svg .dev .halo")!, mg = root.querySelector("svg line.mg")!;
+    const lbl = root.querySelector("svg text.lbl[data-rl]")!, halo = root.querySelector("svg .dev .halo")!, mg = root.querySelector("svg line.mg")!;
     const s = (el: Element) => getComputedStyle(el);
     return {
       bg: s(host).backgroundColor, room: s(room).fill, wall: s(wall).stroke,
@@ -5452,7 +5473,7 @@ test("S2.12: blueprint, the default, has the dark page background, room fill, wa
   expect(got.bg).toBe(DARK_TH.bg);
   expect(got.room).toBe(DARK_TH.room);
   expect(got.wall).toBe(DARK_TH.wall);
-  expect(got.lblFill).toBe(DARK_TH.text); // a room name on a dark room: light fill...
+  expectNear(got.lblFill, mix92(DARK_TH.text, DARK_TH.room), "room name"); // S23.1: the light text mixed into its room...
   expect(got.lblStroke).toBe(DARK_TH.outline); // ...with a dark outline, the S1.46 trick inverted
   expect(got.disc).toBe(DARK_TH.disc);
   expect(got.mg).toBe(DARK_TH.measure);
@@ -5464,14 +5485,14 @@ test("S1.53: light theme keeps its values", async ({ page }) => {
     const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
     const host = document.querySelector(tag) as HTMLElement;
     const room = root.querySelector('svg polygon[data-r="0"]')!, wall = root.querySelector("svg line.e")!;
-    const lbl = root.querySelector("svg text.lbl")!;
+    const lbl = root.querySelector("svg text.lbl[data-rl]")!;
     const s = (el: Element) => getComputedStyle(el);
     return { bg: s(host).backgroundColor, room: s(room).fill, wall: s(wall).stroke, lblFill: s(lbl).fill, lblStroke: s(lbl).stroke };
   }, EDITOR);
   expect(got.bg).toBe(LIGHT_TH.bg);
   expect(got.room).toBe(LIGHT_TH.room);
   expect(got.wall).toBe(LIGHT_TH.wall);
-  expect(got.lblFill).toBe(LIGHT_TH.text);
+  expectNear(got.lblFill, mix92(LIGHT_TH.text, LIGHT_TH.room), "room name"); // S23.1
   expect(got.lblStroke).toBe(LIGHT_TH.outline);
 });
 
@@ -5531,7 +5552,7 @@ test("S1.53 break it: a per-room colour stays the same colour in both themes, an
   await page.evaluate((tag) => { const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.rooms[0].color = "#aabbcc"; el.layout = l; }, EDITOR);
   const fillOf = () => page.evaluate((tag) => {
     const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
-    const poly = root.querySelector('svg polygon[data-r="0"]')!, lbl = root.querySelector("svg text.lbl")!;
+    const poly = root.querySelector('svg polygon[data-r="0"]')!, lbl = root.querySelector('svg text.lbl[data-rl="0"]')!;
     return { fill: getComputedStyle(poly).fill, lblFill: getComputedStyle(lbl).fill, lblStroke: getComputedStyle(lbl).stroke };
   }, EDITOR);
   await setTheme(page, "light");
@@ -5540,7 +5561,7 @@ test("S1.53 break it: a per-room colour stays the same colour in both themes, an
   await setTheme(page, "blueprint");
   const dark = await fillOf();
   expect(dark.fill).toBe(light.fill); // unchanged by theme
-  expect(dark.lblFill).toBe(DARK_TH.text); // the name still reads: light fill, dark outline
+  expectNear(dark.lblFill, mix92(DARK_TH.text, "rgb(170, 187, 204)"), "name on #aabbcc"); // S23.1: mixed into the user's own colour; light fill, dark outline
   expect(dark.lblStroke).toBe(DARK_TH.outline);
 });
 
@@ -8471,10 +8492,10 @@ test("S10.1: picking the value that is already set adds no undo step", async ({ 
   expect((await groundOf(page)).devices[i].entity).toBe(""); // one undo reaches the start: the re-pick made no step
 });
 
-test("Opus review CSS pair: a room name and a zone name are drawn at half opacity", async ({ page }) => {
+test("Opus review CSS pair, S23.1: a room name and a zone name are solid, never faded", async ({ page }) => {
   const opacity = (sel: string) => page.locator(sel).first().evaluate((el) => Number(getComputedStyle(el).opacity));
-  expect(await opacity('svg text.lbl[font-weight="600"]')).toBe(0.5);
-  expect(await opacity("svg text.lbl.zone")).toBe(0.5);
+  expect(await opacity("svg text.lbl[data-rl]:not(.zone)")).toBe(1);
+  expect(await opacity("svg text.lbl.zone")).toBe(1);
 });
 
 // ---- heights (docs/specs/heights-and-2-5d.md): every field is optional; empty means "the default" ----

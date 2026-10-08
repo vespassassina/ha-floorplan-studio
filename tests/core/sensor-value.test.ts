@@ -18,7 +18,7 @@ describe("a sensor value that is not a number", () => {
   });
   it("still shows a real reading, including a negative and a decimal", () => {
     for (const good of ["21.5", "-3.2", "0"]) {
-      expect(renderFloor(floor, { scale: 1, state: st(good) as never })).toContain(`${good} °C`);
+      expect(renderFloor(floor, { scale: 1, state: st(good) as never })).toContain(`${good}\u202F°C`);
     }
   });
 });
