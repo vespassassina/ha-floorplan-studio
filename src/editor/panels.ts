@@ -272,6 +272,9 @@ function entityField(c: PanelCtx, id: string, label: string, cur: string | undef
  * while open, so the reader can follow a step and do it with the guide still visible; the button that opens it is
  * in the toolbar (editor-app.ts), which also gives focus back to itself when this panel's Close button is used.
  */
+/** A guide body with each `[Label]` shown as the bold name of the control, brackets dropped. Split, not innerHTML: text stays text. */
+const guideBody = (body: string) => body.split(/\[([^\]]+)\]/).map((part, k) => (k % 2 ? html`<b class="ctl">${part}</b>` : part));
+
 export function helpPanel(close: () => void): TemplateResult {
   return html`<strong>? Help</strong>
     <p><button class="btn" id="helpClose" @click=${close}>Close</button></p>
@@ -279,7 +282,7 @@ export function helpPanel(close: () => void): TemplateResult {
       ${CONTROLS.map((c) => html`<tr><th scope="row"><kbd>${c.keys}</kbd></th><td>${c.does}</td></tr>`)}
     </table>
     <ol class="guide">
-      ${GUIDE_STEPS.map((s) => html`<li><details><summary>${s.title}</summary><p>${s.body}</p></details></li>`)}
+      ${GUIDE_STEPS.map((s) => html`<li><details><summary>${s.title}</summary><p>${guideBody(s.body)}</p></details></li>`)}
     </ol>`;
 }
 

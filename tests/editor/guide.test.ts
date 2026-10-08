@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { GUIDE_STEPS } from "../../src/editor/guide";
+import { GUIDE_STEPS, guideControls } from "../../src/editor/guide";
 
 const JARGON = ["canvas", "polygon", "viewport"];
 
@@ -23,5 +23,14 @@ describe("GUIDE_STEPS", () => {
         expect((s.title + " " + s.body).toLowerCase()).not.toContain(word);
       }
     }
+  });
+
+  it("break it: every control mark is closed, so no bracket shows in the Help panel", () => {
+    for (const s of GUIDE_STEPS) expect(s.body.replace(/\[[^\]]+\]/g, "")).not.toMatch(/[[\]]/);
+  });
+
+  it("guideControls lists the marked names in order, brackets dropped", () => {
+    expect(guideControls([{ title: "t", body: "Open [Add], then [Device…]." }])).toEqual(["Add", "Device…"]);
+    expect(guideControls([{ title: "t", body: "No marks here." }])).toEqual([]);
   });
 });

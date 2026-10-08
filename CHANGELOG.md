@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: the Help guide names the buttons and menus as they are, shows them in bold, and starts with Fix plan.
 - Studio: Escape closes an open toolbar menu and puts focus back on its button.
 - Studio: an edit refused because the plan is fixed now puts the old value back in its field, and the message has an Untick Fix plan button.
 

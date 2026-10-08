@@ -2633,4 +2633,4 @@ Branch `task/s22-hotfix`. Each task: one outcome, its failing test first.
 - [x] S22.4 (U1) A refused edit snaps back in its field, and the status line offers Unlock. Test: rename under a fixed plan, field shows the old name; Unlock, rename works.
 - [x] S22.5 (U4) Escape closes an open toolbar menu. Test: open each menu, Escape, menu gone, focus back on its button.
 - [ ] S22.6 (U12) The room aside scrolls on its own; the plan stays put. Test: scroll the aside, the canvas bounding box does not move.
-- [ ] S22.7 (U23) The guide matches the UI. Test: every control the guide names exists by its label.
+- [x] S22.7 (U23) The guide matches the UI. Test: every control the guide names exists by its label.
