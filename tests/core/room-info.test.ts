@@ -240,3 +240,23 @@ describe("renderFloor: the room the card has picked (S11.3)", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.room-picked\{/);
   });
 });
+
+describe("room rows: a piece whose entity a plug device also uses (S19.B)", () => {
+  // The plan draws that piece by the plug's rule (`pieceOn` with the plugs map); the room row used to skip the map and read the tv's rule.
+  // The plug sits in the Study, the tv piece in the Living room, so the row's own-room dedupe does not hide it. The plug idles at 0.5 W
+  // (below the 2 W threshold), so the plan shows both off while the switch itself says "on", which a tv rule would call on.
+  const plug = dev("plug", "switch.tv_plug", 600, 100, { power: "sensor.tv_watts" });
+  const piece = { id: "tv1", symbol: "tv", x: 100, y: 200, rot: 0, w: 100, h: 10, entity: "switch.tv_plug", name: "Telly" };
+  const state: StateOverlay = { "switch.tv_plug": st("on"), "sensor.tv_watts": st("0.5", { unit_of_measurement: "W" }) };
+  it("reads off, as the plan draws it, while the plug idles", () => {
+    const f = floor([plug], { furniture: [piece] });
+    const row = roomSummary(f, 0, state, {})!.devices.find((d) => d.piece)!;
+    expect(row.on).toBe(false);
+    expect(renderFloor(f, { scale: 1, state }).match(/<g[^>]*data-f="0"[^>]*>/)![0]).not.toMatch(/\bon\b/);
+  });
+  it("reads on when the plug draws power, and the plan agrees", () => {
+    const busy: StateOverlay = { ...state, "sensor.tv_watts": st("80", { unit_of_measurement: "W" }) };
+    const f = floor([plug], { furniture: [piece] });
+    expect(roomSummary(f, 0, busy, {})!.devices.find((d) => d.piece)!.on).toBe(true);
+  });
+});

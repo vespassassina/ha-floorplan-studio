@@ -168,21 +168,45 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     const areas = rings.map((p) => (p ? area(p) : 0));
     const points = rings.reduce((n, p) => n + (p ? p.length : 0), 0);
     const nestable = rooms.length <= NEST_LIMIT && points * points <= NEST_WORK;
-    // A corner ON the bigger room's edge is in it: the even-odd `inside` is arbitrary there (a shed built against the garden's border
-    // was never lifted and its floor was hidden), so a corner within a centimetre of an edge counts as inside.
-    // A shed's wall often stands a few cm over the border (Diego, 2026-10-07: the garden house, a corner just outside), so a corner within
-    // SNAP cm of the edge counts as in, provided the shed's own middle is inside: a narrow room beside the garden is not in it.
-    const SNAP = 30;
+    // Two room fills at one height fight for the pixel and one floor goes missing (Diego, 2026-10-06 and 07: the garden house). So a room
+    // that overlaps a bigger one sits above it, however it sits: over the border by a few cm or by half, turned, in a notch, across it.
+    // Rooms that only share a border do not overlap. A corner within TOUCH cm of the other's edge is on it, not in it; the even-odd
+    // `inside` is arbitrary there. This replaces the 30 cm corner rule of 0.18.2, which left a shed over the border by more unfixed.
+    const TOUCH = 1;
     const near = (v: Pt, q: Pt[], tol: number) => q.some((a, k) => {
       const b = q[(k + 1) % q.length], dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
       const t = l2 ? Math.max(0, Math.min(1, ((v[0] - a[0]) * dx + (v[1] - a[1]) * dy) / l2)) : 0;
       return Math.hypot(v[0] - (a[0] + t * dx), v[1] - (a[1] + t * dy)) <= tol;
     });
     const mid = (p: Pt[]): Pt => [p.reduce((s, v) => s + v[0], 0) / p.length, p.reduce((s, v) => s + v[1], 0) / p.length];
-    const nest = (i: number) => { const p = rings[i]; return p && nestable ? rings.reduce((n, q, j) => n + +(j !== i && !!q && areas[j] > areas[i] && inside(mid(p), q) && p.every((v) => inside(v, q) || near(v, q, SNAP))), 0) : 0; };
+    const side = (a: Pt, b: Pt, c: Pt) => Math.sign((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
+    /** Two edges cross at a point inside both (an end touching the other edge is not a crossing: the corner tests see that). */
+    const cross = (a: Pt, b: Pt, c: Pt, d: Pt) => side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0;
+    const overlap = (p: Pt[], q: Pt[]) => inside(mid(p), q) || inside(mid(q), p)
+      || p.some((v) => inside(v, q) && !near(v, q, TOUCH)) || q.some((v) => inside(v, p) && !near(v, p, TOUCH))
+      || p.some((a, i) => q.some((c, j) => cross(a, p[(i + 1) % p.length], c, q[(j + 1) % q.length])));
+    // Only a drawn room can be under another: zones, structures and unnamed fills have no floor here.
+    const drawn = (r: unknown) => isObj(r) && oneOf(ROOM_KINDS, r.kind) && r.kind !== "zone" && r.kind !== "structure" && !(r.kind === "fill" && !r.name);
+    const box = (p: Pt[]) => [Math.min(...p.map((v) => v[0])), Math.min(...p.map((v) => v[1])), Math.max(...p.map((v) => v[0])), Math.max(...p.map((v) => v[1]))];
+    // Overlap is not transitive (a shed on a terrace on a garden, the shed clear of the garden), so a count would put the shed level with the
+    // terrace. Go biggest first, equal areas by array order (the one drawn last on the plan is on top): a room is one step above the
+    // highest bigger room it overlaps. Boxes that do not meet skip the exact test.
+    const level: number[] = rooms.map(() => 0), boxes = rings.map((p) => (p ? box(p) : null));
+    if (nestable) {
+      const order = rooms.map((_, i) => i).filter((i) => rings[i] && drawn(rooms[i])).sort((x, y) => areas[y] - areas[x] || x - y);
+      order.forEach((i, n) => {
+        const p = rings[i]!, bi = boxes[i]!;
+        for (const j of order.slice(0, n)) {
+          const bj = boxes[j]!;
+          if (bj[0] > bi[2] || bi[0] > bj[2] || bj[1] > bi[3] || bi[1] > bj[3]) continue;
+          if (level[j] + 1 > level[i] && overlap(p, rings[j]!)) level[i] = level[j] + 1;
+        }
+      });
+    }
+    const nest = (i: number) => level[i];
     rooms.forEach((r, i) => piece(() => {
       const p = rings[i];
-      if (!p || !isObj(r) || !oneOf(ROOM_KINDS, r.kind) || r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name)) return;
+      if (!p || !isObj(r) || !drawn(r)) return;
       const z0 = nest(i) * ROOM_THICKNESS, paint: Paint = { role: `room-${r.kind}` };
       if (typeof r.color === "string") paint.color = r.color;
       if (typeof r.texture === "string") paint.texture = r.texture;

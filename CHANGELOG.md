@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.19.1 - 2026-10-07
+
+- Card: the device colours picked in the studio (`colors` in the layout) now show on the dashboard, in 2D, 2.5D and 3D. Only the editor drew them before.
+
+- Card: the hover tooltip goes when a zoom key moves its icon from under a pointer that did not move. It named an icon the pointer was no longer on.
+
+- Card: a temperature device on a switchable entity (a thermostat, a plug) no longer offers Turn on / Turn off in its popup. It opens more-info only.
+
+- Room panel: a tv, speaker or computer piece that shares its entity with a plug (in another room) now reads on or off by the plug's power, as the plan draws it. The row used the tv rule and could say on while the plan said off.
+
+- 3D: a room that overlaps a bigger one always sits above it. A garden house or shed that stood more than 30 cm over the garden's border, half over it, turned, across a notch, or was bigger than the garden, had its floor hidden under the other; now it shows. Rooms that only share a border stay level.
+
 ## 0.19.0 - 2026-10-07
 
 - Only a tv, speaker or computer takes the padded grab box in the editor; a small toilet, sink or shower no longer takes a click meant for its room. A wall or room edge within 8 px wins over a thin tv lying on it. An entity a piece already tracks is no longer offered to place a second time.

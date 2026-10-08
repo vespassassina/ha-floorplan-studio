@@ -2574,3 +2574,18 @@ Source: Diego's notes after 0.18.0, 2026-10-07. Each task: one outcome, one fail
 1. S18.1: where does the scene not show: the room's scene list in the editor, or the card?
 2. S18.12: "connected" means what? Playing, or grouped, or only the one the card tracks?
 3. S18.14: which types are "popular"? Proposal: light, switch, motion, door, temperature, speaker, tv.
+
+## Sprint 19: clean-up after 0.19.0
+
+Each task: one outcome, one failing test first, one commit. Branch `task/s19-cleanup`.
+- [x] S19.A Garden house floor missing in 3D. Not reproduced on the demo, but eight variants failed (a shed more than 30 cm over the border, half over, turned, bigger than the garden, across an L notch, crossing like a plus, two copies of one outline): neither room lifted, two fills at one height. Rule is now overlap, not corners: a room sits one step above the highest bigger drawn room it overlaps (Opus review: a count was not transitive, and zones counted).
+- [x] S19.B `roomSummary` passes the plugs map to `pieceOn`, as `render.ts` does.
+- [x] S19.C Look at siren, alarm, linked tv/speaker/computer pieces in `npm run shots`; fix what is wrong. Nothing visibly wrong; added a pin for the one state the shots do not draw (speaker piece `on`, not playing).
+- [x] S19.D SPEC and README: siren, alarm, linked pieces, grouped type menu.
+- [x] S19.E1 Kiosk popup closes on Escape. Not reproduced: a kiosk popup with no button and a pointer off the card still closes on Escape (a click focuses the card, which then owns the keys), in 2D and 3D. Pinned with a 2D spec; no source change. A real wall tablet may differ; needs Diego's description.
+- [x] S19.E2 A stale tooltip goes when its target changes or leaves.
+- [x] S19.E3 The card honours `layout.colors` as the editor does.
+- [x] S19.E4 `temp` joins `NO_TOGGLE`.
+- [ ] S19.E5 Camera cone clip. Skipped: the cone markup is pinned by regexes in tests/core/render.test.ts, a CSS `url(#id)` clip does not cross the shadow DOM, and it was not asked for as a fix. Needs a decision.
+- [x] S19.E6 Remove unused scene writers (`addScene`, `renameScene`, `addSceneItem`, `removeSceneItem`, `setSceneItem`); their tests now go through `saveScene`.
+Not in this sprint: car in 3D/2D, old worktree clean-up.

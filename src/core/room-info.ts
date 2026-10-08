@@ -112,10 +112,12 @@ export function roomSummary(f: Floor, index: number, state: StateOverlay | undef
   });
 
   // A linked tv, speaker or computer piece is a device of its type here; an entity a device already lists is not repeated.
+  // The plugs map is the plan's (render.ts): a piece on a plug's switch keeps the plug's rule, so the row and the plan agree.
+  const plugs = new Map(f.devices.filter((d) => d.type === "plug" && d.entity).map((d) => [d.entity, d]));
   (f.furniture ?? []).forEach((m, i) => {
     const d = pieceDevice(m);
     if (!d || !finite([m.x, m.y]) || roomAt(f, [m.x, m.y]) !== index || devices.some((r) => r.entity === d.entity)) return;
-    const on = pieceOn({ scale: 1, state, ...opts }, m);
+    const on = pieceOn({ scale: 1, state, ...opts }, m, plugs);
     devices.push({ index: i, piece: true, entity: d.entity, name: nameFor(d, state), type: d.type, state: stateText(state, d.entity), on, colorVar: on ? colorVarFor(d, state) : "--fp-ink" });
     entities.add(d.entity);
   });

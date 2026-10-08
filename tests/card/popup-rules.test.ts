@@ -90,3 +90,13 @@ describe("lightCaps: what a light's popup may offer (item 18)", () => {
     expect(lightCaps({ supported_color_modes: ["color_temp"], min_color_temp_kelvin: "x", max_color_temp_kelvin: 100 }).temp).toEqual({ min: 2000, max: 6500 });
   });
 });
+
+describe("popupOp: a temperature device never offers a toggle (S19.E4)", () => {
+  // The button follows the entity's domain, so a temp device set to a switchable entity (a thermostat, a smart plug that reports
+  // temperature) offered "Turn off". A temperature reading is watched, not switched: NO_TOGGLE holds `temp`.
+  it.each(["climate.x", "switch.x", "fan.x", "light.x"])("temp on %s: no operation, on or off", (entity) => {
+    expect(popupOp("temp", entity, "on")).toBeNull();
+    expect(popupOp("temp", entity, "off")).toBeNull();
+    expect(popupOp("temp", entity, "heat")).toBeNull();
+  });
+});

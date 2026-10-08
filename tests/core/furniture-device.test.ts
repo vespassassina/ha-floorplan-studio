@@ -61,6 +61,19 @@ describe("render: a paused linked tv piece is on", () => {
   });
 });
 
+describe("render: a linked speaker piece whose entity is on but not playing (S19.C)", () => {
+  // Seen as a gap in the shots (they draw only idle and playing). The speaker device is off in that state, so the piece is: no on class, no waves.
+  it("is not lit and sends no waves in 2D and 2.5D, and is on and waving only while playing", () => {
+    const f = floorOf([piece("speaker", "media_player.x", { w: 25, h: 25 })]);
+    const draw = (s: string, view?: "2.5d") => renderFloor(f, { scale: 1, state: { "media_player.x": st(s) }, ...(view ? { view } : {}) });
+    for (const view of [undefined, "2.5d"] as const) {
+      expect(draw("on", view), `on, ${view ?? "2d"}`).not.toMatch(/class="furn on"|class="furn-waves"/);
+      expect(draw("playing", view), `playing, ${view ?? "2d"}`).toMatch(/class="furn on"/);
+      expect(draw("playing", view)).toMatch(/class="furn-waves"/);
+    }
+  });
+});
+
 describe("the Active list takes a linked piece", () => {
   it("lists a playing tv piece as a tv, with the tv colour and its own name; a paused tv too, an off one not", () => {
     const f = floorOf([piece("tv", "media_player.x", { name: "Big screen" })]);

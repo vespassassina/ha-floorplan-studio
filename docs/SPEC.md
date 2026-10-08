@@ -180,13 +180,20 @@ in `prompts/`, then fixed in the editor.
   `cover` is a cover entity for doors that HA can open.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
   camera, climate, ac, tv, computer, media, cover, battery, inverter, server,
-  access_point, other, person, radar, vacuum. Heaters have `a`/`b`
+  access_point, other, person, radar, vacuum, speaker, siren, alarm. Heaters have `a`/`b`
   (a bar), the rest `x`/`y`. `ac` is an air conditioner, heat pump, fan or air
   cleaner; what it is doing comes from the entity, not from the layout. A
   `person` has a `person.*` or `device_tracker.*` entity. A `radar`'s own
   `entity` is its presence sensor (typically a `binary_sensor.*occupancy`,
   such as an mmWave sensor's own occupancy binary sensor). A `vacuum`'s own
   `entity` is its `vacuum.*` domain entity; it has no field of its own (S7.10).
+- `siren` and `alarm` (S18.14, 2026-10-07). A `siren.*` entity is typed siren and an
+  `alarm_control_panel.*` entity alarm when placed from a list (both were `other`). A siren is
+  on while its entity is on; an alarm is on in every state but `disarmed` (armed_*, arming,
+  pending, triggered), and `unavailable` stays unavailable. Both are drawn in `--fp-danger`
+  when on. A tap on a siren offers on/off; a tap on an alarm opens more-info. The rings of
+  the siren paragraph below still key on the `siren.*` entity, not on the type: a siren-typed
+  device on a plain entity is red when on and draws no rings. No 2.5D solid; 3D draws the icon.
 - `device.room` (person only, optional, S7.8): an entity whose state, or whose
   `area_id` or `area` attribute, names the room the person is in (a Bermuda or
   ESPresense area sensor). It must differ from `entity`. The card matches the
@@ -235,7 +242,18 @@ in `prompts/`, then fixed in the editor.
   removes only this field, never the automation in Home Assistant. Must
   differ from `entity`, same rule as `bound`.
 - `furniture.symbol`: table, sofa, bed, cabinet, chair, sink, toilet, shower,
-  bathtub, tv, computer, tree, patio-wood, patio-concrete, car.
+  bathtub, tv, computer, speaker, tree, patio-wood, patio-concrete, car.
+- A **linked** furniture piece (S18.12, S18.15, 2026-10-07): a `tv`, `speaker` or `computer`
+  piece with an `entity`. It tracks that device and acts as the device of the same type in the
+  card, with no new field in the file. Idle it is drawn in `--fp-dev-tv`; on, in `--fp-active`
+  (a tv or speaker that is `playing` also sends out two waves). On follows the device rule of
+  its type: a paused or idle tv is on, a speaker only while `playing`, unavailable never. A
+  piece whose entity a plug device also uses follows the plug's power rule. In the card it is
+  listed under Active while on, has a row in its room's device list, can be put in a room
+  scene, and a tap or a long press opens the entity's more-info (never a toggle); hover names
+  it. In 3D it is its own mesh in the linked colour, then the on colour. A piece with no
+  entity stays part of the floor. In the editor, Add > Device places a `media_player` that HA
+  calls a tv or speaker, or a catalog entry typed tv, speaker or computer, as the piece itself.
 - `floor.trace` (optional, S7.11) is a scan to trace over, drawn under the
   plan in the editor only; the card never draws it. `src` is a
   `data:image/png`, `jpeg` or `webp` base64 URL of at most 4 MB (`validate`
@@ -315,6 +333,9 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 | camera | dark grey icon with a 120° cone of view in dark grey at 25 % alpha, turned by `rot` | — | `--fp-dev-camera` (#4a4a48) | more-info (live view) |
 | cover on a `door` or `sealed` opening | door normal | door open state shown, orange | `--fp-open` (#f28c28) | tap: confirm dialog naming the action, then `cover.open_cover`, or `close_cover` when it is already open; long press: chooser listing every entity the door names, the cover included (S10.3 review) |
 | cover on a `window` or `glass` door | door normal | never colours the opening — here `cover` is curtains/blinds, not a security state (2026-09-28) | — | same tap/long-press behaviour as above; only the colour is suppressed |
+| siren | grey | `--fp-danger` icon and halo while its entity is on; rings only when the entity is in the `siren` domain | `--fp-danger` (#b02a2a) | popup (Turn on/off) |
+| alarm (`alarm_control_panel.*`) | grey while `disarmed` | `--fp-danger` icon and halo in every other state but `unavailable` (armed, arming, pending, triggered) | `--fp-danger` (#b02a2a) | more-info (no toggle) |
+| linked tv, speaker or computer piece (furniture with `entity`) | blue (`--fp-dev-tv`) body and edge | `--fp-active` body and edge, by the device rule of its type; waves while a tv or speaker is `playing` | `--fp-dev-tv` idle, `--fp-active` on | more-info, no popup; never a toggle |
 | media (media_player) | grey | blue icon and halo while the player is playing (any other state, including paused, is idle) | `--fp-dev-media` (#2c7fb8) | more-info |
 | speaker (media_player) | grey | blue icon and halo while the player is exactly `playing` (paused, idle, off, on-but-not-playing, unavailable, unknown or no state stay idle), plus two arcs pulsing out from under the disc in the device's own colour (S9.4; held still at 1.5x, 60 % opacity under reduced motion) | `--fp-dev-speaker` (#2c7fb8, fixed in every theme) | more-info (media_player's own toggle is play/pause or power, never a clean on/off) |
 | cover (device icon, not a door) | grey | orange icon and halo while the cover is open | `--fp-dev-cover` (#f28c28) | more-info |
@@ -562,6 +583,12 @@ light theme like `light`/`slate`, where the shared grey was never the problem.
   place (the room's "Add device from &lt;area&gt;" menu, the Place popup) excludes
   it the same way. A light's `bound` switch and its `motion` link are not
   attachments in this sense and stay offered normally.
+- The device type menu (S18.14, 2026-10-07) is one list in three places: the device panel's
+  type, the Add > Device type filter and the Add > Unlinked device list. The popular types
+  come first, in this order: light, switch, motion, contact (shown "Window / door sensor"),
+  temp (shown "Temperature"), speaker, tv. Then one separator, then every other type A to Z
+  by the label shown. A filtered list with an empty block shows no separator. The unlinked list
+  keeps its curated subset and does not offer siren or alarm, which have no state to show there.
 - Every field that picks a Home Assistant entity (a device's own entity,
   "Controlled by", a door's cover, room/furniture "shows the state of", room
   sensor, radar targets, and every multi-attach list of sensors or locks) is
