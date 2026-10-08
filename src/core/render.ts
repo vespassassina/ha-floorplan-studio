@@ -20,6 +20,10 @@ export interface RenderOpts {
   /** S11.3: the room the card has picked (its left panel shows it); drawn with an outline, class `picked`. The editor draws its own selection in an overlay and never passes this. */
   selectedRoom?: number;
   scale: number; selection?: { t: string; i: number } | null; showNames?: boolean; filter?: DeviceType[];
+  /** S23.2: screen pixels per plan unit, when the host knows it (the card measures its own plan). Then no name draws
+   *  under `NAME_MIN_PX` and, with it, no device disc under 28 px. Omitted (the editor, whose `scale` is already its
+   *  zoom), nothing changes. */
+  px?: number;
   state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
@@ -1000,8 +1004,14 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
   return { cls, base, style, icon, s };
 }
 
+/** S23.2 (V1): the smallest a room name may render, in CSS px, on a card that knows its size. */
+export const NAME_MIN_PX = 11;
+
 export function renderFloor(f: Floor, o: RenderOpts): string {
-  const k = 1 / (o.scale || 1);
+  // S23.2: a floor in screen space. k never lets a 12k name fall under 11 px, so a 32k disc never falls under 29 px.
+  // One factor for text and discs keeps the plan's proportions; full CSS-px placement is sprint 25.
+  const screenPx = typeof o.px === "number" && Number.isFinite(o.px) && o.px > 0 ? o.px : 0;
+  const k = Math.max(1 / (o.scale || 1), screenPx ? NAME_MIN_PX / (12 * screenPx) : 0), nameMin = screenPx ? NAME_MIN_PX / screenPx : 0;
   const turn = o.rotate && o.rotate.deg % 360 ? o.rotate : null, planDeg = turn ? turn.deg : 0;
   /** Attribute that keeps a text upright in a turned plan: turns it back about its own anchor. */
   const up = (x: number, y: number) => (turn ? ` transform="rotate(${num(-planDeg)} ${num(x)} ${num(y)})"` : "");
@@ -1304,7 +1314,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   /** Where a room's name goes and at what size. Too wide for the room at its anchor row: shrink to `floor` (centred);
    * still too wide: just outside the room, above or below, on a leader line back to the anchor. Never dropped. */
   type Label = { at: Pt; size: number; from?: Pt };
-  const placeName = (r: Floor["rooms"][number], base: number, floor: number): Label => {
+  const placeName = (r: Floor["rooms"][number], base0: number, floor0: number): Label => {
+    const base = Math.max(base0, nameMin), floor = Math.max(floor0, nameMin); // S23.2: never under 11 px when the size is known
     const mine = area(r.pts), inner = f.rooms.filter((q) => q !== r && named(q) && q.kind !== "zone" && area(q.pts) < mine).map((q) => q.pts);
     const anchor = centroid(r.pts), len = String(r.name).length, room = chordAt(r.pts, anchor);
     const size = Math.max(floor, Math.min(base, room / (len * 0.6)));

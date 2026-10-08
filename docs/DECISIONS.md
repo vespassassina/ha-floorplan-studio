@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: an 11 px floor on the card (S23.2)
+
+`renderFloor` takes `px`, screen px per plan unit. With it, `k` is never under `NAME_MIN_PX / (12 * px)` (11 px for a 12k name), and a name shrunk to fit its room is never under `NAME_MIN_PX / px`. One `k` for text and discs, so the plan keeps its proportions and a 32k disc lands at 29 px or more. Without `px` (the editor, the 3D overlay) nothing changes, byte for byte. The floor lives in `renderFloor`, so the editor could use it the day it wants to (finding 8).
+- **The card measures at fit, not at the view on show.** `px` is the svg's box over the fit view box. Like S9.2's icon scale it follows the card's size, never its zoom: zooming in only enlarges, a pinned card draws icons at the same scale as the whole-floor card, and a pinch costs no second render. Zooming out past fit can still draw under 11 px; that is the user's choice.
+- **When the card renders twice.** After a render and on a resize the card measures, and re-renders only when the floor changes `k` or binds a shrunk name now or did before. The first card at 1000 px kept a name at 8.5 px because only `k` was compared; the wide-card test caught it.
+- Not done here: placing labels in CSS px outright (sprint 25).
+
 ## 2026-10-08: one label style (S23.1)
 
 Supersedes the 0.12.16 "small and half transparent" names. A name is never faded. `--fp-label` is `color-mix(in srgb, var(--fp-text) 92%, var(--fp-under))`, where `renderFloor` sets `--fp-under` on each name to what it sits on: the room's own `#rrggbb` paint, else its kind's token (`SURFACE` in render.ts; a zone takes the room under it). 92% is the least text that clears 4.5:1 on every theme surface that S23.6 does not change; 85% failed light's garden and terminal's pavement. Room names 12k, outdoor and zone names 10k, weight 500, outdoor in italic. `--fp-font` is Home Assistant's body font (`--ha-font-family-body`, then the older paper variable), else system-ui; it is used for names, values and the card chrome, not for the studio or the config editor. Values use tabular figures and U+202F before the unit (`meanReading`, a sensor's value, the live overlay); the popup's own state line keeps its plain space.

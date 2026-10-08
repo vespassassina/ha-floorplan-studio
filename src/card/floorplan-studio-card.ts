@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { ALL_OFF_TITLE, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, floorSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { ALL_OFF_TITLE, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, floorSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, DeviceType, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
@@ -799,7 +799,7 @@ export class FloorplanStudioCard extends LitElement {
     // dragged to a new grid size) must re-clamp the panel too, not only a fresh render. jsdom has no
     // ResizeObserver; the unit suite never needs this path, so it is skipped there rather than polyfilled.
     if (typeof ResizeObserver !== "undefined") {
-      this._activeResizeObserver = new ResizeObserver(() => { this._applyWidthDefault(); this._positionToolbar(); this._positionActivePanel(); });
+      this._activeResizeObserver = new ResizeObserver(() => { this._applyWidthDefault(); this._positionToolbar(); this._positionActivePanel(); this._measurePx(); });
       this._activeResizeObserver.observe(this);
     }
     // A reload or a closed tab never runs disconnectedCallback; the debounced save must still go out.
@@ -1276,6 +1276,7 @@ export class FloorplanStudioCard extends LitElement {
     this._applyWidthDefault();
     this._positionToolbar();
     this._positionActivePanel();
+    this._measurePx();
     const t = this._theme();
     this.setAttribute("data-theme", t);
     if (t === "ha" && this._haDark()) this.setAttribute("data-mode", "dark");
@@ -2469,6 +2470,7 @@ export class FloorplanStudioCard extends LitElement {
     const live3d = this._shows3d();
     const body = live3d ? "" : renderFloor(f, {
       scale: this._scale(fit),
+      px: this._px || undefined, // S23.2: the 11 px floor for names and discs
       state: this._stateForRender(),
       now: Date.now(),
       fade: this._config.fade,
@@ -2647,6 +2649,29 @@ export class FloorplanStudioCard extends LitElement {
   private _iconSize(): number {
     const v = this._config.icon_size;
     return typeof v === "number" && Number.isFinite(v) ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, v)) : DEFAULT_ICON_SIZE;
+  }
+
+  /** S23.2: screen px per plan unit at fit (see `_measurePx`); 0 until known. */
+  private _px = 0;
+
+  /** S23.2: screen px per plan unit of the whole floor at fit, measured after each render and on a resize. Fit, not
+   *  the view on show: like S9.2's icon scale, the floor follows the card's size, never its zoom, so zooming in only
+   *  enlarges and a pinch costs no second render. The svg keeps its aspect (meet), so the scale is the smaller of the
+   *  two ratios. Nothing laid out (jsdom, a hidden card): nothing changes. */
+  private _measurePx(): void {
+    const svg = this.shadowRoot?.querySelector<SVGSVGElement>("svg.fp-zoomable"), fit = this._fit;
+    const r = svg?.getBoundingClientRect();
+    if (!svg || !fit || !r || !(fit.w > 0) || !(fit.h > 0) || r.width <= 0 || r.height <= 0) return;
+    const px = Math.min(r.width / fit.w, r.height / fit.h), base = 1 / this._scale(fit);
+    const k = (p: number) => Math.max(base, p ? NAME_MIN_PX / (12 * p) : 0);
+    const was = k(this._px), old = this._px;
+    this._px = px;
+    if (Math.abs(k(px) - was) > was * 0.01) return void this.requestUpdate();
+    // k holds, but a name shrunk to fit its room has its own floor of 11 px: re-render when that floor binds now or did.
+    const sizes = [...svg.querySelectorAll("text.lbl[data-rl]")].map((t) => Number(t.getAttribute("font-size"))).filter((s) => s > 0);
+    if (!sizes.length || Math.abs(px - old) <= old * 0.01) return;
+    const least = Math.min(...sizes), floorNow = NAME_MIN_PX / px, floorWas = old ? NAME_MIN_PX / old : 0;
+    if (floorNow > least * 1.01 || floorWas >= least * 0.99) this.requestUpdate();
   }
 
   /** S9.2: the `scale` passed to `renderFloor`. Icons, names, values and radar dots are drawn at `24 * (1/scale)`

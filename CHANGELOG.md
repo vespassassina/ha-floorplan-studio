@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Card and studio: room names are solid, not faded. Each name is the text colour mixed into the room it sits on, at 12 px (outdoor names and zones at 10, outdoor in italic), in Home Assistant's own font. Readings keep their number and unit together and line up digit for digit.
+- Card: on a phone, room names never drop under 11 px and device icons never under 28 px. A wide card looks as before.
 
 ## 0.20.2 - 2026-10-08
 
