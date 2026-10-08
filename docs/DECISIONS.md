@@ -2,6 +2,43 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: the card's search, "Turn off on this floor…" and "Lights off" (S24.8, part 1)
+
+- **The chord is taken under the view keys' gate**: the card focused, else hovered, as the arrows are. The card's key
+  listener has been on `window` with that gate since S11.3, because in Home Assistant a hovered card has no focus and a
+  listener on the host would never hear the key. Finding 6 is about the editor; here one card of several acts, never two.
+  `/` in any text field is a slash (`takesTyping`). No sheet (kiosk, `active_list: false`) leaves the key to the page.
+- **The chord goes back to the Overview**: a picked room or floor is cleared, a popup closes, a folded sheet opens and the
+  search takes focus. Opening the fold this way counts as the person's choice, as a tap on the fold button does; otherwise
+  a phone's width default folds it again on the next render.
+- **The index is built once per layout**, with whether states are known and the floors on offer as the rest of the key, so
+  `<fp-search>` sees the same array between keystrokes and state updates.
+- **Devices on every floor are searchable; floors and rooms only where the card can show them.** A pinned card opens another
+  floor's popup, as a row tap does (S24.7), but cannot show another floor or its room.
+- **Enter on a device or piece is a row tap** (`_locate`), with the popup beside the sheet. **On a floor**, the floor is
+  shown and focus stays in the box. **On a room**, its floor is shown and the room's section opens, highlighted, with no pan;
+  focus goes to the section's close button, since the box goes with the Overview. Escape then returns to the Overview.
+- **A popup opened from the sheet stands beside the sheet's edge**, not the row's: 8 px past the row's edge still overlapped
+  the sheet's padding and border by a pixel. Rows move 9 px right with it.
+- **"Turn off on this floor…" acts on the floor on show.** It sits under the scope toggle in the Overview and beside
+  "Lights off" in the floor's panel, not in a room's. Disabled, with the title "Nothing is on on this floor", when the list
+  would be empty.
+- **On means not off, standby, unavailable or unknown.** A paused speaker and an idle TV are listed: they have something to
+  turn off. A plug counts by its switch, not its watts. Heaters, covers, vacuums and climate are not offered: none is "off"
+  in one safe tap (`FLOOR_OFF_GROUP`, a decision per type, finding 17).
+- **A lamp's row turns off its light and its bound relay when on** (`lampOffEntities`, S22.1), and reads "with" the relay.
+  A relay that is also a switch row is sent once. Unticking the switch row does not keep a ticked lamp's relay on.
+- **The rows are a snapshot taken at open**, so a row does not vanish under the finger. The calls are one `turn_off` per
+  domain: `light`, `switch`, `media_player`, anything else `homeassistant`.
+- **"All off" in a room or floor panel reads "Lights off".** It always turned off lights and their relays only. The
+  aria-label already said "Turn off all lights in …" and is unchanged.
+- **"The preset All off leaves Scenes where the room button exists", read plainly: it leaves.** Scenes shows only in a
+  room's panel, and that panel has the Lights off button whenever a lamp of the room is on, relays included. Dropping the
+  preset only while the button shows would make it appear and vanish with state. "All on" stays. A custom scene a person
+  named "All off" is theirs and stays.
+- **Layer chips are not in this part.** A marked empty slot (`.fp-ov-layers`, `data-slot="layers"`) waits beside the scope
+  toggle and hides while empty.
+
 ## 2026-10-08: the card's Overview sheet (S24.7)
 
 - **Active leaves out what Attention lists.** A triggered alarm or an open garage would otherwise be two rows. The Active count and chips count the rest.

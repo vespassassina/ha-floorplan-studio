@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Card: a search at the top of the Overview, opened with ⌘K, Ctrl+K or / while the card is under the pointer or has focus. Enter on a device goes to it as a row tap does; on a room, opens the room; on a floor, shows it.
+- Card: "Turn off on this floor…" lists what is on (lights with their relays, switches, plugs, media), grouped with counts and all ticked. One button turns off what stays ticked.
+- Card: the room and floor "All off" button now reads "Lights off", which is what it does. Scenes no longer has its own All off.
 - Card: the Active list is now the Overview. What needs attention comes first, with how long ago it changed; what is on follows by category. It lists the floor on show; "All floors" lists them all, each row with its floor. The header counts things in short chips ("2 alerts · 6 lights").
 - Card: tapping a row in the Overview goes to the device: the plan switches floor, centres on it, rings it and opens its popup. In 3D it switches floor and opens the popup.
 - Card: the small ▸ arrow on each row is gone. A device's details (maker, model, firmware, entity, last changed) are under Details in its popup.

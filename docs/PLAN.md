@@ -2729,5 +2729,7 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       the preset All off leaves Scenes where the room button exists. Layer chips in the sheet, one per family, per
       viewer (kept in view memory). Test: on the stress layout, `/`, letters, Enter opens the popup of the right
       device on its floor; the checklist sends exactly the calls ticked; a hidden family draws no icon.
+      Part 1 done (2026-10-09, `task/s24-cardfind`): search, "Turn off on this floor…" and "Lights off". Layer chips
+      pending; their slot (`.fp-ov-layers`) is in the sheet.
 - [ ] S24.9 Verify: lint, unit, Playwright bare; new tests `--repeat-each=10`; `npm run shots` looked at; the
       sprint test, "find a named device on the stress house in two actions, by keyboard alone", in both apps.
