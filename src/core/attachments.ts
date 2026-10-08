@@ -25,7 +25,7 @@ export function playerOf(u: { type: DeviceType; attached?: unknown }): string | 
  *   on the plan. `bound` already has its own, different path, documented in docs/SPEC.md: a hold opens more-info
  *   for the light itself, and the bound switch is reachable from inside that dialog (Home Assistant's own
  *   more-info shows related entities) — offering it again here would be a second, competing route to the same
- *   place. See docs/DECISIONS.md.
+ *   place. See docs/DECISIONS.md. S22.1: the popup's More info now adds it through `moreInfoEntities` below.
  * - `heater`: `trvs` then `tempSensors` (S4.24), in that order — the valve(s) before the sensor(s) reading them.
  * - `ac`: `linked`, every climate/TRV entity this unit shares its state with (S4.24).
  * - `radar`: each `targets` pair's `x` then `y` entity, target order preserved (S7.9).
@@ -63,6 +63,18 @@ export function entitiesOfDevice(d: { type: DeviceType; entity?: string } & Part
       break;
   }
   strings((d as { attached?: unknown }).attached).forEach(add);
+  return out;
+}
+
+/**
+ * S22.1: what the popup's More info offers for a device: `entitiesOfDevice`, and for a light its `bound` relay last.
+ * Supersedes the rule above that kept `bound` out of the chooser: the plan draws a bound lamp on while its relay is on,
+ * and Home Assistant's light dialog does not reliably reach a relay on another device, so the relay must be one tap away.
+ * `entitiesOfDevice` itself is unchanged: it also says which entities a room owns, and a relay elsewhere is not the room's.
+ */
+export function moreInfoEntities(d: { type: DeviceType; entity?: string } & Partial<Device>): string[] {
+  const out = entitiesOfDevice(d);
+  if (d.type === "light" && typeof d.bound === "string" && d.bound && !out.includes(d.bound)) out.push(d.bound);
   return out;
 }
 
