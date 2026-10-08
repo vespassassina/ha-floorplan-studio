@@ -58,7 +58,7 @@ describe("S23 review S3: labels stay inside the bounds the card gives", () => {
     for (const c of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]] as Pt[]) expect(inside(c, f.rooms[0].pts), `corner ${c.map(Math.round)}`).toBe(false);
   });
 
-  it("without bounds nothing changes (the editor)", () => {
+  it("no bounds and bounds wider than the plan place every name alike (the editor)", () => {
     const f = demo.floors.ground, fit = viewBoxFor(f, 60);
     const a = renderFloor(f, { scale: 1 }), b = renderFloor(f, { scale: 1, bounds: { ...fit, w: 1e6, h: 1e6, x: -5e5, y: -5e5 } });
     expect(b).toBe(a);

@@ -2657,4 +2657,18 @@ Branch `task/s23-visual`. From the visual review (V-ids, review of 2026-10-08). 
 - [x] S23.6 (V16, V17, V23) Every surface follows the theme. Dark themes take empty rooms from their ramp; midnight gardens, terrace and pavement come from the ramp; furniture takes body and edge from the ramp; user paint is dimmed on dark themes (`--fp-paint-dim`), never recoloured; the checker texture is softened. Test: over every theme, empty room vs board and label vs empty room contrast; computed-style pairs.
 - [x] S23.7 (V19, V20) Plan symbols. A door is a gap, a 1 px leaf and a 90° swing arc; a window is three hairlines across the wall; `--fp-glass` is window blue; red only when open. Outdoor kinds draw no outline; zones a 1 px dash at 35 %. 2D and 2.5D. Test: unit on the drawn paths (arc present, three lines), computed-style pairs, open still red.
 - [x] S23.8 (V13, V14) Light is light. 2D glow is a radial falloff clipped to the light's room (the cone's clipPath), screen-blended on dark themes, multiply on light. 3D light-theme glow capped and warm-white. Test: a pixel probe just outside the room's wall shows no glow; computed blend per theme kind.
-- [ ] S23.9 Verify: lint, unit, Playwright bare; `npm run shots` on every theme, looked at, before and after in the report.
+- [x] S23.9 Verify: lint, unit, Playwright bare; `npm run shots` on every theme, looked at, before and after in the report.
+
+### Follow-ups from the Sprint 23 review
+
+- [ ] S23.F1 Leaders at 375 px with the controls in a column: add each placed leader to the obstacles and prefer spots off
+      other rooms' interiors. "Garden pond" crosses the Hall's outer wall and the Garden leader runs through it
+      (`render.ts` leader fallback).
+- [ ] S23.F2 Window lines under 3:1 on the new pane in light (2.4) and solarized (2.8). Try the pane as `--fp-bg` mixed
+      15 % glass, and check the cut does not read as a hole again.
+- [ ] S23.F3 Put `--fp-text-out` in the generic `:host,.fp,[data-theme]` defaults so a nested theme group cannot inherit
+      solarized's outdoor ink.
+- [ ] S23.F4 `strip-css-comments.mjs`: inside `url(`, skip a leading quoted string first, so `url("a)b")` cannot flip the
+      quote state.
+- [ ] S23.F5 Left by the coders: paint dim in 3D; a heavier dash on a selected zone; 3D walls on HA dark still mix 55 %;
+      JSDoc still ships in the card (about 16 KB gzip); `docs/img/themes/*.png` are out of date.

@@ -275,8 +275,9 @@ Every wall and edge line has a white twin under it (`--fp-outline`), so a dark l
 dashed edge has none.
 Every text on the plan has an outline in `--fp-outline` and is never faded with opacity (S23.1). A room or zone name is
 `--fp-label`: `--fp-text` mixed 92 % into what the name sits on (the room's own paint, else its kind's colour; a zone
-takes the room under it), so it reads at 4.5:1 or better (the pairs still short, midnight water and solarized's outdoor
-kinds, are test.fixme in labels-css.spec.ts). Device and extra names and values keep `--fp-text`. Room names
+takes the room under it), so it reads at 4.5:1 or better in every theme and on every surface. A theme may give outdoor
+names their own ink, `--fp-text-out` (solarized: base2), mixed the same way; it falls back to `--fp-text`. Device and
+extra names and values keep `--fp-text`. Room names
 are 12k, outdoor and zone names 10k, weight 500, outdoor names in italic. The font is `--fp-font`: Home Assistant's body
 font, else system-ui. Values use tabular figures and a narrow space before the unit. On the card a name is never under
 11 px, and a shrunk name never under that floor either (S23.2; `px` in `renderFloor`, measured at fit, not at zoom).
@@ -285,7 +286,10 @@ plan, room names included. A name stays in its own room (S23.3): it goes only wh
 inside no smaller named room, clear of icons and other text. It tries the centroid (or the room's pole of
 inaccessibility), then spots up to 144 units left and right and 64 up and down, nearest first, then smaller sizes. When
 every spot is covered it goes on a tag, an `--fp-outline` plate drawn over the icons; neither plate nor name takes a click,
-so a tap there reaches the device under it. A leader is left only for a room too small for its name at the floor size.
+so a tap there reaches the device under it. A garden, terrace, pavement or water too small for its name first tries the
+bare ground beside it that no other room covers; a leader is left only after that, for an area too small for its name at
+the floor size. On the card every name, tag and leader stays inside the plan's frame, minus the strip a column of
+controls covers (`bounds` in `RenderOpts`); the editor and the 3D overlay pass no bounds.
 When a device is active, the icon and its halo (the disc)
 take the colour of its type (S2.9): one `--fp-dev-<type>` variable per type,
 set on the device group as `--fp-dev` when it carries the `on` class. Since
@@ -320,7 +324,9 @@ honest metaphor there.
 
 Plan symbols (S23.7). A door or glass door is a gap cut in the wall with a 1 px leaf, square to the wall and as long as the
 opening, and a 90° arc; the leaf swings into the indoor room, else any room, else the smaller one. A window is three
-hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. Doors, glass doors,
+hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a window or slit
+also fills its whole cut with an opaque pane, a glass tint of the room colour, closed at each end by a hairline jamb, so
+the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors,
 windows and slits cut the wall; a sealed door does not and draws no symbol. Doors wear `--fp-door`, windows and slits
 `--fp-window`, glass doors `--fp-glass`, which is the window blue in every theme. A closed door's own line paints nothing;
 open, alarm and an open cover draw it and the symbol red. The symbols take no clicks; the hit line under them does. 2.5D draws the same symbols on the floor.
