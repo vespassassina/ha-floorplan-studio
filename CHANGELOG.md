@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Studio: an edit refused because the plan is fixed now puts the old value back in its field, and the message has an Untick Fix plan button.
+
 ## 0.20.1 - 2026-10-08
 
 - Card and studio: a camera's cone stops at the walls of the room the camera stands in, as a lamp's light does. The room is the one the camera looks into, so a camera on a wall aiming out keeps its whole cone, as one in no room does.
