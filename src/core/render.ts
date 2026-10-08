@@ -394,7 +394,10 @@ ${DEV_ON_RULES.replace(/\{--fp-dev:var\((--fp-[a-z-]+)\)\}/g, "{--fp-dev-ink:var
 /* S23.4 (V9): off is quiet, the glyph alone. The disc stays painted at fill-opacity 0, not fill:none, so it still takes the click. On is a solid disc. */
 .dev .halo{fill:var(--fp-disc);fill-opacity:0;stroke:none;stroke-width:1;vector-effect:non-scaling-stroke}
 .dev.on .halo{fill:var(--fp-dev-fill,var(--fp-dev));fill-opacity:1;stroke:none}
-.aura{fill:var(--fp-aura);fill-opacity:calc(var(--fp-alpha) * var(--fp-dev-opacity,1));pointer-events:none}
+/* S23.8 (V13): a lamp's light falls off from the lamp (the shared #fp-lamp-falloff mask, alpha 1 at the lamp, .33 at 60 %, 0 at
+   the reach) and blends like light: screen over a dark theme, multiply over a light one (--fp-glow-blend, ink.ts themeExtras). */
+.aura{fill:var(--fp-aura);fill-opacity:calc(.55 * var(--fp-dev-opacity,1));mix-blend-mode:var(--fp-glow-blend,normal);pointer-events:none}
+mask.fp-falloff{mask-type:alpha}
 /* S8.13: a triggered motion or contact sensor. Its disc is filled harder than any other on disc and ringed in its own
    colour, and a ring pulses out from under it. An open contact door gets a wide pulsing line under its own. */
 .dev-motion.on .halo,.dev-contact.on .halo{stroke:var(--fp-outline);stroke-width:2}
@@ -1137,6 +1140,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // devices loop below, so two overlapping auras never sit between one lamp's icon and the next lamp's icon; the
   // icons themselves (drawn after every aura) stay on top and legible. The colour is the lamp's own rgb_color, read
   // the same way as the device group's --fp-dev-fill (S2.2): from the light entity's own state, never the bound switch's.
+  let falloff = false; // S23.8: the shared falloff mask, written once before the first aura that needs it
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (d.type !== "light") return;
@@ -1150,6 +1154,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const vars = [fill ? `--fp-aura:${fill}` : "", level !== null ? `--fp-dev-opacity:${num(level)}` : ""].filter(Boolean);
     const style = vars.length ? ` style="${vars.join(";")}"` : "";
     const reach = num(LIGHT_REACH * fxScale(d)); // S14.3: the lamp's own effect size; 150 at the default
+    if (!falloff) {
+      falloff = true;
+      out.push(`<defs><radialGradient id="fp-lamp-grad"><stop offset="0" stop-opacity="1"/><stop offset=".6" stop-opacity=".33"/><stop offset="1" stop-opacity="0"/></radialGradient>` +
+        `<mask id="fp-lamp-falloff" class="fp-falloff" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#fp-lamp-grad)"/></mask></defs>`);
+    }
     // The light stays in the room it hangs in: clipped to the smallest real room holding the lamp (`roomAt`: a zone, a structure
     // and a fill are not rooms; a lamp in no room, a garden lamp say, keeps the free circle). The clip is the floor polygon.
     const holder = roomAt(f, floorAt), own = holder < 0 ? null : ring(f.rooms[holder]);
@@ -1158,10 +1167,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const lift = c[0] !== floorAt[0] || c[1] !== floorAt[1] ? ` transform="translate(${at([c[0] - floorAt[0], c[1] - floorAt[1]])})"` : "";
       const cid = `fp-aura-${tag(`${pts(own)}${lift}`)}`;
       out.push(`<clipPath id="${cid}"${lift}><polygon points="${pts(own)}"/></clipPath>`);
-      out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" clip-path="url(#${cid})"${style}/>`);
+      out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" clip-path="url(#${cid})" mask="url(#fp-lamp-falloff)"${style}/>`);
       return;
     }
-    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}"${style}/>`);
+    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" mask="url(#fp-lamp-falloff)"${style}/>`);
   });
 
   const polys: { id: string; pts: Pt[]; wk?: EdgeKind[]; zone?: boolean }[] = [{ id: "o", pts: f.outline, wk: f.owk }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, wk: r.wk, zone: r.kind === "zone" }))];

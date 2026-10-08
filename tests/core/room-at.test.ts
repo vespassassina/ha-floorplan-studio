@@ -53,7 +53,7 @@ describe("the surfaces that follow the rule", () => {
   });
   it("a lamp whose only holder is a structure keeps the free circle", () => {
     const html = renderFloor(floor([room("Box", sq(40, 40, 60, 40), { kind: "structure" })], [lamp]), { scale: 0.5, state: on });
-    expect(html).toMatch(/<circle class="aura" cx="60" cy="60" r="150"\/>/);
+    expect(html).toMatch(/<circle class="aura" cx="60" cy="60" r="150" mask="url\(#fp-lamp-falloff\)"\/>/);
   });
   it("a structure draws no readout, as it has no Sensors section", () => {
     const f = floor([room("Box", sq(0, 0, 100, 100), { kind: "structure", temps: ["sensor.t"] })]);

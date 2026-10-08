@@ -316,7 +316,7 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 
 | Entity domain / device type | Idle | Active | Colour | Click |
 |---|---|---|---|---|
-| light | grey icon | yellow icon and halo, brightness as opacity, plus a round aura 300 cm across (S8.13) in the same colour at 25 % alpha, drawn under walls, doors and names | `--fp-dev-light` (#e0a800) | popup (Turn on/off); long press: more-info |
+| light | grey icon | yellow icon and halo, brightness as opacity, plus a round aura 300 cm across (S8.13) in the same colour, 55 % at the lamp and falling to nothing at its edge (S23.8), clipped to the lamp's room, screen-blended on a dark theme and multiplied on a light one, drawn under walls, doors and names | `--fp-dev-light` (#e0a800) | popup (Turn on/off); long press: more-info |
 | smart light (`rgb_color`) | grey icon | icon, halo and aura in the light's own colour from HA, yellow when it reports none | the light's own `rgb_color`, or `--fp-dev-light` | popup (Turn on/off); long press: more-info |
 | light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | as light | popup for the light entity; long press: more-info for it (the switch is reachable from that dialog — `bound` is deliberately never one of S10.4's chooser entities, see docs/DECISIONS.md) |
 | switch (wall switch) | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | popup (Turn on/off) |

@@ -4792,7 +4792,7 @@ test("Opus review CSS pair: the palette variables equal DEVICE_COLOURS, camera a
   expect(out).toBe(rgb("#3f8f4f"));
 });
 
-test("Opus review CSS pair: a lamp's aura fills with --fp-aura at --fp-alpha and lets a real click pass through to the room under it (render.test.ts:S2.8)", async ({ page }) => {
+test("Opus review CSS pair: a lamp's aura fills with --fp-aura at .55, screens on blueprint (S23.8) and lets a real click pass through to the room under it (render.test.ts:S2.8)", async ({ page }) => {
   // The editor has no live `hass` state, so no aura is ever drawn by renderFloor here; this pins the .aura rule
   // itself the way the motion-fade pair above pins .dev-motion, by putting a circle with that one class on the
   // live stylesheet and reading it back through getComputedStyle in the real browser (CLAUDE.md finding 10: the
@@ -4807,9 +4807,10 @@ test("Opus review CSS pair: a lamp's aura fills with --fp-aura at --fp-alpha and
     circle.setAttribute("r", "100");
     svg.querySelector('polygon[data-r="0"]')!.after(circle);
   }, EDITOR);
-  const style = await page.locator("svg circle.aura").evaluate((e) => { const s = getComputedStyle(e); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents }; });
+  const style = await page.locator("svg circle.aura").evaluate((e) => { const s = getComputedStyle(e); return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents, blend: s.mixBlendMode }; });
   expect(style.fill).toBe(rgb("#ff8a1f")); // blueprint's --fp-aura collapses to the single accent
-  expect(style.op).toBe("0.25");
+  expect(style.op).toBe("0.55"); // S23.8: the falloff mask thins it from the lamp out, so the core is stronger than the old flat .25
+  expect(style.blend).toBe("screen"); // blueprint is a dark theme: light adds
   expect(style.pe).toBe("none");
   await page.mouse.click(c.x, c.y); // the aura visually covers this point; pointer-events:none must let the click fall through to the room
   await expect(page.locator("#rk")).toHaveValue("room");

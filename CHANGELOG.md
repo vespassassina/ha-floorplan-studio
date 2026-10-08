@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card and studio: a lit lamp's glow now looks like light. It is brightest at the lamp and fades to nothing at its edge, stays inside the lamp's room, and blends with the floor: it brightens a dark theme and tints a light one instead of laying a flat disc over it. In 3D on a light theme, the glow on the walls is a capped warm white instead of the lamp's colour, which washed pale walls out.
 - Card and studio: a device whose entity is unavailable or unknown now has its own mark: a dashed orange ring, a grey glyph and a small slashed badge. This holds for lights, switches and plugs too, which used to look simply off. A lamp with a relay is marked only when both are dead.
 - Card and studio: a device that is off is now its glyph alone, in a quiet grey, with no disc behind it. A device that is on is a solid disc in its colour, and the glyph on it is dark or light, whichever reads (at least 4.5:1 in every theme). A lit lamp's own colour, a plug's heat and a layout's own device colours get their readable glyph too. Blueprint's idle grey is no longer blue.
 

@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: light is light (S23.8, V13, V14)
+
+Supersedes the flat 25 % aura (`--fp-alpha`, S2.8) and, on light themes, the lamp-coloured 3D wall glow.
+- **2D falloff.** Each aura circle takes `mask="url(#fp-lamp-falloff)"`, one shared mask written once before the first aura: a radial gradient, alpha 1 at the lamp, .33 at 60 %, 0 at the reach, in `objectBoundingBox` units so it fits every circle. `mask-type:alpha` is set in CSS (`mask.fp-falloff`), not as an attribute (finding 18). The ids avoid the word "glow", which tests use to find the room glow class.
+- **Clip.** Unchanged: the aura keeps the room clip it already had (S21.1). The new pixel test proves it holds.
+- **Strength.** `fill-opacity` is `.55` times the lamp's brightness. The mask thins it, so the core is brighter than the old flat .25 and the edge is gone.
+- **Blend.** `mix-blend-mode: var(--fp-glow-blend)`. `themeExtras` writes `screen` for a dark theme and `multiply` for a light one, so a new theme gets the right blend with no new token. HA's own theme follows its mode.
+- **3D.** view3d reads `--fp-glow-blend` off its probe; `multiply` means a light theme. There `glowTint` paints the walls `#ffd9a0` warm white, capped at .35, whatever the boost (night is 3.5x). A dark theme keeps the lamp's own colour, uncapped.
+Tests changed on purpose (finding 19): the aura markup regexes in render.test.ts and room-at.test.ts (the mask attribute), the `.aura` rule string, and the editor's aura pair, which pinned `0.25` and now pins `0.55` and `screen`. New: tests/card/light-glow.spec.ts (pixel probes just outside the wall, the same distance inside, near and far; the blend per theme against the background's luminance), a 3D wall-colour test in card-3d-tex-glow.spec.ts, and `glowTint` units.
+
 ## 2026-10-08: unavailable is its own mark (S23.5, V12)
 
 Supersedes "Unavailable lights and switches read as off" (2026-10-06) and the 45 % opacity of S2.6. "Off" and "I don't know" are different facts; drawing a dead lamp as off told the user it was off.

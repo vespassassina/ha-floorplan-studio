@@ -173,7 +173,7 @@ describe("renderFloor", () => {
       const f = structuredClone(ground);
       f.devices[1] = { ...f.devices[1], x: 2000, y: 2000 } as typeof f.devices[number];
       const html = renderFloor(f, { ...base, state: on });
-      expect(html).toMatch(/<circle class="aura" cx="2000" cy="2000" r="150"\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="2000" cy="2000" r="150" mask="url\(#fp-lamp-falloff\)"\/>/);
       expect(html).not.toContain('<clipPath id="fp-aura-'); // S21.1: the demo camera now has a clip of its own (fp-cone-), so the lamp's is named
     });
 
@@ -203,7 +203,7 @@ describe("renderFloor", () => {
   describe("S2.8: a lit lamp casts an aura", () => {
     it("draws one circle.aura of radius 150 (S8.13: 1.5x the old 100) at a lit light's centre", () => {
       const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
-      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")? mask="url\(#fp-lamp-falloff\)"\/>/);
     });
 
     it("draws no aura for a light that is off, unavailable or unknown", () => {
@@ -219,18 +219,18 @@ describe("renderFloor", () => {
 
     it("a light with rgb_color sets --fp-aura on its own circle through style", () => {
       const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0, 0] } }) } });
-      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")? style="--fp-aura:rgb\(255,0,0\)"\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")? mask="url\(#fp-lamp-falloff\)" style="--fp-aura:rgb\(255,0,0\)"\/>/);
     });
 
     it("a light with no rgb_color carries no --fp-aura, so the default CSS variable applies", () => {
       const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
-      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")? mask="url\(#fp-lamp-falloff\)"\/>/);
       expect(html).not.toContain("--fp-aura");
     });
 
     it("a bound light's aura follows the switch's on state but keeps the default colour (no rgb_color on the light entity itself)", () => {
       const html = renderFloor(ground, { ...base, state: { "switch.demo_living_relay": st("on") } }); // light.demo_living itself missing from state
-      expect(html).toMatch(/<circle class="aura" cx="250" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/);
+      expect(html).toMatch(/<circle class="aura" cx="250" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")? mask="url\(#fp-lamp-falloff\)"\/>/);
     });
 
     it("every aura is drawn before every device group, so overlapping auras never hide an icon", () => {
@@ -249,8 +249,8 @@ describe("renderFloor", () => {
       expect(aura).toBeGreaterThan(lastRoom);
     });
 
-    it("the .aura rule reads --fp-aura at --fp-alpha (times the lamp's brightness, S23.4) and never catches the pointer", () => {
-      expect(FLOORPLAN_CSS).toMatch(/\.aura\{fill:var\(--fp-aura\);fill-opacity:calc\(var\(--fp-alpha\) \* var\(--fp-dev-opacity,1\)\);pointer-events:none\}/);
+    it("the .aura rule reads --fp-aura at .55 (times the lamp's brightness, S23.4), blends by theme kind (S23.8) and never catches the pointer", () => {
+      expect(FLOORPLAN_CSS).toMatch(/\.aura\{fill:var\(--fp-aura\);fill-opacity:calc\(\.55 \* var\(--fp-dev-opacity,1\)\);mix-blend-mode:var\(--fp-glow-blend,normal\);pointer-events:none\}/);
       expect(FLOORPLAN_CSS).toContain("--fp-aura:#f0c419");
     });
   });
@@ -448,7 +448,7 @@ describe("S8.13: brighter alerts, wider light", () => {
   it("a lit lamp's aura is 1.5 times the old 100 cm, and a camera's cone keeps 100", () => {
     expect(LIGHT_REACH).toBe(150);
     expect(DEVICE_REACH).toBe(100);
-    expect(draw([dev("light", "light.l")], { "light.l": st("on") })).toMatch(/<circle class="aura" cx="400" cy="300" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/);
+    expect(draw([dev("light", "light.l")], { "light.l": st("on") })).toMatch(/<circle class="aura" cx="400" cy="300" r="150"(?: clip-path="url\(#[^)]+\)")? mask="url\(#fp-lamp-falloff\)"\/>/);
   });
 
   it("a triggered motion or contact sensor carries a ping ring under its disc; idle, off, unavailable or another type do not", () => {
