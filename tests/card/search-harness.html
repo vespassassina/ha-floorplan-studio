@@ -1,0 +1,15 @@
+<!doctype html>
+<!-- S24.2: hosts <fp-search> the way the Studio and the card will: the host binds the search chord on itself (finding 6),
+     and records what the box fires. Served by the Playwright dev server through Vite's /@fs/ path, so the TypeScript
+     below is compiled on the fly from this tree. -->
+<html>
+<head><meta charset="utf-8"><title>fp-search harness</title></head>
+<body>
+<div id="host" tabindex="0" data-theme="light">
+  <fp-search id="box"></fp-search>
+  <p class="plan">Plan stand-in</p>
+</div>
+<input id="note" type="text" aria-label="Note">
+<script type="module" src="./search-harness.ts"></script>
+</body>
+</html>

@@ -591,6 +591,14 @@ the name, then every word in the entity id, then every word somewhere in name, e
 the shorter name, then layout order. Case and accents are ignored; several words must all match; a blank query matches
 nothing. A layout of the wrong shape is skipped, never thrown on.
 
+The box is `<fp-search>` (`src/card/search-box.ts`, S24.2), one element for both apps. It takes `entries` and `limit`
+(10). An ARIA combobox: the input names the active option with `aria-activedescendant`; each option shows the name and
+"room · floor · type". Nothing shows for an empty query; "No match" when nothing matches. Up and Down move and wrap,
+the active option stays scrolled into view. Enter or a click fires `fp-pick` (bubbling, composed, the entry in
+`detail`) and clears the box. Escape clears the query; on an empty query it closes: focus returns to where it was when
+the host called `focus()`, and `fp-close` fires. Each host binds `isSearchChord` (`src/card/view-keys.ts`) on itself:
+Cmd-K or Ctrl-K anywhere, `/` outside a text field.
+
 ## Editor
 
 - Toolbar: floor chips, the device filter ("Filter: all (N)"), menus Add /

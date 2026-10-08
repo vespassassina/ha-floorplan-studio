@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: the search box's keys and focus (S24.2)
+
+- **`isSearchChord` lives in `view-keys.ts`**, beside `isSaveChord` and `takesTyping`, and `search-box.ts` re-exports it. A host can test the chord without loading the element, and "/" in a text field uses the same `takesTyping` rule as the view keys.
+- **"/" is allowed with Shift.** On an Italian or German keyboard "/" is Shift-7. Alt and Ctrl or Cmd with "/" are not the chord. Cmd-K and Ctrl-K are, without Alt or Shift, also from a text field.
+- **Escape on an empty box closes it: focus goes back to where it was when the host called `focus()`, and `fp-close` fires.** So the host's chord works again at once, and a host that shows the box as a popover can hide it. Both Escapes stop there; the host's own Escape (deselect, cancel a tool) does not also run.
+- **A pick clears the query and keeps focus in the box**, ready for the next search; the host moves focus if it wants to.
+- **Hover is a light tint, the active option is inverted** (`--fp-ink` on `--fp-bg`, as in `<fp-combo>`). Two inverted rows, one under the mouse and one under the keyboard, read as two choices.
+- **The Playwright harness is served by the test dev server through Vite's `/@fs/` path** (`tests/card/search-harness.html`), so the element is compiled from this tree with no extra build entry.
+
 ## 2026-10-08: one search index, ranked in tiers (S24.1)
 
 `src/core/search.ts` builds the entries once and ranks a query by tier, not by a score.
