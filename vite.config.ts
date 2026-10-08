@@ -3,6 +3,7 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 import { readFileSync } from "node:fs";
 import { trimThree } from "./scripts/trim-three.mjs";
 import { stripCssComments } from "./scripts/strip-css-comments.mjs";
+import { minifyOutput } from "./scripts/minify-output.mjs";
 
 // The card names its own version in the console and in a warning when another script owns its element.
 const version = JSON.parse(readFileSync("custom_components/floorplan_studio/manifest.json", "utf8")).version as string;
@@ -23,8 +24,9 @@ const chunkName = () => ({
 // One build per output, chosen with --mode: card, panel or editor.
 export default defineConfig(({ mode }) => {
   const lib = (entry: string, fileName: string) => ({
-    // The comments inside our stylesheets stay in the source and do not ship (scripts/strip-css-comments.mjs).
-    plugins: [trimThree(), stripCssComments(), chunkName()],
+    // The comments inside our stylesheets stay in the source and do not ship (scripts/strip-css-comments.mjs); nor do the
+    // code's comments and whitespace, which lib mode keeps (scripts/minify-output.mjs).
+    plugins: [trimThree(), stripCssComments(), chunkName(), minifyOutput()],
     // `__FP3D_TEST__` is a compile-time flag: only the test build (FP3D_TEST=1, made by scripts/build.mjs for the Playwright specs)
     // keeps the 3D view's test hook; in the shipped build the code is dropped.
     define: { __FP_VERSION__: JSON.stringify(version), __FP3D_TEST__: process.env.FP3D_TEST === "1" ? "true" : "false" },

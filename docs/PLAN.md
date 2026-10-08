@@ -2666,12 +2666,12 @@ Branch `task/s23-visual`. From the visual review (V-ids, review of 2026-10-08). 
       (`render.ts` leader fallback).
 - [ ] S23.F2 Window lines under 3:1 on the new pane in light (2.4) and solarized (2.8). Try the pane as `--fp-bg` mixed
       15 % glass, and check the cut does not read as a hole again.
-- [ ] S23.F3 Put `--fp-text-out` in the generic `:host,.fp,[data-theme]` defaults so a nested theme group cannot inherit
+- [x] S23.F3 Put `--fp-text-out` in the generic `:host,.fp,[data-theme]` defaults so a nested theme group cannot inherit
       solarized's outdoor ink.
-- [ ] S23.F4 `strip-css-comments.mjs`: inside `url(`, skip a leading quoted string first, so `url("a)b")` cannot flip the
+- [x] S23.F4 `strip-css-comments.mjs`: inside `url(`, skip a leading quoted string first, so `url("a)b")` cannot flip the
       quote state.
 - [ ] S23.F5 Left by the coders: paint dim in 3D; a heavier dash on a selected zone; 3D walls on HA dark still mix 55 %;
-      JSDoc still ships in the card (about 16 KB gzip); `docs/img/themes/*.png` are out of date.
+      JSDoc still ships in the card (about 16 KB gzip; done in S24.4); `docs/img/themes/*.png` are out of date.
 
 ## Sprint 24 (0.22.0): find and navigate
 
@@ -2698,7 +2698,7 @@ Wave 1, core (parallel):
       Per-floor counts and an alarm flag for the floor tabs. Room and floor facts split "Open" from "Unlocked"; an
       unlocked lock is no longer "open". Cameras leave the Active list (`ACTIVE_LIST_RULE` no longer "always").
       Test: iterate `DEVICE_TYPES`, each type's attention rule written down; the stress fixture's counts by hand.
-- [ ] S24.4 (S23.F5, S23.F3) Room for the sprint in the card budget: JSDoc out of the shipped card, the size limit
+- [x] S24.4 (S23.F5, S23.F3) Room for the sprint in the card budget: JSDoc out of the shipped card, the size limit
       unchanged; `--fp-text-out` in the generic defaults. Test: the size test; a nested group under solarized keeps
       its own theme's outdoor ink.
 

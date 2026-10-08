@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Card: the card file is a quarter smaller (109 to 84 KB gzipped). The build drops the code's comments and spaces; the panel (158 to 131 KB) and the 3D view (196 to 145 KB) shrink too.
+- Card and Studio: a plan in another theme placed inside a solarized one keeps its own colour for garden, terrace, pavement and water names.
+
 ## 0.21.0 - 2026-10-08
 
 - Card and studio: room names are solid, not faded. Each name is the text colour mixed into the room it sits on, at 12 px (outdoor names and zones at 10, outdoor in italic), in Home Assistant's own font. Readings keep their number and unit together and line up digit for digit.
