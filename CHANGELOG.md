@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.20.2 - 2026-10-08
+
+- Card: a device popup now always opens where you can see it. On a card taller than the screen, a tap low on the plan put it below the bottom edge; now it opens above the point, and a very short window makes it scroll inside instead.
+- Card: a lamp lit by the relay that powers it can now be turned off from the card. Its popup reads "on · via" the relay, and Turn off switches the relay off (and the light too if it is on). Room and floor All off also switch off such relays, each once. More info offers the relay next to the light.
+- Card: when All off would switch off a relay that also powers a lamp outside the room or floor, its tooltip says so: "a shared relay also turns off lamps elsewhere".
+- Studio: the Place and Add device popups fit the window. A long list scrolls inside the popup and its Place button stays in view; before, it could sit below the bottom of the screen.
+- Studio: the side panel scrolls on its own, so the plan stays where it is. A room with Home Assistant devices left to place shows Place first, under its title.
+- Studio: the Help guide names the buttons and menus as they are, shows them in bold, and starts with Fix plan.
+- Studio: Escape closes an open toolbar menu and puts focus back on its button.
+- Studio: an edit refused because the plan is fixed now puts the old value back in its field, and the message has an Untick Fix plan button.
+- Studio: every change the fixed plan refuses now says so, with the Untick Fix plan button: a room colour or texture, a texture or furniture slider, a floor's name, order or removal, Add floor, Add stairs and Rotate the plan. Before, these did nothing without a word, and a picked colour snapped back silently.
+
 ## 0.20.1 - 2026-10-08
 
 - Card and studio: a camera's cone stops at the walls of the room the camera stands in, as a lamp's light does. The room is the one the camera looks into, so a camera on a wall aiming out keeps its whole cone, as one in no room does.

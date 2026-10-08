@@ -1,6 +1,7 @@
 // S14.2: the rules behind the tap popup, as plain functions: what its one button does for a device, where OFF asks first,
 // and what a light's controls may offer. No DOM here; the card draws it (floorplan-studio-card.ts).
 import { NO_TOGGLE } from "./actions";
+import { lampOffCalls, type Device, type SceneCall, type StateOverlay } from "../core";
 
 export interface PopupOp {
   /** The button's text. */
@@ -9,6 +10,8 @@ export interface PopupOp {
   service: string;
   /** The text of the confirm step the button turns into before it acts, or null when it acts at once. Only a turn OFF of anything but a light asks. */
   confirm: string | null;
+  /** S22.1: the calls the button makes instead of one `domain.service` on the subject's entity (a relay-lit lamp's Turn off). */
+  calls?: SceneCall[];
 }
 
 /** Domains `turn_on` and `turn_off` exist for, and the card operates. A sensor, a button or a scene is not one. */
@@ -30,6 +33,21 @@ export function popupOp(type: string, entity: string | undefined, state: string 
   const call = domain === "group" ? "homeassistant" : domain; // the `group` domain has no turn_on / turn_off; `homeassistant.turn_*` does it
   if (state === "off") return { label: "Turn on", domain: call, service: "turn_on", confirm: null };
   return { label: "Turn off", domain: call, service: "turn_off", confirm: domain === "light" ? null : "Confirm turn off" };
+}
+
+/**
+ * S22.1: a light's button, with its `bound` relay counted. The plan draws the lamp on while the relay is on, so then the
+ * button is Turn off, at once as for any light, and it calls `lampOffCalls`: `switch.turn_off` on the relay, and
+ * `light.turn_off` on the light when that is on too. A relay that is off (or none) leaves today's rule, `popupOp`.
+ */
+export function lampOp(d: Device, states: StateOverlay | undefined): PopupOp | null {
+  const relay = d.type === "light" && typeof d.bound === "string" ? d.bound : "";
+  if (relay && states?.[relay]?.state === "on") {
+    const calls = lampOffCalls(d, states);
+    const first = calls[calls.length - 1]!; // the relay's call: presetCalls puts the light's first
+    return { label: "Turn off", domain: first.domain, service: "turn_off", confirm: null, calls };
+  }
+  return popupOp(d.type, d.entity, states?.[d.entity]?.state);
 }
 
 export interface LightCaps { brightness: boolean; temp: { min: number; max: number } | null; hue: boolean }

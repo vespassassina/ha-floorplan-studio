@@ -3,7 +3,7 @@ import type { Device, DeviceType, Door, Floor, Pt } from "../../src/core/schema"
 import { DEVICE_TYPES } from "../../src/core/schema";
 import { FLOORPLAN_CSS, renderFloor, type StateOverlay } from "../../src/core/render";
 import { NO_TOGGLE } from "../../src/card/actions";
-import { ROOM_ROW_TAP, deviceInfo, filterToRoom, floorSummary, formatChanged, meanReading, roomAreaM2, roomSummary } from "../../src/core/room-info";
+import { ALL_OFF_TITLE, ALL_OFF_SHARED, ROOM_ROW_TAP, allOffTitle, deviceInfo, filterToRoom, floorSummary, formatChanged, meanReading, roomAreaM2, roomSummary } from "../../src/core/room-info";
 
 // S11.3 and S11.4 (spec docs/specs/room-sensors.md, criteria 5 and 6). Pure builders: what the card's left panel shows.
 const st = (state: string, attributes: Record<string, unknown> = {}, last_changed = "2026-10-04T10:00:00Z") => ({ state, attributes, last_changed });
@@ -272,11 +272,11 @@ describe("floorSummary (S20.2): the same rules over every room of the floor", ()
   });
   it("lists the lights on across both rooms and the one in no room, each entity once", () => {
     expect(s.lightsOn).toEqual(["lamp", "desk", "yard"]);
-    expect(s.lightsOnEntities).toEqual(["light.lamp", "light.desk", "light.yard"]);
+    expect(s.offEntities).toEqual(["light.lamp", "light.desk", "light.yard"]);
   });
   it("a room's All off list holds only its own lights", () => {
-    expect(roomSummary(f, 0, state, {})!.lightsOnEntities).toEqual(["light.lamp"]);
-    expect(roomSummary(f, 1, state, {})!.lightsOnEntities).toEqual(["light.desk"]);
+    expect(roomSummary(f, 0, state, {})!.offEntities).toEqual(["light.lamp"]);
+    expect(roomSummary(f, 1, state, {})!.offEntities).toEqual(["light.desk"]);
   });
   it("lists every device of the floor but a person, and owns their entities", () => {
     expect(s.devices.map((r) => r.entity)).toEqual(["light.lamp", "light.floor", "switch.fan", "camera.cam", "light.desk", "binary_sensor.placed_motion", "climate.rad", "light.yard"]);
@@ -295,24 +295,66 @@ describe("floorSummary (S20.2): the same rules over every room of the floor", ()
   });
   it("survives junk: no rooms, a bad title", () => {
     const bad = { ...floor([]), rooms: 5, title: 7 } as unknown as Floor;
-    expect(floorSummary(bad, undefined, {})).toMatchObject({ name: "", devices: [], lightsOnEntities: [] });
+    expect(floorSummary(bad, undefined, {})).toMatchObject({ name: "", devices: [], offEntities: [] });
   });
 });
 
 describe("review fixes to the summaries (S20)", () => {
-  it("All off targets a light only when its own entity is on, not when its bound relay lights it", () => {
+  it("All off reaches a lamp its bound relay lights: the relay, not the light that is off (S22.1 supersedes S20.1's rule)", () => {
     const bound = dev("light", "light.bound", 100, 200, { bound: "switch.relay" });
     const f = floor([bound, dev("light", "light.plain", 200, 200)]);
     const state: StateOverlay = { "light.bound": st("off"), "switch.relay": st("on"), "light.plain": st("on") };
     const s = roomSummary(f, 0, state, {})!;
     expect(s.lightsOn).toEqual(["bound", "plain"]); // the plan draws the bound lamp on
-    expect(s.lightsOnEntities).toEqual(["light.plain"]);
-    expect(floorSummary(f, state, {}).lightsOnEntities).toEqual(["light.plain"]);
+    expect(s.offEntities).toEqual(["switch.relay", "light.plain"]);
+    expect(floorSummary(f, state, {}).offEntities).toEqual(["switch.relay", "light.plain"]);
   });
   it("a sensor a room lists twice appears once, as a row and in the mean", () => {
     const f = floor([], { rooms: [room("Living", sq(0, 0, 450, 320), { temps: ["sensor.t1", "sensor.t1", "sensor.t2"] })] });
     const s = roomSummary(f, 0, STATE, {})!;
     expect(s.sensors.map((r) => r.entity)).toEqual(["sensor.t1", "sensor.t2"]);
     expect(s.temperature).toBe("21.7 °C"); // (21 + 22.4) / 2, not (21 + 21 + 22.4) / 3 = 21.5
+  });
+});
+
+describe("allOffTitle (Sprint 22 review): All off says when a shared relay reaches lamps elsewhere", () => {
+  // Living's lamp and the Study's lamp share switch.relay; the first floor's landing lamp shares switch.stairs with Living.
+  const lamp = dev("light", "light.lamp", 100, 100, { bound: "switch.relay" });
+  const study = dev("light", "light.study", 600, 100, { bound: "switch.relay" });
+  const hall = dev("light", "light.hall", 200, 100, { bound: "switch.stairs" });
+  const landing = dev("light", "light.landing", 100, 100, { bound: "switch.stairs" });
+  const state: StateOverlay = { "light.lamp": st("off"), "light.study": st("off"), "switch.relay": st("on"), "light.hall": st("off"), "switch.stairs": st("off"), "light.landing": st("off") };
+  const floors = (ground: Floor, first: Floor = floor([])) => ({ ground, first });
+
+  it("a relay that lamps outside the room share: the title says so", () => {
+    const f = floor([lamp, study]);
+    expect(allOffTitle(floors(f), "ground", roomSummary(f, 0, state, {})!)).toBe(ALL_OFF_SHARED);
+  });
+  it("the floor's All off holds both lamps of that relay: the old title", () => {
+    const f = floor([lamp, study]);
+    expect(allOffTitle(floors(f), "ground", floorSummary(f, state, {}))).toBe(ALL_OFF_TITLE);
+  });
+  it("a relay only this room's lamps use, or no relay at all: the old title", () => {
+    const f = floor([lamp, dev("light", "light.plain", 600, 100)]);
+    expect(allOffTitle(floors(f), "ground", roomSummary(f, 0, state, {})!)).toBe(ALL_OFF_TITLE);
+    expect(allOffTitle(floors(f), "ground", roomSummary(f, 1, { ...state, "light.plain": st("on") }, {})!)).toBe(ALL_OFF_TITLE);
+  });
+  it("a lamp on another floor on the relay counts, for a room and for the whole floor", () => {
+    const f = floor([hall]), up = floor([landing]);
+    const on = { ...state, "switch.stairs": st("on") };
+    expect(allOffTitle(floors(f, up), "ground", roomSummary(f, 0, on, {})!)).toBe(ALL_OFF_SHARED);
+    expect(allOffTitle(floors(f, up), "ground", floorSummary(f, on, {}))).toBe(ALL_OFF_SHARED);
+  });
+  it("a relay All off does not switch (it is off) is not mentioned", () => {
+    const f = floor([hall, lamp]), up = floor([landing]);
+    expect(allOffTitle(floors(f, up), "ground", roomSummary(f, 0, state, {})!)).toBe(ALL_OFF_TITLE);
+  });
+  it("the shared title is the old one with the warning after it", () => {
+    expect(ALL_OFF_SHARED.startsWith(ALL_OFF_TITLE)).toBe(true);
+    expect(ALL_OFF_SHARED).toContain("elsewhere");
+  });
+  it("survives junk floors", () => {
+    const f = floor([lamp]);
+    expect(allOffTitle({ ground: f, bad: { devices: 5 } as unknown as Floor }, "ground", roomSummary(f, 0, state, {})!)).toBe(ALL_OFF_TITLE);
   });
 });

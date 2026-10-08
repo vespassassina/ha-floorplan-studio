@@ -249,13 +249,16 @@ export class EditorState {
   planLocked = false;
   planBlocked = false;
   private planOpen(): boolean { this.planBlocked = this.planLocked; return !this.planLocked; }
+  /** A writer that says no for its own reason (an empty title, the last floor) clears the flag first, so an earlier
+   *  refusal is never blamed on the lock (Opus re-check of task/s22-fix). */
+  private fresh(): true { this.planBlocked = false; return true; }
   /** The floor with its devices and objects (heater, TV...) taken out: what a plan lock holds still. Walls, rooms, doors, windows, areas, stairs and furniture are the plan. */
   private static plan(f: Floor): string { return JSON.stringify({ ...f, devices: [], unlinked: [], rooms: f.rooms.map((r) => ({ ...r, scenes: undefined, haScenes: undefined })) }); } // scenes are what a room offers, not its shape: a fixed plan still takes them (2026-10-07)
 
   /** Adds a floor last and selects it, with the outline (and its wall kinds), and the stairs, of the first floor (the lowest) and nothing else, so a house is not traced twice. Deep copies; the stairs get ids of the new floor. The key is the slug of the title, with -2, -3 on a clash. Returns the key, or "" for an empty title. */
   addFloor(title: string): string {
     const t = title.trim();
-    if (!t || !this.planOpen()) return "";
+    if (!this.fresh() || !t || !this.planOpen()) return "";
     const base = slug(t) || "floor";
     let key = base;
     for (let n = 2; hasOwn(this.layout.floors, key); n++) key = `${base}-${n}`;
@@ -269,19 +272,20 @@ export class EditorState {
     return key;
   }
 
-  /** Adds the same stairs to every floor, each with an id of its own, as one undo step; selects the one on the current floor. A floor that has stairs gets another: two flights are legitimate. */
-  addStairsEverywhere(t: Omit<Stairs, "id">): void {
-    if (!this.planOpen()) return;
+  /** Adds the same stairs to every floor, each with an id of its own, as one undo step; selects the one on the current floor. A floor that has stairs gets another: two flights are legitimate. False when the plan is fixed. */
+  addStairsEverywhere(t: Omit<Stairs, "id">): boolean {
+    if (!this.planOpen()) return false;
     this.snapshot();
     for (const [key, fl] of Object.entries(this.layout.floors)) fl.stairs.push({ ...structuredClone(t), id: newId(fl, key, "stairs") });
     this.sel = { t: "stairs", i: this.f.stairs.length - 1 };
     this.confirmDelete = false;
+    return true;
   }
 
   /** Changes the title only; the key stays. False for an empty title, the same title or an unknown key. */
   renameFloor(key: string, title: string): boolean {
     const t = title.trim();
-    if (!t || !hasOwn(this.layout.floors, key) || this.layout.floors[key].title === t || !this.planOpen()) return false;
+    if (!this.fresh() || !t || !hasOwn(this.layout.floors, key) || this.layout.floors[key].title === t || !this.planOpen()) return false;
     this.snapshot();
     this.layout.floors[key].title = t;
     return true;
@@ -290,7 +294,7 @@ export class EditorState {
   /** Removes a floor and its content. False for the last floor or an unknown key. The catalog is left alone. The selection moves to the next floor, else the previous. */
   deleteFloor(key: string): boolean {
     const ks = Object.keys(this.layout.floors), i = ks.indexOf(key);
-    if (i < 0 || ks.length < 2 || !this.planOpen()) return false;
+    if (!this.fresh() || i < 0 || ks.length < 2 || !this.planOpen()) return false;
     this.snapshot();
     this.layout.floors = floorsOf(ks.filter((k) => k !== key).map((k) => [k, this.layout.floors[k]]));
     delete this.views[key];
@@ -302,7 +306,7 @@ export class EditorState {
   /** Moves a floor `delta` places in the key order (-1 earlier, +1 later). False when that would leave the list or nothing moves. */
   moveFloor(key: string, delta: number): boolean {
     const ks = Object.keys(this.layout.floors), i = ks.indexOf(key), j = i + delta;
-    if (i < 0 || !Number.isInteger(delta) || delta === 0 || j < 0 || j >= ks.length || !this.planOpen()) return false;
+    if (!this.fresh() || i < 0 || !Number.isInteger(delta) || delta === 0 || j < 0 || j >= ks.length || !this.planOpen()) return false;
     this.snapshot();
     ks.splice(i, 1);
     ks.splice(j, 0, key);
@@ -435,7 +439,7 @@ export class EditorState {
   /** Turns the whole plan to `deg` (a multiple of 45, taken modulo 360): one undo step, no step when it is already there. The views are dropped so each floor is fitted again. */
   setRotate(deg: number): boolean {
     const n = ((Math.round(deg / 45) * 45) % 360 + 360) % 360;
-    if (n === (this.layout.rotate ?? 0) || !this.planOpen()) return false;
+    if (!this.fresh() || n === (this.layout.rotate ?? 0) || !this.planOpen()) return false;
     this.snapshot();
     this.layout.rotate = n;
     this.views = {};

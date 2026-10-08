@@ -154,7 +154,8 @@ export class FloorplanStudioEditor extends LitElement {
   declare demo: Layout | undefined;
   declare errors: string[];
   declare status: string;
-  declare banner: { text: string; level: BannerLevel } | null;
+  /** `action`: one button in the banner that undoes what the message is about (S22.4: Untick Fix plan). */
+  declare banner: { text: string; level: BannerLevel; action?: { id: string; label: string; run: () => void } } | null;
   private bannerTimer: ReturnType<typeof setTimeout> | undefined;
   declare addingFloor: boolean;
   /** S4.10: everything floorplan-studio labelled in Home Assistant, loaded fresh each time the Home Assistant menu opens. `null` before the first load. */
@@ -425,7 +426,8 @@ export class FloorplanStudioEditor extends LitElement {
     .prow-text{flex:1;display:flex;flex-direction:column;gap:0;min-width:0}
     .prow-name{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .prow small{opacity:.7}
-    .fpanel>.btn{margin:8px 10px 10px;width:auto;align-self:flex-start}
+    /* S22.3: only the list (.rows, overflow:auto) shrinks in a popup capped by the window; the action buttons stay in view. */
+    .fpanel>.btn{margin:8px 10px 10px;width:auto;align-self:flex-start;flex:none}
     /* S8.8: 50% larger than the S8.5 baseline (520x642 / 440x642 measured at an 800px-tall viewport, panel maxed
        out): width and max-height both grow by half, clamped so a small screen still fits it — see docs/DECISIONS.md. */
     .add-dev-panel{width:min(780px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
@@ -506,12 +508,14 @@ export class FloorplanStudioEditor extends LitElement {
     .habox-sub{padding-left:14px}
     .scene{border:1px solid var(--line,#8884);border-radius:6px;padding:4px 6px;margin:4px 0} .scene-item{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:2px 0} .scene-item>span:first-child{flex:1;min-width:80px} .scene-item .btn,.scene-item select,.scene-item input{width:auto} .scene-item input[type=number]{width:90px} .scene-item .tag{opacity:.7}
     .harow2{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:2px 0} .harow2>span:first-child{flex:1;min-width:80px} .harow2 .btn{width:auto}
-    aside{display:flex;flex-direction:column;gap:12px}
+    /* S22.6: the aside is its own scroll container, as tall as the canvas beside it (same height rule, same floor), so
+       a long room panel scrolls inside it and the plan stays put; before, it grew the page and scrolling it moved the plan away. */
+    aside{display:flex;flex-direction:column;gap:12px;overflow:auto;max-height:max(420px, var(--fp-editor-height,calc(100vh - 150px)))}
     aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}
     aside input:not([type=checkbox]),aside select{width:100%;box-sizing:border-box}
     /* S10.1: fp-combo sizes itself (its own :host rule); margin-top here only matches the spacing a select/input
-       gets from the label above it. aside has no overflow of its own, so the combo's dropdown (position:absolute,
-       inside its shadow root) is never clipped. */
+       gets from the label above it. Since S22.6 the aside scrolls, so a combo's dropdown (position:absolute, inside
+       its shadow root) that reaches past the aside's bottom extends the scroll area instead of spilling over the page. */
     aside fp-combo{margin-top:2px}
     .row{display:flex;gap:6px}
     /* S8.9.1 / Opus review of S8.9: hints are written to fit one line at the sidebar's own width; nowrap+ellipsis
@@ -547,6 +551,7 @@ export class FloorplanStudioEditor extends LitElement {
     .banner.info{background:#e8f1fb;color:#123a63;border-color:#6c9bd1}
     .banner.warning{background:#fff4d6;color:#5c4200;border-color:#d9a400}
     .banner.error{background:#fde4e1;color:#7a1410;border-color:#d4483f}
+    .banner-act{pointer-events:auto;flex:none;border:1px solid currentColor;border-radius:4px;background:transparent;color:inherit;font:inherit;font-weight:600;cursor:pointer;padding:2px 8px}
     .banner-x{pointer-events:auto;flex:none;border:0;background:transparent;color:inherit;font-size:1.3em;line-height:1;cursor:pointer;padding:0 6px}
     .status{flex:0 1 auto;max-width:16em;font-size:.85em;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .room{pointer-events:all}
@@ -593,16 +598,16 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   /** Shows a message as a top banner for 20 s, coloured by its situation. `level` overrides the guess from the text. */
-  private notify(text: string, level?: BannerLevel) {
+  private notify(text: string, level?: BannerLevel, action?: { id: string; label: string; run: () => void }) {
     clearTimeout(this.bannerTimer);
     if (isQuiet(text)) { this.banner = null; return; }
-    this.banner = { text, level: level ?? bannerLevel(text) };
+    this.banner = { text, level: level ?? bannerLevel(text), action };
     this.bannerTimer = setTimeout(() => { this.banner = null; }, BANNER_MS);
   }
   private closeBanner() { clearTimeout(this.bannerTimer); this.banner = null; this.status = ""; }
 
   protected willUpdate(changed: Map<string, unknown>) {
-    if (changed.has("status")) this.notify(this.status);
+    if (changed.has("status") && this.banner?.text !== this.status) this.notify(this.status); // already shown by an explicit notify, with its level and action
     if (changed.has("floor") && this.floor && this.floor !== this.st.floor && hasOwn(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
     // Always named, never left to inherit: blueprint unless the viewer chose otherwise. Reflected on the host itself, not just the svg,
     // so the editor's own chrome (menus, panels, buttons) themes with the plan. data-mode is for the ha theme only.
@@ -655,9 +660,26 @@ export class FloorplanStudioEditor extends LitElement {
     this.emit("layout-changed");
     this.requestUpdate();
   }
-  private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); else if (this.st.planBlocked) this.planFixed(); };
+  private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); else this.refused(); };
+  /** A writer said no. When the plan lock is why, say so and offer the way out; otherwise redraw, so a field shows the layout again. */
+  private refused() { if (this.st.planLocked && this.st.planBlocked) this.planFixed(); else this.requestUpdate(); }
+  /** A slider refused by the lock warns once per drag: while its banner shows, a later tick only snaps the slider back. */
+  private slideRefused() { if (this.banner?.action?.id === "bannerUnfix") this.requestUpdate(); else this.planFixed(); }
   /** The one reply to a change the plan lock refused ("Fix plan" is ticked). */
-  private planFixed(): boolean { this.status = "The plan is fixed. Untick Fix plan to change it. Devices and objects stay editable"; this.notify(this.status, "error"); this.requestUpdate(); return true; }
+  private planFixed(): boolean {
+    this.status = "The plan is fixed. Devices and objects stay editable";
+    this.notify(this.status, "error", { id: "bannerUnfix", label: "Untick Fix plan", run: () => this.setPlanLocked(false) });
+    this.requestUpdate();
+    return true;
+  }
+  /** The toolbar's Fix plan box and the banner's Untick Fix plan button both come here. */
+  private setPlanLocked(on: boolean) {
+    this.st.planLocked = on;
+    this.st.planBlocked = false; // a refusal from before belongs to the old setting
+    if (on) this.stopDraw();
+    this.status = on ? "Plan fixed: only devices and objects can change" : "Plan unlocked";
+    this.requestUpdate();
+  }
   /** S10.2: `PanelCtx.attachEntity` — names the entity (its catalog name, escaped by lit's own text interpolation)
    *  and `label` (the door/device/item) in the status line only when an icon was actually pulled off the plan. */
   private attachEntity = (entity: string, apply: (f: Floor) => void, label: string, keepDeviceId?: string) => {
@@ -680,6 +702,7 @@ export class FloorplanStudioEditor extends LitElement {
    * pattern a mouse drag uses); `commit`, once at release, records the whole drag as one step — none if it ended back
    * where it started (mirrors `begin()`/`onUp` for a pointer drag). */
   private rotateTexture = (on: "rooms" | "stairs", i: number, rot: number, phase: "live" | "commit") => {
+    if (this.st.planLocked) { this.slideRefused(); return; } // a texture is the plan; the slider snaps back on the redraw
     // A commit with no prior live tick (a click on the track, or an arrow key) still needs a "before": take it now,
     // before the value below is applied.
     if (!this.textureRotGesture) this.textureRotGesture = structuredClone(this.st.layout);
@@ -696,6 +719,7 @@ export class FloorplanStudioEditor extends LitElement {
   };
   /** The furniture and unlinked panels' rotation slider. Same live/commit gesture as `rotateTexture`. */
   private rotateItem = (on: "furniture" | "unlinked", i: number, rot: number, phase: "live" | "commit") => {
+    if (on === "furniture" && this.st.planLocked) { this.slideRefused(); return; } // furniture is the plan; an object is not
     if (!this.itemRotGesture) this.itemRotGesture = structuredClone(this.st.layout);
     const g = structuredClone(this.st.f);
     const o = g[on][i];
@@ -709,6 +733,7 @@ export class FloorplanStudioEditor extends LitElement {
   };
   /** S4.19: the paint panel's scale slider. Same live/commit gesture as `rotateTexture`. */
   private scaleTexture = (on: "rooms" | "stairs", i: number, scale: number, phase: "live" | "commit") => {
+    if (this.st.planLocked) { this.slideRefused(); return; }
     if (!this.textureScaleGesture) this.textureScaleGesture = structuredClone(this.st.layout);
     const g = structuredClone(this.st.f);
     const shape = g[on][i];
@@ -722,7 +747,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.requestUpdate();
   };
   private ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, attachEntity: this.attachEntity, attachToRoom: this.attachToRoom, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); }, rotateTexture: this.rotateTexture, rotateItem: this.rotateItem, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), designScene: (i, id) => this.openScene(i, id), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, commit: this.commit, attachEntity: this.attachEntity, attachToRoom: this.attachToRoom, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); else this.refused(); }, rotateTexture: this.rotateTexture, rotateItem: this.rotateItem, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), designScene: (i, id) => this.openScene(i, id), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------
@@ -1111,7 +1136,10 @@ export class FloorplanStudioEditor extends LitElement {
   };
   /** Where a floating panel of width `w` opens: centred under the toolbar, never off the left edge. */
   /** S18.7: centred in the viewport, whatever the page scroll or the toolbar's height. `h` is the panel's largest height (its CSS max-height). */
-  private panelPos(w: number, h = window.innerHeight * 0.8) { return { x: Math.max(20, (window.innerWidth - w) / 2), y: Math.max(8, Math.round((window.innerHeight - Math.min(h, window.innerHeight - 16)) / 2)) }; }
+  /** S22.3: `h` defaults to the tallest a Place or Add popup may grow (CSS `100vh - 40px`), not 80vh: placed as if
+   *  shorter, a long popup ran off the bottom of the window and its Place button could not be reached. Callers pass
+   *  the popup's real CSS width for the same reason (Add was placed as if 520 px wide and ran off the right edge). */
+  private panelPos(w: number, h = window.innerHeight - 40) { return { x: Math.max(0, Math.round((window.innerWidth - w) / 2)), y: Math.max(8, Math.round((window.innerHeight - Math.min(h, window.innerHeight - 16)) / 2)) }; }
   /**
    * S8.10 follow-up (Opus review): a floating panel used to always open at a hardcoded y:90 — fine for the one-row
    * toolbar this was measured against, but the toolbar's own right-aligned cluster can wrap onto several rows at a
@@ -1154,7 +1182,7 @@ export class FloorplanStudioEditor extends LitElement {
   private openPlace(i: number) {
     const r = this.st.f.rooms[i];
     if (!r) return;
-    this.placeRoom = r.id; this.placeOn = new Set(); this.placeType = null; this.placePos = this.panelPos(440);
+    this.placeRoom = r.id; this.placeOn = new Set(); this.placeType = null; this.placePos = this.panelPos(Math.min(660, window.innerWidth - 24)); // .place-panel width
     this.requestUpdate();
   }
   private closePlace() { this.placeRoom = null; this.placePos = null; this.requestUpdate(); }
@@ -1226,7 +1254,7 @@ export class FloorplanStudioEditor extends LitElement {
   /** Closes the Add menu and opens the panel, filters reset, search focused. */
   private openAddDev() {
     this.closeMenus();
-    this.addDevPos = this.panelPos(520);
+    this.addDevPos = this.panelPos(Math.min(780, window.innerWidth - 24)); // .add-dev-panel width
     this.addDevQuery = ""; this.addDevFloor = ""; this.addDevRoom = ""; this.addDevArea = ""; this.addDevType = "";
     this.requestUpdate();
     void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLInputElement>("#addDevSearch")?.focus({ preventScroll: true }));
@@ -1872,6 +1900,9 @@ export class FloorplanStudioEditor extends LitElement {
     if (isSaveChord(ev) && !ev.defaultPrevented && !ev.isComposing) { ev.preventDefault(); this.saveByKey(); return; }
     const vk = viewKeyFor(ev);
     if (vk) { this.doViewKey(vk, ev); return; }
+    // S22.5: Escape closes an open toolbar menu first, and does nothing else on that press. Ahead of the input check,
+    // since Filter holds checkboxes and Add holds selects. Focus goes back to the menu's own button.
+    if (ev.key === "Escape" && !ev.defaultPrevented && this.closeMenuByKey()) { ev.preventDefault(); return; }
     const t = ev.composedPath()[0] as HTMLElement | undefined;
     if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); this.undo(!ev.shiftKey); return; }
@@ -1965,6 +1996,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private rotatePlan(step: number) {
     if (this.st.setRotate((this.st.layout.rotate ?? 0) + step)) this.changed(`Plan rotated to ${this.st.layout.rotate}°`);
+    else this.refused();
   }
   private centre(): Pt { const v = this.st.view; return [Math.round(v.x + v.w / 2), Math.round(v.y + v.h / 2)]; }
   /** Where a new item (a wall, a structure, a zone, stairs, furniture) goes: outside the house, top right. */
@@ -2091,7 +2123,7 @@ export class FloorplanStudioEditor extends LitElement {
   private addStairs() {
     this.stopDraw();
     const t = stairsAt(this.spawn(true), this.st.snapGrid);
-    this.st.addStairsEverywhere(t);
+    if (!this.st.addStairsEverywhere(t)) { this.refused(); return; }
     this.changed("Added stairs to every floor");
     this.ensureVisible(...t.pts);
   }
@@ -2432,13 +2464,13 @@ export class FloorplanStudioEditor extends LitElement {
   private floorDone(status: string) { this.stopDraw(); this.floor = this.st.floor; this.changed(status); }
   private renameFloor(key: string, title: string) {
     if (this.st.renameFloor(key, title)) this.floorDone(`Renamed floor to ${title.trim()}`);
-    else this.requestUpdate();
+    else this.refused();
   }
-  private moveFloor(key: string, delta: number) { if (this.st.moveFloor(key, delta)) this.floorDone(delta > 0 ? "Moved floor up" : "Moved floor down"); }
+  private moveFloor(key: string, delta: number) { if (this.st.moveFloor(key, delta)) this.floorDone(delta > 0 ? "Moved floor up" : "Moved floor down"); else this.refused(); }
   private deleteFloor(key: string) {
     const title = (hasOwn(this.st.layout.floors, key) ? this.st.layout.floors[key].title : "") || key;
     if (this.st.deleteFloor(key)) { this.floorDone(`Deleted floor ${title}`); this.focus({ preventScroll: true }); }
-    else this.requestUpdate();
+    else this.refused();
   }
   private async startAddFloor() {
     this.addingFloor = true;
@@ -2454,6 +2486,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (!title) { this.status = "Type a name for the floor, or press Esc"; return; }
     this.addingFloor = false;
     if (this.st.addFloor(title)) { this.floorDone(`Added floor ${title}`); this.focus({ preventScroll: true }); }
+    else this.refused();
   };
 
   private setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; this.placePos = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
@@ -2686,7 +2719,7 @@ export class FloorplanStudioEditor extends LitElement {
     for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
     const pressed = (b: boolean) => (b ? "true" : "false");
     return html`
-      ${this.banner ? html`<div class="banner ${this.banner.level}"><span class="banner-text" id="status" role=${this.banner.level === "error" ? "alert" : "status"}>${this.banner.text}</span><button class="banner-x" id="bannerClose" aria-label="Close message" @click=${() => this.closeBanner()}>×</button></div>` : nothing}
+      ${this.banner ? html`<div class="banner ${this.banner.level}"><span class="banner-text" id="status" role=${this.banner.level === "error" ? "alert" : "status"}>${this.banner.text}</span>${this.banner.action ? html`<button class="banner-act" id=${this.banner.action.id} @click=${this.banner.action.run}>${this.banner.action.label}</button>` : nothing}<button class="banner-x" id="bannerClose" aria-label="Close message" @click=${() => this.closeBanner()}>×</button></div>` : nothing}
       <div class="bar">
         ${Object.entries(st.layout.floors).map(([name, fl]) => html`<button class="chip" data-f=${name} aria-pressed=${pressed(name === st.floor)} @click=${() => this.setFloor(name)}>${fl.title || name}</button>`)}
         ${this.addingFloor
@@ -2695,7 +2728,7 @@ export class FloorplanStudioEditor extends LitElement {
         <div class="bar-right">
         <!-- S8.10 follow-up: status is the cluster's first item; growing it moves only its own left edge, never
              a button after it (see .status's own comment above). -->
-        <label class="fixplan ${st.planLocked ? "on" : ""}" title="Lock the plan: walls, rooms, areas, doors, windows, stairs and furniture stay as they are. Devices and objects can still be added, moved and removed"><input type="checkbox" id="fixPlan" .checked=${live(st.planLocked)} @change=${(e: Event) => { st.planLocked = (e.target as HTMLInputElement).checked; if (st.planLocked) this.stopDraw(); this.status = st.planLocked ? "Plan fixed: only devices and objects can change" : "Plan unlocked"; this.requestUpdate(); }}> ${st.planLocked ? "🔒" : "🔓"} Fix plan</label>
+        <label class="fixplan ${st.planLocked ? "on" : ""}" title="Lock the plan: walls, rooms, areas, doors, windows, stairs and furniture stay as they are. Devices and objects can still be added, moved and removed"><input type="checkbox" id="fixPlan" .checked=${live(st.planLocked)} @change=${(e: Event) => this.setPlanLocked((e.target as HTMLInputElement).checked)}> ${st.planLocked ? "🔒" : "🔓"} Fix plan</label>
         <details class="menu" id="filter" @toggle=${this.onMenuToggle}><summary class="btn" aria-label="Filter devices">${st.filter.length ? `Filter: ${st.filter.length} type${st.filter.length > 1 ? "s" : ""}` : `Filter: all (${f.devices.length})`}</summary><div class="box">
           <button class="btn keep" id="filterAll" ?disabled=${!st.filter.length} @click=${() => { st.filter = []; st.sel = null; this.requestUpdate(); }}>All</button>
           ${TYPE_LABELS.filter(([t]) => counts[t]).map(([t, label]) => html`<button class="btn keep" data-filter=${t} aria-pressed=${pressed(st.filter.includes(t))} @click=${() => { st.filter = st.filter.includes(t) ? st.filter.filter((x) => x !== t) : [...st.filter, t]; st.sel = null; this.requestUpdate(); }}>${label} (${counts[t]})</button>`)}
@@ -2877,6 +2910,14 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.setHelp(!wasOpen);
     this.requestUpdate();
     if (wasOpen) this.renderRoot.querySelector<HTMLButtonElement>("#help")?.focus({ preventScroll: true });
+  }
+
+  /** Closes every open toolbar menu and its submenus, and focuses the button of the first one. False when none was open. */
+  private closeMenuByKey(): boolean {
+    const open = [...this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]")];
+    open.forEach((m) => { m.open = false; this.closeSubs(m); });
+    open[0]?.querySelector<HTMLElement>(":scope > summary")?.focus({ preventScroll: true });
+    return open.length > 0;
   }
 
   private closeMenus() {

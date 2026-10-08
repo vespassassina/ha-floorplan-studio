@@ -131,7 +131,7 @@ const texturePreview = (t: { id: string; preview: string }) =>
 function paintControls(c: PanelCtx, on: "rooms" | "stairs", i: number, id: string, shape: { color?: string; texture?: string; textureRot?: number; textureScale?: number }) {
   const cur = (shape.color ?? "").toLowerCase(), custom = c.st.layout.palette ?? [];
   const swatch = (hex: string, name: string, extra = "") => html`<button class=${`sw${extra}`} type="button" title=${name} aria-label=${name} aria-pressed=${String(!shape.texture && cur === hex)} style="background:${hex}" @click=${() => c.paint(on, i, { color: hex })}></button>`;
-  return html`<label for=${`${id}col`}>colour</label><input id=${`${id}col`} type="color" .value=${shape.color ?? "#ffffff"} @change=${(e: Event) => c.paint(on, i, { color: val(e) })}>
+  return html`<label for=${`${id}col`}>colour</label><input id=${`${id}col`} type="color" .value=${live(shape.color ?? "#ffffff")} @change=${(e: Event) => c.paint(on, i, { color: val(e) })}>
     <div class="swatches" role="group" aria-label="Colours">${FLOOR_COLOURS.map((k) => swatch(k.hex, k.name))}${custom.map((hex) => swatch(hex, `Custom ${hex}`, " custom"))}</div>
     <div class="swatches" role="group" aria-label="Textures">${TEXTURES.map((t) => html`<button class="sw tex" type="button" title=${t.name} aria-label=${t.name} aria-pressed=${String(shape.texture === t.id)} style=${texturePreview(t)} @click=${() => c.paint(on, i, { texture: t.id })}></button>`)}</div>
     ${shape.texture ? html`<label for=${`${id}rot`}>texture rotation</label>
@@ -152,7 +152,7 @@ function paintControls(c: PanelCtx, on: "rooms" | "stairs", i: number, id: strin
 }
 
 function text(label: string, id: string, value: string, on: (v: string) => void, disabled = false, title?: string) {
-  return html`<label for=${id}>${label}</label><input id=${id} type="text" ?disabled=${disabled} .value=${value} title=${title ?? nothing} @change=${(e: Event) => on(val(e))}>`;
+  return html`<label for=${id}>${label}</label><input id=${id} type="text" ?disabled=${disabled} .value=${live(value)} title=${title ?? nothing} @change=${(e: Event) => on(val(e))}>`;
 }
 /** A number field. It always shows what the state holds: `refresh` re-renders it after every change, so a refused or clamped value snaps back. */
 function number(c: PanelCtx, label: string, id: string, value: number | string, on: (v: number) => void) {
@@ -216,13 +216,13 @@ const rotationSlider = (c: PanelCtx, id: string, on: "furniture" | "unlinked", i
     @change=${(e: Event) => c.rotateItem(on, i, Number(val(e)), "commit")}>
   <span class="rot-val" id=${`${id}val`}>${Math.round(rot) % 360}°</span></div>`;
 function select(label: string, id: string, value: string, options: readonly string[], on: (v: string) => void, names: Record<string, string> = {}) {
-  return html`<label for=${id}>${label}</label><select id=${id} .value=${value} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${names[o] ?? o}</option>`)}</select>`;
+  return html`<label for=${id}>${label}</label><select id=${id} .value=${live(value)} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${names[o] ?? o}</option>`)}</select>`;
 }
 /** What the door type select shows where it differs from the stored kind id (`slit` is stored, "slit window" is read). */
 const DOOR_KIND_NAMES: Record<string, string> = { slit: "slit window" };
 export const ROOM_LABELS: Record<RoomKind, string> = { room: "Room", garden: "Garden", pavement: "Pavement", fill: "Fill", terrace: "Terrace", structure: "Structure", zone: "Zone", water: "Water" };
 const kindSelect = (value: string, on: (v: string) => void) =>
-  html`<label for="rk">kind</label><select id="rk" .value=${value} @change=${(e: Event) => on(val(e))}>${ROOM_KINDS.map((k) => html`<option value=${k} ?selected=${k === value}>${ROOM_LABELS[k]}</option>`)}</select>`;
+  html`<label for="rk">kind</label><select id="rk" .value=${live(value)} @change=${(e: Event) => on(val(e))}>${ROOM_KINDS.map((k) => html`<option value=${k} ?selected=${k === value}>${ROOM_LABELS[k]}</option>`)}</select>`;
 /** `cls` adds a style: `warn` (orange) for what deletes an item, `danger` (red) for what deletes a floor or resets everything.
  *  `title` carries detail that does not fit the sidebar's hint line, reachable on hover. */
 const button = (id: string, label: string, on: () => void, cls = "", title?: string) => html`<button class=${cls ? `btn ${cls}` : "btn"} id=${id} title=${title ?? nothing} @click=${on}>${label}</button>`;
@@ -272,6 +272,9 @@ function entityField(c: PanelCtx, id: string, label: string, cur: string | undef
  * while open, so the reader can follow a step and do it with the guide still visible; the button that opens it is
  * in the toolbar (editor-app.ts), which also gives focus back to itself when this panel's Close button is used.
  */
+/** A guide body with each `[Label]` shown as the bold name of the control, brackets dropped. Split, not innerHTML: text stays text. */
+const guideBody = (body: string) => body.split(/\[([^\]]+)\]/).map((part, k) => (k % 2 ? html`<b class="ctl">${part}</b>` : part));
+
 export function helpPanel(close: () => void): TemplateResult {
   return html`<strong>? Help</strong>
     <p><button class="btn" id="helpClose" @click=${close}>Close</button></p>
@@ -279,7 +282,7 @@ export function helpPanel(close: () => void): TemplateResult {
       ${CONTROLS.map((c) => html`<tr><th scope="row"><kbd>${c.keys}</kbd></th><td>${c.does}</td></tr>`)}
     </table>
     <ol class="guide">
-      ${GUIDE_STEPS.map((s) => html`<li><details><summary>${s.title}</summary><p>${s.body}</p></details></li>`)}
+      ${GUIDE_STEPS.map((s) => html`<li><details><summary>${s.title}</summary><p>${guideBody(s.body)}</p></details></li>`)}
     </ol>`;
 }
 
@@ -412,7 +415,7 @@ function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
   return html`<strong>${WALL_LABELS[kind] ?? "Wall"}</strong>
     ${hint("Second end moves; shared corners follow.")}
     ${editable ? heading("Identity") : nothing}
-    ${editable ? html`<label for="ek">kind</label><select id="ek" .value=${kind} @change=${(e: Event) => c.commit((f) => setEdgeKind(f, s.poly, s.i, val(e) as EdgeKind))}>${EDGE_KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${WALL_LABELS[k]}</option>`)}</select>` : nothing}
+    ${editable ? html`<label for="ek">kind</label><select id="ek" .value=${live(kind)} @change=${(e: Event) => c.commit((f) => setEdgeKind(f, s.poly, s.i, val(e) as EdgeKind))}>${EDGE_KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${WALL_LABELS[k]}</option>`)}</select>` : nothing}
     ${heading("Appearance")}
     ${number(c, "length (m)", "elen", (dist(a, b) / 100).toFixed(2), (m) => set({ length: m }))}
     ${hint(`angle ${ang.toFixed(1)}°`, true)}
@@ -469,7 +472,7 @@ function extraPanel(c: PanelCtx, i: number) {
  */
 function lockField(c: PanelCtx, id: string, list: "walls" | "doors" | "openings", i: number) {
   const locked = !!c.st.f[list][i].locked;
-  return html`<label><input type="checkbox" id=${id} .checked=${locked} @change=${(e: Event) => c.commit((f) => { f[list][i].locked = (e.target as HTMLInputElement).checked; })}> length locked</label>`;
+  return html`<label><input type="checkbox" id=${id} .checked=${live(locked)} @change=${(e: Event) => c.commit((f) => { f[list][i].locked = (e.target as HTMLInputElement).checked; })}> length locked</label>`;
 }
 
 /** "angle (deg)": turns wall, door or opening `i` about its midpoint to the typed angle. Same angle, or rubbish: nothing. */
@@ -588,8 +591,9 @@ function openingPanel(c: PanelCtx, i: number) {
 
 function roomPanel(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
-  const toPlace = c.st.areaToPlace(i).length;
+  // S22.6: the Place entry comes first, under the title: on a room with HA devices left to place it is the main action, and lower down it sat below the fold.
   return html`<strong>Room</strong>
+    ${placeAreaButton(c, i)}
     ${r.kind === "zone" ? hint("Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag body to move; corners to reshape.") : nothing}
     ${section(c, "room:identity", "Identity", html`
@@ -601,8 +605,6 @@ function roomPanel(c: PanelCtx, i: number) {
     ${roomSensors(c, i)}
     ${roomScenesPanel(c, i)}
     ${c.st.ha ? section(c, "room:ha", "In this area (Home Assistant)", haBox(c, i)) : nothing}
-    ${toPlace ? heading("Links") : nothing}
-    ${placeAreaButton(c, i)}
     ${section(c, "room:appearance", "Appearance", html`
     ${kindSelect(r.kind, (v) => c.commit((f) => {
       const room = f.rooms[i];
@@ -911,7 +913,7 @@ function deviceTypeField(c: PanelCtx, i: number) {
     if (t !== "plug") delete dv.power;
     if (t !== "radar") delete dv.targets;
   });
-  return html`<label for="vtype">type</label><select id="vtype" .value=${d.type} @change=${(e: Event) => set(val(e))}>
+  return html`<label for="vtype">type</label><select id="vtype" .value=${live(d.type)} @change=${(e: Event) => set(val(e))}>
     ${typeOptions(TYPE_LABELS, d.type)}
   </select>`;
 }
@@ -1161,7 +1163,7 @@ function unlinkedPanel(c: PanelCtx, i: number) {
     ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(u.type), setAttached, { apply: mutateAttached, targetLabel: u.name ?? label })}
     ${heading("Appearance")}
     <label for="uucol">colour</label>
-    <input id="uucol" type="color" .value=${u.color ?? "#8b8578"} @change=${(e: Event) => c.commit((f) => { f.unlinked[i].color = val(e); })}>
+    <input id="uucol" type="color" .value=${live(u.color ?? "#8b8578")} @change=${(e: Event) => c.commit((f) => { f.unlinked[i].color = val(e); })}>
     ${button("uuclr", "Use default colour", () => c.commit((f) => { delete f.unlinked[i].color; }))}
     ${number(c, "scale", "uusc", u.scale, (n) => c.commit((f) => { f.unlinked[i].scale = Math.min(4, Math.max(0.25, n)); }))}
     ${heightField(c, "height (cm)", "uuht", u.height, UNLINKED_HEIGHTS[u.type] ?? 100, heightSetter(c, "unlinked", i, "height"))}
@@ -1197,7 +1199,7 @@ function stairsPanel(c: PanelCtx, i: number) {
     if (v !== "auto" && !(STAIR_DIRECTIONS as readonly string[]).includes(v)) return;
     c.commit((f) => { if (v === "auto") delete f.stairs[i].direction; else f.stairs[i].direction = v as StairDirection; });
   };
-  const directionSelect = html`<label for="sdir">direction</label><select id="sdir" .value=${t.direction ?? "auto"} @change=${(e: Event) => setDirection(val(e))}>
+  const directionSelect = html`<label for="sdir">direction</label><select id="sdir" .value=${live(t.direction ?? "auto")} @change=${(e: Event) => setDirection(val(e))}>
     <option value="auto" ?selected=${!t.direction}>Auto (${auto})</option>${STAIR_DIRECTIONS.map((d) => html`<option value=${d} ?selected=${d === t.direction}>${STAIR_DIRECTION_LABELS[d]}</option>`)}</select>`;
   return html`<strong>Stairs</strong>
     ${round ? hint("Drag to move; set size below.")

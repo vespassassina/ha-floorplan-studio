@@ -94,3 +94,39 @@ describe("EditorState: plan lock and scenes", () => {
     expect(st.edit((f) => { f.rooms[0].scenes = [{ id: "s2", name: "X", items: [{ entity: "light.demo_living", on: true }] }]; f.rooms[0].name = "Changed"; })).toBe(false); // both at once is still a plan change
   });
 });
+
+// Opus re-check of task/s22-fix: a writer that says no for its own reason (an empty or unchanged title, the last floor,
+// the same angle) must not leave `planBlocked` from an earlier refusal, or the editor blames the lock for it.
+describe("EditorState: planBlocked names only the lock's own refusals", () => {
+  beforeEach(() => localStorage.clear());
+  it("is cleared by a floor or rotate writer that refuses for its own reason, locked or not", () => {
+    const st = locked();
+    expect(st.renameFloor("ground", "Loft")).toBe(false);
+    expect(st.planBlocked).toBe(true);
+    for (const lock of [true, false]) {
+      st.planLocked = lock;
+      const refusals: [string, () => boolean][] = [
+        ["empty title", () => st.renameFloor("ground", "   ")],
+        ["same title", () => st.renameFloor("ground", " Ground ")],
+        ["unknown floor", () => st.deleteFloor("nope")],
+        ["off the list", () => st.moveFloor("ground", -1)],
+        ["same angle", () => st.setRotate(st.layout.rotate ?? 0)],
+        ["empty new floor", () => st.addFloor("  ") !== ""],
+      ];
+      for (const [why, run] of refusals) {
+        st.renameFloor("ground", "Loft"); // locked: sets the flag; unlocked: renames, so put it back
+        if (!lock) st.renameFloor("ground", "Ground");
+        expect(run(), why).toBe(false);
+        expect(st.planBlocked, why).toBe(false);
+      }
+    }
+  });
+  it("deleting the only floor under the lock is the last floor's refusal, not the lock's", () => {
+    const st = new EditorState(fresh());
+    st.deleteFloor("test"); st.deleteFloor("first");
+    st.planLocked = true;
+    st.renameFloor("ground", "Loft"); // a lock refusal first, so a stale flag would show
+    expect(st.deleteFloor("ground")).toBe(false);
+    expect(st.planBlocked).toBe(false);
+  });
+});

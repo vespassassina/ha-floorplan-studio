@@ -1,6 +1,6 @@
 // S14.2: the tap popup's markup and its placement. The card owns the state (floorplan-studio-card.ts); this draws it.
 import { css, html, nothing } from "lit";
-import type { Door } from "../core";
+import type { Device, Door } from "../core";
 import type { LightCaps, PopupOp } from "./popup";
 
 /** What a popup is about: a device, a door or an appliance, reduced to what the popup reads. `key` tells one subject from another (a second tap on the same one closes). */
@@ -16,6 +16,8 @@ export interface PopupSubject {
   door?: Door;
   /** A plug's power sensor, for the state line. */
   powerEntity?: string;
+  /** S22.1: a light with a `bound` relay: its state line and its button count the relay (`lampOp`). */
+  lamp?: Device;
 }
 
 export type SliderKind = "b" | "t" | "h";
@@ -99,20 +101,38 @@ export function popupTemplate(v: PopupView) {
   </div>`;
 }
 
-/** Puts `el` (absolutely positioned in `host`) just below the point (client x, y), above it when there is no room below, and inside the host either way. */
+/** The part of the page the user sees, in client coordinates: the visual viewport (pinch zoom, an on-screen keyboard) when the
+ *  browser has one, else the window. */
+function visibleBox(): { left: number; top: number; right: number; bottom: number } {
+  const vv = typeof window !== "undefined" ? window.visualViewport : null;
+  if (vv && vv.width > 0 && vv.height > 0) return { left: vv.offsetLeft, top: vv.offsetTop, right: vv.offsetLeft + vv.width, bottom: vv.offsetTop + vv.height };
+  return { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+}
+
+/**
+ * Puts `el` (absolutely positioned in `host`) just below the point (client x, y), above it when there is no room below, and
+ * inside the host either way. S22.2: "inside" is the host cut to what the user can see (`visibleBox`), so on a card taller than
+ * the screen a tap low on the plan opens the popup above the point, not under the bottom edge. The popup's height is capped to
+ * that box, and its sliders scroll (POPUP_CSS). A host scrolled almost out of sight (less than 40 px showing) falls back to the
+ * host's own box, the rule before S22.2.
+ */
 export function placeNear(el: HTMLElement, host: HTMLElement, x: number, y: number, gap = 14, beside: DOMRect | null = null): void {
-  const h = host.getBoundingClientRect(), w = el.offsetWidth, ht = el.offsetHeight;
+  const h = host.getBoundingClientRect(), v = visibleBox();
+  let L = Math.max(h.left, v.left), T = Math.max(h.top, v.top), R = Math.min(h.right, v.right), B = Math.min(h.bottom, v.bottom);
+  if (R - L < 40 || B - T < 40) ({ left: L, top: T, right: R, bottom: B } = h);
+  el.style.maxHeight = `${Math.max(0, Math.round(B - T - 16))}px`; // the CSS cap (100% - 16px) for a host in full view
+  const w = el.offsetWidth, ht = el.offsetHeight;
+  const clampTop = (t: number) => Math.max(T + 4, Math.min(B - ht - 4, t));
   // Beside a list row, the popup goes to the side of the list and lines up with the row, so the rows under it stay reachable.
   if (beside) {
-    const right = beside.right - h.left + 8, room = right + w + 4 <= h.width;
-    el.style.left = `${Math.round(Math.max(4, room ? right : beside.left - h.left - w - 8))}px`;
-    el.style.top = `${Math.round(Math.max(4, Math.min(h.height - ht - 4, beside.top - h.top + beside.height / 2 - ht / 2)))}px`;
+    const right = beside.right + 8, room = right + w + 4 <= R;
+    el.style.left = `${Math.round(Math.max(L + 4, room ? right : beside.left - w - 8) - h.left)}px`;
+    el.style.top = `${Math.round(clampTop(beside.top + beside.height / 2 - ht / 2) - h.top)}px`;
     return;
   }
-  const left = Math.max(4, Math.min(h.width - w - 4, x - h.left - w / 2));
-  let top = y - h.top + gap;
-  if (top + ht > h.height - 4) top = y - h.top - gap - ht;
-  top = Math.max(4, Math.min(h.height - ht - 4, top));
-  el.style.left = `${Math.round(left)}px`;
-  el.style.top = `${Math.round(top)}px`;
+  const left = Math.max(L + 4, Math.min(R - w - 4, x - w / 2));
+  let top = y + gap;
+  if (top + ht > B - 4) top = y - gap - ht;
+  el.style.left = `${Math.round(left - h.left)}px`;
+  el.style.top = `${Math.round(clampTop(top) - h.top)}px`;
 }

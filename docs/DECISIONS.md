@@ -2,6 +2,28 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: the popup is placed inside what the user sees (S22.2)
+
+`placeNear` (popup-ui.ts) clamps to the host's box cut to the visual viewport (`window.visualViewport`, else the window), not to the host alone. Below the point first, above it when there is no room below, then clamped into that box. Its height is capped to the box less 16 px (the CSS cap the popup had for a host in full view), so in a very short window the sliders scroll and the button stays on screen. A host with less than 40 px showing falls back to its own box, the old rule. Not chosen: `position: fixed` (it would escape the card's stacking and need its own z-index and theme scope). The popup is placed when it opens and on each render, not on a page scroll.
+
+## 2026-10-08: how a relay-lit lamp is turned off (S22.1)
+
+Details of the change the entry below records. One rule, `lampOffEntities` (room-info.ts): a lamp's light entity when it is `on`, then its `bound` relay when that is `on`. The popup's Turn off (`lampOffCalls`) and the room and floor All off (`RoomSummary.offEntities`, which replaces `lightsOnEntities`) both send it through `presetCalls`, so a `switch.*` relay gets `switch.turn_off` and any other domain `homeassistant.turn_off`. A relay several lamps share is in the list once.
+- **No confirm.** A switch's Turn off normally asks first. Here the relay is the lamp, so it acts at once, as a light's and as All off do.
+- **State line.** Only when the relay is on and the light entity is not, the popup and the tooltip read "on · via <relay friendly name or entity id>". With the light on, its own line stays (brightness). With the relay on and the light unavailable, the button is still Turn off.
+- **More info.** A new `moreInfoEntities` adds `bound` after `entitiesOfDevice`, so the chooser lists the light, then the relay. `entitiesOfDevice` is unchanged: it also says which entities a room owns, and a relay elsewhere is not that room's.
+- Turn on is as before: `light.turn_on` on the light. A room panel row still shows the light entity's own state; not changed here.
+Tests changed on purpose: three S20.1/S20.2 Playwright tests (card-floor-select.spec.ts) and one unit test (room-info.test.ts) that pinned "a relay-lit lamp is not a target"; the Active row test in card-room-select.spec.ts, whose More info now opens the chooser for the demo's bound Living light.
+
+## 2026-10-08: the 2026-10-08 review becomes sprints 22 to 30, and three earlier decisions change
+
+Diego said yes to the review's plan (docs/PLAN.md, "Roadmap after the 2026-10-08 review"). He did not answer the open questions, so the defaults the review proposed stand:
+- **Relay-lit lamps (C1, sprint 22).** Supersedes "a lamp lit only by its relay is not a target" (2026-10-07, All off). A lamp drawn on must be one the card can turn off. All off and the lamp's popup call `switch.turn_off` on a bound relay that is on. The relay joins the More info chooser. The stress run left 6 of 25 lamps on after All off, with no way to turn them off.
+- **Dark-theme empty rooms (V16, sprint 23).** Supersedes the 2026-09-21 choice of `#d6d6d2` for every theme. Each dark theme takes its empty-room colour from its own ramp. Blueprint room names measured 1.15:1 on it.
+- **Furniture colour (V23, sprint 23).** Supersedes the 2026-09-23 flat grey. Furniture takes its colour from the theme ramp.
+- **Name.** Two other repos are called Floorplan Studio. We keep the name.
+- **Digital Twin app.** A separate repo in `~/Documents/XCode/FloorPlanTwin`. A spike only, after sprint 24.
+
 ## 2026-10-08: the cone's room is the one it looks into (S21.1, supersedes the room rule of the entry below)
 
 Opus review: the entry below took the room holding the camera's own point (`roomAt(floorAt)`). A camera is mounted on a wall, which is the room's edge, and `inside` counts the north and west edge in and the south and east edge out. So a camera on a wall aiming out lost its cone or kept it by which wall it hung on, and one on a wall two rooms share took whichever room `inside` favoured, not the one it faced.

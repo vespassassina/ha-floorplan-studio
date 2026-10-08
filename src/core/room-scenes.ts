@@ -1,6 +1,7 @@
 import { SCENE_DOMAINS } from "./schema";
-import type { Floor, Room, RoomScene, SceneItem } from "./schema";
-import { roomSummary } from "./room-info";
+import type { Device, Floor, Room, RoomScene, SceneItem } from "./schema";
+import { lampOffEntities, roomSummary } from "./room-info";
+import type { StateOverlay } from "./render";
 
 // S14.7: room scenes (docs/specs/card-polish-and-light.md, item 19). Pure rules, no DOM: which scenes a room offers and which
 // service calls each one makes. Every input is untrusted (CLAUDE.md finding 1): a malformed room, scene or hass reads as
@@ -100,6 +101,12 @@ export function presetCalls(which: "on" | "off", lights: string[]): SceneCall[] 
     (by[d === "light" || d === "switch" ? d : "homeassistant"] as string[]).push(e);
   }
   return Object.entries(by).filter(([, ids]) => ids.length).map(([domain, ids]) => ({ domain, service, data: { entity_id: ids } }));
+}
+
+/** S22.1: Turn off on one lamp's popup: `presetCalls` over `lampOffEntities`, so a relay goes to `switch.turn_off` (or
+ *  `homeassistant.turn_off` for another domain) next to the light's own `light.turn_off`. No calls for a lamp drawn off. */
+export function lampOffCalls(d: Device, state: StateOverlay | undefined): SceneCall[] {
+  return presetCalls("off", lampOffEntities(d, state));
 }
 
 /** What the Room section lists for `f.rooms[index]`. All three empty: show no scene section. */

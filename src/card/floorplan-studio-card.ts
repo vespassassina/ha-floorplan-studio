@@ -1,10 +1,10 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEFAULT_MOTION_FADE_S, customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, floorSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { ALL_OFF_TITLE, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, floorSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { ActiveDevice, DeviceType, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
-import { lightCaps, popupOp, type PopupOp } from "./popup";
+import { lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
 import { SCENES_CSS, scenesTemplate } from "./room-scenes-ui";
 import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind } from "./popup-ui";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
@@ -1626,7 +1626,8 @@ export class FloorplanStudioCard extends LitElement {
   private _deviceSubject(d: Device, name?: string): PopupSubject {
     const friendly = this._hass?.states[d.entity]?.attributes?.friendly_name;
     return {
-      key: `d:${d.entity || d.id}`, type: d.type, entity: d.entity || undefined, entities: entitiesOfDevice(d),
+      key: `d:${d.entity || d.id}`, type: d.type, entity: d.entity || undefined, entities: moreInfoEntities(d),
+      ...(d.type === "light" && d.bound ? { lamp: d } : {}),
       name: name || d.name || (typeof friendly === "string" && friendly) || d.entity || d.id,
       powerEntity: d.power || (d.type === "plug" ? this._powerLinks()?.[d.entity] : undefined),
     };
@@ -1647,6 +1648,12 @@ export class FloorplanStudioCard extends LitElement {
   private _subjectText(s: PopupSubject): string {
     const states = this._hass?.states, e = s.door?.cover || (s.door ? s.entities[0] : s.entity);
     if (!e) return "";
+    // S22.1: a lamp lit only by its relay reads as the plan draws it, and names what keeps it on.
+    const relay = s.lamp?.bound, rs = relay ? states?.[relay] : undefined;
+    if (relay && rs?.state === "on" && states?.[e]?.state !== "on") {
+      const friendly = rs.attributes?.friendly_name;
+      return `on · via ${typeof friendly === "string" && friendly ? friendly : relay}`;
+    }
     const w = s.powerEntity ? wattsOf(states?.[s.powerEntity]) : null;
     return stateText(s.type, states?.[e], w === null ? undefined : `${Math.round(w * 10) / 10} W`);
   }
@@ -1691,7 +1698,8 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   private _popupOp(s: PopupSubject): PopupOp | null {
-    return s.door ? null : popupOp(s.type, s.entity, this._hass?.states[s.entity ?? ""]?.state);
+    if (s.door) return null;
+    return s.lamp ? lampOp(s.lamp, this._hass?.states) : popupOp(s.type, s.entity, this._hass?.states[s.entity ?? ""]?.state);
   }
 
   private _popupTemplate() {
@@ -1729,7 +1737,8 @@ export class FloorplanStudioCard extends LitElement {
     const op = this._popupOp(p.s);
     if (!op || !p.s.entity) return;
     if (op.confirm && !p.confirming) { p.confirming = true; this.requestUpdate(); return; }
-    this._hass?.callService?.(op.domain, op.service, { entity_id: p.s.entity });
+    if (op.calls) for (const c of op.calls) this._hass?.callService?.(c.domain, c.service, c.data);
+    else this._hass?.callService?.(op.domain, op.service, { entity_id: p.s.entity });
     this._closePopup();
   }
 
@@ -2309,8 +2318,9 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
-  /** S20.1: the room's or floor's All off. One call per domain over the lights that are on (`presetCalls`, the scene preset's
-   *  own builder): in practice one `light.turn_off`. A light that is off is not in the list, so it is not called. */
+  /** S20.1: the room's or floor's All off. One call per domain (`presetCalls`, the scene preset's own builder) over
+   *  `offEntities`: the lights that are on, and (S22.1) the bound relays that are on, each once. In practice one
+   *  `light.turn_off` and, with a relay-lit lamp, one `switch.turn_off`. */
   private _allOff(lights: string[]): void {
     for (const c of presetCalls("off", lights)) this._hass?.callService?.(c.domain, c.service, c.data);
     this.requestUpdate();
@@ -2333,7 +2343,7 @@ export class FloorplanStudioCard extends LitElement {
         <button type="button" class="fp-room-clear" aria-label=${scope.clear} @click=${() => this._pickRoom(null)}>×</button>
       </div>
       <dl class="fp-room-facts">${facts.filter(([, v]) => v).map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
-      ${s.lightsOnEntities.length ? html`<div class="fp-alloff-row"><button type="button" class="fp-alloff" aria-label=${`Turn off all lights in ${s.name || scope.unnamed}`} title="Turn off the lights that are on here" @click=${() => this._allOff(s.lightsOnEntities)}>All off</button></div>` : nothing}
+      ${s.offEntities.length ? html`<div class="fp-alloff-row"><button type="button" class="fp-alloff" aria-label=${`Turn off all lights in ${s.name || scope.unnamed}`} title=${this._layout ? allOffTitle(this._layout.floors, this._floorKey() ?? "", s) : ALL_OFF_TITLE} @click=${() => this._allOff(s.offEntities)}>All off</button></div>` : nothing}
       ${this._scenesBlock()}
       ${active}
       <div class="fp-active-group-label">Devices</div>
