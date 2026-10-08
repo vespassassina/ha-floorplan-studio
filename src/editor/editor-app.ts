@@ -1886,6 +1886,9 @@ export class FloorplanStudioEditor extends LitElement {
     if (isSaveChord(ev) && !ev.defaultPrevented && !ev.isComposing) { ev.preventDefault(); this.saveByKey(); return; }
     const vk = viewKeyFor(ev);
     if (vk) { this.doViewKey(vk, ev); return; }
+    // S22.5: Escape closes an open toolbar menu first, and does nothing else on that press. Ahead of the input check,
+    // since Filter holds checkboxes and Add holds selects. Focus goes back to the menu's own button.
+    if (ev.key === "Escape" && !ev.defaultPrevented && this.closeMenuByKey()) { ev.preventDefault(); return; }
     const t = ev.composedPath()[0] as HTMLElement | undefined;
     if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); this.undo(!ev.shiftKey); return; }
@@ -2891,6 +2894,14 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.setHelp(!wasOpen);
     this.requestUpdate();
     if (wasOpen) this.renderRoot.querySelector<HTMLButtonElement>("#help")?.focus({ preventScroll: true });
+  }
+
+  /** Closes every open toolbar menu and its submenus, and focuses the button of the first one. False when none was open. */
+  private closeMenuByKey(): boolean {
+    const open = [...this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]")];
+    open.forEach((m) => { m.open = false; this.closeSubs(m); });
+    open[0]?.querySelector<HTMLElement>(":scope > summary")?.focus({ preventScroll: true });
+    return open.length > 0;
   }
 
   private closeMenus() {
