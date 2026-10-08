@@ -2710,7 +2710,7 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       `role="img"` and `aria-label="Floor plan, <floor>"`. The column collapses with a button and starts collapsed
       under 1100 px. Test: on the stress layout, `/`, a few letters, Enter: the device is selected and its icon's box
       sits in the canvas centre; the same through the tree by keyboard alone.
-- [ ] S24.6 (U6, U17, U16) Studio Layers replace Filter. A Layers tab beside Outline: one eye per family (the card's
+- [x] S24.6 (U6, U17, U16) Studio Layers replace Filter. A Layers tab beside Outline: one eye per family (the card's
       categories plus Furniture), all visible by default, one click hides, alt-click shows only that family. The
       status line names what is hidden ("Layers: lights hidden", "3 of 10 hidden"). Placing under a hidden layer says
       "Placed 7; 3 hidden by Layers [Show]". Room-scoped lists show friendly names with the id as small text, reuse

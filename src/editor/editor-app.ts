@@ -1,8 +1,8 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEFAULT_MOTION_FADE_S, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, unplacedDevicesInArea, validate, viewBoxFor, wallWidthAt } from "../core";
-import type { AddCandidate, DeviceType, Floor, HaData, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
+import { DEFAULT_MOTION_FADE_S, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, areaMenuEntities, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer } from "../core";
+import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
 import { BANNER_MS, bannerLevel, isQuiet, type BannerLevel } from "./banner";
@@ -138,6 +138,9 @@ const HA_KIND_LABELS: [Labelled["kind"], string][] = [["helper", "Helpers"], ["a
 const TURN_MS = 350;
 /** A view change is written this long after the last one. Short, so a reload right after a touch still finds it. */
 const VIEW_SAVE_MS = 150;
+/** mdiEye and mdiEyeOff, for the Layers rows (S24.6). Here, not in core's UI_ICONS, so the card bundle does not carry them. */
+const EYE = "M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z";
+const EYE_OFF = "M11.83,9L15,12.16C15,12.11 15,12.05 15,12A3,3 0 0,0 12,9C11.94,9 11.89,9 11.83,9M7.53,9.8L9.08,11.35C9.03,11.56 9,11.77 9,12A3,3 0 0,0 12,15C12.22,15 12.44,14.97 12.65,14.92L14.2,16.47C13.53,16.8 12.79,17 12,17A5,5 0 0,1 7,12C7,11.21 7.2,10.47 7.53,9.8M2,4.27L4.28,6.55L4.73,7C3.08,8.3 1.78,10 1,12C2.73,16.39 7,19.5 12,19.5C13.55,19.5 15.03,19.2 16.38,18.66L16.81,19.08L19.73,22L21,20.73L3.27,3M12,7A5,5 0 0,1 17,12C17,12.64 16.87,13.26 16.64,13.82L19.57,16.75C21.07,15.5 22.27,13.86 23,12C21.27,7.61 17,4.5 12,4.5C10.6,4.5 9.26,4.75 8,5.2L10.17,7.35C10.74,7.13 11.35,7 12,7Z";
 /** S24.5: how long the ring stays round what a search or the Outline went to: three beats of `fp-locate`. */
 const LOCATE_MS = 2400;
 
@@ -212,6 +215,8 @@ export class FloorplanStudioEditor extends LitElement {
   private installCodeOpen = false;
   /** S24.5: the left column (the Outline tab; S24.6 adds Layers). Open or collapsed by its own button; starts collapsed under 1100 px. */
   private sideOpen = (() => { try { return matchMedia("(min-width:1100px)").matches; } catch { return true; } })();
+  /** S24.6: which tab of the left column is on show. Not remembered: the column opens on Outline. */
+  private sideTab: "outline" | "layers" = "outline";
   /** The Outline's open branches (the floor on show at first), its filter, the row in the tab order, and whether that row takes focus after the next render. */
   private outlineOpen = new Set<string>();
   private outlineSeeded = false;
@@ -352,7 +357,7 @@ export class FloorplanStudioEditor extends LitElement {
   /** Cheap stand-in for the view: when it is unchanged, `exportView` need not run on every render. */
   private viewKey(): string {
     const st = this.st;
-    return `${st.floor}|${st.labels}|${st.viewRot}|${JSON.stringify(st.views)}`;
+    return `${st.floor}|${st.labels}|${st.viewRot}|${st.hidden.join(",")}|${JSON.stringify(st.views)}`;
   }
 
   protected updated() {
@@ -424,6 +429,7 @@ export class FloorplanStudioEditor extends LitElement {
     /* The room Sensors section: one framed box per kind round its picker and its list, names smaller than the form text. */
     .sens-box{border:1px solid var(--fp-primary);border-radius:6px;padding:6px 8px;margin:6px 0;background:color-mix(in srgb,var(--fp-primary) 7%,transparent)}
     .sens-box .attach-row{font-size:11px}
+    .attach-row .eid{font-size:.8em;opacity:.7}
     .menu{position:relative}
     .menu>summary{list-style:none;display:inline-block}
     .menu>summary::-webkit-details-marker{display:none}
@@ -438,6 +444,8 @@ export class FloorplanStudioEditor extends LitElement {
     .box .btn,.box .chip,.box select{width:100%;text-align:left}
     .ctxmenu{position:fixed;z-index:30;max-height:70vh;overflow:auto;min-width:200px;display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
     .ctxmenu .btn{width:100%;text-align:left}
+    .ctxmenu .cm-ent{display:flex;flex-direction:column;align-items:flex-start;gap:1px}
+    .ctxmenu .cm-ent small{font-size:.78em;opacity:.7}
     .devcols-panel{position:fixed;z-index:30;width:560px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
     .devcols-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--fp-idle);font-weight:600;cursor:move;touch-action:none}
     .devcols-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
@@ -526,6 +534,19 @@ export class FloorplanStudioEditor extends LitElement {
     .tab{font:inherit;color:var(--fp-ink);background:transparent;border:0;border-bottom:2px solid transparent;padding:3px 8px;cursor:pointer}
     .tab[aria-selected="true"]{border-bottom-color:var(--fp-ink);font-weight:600}
     .side-body{display:flex;flex-direction:column;gap:6px;padding:6px;flex:1;min-height:0}
+    /* S24.6: Layers rows. A hidden family is struck through with its eye shut; one with nothing on this floor is dimmed, still listed. */
+    .lhint{margin:0;font-size:.82em;opacity:.75}
+    .layers{display:flex;flex-direction:column;gap:2px;overflow:auto;min-height:0}
+    .lrow{display:flex;align-items:center;gap:8px;font:inherit;font-size:.92em;color:var(--fp-ink);background:transparent;border:0;border-radius:4px;padding:4px 6px;cursor:pointer;text-align:left}
+    .lrow:hover{background:color-mix(in srgb,var(--fp-ink) 10%,transparent)}
+    .lrow:focus-visible{outline:2px solid var(--fp-ink);outline-offset:-2px}
+    .lrow.empty{opacity:.5}
+    .lrow[aria-pressed="false"] .ll{text-decoration:line-through}
+    .lrow[aria-pressed="false"] .leye{opacity:.6}
+    .leye{flex:none;width:18px;height:18px;fill:currentColor}
+    .ll{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .lc{flex:none;font-size:.85em;opacity:.75;font-variant-numeric:tabular-nums}
+    .layers-note{font-size:.85em;max-width:16em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #outlineFilter{width:100%;box-sizing:border-box;flex:none}
     .tree{flex:1;min-height:0;overflow:auto}
     .ti{display:flex;align-items:center;gap:4px;padding:2px 6px 2px calc(2px + var(--lvl,0) * 14px);border-radius:4px;cursor:pointer;white-space:nowrap;font-size:.92em}
@@ -1245,9 +1266,10 @@ export class FloorplanStudioEditor extends LitElement {
   private closePlace() { this.placeRoom = null; this.placePos = null; this.requestUpdate(); }
   /** Places the ticked rows (one undo step, `EditorState.placeArea`) and closes the popup. */
   private placeGo(i: number, ids: string[]) {
+    const before = this.counted();
     const n = this.st.placeArea(i, new Set(ids));
     this.closePlace();
-    if (n) this.changed(`Placed ${n} device${n === 1 ? "" : "s"}. Drag each to its spot.`);
+    if (n) this.placedNote(before, `Placed ${n} device${n === 1 ? "" : "s"}. Drag each to its spot.`, `Placed ${n} device${n === 1 ? "" : "s"}`);
   }
 
   // ---- S17.3: the scene designer popup --------------------------------------------------------------------------------
@@ -1642,9 +1664,10 @@ export class FloorplanStudioEditor extends LitElement {
     const t = this.ctxMenu?.target;
     if (!t || t.k !== "room") return;
     const m = this.ctxMenu!;
+    const before = this.counted();
     if (!this.st.addFromArea(t.i, e, this.toSvg({ clientX: m.x, clientY: m.y }))) return;
     this.closeCtxMenu();
-    this.changed(`Added ${e.name}. Drag it to its spot.`);
+    this.placedNote(before, `Added ${e.name}. Drag it to its spot.`, `Added ${e.name}`);
   }
 
   /** S4.18/S4.27's menu markup, positioned at the click (`position:fixed`, so no container-relative math is needed). */
@@ -1809,13 +1832,14 @@ export class FloorplanStudioEditor extends LitElement {
   private roomCtxItems(i: number) {
     const st = this.st, r = st.f.rooms[i], ha = st.ha;
     // S8.6: one row per device (its main entity), not one per raw entity — a plug offers itself, not its power sensor.
-    const unplaced = r?.area ? unplacedDevicesInArea(st.layout, ha, r.area) : [];
+    // S24.6 (U16): and only what Place offers (`areaMenuEntities`): no loose power sensor, scene or battery.
+    const unplaced = r?.area ? areaMenuEntities(st.layout, ha, r.area) : [];
     return html`<button class="btn" id="cmColour" @click=${() => this.closeCtxMenu()}>Change colour</button>
       <button class="btn" id="cmToFront" @click=${() => this.ctxBringToFront()}>Bring to front</button>
       <button class="btn" id="cmToBack" @click=${() => this.ctxSendToBack()}>Send to back</button>
       <button class="btn warn" id="cmDelete" @click=${() => this.ctxDelete()}>Delete</button>
       ${unplaced.length ? html`<div class="sep"></div><span class="grp">Add device from ${r!.name}</span>
-        ${unplaced.map((e) => html`<button class="btn" @click=${() => this.addFromArea(e)}>${e.name} (${TYPE_LABELS.find((t) => t[0] === typeForEntity(e, ha))?.[1] ?? typeForEntity(e, ha)})</button>`)}` : nothing}`;
+        ${unplaced.map((e) => html`<button class="btn cm-ent" @click=${() => this.addFromArea(e)}><span>${e.name} (${TYPE_LABELS.find((t) => t[0] === typeForEntity(e, ha))?.[1] ?? typeForEntity(e, ha)})</span><small>${e.id}</small></button>`)}` : nothing}`;
   }
 
   /** S4.27: Change type, Add a point (edges only), Add an opening, Delete — with the same doors/windows confirm dance as the edge panel's own Delete. */
@@ -2093,6 +2117,12 @@ export class FloorplanStudioEditor extends LitElement {
         if (d) { st.sel = { t: "dev", i }; this.centreOn("a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y]); this.pulse("dev", i); }
       }
       this.revealInOutline(`d:${e.id}`);
+      // S24.6: search and the Outline do not follow Layers. The pick is selected and drawn; the banner says why the rest of its family is not.
+      const fam: LayerId | undefined = e.piece ? (f.furniture[i] ? "furniture" : undefined) : f.devices[i] && layerOfType(f.devices[i].type);
+      if (fam && st.hidden.includes(fam)) {
+        const label = LAYERS.find((l) => l.id === fam)!.label.toLowerCase();
+        this.notify(`Hidden by Layers: ${label}`, "warning", { id: "layersShow", label: "Show", run: () => this.showLayers([fam]) });
+      }
     } else if (e.kind === "floor") {
       this.revealInOutline(`f:${e.floor}`);
     }
@@ -2194,20 +2224,75 @@ export class FloorplanStudioEditor extends LitElement {
     return hit ? hit.node.id : null;
   }
   private sideView(tree: OutlineNode[]) {
-    const open = this.sideOpen, pressed = open ? "true" : "false";
+    const open = this.sideOpen, pressed = open ? "true" : "false", tab = this.sideTab;
     let body: unknown = nothing;
-    if (open) {
+    if (open && tab === "layers") body = this.layersView();
+    else if (open) {
       const rows = this.outlineRows(tree);
       body = html`<div class="side-body" id="sideBody" role="tabpanel" aria-labelledby="tabOutline">${outlineView({ rows, open: this.outlineOpen, active: this.outlineActive, selected: this.outlineSelected(rows), query: this.outlineQuery, onQuery: this.onOutlineQuery, onKey: this.onOutlineKey, onRow: this.onOutlineRow, onToggle: this.onOutlineToggle })}</div>`;
     }
-    // S24.6 adds its Layers tab after Outline in the tablist, and its own panel in place of #sideBody when chosen.
+    const tabBtn = (id: "outline" | "layers", label: string) =>
+      html`<button class="tab" role="tab" id=${id === "outline" ? "tabOutline" : "tabLayers"} aria-selected=${tab === id ? "true" : "false"} aria-controls=${id === "outline" ? "sideBody" : "layersPanel"} @click=${() => { this.sideTab = id; this.requestUpdate(); }}>${label}</button>`;
     return html`<nav class="side ${open ? "open" : "shut"}" id="side" aria-label="Plan contents">
       <div class="side-head">
         <button class="btn side-x" id="sideToggle" aria-expanded=${pressed} aria-controls="side" aria-label=${open ? "Hide outline" : "Show outline"} title=${open ? "Hide the outline" : "Show the outline"} @click=${this.toggleSide}>${open ? "«" : "»"}</button>
-        ${open ? html`<div class="tabs" role="tablist" aria-label="Left column"><button class="tab" role="tab" id="tabOutline" aria-selected="true" aria-controls="sideBody">Outline</button></div>` : nothing}
+        ${open ? html`<div class="tabs" role="tablist" aria-label="Left column">${tabBtn("outline", "Outline")}${tabBtn("layers", "Layers")}</div>` : nothing}
       </div>
       ${body}
     </nav>`;
+  }
+
+  /** S24.6: one eye per family, its count on this floor. Click hides or shows it; alt-click shows only it (again: all). */
+  private layersView() {
+    const st = this.st, counts = layerCounts(st.f), hidden = st.hidden;
+    const eye = (on: boolean) => html`<svg class="leye" viewBox="0 0 24 24" aria-hidden="true"><path d=${on ? EYE : EYE_OFF}/></svg>`;
+    return html`<div class="side-body" id="layersPanel" role="tabpanel" aria-labelledby="tabLayers">
+      <p class="lhint">Click hides a family. ${navigator.platform?.includes("Mac") ? "Option" : "Alt"}-click shows only that one.</p>
+      <div class="layers">
+        ${LAYERS.map((l) => { const on = !hidden.includes(l.id), n = counts[l.id];
+          return html`<button class="lrow ${n ? "" : "empty"}" data-layer=${l.id} aria-pressed=${on ? "true" : "false"} title=${on ? `Hide ${l.label.toLowerCase()}` : `Show ${l.label.toLowerCase()}`} @click=${(e: MouseEvent) => this.setLayers(e.altKey ? soloLayer(hidden, l.id) : toggleLayer(hidden, l.id))}>${eye(on)}<span class="ll">${l.label}</span><span class="lc">${n}</span></button>`; })}
+      </div>
+      <button class="btn" id="layersShowAll" ?disabled=${!hidden.length} @click=${() => this.setLayers([])}>Show all</button>
+    </div>`;
+  }
+
+  /** The new hidden set. A selection on a family that just went out of sight is let go: an invisible handle helps nobody. A view change, not an edit. */
+  private setLayers(next: LayerId[]) {
+    const st = this.st;
+    st.hidden = next;
+    const s = st.sel, f = st.f;
+    if (s && "i" in s) {
+      const fam = s.t === "dev" ? f.devices[s.i] && layerOfType(f.devices[s.i].type) : s.t === "unl" ? f.unlinked[s.i] && layerOfType(f.unlinked[s.i].type) : s.t === "furn" ? "furniture" : undefined;
+      if (fam && next.includes(fam)) st.sel = null;
+    }
+    this.requestUpdate();
+  }
+  private openLayers = () => { this.sideOpen = true; this.sideTab = "layers"; this.requestUpdate(); };
+  /** Shows the given families again; the action behind every "hidden by Layers" banner's Show. */
+  private showLayers(ids: Iterable<LayerId>) {
+    const back = new Set(ids);
+    this.st.hidden = this.st.hidden.filter((x) => !back.has(x));
+    this.closeBanner();
+    this.requestUpdate();
+  }
+
+  /** What each floor holds before a placement, so `placedNote` can tell the new things from the old. */
+  private counted() {
+    return Object.fromEntries(Object.entries(this.st.layout.floors).map(([k, f]) => [k, { d: f.devices.length, f: f.furniture.length, u: f.unlinked.length }]));
+  }
+  /**
+   * S24.6 (U17): after a placement, says what it said before, unless some of what was just placed is on a hidden
+   * layer: then "<head>; N hidden by Layers" with Show, so nothing vanishes without a word. The selected new thing is
+   * still drawn (renderFloor's selection rule) but goes the moment it is let go.
+   */
+  private placedNote(before: ReturnType<FloorplanStudioEditor["counted"]>, plain: string, head: string) {
+    const st = this.st, f = st.f, b = before[st.floor] ?? { d: 0, f: 0, u: 0 };
+    const fams = [...f.devices.slice(b.d).map((d) => layerOfType(d.type)), ...f.unlinked.slice(b.u).map((u) => layerOfType(u.type)), ...f.furniture.slice(b.f).map((): LayerId => "furniture")];
+    const hid = fams.filter((x) => st.hidden.includes(x));
+    if (!hid.length) { this.changed(plain); return; }
+    const text = `${head}; ${fams.length === 1 ? "" : `${hid.length} `}hidden by Layers`;
+    this.changed(text);
+    if (this.status === text) this.notify(text, "warning", { id: "layersShow", label: "Show", run: () => this.showLayers(hid) });
   }
 
   // ---- actions -------------------------------------------------------------
@@ -2365,24 +2450,24 @@ export class FloorplanStudioEditor extends LitElement {
     if (!(FURNITURE_SYMBOLS as readonly string[]).includes(symbol)) return;
     if (this.st.planLocked) { this.planFixed(); return; }
     this.stopDraw();
-    const sym = symbol as keyof typeof FURNITURE, p = this.middle() ? this.spawnDevice() : this.spawn(), [x, y] = p, floor = this.st.floor;
-    this.commit((f) => { f.furniture.push({ id: newId(f, floor, "furniture"), symbol: sym, x, y, rot: 0, w: FURNITURE[sym].w, h: FURNITURE[sym].h }); });
+    const sym = symbol as keyof typeof FURNITURE, p = this.middle() ? this.spawnDevice() : this.spawn(), [x, y] = p, floor = this.st.floor, before = this.counted();
+    if (!this.st.edit((f) => { f.furniture.push({ id: newId(f, floor, "furniture"), symbol: sym, x, y, rot: 0, w: FURNITURE[sym].w, h: FURNITURE[sym].h }); })) { this.refused(); return; }
     this.ensureVisible([x - FURNITURE[sym].w / 2, y - FURNITURE[sym].h / 2], [x + FURNITURE[sym].w / 2, y + FURNITURE[sym].h / 2]);
     this.st.sel = { t: "furn", i: this.st.f.furniture.length - 1 };
-    this.requestUpdate();
+    this.placedNote(before, "Edited", `Added ${sym}`);
   }
   /** S4.25: places an unlinked appliance (a fixed icon by type, not tied to one entity's state). */
   private addUnlinked(type: string) {
     if (!(UNLINKED_TYPES as readonly string[]).includes(type)) return;
     this.stopDraw();
-    const t = type as DeviceType, p = this.spawnDevice(), [x, y] = p, floor = this.st.floor;
-    this.commit((f) => { f.unlinked.push({ id: newId(f, floor, "unl"), type: t, x, y, rot: 0, scale: 1 }); });
+    const t = type as DeviceType, p = this.spawnDevice(), [x, y] = p, floor = this.st.floor, before = this.counted();
+    if (!this.st.edit((f) => { f.unlinked.push({ id: newId(f, floor, "unl"), type: t, x, y, rot: 0, scale: 1 }); })) { this.refused(); return; }
     this.ensureVisible([x - 30, y - 30], [x + 30, y + 30]);
     this.st.sel = { t: "unl", i: this.st.f.unlinked.length - 1 };
-    this.requestUpdate();
+    this.placedNote(before, "Edited", `Added ${t}`);
   }
   private placeDevice(id: string) {
-    const st = this.st, c = st.layout.catalog.find((x) => x.id === id);
+    const st = this.st, c = st.layout.catalog.find((x) => x.id === id), before = this.counted();
     if (!c) return;
     // The clicked item leaves the list on the next render; take focus first or the focus-out clears the new selection.
     this.focus({ preventScroll: true });
@@ -2413,7 +2498,7 @@ export class FloorplanStudioEditor extends LitElement {
     st.sel = symbol ? { t: "furn", i: f.furniture.length - 1 } : { t: "dev", i: f.devices.length - 1 };
     const v = st.view;
     st.views[st.floor] = { ...v, x: ctr[0] - v.w / 2, y: ctr[1] - v.h / 2 };
-    this.changed(`Placed ${c.name}${room ? ` in ${room.name}` : ""}. Drag it to its spot.`);
+    this.placedNote(before, `Placed ${c.name}${room ? ` in ${room.name}` : ""}. Drag it to its spot.`, `Placed ${c.name}`);
   }
 
   /** Set when the person ticked "Don't ask again this session": device-to-area moves then go through without the dialog. Not stored. */
@@ -2948,9 +3033,8 @@ export class FloorplanStudioEditor extends LitElement {
     const groupKindOf = (g: { members?: string[] }) => (g.members ?? [])[0]?.split(".")[0] === "binary_sensor" ? "motion" as const : (g.members ?? [])[0]?.split(".")[0] === "light" ? "light" as const : undefined;
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, showNames: st.showNames, filter: st.filter, editor: true, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, labels: st.labels, around: floorsAroundKey(st.layout, st.floor), locate: this.locate?.floor === st.floor ? { t: this.locate.t, i: this.locate.i } : null }) + turnG(overlay);
-    const counts: Record<string, number> = {};
-    for (const d of f.devices) counts[d.type] = (counts[d.type] ?? 0) + 1;
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, keep: st.sel && (st.sel.t === "furn" || st.sel.t === "unl") ? { t: st.sel.t, i: st.sel.i } : null, hiddenLayers: st.hidden, showNames: st.showNames, editor: true, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, labels: st.labels, around: floorsAroundKey(st.layout, st.floor), locate: this.locate?.floor === st.floor ? { t: this.locate.t, i: this.locate.i } : null }) + turnG(overlay);
+    const hiddenNote = layersSummary(st.hidden);
     const pressed = (b: boolean) => (b ? "true" : "false");
     const find = this.findData();
     const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -2966,10 +3050,7 @@ export class FloorplanStudioEditor extends LitElement {
         <!-- S8.10 follow-up: status is the cluster's first item; growing it moves only its own left edge, never
              a button after it (see .status's own comment above). -->
         <label class="fixplan ${st.planLocked ? "on" : ""}" title="Lock the plan: walls, rooms, areas, doors, windows, stairs and furniture stay as they are. Devices and objects can still be added, moved and removed"><input type="checkbox" id="fixPlan" .checked=${live(st.planLocked)} @change=${(e: Event) => this.setPlanLocked((e.target as HTMLInputElement).checked)}> ${st.planLocked ? "🔒" : "🔓"} Fix plan</label>
-        <details class="menu" id="filter" @toggle=${this.onMenuToggle}><summary class="btn" aria-label="Filter devices">${st.filter.length ? `Filter: ${st.filter.length} type${st.filter.length > 1 ? "s" : ""}` : `Filter: all (${f.devices.length})`}</summary><div class="box">
-          <button class="btn keep" id="filterAll" ?disabled=${!st.filter.length} @click=${() => { st.filter = []; st.sel = null; this.requestUpdate(); }}>All</button>
-          ${TYPE_LABELS.filter(([t]) => counts[t]).map(([t, label]) => html`<button class="btn keep" data-filter=${t} aria-pressed=${pressed(st.filter.includes(t))} @click=${() => { st.filter = st.filter.includes(t) ? st.filter.filter((x) => x !== t) : [...st.filter, t]; st.sel = null; this.requestUpdate(); }}>${label} (${counts[t]})</button>`)}
-        </div></details>
+        ${hiddenNote ? html`<button class="btn layers-note" id="layersNote" title="Open the Layers tab" @click=${this.openLayers}>${hiddenNote}</button>` : nothing}
         <details class="menu" id="mAdd" @toggle=${this.onMenuToggle}><summary class="btn">Add</summary><div class="box">
           <details class="sub" id="addOpenings"><summary class="btn">Openings</summary>
             <button class="btn" id="addDoor" @click=${() => this.addDoor("door", 90)}>Door</button>
@@ -3134,9 +3215,10 @@ export class FloorplanStudioEditor extends LitElement {
    */
   private addHaEntity(e: HaData["entities"][number]) {
     this.focus({ preventScroll: true }); // the clicked item leaves the list on the next render; see placeDevice's own note
+    const before = this.counted();
     if (!this.st.addEntity(e, this.spawnDevice())) return;
     this.closeMenus();
-    this.changed(`Added ${e.name}. Drag it to its spot.`);
+    this.placedNote(before, `Added ${e.name}. Drag it to its spot.`, `Added ${e.name}`);
   }
 
   /**
