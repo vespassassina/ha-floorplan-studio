@@ -227,6 +227,9 @@ export const FLOORPLAN_CSS = `
 /* S14.8: the colour a plug runs through as its draw rises. Fixed hues, the same in every theme (not the theme's accent, which a one-accent theme makes orange and so
    leaves nothing to ramp to), declared before the themes so a theme can override them. */
 :host,.fp,[data-theme]{--fp-heat-cool:#2f86c9;--fp-heat-mid:#f0a020;--fp-heat-hot:#d63a2a}
+/* S24.4 (S23.F3): outdoor names take the theme's own text unless the theme says otherwise (only solarized does). Set on every theme
+   group, not left to a fallback, so a group nested in a solarized one does not inherit solarized's ink. */
+:host,.fp,[data-theme]{--fp-text-out:var(--fp-text)}
 /* Blueprint is the default: with no data-theme anywhere the plan is blueprint, whatever the OS or Home Assistant is doing (Diego's call, 2026-09-21;
    this replaces the old Auto, which followed prefers-color-scheme). A theme is named by data-theme, on the host (:host([data-theme])) or on one
    plan's own root (renderFloor's theme option, a <g data-theme>). Each rule has three selectors: the host itself, the .fp svg inside it (which the

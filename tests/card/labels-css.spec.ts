@@ -161,3 +161,23 @@ test.describe("S23.3 CSS pair: a name on a tag", () => {
     });
   }
 });
+
+// S24.4 (S23.F3): only solarized sets --fp-text-out. A plan group of another theme nested inside a solarized one (a
+// solarized host, a plan with its own theme) must not inherit solarized's outdoor ink: the generic defaults set it from the
+// group's own --fp-text. Each theme's outdoor names, nested, read exactly as they do on their own.
+test.describe("S24.4 CSS pair: outdoor ink does not leak from a solarized parent", () => {
+  test("an outdoor name in a theme group nested in solarized takes its own theme's colour", async ({ page }) => {
+    const others = CASES.filter((c) => c.t !== "solarized");
+    const svg = (id: string, c: (typeof CASES)[number], nested: boolean) => {
+      const plan = renderFloor(FLOOR, { scale: 1, theme: c.t, dark: c.dark, state: STATE });
+      return `<svg class="fp" id="${id}" viewBox="0 0 6000 1000" width="1200" height="200">${nested ? `<g data-theme="solarized">${plan}</g>` : plan}</svg>`;
+    };
+    await page.setContent(`<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style>${others.map((c) => svg(`a-${c.id}`, c, false) + svg(`n-${c.id}`, c, true)).join("")}</body></html>`);
+    const fills = (id: string) => page.locator(`#${id}`).evaluate((s) => [...s.querySelectorAll("text.lbl.out")].map((el) => `${el.textContent} ${getComputedStyle(el).fill}`));
+    for (const c of others) {
+      const alone = await fills(`a-${c.id}`);
+      expect(alone.length, c.id).toBe(4);
+      expect(await fills(`n-${c.id}`), c.id).toEqual(alone);
+    }
+  });
+});

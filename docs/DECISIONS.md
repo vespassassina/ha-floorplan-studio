@@ -21,6 +21,31 @@ Newest first. A change supersedes; nothing is edited.
 - **A linked piece (tv, speaker, computer) is a device entry**, flagged `piece`, its index into `furniture`; the same rule as the Active list.
 - **A person has no room**: its drawn spot comes from sensors, not its stored point (as in the room summary).
 - `room-info.ts`'s private `centre` is now exported as `deviceCentre`, so search finds a device's room with the same point and `roomAt` as the room summary.
+## 2026-10-08: the shipped code loses its comments and its whitespace (S24.4, S23.F5)
+
+Sprint 24 adds a search box and an Overview sheet to the card, and the card was 109229 gzip against its 115000 limit. The
+limit stays. What still shipped: Vite's lib mode minifies names and syntax but, for the `es` format, never whitespace,
+because that would drop the `/* @__PURE__ */` marks a library's users tree-shake with. Without whitespace minification
+esbuild keeps every JSDoc and `//` comment, and every indent.
+- **The fix is at the build.** `scripts/minify-output.mjs`, last in the card and panel builds, runs esbuild's whitespace
+  minify over each finished chunk (`generateBundle`, after Vite's own minify, which would print the code out again).
+  Our files are the end of the line, not a library anyone bundles again, so the pure marks have no use. Licence comments
+  (`@license`, `/*!`) stay where they are. Template contents are not touched; the stylesheet comments go earlier, as before.
+- **Whitespace too, not comments only.** esbuild has no "comments only" switch, and dropping comments while keeping
+  indents means a second parser of our own. Whitespace is also the bigger share.
+- **Measured** (`gzip -9`, as the size test): card 109229 to 84469, panel 157897 to 130719, 3D chunk 195527 to 145058.
+  The comments in the source stay, where they are read.
+- Supersedes the "Not done" line of 2026-10-08 "stylesheet comments do not ship".
+- Test: `size-budget.spec.ts` parses each shipped file and fails on any comment that is not a licence, and on two known
+  JSDoc sentences.
+
+## 2026-10-08: every theme group sets its own outdoor ink (S24.4, S23.F3)
+
+`--fp-text-out` was set by solarized alone and read with a fallback to `--fp-text`. A plan group of another theme inside a
+solarized one inherited solarized's base2 for its outdoor names. The generic defaults, before the theme blocks, now set
+`--fp-text-out:var(--fp-text)` on `:host,.fp,[data-theme]`, so each group resolves it from its own text; solarized's own
+rule comes later and still wins on its group. Test: `labels-css.spec.ts`, every other theme nested in solarized reads as
+it does alone.
 
 ## 2026-10-08: the faint dash is a zone's only (Opus review of Sprint 23, S4)
 

@@ -276,7 +276,8 @@ dashed edge has none.
 Every text on the plan has an outline in `--fp-outline` and is never faded with opacity (S23.1). A room or zone name is
 `--fp-label`: `--fp-text` mixed 92 % into what the name sits on (the room's own paint, else its kind's colour; a zone
 takes the room under it), so it reads at 4.5:1 or better in every theme and on every surface. A theme may give outdoor
-names their own ink, `--fp-text-out` (solarized: base2), mixed the same way; it falls back to `--fp-text`. Device and
+names their own ink, `--fp-text-out` (solarized: base2), mixed the same way; every other theme group sets it to its own `--fp-text`, so a
+group nested in a solarized one keeps its own ink. Device and
 extra names and values keep `--fp-text`. Room names
 are 12k, outdoor and zone names 10k, weight 500, outdoor names in italic. The font is `--fp-font`: Home Assistant's body
 font, else system-ui. Values use tabular figures and a narrow space before the unit. On the card a name is never under
