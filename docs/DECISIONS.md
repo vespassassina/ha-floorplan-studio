@@ -2,6 +2,65 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: the card's layer chips (S24.8, part 2)
+
+- **Supersedes "Layer chips are not in this part"** (part 1, below). The chips fill the `.fp-ov-layers` slot.
+- **Text chips, not eyes.** The eye paths stay in the editor; the card bundle carries no new icon. Pressed means shown;
+  a hidden chip is dashed and struck through, so the state does not rest on colour.
+- **One chip per family with something on the floor on show**, devices and unlinked appliances by type, pieces as
+  Furniture (`layerCounts`). A family the floor lacks has no chip, though it stays hidden if the viewer hid it.
+- **Per viewer, not per floor.** The hidden list sits in the card's view memory beside the theme and the names toggle,
+  and holds on every floor, as the Studio's does. Junk in storage is dropped by `parseLayers`.
+- **Not in live 3D.** The 3D view draws every family; chips that did nothing there would lie. They come back with 2D.
+- **Search and row taps do not follow Layers**, as in the Studio. The located thing is drawn by `keep` and the chips
+  end in "Hidden by Layers: lights" with Show. A note in the sheet, not a banner: the card has no banners. A floor change
+  or any chip click drops the kept thing, so it never lingers as an exception nobody asked for.
+- **The chips fold under a Layers button**, in one row with "Turn off on this floor…" and "All floors". Eleven chips
+  are three lines in a 260 px sheet; always open, the taller sheet covered plan points the popup and wheel tests use,
+  which a viewer would hit too. Folded, the button still counts what is hidden ("Layers · 2 hidden"; the Studio's
+  `layersSummary` sentence is its title, too long for one line beside All floors). The fold is not
+  remembered: a sheet starts folded. This supersedes part 1's place for "Turn off on this floor…" (under the scope
+  toggle): it now starts the tools row, so the Overview is one row shorter than in part 1.
+- **Chips are in the Overview only.** A picked room's section is about that room; the chips return with the Overview.
+- **The parity row `#tabLayers` is now "yes"**, checked by the Layers button on the 2.5D demo card.
+
+## 2026-10-09: the card's search, "Turn off on this floor…" and "Lights off" (S24.8, part 1)
+
+- **The chord is taken under the view keys' gate**: the card focused, else hovered, as the arrows are. The card's key
+  listener has been on `window` with that gate since S11.3, because in Home Assistant a hovered card has no focus and a
+  listener on the host would never hear the key. Finding 6 is about the editor; here one card of several acts, never two.
+  `/` in any text field is a slash (`takesTyping`). No sheet (kiosk, `active_list: false`) leaves the key to the page.
+- **The chord goes back to the Overview**: a picked room or floor is cleared, a popup closes, a folded sheet opens and the
+  search takes focus. Opening the fold this way counts as the person's choice, as a tap on the fold button does; otherwise
+  a phone's width default folds it again on the next render.
+- **The index is built once per layout**, with whether states are known and the floors on offer as the rest of the key, so
+  `<fp-search>` sees the same array between keystrokes and state updates.
+- **Devices on every floor are searchable; floors and rooms only where the card can show them.** A pinned card opens another
+  floor's popup, as a row tap does (S24.7), but cannot show another floor or its room.
+- **Enter on a device or piece is a row tap** (`_locate`), with the popup beside the sheet. **On a floor**, the floor is
+  shown and focus stays in the box. **On a room**, its floor is shown and the room's section opens, highlighted, with no pan;
+  focus goes to the section's close button, since the box goes with the Overview. Escape then returns to the Overview.
+- **A popup opened from the sheet stands beside the sheet's edge**, not the row's: 8 px past the row's edge still overlapped
+  the sheet's padding and border by a pixel. Rows move 9 px right with it.
+- **"Turn off on this floor…" acts on the floor on show.** It sits under the scope toggle in the Overview and beside
+  "Lights off" in the floor's panel, not in a room's. Disabled, with the title "Nothing is on on this floor", when the list
+  would be empty.
+- **On means not off, standby, unavailable or unknown.** A paused speaker and an idle TV are listed: they have something to
+  turn off. A plug counts by its switch, not its watts. Heaters, covers, vacuums and climate are not offered: none is "off"
+  in one safe tap (`FLOOR_OFF_GROUP`, a decision per type, finding 17).
+- **A lamp's row turns off its light and its bound relay when on** (`lampOffEntities`, S22.1), and reads "with" the relay.
+  A relay that is also a switch row is sent once. Unticking the switch row does not keep a ticked lamp's relay on.
+- **The rows are a snapshot taken at open**, so a row does not vanish under the finger. The calls are one `turn_off` per
+  domain: `light`, `switch`, `media_player`, anything else `homeassistant`.
+- **"All off" in a room or floor panel reads "Lights off".** It always turned off lights and their relays only. The
+  aria-label already said "Turn off all lights in …" and is unchanged.
+- **"The preset All off leaves Scenes where the room button exists", read plainly: it leaves.** Scenes shows only in a
+  room's panel, and that panel has the Lights off button whenever a lamp of the room is on, relays included. Dropping the
+  preset only while the button shows would make it appear and vanish with state. "All on" stays. A custom scene a person
+  named "All off" is theirs and stays.
+- **Layer chips are not in this part.** A marked empty slot (`.fp-ov-layers`, `data-slot="layers"`) waits beside the scope
+  toggle and hides while empty.
+
 ## 2026-10-09: Studio Layers replace Filter (S24.6)
 
 - **A view keeps the hidden families, not the shown ones.** Empty is the default, so a family added later starts
@@ -57,6 +116,7 @@ Newest first. A change supersedes; nothing is edited.
   after 2.4 s; under reduced motion a still ring. Its own `@media` block: the existing reduced-motion rule is pinned.
 - **The column takes canvas width.** Four editor tests that measure in screen px (snap radius, icon overlap, the HA
   popover over a plan point) shut it first (`shutSide` in `editor.spec.ts`), and wait for the editor to measure again.
+
 ## 2026-10-08: the card's Overview sheet (S24.7)
 
 - **Active leaves out what Attention lists.** A triggered alarm or an open garage would otherwise be two rows. The Active count and chips count the rest.

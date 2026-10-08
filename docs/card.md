@@ -254,7 +254,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#lens` Lengths | no | an editing aid |
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
-| `#tabLayers` Layers (hide a family) | no | not yet: the card's layer chips come in S24.8; until then it has the Active list, grouped by category |
+| `#tabLayers` Layers (hide a family) | yes | the Layers button in the Overview unfolds a text chip per family: a click hides it, Alt-click shows it alone; kept per viewer. Not in 3D |
 | Plan view, Tilt, Walls | card only | the View dropdown, the Tilt slider and the Walls select. The studio has no 2.5D since 0.14 (S12.1); the card keeps 2D and 2.5D, and gets 3D |
 | Room facts and device details panel | card only | the card's left panel (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
 
@@ -385,8 +385,8 @@ names and icons stay upright. Pan, zoom and taps wait until it has settled.
 The card also has a Theme dropdown and a names-and-text toggle next to View.
 
 The card remembers, per browser, the viewer's zoom, the spot they zoomed to,
-the rotation, 2D, 2.5D or 3D, the tilt, the wall heights, the theme and whether
-text shows. Come
+the rotation, 2D, 2.5D or 3D, the tilt, the wall heights, the theme, whether
+text shows and which layer chips are off. Come
 back, reload or switch dashboard tab and the plan is as it was left, with no
 flash of the configured look. The floor and the Active list are remembered
 as before.

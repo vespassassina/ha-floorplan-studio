@@ -2723,12 +2723,13 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       move into the popup. A relay-lit lamp's row reads on, via the relay. Floor tabs read "Ground · 3" and turn
       `--fp-warn` on an alarm. Test: a `floor: ground` card on the stress layout lists ground only; a row tap on
       another floor's device (All floors) switches floor and the popup opens for it.
-- [ ] S24.8 (F1, C2, layers) Card search, floor off, layers. `<fp-search>` at the top of the sheet and on ⌘K and `/`;
+- [x] S24.8 (F1, C2, layers) Card search, floor off, layers. `<fp-search>` at the top of the sheet and on ⌘K and `/`;
       Enter locates like a row tap. "Turn off on this floor…" opens a checklist (lights with their relays, switches,
       plugs, media) with counts and one confirm; the exact service calls follow. Room "All off" becomes "Lights off";
       the preset All off leaves Scenes where the room button exists. Layer chips in the sheet, one per family, per
       viewer (kept in view memory). Test: on the stress layout, `/`, letters, Enter opens the popup of the right
       device on its floor; the checklist sends exactly the calls ticked; a hidden family draws no icon.
+      Done 2026-10-09 on `task/s24-cardfind`: search, "Turn off on this floor…", "Lights off", and the layer chips.
 - [ ] S24.9 Verify: lint, unit, Playwright bare; new tests `--repeat-each=10`; `npm run shots` looked at; the
       sprint test, "find a named device on the stress house in two actions, by keyboard alone", in both apps.
 

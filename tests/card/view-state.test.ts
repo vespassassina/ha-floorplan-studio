@@ -136,6 +136,13 @@ describe("parseStoredView: untrusted storage, field by field", () => {
     expect(floorOf(onFloor({ cam: { ...good, zoom: 0 } }))!.cam!.zoom).toBe(CAM_ZOOM_MIN);
   });
 
+  it("hidden layers (S24.8): known families only, once each, in layer order; junk is dropped alone", () => {
+    expect(parse({ layers: ["furniture", "lights", "lights", "__proto__", 5, "nope"] }).layers).toEqual(["lights", "furniture"]);
+    expect(parse({ layers: "lights", names: true })).toEqual({ names: true });
+    expect(parse({ layers: [] })).toEqual({});
+    expect(parse({ layers: [null, {}] })).toEqual({});
+  });
+
   it("an entry from before per-floor memory moves its zoom, focus and turn to the floor it names", () => {
     expect(parse({ zoom: 2, focus: [1, 2], rotation: 90, floor: "first" })).toEqual({ floor: "first", floors: [["first", { zoom: 2, focus: [1, 2], rotation: 90 }]] });
     expect(parse({ zoom: 2, focus: [1, 2], rotation: 90 })).toEqual({}); // no floor named: whose view it was cannot be said

@@ -2,10 +2,13 @@
 
 ## Unreleased
 
+- Card: a search at the top of the Overview, opened with ⌘K, Ctrl+K or / while the card is under the pointer or has focus. Enter on a device goes to it as a row tap does; on a room, opens the room; on a floor, shows it.
+- Card: "Turn off on this floor…" lists what is on (lights with their relays, switches, plugs, media), grouped with counts and all ticked. One button turns off what stays ticked.
+- Card: a Layers button in the Overview unfolds one chip per family on the floor (Lights, Climate, … Furniture). A click hides that family on the plan, Alt-click shows it alone. Each viewer's choice is remembered. Search still finds a hidden device, draws it, and offers Show.
+- Card: the room and floor "All off" button now reads "Lights off", which is what it does. Scenes no longer has its own All off.
 - Studio: Layers replace the Filter menu. A Layers tab beside Outline has one eye per family (lights, climate, security and the rest, plus furniture), with a count for the floor on show. A click hides a family, Alt-click shows only that one. The toolbar says what is hidden, and opens the tab. Search and the Outline still find a hidden device; the message offers Show.
 - Studio: placing devices under a hidden layer no longer makes them vanish without a word: "Placed 4 devices; 3 hidden by Layers", with Show.
 - Studio: a room's right-click offers what Place offers, without loose power sensors, scenes or batteries, each name with its entity id in small type. Sensor lists show the Home Assistant name, not the raw id. The area list shows an area once, and two of one name with their floor.
-
 - Studio: find anything on the plan. Press / or ⌘K, type a few letters, Enter: the Studio switches floor, selects the device or room, centres it and rings it a moment. The same box runs a few commands (Fix plan, Draw room, Add device, Zoom to fit, Undo, Save).
 - Studio: an Outline beside the plan lists floors, rooms and devices with counts, filters by name or entity id, and works with the arrow keys. Its last branch, "Unplaced from HA", lists what Home Assistant has that the plan does not, by area; a click starts adding it. The column folds to a thin rail and starts folded on a window under 1100 px.
 - Card: the Active list is now the Overview. What needs attention comes first, with how long ago it changed; what is on follows by category. It lists the floor on show; "All floors" lists them all, each row with its floor. The header counts things in short chips ("2 alerts · 6 lights").
