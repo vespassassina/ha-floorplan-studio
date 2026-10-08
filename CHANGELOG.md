@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.20.1 - 2026-10-08
+
+- Card and studio: a camera's cone stops at the walls of the room the camera stands in, as a lamp's light does. The room is the one the camera looks into, so a camera on a wall aiming out keeps its whole cone, as one in no room does.
+- Card: a tap on a humidity, motion, contact or vibration device no longer offers a switch. Like temperature, they open the entity's details only. Before, one set to a switchable entity showed "Turn off".
+
 ## 0.20.0 - 2026-10-08
 
 - Card: the room panel has an All off button. It turns off the lights of that room that are on, in one call, and is not shown when none is on. A lamp lit only by its bound relay is left out of the call.
