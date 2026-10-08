@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.20.0 - 2026-10-08
+
 - Card: the room panel has an All off button. It turns off the lights of that room that are on, in one call, and is not shown when none is on. A lamp lit only by its bound relay is left out of the call.
 - Card: a floor pill now also selects its floor and opens the side panel on it, as a room does: the lights on, every device, sensor and open door of the floor, and an All off for the whole floor. Picking a room, Escape, a tap on the empty plan, the x or the same pill again lets go. The pill of the selected floor gets a ring.
 
