@@ -1409,10 +1409,23 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // A turned plan turns the group again from outside; the icon takes that back too, the cone (in the group's frame) does not.
     const back = (rot + planDeg) % 360 ? rot + planDeg : 0;
     // Camera: a 120 degree, 100 cm cone about "up" (-90 degrees), in plan units (the group is scaled by k). It comes first, so the icon covers its tip.
-    let cone = "";
+    let cone = "", clip = "";
     if (d.type === "camera") {
       const R = DEVICE_REACH / k, p = (deg: number) => at([12 + R * Math.cos((deg * Math.PI) / 180), 12 + R * Math.sin((deg * Math.PI) / 180)]);
-      cone = `<path class="cone" d="M12 12L${p(-150)}A${num(R)} ${num(R)} 0 0 1 ${p(-30)}Z"/>`;
+      // S21.1: the cone stops at the walls of the room the camera stands in (`roomAt`, as the lamp's aura does); a camera in no
+      // room keeps the free cone. The clipPath sits in this svg and the cone names it by attribute, so it resolves inside a
+      // shadow root (a `url()` in CSS would not) and no stylesheet rule can outrank it. A clip applies in the cone's own frame,
+      // the group's, so the room polygon (plan coordinates, lifted with the icon in 2.5D) is carried into that frame by the
+      // inverse of the group's transform: undo the shift, the scale (the same rounded `k` the group wears), then the turn.
+      const holder = roomAt(f, floorAt), own = holder < 0 ? null : ring(f.rooms[holder]);
+      if (own) {
+        const kk = +num(k), gx = +num(c[0] - 12 * k), gy = +num(c[1] - 12 * k);
+        const to = `${rot ? `rotate(${num(-rot)} 12 12) ` : ""}scale(${+(1 / kk).toPrecision(8)}) translate(${num(c[0] - floorAt[0] - gx)} ${num(c[1] - floorAt[1] - gy)})`;
+        const cid = `fp-cone-${tag(`${pts(own)}${to}`)}`;
+        out.push(`<clipPath id="${cid}" transform="${to}"><polygon points="${pts(own)}"/></clipPath>`);
+        clip = ` clip-path="url(#${cid})"`;
+      }
+      cone = `<path class="cone" d="M12 12L${p(-150)}A${num(R)} ${num(R)} 0 0 1 ${p(-30)}Z"${clip}/>`;
     }
     // 2.5D: a device mounted high (a ceiling light, a camera, a thermostat) is drawn where the real thing hangs (`c`,
     // lifted), with its aura, cone, rings and text. A small pin stays on the floor under it and a thin stem joins the

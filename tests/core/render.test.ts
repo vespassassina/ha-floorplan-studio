@@ -174,7 +174,7 @@ describe("renderFloor", () => {
       f.devices[1] = { ...f.devices[1], x: 2000, y: 2000 } as typeof f.devices[number];
       const html = renderFloor(f, { ...base, state: on });
       expect(html).toMatch(/<circle class="aura" cx="2000" cy="2000" r="150"\/>/);
-      expect(html).not.toContain("<clipPath");
+      expect(html).not.toContain('<clipPath id="fp-aura-'); // S21.1: the demo camera now has a clip of its own (fp-cone-), so the lamp's is named
     });
 
     it("clips to the smallest room that holds the lamp, not a bigger one around it", () => {
@@ -1573,7 +1573,7 @@ describe("camera cone (S1.31)", () => {
   const group = (html: string) => html.match(new RegExp(`<g data-x="${ci}"[\\s\\S]*?</g>`))![0];
   /** The cone's path in the device group's frame: centre, the two ends of the arc and its radius. */
   const cone = (html: string) => {
-    const m = group(html).match(/<path class="cone" d="M([\d.-]+) ([\d.-]+)L([\d.-]+) ([\d.-]+)A([\d.-]+) ([\d.-]+) 0 0 1 ([\d.-]+) ([\d.-]+)Z"\/>/)!;
+    const m = group(html).match(/<path class="cone" d="M([\d.-]+) ([\d.-]+)L([\d.-]+) ([\d.-]+)A([\d.-]+) ([\d.-]+) 0 0 1 ([\d.-]+) ([\d.-]+)Z"(?: clip-path="url\(#[^)]+\)")?\/>/)!;
     const n = m.slice(1).map(Number);
     return { c: [n[0], n[1]], p1: [n[2], n[3]], p2: [n[6], n[7]], r: n[4] };
   };
@@ -1608,6 +1608,88 @@ describe("camera cone (S1.31)", () => {
     f.devices = f.devices.filter((d) => d.type !== "camera");
     expect(renderFloor(f, base)).not.toContain("cone");
     expect(FLOORPLAN_CSS).toMatch(/path\.cone\{[^}]*fill:var\(--fp-dev-camera\)[^}]*fill-opacity:var\(--fp-alpha\)[^}]*pointer-events:none/);
+  });
+});
+
+describe("camera cone clip (S21.1): the cone stops at the walls of its room", () => {
+  // One 400 x 300 room, a camera in it looking right (rot 90): its 100 cm cone would reach x = 350 from x = 250.
+  const room = { id: "r", name: "Room", kind: "room", pts: [[0, 0], [300, 0], [300, 300], [0, 300]] };
+  const cam = (x: number, y: number, rot = 90, id = "c") => ({ id, type: "camera", entity: `camera.${id}`, x, y, rot });
+  const floor = (devices: unknown[], rooms: unknown[] = [room]) => ({ ...structuredClone(ground), outline: [[0, 0], [600, 0], [600, 300], [0, 300]], rooms, devices, walls: [], doors: [], openings: [], extras: [], stairs: [], furniture: [] }) as never;
+  const draw = (devices: unknown[], o: object = {}, rooms?: unknown[]) => renderFloor(floor(devices, rooms), { ...base, ...o });
+  /** `translate(a b)`, `scale(k)`, `rotate(r cx cy)` lists as a function of a point, applied right to left as SVG does. */
+  const apply = (list: string, p: number[]) => {
+    const ops = [...list.matchAll(/(translate|scale|rotate)\(([^)]*)\)/g)].map((m) => ({ f: m[1], a: m[2].split(/[ ,]+/).map(Number) }));
+    return ops.reduceRight((q, { f, a }) => {
+      if (f === "translate") return [q[0] + a[0], q[1] + a[1]];
+      if (f === "scale") return [q[0] * a[0], q[1] * (a[1] ?? a[0])];
+      const t = (a[0] * Math.PI) / 180, [cx, cy] = [a[1] ?? 0, a[2] ?? 0], dx = q[0] - cx, dy = q[1] - cy;
+      return [cx + dx * Math.cos(t) - dy * Math.sin(t), cy + dx * Math.sin(t) + dy * Math.cos(t)];
+    }, p);
+  };
+  const coneRef = (html: string) => /<path class="cone"[^>]*clip-path="url\(#([^)]+)\)"/.exec(html)?.[1] ?? null;
+  const clipOf = (html: string, id: string) => {
+    for (const m of html.matchAll(/<clipPath id="([^"]+)" transform="([^"]+)"><polygon points="([^"]+)"\/><\/clipPath>/g)) if (m[1] === id) return { transform: m[2], pts: m[3].split(" ").map((q) => q.split(",").map(Number)) };
+    return null;
+  };
+  const groupTransform = (html: string, i = 0) => new RegExp(`<g data-x="${i}"[^>]* transform="([^"]+)"`).exec(html)![1];
+
+  it("clips the cone with an inline <clipPath> of the room it stands in, by a clip-path attribute and a unique id", () => {
+    const html = draw([cam(250, 150)]);
+    const id = coneRef(html);
+    expect(id, "the cone names a clip").toMatch(/^fp-cone-[a-z0-9]+$/);
+    expect(html.match(new RegExp(`<clipPath id="${id}"`, "g")), "defined once, in the same svg").toHaveLength(1);
+    expect(clipOf(html, id!)!.pts).toEqual(room.pts);
+    expect(html.indexOf(`<clipPath id="${id}"`), "defined before the group that uses it").toBeLessThan(html.indexOf('<g data-x="0"'));
+  });
+
+  it("the clip lines up with the plan: through the clip's transform and then the group's, a corner returns to the plan point", () => {
+    for (const rot of [0, 90, 215]) for (const scale of [0.5, 2]) {
+      const html = draw([cam(250, 150, rot)], { scale });
+      const c = clipOf(html, coneRef(html)!)!, g = groupTransform(html);
+      for (const v of c.pts) {
+        const back = apply(g, apply(c.transform, v));
+        expect(back[0]).toBeCloseTo(v[0], 1);
+        expect(back[1]).toBeCloseTo(v[1], 1);
+      }
+    }
+  });
+
+  it("2.5D: a lifted camera takes its clip up with it, as the aura's does", () => {
+    const html = draw([{ ...cam(250, 150), z: 250 }], { view: "2.5d" });
+    const c = clipOf(html, coneRef(html)!)!, g = groupTransform(html);
+    const lifted = apply(g, [12, 12]); // where the icon centre is drawn, in plan units
+    expect(lifted[1], "the camera is drawn above its floor point").toBeLessThan(150);
+    const back = apply(g, apply(c.transform, [300, 0]));
+    expect(back[0]).toBeCloseTo(300 + (lifted[0] - 250), 1);
+    expect(back[1]).toBeCloseTo(0 + (lifted[1] - 150), 1);
+  });
+
+  it("a camera in no room keeps the free cone, and nothing is defined", () => {
+    const html = draw([cam(450, 150)]);
+    expect(html).toMatch(/<path class="cone" d="[^"]+"\/>/);
+    expect(html).not.toContain("<clipPath");
+  });
+
+  it("a zone is not a room: the clip is the room under it", () => {
+    const zone = { id: "z", name: "Z", kind: "zone", pts: [[200, 100], [290, 100], [290, 200], [200, 200]] };
+    const html = draw([cam(250, 150)], {}, [room, zone]);
+    expect(clipOf(html, coneRef(html)!)!.pts).toEqual(room.pts);
+  });
+
+  it("two cameras in two rooms get two ids; two in one room share a definition that is the same text", () => {
+    const b = { ...room, id: "b", pts: [[300, 0], [600, 0], [600, 300], [300, 300]] };
+    const two = draw([cam(250, 150, 90, "a"), cam(550, 150, 90, "b")], {}, [room, b]);
+    const ids = [...two.matchAll(/<path class="cone"[^>]*clip-path="url\(#([^)]+)\)"/g)].map((m) => m[1]);
+    expect(new Set(ids).size).toBe(2);
+    for (const id of ids) expect(two.match(new RegExp(`<clipPath id="${id}"`, "g"))).toHaveLength(1);
+    const same = draw([cam(100, 100, 90, "a"), cam(100, 100, 90, "b")]);
+    const sameIds = [...same.matchAll(/<path class="cone"[^>]*clip-path="url\(#([^)]+)\)"/g)].map((m) => m[1]);
+    expect(sameIds[0]).toBe(sameIds[1]); // same id means same definition; a duplicate id in one svg is harmless then
+  });
+
+  it("no CSS rule sets clip-path on the cone, so the attribute is not outranked (finding 18)", () => {
+    expect(FLOORPLAN_CSS).not.toMatch(/clip-path/);
   });
 });
 
