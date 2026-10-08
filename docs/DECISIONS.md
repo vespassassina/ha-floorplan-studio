@@ -27,6 +27,8 @@ Newest first. A change supersedes; nothing is edited.
   or off, so a lamp that is on and low is listed in both; an open door is listed once.
 - **The card's pulse ring keyframes are `fp-pulse-ring`** (S24.R7). They shared `fp-locate` with the plan's own ring
   in one shadow root, where the later rule wins: the card's box-shadow would replace the plan ring's grow-and-fade.
+- **`render.ts` imports `layerHides`** from `layers.ts` (S24.R11). Supersedes "render.ts still has its private copy"
+  (Studio fixes, below): one rule decides what Layers leaves off the plan and what the Studio's pick skips.
 - **`attention().floors` has no prototype** (S24.R9): a floor key `__proto__` is a floor.
 - **Search folds a short, explicit list of letters** that Unicode does not decompose: ø o, ß ss, æ ae, ł l, đ d, ð d,
   þ th, œ oe, ı i. A list, not a transliteration library (no dependency, a few bytes in the card). Both sides fold, so

@@ -2771,3 +2771,5 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
 - [x] S24.R6 A device that is on stays in Active when its battery is low.
 - [x] S24.R7 The card's pulse keyframes renamed `fp-pulse-ring`; a test reads both rings' keyframes.
 - [x] S24.R9 `attention().floors` is a null-prototype object; a floor named `__proto__` is counted.
+- [x] S24.R11 `render.ts` drops its private copy of the Layers rule and imports `layerHides`; `src/core/index.ts`
+      exports it. No behaviour change: the existing Layers tests stay green.
