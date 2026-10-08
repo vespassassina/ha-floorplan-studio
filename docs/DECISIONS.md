@@ -26,6 +26,59 @@ Supersedes the 0.12.16 "small and half transparent" names. A name is never faded
 - The 3D overlay's room names take weight 500 and the font, to match.
 - The mix applies to room and zone names only (`.lbl[data-rl]`). Device and extra names sit on a disc or anywhere, so they keep `--fp-text`.
 
+## 2026-10-08: plan symbols (S23.7)
+
+Details of V19 and V20.
+
+- A door or glass door is a gap in the wall, a 1 px leaf from the hinge `a`, `|ab|` long and square to the wall, and a
+  90° arc back to `b`. The leaf swings to the room side: probe half a leaf out on each side; an indoor room (`room`)
+  wins, then any room, then the smaller one; with no room on either side it goes left of `a`→`b`.
+- A window is three hairlines along the opening, at the wall's two faces and its middle. A slit spans its narrower
+  band (`SLIT_BAND`).
+- Doors, glass doors, windows and slits now cut the wall (the opening mask). Sealed doors do not, and draw no symbol.
+- A closed, unselected door's own line paints nothing (`.door.quiet`). Open, alarm and cover-open keep the red line and
+  turn the symbol red; selection keeps the line. The hit line and `data-d` are unchanged; the symbol carries `data-ds`
+  and takes no clicks.
+- `--fp-glass` is the window blue. Per theme: light and midnight #2c7fb8 (was #1b9e77), solarized #268bd2 (was
+  #2aa198), the generated themes already used fg for both. Doors stay `--fp-door`.
+- Garden, terrace, pavement and water draw no boundary outline. The editor keeps its faint `e none` guide. A real wall
+  kind on an outdoor room (a fence) still draws.
+- A zone is a 1 px dash (4 3), non-scaling, at 35 % opacity, with no halo.
+- 2.5D draws the same symbols on the floor. 3D openings stay for sprint 28.
+
+Tests changed on purpose: `tests/core/open-door.test.ts` (quiet class; doors are cut, sealed not),
+`tests/core/render.test.ts` (zone 1 px; mask count includes doors; no-mask cases drop the doors; edge count leaves out
+outdoor boundaries), `tests/core/slit.test.ts` and `tests/core/solids-openings.test.ts` (quiet class), the render
+snapshot, and `tests/card/card.spec.ts` S8.11 (card2 drops the window too, since a window now makes a mask).
+
+## 2026-10-08: every surface follows the theme (S23.6)
+
+Details of the V16 and V23 decisions below. The values, per theme:
+
+| Theme | Empty room | Furniture | Garden / terrace / pavement |
+|---|---|---|---|
+| blueprint | #132237 | #3975cf | ramp |
+| terminal | #1d2d28 | #63a68f | ramp |
+| coffee | #30231a | #b17a57 | ramp |
+| a-team | #282222 | #8e7a7a | ramp |
+| space | #141b36 | #3a58ce | ramp |
+| cyberpunk | #280842 | #8e1ced | ramp |
+| carpenter-brut | #391115 | #da2e40 | ramp |
+| midnight | #14213a (`var(--fp-room)`) | #3f66b0 | #1d2a42 / #21304c / #233352 |
+| ha, dark | `var(--fp-room)`, HA's secondary background | #3f66b0 | as midnight |
+| solarized | #06323d | #586e75 | #11424f / #124c5b / #135161 |
+| light, ha light | #d6d6d2 | #79766e | unchanged |
+| slate | #d6d6d2 | #7b7b69 | ramp |
+| beach-house | #d6d6d2 | #b28a32 | ramp |
+
+- **Empty room.** `rolesToTokens` gives a dark theme its room shade (ramp .08), the colour 3D already paints floors with. The four hand-set `roomEmpty` values went; the option stays. Solarized is #06323d, not base02 #073642: a name (`--fp-text` 92 % into the room, the S23.1 label) measured 4.33:1 on base02 and 4.57:1 here, and the room still stands 1.09:1 off the board.
+- **Furniture.** A ramp shade at .62, a step past the wall edge (.55): at .55 beach-house's sand measured 1.77:1 on the grey room, under the 1.8 the test asks. The body is still 45 % of that into the empty room.
+- **Paint.** `--fp-paint-dim` is `brightness(.62) saturate(.85)` on a dark theme and `none` on a light one, applied as a filter to a room or stair with its own `fill`. The colour itself is never changed. The on ring (`fill="none"`) is left alone. Not in 3D yet.
+- **Checker.** #cfccc4 on #8a877f, about 2:1 (was #eeece5 on #2a2b2d, about 12:1).
+- **Not changed.** Midnight water (#a9cfe3) and fill (#c4c0b8) stay light; the brief named garden, terrace and pavement only.
+
+Tests changed on purpose: theme-roles.test.ts ("room-empty is the one fixed grey"); editor.spec.ts, the blueprint room in the theme table and the furniture-token pair (midnight is no longer #79766e); card-3d-tex-glow.spec.ts, the checkerboard's luma spread (238 over 42 is now 204 over 135) and its square counter, which now reads the 10th to 90th percentile so a lamp on the line no longer sets the band.
+
 ## 2026-10-08: the popup is placed inside what the user sees (S22.2)
 
 `placeNear` (popup-ui.ts) clamps to the host's box cut to the visual viewport (`window.visualViewport`, else the window), not to the host alone. Below the point first, above it when there is no room below, then clamped into that box. Its height is capped to the box less 16 px (the CSS cap the popup had for a host in full view), so in a very short window the sliders scroll and the button stays on screen. A host with less than 40 px showing falls back to its own box, the old rule. Not chosen: `position: fixed` (it would escape the card's stacking and need its own z-index and theme scope). The popup is placed when it opens and on each render, not on a page scroll.

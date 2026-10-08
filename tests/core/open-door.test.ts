@@ -70,17 +70,19 @@ describe("open: the kind", () => {
 describe("open: 2D draws no door, still cuts the wall", () => {
   const withKind = (kind: string, extra: object = {}) => flat(floor({ doors: [door(kind)] as never }), extra);
   it("a door draws its line; an open door draws none, but keeps its click target", () => {
-    expect(visible(withKind("door"))).toEqual(["door door-door"]);
+    // S23.7: a closed door's line is quiet (it paints nothing; the plan symbol shows the door)
+    expect(visible(withKind("door"))).toEqual(["door door-door quiet"]);
     expect(visible(withKind("open"))).toEqual([]);
     expect(hits(withKind("door"))).toEqual(["0"]);
     expect(hits(withKind("open"))).toEqual(["0"]);
     expect(withKind("open")).not.toMatch(/<title>/); // nothing is drawn, so nothing carries its name
   });
-  it("the wall is cut: a mask hole at the doorway for open, none for a door", () => {
+  it("the wall is cut: a mask hole at the doorway for open, and since S23.7 for a door too; none for a sealed one", () => {
     const a = withKind("open"), b = withKind("door");
     expect(a).toMatch(/<mask id="fp-open-mask-[^"]*"[^>]*>.*<line x1="100" y1="0" x2="190" y2="0" stroke="black"/);
     expect(a).toMatch(/<g mask="url\(#fp-open-mask-/);
-    expect(b).not.toContain("<mask");
+    expect(b).toMatch(/<mask id="fp-open-mask-[^"]*"[^>]*>.*<line x1="100" y1="0" x2="190" y2="0" stroke="black"/);
+    expect(withKind("sealed")).not.toContain("<mask");
   });
   it("it draws the same wall cut as a plain opening of the same span", () => {
     const op = flat(floor({ openings: [{ id: "o", a: [100, 0], b: [190, 0] }] as never }));
@@ -88,8 +90,9 @@ describe("open: 2D draws no door, still cuts the wall", () => {
     expect(hole(withKind("open"))).toBeDefined();
     expect(hole(withKind("open"))).toBe(hole(op));
   });
-  it("no mask or hit line leaks into a floor without an open door: only the hole is new", () => {
-    const w = flat(floor({ doors: [door("window"), door("door", { a: [200, 0], b: [290, 0] })] as never }));
+  it("no mask or hit line leaks into a floor without a cut: only the hole is new", () => {
+    // S23.7: doors and windows are cut now, so the floor without a cut has sealed doors only
+    const w = flat(floor({ doors: [door("sealed"), door("sealed", { a: [200, 0], b: [290, 0] })] as never }));
     expect(w).not.toContain("<mask");
   });
   it("closed and unselected draws nothing; an open contact, vibration or an open cover draws a solid alert band: marked `band`, with no pulse line (S14.5)", () => {
@@ -123,7 +126,7 @@ describe("open: 2D draws no door, still cuts the wall", () => {
   });
   it("an open door is a plain door for the rest: a door beside it is unaffected", () => {
     const f = floor({ doors: [door("open"), door("door", { id: "e", a: [200, 0], b: [290, 0] })] as never });
-    expect(visible(flat(f))).toEqual(["door door-door"]);
+    expect(visible(flat(f))).toEqual(["door door-door quiet"]);
     expect(hits(flat(f))).toEqual(["0", "1"]);
   });
 });

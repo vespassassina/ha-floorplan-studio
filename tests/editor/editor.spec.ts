@@ -4739,14 +4739,15 @@ test("S8.9 CSS pair: a plain wall is 10cm thick, an external wall 20cm, each hal
   expect(await wByTitle("External")).toBe(20); // s89-de, on the external wall
 });
 
-test("CSS pair: furniture has its own fixed grey token, decoupled from idle devices", async ({ page }) => {
+// S23.6: furniture follows the theme (light keeps #79766e, midnight is now #3f66b0); it was one fixed grey everywhere.
+test("CSS pair: furniture has its own theme token, decoupled from idle devices", async ({ page }) => {
   await addCssFixtures(page); // adds a "css-gate" furniture piece (patio-wood)
   const furn = await page.locator("svg g.furn").first().evaluate((e) => getComputedStyle(e).color);
   const idle = await page.locator("svg g.dev path:not(.halo)").first().evaluate((e) => getComputedStyle(e).fill);
-  expect(furn).toBe(rgb("#79766e"));
+  expect(furn).toBe(rgb("#79766e")); // addCssFixtures sets light
   expect(furn).not.toBe(idle);
   await setTheme(page, "midnight");
-  expect(await page.locator("svg g.furn").first().evaluate((e) => getComputedStyle(e).color)).toBe(rgb("#79766e"));
+  expect(await page.locator("svg g.furn").first().evaluate((e) => getComputedStyle(e).color)).toBe(rgb("#3f66b0"));
 });
 
 test("CSS pair: a room name's leader line is drawn in the text colour, faint, and takes no clicks", async ({ page }) => {
@@ -5430,14 +5431,14 @@ test("S1.51 break it: a corner dragged past its opposite one clamps at 5 cm inst
 // ---- S1.53 / S2.12 themes: blueprint (default), light, Home Assistant ---------------------------------------------------------
 
 // Blueprint palette (role-generated, 2026-09-22): base #1c3f73 shaded into ground #0c1521 / wall #6394dd, fg #eef3fb,
-// line (measure) #35d47a. An unpainted room (the demo's Living, room 0) is --fp-room-empty, #d6d6d2 = rgb(214, 214, 210)
-// in every theme, unchanged since 2026-09-22.
+// line (measure) #35d47a. An unpainted room (the demo's Living, room 0) is --fp-room-empty: #d6d6d2 = rgb(214, 214, 210)
+// on a light theme; on a dark one, since S23.6, the theme's own room shade (blueprint #132237 = rgb(19, 34, 55)).
 const ROOM_EMPTY = "rgb(214, 214, 210)";
 /** S23.1: a room name's fill is `color-mix(in srgb, text 92%, the room)`. Chromium reports it as `color(srgb r g b)`. */
 const colourOf = (css: string): number[] => { const h = /^#([0-9a-f]{6})$/i.exec(css.trim()); if (h) return [0, 2, 4].map((i) => parseInt(h[1].slice(i, i + 2), 16)); const m = /color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)/.exec(css); return m ? [m[1], m[2], m[3]].map((v) => Number(v) * 255) : (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number); };
 const mix92 = (text: string, under: string) => { const a = colourOf(text), b = colourOf(under); return a.map((v, i) => 0.92 * v + 0.08 * b[i]); };
 const expectNear = (css: string, rgb: number[], what: string) => colourOf(css).forEach((v, i) => expect(Math.abs(v - rgb[i]), `${what}: ${css} vs ${rgb.map(Math.round)}`).toBeLessThan(1.5));
-const DARK_TH = { bg: "rgb(12, 21, 33)", room: ROOM_EMPTY, wall: "rgb(99, 148, 221)", text: "rgb(238, 243, 251)", outline: "rgb(12, 21, 33)", disc: "rgb(238, 243, 251)", measure: "rgb(53, 212, 122)" };
+const DARK_TH = { bg: "rgb(12, 21, 33)", room: "rgb(19, 34, 55)", wall: "rgb(99, 148, 221)", text: "rgb(238, 243, 251)", outline: "rgb(12, 21, 33)", disc: "rgb(238, 243, 251)", measure: "rgb(53, 212, 122)" };
 // Midnight (the old default, ex-"blueprint", renamed 2026-09-22): ground #0d1522, room #14213a, wall #8fb4f0, text
 // #d8e2f2. Still what the ha theme's dark-mode fallback uses (Diego's call: ha stays untouched by the new palettes).
 const MIDNIGHT_TH = { bg: "rgb(13, 21, 34)" };

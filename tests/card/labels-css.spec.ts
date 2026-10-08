@@ -36,16 +36,12 @@ const seen = (r: { fill: string; under: string; opacity: string }) => { const f 
 
 /** What sits under each name: its own room, and the plain room for the zone. */
 const UNDER: Record<string, string> = { ...Object.fromEntries(NAMED.map((k, i) => [`N-${k}`, String(i)])), "N-zone": "0" };
-/** The surfaces S23.6 changes. Dark themes still paint an unpainted room `#d6d6d2`, a light grey no light text clears;
- * midnight (and Home Assistant's dark fallback, which is midnight) keeps fixed light outdoor hexes. Solarized keeps its
- * own fixed outdoor hexes, a mid grey and a blue that no colour of its palette clears 4.5:1 on. Each is a test.fixme below,
- * never a lower bar here. */
-const EMPTY_GREY = ["blueprint", "midnight", "terminal", "solarized", "coffee", "ha-dark"];
+/** The pairs S23.6 left short. Midnight (and Home Assistant's dark fallback, which is midnight) keeps its light water
+ * #a9cfe3, and solarized's outdoor names, its base0 on the new ramp teal, stay near 3.2:1. Each is a test.fixme
+ * below, never a lower bar here. */
 const fixme = (id: string, name: string): string | null => {
-  const on = name === "N-zone" ? "room" : name.slice(2);
-  if ((on === "room" || on === "structure") && EMPTY_GREY.includes(id)) return "S23.6: dark themes take the empty room from their ramp, not #d6d6d2";
-  if (["garden", "terrace", "pavement", "water"].includes(on) && (id === "midnight" || id === "ha-dark")) return "S23.6: midnight's gardens, terrace, pavement (and water) come from the ramp";
-  if (["garden", "terrace", "pavement", "water"].includes(on) && id === "solarized") return "S23.6: solarized's fixed outdoor hexes (#586e75, #657b83, #268bd2) need a theme decision";
+  if (name === "N-water" && (id === "midnight" || id === "ha-dark")) return "midnight keeps its light water #a9cfe3";
+  if (["N-garden", "N-terrace", "N-pavement", "N-water"].includes(name) && id === "solarized") return "solarized's outdoor names are near 3.2:1 on the ramp teal";
   return null;
 };
 
@@ -112,7 +108,7 @@ test.describe("S23.1 CSS pair: one label style", () => {
     });
   }
 
-  // The pairs that wait for S23.6. Each names its theme and room, so S23.6 deletes the line when it lands.
+  // The pairs S23.6 left short. Each names its theme and room; delete the line in fixme() when it is fixed.
   for (const c of CASES) for (const n of [...NAMED.map((k) => `N-${k}`), "N-zone"]) {
     const why = fixme(c.id, n);
     if (why) test.fixme(`contrast: ${c.id} ${n} reaches 4.5:1 (${why})`, async ({ page }) => {

@@ -5,6 +5,8 @@
 - Card and studio: room names are solid, not faded. Each name is the text colour mixed into the room it sits on, at 12 px (outdoor names and zones at 10, outdoor in italic), in Home Assistant's own font. Readings keep their number and unit together and line up digit for digit.
 - Card: on a phone, room names never drop under 11 px and device icons never under 28 px. A wide card looks as before.
 - Card and studio: a room's name stays in its room. It slides beside an icon, shrinks, and when every spot is covered sits on a small plate over the icons.
+- Card and Studio: dark themes no longer show empty rooms as light grey boxes. Empty rooms, midnight's garden, terrace and pavement, and furniture take the theme's own colours. Your own room paint is dimmed on dark themes, never changed. The checkerboard is softer.
+- Card and Studio: doors and windows look like a floor plan. A door is a gap in the wall with a thin leaf and a swing arc into the room; a window is three thin lines across the wall. Glass doors and windows share one blue. Red still means open. Gardens, terraces, pavement and water lose their outline, and zones are a faint thin dash.
 
 ## 0.20.2 - 2026-10-08
 
