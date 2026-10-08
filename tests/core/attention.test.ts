@@ -22,13 +22,13 @@ const one = (devices: Device[], doors: Door[] = []) => layoutOf({ g: floorOf("Gr
 const RAISE: Record<string, [ReturnType<typeof st>, string][]> = {
   alarm: [[st("triggered"), "alarm-triggered"], [st("armed_away"), "alarm-armed"], [st("armed_night"), "alarm-armed"], [st("arming"), "alarm-armed"], [st("pending"), "alarm-armed"]],
   open: [[st("on"), "open"]],
-  unlocked: [[st("unlocked"), "unlocked"]],
+  unlocked: [[st("unlocked"), "unlocked"], [st("jammed"), "jammed"]],
 };
 const CALM: Record<string, ReturnType<typeof st>[]> = {
-  alarm: [st("disarmed")], open: [st("off")], unlocked: [st("locked"), st("jammed")],
+  alarm: [st("disarmed")], open: [st("off")], unlocked: [st("locked"), st("locking"), st("unlocking")],
 };
 /** Every state that raises anything for some type: a type whose rule is "none" must raise nothing on any of them. */
-const ALL_LOUD = [st("on"), st("open", { device_class: "garage" }), st("unlocked"), st("triggered"), st("armed_away"), st("5"), st("on", { device_class: "moisture" }), st("on", { device_class: "smoke" })];
+const ALL_LOUD = [st("on"), st("open", { device_class: "garage" }), st("unlocked"), st("jammed"), st("triggered"), st("armed_away"), st("5"), st("on", { device_class: "moisture" }), st("on", { device_class: "smoke" })];
 
 describe("S24.3: every DeviceType has a written attention rule (finding 17)", () => {
   it("ATTENTION_RULE names every DeviceType and nothing else", () => {
@@ -132,7 +132,7 @@ describe("attention: items", () => {
       ["alarm-armed", "Panel"], ["open", "Fridge"], ["unlocked", "A lock"], ["unlocked", "B lock"], ["leak", "Sink"], ["smoke", "Smoke"], ["battery-low", "Remote"],
     ]);
     expect(a.items[1]).toMatchObject({ floor: "g", at: { what: "device", index: 4, id: "id-binary_sensor.c" }, entity: "binary_sensor.c", room: "Hall", type: "contact", state: "on", lastChanged: "2026-10-08T09:00:00Z" });
-    expect(ATTENTION_KINDS).toEqual(["alarm-triggered", "alarm-armed", "open", "unlocked", "leak", "smoke", "battery-low", "unavailable"]);
+    expect(ATTENTION_KINDS).toEqual(["alarm-triggered", "alarm-armed", "open", "jammed", "unlocked", "leak", "smoke", "battery-low", "unavailable"]);
   });
 
   it("a triggered alarm comes first and flags its floor; an armed one does not flag it", () => {
@@ -259,5 +259,120 @@ describe("attention on the stress house, counted by hand", () => {
     // It sits between the Office and the Garage; a door's room is the first in layout order that it borders.
     expect(a.items.find((i) => i.name === "Garage side door")).toMatchObject({ kind: "unlocked", floor: "ground", room: "Office", entity: "lock.garage_side_door", at: { what: "door", id: "door-ground-28" } });
     expect(a.items.find((i) => i.name === "Front door")!.entity).toBe("lock.front_door_deadbolt");
+  });
+});
+
+/** S24.R: the Opus review of Sprint 24. Scenarios from the reviewer's proof script (tests/core/zz-review-proof.test.ts). */
+describe("S24.R2: a jammed lock needs a person", () => {
+  it("a jammed lock icon is Jammed, ranked after open and before unlocked", () => {
+    const l = one([dev("lock", "lock.front", { name: "Front lock" }), dev("lock", "lock.back", { name: "Back lock" }), dev("contact", "binary_sensor.w", { name: "Window" })]);
+    const a = attention(l, { "lock.front": st("jammed"), "lock.back": st("unlocked"), "binary_sensor.w": st("on") });
+    expect(a.items.map((i) => [i.kind, i.name])).toEqual([["open", "Window"], ["jammed", "Front lock"], ["unlocked", "Back lock"]]);
+    expect(a.floors.g!.count).toBe(3);
+  });
+
+  it("a door's own jammed lock raises Jammed on the door", () => {
+    const d = door("d1", "Front door", { locks: ["lock.front", "lock.deadbolt"] });
+    const a = attention(one([], [d]), { "lock.front": st("locked"), "lock.deadbolt": st("jammed") });
+    expect(a.items.map((i) => [i.kind, i.name, i.entity, i.at.what])).toEqual([["jammed", "Front door", "lock.deadbolt", "door"]]);
+  });
+});
+
+describe("S24.R9: a floor key is data, never a prototype", () => {
+  it("a floor named __proto__ is counted as its own floor", () => {
+    const l = JSON.parse('{"version":2,"unit":"cm","north":0,"catalog":[],"floors":{"__proto__":{"title":"P","devices":[{"id":"l","type":"lock","entity":"lock.x","x":1,"y":1}],"rooms":[],"doors":[],"furniture":[]}}}') as Layout;
+    expect(Object.keys(l.floors)).toEqual(["__proto__"]);
+    const a = attention(l, { "lock.x": st("unlocked") });
+    expect(a.items.map((i) => [i.kind, i.floor])).toEqual([["unlocked", "__proto__"]]);
+    expect(Object.keys(a.floors)).toEqual(["__proto__"]);
+    expect(Object.getOwnPropertyDescriptor(a.floors, "__proto__")?.value).toEqual({ count: 1, unavailable: 0, alarm: false });
+  });
+});
+
+describe("S24.R1: low battery as Home Assistant reports it", () => {
+  const reg = (rows: Record<string, [string, string?]>) => Object.fromEntries(Object.entries(rows).map(([id, [dev, cat]]) => [id, { device_id: dev, entity_category: cat ?? null }]));
+
+  it("(a) a `battery` attribute, as Zigbee2MQTT sends it, is read like battery_level", () => {
+    const a = attention(one([dev("motion", "binary_sensor.m", { name: "Hall motion" })]), { "binary_sensor.m": st("off", { battery: 5 }) });
+    expect(a.items.map((i) => [i.kind, i.name, i.entity, i.level])).toEqual([["battery-low", "Hall motion", "binary_sensor.m", 5]]);
+    expect(attention(one([dev("motion", "binary_sensor.m")]), { "binary_sensor.m": st("off", { battery: 60 }) }).items).toEqual([]);
+    expect(attention(one([dev("motion", "binary_sensor.m")]), { "binary_sensor.m": st("off", { battery: "low" }) }).items).toEqual([]);
+  });
+
+  it("(b) a battery sensor placed as a `battery` icon is a device's battery when HA files it as diagnostic", () => {
+    const l = one([dev("battery", "sensor.door_battery", { name: "Door battery" })]);
+    const s = { "sensor.door_battery": st("5", { device_class: "battery", unit_of_measurement: "%" }) };
+    expect(attention(l, s, reg({ "sensor.door_battery": ["D1", "diagnostic"] })).items.map((i) => [i.kind, i.level])).toEqual([["battery-low", 5]]);
+    // A home storage battery's charge is its device's primary reading, never diagnostic: no alert, with or without the registry.
+    expect(attention(l, s, reg({ "sensor.door_battery": ["D1"] })).items).toEqual([]);
+    expect(attention(l, s).items).toEqual([]);
+  });
+
+  it("(c) a battery binary_sensor that is on (low) raises it, off does not", () => {
+    const l = one([dev("other", "binary_sensor.bl", { name: "Remote" })]);
+    expect(attention(l, { "binary_sensor.bl": st("on", { device_class: "battery" }) }).items.map((i) => [i.kind, i.name, i.level])).toEqual([["battery-low", "Remote", undefined]]);
+    expect(attention(l, { "binary_sensor.bl": st("off", { device_class: "battery" }) }).items).toEqual([]);
+  });
+
+  it("(d) a placed device with no battery attribute reads the battery sensor of its own HA device", () => {
+    const l = one([dev("motion", "binary_sensor.m", { name: "Hall motion" }), dev("light", "light.l", { name: "Lamp" })]);
+    const r = reg({ "binary_sensor.m": ["M"], "sensor.m_battery": ["M", "diagnostic"], "sensor.m_lux": ["M"], "light.l": ["L"], "sensor.other_battery": ["X", "diagnostic"] });
+    const s = {
+      "binary_sensor.m": st("off", {}), "sensor.m_battery": st("7", { device_class: "battery", unit_of_measurement: "%" }, "2026-10-08T08:00:00Z"),
+      "sensor.m_lux": st("3", { device_class: "illuminance" }), "light.l": st("on"), "sensor.other_battery": st("1", { device_class: "battery" }),
+    };
+    const a = attention(l, s, r);
+    // The item stays on the placed device (its room, its row, its place on the plan); `source` names the battery sensor.
+    expect(a.items).toMatchObject([{ kind: "battery-low", name: "Hall motion", entity: "binary_sensor.m", source: "sensor.m_battery", level: 7, state: "7", lastChanged: "2026-10-08T08:00:00Z", type: "motion" }]);
+    expect(a.items).toHaveLength(1);
+    // Without the registry, nothing links the two.
+    expect(attention(l, s).items).toEqual([]);
+    // A battery binary_sensor of the device that is on is low too.
+    const bs = { ...s, "sensor.m_battery": st("80", { device_class: "battery" }), "binary_sensor.m_battery_low": st("on", { device_class: "battery" }) };
+    expect(attention(l, bs, { ...r, ...reg({ "binary_sensor.m_battery_low": ["M", "diagnostic"] }) }).items.map((i) => [i.kind, i.source])).toEqual([["battery-low", "binary_sensor.m_battery_low"]]);
+    // At 80 % alone it is fine.
+    expect(attention(l, { ...s, "sensor.m_battery": st("80", { device_class: "battery" }) }, r).items).toEqual([]);
+  });
+
+  it("(d) the device's own attribute, when it has one, is the reading; a sibling is not asked", () => {
+    const l = one([dev("motion", "binary_sensor.m")]);
+    const r = reg({ "binary_sensor.m": ["M"], "sensor.m_battery": ["M", "diagnostic"] });
+    expect(attention(l, { "binary_sensor.m": st("off", { battery: 80 }), "sensor.m_battery": st("5", { device_class: "battery" }) }, r).items).toEqual([]);
+  });
+
+  it("(d) a battery sensor placed as its own icon is reported by that icon, once; two icons of one device report it once", () => {
+    const l = one([dev("motion", "binary_sensor.m", { name: "Hall motion" }), dev("other", "sensor.m_battery", { name: "Motion battery" }), dev("temp", "sensor.t", { name: "Thermo" }), dev("humidity", "sensor.h", { name: "Hygro" })]);
+    const r = reg({ "binary_sensor.m": ["M"], "sensor.m_battery": ["M", "diagnostic"], "sensor.t": ["T"], "sensor.h": ["T"], "sensor.t_battery": ["T", "diagnostic"] });
+    const a = attention(l, { "binary_sensor.m": st("off"), "sensor.m_battery": st("5", { device_class: "battery" }), "sensor.t": st("21"), "sensor.h": st("40"), "sensor.t_battery": st("9", { device_class: "battery" }) }, r);
+    expect(a.items.map((i) => [i.name, i.entity, i.source])).toEqual([["Motion battery", "sensor.m_battery", undefined], ["Thermo", "sensor.t", "sensor.t_battery"]]);
+  });
+
+  it("(d) a door's own lock reads its device's battery sensor", () => {
+    const d = door("d1", "Back door", { locks: ["lock.back"] });
+    const a = attention(one([], [d]), { "lock.back": st("locked"), "sensor.back_battery": st("12", { device_class: "battery" }) }, reg({ "lock.back": ["B"], "sensor.back_battery": ["B", "diagnostic"] }));
+    expect(a.items.map((i) => [i.kind, i.name, i.entity, i.source, i.level])).toEqual([["battery-low", "Back door", "lock.back", "sensor.back_battery", 12]]);
+  });
+
+  it("a storage device's charge is never a low battery: battery, inverter, ups and car do not read their device's battery sensor", () => {
+    for (const t of ["battery", "inverter", "ups", "car"] as const) {
+      const a = attention(one([dev(t, `sensor.${t}`)]), { [`sensor.${t}`]: st("300"), [`sensor.${t}_soc`]: st("4", { device_class: "battery", unit_of_measurement: "%" }) }, reg({ [`sensor.${t}`]: ["S"], [`sensor.${t}_soc`]: ["S"] }));
+      expect(a.items, t).toEqual([]);
+    }
+  });
+
+  it("a motion sensor low on battery counts once on its tab, and an unlocked lock with a low sibling battery is two items, one thing", () => {
+    const l = one([dev("lock", "lock.front", { name: "Front lock" })]);
+    const a = attention(l, { "lock.front": st("unlocked"), "sensor.fb": st("3", { device_class: "battery" }) }, reg({ "lock.front": ["F"], "sensor.fb": ["F", "diagnostic"] }));
+    expect(a.items.map((i) => i.kind)).toEqual(["unlocked", "battery-low"]);
+    expect(a.floors.g!.count).toBe(1);
+  });
+
+  it("a junk registry never throws and never makes up an item", () => {
+    const l = one([dev("motion", "binary_sensor.m")]);
+    const s = { "binary_sensor.m": st("off"), "sensor.b": st("3", { device_class: "battery" }) };
+    for (const junk of [5, "x", null, [], { "binary_sensor.m": null }, { "binary_sensor.m": { device_id: 5 }, "sensor.b": { device_id: 5 } }, { "binary_sensor.m": { device_id: "" }, "sensor.b": { device_id: "" } }, { __proto__: { device_id: "M" } }]) {
+      expect(() => attention(l, s, junk as never)).not.toThrow();
+      expect(attention(l, s, junk as never).items, JSON.stringify(junk)).toEqual([]);
+    }
   });
 });
