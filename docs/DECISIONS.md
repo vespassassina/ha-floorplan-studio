@@ -4,6 +4,16 @@ Newest first. A change supersedes; nothing is edited.
 
 ## 2026-10-09: Sprint 24 review fixes, core and card (S24.R)
 
+- **A sibling battery sensor counts only when HA files it `diagnostic`** (S24.R12). Supersedes the assumption in
+  "Home battery or device battery" below that siblings need not be diagnostic. The re-check found the case it feared:
+  a `switch.batt_grid_charge` or a car charger's plug shares its HA device with the battery's charge sensor, filed
+  without a category, and 10 % of that is a normal night. The type check sees only the placed icon, so the registry's
+  category decides for the sibling, the rule a `battery` icon already used. Shape from the frontend: `hass.entities`
+  carries `entity_category` as the string "config" or "diagnostic", or leaves it out (`connection-mixin.ts` maps the
+  display entry's numeric `ec` through `entity_categories`). The cost: an integration that files a device's own battery
+  without a category is no longer read through the sibling path; its `battery` attribute still is.
+- **A battery sensor is read only in % or with no unit** (S24.R12). A cell in volts at 2.9 is not 2.9 %.
+
 - **Low battery reads what Home Assistant really sends** (S24.R1). Supersedes part of "Low battery is a device's own
   battery" (S24.3). Three paths, the first with a reading decides: the entity is a battery entity itself (a battery
   `binary_sensor` on is low; HA has no level there, so the row says "battery low"); a `battery_level` or `battery`

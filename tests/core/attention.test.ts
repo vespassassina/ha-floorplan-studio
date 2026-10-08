@@ -367,6 +367,44 @@ describe("S24.R1: low battery as Home Assistant reports it", () => {
     expect(a.floors.g!.count).toBe(1);
   });
 
+  it("S24.R12: a sibling battery sensor counts only when HA files it diagnostic: a home battery or car charge on a switch's device is not an alert", () => {
+    // `regHa` copies the frontend's `hass.entities` shape: home-assistant/frontend src/state/connection-mixin.ts builds
+    // `entity_category` from the display entry's `ec` as `entity_categories[ec]`, a string ("config" | "diagnostic"),
+    // and leaves it undefined when `ec` is absent (src/data/entity/entity_registry.ts, EntityRegistryDisplayEntry).
+    const regHa = (rows: Record<string, [string, ("config" | "diagnostic")?]>) =>
+      Object.fromEntries(Object.entries(rows).map(([id, [dev, cat]]) => [id, { entity_id: id, device_id: dev, labels: [], ...(cat ? { entity_category: cat } : {}) }]));
+    const l = one([dev("switch", "switch.batt_grid_charge", { name: "Grid charge" }), dev("plug", "switch.car_charge", { name: "Car charge" })]);
+    const s = {
+      "switch.batt_grid_charge": st("off"), "sensor.home_batt_soc": st("10", { device_class: "battery", unit_of_measurement: "%" }),
+      "switch.car_charge": st("on"), "sensor.car_battery": st("10", { device_class: "battery", unit_of_measurement: "%" }),
+    };
+    const r = regHa({ "switch.batt_grid_charge": ["HB"], "sensor.home_batt_soc": ["HB"], "switch.car_charge": ["CAR"], "sensor.car_battery": ["CAR"] });
+    expect(attention(l, s, r).items).toEqual([]);
+    // A "config" entity is no maintenance battery either.
+    expect(attention(l, s, { ...r, ...regHa({ "sensor.car_battery": ["CAR", "config"] }) }).items).toEqual([]);
+    // The same sensor filed diagnostic is a device's battery: the alert comes back.
+    const d = attention(l, s, { ...r, ...regHa({ "sensor.car_battery": ["CAR", "diagnostic"] }) });
+    expect(d.items.map((i) => [i.name, i.source, i.level])).toEqual([["Car charge", "sensor.car_battery", 10]]);
+  });
+
+  it("S24.R12: of a device's low battery sensors, the lowest is reported, wherever it is in the registry", () => {
+    const l = one([dev("motion", "binary_sensor.m", { name: "Hall motion" })]);
+    const s = { "binary_sensor.m": st("off"), "sensor.m_bat_a": st("15", { device_class: "battery", unit_of_measurement: "%" }), "sensor.m_bat_b": st("6", { device_class: "battery", unit_of_measurement: "%" }), "sensor.m_bat_c": st("11", { device_class: "battery", unit_of_measurement: "%" }) };
+    const r = reg({ "binary_sensor.m": ["M"], "sensor.m_bat_a": ["M", "diagnostic"], "sensor.m_bat_b": ["M", "diagnostic"], "sensor.m_bat_c": ["M", "diagnostic"] });
+    expect(attention(l, s, r).items.map((i) => [i.source, i.level])).toEqual([["sensor.m_bat_b", 6]]);
+  });
+
+  it("S24.R12: a battery sensor in volts is not a percentage; '%' or no unit is", () => {
+    const l = one([dev("motion", "binary_sensor.m"), dev("other", "sensor.v", { name: "Cell" })]);
+    const r = reg({ "binary_sensor.m": ["M"], "sensor.m_volts": ["M", "diagnostic"], "sensor.v": ["V", "diagnostic"] });
+    const s = { "binary_sensor.m": st("off"), "sensor.m_volts": st("2.9", { device_class: "battery", unit_of_measurement: "V" }), "sensor.v": st("2.9", { device_class: "battery", unit_of_measurement: "V" }) };
+    expect(attention(l, s, r).items).toEqual([]);
+    const pct = { ...s, "sensor.v": st("2.9", { device_class: "battery", unit_of_measurement: "%" }) };
+    expect(attention(l, pct, r).items.map((i) => [i.entity, i.level])).toEqual([["sensor.v", 2.9]]);
+    const none = { ...s, "sensor.v": st("2.9", { device_class: "battery" }) };
+    expect(attention(l, none, r).items.map((i) => [i.entity, i.level])).toEqual([["sensor.v", 2.9]]);
+  });
+
   it("a junk registry never throws and never makes up an item", () => {
     const l = one([dev("motion", "binary_sensor.m")]);
     const s = { "binary_sensor.m": st("off"), "sensor.b": st("3", { device_class: "battery" }) };
