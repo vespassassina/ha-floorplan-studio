@@ -124,7 +124,9 @@ export function createOverlay(container: HTMLElement) {
       const it = icons.get(i), path = it?.g.querySelector("path");
       if (!it || !path) return null;
       const op = (e: Element) => { const v = parseFloat(getComputedStyle(e).opacity); return Number.isFinite(v) ? v : 1; };
-      return { css: getComputedStyle(path).fill, opacity: op(it.g) * op(path) };
+      // S23.4: an on device is a solid disc with an ink glyph, so its colour is the disc's; off has no disc and the glyph is the colour.
+      const halo = it.g.querySelector(".halo"), src = halo && parseFloat(getComputedStyle(halo).fillOpacity) > 0 ? halo : path;
+      return { css: getComputedStyle(src).fill, opacity: op(it.g) * op(src) };
     },
     /** Test and debug: which devices and rooms have an element, and whether it is on show. */
     state: () => ({ icons: [...icons].map(([i, it]) => ({ i, shown: it.shown })), rooms: [...rooms].map(([r, it]) => ({ r, shown: it.shown })) }),

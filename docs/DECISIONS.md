@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-08: off is quiet, on is solid (S23.4, V9 first rule, V10, V11)
+
+Supersedes "an off icon's disc is 50 % in every theme" (2026-09-23) and the 60 % disc of an on motion or contact sensor (S8.13).
+- **Off and idle.** No disc: the halo is still painted at fill-opacity 0 so it takes the click, with no ring. The glyph is `--fp-idle` at .7.
+- **On.** The disc is `--fp-dev` (or the lamp's rgb, the plug's heat, a layout colour) at full opacity. The glyph is `--fp-dev-ink`. Per theme, `themeExtras` (src/core/ink.ts) writes an `-ink` for every `--fp-dev-*`, idle and danger: the theme's own dark ink, else its light ink, if it reaches 4.5:1, else pure black or white (one always clears 4.58:1). A colour only the state knows gets black or white at render time, as `var(--fp-pure-black|white)` so the markup carries no hex. The heat ramp's ink is picked from the same oklch mix the stylesheet does.
+- **Brightness** moved from the glyph to the glow: the aura's alpha is scaled by the lamp's brightness (`--fp-dev-opacity`). A dim lamp keeps a solid disc.
+- **Motion and contact** on: the solid disc plus an outline ring (`--fp-outline`, 2 px) and the ping, so a trigger still stands out from a lit lamp.
+- **Blueprint idle** is `color-mix(ink 55 %, bg)`, #888f99, saturation under .15 (it was #2b5697, about .5). Tokens that equalled the old idle (camera, garden tints) follow it.
+- The on glyph rule is `g.dev.on path` (0,2,2) so it beats `.dev.dev-motion path` and the outdoor and camera tints; the camera cone (0,3,1) keeps its own fill.
+- 3D: a ball takes the disc's colour when the disc shows, else the glyph's.
+Tests changed on purpose (finding 19): 21 Playwright tests read the on colour off the glyph or pinned the 50 % disc, the 60 % motion disc, a 25 % lamp halo or blueprint's old idle. They now read the disc, the ink, 0 and #888f99. Unit: the aura, halo and on rules in render.test.ts, the colour-and-ink style strings in render.test.ts and card-colors.test.ts, and the plug's heat style.
+
 ## 2026-10-08: the popup is placed inside what the user sees (S22.2)
 
 `placeNear` (popup-ui.ts) clamps to the host's box cut to the visual viewport (`window.visualViewport`, else the window), not to the host alone. Below the point first, above it when there is no room below, then clamped into that box. Its height is capped to the box less 16 px (the CSS cap the popup had for a host in full view), so in a very short window the sliders scroll and the button stays on screen. A host with less than 40 px showing falls back to its own box, the old rule. Not chosen: `position: fixed` (it would escape the card's stacking and need its own z-index and theme scope). The popup is placed when it opens and on each render, not on a page scroll.

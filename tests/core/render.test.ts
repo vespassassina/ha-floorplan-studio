@@ -249,8 +249,8 @@ describe("renderFloor", () => {
       expect(aura).toBeGreaterThan(lastRoom);
     });
 
-    it("the .aura rule reads --fp-aura at --fp-alpha and never catches the pointer", () => {
-      expect(FLOORPLAN_CSS).toMatch(/\.aura\{fill:var\(--fp-aura\);fill-opacity:var\(--fp-alpha\);pointer-events:none\}/);
+    it("the .aura rule reads --fp-aura at --fp-alpha (times the lamp's brightness, S23.4) and never catches the pointer", () => {
+      expect(FLOORPLAN_CSS).toMatch(/\.aura\{fill:var\(--fp-aura\);fill-opacity:calc\(var\(--fp-alpha\) \* var\(--fp-dev-opacity,1\)\);pointer-events:none\}/);
       expect(FLOORPLAN_CSS).toContain("--fp-aura:#f0c419");
     });
   });
@@ -484,7 +484,8 @@ describe("S8.13: brighter alerts, wider light", () => {
 
   it("the alert rules: a ping pulses in the sensor's own colour, a triggered disc is stronger than any other on disc, the door alert is contact red, and none take the pointer", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.ping\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-ping/);
-    expect(FLOORPLAN_CSS).toMatch(/\.dev-motion\.on \.halo,\.dev-contact\.on \.halo\{fill-opacity:\.6;stroke:var\(--fp-dev\);stroke-width:2\}/);
+    // S23.4: every on disc is solid now, so a triggered one is set apart by its outline ring and the ping, not by a harder fill
+    expect(FLOORPLAN_CSS).toMatch(/\.dev-motion\.on \.halo,\.dev-contact\.on \.halo\{stroke:var\(--fp-outline\);stroke-width:2\}/);
     expect(FLOORPLAN_CSS).toMatch(/\.door-alert\{stroke:var\(--fp-open-door\);[^}]*stroke-linecap:butt;[^}]*pointer-events:none/);
     expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave,\.siren-ring\{animation:none\}/);
   });
@@ -1320,7 +1321,8 @@ describe("devices sit on top (S1.29)", () => {
   it("the halo is a class, with no inline fill", () => {
     expect(html).toContain('<circle class="halo" cx="12" cy="12" r="16"/>'); // the icon is 12 out, the disc 3 more plus one
     expect(html).not.toContain("fill-opacity");
-    expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{fill:var\(--fp-disc\);fill-opacity:var\(--fp-disc-alpha\);stroke:var\(--fp-halo\);stroke-width:1;vector-effect:non-scaling-stroke\}/);
+    // S23.4: off is the glyph alone; the disc stays painted (fill-opacity 0, not fill:none) so it still takes the click
+    expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{fill:var\(--fp-disc\);fill-opacity:0;stroke:none;stroke-width:1;vector-effect:non-scaling-stroke\}/);
     expect(FLOORPLAN_CSS).toContain("--fp-halo:#8b8578");
     expect(FLOORPLAN_CSS).toContain("--fp-disc:#fff");
     expect(FLOORPLAN_CSS).toContain("--fp-disc-alpha:.5");
@@ -1402,9 +1404,9 @@ describe("S2.9: a device wears its colour when it is on", () => {
       expect(FLOORPLAN_CSS, type).toContain(`.dev-${type}.on{--fp-dev:${value}}`);
   });
 
-  it("the two shared rules read --fp-dev on the icon and the halo, and the halo keeps --fp-alpha (25%) while on", () => {
-    expect(FLOORPLAN_CSS).toContain(".dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}");
-    expect(FLOORPLAN_CSS).toContain(".dev.on .halo{fill:var(--fp-dev);fill-opacity:var(--fp-alpha)}");
+  it("S23.4: on is a solid disc in --fp-dev (or the lamp's own colour) with the glyph in --fp-dev-ink", () => {
+    expect(FLOORPLAN_CSS).toContain("g.dev.on path{fill:var(--fp-dev-ink,var(--fp-on-dark));fill-opacity:1}");
+    expect(FLOORPLAN_CSS).toContain(".dev.on .halo{fill:var(--fp-dev-fill,var(--fp-dev));fill-opacity:1;stroke:none}");
   });
 
   it("a contact device carries the on class, and the old --fp-open override on .dev-contact.on path is gone (a second source of the same colour)", () => {
@@ -1810,13 +1812,14 @@ describe("device colours (S1.36)", () => {
   });
   it("puts each chosen colour in one style as --fp-dev-<type>, around the drawing", () => {
     const html = renderFloor(ground, { scale: 0.5, colors: { light: "#aabbcc", camera: "#112233" } });
-    expect(html.startsWith('<g class="dev-colours" style="--fp-dev-light:#aabbcc;--fp-dev-camera:#112233">')).toBe(true);
+    // S23.4: each with its glyph ink, through a token (black or white for a colour no theme chose)
+    expect(html.startsWith('<g class="dev-colours" style="--fp-dev-light:#aabbcc;--fp-dev-light-ink:var(--fp-pure-black);--fp-dev-camera:#112233;--fp-dev-camera-ink:var(--fp-pure-white)">')).toBe(true);
     expect(html.endsWith("</g>")).toBe(true);
     expect(renderFloor(ground, { scale: 0.5 })).toBe(html.slice(html.indexOf(">") + 1, -4)); // the rest is unchanged
   });
   it("skips what is not a device type or #rrggbb, so nothing untrusted reaches the attribute", () => {
     const html = renderFloor(ground, { scale: 0.5, colors: { fridge: "#aabbcc", light: 'red;" onload="x', tv: "#abcdef" } as any });
-    expect(html).toContain('style="--fp-dev-tv:#abcdef"');
+    expect(html).toContain('style="--fp-dev-tv:#abcdef;--fp-dev-tv-ink:var(--fp-pure-black)"');
     expect(html).not.toContain("fridge"); expect(html).not.toContain("onload");
     expect(renderFloor(ground, { scale: 0.5, colors: { light: "nope" } as any })).toBe(renderFloor(ground, { scale: 0.5 }));
   });

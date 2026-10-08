@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card and studio: a device that is off is now its glyph alone, in a quiet grey, with no disc behind it. A device that is on is a solid disc in its colour, and the glyph on it is dark or light, whichever reads (at least 4.5:1 in every theme). A lit lamp's own colour, a plug's heat and a layout's own device colours get their readable glyph too. Blueprint's idle grey is no longer blue.
+
 ## 0.20.2 - 2026-10-08
 
 - Card: a device popup now always opens where you can see it. On a card taller than the screen, a tap low on the plan put it below the bottom edge; now it opens above the point, and a very short window makes it scroll inside instead.
