@@ -233,3 +233,61 @@ test("U16: a room's sensor shows its Home Assistant name, the id in small type, 
   await expect(row).toContainText("Kitchen temperature");
   await expect(row.locator("small.eid")).toHaveText("sensor.kitchen_temperature");
 });
+
+test("S24.R8: a click never picks what Layers hides: a small tv piece under hidden Furniture, nor a light", async ({ page }) => {
+  // A small tv, speaker or computer is picked from a padded box (S18.10), computed, not hit by the element under the
+  // pointer. It used to ignore Layers: a click on the empty floor over a hidden tv selected it and it came back.
+  await load(page);
+  await page.evaluate((tag) => {
+    const ed = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(ed.layout));
+    l.floors.ground.furniture.push({ id: "tv-r8", symbol: "tv", x: 420, y: 200, rot: 0, w: 100, h: 8, entity: "media_player.r8", name: "Proof TV" });
+    ed.layout = l;
+  }, EDITOR);
+  const furn = plan(page).locator("g.furn");
+  await expect(furn).toHaveCount(3);
+  const sel = () => page.evaluate((tag) => (document.querySelector(tag) as any).st.sel as { t: string; i: number } | null, EDITOR);
+  const tvAt = await screenOf(page, 420, 209); // in the padded box, 5 cm below the tv's 8 cm body: only the computed pick reaches it
+  const away = await screenOf(page, LIVING[0], LIVING[1] + 40);
+  await openLayers(page);
+  await clickAt(page, `${EDITOR} #layersPanel [data-layer="furniture"]`);
+  await expect(furn).toHaveCount(0);
+  await page.mouse.click(tvAt.x, tvAt.y);
+  expect((await sel())?.t).not.toBe("furn");
+  await expect(furn).toHaveCount(0);
+  // shown again, the same click picks it: the point is right
+  await clickAt(page, `${EDITOR} #layersPanel [data-layer="furniture"]`);
+  await expect(furn).toHaveCount(3);
+  await page.mouse.click(tvAt.x, tvAt.y);
+  expect(await sel()).toEqual({ t: "furn", i: 2 });
+  // found by search while hidden: the plan keeps it drawn, so it stays pickable; let go, it is gone and not pickable
+  await clickAt(page, `${EDITOR} #layersPanel [data-layer="furniture"]`);
+  await expect(furn).toHaveCount(0);
+  await page.mouse.click(away.x, away.y);
+  await page.keyboard.press("/");
+  await page.keyboard.type("Proof TV");
+  await expect(page.locator(`${EDITOR} fp-search [role="option"]`).first()).toContainText("Proof TV");
+  await page.keyboard.press("Enter");
+  await expect(furn).toHaveCount(1);
+  const kept = await screenOf(page, 420, 209); // search centred the plan on it; again below the body
+  await page.mouse.click(kept.x, kept.y);
+  expect(await sel()).toEqual({ t: "furn", i: 2 });
+  await expect(furn).toHaveCount(1);
+  const away2 = await screenOf(page, LIVING[0], LIVING[1] + 40);
+  await page.mouse.click(away2.x, away2.y);
+  await expect(furn).toHaveCount(0);
+  await page.mouse.click(kept.x, kept.y);
+  expect((await sel())?.t).not.toBe("furn");
+  await expect(furn).toHaveCount(0);
+  // a hidden light is not picked either
+  await clickAt(page, `${EDITOR} #layersPanel [data-layer="furniture"]`);
+  await clickAt(page, `${EDITOR} #layersPanel [data-layer="lights"]`);
+  await expect(plan(page).locator("g.dev-light")).toHaveCount(0);
+  const lamp = await screenOf(page, 650, 200); // Kitchen light, wherever the view now is
+  await page.mouse.click(lamp.x, lamp.y);
+  expect((await sel())?.t).not.toBe("dev");
+  await expect(plan(page).locator("g.dev-light")).toHaveCount(0);
+  // shown, the same click picks it: the point is right (a guard: a hidden device has no element to hit)
+  await clickAt(page, `${EDITOR} #layersPanel [data-layer="lights"]`);
+  await page.mouse.click(lamp.x, lamp.y);
+  expect((await sel())?.t).toBe("dev");
+});

@@ -19,6 +19,17 @@ export function layerOfType(t: DeviceType): LayerId {
   return Object.prototype.hasOwnProperty.call(CATEGORY_OF, t) ? CATEGORY_OF[t] : "other";
 }
 
+/**
+ * Whether `hidden` leaves a device, piece of furniture or unlinked appliance off the plan. A thing that `keep` names
+ * (the selection, a found thing) is drawn anyway. One rule for what is drawn and what a click can pick: the Studio's
+ * computed hit-test (`furnitureNear`) asks it, so nothing invisible is picked. Never throws on junk.
+ */
+export function layerHides(hidden: readonly LayerId[] | undefined, t: "dev" | "furn" | "unl", i: number, type?: DeviceType, ...keep: ({ t: string; i: number } | null | undefined)[]): boolean {
+  if (!Array.isArray(hidden) || !hidden.length) return false;
+  if (keep.some((s) => s?.t === t && s.i === i)) return false;
+  return hidden.includes(t === "furn" ? "furniture" : layerOfType(type as DeviceType));
+}
+
 /** Known ids only, once each, in layer order. For storage and anything else that cannot be trusted. Never throws. */
 export function parseLayers(raw: unknown): LayerId[] {
   if (!Array.isArray(raw)) return [];

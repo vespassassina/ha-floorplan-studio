@@ -18,6 +18,7 @@ import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
 import { restoreScene, tryScene } from "./scene-try";
 import { cleanSceneItem } from "./room-scenes-ops";
 import type { SceneItem } from "../core";
+import { layerHides } from "../core/layers";
 import { newDraft, sceneDesigner, type SceneDraft } from "./scene-designer";
 import { roomSceneTargets, saveScene } from "./room-scenes-ops";
 import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, typeOptions, type PanelCtx } from "./panels";
@@ -834,7 +835,8 @@ export class FloorplanStudioEditor extends LitElement {
    *  piece under it; a handle, device, door or wall element really under the pointer still wins. */
   private padFurniture(hit: Hit, p: Pt): Hit {
     if (hit.k !== "bg" && hit.k !== "room" && hit.k !== "stairs" && hit.k !== "furn") return hit;
-    const i = furnitureNear(this.st.f, p, this.scale);
+    // S24.R8: the plan's own Layers rule, with the selection kept as renderFloor keeps it: hidden is not pickable.
+    const st = this.st, i = furnitureNear(st.f, p, this.scale, (j) => layerHides(st.hidden, "furn", j, undefined, st.sel && "i" in st.sel ? st.sel : null));
     return i === null ? hit : { k: "furn", i };
   }
 

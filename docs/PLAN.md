@@ -2744,3 +2744,8 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       floor only. Two linked TVs with the id `tv` on Ground and First: "First TV" selected First on the plan but opened
       Ground › Living and marked no row. Row ids are now `d:<floor>:<id>`. Test: that layout, `/`, Enter, the First row
       marked, for a piece and for a device sharing an id with a piece on another floor.
+- [x] S24.R8 (Opus review 8) A small tv, speaker or computer is picked from a padded box (`furnitureNear`, S18.10),
+      which ignored Layers: with Furniture hidden, a click on the floor over the piece selected it and it came back.
+      The pick now skips what `layerHides` (`src/core/layers.ts`) leaves off the plan, the selection kept as the plan
+      keeps it. Devices have no computed pick; a hidden one has no element to hit. Test: real `page.mouse` in the
+      padding, hidden, shown, and kept by a search.
