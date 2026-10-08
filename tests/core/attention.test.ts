@@ -86,7 +86,30 @@ describe("S24.3: every DeviceType has a written attention rule (finding 17)", ()
   it("an unlocked lock with a low battery is both", () => {
     const a = attention(one([dev("lock", "lock.front", { name: "Front lock" })]), { "lock.front": st("unlocked", { battery_level: 5 }) });
     expect(a.items.map((i) => i.kind)).toEqual(["unlocked", "battery-low"]);
+    // The floor tab counts things, not items (coordinator): one lock, one.
+    expect(a.floors.g!.count).toBe(1);
+  });
+
+  it("a door's own locks and contact sensors are read for battery_level, once per entity (coordinator)", () => {
+    const d = door("d1", "Back door", { locks: ["lock.back", "lock.icon"], sensors: ["binary_sensor.back", "binary_sensor.ok"] });
+    const l = one([dev("lock", "lock.icon", { name: "Icon lock" })], [d]);
+    const a = attention(l, {
+      "lock.back": st("locked", { battery_level: 12 }), "binary_sensor.back": st("off", { battery_level: "9" }),
+      "binary_sensor.ok": st("off", { battery_level: 20 }), "lock.icon": st("locked", { battery_level: 3 }),
+    });
+    expect(a.items.map((i) => [i.kind, i.name, i.entity, i.at.what])).toEqual([
+      ["battery-low", "Back door", "binary_sensor.back", "door"], ["battery-low", "Back door", "lock.back", "door"], ["battery-low", "Icon lock", "lock.icon", "device"],
+    ]);
+    // Two things need attention: the door and the icon.
     expect(a.floors.g!.count).toBe(2);
+    expect(attention(l, { "lock.back": st("unavailable", { battery_level: 1 }), "binary_sensor.back": st("off", { battery_level: null }) }).items).toEqual([]);
+  });
+
+  it("a door unlocked and with a low battery counts once on its floor", () => {
+    const d = door("d1", "Back door", { locks: ["lock.back"] });
+    const a = attention(one([], [d]), { "lock.back": st("unlocked", { battery_level: 5 }) });
+    expect(a.items.map((i) => i.kind)).toEqual(["unlocked", "battery-low"]);
+    expect(a.floors.g!.count).toBe(1);
   });
 
   it("a hazard needs a binary sensor: a numeric moisture sensor reading 'on' is not a leak", () => {
@@ -176,10 +199,13 @@ describe("attention: items", () => {
  *
  * Ground: alarm triggered (1); open: Living patio door (contact), Garage door (its own garage opener), Mailbox (contact
  * icon), Driveway gate (a gate cover icon) (4); unlocked: Key cabinet (lock icon), Front door (one of its two locks),
- * Garage side door (its only lock) (3); battery-low: Key cabinet, its lock's battery_level at 12 (1). 9 items. The Home
- * battery at 15 % is a storage battery's charge, not a low battery, and is not counted. Unavailable: Garage camera, Living
+ * Garage side door (its only lock) (3); battery-low: Key cabinet, its lock's battery_level at 12; Front door, its contact sensor at 9;
+ * Kitchen patio door, its lock at 14 (3). 11 items. The Home battery at 15 % is a storage battery's charge, not a low
+ * battery, and is not counted. The tab counts things, not items: Key cabinet and Front door are already counted, so
+ * 8 things plus the Kitchen patio door, 9. Unavailable: Garage camera, Living
  * spot 1 (2); Living spot 2 is unknown, not counted.
- * First: open: Master bedroom window 1 (1); leak: Master bath leak (1). 2 items. Unavailable: Master bedroom spot 1, and
+ * First: open: Master bedroom window 1 (1); leak: Master bath leak (1); battery-low: Study window 1, its contact at
+ * 11 (1). 3 items, 3 things. Unavailable: Master bedroom spot 1, and
  * Bedroom 2 window 1 by its contact sensor (2).
  * Second: open: Library window 1 by its contact (its curtains do not count, nor Home cinema window 1's) (1); smoke:
  * Server room smoke (1). 2 items. Unavailable: Guest bedroom spot 1, the Library TV piece (2).
@@ -195,7 +221,8 @@ describe("attention on the stress house, counted by hand", () => {
     "binary_sensor.mailbox": st("on"), "binary_sensor.kitchen_fridge_door": st("off"),
     "cover.driveway_gate": st("open", { device_class: "gate" }), "cover.living_blind": st("open", { device_class: "blind" }),
     "lock.cloakroom_cabinet": st("unlocked", { battery_level: 12 }),
-    "binary_sensor.front_door_contact": st("off"), "lock.front_door": st("locked"), "lock.front_door_deadbolt": st("unlocked"),
+    "binary_sensor.front_door_contact": st("off", { battery_level: 9 }), "lock.kitchen_patio_door": st("locked", { battery_level: 14 }),
+    "binary_sensor.study_window_1_contact": st("off", { battery_level: 11 }), "lock.front_door": st("locked"), "lock.front_door_deadbolt": st("unlocked"),
     "lock.garage_side_door": st("unlocked"),
     "sensor.home_battery_soc": st("15", { unit_of_measurement: "%" }),
     "camera.garage": st("unavailable"), "light.living_spot_1": st("unavailable"), "light.living_spot_2": st("unknown"),
@@ -211,7 +238,7 @@ describe("attention on the stress house, counted by hand", () => {
   it("per-floor counts and the alarm flag", () => {
     expect(a.floors).toEqual({
       ground: { count: 9, unavailable: 2, alarm: true },
-      first: { count: 2, unavailable: 2, alarm: false },
+      first: { count: 3, unavailable: 2, alarm: false },
       second: { count: 2, unavailable: 2, alarm: false },
     });
   });
@@ -221,7 +248,7 @@ describe("attention on the stress house, counted by hand", () => {
       "alarm-triggered: Alarm panel",
       "open: Driveway gate", "open: Garage door", "open: Library window 1", "open: Living patio door", "open: Mailbox", "open: Master bedroom window 1",
       "unlocked: Front door", "unlocked: Garage side door", "unlocked: Key cabinet",
-      "leak: Master bath leak", "smoke: Server room smoke", "battery-low: Key cabinet",
+      "leak: Master bath leak", "smoke: Server room smoke", "battery-low: Front door", "battery-low: Key cabinet", "battery-low: Kitchen patio door", "battery-low: Study window 1",
     ]);
     expect(a.unavailable.map((i) => `${i.floor}: ${i.name}`)).toEqual([
       "first: Bedroom 2 window 1", "ground: Garage camera", "second: Guest bedroom spot 1", "second: Library TV", "ground: Living spot 1", "first: Master bedroom spot 1",

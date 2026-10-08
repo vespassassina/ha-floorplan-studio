@@ -31,8 +31,9 @@ export type AttentionKind = (typeof ATTENTION_KINDS)[number];
  *   numeric state under 20 (`BATTERY_LOW`) is a low battery.
  * - `none`: only when unavailable. A siren sounding, a vibration sensor, a vacuum in error: not asked for here. The
  *   `battery` type is a home storage battery: its charge is not an alert.
- * Besides its rule, any placed device whose `battery_level` attribute is a number under 20 is a low battery: a lock
- * can be unlocked and low at once, two items.
+ * Besides its rule, any placed device, and any lock or contact sensor a door carries, whose `battery_level` attribute
+ * is a number under 20 is a low battery, one item per entity. A lock can be unlocked and low at once: two items, one
+ * thing on the floor's count.
  */
 export type AttentionRule = "alarm" | "open" | "unlocked" | "hazard" | "none";
 export const ATTENTION_RULE: Record<DeviceType, AttentionRule> = {
@@ -71,8 +72,9 @@ export interface AttentionItem {
   lastChanged: string;
 }
 
-/** Per floor, for the floor tabs ("Ground · 3"). `count` leaves the unavailable out: they have their own folded row,
- *  and two dozen dead entities would drown the number. `alarm`: an alarm on the floor is triggered. */
+/** Per floor, for the floor tabs ("Ground · 3"). `count` is the number of things (a device, a piece or a door) with at
+ *  least one item, not the number of items. It leaves the unavailable out: they have their own folded row, and two
+ *  dozen dead entities would drown the number. `alarm`: an alarm on the floor is triggered. */
 export interface FloorAttention { count: number; unavailable: number; alarm: boolean }
 
 export interface Attention {
@@ -188,14 +190,23 @@ export function attention(layout: Layout, state: StateOverlay | undefined): Atte
       if (ds.contact || ds.cover) raise("open", (s) => s.state === "on" || s.state === "open", [...sensors, ...(ds.cover ? cover : [])]);
       if (ds.unlocked) raise("unlocked", (s) => s.state === "unlocked", locks);
       raise("unavailable", (s) => s.state === "unavailable", [...sensors, ...locks, ...own(door.vibration), ...cover]);
+      for (const e of new Set([...sensors, ...locks])) {
+        const s = stateOf(state, e);
+        if (s && s.state !== "unavailable" && low(attrs(s).battery_level)) add({ kind: "battery-low", at, name, ...(room ? { room } : {}), ...base(s, e) });
+      }
     });
   }
 
   const rank = (k: AttentionKind) => ATTENTION_KINDS.indexOf(k);
   const byName = (a: AttentionItem, b: AttentionItem) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-  items.sort((a, b) => rank(a.kind) - rank(b.kind) || byName(a, b));
+  items.sort((a, b) => rank(a.kind) - rank(b.kind) || byName(a, b) || (a.entity < b.entity ? -1 : a.entity > b.entity ? 1 : 0));
   unavailable.sort(byName);
-  for (const it of items) { floors[it.floor]!.count++; if (it.kind === "alarm-triggered") floors[it.floor]!.alarm = true; }
+  const things = new Set<string>();
+  for (const it of items) {
+    const thing = `${it.floor}\u0000${it.at.what}\u0000${it.at.index}`;
+    if (!things.has(thing)) { things.add(thing); floors[it.floor]!.count++; }
+    if (it.kind === "alarm-triggered") floors[it.floor]!.alarm = true;
+  }
   for (const it of unavailable) floors[it.floor]!.unavailable++;
   return { items, unavailable, floors };
 }
