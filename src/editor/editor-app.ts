@@ -8,6 +8,7 @@ import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../c
 import { BANNER_MS, bannerLevel, isQuiet, type BannerLevel } from "./banner";
 import { PAN_STEP, isSaveChord, isSearchChord, takesTyping, viewKeyFor, type ViewKey } from "../card/view-keys";
 import { marqueeHits } from "./selection";
+import { statusFacts } from "./status-bar";
 import { moveDevices, removeDevices } from "./bulk";
 import "../card/search-box";
 import type { FpSearch } from "../card/search-box";
@@ -490,6 +491,8 @@ export class FloorplanStudioEditor extends LitElement {
     .tc{flex:none;font-size:.8em;opacity:.75;font-variant-numeric:tabular-nums}
     .k-floor .tl,.k-unplaced .tl{font-weight:600}
     .k-unplaced{margin-top:6px}
+    .statusbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:6px;padding:3px 8px;font-size:12px;line-height:1.5;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:4px}
+    .statusbar .btn{padding:0 8px;font-size:12px}
     .canvas{position:relative;border:1px solid var(--fp-idle);height:var(--fp-editor-height,calc(100vh - 150px));min-height:420px;touch-action:none;background:var(--fp-bg)}
     .zoom{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px;z-index:2}
     .zoom .btn{width:24px;height:24px;padding:0;text-align:center;line-height:1;font-size:13px}
@@ -549,6 +552,8 @@ export class FloorplanStudioEditor extends LitElement {
     // Keys are heard on the element only, so Delete or Ctrl+Z elsewhere in a page does nothing here.
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
     this.addEventListener("keydown", this.onKey);
+    this.addEventListener("keyup", this.onKeyUp);
+    window.addEventListener("blur", this.onBlur);
     window.addEventListener("pagehide", this.flushView);
     document.addEventListener("visibilitychange", this.onVisibility);
     this.addEventListener("focusout", this.onFocusOut);
@@ -558,6 +563,8 @@ export class FloorplanStudioEditor extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.removeEventListener("keydown", this.onKey);
+    this.removeEventListener("keyup", this.onKeyUp);
+    window.removeEventListener("blur", this.onBlur);
     window.removeEventListener("pagehide", this.flushView);
     document.removeEventListener("visibilitychange", this.onVisibility);
     this.stopTurn();
@@ -1658,7 +1665,13 @@ export class FloorplanStudioEditor extends LitElement {
     else this.resetView();
   }
 
+  /** S26.22: Alt held, for the status bar ("Snap off"). Heard on the host like every key; a lost window forgets it. */
+  private altDown = false;
+  private setAlt(on: boolean) { if (this.altDown !== on) { this.altDown = on; this.requestUpdate(); } }
+  private onKeyUp = (ev: KeyboardEvent) => { if (ev.key === "Alt") this.setAlt(false); };
+  private onBlur = () => this.setAlt(false);
   private onKey = (ev: KeyboardEvent) => {
+    if (ev.key === "Alt") this.setAlt(true);
     // Cmd/Ctrl+S is Save from anywhere in the editor, a text box included; the browser's own save-page dialog never opens.
     if (isSaveChord(ev) && !ev.defaultPrevented && !ev.isComposing) { ev.preventDefault(); this.saveByKey(); return; }
     // S24.5: Cmd/Ctrl+K from anywhere in the editor, "/" from anywhere but a text field, goes to the search box.
@@ -2805,7 +2818,14 @@ export class FloorplanStudioEditor extends LitElement {
           ${this.traceOpen ? this.traceView() : nothing}
         </div>
         ${asideView(this)}
-      </div>`;
+      </div>
+      ${this.statusBarView()}`;
+  }
+
+  /** S26.22: the facts under the canvas (selection, room, snap, floor, zoom); messages and refusals keep the banner. */
+  private statusBarView() {
+    const s = statusFacts(this.st, { alt: this.altDown, drawing: !!this.draw });
+    return html`<div class="statusbar" id="statusBar" aria-label="Status"><span class="sb-text">${s.text}</span>${s.locked ? html`<button class="btn" id="statusUnlock" @click=${() => this.setPlanLocked(false)}>Unlock</button>` : nothing}</div>`;
   }
 
   /**

@@ -2995,7 +2995,7 @@ Wave 4, in order on `task/s26-edit` (each touches the host):
 - [x] S26.21 (U19) The Outline offers the same menu. A right-click (or the Menu key) on a device or room row opens the
       plan's menu for it. Test: the labels from the Outline row equal the labels from a right-click on the same device
       on the plan. Files: `outline.ts`, the host's `sideView`, `ctx-menu.ts`.
-- [ ] S26.22 Status bar. A bar under the canvas: "4 selected · Living · Snap 10 cm · 15° · Ground · 100 %", and "Plan
+- [x] S26.22 Status bar. A bar under the canvas: "4 selected · Living · Snap 10 cm · 15° · Ground · 100 %", and "Plan
       locked [Unlock]" while locked. The text comes from a pure `statusFacts(st, view)` in a new
       `src/editor/status-bar.ts`. Test: unit on the text for none, one, several, a turned view, Alt; Playwright: a marquee
       reads "4 selected", a zoom changes the %, a real click on Unlock unlocks; computed-style pair on the bar.

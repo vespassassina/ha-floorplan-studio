@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: the status bar (S26.22)
+
+- `statusFacts(st, { alt, drawing })` in `status-bar.ts` is the one source of the text; the host only draws it and keeps `altDown`. Order: selection (a name for one, "N selected" for several), its room (the one room they all stand in; none when they span rooms; a selected room is named once), snap, the 15° step, "Turned n°", the floor, the zoom, then "Plan locked".
+- **The 15° step shows only while drawing and without Alt.** It has no meaning on a plain pointer, and a permanent "15°" would read as a setting. Alt shows "Snap off", as the pointer does with it held; a grid of 0 reads the same.
+- **Zoom 100 % is the whole floor in view** (`viewBoxFor` against the view, the same ratio `centreOn` uses), so a fit reads 100 % on any plan.
+- The bar is a full-width row under the three-column editing area, not inside the canvas, so no plan point is covered and no existing selector moved. Facts only: refusals and messages stay in the banner.
+- Alt is heard on the host (keydown and keyup, finding 6) and forgotten when the window loses focus.
+
 ## 2026-10-09: the Outline offers the plan's menu (S26.21)
 
 - A right-click on a device or room row selects that object (through `goTo`, as a click on the row does) and opens the menu `ctxTargetFor` gives for it, at the pointer. The Menu key or Shift+F10 on a focused row opens it under the row. No new menu code: `ctxMenuView` and `ctxItems` are the only source, so the two lists cannot differ.

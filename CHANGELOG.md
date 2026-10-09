@@ -21,6 +21,7 @@
 - Studio: the Inspector has tabs, Selection, Place and Add. Place devices (a room's Home Assistant area) and Add, Device open in the side panel instead of floating over the plan, so the plan does not move and the buttons stay in view.
 - Studio: with several devices selected the panel counts them by type and offers Controlled by (binds every light to one switch, says how many others it left alone), Lock (ticked, unticked or half-ticked when mixed) and Delete n. Each is one undo step.
 - Studio: the Outline offers the plan's context menu. Right-click a device or room row, or press the Menu key (or Shift+F10) on it, and the same menu opens as on the plan, with the same items in the same order.
+- Studio: a status bar under the canvas reads the facts of the moment: what is selected, its room, the snap, the floor and the zoom ("4 selected · Living · Snap 10 cm · Ground · 100 %"). While you draw it shows the 15° step; with Alt held it says "Snap off"; a turned view says so; a locked plan says "Plan locked" with an Unlock button.
 
 ## 0.23.1 - 2026-10-09
 
