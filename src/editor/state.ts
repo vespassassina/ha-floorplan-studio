@@ -257,7 +257,7 @@ export class EditorState {
   // ---- floors: whole-layout snapshots, one undo step each, nothing recorded when refused ----
 
   /**
-   * "Fix plan" (2026-10-06): while on, nothing of the plan changes, only devices (lights and the rest). View state, like
+   * "Lock plan" (2026-10-06, named Fix plan until Sprint 26): while on, the plan's geometry holds still; devices, names, colours and links can still be edited. View state, like
    * `viewRot`: not in the layout and not an undo step. Every writer below asks `planOpen()` first; `planBlocked` says the
    * last one was refused, so the editor can tell the person why nothing happened.
    */

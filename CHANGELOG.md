@@ -4,6 +4,7 @@
 
 - Studio: Escape during a drag of several devices cancels the drag and puts them back.
 - Studio: a right-click on an Outline row of a selected group keeps the group and gives the same menu as the plan.
+- Studio: a disabled button (Link 0, Show all) is dimmed and shows a not-allowed cursor.
 - Studio: Controlled by on several devices counts only the lights that change, and says "Nothing to bind" when none would; the heading and Delete count the same devices.
 - Studio: a context menu opened near the foot of the window moves up to fit instead of shrinking to a short scrolling box.
 - Studio: Help opens in the Add, Place and Link modes too.

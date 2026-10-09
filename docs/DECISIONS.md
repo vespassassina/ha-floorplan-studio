@@ -6,6 +6,9 @@ Newest first. A change supersedes; nothing is edited.
 
 - (a) Escape during a group drag puts the devices back (`replaceFloor(base)`), drops the drag and keeps the selection; the history was never touched, so there is no undo step. A second Escape clears the selection as before.
 - (b) A right-click on an Outline row that is a member of the multi-selection keeps the selection and opens the multi-selection menu, as the plan does. Any other row selects its object first, as before.
+- (e) A disabled `.btn` is dimmed (opacity .5) with a not-allowed cursor, for every button, so "Link 0" no longer looks live. It was already disabled; nothing said so to the eye. Computed-style pair in `link-mode.spec.ts`.
+- (f) The docstring of `planLocked` in `state.ts` says Lock plan, not Fix plan.
+- (g) Not fixed, reported: the status bar sits over the foot of the canvas (S26.22) and covers the bottom row of the ruler (about 20 px at 1024 wide, the label "8" in the demo). The ruler spans the view, so a roomier fit would not clear it; only a shorter canvas or a ruler that skips the bar would, and the first one broke two specs in S26.22. Left as it is.
 - (c) The multi-device heading counts the devices that exist (`mine`), as Delete does; a stale index or a repeat no longer makes them differ.
 - (d) Controlled by counts the lights that change, not all of them: ten already bound and ten not says "Bound 10". When none would change it says "Nothing to bind: the lights already have it" ("Nothing to clear: no light is linked" for the clear), writes nothing and makes no undo step.
 

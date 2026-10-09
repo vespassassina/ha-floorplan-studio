@@ -133,3 +133,19 @@ test("Undo and Redo under an open Link mode close it", async ({ page }) => {
   await page.locator("#redo").click(); // the mode is open again and Redo must close it too
   await expect(page.locator("#linkPanel")).toHaveCount(0);
 });
+
+// Opus review (e): with no match the button read "Link 0" and looked as live as any primary button. CSS pair: a disabled button
+// is dimmed and says so with its cursor; the enabled one is not.
+test("Link 0 looks disabled: dimmed with a not-allowed cursor, while Link 3 is full strength", async ({ page }) => {
+  await openLink(page);
+  const css = () => page.locator("#linkApply").evaluate((el) => { const c = getComputedStyle(el); return { op: Number(c.opacity), cursor: c.cursor, dis: (el as HTMLButtonElement).disabled }; });
+  expect(await css()).toEqual({ op: 1, cursor: "pointer", dis: false });
+  await page.keyboard.press("Escape");
+  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; el.ha = { ...el.ha, entities: el.ha.entities.filter((e: any) => e.domain !== "switch") }; }, EDITOR);
+  await openLink(page);
+  await expect(page.locator("#linkApply")).toHaveText("Link 0");
+  const off = await css();
+  expect(off.dis).toBe(true);
+  expect(off.op).toBeLessThan(0.7);
+  expect(off.cursor).toBe("not-allowed");
+});
