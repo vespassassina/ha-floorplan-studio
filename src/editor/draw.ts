@@ -57,6 +57,20 @@ export class Draw {
 }
 
 /**
+ * `p` moved onto the nearest `stepDeg` ray from `from`, its length rounded to `grid` cm (0: 1 cm).
+ * Junk (non-finite numbers, a step that is not positive) gives `p` back unchanged; `p` on `from` too.
+ */
+export function snapRay(from: Pt, p: Pt, stepDeg: number, grid: number): Pt {
+  const dx = p[0] - from[0], dy = p[1] - from[1];
+  if (![dx, dy, stepDeg].every(Number.isFinite) || stepDeg <= 0) return [p[0], p[1]];
+  const r = Math.hypot(dx, dy);
+  if (r === 0) return [p[0], p[1]];
+  const step = (stepDeg * Math.PI) / 180, a = Math.round(Math.atan2(dy, dx) / step) * step;
+  const g = Number.isFinite(grid) && grid > 0 ? grid : 1, len = Math.round(r / g) * g;
+  return [from[0] + len * Math.cos(a), from[1] + len * Math.sin(a)];
+}
+
+/**
  * The room kind a ring of walls becomes. The wall kinds are the truth (they are kept as `wk`), so the kind
  * follows them: all boundary is a zone, all fence or edge a garden, anything else a room. A zone may hold
  * boundary edges only; a room and a garden hold any kind. (Opus review)

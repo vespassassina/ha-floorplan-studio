@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Layout, Pt } from "../../src/core/schema";
-import { Draw, applyShape, roomKindFor } from "../../src/editor/draw";
+import { Draw, applyShape, roomKindFor, snapRay } from "../../src/editor/draw";
 import { validate, WALL_KINDS } from "../../src/core/schema";
 import type { WallKind } from "../../src/core/schema";
 
@@ -272,5 +272,46 @@ describe("S4.2: drawing a room for an HA area not on the plan", () => {
     const plain = new Draw("room"); click(plain, [0, 0], [100, 0], [100, 100]);
     const pf = applyShape(ground(), "ground", plain.finish()!).floor;
     expect(pf.rooms[pf.rooms.length - 1]).toMatchObject({ name: "New room", area: "new-room" });
+  });
+});
+
+describe("snapRay (S26.7)", () => {
+  const polar = (deg: number, r: number): Pt => [100 + r * Math.cos((deg * Math.PI) / 180), 50 + r * Math.sin((deg * Math.PI) / 180)];
+  const from: Pt = [100, 50];
+  const angleOf = (p: Pt) => ((Math.atan2(p[1] - from[1], p[0] - from[0]) * 180) / Math.PI + 360) % 360;
+  const len = (p: Pt) => Math.hypot(p[0] - from[0], p[1] - from[1]);
+
+  // The plan says "352 gives 0", but 352 is 8 from 360 and 7 from 345: the nearest ray is 345. 353 and up wrap to 0.
+  it("17 degrees gives 15, 23 gives 30, 352 gives 345, 353 and 358 give 0", () => {
+    expect(angleOf(snapRay(from, polar(17, 200), 15, 10))).toBeCloseTo(15, 6);
+    expect(angleOf(snapRay(from, polar(23, 200), 15, 10))).toBeCloseTo(30, 6);
+    expect(angleOf(snapRay(from, polar(352, 200), 15, 10))).toBeCloseTo(345, 6);
+    for (const d of [353, 358]) {
+      const a = angleOf(snapRay(from, polar(d, 200), 15, 10));
+      expect(Math.min(a, 360 - a)).toBeCloseTo(0, 6);
+    }
+  });
+
+  it("rounds the length to the grid: 0 means 1 cm, 5 and 10 as given", () => {
+    expect(len(snapRay(from, polar(0, 203.4), 15, 0))).toBeCloseTo(203, 6);
+    expect(len(snapRay(from, polar(0, 203.4), 15, 5))).toBeCloseTo(205, 6);
+    expect(len(snapRay(from, polar(0, 203.4), 15, 10))).toBeCloseTo(200, 6);
+    expect(len(snapRay(from, polar(0, 206), 15, 10))).toBeCloseTo(210, 6);
+  });
+
+  it("p equal to from, or junk, never throws and gives a finite point or p back", () => {
+    expect(snapRay(from, [100, 50], 15, 10)).toEqual([100, 50]);
+    const nan: Pt = [NaN, 3];
+    expect(() => snapRay(from, nan, 15, 10)).not.toThrow();
+    expect(snapRay(from, nan, 15, 10)).toEqual(nan);
+    expect(snapRay([NaN, 0], [5, 5], 15, 10)).toEqual([5, 5]);
+    expect(snapRay(from, [300, 80], 0, 10)).toEqual([300, 80]);
+    expect(snapRay(from, [300, 80], NaN, 10)).toEqual([300, 80]);
+  });
+
+  it("does not touch its inputs", () => {
+    const p: Pt = [300, 80], f: Pt = [100, 50];
+    snapRay(f, p, 15, 10);
+    expect(p).toEqual([300, 80]); expect(f).toEqual([100, 50]);
   });
 });

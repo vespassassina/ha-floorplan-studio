@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: `snapRay` snaps to the nearest ray (S26.7)
+
+- `snapRay(from, p, stepDeg, grid)` in `src/editor/draw.ts` takes the nearest multiple of `stepDeg` by plain rounding of the angle, then rounds the length to the grid (0 means 1 cm). The plan's example "352 gives 0" is wrong for a 15 degree step: 352 is 8 from 360 and 7 from 345, so it gives 345; 353 and up give 0. The test says so.
+- Junk (non-finite numbers, a step of 0 or less) and `p` on `from` return `p` unchanged. Nothing throws.
+
 ## 2026-10-09: Sprint 25 re-check fixes (Opus)
 
 Supersedes B and D of the entry below, and "`detail` is not part of the view-memory storage key" in the entry after it.
