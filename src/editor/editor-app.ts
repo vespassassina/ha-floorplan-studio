@@ -1736,6 +1736,7 @@ export class FloorplanStudioEditor extends LitElement {
     // S26.10: Escape drops a marquee in progress, else the selection.
     if (ev.key === "Escape") {
       if (this.drag?.type === "marquee") { ev.preventDefault(); this.drag = null; this.requestUpdate(); }
+      else if (this.drag?.type === "devs") { ev.preventDefault(); this.st.replaceFloor(this.drag.base); this.drag = null; this.requestUpdate(); } // a group drag is cancelled: nothing was committed, so put it back
       else if (this.st.sel) { ev.preventDefault(); this.st.sel = null; this.requestUpdate(); }
       return;
     }

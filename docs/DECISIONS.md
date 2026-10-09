@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: small defects of the Sprint 26 review (a to g)
+
+- (a) Escape during a group drag puts the devices back (`replaceFloor(base)`), drops the drag and keeps the selection; the history was never touched, so there is no undo step. A second Escape clears the selection as before.
+
 ## 2026-10-09: a context menu near the foot shifts up instead of shrinking (Opus review R5)
 
 - The menu top was clamped to `innerHeight - 120` and the height then capped to what was left, so at 1024x768 a right-click near the canvas foot gave a 112 px scrolling strip. The cap is now the window (`100vh - 16px`) and `fitCtxMenu`, run from `updated()`, moves the menu up by how far its foot is past the window, to 8 px at most from the top. Only a menu taller than the window scrolls. The height is only known after the render, so a measure-and-move is simpler than guessing it from the item count.

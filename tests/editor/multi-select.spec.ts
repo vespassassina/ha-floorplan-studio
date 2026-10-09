@@ -323,3 +323,24 @@ test("a locked member does not follow a group drag; a locked device alone does n
   expect(await devices(page)).toEqual(before);
   expect(await steps(page)).toBe(h0);
 });
+
+// Opus review (a): Escape in the middle of a group drag cleared the selection but the drag went on and committed.
+test("Escape during a group drag puts the devices back, leaves no undo step, keeps the selection, and the rest of the drag does nothing", async ({ page }) => {
+  await load(page);
+  const { three } = await pickThree(page);
+  const grabbed = three[0];
+  const before = await devices(page), h0 = await steps(page);
+  await page.mouse.move(grabbed.x, grabbed.y);
+  await page.mouse.down();
+  await page.mouse.move(grabbed.x + 20, grabbed.y + 10, { steps: 4 });
+  expect(await devices(page)).not.toEqual(before); // the group follows the pointer live
+  await page.keyboard.press("Escape");
+  expect(await devices(page)).toEqual(before); // put back at once
+  await page.mouse.move(grabbed.x + 60, grabbed.y + 35, { steps: 4 });
+  await page.mouse.up();
+  expect(await devices(page)).toEqual(before);
+  expect(await steps(page)).toBe(h0);
+  expect((await state(page)).sel?.is).toHaveLength(3);
+  await page.keyboard.press("Escape"); // a second Escape, with nothing dragging, clears the selection as before
+  expect((await state(page)).sel).toBeNull();
+});
