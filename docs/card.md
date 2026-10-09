@@ -702,6 +702,15 @@ directly, as before.
   name, state and More info only. A vacuum tap still opens its own dialog.
 - `tap_action` is not a card option and the popup does not read one.
 
+**A stack of devices.** Devices whose discs overlap on screen (centres closer than 32 px, drawn ones only) are a stack,
+and a tap on any of them does not open a popup. It fans the stack out in a ring about its centre: each member moves to
+its own spot, a fixed 44 px or more from the next, with a thin line back to its true place, a pin there, and its name
+beside it. The ring keeps its size on screen at any zoom and is moved to stay inside the view (a card turned by Rotate
+does not move it). A tap on a member in the ring does what a tap on that device does: the popup, a hold for more-info.
+**Escape**, or a press anywhere on the plan that is not a member, folds the ring; while a popup is open, the first
+Escape closes the popup and the second the ring. A lone device opens its popup at once. The Studio has no ring: it
+picks the device on top, and a device under another is reached from its Outline tab or the search.
+
 **Hover** (mouse only, not touch): over an icon, a door or an appliance a small tooltip shows the name and the state
 text, in 2D and in 3D. It goes when the pointer leaves, when you press, drag or scroll, and while a popup is open.
 The icon's own browser tooltip is replaced while it shows.
