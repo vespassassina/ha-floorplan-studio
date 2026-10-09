@@ -330,8 +330,8 @@ when it has a sensor and every sensor says `off` (and no attached lock is unlock
 a missing state all read as open, a hole. A sensor that reports open still draws the red alert band and pulse, as before. A
 window is three hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a
 window or slit also fills its whole cut with an opaque pane, a glass tint of the room colour, closed at each end by a
-hairline jamb, so the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors, windows
-and slits cut the wall; a sealed door does not and draws no symbol. Windows, slits and full-height windows wear `--fp-window`, glass doors
+hairline jamb, so the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors, windows,
+full-height windows and slits cut the wall; a sealed door does not and draws no symbol. Windows, slits and full-height windows wear `--fp-window`, glass doors
 `--fp-glass`, which is the window blue in every theme. A window's own line paints nothing; open, alarm and an open cover
 draw it and the symbol red. The editor has no live state, so there a door is a hole, and a selected door shows its selection
 line. In 2.5D a door's leaf and a glass door's glass fill the gap on the same rule, and in 3D the leaf and the glass pane
@@ -632,14 +632,14 @@ shown width and fit height over shown height, `detailFor` in `src/core/detail.ts
 
 | Level | Zoom | Drawn |
 |---|---|---|
-| far | below 1.6 (`DETAIL_MID_FROM`) | rooms, room names, room badges; devices that are on, alerting or unavailable as dots |
+| far | below 1.6 (`DETAIL_MID_FROM`) | rooms, room names, room badges; devices that are on, alerting or unavailable as dots; a device `attention()` reports on (class `needs-attention`) stays a dot even when its state reads off |
 | mid | 1.6 to below 3.2 (`DETAIL_NEAR_FROM`) | device icons, room names, badges |
 | near | 3.2 and up | everything, device names and readings too |
 
 The thresholds are constants, not settings. The mode: `auto` follows the zoom, `full` is always near, `minimal` is always far;
 anything else is `auto` (`parseDetailMode`). The viewer picks it in the Studio's View menu (Detail) and the card's Detail
 button, kept per browser (`floorplan-studio:detail` in the Studio; `detail` in the card's view memory). The card's YAML key
-`detail: auto | full | minimal` is its default and a stored viewer pick wins. Defaults: card `auto`, Studio `full` (a device
+`detail: auto | full | minimal` is its default and a stored viewer pick wins. Defaults: card `auto` (but `full` where the viewer can neither zoom nor reach the Detail button: kiosk, or `active_list: false` with `zoom: false`), Studio `full` (a device
 just placed must not vanish at fit). Live 3D draws every level.
 
 ## Search (both apps)
