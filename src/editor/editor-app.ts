@@ -491,8 +491,9 @@ export class FloorplanStudioEditor extends LitElement {
     .tc{flex:none;font-size:.8em;opacity:.75;font-variant-numeric:tabular-nums}
     .k-floor .tl,.k-unplaced .tl{font-weight:600}
     .k-unplaced{margin-top:6px}
-    .statusbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:6px;padding:3px 8px;font-size:12px;line-height:1.5;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:4px}
-    .statusbar .btn{padding:0 8px;font-size:12px}
+    .statusbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;position:absolute;left:0;right:0;bottom:0;z-index:1;padding:3px 8px;font-size:12px;line-height:1.5;color:var(--fp-ink);background:var(--fp-room);border-top:1px solid var(--fp-idle)}
+    .statusbar{pointer-events:none}
+    .statusbar .btn{padding:0 8px;font-size:12px;pointer-events:auto}
     .canvas{position:relative;border:1px solid var(--fp-idle);height:var(--fp-editor-height,calc(100vh - 150px));min-height:420px;touch-action:none;background:var(--fp-bg)}
     .zoom{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px;z-index:2}
     .zoom .btn{width:24px;height:24px;padding:0;text-align:center;line-height:1;font-size:13px}
@@ -2810,6 +2811,7 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="vrotl" title="Rotate view left" aria-label="Rotate view left" @click=${() => this.turnBy(-ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateLeft} fill="currentColor"/></svg></button>
             <button class="btn" id="vrotr" title="Rotate view right" aria-label="Rotate view right" @click=${() => this.turnBy(ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateRight} fill="currentColor"/></svg></button>
           </div>
+          ${this.statusBarView()}
           ${this.ctxMenu ? ctxMenuView(this, this.ctxMenu) : nothing}
           ${this.devColsPos ? this.devColsView(st) : nothing}
           ${this.haPos && this.writer ? this.haView() : nothing}
@@ -2818,8 +2820,7 @@ export class FloorplanStudioEditor extends LitElement {
           ${this.traceOpen ? this.traceView() : nothing}
         </div>
         ${asideView(this)}
-      </div>
-      ${this.statusBarView()}`;
+      </div>`;
   }
 
   /** S26.22: the facts under the canvas (selection, room, snap, floor, zoom); messages and refusals keep the banner. */

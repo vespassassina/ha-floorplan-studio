@@ -7,7 +7,7 @@ Newest first. A change supersedes; nothing is edited.
 - `statusFacts(st, { alt, drawing })` in `status-bar.ts` is the one source of the text; the host only draws it and keeps `altDown`. Order: selection (a name for one, "N selected" for several), its room (the one room they all stand in; none when they span rooms; a selected room is named once), snap, the 15° step, "Turned n°", the floor, the zoom, then "Plan locked".
 - **The 15° step shows only while drawing and without Alt.** It has no meaning on a plain pointer, and a permanent "15°" would read as a setting. Alt shows "Snap off", as the pointer does with it held; a grid of 0 reads the same.
 - **Zoom 100 % is the whole floor in view** (`viewBoxFor` against the view, the same ratio `centreOn` uses), so a fit reads 100 % on any plan.
-- The bar is a full-width row under the three-column editing area, not inside the canvas, so no plan point is covered and no existing selector moved. Facts only: refusals and messages stay in the banner.
+- **The bar sits on the foot of the canvas, over the plan, with `pointer-events:none`** (the Unlock button takes clicks). A first version was a row under the editing area; it made the host taller, so a click below the canvas, which used to land outside the editor and let go of the selection, landed inside it. Two older specs (`editor.spec.ts` "wall under an opening", "rotated flight") click there and failed. The bar now adds no height and passes clicks to the plan under it. Facts only: refusals and messages stay in the banner.
 - Alt is heard on the host (keydown and keyup, finding 6) and forgotten when the window loses focus.
 
 ## 2026-10-09: the Outline offers the plan's menu (S26.21)

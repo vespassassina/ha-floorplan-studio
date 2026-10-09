@@ -141,7 +141,7 @@ test("a locked plan shows 'Plan locked' and Unlock; a real click on Unlock unloc
   expect(await page.evaluate((tag) => (document.querySelector(tag) as any).st.planLocked, EDITOR)).toBe(false);
 });
 
-test("computed-style pair: the bar is a flex row under the canvas, in the panel colours, in every theme", async ({ page }) => {
+test("computed-style pair: the bar is a flex row along the foot of the canvas, in the panel colours, in every theme", async ({ page }) => {
   await load(page);
   for (const theme of ["light", "blueprint"]) {
     await page.evaluate(([tag, t]) => { const el = document.querySelector(tag as string) as any; el.st.setTheme(t); el.requestUpdate(); }, [EDITOR, theme] as const);
@@ -152,7 +152,7 @@ test("computed-style pair: the bar is a flex row under the canvas, in the panel 
       b.appendChild(probe);
       const p = getComputedStyle(probe), s = getComputedStyle(b), out = {
         display: s.display, fontSize: parseFloat(s.fontSize), bg: s.backgroundColor, wantBg: p.backgroundColor, ink: s.color, wantInk: p.color,
-        border: s.borderTopWidth, below: b.getBoundingClientRect().top >= c.getBoundingClientRect().bottom - 1,
+        border: s.borderTopWidth, below: b.parentElement === c && Math.abs(b.getBoundingClientRect().bottom - c.getBoundingClientRect().bottom) < 3,
       };
       probe.remove();
       return out;
@@ -164,4 +164,24 @@ test("computed-style pair: the bar is a flex row under the canvas, in the panel 
     expect(m.border, theme).toBe("1px");
     expect(m.below, theme).toBe(true);
   }
+});
+
+test("a click on the bar's words reaches the plan under it (the bar holds nothing to click but Unlock)", async ({ page }) => {
+  await load(page);
+  const b = (await page.locator(`${EDITOR} #statusBar .sb-text`).boundingBox())!;
+  const top = await page.evaluate(([tag, x, y]) => { const r = (document.querySelector(tag as string) as any).shadowRoot as ShadowRoot; return r.elementsFromPoint(x as number, y as number)[0]?.tagName.toLowerCase(); }, [EDITOR, b.x + 4, b.y + b.height / 2] as const);
+  expect(top).not.toBe("div"); // not the bar: the svg, or something drawn on it
+});
+
+test("computed-style pair: the bar lets clicks through, its Unlock button does not", async ({ page }) => {
+  await load(page);
+  await page.locator(`${EDITOR} #fixPlan`).check();
+  const pe = await page.evaluate((tag) => { const r = (document.querySelector(tag) as any).shadowRoot as ShadowRoot; return [getComputedStyle(r.querySelector("#statusBar")!).pointerEvents, getComputedStyle(r.querySelector("#statusUnlock")!).pointerEvents]; }, EDITOR);
+  expect(pe).toEqual(["none", "auto"]);
+});
+
+test("the bar adds no height: the editor ends where the canvas ends, so a click below it is still outside the editor", async ({ page }) => {
+  await load(page);
+  const m = await page.evaluate((tag) => { const h = document.querySelector(tag as string) as HTMLElement, c = h.shadowRoot!.querySelector(".canvas")!; return { host: h.getBoundingClientRect().bottom, canvas: c.getBoundingClientRect().bottom }; }, EDITOR);
+  expect(m.host - m.canvas).toBeLessThan(4);
 });
