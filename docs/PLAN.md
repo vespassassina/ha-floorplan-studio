@@ -2835,3 +2835,183 @@ Door follow-ups from Diego, 2026-10-09 (own branch `task/doors-open-closed`):
 - [x] S25.D1 Doors and glass doors: no leaf line; open or sensorless = a hole, closed (sensor `off`) = a thick line (1.6x the wall, max 20 cm).
 - [x] S25.D3 New door kind `fullwindow` ("Full-height window"): a window with sill 0 and its head under the ceiling.
 - [x] S25.D2 Rename the glass kind to "Glass door" (visible name only).
+
+## Sprint 26 (0.24.0): Studio editing at scale
+
+Branch `task/s26-edit`. Lanes branch off it as `task/s26-<lane>`, each in its own worktree with its own `PW_PORT`, and
+merge back into `task/s26-edit`. Diego, 2026-10-09: "as planned. go." The roadmap row: "Studio editing at scale:
+Inspector modes, marquee and multi-select, bulk Controlled by, one Lock, context menus, menu clean-up, status bar, typed
+lengths, 15° snap." From the Studio review of 2026-10-08: U2, U3, U5, U7, U8, U14, U15, U18, U19, U22. Direction: one
+Inspector and an Outline in the Studio, the same context menu per object everywhere, nothing new floats. Goal: on the
+stress house, bulk work is a selection and one action. Exit test: bind 20 lights in 3 actions (marquee, Controlled by,
+pick), one undo step.
+
+Rules. Each task: one outcome, its failing test written first and watched failing (finding 5). Real `page.mouse` and
+`page.keyboard` at real coordinates on the real top element (finding 3). One undo step per gesture, none when nothing
+changed; keys bound on the editor host, never `window` (finding 6). A writer that builds schema objects gets a test over
+every combination of its inputs, and every result passes `validate` (finding 12). Every CSS rule that matters gets its
+`getComputedStyle` pair (finding 10). A new Playwright test runs `--repeat-each=10` before it is committed (finding 13).
+Where behaviour is per member of a union (`DEVICE_TYPES`, `Sel["t"]`, the context-menu targets), a test iterates the
+union (finding 17). Editor state survives a `hass` update. A visible change: screenshots at 1280 and 1024 wide, dark and
+light, looked at; a change to `render.ts` runs `npm run shots`.
+
+Out of scope: the Align tab and floor offset (27); a Floors menu and folding Draw into Add (27, with Align); Align,
+Distribute, Duplicate, Move to room, cut, copy and paste; multi-select of anything but devices; offset Add picks (U13);
+the outline icon rail at 1024 (U25; the column already collapses under 1100); long-press and card context menus (29).
+
+Assumptions (defaults taken; Diego can overrule any):
+- A multi-selection holds devices only, any types mixed. Shift+click toggles one; Shift+drag on empty canvas draws a
+  marquee; a plain drag still pans. Ctrl/⌘+A selects every drawn device on the floor. A device the plan does not draw
+  (Layers, detail) is never selected.
+- Lock is the one word: "Lock plan" in the toolbar, "Lock" in panels and menus. A locked device, furniture piece or
+  unlinked object does not move (drag, group drag); it can still be edited and deleted. A locked wall, door or opening
+  keeps its length, as `locked` does today; its label says so. Devices gain `locked?: boolean` (schema stays v2).
+- Lock plan holds geometry only: points, walls, openings, kinds, heights, stairs, furniture. Names, titles, colours,
+  textures, area and entity links stay editable (review: "names and colours are never locked"). Supersedes the plan()
+  rule of 2026-10-06; DECISIONS entry in S26.3.
+- 15° steps apply while drawing, to the segment from the last point; a corner or an alignment with an earlier point of
+  the shape wins inside its 14 px reach. Alt turns every snap off, as today. Shift keeps its meaning (detach a corner).
+- A typed length is cm ("350"), or metres with an "m" ("3.5m"), along the rubber band's direction. Enter places the
+  point; Escape clears the typed value first, then cancels the drawing.
+- The status bar shows facts (selection, room, snap, floor, zoom, lock); messages and refusals keep the banner.
+- Bulk Controlled by offers the first selected light's choices (they are floor-scoped, so the same for every light) and
+  writes `bound` on the lights only; the Inspector says how many non-lights it left alone.
+
+Wave 1, pure modules (parallel; one worktree each, two chained where noted; none touches `editor-app.ts`):
+- [ ] S26.1 (U3) Devices can be locked. `locked?: boolean` on a device in `src/core/schema.ts`; `validate` reports a
+      non-boolean and never throws; `migrate` keeps it. `npm run docs:schema`; SPEC. Test: `locked` true, false,
+      absent, `"yes"`, `1`, `null`, on a device whose id is `__proto__`.
+      Files: `src/core/schema.ts`, `docs/schema.md`, `docs/SPEC.md`, a new `tests/core/device-lock.test.ts`.
+- [ ] S26.2 (U15, U18) Bulk writers, chained after S26.1 in the same worktree. Pure floor transforms in a new
+      `src/editor/bulk.ts`: `bindLights(f, is, entity)` (lights only, `""` clears `bound`, returns how many it skipped),
+      `removeDevices(f, is)`, `moveDevices(f, is, dx, dy)` (skips locked), `lockDevices(f, is, on)`, and
+      `reindexAfterRemove(is, removed)`. Junk, duplicate and out-of-range indices are ignored; nothing changed returns
+      an equal floor, so `edit` records no step. Test: iterate `DEVICE_TYPES` x bound or not x locked or not, with junk
+      indices; every result passes `validate`; each no-op leaves no undo step through `EditorState.edit`.
+      Files: `src/editor/bulk.ts`, `tests/editor/bulk.test.ts`.
+- [ ] S26.3 (U3) Lock plan holds geometry only. `EditorState.plan()` compares shapes, not names: under the lock a room,
+      floor or door rename, a colour, a texture, an area or entity link is one undo step; a corner, wall, door
+      position, kind, height, stairs or furniture change is still refused with `planBlocked`. DECISIONS entry. Test:
+      unit over each field, allowed and refused. `refused-edit.spec.ts` and `plan-lock.spec.ts` used a rename as the
+      refused edit: move them to a corner drag, on purpose, and say so in the commit.
+      Files: `src/editor/state.ts`, `tests/editor/plan-lock.test.ts`, `tests/editor/plan-lock.spec.ts`,
+      `tests/editor/refused-edit.spec.ts`, `docs/DECISIONS.md`.
+- [ ] S26.4 (U18) The plan draws a multi-selection. `RenderOpts.selection` also takes `{ t: "devs", is }`: each member
+      gets `.sel` as a single device does, and a member under a hidden layer is drawn, as the single selection is. Absent,
+      the markup is byte for byte as before. Test: iterate `DEVICE_TYPES`, each selected member has `.sel`; the render
+      snapshot unchanged without it; a computed-style pair for `.sel` on two members; `npm run shots` looked at.
+      Files: `src/core/render.ts`, `src/core/layers.ts` if `layerHides` needs the list, a new
+      `tests/core/render-multi-sel.test.ts`, a pair in `tests/editor/editor.spec.ts`.
+- [ ] S26.5 (U18) Marquee hits. `marqueeHits(f, quad, skip)` in a new `src/editor/selection.ts`: the indices of devices
+      whose centre (a point device's x,y, a segment device's midpoint) lies in `quad`, four corners in plan space (the
+      screen rectangle taken back through the view's turn); `skip(i)` leaves out what is not drawn. A centre on the edge
+      counts. Junk never throws and never hits. Test: an axis box, a 45° turned quad that a bounding-box test gets
+      wrong, skip, NaN corners, an empty floor.
+      Files: `src/editor/selection.ts`, `tests/editor/selection.test.ts`.
+- [ ] S26.6 (U19) One context-menu model. `ctxItems(target, facts)` in a new `src/editor/ctx-items.ts` returns the
+      ordered `{ id, label, key?, disabled? }` for each target: canvas, room, edge, wall, door, opening, stairs, extra,
+      furn, unl, dev, devs. Order from the review (Exhibit 14), only what exists: device: Rename, Controlled by… (a
+      light), Select same type, Hide this type, Lock or Unlock, Delete; several: Controlled by… (any light), Lock or
+      Unlock, Delete n; room: Rename, Place devices from area…, Select devices inside, Bring to front, Send to back,
+      Delete; wall and edge: kind, Add a point, Add door, window, opening, Lock or Unlock (wall), Delete; canvas: Add
+      device here…, Select all devices, Zoom to fit. `facts` (locked, has a light, count, HA present) come from the
+      caller, so the module is pure. Test: iterate the target union, each has a list; every list but canvas ends in
+      Delete; Lock follows `facts.locked`; Controlled by only with a light; ids unique; labels never say Fix.
+      Files: `src/editor/ctx-items.ts`, `tests/editor/ctx-items.test.ts`.
+- [ ] S26.7 15° steps. `snapRay(from, p, stepDeg, grid)` in `src/editor/draw.ts`: `p` moved onto the nearest
+      `stepDeg` ray from `from`, its length rounded to the grid (0: to 1 cm). Test: 17° gives 15°, 23° gives 30°, 352°
+      gives 0°, grid 0, 5 and 10, `p` equal to `from`, NaN.
+      Files: `src/editor/draw.ts`, `tests/editor/draw.test.ts`.
+- [ ] S26.8 Typed length, chained after S26.7 in the same worktree. `Draw` gets a typed buffer: `type(ch)`,
+      `untype()`, `placeTyped(toward)` adds the next point at the typed length along the direction from the last point
+      to `toward`. "350" is cm, "3.5m" metres; empty, 0, negative, over 10 000 cm, or no point yet: refused, nothing
+      added. Test: unit, each case.
+      Files: `src/editor/draw.ts`, `tests/editor/draw.test.ts`.
+
+Wave 2, alone, after wave 1 is merged:
+- [ ] S26.9 Split the host, no behaviour change. Out of `editor-app.ts`: the toolbar template into `toolbar.ts`; the
+      context menu (open, view, actions) into `ctx-menu.ts`; the aside, the Place and Add popups and their state into
+      `inspector.ts`. Each module exports its own `css`; the host's `static styles` becomes an array. The pointer and key
+      handlers stay in the host. This is what lets wave 3 run in parallel. Test: the whole suite bare, no test edited,
+      and `npm run shots -- --strict` reports no change.
+      Files: `src/editor/editor-app.ts`, new `src/editor/toolbar.ts`, `src/editor/ctx-menu.ts`,
+      `src/editor/inspector.ts`.
+
+Wave 3, four lanes in parallel, each on its own files; tasks inside a lane run in order:
+
+Lane A, pointer and keys (`editor-app.ts` handlers only, plus new spec files):
+- [ ] S26.10 (U18) Select many on the plan. Shift+click toggles any device; Shift+drag from empty canvas draws a
+      `.marquee` rectangle in the overlay and selects `marqueeHits` (adding to the selection); Ctrl/⌘+A selects every
+      drawn device on the floor; Escape clears. A plain drag still pans. No undo step. Test: stress layout, Shift held
+      with `keyboard.down`, a marquee over 4 lights selects exactly 4; again with the view turned 45°; a device of a
+      hidden layer inside is not taken; Shift+click a switch into a light selection keeps both; computed-style pair on
+      `.marquee`. New `tests/editor/multi-select.spec.ts`.
+- [ ] S26.11 (U18) A multi-selection moves and deletes as one. A drag on a member moves every unlocked member
+      (`moveDevices`), one undo step; Delete or Backspace removes them all (`removeDevices`), one undo step; a locked
+      device does not follow a drag, alone or in a group. Test: real drag of 3 lights, all moved by the same delta, one
+      Undo restores all; Delete 3, one Undo; a locked member stays put.
+- [ ] S26.12 Typed lengths and 15° steps while drawing. `snapDraw` uses `snapRay` after the corner and alignment snaps;
+      Alt turns it off. Digits typed while drawing show in a small field at the rubber band; Enter places the point
+      (`placeTyped`). Test: draw a wall with the pointer at 17°, the segment is at 15°; Alt held, it is not; type 350,
+      Enter: the segment is 350 cm; Escape clears the typed value, a second Escape cancels.
+- [ ] S26.13 (U22) `?` opens Help from the plan (not from a text field). Test: real key, panel open; in the Outline
+      filter `?` types a character.
+
+Lane B, the Inspector (`inspector.ts`, `panels.ts`):
+- [ ] S26.14 (U11, U12) Inspector modes. The aside gets tabs: Selection, Place, Add. Selection follows the selection;
+      Place (a room's HA area) and Add (Add > Device…) open as modes in the aside, never as floating panels; the canvas
+      does not move. Test: room, Place devices…, the Place tab is selected, no `.fpanel` in the DOM, the Place button
+      is inside the viewport at 1024x768, the canvas box unchanged; the mode survives a `hass` update in the panel.
+- [ ] S26.15 (U15) The Inspector on a multi-selection. Count by type, then Controlled by (when any light is in it:
+      `bindLights`, one undo step, says "Bound 20 lights; 2 others left alone"), Lock (ticked, unticked or mixed:
+      `lockDevices`), Delete n, and Create group as before. Test: 20 lights and 2 sensors selected, pick a switch
+      with real clicks: 20 `bound`, one undo step, the note names 2; the mixed Lock box; Delete n.
+- [ ] S26.16 (U3) Lock in every panel. The device panel gets a Lock box; "length locked" reads "Lock (keeps its
+      length)" on a wall, door and opening; furniture and unlinked panels say Lock. Test: tick Lock on a device, the
+      layout has `locked: true`, one undo step; no panel text says Fix or "length locked".
+
+Lane C, menus (`toolbar.ts`, `src/editor/guide.ts`, `src/core/icons.ts`):
+- [ ] S26.17 (U5, U7, U8) Menu clean-up. Opening a submenu closes its siblings; a menu box never runs past the
+      viewport (it scrolls); Add holds only buttons and submenus (Furniture and Unlinked device become submenus of
+      buttons, furniture names through a table: "Patio, wood"); View has one Labels submenu (Device names, Names and
+      values) and the version moves under Help. Test: real clicks at 1024x768, each menu's box inside the viewport;
+      two subs never open at once; no `select` inside a menu; every furniture label has no hyphen; `#version` not in
+      View. `guide-controls.spec.ts` follows any renamed control.
+- [ ] S26.18 (U22) Every menu item with a key shows it at its right edge (Undo ⌘Z or Ctrl+Z, Save, Search, Fit,
+      Select all, Delete, Help ?). Test: each listed item's text ends in its key for the platform; a key named in a menu
+      works when pressed (one per item, real keyboard).
+- [ ] S26.19 (U2) Lock plan, not Fix plan. A neutral toggle with an inline SVG lock (no emoji), "Plan locked" or "Plan
+      editable"; the warning colour only on hover. Test: computed-style pair, the toggle's background is not
+      `--fp-danger` (or the red it had) when on; its accessible name; the guide step names it.
+
+Lane D, context menus (`ctx-menu.ts`):
+- [ ] S26.20 (U19) One context menu per object on the plan. Right-click on a device, a multi-selection, stairs, a
+      structure line and the empty canvas now opens a menu; every menu takes its items and order from `ctxItems`;
+      Escape and a click elsewhere close it, as today. Test: iterate the targets on the demo, a real right-click on
+      each opens a menu whose labels equal `ctxItems` for it; device Lock then a drag does not move it; canvas "Add
+      device here…" opens Add with the click point.
+
+Wave 4, in order on `task/s26-edit` (each touches the host):
+- [ ] S26.21 (U19) The Outline offers the same menu. A right-click (or the Menu key) on a device or room row opens the
+      plan's menu for it. Test: the labels from the Outline row equal the labels from a right-click on the same device
+      on the plan. Files: `outline.ts`, the host's `sideView`, `ctx-menu.ts`.
+- [ ] S26.22 Status bar. A bar under the canvas: "4 selected · Living · Snap 10 cm · 15° · Ground · 100 %", and "Plan
+      locked [Unlock]" while locked. The text comes from a pure `statusFacts(st, view)` in a new
+      `src/editor/status-bar.ts`. Test: unit on the text for none, one, several, a turned view, Alt; Playwright: a marquee
+      reads "4 selected", a zoom changes the %, a real click on Unlock unlocks; computed-style pair on the bar.
+- [ ] S26.23 (U14) Link lights with a preview. Edit, Link lights to switches opens a Link mode in the Inspector: the
+      pairs (light, suggested switch) with ticks, scoped to the selection, else the selected room, else the floor;
+      Apply binds the ticked ones in one undo step. `linkSuggestions(st, scope)` in `bulk.ts`. Test: unit on the
+      scopes; Playwright: untick one of three, Apply, two bound, one Undo clears both.
+- [ ] S26.24 (U3) One word. No rendered string says Fix, fixed, Unfix or "length locked": banner "The plan is locked.
+      [Unlock]", the scene-save refusal, the guide. Test: a sweep over the editor's shadow DOM text and `title`s after
+      opening every menu, panel and context menu.
+- [ ] S26.25 Exit test and docs. On the stress layout with 20 lights and a switch in one room: Shift+drag over the
+      lights (1), Controlled by (2), the switch (3); all 20 bound; one Undo unbinds all 20. `docs/editor.md`,
+      `docs/SPEC.md`, guide, CHANGELOG, DECISIONS (multi-select, Lock, Inspector modes, status bar, typed length, snap).
+- [ ] S26.26 Verify: `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new tests
+      `--repeat-each=10`; `npm run shots` looked at; screenshots of the Inspector modes, the marquee, a context menu and
+      the status bar at 1280 and 1024, dark and light; the exit test walked by hand once.
+
+Review (one Opus pass on the integrated build) then fixes with their tests; exit test: bind 20 lights in 3 actions, one
+undo step.
