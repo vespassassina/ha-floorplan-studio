@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Studio (internal): pure bulk edits for devices (bind lights, remove, move, lock), ready for multi-select. No visible change yet.
+
 - Layout: a device may carry `locked: true`, so it will not be moved by a drag. The file check refuses a value that is not true or false.
 
 ## 0.23.1 - 2026-10-09

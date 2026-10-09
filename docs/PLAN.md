@@ -2882,7 +2882,7 @@ Wave 1, pure modules (parallel; one worktree each, two chained where noted; none
       non-boolean and never throws; `migrate` keeps it. `npm run docs:schema`; SPEC. Test: `locked` true, false,
       absent, `"yes"`, `1`, `null`, on a device whose id is `__proto__`.
       Files: `src/core/schema.ts`, `docs/schema.md`, `docs/SPEC.md`, a new `tests/core/device-lock.test.ts`.
-- [ ] S26.2 (U15, U18) Bulk writers, chained after S26.1 in the same worktree. Pure floor transforms in a new
+- [x] S26.2 (U15, U18) Bulk writers, chained after S26.1 in the same worktree. Pure floor transforms in a new
       `src/editor/bulk.ts`: `bindLights(f, is, entity)` (lights only, `""` clears `bound`, returns how many it skipped),
       `removeDevices(f, is)`, `moveDevices(f, is, dx, dy)` (skips locked), `lockDevices(f, is, on)`, and
       `reindexAfterRemove(is, removed)`. Junk, duplicate and out-of-range indices are ignored; nothing changed returns
