@@ -219,6 +219,61 @@ the middle button, right button, or Ctrl/Cmd held.
 The same text is in the editor under Help, step "Moving things and
 snapping". The side panel no longer repeats it.
 
+### Drawing: the 15 degree step and typed lengths
+
+While you draw a wall, outline or room, a new point lands on the nearest 15
+degree ray from the last point, its length on the snap grid. A corner, a T
+onto an edge or an alignment with an earlier point wins inside its reach.
+**Alt** turns the step off with the other snaps. Type a length ("350" is cm,
+"3.5m" is metres) and press **Enter**: the next point goes that far along the
+direction of the pointer. Escape clears the typed text, a second Escape
+cancels the drawing. The status bar shows the 15 degree step while you draw.
+
+### Selecting many devices
+
+**Shift+click** toggles any device in or out of the selection. **Shift+drag**
+from empty plan draws a dashed rectangle and adds every drawn device inside it;
+it follows a turned view. A device on a hidden layer, or one not drawn at the
+current detail, is not taken. **Ctrl/Cmd+A** selects every drawn device on the
+floor, **Escape** clears. Selecting writes nothing, so it is not an undo step.
+A plain drag still pans.
+
+A drag on a member moves every unlocked member by the same delta, in one undo
+step; **Delete** removes them all, in one. A locked device does not follow.
+
+### The Inspector
+
+The side panel (the Inspector) has tabs: **Selection** follows what is
+selected; **Place** (a room's Home Assistant area) and **Add** (Add, Device…)
+open as modes in the panel, so the plan never moves; **Link** shows while
+Edit, Link lights to switches is open. With several devices selected the
+Selection tab counts them by type and offers **Controlled by** (binds every
+light to one switch, and says how many others it left alone), **Lock** (ticked,
+unticked or half-ticked when mixed) and **Delete n**; each is one undo step.
+To bind twenty lights: Shift+drag over them, open Controlled by, pick the
+switch. One Undo unbinds them all.
+
+**Link lights to switches** does not write at once. It lists each unbound light
+with the switch it would get, in the selection, else the selected room, else the
+floor. Untick what should stay and press Apply: one undo step.
+
+### Lock
+
+One word everywhere. **Lock plan** (the toggle at the top, "Plan locked" or "Plan
+editable") holds the geometry: corners, walls, doors, windows, kinds, stairs and
+furniture. Names, colours, textures, areas, devices and links stay editable. The
+**Lock** box on a device, a piece of furniture or an unlinked appliance stops it
+being dragged; on a wall, door or opening it reads "Lock (keeps its length)".
+A refused edit says "The plan is locked." with an **Unlock** button in the banner.
+
+### Right-click and the status bar
+
+A right-click on a device, a selection, stairs, a line, a door, an opening, a
+wall, furniture, a room or the empty canvas opens one menu per object, with the
+same items in the same order; the Outline's rows open the same menu. Under the
+canvas a status bar reads the facts of the moment ("4 selected · Living · Snap
+10 cm · Ground · 100 %"), and "Plan locked" with an Unlock button while locked.
+
 ## Looking around: buttons, keys and memory
 
 Beside the zoom buttons (`+`, `-`, `0`) are **Rotate view left** and **Rotate

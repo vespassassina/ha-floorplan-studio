@@ -24,6 +24,10 @@
 - Studio: the Outline offers the plan's context menu. Right-click a device or room row, or press the Menu key (or Shift+F10) on it, and the same menu opens as on the plan, with the same items in the same order.
 - Studio: a status bar under the canvas reads the facts of the moment: what is selected, its room, the snap, the floor and the zoom ("4 selected · Living · Snap 10 cm · Ground · 100 %"). While you draw it shows the 15° step; with Alt held it says "Snap off"; a turned view says so; a locked plan says "Plan locked" with an Unlock button.
 
+- Studio: one word, Lock. The banner after a refused edit reads "The plan is locked." with an Unlock button, the command list says Lock plan or Unlock plan, and no menu, panel, banner or message says Fix, Unfix or "length locked" any more.
+- Studio: the guide has two new steps, drawing to a length (15 degree steps, typed lengths) and working on many devices at once.
+- Studio: binding 20 lights to one switch takes three actions (Shift+drag over them, Controlled by, the switch), and one Undo takes it back. A test walks it with the real pointer.
+
 ## 0.23.1 - 2026-10-09
 
 - Card and studio: a closed door or glass door is a thick line, 1.6 times the wall it sits in (never thicker than an external wall, so it stays flush there). It was as thin as the wall and read as a hairline. An open door is still a hole; windows, alerts and 2.5D are unchanged.

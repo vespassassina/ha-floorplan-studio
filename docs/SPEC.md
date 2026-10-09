@@ -671,7 +671,7 @@ Cmd-K or Ctrl-K anywhere, `/` outside a text field.
 - Search and Outline (S24.5). The top bar holds `<fp-search>` after the floor
   chips ("Search or run a command ⌘K"); Cmd-K, Ctrl-K or `/` focuses it,
   bound on the editor host. Its entries are the plan's (search index above)
-  and six commands that run the menus' own code: Fix or Unfix plan, Draw
+  and six commands that run the menus' own code: Lock or Unlock plan, Draw
   room, Add device…, Zoom to fit, Undo, Save. A pick goes there: a floor
   switches; a room or device switches floor, is selected, and is centred
   with the zoom kept or raised to fit, never zoomed out further than fit; a
@@ -680,6 +680,16 @@ Cmd-K or Ctrl-K anywhere, `/` outside a text field.
   returns to the editor after a pick, so Delete and the arrows act on it.
   The Outline shows where the pick is: its floor and room open, its row the
   tree's tab stop and scrolled into view.
+- Editing at scale (Sprint 26, 0.24.0). Shift+click and Shift+drag select many devices (`marqueeHits` in
+  `src/editor/selection.ts`, taken back through the view's turn); a multi-selection moves, locks and deletes as one,
+  each a single undo step, through the pure edits in `src/editor/bulk.ts`. Lock is one word: the plan toggle holds
+  geometry only, a device, furniture piece or unlinked appliance has a Lock box, and a locked device is not dragged.
+  The Inspector has modes (Selection, Place, Add, Link); with several devices it offers Controlled by, Lock and
+  Delete n. Edit, Link lights to switches previews its pairs (`linkSuggestions`) and Apply is one step. Drawing snaps
+  to 15 degree rays (`snapRay`, Alt off) and takes a typed length (`Draw.placeTyped`). One context menu per object
+  comes from `ctxItems`, also for the Outline's rows. A status bar (`statusFacts`) sits on the foot of the canvas.
+  Acceptance: 20 lights in a room bind to one switch in three user actions (Shift+drag, Controlled by, the switch)
+  and one Undo unbinds all 20. No rendered string says Fix, Unfix or "length locked".
 - Left column, beside the canvas, never over it: tabs (Outline, Layers), collapsed to a 36 px rail by a button, open at 260 px. It starts
   open at 1100 px wide and more. Under 900 px it stacks above the canvas.
   The Outline: a filter field (every word, in names and entity ids; the

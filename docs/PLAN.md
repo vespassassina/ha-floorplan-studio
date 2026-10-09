@@ -3003,10 +3003,10 @@ Wave 4, in order on `task/s26-edit` (each touches the host):
       pairs (light, suggested switch) with ticks, scoped to the selection, else the selected room, else the floor;
       Apply binds the ticked ones in one undo step. `linkSuggestions(st, scope)` in `bulk.ts`. Test: unit on the
       scopes; Playwright: untick one of three, Apply, two bound, one Undo clears both.
-- [ ] S26.24 (U3) One word. No rendered string says Fix, fixed, Unfix or "length locked": banner "The plan is locked.
+- [x] S26.24 (U3) One word. No rendered string says Fix, fixed, Unfix or "length locked": banner "The plan is locked.
       [Unlock]", the scene-save refusal, the guide. Test: a sweep over the editor's shadow DOM text and `title`s after
       opening every menu, panel and context menu.
-- [ ] S26.25 Exit test and docs. On the stress layout with 20 lights and a switch in one room: Shift+drag over the
+- [x] S26.25 Exit test and docs. On the stress layout with 20 lights and a switch in one room: Shift+drag over the
       lights (1), Controlled by (2), the switch (3); all 20 bound; one Undo unbinds all 20. `docs/editor.md`,
       `docs/SPEC.md`, guide, CHANGELOG, DECISIONS (multi-select, Lock, Inspector modes, status bar, typed length, snap).
 - [ ] S26.26 Verify: `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new tests

@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Sprint 26 in one place: multi-select, Lock, Inspector modes, status bar, typed length, snap (S26.24, S26.25)
+
+The decisions below, each in its own entry, add up to this. Summary so a later reader need not read twelve entries.
+
+- **Multi-select.** Shift on the plan is a marquee; Shift+click toggles any device; a group moves, locks and deletes as one undo step through `bulk.ts`. Selecting writes nothing.
+- **Lock.** One word. The plan toggle holds geometry; a device, furniture piece or unlinked appliance has a Lock box; wall, door and opening say "Lock (keeps its length)". No rendered string says Fix, Unfix or "length locked". The banner reads "The plan is locked." with an Unlock button. Ids (`#fixPlan`, `#bannerUnfix`, `cmd:fix`) stay: they are not read by anyone, and renaming them would churn 30 tests for no reader's gain. `bannerLevel` matches "is locked" as an error, where it matched "is fixed".
+- **Inspector modes.** Selection, Place, Add and Link are tabs of the aside; nothing floats over the plan.
+- **Status bar.** Facts on the canvas foot from `statusFacts`; messages stay in the banner.
+- **Typed length and snap.** 15 degree rays after the corner snaps, Alt off; digits typed while drawing place the next point at that length.
+- **The sweep.** `one-word.spec.ts` walks every shadow root after opening each menu, the Help guide, the command search, the banner, each context menu and each panel, in both plan states, and fails on the words. The scene-save refusal text is not reachable from the DOM (Save works under the lock since S26.3), so it is changed in the source and not swept.
+- **Exit test.** `bind-twenty.spec.ts`: Shift+drag, Controlled by, the switch; 20 lights bound; one Undo unbinds all 20. The three actions are counted in the test.
+
 ## 2026-10-09: Link lights with a preview (S26.23)
 
 - Edit, Link lights to switches no longer writes at once. It opens a fourth Inspector mode, Link (a tab that shows only while the mode is open). The rows are `linkSuggestions(st, scope)` in `bulk.ts`: the same rule `autoLinkLights` used (unbound light, not a `switch_as_x` wrapper, a uniquely suggested switch), so the preview and the old one-shot cannot disagree. `EditorState.autoLinkLights` stays, with its tests; no button calls it now.
