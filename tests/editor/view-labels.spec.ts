@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openLabels } from "./menu-helpers";
 
 // The editor's View > Show names and text toggle. Every pointer action goes through
 // page.mouse at real screen coordinates (CLAUDE.md finding 3): a test that dispatched events on the inner element
@@ -30,9 +31,10 @@ test("View > Show names and text: off removes every <text> from the plan, icons 
   const before = await layoutJson(page);
   await page.locator('details.menu > summary:text-is("View")').click();
   const t = page.locator("#labels");
+  const toggle = async () => { await openLabels(page); await t.click(); }; // S26.17: the toggle sits in View, Labels
   await expect(t).toHaveAttribute("aria-pressed", "true");
   expect(await page.locator("svg text.lbl:not(.mg-n)").count()).toBeGreaterThan(0);
-  await t.click();
+  await toggle();
   await expect(t).toHaveAttribute("aria-pressed", "false");
   expect(await page.locator("svg text.lbl:not(.mg-n), svg text.val").count()).toBe(0);
   const icons = await page.locator("svg g[data-x]").count();
@@ -44,6 +46,6 @@ test("View > Show names and text: off removes every <text> from the plan, icons 
   expect(await layoutJson(page)).toBe(before);
   expect(await page.locator("svg text.lbl:not(.mg-n), svg text.val").count()).toBe(0); // and undo did not bring the text back
   await page.locator('details.menu > summary:text-is("View")').click();
-  await t.click();
+  await toggle();
   expect(await page.locator("svg text.lbl:not(.mg-n)").count()).toBeGreaterThan(0);
 });

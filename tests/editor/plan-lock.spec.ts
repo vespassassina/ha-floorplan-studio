@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { Layout } from "../../src/core/schema";
+import { pickFurniture } from "./menu-helpers";
 
 // "Fix plan" in the real editor: a drag on a room or a wall end does nothing, a drag on a device still moves it, drawing and
 // adding a wall are refused with a message, and unticking gives everything back. Real page.mouse at real coordinates (finding 3).
@@ -31,7 +32,7 @@ test("a plan with rooms opens fixed, and the switch is loud: ticked, red, with a
 test("adding furniture while the plan is fixed shows a red banner with a close button, and adds nothing", async ({ page }) => {
   const before = (await g(page)).furniture.length;
   await page.locator('details.menu > summary:text-is("Add")').click();
-  await page.locator("#addFurn").selectOption("tree");
+  await pickFurniture(page, "tree");
   const banner = page.locator("#status");
   await expect(banner).toContainText("plan is fixed");
   await expect(page.locator(".banner.error")).toBeVisible();
@@ -45,7 +46,7 @@ test("a banner closes itself after 20 seconds, not before", async ({ page }) => 
   await page.goto("/standalone.html");
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   await page.locator('details.menu > summary:text-is("Add")').click();
-  await page.locator("#addFurn").selectOption("tree");
+  await pickFurniture(page, "tree");
   await expect(page.locator("#status")).toBeVisible();
   await page.clock.fastForward(19_000);
   await expect(page.locator("#status")).toBeVisible();

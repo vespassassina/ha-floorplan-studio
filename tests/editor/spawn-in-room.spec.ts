@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { Layout } from "../../src/core/schema";
+import { pickFurniture, pickUnlinked } from "./menu-helpers";
 
 // Diego, 2026-10-07: with a room selected, what you add lands in the middle of that room, and a tree added to a textured garden is drawn
 // ABOVE the texture (it was reported as lost). Real page.mouse at real coordinates (finding 3); the layout is read back from the editor.
@@ -24,7 +25,7 @@ async function pickRoom(page: Page, i: number) {
 }
 async function addFurniture(page: Page, symbol: string) {
   await page.locator('details.menu > summary:text-is("Add")').click();
-  await page.locator("#addFurn").selectOption(symbol);
+  await pickFurniture(page, symbol);
 }
 
 test("a tree added with the Kitchen selected lands in the middle of the Kitchen, above its texture", async ({ page }) => {
@@ -60,7 +61,7 @@ test("an unlinked object also goes to the selected room's middle", async ({ page
   const k = before.rooms.findIndex((r) => r.name === "Kitchen"), m = middle(before.rooms[k].pts);
   await pickRoom(page, k);
   await page.locator('details.menu > summary:text-is("Add")').click();
-  await page.locator("#addUnlDev").selectOption("speaker");
+  await pickUnlinked(page, "speaker");
   const u = (await ground(page)).unlinked.pop()!;
   expect(Math.hypot(u.x - m[0], u.y - m[1])).toBeLessThanOrEqual(45); // nudged 40 cm only when a point already stands there
 });

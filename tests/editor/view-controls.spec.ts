@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openLabels } from "./menu-helpers";
 
 // The editor's view controls: Rotate view left and right beside the zoom buttons, the keyboard (arrows, Space,
 // Cmd/Ctrl-S) and the view that survives a reload. Pointer and keys go through page.mouse and page.keyboard at
@@ -322,6 +323,7 @@ test.describe("the view survives a reload", () => {
 
   test("the labels toggle and the floor are back too", async ({ page }) => {
     await page.locator('details.menu > summary:text-is("View")').click();
+    await openLabels(page);
     await page.locator("#labels").click();
     await page.locator('details.menu > summary:text-is("View")').click();
     await page.locator("button.chip[data-f]").nth(1).click();

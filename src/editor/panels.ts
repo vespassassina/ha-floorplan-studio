@@ -9,6 +9,7 @@ import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeS
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 import { removeScene, setRoomHaScenes } from "./room-scenes-ops";
 import { GUIDE_STEPS, CONTROLS } from "./guide";
+import manifest from "../../custom_components/floorplan_studio/manifest.json";
 import "./combo";
 import type { ComboOption } from "./combo";
 import { groupSensorChoices, type GroupedChoice } from "./sensor-order";
@@ -285,6 +286,7 @@ const guideBody = (body: string) => body.split(/\[([^\]]+)\]/).map((part, k) => 
 export function helpPanel(close: () => void): TemplateResult {
   return html`<strong>? Help</strong>
     <p><button class="btn" id="helpClose" @click=${close}>Close</button></p>
+    <p class="grp" id="version">Floorplan Studio ${manifest.version}</p>
     <table class="controls" id="controls" aria-label="Controls">
       ${CONTROLS.map((c) => html`<tr><th scope="row"><kbd>${c.keys}</kbd></th><td>${c.does}</td></tr>`)}
     </table>
