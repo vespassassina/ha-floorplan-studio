@@ -8,6 +8,8 @@
 - Studio: Fix plan holds geometry only. With it on, names, titles, colours, textures, areas and entity links can still be edited (one undo step each); corners, walls, doors and windows, kinds, heights, stairs and furniture stay refused.
 - Studio (core): the plan can draw a multi-selection of devices, each with the selection stroke, even on a hidden layer. Nothing in the Studio selects more than one yet.
 - Studio: one context-menu model (`ctxItems`) lists what a right-click offers on each of the twelve targets, in one order. Not wired into the menus yet.
+- Studio (internal): `snapRay` puts a drawn point on the nearest 15 degree ray from the last point. Not wired to the pointer yet.
+- Studio (internal): `Draw` keeps a typed length ("350" cm or "3.5m") and `placeTyped` adds the next point that far along the pointer direction. Not wired to the keys yet.
 
 ## 0.23.1 - 2026-10-09
 

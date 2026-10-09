@@ -29,6 +29,16 @@ Supersedes the `plan()` rule of 2026-10-06 ("Fix plan": nothing of the plan chan
 - Items that read HA (Place devices from area, Add device here) are `disabled` without it, not hidden, so the menu keeps its shape.
 - "Delete n" only for two or more devices; junk counts give plain "Delete".
 - Not wired into `editor-app.ts` here: that is the later host split.
+## 2026-10-09: typed length lives in `Draw` (S26.8)
+
+- `Draw.typed` is the buffer. `type(ch)` takes digits, one dot and a closing `m` (false otherwise, buffer capped at 8 characters); a minus cannot be typed. `untype()` drops the last character. `typedCm` reads it: "350" is cm, "3.5m" metres; empty, 0, over 10 000 cm (10 000 itself is fine) is null.
+- `placeTyped(toward)` goes through `click`, so an opening still finishes on its second point and the 1 cm duplicate rule holds. Refused (returns "ignore", nothing added, buffer kept) with no length, no point yet, or the pointer on the last point (no direction). A point added by `click`, `cancel` or `finish` clears the buffer.
+- The point is not rounded: a typed 350 along a diagonal has fractional coordinates, so the segment is 350 cm to float precision.
+
+## 2026-10-09: `snapRay` snaps to the nearest ray (S26.7)
+
+- `snapRay(from, p, stepDeg, grid)` in `src/editor/draw.ts` takes the nearest multiple of `stepDeg` by plain rounding of the angle, then rounds the length to the grid (0 means 1 cm). The plan's example "352 gives 0" is wrong for a 15 degree step: 352 is 8 from 360 and 7 from 345, so it gives 345; 353 and up give 0. The test says so.
+- Junk (non-finite numbers, a step of 0 or less) and `p` on `from` return `p` unchanged. Nothing throws.
 
 ## 2026-10-09: Sprint 25 re-check fixes (Opus)
 

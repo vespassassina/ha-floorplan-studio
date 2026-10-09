@@ -2918,11 +2918,11 @@ Wave 1, pure modules (parallel; one worktree each, two chained where noted; none
       caller, so the module is pure. Test: iterate the target union, each has a list; every list but canvas ends in
       Delete; Lock follows `facts.locked`; Controlled by only with a light; ids unique; labels never say Fix.
       Files: `src/editor/ctx-items.ts`, `tests/editor/ctx-items.test.ts`.
-- [ ] S26.7 15° steps. `snapRay(from, p, stepDeg, grid)` in `src/editor/draw.ts`: `p` moved onto the nearest
+- [x] S26.7 15° steps. `snapRay(from, p, stepDeg, grid)` in `src/editor/draw.ts`: `p` moved onto the nearest
       `stepDeg` ray from `from`, its length rounded to the grid (0: to 1 cm). Test: 17° gives 15°, 23° gives 30°, 352°
       gives 0°, grid 0, 5 and 10, `p` equal to `from`, NaN.
       Files: `src/editor/draw.ts`, `tests/editor/draw.test.ts`.
-- [ ] S26.8 Typed length, chained after S26.7 in the same worktree. `Draw` gets a typed buffer: `type(ch)`,
+- [x] S26.8 Typed length, chained after S26.7 in the same worktree. `Draw` gets a typed buffer: `type(ch)`,
       `untype()`, `placeTyped(toward)` adds the next point at the typed length along the direction from the last point
       to `toward`. "350" is cm, "3.5m" metres; empty, 0, negative, over 10 000 cm, or no point yet: refused, nothing
       added. Test: unit, each case.

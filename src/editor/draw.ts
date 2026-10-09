@@ -16,10 +16,14 @@ export type ClickResult = "add" | "ignore" | "finish";
 const POLYGONS: readonly DrawKind[] = ["room", "zone", "water", "outline"];
 /** A single segment: the second click finishes it. Walls chain instead. */
 const SEGMENTS: readonly DrawKind[] = ["opening", "extra"];
+const MAX_TYPED_CM = 10000;
+const MAX_TYPED_CHARS = 8;
 const SAME = 1; // cm: a click this close to the last point is the second click of a double-click
 
 export class Draw {
   points: Pt[] = [];
+  /** S26.8: the length typed so far, "350" (cm) or "3.5m". Only digits, one dot and a closing m get in. */
+  typed = "";
   constructor(readonly kind: DrawKind, readonly wall: WallKind = "wall", readonly area?: AreaPreset) {}
 
   get polygon() { return POLYGONS.includes(this.kind); }
@@ -37,23 +41,69 @@ export class Draw {
     // Walls chain, but a click back on the first corner closes the loop exactly there. (S1.48)
     if (this.kind === "wall" && n >= 3 && dist(raw, this.points[0]) <= closeTh) { this.points.push([this.points[0][0], this.points[0][1]]); return "finish"; }
     if (n && dist(pt, this.points[n - 1]) < SAME) return "ignore";
+    this.typed = "";
     this.points.push([pt[0], pt[1]]);
     return SEGMENTS.includes(this.kind) && this.points.length === 2 ? "finish" : "add";
   }
 
   backspace(): boolean { return this.points.pop() !== undefined; }
-  cancel() { this.points = []; }
+  cancel() { this.points = []; this.typed = ""; }
+
+  /** Takes one typed character; false when it does not belong (a letter, a second dot, text after the m, a full buffer). */
+  type(ch: string): boolean {
+    const t = this.typed;
+    if (ch.length !== 1 || t.length >= MAX_TYPED_CHARS || t.endsWith("m")) return false;
+    const ok = /[0-9]/.test(ch) || (ch === "." && !t.includes(".")) || (ch === "m" && /[0-9]/.test(t));
+    if (ok) this.typed = t + ch;
+    return ok;
+  }
+  untype() { this.typed = this.typed.slice(0, -1); }
+
+  /** The typed length in cm, or null when it is empty, not a positive number or over 10 000 cm. */
+  get typedCm(): number | null {
+    const m = /^(\d*\.?\d*)(m?)$/.exec(this.typed);
+    const n = m ? parseFloat(m[1]) * (m[2] ? 100 : 1) : NaN;
+    return Number.isFinite(n) && n > 0 && n <= MAX_TYPED_CM ? n : null;
+  }
+
+  /**
+   * Adds the next point at the typed length from the last point, along the direction to `toward` (the
+   * pointer). Refused ("ignore", nothing added, the buffer kept) with no typed length, no point yet, or
+   * no direction. The result is what `click` says, so an opening finishes on it.
+   */
+  placeTyped(toward: Pt): ClickResult {
+    const len = this.typedCm, n = this.points.length;
+    if (len === null || !n) return "ignore";
+    const from = this.points[n - 1], dx = toward[0] - from[0], dy = toward[1] - from[1], r = Math.hypot(dx, dy);
+    if (!Number.isFinite(r) || r === 0) return "ignore";
+    return this.click([from[0] + (dx / r) * len, from[1] + (dy / r) * len]);
+  }
 
   /** The finished shape, or null when there are too few points. Either way the points are cleared. */
   finish(): Shape | null {
     const pts = this.points;
     this.points = [];
+    this.typed = "";
     if (pts.length < this.min) return null;
     return this.area ? { kind: this.kind, wall: this.wall, pts, area: this.area } : { kind: this.kind, wall: this.wall, pts };
   }
 
   /** The dashed path to draw: the points so far and the pointer. Null before the first point. */
   rubber(pt: Pt): Pt[] | null { return this.points.length ? [...this.points, pt] : null; }
+}
+
+/**
+ * `p` moved onto the nearest `stepDeg` ray from `from`, its length rounded to `grid` cm (0: 1 cm).
+ * Junk (non-finite numbers, a step that is not positive) gives `p` back unchanged; `p` on `from` too.
+ */
+export function snapRay(from: Pt, p: Pt, stepDeg: number, grid: number): Pt {
+  const dx = p[0] - from[0], dy = p[1] - from[1];
+  if (![dx, dy, stepDeg].every(Number.isFinite) || stepDeg <= 0) return [p[0], p[1]];
+  const r = Math.hypot(dx, dy);
+  if (r === 0) return [p[0], p[1]];
+  const step = (stepDeg * Math.PI) / 180, a = Math.round(Math.atan2(dy, dx) / step) * step;
+  const g = Number.isFinite(grid) && grid > 0 ? grid : 1, len = Math.round(r / g) * g;
+  return [from[0] + len * Math.cos(a), from[1] + len * Math.sin(a)];
 }
 
 /**
