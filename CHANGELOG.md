@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card and studio: a closed door or glass door is a thick line, 1.6 times the wall it sits in (never thicker than an external wall, so it stays flush there). It was as thin as the wall and read as a hairline. An open door is still a hole; windows, alerts and 2.5D are unchanged.
+
 ## 0.23.0 - 2026-10-09
 
 - Card: at far zoom the dots and the room badges now read the same attention result as the Overview, Home Assistant's entity registry included. A Zigbee2MQTT contact whose battery is a separate sensor on the same device keeps its dot, and the Hall badge counts what the Overview lists.
