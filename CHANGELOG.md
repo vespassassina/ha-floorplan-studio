@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.22.1 - 2026-10-09
+
 - Card and studio: doors lose their swing arc. A door is the gap in the wall and its thin leaf into the room.
 
 ## 0.22.0 - 2026-10-09
