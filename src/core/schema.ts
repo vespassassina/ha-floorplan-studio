@@ -109,8 +109,9 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * lit lamp's aura (and its floor pool and wall light in 3D), a playing speaker's or media device's waves, a triggered motion or
  * contact sensor's ring and a siren's rings (`FX_TYPES`, `isSiren`); on a device that draws none it is ignored. Not a schema bump:
  * an old card ignores the field, and a layout without it draws as before.
+ * `locked` (S26.1): the device does not move when dragged, alone or in a group; it can still be edited and deleted. Absent is false.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
  *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. `height` is the size of the piece, `z` its bottom above the floor
  *  (a wall TV, a speaker): the top is z + height. */
@@ -393,6 +394,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       oneOf(`${d.id} type`, d.type, DEVICE_TYPES);
       optText(d, "name");
       optHeight(d, "z");
+      if (d.locked !== undefined && typeof d.locked !== "boolean") errors.push(`${at} ${d.id} locked must be true or false`);
       if (d.entity !== "" && !isEntity(d.entity)) errors.push(`${at} ${d.id} entity must be an entity id like light.name`);
       if (!(typeof d.x === "number" && Number.isFinite(d.x) && typeof d.y === "number" && Number.isFinite(d.y)) && !(isPt(d.a) && isPt(d.b)))
         errors.push(`${at} ${d.id} needs x and y, or a and b`);
