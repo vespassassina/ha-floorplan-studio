@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Help shows in every Inspector mode (Opus review R3)
+
+- Help was drawn only in the Selection mode, so `?` and the Help button did nothing visible in Add, Place or Link. `asideView` now puts the guide first whatever the mode is. Escape closes Help before it closes the mode (the order of the keys moved up), and a click on a tab closes Help and goes to that tab. The mode and its state are kept under Help.
+
 ## 2026-10-09: any edit, Undo or Redo closes Link mode (Opus review R2)
 
 - The Link scope is device indices. Select Alpha and Beta of four, open Link, press Delete: Gamma and Delta slid into indices 0 and 1 and the preview offered them; Apply would have bound lights nobody chose. Undo did the same. The mode now remembers the floor object it opened on and closes in `willUpdate` when `st.f` is another object (every edit, Undo, Redo and drag makes one). This supersedes 'an Undo or an edit shows at once' of S26.23: a preview that cannot survive its own scope is closed, not repaired. Scoping by device id was the alternative; it would still leave a room scope pointing at a moved room.

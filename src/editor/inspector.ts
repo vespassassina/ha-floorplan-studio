@@ -209,8 +209,10 @@ export function asideView(h: FloorplanStudioEditor) {
   const canPlace = h.placeIndex() >= 0 || (selRoom >= 0 && st.areaToPlace(selRoom).length > 0);
   const tab = (id: AsideMode, label: string, on: () => void, disabled = false) =>
     html`<button class="tab" role="tab" data-mode=${id} id=${`imode-${id}`} aria-selected=${mode === id ? "true" : "false"} ?disabled=${disabled} @click=${on}>${label}</button>`;
-  const body = mode === "place" ? placeView(h, st, h.placeIndex()) : mode === "add" ? addDevView(h, st) : mode === "link" ? linkView(h, st)
-    : html`<div id="panel">${st.helpOpen ? helpPanel(() => h.toggleHelp()) : selectionPanel(h.ctx())}</div>`;
+  // Help shows in every mode (R3); a tab click closes it (setAsideMode).
+  const body = st.helpOpen ? html`<div id="panel">${helpPanel(() => h.toggleHelp())}</div>`
+    : mode === "place" ? placeView(h, st, h.placeIndex()) : mode === "add" ? addDevView(h, st) : mode === "link" ? linkView(h, st)
+    : html`<div id="panel">${selectionPanel(h.ctx())}</div>`;
   return html`<aside>
     <div class="tabs imodes" role="tablist" aria-label="Inspector">
       ${tab("selection", "Selection", () => h.setAsideMode("selection"))}

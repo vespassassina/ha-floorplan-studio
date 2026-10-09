@@ -1253,7 +1253,8 @@ export class FloorplanStudioEditor extends LitElement {
   placeIndex(): number { return this.placeRoom === null ? -1 : this.st.f.rooms.findIndex((r) => r.id === this.placeRoom); }
   /** S26.14: a tab of the aside. Place resumes its room, or opens on the selected one; Add opens as the menu entry does; Selection leaves both as they are. */
   setAsideMode(m: AsideMode) {
-    if (m === this.asideMode) return;
+    if (this.st.helpOpen) this.st.setHelp(false); // Help covers every mode; a tab click is a way out of it
+    if (m === this.asideMode) { this.requestUpdate(); return; }
     if (m === "add") { this.openAddDev(); return; }
     if (m === "place") {
       if (this.placeIndex() >= 0) this.asideMode = "place";
@@ -1711,13 +1712,13 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
     if (ev.key === "Escape" && this.haPos) { ev.preventDefault(); this.toggleHa(); return; }
     if (ev.key === "Escape" && this.sceneDraft) { ev.preventDefault(); this.closeScene(); return; }
+    if (ev.key === "Escape" && this.st.helpOpen) { /* Help covers the mode, so it goes first */ ev.preventDefault(); this.toggleHelp(); return; }
     if (ev.key === "Escape" && this.asideMode === "place") { ev.preventDefault(); this.closePlace(); return; }
     if (ev.key === "Escape" && this.asideMode === "link") { ev.preventDefault(); this.closeLink(); return; }
     if (ev.key === "Escape" && this.asideMode === "add") { ev.preventDefault(); this.closeAddDev(); return; }
     if (ev.key === "Escape" && this.installCodeOpen) { ev.preventDefault(); this.toggleInstallCode(); return; }
     if (ev.key === "Escape" && this.traceScale) { ev.preventDefault(); this.cancelTraceScale(); return; }
     if (ev.key === "Escape" && this.traceOpen) { ev.preventDefault(); this.toggleTrace(); return; }
-    if (ev.key === "Escape" && this.st.helpOpen) { ev.preventDefault(); this.toggleHelp(); return; }
     if (this.draw) {
       // Draw mode owns these keys: Delete must not remove the item that was selected before.
       // S26.12: digits, a dot and an m type a length; Enter places it, Backspace and Escape take it back before they act on the points.
