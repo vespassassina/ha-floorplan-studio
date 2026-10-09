@@ -226,7 +226,7 @@ function select(label: string, id: string, value: string, options: readonly stri
   return html`<label for=${id}>${label}</label><select id=${id} .value=${live(value)} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${names[o] ?? o}</option>`)}</select>`;
 }
 /** What the door type select shows where it differs from the stored kind id (`slit` is stored, "slit window" is read). */
-const DOOR_KIND_NAMES: Record<string, string> = { slit: "slit window", glass: "Glass door" };
+const DOOR_KIND_NAMES: Record<string, string> = { slit: "slit window", glass: "Glass door", fullwindow: "Full-height window" };
 export const ROOM_LABELS: Record<RoomKind, string> = { room: "Room", garden: "Garden", pavement: "Pavement", fill: "Fill", terrace: "Terrace", structure: "Structure", zone: "Zone", water: "Water" };
 const kindSelect = (value: string, on: (v: string) => void) =>
   html`<label for="rk">kind</label><select id="rk" .value=${live(value)} @change=${(e: Event) => on(val(e))}>${ROOM_KINDS.map((k) => html`<option value=${k} ?selected=${k === value}>${ROOM_LABELS[k]}</option>`)}</select>`;
@@ -545,7 +545,7 @@ function doorPanel(c: PanelCtx, i: number) {
   const setList = (field: "sensors" | "vibration" | "locks") => (next: string[]) => c.commit((f) => mutateList(field)(f, next));
   // `cover` is general purpose (a garage door's roller shutter is one too, kind "door") and stays offered on
   // every kind, same as before S4.24 — it doubles as the electric-curtain dropdown on a glass door or window.
-  const coverLabel = d.kind === "glass" || d.kind === "window" || d.kind === "slit" ? "electric curtain" : "cover";
+  const coverLabel = d.kind === "glass" || d.kind === "window" || d.kind === "slit" || d.kind === "fullwindow" ? "electric curtain" : "cover";
   // The placeholders are what the kind would be with no own value: for a slit that depends on the wall it hangs from.
   const dflt = doorSpan({ kind: d.kind } as Door, doorCeiling(c.st.f, d));
   return html`<strong>Door / window</strong>
@@ -555,7 +555,7 @@ function doorPanel(c: PanelCtx, i: number) {
     ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }), DOOR_KIND_NAMES)}
     ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); f.doors[i].locked = true; }))}
     ${heightField(c, "height (cm)", "dht", d.height, dflt.head - dflt.sill, heightSetter(c, "doors", i, "height"))}
-    ${d.kind === "window" || d.kind === "slit" || d.sill !== undefined ? heightField(c, "sill (cm)", "dsill", d.sill, dflt.sill, heightSetter(c, "doors", i, "sill")) : nothing}
+    ${d.kind === "window" || d.kind === "slit" || d.kind === "fullwindow" || d.sill !== undefined ? heightField(c, "sill (cm)", "dsill", d.sill, dflt.sill, heightSetter(c, "doors", i, "sill")) : nothing}
     <p>${button("deld", "Delete", () => { c.commit((f) => { f.doors.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${heading("Home Assistant")}
     ${multiAttachField(c, "dsens", "contact sensors", d.sensors ?? [], c.st.doorAttachChoices(d.id, "sensors"), setList("sensors"), { apply: mutateList("sensors"), targetLabel: d.name })}

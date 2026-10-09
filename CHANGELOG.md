@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Card and studio: doors and glass doors lose the leaf line. An open door is a hole in the wall; a closed one, a thin line across the gap. A door is closed only when it has a contact sensor and the sensor says off, so a door with no sensor is a hole. The red open alert is unchanged. In 2.5D and 3D the leaf and the glass follow the same rule.
+- Card and studio: new door kind "Full-height window": a window from the floor to 40 cm under the ceiling, so a floor-to-ceiling window no longer needs a glass door.
 - Studio: the glass door kind is now named "Glass door" in the type selector and the docs. The stored value is unchanged.
 
 ## 0.22.1 - 2026-10-09

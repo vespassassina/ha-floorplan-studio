@@ -194,6 +194,25 @@ test.describe("3D view: doors and windows", () => {
     expect((await pane()).visible).toBe(false);
   });
 
+  test("a full-height window keeps its pane whatever its sensor says short of open: it is a window, not a door (S25.D3)", async ({ page }) => {
+    const layout = structuredClone(demo) as any;
+    layout.floors.ground.doors[1].kind = "fullwindow"; // the Patio, a glass door in the demo
+    await boot(page, {}, QUIET(), layout);
+    const pane = async () => (await live(page)).doors.find((d) => d.index === 1 && d.tag === "glass")!;
+    expect((await pane()).visible).toBe(true);
+    await setStates(page, { ...QUIET(), "binary_sensor.demo_patio_door": st("on", {}, iso(5)) });
+    expect((await pane()).visible).toBe(false); // open: the pane goes, as a window's does
+    await setStates(page, QUIET());
+    expect((await pane()).visible).toBe(true);
+    await setStates(page, { ...QUIET(), "binary_sensor.demo_patio_door": st("unavailable") });
+    expect((await pane()).visible).toBe(true); // a glass door would be a hole here
+    await setStates(page, QUIET());
+    const without: Record<string, unknown> = QUIET();
+    delete without["binary_sensor.demo_patio_door"];
+    await setStates(page, without);
+    expect((await pane()).visible).toBe(true);
+  });
+
   test("a plain door is a hole (no leaf) when its sensor is unavailable, unknown or has no state, and in the garage with no sensor (S25.D1)", async ({ page }) => {
     await boot(page);
     const door = async (i: number) => (await live(page)).doors.find((d) => d.index === i && d.tag === "door-leaf")!;

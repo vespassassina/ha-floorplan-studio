@@ -153,6 +153,7 @@ and taps are unchanged. It works in 2D and 2.5D.
   A fence keeps its own height; kerbs and boundary lines stay flat.
 - A door is a gap in the wall, a window is a band of glass above its sill, a
   slit window is a band of glass 60 cm high against the ceiling, a
+  full-height window is a window from the floor to 40 cm under the ceiling, a
   glass door is glass from the floor, a sealed door is a solid panel, an open
   doorway is a gap with nothing in it (while its sensor trips, a solid alert-colour band fills the gap: no dash, no pulse; in 3D a thin glass-like slab). The
   door line at floor level still shows open, closed and alert.

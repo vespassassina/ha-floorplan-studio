@@ -2833,4 +2833,5 @@ device, on the stress house.
 
 Door follow-ups from Diego, 2026-10-09 (own branch `task/doors-open-closed`):
 - [x] S25.D1 Doors and glass doors: no leaf line; open or sensorless = a hole, closed (sensor `off`) = a thin line.
+- [x] S25.D3 New door kind `fullwindow` ("Full-height window"): a window with sill 0 and its head under the ceiling.
 - [x] S25.D2 Rename the glass kind to "Glass door" (visible name only).

@@ -227,7 +227,7 @@ export function collectWalls(f: Floor, px: Proj, mode: WallsMode = "cut"): WallS
  * (an open doorway) is a gap that draws nothing closed and the red frame when its sensors say open. One
  * entry per DoorKind, so a new kind fails the test that walks DOOR_KINDS until someone decides (finding 17).
  */
-export const OPENING_FILL: Record<DoorKind | "opening", "gap" | "void" | "glass" | "panel"> = { door: "gap", open: "void", opening: "gap", glass: "glass", window: "glass", slit: "glass", sealed: "panel" };
+export const OPENING_FILL: Record<DoorKind | "opening", "gap" | "void" | "glass" | "panel"> = { door: "gap", open: "void", opening: "gap", glass: "glass", window: "glass", slit: "glass", fullwindow: "glass", sealed: "panel" };
 /** S25.D1 (Diego, 2026-10-09): a door and a glass door fill their gap only while a sensor says closed; with none, or any other state, they are a hole. */
 export const SHUT_KINDS: readonly string[] = ["door", "glass"];
 const has = <T extends string>(table: Record<T, unknown>, k: unknown): k is T => typeof k === "string" && Object.prototype.hasOwnProperty.call(table, k);

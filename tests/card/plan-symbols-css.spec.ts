@@ -5,7 +5,7 @@ import { FLOORPLAN_CSS, THEMES } from "../../src/core/render";
 // The markup copies what renderFloor writes (tests/core/plan-symbols.test.ts pins that side).
 
 const CASES = [...THEMES.map((t) => ({ t, mode: "light" })), { t: "ha", mode: "dark" }] as const;
-const body = `<path class="door-sym k-window" d="M0 0L0 10"/><path class="door-sym k-slit" d="M0 0L0 10"/>
+const body = `<path class="door-sym k-window" d="M0 0L0 10"/><path class="door-sym k-slit" d="M0 0L0 10"/><path class="door-sym k-fullwindow" d="M0 0L0 10"/>
 <path class="door-sym k-window open" d="M0 0L0 10"/><path class="door-sym k-window alarm" d="M0 0L0 10"/><path class="door-sym k-slit cover-open" d="M0 0L0 10"/>
 <line class="door door-door quiet" x1="0" y1="0" x2="10" y2="0"/><line class="door door-door" id="shut" x1="0" y1="0" x2="10" y2="0"/><line class="door door-glass" id="shutg" x1="0" y1="0" x2="10" y2="0"/><line class="door door-glass quiet" id="holeg" x1="0" y1="0" x2="10" y2="0"/><line class="door door-door open" x1="0" y1="0" x2="10" y2="0"/>
 <line class="door door-window door-slit quiet" x1="0" y1="0" x2="10" y2="0"/><line class="door door-door sel" x1="0" y1="0" x2="10" y2="0"/>
@@ -21,7 +21,7 @@ test("S23.7 + S25.D1 CSS pair: window symbols and the closed door and glass door
     const g = document.getElementById(`c${i}`)!, cs = (sel: string) => getComputedStyle(g.querySelector(sel)!);
     const sym = (sel: string) => { const c = cs(sel); return { stroke: c.stroke, w: c.strokeWidth, ve: c.vectorEffect, pe: c.pointerEvents, fill: c.fill }; };
     return {
-      window: sym(".k-window:not(.alarm):not(.open)"), slit: sym(".k-slit:not(.cover-open)"),
+      window: sym(".k-window:not(.alarm):not(.open)"), slit: sym(".k-slit:not(.cover-open)"), fullwindow: sym(".k-fullwindow"),
       open: sym(".k-window.open"), alarm: sym(".k-window.alarm"), cover: sym(".k-slit.cover-open"),
       shut: cs("#shut").stroke, shutG: cs("#shutg").stroke, shutW: cs("#shut").strokeDasharray, holeG: cs("#holeg").stroke,
       quiet: cs("line.door.quiet").stroke, quietSlit: cs("line.door-slit.quiet").stroke, openLine: cs("line.door.open").stroke, selLine: cs("line.door.sel").stroke,
@@ -39,6 +39,7 @@ test("S23.7 + S25.D1 CSS pair: window symbols and the closed door and glass door
     expect(v.holeG, `${tag}: a glass door with no sensor paints nothing`).toBe("rgba(0, 0, 0, 0)");
     expect(v.window.stroke, tag).toBe(v.pWindow);
     expect(v.slit.stroke, tag).toBe(v.pWindow);
+    expect(v.fullwindow.stroke, `${tag}: S25.D3 a full-height window wears the window blue`).toBe(v.pWindow);
     for (const s of [v.window, v.slit]) {
       expect(s.w, `${tag}: a hairline`).toBe("1px");
       expect(s.ve, tag).toBe("non-scaling-stroke");

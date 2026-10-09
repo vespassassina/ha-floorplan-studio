@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: full-height window (S25.D3)
+
+Diego: "allow for full height windows (we have those) so that i do not need to use a glass door for them."
+- New `DoorKind` `fullwindow`, read "Full-height window". A window in every respect (pane, jambs, sensor, cover is curtains,
+  `--fp-window`, the pane goes when open) except its span: sill 0, head `SLIT_HEAD_GAP` (40 cm) under the ceiling of its wall,
+  210 on 250. That is a glass door's top and a window's head distance, so all three line up. Chosen over a head exactly at
+  the ceiling: a window whose head touches the ceiling reads as a gap in the slab, and Diego's slit was moved off the ceiling
+  for the same reason (2026-10-06). An own `sill` or `height` wins, clamped to the wall; on a wall lower than 40 cm the head is the wall.
+- Per-kind tables: `DOOR_KINDS`, `DOOR_DEFAULTS`, `doorSpan`, `OPENING_FILL`, `PANE_KINDS`, the palette `glass-fullwindow`, the
+  curtain rule, the Studio names and sill field. A test walks `DOOR_KINDS` so a new kind fails until it is in each.
+- No migration; a stored `glass` door stays a glass door.
+
 ## 2026-10-09: the glass kind is read "Glass door" (S25.D2)
 
 Diego: "rename glass into glass doors."

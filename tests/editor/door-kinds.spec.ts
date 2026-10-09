@@ -33,3 +33,18 @@ test("S25.D2: the type selector says \"Glass door\" for the stored kind glass; n
   await page.locator("#undo").click();
   expect((await doors(page)).at(-1)!.kind).toBe("door");
 });
+
+test("S25.D3: the selector offers \"Full-height window\"; picking it stores fullwindow, draws the window pane from the floor and shows the sill field", async ({ page }) => {
+  await addDoor(page);
+  const opts = await options(page);
+  expect(opts).toContainEqual(["fullwindow", "Full-height window"]);
+  expect(opts.map((o) => o[0])).toEqual(["door", "glass", "window", "sealed", "slit", "fullwindow", "open"]);
+  await page.locator("#dk").selectOption("fullwindow");
+  expect((await doors(page)).at(-1)!.kind).toBe("fullwindow");
+  await expect(page.locator(`${EDITOR} svg line.door-fullwindow`).last()).toHaveClass(/door-window/);
+  await expect(page.locator("#dsill")).toBeVisible();
+  await expect(page.locator("#dsill")).toHaveAttribute("placeholder", "0"); // the default shows as the placeholder: DOOR_DEFAULTS.fullwindow sill 0
+  await page.locator("#undo").click();
+  expect((await doors(page)).at(-1)!.kind).toBe("door");
+  await expect(page.locator(`${EDITOR} svg line.door-fullwindow`)).toHaveCount(0);
+});
