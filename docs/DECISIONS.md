@@ -2,6 +2,27 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: `?` opens Help (S26.13)
+
+- The key is handled in the editor host's `onKey`, after the text-field check (INPUT, SELECT, TEXTAREA) and guarded by `takesTyping`, so the Outline filter and every other field keep the character. It toggles, like the Help button, and works while drawing too (it is not a typed character). Ctrl, Cmd and Alt chords are left alone.
+- The test presses `?` itself: Playwright's `Shift+/` sends the key `/`, which is the search chord.
+
+## 2026-10-09: typed lengths and 15 degree steps while drawing (S26.12)
+
+- **`snapDraw` runs `snapCorner` first, then `snapRay` only when that returned the plain grid point.** A corner, a T onto an edge or an alignment with an earlier point of the shape changes the result, so it wins inside its 14 px reach; otherwise the point goes on the nearest 15 degree ray from the last point. Alt turns the ray off with the other snaps. Shift keeps its meaning. The ray point is not rounded to whole cm (its length is on the grid).
+- **Typing belongs to draw mode once a point exists.** Digits, a dot and `m` go to `Draw.type`; a letter or a second dot is ignored. Enter with typed text places the point (`placeTyped`) toward the last aim of the pointer (`aim`, kept because a click clears `hover`); without typed text it finishes as before. A refused value (0, over 10 000 cm, no direction) keeps the field and says why in the status line. Escape clears the typed text first, a second Escape cancels; Backspace takes back a digit before it takes back a point.
+- The field is `.dr-typed` text in the overlay, upright under a turned view, with a halo, `pointer-events:none` by class rule.
+- Tests draw on a plan made blank through Reset: a blank layout cannot be loaded (an outline needs 3 points).
+
+## 2026-10-09: select many on the plan (S26.10, S26.11)
+
+- **Shift on the plan is a marquee.** Shift+press on the background, a room, stairs or furniture starts it; Shift on a corner, wall, door or device keeps its meaning (detach a corner, toggle a device). A Shift+click without a drag selects what a plain click would (a room, stairs, furniture) and leaves a device selection alone. Furniture starts it too, since lights sit among furniture.
+- **The rectangle is taken back through the view's turn**: four client corners through `toSvg`, then `marqueeHits`. The overlay draws the same four plan-space points as `.marquee`, so a turned plan shows it upright. A device counts as drawn when its icon exists and is not `display:none` (Layers, and the far detail level that drops idle icons); the DOM is the one source for "drawn", so the hit-test cannot disagree with the pixels.
+- **Shift+click toggles any device**, not only lights and motion of one kind. The group panel already says "Shift+click more of the same kind to group" for a mixed set, and `groupKind` decides.
+- **A drag on a member moves every unlocked member** with `moveDevices`, the delta rounded to the snap grid (Alt: 1 cm), 4 px before it starts. It records its step with `commitLiveEdit`, so a drag that ends where it began leaves none. A click on a member without a drag narrows the selection to it. A group of only locked members, or one locked device, takes the press (selection) and no drag.
+- **Escape** drops a marquee in progress, otherwise clears any selection. **Ctrl or Cmd+A** is ignored in a text field and while drawing.
+- `.marquee` and the typed-length field live in the host's `static styles` beside `.dr`, since the overlay is the host's.
+
 ## 2026-10-09: the editor host is split (S26.9)
 
 - `toolbar.ts`, `ctx-menu.ts` and `inspector.ts` take the host as `h` and export their own `css`; `static styles` is an array. Pure move: no test edited.
