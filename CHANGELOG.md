@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.24.0 - 2026-10-10
 
 - Studio: a disabled Undo or Redo is dimmed, and stays dimmed under the pointer.
 - Studio: Escape cancels a drag of one device, or of several, at once, also while Help or Place is open; the device goes back, no undo step is left and the selection stays.
