@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Studio: Escape during a drag of several devices cancels the drag and puts them back.
+- Studio: a right-click on an Outline row of a selected group keeps the group and gives the same menu as the plan.
+- Studio: Controlled by on several devices counts only the lights that change, and says "Nothing to bind" when none would; the heading and Delete count the same devices.
 - Studio: a context menu opened near the foot of the window moves up to fit instead of shrinking to a short scrolling box.
 - Studio: Help opens in the Add, Place and Link modes too.
 - Studio: Link mode closes when the plan changes under it (a delete, an Undo, a Redo), so Apply can never bind lights you did not choose.

@@ -5,6 +5,9 @@ Newest first. A change supersedes; nothing is edited.
 ## 2026-10-09: small defects of the Sprint 26 review (a to g)
 
 - (a) Escape during a group drag puts the devices back (`replaceFloor(base)`), drops the drag and keeps the selection; the history was never touched, so there is no undo step. A second Escape clears the selection as before.
+- (b) A right-click on an Outline row that is a member of the multi-selection keeps the selection and opens the multi-selection menu, as the plan does. Any other row selects its object first, as before.
+- (c) The multi-device heading counts the devices that exist (`mine`), as Delete does; a stale index or a repeat no longer makes them differ.
+- (d) Controlled by counts the lights that change, not all of them: ten already bound and ten not says "Bound 10". When none would change it says "Nothing to bind: the lights already have it" ("Nothing to clear: no light is linked" for the clear), writes nothing and makes no undo step.
 
 ## 2026-10-09: a context menu near the foot shifts up instead of shrinking (Opus review R5)
 

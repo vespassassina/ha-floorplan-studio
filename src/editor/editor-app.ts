@@ -1932,6 +1932,14 @@ export class FloorplanStudioEditor extends LitElement {
   private openCtxForRow(row: OutlineRow, x: number, y: number): boolean {
     const e = row.node.entry;
     if (!e || (e.kind !== "room" && e.kind !== "device")) return false;
+    // A row of the multi-selection keeps it, as a right-click on the plan does (Opus review).
+    const sel = this.st.sel;
+    if (e.kind === "device" && !e.piece && e.floor === this.st.floor && e.device !== undefined && sel?.t === "devs" && sel.is.includes(e.device)) {
+      this.outlineActive = row.node.id;
+      this.ctxMenu = { x, y, target: { k: "devs" } };
+      this.requestUpdate();
+      return true;
+    }
     this.goTo(e);
     const s = this.st.sel;
     if (!s || !("i" in s)) return false;

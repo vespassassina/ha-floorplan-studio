@@ -91,3 +91,37 @@ test("Delete 22 removes them all in one undo step; one Undo brings them back", a
   await page.locator("#undo").click();
   expect(await devs(page)).toHaveLength(22);
 });
+
+// Opus review (c): the heading counted the raw selection, Delete counted the devices that exist.
+test("the heading and Delete count the same devices when the selection holds a stale index or a repeat", async ({ page }) => {
+  await select(page, [0, 1, 1, 500]);
+  await expect(page.locator("#panel strong").first()).toHaveText("2 devices selected");
+  await expect(page.locator("#devsDel")).toHaveText("Delete 2");
+});
+
+// Opus review (d): "Bound N" counted every light, also those that already had the switch, and a pick that changed nothing said it
+// had bound them all.
+test("Controlled by: the message counts the lights that changed; a pick that changes nothing says so and writes nothing", async ({ page }) => {
+  await select(page, Array.from({ length: 10 }, (_, i) => i));
+  await page.locator("#vbound input").click();
+  await page.locator("#vbound li[role='option'][data-value='switch.hall_relay']").click();
+  await expect(page.locator("#status")).toHaveText("Bound 10 lights");
+  await select(page, Array.from({ length: LIGHTS + 2 }, (_, i) => i)); // ten bound, ten not
+  await page.locator("#vbound input").click();
+  await page.locator("#vbound li[role='option'][data-value='switch.hall_relay']").click();
+  await expect(page.locator("#status")).toHaveText("Bound 10 lights; 2 others left alone"); // not 20
+  expect((await devs(page)).filter((x) => x.bound === "switch.hall_relay")).toHaveLength(LIGHTS);
+  const depth = await undoDepth(page), before = await devs(page);
+  // The combo itself never fires for the value it already shows, so reach the handler as a late or repeated event would.
+  await page.locator("#vbound").evaluate((el) => el.dispatchEvent(new CustomEvent("change", { detail: "switch.hall_relay", bubbles: true, composed: true })));
+  await expect(page.locator("#status")).toHaveText("Nothing to bind: the lights already have it");
+  expect(await undoDepth(page)).toBe(depth);
+  expect(await devs(page)).toEqual(before);
+  await page.locator("#vbound input").click();
+  await page.locator("#vbound li[role='option'][data-value='']").click();
+  await expect(page.locator("#status")).toHaveText("Cleared 20 lights; 2 others left alone");
+  const d2 = await undoDepth(page);
+  await page.locator("#vbound").evaluate((el) => el.dispatchEvent(new CustomEvent("change", { detail: "", bubbles: true, composed: true })));
+  await expect(page.locator("#status")).toHaveText("Nothing to clear: no light is linked");
+  expect(await undoDepth(page)).toBe(d2);
+});

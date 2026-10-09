@@ -333,7 +333,7 @@ function devsPanel(c: PanelCtx, is: number[]): TemplateResult {
   const lights = mine.filter((i) => f.devices[i].type === "light");
   const locked = devs.filter((d) => d.locked === true).length;
   const allLocked = devs.length > 0 && locked === devs.length, mixed = locked > 0 && !allLocked;
-  return html`<strong>${is.length} devices selected</strong>
+  return html`<strong>${mine.length} devices selected</strong>
     <p class="hint" id="devsTypes">${counts.map(([t, n]) => `${n} ${label(t)}`).join(" · ")}</p>
     <details class="pnl-sec"><summary class="pnl-h">Devices</summary><ul>${names.map((n) => html`<li>${n}</li>`)}</ul></details>
     ${lights.length || !kind || c.createGroup ? heading("Links") : nothing}
@@ -363,8 +363,14 @@ function bulkBound(c: PanelCtx, mine: number[], lights: number[]) {
   const set = (v: string) => {
     const own = v ? lights.filter((i) => f.devices[i].entity === v).length : 0; // a light that is the pick itself cannot be bound to itself
     const others = mine.length - lights.length + own;
+    // Only the lights that would change count; none: say so, write nothing, make no undo step.
+    const changing = lights.filter((i) => { const d = f.devices[i]; return v ? d.entity !== v && d.bound !== v : d.bound !== undefined; }).length;
+    if (!changing) {
+      c.say(v ? "Nothing to bind: the lights already have it" : "Nothing to clear: no light is linked");
+      return;
+    }
     c.commit((fl) => bindLights(fl, mine, v).floor);
-    c.say(`${v ? "Bound" : "Cleared"} ${plural(lights.length - own, "light")}${others > 0 ? `; ${others} other${others === 1 ? "" : "s"} left alone` : ""}`);
+    c.say(`${v ? "Bound" : "Cleared"} ${plural(changing, "light")}${others > 0 ? `; ${others} other${others === 1 ? "" : "s"} left alone` : ""}`);
   };
   return html`<label for="vbound">Controlled by</label>
     ${combo("vbound", "Controlled by", common, options, set, bounds.size > 1 ? "(mixed)" : "(none)")}`;

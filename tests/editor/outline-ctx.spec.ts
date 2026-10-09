@@ -99,3 +99,25 @@ test("a floor row opens no menu", async ({ page }) => {
   await page.mouse.click(b.x + 30, b.y + b.height / 2, { button: "right" });
   await expect(menu(page)).toHaveCount(0);
 });
+
+// Opus review (b): a right-click on a member of a multi-selection in the Outline replaced the selection with that one device, so
+// its menu differed from the plan's. It keeps the selection, as the plan does.
+test("a right-click on a row of a multi-selection keeps the selection and gives the plan's multi-selection menu", async ({ page }) => {
+  const name = (await ed(page, (el) => el.st.f.devices[0].name)) as string;
+  const sel = () => ed(page, (el) => JSON.parse(JSON.stringify(el.st.sel)));
+  await ed(page, (el) => { el.st.sel = { t: "devs", is: [0, 1] }; el.requestUpdate(); });
+  const p = await centre(page, 'g[data-x="0"]');
+  await page.mouse.click(p.x, p.y, { button: "right" });
+  await expect(menu(page)).toBeVisible();
+  const onPlan = await labels(page);
+  expect(await sel()).toEqual({ t: "devs", is: [0, 1] });
+  await page.keyboard.press("Escape");
+  await expect(menu(page)).toHaveCount(0);
+
+  const r = await row(page, name);
+  const b = (await r.boundingBox())!;
+  await page.mouse.click(b.x + 30, b.y + b.height / 2, { button: "right" });
+  await expect(menu(page)).toBeVisible();
+  expect(await labels(page)).toEqual(onPlan);
+  expect(await sel()).toEqual({ t: "devs", is: [0, 1] });
+});
