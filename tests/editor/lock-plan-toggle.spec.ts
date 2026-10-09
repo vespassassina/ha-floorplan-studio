@@ -25,7 +25,7 @@ test("locked: the toggle reads Plan locked, draws a lock, and is neither the dan
   await expect(label).toHaveClass(/\bon\b/);
   await expect(label).toContainText("Plan locked");
   expect(await label.textContent()).not.toMatch(/\p{Extended_Pictographic}/u);
-  await expect(label.locator("svg")).toHaveCount(1);
+  await expect(label.locator(".lk")).toHaveCount(1);
   await page.mouse.move(5, 5);
   const on = await bg(page);
   expect(on).not.toBe(await resolved(page, "--fp-danger"));
@@ -40,11 +40,18 @@ test("editable: the toggle reads Plan editable on a clear background, with the o
   await expect(label).not.toHaveClass(/\bon\b/);
   await page.mouse.move(5, 5);
   expect(await bg(page)).toBe("rgba(0, 0, 0, 0)");
-  await expect(label.locator("svg")).toHaveCount(1);
+  await expect(label.locator(".lk")).toHaveCount(1);
+});
+
+// Found by the full suite: an inline <svg> in the toolbar came first in the shadow root, and 105 tests (and the editor's own
+// helpers) take `querySelector("svg")` to be the plan. The lock is a mask, so the plan stays the first svg.
+test("the plan is still the first svg of the editor", async ({ page }) => {
+  const first = await page.evaluate(() => document.querySelector("floorplan-studio-editor")!.shadowRoot!.querySelector("svg")!.querySelector("polygon[data-r]") !== null);
+  expect(first).toBe(true);
 });
 
 test("the two states draw two different locks", async ({ page }) => {
-  const d = () => page.locator(`${LABEL} svg path`).getAttribute("d");
+  const d = () => page.locator(`${LABEL} .lk`).evaluate((el) => getComputedStyle(el).maskImage || getComputedStyle(el).webkitMaskImage);
   const locked = await d();
   await page.locator("#fixPlan").uncheck();
   expect(await d()).not.toBe(locked);

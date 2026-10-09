@@ -249,6 +249,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 
 | Studio control | In the card | Why |
 |---|---|---|
+| `#labelsSub` Labels submenu | yes | holds the two rows below; the card's Labels and Device names buttons |
 | `#labels` Names and values | yes | the Labels toggle |
 | `#names` Names | yes | the Device names toggle (`Aa`), config `names` |
 | `#thSub` Theme | yes | the Theme dropdown |
@@ -257,7 +258,6 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#zin` `#zout` Zoom | yes | the + and − buttons, first in the stack, the Up and Down keys, pinch and wheel |
 | `#zreset` Reset view | yes | the Reset view button, last in the stack, and Space |
 | `#vrotl` `#vrotr` Rotate view | yes | the two rotate buttons in the stack and the Left and Right keys |
-| `#version` the installed version | no | the card names its version in the browser console instead |
 | `#snap` Snap grid | no | an editing aid: a viewer places nothing |
 | `#mgrid` Measure grid | no | an editing aid, drawn by the editor over the plan, not by `renderFloor` |
 | `#lens` Lengths | no | an editing aid |

@@ -72,7 +72,8 @@ export const toolbarCss = css`
        pressed button, the warning colour only under the pointer. The checkbox stays in the page (tests and screen readers
        reach it) but draws nothing of its own. */
     .lockplan{position:relative;display:inline-flex;align-items:center;gap:6px;margin:0;padding:3px 10px;border:1px solid var(--fp-idle);border-radius:999px;font-size:.9em;font-weight:600;background:transparent;color:inherit;white-space:nowrap;cursor:pointer}
-    .lockplan>input{position:absolute;left:0;top:0;width:1px;height:1px;margin:0;padding:0;border:0;opacity:0}
+    .lockplan .lk{flex:none;width:14px;height:14px;background:currentColor;-webkit-mask:var(--lk) center/contain no-repeat;mask:var(--lk) center/contain no-repeat}
+    .lockplan>input{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer}
     .lockplan.on{background:var(--fp-ink);border-color:var(--fp-ink);color:var(--fp-bg)}
     .lockplan:hover{background:var(--fp-warn);border-color:var(--fp-warn);color:var(--fp-on-light)}
     .lockplan:has(>input:focus-visible){outline:2px solid var(--fp-primary);outline-offset:2px}
@@ -130,6 +131,10 @@ const fitBox = (ev: Event) => {
 };
 
 /** The toolbar template (floor chips, search, the Add/Draw/View/Edit/File menus, Help, Undo/Redo). Handlers stay on the host `h`. */
+/** An icon drawn as a CSS mask, not as an inline <svg>: the plan must stay the first <svg> of the editor's shadow root, which
+ * tests and helpers rely on. The path is one of our own constants, so the data URI needs no further escaping. */
+const maskOf = (d: string) => `--lk:url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='${d}'/></svg>`)}")`;
+
 export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
   const st = h.st, ha = st.ha;
   const { groups, activeGroup } = floorGroups(st);
@@ -147,7 +152,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
         <div class="bar-right">
         <!-- S8.10 follow-up: status is the cluster's first item; growing it moves only its own left edge, never
              a button after it (see .status's own comment above). -->
-        <label class="lockplan ${st.planLocked ? "on" : ""}" title=${st.planLocked ? "The plan is locked: walls, rooms, doors, windows, stairs and furniture stay as they are. Click to unlock it. Devices and objects can still be added, moved and removed" : "The plan is editable. Click to lock it: walls, rooms, doors, windows, stairs and furniture then stay as they are"}><input type="checkbox" id="fixPlan" aria-label="Lock plan" .checked=${live(st.planLocked)} @change=${(e: Event) => h.setPlanLocked((e.target as HTMLInputElement).checked)}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d=${st.planLocked ? UI_ICONS.lock : UI_ICONS.lockOpen}></path></svg><span>${st.planLocked ? "Plan locked" : "Plan editable"}</span></label>
+        <label class="lockplan ${st.planLocked ? "on" : ""}" title=${st.planLocked ? "The plan is locked: walls, rooms, doors, windows, stairs and furniture stay as they are. Click to unlock it. Devices and objects can still be added, moved and removed" : "The plan is editable. Click to lock it: walls, rooms, doors, windows, stairs and furniture then stay as they are"}><input type="checkbox" id="fixPlan" aria-label="Lock plan" .checked=${live(st.planLocked)} @change=${(e: Event) => h.setPlanLocked((e.target as HTMLInputElement).checked)}><span class="lk" aria-hidden="true" style=${maskOf(st.planLocked ? UI_ICONS.lock : UI_ICONS.lockOpen)}></span><span>${st.planLocked ? "Plan locked" : "Plan editable"}</span></label>
         ${hiddenNote ? html`<button class="btn layers-note" id="layersNote" title="Open the Layers tab" @click=${h.openLayers}>${hiddenNote}</button>` : nothing}
         <details class="menu" id="mAdd" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">Add</summary><div class="box">
           <details class="sub" id="addOpenings" @toggle=${onSubToggle}><summary class="btn">Openings</summary>
