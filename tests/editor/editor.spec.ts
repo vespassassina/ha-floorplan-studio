@@ -7976,6 +7976,7 @@ test("S8.7: Link lights to switches links every unbound light on the floor to it
   await menu(page, "Edit");
   await expect(page.locator("#linkLights")).toBeVisible();
   await page.locator("#linkLights").click();
+  await page.locator("#linkApply").click(); // S26.23: the item opens the Link mode with every pair ticked; Apply binds them
   await expect(page.locator("#status")).toContainText("Linked");
 
   await page.locator('g[data-x="0"]').click(); // light-living, already bound before the click: untouched

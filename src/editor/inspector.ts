@@ -172,12 +172,34 @@ export function addDevView(h: FloorplanStudioEditor, st: EditorState) {
 }
 
 /** S26.14: the Inspector's modes. Selection follows the selection; Place (a room's HA area) and Add (Add > Device) open in the aside. */
-export type AsideMode = "selection" | "place" | "add";
+export type AsideMode = "selection" | "place" | "add" | "link";
 
 /** The mode on show: Place needs its room still on the floor, otherwise the aside falls back to Selection. */
 export function effectiveMode(h: FloorplanStudioEditor): AsideMode {
   if (h.asideMode === "place") return h.placeIndex() >= 0 ? "place" : "selection";
+  if (h.asideMode === "link") return h.st.ha && h.linkScope ? "link" : "selection";
   return h.asideMode;
+}
+
+/** S26.23: the Link mode. A preview of the pairs (light, suggested switch) in the scope fixed when it opened, a tick per
+ *  pair (all ticked), and Apply for the ticked ones: one undo step. Nothing is written before Apply. */
+export function linkView(h: FloorplanStudioEditor, st: EditorState) {
+  const rows = h.linkRows(), scope = h.linkScope;
+  const where = !scope || scope.t === "floor" ? "on this floor" : scope.t === "room" ? `in ${st.f.rooms[scope.i]?.name ?? "the room"}` : "in the selection";
+  const id = (i: number) => st.f.devices[i].id;
+  const picked = rows.filter((p) => !h.linkOff.has(id(p.i)));
+  const tick = (i: number) => (ev: Event) => { if ((ev.target as HTMLInputElement).checked) h.linkOff.delete(id(i)); else h.linkOff.add(id(i)); h.requestUpdate(); };
+  const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); h.closeLink(); } };
+  return html`<div class="imode link-panel" id="linkPanel" role="tabpanel" aria-label="Link lights to switches" @keydown=${esc}>
+    <div class="imode-head">
+      <button class="btn keep" id="linkClose" aria-label="Close" @click=${() => h.closeLink()}>&times;</button>
+      <span>Link lights to switches</span>
+    </div>
+    <p>Unbound lights ${where} and the switch each would be linked to (the one in its area with a matching name). Untick what should stay as it is.</p>
+    ${rows.length === 0 ? html`<span class="grp" id="linkNone">No unbound light ${where} has a clear switch match</span>`
+      : html`<div class="rows">${rows.map((p) => html`<label class="prow" data-link=${p.i} title=${`${p.name} to ${p.switchName}`}><input type="checkbox" .checked=${live(!h.linkOff.has(id(p.i)))} @change=${tick(p.i)}><span class="prow-text"><span class="prow-name">${p.name}</span><small>${p.room ? `${p.room} · ` : ""}switch: ${p.switchName}</small></span></label>`)}</div>`}
+    <button class="btn primary keep" id="linkApply" ?disabled=${!picked.length} @click=${() => h.applyLink()}>Link ${picked.length}</button>
+  </div>`;
 }
 
 /** The side panel: tabs, then the Help text or the selection's panel, or the Place or Add mode. */
@@ -187,13 +209,14 @@ export function asideView(h: FloorplanStudioEditor) {
   const canPlace = h.placeIndex() >= 0 || (selRoom >= 0 && st.areaToPlace(selRoom).length > 0);
   const tab = (id: AsideMode, label: string, on: () => void, disabled = false) =>
     html`<button class="tab" role="tab" data-mode=${id} id=${`imode-${id}`} aria-selected=${mode === id ? "true" : "false"} ?disabled=${disabled} @click=${on}>${label}</button>`;
-  const body = mode === "place" ? placeView(h, st, h.placeIndex()) : mode === "add" ? addDevView(h, st)
+  const body = mode === "place" ? placeView(h, st, h.placeIndex()) : mode === "add" ? addDevView(h, st) : mode === "link" ? linkView(h, st)
     : html`<div id="panel">${st.helpOpen ? helpPanel(() => h.toggleHelp()) : selectionPanel(h.ctx())}</div>`;
   return html`<aside>
     <div class="tabs imodes" role="tablist" aria-label="Inspector">
       ${tab("selection", "Selection", () => h.setAsideMode("selection"))}
       ${tab("place", "Place", () => h.setAsideMode("place"), !canPlace)}
       ${tab("add", "Add", () => h.setAsideMode("add"))}
+      ${mode === "link" ? tab("link", "Link", () => undefined) : nothing}
     </div>
     ${body}
   </aside>`;

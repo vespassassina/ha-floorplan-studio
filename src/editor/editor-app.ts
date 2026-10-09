@@ -9,7 +9,7 @@ import { BANNER_MS, bannerLevel, isQuiet, type BannerLevel } from "./banner";
 import { PAN_STEP, isSaveChord, isSearchChord, takesTyping, viewKeyFor, type ViewKey } from "../card/view-keys";
 import { marqueeHits } from "./selection";
 import { statusFacts } from "./status-bar";
-import { moveDevices, removeDevices } from "./bulk";
+import { applyLinks, linkScopeFor, linkSuggestions, moveDevices, removeDevices, type LinkScope } from "./bulk";
 import "../card/search-box";
 import type { FpSearch } from "../card/search-box";
 import { layoutEntries, type SearchEntry } from "../core/search";
@@ -202,6 +202,9 @@ export class FloorplanStudioEditor extends LitElement {
   /** S26.14: which mode of the aside is on show (Place and Add are modes, not floating panels). */
   asideMode: AsideMode = "selection";
   placeOn = new Set<string>();
+  /** S26.23: what the Link mode looks at (fixed when it opens), and the ids of the lights whose tick was taken off. */
+  linkScope: LinkScope | null = null;
+  linkOff = new Set<string>();
   placeType: DeviceType | null = null;
   private sceneDraft: SceneDraft | null = null;
   private scenePos: { x: number; y: number } | null = null;
@@ -1699,6 +1702,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "Escape" && this.haPos) { ev.preventDefault(); this.toggleHa(); return; }
     if (ev.key === "Escape" && this.sceneDraft) { ev.preventDefault(); this.closeScene(); return; }
     if (ev.key === "Escape" && this.asideMode === "place") { ev.preventDefault(); this.closePlace(); return; }
+    if (ev.key === "Escape" && this.asideMode === "link") { ev.preventDefault(); this.closeLink(); return; }
     if (ev.key === "Escape" && this.asideMode === "add") { ev.preventDefault(); this.closeAddDev(); return; }
     if (ev.key === "Escape" && this.installCodeOpen) { ev.preventDefault(); this.toggleInstallCode(); return; }
     if (ev.key === "Escape" && this.traceScale) { ev.preventDefault(); this.cancelTraceScale(); return; }
@@ -2046,13 +2050,21 @@ export class FloorplanStudioEditor extends LitElement {
   private setColour(t: DeviceType, hex: string | null) {
     if (this.st.setColour(t, hex)) this.changed(hex ? `${t} colour set` : `${t} colour reset`);
   }
-  /** S8.7: Edit, "Link lights to switches" — links every unbound light on this floor to its uniquely suggested
-   *  same-area switch, one undo step. Needs HA area data to suggest anything, so the button only shows with `ha`. */
-  autoLinkLights() {
-    const n = this.st.autoLinkLights(this.floor);
-    this.closeMenus(); // Opus review finding 14: a top-level Edit item is a one-shot action, like Add's own; it closes the menu
-    if (n > 0) this.changed(`Linked ${n} light${n === 1 ? "" : "s"}.`);
-    else { this.status = "No light had a clear switch match."; this.requestUpdate(); }
+  /** S26.23: Edit, "Link lights to switches" opens the Link mode: the pairs (light, suggested switch) in the selection, else the selected room, else the floor, all ticked. Nothing is written until Apply. */
+  openLink() {
+    this.linkScope = linkScopeFor(this.st.sel); this.linkOff = new Set(); this.asideMode = "link";
+    this.closeMenus(); // a top-level Edit item is a one-shot action: it closes the menu
+    this.requestUpdate();
+  }
+  closeLink() { this.linkScope = null; if (this.asideMode === "link") this.asideMode = "selection"; this.requestUpdate(); }
+  /** The pairs the Link mode shows now, from the live layout, so an Undo or an edit shows at once. */
+  linkRows() { return this.linkScope ? linkSuggestions(this.st, this.linkScope) : []; }
+  /** Apply: binds the ticked lights in one undo step (the layout is not touched when the plan lock or "nothing" refuses). */
+  applyLink() {
+    const links = this.linkRows().filter((p) => !this.linkOff.has(this.st.f.devices[p.i].id));
+    if (!links.length) return;
+    if (this.st.edit((f) => applyLinks(f, links))) this.changed(`Linked ${links.length} light${links.length === 1 ? "" : "s"}`); else this.refused();
+    this.closeLink();
   }
   rotatePlan(step: number) {
     if (this.st.setRotate((this.st.layout.rotate ?? 0) + step)) this.changed(`Plan rotated to ${this.st.layout.rotate}°`);
@@ -2565,7 +2577,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.refused();
   };
 
-  setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; if (this.asideMode === "place") this.asideMode = "selection"; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
+  setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; if (this.asideMode === "place" || this.asideMode === "link") this.asideMode = "selection"; this.linkScope = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
 
   /** Cmd/Ctrl+S: the Save button's action, except that an empty plan says so instead of writing nothing useful. */
   private saveByKey() {

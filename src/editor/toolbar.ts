@@ -223,7 +223,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
               <input id="motMinutes" type="number" min="1" step="1" .value=${live(st.motionMinutes)} @change=${(e: Event) => { st.motionMinutes = (e.target as HTMLInputElement).value; h.requestUpdate(); }}>
               <p><button class="btn" id="motGo" @click=${() => { const min = Number(st.motionMinutes); if (st.motionLightGroup && min > 0) void h.motionAutomation(activeGroup.id, st.motionLightGroup, min); }}>Create automation</button></p>` : nothing}
           </details>
-          <button class="btn" id="linkLights" title="Link every unbound light on this floor to its uniquely matched switch" @click=${() => h.autoLinkLights()}>Link lights to switches</button>` : nothing}
+          <button class="btn" id="linkLights" title="Preview which switch each unbound light would be linked to, in the selection, the selected room or on this floor" @click=${() => h.openLink()}>Link lights to switches</button>` : nothing}
           <div class="rotrow"><span id="rotv">Rotate the plan: ${st.layout.rotate ?? 0}°</span>
             <button class="btn keep" id="rotl" aria-label="Rotate the plan 45 degrees left" @click=${() => h.rotatePlan(-45)}>&#8630; 45°</button>
             <button class="btn keep" id="rotr" aria-label="Rotate the plan 45 degrees right" @click=${() => h.rotatePlan(45)}>45° &#8631;</button></div>

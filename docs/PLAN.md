@@ -2999,7 +2999,7 @@ Wave 4, in order on `task/s26-edit` (each touches the host):
       locked [Unlock]" while locked. The text comes from a pure `statusFacts(st, view)` in a new
       `src/editor/status-bar.ts`. Test: unit on the text for none, one, several, a turned view, Alt; Playwright: a marquee
       reads "4 selected", a zoom changes the %, a real click on Unlock unlocks; computed-style pair on the bar.
-- [ ] S26.23 (U14) Link lights with a preview. Edit, Link lights to switches opens a Link mode in the Inspector: the
+- [x] S26.23 (U14) Link lights with a preview. Edit, Link lights to switches opens a Link mode in the Inspector: the
       pairs (light, suggested switch) with ticks, scoped to the selection, else the selected room, else the floor;
       Apply binds the ticked ones in one undo step. `linkSuggestions(st, scope)` in `bulk.ts`. Test: unit on the
       scopes; Playwright: untick one of three, Apply, two bound, one Undo clears both.

@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Link lights with a preview (S26.23)
+
+- Edit, Link lights to switches no longer writes at once. It opens a fourth Inspector mode, Link (a tab that shows only while the mode is open). The rows are `linkSuggestions(st, scope)` in `bulk.ts`: the same rule `autoLinkLights` used (unbound light, not a `switch_as_x` wrapper, a uniquely suggested switch), so the preview and the old one-shot cannot disagree. `EditorState.autoLinkLights` stays, with its tests; no button calls it now.
+- **Scope is fixed when the mode opens** (`linkScopeFor`): selected devices, else the selected room (lights whose point `roomAt` puts in it), else the floor. Any other selection is the floor. The rows themselves are recomputed from the live layout on every render, so an Undo or an edit shows at once. Ticks are kept by device id, all on at the start.
+- Apply is one `st.edit` over `applyLinks`: one undo step, none when nothing is ticked (the button is off). A refusal by the plan lock goes through `refused()`. The mode closes after Apply, Escape, the X or a floor change, and falls back to Selection when Home Assistant data is gone.
+- The old Playwright test of S8.7 clicks Apply now; it is the one test changed.
+
 ## 2026-10-09: the status bar (S26.22)
 
 - `statusFacts(st, { alt, drawing })` in `status-bar.ts` is the one source of the text; the host only draws it and keeps `altDown`. Order: selection (a name for one, "N selected" for several), its room (the one room they all stand in; none when they span rooms; a selected room is named once), snap, the 15° step, "Turned n°", the floor, the zoom, then "Plan locked".

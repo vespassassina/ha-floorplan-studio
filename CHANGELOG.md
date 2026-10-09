@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: Edit, Link lights to switches now previews first. A Link mode in the Inspector lists each unbound light with the switch it would get, in the selection, else the selected room, else the floor. Untick what should stay, Apply binds the rest in one undo step.
 - Studio: a Lock box on a device, a piece of furniture and an unlinked appliance. On a wall, door and opening it now reads "Lock (keeps its length)".
 - Studio: menus tidy up. Opening a submenu closes its siblings; a menu box takes the room below its button and scrolls past it. Add holds only buttons and submenus (Furniture and Unlinked device are submenus now; furniture reads "Patio, wood"). View has one Labels submenu, and the version moved to the Help panel.
 - Studio: Undo, Redo, Save and Fit to window show their key at the right edge, for the platform (⌘Z on a Mac, Ctrl+Z elsewhere).
