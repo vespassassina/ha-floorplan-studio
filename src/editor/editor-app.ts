@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEFAULT_MOTION_FADE_S, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, areaMenuEntities, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
+import { DEFAULT_MOTION_FADE_S, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, typeForEntity, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -21,12 +21,13 @@ import type { SceneItem } from "../core";
 import { layerHides } from "../core/layers";
 import { newDraft, sceneDesigner, type SceneDraft } from "./scene-designer";
 import { roomSceneTargets, saveScene } from "./room-scenes-ops";
-import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, typeNoun, typeOptions, type PanelCtx } from "./panels";
+import { TYPE_LABELS, helpPanel, selectionPanel, typeNoun, typeOptions, type PanelCtx } from "./panels";
 import { confirm as askHa } from "./confirm";
 import type { HaWriter, Labelled } from "./hass-write";
 import { motionLights, openAutomation, schedule, switchControls } from "./automations";
 import { EditorState, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
 import { floorGroups, toolbarCss, toolbarView } from "./toolbar";
+import { ctxMenuCss, ctxMenuView, type CtxTarget } from "./ctx-menu";
 
 /**
  * <floorplan-studio-editor>: draws and edits a layout.
@@ -47,10 +48,6 @@ type Hit =
   | { k: "door" | "opening" | "dev" | "furn" | "unl" | "wall" | "room" | "stairs" | "extra"; i: number }
   | { k: "edge"; poly: string; i: number }
   | { k: "bg" };
-
-/** S4.18/S4.27: what the right-click context menu opened on. */
-type CtxTarget = { k: "room"; i: number } | { k: "edge"; poly: string; i: number }
-  | { k: "wall"; i: number } | { k: "door"; i: number } | { k: "opening"; i: number } | { k: "furn"; i: number } | { k: "unl"; i: number };
 
 type Drag =
   | { type: "pan"; sx: number; sy: number; v: View; button: number; moved: boolean }
@@ -184,7 +181,7 @@ export class FloorplanStudioEditor extends LitElement {
    * S4.18: the right-click context menu — a room, zone or structure, or (S4.27) a wall: a room/outline edge or a
    * free-standing wall. Its screen position and its target. Closed (null) by an outside click, Escape or scroll.
    */
-  private ctxMenu: { x: number; y: number; target: CtxTarget } | null = null;
+  ctxMenu: { x: number; y: number; target: CtxTarget } | null = null;
   /** The Device colours popup's screen position; null when closed. Dragged by its header, closed by its own X or Escape. */
   devColsPos: { x: number; y: number } | null = null;
   /** S8.1: Edit, Home Assistant: the popover's screen position; null when closed. Dragged by its head, closed by its X or Escape. */
@@ -396,6 +393,7 @@ export class FloorplanStudioEditor extends LitElement {
     :host{display:block;outline:none;background:var(--fp-bg);color:var(--fp-ink);font:14px/1.4 system-ui,sans-serif}
   `,
     toolbarCss,
+    ctxMenuCss,
     css`
     .btn,.chip,select,input{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:4px;padding:4px 8px}
     .btn,.chip,summary{cursor:pointer}
@@ -410,10 +408,6 @@ export class FloorplanStudioEditor extends LitElement {
     .sens-box{border:1px solid var(--fp-primary);border-radius:6px;padding:6px 8px;margin:6px 0;background:color-mix(in srgb,var(--fp-primary) 7%,transparent)}
     .sens-box .attach-row{font-size:11px}
     .attach-row .eid{font-size:.8em;opacity:.7}
-    .ctxmenu{position:fixed;z-index:30;max-height:70vh;overflow:auto;min-width:200px;display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
-    .ctxmenu .btn{width:100%;text-align:left}
-    .ctxmenu .cm-ent{display:flex;flex-direction:column;align-items:flex-start;gap:1px}
-    .ctxmenu .cm-ent small{font-size:.78em;opacity:.7}
     .devcols-panel{position:fixed;z-index:30;width:560px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
     .devcols-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--fp-idle);font-weight:600;cursor:move;touch-action:none}
     .devcols-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
@@ -664,7 +658,7 @@ export class FloorplanStudioEditor extends LitElement {
     return Math.min(this.rect.w / v.w, this.rect.h / v.h) || 1;
   }
   /** Plan coordinates of a pointer: the point in the svg's own space, turned back by the plan's rotation. The one place plan points are made from the screen. */
-  private toSvg(ev: { clientX: number; clientY: number }): Pt {
+  toSvg(ev: { clientX: number; clientY: number }): Pt {
     const s = this.svgEl, m = s?.getScreenCTM();
     if (!s || !m) return [0, 0];
     const p = s.createSVGPoint();
@@ -687,7 +681,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.emit("layout-changed");
     this.requestUpdate();
   }
-  private commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); else this.refused(); };
+  commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); else this.refused(); };
   /** A writer said no. When the plan lock is why, say so and offer the way out; otherwise redraw, so a field shows the layout again. */
   private refused() { if (this.st.planLocked && this.st.planBlocked) this.planFixed(); else this.requestUpdate(); }
   /** A slider refused by the lock warns once per drag: while its banner shows, a later tick only snaps the slider back. */
@@ -1156,7 +1150,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.requestUpdate();
   };
 
-  private closeCtxMenu = () => { if (this.ctxMenu) { this.ctxMenu = null; this.requestUpdate(); } };
+  closeCtxMenu = () => { if (this.ctxMenu) { this.ctxMenu = null; this.requestUpdate(); } };
 
   toggleDevCols = () => {
     this.devColsPos = this.devColsPos ? null : { x: Math.max(20, (window.innerWidth - 560) / 2), y: this.panelTop() };
@@ -1459,7 +1453,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   /** The kind a room/outline edge shows in its own panel: the first room's, or the outline's own, "wall" with no room and no outline. */
-  private edgeKind(poly: string, i: number): WallKind | "none" {
+  edgeKind(poly: string, i: number): WallKind | "none" {
     const rooms = edgeRooms(this.st.f, poly, i);
     if (rooms.length) return rooms[0].room.wk[rooms[0].i];
     return poly === "o" ? (this.st.f.owk?.[i] ?? "external") : "wall";
@@ -1498,136 +1492,6 @@ export class FloorplanStudioEditor extends LitElement {
     } else { this.closeCtxMenu(); return; }
     this.focus({ preventScroll: true }); // a right click never focuses the host on its own; Escape needs it to
     this.requestUpdate();
-  }
-
-  private ctxDelete() {
-    const t = this.ctxMenu?.target;
-    if (!t) return;
-    if (t.k === "room") {
-      this.commit((f) => { f.rooms.splice(t.i, 1); });
-      this.st.sel = null;
-      this.closeCtxMenu();
-      return;
-    }
-    if (t.k === "wall") {
-      this.commit((f) => { f.walls.splice(t.i, 1); });
-      this.st.sel = null;
-      this.closeCtxMenu();
-      return;
-    }
-    if (t.k !== "edge") return; // Delete lives only on the room, wall and edge menus
-    const pts = polyPts(this.st.f, t.poly);
-    if (!pts) { this.closeCtxMenu(); return; }
-    const a = pts[t.i], b = pts[(t.i + 1) % pts.length], key = `${t.poly}:${t.i}`, n = onEdge(this.st.f, a, b);
-    if (n.doors.length + n.openings.length && this.st.confirmEdge !== key) { this.st.confirmEdge = key; this.requestUpdate(); return; }
-    this.st.confirmEdge = null;
-    this.commit((f) => deleteEdge(f, t.poly, t.i));
-    this.st.sel = null;
-    this.closeCtxMenu();
-  }
-
-  /** Diego, 2026-09-28: moves the ctx menu's room to the end of `f.rooms`, so it paints on top of every other
-   *  room's fill — a garden zone drawn after a garden house was covering the garden house's own pavement, with
-   *  no way to fix it short of redrawing the shape. One undo step; already-last is a no-op. */
-  private ctxBringToFront() {
-    const t = this.ctxMenu?.target;
-    if (!t || t.k !== "room") return;
-    const i = t.i;
-    this.commit((f) => { const [r] = f.rooms.splice(i, 1); f.rooms.push(r); });
-    if (this.st.sel?.t === "room" && this.st.sel.i === i) this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
-    this.closeCtxMenu();
-  }
-
-  /** Same as `ctxBringToFront`, moved to the start of `f.rooms` instead, so it paints under every other room. */
-  private ctxSendToBack() {
-    const t = this.ctxMenu?.target;
-    if (!t || t.k !== "room") return;
-    const i = t.i;
-    this.commit((f) => { const [r] = f.rooms.splice(i, 1); f.rooms.unshift(r); });
-    if (this.st.sel?.t === "room" && this.st.sel.i === i) this.st.sel = { t: "room", i: 0 };
-    this.closeCtxMenu();
-  }
-
-  /** Whether the ctx menu's target is currently locked (fixed): false for a room or an edge, neither of which has the field. */
-  private lockedOf(t: CtxTarget): boolean {
-    const f = this.st.f;
-    if (t.k === "wall") return !!f.walls[t.i]?.locked;
-    if (t.k === "door") return !!f.doors[t.i]?.locked;
-    if (t.k === "opening") return !!f.openings[t.i]?.locked;
-    if (t.k === "furn") return !!f.furniture[t.i]?.locked;
-    if (t.k === "unl") return !!f.unlinked[t.i]?.locked;
-    return false;
-  }
-  /** Toggles the ctx menu's target between fixed and unfixed, one undo step, then closes the menu. A wall or opening
-   *  fixed this way keeps its length on drag (S4.9); furniture and an unlinked device simply stop being draggable. */
-  private ctxToggleLock() {
-    const t = this.ctxMenu?.target;
-    if (!t) return;
-    const next = !this.lockedOf(t);
-    if (t.k === "wall") this.commit((f) => { if (f.walls[t.i]) f.walls[t.i].locked = next; });
-    else if (t.k === "door") this.commit((f) => { if (f.doors[t.i]) f.doors[t.i].locked = next; });
-    else if (t.k === "opening") this.commit((f) => { if (f.openings[t.i]) f.openings[t.i].locked = next; });
-    else if (t.k === "furn") this.commit((f) => { if (f.furniture[t.i]) f.furniture[t.i].locked = next; });
-    else if (t.k === "unl") this.commit((f) => { if (f.unlinked[t.i]) f.unlinked[t.i].locked = next; });
-    else return;
-    this.closeCtxMenu();
-  }
-
-  /** S4.27: sets a wall's kind (an edge's, on every room sharing it, or a free wall's own), one undo step, then closes the menu. */
-  private ctxSetKind(kind: WallKind) {
-    const t = this.ctxMenu?.target;
-    if (!t) return;
-    if (t.k === "edge") this.commit((f) => setEdgeKind(f, t.poly, t.i, kind));
-    else if (t.k === "wall") this.commit((f) => { f.walls[t.i].kind = kind; });
-    else return;
-    this.closeCtxMenu();
-  }
-
-  /** S4.27: inserts a point at an edge's own midpoint (never a free wall — it has no interior points), one undo step. */
-  private ctxAddPoint() {
-    const t = this.ctxMenu?.target;
-    if (!t || t.k !== "edge") return;
-    const pts = polyPts(this.st.f, t.poly);
-    if (!pts) return;
-    const a = pts[t.i], b = pts[(t.i + 1) % pts.length];
-    this.commit((f) => insertPoint(f, t.poly, t.i, [Math.round((a[0] + b[0]) / 2), Math.round((a[1] + b[1]) / 2)]));
-    this.closeCtxMenu();
-  }
-
-  /** S4.27: places a new opening (a gap) centred on the right-click point — the same `addOpeningGap` an Add-menu item uses, anchored at the click instead of the view's centre. */
-  private ctxAddOpening() {
-    const m = this.ctxMenu;
-    if (!m) return;
-    this.addOpeningGap(120, this.toSvg({ clientX: m.x, clientY: m.y }));
-    this.closeCtxMenu();
-  }
-  /** S4.27: places a new door or window centred on the right-click point, the same way `ctxAddOpening` places a gap. */
-  private ctxAddDoor(kind: "door" | "window" | "slit" | "open", len: number) {
-    const m = this.ctxMenu;
-    if (!m) return;
-    this.addDoor(kind, len, this.toSvg({ clientX: m.x, clientY: m.y }));
-    this.closeCtxMenu();
-  }
-
-  /** S4.18: places `e` (an entity of the menu's room's HA area) as a new device at the right-click point (S4.26), one undo step, then closes the menu. */
-  private addFromArea(e: HaData["entities"][number]) {
-    const t = this.ctxMenu?.target;
-    if (!t || t.k !== "room") return;
-    const m = this.ctxMenu!;
-    const before = this.counted();
-    if (!this.st.addFromArea(t.i, e, this.toSvg({ clientX: m.x, clientY: m.y }))) return;
-    this.closeCtxMenu();
-    this.placedNote(before, `Added ${e.name}. Drag it to its spot.`, `Added ${e.name}`);
-  }
-
-  /** S4.18/S4.27's menu markup, positioned at the click (`position:fixed`, so no container-relative math is needed). */
-  private ctxMenuView(m: { x: number; y: number; target: CtxTarget }) {
-    const t = m.target;
-    let items;
-    if (t.k === "room") items = this.roomCtxItems(t.i);
-    else if (t.k === "edge" || t.k === "wall") items = this.wallCtxItems(t);
-    else items = this.fixCtxItems(t);
-    return html`<div class="ctxmenu" style="left:${m.x}px;top:${m.y}px">${items}</div>`;
   }
 
   /** Device colours: a floating, draggable panel (View > Device colours), a 3-column grid of every device type's colour and reset. */
@@ -1777,61 +1641,6 @@ export class FloorplanStudioEditor extends LitElement {
       <textarea id="installcodeText" readonly rows="12" @focus=${(e: Event) => (e.target as HTMLTextAreaElement).select()} @keydown=${(e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); this.toggleInstallCode(); } }}>${code}</textarea>
       <button class="btn keep" id="installcodeCopy" @click=${() => this.copyInstallCode(code)}>Copy</button>
     </div>`;
-  }
-
-  private roomCtxItems(i: number) {
-    const st = this.st, r = st.f.rooms[i], ha = st.ha;
-    // S8.6: one row per device (its main entity), not one per raw entity — a plug offers itself, not its power sensor.
-    // S24.6 (U16): and only what Place offers (`areaMenuEntities`): no loose power sensor, scene or battery.
-    const unplaced = r?.area ? areaMenuEntities(st.layout, ha, r.area) : [];
-    return html`<button class="btn" id="cmColour" @click=${() => this.closeCtxMenu()}>Change colour</button>
-      <button class="btn" id="cmToFront" @click=${() => this.ctxBringToFront()}>Bring to front</button>
-      <button class="btn" id="cmToBack" @click=${() => this.ctxSendToBack()}>Send to back</button>
-      <button class="btn warn" id="cmDelete" @click=${() => this.ctxDelete()}>Delete</button>
-      ${unplaced.length ? html`<div class="sep"></div><span class="grp">Add device from ${r!.name}</span>
-        ${unplaced.map((e) => html`<button class="btn cm-ent" @click=${() => this.addFromArea(e)}><span>${e.name} (${TYPE_LABELS.find((t) => t[0] === typeForEntity(e, ha))?.[1] ?? typeForEntity(e, ha)})</span><small>${e.id}</small></button>`)}` : nothing}`;
-  }
-
-  /** S4.27: Change type, Add a point (edges only), Add an opening, Delete — with the same doors/windows confirm dance as the edge panel's own Delete. */
-  private wallCtxItems(t: Extract<CtxTarget, { k: "edge" | "wall" }>) {
-    const f = this.st.f;
-    let kind: WallKind, a: Pt | undefined, b: Pt | undefined, key: string;
-    if (t.k === "edge") {
-      const pts = polyPts(f, t.poly);
-      if (!pts) return nothing;
-      a = pts[t.i]; b = pts[(t.i + 1) % pts.length];
-      const ek = this.edgeKind(t.poly, t.i);
-      kind = ek === "none" ? "wall" : ek;
-      key = `${t.poly}:${t.i}`;
-    } else {
-      const w = f.walls[t.i];
-      if (!w) return nothing;
-      a = w.a; b = w.b; kind = w.kind; key = `wall:${t.i}`;
-    }
-    if (this.st.confirmEdge === key) {
-      const n = t.k === "edge" ? onEdge(f, a, b) : { doors: [], openings: [] };
-      const count = n.doors.length + n.openings.length;
-      return html`<p class="hint">${count === 1 ? "A door or window is on this wall." : `${count} doors and windows are on this wall.`} They stay. Stop drawing it?</p>
-        <div class="row"><button class="btn warn" @click=${() => this.ctxDelete()}>Delete</button><button class="btn" @click=${() => { this.st.confirmEdge = null; this.requestUpdate(); }}>Cancel</button></div>`;
-    }
-    return html`<span class="grp">Change type</span>
-      ${WALL_KINDS.filter((k) => k !== kind).map((k) => html`<button class="btn" @click=${() => this.ctxSetKind(k)}>${WALL_LABELS[k]}</button>`)}
-      <div class="sep"></div>
-      ${t.k === "edge" ? html`<button class="btn" @click=${() => this.ctxAddPoint()}>Add a point</button>` : nothing}
-      <details class="sub" id="cmAddOpening"><summary class="btn">Add an opening</summary>
-        <button class="btn" @click=${() => this.ctxAddDoor("door", 90)}>Door</button>
-        <button class="btn" @click=${() => this.ctxAddDoor("open", 90)}>Open doorway</button>
-        <button class="btn" @click=${() => this.ctxAddDoor("window", 120)}>Window</button>
-        <button class="btn" @click=${() => this.ctxAddDoor("slit", 120)}>Slit window</button>
-        <button class="btn" @click=${() => this.ctxAddOpening()}>Opening</button>
-      </details>
-      ${t.k === "wall" ? html`<button class="btn" @click=${() => this.ctxToggleLock()}>${this.lockedOf(t) ? "Unfix" : "Fix"}</button>` : nothing}
-      <button class="btn warn" @click=${() => this.ctxDelete()}>Delete</button>`;
-  }
-
-  /** S4.27/S4.29: a door, opening, furniture piece or unlinked device offers only Fix/Unfix — delete already lives on its own side panel. */
-  private fixCtxItems(t: Extract<CtxTarget, { k: "door" | "opening" | "furn" | "unl" }>) {
-    return html`<button class="btn" @click=${() => this.ctxToggleLock()}>${this.lockedOf(t) ? "Unfix" : "Fix"}</button>`;
   }
 
   /** Zoom by `k` (below 1 zooms in) about the middle of what is shown; 0 fits the whole floor again. A view change only: no layout edit, no undo step. */
@@ -2227,7 +2036,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   /** What each floor holds before a placement, so `placedNote` can tell the new things from the old. */
-  private counted() {
+  counted() {
     return Object.fromEntries(Object.entries(this.st.layout.floors).map(([k, f]) => [k, { d: f.devices.length, f: f.furniture.length, u: f.unlinked.length }]));
   }
   /**
@@ -2235,7 +2044,7 @@ export class FloorplanStudioEditor extends LitElement {
    * layer: then "<head>; N hidden by Layers" with Show, so nothing vanishes without a word. The selected new thing is
    * still drawn (renderFloor's selection rule) but goes the moment it is let go.
    */
-  private placedNote(before: ReturnType<FloorplanStudioEditor["counted"]>, plain: string, head: string) {
+  placedNote(before: ReturnType<FloorplanStudioEditor["counted"]>, plain: string, head: string) {
     const st = this.st, f = st.f, b = before[st.floor] ?? { d: 0, f: 0, u: 0 };
     const fams = [...f.devices.slice(b.d).map((d) => layerOfType(d.type)), ...f.unlinked.slice(b.u).map((u) => layerOfType(u.type)), ...f.furniture.slice(b.f).map((): LayerId => "furniture")];
     const hid = fams.filter((x) => st.hidden.includes(x));
@@ -2996,7 +2805,7 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="vrotl" title="Rotate view left" aria-label="Rotate view left" @click=${() => this.turnBy(-ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateLeft} fill="currentColor"/></svg></button>
             <button class="btn" id="vrotr" title="Rotate view right" aria-label="Rotate view right" @click=${() => this.turnBy(ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateRight} fill="currentColor"/></svg></button>
           </div>
-          ${this.ctxMenu ? this.ctxMenuView(this.ctxMenu) : nothing}
+          ${this.ctxMenu ? ctxMenuView(this, this.ctxMenu) : nothing}
           ${this.devColsPos ? this.devColsView(st) : nothing}
           ${this.haPos && this.writer ? this.haView() : nothing}
           ${(() => { const i = this.placeRoom === null ? -1 : st.f.rooms.findIndex((r) => r.id === this.placeRoom); return i >= 0 && this.placePos ? this.placeView(st, i) : nothing; })()}
