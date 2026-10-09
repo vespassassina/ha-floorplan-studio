@@ -32,7 +32,7 @@ import { EditorState, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, sl
 import { floorGroups, toolbarCss, toolbarView } from "./toolbar";
 import { asideView, inspectorCss } from "./inspector";
 import type { AsideMode } from "./inspector";
-import { ctxMenuCss, ctxMenuView, ctxTargetFor, type CtxTarget } from "./ctx-menu";
+import { ctxMenuCss, ctxMenuView, ctxTargetFor, fitCtxMenu, type CtxTarget } from "./ctx-menu";
 
 /**
  * <floorplan-studio-editor>: draws and edits a layout.
@@ -374,6 +374,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   protected updated() {
+    if (this.ctxMenu) fitCtxMenu(this.renderRoot);
     if (this.outlineFocus) {
       this.outlineFocus = false;
       const row = this.outlineActive === null ? null : this.renderRoot.querySelector<HTMLElement>(`#outlineTree [data-node="${CSS.escape(this.outlineActive)}"]`);

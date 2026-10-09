@@ -14,7 +14,7 @@ export type CtxTarget = { k: "room"; i: number } | { k: "edge"; poly: string; i:
 
 /** The context menu's own styles. */
 export const ctxMenuCss = css`
-    .ctxmenu{position:fixed;z-index:30;max-height:70vh;overflow:auto;min-width:200px;display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+    .ctxmenu{position:fixed;z-index:30;max-height:calc(100vh - 16px);overflow:auto;min-width:200px;display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
     .ctxmenu .btn{width:100%;text-align:left}
     .ctxmenu .btn[data-cm]{display:flex;justify-content:space-between;align-items:baseline;gap:16px}
     .ctxmenu .cm-k{font-size:.8em;opacity:.65}
@@ -238,9 +238,18 @@ export function ctxMenuView(h: FloorplanStudioEditor, m: { x: number; y: number;
   const confirm = (t.k === "edge" || t.k === "wall") ? edgeConfirm(h, t) : null;
   const items = confirm ?? ctxItems(kindOf(t), factsOf(h, t)).map((it) => it.id === "kind" && (t.k === "edge" || t.k === "wall") ? kindView(h, t, it) : itemView(h, t, it));
   const extra = t.k === "room" && !confirm ? roomEntities(h, t.i) : nothing;
-  // Keep the menu on screen: it opens at the click, but not past the right or bottom edge; a tall one scrolls.
+  // Keep the menu on screen: it opens at the click, but not past the right edge; `fitCtxMenu` shifts it up once its height is known,
+  // and a menu taller than the window scrolls.
   const left = Math.max(0, Math.min(m.x, window.innerWidth - 240)), top = Math.max(0, Math.min(m.y, window.innerHeight - 120));
-  return html`<div class="ctxmenu" style="left:${left}px;top:${top}px;max-height:min(70vh, ${window.innerHeight - top - 8}px)">${items}${extra}</div>`;
+  return html`<div class="ctxmenu" style="left:${left}px;top:${top}px;">${items}${extra}</div>`;
+}
+
+/** R5: after a render, moves an open menu up so its foot is inside the window (8 px spare), as far as the top allows. The height is only known now. */
+export function fitCtxMenu(root: ParentNode) {
+  const m = root.querySelector<HTMLElement>(".ctxmenu");
+  if (!m) return;
+  const r = m.getBoundingClientRect(), over = r.bottom - (window.innerHeight - 8);
+  if (over > 0) m.style.top = `${Math.max(8, r.top - over)}px`;
 }
 
 /** The room's unplaced Home Assistant entities, one button each: a quick Place (S4.18, S8.6, S24.6), under the items. */

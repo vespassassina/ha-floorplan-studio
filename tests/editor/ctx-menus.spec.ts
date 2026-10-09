@@ -243,3 +243,37 @@ test("room 'Rename' puts the focus on the name field; 'Bring to front' still wor
   await item(page, "rename").click();
   await expect(page.locator(`${EDITOR} #rn`)).toBeFocused();
 });
+
+// Opus review R5: a menu opened near the foot was clamped to innerHeight-120 and then capped, so at 1024x768 it became a 112 px
+// scrolling strip. It shifts up so the whole menu fits when it can.
+for (const [w, h] of [[1280, 720], [1024, 768]]) {
+  test(`${w}x${h}: a right-click near the canvas foot opens a menu that fits whole inside the viewport`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto("/standalone.html");
+    await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+    await page.locator("#fixPlan").uncheck();
+    await setHa(page, HA);
+    // the empty canvas, real mouse, 20 px above the foot of the canvas (the canvas ends above the window foot)
+    const c = (await page.locator(`${EDITOR} .canvas > svg`).boundingBox())!;
+    await page.mouse.click(c.x + 6, c.y + c.height - 20, { button: "right" });
+    await expect(menu(page)).toBeVisible();
+    const fits = async () => page.evaluate((tag) => {
+      const m = (document.querySelector(tag) as any).shadowRoot.querySelector(".ctxmenu") as HTMLElement;
+      const r = m.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom, scrolls: m.scrollHeight > m.clientHeight + 1, n: m.querySelectorAll("[data-cm]").length };
+    }, EDITOR);
+    let f = await fits();
+    expect(f.n).toBeGreaterThan(2);
+    expect(f.top).toBeGreaterThanOrEqual(0);
+    expect(f.bottom).toBeLessThanOrEqual(h);
+    expect(f.scrolls).toBe(false);
+    // the longest menu there is (a room, with its devices), opened at the same height
+    await page.keyboard.press("Escape");
+    await page.evaluate(([tag, y]) => { const ed = document.querySelector(tag as string) as any; ed.ctxMenu = { x: 40, y, target: { k: "room", i: 0 } }; ed.requestUpdate(); }, [EDITOR, h - 60] as const);
+    await expect(menu(page)).toBeVisible();
+    f = await fits();
+    expect(f.bottom).toBeLessThanOrEqual(h);
+    expect(f.top).toBeGreaterThanOrEqual(0);
+    expect(f.scrolls).toBe(false);
+  });
+}

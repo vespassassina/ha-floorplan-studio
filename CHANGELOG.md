@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: a context menu opened near the foot of the window moves up to fit instead of shrinking to a short scrolling box.
 - Studio: Help opens in the Add, Place and Link modes too.
 - Studio: Link mode closes when the plan changes under it (a delete, an Undo, a Redo), so Apply can never bind lights you did not choose.
 - Studio: a wall drawn on a 15 degree ray ends on whole centimetres.
