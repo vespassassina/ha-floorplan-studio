@@ -29,4 +29,17 @@ describe("doorStateOf.closed", () => {
     expect(doorStateOf(door({ sensors: 5 as never }), {}).closed).toBe(false);
     expect(doorStateOf(door({ sensors: [7, null] as never }), {}).closed).toBe(false);
   });
+  // S25 fix D: a locked lock is closed evidence; an unlocked one alone is not.
+  it("a door whose only evidence is a locked lock is closed (a locked door is shut)", () => {
+    expect(doorStateOf(door({ locks: ["lock.l"] }), { "lock.l": st("locked") }).closed).toBe(true);
+    expect(doorStateOf(door({ locks: ["lock.l"] }), { "lock.l": st("unlocked") }).closed).toBe(false);
+    for (const v of ["jammed", "locking", "unlocking", "unavailable", "unknown", "open", null, 0]) expect(doorStateOf(door({ locks: ["lock.l"] }), { "lock.l": st(v) } as never).closed, String(v)).toBe(false);
+    expect(doorStateOf(door({ locks: ["lock.l"] }), {}).closed).toBe(false);
+  });
+  it("a locked lock never overrules an open sensor or a second lock that is unlocked", () => {
+    const d = door({ sensors: ["binary_sensor.a"], locks: ["lock.l", "lock.m"] });
+    expect(doorStateOf(d, { "binary_sensor.a": st("on"), "lock.l": st("locked"), "lock.m": st("locked") }).closed).toBe(false);
+    expect(doorStateOf(d, { "binary_sensor.a": st("off"), "lock.l": st("locked"), "lock.m": st("unlocked") }).closed).toBe(false);
+    expect(doorStateOf(d, { "binary_sensor.a": st("off"), "lock.l": st("locked"), "lock.m": st("locked") }).closed).toBe(true);
+  });
 });

@@ -74,6 +74,13 @@ describe("2.5D: a closed door is painted, an open one is a red frame", () => {
     expect(infill(draw(f, { "binary_sensor.d": st("off") }, "2.5d")).some((c) => c.startsWith("door-leaf"))).toBe(true);
     expect(infill(draw(f, { "binary_sensor.d": st("on") }, "2.5d")).some((c) => c.startsWith("opn open"))).toBe(true);
   });
+  it("S25 fix D: a door with only a lock is drawn shut while the lock is locked, a hole when unlocked or unknown", () => {
+    const f = withDoor({ sensors: undefined, locks: ["lock.d"] });
+    const lock = (v: string) => ({ "lock.d": st(v) });
+    expect(infill(draw(f, lock("locked"), "2.5d")).some((c) => c.startsWith("door-leaf"))).toBe(true);
+    expect(infill(draw(f, lock("unlocked"), "2.5d")).some((c) => c.startsWith("door-leaf"))).toBe(false);
+    expect(infill(draw(f, undefined, "2.5d")).some((c) => c.startsWith("door-leaf"))).toBe(false);
+  });
   it("2D output is unchanged by all of this: no leaf, no frame", () => {
     for (const s of ["on", "off"]) expect(draw(withDoor({}), { "binary_sensor.d": st(s) }, "2d")).not.toMatch(/door-leaf|class="opn/);
   });
