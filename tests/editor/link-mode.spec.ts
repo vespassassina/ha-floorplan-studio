@@ -100,3 +100,36 @@ test("leaving the mode without Apply binds nothing; Escape and the tab both leav
   await expect(page.locator("#linkNone")).toBeVisible();
   await expect(page.locator("#linkApply")).toBeDisabled();
 });
+
+// Opus review R2: the scope is device indices, so a Delete or an Undo under an open Link mode moved the indices onto other
+// lights, and Apply would have bound lights nobody chose. Any edit, Undo or Redo closes the mode.
+const focusEditor = (page: Page) => page.evaluate((tag) => (document.querySelector(tag) as HTMLElement).focus(), EDITOR);
+
+test("Delete under an open Link mode closes it: Gamma, which slides into the old indices, is never offered", async ({ page }) => {
+  await setSel(page, { t: "devs", is: [0, 1] }); // Alpha and Beta
+  await openLink(page);
+  await expect(rows(page)).toHaveCount(2);
+  await focusEditor(page);
+  await page.keyboard.press("Delete");
+  await expect(page.locator("#linkPanel")).toHaveCount(0);
+  await expect(page.locator('aside [role=tab][data-mode="link"]')).toHaveCount(0);
+  expect((await devs(page)).map((d) => d.id)).toEqual(["lg"]);
+  expect((await devs(page)).some((d) => "bound" in d)).toBe(false);
+});
+
+test("Undo and Redo under an open Link mode close it", async ({ page }) => {
+  await setSel(page, { t: "dev", i: 0 });
+  await focusEditor(page);
+  await page.keyboard.press("Delete"); // Alpha gone; Beta is index 0
+  expect((await devs(page)).map((d) => d.id)).toEqual(["lb", "lg"]);
+  await setSel(page, { t: "dev", i: 0 }); // Beta
+  await openLink(page);
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toContainText("Beta lamp");
+  await page.locator("#undo").click(); // Alpha is index 0 again
+  await expect(page.locator("#linkPanel")).toHaveCount(0);
+  await openLink(page); // nothing selected after Undo: the floor
+  await expect(rows(page)).toHaveCount(3);
+  await page.locator("#redo").click(); // the mode is open again and Redo must close it too
+  await expect(page.locator("#linkPanel")).toHaveCount(0);
+});

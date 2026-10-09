@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: Link mode closes when the plan changes under it (a delete, an Undo, a Redo), so Apply can never bind lights you did not choose.
 - Studio: a wall drawn on a 15 degree ray ends on whole centimetres.
 - Studio: drawing a wall onto a corner joins it, also when the corner is off the 15 degree rays.
 - Studio: Edit, Link lights to switches now previews first. A Link mode in the Inspector lists each unbound light with the switch it would get, in the selection, else the selected room, else the floor. Untick what should stay, Apply binds the rest in one undo step.

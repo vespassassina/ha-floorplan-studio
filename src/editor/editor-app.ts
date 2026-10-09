@@ -204,6 +204,8 @@ export class FloorplanStudioEditor extends LitElement {
   placeOn = new Set<string>();
   /** S26.23: what the Link mode looks at (fixed when it opens), and the ids of the lights whose tick was taken off. */
   linkScope: LinkScope | null = null;
+  /** The floor object Link mode was opened on. Its scope is device indices, so any edit, Undo or Redo (a new floor object) closes the mode. */
+  private linkFloor: Floor | null = null;
   linkOff = new Set<string>();
   placeType: DeviceType | null = null;
   private sceneDraft: SceneDraft | null = null;
@@ -597,6 +599,7 @@ export class FloorplanStudioEditor extends LitElement {
   private closeBanner() { clearTimeout(this.bannerTimer); this.banner = null; this.status = ""; }
 
   protected willUpdate(changed: Map<string, unknown>) {
+    if (this.linkScope && this.st.f !== this.linkFloor) { this.linkScope = null; if (this.asideMode === "link") this.asideMode = "selection"; } // R2
     if (changed.has("status") && this.banner?.text !== this.status) this.notify(this.status); // already shown by an explicit notify, with its level and action
     if (changed.has("floor") && this.floor && this.floor !== this.st.floor && hasOwn(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
     // Always named, never left to inherit: blueprint unless the viewer chose otherwise. Reflected on the host itself, not just the svg,
@@ -2059,7 +2062,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   /** S26.23: Edit, "Link lights to switches" opens the Link mode: the pairs (light, suggested switch) in the selection, else the selected room, else the floor, all ticked. Nothing is written until Apply. */
   openLink() {
-    this.linkScope = linkScopeFor(this.st.sel); this.linkOff = new Set(); this.asideMode = "link";
+    this.linkScope = linkScopeFor(this.st.sel); this.linkFloor = this.st.f; this.linkOff = new Set(); this.asideMode = "link";
     this.closeMenus(); // a top-level Edit item is a one-shot action: it closes the menu
     this.requestUpdate();
   }
