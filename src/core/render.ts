@@ -12,6 +12,7 @@ import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 import { meanReading } from "./readings";
+import { badges } from "./rollup";
 // S24.R: the one rule for what Layers leaves out; the Studio's pick asks it too.
 import { layerHides, type LayerId } from "./layers";
 import type { DetailLevel } from "./detail";
@@ -504,6 +505,9 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 @media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none} .lbl-tag{fill:var(--fp-outline);stroke:none;pointer-events:none} .lbl-on{pointer-events:none}
+/* S25.3: room badges. Hidden unless the plan root says far or mid (data-detail); never a click target (finding 18: a class rule, not an attribute). */
+.room-badge{display:none;pointer-events:none} [data-detail="far"] .room-badge,[data-detail="mid"] .room-badge{display:inline} .room-badge *{pointer-events:none}
+.rb-plate{fill:var(--fp-outline);fill-opacity:.85;stroke:none} .rb-t{fill:var(--fp-text);font-family:var(--fp-font);font-weight:500;font-variant-numeric:tabular-nums} .rb-light{fill:var(--fp-dev-light)} .rb-motion{fill:var(--fp-dev-motion)} .rb-alert{fill:var(--fp-danger)} .rb-open{fill:var(--fp-open-door)}
 /* S23.1: one label style. A name is never faded: it is the text colour mixed into the surface it sits on (--fp-under,
    set per name by renderFloor), solid, so it reads as part of the room yet clears 4.5:1 on it. 92% is the least text
    that passes on every theme's surface (light garden 4.56, terminal pavement 4.67). A device's or an extra's name sits on
@@ -1777,6 +1781,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   });
 
   out.push(...tags); // S23.3: over every icon, under the editor's handles
+  if (showText) out.push(...badges({ f, state: o.state, k, up, screenOff, anchor: (i) => nameAt[i] ?? { at: centroid(f.rooms[i]!.pts), size: 0 } })); // S25.3: shown by CSS at far and mid only; text, so none with labels off
   if (o.editor)
     for (const P of polys) P.pts.forEach((p, j) => out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
   const body = out.join("\n");

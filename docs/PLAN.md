@@ -2805,7 +2805,7 @@ Wave 1, core (parallel):
       so editor and card cannot differ. Test: a render per level; a `getComputedStyle` pair per rule (far hides an off
       lamp's icon and keeps an on lamp's dot; mid hides device labels; near hides nothing); an iteration over
       `DEVICE_TYPES` so a new type has to say what it does at far.
-- [ ] S25.3 Room badges with rollups. `roomRollup(room, states)` in core: counts of lights on, alerts, open doors and
+- [x] S25.3 Room badges with rollups. `roomRollup(room, states)` in core: counts of lights on, alerts, open doors and
       windows, motion; a badge per room drawn by `renderFloor` at far and mid, hidden at near. Test: counts for a room
       with mixed states; the badge text; an empty room has no badge; the escape payload `"><script>` in a name.
 - [x] S25.4 Labels placed in CSS px. A label keeps its on-screen size and offset at any zoom; placement is computed
