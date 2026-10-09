@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Lock in every panel (S26.16)
+
+- The device, furniture and unlinked panels get a Lock box in Appearance (`lockBox`): ticked writes `locked: true`, unticked deletes the key, one undo step each. A wall, door and opening keep `lockField`, now worded "Lock (keeps its length)". No panel says Fix or "length locked".
+- Known edge, not changed here: `EditorState.plan()` counts a furniture piece's `locked` as geometry, so under Lock plan the furniture box (and the context-menu Lock) is refused. A device's and an unlinked appliance's `locked` are outside the compare. Left for Diego to call; it is one key in `plan()`.
+
 ## 2026-10-09: the Inspector on a multi-selection (S26.15)
 
 - `devsPanel` counts by type (most first), then Controlled by when a light is in the selection, Create group as before, Lock, Delete n. Each action is a single `commit` over `bulk.ts`, so one undo step; the note is `Bound 20 lights; 2 others left alone` (`Cleared` for none). "Others" are the non-lights, plus a light that is the pick itself.

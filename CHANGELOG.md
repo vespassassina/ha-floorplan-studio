@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: a Lock box on a device, a piece of furniture and an unlinked appliance. On a wall, door and opening it now reads "Lock (keeps its length)".
 - Studio (internal): pure bulk edits for devices (bind lights, remove, move, lock), ready for multi-select. No visible change yet.
 
 - Layout: a device may carry `locked: true`, so it will not be moved by a drag. The file check refuses a value that is not true or false.

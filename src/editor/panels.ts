@@ -522,7 +522,13 @@ function extraPanel(c: PanelCtx, i: number) {
  */
 function lockField(c: PanelCtx, id: string, list: "walls" | "doors" | "openings", i: number) {
   const locked = !!c.st.f[list][i].locked;
-  return html`<label><input type="checkbox" id=${id} .checked=${live(locked)} @change=${(e: Event) => c.commit((f) => { f[list][i].locked = (e.target as HTMLInputElement).checked; })}> length locked</label>`;
+  return html`<label><input type="checkbox" id=${id} .checked=${live(locked)} @change=${(e: Event) => c.commit((f) => { f[list][i].locked = (e.target as HTMLInputElement).checked; })}> Lock (keeps its length)</label>`;
+}
+
+/** S26.16: the Lock box of a device, a piece of furniture or an unlinked appliance. Ticked writes `locked: true`; unticked removes the key. */
+function lockBox(c: PanelCtx, id: string, list: "devices" | "furniture" | "unlinked", i: number) {
+  const locked = c.st.f[list][i].locked === true;
+  return html`<label><input type="checkbox" id=${id} .checked=${live(locked)} @change=${(e: Event) => c.commit((f) => { if ((e.target as HTMLInputElement).checked) f[list][i].locked = true; else delete f[list][i].locked; })}> Lock</label>`;
 }
 
 /** "angle (deg)": turns wall, door or opening `i` about its midpoint to the typed angle. Same angle, or rubbish: nothing. */
@@ -928,6 +934,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${attachToRoomField(c, i)}
     ${areaDiffField(c, i)}
     ${heading("Appearance")}
+    ${lockBox(c, "vlock", "devices", i)}
     ${heightField(c, "mount height (cm)", "vz", d.z, DEVICE_Z[d.type] ?? 100, heightSetter(c, "devices", i, "z"))}
     ${drawsEffect(d) ? fxField(c, d.fx, heightSetter(c, "devices", i, "fx")) : nothing}
     ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}
@@ -1190,6 +1197,7 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${heading("Home Assistant")}
     ${entityField(c, "fuent", "shows the state of", m.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "entity", v); }))}
     ${heading("Appearance")}
+    ${lockBox(c, "fulock", "furniture", i)}
     ${number(c, "width (cm)", "fw", m.w, setSize("w"))}
     ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
     ${heightField(c, "height (cm)", "fuht", m.height, FURNITURE_HEIGHTS[m.symbol] ?? 100, heightSetter(c, "furniture", i, "height"))}
@@ -1219,6 +1227,7 @@ function unlinkedPanel(c: PanelCtx, i: number) {
     ${heading("Home Assistant")}
     ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(u.type), setAttached, { apply: mutateAttached, targetLabel: u.name ?? label })}
     ${heading("Appearance")}
+    ${lockBox(c, "uulock", "unlinked", i)}
     <label for="uucol">colour</label>
     <input id="uucol" type="color" .value=${live(u.color ?? "#8b8578")} @change=${(e: Event) => c.commit((f) => { f.unlinked[i].color = val(e); })}>
     ${button("uuclr", "Use default colour", () => c.commit((f) => { delete f.unlinked[i].color; }))}

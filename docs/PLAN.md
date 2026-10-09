@@ -2966,7 +2966,7 @@ Lane B, the Inspector (`inspector.ts`, `panels.ts`):
       `bindLights`, one undo step, says "Bound 20 lights; 2 others left alone"), Lock (ticked, unticked or mixed:
       `lockDevices`), Delete n, and Create group as before. Test: 20 lights and 2 sensors selected, pick a switch
       with real clicks: 20 `bound`, one undo step, the note names 2; the mixed Lock box; Delete n.
-- [ ] S26.16 (U3) Lock in every panel. The device panel gets a Lock box; "length locked" reads "Lock (keeps its
+- [x] S26.16 (U3) Lock in every panel. The device panel gets a Lock box; "length locked" reads "Lock (keeps its
       length)" on a wall, door and opening; furniture and unlinked panels say Lock. Test: tick Lock on a device, the
       layout has `locked: true`, one undo step; no panel text says Fix or "length locked".
 
