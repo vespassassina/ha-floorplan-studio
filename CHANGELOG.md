@@ -3,6 +3,10 @@
 ## Unreleased
 
 - Studio: a Lock box on a device, a piece of furniture and an unlinked appliance. On a wall, door and opening it now reads "Lock (keeps its length)".
+- Studio: menus tidy up. Opening a submenu closes its siblings; a menu box takes the room below its button and scrolls past it. Add holds only buttons and submenus (Furniture and Unlinked device are submenus now; furniture reads "Patio, wood"). View has one Labels submenu, and the version moved to the Help panel.
+- Studio: Undo, Redo, Save and Fit to window show their key at the right edge, for the platform (⌘Z on a Mac, Ctrl+Z elsewhere).
+- Studio: "Fix plan" is "Lock plan". A neutral pill with a lock reads "Plan locked" or "Plan editable"; the warning colour shows only on hover.
+
 - Studio (internal): pure bulk edits for devices (bind lights, remove, move, lock), ready for multi-select. No visible change yet.
 
 - Layout: a device may carry `locked: true`, so it will not be moved by a drag. The file check refuses a value that is not true or false.

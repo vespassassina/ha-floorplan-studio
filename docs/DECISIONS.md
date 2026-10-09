@@ -39,6 +39,12 @@ Newest first. A change supersedes; nothing is edited.
 - Place needs a room: its tab is off until the selection is a room with something to place, or a Place mode already holds one. Leaving for Selection keeps the ticks; the Escape key and the X return to Selection. Switching floor closes Place, as before.
 - Add stays a mode after a pick (S8.5: place many in a row); the Selection tab shows what was placed. The Left column tablist label is now named in `studio-layers.spec.ts`, since the aside has a tablist too.
 - State stays in the host, which `hass` updates do not reset (panel test). Dropped with the popups: the drag by the head, and the 780/660 px widths (S8.8); two tests changed with them, on purpose.
+## 2026-10-09: menu clean-up, keys, Lock plan (S26.17-19)
+
+- Menus: a box gets `max-height` from the room under its button (minus its padding and border, since max-height is the content box) and scrolls. Sibling subs close through one `onSubToggle`. Add has no `select`: Furniture and Unlinked device are submenus of buttons (`#addFurn-<symbol>`, `#addUnlDev-<type>`); furniture names come from `FURNITURE_LABELS`. The Group light picker (`#motLightGrp`) is a sub too.
+- View keeps one Labels submenu (`#names`, `#labels`). The installed version is in the Help panel (`#version`), so `panels.ts` took two lines; `editor-app.ts` was not touched.
+- Keys: `MENU_KEYS` and `chordLabel` in `guide.ts`; `Mod` is ⌘ on a Mac, Ctrl elsewhere. Only Undo, Redo, Save and Fit to window carry one. Left out: Search, Select all, Delete, Help "?" (not menu items yet, or their keys land in other lanes), and the context menu (lane D owns `ctxItems`). Space is shown on Fit to window; it also turns the view upright.
+- Lock plan: the lock is a CSS mask (a data-URI SVG on a span), not an inline `<svg>`: an inline one came first in the shadow root and 105 tests, helpers included, take `querySelector("svg")` to be the plan. A test pins the plan as the first svg. Label and tooltip change with the state; the id `#fixPlan` stays so other tests still find it. Accessible name is the constant "Lock plan", state is `checked`. On is ink on paper, hover is the warning colour. The command list and the banner still say Fix plan (S26.24).
 
 ## 2026-10-09: the editor host is split (S26.9)
 

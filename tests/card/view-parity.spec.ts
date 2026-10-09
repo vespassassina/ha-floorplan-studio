@@ -12,10 +12,11 @@ type Decision = { card: "yes"; has: string } | { card: "deliberate"; why: string
 const EDITING_AID = "an editing aid: it helps place and measure things, and a dashboard viewer places nothing";
 /** Editor control id -> what the card does. `has` is a selector in the card's shadow root. */
 const PARITY: Record<string, Decision> = {
-  version: { card: "deliberate", why: "the card names its version in the browser console instead of in its chrome" },
   snap: { card: "deliberate", why: EDITING_AID },
   mgrid: { card: "deliberate", why: EDITING_AID },
   lens: { card: "deliberate", why: EDITING_AID },
+  // S26.17: the Labels submenu holds Device names and Names and values; the version moved to the Help panel.
+  labelsSub: { card: "yes", has: 'button[aria-label="Labels"]' },
   names: { card: "yes", has: 'button[aria-label="Device names"]' },
   labels: { card: "yes", has: 'button[aria-label="Labels"]' },
   night: { card: "deliberate", why: "a preview of what the card already does: it goes dark after sunset by itself (`night`, `sun`)" },

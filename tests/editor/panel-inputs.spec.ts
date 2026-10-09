@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { pickFurniture } from "./menu-helpers";
 
 // Diego, 2026-10-07: the Appearance boxes of a furniture piece threw away what he typed, and the height box had no
 // up/down buttons. The editor re-renders on a 1 s timer while a motion sensor fades and on every Home Assistant
@@ -10,7 +11,7 @@ const rerender = (page: Page) => page.evaluate(async (tag) => { const e = docume
 
 async function addBed(page: Page) {
   await page.locator(`details.menu > summary:text-is("Add")`).click();
-  await page.locator("#addFurn").selectOption("bed");
+  await pickFurniture(page, "bed");
   await expect(page.locator("#fw")).toBeVisible();
 }
 
@@ -82,7 +83,7 @@ test("the height buttons stop at 0 and at the maximum", async ({ page }) => {
 
 test("a furniture TV hangs at 100 cm by default; bottom is editable; H x W x L is shown; the speaker is a piece too", async ({ page }) => {
   await page.locator(`details.menu > summary:text-is("Add")`).click();
-  await page.locator("#addFurn").selectOption("tv");
+  await pickFurniture(page, "tv");
   const z = page.locator("#fuz");
   await expect(z).toHaveAttribute("placeholder", "100");
   await expect(page.locator("#fusize")).toHaveText("H 60 × W 120 × L 10 cm");
