@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { OBLIQUE, renderFloor } from "../../src/core/render";
-import { OPENING_FILL } from "../../src/core/solids";
+import { OPENING_FILL, SHUT_KINDS } from "../../src/core/solids";
 import { DOOR_KINDS, type Floor } from "../../src/core/schema";
 
 const R = OBLIQUE.rise, K = OBLIQUE.skew;
@@ -41,8 +41,10 @@ describe("2.5D openings", () => {
     expect(glass(deep(withDoor({ kind: "window", sill: 40, height: 60 })))).toEqual([`glass g-window|${box(100, 200, 40, 100)}`]);
   });
 
-  it("a glass door is glass from the floor", () => {
-    expect(glass(deep(withDoor({ kind: "glass" })))).toEqual([`glass g-glass|${box(100, 200, 0, 210)}`]);
+  it("a glass door is glass from the floor while its sensor says closed, and a hole otherwise (S25.D1)", () => {
+    const sensed = renderFloor(floor({ doors: [{ id: "d", name: "D", kind: "glass", a: [100, 0], b: [200, 0], sensors: ["binary_sensor.d"] }] as never }), { scale: 1, view: "2.5d", state: { "binary_sensor.d": { state: "off", attributes: {}, last_changed: "" } } });
+    expect(glass(sensed)).toEqual([`glass g-glass|${box(100, 200, 0, 210)}`]);
+    expect(glass(deep(withDoor({ kind: "glass" })))).toEqual([]);
   });
 
   it("a sealed door is a solid panel, not a gap", () => {
@@ -84,7 +86,7 @@ describe("2.5D openings", () => {
     for (const kind of DOOR_KINDS) {
       const html = deep(withDoor({ kind, sill: 0, height: 100 }));
       const fill = OPENING_FILL[kind];
-      expect(glass(html).length, kind).toBe(fill === "glass" ? 1 : 0);
+      expect(glass(html).length, kind).toBe(fill === "glass" && !SHUT_KINDS.includes(kind) ? 1 : 0);
       expect(html.includes('class="ws sealed"'), kind).toBe(fill === "panel");
     }
   });

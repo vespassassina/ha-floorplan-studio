@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card and studio: doors and glass doors lose the leaf line. An open door is a hole in the wall; a closed one, a thin line across the gap. A door is closed only when it has a contact sensor and the sensor says off, so a door with no sensor is a hole. The red open alert is unchanged. In 2.5D and 3D the leaf and the glass follow the same rule.
+
 ## 0.22.1 - 2026-10-09
 
 - Card and studio: doors lose their swing arc. A door is the gap in the wall and its thin leaf into the room.

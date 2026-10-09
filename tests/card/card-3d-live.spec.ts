@@ -177,7 +177,7 @@ test.describe("3D view: doors and windows", () => {
     expect((await live(page)).builds).toBe(builds);
   });
 
-  test("a window or glass door keeps its pane while closed and has none when open", async ({ page }) => {
+  test("a glass door has its pane while its sensor says closed and none when open, unavailable or without a state (S25.D1)", async ({ page }) => {
     await boot(page);
     const pane = async () => (await live(page)).doors.find((d) => d.index === 1 && d.tag === "glass")!;
     expect(await pane()).toMatchObject({ visible: true });
@@ -185,6 +185,33 @@ test.describe("3D view: doors and windows", () => {
     expect((await pane()).visible).toBe(false);
     await setStates(page, QUIET());
     expect((await pane()).visible).toBe(true);
+    await setStates(page, { ...QUIET(), "binary_sensor.demo_patio_door": st("unavailable") });
+    expect((await pane()).visible).toBe(false);
+    await setStates(page, QUIET()); // closed again, so the next is a change the view has to draw
+    const without: Record<string, unknown> = QUIET();
+    delete without["binary_sensor.demo_patio_door"];
+    await setStates(page, without);
+    expect((await pane()).visible).toBe(false);
+  });
+
+  test("a plain door is a hole (no leaf) when its sensor is unavailable, unknown or has no state, and in the garage with no sensor (S25.D1)", async ({ page }) => {
+    await boot(page);
+    const door = async (i: number) => (await live(page)).doors.find((d) => d.index === i && d.tag === "door-leaf")!;
+    expect(await door(0)).toMatchObject({ visible: true });
+    for (const v of ["unavailable", "unknown"]) {
+      await setStates(page, { ...QUIET(), "binary_sensor.demo_front_door": st(v) });
+      expect((await door(0)).visible, v).toBe(false);
+      await setStates(page, QUIET()); // closed again between the two, so each is a change the view has to draw
+      expect((await door(0)).visible).toBe(true);
+    }
+    const without: Record<string, unknown> = QUIET();
+    delete without["binary_sensor.demo_front_door"];
+    await setStates(page, without);
+    expect((await door(0)).visible, "no state").toBe(false);
+    expect((await door(2)).visible, "garage: no sensor").toBe(false);
+    await setStates(page, QUIET());
+    expect((await door(0)).visible).toBe(true);
+    expect((await door(2)).visible).toBe(false);
   });
 
   test("an alarmed door (vibration) stays shut and turns red; a garage cover that is open opens its leaf", async ({ page }) => {
@@ -198,6 +225,7 @@ test.describe("3D view: doors and windows", () => {
     expect((await door(0)).colour).not.toBe(shut);
     await setStates(page, { ...QUIET(), "cover.demo_garage_door": st("open", {}, iso(5)) });
     expect(Math.abs((await door(2)).rot)).toBeGreaterThan(1.1);
+    expect((await door(2)).visible).toBe(true); // an open cover is an alert: the leaf stands there, swung, in the cover colour
   });
 });
 

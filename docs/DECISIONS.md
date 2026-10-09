@@ -2,6 +2,31 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: doors are holes, closed doors a thin line (S25.D1)
+
+Supersedes the leaf in "no door swing arcs (S23.F6)" and the leaf and "closed door's line is quiet" in "plan symbols (S23.7)".
+Diego: "for doors do not show the open close line at all, it is ugly and pollutes the diagram. open doors are just holes and
+closed doors are closed. doors with no sensor are left open (so just a hole)."
+- `doorSymbol` returns "" for `door` and `glass`; the leaf code and the room-side probe are gone. A `door-sym` path exists
+  only for a window or slit.
+- Closed = `doorStateOf(...).closed`: the door has a `sensors` list, every sensor reads `off`, no attached lock is unlocked.
+  `on`, `unavailable`, `unknown`, `""`, a missing entry, no sensor: open, a hole. With several sensors one that is not
+  `off` makes the door a hole (a dead sensor never reads as closed); one that is `on` is the red alert.
+- The thin line is the door's existing `.door` line (wall width, `--fp-door`; `.door-glass` gives `--fp-glass`). It was `quiet`
+  (transparent) when closed; now `quiet` is the hole, and it shows when closed. No new CSS rule, so the computed-style pair
+  moved (`plan-symbols-css.spec.ts`).
+- The red alert for a sensor that reports OPEN (the dashed `.door.open` line, `door-alert` band, pulse) is unchanged: Diego
+  did not ask to remove it. Vibration and an open cover on a plain door keep theirs.
+- `sealed` and the `open` doorway keep their behaviour. Windows and slits are unchanged.
+- 2.5D (`wallSolids`): a door's leaf and a glass door's glass are drawn only when closed or alerting (`SHUT_KINDS`). 3D
+  (`view3d.applyDoors`): the leaf and the glass-door pane are visible only when closed; an alerting door (open, vibrating,
+  cover open) keeps its leaf, swung and red, as the alert. The static scene still builds the leaf and glass solids (it has
+  no state); only the viewer hides them. Known small leftover: `Picker` BLOCKS still counts a door-leaf solid as hiding a
+  label behind it, though a hole no longer has one on screen.
+- Editor: no live state, so a door is a hole there; selected, it shows its selection line.
+- Tests changed on purpose: `plan-symbols.test.ts`, `door-state.test.ts`, `open-door.test.ts`, `solids-openings.test.ts`,
+  `card-3d-live.spec.ts`, `plan-symbols-css.spec.ts`; the render snapshot lost only the three leaf paths.
+
 ## 2026-10-08: no door swing arcs (S23.F6)
 
 Supersedes the arc in "plan symbols (S23.7)" below. Diego: "the door arcs are horrendous, remove them all". A door or glass

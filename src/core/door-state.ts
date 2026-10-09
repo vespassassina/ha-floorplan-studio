@@ -13,6 +13,8 @@ export interface DoorState {
   alarm: boolean;
   /** The door's own cover (a garage opener, a shutter) is open: drawn in the cover's colour. Never on a window or glass door: there `cover` is curtains. */
   cover: boolean;
+  /** S25.D1: the door has a sensor, every sensor says `off`, and no lock is unlocked. Only then is a door or glass door drawn shut; any other state, or none, is a hole in the wall. */
+  closed: boolean;
 }
 
 /**
@@ -24,7 +26,9 @@ export function doorStateOf(d: Door, state: StateOverlay | undefined): DoorState
   const on = (list: unknown, want: string) => Array.isArray(list) && list.some((e) => typeof e === "string" && state?.[e]?.state === want);
   const curtain = d.kind === "window" || d.kind === "glass" || d.kind === "slit";
   const contact = on(d.sensors, "on"), unlocked = on(d.locks, "unlocked");
+  const shut = Array.isArray(d.sensors) && d.sensors.length > 0 && d.sensors.every((e) => typeof e === "string" && state?.[e]?.state === "off");
   return {
+    closed: shut && !unlocked,
     open: contact || unlocked, // the plan draws both red; only the words tell them apart
     contact,
     unlocked,

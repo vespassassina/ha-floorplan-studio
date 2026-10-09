@@ -5,10 +5,9 @@ import { FLOORPLAN_CSS, THEMES } from "../../src/core/render";
 // The markup copies what renderFloor writes (tests/core/plan-symbols.test.ts pins that side).
 
 const CASES = [...THEMES.map((t) => ({ t, mode: "light" })), { t: "ha", mode: "dark" }] as const;
-const body = `<path class="door-sym k-door" d="M0 0L0 10"/><path class="door-sym k-glass" d="M0 0L0 10"/>
-<path class="door-sym k-window" d="M0 0L0 10"/><path class="door-sym k-slit" d="M0 0L0 10"/>
-<path class="door-sym k-door open" d="M0 0L0 10"/><path class="door-sym k-window alarm" d="M0 0L0 10"/><path class="door-sym k-door cover-open" d="M0 0L0 10"/>
-<line class="door door-door quiet" x1="0" y1="0" x2="10" y2="0"/><line class="door door-door open" x1="0" y1="0" x2="10" y2="0"/>
+const body = `<path class="door-sym k-window" d="M0 0L0 10"/><path class="door-sym k-slit" d="M0 0L0 10"/>
+<path class="door-sym k-window open" d="M0 0L0 10"/><path class="door-sym k-window alarm" d="M0 0L0 10"/><path class="door-sym k-slit cover-open" d="M0 0L0 10"/>
+<line class="door door-door quiet" x1="0" y1="0" x2="10" y2="0"/><line class="door door-door" id="shut" x1="0" y1="0" x2="10" y2="0"/><line class="door door-glass" id="shutg" x1="0" y1="0" x2="10" y2="0"/><line class="door door-glass quiet" id="holeg" x1="0" y1="0" x2="10" y2="0"/><line class="door door-door open" x1="0" y1="0" x2="10" y2="0"/>
 <line class="door door-window door-slit quiet" x1="0" y1="0" x2="10" y2="0"/><line class="door door-door sel" x1="0" y1="0" x2="10" y2="0"/>
 <line class="e nw zn" x1="0" y1="0" x2="10" y2="0"/><line class="eh nw zn" x1="0" y1="0" x2="10" y2="0"/>
 <line class="e nw" id="rb" x1="0" y1="0" x2="10" y2="0"/><line class="eh nw" id="rbh" x1="0" y1="0" x2="10" y2="0"/>
@@ -16,14 +15,15 @@ const body = `<path class="door-sym k-door" d="M0 0L0 10"/><path class="door-sym
 <rect class="p-red" style="fill:var(--fp-open-door)"/><rect class="p-wall" style="fill:var(--fp-wall)"/>`;
 const html = `<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg>${CASES.map((c, i) => `<g id="c${i}" data-theme="${c.t}" data-mode="${c.mode}">${body}</g>`).join("")}</svg></body></html>`;
 
-test("S23.7 CSS pair: door, glass and window symbols take their tokens, glass is the window blue, red only with a state", async ({ page }) => {
+test("S23.7 + S25.D1 CSS pair: window symbols and the closed door and glass door lines take their tokens, glass is the window blue, red only with a state", async ({ page }) => {
   await page.setContent(html);
   const r = await page.evaluate((n) => Array.from({ length: n }, (_, i) => {
     const g = document.getElementById(`c${i}`)!, cs = (sel: string) => getComputedStyle(g.querySelector(sel)!);
     const sym = (sel: string) => { const c = cs(sel); return { stroke: c.stroke, w: c.strokeWidth, ve: c.vectorEffect, pe: c.pointerEvents, fill: c.fill }; };
     return {
-      door: sym(".door-sym.k-door:not(.open):not(.cover-open)"), glass: sym(".k-glass"), window: sym(".k-window:not(.alarm)"), slit: sym(".k-slit"),
-      open: sym(".k-door.open"), alarm: sym(".k-window.alarm"), cover: sym(".k-door.cover-open"),
+      window: sym(".k-window:not(.alarm):not(.open)"), slit: sym(".k-slit:not(.cover-open)"),
+      open: sym(".k-window.open"), alarm: sym(".k-window.alarm"), cover: sym(".k-slit.cover-open"),
+      shut: cs("#shut").stroke, shutG: cs("#shutg").stroke, shutW: cs("#shut").strokeDasharray, holeG: cs("#holeg").stroke,
       quiet: cs("line.door.quiet").stroke, quietSlit: cs("line.door-slit.quiet").stroke, openLine: cs("line.door.open").stroke, selLine: cs("line.door.sel").stroke,
       pDoor: cs(".p-door").fill, pWindow: cs(".p-window").fill, pGlass: cs(".p-glass").fill, pRed: cs(".p-red").fill,
     };
@@ -31,11 +31,15 @@ test("S23.7 CSS pair: door, glass and window symbols take their tokens, glass is
   CASES.forEach((c, i) => {
     const v = r[i], tag = `${c.t}/${c.mode}`;
     expect(v.pGlass, `${tag}: --fp-glass is the window blue`).toBe(v.pWindow);
-    expect(v.door.stroke, tag).toBe(v.pDoor);
-    expect(v.glass.stroke, tag).toBe(v.pWindow);
+    // S25.D1: a door has no symbol; its closed line is the thin line across the gap, in --fp-door; a glass door's in --fp-glass.
+    expect(v.shut, `${tag}: a closed door's line is --fp-door`).toBe(v.pDoor);
+    expect(v.shut, `${tag}: and it paints`).not.toBe("rgba(0, 0, 0, 0)");
+    expect(v.shutW, `${tag}: solid, not dashed like sealed`).toBe("none");
+    expect(v.shutG, `${tag}: a closed glass door's line is --fp-glass`).toBe(v.pGlass);
+    expect(v.holeG, `${tag}: a glass door with no sensor paints nothing`).toBe("rgba(0, 0, 0, 0)");
     expect(v.window.stroke, tag).toBe(v.pWindow);
     expect(v.slit.stroke, tag).toBe(v.pWindow);
-    for (const s of [v.door, v.glass, v.window, v.slit]) {
+    for (const s of [v.window, v.slit]) {
       expect(s.w, `${tag}: a hairline`).toBe("1px");
       expect(s.ve, tag).toBe("non-scaling-stroke");
       expect(s.pe, `${tag}: the symbol takes no clicks`).toBe("none");

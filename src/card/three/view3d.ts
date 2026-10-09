@@ -152,7 +152,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   let liveNow: Live3D | null = null, liveSig = "", builds = 0, pulsing = false, pulseStart = 0, liftKey = "";
   let lifts = new Map<number, Rgb>(), roomShapes: RoomShape[] = [];
   const roomSolid = new Map<number, { base: Poly; z: number }>();
-  let parts: { index: number; tag: string; mesh: Mesh; mat: MeshLambertMaterial; rest: Color }[] = [];
+  let parts: { index: number; tag: string; mesh: Mesh; mat: MeshLambertMaterial; rest: Color; shut?: boolean }[] = [];
   /** A linked tv, speaker or computer piece: a mesh of its own (so its colour can follow the state), at rest in the linked colour, on in the plan's on colour. */
   let pieceBodies: { index: number; mesh: Mesh; mat: MeshLambertMaterial; rest: Color; on: boolean }[] = [];
   let devBodies: { index: number; type: string; mesh: Mesh; mat: MeshLambertMaterial; rest: Color; lit: Mesh[]; on: boolean }[] = [];
@@ -529,7 +529,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       mesh.renderOrder = glass ? 1 : 0;
       mesh.frustumCulled = false;
       scene.add(mesh);
-      parts.push({ index: s.ref.index, tag: s.tag, mesh, mat, rest: p.colour });
+      parts.push({ index: s.ref.index, tag: s.tag, mesh, mat, rest: p.colour, shut: s.paint.role === "glass-glass" });
     }
     applyDoors();
   }
@@ -585,9 +585,10 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   function applyDoors() {
     const L = liveNow ?? EMPTY, open = paintOf("open-door", undefined).colour, cover = paintOf("door-cover", undefined).colour;
     for (const x of parts) {
-      const d = L.doors[x.index] ?? null, swing = !!d && (d.open || d.cover);
+      const d = L.doors[x.index] ?? null, swing = !!d && (d.open || d.cover), alert = !!d && (d.open || d.alarm || d.cover);
       if (x.tag === "door-leaf") x.mesh.rotation.y = swing ? -SWING : 0;
-      x.mesh.visible = x.tag === "door-leaf" || (x.tag === "band" ? !!d && (d.open || d.alarm || d.cover) : !(d && d.open));
+      // S25.D1: a door and a glass door (not a window) are there only while a sensor says closed; an alert (open, alarmed, cover open) keeps a door's leaf, in red.
+      x.mesh.visible = x.tag === "door-leaf" ? !!d && (d.closed || alert) : x.tag === "band" ? alert : x.shut ? !!d && d.closed : !(d && d.open);
       x.mat.color.copy(d && (d.alarm || d.open) ? open : d && d.cover && x.tag === "door-leaf" ? cover : x.rest);
     }
   }

@@ -323,14 +323,20 @@ fainter, when it is on. `room_glow` (below) keeps the fill-mix mechanism: it
 is a distinct signal, light spilling into a room, and a warm tint is the
 honest metaphor there.
 
-Plan symbols (S23.7). A door or glass door is a gap cut in the wall with a 1 px leaf, square to the wall and as long as the
-opening, and no swing arc (S23.F6); the leaf stands into the indoor room, else any room, else the smaller one. A window is three
-hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a window or slit
-also fills its whole cut with an opaque pane, a glass tint of the room colour, closed at each end by a hairline jamb, so
-the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors,
-windows and slits cut the wall; a sealed door does not and draws no symbol. Doors wear `--fp-door`, windows and slits
-`--fp-window`, glass doors `--fp-glass`, which is the window blue in every theme. A closed door's own line paints nothing;
-open, alarm and an open cover draw it and the symbol red. The symbols take no clicks; the hit line under them does. 2.5D draws the same symbols on the floor.
+Plan symbols (S23.7, S25.D1). A door or glass door has no symbol: no swing arc (S23.F6) and, since S25.D1 (Diego,
+2026-10-09), no leaf either. It is a gap cut in the wall. Open it is just a hole and nothing is drawn; closed it is the gap
+closed by one thin line across it, as thin as the wall, in `--fp-door` (a glass door in `--fp-glass`). A door is closed only
+when it has a sensor and every sensor says `off` (and no attached lock is unlocked); no sensor, `unavailable`, `unknown` or
+a missing state all read as open, a hole. A sensor that reports open still draws the red alert band and pulse, as before. A
+window is three hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a
+window or slit also fills its whole cut with an opaque pane, a glass tint of the room colour, closed at each end by a
+hairline jamb, so the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors, windows
+and slits cut the wall; a sealed door does not and draws no symbol. Windows and slits wear `--fp-window`, glass doors
+`--fp-glass`, which is the window blue in every theme. A window's own line paints nothing; open, alarm and an open cover
+draw it and the symbol red. The editor has no live state, so there a door is a hole, and a selected door shows its selection
+line. In 2.5D a door's leaf and a glass door's glass fill the gap on the same rule, and in 3D the leaf and the glass pane
+are there only while the door is closed (an alerting door keeps its red, swung leaf). The symbols take no clicks; the hit
+line under them does. 2.5D draws the same symbols on the floor.
 
 S14.2 (interaction model): a tap on a device, a door, an unlinked appliance or an Active row never operates it. Wherever
 the "Click" column below says "toggle", "more-info" or "chooser" for a tap, read: the tap opens a popup (name, state, one

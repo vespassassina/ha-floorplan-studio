@@ -120,7 +120,8 @@ side along one line) always has one height in `cut`.
 
 In 2.5D a wall face is lit by which way it looks on screen (lit, plain, dim),
 with a darker foot and a thin lit top edge; the cap on top is thinner than the
-flat wall. A door is a painted leaf (`--fp-door`) when closed. An open door or
+flat wall. A door and a glass door are a painted leaf (`--fp-door`) or glass only when their
+sensor says closed; with no sensor, or any other state, they are a hole. An open door or
 window, a lock left unlocked or a vibrating door is red (`--fp-open-door`) on
 the face and the frame, as its line is in 2D; closed, unavailable or without a
 sensor it is not. A cover left open on a plain door stays orange. A room whose
@@ -798,7 +799,7 @@ with its own colour keeps it. There are no textures and no shadows.
   nothing cost no frame at all. A fade asks for at most one frame a second.
 - **Live state in 3D (S12.5).** The same rules as 2D, from the same helpers.
   - *Lights.* A lit light device lights the room it hangs in (the 2D rule): its floor, furniture and walls take a lift toward the lamp's colour, and a soft pool sits under the lamp. The neighbouring room does not change. **At most 8 lamps get a pool**, the 8 nearest the middle of the house; every lit room is lifted whatever the count. The card says so in the view's `data-pools="shown/lit"`. Night (the sun rule) darkens the scene and leaves lit rooms bright.
-  - *Doors and windows.* A closed plain door shows its leaf; an open one (or an open cover door) swings about 70 degrees about its hinge. A window's pane is there while it is closed and gone when it is open. Sealed doors do not change. An alarmed door (vibration) stays shut and turns red.
+  - *Doors and windows.* A plain door shows its leaf only while its sensor says closed (no sensor, unavailable or unknown: a hole); an open one (or an open cover door) swings about 70 degrees about its hinge, in red. A window's pane is there while it is closed and gone when it is open; a glass door's pane follows the door rule. Sealed doors do not change. An alarmed door (vibration) stays shut and turns red.
   - *Devices.* The small balls take their colour from the `--fp-dev-*` tokens and the state, as the 2D icons do. Person, radar, vibration and the plug-power rule are the 2D helpers. A speaker that is playing has lit drivers; a TV that is on has a lit screen; a heating radiator is tinted with `--fp-heater`. A device with a body, and a sensor that belongs to a room, shows no ball.
   - *Room motion.* A room with a `motion` list gets a red edge on its floor outline: three pulses when a sensor trips, then steady, then it fades by `last_changed` and the `fade` setting, as in 2D. With reduced motion the edge is steady. The view draws frames only while a pulse plays.
   - *Labels and icons.* An HTML layer over the model shows each room's name and its sensors' mean reading, and a real icon for every visible device. The Labels and Names buttons work in 3D. A label or icon behind a wall, or behind the camera, is hidden. The layer ignores the pointer, so a drag that starts on an icon still turns the model; a tap on an icon toggles or opens more-info as in 2D.
